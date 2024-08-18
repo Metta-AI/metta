@@ -25,7 +25,7 @@ def test_performance(env, actions, duration):
 
 actions = {}
 env = {}
-@hydra.main(version_base=None, config_path="../../configs", config_name="config")
+@hydra.main(version_base=None, config_path="configs", config_name="a20_40x40")
 def main(cfg):
     # Run with c profile
     from cProfile import run

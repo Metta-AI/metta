@@ -1,9 +1,6 @@
 from sympy import li
-import build
 from setuptools import Extension, setup, find_packages, Command
 import subprocess
-from setuptools.command.install import install
-from setuptools.command.develop import develop
 from Cython.Build import cythonize
 import numpy
 import os
@@ -50,7 +47,7 @@ setup(
         "matplotlib",
         # "numpy==2.0.0",
         "pettingzoo",
-	"pufferlib",
+	    "pufferlib",
         "puffergrid",
         "pynvml",
         "pytest",

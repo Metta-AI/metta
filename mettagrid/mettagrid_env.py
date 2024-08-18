@@ -1,11 +1,12 @@
 from typing import Any, Dict
 
+import pufferlib
 import numpy as np
 from omegaconf import OmegaConf
-from griddly.mettagrid.game_builder import MettaGridGameBuilder
+
+from mettagrid.config.game_builder import MettaGridGameBuilder
 from mettagrid.renderer.raylib_client import MettaRaylibClient
-import pufferlib
-from util.sample_config import sample_config
+from mettagrid.config.sample_config import sample_config
 from mettagrid.mettagrid_c import MettaGrid
 from pufferlib.environments.ocean.render import GridRender
 

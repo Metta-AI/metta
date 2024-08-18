@@ -3,7 +3,6 @@ from libc.stdio cimport printf
 
 import numpy as np
 import gymnasium as gym
-
 from omegaconf import OmegaConf
 
 from puffergrid.grid_env cimport GridEnv
