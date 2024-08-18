@@ -1,0 +1,69 @@
+
+_target_: rl_framework.pufferlib.pufferlib.PufferLibFramework
+
+train_dir: ${data_dir}/pufferlib
+
+pufferlib:
+  device: ???
+  vectorization: ??? # serial, multiprocessing
+  baseline: False
+  backend: clean_pufferl
+  train_dir: ${data_dir}/pufferlib
+  render_mode: "rgb_array"
+
+  train:
+    num_envs_per_worker: ???
+    num_workers: ???
+
+    data_dir: ${framework.train_dir}
+    env: ${env.name}
+    exp_id: ${experiment}
+
+    seed: 1
+    torch_deterministic: True
+    cpu_offload: False
+    device: ${framework.pufferlib.device}
+    total_timesteps: 10_000_000
+    learning_rate: 2.5e-4
+    num_steps: 256
+    anneal_lr: False
+    gamma: 0.99
+    gae_lambda: 0.95
+    num_minibatches: 4
+    update_epochs: 1
+    norm_adv: True
+    clip_coef: 0.1
+    clip_vloss: True
+    ent_coef: 0.002
+    vf_coef: 0.976
+    max_grad_norm: 0.5
+    target_kl: null
+
+    env_batch_size: null
+    zero_copy: True
+    verbose: True
+    checkpoint_interval: 200
+    batch_size: 1024
+    minibatch_size: 512
+    bptt_horizon: 256
+    vf_clip_coef: 0.1
+    compile: False
+    compile_mode: reduce-overhead
+
+    forward_pass_minibatch_target_size: 4096
+    async_factor: 3
+
+    dashboard:
+      user_stats:
+        - episode_return
+        - episode_length
+        - avg_episode_return
+        - avg_episode_length
+        - avg_stats_agent_defeated
+        - avg_stats_action_attack
+        - avg_stats_altar_used
+        - avg_fruit_eaten
+        - avg_action_rotate
+        - avg_action_move
+        - avg_action_eat
+        - avg_fruit_spawned

@@ -1,0 +1,22 @@
+# @package env
+
+defaults:
+  - mettagrid/randomized
+
+game:
+  num_agents: 20
+  map:
+    layout:
+      rooms_x: 2
+      rooms_y: 2
+
+    room:
+      width: 20
+      height: 20
+      border: 1
+      objects:
+        agent: 5
+        altar: 1
+        converter: 3
+        generator: 10
+        wall: 40

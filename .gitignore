@@ -1,0 +1,15 @@
+*.pyc
+__pycache__
+/wandb
+train_dir
+replays
+*.egg-info
+/build/
+/build_debug/
+/third_party/puffergrid/build/
+.DS_Store
+.task
+outputs
+*.so
+cython_debug
+stats.profile

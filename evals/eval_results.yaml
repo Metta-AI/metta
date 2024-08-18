@@ -1,0 +1,13 @@
+runs:
+  - experiment: p2.shuffle.v3
+    model: shuffle.v0.0.1
+    global_step: 12 * 10**12
+    results:
+      - name:
+        metrics:
+          env_a5_25x25:
+            reward_mean: 0.311
+          env_a20_40x40:
+            reward_mean: 0.576
+          env_a100_100x100:
+            reward_mean: 0.443

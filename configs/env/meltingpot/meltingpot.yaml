@@ -1,0 +1,33 @@
+_target_: env.meltingpot.melting_pot_env.MeltingPotEnv
+
+substrate_name: allelopathic_harvest__open
+max_cycles: 1000
+
+name: "MeltingPot"
+
+global_features: [
+  "ready_to_shoot",
+  "collective_reward",
+  "interaction_inventories_00",
+  "interaction_inventories_01",
+  "interaction_inventories_02",
+  "interaction_inventories_10",
+  "interaction_inventories_11",
+  "interaction_inventories_12",
+
+  "inventory_0",
+  "inventory_1",
+  "inventory_2",
+]
+
+grid_features: [
+  "grid_ob_0",
+  "grid_ob_1",
+  "grid_ob_2",
+  "grid_ob_3",
+  "grid_ob_4",
+  "grid_ob_5",
+  "grid_ob_6",
+  "grid_ob_7",
+]
+

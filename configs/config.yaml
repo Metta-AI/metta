@@ -1,0 +1,16 @@
+cmd: ???
+experiment: ???
+data_dir: ./train_dir
+
+defaults:
+  - framework: sample_factory
+  - agent: agent
+  - env: mettagrid/a20_b4_40x40
+  - hardware: macbook
+  - wandb: wandb
+
+eval:
+  fps: 8
+  max_steps: 1000
+  video_path: ${framework.train_dir}/${experiment}/replay.mp4
+  gif_path: ${framework.train_dir}/${experiment}/replay.gif

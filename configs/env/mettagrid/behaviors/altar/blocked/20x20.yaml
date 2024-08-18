@@ -1,0 +1,45 @@
+# @package env
+
+defaults:
+  - mettagrid/mettagrid
+
+
+game:
+  objects:
+    agent:
+      initial_energy: 250
+    altar:
+      cooldown: 10
+      use_cost: 10
+
+  num_agents: 2
+  map:
+    layout:
+      rooms: [
+        ["agent_room", "altar_room"],
+        ["altar_room", "agent_room"]
+      ]
+
+    agent_room:
+      width: 10
+      height: 10
+      border: 1
+
+      objects:
+        agent: 1
+        generator: 0
+        converter: 0
+        altar: 0
+        wall: 0
+
+    altar_room:
+      width: 10
+      height: 10
+      border: 1
+
+      objects:
+        agent: 0
+        generator: 0
+        converter: 0
+        altar: 1
+        wall: 0

@@ -1,0 +1,136 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Train Metta",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "tools.run",
+            "preLaunchTask": "build_cython_extensions",
+            "args": [
+                "experiment=mac.sf.1",
+                "framework=pufferlib",
+                "agent=small",
+                "hardware=macbook",
+                "env=mettagrid/a20_b4_40x40",
+                // "env=mettagrid/a20_b4_40x40",
+                "cmd=train",
+                "env.game.max_steps=1000",
+                "env.kinship.team_size=5",
+                "env.kinship.team_reward=0.8",
+                // "env.substrate_name=running_with_scissors_in_the_matrix__arena",
+
+                // "sample_factory.aux_loss_coeff=0.1",
+
+                // "framework.wandb.track=True",
+
+                // "sample_factory.wandb_project=mp_rws"
+                // "+sample_factory.restart_behavior=restart",
+                // "sample_factory.num_workers=2",
+
+                // "+env.extra_variables=2",
+                // "--restart_behavior=restart",
+
+                // "--config=sandbox_agent",
+                // "--agent_embedding_layers=0",
+                // "--agent_fc_skip=True",
+                // "--serial=True",
+
+                // "--normalize_input=False",
+
+                // common setting
+                // "--async_rl=False",
+                // "--batch_size=1792",
+                // "--with_wandb=True",
+
+                // sandbox settings
+                // "--device=cpu",
+
+                // "--train_for_env_steps=1000"
+
+            ],
+        },
+        {
+            "name": "Play Metta",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "tools.run",
+            "preLaunchTask": "build_cython_extensions",
+            "args": [
+                "experiment=mac.sf.new",
+                "framework=pufferlib",
+                "agent=small",
+                "hardware=macbook",
+                "env=mettagrid/a20_b4_40x40",
+                // "env=mettagrid/a20_b4_40x40",
+                "cmd=play",
+                // "framework.pufferlib.render_mode=raylib",
+                "framework.pufferlib.render_mode=human",
+                "env.game.max_steps=10000",
+                "env.kinship.team_size=5",
+                "env.kinship.team_reward=0.8",
+            ],
+        },
+        {
+            "name": "Evaluate SF",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "tools.run",
+            "args": [
+                "framework=sample_factory",
+                "cmd=evaluate",
+                "experiment=mac.sf.1",
+                "env=mettagrid/behaviors/resources/competition/10x10_2a",
+            ],
+        },
+        {
+            "name": "Evaluate PL",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "tools.run",
+            "args": [
+                "framework=pufferlib",
+                "cmd=evaluate",
+                "experiment=mac.puffer.2",
+                "env=mettagrid/behaviors/resources/competition/10x10_2a",
+            ],
+        },
+        {
+            "name": "Dump Griddly Config",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "env.griddly.dump_griddly_config",
+            "args": [
+                "env=mettagrid/a5_25x25"
+                // "env=mettagrid/a5_25x25"
+            ],
+        },
+        {
+            "name": "Run Tests",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "tests.test_griddly_training",
+            "args": [
+                "-k",
+                "test_8x8",
+            ],
+        },
+        {
+            "name": "Run Evals",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "evals.evals",
+            "args": [
+                "--experiment=mac.pres10",
+                "--device=cpu",
+                "--train_dir=./train_dir/",
+                "--eval_env_frameskip=1",
+                "--max_num_episodes=1",
+                "--env_max_steps=100",
+            ],
+        },
+    ]
+}

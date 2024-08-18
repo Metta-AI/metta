@@ -1,0 +1,22 @@
+# @package __global__
+
+framework:
+  sample_factory:
+    device: cpu
+    decorrelate_experience_max_seconds: 0
+    num_workers: 1
+    save_every_sec: 30
+
+  pufferlib:
+    device: cpu
+    vectorization: serial
+    train:
+      num_workers: 1
+      update_epochs: 1
+      batch_size: 1024
+      minibatch_size: 1024
+      forward_pass_minibatch_target_size: 2
+      async_factor: 1
+      checkpoint_interval: 10
+      bptt_horizon: 8
+      num_steps: 32

@@ -1,0 +1,19 @@
+# @package __global__
+
+framework:
+  sample_factory:
+    device: gpu
+    batch_size: 16384
+    decorrelate_experience_max_seconds: 150
+    train_for_env_steps: 9999999999999
+
+  pufferlib:
+    device: cuda
+    vectorization: multiprocessing
+    train:
+      total_timesteps: 50_000_000_000
+      num_workers: 32 # num cores
+      num_envs_per_worker: 3
+      batch_size: 262144
+      minibatch_size: 4096
+      zero_copy: False

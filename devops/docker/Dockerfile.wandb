@@ -1,0 +1,6 @@
+FROM daveey/metta
+
+# Install wandb
+RUN pip install wandb[launch]
+
+ENTRYPOINT [ "wandb", "launch-agent", "-e", "platypus", "-q", "metta" ]
