@@ -11,6 +11,8 @@ RUN date
 RUN git clone --recursive https://github.com/Metta-AI/metta.git metta
 WORKDIR /workspace/metta
 
+RUN echo "Cache breaker: $(date)" > cache-breaker.txt
+
 RUN pip install -r requirements.txt
 RUN ./devops/setup_build.sh
 

@@ -15,6 +15,7 @@ cd ..
 
 git clone https://github.com/Metta-AI/pufferlib.git
 cd pufferlib
+git fetch
 git checkout dev
 python setup.py build_ext --inplace
 pip install -e .
