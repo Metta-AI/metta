@@ -8,9 +8,8 @@ matplotlib
 mettagrid
 # numpy==2.0.0
 pettingzoo
-puffergrid
-pufferlib
 sample_factory
+puffergrid
 pynvml
 pytest
 PyYAML
@@ -18,5 +17,6 @@ raylib
 rich
 scipy
 tabulate
-tensordict
 torchrl
+
+git+https://github.com/Metta-AI/pufferlib.git@dev
