@@ -12,7 +12,7 @@ def register_task_definition(args):
         "containerDefinitions": [
             {
                 "name": "metta",
-                "image": "daveey/metta:latest",
+                "image": "mettaai/metta:latest",
                 "portMappings": [],
                 "essential": True,
                 "entryPoint": [

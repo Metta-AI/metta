@@ -52,13 +52,13 @@ def connect_to_container(ip):
            raise subprocess.CalledProcessError(1, "SSH connection check failed")
 
        # Retrieve container ID
-       container_id_output = subprocess.check_output(f"ssh -o StrictHostKeyChecking=no -t {ip} \"docker ps | grep 'daveey/metta'\"", shell=True).decode().strip()
+       container_id_output = subprocess.check_output(f"ssh -o StrictHostKeyChecking=no -t {ip} \"docker ps | grep 'mettaai/metta'\"", shell=True).decode().strip()
        if container_id_output:
            container_id = container_id_output.split()[0]
            print(f"Connecting to container {container_id} on {ip}...")
            subprocess.run(f"ssh -o StrictHostKeyChecking=no -t {ip} \"docker exec -it {container_id} /bin/bash\"", shell=True)
        else:
-           print(f"No container running the 'daveey/metta' image found on the instance {ip}.")
+           print(f"No container running the 'mettaai/metta' image found on the instance {ip}.")
            print("Connecting to the instance directly...")
            subprocess.run(f"ssh -o StrictHostKeyChecking=no -t {ip}", shell=True)
 
