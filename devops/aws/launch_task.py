@@ -70,8 +70,7 @@ def container_config(args, task_args):
 
     setup_cmds = [
         'git pull',
-        'git submodule update',
-        'pip install -e .',
+        './devops/setup_build.sh',
         'ln -s /mnt/efs/train_dir train_dir',
     ]
     train_cmd = [
@@ -122,7 +121,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Launch an ECS task with a wandb key.')
     parser.add_argument('--cluster', default="metta", help='The name of the ECS cluster.')
     parser.add_argument('--experiment', required=True, help='The experiment to run.')
-    parser.add_argument('--framework', default="sample_factory", choices=["sample_factory", "pufferlib"], help='The framework to use.')
+    parser.add_argument('--framework', default="pufferlib", choices=["sample_factory", "pufferlib"], help='The framework to use.')
     parser.add_argument('--init_model', default=None, help='The experiment to run.')
     parser.add_argument('--git_branch', default=None, help='The git branch to use for the task.')
     parser.add_argument('--batch', default=True, help='Submit as a batch job.')

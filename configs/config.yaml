@@ -4,7 +4,7 @@ data_dir: ./train_dir
 
 defaults:
   - framework: pufferlib
-  - agent: agent
+  - agent: small
   - env: mettagrid/a20_b4_40x40
   - hardware: macbook
   - wandb: wandb
