@@ -4,6 +4,7 @@ RUN pip install boto3 chex hydra-core matplotlib pettingzoo
 RUN pip install rich scipy tabulate torchrl
 
 RUN echo "Cache breaker: $(date)" > cache-breaker.txt
+RUN echo "Cache breaker: $(date)" > cache-breaker.txt
 
 # Checkout metta and submodules
 WORKDIR /workspace/
@@ -11,7 +12,6 @@ RUN date
 RUN git clone --recursive https://github.com/Metta-AI/metta.git metta
 WORKDIR /workspace/metta
 
-RUN echo "Cache breaker: $(date)" > cache-breaker.txt
 
 RUN pip install -r requirements.txt
 RUN ./devops/setup_build.sh
