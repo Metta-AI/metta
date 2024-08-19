@@ -4,7 +4,6 @@ RUN pip install boto3 chex hydra-core matplotlib pettingzoo
 RUN pip install rich scipy tabulate torchrl
 
 RUN echo "Cache breaker: $(date)" > cache-breaker.txt
-RUN echo "Cache breaker: $(date)" > cache-breaker.txt
 
 # Checkout metta and submodules
 WORKDIR /workspace/
