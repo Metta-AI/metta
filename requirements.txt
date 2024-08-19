@@ -1,15 +1,12 @@
 boto3
 # chex
-fast_gae
 hydra-core
 imageio
 jmespath
 matplotlib
-mettagrid
 # numpy==2.0.0
 pettingzoo
 sample_factory
-puffergrid
 pynvml
 pytest
 PyYAML
@@ -19,4 +16,3 @@ scipy
 tabulate
 torchrl
 
-git+https://github.com/Metta-AI/pufferlib.git@dev

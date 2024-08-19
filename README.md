@@ -89,6 +89,7 @@ Create a Conda environment (or use venv)
 conda create -n metta python=3.11.7
 conda activate metta
 pip install -r requirements.txt
+./devops/setup_build.sh
 ```
 
 # Training a Model
