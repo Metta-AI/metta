@@ -1,4 +1,5 @@
-FROM pytorch/pytorch:2.2.1-cuda12.1-cudnn8-devel
+FROM pufferai/pufferai/puffertank
+# FROM pytorch/pytorch:2.2.1-cuda12.1-cudnn8-devel
 
 WORKDIR /workspace
 
@@ -16,20 +17,10 @@ RUN conda update -y ffmpeg
 # Install Vulkan SDK
 RUN sudo apt-get install -y pkg-config libxcb1-dev libx11-dev
 RUN sudo apt-get install -y wayland-protocols libwayland-dev libxrandr-dev
-WORKDIR /workspace/vulkan
-RUN wget https://sdk.lunarg.com/sdk/download/1.3.224.1/linux/vulkansdk-linux-x86_64-1.3.224.1.tar.gz
-RUN tar -zxvf vulkansdk-linux-x86_64-1.3.224.1.tar.gz
-WORKDIR /workspace/vulkan/1.3.224.1
-RUN yes | ./vulkansdk
-RUN echo 'source /workspace/vulkan/1.3.224.1/setup-env.sh' >> ~/.bashrc
 
 # Configure screen
 RUN echo "defscrollback 10000" >> /root/.screenrc && \
     echo "termcapinfo xterm* ti@:te@" >> /root/.screenrc
-
-# Install conan and libstd to build griddly
-RUN conda install -c conda-forge libstdcxx-ng
-RUN pip install conan==1.59.0
 
 # install off-screen vulkan
 RUN apt-get install -y mesa-vulkan-drivers
