@@ -4,46 +4,11 @@ import netrc
 import os
 import logging
 
-def submit_ecs_task(args, task_args):
-    ecs = boto3.client('ecs')
-
-    # Get the latest version of the task definition
-    response = ecs.describe_task_definition(taskDefinition="metta-trainer")
-    task_definition = response['taskDefinition']['taskDefinitionArn']
-
-    print(f"launching task using {task_definition}")
-
-    # Launch the task
-    response = ecs.run_task(
-        cluster=args.cluster,
-        taskDefinition=task_definition,
-        startedBy=args.experiment,
-        launchType='EC2',
-        overrides={
-            'containerOverrides': [{
-                "name": "metta",
-                **container_config(args, task_args)
-            }]
-        }
-    )
-
-    if response['ResponseMetadata']['HTTPStatusCode'] == 200 and response['tasks']:
-        task_id = response['tasks'][0]['taskArn']
-        print(f'Task submitted: {task_id}')
-        print(
-            "https://us-east-1.console.aws.amazon.com/ecs/v2/clusters/" +
-            args.cluster +
-            "/tasks/" +
-            task_id.split('/')[-1] +
-            "/?selectedContainer=metta")
-    else:
-        logging.error('Failed to submit: %s', response)
-
 def submit_batch_job(args, task_args):
     batch = boto3.client('batch')
 
     job_name = args.experiment.replace('.', '_')
-    job_queue = "metta-batch-jq"
+    job_queue = "metta-batch-jq-" + args.instance_type.replace('.', '-')
     job_definition = "metta-batch-train-jd"
 
     response = batch.submit_job(
@@ -77,7 +42,7 @@ def container_config(args, task_args):
         './devops/train.sh',
         f'experiment={args.experiment}',
         f'framework={args.framework}',
-        'hardware=aws',
+        'hardware=aws.' + args.instance_type,
         *task_args,
     ]
     if args.git_branch is not None:
@@ -122,16 +87,13 @@ def container_config(args, task_args):
     }
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Launch an ECS task with a wandb key.')
+    parser = argparse.ArgumentParser(description='Launch an AWS Batch task with a wandb key.')
     parser.add_argument('--cluster', default="metta", help='The name of the ECS cluster.')
     parser.add_argument('--experiment', required=True, help='The experiment to run.')
     parser.add_argument('--framework', default="pufferlib", choices=["sample_factory", "pufferlib"], help='The framework to use.')
     parser.add_argument('--init_model', default=None, help='The experiment to run.')
     parser.add_argument('--git_branch', default=None, help='The git branch to use for the task.')
-    parser.add_argument('--batch', default=True, help='Submit as a batch job.')
+    parser.add_argument('--instance_type', default="g5.8xlarge", help='The instance type to use for the task.')
     args, task_args = parser.parse_known_args()
 
-    if args.batch:
-        submit_batch_job(args, task_args)
-    else:
-        submit_ecs_task(args, task_args)
+    submit_batch_job(args, task_args)
