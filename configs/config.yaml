@@ -3,7 +3,7 @@ experiment: ???
 data_dir: ./train_dir
 
 defaults:
-  - framework: sample_factory
+  - framework: pufferlib
   - agent: agent
   - env: mettagrid/a20_b4_40x40
   - hardware: macbook

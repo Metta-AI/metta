@@ -1,75 +1,124 @@
-# MettaGrid Environment
+# Metta AI
+A reinforcement learning codebase focusing on the emergence of cooperation and alignment in multi-agent AI systems.
 
-MettaGrid is a multi-agent gridworld environment for studying the emergence of cooperation and social behaviors in reinforcement learning agents. The environment features a variety of objects and actions that agents can interact with to manage resources, engage in combat, share with others, and optimize their rewards.
+* **Discord**: https://discord.gg/mQzrgwqmwy
+* **Short (5m) Talk**: https://www.youtube.com/watch?v=bt6hV73VA8I
+* **Talk**: https://foresight.org/summary/david-bloomin-metta-learning-love-is-all-you-need/
 
-## Overview
+## What is Metta Learning?
+<p align="middle">
+<img src="https://github.com/debbly/metta-learning-assets/blob/main/gifs/example_video.gif?raw=true" width="360" alt="Metta learning example video">
+</p>
 
-In MettaGrid, agents navigate a gridworld and interact with various objects to manage their energy, harvest resources, engage in combat, and cooperate with other agents. The key dynamics include:
+Metta AI is an open-source research project investigating the emergence of cooperation and alignment in multi-agent AI systems. By creating a model organism for complex multi-agent gridworld environments, the project aims to study the impact of social dynamics, such as kinship and mate selection, on learning and cooperative behaviors of AI agents.
 
-- **Energy Management**: Agents must efficiently manage their energy, which is required for all actions. They can harvest resources and convert them to energy at charger stations.
-- **Resource Gathering**: Agents can gather resources from generator objects scattered throughout the environment.
-- **Cooperation and Sharing**: Agents have the ability to share resources with other agents and use energy to power the heart altar, which provides rewards.
-- **Combat**: Agents can attack other agents to temporarily freeze them and steal their resources. They can also use shields to defend against attacks.
+Metta AI explores the hypothesis that social dynamics, akin to love in biological systems, play a crucial role in the development of cooperative AGI and AI alignment. The project introduces a novel reward-sharing mechanism mimicking familial bonds and mate selection, allowing researchers to observe the evolution of complex social behaviors and cooperation among AI agents. By investigating this concept in a controlled multi-agent setting, the project seeks to contribute to the broader discussion on the path towards safe and beneficial AGI.
 
-The environment is highly configurable, allowing for experimentation with different world layouts, object placements, and agent capabilities.
+## Introduction
 
-## Objects
+Metta is a simulation environment (game) designed to train AI agents capable of meta-learning general intelligence. The core idea is to create an environment where incremental intelligence is rewarded, fostering the development of generally intelligent agents.
 
-### Agent
+### Motivation and Approach
 
-<img src="https://github.com/daveey/Griddly/blob/develop/resources/images/oryx/oryx_tiny_galaxy/tg_sliced/tg_monsters/tg_monsters_astronaut_u1.png?raw=true" width="32"/>
+1. **Agents and Environment**: Agents are shaped by their environment, learning policies that enhance their fitness. To develop general intelligence, agents need an environment where increasing intelligence is continually rewarded.
 
-The `Agent` object represents an individual agent in the environment. Agents can move, rotate, attack, and interact with other objects. Each agent has energy, resources, and shield properties that govern its abilities and interactions.
+2. **Competitive and Cooperative Dynamics**: A game with multiple agents and some competition creates an evolving environment where challenges increase with agent intelligence. Purely competitive games often reach a Nash equilibrium, where locally optimal strategies are hard to deviate from. Adding cooperative dynamics introduces more behavioral possibilities and smooths the behavioral space.
 
-### Altar
+3. **Kinship Structures**: The game features a flexible kinship structure, simulating a range of relationships from close kin to strangers. Agents must learn to coordinate with close kin, negotiate with more distant kin, and compete with strangers. This diverse social environment encourages continuous learning and intelligence growth.
 
-<img src="https://github.com/daveey/Griddly/blob/develop/resources/images/oryx/oryx_tiny_galaxy/tg_sliced/tg_items/tg_items_heart_full.png?raw=true" width="32"/>
+The game is designed to evolve with the agents, providing unlimited learning opportunities despite simple rules.
 
-The `Altar` object allows agents to spend energy to gain rewards. Agents can power the altar by using the `use` action when near it. The altar has a cooldown period between uses.
+### Game Overview
 
-### Converter
+The current version of the game can be found [here](https://huggingface.co/metta-ai/baseline.v0.1.0). It's a grid world with the following dynamics:
 
-<img src="https://github.com/daveey/Griddly/blob/develop/resources/images/oryx/oryx_tiny_galaxy/tg_sliced/tg_items/tg_items_pda_A.png?raw=true" width="32"/>
+- **Agents and Vision**: Agents can see a limited number of squares around them.
+- **Resources**: Agents harvest diamonds, convert them to energy at charger stations, and use energy to power the "heart altar" for rewards.
+- **Energy Management**: All actions cost energy, so agents learn to manage their energy budgets efficiently.
+- **Combat**: Agents can attack others, temporarily freezing the target and stealing resources.
+- **Defense**: Agents can toggle shields, which drain energy but absorb attacks.
+- **Cooperation**: Agents can share energy or resources and use markers to communicate.
 
-The `Converter` object allows agents to convert their harvested resources into energy. Agents can use converters by moving to them and taking the `use` action. Each use of a converter provides a specified amount of energy and has a cooldown period.
+### Exploration and Expansion
 
-### Generator
+The game offers numerous possibilities for exploration, including:
 
-<img src="https://github.com/daveey/Griddly/blob/develop/resources/images/oryx/oryx_fantasy/ore-0.png?raw=true" width="32"/>
+1. **Diverse Energy Profiles**: Assigning different energy profiles to agents, essentially giving them different bodies and policies.
+2. **Dynamic Energy Profiles**: Allowing agents to change their energy profiles, reflecting different postures or emotions.
+3. **Resource Types and Conversions**: Introducing different resource types and conversion mechanisms.
+4. **Environment Modification**: Enabling agents to modify the game board by creating, destroying, or altering objects.
 
-The `Generator` object produces resources that agents can harvest. Agents can gather resources from generators by moving to them and taking the `use` action. Generators have a specified capacity and replenish resources over time.
+### Kinship and Social Dynamics
 
-### Wall
+The game explores various kinship structures:
 
-<img src="https://github.com/daveey/Griddly/blob/develop/resources/images/oryx/oryx_fantasy/wall2-0.png?raw=true" width="32"/>
+1. **Random Kinship Scores**: Each pair of agents has a kinship score sampled from a distribution.
+2. **Teams**: Agents belong to teams with symmetric kinship among team members.
+3. **Hives/Clans/Families**: Structuring agents into larger kinship groups.
 
-The `Wall` object acts as an impassable barrier in the environment, restricting agent movement.
+Future plans include incorporating mate-selection dynamics, where agents share future rewards at a cost, potentially leading to intelligence gains through a signaling arms race.
 
-## Actions
+Metta aims to create a rich, evolving environment where AI agents can develop general intelligence through continuous learning and adaptation.
 
-### Move / Rotate
+## Research Explorations
+The project's modular design and open-source nature make it easy for researchers to adapt and extend the platform to investigate their own hypotheses in this domain. The highly performant, open-ended game rules provide a rich environment for studying these behaviors and their potential implications for AI alignment.
 
-The `move` action allows agents to move to an adjacent cell in the gridworld. The action has two modes: moving forward and moving backward relative to the agent's current orientation.
+Some areas of research interest:
 
-The `rotate` action enables agents to change their orientation within the gridworld. Agents can rotate to face in four directions: down, left, right, and up.
+#### 1. Environment Development
+Develop rich and diverse gridworld environments with complex dynamics, such as resource systems, agent diversity, procedural terrain generation, support for various environment types, population dynamics, and kinship schemes.
 
-### Attack
+#### 2. Agent Architecture Research
+Incorporate techniques like dense learning signals, surprise minimization, exploration strategies, and blending reinforcement and imitation learning.
 
-The `attack` action allows agents to attack other agents or objects within their attack range. Successful attacks temporarily freeze the target and may allow the attacker to steal resources.
+#### 3. Scalable Training Infrastructure
+Investigate scalable training approaches, including distributed reinforcement learning, student-teacher architectures, and blending reinforcement learning with imitation learning, to enable efficient training of large-scale multi-agent systems.
 
-### Shield (Toggle)
+#### 4. Intelligence Evaluations for Gridworld Agents
+Design and implement a comprehensive suite of intelligence evaluations for gridworld agents, covering navigation tasks, maze solving, in-context learning, cooperation, and competition scenarios.
 
-The `shield` action turns on a shield. When the shield is active, the agent is protected from attacks by other agents. The shield consumes energy while active. Attack damage is subtracted from the agent's energy, rather than freezing the agent.
+#### 5. DevOps and Tooling
+Develop tools and infrastructure for efficient management, tracking, and deployment of experiments, such as cloud cluster management, experiment tracking and visualization, and continuous integration and deployment pipelines.
 
-### Transfer
+This readme provides only a brief overview of research explorations. Visit the [research roadmap](https://github.com/Metta-AI/metta/blob/master/roadmap.md) for more details.
 
-The `transfer` action enables agents to share resources with other agents. Agents can choose to transfer specific resources to another agent in an adjacent cell.
+# Installation
 
-### Use
+Create a Conda environment (or use venv)
+```
+conda create -n metta python=3.11.7
+conda activate metta
+pip install -r requirements.txt
+```
 
-The `use` action allows agents to interact with objects such as altars, converters, and generators. The specific effects of the `use` action depend on the target object and can include converting resources to energy, powering the altar for rewards, or harvesting resources from generators.
+# Training a Model
 
-## Configuration
+### Run the training
 
-The MettaGrid environment is highly configurable through the use of YAML configuration files. These files specify the layout of the gridworld, the placement of objects, and various properties of the objects and agents.
+```
+python -m tools.run cmd=train experiment=my_experiment hardware=macbook
+```
+
+
+### (Optional) Setup HuggingFace Access
+
+1. Create a HuggingFace account
+2. Create a token in your account settings
+3. Run `huggingface-cli login` and paste the token
+
+# Running a Simulation
+
+### Download a baseline model
+To download the model files, install git-lfs first, then run the following commands:
+
+```
+git lfs install
+./devops/load_model.sh baseline.v0.5.4
+```
+
+### Render a video of the evaluation
+
+```
+python -m tools.run cmd=evaluate experiment=baseline.v0.5.4
+```
 

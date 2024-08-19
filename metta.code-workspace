@@ -1,16 +1,20 @@
 {
 	"folders": [
 		{
+			"name": "metta",
 			"path": "."
 		},
 		{
+			"name": "puffergrid",
 			"path": "../puffergrid"
 		},
 		{
+			"name": "mettagrid",
 			"path": "../mettagrid"
 		},
 		{
-			"path": "../metta-new"
+			"name": "fast_gae",
+			"path": "../fast_gae"
 		}
 	],
 	"settings": {
