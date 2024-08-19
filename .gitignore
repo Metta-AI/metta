@@ -13,3 +13,4 @@ outputs
 *.so
 cython_debug
 stats.profile
+/dist
