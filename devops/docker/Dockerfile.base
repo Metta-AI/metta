@@ -12,7 +12,6 @@ RUN apt-get install -y ffmpeg libx264-dev
 RUN apt upgrade -y libopenblas-dev
 RUN apt-get install -y git-lfs
 RUN git lfs install
-RUN conda update -y ffmpeg
 
 # Install Vulkan SDK
 RUN sudo apt-get install -y pkg-config libxcb1-dev libx11-dev
