@@ -75,9 +75,9 @@ def container_config(args, task_args):
     ]
     train_cmd = [
         './devops/train.sh',
-        f'++experiment={args.experiment}',
-        f'++framework={args.framework}',
-        '++hardware=aws',
+        f'experiment={args.experiment}',
+        f'framework={args.framework}',
+        'hardware=aws',
         *task_args,
     ]
     if args.git_branch is not None:
@@ -102,6 +102,10 @@ def container_config(args, task_args):
             " ".join(train_cmd),
         ])],
         'environment': [
+            {
+                'name': 'HYDRA_FULL_ERROR',
+                'value': '1'
+            },
             {
                 'name': 'WANDB_API_KEY',
                 'value': wandb_key
