@@ -15,6 +15,6 @@ RUN pip install -r requirements.txt
 RUN bash ./devops/setup_build.sh
 
 # Download the latest baseline model
-RUN python -m sample_factory.huggingface.load_from_hub -r metta-ai/baseline -d /workspace/metta-baseline
-RUN ln -s /workspace/metta-baseline/baseline/checkpoint_p0/$(ls /workspace/metta-baseline/baseline/checkpoint_p0 | tail -n1) /workspace/metta-baseline/latest
+#RUN python -m sample_factory.huggingface.load_from_hub -r metta-ai/baseline -d /workspace/metta-baseline
+#RUN ln -s /workspace/metta-baseline/baseline/checkpoint_p0/$(ls /workspace/metta-baseline/baseline/checkpoint_p0 | tail -n1) /workspace/metta-baseline/latest
 
