@@ -14,7 +14,7 @@ pip install -e .
 cd ..
 
 git clone https://github.com/Metta-AI/pufferlib.git
-cd puffergrid
+cd pufferlib
 git checkout dev
 python setup.py build_ext --inplace
 pip install -e .
@@ -27,6 +27,6 @@ pip install -e .
 cd ..
 
 git clone https://github.com/Metta-AI/sample-factory.git
-cd sample_factory
+cd sample-factory
 pip install -e .
 cd ..
