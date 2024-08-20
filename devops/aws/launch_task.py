@@ -4,6 +4,21 @@ import netrc
 import os
 import logging
 
+machine_profiles = {
+    "g5.2xlarge": {
+        "vcpus": 8,
+    },
+    "g5.4xlarge": {
+        "vcpus": 16,
+    },
+    "g5.8xlarge": {
+        "vcpus": 32,
+    },
+    "g5.16xlarge": {
+        "vcpus": 64,
+    },
+}
+
 def submit_batch_job(args, task_args):
     batch = boto3.client('batch')
 
@@ -83,7 +98,8 @@ def container_config(args, task_args):
                 'name': 'COLOR_LOGGING',
                 'value': 'false'
             },
-        ]
+        ],
+        'vcpus': machine_profiles[args.instance_type]['vcpus'],
     }
 
 if __name__ == "__main__":
