@@ -7,15 +7,19 @@ import logging
 machine_profiles = {
     "g5.2xlarge": {
         "vcpus": 8,
+        "memory": 28,
     },
     "g5.4xlarge": {
         "vcpus": 16,
+        "memory": 60,
     },
     "g5.8xlarge": {
         "vcpus": 32,
+        "memory": 120,
     },
     "g5.16xlarge": {
         "vcpus": 64,
+        "memory": 250,
     },
 }
 
@@ -100,6 +104,7 @@ def container_config(args, task_args):
             },
         ],
         'vcpus': machine_profiles[args.instance_type]['vcpus'],
+        'memory': machine_profiles[args.instance_type]['memory'],
     }
 
 if __name__ == "__main__":
