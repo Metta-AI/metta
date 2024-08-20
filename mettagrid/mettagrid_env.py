@@ -1,3 +1,4 @@
+from ast import Not
 from typing import Any, Dict
 
 import pufferlib
@@ -18,6 +19,7 @@ class GridClient:
 class MettaGridEnv(pufferlib.PufferEnv):
     def __init__(self, render_mode: str, **cfg):
         super().__init__()
+        raise NotImplementedError("This class is not fully implemented yet.")
 
         self._render_mode = render_mode
         self._cfg = OmegaConf.create(cfg)
@@ -32,6 +34,8 @@ class MettaGridEnv(pufferlib.PufferEnv):
                 self._env.map_width(), self._env.map_height(),
                 fps=10
             )
+
+        self.done = False
 
 
     def make_env(self):
@@ -75,21 +79,25 @@ class MettaGridEnv(pufferlib.PufferEnv):
             reward_mean = rewards_sum / self._num_agents
             rewards -= reward_mean
 
+        current_timestep = self._c_env.current_timestep()
+
+        infos = {}
         if terminated.all() or truncated.all():
             self.done = True
-
-            stats = self._c_env.get_episode_stats()
             episode_rewards = self._c_env.get_episode_rewards()
             episode_rewards_sum = episode_rewards.sum()
             episode_rewards_mean = episode_rewards_sum / self._num_agents
-
-            infos = {
+            infos.update({
                 "episode/reward.sum": episode_rewards_sum,
                 "episode/reward.mean": episode_rewards_mean,
                 "episode/reward.min": episode_rewards.min(),
                 "episode/reward.max": episode_rewards.max(),
                 "episode_length": self._c_env.current_timestep(),
-            }
+            })
+
+        if current_timestep % self._cfg.report_stats_interval == 0 or self.done:
+            stats = self._c_env.get_episode_stats()
+            infos["rates/reward"] = self._c_env.get_episode_rewards().mean() / current_timestep
 
             agent_stats = {}
             for a_stats in stats["agent_stats"]:
@@ -99,7 +107,7 @@ class MettaGridEnv(pufferlib.PufferEnv):
                     agent_stats[k] += v
 
             for k, v in agent_stats.items():
-                infos[f"agent_stats/{k}"] = float(v) / self._num_agents
+                infos[f"rates/{k}"] = float(v) / self._num_agents / current_timestep
 
         return obs, list(rewards), terminated.all(), truncated.all(), infos
 
