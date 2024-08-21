@@ -58,7 +58,7 @@ cdef class Use(MettaActionHandler):
             self.env._stats.agent_incr(actor_id, InventoryItemNames[converter.input_resource] + ".used")
 
             actor.update_inventory(converter.output_resource, 1)
-            self.env._stats.agent_incr(actor_id, InventoryItemNames[converter.input_resource] + ".gained")
+            self.env._stats.agent_incr(actor_id, InventoryItemNames[converter.output_resource] + ".gained")
 
             actor.energy += converter.output_energy
             self.env._stats.agent_add(actor_id, "energy.gained", converter.output_energy)

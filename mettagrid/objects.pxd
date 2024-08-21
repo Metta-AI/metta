@@ -70,6 +70,7 @@ cdef cppclass Agent(MettaObject):
     char shield
     unsigned char shield_upkeep
     vector[unsigned short] inventory
+    unsigned char max_items
 
     inline Agent(GridCoord r, GridCoord c, ObjectConfig cfg):
         GridObject.init(ObjectType.AgentT, GridLocation(r, c, GridLayer.Agent_Layer))
@@ -80,9 +81,12 @@ cdef cppclass Agent(MettaObject):
         this.shield_upkeep = cfg[b"shield_upkeep"]
         this.orientation = 0
         this.inventory.resize(InventoryItem.InventoryCount)
+        this.max_items = cfg[b"max_inventory"]
 
     inline void update_inventory(InventoryItem item, short amount):
         this.inventory[<InventoryItem>item] += amount
+        if this.inventory[<InventoryItem>item] > this.max_items:
+            this.inventory[<InventoryItem>item] = this.max_items
 
     inline void obs(ObsType[:] obs):
         obs[0] = 1
