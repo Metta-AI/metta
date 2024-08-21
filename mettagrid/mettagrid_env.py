@@ -94,9 +94,8 @@ class MettaGridEnv(pufferlib.PufferEnv):
                 "episode_length": self._c_env.current_timestep(),
             })
 
-        if current_timestep % self._cfg.report_stats_interval == 0 or self.done:
             stats = self._c_env.get_episode_stats()
-            infos["rates/reward"] = self._c_env.get_episode_rewards().mean() / current_timestep
+            infos["rates/reward"] = episode_rewards_mean / current_timestep
 
             agent_stats = {}
             for a_stats in stats["agent_stats"]:
