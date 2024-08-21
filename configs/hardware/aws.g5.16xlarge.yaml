@@ -1,0 +1,9 @@
+# @package __global__
+
+defaults:
+  - aws
+
+framework:
+  pufferlib:
+    train:
+      num_workers: 64 # num cores
