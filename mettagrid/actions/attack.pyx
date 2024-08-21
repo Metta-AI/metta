@@ -44,6 +44,11 @@ cdef class Attack(MettaActionHandler):
                 agent_target.shield = False
                 agent_target.frozen = self.env._current_timestep + agent_target.freeze_duration
                 self.env._stats.agent_incr(actor_id, "attack.frozen")
+                for item in range(InventoryItem.InventoryCount):
+                    actor.update_inventory(item, agent_target.inventory[item])
+                    self.env._stats.agent_incr(actor_id, InventoryItemNames[item] + ".stolen")
+                    agent_target.inventory[item] = 0
+
             return True
 
         target_loc.layer = GridLayer.Object_Layer
