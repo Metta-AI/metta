@@ -19,7 +19,6 @@ class GridClient:
 class MettaGridEnv(pufferlib.PufferEnv):
     def __init__(self, render_mode: str, **cfg):
         super().__init__()
-        raise NotImplementedError("This class is not fully implemented yet.")
 
         self._render_mode = render_mode
         self._cfg = OmegaConf.create(cfg)
