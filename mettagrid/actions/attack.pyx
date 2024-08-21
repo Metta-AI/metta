@@ -46,7 +46,7 @@ cdef class Attack(MettaActionHandler):
                 self.env._stats.agent_incr(actor_id, "attack.frozen")
                 for item in range(InventoryItem.InventoryCount):
                     actor.update_inventory(item, agent_target.inventory[item])
-                    self.env._stats.agent_incr(actor_id, InventoryItemNames[item] + ".stolen")
+                    self.env._stats.agent_add(actor_id, InventoryItemNames[item] + ".stolen", agent_target.inventory[item])
                     agent_target.inventory[item] = 0
 
             return True
