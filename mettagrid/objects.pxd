@@ -78,7 +78,7 @@ cdef cppclass Agent(MettaObject):
         this.frozen = 0
         this.freeze_duration = cfg[b"freeze_duration"]
         this.energy = cfg[b"initial_energy"]
-        this.shield_upkeep = cfg[b"shield_upkeep"]
+        this.shield_upkeep = cfg[b"upkeep.shield"]
         this.orientation = 0
         this.inventory.resize(InventoryItem.InventoryCount)
         this.max_items = cfg[b"max_inventory"]
