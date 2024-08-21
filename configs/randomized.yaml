@@ -18,8 +18,7 @@ game:
       freeze_duration: [5, 20]
       energy_reward: False
       hp: 1
-      upkeep:
-        shield: [0, 3]
+      upkeep.shield: [0, 3]
       use_cost: 0
 
     altar:
