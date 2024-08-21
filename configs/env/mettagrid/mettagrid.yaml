@@ -5,6 +5,8 @@ _target_: mettagrid.mettagrid_env.MettaGridEnv
 # _target_: env.griddly.mettagrid.gym_env.MettaGridGymEnv
 max_action_value: 10
 
+report_stats_interval: 100
+
 hidden_features:
   grid_obs: [
     "agent:energy",

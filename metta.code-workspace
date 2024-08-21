@@ -5,16 +5,13 @@
 			"path": "."
 		},
 		{
-			"name": "puffergrid",
-			"path": "../puffergrid"
+			"path": "../fast_gae"
 		},
 		{
-			"name": "mettagrid",
 			"path": "../mettagrid"
 		},
 		{
-			"name": "fast_gae",
-			"path": "../fast_gae"
+			"path": "../puffergrid"
 		}
 	],
 	"settings": {
@@ -98,8 +95,10 @@
 			"*.pxd": "cython",
 		},
 		"python.analysis.extraPaths": [
-			"./third_party/pufferlib",
-			"./third_party/puffergrid"
+			"../pufferlib",
+			"../puffergrid",
+			"../mettagrid",
+			"../fast_gae"
 		],
 		"python.autoComplete.extraPaths": [
 			"./third_party/puffergrid",
