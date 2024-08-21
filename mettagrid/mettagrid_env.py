@@ -105,7 +105,7 @@ class MettaGridEnv(pufferlib.PufferEnv):
                     agent_stats[k] += v
 
             for k, v in agent_stats.items():
-                infos[f"rates/{k}"] = float(v) / self._num_agents / current_timestep
+                infos[f"agent_stats/{k}"] = float(v) / self._num_agents / current_timestep
 
         return obs, list(rewards), terminated.all(), truncated.all(), infos
 
