@@ -47,6 +47,7 @@ cdef class Attack(MettaActionHandler):
                 for item in range(InventoryItem.InventoryCount):
                     actor.update_inventory(item, agent_target.inventory[item])
                     self.env._stats.agent_add(actor_id, InventoryItemNames[item] + ".stolen", agent_target.inventory[item])
+                    self.env._stats.agent_add(actor_id, InventoryItemNames[item] + ".gained", agent_target.inventory[item])
                     agent_target.inventory[item] = 0
 
             return True
