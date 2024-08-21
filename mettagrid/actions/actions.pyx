@@ -31,7 +31,17 @@ cdef class MettaActionHandler(ActionHandler):
 
         cdef Agent *actor = <Agent*>self.env._grid.object(actor_object_id)
 
-        if actor.frozen:
+        if actor.shield:
+            actor.energy -= actor.shield_upkeep
+            self.env._stats.agent_add(actor_id, "shield_upkeep", actor.shield_upkeep)
+            self.env._stats.agent_incr(actor_id, "status.shield.ticks")
+            if actor.energy <= 0:
+                actor.shield = False
+                actor.energy = 0
+
+        if actor.frozen > 0:
+            self.env._stats.agent_incr(actor_id, "status.frozen.ticks")
+            actor.frozen -= 1
             return False
 
         if actor.energy < self.action_cost:
@@ -44,6 +54,10 @@ cdef class MettaActionHandler(ActionHandler):
 
         if result:
             self.env._stats.agent_incr(actor_id, self._stats.action.c_str())
+
+        if actor.energy <= 0:
+            actor.energy = 0
+            self.env._stats.agent_incr(actor_id, "error.negative_energy")
 
         return result
 

@@ -63,17 +63,21 @@ cdef vector[string] InventoryItemNames # defined in objects.pyx
 
 
 cdef cppclass Agent(MettaObject):
-    char frozen
+    unsigned int frozen
+    unsigned int freeze_duration
     unsigned int energy
     unsigned int orientation
     char shield
+    unsigned char shield_upkeep
     vector[unsigned short] inventory
 
     inline Agent(GridCoord r, GridCoord c, ObjectConfig cfg):
         GridObject.init(ObjectType.AgentT, GridLocation(r, c, GridLayer.Agent_Layer))
         MettaObject.init_mo(cfg)
-        this.frozen = False
+        this.frozen = 0
+        this.freeze_duration = cfg[b"freeze_duration"]
         this.energy = cfg[b"initial_energy"]
+        this.shield_upkeep = cfg[b"shield_upkeep"]
         this.orientation = 0
         this.inventory.resize(InventoryItem.InventoryCount)
 
