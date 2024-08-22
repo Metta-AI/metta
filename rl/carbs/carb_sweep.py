@@ -25,6 +25,7 @@ import wandb
 _carbs_controller = None
 _cfg = None
 _sweep_id = None
+_sweep_run_id = 0
 
 def run_sweep(cfg: OmegaConf):
     global _cfg
@@ -52,16 +53,14 @@ def run_sweep(cfg: OmegaConf):
 def run_carb_sweep_rollout():
     global _carbs_controller
     global _cfg
-    global _sweep_id
+    global _sweep_run_id
 
     np.random.seed(int(time.time()))
     torch.manual_seed(int(time.time()))
+
     init_wandb(_cfg)
-    try:
-        num_runs = len(wandb.Api().sweep(_sweep_id).runs)
-        wandb.run.name = f"{wandb.run.name}.r_{num_runs:04d}"
-    except Exception:
-        print("Failed to get number of runs")
+    wandb.run.name = f"{wandb.run.name}.r_{_sweep_run_id:04d}"
+    _sweep_run_id += 1
 
     wandb.config.__dict__["_locked"] = {}
 
