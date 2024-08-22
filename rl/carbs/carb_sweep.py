@@ -4,6 +4,7 @@ from omegaconf import OmegaConf
 
 
 import numpy as np
+from sympy import N
 
 from carbs import LinearSpace
 from carbs import Param
@@ -24,10 +25,12 @@ import hydra
 import wandb
 
 _carbs_controller = None
+_wandb = None
 
 def run_sweep(cfg: OmegaConf):
     sweep = OmegaConf.to_container(cfg.sweep, resolve=True)
-    init_wandb(cfg)
+    global _wandb
+    _wandb = init_wandb(cfg)
 
     sweep_id = wandb.sweep(
         sweep=sweep,
@@ -61,6 +64,7 @@ def run_sweep(cfg: OmegaConf):
 
 def run_carb_sweep_rollout():
     global _carbs_controller
+    global _wandb
 
     np.random.seed(int(time.time()))
     torch.manual_seed(int(time.time()))
@@ -86,7 +90,7 @@ def run_carb_sweep_rollout():
 
     try:
         rl_controller = hydra.utils.instantiate(cfg.framework, cfg, _recursive_=False)
-        rl_controller.wandb = init_wandb(cfg)
+        rl_controller.wandb = _wandb
         rl_controller.train()
         observed_value = rl_controller.stats.get('environment/episode/reward.mean', 0)
         train_time = rl_controller.train_time
