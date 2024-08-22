@@ -62,7 +62,7 @@ parameters:
           is_pow2: true
           search_center: 16384
           min: 1024
-          max: 16384
+          max: 8192
         num_minibatches:
           space: linear
           search_center: 4
