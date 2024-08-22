@@ -16,6 +16,7 @@ from carbs import CARBS
 from carbs import CARBSParams
 from carbs import ObservationInParam
 
+import rl
 from rl.wandb.wandb import init_wandb
 from rl.rl_framework import RLFramework
 import traceback
@@ -85,6 +86,7 @@ def run_carb_sweep_rollout():
 
     try:
         rl_controller = hydra.utils.instantiate(cfg.framework, cfg, _recursive_=False)
+        rl_controller.wandb = wandb
         rl_controller.train()
         observed_value = rl_controller.stats.get('environment/episode/reward.mean', 0)
         train_time = rl_controller.train_time
