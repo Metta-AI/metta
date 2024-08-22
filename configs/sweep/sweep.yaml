@@ -6,72 +6,72 @@ parameters:
       train:
         learning_rate:
           space: log
-          search_center: 0.0919
+          search_center: 2.5e-4
           min: 1e-5
           max: 1e-1
         gamma:
           space: logit
-          search_center: 0.469
+          search_center: 0.95
           min: 0.0
           max: 1.0
         gae_lambda:
           space: logit
-          search_center: 0.662
+          search_center: 0.90
           min: 0.0
           max: 1.0
         update_epochs:
           space: linear
           is_int: true
-          search_center: 15
+          search_center: 1
           scale: 3
           min: 1
-          max: 32
+          max: 16
         clip_coef:
           space: logit
-          search_center: 0.259
+          search_center: 0.1
           min: 0.0
           max: 1.0
         vf_coef:
           space: logit
-          search_center: 0.160
+          search_center: 0.5
           min: 0.0
           max: 1.0
         vf_clip_coef:
           space: logit
-          search_center: 0.148
+          search_center: 0.1
           min: 0.0
           max: 1.0
         max_grad_norm:
           space: linear
-          search_center: 0.734
+          search_center: 0.5
           min: 0.0
           max: 1.0
         ent_coef:
           space: log
-          search_center: 0.011
+          search_center: 0.01
           min: 1e-5
           max: 1e-1
         batch_size:
           space: log
           is_pow2: true
-          search_center: 480063
+          search_center: 262144
           min: 65536
           max: 524288
         minibatch_size:
           space: log
           is_pow2: true
-          search_center: 3633
+          search_center: 16384
           min: 1024
           max: 8192
         num_minibatches:
           space: linear
-          search_center: 1.514
+          search_center: 4
           is_int: true
           min: 1
           max: 8
         forward_pass_minibatch_target_size:
           space: log
-          search_center: 4966
+          search_center: 4096
           is_pow2: true
           min: 1024
           max: 32768
@@ -83,7 +83,7 @@ parameters:
         #   max: 8
         bptt_horizon:
           space: log
-          search_center: 75.849
+          search_center: 16
           is_pow2: true
           min: 1
           max: 256
@@ -102,18 +102,18 @@ parameters:
         label_dim:
           space: log
           is_pow2: true
-          search_center: 12
+          search_center: 4
           min: 2
-          max: 32
+          max: 16
         output_dim:
           space: log
           is_pow2: true
-          search_center: 282
+          search_center: 128
           min: 32
           max: 512
         layers:
           space: linear
-          search_center: 1.5
+          search_center: 2
           is_int: true
           min: 1
           max: 6
@@ -133,7 +133,7 @@ parameters:
       output_dim:
         space: log
         is_pow2: true
-        search_center: 201
+        search_center: 128
         min: 32
         max: 512
 
@@ -147,31 +147,6 @@ parameters:
       rnn_size:
         space: log
         is_pow2: true
-        search_center: 80
+        search_center: 128
         min: 32
         max: 512
-
-
-# framework.pufferlib.train.batch_size:480,063.15459109226
-# framework.pufferlib.train.bptt_horizon:75.84872223746453
-# framework.pufferlib.train.clip_coef:0.25901851907475104
-# framework.pufferlib.train.ent_coef:0.010780832079197654
-# framework.pufferlib.train.forward_pass_minibatch_target_size:4,966.203580964678
-# framework.pufferlib.train.gae_lambda:0.6624071327514465
-# framework.pufferlib.train.gamma:0.4692854280128219
-# framework.pufferlib.train.learning_rate:0.09195450845466864
-# framework.pufferlib.train.max_grad_norm:0.7343523482260222
-# framework.pufferlib.train.minibatch_size:3,632.870994444596
-# framework.pufferlib.train.num_minibatches:1.5140493973170188
-# framework.pufferlib.train.total_timesteps:1,242,672,143,658.1206
-# framework.pufferlib.train.update_epochs:15.375345589676993
-# framework.pufferlib.train.vf_clip_coef:0.14829165861163585
-# framework.pufferlib.train.vf_coef:0.159532616752324
-# agent.core.rnn_num_layers:1.742075141492489
-# agent.core.rnn_size:80.99745484588367
-# agent.fc.layers:1.502007632944447
-# agent.fc.output_dim:201.7752333423144
-# agent.observation_encoders.grid_obs.label_dim:12.993986735110312
-# agent.observation_encoders.grid_obs.layers:1.5197388363541922
-# agent.observation_encoders.grid_obs.normalize_features:0.2646883742716887
-# agent.observation_encoders.grid_obs.output_dim:282.52128893239137
