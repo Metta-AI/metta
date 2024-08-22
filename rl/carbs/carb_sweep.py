@@ -98,6 +98,11 @@ def run_carb_sweep_rollout():
         is_failure = True
         traceback.print_exc()
 
+    try:
+        rl_controller.close()
+    except Exception:
+        print("Failed to close controller")
+
     print("Observed Value:", observed_value)
     print("Train Time:", train_time)
     print("Is Failure:", is_failure)

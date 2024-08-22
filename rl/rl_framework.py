@@ -16,3 +16,6 @@ class RLFramework():
 
     def evaluate(self) -> EvaluationResult:
         raise NotImplementedError
+
+    def close(self):
+        pass
