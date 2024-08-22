@@ -22,18 +22,14 @@ import wandb
 
 _carbs_controller = None
 _cfg = None
+_sweep_id = None
 
-def run_sweep(cfg: OmegaConf):
-    global _cfg
-    _cfg = cfg
+def wandb_sweep_cfg(cfg: OmegaConf):
+    sweep_cfg = OmegaConf.to_container(cfg.sweep, resolve=True)
+    sweep_cfg["name"] = cfg.wandb.name
+    return sweep_cfg
 
-    sweep = OmegaConf.to_container(cfg.sweep, resolve=True)
-    sweep_id = wandb.sweep(
-        sweep=sweep,
-        project=cfg.wandb.project,
-        entity=cfg.wandb.entity,
-        group=cfg.wandb.group,
-    )
+def carbs_params_spaces(cfg: OmegaConf):
     param_spaces = []
     for param_name, param in cfg.sweep.parameters.items():
         param_spaces.append(
@@ -48,7 +44,21 @@ def run_sweep(cfg: OmegaConf):
                 ),
                 search_center=param.min + (param.max - param.min) / 2,
             ))
+    return param_spaces
 
+def run_sweep(cfg: OmegaConf):
+    global _cfg
+    _cfg = cfg
+
+    sweep_id = wandb.sweep(
+        sweep=wandb_sweep_cfg(cfg),
+        project=cfg.wandb.project,
+        entity=cfg.wandb.entity,
+    )
+    global _sweep_id
+    _sweep_id = sweep_id
+
+    param_spaces = carbs_params_spaces(cfg)
     carbs_params = CARBSParams(
         better_direction_sign=1,
         is_wandb_logging_enabled=False,
@@ -59,14 +69,16 @@ def run_sweep(cfg: OmegaConf):
     _carbs_controller = CARBS(carbs_params, param_spaces)
     wandb.agent(sweep_id, run_carb_sweep_rollout, count=100)
 
-
 def run_carb_sweep_rollout():
     global _carbs_controller
     global _cfg
+    global _sweep_id
 
     np.random.seed(int(time.time()))
     torch.manual_seed(int(time.time()))
     init_wandb(_cfg)
+    num_runs = len(wandb.Api().sweep(_sweep_id).runs)
+    wandb.run.name = f"{wandb.run.name}.r_{num_runs:04d}"
 
     wandb.config.__dict__['_locked'] = {}
 
