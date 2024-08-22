@@ -77,8 +77,11 @@ def run_carb_sweep_rollout():
     np.random.seed(int(time.time()))
     torch.manual_seed(int(time.time()))
     init_wandb(_cfg)
-    num_runs = len(wandb.Api().sweep(_sweep_id).runs)
-    wandb.run.name = f"{wandb.run.name}.r_{num_runs:04d}"
+    try:
+        num_runs = len(wandb.Api().sweep(_sweep_id).runs)
+        wandb.run.name = f"{wandb.run.name}.r_{num_runs:04d}"
+    except Exception:
+        print("Failed to get number of runs")
 
     wandb.config.__dict__['_locked'] = {}
 
