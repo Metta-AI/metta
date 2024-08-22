@@ -31,3 +31,8 @@ git clone https://github.com/Metta-AI/sample-factory.git
 cd sample-factory
 pip install -e .
 cd ..
+
+git clone https://github.com/imbue-ai/carbs.git
+cd carbs
+pip install -e .
+cd ..

@@ -1,8 +1,6 @@
 from typing import Dict
 from omegaconf import OmegaConf
-from env.wrapper.petting_zoo import PettingZooEnvWrapper
-from pufferlib import postprocess
-from rl_framework.rl_framework import EvaluationResult, RLFramework
+from rl.rl_framework import RLFramework
 import os
 
 import pufferlib
@@ -10,8 +8,7 @@ import pufferlib.utils
 import pufferlib.vector
 import pufferlib.frameworks.cleanrl
 import hydra
-from omegaconf import OmegaConf
-
+import time
 from rich.console import Console
 
 from . import puffer_agent_wrapper
@@ -32,9 +29,8 @@ class PufferLibFramework(RLFramework):
         cfg = OmegaConf.create(cfg)
         super().__init__(cfg)
         self.puffer_cfg = cfg.framework.pufferlib
+        self._train_start = time.time()
         self.wandb = None
-        if self.cfg.wandb.track:
-            self.wandb = init_wandb(self.cfg, resume=True)
 
     def train(self):
         pcfg = self.puffer_cfg
@@ -46,7 +42,7 @@ class PufferLibFramework(RLFramework):
         elif vec == 'ray':
             vec = pufferlib.vector.Ray
         else:
-            raise ValueError(f'Invalid --vector (serial/multiprocessing/ray).')
+            raise ValueError('Invalid --vector (serial/multiprocessing/ray).')
 
         target_batch_size = pcfg.train.forward_pass_minibatch_target_size // self.cfg.env.game.num_agents
         if target_batch_size < 2: # pufferlib bug requires batch size >= 2
@@ -61,7 +57,7 @@ class PufferLibFramework(RLFramework):
             zero_copy=pcfg.train.zero_copy,
             backend=vec,
         )
-        print(f"Vectorization Settings: ", vecenv_args)
+        print("Vectorization Settings: ", vecenv_args)
         vecenv = pufferlib.vector.make(make_env_func, **vecenv_args)
         policy = puffer_agent_wrapper.make_policy(vecenv.driver_env, self.cfg)
         data = clean_pufferl.create(pcfg.train, vecenv, policy, wandb=self.wandb)
@@ -81,6 +77,7 @@ class PufferLibFramework(RLFramework):
         clean_pufferl.evaluate(data)
         self.process_stats(data)
         clean_pufferl.close(data)
+        self.train_time = time.time() - self._train_start
 
     def evaluate(self):
         # model_dir = os.path.join(self.puffer_cfg.train_dir, self.cfg.experiment)
@@ -104,7 +101,7 @@ class PufferLibFramework(RLFramework):
         # )
 
     def process_stats(self, data):
-        pass
+        self.stats = data.stats
         # new_stats = {}
         # for k, v in data.stats.items():
         #     new_stats["avg_" + k] = v
@@ -114,18 +111,3 @@ class PufferLibFramework(RLFramework):
         # data.stats = new_stats
 
 
-def init_wandb(cfg: OmegaConf, resume=True):
-    #os.environ["WANDB_SILENT"] = "true"
-    import wandb
-    wandb.init(
-        id=cfg.experiment or wandb.util.generate_id(),
-        project=cfg.wandb.project,
-        entity=cfg.wandb.entity,
-        config=OmegaConf.to_container(cfg, resolve=True),
-        group=cfg.wandb.group,
-        name=cfg.wandb.name,
-        monitor_gym=True,
-        save_code=True,
-        resume=resume,
-    )
-    return wandb

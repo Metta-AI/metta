@@ -2,7 +2,7 @@ import unittest
 import gymnasium as gym
 import numpy as np
 import torch
-from rl_framework.sample_factory.predicting_actor_critic import PredictingActorCritic
+from rl.sample_factory.predicting_actor_critic import PredictingActorCritic
 from types import SimpleNamespace
 from sample_factory.algo.utils.context import SampleFactoryContext
 from torch import nn

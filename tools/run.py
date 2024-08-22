@@ -4,15 +4,21 @@ import os
 import hydra
 from omegaconf import OmegaConf
 from rich import traceback
+from rl.carbs.carb_sweep import run_sweep
 import util.replay as replay
+from rich_argparse import RichHelpFormatter
+import signal # Aggressively exit on ctrl+c
+from rl.wandb.wandb import init_wandb
 
-from rl_framework.sample_factory.sample_factory import SampleFactoryFramework
+signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
 
 @hydra.main(version_base=None, config_path="../configs", config_name="config")
 def main(cfg):
     traceback.install(show_locals=False)
     print(OmegaConf.to_yaml(cfg))
     framework = hydra.utils.instantiate(cfg.framework, cfg, _recursive_=False)
+    if cfg.wandb.track:
+        framework.wandb = init_wandb(cfg)
 
     try:
         if cfg.cmd == "train":
@@ -27,6 +33,11 @@ def main(cfg):
 
         if cfg.cmd == "play":
             result = framework.evaluate()
+
+        if cfg.cmd == "sweep":
+            from rl.carbs.carb_sweep import run_sweep
+            run_sweep(cfg)
+
 
     except KeyboardInterrupt:
         os._exit(0)

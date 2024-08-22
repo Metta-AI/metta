@@ -8,9 +8,11 @@ defaults:
   - env: mettagrid/a20_b4_40x40
   - hardware: macbook
   - wandb: wandb
+  - sweep: sweep
 
 eval:
   fps: 8
   max_steps: 1000
   video_path: ${framework.train_dir}/${experiment}/replay.mp4
   gif_path: ${framework.train_dir}/${experiment}/replay.gif
+

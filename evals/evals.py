@@ -13,7 +13,7 @@ from scipy import stats
 import numpy as np
 from sympy import N
 import os
-from rl_framework.sample_factory.sample_factory import evaluate
+from rl.sample_factory.sample_factory import evaluate
 
 EVALUATION_ARGS = [
     "--no_render",

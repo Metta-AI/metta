@@ -53,6 +53,21 @@
             ],
         },
         {
+            "name": "Run Sweep",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "tools.run_sweep",
+            "args": [
+                "experiment=mac.sweep.0",
+                "framework=pufferlib",
+                "agent=small",
+                "hardware=macbook",
+                "env=mettagrid/a20_b4_40x40",
+                // "env=mettagrid/a20_b4_40x40",
+                "cmd=sweep",
+            ],
+        },
+        {
             "name": "Play Metta",
             "type": "debugpy",
             "request": "launch",

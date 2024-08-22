@@ -8,9 +8,9 @@ from sample_factory.cfg.arguments import parse_full_cfg, parse_sf_args
 from sample_factory.envs.env_utils import register_env
 from sample_factory.train import run_rl
 from sample_factory.enjoy import enjoy
-from rl_framework.rl_framework import EvaluationResult, RLFramework
-from rl_framework.sample_factory.sample_factory_agent_wrapper import SampleFactoryAgentWrapper
-from rl_framework.sample_factory.sample_factory_env_wrapper import SampleFactoryEnvWrapper
+from rl.rl_framework import EvaluationResult, RLFramework
+from rl.sample_factory.sample_factory_agent_wrapper import SampleFactoryAgentWrapper
+from rl.sample_factory.sample_factory_env_wrapper import SampleFactoryEnvWrapper
 
 
 def make_env_func(full_env_name, sf_cfg, sf_env_config, render_mode):

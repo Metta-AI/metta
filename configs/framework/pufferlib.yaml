@@ -1,5 +1,5 @@
 
-_target_: rl_framework.pufferlib.pufferlib.PufferLibFramework
+_target_: rl.pufferlib.pufferlib.PufferLibFramework
 
 train_dir: ${data_dir}/pufferlib
 

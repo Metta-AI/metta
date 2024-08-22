@@ -1,6 +1,6 @@
 # @package framework
 
-_target_: rl_framework.sample_factory.sample_factory.SampleFactoryFramework
+_target_: rl.sample_factory.sample_factory.SampleFactoryFramework
 
 train_dir: ${data_dir}/sample_factory
 

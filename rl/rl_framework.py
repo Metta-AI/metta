@@ -6,6 +6,7 @@ from typing import NamedTuple
 class EvaluationResult(NamedTuple):
     reward: float
     frames: List
+
 class RLFramework():
     def __init__(self, cfg):
         self.cfg = cfg
