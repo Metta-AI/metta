@@ -1,12 +1,8 @@
-from calendar import c
-from functools import partial
 import os
 import hydra
 from omegaconf import OmegaConf
 from rich import traceback
-from rl.carbs.carb_sweep import run_sweep
 import util.replay as replay
-from rich_argparse import RichHelpFormatter
 import signal # Aggressively exit on ctrl+c
 from rl.wandb.wandb import init_wandb
 
@@ -33,11 +29,6 @@ def main(cfg):
 
         if cfg.cmd == "play":
             result = framework.evaluate()
-
-        if cfg.cmd == "sweep":
-            from rl.carbs.carb_sweep import run_sweep
-            run_sweep(cfg)
-
 
     except KeyboardInterrupt:
         os._exit(0)

@@ -86,7 +86,7 @@ def run_carb_sweep_rollout():
 
     try:
         rl_controller = hydra.utils.instantiate(cfg.framework, cfg, _recursive_=False)
-        rl_controller.wandb = wandb
+        rl_controller.wandb = init_wandb(cfg)
         rl_controller.train()
         observed_value = rl_controller.stats.get('environment/episode/reward.mean', 0)
         train_time = rl_controller.train_time
