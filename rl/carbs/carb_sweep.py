@@ -1,5 +1,5 @@
 
-from omegaconf import OmegaConf
+from omegaconf import OmegaConf, DictConfig
 
 from carbs import LinearSpace
 from carbs import LogSpace
@@ -70,10 +70,18 @@ def run_carb_sweep_rollout():
 
     new_cfg = _cfg.copy()
     for key, value in suggestion.items():
-        if key in new_cfg.framework.pufferlib.train:
-            if _cfg.sweep.parameters[key].get("is_pow2", False):
-                value = closest_power(value)
-            new_cfg.framework.pufferlib.train[key] = value
+        if key == "suggestion_uuid":
+            continue
+        new_cfg_param = new_cfg
+        sweep_param = _cfg.sweep.parameters
+        key_parts = key.split(".")
+        for k in key_parts[:-1]:
+            new_cfg_param = new_cfg_param[k]
+            sweep_param = sweep_param[k]
+        param_name = key_parts[-1]
+        if sweep_param[param_name].get("is_pow2", False):
+            value = closest_power(value)
+        new_cfg_param[param_name] = value
 
     print(OmegaConf.to_yaml(new_cfg))
 
@@ -121,6 +129,7 @@ def _wandb_distribution(param):
             return "uniform"
 
 def _wandb_sweep_cfg(cfg: OmegaConf):
+    params = _fully_qualified_parameters(cfg.sweep.parameters)
     wandb_sweep_cfg = {
         "method": "bayes",
         "metric": {
@@ -130,7 +139,7 @@ def _wandb_sweep_cfg(cfg: OmegaConf):
         "parameters": {},
         "name": cfg.wandb.name,
     }
-    for param_name, param in cfg.sweep.parameters.items():
+    for param_name, param in params.items():
         wandb_sweep_cfg["parameters"][param_name] = {
             "min": param.min,
             "max": param.max,
@@ -146,7 +155,8 @@ _carbs_space = {
 
 def _carbs_params_spaces(cfg: OmegaConf):
     param_spaces = []
-    for param_name, param in cfg.sweep.parameters.items():
+    params = _fully_qualified_parameters(cfg.sweep.parameters)
+    for param_name, param in params.items():
         param_spaces.append(
             Param(
                 name=param_name,
@@ -163,3 +173,14 @@ def _carbs_params_spaces(cfg: OmegaConf):
                 )
             ))
     return param_spaces
+
+
+def _fully_qualified_parameters(nested_dict, prefix=''):
+    qualified_params = {}
+    if "space" in nested_dict:
+        return {prefix: nested_dict}
+    for key, value in nested_dict.items():
+        new_prefix = f"{prefix}.{key}" if prefix else key
+        if isinstance(value, DictConfig):
+            qualified_params.update(_fully_qualified_parameters(value, new_prefix))
+    return qualified_params
