@@ -50,7 +50,7 @@ class PufferLibFramework(RLFramework):
         batch_size = (target_batch_size // pcfg.train.num_workers) * pcfg.train.num_workers
 
         vecenv_args = dict(
-        env_kwargs=dict(cfg = dict(**self.cfg.env)),
+            env_kwargs=dict(cfg = dict(**self.cfg.env)),
             num_envs=batch_size * pcfg.train.async_factor,
             num_workers=pcfg.train.num_workers,
             batch_size=batch_size,

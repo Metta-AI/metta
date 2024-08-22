@@ -1,72 +1,63 @@
-# @package __global__
+method: bayes
 
-framework:
-  pufferlib:
-    train:
-      total_timesteps: 50_000_000
-      num_workers: 24 # num cores
+metric:
+  goal: maximize
+  name: environment/episode/reward.mean
 
-sweep:
-  method: bayes
-
-  metric:
-    goal: maximize
-    name: environment/episode/reward.mean
-
-  parameters:
-    learning_rate:
-      distribution: log_uniform_values
-      min: 1e-5
-      max: 1e-1
-    gamma:
-      distribution: uniform
-      min: 0.0
-      max: 1.0
-    gae_lambda:
-      distribution: uniform
-      min: 0.0
-      max: 1.0
-    update_epochs:
-      distribution: int_uniform
-      min: 1
-      max: 16
-    clip_coef:
-      distribution: uniform
-      min: 0.0
-      max: 1.0
-    vf_coef:
-      distribution: uniform
-      min: 0.0
-      max: 1.0
-    vf_clip_coef:
-      distribution: uniform
-      min: 0.0
-      max: 1.0
-    max_grad_norm:
-      distribution: uniform
-      min: 0.0
-      max: 1.0
-    ent_coef:
-      distribution: log_uniform_values
-      min: 1e-5
-      max: 1e-1
-    batch_size:
-      distribution: uniform
-      min: 65536
-      max: 524288
-    minibatch_size:
-      distribution: uniform
-      min: 4096
-      max: 32768
-    forward_pass_minibatch_target_size:
-      distribution: uniform
-      min: 4096
-      max: 32768
-    # async_factor:
-    #   distribution: int_uniform
-    #   min: 1
-    #   max: 8
-    # bptt_horizon:
-    #   values: [1, 2, 4, 8, 16]
+parameters:
+  learning_rate:
+    distribution: log_uniform_values
+    min: 1e-5
+    max: 1e-1
+  gamma:
+    distribution: uniform
+    min: 0.0
+    max: 1.0
+  gae_lambda:
+    distribution: uniform
+    min: 0.0
+    max: 1.0
+  update_epochs:
+    distribution: int_uniform
+    min: 1
+    max: 16
+  clip_coef:
+    distribution: uniform
+    min: 0.0
+    max: 1.0
+  vf_coef:
+    distribution: uniform
+    min: 0.0
+    max: 1.0
+  vf_clip_coef:
+    distribution: uniform
+    min: 0.0
+    max: 1.0
+  max_grad_norm:
+    distribution: uniform
+    min: 0.0
+    max: 1.0
+  ent_coef:
+    distribution: log_uniform_values
+    min: 1e-5
+    max: 1e-1
+  batch_size:
+    distribution: uniform
+    min: 65536
+    max: 524288
+  minibatch_size:
+    distribution: uniform
+    min: 4096
+    max: 32768
+  forward_pass_minibatch_target_size:
+    distribution: uniform
+    min: 4096
+    max: 32768
+  # async_factor:
+  #   distribution: int_uniform
+  #   min: 1
+  #   max: 8
+  # bptt_horizon:
+  #   values: [1, 2, 4, 8, 16]
 
 
