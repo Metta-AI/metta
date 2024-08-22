@@ -63,7 +63,7 @@
                 "framework=pufferlib",
                 "agent=small",
                 "hardware=macbook",
-                "sweep=sweep",
+                "sweep=fast",
                 "env=mettagrid/a20_b4_40x40",
                 "env.game.max_steps=100",
                 "framework.pufferlib.train.total_timesteps=100000",
