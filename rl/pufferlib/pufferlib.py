@@ -31,8 +31,7 @@ class PufferLibFramework(RLFramework):
         cfg = OmegaConf.create(cfg)
         super().__init__(cfg)
         self.puffer_cfg = cfg.framework.pufferlib
-        if self.cfg.wandb.track:
-            init_wandb(self.cfg)
+
         self._train_start = time.time()
 
     def train(self):

@@ -68,7 +68,6 @@
                 "env.game.max_steps=100",
                 "framework.pufferlib.train.total_timesteps=100000",
                 // "env=mettagrid/a20_b4_40x40",
-                "cmd=sweep",
             ],
         },
         {

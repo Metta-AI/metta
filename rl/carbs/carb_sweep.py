@@ -1,10 +1,8 @@
 
-from colorama import init
 from omegaconf import OmegaConf
 
 
 import numpy as np
-from sympy import N
 
 from carbs import LinearSpace
 from carbs import Param
@@ -17,7 +15,6 @@ from carbs import CARBS
 from carbs import CARBSParams
 from carbs import ObservationInParam
 
-import rl
 from rl.wandb.wandb import init_wandb
 import traceback
 import hydra
