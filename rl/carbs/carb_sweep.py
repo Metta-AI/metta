@@ -31,6 +31,8 @@ def run_sweep(cfg: OmegaConf):
     sweep_id = wandb.sweep(
         sweep=sweep,
         project=cfg.wandb.project,
+        entity=cfg.wandb.entity,
+        group=cfg.wandb.group,
     )
     param_spaces = []
     for param_name, param in cfg.sweep.parameters.items():
