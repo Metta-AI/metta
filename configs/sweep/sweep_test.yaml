@@ -1,0 +1,11 @@
+method: bayes
+
+metric:
+  goal: maximize
+  name: environment/episode/reward.mean
+
+parameters:
+  learning_rate:
+    distribution: log_uniform_values
+    min: 1e-5
+    max: 1e-1

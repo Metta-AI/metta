@@ -3,6 +3,8 @@ from omegaconf import OmegaConf
 
 def init_wandb(cfg, resume=True):
     #os.environ["WANDB_SILENT"] = "true"
+    if wandb.run is not None:
+        print("wandb.init() has already been called, ignoring.")
 
     wandb.init(
         id=cfg.experiment or wandb.util.generate_id(),
@@ -16,4 +18,3 @@ def init_wandb(cfg, resume=True):
         save_code=True,
         resume=resume,
     )
-    return wandb

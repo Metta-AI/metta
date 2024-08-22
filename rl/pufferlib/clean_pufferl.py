@@ -1,4 +1,3 @@
-from pdb import set_trace as T
 import numpy as np
 
 import os
@@ -23,9 +22,9 @@ import pufferlib.pytorch
 torch.set_float32_matmul_precision('high')
 
 from fast_gae import fast_gae
+import wandb
 
-
-def create(config, vecenv, policy, optimizer=None, wandb=None):
+def create(config, vecenv, policy, optimizer=None):
     seed_everything(config.seed, config.torch_deterministic)
     profile = Profile()
     losses = make_losses()
@@ -54,6 +53,10 @@ def create(config, vecenv, policy, optimizer=None, wandb=None):
     optimizer = torch.optim.Adam(policy.parameters(),
         lr=config.learning_rate, eps=1e-5)
 
+    wandb_or_none = None
+    if wandb.run is not None:
+        wandb_or_none = wandb
+
     return pufferlib.namespace(
         config=config,
         vecenv=vecenv,
@@ -63,7 +66,7 @@ def create(config, vecenv, policy, optimizer=None, wandb=None):
         experience=experience,
         profile=profile,
         losses=losses,
-        wandb=wandb,
+        wandb=wandb_or_none,
         global_step=0,
         epoch=0,
         stats=defaultdict(list),
@@ -124,21 +127,6 @@ def evaluate(data):
             data.vecenv.send(actions)
 
     with profile.eval_misc:
-        # Moves into models... maybe. Definitely moves.
-        # You could also just return infos and have it in demo
-        if 'pokemon_exploration_map' in infos:
-            for pmap in infos['pokemon_exploration_map']:
-                if not hasattr(data, 'pokemon_map'):
-                    import pokemon_red_eval
-                    data.map_updater = pokemon_red_eval.map_updater()
-                    data.pokemon_map = pmap
-
-                data.pokemon_map = np.maximum(data.pokemon_map, pmap)
-
-            if len(infos['pokemon_exploration_map']) > 0:
-                rendered = data.map_updater(data.pokemon_map)
-                data.stats['Media/exploration_map'] = data.wandb.Image(rendered)
-
         for k, v in infos.items():
             if '_map' in k and data.wandb is not None:
                 data.stats[f'Media/{k}'] = data.wandb.Image(v[0])
@@ -313,7 +301,7 @@ def mean_and_log(data):
         **{f'performance/{k}': v for k, v in data.profile},
     })
 
-def close(data):
+def  close(data):
     data.vecenv.close()
     data.utilization.stop()
     config = data.config

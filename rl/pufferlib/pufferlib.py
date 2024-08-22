@@ -10,6 +10,8 @@ import pufferlib.frameworks.cleanrl
 import hydra
 import time
 from rich.console import Console
+import numpy as np
+from rl.wandb.wandb import init_wandb
 
 from . import puffer_agent_wrapper
 
@@ -29,8 +31,9 @@ class PufferLibFramework(RLFramework):
         cfg = OmegaConf.create(cfg)
         super().__init__(cfg)
         self.puffer_cfg = cfg.framework.pufferlib
+        if self.cfg.wandb.track:
+            init_wandb(self.cfg)
         self._train_start = time.time()
-        self.wandb = None
 
     def train(self):
         pcfg = self.puffer_cfg
@@ -60,23 +63,22 @@ class PufferLibFramework(RLFramework):
         print("Vectorization Settings: ", vecenv_args)
         vecenv = pufferlib.vector.make(make_env_func, **vecenv_args)
         policy = puffer_agent_wrapper.make_policy(vecenv.driver_env, self.cfg)
-        data = clean_pufferl.create(pcfg.train, vecenv, policy, wandb=self.wandb)
+        self.data = clean_pufferl.create(pcfg.train, vecenv, policy)
 
-        while data.global_step < pcfg.train.total_timesteps:
+        while self.data.global_step < pcfg.train.total_timesteps:
             try:
-                clean_pufferl.evaluate(data)
-                self.process_stats(data)
-                clean_pufferl.train(data)
+                clean_pufferl.evaluate(self.data)
+                self.process_stats(self.data)
+                clean_pufferl.train(self.data)
             except KeyboardInterrupt:
-                clean_pufferl.close(data)
+                self.close()
                 os._exit(0)
             except Exception:
                 Console().print_exception()
                 os._exit(0)
 
-        clean_pufferl.evaluate(data)
-        self.process_stats(data)
-        clean_pufferl.close(data)
+        clean_pufferl.evaluate(self.data)
+        self.process_stats(self.data)
         self.train_time = time.time() - self._train_start
 
     def evaluate(self):
@@ -101,13 +103,12 @@ class PufferLibFramework(RLFramework):
         # )
 
     def process_stats(self, data):
-        self.stats = data.stats
-        # new_stats = {}
-        # for k, v in data.stats.items():
-        #     new_stats["avg_" + k] = v
-        # if "episode_return" in data.stats:
-        #     new_stats["episode_return"] = data.stats["episode_return"]
-        #     new_stats["episode_length"] = data.stats["episode_length"]
-        # data.stats = new_stats
+        if len(data.stats) == 0:
+            return
+        new_stats = {}
+        for k, v in data.stats.items():
+            new_stats[k] = np.array(v).mean()
+        self.last_stats = new_stats
 
-
+    def close(self):
+        clean_pufferl.close(self.data)

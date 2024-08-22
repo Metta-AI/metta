@@ -14,7 +14,7 @@ def main(cfg):
     print(OmegaConf.to_yaml(cfg))
     framework = hydra.utils.instantiate(cfg.framework, cfg, _recursive_=False)
     if cfg.wandb.track:
-        framework.wandb = init_wandb(cfg)
+        init_wandb(cfg)
 
     try:
         if cfg.cmd == "train":
@@ -30,6 +30,7 @@ def main(cfg):
         if cfg.cmd == "play":
             result = framework.evaluate()
 
+        framework.close()
     except KeyboardInterrupt:
         os._exit(0)
 

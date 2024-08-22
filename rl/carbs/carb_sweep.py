@@ -19,19 +19,18 @@ from carbs import ObservationInParam
 
 import rl
 from rl.wandb.wandb import init_wandb
-from rl.rl_framework import RLFramework
 import traceback
 import hydra
 import wandb
 
 _carbs_controller = None
-_wandb = None
+_cfg = None
 
 def run_sweep(cfg: OmegaConf):
-    sweep = OmegaConf.to_container(cfg.sweep, resolve=True)
-    global _wandb
-    _wandb = init_wandb(cfg)
+    global _cfg
+    _cfg = cfg
 
+    sweep = OmegaConf.to_container(cfg.sweep, resolve=True)
     sweep_id = wandb.sweep(
         sweep=sweep,
         project=cfg.wandb.project,
@@ -64,17 +63,17 @@ def run_sweep(cfg: OmegaConf):
 
 def run_carb_sweep_rollout():
     global _carbs_controller
-    global _wandb
+    global _cfg
 
     np.random.seed(int(time.time()))
     torch.manual_seed(int(time.time()))
+    init_wandb(_cfg)
 
     wandb.config.__dict__['_locked'] = {}
-    cfg = OmegaConf.create(dict(wandb.config))
 
     orig_suggestion = _carbs_controller.suggest().suggestion
     suggestion = orig_suggestion.copy()
-    print('Suggestion:', suggestion)
+    print('Carbs Suggestion:', suggestion)
     if "batch_size" in suggestion:
         suggestion["batch_size"] = closest_power(suggestion["batch_size"])
     if "minibatch_size" in suggestion:
@@ -84,15 +83,21 @@ def run_carb_sweep_rollout():
     if "forward_pass_minibatch_target_size" in suggestion:
         suggestion["forward_pass_minibatch_target_size"] = closest_power(suggestion["forward_pass_minibatch_target_size"])
 
-    cfg["framework"]["pufferlib"]["train"].update(suggestion)
+    new_cfg = _cfg.copy()
+    for key, value in suggestion.items():
+        if key in new_cfg.framework.pufferlib.train:
+            new_cfg.framework.pufferlib.train[key] = value
+
+    print(OmegaConf.to_yaml(new_cfg))
+
     observed_value = 0
     train_time = 0
 
+    is_failure = False
     try:
-        rl_controller = hydra.utils.instantiate(cfg.framework, cfg, _recursive_=False)
-        rl_controller.wandb = _wandb
+        rl_controller = hydra.utils.instantiate(new_cfg.framework, new_cfg, _recursive_=False)
         rl_controller.train()
-        observed_value = rl_controller.stats.get('environment/episode/reward.mean', 0)
+        observed_value = rl_controller.last_stats['episode/reward.mean']
         train_time = rl_controller.train_time
     except Exception:
         is_failure = True
