@@ -11,7 +11,6 @@ framework:
     device: cuda
     vectorization: multiprocessing
     train:
-      total_timesteps: 50_000_000_000
       num_workers: 24 # num cores
       batch_size: 262144 # smaller seems to break
       minibatch_size: 4096

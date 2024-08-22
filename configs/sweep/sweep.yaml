@@ -1,63 +1,95 @@
-method: bayes
-
-metric:
-  goal: maximize
-  name: environment/episode/reward.mean
+metric: episode/reward.mean
 
 parameters:
   learning_rate:
-    distribution: log_uniform_values
+    space: log
+    search_center: 2.5e-4
     min: 1e-5
     max: 1e-1
   gamma:
-    distribution: uniform
+    space: logit
+    search_center: 0.95
     min: 0.0
     max: 1.0
   gae_lambda:
-    distribution: uniform
+    space: logit
+    search_center: 0.90
     min: 0.0
     max: 1.0
-  # update_epochs:
-  #   distribution: int_uniform
-  #   min: 1
-  #   max: 16
+  update_epochs:
+    space: linear
+    is_int: true
+    search_center: 1
+    scale: 3
+    min: 1
+    max: 16
   clip_coef:
-    distribution: uniform
+    space: logit
+    search_center: 0.1
     min: 0.0
     max: 1.0
   vf_coef:
-    distribution: uniform
+    space: logit
+    search_center: 0.5
     min: 0.0
     max: 1.0
   vf_clip_coef:
-    distribution: uniform
+    space: logit
+    search_center: 0.1
     min: 0.0
     max: 1.0
   max_grad_norm:
-    distribution: uniform
+    space: linear
+    search_center: 0.5
     min: 0.0
     max: 1.0
   ent_coef:
-    distribution: log_uniform_values
+    space: log
+    search_center: 0.01
     min: 1e-5
     max: 1e-1
   batch_size:
-    distribution: uniform
+    space: log
+    is_pow2: true
+    search_center: 262144
     min: 65536
     max: 524288
   minibatch_size:
-    distribution: uniform
-    min: 4096
+    space: log
+    is_pow2: true
+    search_center: 16384
+    min: 1024
     max: 32768
+  num_minibatches:
+    space: linear
+    search_center: 4
+    is_int: true
+    min: 1
+    max: 8
   forward_pass_minibatch_target_size:
-    distribution: uniform
-    min: 4096
+    space: log
+    search_center: 4096
+    is_pow2: true
+    min: 1024
     max: 32768
   # async_factor:
-  #   distribution: int_uniform
+  #   space: linear
+  #   search_center: 2
+  #   is_int: true
   #   min: 1
   #   max: 8
-  # bptt_horizon:
-  #   values: [1, 2, 4, 8, 16]
+  bptt_horizon:
+    space: log
+    search_center: 16
+    is_pow2: true
+    min: 1
+    max: 256
+  total_timesteps:
+    space: log
+    search_center: 1e7
+    min: 1e7
+    max: 1e13
+    is_int: true
+
 
 

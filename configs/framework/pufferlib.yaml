@@ -23,7 +23,7 @@ pufferlib:
     torch_deterministic: True
     cpu_offload: False
     device: ${framework.pufferlib.device}
-    total_timesteps: 10_000_000
+    total_timesteps: 50_000_000_000
     learning_rate: 2.5e-4
     num_steps: 256
     anneal_lr: False

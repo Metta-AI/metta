@@ -1,11 +1,13 @@
 
 from omegaconf import OmegaConf
 
+from carbs import LinearSpace
+from carbs import LogSpace
+from carbs import LogitSpace
+from carbs import Param
 
 import numpy as np
 
-from carbs import LinearSpace
-from carbs import Param
 
 import torch
 import time
@@ -24,41 +26,19 @@ _carbs_controller = None
 _cfg = None
 _sweep_id = None
 
-def wandb_sweep_cfg(cfg: OmegaConf):
-    sweep_cfg = OmegaConf.to_container(cfg.sweep, resolve=True)
-    sweep_cfg["name"] = cfg.wandb.name
-    return sweep_cfg
-
-def carbs_params_spaces(cfg: OmegaConf):
-    param_spaces = []
-    for param_name, param in cfg.sweep.parameters.items():
-        param_spaces.append(
-            Param(
-                name=param_name,
-                space=LinearSpace(
-                    min=param.min,
-                    max=param.max,
-                    is_integer=False,
-                    rounding_factor=1,
-                    scale=1,
-                ),
-                search_center=param.min + (param.max - param.min) / 2,
-            ))
-    return param_spaces
-
 def run_sweep(cfg: OmegaConf):
     global _cfg
     _cfg = cfg
 
     sweep_id = wandb.sweep(
-        sweep=wandb_sweep_cfg(cfg),
+        sweep=_wandb_sweep_cfg(cfg),
         project=cfg.wandb.project,
         entity=cfg.wandb.entity,
     )
     global _sweep_id
     _sweep_id = sweep_id
 
-    param_spaces = carbs_params_spaces(cfg)
+    param_spaces = _carbs_params_spaces(cfg)
     carbs_params = CARBSParams(
         better_direction_sign=1,
         is_wandb_logging_enabled=False,
@@ -83,23 +63,17 @@ def run_carb_sweep_rollout():
     except Exception:
         print("Failed to get number of runs")
 
-    wandb.config.__dict__['_locked'] = {}
+    wandb.config.__dict__["_locked"] = {}
 
     orig_suggestion = _carbs_controller.suggest().suggestion
     suggestion = orig_suggestion.copy()
-    print('Carbs Suggestion:', suggestion)
-    if "batch_size" in suggestion:
-        suggestion["batch_size"] = closest_power(suggestion["batch_size"])
-    if "minibatch_size" in suggestion:
-        suggestion["minibatch_size"] = closest_power(suggestion["minibatch_size"])
-    if "bptt_horizon" in suggestion:
-        suggestion["bptt_horizon"] = closest_power(suggestion["bptt_horizon"])
-    if "forward_pass_minibatch_target_size" in suggestion:
-        suggestion["forward_pass_minibatch_target_size"] = closest_power(suggestion["forward_pass_minibatch_target_size"])
+    print("Carbs Suggestion:", suggestion)
 
     new_cfg = _cfg.copy()
     for key, value in suggestion.items():
         if key in new_cfg.framework.pufferlib.train:
+            if _cfg.sweep.parameters[key].get("is_pow2", False):
+                value = closest_power(value)
             new_cfg.framework.pufferlib.train[key] = value
 
     print(OmegaConf.to_yaml(new_cfg))
@@ -111,14 +85,14 @@ def run_carb_sweep_rollout():
     try:
         rl_controller = hydra.utils.instantiate(new_cfg.framework, new_cfg, _recursive_=False)
         rl_controller.train()
-        observed_value = rl_controller.last_stats['episode/reward.mean']
+        observed_value = rl_controller.last_stats[_cfg.sweep.metric]
         train_time = rl_controller.train_time
     except Exception:
         is_failure = True
         traceback.print_exc()
 
-    print('Observed Value:', observed_value)
-    print('Train Time:', train_time)
+    print("Observed Value:", observed_value)
+    print("Train Time:", train_time)
     print("Is Failure:", is_failure)
 
     _carbs_controller.observe(
@@ -134,3 +108,59 @@ def closest_power(x):
     possible_results = floor(log(x, 2)), ceil(log(x, 2))
     return int(2**min(possible_results, key= lambda z: abs(x-2**z)))
 
+def _wandb_distribution(param):
+    if param.space == "log":
+        return "log_uniform_values"
+    elif param.space == "linear":
+        return "uniform"
+    elif param.space == "logit":
+        return "uniform"
+    elif param.space == "linear":
+        if param.is_int:
+            return "int_uniform"
+        else:
+            return "uniform"
+
+def _wandb_sweep_cfg(cfg: OmegaConf):
+    wandb_sweep_cfg = {
+        "method": "bayes",
+        "metric": {
+            "goal": "maximize",
+            "name": "environment/" + cfg.sweep.metric,
+        },
+        "parameters": {},
+        "name": cfg.wandb.name,
+    }
+    for param_name, param in cfg.sweep.parameters.items():
+        wandb_sweep_cfg["parameters"][param_name] = {
+            "min": param.min,
+            "max": param.max,
+            "distribution": _wandb_distribution(param),
+        }
+    return wandb_sweep_cfg
+
+_carbs_space = {
+    "log": LogSpace,
+    "linear": LinearSpace,
+    "logit": LogitSpace,
+}
+
+def _carbs_params_spaces(cfg: OmegaConf):
+    param_spaces = []
+    for param_name, param in cfg.sweep.parameters.items():
+        param_spaces.append(
+            Param(
+                name=param_name,
+                space=_carbs_space[param.space](
+                    min=param.min,
+                    max=param.max,
+                    is_integer=param.get("is_int", False) or param.get("is_pow2", False),
+                    rounding_factor=param.get("rounding_factor", 1),
+                    scale=param.get("scale", 1),
+                ),
+                search_center=param.get(
+                    "search_center",
+                    param.min + (param.max - param.min) / 2,
+                )
+            ))
+    return param_spaces
