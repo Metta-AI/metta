@@ -146,7 +146,7 @@ def _carbs_params_spaces(cfg: OmegaConf):
                     max=param.max,
                     is_integer=param.get("is_int", False) or param.space == "pow2",
                     rounding_factor=param.get("rounding_factor", 1),
-                    scale=param.get("scale", 1),
+                    scale=param.get("scale", 1/(param.max - param.min)),
                 ),
                 search_center=param.get(
                     "search_center",

@@ -14,11 +14,9 @@ parameters:
           min: 128
           max: 1024
         forward_pass_minibatch_target_size:
-          space: log
-          is_pow2: true
-          search_center: 2
-          min: 1
-          max: 4
+          search_center: 128
+          min: 128
+          max: 1024
         bptt_horizon:
           search_center: 8
           min: 4

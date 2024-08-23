@@ -96,8 +96,9 @@ parameters:
     observation_encoders:
       grid_obs:
         label_dim:
-          space: pow2
+          space: linear
           search_center: 4
+          is_int: true
           min: 2
           max: 16
         output_dim:
