@@ -59,11 +59,12 @@
             "request": "launch",
             "module": "tools.run_sweep",
             "args": [
-                "experiment=mac.sweep.0",
+                "experiment=mac.carbsweep",
                 "framework=pufferlib",
                 "agent=small",
                 "hardware=macbook",
                 "sweep=fast",
+                "wandb.track=True",
                 "env=mettagrid/a20_b4_40x40",
                 "env.game.max_steps=100",
                 "framework.pufferlib.train.total_timesteps=100000",

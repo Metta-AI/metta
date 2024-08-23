@@ -311,7 +311,7 @@ def  close(data):
         model_path = save_checkpoint(data)
         artifact.add_file(model_path)
         data.wandb.run.log_artifact(artifact)
-        data.wandb.finish()
+        # data.wandb.finish()
 
 class Profile:
     SPS: ... = 0

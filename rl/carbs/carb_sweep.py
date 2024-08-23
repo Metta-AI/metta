@@ -1,4 +1,5 @@
 
+from click import group
 from omegaconf import OmegaConf, DictConfig
 
 from carbs import LinearSpace
@@ -15,66 +16,50 @@ from math import log, ceil, floor
 
 from carbs import CARBS
 from carbs import CARBSParams
-from carbs import ObservationInParam
+from carbs import ObservationInParam, WandbLoggingParams
 
 from rl.wandb.wandb import init_wandb
 import traceback
 import hydra
 import wandb
 
-_carbs_controller = None
-_cfg = None
-_sweep_id = None
-_sweep_run_id = 0
-
 def run_sweep(cfg: OmegaConf):
-    global _cfg
-    _cfg = cfg
-
-    sweep_id = wandb.sweep(
-        sweep=_wandb_sweep_cfg(cfg),
-        project=cfg.wandb.project,
-        entity=cfg.wandb.entity,
-    )
-    global _sweep_id
-    _sweep_id = sweep_id
-
     param_spaces = _carbs_params_spaces(cfg)
     print("Param Spaces:", param_spaces)
     carbs_params = CARBSParams(
+        wandb_params = WandbLoggingParams(
+            project_name = cfg.wandb.project,
+            group_name = cfg.wandb.group,
+            run_id = cfg.experiment or wandb.util.generate_id(),
+            run_name = cfg.wandb.name,
+            root_dir = "wandb",
+        ),
         better_direction_sign=1,
-        is_wandb_logging_enabled=False,
+        is_wandb_logging_enabled=True,
         resample_frequency=5,
         num_random_samples=len(param_spaces),
     )
-    global _carbs_controller
-    _carbs_controller = CARBS(carbs_params, param_spaces)
-    wandb.agent(sweep_id, run_carb_sweep_rollout, count=100)
+    carbs_controller = CARBS(carbs_params, param_spaces)
 
-def run_carb_sweep_rollout():
-    global _carbs_controller
-    global _cfg
-    global _sweep_run_id
+    while True:
+        run_carb_sweep_rollout(carbs_controller, cfg)
+
+def run_carb_sweep_rollout(carbs_controller: CARBS, cfg: OmegaConf):
+    init_wandb(cfg, resume="allow")
 
     np.random.seed(int(time.time()))
     torch.manual_seed(int(time.time()))
 
-    init_wandb(_cfg)
-    wandb.run.name = f"{wandb.run.name}.r_{_sweep_run_id:04d}"
-    _sweep_run_id += 1
-
-    wandb.config.__dict__["_locked"] = {}
-
-    orig_suggestion = _carbs_controller.suggest().suggestion
+    orig_suggestion = carbs_controller.suggest().suggestion
     suggestion = orig_suggestion.copy()
     print("Carbs Suggestion:", suggestion)
 
-    new_cfg = _cfg.copy()
+    new_cfg = cfg.copy()
     for key, value in suggestion.items():
         if key == "suggestion_uuid":
             continue
         new_cfg_param = new_cfg
-        sweep_param = _cfg.sweep.parameters
+        sweep_param = cfg.sweep.parameters
         key_parts = key.split(".")
         for k in key_parts[:-1]:
             new_cfg_param = new_cfg_param[k]
@@ -93,7 +78,7 @@ def run_carb_sweep_rollout():
     try:
         rl_controller = hydra.utils.instantiate(new_cfg.framework, new_cfg, _recursive_=False)
         rl_controller.train()
-        observed_value = rl_controller.last_stats[_cfg.sweep.metric]
+        observed_value = rl_controller.last_stats[cfg.sweep.metric]
         train_time = rl_controller.train_time
     except Exception:
         is_failure = True
@@ -108,7 +93,7 @@ def run_carb_sweep_rollout():
     print("Train Time:", train_time)
     print("Is Failure:", is_failure)
 
-    _carbs_controller.observe(
+    carbs_controller.observe(
         ObservationInParam(
             input=orig_suggestion,
             output=observed_value,
@@ -135,25 +120,6 @@ def _wandb_distribution(param):
             return "int_uniform"
         else:
             return "uniform"
-
-def _wandb_sweep_cfg(cfg: OmegaConf):
-    params = _fully_qualified_parameters(cfg.sweep.parameters)
-    wandb_sweep_cfg = {
-        "method": "bayes",
-        "metric": {
-            "goal": "maximize",
-            "name": "environment/" + cfg.sweep.metric,
-        },
-        "parameters": {},
-        "name": cfg.wandb.name,
-    }
-    for param_name, param in params.items():
-        wandb_sweep_cfg["parameters"][param_name] = {
-            "min": param.min,
-            "max": param.max,
-            "distribution": _wandb_distribution(param),
-        }
-    return wandb_sweep_cfg
 
 _carbs_space = {
     "log": LogSpace,
