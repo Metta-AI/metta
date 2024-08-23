@@ -45,8 +45,6 @@ def run_sweep(cfg: OmegaConf):
         run_carb_sweep_rollout(carbs_controller, cfg)
 
 def run_carb_sweep_rollout(carbs_controller: CARBS, cfg: OmegaConf):
-    init_wandb(cfg, resume="allow")
-
     np.random.seed(int(time.time()))
     torch.manual_seed(int(time.time()))
 
