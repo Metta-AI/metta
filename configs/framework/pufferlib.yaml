@@ -1,69 +1,60 @@
-
 _target_: rl.pufferlib.pufferlib.PufferLibFramework
-
 train_dir: ${data_dir}/pufferlib
-
 pufferlib:
-  device: ???
-  vectorization: ??? # serial, multiprocessing
-  baseline: False
+  device: cuda
+  vectorization: multiprocessing
+  baseline: false
   backend: clean_pufferl
   train_dir: ${data_dir}/pufferlib
-  render_mode: "rgb_array"
-
+  render_mode: rgb_array
   train:
     num_envs_per_worker: ???
-    num_workers: ???
-
+    num_workers: 24
     data_dir: ${framework.train_dir}
     env: ${env.name}
     exp_id: ${experiment}
-
     seed: 1
-    torch_deterministic: True
-    cpu_offload: False
+    torch_deterministic: true
+    cpu_offload: false
     device: ${framework.pufferlib.device}
     total_timesteps: 50_000_000_000
-    learning_rate: 2.5e-4
+    learning_rate: 0.0012654662762525116
     num_steps: 256
-    anneal_lr: False
-    gamma: 0.99
-    gae_lambda: 0.95
+    anneal_lr: false
+    gamma: 0.7755949999823327
+    gae_lambda: 0.9061454965924297
     num_minibatches: 4
-    update_epochs: 1
-    norm_adv: True
-    clip_coef: 0.1
-    clip_vloss: True
-    ent_coef: 0.002
-    vf_coef: 0.976
-    max_grad_norm: 0.5
+    update_epochs: 4
+    norm_adv: true
+    clip_coef: 0.059061983960164655
+    clip_vloss: true
+    ent_coef: 0.005792010009804944
+    vf_coef: 0.6632257135848436
+    max_grad_norm: 0.07688769698143005
     target_kl: null
-
     env_batch_size: null
-    zero_copy: True
-    verbose: True
+    zero_copy: true
+    verbose: true
     checkpoint_interval: 200
-    batch_size: 1024
-    minibatch_size: 512
-    bptt_horizon: 256
-    vf_clip_coef: 0.1
-    compile: False
+    batch_size: 262144
+    minibatch_size: 4096
+    bptt_horizon: 16
+    vf_clip_coef: 0.0008792699500449386
+    compile: false
     compile_mode: reduce-overhead
-
     forward_pass_minibatch_target_size: 4096
-    async_factor: 3
-
+    async_factor: 2
     dashboard:
       user_stats:
-        - episode_return
-        - episode_length
-        - avg_episode_return
-        - avg_episode_length
-        - avg_stats_agent_defeated
-        - avg_stats_action_attack
-        - avg_stats_altar_used
-        - avg_fruit_eaten
-        - avg_action_rotate
-        - avg_action_move
-        - avg_action_eat
-        - avg_fruit_spawned
+      - episode_return
+      - episode_length
+      - avg_episode_return
+      - avg_episode_length
+      - avg_stats_agent_defeated
+      - avg_stats_action_attack
+      - avg_stats_altar_used
+      - avg_fruit_eaten
+      - avg_action_rotate
+      - avg_action_move
+      - avg_action_eat
+      - avg_fruit_spawned
