@@ -7,7 +7,7 @@ from carbs import LogitSpace
 from carbs import Param
 
 import numpy as np
-
+import math
 
 import torch
 import time
@@ -40,6 +40,7 @@ def run_sweep(cfg: OmegaConf):
     _sweep_id = sweep_id
 
     param_spaces = _carbs_params_spaces(cfg)
+    print("Param Spaces:", param_spaces)
     carbs_params = CARBSParams(
         better_direction_sign=1,
         is_wandb_logging_enabled=False,
@@ -79,8 +80,8 @@ def run_carb_sweep_rollout():
             new_cfg_param = new_cfg_param[k]
             sweep_param = sweep_param[k]
         param_name = key_parts[-1]
-        if sweep_param[param_name].get("is_pow2", False):
-            value = closest_power(value)
+        if sweep_param[param_name].space == "pow2":
+            value = 2**value
         new_cfg_param[param_name] = value
 
     print(OmegaConf.to_yaml(new_cfg))
@@ -127,6 +128,8 @@ def _wandb_distribution(param):
         return "uniform"
     elif param.space == "logit":
         return "uniform"
+    elif param.space == "pow2":
+        return "log_uniform_values"
     elif param.space == "linear":
         if param.is_int:
             return "int_uniform"
@@ -155,6 +158,7 @@ def _wandb_sweep_cfg(cfg: OmegaConf):
 _carbs_space = {
     "log": LogSpace,
     "linear": LinearSpace,
+    "pow2": LinearSpace,
     "logit": LogitSpace,
 }
 
@@ -162,13 +166,19 @@ def _carbs_params_spaces(cfg: OmegaConf):
     param_spaces = []
     params = _fully_qualified_parameters(cfg.sweep.parameters)
     for param_name, param in params.items():
+        if param.space == "pow2":
+            param.min = int(math.log2(param.min))
+            param.max = int(math.log2(param.max))
+            if "search_center" in param:
+                param.search_center = int(math.log2(param.search_center))
+
         param_spaces.append(
             Param(
                 name=param_name,
                 space=_carbs_space[param.space](
                     min=param.min,
                     max=param.max,
-                    is_integer=param.get("is_int", False) or param.get("is_pow2", False),
+                    is_integer=param.get("is_int", False) or param.space == "pow2",
                     rounding_factor=param.get("rounding_factor", 1),
                     scale=param.get("scale", 1),
                 ),

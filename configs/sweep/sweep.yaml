@@ -52,17 +52,15 @@ parameters:
           min: 1e-5
           max: 1e-1
         batch_size:
-          space: log
-          is_pow2: true
+          space: pow2
           search_center: 262144
           min: 65536
           max: 524288
         minibatch_size:
-          space: log
-          is_pow2: true
-          search_center: 16384
+          space: pow2
+          search_center: 4096
           min: 1024
-          max: 8192
+          max: 32768
         num_minibatches:
           space: linear
           search_center: 4
@@ -70,9 +68,8 @@ parameters:
           min: 1
           max: 8
         forward_pass_minibatch_target_size:
-          space: log
+          space: pow2
           search_center: 4096
-          is_pow2: true
           min: 1024
           max: 32768
         # async_factor:
@@ -82,9 +79,8 @@ parameters:
         #   min: 1
         #   max: 8
         bptt_horizon:
-          space: log
+          space: pow2
           search_center: 16
-          is_pow2: true
           min: 1
           max: 256
         total_timesteps:
@@ -100,14 +96,12 @@ parameters:
     observation_encoders:
       grid_obs:
         label_dim:
-          space: log
-          is_pow2: true
+          space: pow2
           search_center: 4
           min: 2
           max: 16
         output_dim:
-          space: log
-          is_pow2: true
+          space: pow2
           search_center: 128
           min: 32
           max: 512
@@ -119,7 +113,7 @@ parameters:
           max: 6
         normalize_features:
           space: linear
-          search_center: 1
+          search_center: 0
           is_int: true
           min: 0
           max: 1
@@ -131,8 +125,7 @@ parameters:
         min: 1
         max: 4
       output_dim:
-        space: log
-        is_pow2: true
+        space: pow2
         search_center: 128
         min: 32
         max: 512
@@ -145,8 +138,7 @@ parameters:
         min: 1
         max: 4
       rnn_size:
-        space: log
-        is_pow2: true
+        space: pow2
         search_center: 128
         min: 32
         max: 512
