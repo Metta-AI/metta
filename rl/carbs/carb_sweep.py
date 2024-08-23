@@ -49,7 +49,7 @@ def run_sweep(cfg: OmegaConf):
     )
     global _carbs_controller
     _carbs_controller = CARBS(carbs_params, param_spaces)
-    wandb.agent(sweep_id, run_carb_sweep_rollout, count=100)
+    wandb.agent(sweep_id, run_carb_sweep_rollout, count=10000)
 
 def run_carb_sweep_rollout():
     global _carbs_controller
