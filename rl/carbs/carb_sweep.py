@@ -42,7 +42,7 @@ def run_sweep(cfg: OmegaConf):
     carbs_controller = CARBS(carbs_params, param_spaces)
 
     while True:
-        run_carb_sweep_rollout(carbs_controller, cfg)
+        run_carb_sweep_rollout(carbs_controller, cfg00)
 
 def run_carb_sweep_rollout(carbs_controller: CARBS, cfg: OmegaConf):
     np.random.seed(int(time.time()))
