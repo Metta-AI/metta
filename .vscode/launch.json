@@ -57,9 +57,10 @@
             "name": "Run Sweep",
             "type": "debugpy",
             "request": "launch",
-            "module": "tools.run_sweep",
+            "module": "tools.run",
             "args": [
-                "experiment=mac.carbsweep",
+                "cmd=sweep",
+                "experiment=mac.carbsweep.0",
                 "framework=pufferlib",
                 "agent=small",
                 "hardware=macbook",

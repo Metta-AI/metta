@@ -5,6 +5,7 @@ from rich import traceback
 import util.replay as replay
 import signal # Aggressively exit on ctrl+c
 from rl.wandb.wandb import init_wandb
+from rl.carbs.carb_sweep import run_sweep
 
 signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
 
@@ -30,7 +31,9 @@ def main(cfg):
         if cfg.cmd == "play":
             result = framework.evaluate()
 
-        framework.close()
+        if cfg.cmd == "sweep":
+            run_sweep(cfg)
+
     except KeyboardInterrupt:
         os._exit(0)
 

@@ -18,6 +18,7 @@ from carbs import CARBS
 from carbs import CARBSParams
 from carbs import ObservationInParam, WandbLoggingParams
 
+from rl.pufferlib import checkpoint
 from rl.wandb.wandb import init_wandb
 import traceback
 import hydra
@@ -27,22 +28,23 @@ def run_sweep(cfg: OmegaConf):
     param_spaces = _carbs_params_spaces(cfg)
     print("Param Spaces:", param_spaces)
     carbs_params = CARBSParams(
-        wandb_params = WandbLoggingParams(
+        better_direction_sign=1,
+        resample_frequency=5,
+        num_random_samples=len(param_spaces),
+        checkpoint_dir=f"{cfg.data_dir}/{cfg.experiment}/carbs/",
+        is_wandb_logging_enabled=cfg.wandb.track,
+        wandb_params=WandbLoggingParams(
             project_name = cfg.wandb.project,
             group_name = cfg.wandb.group,
             run_id = cfg.experiment or wandb.util.generate_id(),
             run_name = cfg.wandb.name,
             root_dir = "wandb",
         ),
-        better_direction_sign=1,
-        is_wandb_logging_enabled=True,
-        resample_frequency=5,
-        num_random_samples=len(param_spaces),
     )
     carbs_controller = CARBS(carbs_params, param_spaces)
 
     while True:
-        run_carb_sweep_rollout(carbs_controller, cfg00)
+        run_carb_sweep_rollout(carbs_controller, cfg)
 
 def run_carb_sweep_rollout(carbs_controller: CARBS, cfg: OmegaConf):
     np.random.seed(int(time.time()))
