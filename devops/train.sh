@@ -2,5 +2,4 @@
 
 ./devops/run.sh \
     cmd=train \
-    wandb.track=true \
     "$@"
