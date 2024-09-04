@@ -31,6 +31,7 @@ def create(config, vecenv, policy, optimizer=None):
 
     utilization = Utilization()
     msg = f'Model Size: {abbreviate(count_params(policy))} parameters'
+    print("\n".join(["\n"]*50))
     print_dashboard(config.env, utilization, 0, 0, profile, losses, {}, msg, clear=True)
 
     vecenv.async_reset(config.seed)

@@ -85,8 +85,8 @@ parameters:
           max: 256
         total_timesteps:
           space: log
-          search_center: 1e6
-          min: 1e6
+          search_center: 1e7
+          min: 1e7
           max: 1e13
           is_int: true
 

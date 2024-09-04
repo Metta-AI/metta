@@ -59,7 +59,6 @@ def run_carb_sweep_rollout():
     suggestion = orig_suggestion.copy()
     print("Carbs Suggestion:", suggestion)
     wandb.config.__dict__["_locked"] = {}
-    wandb.config.update(suggestion, allow_val_change=True)
 
     new_cfg = _cfg.copy()
     for key, value in suggestion.items():
@@ -74,7 +73,10 @@ def run_carb_sweep_rollout():
         param_name = key_parts[-1]
         if sweep_param[param_name].space == "pow2":
             value = 2**value
+            suggestion[key] = value
         new_cfg_param[param_name] = value
+    wandb.config.update(suggestion, allow_val_change=True)
+    print("Sweep Params:", suggestion)
 
     _save_carbs_state(carbs_controller, _cfg.experiment, wandb.run.sweep_id)
 
