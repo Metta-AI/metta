@@ -1,7 +1,7 @@
 import wandb
 from omegaconf import OmegaConf
 
-def init_wandb(cfg, resume=True):
+def init_wandb(cfg, resume=True, name=None):
     #os.environ["WANDB_SILENT"] = "true"
     if wandb.run is not None:
         print("wandb.init() has already been called, ignoring.")
@@ -13,8 +13,9 @@ def init_wandb(cfg, resume=True):
         config=OmegaConf.to_container(cfg, resolve=True),
         group=cfg.wandb.group,
         allow_val_change=True,
-        name=cfg.wandb.name,
+        name=name or cfg.wandb.name,
         monitor_gym=True,
         save_code=True,
         resume=resume,
+
     )
