@@ -63,7 +63,7 @@ parameters:
           max: 32768
         num_minibatches:
           space: linear
-          search_center: 4
+          search_center: 1
           is_int: true
           min: 1
           max: 8
@@ -85,8 +85,8 @@ parameters:
           max: 256
         total_timesteps:
           space: log
-          search_center: 1e7
-          min: 1e7
+          search_center: 1e6
+          min: 1e6
           max: 1e13
           is_int: true
 
