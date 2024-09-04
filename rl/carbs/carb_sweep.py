@@ -214,7 +214,6 @@ def _save_carbs_state(carbs_controller, experiment, sweep_id):
         metadata={
             "sweep_id": sweep_id,
             "num_observations": carbs_controller.observation_count,
-            "num_failures": carbs_controller.failure_count,
         })
     with artifact.new_file("carbs_state") as f:
         f.write(carbs_controller.serialize())
