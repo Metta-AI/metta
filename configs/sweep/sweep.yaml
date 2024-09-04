@@ -23,7 +23,6 @@ parameters:
           space: linear
           is_int: true
           search_center: 1
-          scale: 3
           min: 1
           max: 16
         clip_coef:
