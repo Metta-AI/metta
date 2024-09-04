@@ -53,17 +53,17 @@ def run_carb_sweep_rollout():
     carbs_controller._set_seed(int(time.time()))
 
     print(f"CARBS: obs: {carbs_controller.observation_count}")
-    wandb.run.name = f"{wandb.run.name}-{carbs_controller.observation_count}"
-
     orig_suggestion = carbs_controller.suggest().suggestion
+    carbs_controller.num_suggestions += 1
+    wandb.run.name = f"{wandb.run.name}-{carbs_controller.num_suggestions}"
+
     suggestion = orig_suggestion.copy()
+    del suggestion["suggestion_uuid"]
     print("Carbs Suggestion:", suggestion)
     wandb.config.__dict__["_locked"] = {}
 
     new_cfg = _cfg.copy()
     for key, value in suggestion.items():
-        if key == "suggestion_uuid":
-            continue
         new_cfg_param = new_cfg
         sweep_param = _cfg.sweep.parameters
         key_parts = key.split(".")
@@ -204,7 +204,9 @@ def _init_carbs(cfg: OmegaConf):
             checkpoint_dir=f"{cfg.data_dir}/{cfg.experiment}/carbs/",
             is_wandb_logging_enabled=False,
         )
-        return CARBS(carbs_params, param_spaces)
+        carbs = CARBS(carbs_params, param_spaces)
+        carbs.num_suggestions = 0
+        return carbs
 
 def _save_carbs_state(carbs_controller, experiment, sweep_id):
     artifact = wandb.Artifact(
@@ -212,6 +214,7 @@ def _save_carbs_state(carbs_controller, experiment, sweep_id):
         metadata={
             "sweep_id": sweep_id,
             "num_observations": carbs_controller.observation_count,
+            "num_suggestions": carbs_controller.num_suggestions,
         })
     with artifact.new_file("carbs_state") as f:
         f.write(carbs_controller.serialize())
@@ -221,4 +224,6 @@ def _load_carbs_state(experiment):
     artifact = wandb.use_artifact(experiment + ":latest", type="sweep")
     carbs_state = artifact.file(wandb.run.dir + "/carbs_state")
     with open(carbs_state, "rb") as f:
-        return CARBS.load_from_string(f.read())
+        carbs = CARBS.load_from_string(f.read())
+        carbs.num_suggestions = artifact.metadata.get("num_suggestions", carbs.observation_count)
+        return carbs
