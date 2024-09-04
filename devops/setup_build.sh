@@ -32,7 +32,8 @@ cd sample-factory
 pip install -e .
 cd ..
 
-git clone https://github.com/imbue-ai/carbs.git
+#git clone https://github.com/imbue-ai/carbs.git
+git clone https://github.com/kywch/carbs.git
 cd carbs
 pip install -e .
 cd ..
