@@ -80,13 +80,13 @@ parameters:
         #   max: 8
         bptt_horizon:
           space: pow2
-          search_center: 16
+          search_center: 8
           min: 1
           max: 256
         total_timesteps:
           space: log
-          search_center: 1e7
-          min: 1e7
+          search_center: 1e6
+          min: 1e6
           max: 1e13
           is_int: true
 

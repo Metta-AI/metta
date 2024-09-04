@@ -110,10 +110,6 @@ def run_carb_sweep_rollout():
     )
     _save_carbs_state(carbs_controller, _cfg.experiment, wandb.run.sweep_id)
 
-def closest_power(x):
-    possible_results = floor(log(x, 2)), ceil(log(x, 2))
-    return int(2**min(possible_results, key= lambda z: abs(x-2**z)))
-
 def _wandb_distribution(param):
     if param.space == "log":
         return "log_uniform_values"
@@ -122,7 +118,7 @@ def _wandb_distribution(param):
     elif param.space == "logit":
         return "uniform"
     elif param.space == "pow2":
-        return "log_uniform_values"
+        return "int_uniform"
     elif param.space == "linear":
         if param.is_int:
             return "int_uniform"
