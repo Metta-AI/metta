@@ -30,36 +30,34 @@ ObjectLayers = {
 cdef class MettaObservationEncoder(ObservationEncoder):
     def __init__(self) -> None:
         self._offsets.resize(ObjectType.Count)
-
+        self._type_feature_names.resize(ObjectType.Count)
         features = []
-        self._offsets[ObjectType.AgentT] = 0
-        features.extend(Agent.feature_names())
 
-        self._offsets[ObjectType.WallT] = len(features)
-        features.extend(Wall.feature_names())
+        self._type_feature_names[ObjectType.AgentT] = Agent.feature_names()
+        self._type_feature_names[ObjectType.WallT] = Wall.feature_names()
+        self._type_feature_names[ObjectType.GeneratorT] = Generator.feature_names()
+        self._type_feature_names[ObjectType.ConverterT] = Converter.feature_names()
+        self._type_feature_names[ObjectType.AltarT] = Altar.feature_names()
 
-        self._offsets[ObjectType.GeneratorT] = len(features)
-        features.extend(Generator.feature_names())
-
-        self._offsets[ObjectType.ConverterT] = len(features)
-        features.extend(Converter.feature_names())
-
-        self._offsets[ObjectType.AltarT] = len(features)
-        features.extend(Altar.feature_names())
-
+        for type_id in range(ObjectType.Count):
+            self._offsets[type_id] = len(features)
+            features.extend(self._type_feature_names[type_id])
         self._feature_names = features
 
     cdef encode(self, GridObject *obj, ObsType[:] obs):
+        self._encode(obj, obs, self._offsets[obj._type_id])
+
+    cdef _encode(self, GridObject *obj, ObsType[:] obs, unsigned int offset):
         if obj._type_id == ObjectType.AgentT:
-            (<Agent*>obj).obs(obs[self._offsets[ObjectType.AgentT]:])
+            (<Agent*>obj).obs(obs[offset:])
         elif obj._type_id == ObjectType.WallT:
-            (<Wall*>obj).obs(obs[self._offsets[ObjectType.WallT]:])
+            (<Wall*>obj).obs(obs[offset:])
         elif obj._type_id == ObjectType.GeneratorT:
-            (<Generator*>obj).obs(obs[self._offsets[ObjectType.GeneratorT]:])
+            (<Generator*>obj).obs(obs[offset:])
         elif obj._type_id == ObjectType.ConverterT:
-            (<Converter*>obj).obs(obs[self._offsets[ObjectType.ConverterT]:])
+            (<Converter*>obj).obs(obs[offset:])
         elif obj._type_id == ObjectType.AltarT:
-            (<Altar*>obj).obs(obs[self._offsets[ObjectType.AltarT]:])
+            (<Altar*>obj).obs(obs[offset:])
         else:
             printf("Encoding object of unknown type: %d\n", obj._type_id)
 

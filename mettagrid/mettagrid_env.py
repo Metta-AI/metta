@@ -33,6 +33,8 @@ class MettaGridEnv(pufferlib.PufferEnv):
                 self._env.map_width(), self._env.map_height(),
                 fps=10
             )
+        elif render_mode == "json":
+            self._renderer = None
 
         self.done = False
 
