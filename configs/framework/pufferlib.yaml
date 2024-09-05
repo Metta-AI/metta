@@ -23,7 +23,6 @@ pufferlib:
     anneal_lr: false
     gamma: 0.7755949999823327
     gae_lambda: 0.9061454965924297
-    num_minibatches: 4
     update_epochs: 4
     norm_adv: true
     clip_coef: 0.059061983960164655

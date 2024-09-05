@@ -138,15 +138,25 @@ def _carbs_params_spaces(cfg: OmegaConf):
     param_spaces = []
     params = _fully_qualified_parameters(cfg.sweep.parameters)
     for param_name, param in params.items():
+        train_cfg_param = cfg
+        if "search_center" not in param:
+            for k in param_name.split("."):
+                train_cfg_param = train_cfg_param[k]
+            OmegaConf.set_struct(param, False)
+            param.search_center = train_cfg_param
+            OmegaConf.set_struct(param, True)
+
         if param.space == "pow2":
             param.min = int(math.log2(param.min))
             param.max = int(math.log2(param.max))
-            if "search_center" in param:
-                param.search_center = int(math.log2(param.search_center))
+            param.search_center = int(math.log2(param.search_center))
 
         scale = param.get("scale", 1)
         if param.space == "pow2" or param.get("is_int", False):
             scale = 4
+
+        if param.search_center < param.min or param.search_center > param.max:
+            raise ValueError(f"Search center {param.search_center} is not in range [{param.min}, {param.max}]")
 
         param_spaces.append(
             Param(
@@ -158,11 +168,8 @@ def _carbs_params_spaces(cfg: OmegaConf):
                     rounding_factor=param.get("rounding_factor", 1),
                     scale=scale,
                 ),
-                search_center=param.get(
-                    "search_center",
-                    param.min + (param.max - param.min) / 2,
-                )
-            ))
+                search_center=param.search_center,                )
+            )
     return param_spaces
 
 
@@ -210,7 +217,8 @@ def _init_carbs(cfg: OmegaConf):
 
 def _save_carbs_state(carbs_controller, experiment, sweep_id):
     artifact = wandb.Artifact(
-        experiment, type="sweep",
+        experiment,
+        type="sweep",
         metadata={
             "sweep_id": sweep_id,
             "num_observations": carbs_controller.observation_count,
