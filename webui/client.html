@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>PettingZoo WebSocket Client</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                max-width: 800px;
+                margin: 0 auto;
+                padding: 20px;
+            }
+            #output {
+                border: 1px solid #ddd;
+                padding: 10px;
+                margin-top: 20px;
+                max-height: 300px;
+                overflow-y: auto;
+            }
+            .error {
+                color: red;
+                white-space: pre-wrap;
+            }
+            #messages {
+                border-top: 1px solid #ddd;
+                margin-top: 20px;
+                padding-top: 10px;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>PettingZoo WebSocket Client</h1>
+        <label for="env">Env:</label>
+        <input type="text" id="env" value="a20_b4_40x40"><br><br>
+        <label for="args">Args:</label>
+        <input type="text" id="args" value=""><br><br>
+        <button onclick="connect()">Reconnect</button>
+        <button onclick="disconnect()">Disconnect</button><br><br>
+        <label for="action">Action:</label>
+        <input type="text" id="action" value="0"><br><br>
+        <button onclick="sendAction()">Send Action</button><br><br>
+        <div id="output"></div>
+        <div id="messages">
+            <h3>Server Messages:</h3>
+            <div id="messageContent"></div>
+        </div>
+
+        <script>
+            var socket;
+
+            function connect() {
+                if (socket && socket.readyState === WebSocket.OPEN) {
+                    socket.close();
+                }
+                var args = document.getElementById('args').value;
+                var env = document.getElementById('env').value;
+                socket = new WebSocket(`ws://${window.location.host}/ws?args=${args}&env=${env}`);
+                socket.onmessage = function(event) {
+                    var data = JSON.parse(event.data);
+                    if (data.error) {
+                        document.getElementById('output').innerHTML += `<p class="error">${formatError(data.error)}</p>`;
+                    } else {
+                        document.getElementById('output').innerHTML += `<p>${JSON.stringify(data)}</p>`;
+                    }
+                    if (data.message) {
+                        addMessage(data.message);
+                    }
+                };
+                socket.onopen = function() {
+                    addMessage("Connected to WebSocket");
+                };
+                socket.onclose = function() {
+                    addMessage("Disconnected from WebSocket");
+                };
+            }
+
+            function disconnect() {
+                if (socket) {
+                    socket.close();
+                }
+            }
+
+            function sendAction() {
+                if (socket && socket.readyState === WebSocket.OPEN) {
+                    var action = document.getElementById('action').value;
+                    socket.send(action);
+                    addMessage(`Sent action: ${action}`);
+                } else {
+                    alert('Not connected to WebSocket');
+                }
+            }
+
+            function formatError(error) {
+                return error.replace(/\\n/g, '\n').replace(/\\t/g, '\t');
+            }
+
+            function addMessage(message) {
+                var messageDiv = document.getElementById('messageContent');
+                messageDiv.innerHTML += `<p>${new Date().toLocaleTimeString()}: ${message}</p>`;
+                messageDiv.scrollTop = messageDiv.scrollHeight;
+            }
+
+            // Connect automatically when the page loads
+            window.onload = connect;
+        </script>
+    </body>
+</html>
