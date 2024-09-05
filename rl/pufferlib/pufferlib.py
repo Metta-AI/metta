@@ -1,5 +1,7 @@
+from distutils.command import clean
 from typing import Dict
 from omegaconf import OmegaConf
+from rl.pufferlib.checkpoint import try_load_checkpoint
 from rl.rl_framework import RLFramework
 import os
 
@@ -63,7 +65,7 @@ class PufferLibFramework(RLFramework):
         vecenv = pufferlib.vector.make(make_env_func, **vecenv_args)
         policy = puffer_agent_wrapper.make_policy(vecenv.driver_env, self.cfg)
         self.data = clean_pufferl.create(pcfg.train, vecenv, policy)
-
+        clean_pufferl.try_load_checkpoint(self.data)
         while self.data.global_step < pcfg.train.total_timesteps:
             try:
                 clean_pufferl.evaluate(self.data)

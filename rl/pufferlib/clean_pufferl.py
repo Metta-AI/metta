@@ -537,7 +537,7 @@ def save_checkpoint(data):
         'optimizer_state_dict': data.optimizer.state_dict(),
         'global_step': data.global_step,
         'agent_step': data.global_step,
-        'update': data.epoch,
+        'epoch': data.epoch,
         'model_name': model_name,
         'exp_id': config.exp_id,
     }
@@ -556,7 +556,13 @@ def try_load_checkpoint(data):
     trainer_path = os.path.join(path, 'trainer_state.pt')
     resume_state = torch.load(trainer_path)
     model_path = os.path.join(path, resume_state['model_name'])
-    data.policy.uncompiled.load_state_dict(model_path, map_location=config.device)
+    data.global_step = resume_state['global_step']
+    data.epoch = resume_state['epoch']
+    data.uncompiled_policy = torch.load(model_path, map_location=config.device)
+    data.policy = data.uncompiled_policy
+    if data.config.compile:
+        data.policy = torch.compile(data.policy, mode=config.compile_mode)
+
     data.optimizer.load_state_dict(resume_state['optimizer_state_dict'])
     print(f'Loaded checkpoint {resume_state["model_name"]}')
 

@@ -69,6 +69,11 @@ parameters:
           min: 1e8
           max: 1e13
           is_int: true
+        compile:
+          space: linear
+          is_int: true
+          min: 0
+          max: 1
 
   agent:
     observation_encoders:

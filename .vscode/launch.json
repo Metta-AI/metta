@@ -10,7 +10,7 @@
             "request": "launch",
             "module": "tools.run",
             "args": [
-                "experiment=mac.sf.1",
+                "experiment=mac.1",
                 "framework=pufferlib",
                 "agent=small",
                 "hardware=macbook",
