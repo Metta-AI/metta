@@ -1,5 +1,5 @@
 track: False
 project: metta
-entity: metta
+entity: metta-research
 group: metta
 name: ${experiment}

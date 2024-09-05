@@ -151,5 +151,13 @@
                 "--env_max_steps=100",
             ],
         },
+        {
+            "name": "Run WebServer",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "webui.server",
+            "args": [
+            ],
+        },
     ]
 }

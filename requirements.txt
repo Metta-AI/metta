@@ -2,6 +2,7 @@ boto3
 colorama
 # chex
 hydra-core
+fastapi
 imageio
 jmespath
 matplotlib
@@ -16,4 +17,5 @@ rich
 scipy
 tabulate
 torchrl
-
+uvicorn
+websockets
