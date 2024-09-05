@@ -1,11 +1,15 @@
 
 from libc.stdio cimport printf
 
+
 import numpy as np
+cimport numpy as cnp
 import gymnasium as gym
 from omegaconf import OmegaConf
 
 from puffergrid.grid_env cimport GridEnv
+from puffergrid.grid_object cimport GridObject
+from puffergrid.observation_encoder cimport ObsType
 
 from mettagrid.objects cimport ObjectLayers, Agent, ResetHandler, Wall, Generator, Converter, Altar
 from mettagrid.objects cimport MettaObservationEncoder
@@ -15,6 +19,8 @@ from mettagrid.actions.use import Use
 from mettagrid.actions.attack import Attack
 from mettagrid.actions.shield import Shield
 from mettagrid.actions.gift import Gift
+
+obs_np_type = np.uint8
 
 cdef class MettaGrid(GridEnv):
     cdef:
@@ -76,3 +82,17 @@ cdef class MettaGrid(GridEnv):
     @property
     def action_space(self):
         return gym.spaces.MultiDiscrete((self.num_actions(), 10), dtype=np.uint32)
+
+    cpdef grid_objects(self):
+        cdef GridObject *obj
+        cdef ObsType[:] obj_data = np.zeros(len(self._obs_encoder.feature_names()), dtype=obs_np_type)
+        cdef unsigned int obj_id, i
+        cdef MettaObservationEncoder obs_encoder = <MettaObservationEncoder>self._obs_encoder
+        objects = {}
+        for obj_id in range(1, self._grid.objects.size()):
+            obj = self._grid.object(obj_id)
+            objects[obj_id] = {"type": obj._type_id}
+            obs_encoder._encode(obj, obj_data, 0)
+            for i, name in enumerate(obs_encoder._type_feature_names[obj._type_id]):
+                objects[obj_id][name] = obj_data[i]
+        return objects

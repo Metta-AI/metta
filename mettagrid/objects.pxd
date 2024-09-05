@@ -200,6 +200,8 @@ cdef enum Events:
     Reset = 0
 
 cdef class MettaObservationEncoder(ObservationEncoder):
+    cdef _encode(self, GridObject *obj, ObsType[:] obs, unsigned int offset)
     cdef vector[short] _offsets
     cdef vector[string] _feature_names
+    cdef vector[vector[string]] _type_feature_names
 
