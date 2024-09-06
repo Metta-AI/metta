@@ -9,10 +9,5 @@ defaults:
   - hardware: macbook
   - wandb: wandb
   - sweep: sweep
-
-eval:
-  fps: 8
-  max_steps: 1000
-  video_path: ${framework.train_dir}/${experiment}/replay.mp4
-  gif_path: ${framework.train_dir}/${experiment}/replay.gif
+  - eval: eval
 

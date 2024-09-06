@@ -94,26 +94,14 @@
             ],
         },
         {
-            "name": "Evaluate SF",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "tools.run",
-            "args": [
-                "framework=sample_factory",
-                "cmd=evaluate",
-                "experiment=mac.sf.1",
-                "env=mettagrid/behaviors/resources/competition/10x10_2a",
-            ],
-        },
-        {
-            "name": "Evaluate PL",
+            "name": "Evaluate",
             "type": "debugpy",
             "request": "launch",
             "module": "tools.run",
             "args": [
                 "framework=pufferlib",
                 "cmd=evaluate",
-                "experiment=mac.puffer.2",
+                "experiment=mac.1",
                 "env=mettagrid/behaviors/resources/competition/10x10_2a",
             ],
         },

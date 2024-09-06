@@ -23,10 +23,10 @@ def main(cfg):
 
         if cfg.cmd == "evaluate":
             result = framework.evaluate()
-            if cfg.eval.video_path is not None:
-                replay.generate_replay_video(cfg.eval.video_path, result.frames, cfg.eval.fps)
-            if cfg.eval.gif_path is not None:
-                replay.generate_replay_gif(cfg.eval.gif_path, result.frames, cfg.eval.fps)
+            # if cfg.eval.video_path is not None:
+            #     replay.generate_replay_video(cfg.eval.video_path, result.frames, cfg.eval.fps)
+            # if cfg.eval.gif_path is not None:
+            #     replay.generate_replay_gif(cfg.eval.gif_path, result.frames, cfg.eval.fps)
 
         if cfg.cmd == "play":
             result = framework.evaluate()

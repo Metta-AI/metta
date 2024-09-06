@@ -1,0 +1,10 @@
+# eval:
+#   fps: 8
+#   max_steps: 1000
+#   video_path: ${framework.train_dir}/${experiment}/replay.mp4
+#   gif_path: ${framework.train_dir}/${experiment}/replay.gif
+
+num_envs: 10
+num_episodes: 1000
+max_time_s: 60
+policy_agents_pct: 0.5
