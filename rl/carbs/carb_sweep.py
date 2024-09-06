@@ -1,4 +1,5 @@
 
+from json import load
 import math
 import time
 import traceback
@@ -85,7 +86,7 @@ def run_carb_sweep_rollout():
     is_failure = False
     try:
         rl_controller = hydra.utils.instantiate(new_cfg.framework, new_cfg, _recursive_=False)
-        rl_controller.train()
+        rl_controller.train(load_checkpoint=False)
         observed_value = rl_controller.last_stats[_cfg.sweep.metric]
         train_time = rl_controller.train_time
     except Exception:

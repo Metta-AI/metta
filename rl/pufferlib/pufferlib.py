@@ -34,8 +34,9 @@ class PufferLibFramework(RLFramework):
         self.puffer_cfg = cfg.framework.pufferlib
 
         self._train_start = time.time()
+        self.policy = None
 
-    def train(self):
+    def train(self, load_checkpoint=True):
         pcfg = self.puffer_cfg
         target_batch_size = pcfg.train.forward_pass_minibatch_target_size // self.cfg.env.game.num_agents
         if target_batch_size < 2: # pufferlib bug requires batch size >= 2
@@ -49,7 +50,9 @@ class PufferLibFramework(RLFramework):
 
         policy = puffer_agent_wrapper.make_policy(vecenv.driver_env, self.cfg)
         self.data = clean_pufferl.create(pcfg.train, vecenv, policy)
-        clean_pufferl.try_load_checkpoint(self.data)
+        if load_checkpoint:
+            clean_pufferl.try_load_checkpoint(self.data)
+
         while self.data.global_step < pcfg.train.total_timesteps:
             try:
                 clean_pufferl.evaluate(self.data)
