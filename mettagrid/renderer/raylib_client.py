@@ -1,12 +1,9 @@
-from pdb import set_trace as T
+# disable type checking for raylib
+# type: ignore
+
 import numpy as np
 import os
-
-import pettingzoo
-import gymnasium
-
-import pufferlib
-from pufferlib.environments.ocean import render
+from raylib import rl, colors
 
 class MettaRaylibClient:
     def __init__(self, width, height, tile_size=32):
@@ -25,7 +22,6 @@ class MettaRaylibClient:
             5: (512, 0, 128, 128), #star
         }
 
-        from raylib import rl, colors
         rl.InitWindow(width*tile_size, height*tile_size,
             "PufferLib Ray Grid".encode())
         rl.SetTargetFPS(10)
@@ -53,7 +49,7 @@ class MettaRaylibClient:
     def render(self, grid):
         rl = self.rl
         colors = self.colors
-        ay, ax = None, None
+        # ay, ax = None, None
 
         ts = self.tile_size
 
@@ -62,8 +58,8 @@ class MettaRaylibClient:
         raw_mouse_y = pos.y
         mouse_x = int(raw_mouse_x // ts)
         mouse_y = int(raw_mouse_y // ts)
-        ay = int(np.clip((pos.y - ts*self.height//2) / 50, -3, 3)) + 3
-        ax = int(np.clip((pos.x - ts*self.width//2) / 50, -3, 3)) + 3
+        # ay = int(np.clip((pos.y - ts*self.height//2) / 50, -3, 3)) + 3
+        # ax = int(np.clip((pos.x - ts*self.width//2) / 50, -3, 3)) + 3
 
         if rl.IsKeyDown(rl.KEY_ESCAPE):
             exit(0)

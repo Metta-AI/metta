@@ -1,4 +1,3 @@
-from ast import Not
 from typing import Any, Dict
 
 import pufferlib
@@ -40,8 +39,10 @@ class MettaGridEnv(pufferlib.PufferEnv):
 
 
     def make_env(self):
-        game_cfg = OmegaConf.create(sample_config(self._cfg.game))
-        self._game_builder = MettaGridGameBuilder(**game_cfg)
+        scfg = sample_config(self._cfg.game)
+        assert isinstance(scfg, Dict)
+        game_cfg = OmegaConf.create(scfg)
+        self._game_builder = MettaGridGameBuilder(**scfg) # type: ignore
         level = self._game_builder.level()
         self._c_env = MettaGrid(game_cfg, level)
         self._grid_env = self._c_env
@@ -56,10 +57,11 @@ class MettaGridEnv(pufferlib.PufferEnv):
         #self._env = RewardTracker(self._env)
         #self._env = FeatureMasker(self._env, self._cfg.hidden_features)
         self.done = False
+        self.buf = None
 
     def reset(self, **kwargs):
         self.make_env()
-        if hasattr(self, "buf"):
+        if hasattr(self, "buf") and self.buf is not None:
             self._c_env.set_buffers(
                 self.buf.observations,
                 self.buf.terminals,
@@ -80,8 +82,6 @@ class MettaGridEnv(pufferlib.PufferEnv):
             reward_mean = rewards_sum / self._num_agents
             rewards -= reward_mean
 
-        current_timestep = self._c_env.current_timestep()
-
         infos = {}
         if terminated.all() or truncated.all():
             self.done = True
@@ -95,19 +95,11 @@ class MettaGridEnv(pufferlib.PufferEnv):
                 "episode/reward.max": episode_rewards.max(),
                 "episode_length": self._c_env.current_timestep(),
             })
-
             stats = self._c_env.get_episode_stats()
-            infos["rates/reward"] = episode_rewards_mean / current_timestep
 
-            agent_stats = {}
-            for a_stats in stats["agent_stats"]:
-                for k, v in a_stats.items():
-                    if k not in agent_stats:
-                        agent_stats[k] = 0
-                    agent_stats[k] += v
-
-            for k, v in agent_stats.items():
-                infos[f"agent_stats/{k}"] = float(v) / self._num_agents / current_timestep
+            infos["episode_rewards"] = episode_rewards
+            infos["agent_stats"] = stats["agent_stats"]
+            infos["game_stats"] = stats["game_stats"]
 
         return obs, list(rewards), terminated.all(), truncated.all(), infos
 
@@ -172,6 +164,8 @@ class MettaGridEnv(pufferlib.PufferEnv):
         return self._num_agents
 
     def render(self, *args, **kwargs):
+        if self._renderer is None:
+            return
         return self._renderer.render(
             self._c_env.grid_objects(),
         )
