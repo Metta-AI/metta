@@ -93,7 +93,8 @@ def evaluate(cfg: OmegaConf, vecenv):
         episodes += sum([e.done for e in vecenv.envs])
         agent_infos = []
         for info in infos:
-            agent_infos.extend(info["agent"])
+            if "agent" in info:
+                agent_infos.extend(info["agent"])
 
         for idx, info in enumerate(agent_infos):
             for k, v in info.items():
