@@ -71,6 +71,16 @@ class PufferLibFramework(RLFramework):
         if len(data.stats) == 0:
             return
         new_stats = {}
+        agent_stats = data.stats.pop('agent_stats')
+        for env_stats in agent_stats:
+            num_agents = len(env_stats)
+            for stat in env_stats:
+                for k, v in stat.items():
+                    stat_name = f'agent_stats/{k}'
+                    if stat_name not in new_stats:
+                        new_stats[stat_name] = 0
+                    new_stats[stat_name] += v / num_agents
+
         for k, v in data.stats.items():
             new_stats[k] = np.array(v).mean()
         self.last_stats = new_stats
