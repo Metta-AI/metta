@@ -1,14 +1,15 @@
 from typing import Any, Dict
 
-import pufferlib
 import numpy as np
+import pufferlib
 from omegaconf import OmegaConf
-
-from mettagrid.config.game_builder import MettaGridGameBuilder
-from mettagrid.renderer.raylib_client import MettaRaylibClient
-from mettagrid.config.sample_config import sample_config
-from mettagrid.mettagrid_c import MettaGrid
 from pufferlib.environments.ocean.render import GridRender
+
+from mettagrid.renderer.raylib_client import MettaRaylibClient
+from mettagrid.config.game_builder import MettaGridGameBuilder
+from mettagrid.config.sample_config import sample_config
+from mettagrid.mettagrid_c import MettaGrid # pylint: disable=E0611
+
 
 class GridClient:
     def __init__(self, width, height):
@@ -59,7 +60,7 @@ class MettaGridEnv(pufferlib.PufferEnv):
         self.done = False
         self.buf = None
 
-    def reset(self, **kwargs):
+    def reset(self, seed=None):
         self.make_env()
         if hasattr(self, "buf") and self.buf is not None:
             self._c_env.set_buffers(
@@ -163,7 +164,7 @@ class MettaGridEnv(pufferlib.PufferEnv):
     def player_count(self):
         return self._num_agents
 
-    def render(self, *args, **kwargs):
+    def render(self):
         if self._renderer is None:
             return
         return self._renderer.render(
