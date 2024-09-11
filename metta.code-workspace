@@ -98,12 +98,18 @@
 			"../pufferlib",
 			"../puffergrid",
 			"../mettagrid",
-			"../fast_gae"
+			"../fast_gae",
+			"${env:CONDA_PREFIX}/lib/python3.11/site-packages"
 		],
 		"python.autoComplete.extraPaths": [
 			"./third_party/puffergrid",
 			"./third_party/pufferlib",
-		]
+			"${env:CONDA_PREFIX}/lib/python3.11/site-packages"
+		],
+		"pylint.args": [
+			"--disable=C0111",
+			"--max-line-length=120"
+		],
 	},
 
 

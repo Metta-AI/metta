@@ -1,0 +1,2688 @@
+[
+    {
+        "label": "annotations",
+        "importPath": "__future__",
+        "description": "__future__",
+        "isExtraImport": true,
+        "detail": "__future__",
+        "documentation": {}
+    },
+    {
+        "label": "annotations",
+        "importPath": "__future__",
+        "description": "__future__",
+        "isExtraImport": true,
+        "detail": "__future__",
+        "documentation": {}
+    },
+    {
+        "label": "annotations",
+        "importPath": "__future__",
+        "description": "__future__",
+        "isExtraImport": true,
+        "detail": "__future__",
+        "documentation": {}
+    },
+    {
+        "label": "annotations",
+        "importPath": "__future__",
+        "description": "__future__",
+        "isExtraImport": true,
+        "detail": "__future__",
+        "documentation": {}
+    },
+    {
+        "label": "annotations",
+        "importPath": "__future__",
+        "description": "__future__",
+        "isExtraImport": true,
+        "detail": "__future__",
+        "documentation": {}
+    },
+    {
+        "label": "annotations",
+        "importPath": "__future__",
+        "description": "__future__",
+        "isExtraImport": true,
+        "detail": "__future__",
+        "documentation": {}
+    },
+    {
+        "label": "RunningMeanStdInPlace",
+        "importPath": "sample_factory.algo.utils.running_mean_std",
+        "description": "sample_factory.algo.utils.running_mean_std",
+        "isExtraImport": true,
+        "detail": "sample_factory.algo.utils.running_mean_std",
+        "documentation": {}
+    },
+    {
+        "label": "torch",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "torch",
+        "description": "torch",
+        "detail": "torch",
+        "documentation": {}
+    },
+    {
+        "label": "nn",
+        "importPath": "torch",
+        "description": "torch",
+        "isExtraImport": true,
+        "detail": "torch",
+        "documentation": {}
+    },
+    {
+        "label": "nn",
+        "importPath": "torch",
+        "description": "torch",
+        "isExtraImport": true,
+        "detail": "torch",
+        "documentation": {}
+    },
+    {
+        "label": "Tensor",
+        "importPath": "torch",
+        "description": "torch",
+        "isExtraImport": true,
+        "detail": "torch",
+        "documentation": {}
+    },
+    {
+        "label": "Tensor",
+        "importPath": "torch",
+        "description": "torch",
+        "isExtraImport": true,
+        "detail": "torch",
+        "documentation": {}
+    },
+    {
+        "label": "nn",
+        "importPath": "torch",
+        "description": "torch",
+        "isExtraImport": true,
+        "detail": "torch",
+        "documentation": {}
+    },
+    {
+        "label": "Tensor",
+        "importPath": "torch",
+        "description": "torch",
+        "isExtraImport": true,
+        "detail": "torch",
+        "documentation": {}
+    },
+    {
+        "label": "Tensor",
+        "importPath": "torch",
+        "description": "torch",
+        "isExtraImport": true,
+        "detail": "torch",
+        "documentation": {}
+    },
+    {
+        "label": "nn",
+        "importPath": "torch",
+        "description": "torch",
+        "isExtraImport": true,
+        "detail": "torch",
+        "documentation": {}
+    },
+    {
+        "label": "nn",
+        "importPath": "torch",
+        "description": "torch",
+        "isExtraImport": true,
+        "detail": "torch",
+        "documentation": {}
+    },
+    {
+        "label": "nn",
+        "importPath": "torch",
+        "description": "torch",
+        "isExtraImport": true,
+        "detail": "torch",
+        "documentation": {}
+    },
+    {
+        "label": "Tensor",
+        "importPath": "torch",
+        "description": "torch",
+        "isExtraImport": true,
+        "detail": "torch",
+        "documentation": {}
+    },
+    {
+        "label": "nn",
+        "importPath": "torch",
+        "description": "torch",
+        "isExtraImport": true,
+        "detail": "torch",
+        "documentation": {}
+    },
+    {
+        "label": "math",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "math",
+        "description": "math",
+        "detail": "math",
+        "documentation": {}
+    },
+    {
+        "label": "ceil",
+        "importPath": "math",
+        "description": "math",
+        "isExtraImport": true,
+        "detail": "math",
+        "documentation": {}
+    },
+    {
+        "label": "floor",
+        "importPath": "math",
+        "description": "math",
+        "isExtraImport": true,
+        "detail": "math",
+        "documentation": {}
+    },
+    {
+        "label": "log",
+        "importPath": "math",
+        "description": "math",
+        "isExtraImport": true,
+        "detail": "math",
+        "documentation": {}
+    },
+    {
+        "label": "hashlib",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "hashlib",
+        "description": "hashlib",
+        "detail": "hashlib",
+        "documentation": {}
+    },
+    {
+        "label": "numpy",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "numpy",
+        "description": "numpy",
+        "detail": "numpy",
+        "documentation": {}
+    },
+    {
+        "label": "mean",
+        "importPath": "numpy",
+        "description": "numpy",
+        "isExtraImport": true,
+        "detail": "numpy",
+        "documentation": {}
+    },
+    {
+        "label": "rec",
+        "importPath": "numpy",
+        "description": "numpy",
+        "isExtraImport": true,
+        "detail": "numpy",
+        "documentation": {}
+    },
+    {
+        "label": "Dict",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "List",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Dict",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Dict",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Dict",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Union",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "NamedTuple",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "TensorDict",
+        "importPath": "tensordict",
+        "description": "tensordict",
+        "isExtraImport": true,
+        "detail": "tensordict",
+        "documentation": {}
+    },
+    {
+        "label": "TensorDict",
+        "importPath": "tensordict",
+        "description": "tensordict",
+        "isExtraImport": true,
+        "detail": "tensordict",
+        "documentation": {}
+    },
+    {
+        "label": "TensorDict",
+        "importPath": "tensordict",
+        "description": "tensordict",
+        "isExtraImport": true,
+        "detail": "tensordict",
+        "documentation": {}
+    },
+    {
+        "label": "TensorDict",
+        "importPath": "tensordict",
+        "description": "tensordict",
+        "isExtraImport": true,
+        "detail": "tensordict",
+        "documentation": {}
+    },
+    {
+        "label": "MlpDecoder",
+        "importPath": "sample_factory.model.decoder",
+        "description": "sample_factory.model.decoder",
+        "isExtraImport": true,
+        "detail": "sample_factory.model.decoder",
+        "documentation": {}
+    },
+    {
+        "label": "AttrDict",
+        "importPath": "sample_factory.utils.attr_dict",
+        "description": "sample_factory.utils.attr_dict",
+        "isExtraImport": true,
+        "detail": "sample_factory.utils.attr_dict",
+        "documentation": {}
+    },
+    {
+        "label": "AttrDict",
+        "importPath": "sample_factory.utils.attr_dict",
+        "description": "sample_factory.utils.attr_dict",
+        "isExtraImport": true,
+        "detail": "sample_factory.utils.attr_dict",
+        "documentation": {}
+    },
+    {
+        "label": "FeatureListNormalizer",
+        "importPath": "agent.lib.normalizer",
+        "description": "agent.lib.normalizer",
+        "isExtraImport": true,
+        "detail": "agent.lib.normalizer",
+        "documentation": {}
+    },
+    {
+        "label": "hydra",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "hydra",
+        "description": "hydra",
+        "detail": "hydra",
+        "documentation": {}
+    },
+    {
+        "label": "initialize",
+        "importPath": "hydra",
+        "description": "hydra",
+        "isExtraImport": true,
+        "detail": "hydra",
+        "documentation": {}
+    },
+    {
+        "label": "compose",
+        "importPath": "hydra",
+        "description": "hydra",
+        "isExtraImport": true,
+        "detail": "hydra",
+        "documentation": {}
+    },
+    {
+        "label": "OmegaConf",
+        "importPath": "omegaconf",
+        "description": "omegaconf",
+        "isExtraImport": true,
+        "detail": "omegaconf",
+        "documentation": {}
+    },
+    {
+        "label": "DictConfig",
+        "importPath": "omegaconf",
+        "description": "omegaconf",
+        "isExtraImport": true,
+        "detail": "omegaconf",
+        "documentation": {}
+    },
+    {
+        "label": "OmegaConf",
+        "importPath": "omegaconf",
+        "description": "omegaconf",
+        "isExtraImport": true,
+        "detail": "omegaconf",
+        "documentation": {}
+    },
+    {
+        "label": "OmegaConf",
+        "importPath": "omegaconf",
+        "description": "omegaconf",
+        "isExtraImport": true,
+        "detail": "omegaconf",
+        "documentation": {}
+    },
+    {
+        "label": "OmegaConf",
+        "importPath": "omegaconf",
+        "description": "omegaconf",
+        "isExtraImport": true,
+        "detail": "omegaconf",
+        "documentation": {}
+    },
+    {
+        "label": "OmegaConf",
+        "importPath": "omegaconf",
+        "description": "omegaconf",
+        "isExtraImport": true,
+        "detail": "omegaconf",
+        "documentation": {}
+    },
+    {
+        "label": "OmegaConf",
+        "importPath": "omegaconf",
+        "description": "omegaconf",
+        "isExtraImport": true,
+        "detail": "omegaconf",
+        "documentation": {}
+    },
+    {
+        "label": "OmegaConf",
+        "importPath": "omegaconf",
+        "description": "omegaconf",
+        "isExtraImport": true,
+        "detail": "omegaconf",
+        "documentation": {}
+    },
+    {
+        "label": "OmegaConf",
+        "importPath": "omegaconf",
+        "description": "omegaconf",
+        "isExtraImport": true,
+        "detail": "omegaconf",
+        "documentation": {}
+    },
+    {
+        "label": "OmegaConf",
+        "importPath": "omegaconf",
+        "description": "omegaconf",
+        "isExtraImport": true,
+        "detail": "omegaconf",
+        "documentation": {}
+    },
+    {
+        "label": "OmegaConf",
+        "importPath": "omegaconf",
+        "description": "omegaconf",
+        "isExtraImport": true,
+        "detail": "omegaconf",
+        "documentation": {}
+    },
+    {
+        "label": "OmegaConf",
+        "importPath": "omegaconf",
+        "description": "omegaconf",
+        "isExtraImport": true,
+        "detail": "omegaconf",
+        "documentation": {}
+    },
+    {
+        "label": "DictConfig",
+        "importPath": "omegaconf",
+        "description": "omegaconf",
+        "isExtraImport": true,
+        "detail": "omegaconf",
+        "documentation": {}
+    },
+    {
+        "label": "ListConfig",
+        "importPath": "omegaconf",
+        "description": "omegaconf",
+        "isExtraImport": true,
+        "detail": "omegaconf",
+        "documentation": {}
+    },
+    {
+        "label": "OmegaConf",
+        "importPath": "omegaconf",
+        "description": "omegaconf",
+        "isExtraImport": true,
+        "detail": "omegaconf",
+        "documentation": {}
+    },
+    {
+        "label": "ActionParameterizationDefault",
+        "importPath": "sample_factory.model.action_parameterization",
+        "description": "sample_factory.model.action_parameterization",
+        "isExtraImport": true,
+        "detail": "sample_factory.model.action_parameterization",
+        "documentation": {}
+    },
+    {
+        "label": "ActionParameterizationDefault",
+        "importPath": "sample_factory.model.action_parameterization",
+        "description": "sample_factory.model.action_parameterization",
+        "isExtraImport": true,
+        "detail": "sample_factory.model.action_parameterization",
+        "documentation": {}
+    },
+    {
+        "label": "ModelCoreRNN",
+        "importPath": "sample_factory.model.core",
+        "description": "sample_factory.model.core",
+        "isExtraImport": true,
+        "detail": "sample_factory.model.core",
+        "documentation": {}
+    },
+    {
+        "label": "ModelCoreRNN",
+        "importPath": "sample_factory.model.core",
+        "description": "sample_factory.model.core",
+        "isExtraImport": true,
+        "detail": "sample_factory.model.core",
+        "documentation": {}
+    },
+    {
+        "label": "ActionSpace",
+        "importPath": "sample_factory.utils.typing",
+        "description": "sample_factory.utils.typing",
+        "isExtraImport": true,
+        "detail": "sample_factory.utils.typing",
+        "documentation": {}
+    },
+    {
+        "label": "ObsSpace",
+        "importPath": "sample_factory.utils.typing",
+        "description": "sample_factory.utils.typing",
+        "isExtraImport": true,
+        "detail": "sample_factory.utils.typing",
+        "documentation": {}
+    },
+    {
+        "label": "Config",
+        "importPath": "sample_factory.utils.typing",
+        "description": "sample_factory.utils.typing",
+        "isExtraImport": true,
+        "detail": "sample_factory.utils.typing",
+        "documentation": {}
+    },
+    {
+        "label": "Config",
+        "importPath": "sample_factory.utils.typing",
+        "description": "sample_factory.utils.typing",
+        "isExtraImport": true,
+        "detail": "sample_factory.utils.typing",
+        "documentation": {}
+    },
+    {
+        "label": "sample_actions_log_probs",
+        "importPath": "sample_factory.algo.utils.action_distributions",
+        "description": "sample_factory.algo.utils.action_distributions",
+        "isExtraImport": true,
+        "detail": "sample_factory.algo.utils.action_distributions",
+        "documentation": {}
+    },
+    {
+        "label": "sample_actions_log_probs",
+        "importPath": "sample_factory.algo.utils.action_distributions",
+        "description": "sample_factory.algo.utils.action_distributions",
+        "isExtraImport": true,
+        "detail": "sample_factory.algo.utils.action_distributions",
+        "documentation": {}
+    },
+    {
+        "label": "MettaAgentInterface",
+        "importPath": "agent.agent_interface",
+        "description": "agent.agent_interface",
+        "isExtraImport": true,
+        "detail": "agent.agent_interface",
+        "documentation": {}
+    },
+    {
+        "label": "MultiFeatureSetEncoder",
+        "importPath": "agent.feature_encoder",
+        "description": "agent.feature_encoder",
+        "isExtraImport": true,
+        "detail": "agent.feature_encoder",
+        "documentation": {}
+    },
+    {
+        "label": "torch.nn",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "torch.nn",
+        "description": "torch.nn",
+        "detail": "torch.nn",
+        "documentation": {}
+    },
+    {
+        "label": "torch.nn.functional",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "torch.nn.functional",
+        "description": "torch.nn.functional",
+        "detail": "torch.nn.functional",
+        "documentation": {}
+    },
+    {
+        "label": "boto3",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "boto3",
+        "description": "boto3",
+        "detail": "boto3",
+        "documentation": {}
+    },
+    {
+        "label": "argparse",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "argparse",
+        "description": "argparse",
+        "detail": "argparse",
+        "documentation": {}
+    },
+    {
+        "label": "init",
+        "importPath": "colorama",
+        "description": "colorama",
+        "isExtraImport": true,
+        "detail": "colorama",
+        "documentation": {}
+    },
+    {
+        "label": "Fore",
+        "importPath": "colorama",
+        "description": "colorama",
+        "isExtraImport": true,
+        "detail": "colorama",
+        "documentation": {}
+    },
+    {
+        "label": "Style",
+        "importPath": "colorama",
+        "description": "colorama",
+        "isExtraImport": true,
+        "detail": "colorama",
+        "documentation": {}
+    },
+    {
+        "label": "logging",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "logging",
+        "description": "logging",
+        "detail": "logging",
+        "documentation": {}
+    },
+    {
+        "label": "netrc",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "netrc",
+        "description": "netrc",
+        "detail": "netrc",
+        "documentation": {}
+    },
+    {
+        "label": "os",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "os",
+        "description": "os",
+        "detail": "os",
+        "documentation": {}
+    },
+    {
+        "label": "subprocess",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "subprocess",
+        "description": "subprocess",
+        "detail": "subprocess",
+        "documentation": {}
+    },
+    {
+        "label": "sys",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "sys",
+        "description": "sys",
+        "detail": "sys",
+        "documentation": {}
+    },
+    {
+        "label": "yaml",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "yaml",
+        "description": "yaml",
+        "detail": "yaml",
+        "documentation": {}
+    },
+    {
+        "label": "wandb",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "wandb",
+        "description": "wandb",
+        "detail": "wandb",
+        "documentation": {}
+    },
+    {
+        "label": "lru_cache",
+        "importPath": "functools",
+        "description": "functools",
+        "isExtraImport": true,
+        "detail": "functools",
+        "documentation": {}
+    },
+    {
+        "label": "lru_cache",
+        "importPath": "functools",
+        "description": "functools",
+        "isExtraImport": true,
+        "detail": "functools",
+        "documentation": {}
+    },
+    {
+        "label": "lru_cache",
+        "importPath": "functools",
+        "description": "functools",
+        "isExtraImport": true,
+        "detail": "functools",
+        "documentation": {}
+    },
+    {
+        "label": "lru_cache",
+        "importPath": "functools",
+        "description": "functools",
+        "isExtraImport": true,
+        "detail": "functools",
+        "documentation": {}
+    },
+    {
+        "label": "lru_cache",
+        "importPath": "functools",
+        "description": "functools",
+        "isExtraImport": true,
+        "detail": "functools",
+        "documentation": {}
+    },
+    {
+        "label": "lru_cache",
+        "importPath": "functools",
+        "description": "functools",
+        "isExtraImport": true,
+        "detail": "functools",
+        "documentation": {}
+    },
+    {
+        "label": "gymnasium",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "gymnasium",
+        "description": "gymnasium",
+        "detail": "gymnasium",
+        "documentation": {}
+    },
+    {
+        "label": "f",
+        "importPath": "matplotlib.pylab",
+        "description": "matplotlib.pylab",
+        "isExtraImport": true,
+        "detail": "matplotlib.pylab",
+        "documentation": {}
+    },
+    {
+        "label": "f",
+        "importPath": "matplotlib.pylab",
+        "description": "matplotlib.pylab",
+        "isExtraImport": true,
+        "detail": "matplotlib.pylab",
+        "documentation": {}
+    },
+    {
+        "label": "re",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "re",
+        "description": "re",
+        "detail": "re",
+        "documentation": {}
+    },
+    {
+        "label": "pettingzoo",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "pettingzoo",
+        "description": "pettingzoo",
+        "detail": "pettingzoo",
+        "documentation": {}
+    },
+    {
+        "label": "utils",
+        "importPath": "pettingzoo",
+        "description": "pettingzoo",
+        "isExtraImport": true,
+        "detail": "pettingzoo",
+        "documentation": {}
+    },
+    {
+        "label": "imp",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "imp",
+        "description": "imp",
+        "detail": "imp",
+        "documentation": {}
+    },
+    {
+        "label": "itertools",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "itertools",
+        "description": "itertools",
+        "detail": "itertools",
+        "documentation": {}
+    },
+    {
+        "label": "cv2",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "cv2",
+        "description": "cv2",
+        "detail": "cv2",
+        "documentation": {}
+    },
+    {
+        "label": "exp",
+        "importPath": "cv2",
+        "description": "cv2",
+        "isExtraImport": true,
+        "detail": "cv2",
+        "documentation": {}
+    },
+    {
+        "label": "pandas",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "pandas",
+        "description": "pandas",
+        "detail": "pandas",
+        "documentation": {}
+    },
+    {
+        "label": "Console",
+        "importPath": "rich.console",
+        "description": "rich.console",
+        "isExtraImport": true,
+        "detail": "rich.console",
+        "documentation": {}
+    },
+    {
+        "label": "Console",
+        "importPath": "rich.console",
+        "description": "rich.console",
+        "isExtraImport": true,
+        "detail": "rich.console",
+        "documentation": {}
+    },
+    {
+        "label": "Console",
+        "importPath": "rich.console",
+        "description": "rich.console",
+        "isExtraImport": true,
+        "detail": "rich.console",
+        "documentation": {}
+    },
+    {
+        "label": "Console",
+        "importPath": "rich.console",
+        "description": "rich.console",
+        "isExtraImport": true,
+        "detail": "rich.console",
+        "documentation": {}
+    },
+    {
+        "label": "Table",
+        "importPath": "rich.table",
+        "description": "rich.table",
+        "isExtraImport": true,
+        "detail": "rich.table",
+        "documentation": {}
+    },
+    {
+        "label": "Table",
+        "importPath": "rich.table",
+        "description": "rich.table",
+        "isExtraImport": true,
+        "detail": "rich.table",
+        "documentation": {}
+    },
+    {
+        "label": "Table",
+        "importPath": "rich.table",
+        "description": "rich.table",
+        "isExtraImport": true,
+        "detail": "rich.table",
+        "documentation": {}
+    },
+    {
+        "label": "stats",
+        "importPath": "scipy",
+        "description": "scipy",
+        "isExtraImport": true,
+        "detail": "scipy",
+        "documentation": {}
+    },
+    {
+        "label": "N",
+        "importPath": "sympy",
+        "description": "sympy",
+        "isExtraImport": true,
+        "detail": "sympy",
+        "documentation": {}
+    },
+    {
+        "label": "evaluate",
+        "importPath": "rl.sample_factory.sample_factory",
+        "description": "rl.sample_factory.sample_factory",
+        "isExtraImport": true,
+        "detail": "rl.sample_factory.sample_factory",
+        "documentation": {}
+    },
+    {
+        "label": "json",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "json",
+        "description": "json",
+        "detail": "json",
+        "documentation": {}
+    },
+    {
+        "label": "load",
+        "importPath": "json",
+        "description": "json",
+        "isExtraImport": true,
+        "detail": "json",
+        "documentation": {}
+    },
+    {
+        "label": "time",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "time",
+        "description": "time",
+        "detail": "time",
+        "documentation": {}
+    },
+    {
+        "label": "traceback",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "traceback",
+        "description": "traceback",
+        "detail": "traceback",
+        "documentation": {}
+    },
+    {
+        "label": "CARBS",
+        "importPath": "carbs",
+        "description": "carbs",
+        "isExtraImport": true,
+        "detail": "carbs",
+        "documentation": {}
+    },
+    {
+        "label": "CARBSParams",
+        "importPath": "carbs",
+        "description": "carbs",
+        "isExtraImport": true,
+        "detail": "carbs",
+        "documentation": {}
+    },
+    {
+        "label": "LinearSpace",
+        "importPath": "carbs",
+        "description": "carbs",
+        "isExtraImport": true,
+        "detail": "carbs",
+        "documentation": {}
+    },
+    {
+        "label": "LogitSpace",
+        "importPath": "carbs",
+        "description": "carbs",
+        "isExtraImport": true,
+        "detail": "carbs",
+        "documentation": {}
+    },
+    {
+        "label": "LogSpace",
+        "importPath": "carbs",
+        "description": "carbs",
+        "isExtraImport": true,
+        "detail": "carbs",
+        "documentation": {}
+    },
+    {
+        "label": "ObservationInParam",
+        "importPath": "carbs",
+        "description": "carbs",
+        "isExtraImport": true,
+        "detail": "carbs",
+        "documentation": {}
+    },
+    {
+        "label": "Param",
+        "importPath": "carbs",
+        "description": "carbs",
+        "isExtraImport": true,
+        "detail": "carbs",
+        "documentation": {}
+    },
+    {
+        "label": "init_wandb",
+        "importPath": "rl.wandb.wandb",
+        "description": "rl.wandb.wandb",
+        "isExtraImport": true,
+        "detail": "rl.wandb.wandb",
+        "documentation": {}
+    },
+    {
+        "label": "init_wandb",
+        "importPath": "rl.wandb.wandb",
+        "description": "rl.wandb.wandb",
+        "isExtraImport": true,
+        "detail": "rl.wandb.wandb",
+        "documentation": {}
+    },
+    {
+        "label": "CommError",
+        "importPath": "wandb.errors",
+        "description": "wandb.errors",
+        "isExtraImport": true,
+        "detail": "wandb.errors",
+        "documentation": {}
+    },
+    {
+        "label": "random",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "random",
+        "description": "random",
+        "detail": "random",
+        "documentation": {}
+    },
+    {
+        "label": "psutil",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "psutil",
+        "description": "psutil",
+        "detail": "psutil",
+        "documentation": {}
+    },
+    {
+        "label": "Thread",
+        "importPath": "threading",
+        "description": "threading",
+        "isExtraImport": true,
+        "detail": "threading",
+        "documentation": {}
+    },
+    {
+        "label": "Thread",
+        "importPath": "threading",
+        "description": "threading",
+        "isExtraImport": true,
+        "detail": "threading",
+        "documentation": {}
+    },
+    {
+        "label": "defaultdict",
+        "importPath": "collections",
+        "description": "collections",
+        "isExtraImport": true,
+        "detail": "collections",
+        "documentation": {}
+    },
+    {
+        "label": "deque",
+        "importPath": "collections",
+        "description": "collections",
+        "isExtraImport": true,
+        "detail": "collections",
+        "documentation": {}
+    },
+    {
+        "label": "deque",
+        "importPath": "collections",
+        "description": "collections",
+        "isExtraImport": true,
+        "detail": "collections",
+        "documentation": {}
+    },
+    {
+        "label": "rich",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "rich",
+        "description": "rich",
+        "detail": "rich",
+        "documentation": {}
+    },
+    {
+        "label": "traceback",
+        "importPath": "rich",
+        "description": "rich",
+        "isExtraImport": true,
+        "detail": "rich",
+        "documentation": {}
+    },
+    {
+        "label": "traceback",
+        "importPath": "rich",
+        "description": "rich",
+        "isExtraImport": true,
+        "detail": "rich",
+        "documentation": {}
+    },
+    {
+        "label": "pufferlib",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "pufferlib",
+        "description": "pufferlib",
+        "detail": "pufferlib",
+        "documentation": {}
+    },
+    {
+        "label": "pufferlib.utils",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "pufferlib.utils",
+        "description": "pufferlib.utils",
+        "detail": "pufferlib.utils",
+        "documentation": {}
+    },
+    {
+        "label": "pufferlib.pytorch",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "pufferlib.pytorch",
+        "description": "pufferlib.pytorch",
+        "detail": "pufferlib.pytorch",
+        "documentation": {}
+    },
+    {
+        "label": "fast_gae",
+        "importPath": "fast_gae",
+        "description": "fast_gae",
+        "isExtraImport": true,
+        "detail": "fast_gae",
+        "documentation": {}
+    },
+    {
+        "label": "pufferlib.models",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "pufferlib.models",
+        "description": "pufferlib.models",
+        "detail": "pufferlib.models",
+        "documentation": {}
+    },
+    {
+        "label": "PettingZooPufferEnv",
+        "importPath": "pufferlib.emulation",
+        "description": "pufferlib.emulation",
+        "isExtraImport": true,
+        "detail": "pufferlib.emulation",
+        "documentation": {}
+    },
+    {
+        "label": "PufferEnv",
+        "importPath": "pufferlib.environment",
+        "description": "pufferlib.environment",
+        "isExtraImport": true,
+        "detail": "pufferlib.environment",
+        "documentation": {}
+    },
+    {
+        "label": "MettaAgent",
+        "importPath": "agent.metta_agent",
+        "description": "agent.metta_agent",
+        "isExtraImport": true,
+        "detail": "agent.metta_agent",
+        "documentation": {}
+    },
+    {
+        "label": "MettaAgent",
+        "importPath": "agent.metta_agent",
+        "description": "agent.metta_agent",
+        "isExtraImport": true,
+        "detail": "agent.metta_agent",
+        "documentation": {}
+    },
+    {
+        "label": "RLFramework",
+        "importPath": "rl.rl_framework",
+        "description": "rl.rl_framework",
+        "isExtraImport": true,
+        "detail": "rl.rl_framework",
+        "documentation": {}
+    },
+    {
+        "label": "EvaluationResult",
+        "importPath": "rl.rl_framework",
+        "description": "rl.rl_framework",
+        "isExtraImport": true,
+        "detail": "rl.rl_framework",
+        "documentation": {}
+    },
+    {
+        "label": "RLFramework",
+        "importPath": "rl.rl_framework",
+        "description": "rl.rl_framework",
+        "isExtraImport": true,
+        "detail": "rl.rl_framework",
+        "documentation": {}
+    },
+    {
+        "label": "pufferlib.vector",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "pufferlib.vector",
+        "description": "pufferlib.vector",
+        "detail": "pufferlib.vector",
+        "documentation": {}
+    },
+    {
+        "label": "pufferlib.frameworks.cleanrl",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "pufferlib.frameworks.cleanrl",
+        "description": "pufferlib.frameworks.cleanrl",
+        "detail": "pufferlib.frameworks.cleanrl",
+        "documentation": {}
+    },
+    {
+        "label": "evaluate",
+        "importPath": "rl.pufferlib.evaluate",
+        "description": "rl.pufferlib.evaluate",
+        "isExtraImport": true,
+        "detail": "rl.pufferlib.evaluate",
+        "documentation": {}
+    },
+    {
+        "label": "TensorDict",
+        "importPath": "sample_factory.algo.utils.tensor_dict",
+        "description": "sample_factory.algo.utils.tensor_dict",
+        "isExtraImport": true,
+        "detail": "sample_factory.algo.utils.tensor_dict",
+        "documentation": {}
+    },
+    {
+        "label": "ActorCriticSharedWeights",
+        "importPath": "sample_factory.model.actor_critic",
+        "description": "sample_factory.model.actor_critic",
+        "isExtraImport": true,
+        "detail": "sample_factory.model.actor_critic",
+        "documentation": {}
+    },
+    {
+        "label": "ActorCritic",
+        "importPath": "sample_factory.model.actor_critic",
+        "description": "sample_factory.model.actor_critic",
+        "isExtraImport": true,
+        "detail": "sample_factory.model.actor_critic",
+        "documentation": {}
+    },
+    {
+        "label": "global_model_factory",
+        "importPath": "sample_factory.algo.utils.context",
+        "description": "sample_factory.algo.utils.context",
+        "isExtraImport": true,
+        "detail": "sample_factory.algo.utils.context",
+        "documentation": {}
+    },
+    {
+        "label": "global_model_factory",
+        "importPath": "sample_factory.algo.utils.context",
+        "description": "sample_factory.algo.utils.context",
+        "isExtraImport": true,
+        "detail": "sample_factory.algo.utils.context",
+        "documentation": {}
+    },
+    {
+        "label": "SampleFactoryContext",
+        "importPath": "sample_factory.algo.utils.context",
+        "description": "sample_factory.algo.utils.context",
+        "isExtraImport": true,
+        "detail": "sample_factory.algo.utils.context",
+        "documentation": {}
+    },
+    {
+        "label": "parse_full_cfg",
+        "importPath": "sample_factory.cfg.arguments",
+        "description": "sample_factory.cfg.arguments",
+        "isExtraImport": true,
+        "detail": "sample_factory.cfg.arguments",
+        "documentation": {}
+    },
+    {
+        "label": "parse_sf_args",
+        "importPath": "sample_factory.cfg.arguments",
+        "description": "sample_factory.cfg.arguments",
+        "isExtraImport": true,
+        "detail": "sample_factory.cfg.arguments",
+        "documentation": {}
+    },
+    {
+        "label": "register_env",
+        "importPath": "sample_factory.envs.env_utils",
+        "description": "sample_factory.envs.env_utils",
+        "isExtraImport": true,
+        "detail": "sample_factory.envs.env_utils",
+        "documentation": {}
+    },
+    {
+        "label": "TrainingInfoInterface",
+        "importPath": "sample_factory.envs.env_utils",
+        "description": "sample_factory.envs.env_utils",
+        "isExtraImport": true,
+        "detail": "sample_factory.envs.env_utils",
+        "documentation": {}
+    },
+    {
+        "label": "run_rl",
+        "importPath": "sample_factory.train",
+        "description": "sample_factory.train",
+        "isExtraImport": true,
+        "detail": "sample_factory.train",
+        "documentation": {}
+    },
+    {
+        "label": "enjoy",
+        "importPath": "sample_factory.enjoy",
+        "description": "sample_factory.enjoy",
+        "isExtraImport": true,
+        "detail": "sample_factory.enjoy",
+        "documentation": {}
+    },
+    {
+        "label": "SampleFactoryAgentWrapper",
+        "importPath": "rl.sample_factory.sample_factory_agent_wrapper",
+        "description": "rl.sample_factory.sample_factory_agent_wrapper",
+        "isExtraImport": true,
+        "detail": "rl.sample_factory.sample_factory_agent_wrapper",
+        "documentation": {}
+    },
+    {
+        "label": "SampleFactoryEnvWrapper",
+        "importPath": "rl.sample_factory.sample_factory_env_wrapper",
+        "description": "rl.sample_factory.sample_factory_env_wrapper",
+        "isExtraImport": true,
+        "detail": "rl.sample_factory.sample_factory_env_wrapper",
+        "documentation": {}
+    },
+    {
+        "label": "model_device",
+        "importPath": "sample_factory.model.model_utils",
+        "description": "sample_factory.model.model_utils",
+        "isExtraImport": true,
+        "detail": "sample_factory.model.model_utils",
+        "documentation": {}
+    },
+    {
+        "label": "deepcopy",
+        "importPath": "copy",
+        "description": "copy",
+        "isExtraImport": true,
+        "detail": "copy",
+        "documentation": {}
+    },
+    {
+        "label": "List",
+        "importPath": "ast",
+        "description": "ast",
+        "isExtraImport": true,
+        "detail": "ast",
+        "documentation": {}
+    },
+    {
+        "label": "unittest",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "unittest",
+        "description": "unittest",
+        "detail": "unittest",
+        "documentation": {}
+    },
+    {
+        "label": "PredictingActorCritic",
+        "importPath": "rl.sample_factory.predicting_actor_critic",
+        "description": "rl.sample_factory.predicting_actor_critic",
+        "isExtraImport": true,
+        "detail": "rl.sample_factory.predicting_actor_critic",
+        "documentation": {}
+    },
+    {
+        "label": "SimpleNamespace",
+        "importPath": "types",
+        "description": "types",
+        "isExtraImport": true,
+        "detail": "types",
+        "documentation": {}
+    },
+    {
+        "label": "Encoder",
+        "importPath": "sample_factory.model.encoder",
+        "description": "sample_factory.model.encoder",
+        "isExtraImport": true,
+        "detail": "sample_factory.model.encoder",
+        "documentation": {}
+    },
+    {
+        "label": "signal",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "signal",
+        "description": "signal",
+        "detail": "signal",
+        "documentation": {}
+    },
+    {
+        "label": "run_sweep",
+        "importPath": "rl.carbs.carb_sweep",
+        "description": "rl.carbs.carb_sweep",
+        "isExtraImport": true,
+        "detail": "rl.carbs.carb_sweep",
+        "documentation": {}
+    },
+    {
+        "label": "tabulate",
+        "importPath": "tabulate",
+        "description": "tabulate",
+        "isExtraImport": true,
+        "detail": "tabulate",
+        "documentation": {}
+    },
+    {
+        "label": "HfApi",
+        "importPath": "huggingface_hub",
+        "description": "huggingface_hub",
+        "isExtraImport": true,
+        "detail": "huggingface_hub",
+        "documentation": {}
+    },
+    {
+        "label": "Repository",
+        "importPath": "huggingface_hub",
+        "description": "huggingface_hub",
+        "isExtraImport": true,
+        "detail": "huggingface_hub",
+        "documentation": {}
+    },
+    {
+        "label": "repocard",
+        "importPath": "huggingface_hub",
+        "description": "huggingface_hub",
+        "isExtraImport": true,
+        "detail": "huggingface_hub",
+        "documentation": {}
+    },
+    {
+        "label": "upload_folder",
+        "importPath": "huggingface_hub",
+        "description": "huggingface_hub",
+        "isExtraImport": true,
+        "detail": "huggingface_hub",
+        "documentation": {}
+    },
+    {
+        "label": "log",
+        "importPath": "sample_factory.utils.utils",
+        "description": "sample_factory.utils.utils",
+        "isExtraImport": true,
+        "detail": "sample_factory.utils.utils",
+        "documentation": {}
+    },
+    {
+        "label": "project_tmp_dir",
+        "importPath": "sample_factory.utils.utils",
+        "description": "sample_factory.utils.utils",
+        "isExtraImport": true,
+        "detail": "sample_factory.utils.utils",
+        "documentation": {}
+    },
+    {
+        "label": "log",
+        "importPath": "sample_factory.utils.utils",
+        "description": "sample_factory.utils.utils",
+        "isExtraImport": true,
+        "detail": "sample_factory.utils.utils",
+        "documentation": {}
+    },
+    {
+        "label": "project_tmp_dir",
+        "importPath": "sample_factory.utils.utils",
+        "description": "sample_factory.utils.utils",
+        "isExtraImport": true,
+        "detail": "sample_factory.utils.utils",
+        "documentation": {}
+    },
+    {
+        "label": "imageio",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "imageio",
+        "description": "imageio",
+        "detail": "imageio",
+        "documentation": {}
+    },
+    {
+        "label": "FastAPI",
+        "importPath": "fastapi",
+        "description": "fastapi",
+        "isExtraImport": true,
+        "detail": "fastapi",
+        "documentation": {}
+    },
+    {
+        "label": "WebSocket",
+        "importPath": "fastapi",
+        "description": "fastapi",
+        "isExtraImport": true,
+        "detail": "fastapi",
+        "documentation": {}
+    },
+    {
+        "label": "Query",
+        "importPath": "fastapi",
+        "description": "fastapi",
+        "isExtraImport": true,
+        "detail": "fastapi",
+        "documentation": {}
+    },
+    {
+        "label": "HTTPException",
+        "importPath": "fastapi",
+        "description": "fastapi",
+        "isExtraImport": true,
+        "detail": "fastapi",
+        "documentation": {}
+    },
+    {
+        "label": "HTMLResponse",
+        "importPath": "fastapi.responses",
+        "description": "fastapi.responses",
+        "isExtraImport": true,
+        "detail": "fastapi.responses",
+        "documentation": {}
+    },
+    {
+        "label": "FeatureListNormalizer",
+        "kind": 6,
+        "importPath": "agent.lib.normalizer",
+        "description": "agent.lib.normalizer",
+        "peekOfCode": "class FeatureListNormalizer(nn.Module):\n    def __init__(self, feature_names, input_shape=(1,)):\n        super().__init__()\n        self._feature_names = feature_names\n        self._norms_dict = nn.ModuleDict({\n            **{\n                k: RunningMeanStdInPlace(input_shape)\n                for k in self._feature_names\n            },\n        })",
+        "detail": "agent.lib.normalizer",
+        "documentation": {}
+    },
+    {
+        "label": "position_embeddings",
+        "kind": 2,
+        "importPath": "agent.lib.position",
+        "description": "agent.lib.position",
+        "peekOfCode": "def position_embeddings(width, height, embedding_dim=128):\n    x = torch.linspace(-1, 1, width)\n    y = torch.linspace(-1, 1, height)\n    pos_x, pos_y = torch.meshgrid(x, y, indexing='xy')\n    return torch.stack((pos_x, pos_y), dim=-1)\ndef sinusoidal_position_embeddings(width, height, embedding_dim=128):\n    # Generate a grid of positions for x and y coordinates\n    x = torch.linspace(-1, 1, width, dtype=torch.float32)\n    y = torch.linspace(-1, 1, height, dtype=torch.float32)\n    pos_x, pos_y = torch.meshgrid(x, y, indexing='xy')",
+        "detail": "agent.lib.position",
+        "documentation": {}
+    },
+    {
+        "label": "sinusoidal_position_embeddings",
+        "kind": 2,
+        "importPath": "agent.lib.position",
+        "description": "agent.lib.position",
+        "peekOfCode": "def sinusoidal_position_embeddings(width, height, embedding_dim=128):\n    # Generate a grid of positions for x and y coordinates\n    x = torch.linspace(-1, 1, width, dtype=torch.float32)\n    y = torch.linspace(-1, 1, height, dtype=torch.float32)\n    pos_x, pos_y = torch.meshgrid(x, y, indexing='xy')\n    # Prepare to generate sinusoidal embeddings\n    assert embedding_dim % 2 == 0, \"Embedding dimension must be even.\"\n    # Create a series of frequencies exponentially spaced apart\n    freqs = torch.exp2(torch.linspace(0, math.log(embedding_dim // 2 - 1), embedding_dim // 2))\n    # Apply sinusoidal functions to the positions",
+        "detail": "agent.lib.position",
+        "documentation": {}
+    },
+    {
+        "label": "SkipConnectionStack",
+        "kind": 6,
+        "importPath": "agent.lib.util",
+        "description": "agent.lib.util",
+        "peekOfCode": "class SkipConnectionStack(nn.Module):\n    def __init__(self, layers):\n        super(SkipConnectionStack, self).__init__()\n        self.layers = nn.ModuleList(layers)\n    def forward(self, x):\n        skip_connections = []\n        for i, layer in enumerate(self.layers):\n            if isinstance(layer, nn.Linear):\n                if len(skip_connections) > 1:\n                    x = x + skip_connections[-1]",
+        "detail": "agent.lib.util",
+        "documentation": {}
+    },
+    {
+        "label": "layer_init",
+        "kind": 2,
+        "importPath": "agent.lib.util",
+        "description": "agent.lib.util",
+        "peekOfCode": "def layer_init(layer, std=np.sqrt(2), bias_const=0.0):\n    \"\"\"\n    Simple function to init layers\n    \"\"\"\n    nn.init.orthogonal_(layer.weight, std)\n    nn.init.constant_(layer.bias, bias_const)\n    return layer\ndef make_nn_stack(\n    input_size,\n    output_size,",
+        "detail": "agent.lib.util",
+        "documentation": {}
+    },
+    {
+        "label": "make_nn_stack",
+        "kind": 2,
+        "importPath": "agent.lib.util",
+        "description": "agent.lib.util",
+        "peekOfCode": "def make_nn_stack(\n    input_size,\n    output_size,\n    hidden_sizes,\n    nonlinearity=nn.ELU(),\n    layer_norm=False,\n    use_skip=False,\n):\n    \"\"\"Create a stack of fully connected layers with nonlinearity\"\"\"\n    sizes = [input_size] + hidden_sizes + [output_size]",
+        "detail": "agent.lib.util",
+        "documentation": {}
+    },
+    {
+        "label": "stable_hash",
+        "kind": 2,
+        "importPath": "agent.lib.util",
+        "description": "agent.lib.util",
+        "peekOfCode": "def stable_hash(s, mod=10000):\n    \"\"\"Generate a stable hash for a string.\"\"\"\n    return int(hashlib.md5(s.encode()).hexdigest(), 16) % mod\ndef embed_strings(string_list, embedding_dim):\n    return torch.tensor([\n        embed_string(s, embedding_dim)\n        for s in string_list\n    ], dtype=torch.float32)\ndef embed_string(s, embedding_dim=128):\n    # Hash the string using SHA-256, which produces a 32-byte hash",
+        "detail": "agent.lib.util",
+        "documentation": {}
+    },
+    {
+        "label": "embed_strings",
+        "kind": 2,
+        "importPath": "agent.lib.util",
+        "description": "agent.lib.util",
+        "peekOfCode": "def embed_strings(string_list, embedding_dim):\n    return torch.tensor([\n        embed_string(s, embedding_dim)\n        for s in string_list\n    ], dtype=torch.float32)\ndef embed_string(s, embedding_dim=128):\n    # Hash the string using SHA-256, which produces a 32-byte hash\n    hash_object = hashlib.sha256(s.encode())\n    hash_digest = hash_object.digest()\n    # Convert hash bytes to a numpy array of floats",
+        "detail": "agent.lib.util",
+        "documentation": {}
+    },
+    {
+        "label": "embed_string",
+        "kind": 2,
+        "importPath": "agent.lib.util",
+        "description": "agent.lib.util",
+        "peekOfCode": "def embed_string(s, embedding_dim=128):\n    # Hash the string using SHA-256, which produces a 32-byte hash\n    hash_object = hashlib.sha256(s.encode())\n    hash_digest = hash_object.digest()\n    # Convert hash bytes to a numpy array of floats\n    # This example simply takes the first 'embedding_dim' bytes and scales them\n    byte_array = np.frombuffer(hash_digest[:embedding_dim], dtype=np.uint8)\n    embedding = byte_array / 255.0  # Normalize to range [0, 1]\n    # Ensure the embedding is the right size\n    if len(embedding) < embedding_dim:",
+        "detail": "agent.lib.util",
+        "documentation": {}
+    },
+    {
+        "label": "MettaAgentInterface",
+        "kind": 6,
+        "importPath": "agent.agent_interface",
+        "description": "agent.agent_interface",
+        "peekOfCode": "class MettaAgentInterface():\n    def encode_observations(self, obs_dict: Dict[str, Tensor]) -> Tensor:\n        raise NotImplementedError()\n    def forward_core(self, head_output, rnn_states):\n        raise NotImplementedError()\n    def decode_state(self, core_output, values_only: bool, sample_actions: bool) -> TensorDict:\n        raise NotImplementedError()\n    def forward(self, obs_dict, rnn_states, values_only: bool = False) -> TensorDict:\n        raise NotImplementedError()\n    def aux_loss(self, obs_dict, rnn_states):",
+        "detail": "agent.agent_interface",
+        "documentation": {}
+    },
+    {
+        "label": "Decoder",
+        "kind": 6,
+        "importPath": "agent.decoder",
+        "description": "agent.decoder",
+        "peekOfCode": "class Decoder(MlpDecoder):\n    def __init__(self, input_size: int):\n        super().__init__(\n            AttrDict({\n                'decoder_mlp_layers': [],\n                'nonlinearity': 'elu',\n            }),\n            input_size\n        )",
+        "detail": "agent.decoder",
+        "documentation": {}
+    },
+    {
+        "label": "FeatureSetEncoder",
+        "kind": 6,
+        "importPath": "agent.feature_encoder",
+        "description": "agent.feature_encoder",
+        "peekOfCode": "class FeatureSetEncoder(nn.Module):\n    def __init__(\n            self,\n            obs_space,\n            obs_key: str,\n            feature_names: List[str],\n            normalize_features: bool,\n            label_dim: int,\n            output_dim: int,\n            layers: int",
+        "detail": "agent.feature_encoder",
+        "documentation": {}
+    },
+    {
+        "label": "MultiFeatureSetEncoder",
+        "kind": 6,
+        "importPath": "agent.feature_encoder",
+        "description": "agent.feature_encoder",
+        "peekOfCode": "class MultiFeatureSetEncoder(nn.Module):\n    def __init__(self, obs_space, encoders_cfg, layers: int, output_dim: int):\n        super().__init__()\n        self.feature_set_encoders = nn.ModuleDict({\n            name: FeatureSetEncoder(obs_space, name, **cfg)\n            for name, cfg in encoders_cfg.items()\n            if len(cfg.feature_names) > 0\n        })\n        self.merged_encoder = make_nn_stack(\n            input_size=sum(encoder.output_dim() for encoder in self.feature_set_encoders.values()),",
+        "detail": "agent.feature_encoder",
+        "documentation": {}
+    },
+    {
+        "label": "MettaAgent",
+        "kind": 6,
+        "importPath": "agent.metta_agent",
+        "description": "agent.metta_agent",
+        "peekOfCode": "class MettaAgent(nn.Module, MettaAgentInterface):\n    def __init__(\n        self,\n        obs_space: ObsSpace,\n        action_space: ActionSpace,\n        **cfg\n    ):\n        super().__init__()\n        cfg = OmegaConf.create(cfg)\n        self.cfg = cfg",
+        "detail": "agent.metta_agent",
+        "documentation": {}
+    },
+    {
+        "label": "SpriteEncoder",
+        "kind": 6,
+        "importPath": "agent.sprite_encoder",
+        "description": "agent.sprite_encoder",
+        "peekOfCode": "class SpriteEncoder(nn.Module):\n    def __init__(self,\n                 sprite_width, height, channels, output_dim, hidden_dim=32):\n        super().__init__()\n        self.conv1 = nn.Conv2d(channels, 16, kernel_size=3, stride=1, padding=1)\n        self.conv2 = nn.Conv2d(16, hidden_dim, kernel_size=3, stride=1, padding=1)\n        self.fc = nn.Linear(hidden_dim*sprite_width*height, output_dim)\n    def forward(self, x):\n        x = F.relu(self.conv1(x))\n        x = F.relu(self.conv2(x))",
+        "detail": "agent.sprite_encoder",
+        "documentation": {}
+    },
+    {
+        "label": "get_batch_job_queues",
+        "kind": 2,
+        "importPath": "devops.aws.cluster_info",
+        "description": "devops.aws.cluster_info",
+        "peekOfCode": "def get_batch_job_queues():\n    batch = boto3.client('batch')\n    response = batch.describe_job_queues()\n    return [queue['jobQueueName'] for queue in response['jobQueues']]\ndef get_batch_jobs(job_queue, max_jobs):\n    batch = boto3.client('batch')\n    ecs = boto3.client('ecs')\n    running_jobs = []\n    other_jobs = []\n    # Get running jobs",
+        "detail": "devops.aws.cluster_info",
+        "documentation": {}
+    },
+    {
+        "label": "get_batch_jobs",
+        "kind": 2,
+        "importPath": "devops.aws.cluster_info",
+        "description": "devops.aws.cluster_info",
+        "peekOfCode": "def get_batch_jobs(job_queue, max_jobs):\n    batch = boto3.client('batch')\n    ecs = boto3.client('ecs')\n    running_jobs = []\n    other_jobs = []\n    # Get running jobs\n    response = batch.list_jobs(jobQueue=job_queue, jobStatus='RUNNING')\n    running_jobs.extend(response['jobSummaryList'])\n    # Get jobs in other states\n    states = ['SUBMITTED', 'PENDING', 'RUNNABLE', 'STARTING', 'SUCCEEDED', 'FAILED']",
+        "detail": "devops.aws.cluster_info",
+        "documentation": {}
+    },
+    {
+        "label": "get_ecs_clusters",
+        "kind": 2,
+        "importPath": "devops.aws.cluster_info",
+        "description": "devops.aws.cluster_info",
+        "peekOfCode": "def get_ecs_clusters():\n    ecs = boto3.client('ecs')\n    response = ecs.list_clusters()\n    return response['clusterArns']\ndef get_ecs_tasks(clusters, max_tasks):\n    ecs = boto3.client('ecs')\n    task_details = []\n    for cluster in clusters:\n        response = ecs.list_tasks(cluster=cluster, maxResults=max_tasks)\n        task_arns = response['taskArns']",
+        "detail": "devops.aws.cluster_info",
+        "documentation": {}
+    },
+    {
+        "label": "get_ecs_tasks",
+        "kind": 2,
+        "importPath": "devops.aws.cluster_info",
+        "description": "devops.aws.cluster_info",
+        "peekOfCode": "def get_ecs_tasks(clusters, max_tasks):\n    ecs = boto3.client('ecs')\n    task_details = []\n    for cluster in clusters:\n        response = ecs.list_tasks(cluster=cluster, maxResults=max_tasks)\n        task_arns = response['taskArns']\n        for task_arn in task_arns:\n            task_desc = ecs.describe_tasks(cluster=cluster, tasks=[task_arn])\n            task = task_desc['tasks'][0]\n            task_id = task['taskArn'].split('/')[-1]",
+        "detail": "devops.aws.cluster_info",
+        "documentation": {}
+    },
+    {
+        "label": "print_row",
+        "kind": 2,
+        "importPath": "devops.aws.cluster_info",
+        "description": "devops.aws.cluster_info",
+        "peekOfCode": "def print_row(key, value, use_color):\n    if use_color:\n        print(f\"  {Fore.BLUE}{key}:{Style.RESET_ALL} {value}\")\n    else:\n        print(f\"  {key}: {value}\")\ndef print_status(jobs_by_queue, tasks, use_color):\n    for job_queue, jobs in jobs_by_queue.items():\n        if use_color:\n            print(f\"{Fore.CYAN}AWS Batch Jobs - Queue: {job_queue}{Style.RESET_ALL}\")\n        else:",
+        "detail": "devops.aws.cluster_info",
+        "documentation": {}
+    },
+    {
+        "label": "print_status",
+        "kind": 2,
+        "importPath": "devops.aws.cluster_info",
+        "description": "devops.aws.cluster_info",
+        "peekOfCode": "def print_status(jobs_by_queue, tasks, use_color):\n    for job_queue, jobs in jobs_by_queue.items():\n        if use_color:\n            print(f\"{Fore.CYAN}AWS Batch Jobs - Queue: {job_queue}{Style.RESET_ALL}\")\n        else:\n            print(f\"AWS Batch Jobs - Queue: {job_queue}\")\n        for job in jobs:\n            status_color = {\n                'SUBMITTED': Fore.YELLOW,\n                'PENDING': Fore.YELLOW,",
+        "detail": "devops.aws.cluster_info",
+        "documentation": {}
+    },
+    {
+        "label": "register_task_definition",
+        "kind": 2,
+        "importPath": "devops.aws.configure",
+        "description": "devops.aws.configure",
+        "peekOfCode": "def register_task_definition(args):\n    ecs = boto3.client('ecs')\n    memory = int(args.memory * 1024)\n    task_definition = {\n        \"family\": \"metta-trainer\",\n        \"containerDefinitions\": [\n            {\n                \"name\": \"metta\",\n                \"image\": \"mettaai/metta:latest\",\n                \"portMappings\": [],",
+        "detail": "devops.aws.configure",
+        "documentation": {}
+    },
+    {
+        "label": "submit_batch_job",
+        "kind": 2,
+        "importPath": "devops.aws.launch_task",
+        "description": "devops.aws.launch_task",
+        "peekOfCode": "def submit_batch_job(args, task_args):\n    batch = boto3.client('batch')\n    job_name = args.experiment.replace('.', '_')\n    job_queue = \"metta-batch-jq-\" + args.instance_type.replace('.', '-')\n    job_definition = \"metta-batch-train-jd\"\n    response = batch.submit_job(\n        jobName=job_name,\n        jobQueue=job_queue,\n        jobDefinition=job_definition,\n        containerOverrides=container_config(args, task_args)",
+        "detail": "devops.aws.launch_task",
+        "documentation": {}
+    },
+    {
+        "label": "container_config",
+        "kind": 2,
+        "importPath": "devops.aws.launch_task",
+        "description": "devops.aws.launch_task",
+        "peekOfCode": "def container_config(args, task_args):\n    # Get the wandb key from the .netrc file\n    netrc_info = netrc.netrc(os.path.expanduser('~/.netrc'))\n    wandb_key = netrc_info.authenticators('api.wandb.ai')[2]\n    if not wandb_key:\n        raise ValueError('WANDB_API_KEY not found in .netrc file')\n    # Get the hugging face key from the cache file\n    hugging_face_key_file = os.path.expanduser(\"~/.cache/huggingface/token\")\n    with open(hugging_face_key_file, 'r') as file:\n        hugging_face_key = file.read().strip()",
+        "detail": "devops.aws.launch_task",
+        "documentation": {}
+    },
+    {
+        "label": "machine_profiles",
+        "kind": 5,
+        "importPath": "devops.aws.launch_task",
+        "description": "devops.aws.launch_task",
+        "peekOfCode": "machine_profiles = {\n    \"g5.2xlarge\": {\n        \"vcpus\": 8,\n        \"memory\": 28,\n    },\n    \"g5.4xlarge\": {\n        \"vcpus\": 16,\n        \"memory\": 60,\n    },\n    \"g5.8xlarge\": {",
+        "detail": "devops.aws.launch_task",
+        "documentation": {}
+    },
+    {
+        "label": "get_job_ip",
+        "kind": 2,
+        "importPath": "devops.aws.task_exec",
+        "description": "devops.aws.task_exec",
+        "peekOfCode": "def get_job_ip(job_name):\n   batch_client = boto3.client('batch')\n   ecs_client = boto3.client('ecs')\n   ec2_client = boto3.client('ec2')\n   # Get the list of job queues\n   job_queues = batch_client.describe_job_queues()['jobQueues']\n   # Iterate over the job queues to find the job\n   for job_queue in job_queues:\n       job_queue_name = job_queue['jobQueueName']\n       # List jobs in the job queue",
+        "detail": "devops.aws.task_exec",
+        "documentation": {}
+    },
+    {
+        "label": "connect_to_container",
+        "kind": 2,
+        "importPath": "devops.aws.task_exec",
+        "description": "devops.aws.task_exec",
+        "peekOfCode": "def connect_to_container(ip):\n   try:\n       # Establish SSH connection and check if it's successful\n       ssh_check_output = subprocess.check_output(f\"ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 {ip} 'echo Connected'\", shell=True).decode().strip()\n       if ssh_check_output != \"Connected\":\n           raise subprocess.CalledProcessError(1, \"SSH connection check failed\")\n       # Retrieve container ID\n       container_id_output = subprocess.check_output(f\"ssh -o StrictHostKeyChecking=no -t {ip} \\\"docker ps | grep 'mettaai/metta'\\\"\", shell=True).decode().strip()\n       if container_id_output:\n           container_id = container_id_output.split()[0]",
+        "detail": "devops.aws.task_exec",
+        "documentation": {}
+    },
+    {
+        "label": "main",
+        "kind": 2,
+        "importPath": "devops.wandb.project",
+        "description": "devops.wandb.project",
+        "peekOfCode": "def main():\n    parser = argparse.ArgumentParser()\n    parser.add_argument('--wandb_user', required=True)\n    parser.add_argument('--wandb_project', required=True)\n    parser.add_argument('--yaml_path', required=True)\n    parser.add_argument('--load', action='store_true')\n    parser.add_argument('--save', action='store_true')\n    args = parser.parse_args()\n    api = wandb.Api()\n    run = api.runs(f\"{args.wandb_user}/{args.wandb_project}\")",
+        "detail": "devops.wandb.project",
+        "documentation": {}
+    },
+    {
+        "label": "FeatureMasker",
+        "kind": 6,
+        "importPath": "env.wrapper.feature_masker",
+        "description": "env.wrapper.feature_masker",
+        "peekOfCode": "class FeatureMasker(gym.Wrapper):\n    def __init__(self, env, masked_features):\n        super().__init__(env)\n        self._masked_grid_obs = [\n            self.env.unwrapped.grid_features.index(feature)\n            for feature in masked_features.grid_obs\n        ]\n        self._grid_obs_mask = np.ones(\n            self.env.unwrapped.observation_space[\"grid_obs\"].shape,\n            dtype=np.uint8)",
+        "detail": "env.wrapper.feature_masker",
+        "documentation": {}
+    },
+    {
+        "label": "Kinship",
+        "kind": 6,
+        "importPath": "env.wrapper.kinship",
+        "description": "env.wrapper.kinship",
+        "peekOfCode": "class Kinship(gym.Wrapper):\n    def __init__(self, team_size: int, team_reward: float, env: gym.Env):\n        super().__init__(env)\n        self._team_size = team_size\n        self._team_reward = team_reward\n        self._num_agents = self.env.unwrapped.player_count\n        self._num_teams = int(math.ceil(self._num_agents / self._team_size))\n        self._agent_team = np.array([\n            agent // self._team_size for agent in range(self._num_agents)])\n        self._team_to_agents = {",
+        "detail": "env.wrapper.kinship",
+        "documentation": {}
+    },
+    {
+        "label": "LastActionTracker",
+        "kind": 6,
+        "importPath": "env.wrapper.last_action_tracker",
+        "description": "env.wrapper.last_action_tracker",
+        "peekOfCode": "class LastActionTracker(gym.Wrapper):\n    def __init__(self, env):\n        super(LastActionTracker, self).__init__(env)\n        self._last_actions = None\n    def reset(self, **kwargs):\n        self._last_actions = np.zeros((self.unwrapped.player_count, 2), dtype=np.int32)\n        obs, infos = self.env.reset(**kwargs)\n        return self._augment_observations(obs), infos\n    def step(self, actions):\n        obs, rewards, terms, truncs, infos = self.env.step(actions)",
+        "detail": "env.wrapper.last_action_tracker",
+        "documentation": {}
+    },
+    {
+        "label": "PettingZooEnvWrapper",
+        "kind": 6,
+        "importPath": "env.wrapper.petting_zoo",
+        "description": "env.wrapper.petting_zoo",
+        "peekOfCode": "class PettingZooEnvWrapper(pettingzoo.ParallelEnv):\n    def __init__(self, gym_env: gym.Env, render_mode='rgb_array'):\n        super().__init__()\n        self._gym_env = gym_env\n        self.possible_agents = [i+1 for i in range(self.num_agents)]\n        # agents gets manipulated\n        self.agents = [i+1 for i in range(self.num_agents)]\n        self.render_mode = render_mode\n    @property\n    def num_agents(self):",
+        "detail": "env.wrapper.petting_zoo",
+        "documentation": {}
+    },
+    {
+        "label": "Replay",
+        "kind": 6,
+        "importPath": "env.wrapper.replay",
+        "description": "env.wrapper.replay",
+        "peekOfCode": "class Replay():\n    def __init__(self, filename):\n        self.filename = filename\n        self.data = {\n            \"steps\": [],\n            \"global_obs\": [],\n        }\n    def record_step(self, actions, obs, rewards, infos, global_obs):\n        self.data[\"global_obs\"].append(global_obs)\n    def close(self):",
+        "detail": "env.wrapper.replay",
+        "documentation": {}
+    },
+    {
+        "label": "RewardTracker",
+        "kind": 6,
+        "importPath": "env.wrapper.reward_tracker",
+        "description": "env.wrapper.reward_tracker",
+        "peekOfCode": "class RewardTracker(gym.Wrapper):\n    def __init__(self, env):\n        super(RewardTracker, self).__init__(env)\n        self._last_rewards = None\n    def reset(self, **kwargs):\n        self._last_rewards = np.zeros(self.unwrapped.player_count, dtype=np.float32)\n        obs, infos = self.env.reset(**kwargs)\n        return self._augment_observations(obs), infos\n    def step(self, actions):\n        obs, rewards, terms, truncs, infos = self.env.step(actions)",
+        "detail": "env.wrapper.reward_tracker",
+        "documentation": {}
+    },
+    {
+        "label": "run_eval",
+        "kind": 2,
+        "importPath": "evals.evals",
+        "description": "evals.evals",
+        "peekOfCode": "def run_eval(sf_args, eval_config: dict):\n    argv = sf_args + EVALUATION_ARGS + [\n        f\"--{k}={v}\" for k, v in eval_config.items()\n    ]\n    return evaluate(argv)\ndef run_baseline_eval(df, sf_args, eval_config: dict, baseline: str, num_trials=5):\n    print(f\"Running baseline evaluation with config: {eval_config} and baseline: {baseline}\")\n    rewards = []\n    bl_rewards = []\n    for trial in range(num_trials):",
+        "detail": "evals.evals",
+        "documentation": {}
+    },
+    {
+        "label": "run_baseline_eval",
+        "kind": 2,
+        "importPath": "evals.evals",
+        "description": "evals.evals",
+        "peekOfCode": "def run_baseline_eval(df, sf_args, eval_config: dict, baseline: str, num_trials=5):\n    print(f\"Running baseline evaluation with config: {eval_config} and baseline: {baseline}\")\n    rewards = []\n    bl_rewards = []\n    for trial in range(num_trials):\n        rewards.append(run_eval(sf_args, eval_config))\n        bl_rewards.append(run_eval(sf_args, {**eval_config, \"experiment\": baseline}))\n        t_stat, p_value = stats.ttest_rel(rewards, bl_rewards)\n        print(\n            \"Reward: {:.3f} | Baseline Reward: {:.3f} | p-value: {:.3f}\".format(",
+        "detail": "evals.evals",
+        "documentation": {}
+    },
+    {
+        "label": "main",
+        "kind": 2,
+        "importPath": "evals.evals",
+        "description": "evals.evals",
+        "peekOfCode": "def main():\n    argp = argparse.ArgumentParser()\n    argp.add_argument(\"--num_trials\", default=5, type=int)\n    args, sf_args = argp.parse_known_args()\n    sf_args.append(f\"--train_dir={args.train_dir}\")\n    sf_args.append(f\"--experiment={args.experiment}\")\n    out_path = f\"{args.train_dir}/{args.experiment}/eval/\"\n    os.makedirs(out_path, exist_ok=True)\n    flag_combinations = list(itertools.product(*flags.values()))\n    flag_combinations = [dict(zip(flags.keys(), combination)) for combination in flag_combinations]",
+        "detail": "evals.evals",
+        "documentation": {}
+    },
+    {
+        "label": "color_rewards",
+        "kind": 2,
+        "importPath": "evals.evals",
+        "description": "evals.evals",
+        "peekOfCode": "def color_rewards(row):\n    \"\"\"\n    Colors rewards based on their value and the p-value.\n    \"\"\"\n    if row['p'] < 0.05:\n        if row['reward_delta'] < 0:\n            color = 'red'\n        else:\n            color = 'green'\n        return f\"[{color}]{row['reward_delta']}[/]\"",
+        "detail": "evals.evals",
+        "documentation": {}
+    },
+    {
+        "label": "print_table",
+        "kind": 2,
+        "importPath": "evals.evals",
+        "description": "evals.evals",
+        "peekOfCode": "def print_table(df, file=sys.stdout, color=True):\n    console = Console(file=file)\n    table = Table(show_header=True, header_style=\"bold magenta\")\n    for column in df.columns:\n        table.add_column(column)\n    if color:\n        df = df.copy()\n        df['reward_delta'] = df.apply(color_rewards, axis=1)\n    for i in range(len(df)):\n        table.add_row(*df.iloc[i].astype(str).tolist())",
+        "detail": "evals.evals",
+        "documentation": {}
+    },
+    {
+        "label": "EVALUATION_ARGS",
+        "kind": 5,
+        "importPath": "evals.evals",
+        "description": "evals.evals",
+        "peekOfCode": "EVALUATION_ARGS = [\n    \"--no_render\",\n]\nflags = {\n    \"env_num_agents\": [2, 5, 10],\n    \"env_width\": [10, 20, 30, 40, 50],\n    \"env_height\": [10, 20, 30, 40, 50],\n    \"env_num_altars\": [0, 1, 5],\n    \"env_num_chargers\": [0, 1, 5],\n    \"env_num_generators\": [0, 5, 10, 20],",
+        "detail": "evals.evals",
+        "documentation": {}
+    },
+    {
+        "label": "flags",
+        "kind": 5,
+        "importPath": "evals.evals",
+        "description": "evals.evals",
+        "peekOfCode": "flags = {\n    \"env_num_agents\": [2, 5, 10],\n    \"env_width\": [10, 20, 30, 40, 50],\n    \"env_height\": [10, 20, 30, 40, 50],\n    \"env_num_altars\": [0, 1, 5],\n    \"env_num_chargers\": [0, 1, 5],\n    \"env_num_generators\": [0, 5, 10, 20],\n}\ndef run_eval(sf_args, eval_config: dict):\n    argv = sf_args + EVALUATION_ARGS + [",
+        "detail": "evals.evals",
+        "documentation": {}
+    },
+    {
+        "label": "run_sweep",
+        "kind": 2,
+        "importPath": "rl.carbs.carb_sweep",
+        "description": "rl.carbs.carb_sweep",
+        "peekOfCode": "def run_sweep(cfg: OmegaConf):\n    try:\n        print(f\"Loading previous sweep {cfg.experiment}...\")\n        artifact = wandb.use_artifact(cfg.experiment + \":latest\", type=\"sweep\")\n        sweep_id = artifact.metadata[\"sweep_id\"]\n    except CommError:\n        print(f\"No previous sweep {cfg.experiment} found, creating...\")\n        sweep_id = wandb.sweep(\n            sweep=_wandb_sweep_cfg(cfg),\n            project=cfg.wandb.project,",
+        "detail": "rl.carbs.carb_sweep",
+        "documentation": {}
+    },
+    {
+        "label": "run_carb_sweep_rollout",
+        "kind": 2,
+        "importPath": "rl.carbs.carb_sweep",
+        "description": "rl.carbs.carb_sweep",
+        "peekOfCode": "def run_carb_sweep_rollout():\n    global _cfg\n    init_wandb(_cfg)\n    np.random.seed(int(time.time()))\n    torch.manual_seed(int(time.time()))\n    carbs_controller = _load_carbs_state(_cfg.experiment)\n    carbs_controller._set_seed(int(time.time()))\n    print(f\"CARBS: obs: {carbs_controller.observation_count}\")\n    orig_suggestion = carbs_controller.suggest().suggestion\n    carbs_controller.num_suggestions += 1",
+        "detail": "rl.carbs.carb_sweep",
+        "documentation": {}
+    },
+    {
+        "label": "_carbs_space",
+        "kind": 5,
+        "importPath": "rl.carbs.carb_sweep",
+        "description": "rl.carbs.carb_sweep",
+        "peekOfCode": "_carbs_space = {\n    \"log\": LogSpace,\n    \"linear\": LinearSpace,\n    \"pow2\": LinearSpace,\n    \"logit\": LogitSpace,\n}\ndef _carbs_params_spaces(cfg: OmegaConf):\n    param_spaces = []\n    params = _fully_qualified_parameters(cfg.sweep.parameters)\n    for param_name, param in params.items():",
+        "detail": "rl.carbs.carb_sweep",
+        "documentation": {}
+    },
+    {
+        "label": "save_checkpoint",
+        "kind": 2,
+        "importPath": "rl.pufferlib.checkpoint",
+        "description": "rl.pufferlib.checkpoint",
+        "peekOfCode": "def save_checkpoint(data):\n    config = data.config\n    path = os.path.join(config.data_dir, config.exp_id)\n    if not os.path.exists(path):\n        os.makedirs(path)\n    model_name = f'model_{data.epoch:06d}.pt'\n    model_path = os.path.join(path, model_name)\n    if os.path.exists(model_path):\n        return model_path\n    torch.save(data.uncompiled_policy, model_path)",
+        "detail": "rl.pufferlib.checkpoint",
+        "documentation": {}
+    },
+    {
+        "label": "try_load_checkpoint",
+        "kind": 2,
+        "importPath": "rl.pufferlib.checkpoint",
+        "description": "rl.pufferlib.checkpoint",
+        "peekOfCode": "def try_load_checkpoint(data):\n    config = data.config\n    path = os.path.join(config.data_dir, config.exp_id)\n    if not os.path.exists(path):\n        print('No checkpoints found. Assuming new experiment')\n        return\n    trainer_path = os.path.join(path, 'trainer_state.pt')\n    resume_state = torch.load(trainer_path)\n    model_path = os.path.join(path, resume_state['model_name'])\n    data.policy.uncompiled.load_state_dict(model_path, map_location=config.device)",
+        "detail": "rl.pufferlib.checkpoint",
+        "documentation": {}
+    },
+    {
+        "label": "Profile",
+        "kind": 6,
+        "importPath": "rl.pufferlib.clean_pufferl",
+        "description": "rl.pufferlib.clean_pufferl",
+        "peekOfCode": "class Profile:\n    SPS: ... = 0\n    uptime: ... = 0\n    remaining: ... = 0\n    eval_time: ... = 0\n    env_time: ... = 0\n    eval_forward_time: ... = 0\n    eval_misc_time: ... = 0\n    train_time: ... = 0\n    train_forward_time: ... = 0",
+        "detail": "rl.pufferlib.clean_pufferl",
+        "documentation": {}
+    },
+    {
+        "label": "Experience",
+        "kind": 6,
+        "importPath": "rl.pufferlib.clean_pufferl",
+        "description": "rl.pufferlib.clean_pufferl",
+        "peekOfCode": "class Experience:\n    '''Flat tensor storage and array views for faster indexing'''\n    def __init__(self, batch_size, bptt_horizon, minibatch_size, obs_shape, obs_dtype, atn_shape, atn_dtype,\n                 cpu_offload=False, device='cuda', lstm=None, lstm_total_agents=0):\n        if minibatch_size is None:\n            minibatch_size = batch_size\n        obs_dtype = pufferlib.pytorch.numpy_to_torch_dtype_dict[obs_dtype]\n        atn_dtype = pufferlib.pytorch.numpy_to_torch_dtype_dict[atn_dtype]\n        pin = device == 'cuda' and cpu_offload\n        obs_device = device if not pin else 'cpu'",
+        "detail": "rl.pufferlib.clean_pufferl",
+        "documentation": {}
+    },
+    {
+        "label": "Utilization",
+        "kind": 6,
+        "importPath": "rl.pufferlib.clean_pufferl",
+        "description": "rl.pufferlib.clean_pufferl",
+        "peekOfCode": "class Utilization(Thread):\n    def __init__(self, delay=1, maxlen=20):\n        super().__init__()\n        self.cpu_mem = deque(maxlen=maxlen)\n        self.cpu_util = deque(maxlen=maxlen)\n        self.gpu_util = deque(maxlen=maxlen)\n        self.gpu_mem = deque(maxlen=maxlen)\n        self.delay = delay\n        self.stopped = False\n        self.start()",
+        "detail": "rl.pufferlib.clean_pufferl",
+        "documentation": {}
+    },
+    {
+        "label": "create",
+        "kind": 2,
+        "importPath": "rl.pufferlib.clean_pufferl",
+        "description": "rl.pufferlib.clean_pufferl",
+        "peekOfCode": "def create(config, vecenv, policy, optimizer=None):\n    seed_everything(config.seed, config.torch_deterministic)\n    profile = Profile()\n    losses = make_losses()\n    utilization = Utilization()\n    msg = f'Model Size: {abbreviate(count_params(policy))} parameters'\n    print(\"\\n\".join([\"\\n\"]*50))\n    print_dashboard(config.env, utilization, 0, 0, profile, losses, {}, msg, clear=True)\n    vecenv.async_reset(config.seed)\n    obs_shape = vecenv.single_observation_space.shape",
+        "detail": "rl.pufferlib.clean_pufferl",
+        "documentation": {}
+    },
+    {
+        "label": "evaluate",
+        "kind": 2,
+        "importPath": "rl.pufferlib.clean_pufferl",
+        "description": "rl.pufferlib.clean_pufferl",
+        "peekOfCode": "def evaluate(data):\n    config, profile, experience = data.config, data.profile, data.experience\n    with profile.eval_misc:\n        policy = data.policy\n        infos = defaultdict(list)\n        lstm_h, lstm_c = experience.lstm_h, experience.lstm_c\n    while not experience.full:\n        with profile.env:\n            o, r, d, t, info, env_id, mask = data.vecenv.recv()\n            env_id = env_id.tolist()",
+        "detail": "rl.pufferlib.clean_pufferl",
+        "documentation": {}
+    },
+    {
+        "label": "train",
+        "kind": 2,
+        "importPath": "rl.pufferlib.clean_pufferl",
+        "description": "rl.pufferlib.clean_pufferl",
+        "peekOfCode": "def train(data):\n    config, profile, experience = data.config, data.profile, data.experience\n    data.losses = make_losses()\n    losses = data.losses\n    with profile.train_misc:\n        idxs = experience.sort_training_data()\n        dones_np = experience.dones_np[idxs]\n        values_np = experience.values_np[idxs]\n        rewards_np = experience.rewards_np[idxs]\n        # TODO: bootstrap between segment bounds",
+        "detail": "rl.pufferlib.clean_pufferl",
+        "documentation": {}
+    },
+    {
+        "label": "mean_and_log",
+        "kind": 2,
+        "importPath": "rl.pufferlib.clean_pufferl",
+        "description": "rl.pufferlib.clean_pufferl",
+        "peekOfCode": "def mean_and_log(data):\n    for k in list(data.stats.keys()):\n        v = data.stats[k]\n        try:\n            v = np.mean(v)\n        except:\n            del data.stats[k]\n        data.stats[k] = v\n    if data.wandb is None:\n        return",
+        "detail": "rl.pufferlib.clean_pufferl",
+        "documentation": {}
+    },
+    {
+        "label": {
+            "name": "",
+            "kind": 2,
+            "peekOfCode": "def  close(data):\n    data.vecenv.close()\n    data.utilization.stop()\n    config = data.config\n    if data.wandb is not None:\n        artifact_name = f\"{config.exp_id}_model\"\n        artifact = data.wandb.Artifact(artifact_name, type=\"model\")\n        model_path = save_checkpoint(data)\n        artifact.add_file(model_path)\n        data.wandb.run.log_artifact(artifact)"
+        },
+        "kind": 2,
+        "importPath": "rl.pufferlib.clean_pufferl",
+        "description": "rl.pufferlib.clean_pufferl",
+        "peekOfCode": "def  close(data):\n    data.vecenv.close()\n    data.utilization.stop()\n    config = data.config\n    if data.wandb is not None:\n        artifact_name = f\"{config.exp_id}_model\"\n        artifact = data.wandb.Artifact(artifact_name, type=\"model\")\n        model_path = save_checkpoint(data)\n        artifact.add_file(model_path)\n        data.wandb.run.log_artifact(artifact)",
+        "detail": "rl.pufferlib.clean_pufferl",
+        "documentation": {}
+    },
+    {
+        "label": "make_losses",
+        "kind": 2,
+        "importPath": "rl.pufferlib.clean_pufferl",
+        "description": "rl.pufferlib.clean_pufferl",
+        "peekOfCode": "def make_losses():\n    return pufferlib.namespace(\n        policy_loss=0,\n        value_loss=0,\n        entropy=0,\n        old_approx_kl=0,\n        approx_kl=0,\n        clipfrac=0,\n        explained_variance=0,\n    )",
+        "detail": "rl.pufferlib.clean_pufferl",
+        "documentation": {}
+    },
+    {
+        "label": "save_checkpoint",
+        "kind": 2,
+        "importPath": "rl.pufferlib.clean_pufferl",
+        "description": "rl.pufferlib.clean_pufferl",
+        "peekOfCode": "def save_checkpoint(data):\n    config = data.config\n    path = os.path.join(config.data_dir, config.exp_id)\n    if not os.path.exists(path):\n        os.makedirs(path)\n    model_name = f'model_{data.epoch:06d}.pt'\n    model_path = os.path.join(path, model_name)\n    if os.path.exists(model_path):\n        return model_path\n    torch.save(data.uncompiled_policy, model_path)",
+        "detail": "rl.pufferlib.clean_pufferl",
+        "documentation": {}
+    },
+    {
+        "label": "try_load_checkpoint",
+        "kind": 2,
+        "importPath": "rl.pufferlib.clean_pufferl",
+        "description": "rl.pufferlib.clean_pufferl",
+        "peekOfCode": "def try_load_checkpoint(data):\n    config = data.config\n    path = os.path.join(config.data_dir, config.exp_id)\n    if not os.path.exists(path):\n        print('No checkpoints found. Assuming new experiment')\n        return\n    trainer_path = os.path.join(path, 'trainer_state.pt')\n    resume_state = torch.load(trainer_path)\n    model_path = os.path.join(path, resume_state['model_name'])\n    data.global_step = resume_state['global_step']",
+        "detail": "rl.pufferlib.clean_pufferl",
+        "documentation": {}
+    },
+    {
+        "label": "count_params",
+        "kind": 2,
+        "importPath": "rl.pufferlib.clean_pufferl",
+        "description": "rl.pufferlib.clean_pufferl",
+        "peekOfCode": "def count_params(policy):\n    return sum(p.numel() for p in policy.parameters() if p.requires_grad)\ndef rollout(cfg: OmegaConf, env_creator, env_kwargs, agent_creator, agent_kwargs,\n        backend, render_mode='auto', model_path=None, device='cuda'):\n    # We are just using Serial vecenv to give a consistent\n    # single-agent/multi-agent API for evaluation\n    if render_mode != 'auto':\n        env_kwargs['render_mode'] = render_mode\n    env = pufferlib.vector.make(env_creator, env_kwargs=env_kwargs, backend=backend)\n    if model_path is None:",
+        "detail": "rl.pufferlib.clean_pufferl",
+        "documentation": {}
+    },
+    {
+        "label": "rollout",
+        "kind": 2,
+        "importPath": "rl.pufferlib.clean_pufferl",
+        "description": "rl.pufferlib.clean_pufferl",
+        "peekOfCode": "def rollout(cfg: OmegaConf, env_creator, env_kwargs, agent_creator, agent_kwargs,\n        backend, render_mode='auto', model_path=None, device='cuda'):\n    # We are just using Serial vecenv to give a consistent\n    # single-agent/multi-agent API for evaluation\n    if render_mode != 'auto':\n        env_kwargs['render_mode'] = render_mode\n    env = pufferlib.vector.make(env_creator, env_kwargs=env_kwargs, backend=backend)\n    if model_path is None:\n        agent = agent_creator(env.driver_env, agent_kwargs).to(device)\n    else:",
+        "detail": "rl.pufferlib.clean_pufferl",
+        "documentation": {}
+    },
+    {
+        "label": "seed_everything",
+        "kind": 2,
+        "importPath": "rl.pufferlib.clean_pufferl",
+        "description": "rl.pufferlib.clean_pufferl",
+        "peekOfCode": "def seed_everything(seed, torch_deterministic):\n    random.seed(seed)\n    np.random.seed(seed)\n    if seed is not None:\n        torch.manual_seed(seed)\n    torch.backends.cudnn.deterministic = torch_deterministic\nROUND_OPEN = rich.box.Box(\n    \"╭──╮\\n\"\n    \"│  │\\n\"\n    \"│  │\\n\"",
+        "detail": "rl.pufferlib.clean_pufferl",
+        "documentation": {}
+    },
+    {
+        "label": "abbreviate",
+        "kind": 2,
+        "importPath": "rl.pufferlib.clean_pufferl",
+        "description": "rl.pufferlib.clean_pufferl",
+        "peekOfCode": "def abbreviate(num):\n    if num < 1e3:\n        return f'{b2}{num:.0f}'\n    elif num < 1e6:\n        return f'{b2}{num/1e3:.1f}{c2}k'\n    elif num < 1e9:\n        return f'{b2}{num/1e6:.1f}{c2}m'\n    elif num < 1e12:\n        return f'{b2}{num/1e9:.1f}{c2}b'\n    else:",
+        "detail": "rl.pufferlib.clean_pufferl",
+        "documentation": {}
+    },
+    {
+        "label": "duration",
+        "kind": 2,
+        "importPath": "rl.pufferlib.clean_pufferl",
+        "description": "rl.pufferlib.clean_pufferl",
+        "peekOfCode": "def duration(seconds):\n    seconds = int(seconds)\n    h = seconds // 3600\n    m = (seconds % 3600) // 60\n    s = seconds % 60\n    return f\"{b2}{h}{c2}h {b2}{m}{c2}m {b2}{s}{c2}s\" if h else f\"{b2}{m}{c2}m {b2}{s}{c2}s\" if m else f\"{b2}{s}{c2}s\"\ndef fmt_perf(name, time, uptime):\n    percent = 0 if uptime == 0 else int(100*time/uptime - 1e-5)\n    return f'{c1}{name}', duration(time), f'{b2}{percent:2d}%'\n# TODO: Add env name to print_dashboard",
+        "detail": "rl.pufferlib.clean_pufferl",
+        "documentation": {}
+    },
+    {
+        "label": "fmt_perf",
+        "kind": 2,
+        "importPath": "rl.pufferlib.clean_pufferl",
+        "description": "rl.pufferlib.clean_pufferl",
+        "peekOfCode": "def fmt_perf(name, time, uptime):\n    percent = 0 if uptime == 0 else int(100*time/uptime - 1e-5)\n    return f'{c1}{name}', duration(time), f'{b2}{percent:2d}%'\n# TODO: Add env name to print_dashboard\ndef print_dashboard(env_name, utilization, global_step, epoch,\n        profile, losses, stats, msg, clear=False, max_stats=[0]):\n    console = Console()\n    if clear:\n        console.clear()\n    dashboard = Table(box=ROUND_OPEN, expand=True,",
+        "detail": "rl.pufferlib.clean_pufferl",
+        "documentation": {}
+    },
+    {
+        "label": "print_dashboard",
+        "kind": 2,
+        "importPath": "rl.pufferlib.clean_pufferl",
+        "description": "rl.pufferlib.clean_pufferl",
+        "peekOfCode": "def print_dashboard(env_name, utilization, global_step, epoch,\n        profile, losses, stats, msg, clear=False, max_stats=[0]):\n    console = Console()\n    if clear:\n        console.clear()\n    dashboard = Table(box=ROUND_OPEN, expand=True,\n        show_header=False, border_style='bright_cyan')\n    table = Table(box=None, expand=True, show_header=False)\n    dashboard.add_row(table)\n    cpu_percent = np.mean(utilization.cpu_util)",
+        "detail": "rl.pufferlib.clean_pufferl",
+        "documentation": {}
+    },
+    {
+        "label": "ROUND_OPEN",
+        "kind": 5,
+        "importPath": "rl.pufferlib.clean_pufferl",
+        "description": "rl.pufferlib.clean_pufferl",
+        "peekOfCode": "ROUND_OPEN = rich.box.Box(\n    \"╭──╮\\n\"\n    \"│  │\\n\"\n    \"│  │\\n\"\n    \"│  │\\n\"\n    \"│  │\\n\"\n    \"│  │\\n\"\n    \"│  │\\n\"\n    \"╰──╯\\n\"\n)",
+        "detail": "rl.pufferlib.clean_pufferl",
+        "documentation": {}
+    },
+    {
+        "label": "c1",
+        "kind": 5,
+        "importPath": "rl.pufferlib.clean_pufferl",
+        "description": "rl.pufferlib.clean_pufferl",
+        "peekOfCode": "c1 = '[bright_cyan]'\nc2 = '[white]'\nc3 = '[cyan]'\nb1 = '[bright_cyan]'\nb2 = '[bright_white]'\ndef abbreviate(num):\n    if num < 1e3:\n        return f'{b2}{num:.0f}'\n    elif num < 1e6:\n        return f'{b2}{num/1e3:.1f}{c2}k'",
+        "detail": "rl.pufferlib.clean_pufferl",
+        "documentation": {}
+    },
+    {
+        "label": "c2",
+        "kind": 5,
+        "importPath": "rl.pufferlib.clean_pufferl",
+        "description": "rl.pufferlib.clean_pufferl",
+        "peekOfCode": "c2 = '[white]'\nc3 = '[cyan]'\nb1 = '[bright_cyan]'\nb2 = '[bright_white]'\ndef abbreviate(num):\n    if num < 1e3:\n        return f'{b2}{num:.0f}'\n    elif num < 1e6:\n        return f'{b2}{num/1e3:.1f}{c2}k'\n    elif num < 1e9:",
+        "detail": "rl.pufferlib.clean_pufferl",
+        "documentation": {}
+    },
+    {
+        "label": "c3",
+        "kind": 5,
+        "importPath": "rl.pufferlib.clean_pufferl",
+        "description": "rl.pufferlib.clean_pufferl",
+        "peekOfCode": "c3 = '[cyan]'\nb1 = '[bright_cyan]'\nb2 = '[bright_white]'\ndef abbreviate(num):\n    if num < 1e3:\n        return f'{b2}{num:.0f}'\n    elif num < 1e6:\n        return f'{b2}{num/1e3:.1f}{c2}k'\n    elif num < 1e9:\n        return f'{b2}{num/1e6:.1f}{c2}m'",
+        "detail": "rl.pufferlib.clean_pufferl",
+        "documentation": {}
+    },
+    {
+        "label": "b1",
+        "kind": 5,
+        "importPath": "rl.pufferlib.clean_pufferl",
+        "description": "rl.pufferlib.clean_pufferl",
+        "peekOfCode": "b1 = '[bright_cyan]'\nb2 = '[bright_white]'\ndef abbreviate(num):\n    if num < 1e3:\n        return f'{b2}{num:.0f}'\n    elif num < 1e6:\n        return f'{b2}{num/1e3:.1f}{c2}k'\n    elif num < 1e9:\n        return f'{b2}{num/1e6:.1f}{c2}m'\n    elif num < 1e12:",
+        "detail": "rl.pufferlib.clean_pufferl",
+        "documentation": {}
+    },
+    {
+        "label": "b2",
+        "kind": 5,
+        "importPath": "rl.pufferlib.clean_pufferl",
+        "description": "rl.pufferlib.clean_pufferl",
+        "peekOfCode": "b2 = '[bright_white]'\ndef abbreviate(num):\n    if num < 1e3:\n        return f'{b2}{num:.0f}'\n    elif num < 1e6:\n        return f'{b2}{num/1e3:.1f}{c2}k'\n    elif num < 1e9:\n        return f'{b2}{num/1e6:.1f}{c2}m'\n    elif num < 1e12:\n        return f'{b2}{num/1e9:.1f}{c2}b'",
+        "detail": "rl.pufferlib.clean_pufferl",
+        "documentation": {}
+    },
+    {
+        "label": "abbreviate",
+        "kind": 2,
+        "importPath": "rl.pufferlib.dashboard",
+        "description": "rl.pufferlib.dashboard",
+        "peekOfCode": "def abbreviate(num):\n    if num < 1e3:\n        return f'{b2}{num:.0f}'\n    elif num < 1e6:\n        return f'{b2}{num/1e3:.1f}{c2}k'\n    elif num < 1e9:\n        return f'{b2}{num/1e6:.1f}{c2}m'\n    elif num < 1e12:\n        return f'{b2}{num/1e9:.1f}{c2}b'\n    else:",
+        "detail": "rl.pufferlib.dashboard",
+        "documentation": {}
+    },
+    {
+        "label": "duration",
+        "kind": 2,
+        "importPath": "rl.pufferlib.dashboard",
+        "description": "rl.pufferlib.dashboard",
+        "peekOfCode": "def duration(seconds):\n    seconds = int(seconds)\n    h = seconds // 3600\n    m = (seconds % 3600) // 60\n    s = seconds % 60\n    return f\"{b2}{h}{c2}h {b2}{m}{c2}m {b2}{s}{c2}s\" if h else f\"{b2}{m}{c2}m {b2}{s}{c2}s\" if m else f\"{b2}{s}{c2}s\"\ndef fmt_perf(name, time, uptime):\n    percent = 0 if uptime == 0 else int(100*time/uptime - 1e-5)\n    return f'{c1}{name}', duration(time), f'{b2}{percent:2d}%'\nlast_stats = {}",
+        "detail": "rl.pufferlib.dashboard",
+        "documentation": {}
+    },
+    {
+        "label": "fmt_perf",
+        "kind": 2,
+        "importPath": "rl.pufferlib.dashboard",
+        "description": "rl.pufferlib.dashboard",
+        "peekOfCode": "def fmt_perf(name, time, uptime):\n    percent = 0 if uptime == 0 else int(100*time/uptime - 1e-5)\n    return f'{c1}{name}', duration(time), f'{b2}{percent:2d}%'\nlast_stats = {}\ndef print_dashboard(config, utilization, global_step, epoch,\n        profile, losses, stats, msg, clear=False, max_stats=[0]):\n    console = Console()\n    if clear:\n        console.clear()\n    env_name = config.env",
+        "detail": "rl.pufferlib.dashboard",
+        "documentation": {}
+    },
+    {
+        "label": "print_dashboard",
+        "kind": 2,
+        "importPath": "rl.pufferlib.dashboard",
+        "description": "rl.pufferlib.dashboard",
+        "peekOfCode": "def print_dashboard(config, utilization, global_step, epoch,\n        profile, losses, stats, msg, clear=False, max_stats=[0]):\n    console = Console()\n    if clear:\n        console.clear()\n    env_name = config.env\n    dashboard = Table(box=ROUND_OPEN, expand=True,\n        show_header=False, border_style='bright_cyan')\n    table = Table(box=None, expand=True, show_header=False)\n    dashboard.add_row(table)",
+        "detail": "rl.pufferlib.dashboard",
+        "documentation": {}
+    },
+    {
+        "label": "ROUND_OPEN",
+        "kind": 5,
+        "importPath": "rl.pufferlib.dashboard",
+        "description": "rl.pufferlib.dashboard",
+        "peekOfCode": "ROUND_OPEN = rich.box.Box(\n    \"╭──╮\\n\"\n    \"│  │\\n\"\n    \"│  │\\n\"\n    \"│  │\\n\"\n    \"│  │\\n\"\n    \"│  │\\n\"\n    \"│  │\\n\"\n    \"╰──╯\\n\"\n)",
+        "detail": "rl.pufferlib.dashboard",
+        "documentation": {}
+    },
+    {
+        "label": "c1",
+        "kind": 5,
+        "importPath": "rl.pufferlib.dashboard",
+        "description": "rl.pufferlib.dashboard",
+        "peekOfCode": "c1 = '[bright_cyan]'\nc2 = '[white]'\nc3 = '[cyan]'\nb1 = '[bright_cyan]'\nb2 = '[bright_white]'\ndef abbreviate(num):\n    if num < 1e3:\n        return f'{b2}{num:.0f}'\n    elif num < 1e6:\n        return f'{b2}{num/1e3:.1f}{c2}k'",
+        "detail": "rl.pufferlib.dashboard",
+        "documentation": {}
+    },
+    {
+        "label": "c2",
+        "kind": 5,
+        "importPath": "rl.pufferlib.dashboard",
+        "description": "rl.pufferlib.dashboard",
+        "peekOfCode": "c2 = '[white]'\nc3 = '[cyan]'\nb1 = '[bright_cyan]'\nb2 = '[bright_white]'\ndef abbreviate(num):\n    if num < 1e3:\n        return f'{b2}{num:.0f}'\n    elif num < 1e6:\n        return f'{b2}{num/1e3:.1f}{c2}k'\n    elif num < 1e9:",
+        "detail": "rl.pufferlib.dashboard",
+        "documentation": {}
+    },
+    {
+        "label": "c3",
+        "kind": 5,
+        "importPath": "rl.pufferlib.dashboard",
+        "description": "rl.pufferlib.dashboard",
+        "peekOfCode": "c3 = '[cyan]'\nb1 = '[bright_cyan]'\nb2 = '[bright_white]'\ndef abbreviate(num):\n    if num < 1e3:\n        return f'{b2}{num:.0f}'\n    elif num < 1e6:\n        return f'{b2}{num/1e3:.1f}{c2}k'\n    elif num < 1e9:\n        return f'{b2}{num/1e6:.1f}{c2}m'",
+        "detail": "rl.pufferlib.dashboard",
+        "documentation": {}
+    },
+    {
+        "label": "b1",
+        "kind": 5,
+        "importPath": "rl.pufferlib.dashboard",
+        "description": "rl.pufferlib.dashboard",
+        "peekOfCode": "b1 = '[bright_cyan]'\nb2 = '[bright_white]'\ndef abbreviate(num):\n    if num < 1e3:\n        return f'{b2}{num:.0f}'\n    elif num < 1e6:\n        return f'{b2}{num/1e3:.1f}{c2}k'\n    elif num < 1e9:\n        return f'{b2}{num/1e6:.1f}{c2}m'\n    elif num < 1e12:",
+        "detail": "rl.pufferlib.dashboard",
+        "documentation": {}
+    },
+    {
+        "label": "b2",
+        "kind": 5,
+        "importPath": "rl.pufferlib.dashboard",
+        "description": "rl.pufferlib.dashboard",
+        "peekOfCode": "b2 = '[bright_white]'\ndef abbreviate(num):\n    if num < 1e3:\n        return f'{b2}{num:.0f}'\n    elif num < 1e6:\n        return f'{b2}{num/1e3:.1f}{c2}k'\n    elif num < 1e9:\n        return f'{b2}{num/1e6:.1f}{c2}m'\n    elif num < 1e12:\n        return f'{b2}{num/1e9:.1f}{c2}b'",
+        "detail": "rl.pufferlib.dashboard",
+        "documentation": {}
+    },
+    {
+        "label": "last_stats",
+        "kind": 5,
+        "importPath": "rl.pufferlib.dashboard",
+        "description": "rl.pufferlib.dashboard",
+        "peekOfCode": "last_stats = {}\ndef print_dashboard(config, utilization, global_step, epoch,\n        profile, losses, stats, msg, clear=False, max_stats=[0]):\n    console = Console()\n    if clear:\n        console.clear()\n    env_name = config.env\n    dashboard = Table(box=ROUND_OPEN, expand=True,\n        show_header=False, border_style='bright_cyan')\n    table = Table(box=None, expand=True, show_header=False)",
+        "detail": "rl.pufferlib.dashboard",
+        "documentation": {}
+    },
+    {
+        "label": "evaluate",
+        "kind": 2,
+        "importPath": "rl.pufferlib.evaluate",
+        "description": "rl.pufferlib.evaluate",
+        "peekOfCode": "def evaluate(cfg: OmegaConf, vecenv):\n    num_envs = cfg.eval.num_envs\n    device = cfg.framework.pufferlib.device\n    run_path = os.path.join(cfg.framework.pufferlib.train_dir, cfg.experiment)\n    trainer_state = torch.load(os.path.join(run_path, 'trainer_state.pt'))\n    model_path = os.path.join(run_path, trainer_state[\"model_name\"])\n    print(f'Loaded model from {model_path}')\n    policy = torch.load(model_path, map_location=device)\n    opponents = [policy]\n    policy_names = [model_path.split('/')[-1], \"opponent\"]",
+        "detail": "rl.pufferlib.evaluate",
+        "documentation": {}
+    },
+    {
+        "label": "Experience",
+        "kind": 6,
+        "importPath": "rl.pufferlib.experience",
+        "description": "rl.pufferlib.experience",
+        "peekOfCode": "class Experience:\n    '''Flat tensor storage and array views for faster indexing'''\n    def __init__(self, batch_size, bptt_horizon, minibatch_size, obs_shape, obs_dtype, atn_shape,\n                 cpu_offload=False, device='cuda', lstm=None, lstm_total_agents=0):\n        if minibatch_size is None:\n            minibatch_size = batch_size\n        obs_dtype = pufferlib.pytorch.numpy_to_torch_dtype_dict[obs_dtype]\n        pin = device == 'cuda' and cpu_offload\n        obs_device = device if not pin else 'cpu'\n        self.obs=torch.zeros(batch_size, *obs_shape, dtype=obs_dtype,",
+        "detail": "rl.pufferlib.experience",
+        "documentation": {}
+    },
+    {
+        "label": "Profile",
+        "kind": 6,
+        "importPath": "rl.pufferlib.profile",
+        "description": "rl.pufferlib.profile",
+        "peekOfCode": "class Profile:\n    SPS: ... = 0\n    uptime: ... = 0\n    remaining: ... = 0\n    eval_time: ... = 0\n    env_time: ... = 0\n    eval_forward_time: ... = 0\n    eval_misc_time: ... = 0\n    train_time: ... = 0\n    train_forward_time: ... = 0",
+        "detail": "rl.pufferlib.profile",
+        "documentation": {}
+    },
+    {
+        "label": "Recurrent",
+        "kind": 6,
+        "importPath": "rl.pufferlib.puffer_agent_wrapper",
+        "description": "rl.pufferlib.puffer_agent_wrapper",
+        "peekOfCode": "class Recurrent(pufferlib.models.LSTMWrapper):\n    def __init__(self, env, policy, input_size=512, hidden_size=512, num_layers=1):\n        super().__init__(env, policy, input_size, hidden_size, num_layers)\nclass PufferAgentWrapper(nn.Module):\n    def __init__(self, agent: MettaAgent, env: PettingZooPufferEnv):\n        super().__init__()\n        # self.dtype = pufferlib.pytorch.nativize_dtype(env.emulated)\n        # xcxc\n        self.atn_type = nn.Linear(agent.decoder_out_size(), env.action_space[0].n)\n        self.atn_param = nn.Linear(agent.decoder_out_size(), env.action_space[1].n)",
+        "detail": "rl.pufferlib.puffer_agent_wrapper",
+        "documentation": {}
+    },
+    {
+        "label": "PufferAgentWrapper",
+        "kind": 6,
+        "importPath": "rl.pufferlib.puffer_agent_wrapper",
+        "description": "rl.pufferlib.puffer_agent_wrapper",
+        "peekOfCode": "class PufferAgentWrapper(nn.Module):\n    def __init__(self, agent: MettaAgent, env: PettingZooPufferEnv):\n        super().__init__()\n        # self.dtype = pufferlib.pytorch.nativize_dtype(env.emulated)\n        # xcxc\n        self.atn_type = nn.Linear(agent.decoder_out_size(), env.action_space[0].n)\n        self.atn_param = nn.Linear(agent.decoder_out_size(), env.action_space[1].n)\n        self._agent = agent\n        print(self)\n    def forward(self, obs):",
+        "detail": "rl.pufferlib.puffer_agent_wrapper",
+        "documentation": {}
+    },
+    {
+        "label": "make_policy",
+        "kind": 2,
+        "importPath": "rl.pufferlib.puffer_agent_wrapper",
+        "description": "rl.pufferlib.puffer_agent_wrapper",
+        "peekOfCode": "def make_policy(env: PufferEnv, cfg: OmegaConf):\n    cfg.agent.observation_encoders.grid_obs.feature_names = env._grid_env.grid_features()\n    cfg.agent.observation_encoders.global_vars.feature_names = []\n    obs_space = gym.spaces.Dict({\n        \"grid_obs\": env.single_observation_space,\n        \"global_vars\": gym.spaces.Box(\n            low=-np.inf, high=np.inf,\n            shape=[ 0 ],\n            dtype=np.int32)\n    })",
+        "detail": "rl.pufferlib.puffer_agent_wrapper",
+        "documentation": {}
+    },
+    {
+        "label": "PufferLibFramework",
+        "kind": 6,
+        "importPath": "rl.pufferlib.pufferlib",
+        "description": "rl.pufferlib.pufferlib",
+        "peekOfCode": "class PufferLibFramework(RLFramework):\n    def __init__(self, cfg: Dict, **puffer_args):\n        cfg = OmegaConf.create(cfg)\n        super().__init__(cfg)\n        self.puffer_cfg = cfg.framework.pufferlib\n        self._train_start = time.time()\n        self.policy = None\n    def train(self, load_checkpoint=True):\n        pcfg = self.puffer_cfg\n        target_batch_size = pcfg.train.forward_pass_minibatch_target_size // self.cfg.env.game.num_agents",
+        "detail": "rl.pufferlib.pufferlib",
+        "documentation": {}
+    },
+    {
+        "label": "make_env_func",
+        "kind": 2,
+        "importPath": "rl.pufferlib.pufferlib",
+        "description": "rl.pufferlib.pufferlib",
+        "peekOfCode": "def make_env_func(cfg: OmegaConf, render_mode='rgb_array'):\n    env = hydra.utils.instantiate(cfg, render_mode=render_mode)\n    env.emulated = None\n    env.single_observation_space = env.observation_space\n    env.single_action_space = env.action_space\n    env.num_agents = env.player_count\n    return env\nclass PufferLibFramework(RLFramework):\n    def __init__(self, cfg: Dict, **puffer_args):\n        cfg = OmegaConf.create(cfg)",
+        "detail": "rl.pufferlib.pufferlib",
+        "documentation": {}
+    },
+    {
+        "label": "Utilization",
+        "kind": 6,
+        "importPath": "rl.pufferlib.utilization",
+        "description": "rl.pufferlib.utilization",
+        "peekOfCode": "class Utilization(Thread):\n    def __init__(self, delay=1, maxlen=20):\n        super().__init__()\n        self.cpu_mem = deque(maxlen=maxlen)\n        self.cpu_util = deque(maxlen=maxlen)\n        self.gpu_util = deque(maxlen=maxlen)\n        self.gpu_mem = deque(maxlen=maxlen)\n        self.delay = delay\n        self.stopped = False\n        self.start()",
+        "detail": "rl.pufferlib.utilization",
+        "documentation": {}
+    },
+    {
+        "label": "PredictingActorCritic",
+        "kind": 6,
+        "importPath": "rl.sample_factory.predicting_actor_critic",
+        "description": "rl.sample_factory.predicting_actor_critic",
+        "peekOfCode": "class PredictingActorCritic(ActorCriticSharedWeights):\n    def __init__(self, model_factory, obs_space, action_space, cfg: Config):\n        super().__init__(model_factory, obs_space, action_space, cfg)\n        # self._obs_size = np.prod(obs_space[\"obs\"].shape)\n        # self.obs_predictor = nn.Sequential(\n        #     nn.Linear(self.encoder.get_out_size(), 512),\n        #     nn.ReLU(),\n        #     nn.Linear(512, self._obs_size),\n        #     nn.ReLU(),\n        # )",
+        "detail": "rl.sample_factory.predicting_actor_critic",
+        "documentation": {}
+    },
+    {
+        "label": "make_actor_critic_func",
+        "kind": 2,
+        "importPath": "rl.sample_factory.predicting_actor_critic",
+        "description": "rl.sample_factory.predicting_actor_critic",
+        "peekOfCode": "def make_actor_critic_func(cfg, obs_space, action_space):\n    return PredictingActorCritic(\n        global_model_factory(), obs_space, action_space, cfg)",
+        "detail": "rl.sample_factory.predicting_actor_critic",
+        "documentation": {}
+    },
+    {
+        "label": "SampleFactoryFramework",
+        "kind": 6,
+        "importPath": "rl.sample_factory.sample_factory",
+        "description": "rl.sample_factory.sample_factory",
+        "peekOfCode": "class SampleFactoryFramework(RLFramework):\n    def __init__(self, cfg, **sf_args):\n        super().__init__(OmegaConf.create(cfg))\n        self.sf_args = [\n            f\"--{k}={v}\" for k, v in cfg.framework.sample_factory.items()\n        ] + [\n            f\"--{k}={v}\" for k, v in cfg.agent.core.items() if k.startswith(\"rnn_\")\n        ]\n        if cfg.wandb.track:\n            self.sf_args.append(\"--with_wandb=True\")",
+        "detail": "rl.sample_factory.sample_factory",
+        "documentation": {}
+    },
+    {
+        "label": "make_env_func",
+        "kind": 2,
+        "importPath": "rl.sample_factory.sample_factory",
+        "description": "rl.sample_factory.sample_factory",
+        "peekOfCode": "def make_env_func(full_env_name, sf_cfg, sf_env_config, render_mode):\n    env_cfg = OmegaConf.create(json.loads(sf_cfg.env_cfg))\n    env = hydra.utils.instantiate(env_cfg, render_mode=render_mode)\n    env = SampleFactoryEnvWrapper(env, env_id=0)\n    return env\ndef make_agent_func(sf_cfg, obs_space, action_space):\n    env_cfg = OmegaConf.create(json.loads(sf_cfg.env_cfg))\n    env = hydra.utils.instantiate(env_cfg, render_mode=\"human\")\n    agent_cfg = OmegaConf.create(json.loads(sf_cfg.agent_cfg))\n    agent_cfg.observation_encoders.grid_obs.feature_names = env.grid_features",
+        "detail": "rl.sample_factory.sample_factory",
+        "documentation": {}
+    },
+    {
+        "label": "make_agent_func",
+        "kind": 2,
+        "importPath": "rl.sample_factory.sample_factory",
+        "description": "rl.sample_factory.sample_factory",
+        "peekOfCode": "def make_agent_func(sf_cfg, obs_space, action_space):\n    env_cfg = OmegaConf.create(json.loads(sf_cfg.env_cfg))\n    env = hydra.utils.instantiate(env_cfg, render_mode=\"human\")\n    agent_cfg = OmegaConf.create(json.loads(sf_cfg.agent_cfg))\n    agent_cfg.observation_encoders.grid_obs.feature_names = env.grid_features\n    agent_cfg.observation_encoders.global_vars.feature_names = env.global_features\n    agent = hydra.utils.instantiate(agent_cfg, obs_space, action_space, _recursive_=False)\n    return SampleFactoryAgentWrapper(agent)\nclass SampleFactoryFramework(RLFramework):\n    def __init__(self, cfg, **sf_args):",
+        "detail": "rl.sample_factory.sample_factory",
+        "documentation": {}
+    },
+    {
+        "label": "SampleFactoryAgentWrapper",
+        "kind": 6,
+        "importPath": "rl.sample_factory.sample_factory_agent_wrapper",
+        "description": "rl.sample_factory.sample_factory_agent_wrapper",
+        "peekOfCode": "class SampleFactoryAgentWrapper(ActorCritic):\n    def __init__(self, agent: MettaAgent):\n        super().__init__(agent.observation_space, agent.action_space, AttrDict({\n            \"normalize_returns\": True,\n            \"normalize_input\": False,\n            \"obs_subtract_mean\": 0.0,\n            \"obs_scale\": 1.0,\n        }))\n        self.agent = agent\n        self._core = ModelCoreRNN(agent.cfg.core, agent.cfg.fc.output_dim)",
+        "detail": "rl.sample_factory.sample_factory_agent_wrapper",
+        "documentation": {}
+    },
+    {
+        "label": "SampleFactoryEnvWrapper",
+        "kind": 6,
+        "importPath": "rl.sample_factory.sample_factory_env_wrapper",
+        "description": "rl.sample_factory.sample_factory_env_wrapper",
+        "peekOfCode": "class SampleFactoryEnvWrapper(gym.Env, TrainingInfoInterface):\n    def __init__(self, env: gym.Env, env_id: int):\n        TrainingInfoInterface.__init__(self)\n        self.gym_env = env\n        self.num_agents = self.gym_env.unwrapped.player_count\n        self.curr_episode_steps = 0\n        if self.num_agents == 1:\n            self.observation_space = self.gym_env.observation_space\n            action_space = self.gym_env.action_space\n            self.is_multiagent = False",
+        "detail": "rl.sample_factory.sample_factory_env_wrapper",
+        "documentation": {}
+    },
+    {
+        "label": "init_wandb",
+        "kind": 2,
+        "importPath": "rl.wandb.wandb",
+        "description": "rl.wandb.wandb",
+        "peekOfCode": "def init_wandb(cfg, resume=True, name=None):\n    #os.environ[\"WANDB_SILENT\"] = \"true\"\n    if wandb.run is not None:\n        print(\"wandb.init() has already been called, ignoring.\")\n    wandb.init(\n        id=cfg.experiment or wandb.util.generate_id(),\n        project=cfg.wandb.project,\n        entity=cfg.wandb.entity,\n        config=OmegaConf.to_container(cfg, resolve=True),\n        group=cfg.wandb.group,",
+        "detail": "rl.wandb.wandb",
+        "documentation": {}
+    },
+    {
+        "label": "EvaluationResult",
+        "kind": 6,
+        "importPath": "rl.rl_framework",
+        "description": "rl.rl_framework",
+        "peekOfCode": "class EvaluationResult(NamedTuple):\n    reward: float\n    frames: List\nclass RLFramework():\n    def __init__(self, cfg):\n        self.cfg = cfg\n    def train(self):\n        raise NotImplementedError\n    def evaluate(self) -> EvaluationResult:\n        raise NotImplementedError",
+        "detail": "rl.rl_framework",
+        "documentation": {}
+    },
+    {
+        "label": "RLFramework",
+        "kind": 6,
+        "importPath": "rl.rl_framework",
+        "description": "rl.rl_framework",
+        "peekOfCode": "class RLFramework():\n    def __init__(self, cfg):\n        self.cfg = cfg\n    def train(self):\n        raise NotImplementedError\n    def evaluate(self) -> EvaluationResult:\n        raise NotImplementedError\n    def close(self):\n        pass",
+        "detail": "rl.rl_framework",
+        "documentation": {}
+    },
+    {
+        "label": "MockObsPredictor",
+        "kind": 6,
+        "importPath": "tests.test_predicting_actor_critic",
+        "description": "tests.test_predicting_actor_critic",
+        "peekOfCode": "class MockObsPredictor(nn.Module):\n    def __init__(self, obs_shape):\n        super().__init__()\n        self.obs_shape = obs_shape\n        self.return_value = torch.zeros(self.obs_shape)\n    def forward(self, x):\n        return self.return_value\nclass MockEncoder(Encoder):\n    def __init__(self, cfg, obs_space):\n        super().__init__(cfg)",
+        "detail": "tests.test_predicting_actor_critic",
+        "documentation": {}
+    },
+    {
+        "label": "MockEncoder",
+        "kind": 6,
+        "importPath": "tests.test_predicting_actor_critic",
+        "description": "tests.test_predicting_actor_critic",
+        "peekOfCode": "class MockEncoder(Encoder):\n    def __init__(self, cfg, obs_space):\n        super().__init__(cfg)\n        self.obs_shape = obs_space[\"obs\"].shape\n        self.obs_size = np.prod(self.obs_shape)\n    def forward(self, obs_dict):\n        return torch.zeros((obs_dict[\"obs\"].shape[0], self.obs_size))\n    def get_out_size(self) -> int:\n        return self.obs_size\nclass TestPredictingActorCritic(unittest.TestCase):",
+        "detail": "tests.test_predicting_actor_critic",
+        "documentation": {}
+    },
+    {
+        "label": "TestPredictingActorCritic",
+        "kind": 6,
+        "importPath": "tests.test_predicting_actor_critic",
+        "description": "tests.test_predicting_actor_critic",
+        "peekOfCode": "class TestPredictingActorCritic(unittest.TestCase):\n    def setUp(self):\n        sf_context = SampleFactoryContext()\n        sf_context.model_factory.register_encoder_factory(MockEncoder)\n        self.cfg = SimpleNamespace(\n            normalize_input=False,\n            obs_subtract_mean=False,\n            obs_scale=1,\n            normalize_returns=False,\n            nonlinearity=\"relu\",",
+        "detail": "tests.test_predicting_actor_critic",
+        "documentation": {}
+    },
+    {
+        "label": "make_env",
+        "kind": 2,
+        "importPath": "tools.autotune",
+        "description": "tools.autotune",
+        "peekOfCode": "def make_env():\n    global env_config\n    env = hydra.utils.instantiate(env_config.env, render_mode=\"human\")\n    env.emulated = None\n    env.single_observation_space = env.observation_space\n    env.single_action_space = env.action_space\n    env.num_agents = env.player_count\n    env.done = False\n    return env\n@hydra.main(version_base=None, config_path=\"../configs\", config_name=\"config\")",
+        "detail": "tools.autotune",
+        "documentation": {}
+    },
+    {
+        "label": "main",
+        "kind": 2,
+        "importPath": "tools.autotune",
+        "description": "tools.autotune",
+        "peekOfCode": "def main(cfg):\n    global env_config\n    env_config = cfg\n    pufferlib.vector.autotune(make_env, batch_size=16320//20, max_envs=1024, max_env_ram_gb=64)\n    # pufferlib.vector.autotune(make_env, batch_size=16384//20)\nif __name__ == \"__main__\":\n    main()",
+        "detail": "tools.autotune",
+        "documentation": {}
+    },
+    {
+        "label": "dump_files",
+        "kind": 2,
+        "importPath": "tools.dump_src",
+        "description": "tools.dump_src",
+        "peekOfCode": "def dump_files(paths, extensions):\n    for path in paths:\n        for root, _, files in os.walk(path):\n            for file in files:\n                if extensions is None or len(extensions) == 0 or any(file.endswith(ext) for ext in extensions):\n                    file_path = os.path.join(root, file)\n                    with open(file_path, 'r') as infile:\n                        print(f'<file: {file_path}>')\n                        print(infile.read())\n                        print('</file>')",
+        "detail": "tools.dump_src",
+        "documentation": {}
+    },
+    {
+        "label": "print_policy_stats",
+        "kind": 2,
+        "importPath": "tools.run",
+        "description": "tools.run",
+        "peekOfCode": "def print_policy_stats(policy_stats):\n    # Create a DataFrame with policies as columns\n    df = pd.DataFrame({f\"Policy {i+1}\": {k: v['sum'] / v['count'] for k, v in policy.items()}\n                       for i, policy in enumerate(policy_stats)})\n    # Calculate percentage and absolute differences from Policy 1\n    if len(policy_stats) > 1:\n        base_policy = df['Policy 1']\n        for col in df.columns[1:]:\n            df[f'{col} abs diff'] = (df[col] - base_policy).round(4)\n            df[f'{col} % diff'] = ((df[col] - base_policy) / base_policy * 100).round(2)",
+        "detail": "tools.run",
+        "documentation": {}
+    },
+    {
+        "label": "main",
+        "kind": 2,
+        "importPath": "tools.run",
+        "description": "tools.run",
+        "peekOfCode": "def main(cfg):\n    traceback.install(show_locals=False)\n    print(OmegaConf.to_yaml(cfg))\n    framework = hydra.utils.instantiate(cfg.framework, cfg, _recursive_=False)\n    if cfg.wandb.track:\n        init_wandb(cfg)\n    try:\n        if cfg.cmd == \"train\":\n            framework.train()\n        if cfg.cmd == \"evaluate\":",
+        "detail": "tools.run",
+        "documentation": {}
+    },
+    {
+        "label": "main",
+        "kind": 2,
+        "importPath": "tools.run_sweep",
+        "description": "tools.run_sweep",
+        "peekOfCode": "def main(cfg):\n    traceback.install(show_locals=False)\n    print(OmegaConf.to_yaml(cfg))\n    try:\n        from rl.carbs.carb_sweep import run_sweep\n        run_sweep(cfg)\n    except KeyboardInterrupt:\n        os._exit(0)\nif __name__ == \"__main__\":\n    main()",
+        "detail": "tools.run_sweep",
+        "documentation": {}
+    },
+    {
+        "label": "generate_model_card",
+        "kind": 2,
+        "importPath": "util.hugging_face",
+        "description": "util.hugging_face",
+        "peekOfCode": "def generate_model_card(\n    dir_path: str,\n    algo: str,\n    env: str,\n    repo_id: str,\n    rewards: list = None,\n    enjoy_name: str = None,\n    train_name: str = None,\n):\n    readme_path = os.path.join(dir_path, \"README.md\")",
+        "detail": "util.hugging_face",
+        "documentation": {}
+    },
+    {
+        "label": "push_to_hf",
+        "kind": 2,
+        "importPath": "util.hugging_face",
+        "description": "util.hugging_face",
+        "peekOfCode": "def push_to_hf(dir_path: str, repo_name: str):\n    repo_url = HfApi().create_repo(\n        repo_id=repo_name,\n        private=False,\n        exist_ok=True,\n    )\n    upload_folder(\n        repo_id=repo_name,\n        folder_path=dir_path,\n        path_in_repo=\".\",",
+        "detail": "util.hugging_face",
+        "documentation": {}
+    },
+    {
+        "label": "load_from_hf",
+        "kind": 2,
+        "importPath": "util.hugging_face",
+        "description": "util.hugging_face",
+        "peekOfCode": "def load_from_hf(dir_path: str, repo_id: str):\n    temp = repo_id.split(\"/\")\n    repo_name = temp[1]\n    local_dir = os.path.join(dir_path, repo_name)\n    Repository(local_dir, repo_id)\n    log.info(f\"The repository {repo_id} has been cloned to {local_dir}\")",
+        "detail": "util.hugging_face",
+        "documentation": {}
+    },
+    {
+        "label": "generate_replay_video",
+        "kind": 2,
+        "importPath": "util.replay",
+        "description": "util.replay",
+        "peekOfCode": "def generate_replay_video(path: str, frames: list, fps: int):\n    if not path.endswith(\".mp4\"):\n        path += \".mp4\"\n    tmp_name = os.path.join(project_tmp_dir(), os.path.basename(path))\n    if frames[0].shape[0] == 3:\n        frame_size = (frames[0].shape[2], frames[0].shape[1])\n    else:\n        frame_size = (frames[0].shape[1], frames[0].shape[0])\n    resize = False\n    if min(frame_size) < MIN_FRAME_SIZE:",
+        "detail": "util.replay",
+        "documentation": {}
+    },
+    {
+        "label": "generate_replay_gif",
+        "kind": 2,
+        "importPath": "util.replay",
+        "description": "util.replay",
+        "peekOfCode": "def generate_replay_gif(path: str, frames: list, fps: int):\n    imageio.mimsave(path, frames, fps=fps)\n    log.debug(f\"Replay gif saved to {path}!\")",
+        "detail": "util.replay",
+        "documentation": {}
+    },
+    {
+        "label": "MIN_FRAME_SIZE",
+        "kind": 5,
+        "importPath": "util.replay",
+        "description": "util.replay",
+        "peekOfCode": "MIN_FRAME_SIZE = 180\ndef generate_replay_video(path: str, frames: list, fps: int):\n    if not path.endswith(\".mp4\"):\n        path += \".mp4\"\n    tmp_name = os.path.join(project_tmp_dir(), os.path.basename(path))\n    if frames[0].shape[0] == 3:\n        frame_size = (frames[0].shape[2], frames[0].shape[1])\n    else:\n        frame_size = (frames[0].shape[1], frames[0].shape[0])\n    resize = False",
+        "detail": "util.replay",
+        "documentation": {}
+    },
+    {
+        "label": "sample_config",
+        "kind": 2,
+        "importPath": "util.sample_config",
+        "description": "util.sample_config",
+        "peekOfCode": "def sample_config(value):\n    if isinstance(value, int):\n        return value\n    if isinstance(value, float):\n        return value\n    if isinstance(value, DictConfig):\n        return {\n            key: sample_config(value)\n            for key, value in value.items()\n        }",
+        "detail": "util.sample_config",
+        "documentation": {}
+    },
+    {
+        "label": "app",
+        "kind": 5,
+        "importPath": "webui.server",
+        "description": "webui.server",
+        "peekOfCode": "app = FastAPI()\n# Set up logging\nlogging.basicConfig(level=logging.INFO)\nlogger = logging.getLogger(__name__)\n@app.get(\"/\", response_class=HTMLResponse)\nasync def get_client():\n    try:\n        with open(\"webui/client.html\", \"r\") as file:\n            html_content = file.read()\n        return HTMLResponse(content=html_content)",
+        "detail": "webui.server",
+        "documentation": {}
+    },
+    {
+        "label": "logger",
+        "kind": 5,
+        "importPath": "webui.server",
+        "description": "webui.server",
+        "peekOfCode": "logger = logging.getLogger(__name__)\n@app.get(\"/\", response_class=HTMLResponse)\nasync def get_client():\n    try:\n        with open(\"webui/client.html\", \"r\") as file:\n            html_content = file.read()\n        return HTMLResponse(content=html_content)\n    except FileNotFoundError:\n        raise HTTPException(status_code=404, detail=\"Client HTML file not found\")\n@app.websocket(\"/ws\")",
+        "detail": "webui.server",
+        "documentation": {}
+    },
+    {
+        "label": "FeatureMasker",
+        "kind": 6,
+        "importPath": "wrapper.feature_masker",
+        "description": "wrapper.feature_masker",
+        "peekOfCode": "class FeatureMasker(gym.Wrapper):\n    def __init__(self, env, masked_features):\n        super().__init__(env)\n        self._masked_grid_obs = [\n            self.env.unwrapped.grid_features.index(feature)\n            for feature in masked_features.grid_obs\n        ]\n        self._grid_obs_mask = np.ones(\n            self.env.unwrapped.observation_space[\"grid_obs\"].shape,\n            dtype=np.uint8)",
+        "detail": "wrapper.feature_masker",
+        "documentation": {}
+    },
+    {
+        "label": "Kinship",
+        "kind": 6,
+        "importPath": "wrapper.kinship",
+        "description": "wrapper.kinship",
+        "peekOfCode": "class Kinship(gym.Wrapper):\n    def __init__(self, team_size: int, team_reward: float, env: gym.Env):\n        super().__init__(env)\n        self._team_size = team_size\n        self._team_reward = team_reward\n        self._num_agents = self.env.unwrapped.player_count\n        self._num_teams = int(math.ceil(self._num_agents / self._team_size))\n        self._agent_team = np.array([\n            agent // self._team_size for agent in range(self._num_agents)])\n        self._team_to_agents = {",
+        "detail": "wrapper.kinship",
+        "documentation": {}
+    },
+    {
+        "label": "LastActionTracker",
+        "kind": 6,
+        "importPath": "wrapper.last_action_tracker",
+        "description": "wrapper.last_action_tracker",
+        "peekOfCode": "class LastActionTracker(gym.Wrapper):\n    def __init__(self, env):\n        super(LastActionTracker, self).__init__(env)\n        self._last_actions = None\n    def reset(self, **kwargs):\n        self._last_actions = np.zeros((self.unwrapped.player_count, 2), dtype=np.int32)\n        obs, infos = self.env.reset(**kwargs)\n        return self._augment_observations(obs), infos\n    def step(self, actions):\n        obs, rewards, terms, truncs, infos = self.env.step(actions)",
+        "detail": "wrapper.last_action_tracker",
+        "documentation": {}
+    },
+    {
+        "label": "PettingZooEnvWrapper",
+        "kind": 6,
+        "importPath": "wrapper.petting_zoo",
+        "description": "wrapper.petting_zoo",
+        "peekOfCode": "class PettingZooEnvWrapper(pettingzoo.ParallelEnv):\n    def __init__(self, gym_env: gym.Env, render_mode='rgb_array'):\n        super().__init__()\n        self._gym_env = gym_env\n        self.possible_agents = [i+1 for i in range(self.num_agents)]\n        # agents gets manipulated\n        self.agents = [i+1 for i in range(self.num_agents)]\n        self.render_mode = render_mode\n    @property\n    def num_agents(self):",
+        "detail": "wrapper.petting_zoo",
+        "documentation": {}
+    },
+    {
+        "label": "Replay",
+        "kind": 6,
+        "importPath": "wrapper.replay",
+        "description": "wrapper.replay",
+        "peekOfCode": "class Replay():\n    def __init__(self, filename):\n        self.filename = filename\n        self.data = {\n            \"steps\": [],\n            \"global_obs\": [],\n        }\n    def record_step(self, actions, obs, rewards, infos, global_obs):\n        self.data[\"global_obs\"].append(global_obs)\n    def close(self):",
+        "detail": "wrapper.replay",
+        "documentation": {}
+    },
+    {
+        "label": "RewardTracker",
+        "kind": 6,
+        "importPath": "wrapper.reward_tracker",
+        "description": "wrapper.reward_tracker",
+        "peekOfCode": "class RewardTracker(gym.Wrapper):\n    def __init__(self, env):\n        super(RewardTracker, self).__init__(env)\n        self._last_rewards = None\n    def reset(self, **kwargs):\n        self._last_rewards = np.zeros(self.unwrapped.player_count, dtype=np.float32)\n        obs, infos = self.env.reset(**kwargs)\n        return self._augment_observations(obs), infos\n    def step(self, actions):\n        obs, rewards, terms, truncs, infos = self.env.step(actions)",
+        "detail": "wrapper.reward_tracker",
+        "documentation": {}
+    }
+]
