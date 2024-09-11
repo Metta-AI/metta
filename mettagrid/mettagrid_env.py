@@ -100,7 +100,7 @@ class MettaGridEnv(pufferlib.PufferEnv):
 
             infos["episode_rewards"] = episode_rewards
             infos["agent"] = stats["agent"]
-            infos["game"] = stats["agent"]
+            infos["game"] = stats["game"]
 
         return obs, list(rewards), terminated.all(), truncated.all(), infos
 
