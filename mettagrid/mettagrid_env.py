@@ -99,13 +99,13 @@ class MettaGridEnv(pufferlib.PufferEnv):
             stats = self._c_env.get_episode_stats()
 
             infos["episode_rewards"] = episode_rewards
-            infos["agent_stats"] = stats["agent_stats"]
-            infos["game_stats"] = stats["game_stats"]
+            infos["agent"] = stats["agent"]
+            infos["game"] = stats["agent"]
 
         return obs, list(rewards), terminated.all(), truncated.all(), infos
 
     def process_episode_stats(self, episode_stats: Dict[str, Any]):
-        for agent_stats in episode_stats["agent_stats"]:
+        for agent_stats in episode_stats["agent"]:
             extra_stats = {}
             for stat_name in agent_stats.keys():
                 if stat_name.startswith("action_"):

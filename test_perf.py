@@ -53,10 +53,10 @@ def main(cfg):
 
 def print_stats(stats):
     # Extract game_stats
-    game_stats = stats["game_stats"]
+    game_stats = stats["game"]
 
     # Extract agent_stats
-    agent_stats = stats["agent_stats"]
+    agent_stats = stats["agent"]
 
     # Calculate total, average, min, and max for each agent stat
     total_agent_stats = {}
