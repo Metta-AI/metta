@@ -469,6 +469,14 @@
         "documentation": {}
     },
     {
+        "label": "OmegaConf",
+        "importPath": "omegaconf",
+        "description": "omegaconf",
+        "isExtraImport": true,
+        "detail": "omegaconf",
+        "documentation": {}
+    },
+    {
         "label": "DictConfig",
         "importPath": "omegaconf",
         "description": "omegaconf",
@@ -1168,6 +1176,22 @@
         "documentation": {}
     },
     {
+        "label": "load_policy_from_uri",
+        "importPath": "rl.pufferlib.policy",
+        "description": "rl.pufferlib.policy",
+        "isExtraImport": true,
+        "detail": "rl.pufferlib.policy",
+        "documentation": {}
+    },
+    {
+        "label": "print_policy_stats",
+        "importPath": "util.stats",
+        "description": "util.stats",
+        "isExtraImport": true,
+        "detail": "util.stats",
+        "documentation": {}
+    },
+    {
         "label": "pufferlib.models",
         "kind": 6,
         "isExtraImport": true,
@@ -1442,14 +1466,6 @@
         "description": "rl.carbs.carb_sweep",
         "isExtraImport": true,
         "detail": "rl.carbs.carb_sweep",
-        "documentation": {}
-    },
-    {
-        "label": "print_policy_stats",
-        "importPath": "util.stats",
-        "description": "util.stats",
-        "isExtraImport": true,
-        "detail": "util.stats",
         "documentation": {}
     },
     {
@@ -2319,7 +2335,7 @@
         "kind": 2,
         "importPath": "rl.pufferlib.evaluate",
         "description": "rl.pufferlib.evaluate",
-        "peekOfCode": "def evaluate(cfg: OmegaConf, vecenv):\n    num_envs = cfg.eval.num_envs\n    device = cfg.framework.pufferlib.device\n    run_path = os.path.join(cfg.framework.pufferlib.train_dir, cfg.experiment)\n    trainer_state = torch.load(os.path.join(run_path, 'trainer_state.pt'))\n    model_path = os.path.join(run_path, trainer_state[\"model_name\"])\n    print(f'Loaded model from {model_path}')\n    policy = torch.load(model_path, map_location=device)\n    opponents = [policy]\n    policy_names = [model_path.split('/')[-1], \"opponent\"]",
+        "peekOfCode": "def evaluate(cfg: OmegaConf, vecenv):\n    num_envs = cfg.eval.num_envs\n    device = cfg.framework.pufferlib.device\n    policy = load_policy_from_uri(cfg.eval.policy_uri, device)\n    baselines = [load_policy_from_uri(b, device) for b in cfg.eval.baseline_uris]\n    policy_agent_pct = cfg.eval.policy_agents_pct\n    if len(baselines) == 0:\n        policy_agent_pct = 1.0\n    num_baselines = len(baselines)\n    agents_count = cfg.env.game.num_agents",
         "detail": "rl.pufferlib.evaluate",
         "documentation": {}
     },
@@ -2330,6 +2346,42 @@
         "description": "rl.pufferlib.experience",
         "peekOfCode": "class Experience:\n    '''Flat tensor storage and array views for faster indexing'''\n    def __init__(self, batch_size, bptt_horizon, minibatch_size, obs_shape, obs_dtype, atn_shape,\n                 cpu_offload=False, device='cuda', lstm=None, lstm_total_agents=0):\n        if minibatch_size is None:\n            minibatch_size = batch_size\n        obs_dtype = pufferlib.pytorch.numpy_to_torch_dtype_dict[obs_dtype]\n        pin = device == 'cuda' and cpu_offload\n        obs_device = device if not pin else 'cpu'\n        self.obs=torch.zeros(batch_size, *obs_shape, dtype=obs_dtype,",
         "detail": "rl.pufferlib.experience",
+        "documentation": {}
+    },
+    {
+        "label": "load_policy_from_file",
+        "kind": 2,
+        "importPath": "rl.pufferlib.policy",
+        "description": "rl.pufferlib.policy",
+        "peekOfCode": "def load_policy_from_file(path: str, device: str):\n    assert path.endswith('.pt'), f\"Policy file {path} does not have a .pt extension\"\n    return torch.load(path, map_location=device, weights_only=False)\ndef load_policy_from_wandb(cfg: OmegaConf):\n    artifact = wandb.use_artifact(cfg.experiment + \":latest\", type=\"model\")\n    model_path = os.path.join(artifact.download(), \"model.pt\")\n    return load_policy_from_file(model_path, cfg.framework.pufferlib.device)\ndef load_policy_from_dir(path: str, device: str):\n    trainer_state = torch.load(os.path.join(path, 'trainer_state.pt'))\n    model_path = os.path.join(path, trainer_state[\"model_name\"])",
+        "detail": "rl.pufferlib.policy",
+        "documentation": {}
+    },
+    {
+        "label": "load_policy_from_wandb",
+        "kind": 2,
+        "importPath": "rl.pufferlib.policy",
+        "description": "rl.pufferlib.policy",
+        "peekOfCode": "def load_policy_from_wandb(cfg: OmegaConf):\n    artifact = wandb.use_artifact(cfg.experiment + \":latest\", type=\"model\")\n    model_path = os.path.join(artifact.download(), \"model.pt\")\n    return load_policy_from_file(model_path, cfg.framework.pufferlib.device)\ndef load_policy_from_dir(path: str, device: str):\n    trainer_state = torch.load(os.path.join(path, 'trainer_state.pt'))\n    model_path = os.path.join(path, trainer_state[\"model_name\"])\n    return load_policy_from_file(model_path, device)\ndef load_policy_from_uri(uri: str, device: str):\n    if uri.startswith(\"wandb://\"):",
+        "detail": "rl.pufferlib.policy",
+        "documentation": {}
+    },
+    {
+        "label": "load_policy_from_dir",
+        "kind": 2,
+        "importPath": "rl.pufferlib.policy",
+        "description": "rl.pufferlib.policy",
+        "peekOfCode": "def load_policy_from_dir(path: str, device: str):\n    trainer_state = torch.load(os.path.join(path, 'trainer_state.pt'))\n    model_path = os.path.join(path, trainer_state[\"model_name\"])\n    return load_policy_from_file(model_path, device)\ndef load_policy_from_uri(uri: str, device: str):\n    if uri.startswith(\"wandb://\"):\n        return load_policy_from_wandb(uri)\n    elif uri.endswith(\".pt\"):\n        return load_policy_from_file(uri, device)\n    else:",
+        "detail": "rl.pufferlib.policy",
+        "documentation": {}
+    },
+    {
+        "label": "load_policy_from_uri",
+        "kind": 2,
+        "importPath": "rl.pufferlib.policy",
+        "description": "rl.pufferlib.policy",
+        "peekOfCode": "def load_policy_from_uri(uri: str, device: str):\n    if uri.startswith(\"wandb://\"):\n        return load_policy_from_wandb(uri)\n    elif uri.endswith(\".pt\"):\n        return load_policy_from_file(uri, device)\n    else:\n        return load_policy_from_dir(uri, device)",
+        "detail": "rl.pufferlib.policy",
         "documentation": {}
     },
     {

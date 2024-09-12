@@ -5,7 +5,6 @@ from rich import traceback
 import signal # Aggressively exit on ctrl+c
 from rl.wandb.wandb import init_wandb
 from rl.carbs.carb_sweep import run_sweep
-from util.stats import print_policy_stats
 
 signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
 
@@ -22,8 +21,7 @@ def main(cfg):
             framework.train()
 
         if cfg.cmd == "evaluate":
-            policy_stats = framework.evaluate()
-            print_policy_stats(policy_stats)
+            framework.evaluate()
 
         if cfg.cmd == "play":
             framework.evaluate()
