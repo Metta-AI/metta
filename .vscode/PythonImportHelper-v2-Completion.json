@@ -1453,6 +1453,14 @@
         "documentation": {}
     },
     {
+        "label": "tabulate",
+        "importPath": "tabulate",
+        "description": "tabulate",
+        "isExtraImport": true,
+        "detail": "tabulate",
+        "documentation": {}
+    },
+    {
         "label": "HfApi",
         "importPath": "huggingface_hub",
         "description": "huggingface_hub",
@@ -1523,6 +1531,14 @@
         "importPath": "imageio",
         "description": "imageio",
         "detail": "imageio",
+        "documentation": {}
+    },
+    {
+        "label": "colored",
+        "importPath": "termcolor",
+        "description": "termcolor",
+        "isExtraImport": true,
+        "detail": "termcolor",
         "documentation": {}
     },
     {
@@ -2611,6 +2627,60 @@
         "description": "util.sample_config",
         "peekOfCode": "def sample_config(value):\n    if isinstance(value, int):\n        return value\n    if isinstance(value, float):\n        return value\n    if isinstance(value, DictConfig):\n        return {\n            key: sample_config(value)\n            for key, value in value.items()\n        }",
         "detail": "util.sample_config",
+        "documentation": {}
+    },
+    {
+        "label": "safe_float",
+        "kind": 2,
+        "importPath": "util.stats",
+        "description": "util.stats",
+        "peekOfCode": "def safe_float(value):\n    try:\n        return float(value)\n    except (ValueError, TypeError):\n        return np.nan\ndef safe_diff(a, b):\n    a, b = safe_float(a), safe_float(b)\n    if np.isnan(a) or np.isnan(b):\n        return \"-\"\n    return a - b",
+        "detail": "util.stats",
+        "documentation": {}
+    },
+    {
+        "label": "safe_diff",
+        "kind": 2,
+        "importPath": "util.stats",
+        "description": "util.stats",
+        "peekOfCode": "def safe_diff(a, b):\n    a, b = safe_float(a), safe_float(b)\n    if np.isnan(a) or np.isnan(b):\n        return \"-\"\n    return a - b\ndef safe_percent_diff(a, b):\n    a, b = safe_float(a), safe_float(b)\n    if np.isnan(a) or np.isnan(b) or b == 0:\n        return \"-\"\n    return (a - b) / b * 100",
+        "detail": "util.stats",
+        "documentation": {}
+    },
+    {
+        "label": "safe_percent_diff",
+        "kind": 2,
+        "importPath": "util.stats",
+        "description": "util.stats",
+        "peekOfCode": "def safe_percent_diff(a, b):\n    a, b = safe_float(a), safe_float(b)\n    if np.isnan(a) or np.isnan(b) or b == 0:\n        return \"-\"\n    return (a - b) / b * 100\ndef safe_stdev_diff(a, b, stdev):\n    a, b, stdev = safe_float(a), safe_float(b), safe_float(stdev)\n    if np.isnan(a) or np.isnan(b) or np.isnan(stdev) or stdev == 0:\n        return \"-\"\n    return (a - b) / stdev",
+        "detail": "util.stats",
+        "documentation": {}
+    },
+    {
+        "label": "safe_stdev_diff",
+        "kind": 2,
+        "importPath": "util.stats",
+        "description": "util.stats",
+        "peekOfCode": "def safe_stdev_diff(a, b, stdev):\n    a, b, stdev = safe_float(a), safe_float(b), safe_float(stdev)\n    if np.isnan(a) or np.isnan(b) or np.isnan(stdev) or stdev == 0:\n        return \"-\"\n    return (a - b) / stdev\ndef get_stat_value(stat):\n    if isinstance(stat, dict):\n        return safe_float(stat.get('sum', np.nan) / stat.get('count', 1))\n    return safe_float(stat)\ndef print_policy_stats(policy_stats):",
+        "detail": "util.stats",
+        "documentation": {}
+    },
+    {
+        "label": "get_stat_value",
+        "kind": 2,
+        "importPath": "util.stats",
+        "description": "util.stats",
+        "peekOfCode": "def get_stat_value(stat):\n    if isinstance(stat, dict):\n        return safe_float(stat.get('sum', np.nan) / stat.get('count', 1))\n    return safe_float(stat)\ndef print_policy_stats(policy_stats):\n    # Create a DataFrame with policies as columns\n    df = pd.DataFrame({f\"Policy {i+1}\": {k: get_stat_value(v) for k, v in policy.items()}\n                       for i, policy in enumerate(policy_stats)})\n    # Sort the DataFrame index (stats) alphabetically\n    df = df.sort_index()",
+        "detail": "util.stats",
+        "documentation": {}
+    },
+    {
+        "label": "print_policy_stats",
+        "kind": 2,
+        "importPath": "util.stats",
+        "description": "util.stats",
+        "peekOfCode": "def print_policy_stats(policy_stats):\n    # Create a DataFrame with policies as columns\n    df = pd.DataFrame({f\"Policy {i+1}\": {k: get_stat_value(v) for k, v in policy.items()}\n                       for i, policy in enumerate(policy_stats)})\n    # Sort the DataFrame index (stats) alphabetically\n    df = df.sort_index()\n    # Calculate differences from Policy 2\n    if len(policy_stats) > 1:\n        base_policy = df['Policy 2']\n        df['Policy 1 abs diff'] = df.apply(lambda row: safe_diff(row['Policy 1'], row['Policy 2']), axis=1)",
+        "detail": "util.stats",
         "documentation": {}
     },
     {

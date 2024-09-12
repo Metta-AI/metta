@@ -16,6 +16,7 @@ raylib
 rich
 scipy
 tabulate
+termcolor
 torchrl
 uvicorn
 websockets
