@@ -1445,19 +1445,11 @@
         "documentation": {}
     },
     {
-        "label": "tabulate",
-        "importPath": "tabulate",
-        "description": "tabulate",
+        "label": "print_policy_stats",
+        "importPath": "util.stats",
+        "description": "util.stats",
         "isExtraImport": true,
-        "detail": "tabulate",
-        "documentation": {}
-    },
-    {
-        "label": "tabulate",
-        "importPath": "tabulate",
-        "description": "tabulate",
-        "isExtraImport": true,
-        "detail": "tabulate",
+        "detail": "util.stats",
         "documentation": {}
     },
     {
@@ -1531,6 +1523,14 @@
         "importPath": "imageio",
         "description": "imageio",
         "detail": "imageio",
+        "documentation": {}
+    },
+    {
+        "label": "tabulate",
+        "importPath": "tabulate",
+        "description": "tabulate",
+        "isExtraImport": true,
+        "detail": "tabulate",
         "documentation": {}
     },
     {
@@ -2537,15 +2537,6 @@
         "description": "tools.dump_src",
         "peekOfCode": "def dump_files(paths, extensions):\n    for path in paths:\n        for root, _, files in os.walk(path):\n            for file in files:\n                if extensions is None or len(extensions) == 0 or any(file.endswith(ext) for ext in extensions):\n                    file_path = os.path.join(root, file)\n                    with open(file_path, 'r') as infile:\n                        print(f'<file: {file_path}>')\n                        print(infile.read())\n                        print('</file>')",
         "detail": "tools.dump_src",
-        "documentation": {}
-    },
-    {
-        "label": "print_policy_stats",
-        "kind": 2,
-        "importPath": "tools.run",
-        "description": "tools.run",
-        "peekOfCode": "def print_policy_stats(policy_stats):\n    # Create a DataFrame with policies as columns\n    df = pd.DataFrame({f\"Policy {i+1}\": {k: v['sum'] / v['count'] for k, v in policy.items()}\n                       for i, policy in enumerate(policy_stats)})\n    # Calculate percentage and absolute differences from Policy 1\n    if len(policy_stats) > 1:\n        base_policy = df['Policy 1']\n        for col in df.columns[1:]:\n            df[f'{col} abs diff'] = (df[col] - base_policy).round(4)\n            df[f'{col} % diff'] = ((df[col] - base_policy) / base_policy * 100).round(2)",
-        "detail": "tools.run",
         "documentation": {}
     },
     {
