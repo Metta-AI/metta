@@ -85,7 +85,7 @@ class PufferLibFramework(RLFramework):
 
         for k, v in data.stats.items():
             new_stats[k] = np.array(v).mean()
-        data.stats = new_stats
+        # data.stats = new_stats
         self.last_stats = new_stats
 
     def close(self):
