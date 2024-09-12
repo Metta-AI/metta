@@ -9,8 +9,8 @@ def evaluate(cfg: OmegaConf, vecenv):
     num_envs = cfg.eval.num_envs
     device = cfg.framework.pufferlib.device
 
-    policy = load_policy_from_uri(cfg.eval.policy_uri, device)
-    baselines = [load_policy_from_uri(b, device) for b in cfg.eval.baseline_uris]
+    policy = load_policy_from_uri(cfg.eval.policy_uri, cfg)
+    baselines = [load_policy_from_uri(b, cfg) for b in cfg.eval.baseline_uris]
     policy_agent_pct = cfg.eval.policy_agents_pct
 
     if len(baselines) == 0:

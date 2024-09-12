@@ -10,6 +10,4 @@ max_time_s: 60
 policy_agents_pct: 0.5
 
 policy_uri: ${data_dir}/pufferlib/${experiment}
-baseline_uris:
-  - ${data_dir}/pufferlib/${experiment}/model_003550.pt
-  - ${data_dir}/pufferlib/${experiment}/model_002460.pt
+baseline_uris: []
