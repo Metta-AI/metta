@@ -24,6 +24,7 @@ class MettaGridEnv(pufferlib.PufferEnv):
         self._cfg = OmegaConf.create(cfg)
         self.make_env()
 
+        self._renderer = None
         if render_mode == "human":
             self._renderer = MettaRaylibClient(
                 self._env.map_width(), self._env.map_height(),
@@ -166,9 +167,11 @@ class MettaGridEnv(pufferlib.PufferEnv):
 
     def render(self):
         if self._renderer is None:
-            return
+            return None
+
         return self._renderer.render(
-            self._c_env.grid_objects(),
+            self._c_env.current_timestep(),
+            self._c_env.grid_objects()
         )
 
     @property

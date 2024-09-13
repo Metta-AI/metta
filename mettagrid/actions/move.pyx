@@ -1,4 +1,3 @@
-
 from libc.stdio cimport printf
 
 from omegaconf import OmegaConf
@@ -21,11 +20,21 @@ cdef class Move(MettaActionHandler):
 
         cdef unsigned short direction = arg
         if direction >= 2:
-            return False
+            return 0
 
-        cdef Orientation orientation = <Orientation>((actor.orientation + 2*(direction)) % 4)
+        cdef Orientation orientation = <Orientation>(actor.orientation)
+        if direction == 1:
+            if orientation == Orientation.Up:
+                orientation = Orientation.Down
+            elif orientation == Orientation.Down:
+                orientation = Orientation.Up
+            elif orientation == Orientation.Left:
+                orientation = Orientation.Right
+            elif orientation == Orientation.Right:
+                orientation = Orientation.Left
+
         cdef GridLocation old_loc = actor.location
         cdef GridLocation new_loc = self.env._grid.relative_location(old_loc, orientation)
         if not self.env._grid.is_empty(new_loc.r, new_loc.c):
-            return False
+            return 0
         return self.env._grid.move_object(actor.id, new_loc)

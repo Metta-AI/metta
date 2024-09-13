@@ -1,176 +1,284 @@
-# disable type checking for raylib
+# disable pylint for raylib
+# pylint: disable=no-member
 # type: ignore
 
-import numpy as np
 import os
-from raylib import rl, colors
+import sys
+import time
+import numpy as np
+import pyray as ray
+from cffi import FFI
+from raylib import colors, rl
 
-class MettaRaylibClient:
-    def __init__(self, width, height, tile_size=32):
-        self.width = width
-        self.height = height
+class ObjectRenderer:
+    def __init__(self, sprite_sheet, tile_size=24):
+        sprites_dir = "../mettagrid/mettagrid/renderer/assets/"
+        sprite_sheet_path = os.path.join(sprites_dir, sprite_sheet)
+        assert os.path.exists(sprite_sheet_path), f"Sprite sheet {sprite_sheet_path} does not exist"
+        self.sprite_sheet = rl.LoadTexture(sprite_sheet_path.encode())
         self.tile_size = tile_size
 
+    def _sprite_sheet_idx(self, obj):
+        return (0, 0)
 
-        sprite_sheet_path = os.path.join(
-            *self.__module__.split('.')[:-1], './puffer_chars.png')
-        self.asset_map = {
-            1: (0, 0, 128, 128),
-            3: (128, 0, 128, 128),
-            4: (256, 0, 128, 128),
-            # 5: (384, 0, 128, 128),
-            5: (512, 0, 128, 128), #star
-        }
+    def render(self, obj, render_tile_size):
+        dest_rect = (
+            obj["c"] * render_tile_size, obj["r"] * render_tile_size,
+            render_tile_size, render_tile_size)
+        tile_idx_x, tile_idx_y = self._sprite_sheet_idx(obj)
+        src_rect = (
+            tile_idx_x * self.tile_size, tile_idx_y * self.tile_size,
+            self.tile_size, self.tile_size)
 
-        rl.InitWindow(width*tile_size, height*tile_size,
+        rl.DrawTexturePro(
+            self.sprite_sheet, src_rect, dest_rect,
+            (0, 0), 0, colors.WHITE)
+
+class AgentRenderer(ObjectRenderer):
+    def __init__(self):
+        super().__init__("monsters.png", 16)
+
+    def _sprite_sheet_idx(self, obj):
+        # orientation: 0 = Up, 1 = Down, 2 = Left, 3 = Right
+        # sprites: 0 = Right, 1 = Up, 2 = Down, 3 = Left
+        orientation_offset = [1, 2, 3, 0][obj["agent:orientation"]]
+        return ((obj["agent_id"] // 12) % 4 + orientation_offset, 2 * (obj["agent_id"] % 12))
+
+    def render(self, obj, render_tile_size):
+        super().render(obj, render_tile_size)
+        self.draw_energy_bar(obj, render_tile_size)
+        self.draw_hp_bar(obj, render_tile_size)
+
+    def draw_energy_bar(self, obj, render_tile_size):
+        x = obj["c"] * render_tile_size
+        y = obj["r"] * render_tile_size - 8  # 8 pixels above the agent
+        width = render_tile_size
+        height = 3  # 3 pixels tall
+
+        energy = min(max(obj["agent:energy"], 0), 100)  # Clamp between 0 and 100
+        blue_width = int(width * energy / 100)
+
+        # Draw red background
+        rl.DrawRectangle(x, y, width, height, colors.RED)
+        # Draw blue foreground based on energy
+        rl.DrawRectangle(x, y, blue_width, height, colors.BLUE)
+
+    def draw_hp_bar(self, obj, render_tile_size):
+        x = obj["c"] * render_tile_size
+        y = obj["r"] * render_tile_size - 4  # 4 pixels above the agent, below energy bar
+        width = render_tile_size
+        height = 3  # 3 pixels tall
+
+        hp = min(max(obj["agent:hp"], 0), 10)  # Clamp between 0 and 10
+        green_width = int(width * hp / 10)
+
+        # Draw red background
+        rl.DrawRectangle(x, y, width, height, colors.RED)
+        # Draw green foreground based on HP
+        rl.DrawRectangle(x, y, green_width, height, colors.GREEN)
+
+class WallRenderer(ObjectRenderer):
+    def __init__(self):
+        super().__init__("wall.png")
+
+class GeneratorRenderer(ObjectRenderer):
+    def __init__(self):
+        super().__init__("items.png", 16)
+
+    def _sprite_sheet_idx(self, obj):
+        if obj["generator:ready"]:
+            return (14, 2)
+        else:
+            return (13, 2)
+
+class ConverterRenderer(ObjectRenderer):
+    def __init__(self):
+        super().__init__("items.png", 16)
+
+    def _sprite_sheet_idx(self, obj):
+        if obj["converter:ready"]:
+            return (12, 0)
+        else:
+            return (13, 0)
+class AltarRenderer(ObjectRenderer):
+    def __init__(self):
+        super().__init__("items.png", 16)
+
+    def _sprite_sheet_idx(self, obj):
+        if obj["altar:ready"]:
+            return (11, 2)
+        else:
+            return (12, 2)
+
+
+class MettaRaylibClient:
+    def __init__(self, width, height, tile_size=20):
+        self.width = width
+        self.height = height
+        self.sidebar_width = 250
+        self.tile_size = tile_size
+
+        rl.InitWindow(width*tile_size + self.sidebar_width, height*tile_size,
             "PufferLib Ray Grid".encode())
+
+        # Load custom font
+        font_path = os.path.join("..", "mettagrid", "mettagrid", "renderer", "assets", "arial.ttf")
+        assert os.path.exists(font_path), f"Font {font_path} does not exist"
+        self.font = rl.LoadFont(font_path.encode())
+
+        self.sprite_renderers = [
+            AgentRenderer(),
+            WallRenderer(),
+            GeneratorRenderer(),
+            ConverterRenderer(),
+            AltarRenderer(),
+        ]
         rl.SetTargetFPS(10)
-        self.puffer = rl.LoadTexture(sprite_sheet_path.encode())
-        self.rl = rl
         self.colors = colors
 
-        import pyray as ray
         camera = ray.Camera2D()
         camera.target = ray.Vector2(0.0, 0.0)
         camera.rotation = 0.0
         camera.zoom = 1.0
         self.camera = camera
 
-        from cffi import FFI
         self.ffi = FFI()
+        self.selected_object_id = None
+        self.selected_agent_idx = None
+        self.mind_control = False
+        self.paused = False
+
 
     def _cdata_to_numpy(self):
-        image = self.rl.LoadImageFromScreen()
+        image = rl.LoadImageFromScreen()
         width, height, channels = image.width, image.height, 4
         cdata = self.ffi.buffer(image.data, width*height*channels)
-        return np.frombuffer(cdata, dtype=np.uint8
-            ).reshape((height, width, channels))[:, :, :3]
+        return np.frombuffer(cdata, dtype=np.uint8).reshape((height, width, channels))[:, :, :3]
 
-    def render(self, grid):
-        rl = self.rl
-        colors = self.colors
-        # ay, ax = None, None
+    def render(self, current_timestep: int, game_objects):
+        while True:
+            rl.BeginDrawing()
+            rl.BeginMode2D(self.camera)
+            rl.ClearBackground([6, 24, 24, 255])
+            for obj_id, obj in game_objects.items():
+                obj["id"] = obj_id
+                self.sprite_renderers[obj["type"]].render(obj, self.tile_size)
+                if obj_id == self.selected_object_id:
+                    self.draw_selection(obj)
 
-        ts = self.tile_size
+            self.handle_mouse_input(game_objects)
+            self.draw_mouse()
+            action = self.get_action()
 
-        pos = rl.GetMousePosition()
-        raw_mouse_x = pos.x
-        raw_mouse_y = pos.y
-        mouse_x = int(raw_mouse_x // ts)
-        mouse_y = int(raw_mouse_y // ts)
-        # ay = int(np.clip((pos.y - ts*self.height//2) / 50, -3, 3)) + 3
-        # ax = int(np.clip((pos.x - ts*self.width//2) / 50, -3, 3)) + 3
+            rl.EndMode2D()
+            self.render_sidebar(current_timestep, game_objects)
+            rl.EndDrawing()
 
+            if not self.paused or action is not None:
+                return {
+                    "cdata": self._cdata_to_numpy(),
+                    "action": action,
+                    "selected_agent_idx": self.selected_agent_idx,
+                    "mind_control": self.mind_control
+                }
+
+
+    def handle_mouse_input(self, game_objects):
+        if ray.is_mouse_button_pressed(ray.MOUSE_LEFT_BUTTON):
+            pos = ray.get_mouse_position()
+            grid_x = int(pos.x // self.tile_size)
+            grid_y = int(pos.y // self.tile_size)
+            for obj in game_objects.values():
+                if obj["c"] == grid_x and obj["r"] == grid_y:
+                    self.selected_object_id = obj["id"]
+                    if "agent_id" in obj:
+                        self.selected_agent_idx = obj["agent_id"]
+                    break
+
+    def render_sidebar(self, current_timestep, game_objects):
+        font_size = 14
+        sidebar_x = int(self.width * self.tile_size)
+        sidebar_height = int(self.height * self.tile_size)
+        rl.DrawRectangle(sidebar_x, 0, self.sidebar_width, sidebar_height, colors.DARKGRAY)
+
+        if self.selected_object_id and self.selected_object_id in game_objects:
+            selected_object = game_objects[self.selected_object_id]
+            y = 10
+            line_height = font_size + 4
+
+            rl.DrawTextEx(self.font, "Selected Object:".encode(),
+                          (sidebar_x + 10, y), font_size + 2, 1, colors.YELLOW)
+            y += line_height * 2
+
+            for key, value in selected_object.items():
+                text = f"{key}: {value}"
+                if len(text) > 25:
+                    text = text[:22] + "..."
+                rl.DrawTextEx(self.font, text.encode(),
+                                (sidebar_x + 10, y), font_size, 1, colors.WHITE)
+                y += line_height
+
+            rl.DrawLine(sidebar_x + 5, y, sidebar_x + self.sidebar_width - 5, y, colors.LIGHTGRAY)
+
+        # Display current timestep at the bottom of the sidebar
+        timestep_text = f"Timestep: {current_timestep}"
+        rl.DrawTextEx(self.font, timestep_text.encode(),
+                      (sidebar_x + 10, sidebar_height - 30), font_size, 1, colors.WHITE)
+
+    def draw_selection(self, obj):
+        x, y = obj["c"] * self.tile_size, obj["r"] * self.tile_size
+        color = ray.GREEN if self.mind_control else ray.LIGHTGRAY
+        ray.draw_rectangle_lines(x, y, self.tile_size, self.tile_size, color)
+
+    def get_action(self):
         if rl.IsKeyDown(rl.KEY_ESCAPE):
-            exit(0)
+            sys.exit(0)
 
-        action_id = 0
-        action_arg = 0
+        key_actions = {
+            # move
 
-        if rl.IsKeyDown(rl.KEY_E):
-            action_id = 0
-            action_arg = 0
-        elif rl.IsKeyDown(rl.KEY_Q):
-            action_id = 0
-            action_arg = 1
+            rl.KEY_E: (1, 0),
+            rl.KEY_Q: (1, 1),
+            # rotate
+            rl.KEY_W: (2, 0),
+            rl.KEY_S: (2, 1),
+            rl.KEY_A: (2, 2),
+            rl.KEY_D: (2, 3),
+            # use
+            rl.KEY_U: (3, 0),
+        }
 
-        elif rl.IsKeyDown(rl.KEY_W):
-            action_id = 1
-            action_arg = 0
-        elif rl.IsKeyDown(rl.KEY_S):
-            action_id = 1
-            action_arg = 1
-        elif rl.IsKeyDown(rl.KEY_A):
-            action_id = 1
-            action_arg = 2
-        elif rl.IsKeyDown(rl.KEY_R):
-            action_id = 1
-            action_arg = 3
+        for key, action in key_actions.items():
+            if rl.IsKeyDown(key):
+                return action
 
-        # if rl.IsKeyDown(rl.KEY_LEFT_SHIFT):
-        #     target_heros = 2
+        if rl.IsKeyDown(rl.KEY_GRAVE) and self.selected_object_id is not None:
+            self.mind_control = not self.mind_control
 
-        action = (action_id, action_arg)
+        if rl.IsKeyDown(rl.KEY_SPACE):
+            self.paused = not self.paused
 
-        rl.BeginDrawing()
-        rl.BeginMode2D(self.camera)
-        rl.ClearBackground([6, 24, 24, 255])
-        for y in range(self.height):
-            for x in range(self.width):
-                tile = grid[y, x]
-                tx = x*ts
-                ty = y*ts
-                if tile == 0:
-                    continue
-                elif tile == 2:
-                    # Wall
-                    rl.DrawRectangle(x*ts, y*ts, ts, ts, [0, 0, 0, 255])
-                    continue
-                else:
-                    # Player
-                    source_rect = self.asset_map[tile]
-                    dest_rect = (tx, ty, ts, ts)
-                    rl.DrawTexturePro(self.puffer, source_rect, dest_rect,
-                        (0, 0), 0, colors.WHITE)
+        if self.mind_control and not self.paused:
+            return (0, 0) # noop action
 
-        # Draw circle at mouse x, y
-        rl.DrawCircle(ts*mouse_x + ts//2, ts*mouse_y + ts//8, ts//8, [255, 0, 0, 255])
+        return None
 
-        rl.EndMode2D()
 
-        # Draw HUD
-        # player = entities[0]
-        # hud_y = self.height*ts - 2*ts
-        # draw_bars(rl, player, 2*ts, hud_y, 10*ts, 24, draw_text=True)
+    def draw_mouse(self):
+        ts = self.tile_size
+        pos = ray.get_mouse_position()
+        mouse_x = int(pos.x // ts)
+        mouse_y = int(pos.y // ts)
 
-        # off_color = [255, 255, 255, 255]
-        # on_color = [0, 255, 0, 255]
+        # Draw border around the tile
+        ray.draw_rectangle_lines(
+            mouse_x * ts,
+            mouse_y * ts,
+            ts,
+            ts,
+            ray.RED
+        )
 
-        # q_color = on_color if skill_q else off_color
-        # w_color = on_color if skill_w else off_color
-        # e_color = on_color if skill_e else off_color
-
-        # q_cd = player.q_timer
-        # w_cd = player.w_timer
-        # e_cd = player.e_timer
-
-        # rl.DrawText(f'Q: {q_cd}'.encode(), 13*ts, hud_y - 20, 40, q_color)
-        # rl.DrawText(f'W: {w_cd}'.encode(), 17*ts, hud_y - 20, 40, w_color)
-        # rl.DrawText(f'E: {e_cd}'.encode(), 21*ts, hud_y - 20, 40, e_color)
-        # rl.DrawText(f'Stun: {player.stun_timer}'.encode(), 25*ts, hud_y - 20, 20, e_color)
-        # rl.DrawText(f'Move: {player.move_timer}'.encode(), 25*ts, hud_y, 20, e_color)
-
-        rl.EndDrawing()
-        return self._cdata_to_numpy(), action
-
-def draw_bars(rl, entity, x, y, width, height=4, draw_text=False):
-    health_bar = entity.health / entity.max_health
-    mana_bar = entity.mana / entity.max_mana
-    if entity.max_health == 0:
-        health_bar = 2
-    if entity.max_mana == 0:
-        mana_bar = 2
-    rl.DrawRectangle(x, y, width, height, [255, 0, 0, 255])
-    rl.DrawRectangle(x, y, int(width*health_bar), height, [0, 255, 0, 255])
-
-    if entity.entity_type == 0:
-        rl.DrawRectangle(x, y - height - 2, width, height, [255, 0, 0, 255])
-        rl.DrawRectangle(x, y - height - 2, int(width*mana_bar), height, [0, 255, 255, 255])
-
-    if draw_text:
-        health = int(entity.health)
-        mana = int(entity.mana)
-        max_health = int(entity.max_health)
-        max_mana = int(entity.max_mana)
-        rl.DrawText(f'Health: {health}/{max_health}'.encode(),
-            x+8, y+2, 20, [255, 255, 255, 255])
-        rl.DrawText(f'Mana: {mana}/{max_mana}'.encode(),
-            x+8, y+2 - height - 2, 20, [255, 255, 255, 255])
-
-        #rl.DrawRectangle(x, y - 2*height - 4, int(width*mana_bar), height, [255, 255, 0, 255])
-        rl.DrawText(f'Experience: {entity.xp}'.encode(),
-            x+8, y - 2*height - 4, 20, [255, 255, 255, 255])
-
-    elif entity.entity_type == 0:
-        rl.DrawText(f'Level: {entity.level}'.encode(),
-            x+4, y -2*height - 12, 12, [255, 255, 255, 255])
+    def __del__(self):
+        # Unload the font when the object is destroyed
+        rl.UnloadFont(self.font)
