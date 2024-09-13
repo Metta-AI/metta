@@ -24,7 +24,7 @@ def main(cfg):
             framework.evaluate()
 
         if cfg.cmd == "play":
-            framework.evaluate()
+            framework.play()
 
         if cfg.cmd == "sweep":
             run_sweep(cfg)

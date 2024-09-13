@@ -86,6 +86,7 @@
                 "env=mettagrid/a20_b4_40x40",
                 // "env=mettagrid/a20_b4_40x40",
                 "cmd=play",
+                "eval.policy_uri=wandb://p2.sweep.2_model:latest",
                 // "framework.pufferlib.render_mode=raylib",
                 "framework.pufferlib.render_mode=human",
                 "env.game.max_steps=10000",

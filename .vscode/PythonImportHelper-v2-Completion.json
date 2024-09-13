@@ -477,6 +477,14 @@
         "documentation": {}
     },
     {
+        "label": "OmegaConf",
+        "importPath": "omegaconf",
+        "description": "omegaconf",
+        "isExtraImport": true,
+        "detail": "omegaconf",
+        "documentation": {}
+    },
+    {
         "label": "DictConfig",
         "importPath": "omegaconf",
         "description": "omegaconf",
@@ -798,6 +806,14 @@
         "isExtraImport": true,
         "importPath": "re",
         "description": "re",
+        "detail": "re",
+        "documentation": {}
+    },
+    {
+        "label": "T",
+        "importPath": "re",
+        "description": "re",
+        "isExtraImport": true,
         "detail": "re",
         "documentation": {}
     },
@@ -1192,6 +1208,22 @@
         "documentation": {}
     },
     {
+        "label": "load_policy_from_uri",
+        "importPath": "rl.pufferlib.policy",
+        "description": "rl.pufferlib.policy",
+        "isExtraImport": true,
+        "detail": "rl.pufferlib.policy",
+        "documentation": {}
+    },
+    {
+        "label": "print_policy_stats",
+        "importPath": "util.stats",
+        "description": "util.stats",
+        "isExtraImport": true,
+        "detail": "util.stats",
+        "documentation": {}
+    },
+    {
         "label": "print_policy_stats",
         "importPath": "util.stats",
         "description": "util.stats",
@@ -1288,6 +1320,14 @@
         "description": "rl.pufferlib.evaluate",
         "isExtraImport": true,
         "detail": "rl.pufferlib.evaluate",
+        "documentation": {}
+    },
+    {
+        "label": "play",
+        "importPath": "rl.pufferlib.play",
+        "description": "rl.pufferlib.play",
+        "isExtraImport": true,
+        "detail": "rl.pufferlib.play",
         "documentation": {}
     },
     {
@@ -2343,7 +2383,7 @@
         "kind": 2,
         "importPath": "rl.pufferlib.evaluate",
         "description": "rl.pufferlib.evaluate",
-        "peekOfCode": "def evaluate(cfg: OmegaConf, vecenv):\n    num_envs = cfg.eval.num_envs\n    device = cfg.framework.pufferlib.device\n    policy = load_policy_from_uri(cfg.eval.policy_uri, cfg)\n    baselines = [load_policy_from_uri(b, cfg) for b in cfg.eval.baseline_uris]\n    policy_agent_pct = cfg.eval.policy_agents_pct\n    if len(baselines) == 0:\n        policy_agent_pct = 1.0\n    num_baselines = len(baselines)\n    agents_count = cfg.env.game.num_agents",
+        "peekOfCode": "def evaluate(cfg: OmegaConf, vecenv):\n    device = cfg.framework.pufferlib.device\n    num_envs = len(vecenv.envs)\n    policy = load_policy_from_uri(cfg.eval.policy_uri, cfg)\n    baselines = [load_policy_from_uri(b, cfg) for b in cfg.eval.baseline_uris]\n    policy_agent_pct = cfg.eval.policy_agents_pct\n    if len(baselines) == 0:\n        policy_agent_pct = 1.0\n    num_baselines = len(baselines)\n    agents_count = cfg.env.game.num_agents",
         "detail": "rl.pufferlib.evaluate",
         "documentation": {}
     },
@@ -2354,6 +2394,15 @@
         "description": "rl.pufferlib.experience",
         "peekOfCode": "class Experience:\n    '''Flat tensor storage and array views for faster indexing'''\n    def __init__(self, batch_size, bptt_horizon, minibatch_size, obs_shape, obs_dtype, atn_shape,\n                 cpu_offload=False, device='cuda', lstm=None, lstm_total_agents=0):\n        if minibatch_size is None:\n            minibatch_size = batch_size\n        obs_dtype = pufferlib.pytorch.numpy_to_torch_dtype_dict[obs_dtype]\n        pin = device == 'cuda' and cpu_offload\n        obs_device = device if not pin else 'cpu'\n        self.obs=torch.zeros(batch_size, *obs_shape, dtype=obs_dtype,",
         "detail": "rl.pufferlib.experience",
+        "documentation": {}
+    },
+    {
+        "label": "play",
+        "kind": 2,
+        "importPath": "rl.pufferlib.play",
+        "description": "rl.pufferlib.play",
+        "peekOfCode": "def play(cfg: OmegaConf, vecenv):\n    device = cfg.framework.pufferlib.device\n    policy = load_policy_from_uri(cfg.eval.policy_uri, cfg)\n    agents_count = cfg.env.game.num_agents\n    obs, _ = vecenv.reset()\n    policy_rnn_state = None\n    start = time.time()\n    total_rewards = np.zeros(vecenv.num_agents)\n    agent_stats = [{} for a in range(vecenv.num_agents)]\n    while True:",
+        "detail": "rl.pufferlib.play",
         "documentation": {}
     },
     {

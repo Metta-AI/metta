@@ -11,7 +11,7 @@ import time
 from rich.console import Console
 import numpy as np
 from rl.pufferlib.evaluate import evaluate
-
+from rl.pufferlib.play import play
 from . import puffer_agent_wrapper
 
 from . import clean_pufferl
@@ -95,7 +95,11 @@ class PufferLibFramework(RLFramework):
         vecenv = self._make_vecenv(num_envs=self.cfg.eval.num_envs)
         return evaluate(self.cfg, vecenv)
 
-    def _make_vecenv(self, num_envs=1, batch_size=None, num_workers=1, **kwargs):
+    def play(self):
+        vecenv = self._make_vecenv(num_envs=1, render_mode="human")
+        return play(self.cfg, vecenv)
+
+    def _make_vecenv(self, num_envs=1, batch_size=None, num_workers=1, render_mode=None, **kwargs):
         pcfg = self.puffer_cfg
         vec = pcfg.vectorization
         if vec == 'serial' or num_workers == 1:
@@ -108,7 +112,7 @@ class PufferLibFramework(RLFramework):
             raise ValueError('Invalid --vector (serial/multiprocessing/ray).')
 
         vecenv_args = dict(
-            env_kwargs=dict(cfg = dict(**self.cfg.env)),
+            env_kwargs=dict(cfg = dict(**self.cfg.env), render_mode=render_mode),
             num_envs=num_envs,
             num_workers=num_workers,
             batch_size=batch_size or num_envs,

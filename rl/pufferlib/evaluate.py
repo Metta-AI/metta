@@ -6,8 +6,8 @@ from rl.pufferlib.policy import load_policy_from_uri
 from util.stats import print_policy_stats
 
 def evaluate(cfg: OmegaConf, vecenv):
-    num_envs = cfg.eval.num_envs
     device = cfg.framework.pufferlib.device
+    num_envs = len(vecenv.envs)
 
     policy = load_policy_from_uri(cfg.eval.policy_uri, cfg)
     baselines = [load_policy_from_uri(b, cfg) for b in cfg.eval.baseline_uris]
@@ -38,11 +38,9 @@ def evaluate(cfg: OmegaConf, vecenv):
 
     start = time.time()
     episodes = 0
-    step = 0
     total_rewards = np.zeros(vecenv.num_agents)
     agent_stats = [{} for a in range(vecenv.num_agents)]
     while episodes < cfg.eval.num_episodes and time.time() - start < cfg.eval.max_time_s:
-        step += 1
         baseline_actions = []
         with torch.no_grad():
             obs = torch.as_tensor(obs).to(device=device)

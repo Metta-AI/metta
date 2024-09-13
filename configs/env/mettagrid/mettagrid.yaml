@@ -29,7 +29,7 @@ game:
       max_inventory: 5
       freeze_duration: 10
       energy_reward: False
-      hp: 1
+      hp: 10
       mortal: False
       upkeep.time: 0
       upkeep.shield: 1

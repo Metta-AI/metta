@@ -7,7 +7,7 @@ cd deps/puffergrid && git pull && python setup.py build_ext --inplace && cd ../.
 # cd deps/pufferlib && git pull && python setup.py build_ext --inplace && cd ../..
 cd deps/fast_gae && git pull && python setup.py build_ext --inplace && cd ../..
 cd deps/mettagrid && git pull && python setup.py build_ext --inplace && cd ../..
-python -m tools.run \
+HYDRA_FULL_ERROR=1 python -m tools.run \
     framework=pufferlib \
     hardware=pufferbox \
     wandb.track=true \
