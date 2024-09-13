@@ -5,7 +5,7 @@ from libcpp.string cimport string
 from libcpp.vector cimport vector
 from puffergrid.grid_object cimport GridObject, GridObjectId
 
-cdef vector[string] ObjectTypeNames = [
+cdef vector[string] ObjectTypeNames = <vector[string]>[
     "agent",
     "wall",
     "generator",
@@ -13,7 +13,7 @@ cdef vector[string] ObjectTypeNames = [
     "altar"
 ]
 
-cdef vector[string] InventoryItemNames = [
+cdef vector[string] InventoryItemNames = <vector[string]>[
     "r1",
     "r2",
     "r3"

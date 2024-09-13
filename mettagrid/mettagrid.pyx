@@ -6,6 +6,7 @@ import numpy as np
 cimport numpy as cnp
 import gymnasium as gym
 from omegaconf import OmegaConf
+from types import SimpleNamespace
 
 from puffergrid.grid_env cimport GridEnv
 from puffergrid.grid_object cimport GridObject
@@ -19,6 +20,7 @@ from mettagrid.actions.use import Use
 from mettagrid.actions.attack import Attack
 from mettagrid.actions.shield import Shield
 from mettagrid.actions.gift import Gift
+from mettagrid.actions.noop import Noop
 
 obs_np_type = np.uint8
 
@@ -39,6 +41,7 @@ cdef class MettaGrid(GridEnv):
             cfg.obs_width, cfg.obs_height,
             MettaObservationEncoder(),
             [
+                Noop(SimpleNamespace(cost=0)),
                 Move(cfg.actions.move),
                 Rotate(cfg.actions.rotate),
                 Use(cfg.actions.use),
@@ -50,7 +53,6 @@ cdef class MettaGrid(GridEnv):
                 ResetHandler()
             ]
         )
-
 
         cdef Agent *agent
         for r in range(map.shape[0]):
@@ -91,8 +93,18 @@ cdef class MettaGrid(GridEnv):
         objects = {}
         for obj_id in range(1, self._grid.objects.size()):
             obj = self._grid.object(obj_id)
-            objects[obj_id] = {"type": obj._type_id}
+            objects[obj_id] = {
+                "id": obj_id,
+                "type": obj._type_id,
+                "r": obj.location.r,
+                "c": obj.location.c,
+                "layer": obj.location.layer
+            }
             obs_encoder._encode(obj, obj_data, 0)
             for i, name in enumerate(obs_encoder._type_feature_names[obj._type_id]):
                 objects[obj_id][name] = obj_data[i]
+
+        for agent_idx in range(self._agents.size()):
+            objects[self._agents[agent_idx].id]["agent_id"] = agent_idx
+
         return objects
