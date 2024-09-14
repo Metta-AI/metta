@@ -70,23 +70,7 @@ class PufferLibFramework(RLFramework):
     def process_stats(self, data):
         if len(data.stats) == 0:
             return
-
-        new_stats = {}
-        if "agent" in data.stats:
-            agent_stats = data.stats.pop("agent")
-            for env_stats in agent_stats:
-                num_agents = len(env_stats)
-                for stat in env_stats:
-                    for k, v in stat.items():
-                        stat_name = f'agent/{k}'
-                        if stat_name not in new_stats:
-                            new_stats[stat_name] = 0
-                        new_stats[stat_name] += v / num_agents
-
-        for k, v in data.stats.items():
-            new_stats[k] = np.array(v).mean()
-        # data.stats = new_stats
-        self.last_stats = new_stats
+        self.last_stats = data.stats
 
     def close(self):
         clean_pufferl.close(self.data)
