@@ -93,6 +93,8 @@ cdef class MettaGrid(GridEnv):
         objects = {}
         for obj_id in range(1, self._grid.objects.size()):
             obj = self._grid.object(obj_id)
+            if obj == NULL:
+                continue
             objects[obj_id] = {
                 "id": obj_id,
                 "type": obj._type_id,

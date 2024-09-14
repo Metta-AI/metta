@@ -5,16 +5,11 @@ import pufferlib
 from omegaconf import OmegaConf
 from pufferlib.environments.ocean.render import GridRender
 
-from mettagrid.renderer.raylib_client import MettaRaylibClient
+from mettagrid.renderer.raylib_renderer import MettaGridRaylibRenderer
 from mettagrid.config.game_builder import MettaGridGameBuilder
 from mettagrid.config.sample_config import sample_config
 from mettagrid.mettagrid_c import MettaGrid # pylint: disable=E0611
 
-
-class GridClient:
-    def __init__(self, width, height):
-        self._width = width
-        self._height = height
 
 class MettaGridEnv(pufferlib.PufferEnv):
     def __init__(self, render_mode: str, **cfg):
@@ -25,17 +20,6 @@ class MettaGridEnv(pufferlib.PufferEnv):
         self.make_env()
 
         self._renderer = None
-        if render_mode == "human":
-            self._renderer = MettaRaylibClient(
-                self._env.map_width(), self._env.map_height(),
-            )
-        elif render_mode == "raylib":
-            self._renderer = GridRender(
-                self._env.map_width(), self._env.map_height(),
-                fps=10
-            )
-        elif render_mode == "json":
-            self._renderer = None
 
         self.done = False
 

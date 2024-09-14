@@ -24,7 +24,7 @@ cdef class Attack(MettaActionHandler):
         cdef short distance = 0
         cdef short offset = 0
         distance = 1 + (arg - 1) // 3
-        offset = (arg - 1) % 3 - 1
+        offset = -((arg - 1) % 3 - 1)
 
         cdef GridLocation target_loc = self.env._grid.relative_location(
             actor.location,

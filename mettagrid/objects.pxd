@@ -28,7 +28,7 @@ cdef cppclass MettaObject(GridObject):
         return False
 
     inline char attackable():
-        return False
+        return True
 
 cdef cppclass Usable(MettaObject):
     unsigned int use_cost
@@ -65,12 +65,13 @@ cdef vector[string] InventoryItemNames # defined in objects.pyx
 cdef cppclass Agent(MettaObject):
     unsigned int frozen
     unsigned int freeze_duration
-    int energy
+    unsigned char energy
     unsigned int orientation
-    char shield
+    unsigned char shield
     unsigned char shield_upkeep
-    vector[unsigned short] inventory
+    vector[unsigned char] inventory
     unsigned char max_items
+    unsigned char max_energy
 
     inline Agent(GridCoord r, GridCoord c, ObjectConfig cfg):
         GridObject.init(ObjectType.AgentT, GridLocation(r, c, GridLayer.Agent_Layer))
@@ -78,6 +79,7 @@ cdef cppclass Agent(MettaObject):
         this.frozen = 0
         this.freeze_duration = cfg[b"freeze_duration"]
         this.energy = cfg[b"initial_energy"]
+        this.max_energy = cfg[b"max_energy"]
         this.shield_upkeep = cfg[b"upkeep.shield"]
         this.orientation = 0
         this.inventory.resize(InventoryItem.InventoryCount)
