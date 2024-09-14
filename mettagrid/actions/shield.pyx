@@ -20,7 +20,10 @@ cdef class Shield(MettaActionHandler):
         ActionArg arg):
 
         if actor.shield:
-            actor.shield = True
-        else:
             actor.shield = False
+        elif actor.energy >= actor.shield_upkeep:
+            actor.shield = True
+
+        return True
+
 

@@ -52,6 +52,7 @@ cdef class Use(MettaActionHandler):
             self.env._stats.game_incr("r1.harvested")
 
         cdef Converter *converter
+        cdef unsigned int energy_gain = 0
         if target._type_id == ObjectType.ConverterT:
             converter = <Converter*>target
             actor.update_inventory(converter.input_resource, -1)
@@ -60,7 +61,8 @@ cdef class Use(MettaActionHandler):
             actor.update_inventory(converter.output_resource, 1)
             self.env._stats.agent_incr(actor_id, InventoryItemNames[converter.output_resource] + ".gained")
 
-            actor.energy += converter.output_energy
-            self.env._stats.agent_add(actor_id, "energy.gained", converter.output_energy)
+            energy_gain = min(actor.max_energy - actor.energy, converter.output_energy)
+            actor.energy += energy_gain
+            self.env._stats.agent_add(actor_id, "energy.gained", energy_gain)
 
         return True
