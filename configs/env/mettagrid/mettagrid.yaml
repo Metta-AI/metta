@@ -64,7 +64,7 @@ game:
     jump:
       cost: 3
     shield:
-      cost: 0
+      cost: 1
     transfer:
       cost: 0
     use:
