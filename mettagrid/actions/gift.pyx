@@ -13,6 +13,9 @@ cdef class Gift(MettaActionHandler):
     def __init__(self, cfg: OmegaConf):
         MettaActionHandler.__init__(self, cfg, "gift")
 
+    cdef unsigned char max_arg(self):
+        return 1
+
     cdef char _handle_action(
         self,
         unsigned int actor_id,

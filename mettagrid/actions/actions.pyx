@@ -11,7 +11,7 @@ cdef extern from "<string>" namespace "std":
     string to_string(int val)
 
 cdef class MettaActionHandler(ActionHandler):
-    def __init__(self, cfg: OmegaConf, action_name, action_cost=0):
+    def __init__(self, cfg: OmegaConf, action_name):
         self.action_name = action_name
 
         self._stats.action = "action." + action_name
