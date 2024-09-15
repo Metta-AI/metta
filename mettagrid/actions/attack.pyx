@@ -12,6 +12,9 @@ cdef class Attack(MettaActionHandler):
     def __init__(self, cfg: OmegaConf):
         MettaActionHandler.__init__(self, cfg, "attack")
 
+    cdef unsigned char max_arg(self):
+        return 9
+
     cdef char _handle_action(
         self,
         unsigned int actor_id,

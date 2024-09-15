@@ -14,6 +14,10 @@ cdef class Rotate(MettaActionHandler):
     def __init__(self, cfg: OmegaConf):
         MettaActionHandler.__init__(self, cfg, "rotate")
 
+    cdef unsigned char max_arg(self):
+        return 3
+
+
     cdef char _handle_action(
         self,
         unsigned int actor_id,
@@ -21,8 +25,6 @@ cdef class Rotate(MettaActionHandler):
         ActionArg arg):
 
         cdef unsigned short orientation = arg
-        if orientation >= 4:
-            return False
 
         actor.orientation = orientation
         return True

@@ -12,6 +12,9 @@ cdef class Noop(MettaActionHandler):
     def __init__(self, cfg: OmegaConf):
         MettaActionHandler.__init__(self, cfg, "noop")
 
+    cdef unsigned char max_arg(self):
+        return 0
+
     cdef char _handle_action(
         self,
         unsigned int actor_id,

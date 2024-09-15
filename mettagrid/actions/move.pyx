@@ -12,6 +12,9 @@ cdef class Move(MettaActionHandler):
     def __init__(self, cfg: OmegaConf):
         MettaActionHandler.__init__(self, cfg, "move")
 
+    cdef unsigned char max_arg(self):
+        return 1
+
     cdef char _handle_action(
         self,
         unsigned int actor_id,
@@ -19,8 +22,6 @@ cdef class Move(MettaActionHandler):
         ActionArg arg):
 
         cdef unsigned short direction = arg
-        if direction >= 2:
-            return 0
 
         cdef Orientation orientation = <Orientation>(actor.orientation)
         if direction == 1:
