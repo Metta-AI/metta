@@ -63,10 +63,8 @@ class MettaGridEnv(pufferlib.PufferEnv):
     def step(self, actions):
         obs, rewards, terminated, truncated, infos = self._c_env.step(actions.astype(np.int32))
 
-        rewards_sum = rewards.sum()
-        if rewards_sum != 0:
-            reward_mean = rewards_sum / self._num_agents
-            rewards -= reward_mean
+        if self._cfg.normalize_rewards:
+            rewards -= rewards.mean()
 
         infos = {}
         if terminated.all() or truncated.all():
