@@ -71,45 +71,31 @@ class MettaGridEnv(pufferlib.PufferEnv):
         infos = {}
         if terminated.all() or truncated.all():
             self.done = True
-            episode_rewards = self._c_env.get_episode_rewards()
-            episode_rewards_sum = episode_rewards.sum()
-            episode_rewards_mean = episode_rewards_sum / self._num_agents
-            infos.update({
-                "episode/reward.sum": episode_rewards_sum,
-                "episode/reward.mean": episode_rewards_mean,
-                "episode/reward.min": episode_rewards.min(),
-                "episode/reward.max": episode_rewards.max(),
-                "episode_length": self._c_env.current_timestep(),
-            })
-            stats = self._c_env.get_episode_stats()
-
-            infos["episode_rewards"] = episode_rewards
-            infos["agent"] = stats["agent"]
-            infos["game"] = stats["game"]
-
+            self.process_episode_stats(infos)
         return obs, list(rewards), terminated.all(), truncated.all(), infos
 
-    def process_episode_stats(self, episode_stats: Dict[str, Any]):
-        for agent_stats in episode_stats["agent"]:
-            extra_stats = {}
-            for stat_name in agent_stats.keys():
-                if stat_name.startswith("action_"):
-                    extra_stats[stat_name + "_pct"] = agent_stats[stat_name] / self._grid_env.current_timestep
+    def process_episode_stats(self, infos: Dict[str, Any]):
+        episode_rewards = self._c_env.get_episode_rewards()
+        episode_rewards_sum = episode_rewards.sum()
+        episode_rewards_mean = episode_rewards_sum / self._num_agents
+        infos.update({
+            "episode/reward.sum": episode_rewards_sum,
+            "episode/reward.mean": episode_rewards_mean,
+            "episode/reward.min": episode_rewards.min(),
+            "episode/reward.max": episode_rewards.max(),
+            "episode_length": self._c_env.current_timestep(),
+        })
+        stats = self._c_env.get_episode_stats()
 
-
-            #     for object in self._game_builder.object_configs.keys():
-            #         if stat_name.startswith(f"stats_{object}_") and object != "agent":
-            #             symbol = self._game_builder._objects[object].symbol
-            #             num_obj = self._griddly_yaml["Environment"]["Levels"][0].count(symbol)
-            #             if num_obj == 0:
-            #                 num_obj = 1
-            #             extra_stats[stat_name + "_pct"] = agent_stats[stat_name] / num_obj
-
-            agent_stats.update(extra_stats)
-            agent_stats.update(episode_stats["game_stats"])
-            # agent_stats["level_max_energy"] = self._max_level_energy
-            # agent_stats["level_max_energy_per_agent"] = self._max_level_energy_per_agent
-            # agent_stats["level_max_reward_per_agent"] = self._max_level_reward_per_agent
+        infos["episode_rewards"] = episode_rewards
+        infos["agent_raw"] = stats["agent"]
+        infos["game"] = stats["game"]
+        infos["agent"] = {}
+        for agent_stats in stats["agent"]:
+            for n, v in agent_stats.items():
+                infos["agent"][n] = infos["agent"].get(n, 0) + v
+        for n, v in infos["agent"].items():
+            infos["agent"][n] = v / self._num_agents
 
     def _compute_max_energy(self):
         pass
