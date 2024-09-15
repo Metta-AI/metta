@@ -51,6 +51,8 @@ class PufferLibFramework(RLFramework):
         if load_checkpoint:
             clean_pufferl.try_load_checkpoint(self.data)
 
+        print(f"Starting training: {self.data.global_step}/{pcfg.train.total_timesteps} timesteps")
+
         while self.data.global_step < pcfg.train.total_timesteps:
             try:
                 clean_pufferl.evaluate(self.data)
@@ -63,6 +65,7 @@ class PufferLibFramework(RLFramework):
                 Console().print_exception()
                 os._exit(0)
 
+        print("Training complete. Evaluating final model...")
         clean_pufferl.evaluate(self.data)
         self.process_stats(self.data)
         self.train_time = time.time() - self._train_start
