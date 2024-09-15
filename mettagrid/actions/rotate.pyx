@@ -18,7 +18,7 @@ cdef class Rotate(MettaActionHandler):
         return 3
 
 
-    cdef char _handle_action(
+    cdef bint _handle_action(
         self,
         unsigned int actor_id,
         Agent * actor,

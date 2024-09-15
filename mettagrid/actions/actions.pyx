@@ -23,7 +23,7 @@ cdef class MettaActionHandler(ActionHandler):
 
         self.action_cost = cfg.cost
 
-    cdef char handle_action(
+    cdef bint handle_action(
         self,
         unsigned int actor_id,
         GridObjectId actor_object_id,
@@ -50,7 +50,7 @@ cdef class MettaActionHandler(ActionHandler):
         actor.energy -= self.action_cost
         self.env._stats.agent_add(actor_id, self._stats.action_energy.c_str(), self.action_cost)
 
-        cdef char result = self._handle_action(actor_id, actor, arg)
+        cdef bint result = self._handle_action(actor_id, actor, arg)
 
         if result:
             self.env._stats.agent_incr(actor_id, self._stats.action.c_str())
@@ -61,7 +61,7 @@ cdef class MettaActionHandler(ActionHandler):
 
         return result
 
-    cdef char _handle_action(
+    cdef bint _handle_action(
         self,
         unsigned int actor_id,
         Agent * actor,

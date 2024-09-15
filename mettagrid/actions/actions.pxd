@@ -18,13 +18,13 @@ cdef class MettaActionHandler(ActionHandler):
     cdef string action_name
     cdef int action_cost
 
-    cdef char handle_action(
+    cdef bint handle_action(
         self,
         unsigned int actor_id,
         GridObjectId actor_object_id,
         ActionArg arg)
 
-    cdef char _handle_action(
+    cdef bint _handle_action(
         self,
         unsigned int actor_id,
         Agent * actor,
