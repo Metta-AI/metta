@@ -2,7 +2,7 @@
 
 name: "GDY-MettaGrid"
 _target_: mettagrid.mettagrid_env.MettaGridEnv
-max_action_value: 10
+normalize_rewards: True
 
 hidden_features:
   grid_obs: [
