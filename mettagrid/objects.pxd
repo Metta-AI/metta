@@ -1,5 +1,6 @@
 # distutils: language=c++
 # cython: warn.undeclared=False
+# cython: c_api_binop_methods=True
 
 cimport cython
 
@@ -24,11 +25,8 @@ cdef cppclass MettaObject(GridObject):
     inline void init_mo(ObjectConfig cfg):
         this.hp = cfg[b"hp"]
 
-    inline char usable(const Agent *actor):
+    inline bint usable(const Agent *actor):
         return False
-
-    inline char attackable():
-        return True
 
 cdef cppclass Usable(MettaObject):
     unsigned int use_cost
@@ -40,7 +38,7 @@ cdef cppclass Usable(MettaObject):
         this.cooldown = cfg[b"cooldown"]
         this.ready = 1
 
-    inline char usable(const Agent *actor):
+    inline bint usable(const Agent *actor):
         return this.ready and this.use_cost <= actor.energy
 
 cdef enum ObjectType:
@@ -133,7 +131,7 @@ cdef cppclass Generator(Usable):
         Usable.init_usable(cfg)
         this.r1 = cfg[b"initial_resources"]
 
-    inline char usable(const Agent *actor):
+    inline bint usable(const Agent *actor):
         return Usable.usable(actor) and this.r1 > 0
 
     inline void obs(ObsType[:] obs):
@@ -160,7 +158,7 @@ cdef cppclass Converter(Usable):
         this.output_resource = InventoryItem.r2
         this.output_energy = cfg[b"energy_output.r1"]
 
-    inline char usable(const Agent *actor):
+    inline bint usable(const Agent *actor):
         return Usable.usable(actor) and actor.inventory[this.input_resource] > 0
 
     inline obs(ObsType[:] obs):

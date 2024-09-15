@@ -16,7 +16,7 @@ cdef class Use(MettaActionHandler):
     cdef unsigned char max_arg(self):
         return 0
 
-    cdef char _handle_action(
+    cdef bint _handle_action(
         self,
         unsigned int actor_id,
         Agent * actor,
