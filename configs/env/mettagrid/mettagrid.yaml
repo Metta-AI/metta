@@ -3,9 +3,9 @@
 name: "GDY-MettaGrid"
 _target_: mettagrid.mettagrid_env.MettaGridEnv
 # _target_: env.griddly.mettagrid.gym_env.MettaGridGymEnv
-max_action_value: 10
 
 report_stats_interval: 100
+normalize_rewards: True
 
 hidden_features:
   grid_obs: [

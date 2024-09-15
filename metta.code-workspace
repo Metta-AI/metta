@@ -5,13 +5,16 @@
 			"path": "."
 		},
 		{
-			"path": "../fast_gae"
+			"path": "deps/fast_gae"
 		},
 		{
-			"path": "../mettagrid"
+			"path": "deps/mettagrid"
 		},
 		{
-			"path": "../puffergrid"
+			"path": "deps/puffergrid"
+		},
+		{
+			"path": "deps/pufferlib"
 		}
 	],
 	"settings": {
