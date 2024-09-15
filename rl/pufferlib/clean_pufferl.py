@@ -31,7 +31,6 @@ def create(config, vecenv, policy, optimizer=None):
 
     utilization = Utilization()
     msg = f'Model Size: {abbreviate(count_params(policy))} parameters'
-    print("\n".join(["\n"]*50))
     print_dashboard(config.env, utilization, 0, 0, profile, losses, {}, msg, clear=True)
 
     vecenv.async_reset(config.seed)
@@ -302,7 +301,7 @@ def mean_and_log(data):
         **{f'performance/{k}': v for k, v in data.profile},
     })
 
-def  close(data):
+def close(data):
     data.vecenv.close()
     data.utilization.stop()
     config = data.config
@@ -312,7 +311,7 @@ def  close(data):
         model_path = save_checkpoint(data)
         artifact.add_file(model_path)
         data.wandb.run.log_artifact(artifact)
-        # data.wandb.finish()
+        data.wandb.finish()
 
 class Profile:
     SPS: ... = 0
@@ -426,12 +425,12 @@ class Experience:
         num_minibatches = batch_size / minibatch_size
         self.num_minibatches = int(num_minibatches)
         if self.num_minibatches != num_minibatches:
-            raise ValueError('batch_size must be divisible by minibatch_size')
+            raise ValueError(f'batch_size {batch_size} must be divisible by minibatch_size {minibatch_size}')
 
         minibatch_rows = minibatch_size / bptt_horizon
         self.minibatch_rows = int(minibatch_rows)
         if self.minibatch_rows != minibatch_rows:
-            raise ValueError('minibatch_size must be divisible by bptt_horizon')
+            raise ValueError(f'minibatch_size {minibatch_size} must be divisible by bptt_horizon {bptt_horizon}')
 
         self.batch_size = batch_size
         self.bptt_horizon = bptt_horizon
@@ -572,11 +571,11 @@ def count_params(policy):
 def rollout(cfg: OmegaConf, env_creator, env_kwargs, agent_creator, agent_kwargs,
         backend, render_mode='auto', model_path=None, device='cuda'):
 
-    # We are just using Serial vecenv to give a consistent
-    # single-agent/multi-agent API for evaluation
     if render_mode != 'auto':
         env_kwargs['render_mode'] = render_mode
 
+    # We are just using Serial vecenv to give a consistent
+    # single-agent/multi-agent API for evaluation
     env = pufferlib.vector.make(env_creator, env_kwargs=env_kwargs, backend=backend)
 
     if model_path is None:

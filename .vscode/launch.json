@@ -60,7 +60,7 @@
             "module": "tools.run",
             "args": [
                 "cmd=sweep",
-                "experiment=mac.carbsweep.1",
+                "experiment=mac.carbsweep.2",
                 "framework=pufferlib",
                 "agent=small",
                 "hardware=macbook",

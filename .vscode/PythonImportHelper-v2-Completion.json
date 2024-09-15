@@ -33971,7 +33971,7 @@
         "kind": 2,
         "importPath": "rl.carbs.carb_sweep",
         "description": "rl.carbs.carb_sweep",
-        "peekOfCode": "def run_carb_sweep_rollout():\n    global _cfg\n    init_wandb(_cfg)\n    np.random.seed(int(time.time()))\n    torch.manual_seed(int(time.time()))\n    carbs_controller = _load_carbs_state(_cfg.experiment)\n    carbs_controller._set_seed(int(time.time()))\n    print(f\"CARBS: obs: {carbs_controller.observation_count}\")\n    orig_suggestion = carbs_controller.suggest().suggestion\n    carbs_controller.num_suggestions += 1",
+        "peekOfCode": "def run_carb_sweep_rollout():\n    global _cfg\n    init_wandb(_cfg)\n    np.random.seed(int(time.time()))\n    torch.manual_seed(int(time.time()))\n    carbs_controller = _load_carbs_state(_cfg)\n    carbs_controller._set_seed(int(time.time()))\n    print(f\"CARBS: obs: {carbs_controller.observation_count}\")\n    orig_suggestion = carbs_controller.suggest().suggestion\n    carbs_controller.num_suggestions += 1",
         "detail": "rl.carbs.carb_sweep",
         "documentation": {}
     },

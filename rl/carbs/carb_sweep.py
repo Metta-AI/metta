@@ -50,7 +50,7 @@ def run_carb_sweep_rollout():
     np.random.seed(int(time.time()))
     torch.manual_seed(int(time.time()))
 
-    carbs_controller = _load_carbs_state(_cfg.experiment)
+    carbs_controller = _load_carbs_state(_cfg)
     carbs_controller._set_seed(int(time.time()))
 
     print(f"CARBS: obs: {carbs_controller.observation_count}")
@@ -102,7 +102,7 @@ def run_carb_sweep_rollout():
     print("Train Time:", train_time)
     print("Is Failure:", is_failure)
 
-    carbs_controller = _load_carbs_state(_cfg.experiment)
+    carbs_controller = _load_carbs_state(_cfg)
     carbs_controller.observe(
         ObservationInParam(
             input=orig_suggestion,
@@ -229,8 +229,9 @@ def _save_carbs_state(carbs_controller, experiment, sweep_id):
         f.write(carbs_controller.serialize())
     artifact.save()
 
-def _load_carbs_state(experiment):
-    artifact = wandb.use_artifact(experiment + ":latest", type="sweep")
+def _load_carbs_state(cfg: OmegaConf):
+    init_wandb(cfg)
+    artifact = wandb.use_artifact(cfg.experiment + ":latest", type="sweep")
     carbs_state = artifact.file(wandb.run.dir + "/carbs_state")
     with open(carbs_state, "rb") as f:
         carbs = CARBS.load_from_string(f.read())

@@ -113,6 +113,9 @@
 			"--disable=C0111",
 			"--max-line-length=120"
 		],
+		"python.analysis.ignore": [
+			"${workspaceFolder}/pufferlib/**"
+		]
 	},
 
 
