@@ -24,7 +24,7 @@ Actions = SimpleNamespace(
 
 class ObjectRenderer:
     def __init__(self, sprite_sheet, tile_size=24):
-        sprites_dir = "../mettagrid/mettagrid/renderer/assets/"
+        sprites_dir = "deps/mettagrid/mettagrid/renderer/assets/"
         sprite_sheet_path = os.path.join(sprites_dir, sprite_sheet)
         assert os.path.exists(sprite_sheet_path), f"Sprite sheet {sprite_sheet_path} does not exist"
         self.sprite_sheet = rl.LoadTexture(sprite_sheet_path.encode())
@@ -69,7 +69,7 @@ class AgentRenderer(ObjectRenderer):
         y = obj["r"] * render_tile_size - 8  # 8 pixels above the agent
         width = render_tile_size
         height = 3  # 3 pixels tall
-        max_energy = self.cfg.game.objects.agent.max_energy
+        max_energy = self.cfg.max_energy
 
         energy = min(max(obj["agent:energy"], 0), max_energy)
         blue_width = int(width * energy / max_energy)
@@ -165,7 +165,7 @@ class MettaGridRaylibRenderer:
             "PufferLib Ray Grid".encode())
 
         # Load custom font
-        font_path = os.path.join("..", "mettagrid", "mettagrid", "renderer", "assets", "arial.ttf")
+        font_path = os.path.join("deps", "mettagrid", "mettagrid", "renderer", "assets", "arial.ttf")
         assert os.path.exists(font_path), f"Font {font_path} does not exist"
         self.font = rl.LoadFont(font_path.encode())
 

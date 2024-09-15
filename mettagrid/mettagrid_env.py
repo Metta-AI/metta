@@ -3,9 +3,7 @@ from typing import Any, Dict
 import numpy as np
 import pufferlib
 from omegaconf import OmegaConf
-from pufferlib.environments.ocean.render import GridRender
 
-from mettagrid.renderer.raylib_renderer import MettaGridRaylibRenderer
 from mettagrid.config.game_builder import MettaGridGameBuilder
 from mettagrid.config.sample_config import sample_config
 from mettagrid.mettagrid_c import MettaGrid # pylint: disable=E0611
@@ -22,6 +20,7 @@ class MettaGridEnv(pufferlib.PufferEnv):
         self._renderer = None
 
         self.done = False
+        self.buf = None
 
 
     def make_env(self):
@@ -43,7 +42,6 @@ class MettaGridEnv(pufferlib.PufferEnv):
         #self._env = RewardTracker(self._env)
         #self._env = FeatureMasker(self._env, self._cfg.hidden_features)
         self.done = False
-        self.buf = None
 
     def reset(self, seed=None):
         self.make_env()
