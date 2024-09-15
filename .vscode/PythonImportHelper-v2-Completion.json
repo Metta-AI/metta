@@ -6071,46 +6071,6 @@
         "documentation": {}
     },
     {
-        "label": "GridRender",
-        "importPath": "pufferlib.environments.ocean.render",
-        "description": "pufferlib.environments.ocean.render",
-        "isExtraImport": true,
-        "detail": "pufferlib.environments.ocean.render",
-        "documentation": {}
-    },
-    {
-        "label": "GridRender",
-        "importPath": "pufferlib.environments.ocean.render",
-        "description": "pufferlib.environments.ocean.render",
-        "isExtraImport": true,
-        "detail": "pufferlib.environments.ocean.render",
-        "documentation": {}
-    },
-    {
-        "label": "cdata_to_numpy",
-        "importPath": "pufferlib.environments.ocean.render",
-        "description": "pufferlib.environments.ocean.render",
-        "isExtraImport": true,
-        "detail": "pufferlib.environments.ocean.render",
-        "documentation": {}
-    },
-    {
-        "label": "MettaGridRaylibRenderer",
-        "importPath": "mettagrid.renderer.raylib_renderer",
-        "description": "mettagrid.renderer.raylib_renderer",
-        "isExtraImport": true,
-        "detail": "mettagrid.renderer.raylib_renderer",
-        "documentation": {}
-    },
-    {
-        "label": "MettaGridRaylibRenderer",
-        "importPath": "mettagrid.renderer.raylib_renderer",
-        "description": "mettagrid.renderer.raylib_renderer",
-        "isExtraImport": true,
-        "detail": "mettagrid.renderer.raylib_renderer",
-        "documentation": {}
-    },
-    {
         "label": "MettaGridGameBuilder",
         "importPath": "mettagrid.config.game_builder",
         "description": "mettagrid.config.game_builder",
@@ -8680,6 +8640,22 @@
         "importPath": "pyximport",
         "description": "pyximport",
         "detail": "pyximport",
+        "documentation": {}
+    },
+    {
+        "label": "GridRender",
+        "importPath": "pufferlib.environments.ocean.render",
+        "description": "pufferlib.environments.ocean.render",
+        "isExtraImport": true,
+        "detail": "pufferlib.environments.ocean.render",
+        "documentation": {}
+    },
+    {
+        "label": "cdata_to_numpy",
+        "importPath": "pufferlib.environments.ocean.render",
+        "description": "pufferlib.environments.ocean.render",
+        "isExtraImport": true,
+        "detail": "pufferlib.environments.ocean.render",
         "documentation": {}
     },
     {
@@ -19144,6 +19120,14 @@
         "documentation": {}
     },
     {
+        "label": "MettaGridRaylibRenderer",
+        "importPath": "mettagrid.renderer.raylib_renderer",
+        "description": "mettagrid.renderer.raylib_renderer",
+        "isExtraImport": true,
+        "detail": "mettagrid.renderer.raylib_renderer",
+        "documentation": {}
+    },
+    {
         "label": "MettaAgent",
         "importPath": "agent.metta_agent",
         "description": "agent.metta_agent",
@@ -20084,7 +20068,7 @@
         "kind": 6,
         "importPath": "deps.mettagrid.mettagrid.renderer.raylib_renderer",
         "description": "deps.mettagrid.mettagrid.renderer.raylib_renderer",
-        "peekOfCode": "class ObjectRenderer:\n    def __init__(self, sprite_sheet, tile_size=24):\n        sprites_dir = \"../mettagrid/mettagrid/renderer/assets/\"\n        sprite_sheet_path = os.path.join(sprites_dir, sprite_sheet)\n        assert os.path.exists(sprite_sheet_path), f\"Sprite sheet {sprite_sheet_path} does not exist\"\n        self.sprite_sheet = rl.LoadTexture(sprite_sheet_path.encode())\n        self.tile_size = tile_size\n    def _sprite_sheet_idx(self, obj):\n        return (0, 0)\n    def render(self, obj, render_tile_size):",
+        "peekOfCode": "class ObjectRenderer:\n    def __init__(self, sprite_sheet, tile_size=24):\n        sprites_dir = \"deps/mettagrid/mettagrid/renderer/assets/\"\n        sprite_sheet_path = os.path.join(sprites_dir, sprite_sheet)\n        assert os.path.exists(sprite_sheet_path), f\"Sprite sheet {sprite_sheet_path} does not exist\"\n        self.sprite_sheet = rl.LoadTexture(sprite_sheet_path.encode())\n        self.tile_size = tile_size\n    def _sprite_sheet_idx(self, obj):\n        return (0, 0)\n    def render(self, obj, render_tile_size):",
         "detail": "deps.mettagrid.mettagrid.renderer.raylib_renderer",
         "documentation": {}
     },
@@ -20156,7 +20140,7 @@
         "kind": 6,
         "importPath": "deps.mettagrid.mettagrid.mettagrid_env",
         "description": "deps.mettagrid.mettagrid.mettagrid_env",
-        "peekOfCode": "class MettaGridEnv(pufferlib.PufferEnv):\n    def __init__(self, render_mode: str, **cfg):\n        super().__init__()\n        self._render_mode = render_mode\n        self._cfg = OmegaConf.create(cfg)\n        self.make_env()\n        self._renderer = None\n        self.done = False\n    def make_env(self):\n        scfg = sample_config(self._cfg.game)",
+        "peekOfCode": "class MettaGridEnv(pufferlib.PufferEnv):\n    def __init__(self, render_mode: str, **cfg):\n        super().__init__()\n        self._render_mode = render_mode\n        self._cfg = OmegaConf.create(cfg)\n        self.make_env()\n        self._renderer = None\n        self.done = False\n        self.buf = None\n    def make_env(self):",
         "detail": "deps.mettagrid.mettagrid.mettagrid_env",
         "documentation": {}
     },
@@ -34034,7 +34018,7 @@
         "kind": 2,
         "importPath": "rl.pufferlib.clean_pufferl",
         "description": "rl.pufferlib.clean_pufferl",
-        "peekOfCode": "def create(config, vecenv, policy, optimizer=None):\n    seed_everything(config.seed, config.torch_deterministic)\n    profile = Profile()\n    losses = make_losses()\n    utilization = Utilization()\n    msg = f'Model Size: {abbreviate(count_params(policy))} parameters'\n    print(\"\\n\".join([\"\\n\"]*50))\n    print_dashboard(config.env, utilization, 0, 0, profile, losses, {}, msg, clear=True)\n    vecenv.async_reset(config.seed)\n    obs_shape = vecenv.single_observation_space.shape",
+        "peekOfCode": "def create(config, vecenv, policy, optimizer=None):\n    seed_everything(config.seed, config.torch_deterministic)\n    profile = Profile()\n    losses = make_losses()\n    utilization = Utilization()\n    msg = f'Model Size: {abbreviate(count_params(policy))} parameters'\n    print_dashboard(config.env, utilization, 0, 0, profile, losses, {}, msg, clear=True)\n    vecenv.async_reset(config.seed)\n    obs_shape = vecenv.single_observation_space.shape\n    obs_dtype = vecenv.single_observation_space.dtype",
         "detail": "rl.pufferlib.clean_pufferl",
         "documentation": {}
     },
@@ -34066,15 +34050,11 @@
         "documentation": {}
     },
     {
-        "label": {
-            "name": "",
-            "kind": 2,
-            "peekOfCode": "def  close(data):\n    data.vecenv.close()\n    data.utilization.stop()\n    config = data.config\n    if data.wandb is not None:\n        artifact_name = f\"{config.exp_id}_model\"\n        artifact = data.wandb.Artifact(artifact_name, type=\"model\")\n        model_path = save_checkpoint(data)\n        artifact.add_file(model_path)\n        data.wandb.run.log_artifact(artifact)"
-        },
+        "label": "close",
         "kind": 2,
         "importPath": "rl.pufferlib.clean_pufferl",
         "description": "rl.pufferlib.clean_pufferl",
-        "peekOfCode": "def  close(data):\n    data.vecenv.close()\n    data.utilization.stop()\n    config = data.config\n    if data.wandb is not None:\n        artifact_name = f\"{config.exp_id}_model\"\n        artifact = data.wandb.Artifact(artifact_name, type=\"model\")\n        model_path = save_checkpoint(data)\n        artifact.add_file(model_path)\n        data.wandb.run.log_artifact(artifact)",
+        "peekOfCode": "def close(data):\n    data.vecenv.close()\n    data.utilization.stop()\n    config = data.config\n    if data.wandb is not None:\n        artifact_name = f\"{config.exp_id}_model\"\n        artifact = data.wandb.Artifact(artifact_name, type=\"model\")\n        model_path = save_checkpoint(data)\n        artifact.add_file(model_path)\n        data.wandb.run.log_artifact(artifact)",
         "detail": "rl.pufferlib.clean_pufferl",
         "documentation": {}
     },
@@ -34110,7 +34090,7 @@
         "kind": 2,
         "importPath": "rl.pufferlib.clean_pufferl",
         "description": "rl.pufferlib.clean_pufferl",
-        "peekOfCode": "def count_params(policy):\n    return sum(p.numel() for p in policy.parameters() if p.requires_grad)\ndef rollout(cfg: OmegaConf, env_creator, env_kwargs, agent_creator, agent_kwargs,\n        backend, render_mode='auto', model_path=None, device='cuda'):\n    # We are just using Serial vecenv to give a consistent\n    # single-agent/multi-agent API for evaluation\n    if render_mode != 'auto':\n        env_kwargs['render_mode'] = render_mode\n    env = pufferlib.vector.make(env_creator, env_kwargs=env_kwargs, backend=backend)\n    if model_path is None:",
+        "peekOfCode": "def count_params(policy):\n    return sum(p.numel() for p in policy.parameters() if p.requires_grad)\ndef rollout(cfg: OmegaConf, env_creator, env_kwargs, agent_creator, agent_kwargs,\n        backend, render_mode='auto', model_path=None, device='cuda'):\n    if render_mode != 'auto':\n        env_kwargs['render_mode'] = render_mode\n    # We are just using Serial vecenv to give a consistent\n    # single-agent/multi-agent API for evaluation\n    env = pufferlib.vector.make(env_creator, env_kwargs=env_kwargs, backend=backend)\n    if model_path is None:",
         "detail": "rl.pufferlib.clean_pufferl",
         "documentation": {}
     },
@@ -34119,7 +34099,7 @@
         "kind": 2,
         "importPath": "rl.pufferlib.clean_pufferl",
         "description": "rl.pufferlib.clean_pufferl",
-        "peekOfCode": "def rollout(cfg: OmegaConf, env_creator, env_kwargs, agent_creator, agent_kwargs,\n        backend, render_mode='auto', model_path=None, device='cuda'):\n    # We are just using Serial vecenv to give a consistent\n    # single-agent/multi-agent API for evaluation\n    if render_mode != 'auto':\n        env_kwargs['render_mode'] = render_mode\n    env = pufferlib.vector.make(env_creator, env_kwargs=env_kwargs, backend=backend)\n    if model_path is None:\n        agent = agent_creator(env.driver_env, agent_kwargs).to(device)\n    else:",
+        "peekOfCode": "def rollout(cfg: OmegaConf, env_creator, env_kwargs, agent_creator, agent_kwargs,\n        backend, render_mode='auto', model_path=None, device='cuda'):\n    if render_mode != 'auto':\n        env_kwargs['render_mode'] = render_mode\n    # We are just using Serial vecenv to give a consistent\n    # single-agent/multi-agent API for evaluation\n    env = pufferlib.vector.make(env_creator, env_kwargs=env_kwargs, backend=backend)\n    if model_path is None:\n        agent = agent_creator(env.driver_env, agent_kwargs).to(device)\n    else:",
         "detail": "rl.pufferlib.clean_pufferl",
         "documentation": {}
     },

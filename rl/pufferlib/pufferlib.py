@@ -69,6 +69,8 @@ class PufferLibFramework(RLFramework):
         clean_pufferl.evaluate(self.data)
         self.process_stats(self.data)
         self.train_time = time.time() - self._train_start
+        print("Final evaluation complete. Closing...")
+        self.close()
 
     def process_stats(self, data):
         if len(data.stats) == 0:

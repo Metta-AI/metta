@@ -98,24 +98,32 @@
 			"*.pxd": "cython",
 		},
 		"python.analysis.extraPaths": [
-			"../pufferlib",
-			"../puffergrid",
-			"../mettagrid",
-			"../fast_gae",
-			"${env:CONDA_PREFIX}/lib/python3.11/site-packages"
+			"${env:CONDA_PREFIX}/lib/python3.11/site-packages",
+			"deps/**",
 		],
 		"python.autoComplete.extraPaths": [
-			"./third_party/puffergrid",
-			"./third_party/pufferlib",
-			"${env:CONDA_PREFIX}/lib/python3.11/site-packages"
+			"${env:CONDA_PREFIX}/lib/python3.11/site-packages",
+			"deps/**",
 		],
 		"pylint.args": [
 			"--disable=C0111",
 			"--max-line-length=120"
 		],
+		"python.analysis.exclude": [
+			"**/pufferlib/**",
+		],
 		"python.analysis.ignore": [
-			"${workspaceFolder}/pufferlib/**"
-		]
+			"**/pufferlib/**",
+			"${workspaceFolder:pufferlib}/**",
+
+		],
+		"files.watcherExclude": {
+		},
+		"files.exclude": {
+			"train_dir": true,
+			"wandb": true,
+			"deps": true,
+		},
 	},
 
 
