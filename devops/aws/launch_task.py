@@ -54,6 +54,7 @@ def container_config(args, task_args):
 
     setup_cmds = [
         'git pull',
+        'pip install -r requirements.txt',
         './devops/setup_build.sh',
         'ln -s /mnt/efs/train_dir train_dir',
     ]
