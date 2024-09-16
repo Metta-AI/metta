@@ -1,14 +1,13 @@
-from re import T
 from omegaconf import OmegaConf
 import torch
-import time
 import numpy as np
 from rl.pufferlib.policy import load_policy_from_uri
-from util.stats import print_policy_stats
 from mettagrid.renderer.raylib_renderer import MettaGridRaylibRenderer
+from rl.pufferlib.vecenv import make_vecenv
 
 def play(cfg: OmegaConf, vecenv):
     device = cfg.framework.pufferlib.device
+    vecenv = make_vecenv(cfg, num_envs=1, render_mode="human")
     policy = load_policy_from_uri(cfg.eval.policy_uri, cfg)
     agents_count = cfg.env.game.num_agents
 

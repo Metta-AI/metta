@@ -4,9 +4,11 @@ import time
 import numpy as np
 from rl.pufferlib.policy import load_policy_from_uri
 from util.stats import print_policy_stats
+from rl.pufferlib.vecenv import make_vecenv
 
-def evaluate(cfg: OmegaConf, vecenv):
+def evaluate(cfg: OmegaConf):
     device = cfg.framework.pufferlib.device
+    vecenv = make_vecenv(cfg, num_envs=cfg.eval.num_envs)
     num_envs = len(vecenv.envs)
 
     policy = load_policy_from_uri(cfg.eval.policy_uri, cfg)

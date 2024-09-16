@@ -5,6 +5,9 @@ from rich import traceback
 import signal # Aggressively exit on ctrl+c
 from rl.wandb.wandb import init_wandb
 from rl.carbs.carb_sweep import run_sweep
+from rl.pufferlib.train import train
+from rl.pufferlib.evaluate import evaluate
+from rl.pufferlib.play import play
 
 signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
 
@@ -12,19 +15,19 @@ signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
 def main(cfg):
     traceback.install(show_locals=False)
     print(OmegaConf.to_yaml(cfg))
-    framework = hydra.utils.instantiate(cfg.framework, cfg, _recursive_=False)
+
     if cfg.wandb.track:
         init_wandb(cfg)
 
     try:
         if cfg.cmd == "train":
-            framework.train()
+            train(cfg)
 
         if cfg.cmd == "evaluate":
-            framework.evaluate()
+            evaluate(cfg)
 
         if cfg.cmd == "play":
-            framework.play()
+            play(cfg)
 
         if cfg.cmd == "sweep":
             run_sweep(cfg)

@@ -21,6 +21,7 @@ from omegaconf import DictConfig, OmegaConf
 
 import wandb
 from rl.wandb.wandb import init_wandb
+from rl.pufferlib.train import train
 from wandb.errors import CommError
 
 global _cfg
@@ -85,18 +86,11 @@ def run_carb_sweep_rollout():
     train_time = 0
     is_failure = False
     try:
-        rl_controller = hydra.utils.instantiate(new_cfg.framework, new_cfg, _recursive_=False)
-        rl_controller.train(load_checkpoint=False)
-        observed_value = rl_controller.last_stats[_cfg.sweep.metric]
-        train_time = rl_controller.train_time
+        stats, train_time = train(new_cfg, load_checkpoint=False)
+        observed_value = stats[_cfg.sweep.metric]
     except Exception:
         is_failure = True
         traceback.print_exc()
-
-    try:
-        rl_controller.close()
-    except Exception:
-        print("Failed to close controller")
 
     print("Observed Value:", observed_value)
     print("Train Time:", train_time)

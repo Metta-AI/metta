@@ -264,22 +264,6 @@
         "documentation": {}
     },
     {
-        "label": "annotations",
-        "importPath": "__future__",
-        "description": "__future__",
-        "isExtraImport": true,
-        "detail": "__future__",
-        "documentation": {}
-    },
-    {
-        "label": "annotations",
-        "importPath": "__future__",
-        "description": "__future__",
-        "isExtraImport": true,
-        "detail": "__future__",
-        "documentation": {}
-    },
-    {
         "label": "RunningMeanStdInPlace",
         "importPath": "sample_factory.algo.utils.running_mean_std",
         "description": "sample_factory.algo.utils.running_mean_std",
@@ -745,22 +729,6 @@
         "documentation": {}
     },
     {
-        "label": "Tensor",
-        "importPath": "torch",
-        "description": "torch",
-        "isExtraImport": true,
-        "detail": "torch",
-        "documentation": {}
-    },
-    {
-        "label": "nn",
-        "importPath": "torch",
-        "description": "torch",
-        "isExtraImport": true,
-        "detail": "torch",
-        "documentation": {}
-    },
-    {
         "label": "math",
         "kind": 6,
         "isExtraImport": true,
@@ -816,22 +784,6 @@
         "isExtraImport": true,
         "importPath": "numpy",
         "description": "numpy",
-        "detail": "numpy",
-        "documentation": {}
-    },
-    {
-        "label": "mean",
-        "importPath": "numpy",
-        "description": "numpy",
-        "isExtraImport": true,
-        "detail": "numpy",
-        "documentation": {}
-    },
-    {
-        "label": "rec",
-        "importPath": "numpy",
-        "description": "numpy",
-        "isExtraImport": true,
         "detail": "numpy",
         "documentation": {}
     },
@@ -2837,43 +2789,11 @@
         "documentation": {}
     },
     {
-        "label": "Dict",
-        "importPath": "typing",
-        "description": "typing",
-        "isExtraImport": true,
-        "detail": "typing",
-        "documentation": {}
-    },
-    {
-        "label": "Dict",
-        "importPath": "typing",
-        "description": "typing",
-        "isExtraImport": true,
-        "detail": "typing",
-        "documentation": {}
-    },
-    {
-        "label": "Union",
-        "importPath": "typing",
-        "description": "typing",
-        "isExtraImport": true,
-        "detail": "typing",
-        "documentation": {}
-    },
-    {
         "label": "NamedTuple",
         "importPath": "typing",
         "description": "typing",
         "isExtraImport": true,
         "detail": "typing",
-        "documentation": {}
-    },
-    {
-        "label": "TensorDict",
-        "importPath": "tensordict",
-        "description": "tensordict",
-        "isExtraImport": true,
-        "detail": "tensordict",
         "documentation": {}
     },
     {
@@ -2922,14 +2842,6 @@
         "description": "sample_factory.model.decoder",
         "isExtraImport": true,
         "detail": "sample_factory.model.decoder",
-        "documentation": {}
-    },
-    {
-        "label": "AttrDict",
-        "importPath": "sample_factory.utils.attr_dict",
-        "description": "sample_factory.utils.attr_dict",
-        "isExtraImport": true,
-        "detail": "sample_factory.utils.attr_dict",
         "documentation": {}
     },
     {
@@ -3326,14 +3238,6 @@
         "documentation": {}
     },
     {
-        "label": "ActionParameterizationDefault",
-        "importPath": "sample_factory.model.action_parameterization",
-        "description": "sample_factory.model.action_parameterization",
-        "isExtraImport": true,
-        "detail": "sample_factory.model.action_parameterization",
-        "documentation": {}
-    },
-    {
         "label": "ModelCoreRNN",
         "importPath": "sample_factory.model.core",
         "description": "sample_factory.model.core",
@@ -3351,14 +3255,6 @@
     },
     {
         "label": "default_make_core_func",
-        "importPath": "sample_factory.model.core",
-        "description": "sample_factory.model.core",
-        "isExtraImport": true,
-        "detail": "sample_factory.model.core",
-        "documentation": {}
-    },
-    {
-        "label": "ModelCoreRNN",
         "importPath": "sample_factory.model.core",
         "description": "sample_factory.model.core",
         "isExtraImport": true,
@@ -4158,14 +4054,6 @@
         "documentation": {}
     },
     {
-        "label": "Config",
-        "importPath": "sample_factory.utils.typing",
-        "description": "sample_factory.utils.typing",
-        "isExtraImport": true,
-        "detail": "sample_factory.utils.typing",
-        "documentation": {}
-    },
-    {
         "label": "sample_actions_log_probs",
         "importPath": "sample_factory.algo.utils.action_distributions",
         "description": "sample_factory.algo.utils.action_distributions",
@@ -4279,14 +4167,6 @@
     },
     {
         "label": "get_action_distribution",
-        "importPath": "sample_factory.algo.utils.action_distributions",
-        "description": "sample_factory.algo.utils.action_distributions",
-        "isExtraImport": true,
-        "detail": "sample_factory.algo.utils.action_distributions",
-        "documentation": {}
-    },
-    {
-        "label": "sample_actions_log_probs",
         "importPath": "sample_factory.algo.utils.action_distributions",
         "description": "sample_factory.algo.utils.action_distributions",
         "isExtraImport": true,
@@ -5346,14 +5226,6 @@
         "isExtraImport": true,
         "importPath": "copy",
         "description": "copy",
-        "detail": "copy",
-        "documentation": {}
-    },
-    {
-        "label": "deepcopy",
-        "importPath": "copy",
-        "description": "copy",
-        "isExtraImport": true,
         "detail": "copy",
         "documentation": {}
     },
@@ -8586,14 +8458,6 @@
         "documentation": {}
     },
     {
-        "label": "utils",
-        "importPath": "pettingzoo",
-        "description": "pettingzoo",
-        "isExtraImport": true,
-        "detail": "pettingzoo",
-        "documentation": {}
-    },
-    {
         "label": "Environment",
         "importPath": "pufferlib.environments.ocean.moba.cy_moba",
         "description": "pufferlib.environments.ocean.moba.cy_moba",
@@ -10568,14 +10432,6 @@
         "documentation": {}
     },
     {
-        "label": "TensorDict",
-        "importPath": "sample_factory.algo.utils.tensor_dict",
-        "description": "sample_factory.algo.utils.tensor_dict",
-        "isExtraImport": true,
-        "detail": "sample_factory.algo.utils.tensor_dict",
-        "documentation": {}
-    },
-    {
         "label": "get_rnn_size",
         "importPath": "sample_factory.model.model_utils",
         "description": "sample_factory.model.model_utils",
@@ -10697,14 +10553,6 @@
     },
     {
         "label": "get_rnn_size",
-        "importPath": "sample_factory.model.model_utils",
-        "description": "sample_factory.model.model_utils",
-        "isExtraImport": true,
-        "detail": "sample_factory.model.model_utils",
-        "documentation": {}
-    },
-    {
-        "label": "model_device",
         "importPath": "sample_factory.model.model_utils",
         "description": "sample_factory.model.model_utils",
         "isExtraImport": true,
@@ -13113,22 +12961,6 @@
         "documentation": {}
     },
     {
-        "label": "ActorCriticSharedWeights",
-        "importPath": "sample_factory.model.actor_critic",
-        "description": "sample_factory.model.actor_critic",
-        "isExtraImport": true,
-        "detail": "sample_factory.model.actor_critic",
-        "documentation": {}
-    },
-    {
-        "label": "ActorCritic",
-        "importPath": "sample_factory.model.actor_critic",
-        "description": "sample_factory.model.actor_critic",
-        "isExtraImport": true,
-        "detail": "sample_factory.model.actor_critic",
-        "documentation": {}
-    },
-    {
         "label": "LinearDecay",
         "importPath": "sample_factory.utils.decay",
         "description": "sample_factory.utils.decay",
@@ -13482,22 +13314,6 @@
     },
     {
         "label": "reset_global_context",
-        "importPath": "sample_factory.algo.utils.context",
-        "description": "sample_factory.algo.utils.context",
-        "isExtraImport": true,
-        "detail": "sample_factory.algo.utils.context",
-        "documentation": {}
-    },
-    {
-        "label": "global_model_factory",
-        "importPath": "sample_factory.algo.utils.context",
-        "description": "sample_factory.algo.utils.context",
-        "isExtraImport": true,
-        "detail": "sample_factory.algo.utils.context",
-        "documentation": {}
-    },
-    {
-        "label": "global_model_factory",
         "importPath": "sample_factory.algo.utils.context",
         "description": "sample_factory.algo.utils.context",
         "isExtraImport": true,
@@ -14171,22 +13987,6 @@
     },
     {
         "label": "default_cfg",
-        "importPath": "sample_factory.cfg.arguments",
-        "description": "sample_factory.cfg.arguments",
-        "isExtraImport": true,
-        "detail": "sample_factory.cfg.arguments",
-        "documentation": {}
-    },
-    {
-        "label": "parse_sf_args",
-        "importPath": "sample_factory.cfg.arguments",
-        "description": "sample_factory.cfg.arguments",
-        "isExtraImport": true,
-        "detail": "sample_factory.cfg.arguments",
-        "documentation": {}
-    },
-    {
-        "label": "parse_full_cfg",
         "importPath": "sample_factory.cfg.arguments",
         "description": "sample_factory.cfg.arguments",
         "isExtraImport": true,
@@ -14987,22 +14787,6 @@
         "documentation": {}
     },
     {
-        "label": "register_env",
-        "importPath": "sample_factory.envs.env_utils",
-        "description": "sample_factory.envs.env_utils",
-        "isExtraImport": true,
-        "detail": "sample_factory.envs.env_utils",
-        "documentation": {}
-    },
-    {
-        "label": "TrainingInfoInterface",
-        "importPath": "sample_factory.envs.env_utils",
-        "description": "sample_factory.envs.env_utils",
-        "isExtraImport": true,
-        "detail": "sample_factory.envs.env_utils",
-        "documentation": {}
-    },
-    {
         "label": "cat_tensors",
         "importPath": "sample_factory.algo.utils.tensor_utils",
         "description": "sample_factory.algo.utils.tensor_utils",
@@ -15665,14 +15449,6 @@
         "isExtraImport": true,
         "importPath": "re",
         "description": "re",
-        "detail": "re",
-        "documentation": {}
-    },
-    {
-        "label": "T",
-        "importPath": "re",
-        "description": "re",
-        "isExtraImport": true,
         "detail": "re",
         "documentation": {}
     },
@@ -16650,14 +16426,6 @@
         "documentation": {}
     },
     {
-        "label": "enjoy",
-        "importPath": "sample_factory.enjoy",
-        "description": "sample_factory.enjoy",
-        "isExtraImport": true,
-        "detail": "sample_factory.enjoy",
-        "documentation": {}
-    },
-    {
         "label": "parse_atari_args",
         "importPath": "sf_examples.atari.train_atari",
         "description": "sf_examples.atari.train_atari",
@@ -16883,14 +16651,6 @@
     },
     {
         "label": "make_runner",
-        "importPath": "sample_factory.train",
-        "description": "sample_factory.train",
-        "isExtraImport": true,
-        "detail": "sample_factory.train",
-        "documentation": {}
-    },
-    {
-        "label": "run_rl",
         "importPath": "sample_factory.train",
         "description": "sample_factory.train",
         "isExtraImport": true,
@@ -19072,6 +18832,22 @@
         "documentation": {}
     },
     {
+        "label": "train",
+        "importPath": "rl.pufferlib.train",
+        "description": "rl.pufferlib.train",
+        "isExtraImport": true,
+        "detail": "rl.pufferlib.train",
+        "documentation": {}
+    },
+    {
+        "label": "train",
+        "importPath": "rl.pufferlib.train",
+        "description": "rl.pufferlib.train",
+        "isExtraImport": true,
+        "detail": "rl.pufferlib.train",
+        "documentation": {}
+    },
+    {
         "label": "CommError",
         "importPath": "wandb.errors",
         "description": "wandb.errors",
@@ -19112,11 +18888,27 @@
         "documentation": {}
     },
     {
-        "label": "print_policy_stats",
-        "importPath": "util.stats",
-        "description": "util.stats",
+        "label": "make_vecenv",
+        "importPath": "rl.pufferlib.vecenv",
+        "description": "rl.pufferlib.vecenv",
         "isExtraImport": true,
-        "detail": "util.stats",
+        "detail": "rl.pufferlib.vecenv",
+        "documentation": {}
+    },
+    {
+        "label": "make_vecenv",
+        "importPath": "rl.pufferlib.vecenv",
+        "description": "rl.pufferlib.vecenv",
+        "isExtraImport": true,
+        "detail": "rl.pufferlib.vecenv",
+        "documentation": {}
+    },
+    {
+        "label": "make_vecenv",
+        "importPath": "rl.pufferlib.vecenv",
+        "description": "rl.pufferlib.vecenv",
+        "isExtraImport": true,
+        "detail": "rl.pufferlib.vecenv",
         "documentation": {}
     },
     {
@@ -19136,35 +18928,19 @@
         "documentation": {}
     },
     {
-        "label": "MettaAgent",
-        "importPath": "agent.metta_agent",
-        "description": "agent.metta_agent",
+        "label": "PredictingActorCritic",
+        "importPath": "rl.sample_factory.predicting_actor_critic",
+        "description": "rl.sample_factory.predicting_actor_critic",
         "isExtraImport": true,
-        "detail": "agent.metta_agent",
+        "detail": "rl.sample_factory.predicting_actor_critic",
         "documentation": {}
     },
     {
-        "label": "RLFramework",
-        "importPath": "rl.rl_framework",
-        "description": "rl.rl_framework",
+        "label": "run_sweep",
+        "importPath": "rl.carbs.carb_sweep",
+        "description": "rl.carbs.carb_sweep",
         "isExtraImport": true,
-        "detail": "rl.rl_framework",
-        "documentation": {}
-    },
-    {
-        "label": "EvaluationResult",
-        "importPath": "rl.rl_framework",
-        "description": "rl.rl_framework",
-        "isExtraImport": true,
-        "detail": "rl.rl_framework",
-        "documentation": {}
-    },
-    {
-        "label": "RLFramework",
-        "importPath": "rl.rl_framework",
-        "description": "rl.rl_framework",
-        "isExtraImport": true,
-        "detail": "rl.rl_framework",
+        "detail": "rl.carbs.carb_sweep",
         "documentation": {}
     },
     {
@@ -19181,38 +18957,6 @@
         "description": "rl.pufferlib.play",
         "isExtraImport": true,
         "detail": "rl.pufferlib.play",
-        "documentation": {}
-    },
-    {
-        "label": "SampleFactoryAgentWrapper",
-        "importPath": "rl.sample_factory.sample_factory_agent_wrapper",
-        "description": "rl.sample_factory.sample_factory_agent_wrapper",
-        "isExtraImport": true,
-        "detail": "rl.sample_factory.sample_factory_agent_wrapper",
-        "documentation": {}
-    },
-    {
-        "label": "SampleFactoryEnvWrapper",
-        "importPath": "rl.sample_factory.sample_factory_env_wrapper",
-        "description": "rl.sample_factory.sample_factory_env_wrapper",
-        "isExtraImport": true,
-        "detail": "rl.sample_factory.sample_factory_env_wrapper",
-        "documentation": {}
-    },
-    {
-        "label": "PredictingActorCritic",
-        "importPath": "rl.sample_factory.predicting_actor_critic",
-        "description": "rl.sample_factory.predicting_actor_critic",
-        "isExtraImport": true,
-        "detail": "rl.sample_factory.predicting_actor_critic",
-        "documentation": {}
-    },
-    {
-        "label": "run_sweep",
-        "importPath": "rl.carbs.carb_sweep",
-        "description": "rl.carbs.carb_sweep",
-        "isExtraImport": true,
-        "detail": "rl.carbs.carb_sweep",
         "documentation": {}
     },
     {
@@ -34306,7 +34050,7 @@
         "kind": 2,
         "importPath": "rl.pufferlib.evaluate",
         "description": "rl.pufferlib.evaluate",
-        "peekOfCode": "def evaluate(cfg: OmegaConf, vecenv):\n    device = cfg.framework.pufferlib.device\n    num_envs = len(vecenv.envs)\n    policy = load_policy_from_uri(cfg.eval.policy_uri, cfg)\n    baselines = [load_policy_from_uri(b, cfg) for b in cfg.eval.baseline_uris]\n    policy_agent_pct = cfg.eval.policy_agents_pct\n    if len(baselines) == 0:\n        policy_agent_pct = 1.0\n    num_baselines = len(baselines)\n    agents_count = cfg.env.game.num_agents",
+        "peekOfCode": "def evaluate(cfg: OmegaConf):\n    device = cfg.framework.pufferlib.device\n    vecenv = make_vecenv(cfg, num_envs=cfg.eval.num_envs)\n    num_envs = len(vecenv.envs)\n    policy = load_policy_from_uri(cfg.eval.policy_uri, cfg)\n    baselines = [load_policy_from_uri(b, cfg) for b in cfg.eval.baseline_uris]\n    policy_agent_pct = cfg.eval.policy_agents_pct\n    if len(baselines) == 0:\n        policy_agent_pct = 1.0\n    num_baselines = len(baselines)",
         "detail": "rl.pufferlib.evaluate",
         "documentation": {}
     },
@@ -34324,7 +34068,7 @@
         "kind": 2,
         "importPath": "rl.pufferlib.play",
         "description": "rl.pufferlib.play",
-        "peekOfCode": "def play(cfg: OmegaConf, vecenv):\n    device = cfg.framework.pufferlib.device\n    policy = load_policy_from_uri(cfg.eval.policy_uri, cfg)\n    agents_count = cfg.env.game.num_agents\n    obs, _ = vecenv.reset()\n    env = vecenv.envs[0]\n    renderer = MettaGridRaylibRenderer(env._c_env.map_width(), env._c_env.map_height(), cfg.env)\n    policy_rnn_state = None\n    total_rewards = np.zeros(vecenv.num_agents)\n    while True:",
+        "peekOfCode": "def play(cfg: OmegaConf, vecenv):\n    device = cfg.framework.pufferlib.device\n    vecenv = make_vecenv(cfg, num_envs=1, render_mode=\"human\")\n    policy = load_policy_from_uri(cfg.eval.policy_uri, cfg)\n    agents_count = cfg.env.game.num_agents\n    obs, _ = vecenv.reset()\n    env = vecenv.envs[0]\n    renderer = MettaGridRaylibRenderer(env._c_env.map_width(), env._c_env.map_height(), cfg.env)\n    policy_rnn_state = None\n    total_rewards = np.zeros(vecenv.num_agents)",
         "detail": "rl.pufferlib.play",
         "documentation": {}
     },
@@ -34401,21 +34145,12 @@
         "documentation": {}
     },
     {
-        "label": "PufferLibFramework",
-        "kind": 6,
-        "importPath": "rl.pufferlib.pufferlib",
-        "description": "rl.pufferlib.pufferlib",
-        "peekOfCode": "class PufferLibFramework(RLFramework):\n    def __init__(self, cfg: Dict, **puffer_args):\n        cfg = OmegaConf.create(cfg)\n        super().__init__(cfg)\n        self.puffer_cfg = cfg.framework.pufferlib\n        self._train_start = time.time()\n        self.policy = None\n    def train(self, load_checkpoint=True):\n        pcfg = self.puffer_cfg\n        target_batch_size = pcfg.train.forward_pass_minibatch_target_size // self.cfg.env.game.num_agents",
-        "detail": "rl.pufferlib.pufferlib",
-        "documentation": {}
-    },
-    {
-        "label": "make_env_func",
+        "label": "train",
         "kind": 2,
-        "importPath": "rl.pufferlib.pufferlib",
-        "description": "rl.pufferlib.pufferlib",
-        "peekOfCode": "def make_env_func(cfg: OmegaConf, render_mode='rgb_array'):\n    env = hydra.utils.instantiate(cfg, render_mode=render_mode)\n    env.emulated = None\n    env.single_observation_space = env.observation_space\n    env.single_action_space = env.action_space\n    env.num_agents = env.player_count\n    return env\nclass PufferLibFramework(RLFramework):\n    def __init__(self, cfg: Dict, **puffer_args):\n        cfg = OmegaConf.create(cfg)",
-        "detail": "rl.pufferlib.pufferlib",
+        "importPath": "rl.pufferlib.train",
+        "description": "rl.pufferlib.train",
+        "peekOfCode": "def train(cfg: OmegaConf, load_checkpoint: bool = True):\n    train_start = time.time()\n    pcfg = cfg.framework.pufferlib\n    target_batch_size = pcfg.train.forward_pass_minibatch_target_size // cfg.env.game.num_agents\n    if target_batch_size < 2: # pufferlib bug requires batch size >= 2\n        target_batch_size = 2\n    batch_size = (target_batch_size // pcfg.train.num_workers) * pcfg.train.num_workers\n    vecenv = make_vecenv(\n        cfg,\n        num_envs = batch_size * pcfg.train.async_factor,",
+        "detail": "rl.pufferlib.train",
         "documentation": {}
     },
     {
@@ -34428,66 +34163,21 @@
         "documentation": {}
     },
     {
-        "label": "PredictingActorCritic",
-        "kind": 6,
-        "importPath": "rl.sample_factory.predicting_actor_critic",
-        "description": "rl.sample_factory.predicting_actor_critic",
-        "peekOfCode": "class PredictingActorCritic(ActorCriticSharedWeights):\n    def __init__(self, model_factory, obs_space, action_space, cfg: Config):\n        super().__init__(model_factory, obs_space, action_space, cfg)\n        # self._obs_size = np.prod(obs_space[\"obs\"].shape)\n        # self.obs_predictor = nn.Sequential(\n        #     nn.Linear(self.encoder.get_out_size(), 512),\n        #     nn.ReLU(),\n        #     nn.Linear(512, self._obs_size),\n        #     nn.ReLU(),\n        # )",
-        "detail": "rl.sample_factory.predicting_actor_critic",
-        "documentation": {}
-    },
-    {
-        "label": "make_actor_critic_func",
-        "kind": 2,
-        "importPath": "rl.sample_factory.predicting_actor_critic",
-        "description": "rl.sample_factory.predicting_actor_critic",
-        "peekOfCode": "def make_actor_critic_func(cfg, obs_space, action_space):\n    return PredictingActorCritic(\n        global_model_factory(), obs_space, action_space, cfg)",
-        "detail": "rl.sample_factory.predicting_actor_critic",
-        "documentation": {}
-    },
-    {
-        "label": "SampleFactoryFramework",
-        "kind": 6,
-        "importPath": "rl.sample_factory.sample_factory",
-        "description": "rl.sample_factory.sample_factory",
-        "peekOfCode": "class SampleFactoryFramework(RLFramework):\n    def __init__(self, cfg, **sf_args):\n        super().__init__(OmegaConf.create(cfg))\n        self.sf_args = [\n            f\"--{k}={v}\" for k, v in cfg.framework.sample_factory.items()\n        ] + [\n            f\"--{k}={v}\" for k, v in cfg.agent.core.items() if k.startswith(\"rnn_\")\n        ]\n        if cfg.wandb.track:\n            self.sf_args.append(\"--with_wandb=True\")",
-        "detail": "rl.sample_factory.sample_factory",
-        "documentation": {}
-    },
-    {
         "label": "make_env_func",
         "kind": 2,
-        "importPath": "rl.sample_factory.sample_factory",
-        "description": "rl.sample_factory.sample_factory",
-        "peekOfCode": "def make_env_func(full_env_name, sf_cfg, sf_env_config, render_mode):\n    env_cfg = OmegaConf.create(json.loads(sf_cfg.env_cfg))\n    env = hydra.utils.instantiate(env_cfg, render_mode=render_mode)\n    env = SampleFactoryEnvWrapper(env, env_id=0)\n    return env\ndef make_agent_func(sf_cfg, obs_space, action_space):\n    env_cfg = OmegaConf.create(json.loads(sf_cfg.env_cfg))\n    env = hydra.utils.instantiate(env_cfg, render_mode=\"human\")\n    agent_cfg = OmegaConf.create(json.loads(sf_cfg.agent_cfg))\n    agent_cfg.observation_encoders.grid_obs.feature_names = env.grid_features",
-        "detail": "rl.sample_factory.sample_factory",
+        "importPath": "rl.pufferlib.vecenv",
+        "description": "rl.pufferlib.vecenv",
+        "peekOfCode": "def make_env_func(cfg: OmegaConf, render_mode='rgb_array'):\n    env = hydra.utils.instantiate(cfg, render_mode=render_mode)\n    env.emulated = None\n    env.single_observation_space = env.observation_space\n    env.single_action_space = env.action_space\n    env.num_agents = env.player_count\n    return env\ndef make_vecenv(cfg: OmegaConf, num_envs=1, batch_size=None, num_workers=1, render_mode=None, **kwargs):\n    pcfg = cfg.framework.pufferlib\n    vec = pcfg.vectorization",
+        "detail": "rl.pufferlib.vecenv",
         "documentation": {}
     },
     {
-        "label": "make_agent_func",
+        "label": "make_vecenv",
         "kind": 2,
-        "importPath": "rl.sample_factory.sample_factory",
-        "description": "rl.sample_factory.sample_factory",
-        "peekOfCode": "def make_agent_func(sf_cfg, obs_space, action_space):\n    env_cfg = OmegaConf.create(json.loads(sf_cfg.env_cfg))\n    env = hydra.utils.instantiate(env_cfg, render_mode=\"human\")\n    agent_cfg = OmegaConf.create(json.loads(sf_cfg.agent_cfg))\n    agent_cfg.observation_encoders.grid_obs.feature_names = env.grid_features\n    agent_cfg.observation_encoders.global_vars.feature_names = env.global_features\n    agent = hydra.utils.instantiate(agent_cfg, obs_space, action_space, _recursive_=False)\n    return SampleFactoryAgentWrapper(agent)\nclass SampleFactoryFramework(RLFramework):\n    def __init__(self, cfg, **sf_args):",
-        "detail": "rl.sample_factory.sample_factory",
-        "documentation": {}
-    },
-    {
-        "label": "SampleFactoryAgentWrapper",
-        "kind": 6,
-        "importPath": "rl.sample_factory.sample_factory_agent_wrapper",
-        "description": "rl.sample_factory.sample_factory_agent_wrapper",
-        "peekOfCode": "class SampleFactoryAgentWrapper(ActorCritic):\n    def __init__(self, agent: MettaAgent):\n        super().__init__(agent.observation_space, agent.action_space, AttrDict({\n            \"normalize_returns\": True,\n            \"normalize_input\": False,\n            \"obs_subtract_mean\": 0.0,\n            \"obs_scale\": 1.0,\n        }))\n        self.agent = agent\n        self._core = ModelCoreRNN(agent.cfg.core, agent.cfg.fc.output_dim)",
-        "detail": "rl.sample_factory.sample_factory_agent_wrapper",
-        "documentation": {}
-    },
-    {
-        "label": "SampleFactoryEnvWrapper",
-        "kind": 6,
-        "importPath": "rl.sample_factory.sample_factory_env_wrapper",
-        "description": "rl.sample_factory.sample_factory_env_wrapper",
-        "peekOfCode": "class SampleFactoryEnvWrapper(gym.Env, TrainingInfoInterface):\n    def __init__(self, env: gym.Env, env_id: int):\n        TrainingInfoInterface.__init__(self)\n        self.gym_env = env\n        self.num_agents = self.gym_env.unwrapped.player_count\n        self.curr_episode_steps = 0\n        if self.num_agents == 1:\n            self.observation_space = self.gym_env.observation_space\n            action_space = self.gym_env.action_space\n            self.is_multiagent = False",
-        "detail": "rl.sample_factory.sample_factory_env_wrapper",
+        "importPath": "rl.pufferlib.vecenv",
+        "description": "rl.pufferlib.vecenv",
+        "peekOfCode": "def make_vecenv(cfg: OmegaConf, num_envs=1, batch_size=None, num_workers=1, render_mode=None, **kwargs):\n    pcfg = cfg.framework.pufferlib\n    vec = pcfg.vectorization\n    if vec == 'serial' or num_workers == 1:\n        vec = pufferlib.vector.Serial\n    elif vec == 'multiprocessing':\n        vec = pufferlib.vector.Multiprocessing\n    elif vec == 'ray':\n        vec = pufferlib.vector.Ray\n    else:",
+        "detail": "rl.pufferlib.vecenv",
         "documentation": {}
     },
     {
@@ -34576,7 +34266,7 @@
         "kind": 2,
         "importPath": "tools.run",
         "description": "tools.run",
-        "peekOfCode": "def main(cfg):\n    traceback.install(show_locals=False)\n    print(OmegaConf.to_yaml(cfg))\n    framework = hydra.utils.instantiate(cfg.framework, cfg, _recursive_=False)\n    if cfg.wandb.track:\n        init_wandb(cfg)\n    try:\n        if cfg.cmd == \"train\":\n            framework.train()\n        if cfg.cmd == \"evaluate\":",
+        "peekOfCode": "def main(cfg):\n    traceback.install(show_locals=False)\n    print(OmegaConf.to_yaml(cfg))\n    if cfg.wandb.track:\n        init_wandb(cfg)\n    try:\n        if cfg.cmd == \"train\":\n            train(cfg)\n        if cfg.cmd == \"evaluate\":\n            evaluate(cfg)",
         "detail": "tools.run",
         "documentation": {}
     },
