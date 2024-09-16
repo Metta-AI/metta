@@ -1,6 +1,13 @@
 metric: episode/reward.mean
 
 parameters:
+  env:
+    normalize_rewards:
+      space: linear
+      is_int: true
+      min: 0
+      max: 1
+
   framework:
     pufferlib:
       train:
