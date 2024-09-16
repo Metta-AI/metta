@@ -34068,7 +34068,7 @@
         "kind": 2,
         "importPath": "rl.pufferlib.play",
         "description": "rl.pufferlib.play",
-        "peekOfCode": "def play(cfg: OmegaConf, vecenv):\n    device = cfg.framework.pufferlib.device\n    vecenv = make_vecenv(cfg, num_envs=1, render_mode=\"human\")\n    policy = load_policy_from_uri(cfg.eval.policy_uri, cfg)\n    agents_count = cfg.env.game.num_agents\n    obs, _ = vecenv.reset()\n    env = vecenv.envs[0]\n    renderer = MettaGridRaylibRenderer(env._c_env.map_width(), env._c_env.map_height(), cfg.env)\n    policy_rnn_state = None\n    total_rewards = np.zeros(vecenv.num_agents)",
+        "peekOfCode": "def play(cfg: OmegaConf):\n    device = cfg.framework.pufferlib.device\n    vecenv = make_vecenv(cfg, num_envs=1, render_mode=\"human\")\n    policy = load_policy_from_uri(cfg.eval.policy_uri, cfg)\n    agents_count = cfg.env.game.num_agents\n    obs, _ = vecenv.reset()\n    env = vecenv.envs[0]\n    renderer = MettaGridRaylibRenderer(env._c_env.map_width(), env._c_env.map_height(), cfg.env)\n    policy_rnn_state = None\n    total_rewards = np.zeros(vecenv.num_agents)",
         "detail": "rl.pufferlib.play",
         "documentation": {}
     },

@@ -5,7 +5,7 @@ from rl.pufferlib.policy import load_policy_from_uri
 from mettagrid.renderer.raylib_renderer import MettaGridRaylibRenderer
 from rl.pufferlib.vecenv import make_vecenv
 
-def play(cfg: OmegaConf, vecenv):
+def play(cfg: OmegaConf):
     device = cfg.framework.pufferlib.device
     vecenv = make_vecenv(cfg, num_envs=1, render_mode="human")
     policy = load_policy_from_uri(cfg.eval.policy_uri, cfg)
