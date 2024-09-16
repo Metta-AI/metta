@@ -1,3 +1,5 @@
+pip install -r requirements.txt
+
 mkdir deps
 cd deps
 
