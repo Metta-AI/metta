@@ -45,7 +45,7 @@ cdef class Attack(MettaActionHandler):
                 self.env._stats.agent_add(actor_id, "shield_damage", agent_target.energy)
                 agent_target.energy = 0
                 agent_target.shield = False
-                agent_target.frozen = self.env._current_timestep + agent_target.freeze_duration
+                agent_target.frozen = agent_target.freeze_duration
                 self.env._stats.agent_incr(actor_id, "attack.frozen")
                 for item in range(InventoryItem.InventoryCount):
                     actor.update_inventory(item, agent_target.inventory[item])
