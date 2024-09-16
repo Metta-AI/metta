@@ -102,7 +102,7 @@ class AgentRenderer(ObjectRenderer):
 
             # Calculate alpha based on frozen value
             base_alpha = 102  # 40% of 255
-            alpha = int(base_alpha * (frozen / 100))
+            alpha = int(base_alpha * (frozen / self.cfg.freeze_duration))
 
             # Create a semi-transparent gray color
             frozen_color = ray.Color(128, 128, 128, alpha)
@@ -303,6 +303,9 @@ class MettaGridRaylibRenderer:
             if action[0] != Actions.Attack:
                 continue
             agent = agents[agent_id]
+            if agent["agent:energy"] < self.cfg.game.actions.attack.cost:
+                continue
+
             distance = 1 + (action[1] - 1) // 3
             offset = -((action[1] - 1) % 3 - 1)
             target_loc = self._relative_location(
