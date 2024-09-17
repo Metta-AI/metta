@@ -46,7 +46,6 @@ def fmt_perf(name, time, uptime):
     return f'{c1}{name}', duration(time), f'{b2}{percent:2d}%'
 
 
-last_stats = {}
 def print_dashboard(config, utilization, global_step, epoch,
         profile, losses, stats, msg, clear=False, max_stats=[0]):
     console = Console()
@@ -109,12 +108,6 @@ def print_dashboard(config, utilization, global_step, epoch,
     monitor = Table(box=None, expand=True, pad_edge=False)
     monitor.add_row(s, p, l)
     dashboard.add_row(monitor)
-
-    global last_stats
-    if len(stats) == 0:
-        stats = last_stats
-    else:
-        last_stats = stats
 
     table = Table(box=None, expand=True, pad_edge=False)
     dashboard.add_row(table)

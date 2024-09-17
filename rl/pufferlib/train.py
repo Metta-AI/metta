@@ -29,12 +29,9 @@ def train(cfg: OmegaConf, load_checkpoint: bool = True):
 
     print(f"Starting training: {data.global_step}/{pcfg.train.total_timesteps} timesteps")
 
-    last_stats = {}
     while data.global_step < pcfg.train.total_timesteps:
         try:
             clean_pufferl.evaluate(data)
-            if data.stats:
-                last_stats = data.stats
             clean_pufferl.train(data)
         except KeyboardInterrupt:
             clean_pufferl.close(data)
@@ -47,5 +44,5 @@ def train(cfg: OmegaConf, load_checkpoint: bool = True):
     clean_pufferl.evaluate(data)
     train_time = time.time() - train_start
     clean_pufferl.close(data)
-    return last_stats, train_time
+    return data.last_stats, train_time
 

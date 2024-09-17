@@ -33960,7 +33960,7 @@
         "kind": 2,
         "importPath": "rl.pufferlib.dashboard",
         "description": "rl.pufferlib.dashboard",
-        "peekOfCode": "def duration(seconds):\n    seconds = int(seconds)\n    h = seconds // 3600\n    m = (seconds % 3600) // 60\n    s = seconds % 60\n    return f\"{b2}{h}{c2}h {b2}{m}{c2}m {b2}{s}{c2}s\" if h else f\"{b2}{m}{c2}m {b2}{s}{c2}s\" if m else f\"{b2}{s}{c2}s\"\ndef fmt_perf(name, time, uptime):\n    percent = 0 if uptime == 0 else int(100*time/uptime - 1e-5)\n    return f'{c1}{name}', duration(time), f'{b2}{percent:2d}%'\nlast_stats = {}",
+        "peekOfCode": "def duration(seconds):\n    seconds = int(seconds)\n    h = seconds // 3600\n    m = (seconds % 3600) // 60\n    s = seconds % 60\n    return f\"{b2}{h}{c2}h {b2}{m}{c2}m {b2}{s}{c2}s\" if h else f\"{b2}{m}{c2}m {b2}{s}{c2}s\" if m else f\"{b2}{s}{c2}s\"\ndef fmt_perf(name, time, uptime):\n    percent = 0 if uptime == 0 else int(100*time/uptime - 1e-5)\n    return f'{c1}{name}', duration(time), f'{b2}{percent:2d}%'\ndef print_dashboard(config, utilization, global_step, epoch,",
         "detail": "rl.pufferlib.dashboard",
         "documentation": {}
     },
@@ -33969,7 +33969,7 @@
         "kind": 2,
         "importPath": "rl.pufferlib.dashboard",
         "description": "rl.pufferlib.dashboard",
-        "peekOfCode": "def fmt_perf(name, time, uptime):\n    percent = 0 if uptime == 0 else int(100*time/uptime - 1e-5)\n    return f'{c1}{name}', duration(time), f'{b2}{percent:2d}%'\nlast_stats = {}\ndef print_dashboard(config, utilization, global_step, epoch,\n        profile, losses, stats, msg, clear=False, max_stats=[0]):\n    console = Console()\n    if clear:\n        console.clear()\n    env_name = config.env",
+        "peekOfCode": "def fmt_perf(name, time, uptime):\n    percent = 0 if uptime == 0 else int(100*time/uptime - 1e-5)\n    return f'{c1}{name}', duration(time), f'{b2}{percent:2d}%'\ndef print_dashboard(config, utilization, global_step, epoch,\n        profile, losses, stats, msg, clear=False, max_stats=[0]):\n    console = Console()\n    if clear:\n        console.clear()\n    env_name = config.env\n    dashboard = Table(box=ROUND_OPEN, expand=True,",
         "detail": "rl.pufferlib.dashboard",
         "documentation": {}
     },
@@ -34033,15 +34033,6 @@
         "importPath": "rl.pufferlib.dashboard",
         "description": "rl.pufferlib.dashboard",
         "peekOfCode": "b2 = '[bright_white]'\ndef abbreviate(num):\n    if num < 1e3:\n        return f'{b2}{num:.0f}'\n    elif num < 1e6:\n        return f'{b2}{num/1e3:.1f}{c2}k'\n    elif num < 1e9:\n        return f'{b2}{num/1e6:.1f}{c2}m'\n    elif num < 1e12:\n        return f'{b2}{num/1e9:.1f}{c2}b'",
-        "detail": "rl.pufferlib.dashboard",
-        "documentation": {}
-    },
-    {
-        "label": "last_stats",
-        "kind": 5,
-        "importPath": "rl.pufferlib.dashboard",
-        "description": "rl.pufferlib.dashboard",
-        "peekOfCode": "last_stats = {}\ndef print_dashboard(config, utilization, global_step, epoch,\n        profile, losses, stats, msg, clear=False, max_stats=[0]):\n    console = Console()\n    if clear:\n        console.clear()\n    env_name = config.env\n    dashboard = Table(box=ROUND_OPEN, expand=True,\n        show_header=False, border_style='bright_cyan')\n    table = Table(box=None, expand=True, show_header=False)",
         "detail": "rl.pufferlib.dashboard",
         "documentation": {}
     },
