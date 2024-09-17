@@ -105,9 +105,9 @@
                 "cmd=evaluate",
                 "experiment=mac.1",
                 // "env=mettagrid/behaviors/resources/competition/10x10_2a",
-                "eval.policy_uri=wandb://p2.tuned.3_model:latest",
+                "eval.policy_uri=wandb://p2.tuned.4_model:latest",
                 // "eval.policy_uri=train_dir/pufferlib/mac.1",
-                "eval.baseline_uris=[wandb://b.sweep.1_model:v82]",
+                "eval.baseline_uris=[wandb://p2.tuned.4_model:v200]",
             ],
         },
         {
