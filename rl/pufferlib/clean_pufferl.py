@@ -73,6 +73,7 @@ def create(config, vecenv, policy, optimizer=None):
         stats=defaultdict(list),
         last_stats=defaultdict(list),
         msg=msg,
+        last_msg="",
         last_log_time=0,
         utilization=utilization,
     )
@@ -142,8 +143,6 @@ def evaluate(data):
                 data.stats[k].append(v)
             else:
                 data.stats[k] += v
-        if len(data.stats) > 0:
-            data.last_stats = data.stats
 
     # TODO: Better way to enable multiple collects
     data.experience.ptr = 0
@@ -274,9 +273,15 @@ def train(data):
         if profile.update(data):
             mean_and_log(data)
 
+            if len(data.msg):
+                data.last_msg = data.msg
+            if len(data.stats) > 0:
+                data.last_stats = data.stats
+
             if config.dashboard:
                 print_dashboard(config.env, data.utilization, data.global_step, data.epoch,
-                    profile, data.losses, data.last_stats, data.msg)
+                    profile, data.losses, data.last_stats, data.last_msg)
+
             elif data.msg:
                 print(data.global_step, data.msg)
 
