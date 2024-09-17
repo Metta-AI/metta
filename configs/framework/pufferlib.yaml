@@ -43,17 +43,4 @@ pufferlib:
     compile_mode: reduce-overhead
     forward_pass_minibatch_target_size: 4096
     async_factor: 2
-    dashboard:
-      user_stats:
-      - episode_return
-      - episode_length
-      - avg_episode_return
-      - avg_episode_length
-      - avg_stats_agent_defeated
-      - avg_stats_action_attack
-      - avg_stats_altar_used
-      - avg_fruit_eaten
-      - avg_action_rotate
-      - avg_action_move
-      - avg_action_eat
-      - avg_fruit_spawned
+    dashboard: ${dashboard}

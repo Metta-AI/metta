@@ -2,8 +2,6 @@ cmd: ???
 experiment: ???
 data_dir: ./train_dir
 
-dashboard: true
-
 defaults:
   - framework: pufferlib
   - agent: tuned
