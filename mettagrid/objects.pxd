@@ -193,6 +193,9 @@ cdef map[TypeId, GridLayer] ObjectLayers
 cdef class ResetHandler(EventHandler):
     cdef inline void handle_event(self, GridObjectId obj_id, EventArg arg):
         cdef Usable *usable = <Usable*>self.env._grid.object(obj_id)
+        if usable is NULL:
+            return
+
         usable.ready = True
         self.env._stats.game_incr("resets." + ObjectTypeNames[usable._type_id])
 
