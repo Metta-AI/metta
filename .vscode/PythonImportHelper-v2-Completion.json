@@ -34176,7 +34176,7 @@
         "kind": 2,
         "importPath": "rl.wandb.wandb",
         "description": "rl.wandb.wandb",
-        "peekOfCode": "def init_wandb(cfg, resume=True, name=None):\n    #os.environ[\"WANDB_SILENT\"] = \"true\"\n    if wandb.run is not None:\n        print(\"wandb.init() has already been called, ignoring.\")\n    wandb.init(\n        id=cfg.experiment or wandb.util.generate_id(),\n        project=cfg.wandb.project,\n        entity=cfg.wandb.entity,\n        config=OmegaConf.to_container(cfg, resolve=True),\n        group=cfg.wandb.group,",
+        "peekOfCode": "def init_wandb(cfg, resume=True, name=None):\n    #os.environ[\"WANDB_SILENT\"] = \"true\"\n    if wandb.run is not None:\n        print(\"wandb.init() has already been called, ignoring.\")\n        return\n    wandb.init(\n        id=cfg.experiment or wandb.util.generate_id(),\n        project=cfg.wandb.project,\n        entity=cfg.wandb.entity,\n        config=OmegaConf.to_container(cfg, resolve=True),",
         "detail": "rl.wandb.wandb",
         "documentation": {}
     },

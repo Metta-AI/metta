@@ -5,6 +5,7 @@ def init_wandb(cfg, resume=True, name=None):
     #os.environ["WANDB_SILENT"] = "true"
     if wandb.run is not None:
         print("wandb.init() has already been called, ignoring.")
+        return
 
     wandb.init(
         id=cfg.experiment or wandb.util.generate_id(),
