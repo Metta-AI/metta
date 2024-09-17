@@ -273,13 +273,14 @@ def train(data):
             if config.dashboard:
                 print_dashboard(config.env, data.utilization, data.global_step, data.epoch,
                     profile, data.losses, data.stats, data.msg)
-            else:
-                print(data.msg)
+            elif data.msg:
+                print(data.global_step, data.msg)
+            data.msg = ""
             data.stats = defaultdict(list)
 
         if data.epoch % config.checkpoint_interval == 0 or done_training:
-            save_checkpoint(data)
-            data.msg = f'Checkpoint saved at update {data.epoch}'
+            model_path = save_checkpoint(data)
+            data.msg = f'Checkpoint saved {model_path}'
 
 def mean_and_log(data):
     for k in list(data.stats.keys()):
@@ -310,11 +311,6 @@ def close(data):
     data.utilization.stop()
     config = data.config
     if data.wandb is not None:
-        artifact_name = f"{config.exp_id}_model"
-        artifact = data.wandb.Artifact(artifact_name, type="model")
-        model_path = save_checkpoint(data)
-        artifact.add_file(model_path)
-        data.wandb.run.log_artifact(artifact)
         data.wandb.finish()
 
 class Profile:
@@ -547,6 +543,22 @@ def save_checkpoint(data):
     state_path = os.path.join(path, 'trainer_state.pt')
     torch.save(state, state_path + '.tmp')
     os.rename(state_path + '.tmp', state_path)
+
+    if data.wandb is not None:
+        artifact_name = f"{config.exp_id}_model"
+        artifact = data.wandb.Artifact(
+            artifact_name,
+            type="model",
+            metadata={
+                "model_name": model_name,
+                "agent_step": data.global_step,
+                "epoch": data.epoch,
+                "exp_id": config.exp_id,
+            }
+        )
+        artifact.add_file(model_path)
+        data.wandb.run.log_artifact(artifact)
+
     return model_path
 
 def try_load_checkpoint(data):

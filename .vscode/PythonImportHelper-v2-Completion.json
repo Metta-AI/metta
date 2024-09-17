@@ -33798,7 +33798,7 @@
         "kind": 2,
         "importPath": "rl.pufferlib.clean_pufferl",
         "description": "rl.pufferlib.clean_pufferl",
-        "peekOfCode": "def close(data):\n    data.vecenv.close()\n    data.utilization.stop()\n    config = data.config\n    if data.wandb is not None:\n        artifact_name = f\"{config.exp_id}_model\"\n        artifact = data.wandb.Artifact(artifact_name, type=\"model\")\n        model_path = save_checkpoint(data)\n        artifact.add_file(model_path)\n        data.wandb.run.log_artifact(artifact)",
+        "peekOfCode": "def close(data):\n    data.vecenv.close()\n    data.utilization.stop()\n    config = data.config\n    if data.wandb is not None:\n        data.wandb.finish()\nclass Profile:\n    SPS: ... = 0\n    uptime: ... = 0\n    remaining: ... = 0",
         "detail": "rl.pufferlib.clean_pufferl",
         "documentation": {}
     },

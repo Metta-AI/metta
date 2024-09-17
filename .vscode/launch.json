@@ -21,7 +21,7 @@
                 "env.game.max_steps=1000",
                 "env.kinship.team_size=5",
                 "env.kinship.team_reward=0.8",
-                "wandb.track=True",
+                // "wandb.track=True",
                 // "env.substrate_name=running_with_scissors_in_the_matrix__arena",
 
                 // "sample_factory.aux_loss_coeff=0.1",
