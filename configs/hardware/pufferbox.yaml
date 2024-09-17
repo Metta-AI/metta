@@ -16,6 +16,7 @@ framework:
       async_factor: 2
       zero_copy: True
       total_timesteps: 7e9
+      checkpoint_interval: 2000
 
       # from carbs
       batch_size: 65536

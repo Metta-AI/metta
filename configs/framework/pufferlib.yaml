@@ -34,7 +34,7 @@ pufferlib:
     env_batch_size: null
     zero_copy: true
     verbose: true
-    checkpoint_interval: 2000
+    checkpoint_interval: 200
     batch_size: 262144
     minibatch_size: 4096
     bptt_horizon: 16
