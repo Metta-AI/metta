@@ -31,7 +31,8 @@ def create(config, vecenv, policy, optimizer=None):
 
     utilization = Utilization()
     msg = f'Model Size: {abbreviate(count_params(policy))} parameters'
-    print_dashboard(config.env, utilization, 0, 0, profile, losses, {}, msg, clear=True)
+    if config.dashboard:
+        print_dashboard(config.env, utilization, 0, 0, profile, losses, {}, msg, clear=True)
 
     vecenv.async_reset(config.seed)
     obs_shape = vecenv.single_observation_space.shape
@@ -269,8 +270,9 @@ def train(data):
         # TODO: make this appear faster
         if profile.update(data):
             mean_and_log(data)
-            print_dashboard(config.env, data.utilization, data.global_step, data.epoch,
-                profile, data.losses, data.stats, data.msg)
+            if config.dashboard:
+                print_dashboard(config.env, data.utilization, data.global_step, data.epoch,
+                    profile, data.losses, data.stats, data.msg)
             data.stats = defaultdict(list)
 
         if data.epoch % config.checkpoint_interval == 0 or done_training:

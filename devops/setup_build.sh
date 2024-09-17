@@ -29,11 +29,6 @@ python setup.py build_ext --inplace
 pip install -e .
 cd ..
 
-git clone https://github.com/Metta-AI/sample-factory.git
-cd sample-factory
-pip install -e .
-cd ..
-
 #git clone https://github.com/imbue-ai/carbs.git
 git clone https://github.com/kywch/carbs.git
 cd carbs

@@ -33762,7 +33762,7 @@
         "kind": 2,
         "importPath": "rl.pufferlib.clean_pufferl",
         "description": "rl.pufferlib.clean_pufferl",
-        "peekOfCode": "def create(config, vecenv, policy, optimizer=None):\n    seed_everything(config.seed, config.torch_deterministic)\n    profile = Profile()\n    losses = make_losses()\n    utilization = Utilization()\n    msg = f'Model Size: {abbreviate(count_params(policy))} parameters'\n    print_dashboard(config.env, utilization, 0, 0, profile, losses, {}, msg, clear=True)\n    vecenv.async_reset(config.seed)\n    obs_shape = vecenv.single_observation_space.shape\n    obs_dtype = vecenv.single_observation_space.dtype",
+        "peekOfCode": "def create(config, vecenv, policy, optimizer=None):\n    seed_everything(config.seed, config.torch_deterministic)\n    profile = Profile()\n    losses = make_losses()\n    utilization = Utilization()\n    msg = f'Model Size: {abbreviate(count_params(policy))} parameters'\n    if config.dashboard:\n        print_dashboard(config.env, utilization, 0, 0, profile, losses, {}, msg, clear=True)\n    vecenv.async_reset(config.seed)\n    obs_shape = vecenv.single_observation_space.shape",
         "detail": "rl.pufferlib.clean_pufferl",
         "documentation": {}
     },
