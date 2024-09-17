@@ -73,7 +73,7 @@ parameters:
         total_timesteps:
           space: linear
           search_center: 1e9
-          min: 1e9
+          min: 1e8
           max: 1e13
           is_int: true
         # compile:
