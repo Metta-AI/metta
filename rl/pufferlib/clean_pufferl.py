@@ -273,6 +273,8 @@ def train(data):
             if config.dashboard:
                 print_dashboard(config.env, data.utilization, data.global_step, data.epoch,
                     profile, data.losses, data.stats, data.msg)
+            else:
+                print(data.msg)
             data.stats = defaultdict(list)
 
         if data.epoch % config.checkpoint_interval == 0 or done_training:
