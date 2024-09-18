@@ -12,6 +12,8 @@ from omegaconf import OmegaConf
 from raylib import colors, rl
 from types import SimpleNamespace
 
+from mettagrid.mettagrid_env import MettaGridEnv
+
 
 Actions = SimpleNamespace(
     Noop = 0,
@@ -154,15 +156,23 @@ class AltarRenderer(ObjectRenderer):
 
 
 class MettaGridRaylibRenderer:
-    def __init__(self, map_width: int, map_height: int, cfg: OmegaConf):
-        self.width = map_width
-        self.height = map_height
+    def __init__(self, env: MettaGridEnv, cfg: OmegaConf):
+        self.env = env
+        self.grid_width = env.map_width()
+        self.grid_height = env.map_height()
+
+        self.window_width = 1280
+        self.window_height = 720
+
         self.sidebar_width = 250
-        self.tile_size = cfg.game.tile_size
+        self.tile_size = 24
+        self._update_layout()
+
         self.cfg = cfg
 
-        rl.InitWindow(self.width*self.tile_size + self.sidebar_width, self.height*self.tile_size,
-            "PufferLib Ray Grid".encode())
+        # Initialize window with default size
+        rl.InitWindow(self.window_width, self.window_height, "MettaGrid".encode())
+        rl.SetWindowState(rl.FLAG_WINDOW_RESIZABLE)  # Make the window resizable
 
         # Load custom font
         font_path = os.path.join("deps", "mettagrid", "mettagrid", "renderer", "assets", "arial.ttf")
@@ -191,7 +201,13 @@ class MettaGridRaylibRenderer:
         self.hover_object_id = None
         self.mind_control = False
         self.paused = False
+        self.obs_idx = -1
 
+    def _update_layout(self):
+        sidebar_width = 250
+        self.tile_size = min((self.window_width - sidebar_width) // self.grid_width,
+                             self.window_height // self.grid_height)
+        self.sidebar_width = self.window_width - self.grid_width * self.tile_size
 
     def _cdata_to_numpy(self):
         image = rl.LoadImageFromScreen()
@@ -199,8 +215,14 @@ class MettaGridRaylibRenderer:
         cdata = self.ffi.buffer(image.data, width*height*channels)
         return np.frombuffer(cdata, dtype=np.uint8).reshape((height, width, channels))[:, :, :3]
 
-    def render(self, current_timestep: int, game_objects, actions):
+    def render(self, current_timestep: int, game_objects, actions, observations):
         while True:
+            # Update window size if it has changed
+            if rl.IsWindowResized():
+                self.window_width = rl.GetScreenWidth()
+                self.window_height = rl.GetScreenHeight()
+                self._update_layout()
+
             rl.BeginDrawing()
             rl.BeginMode2D(self.camera)
             rl.ClearBackground([6, 24, 24, 255])
@@ -208,11 +230,12 @@ class MettaGridRaylibRenderer:
             agents = [None for _ in range(self.cfg.game.num_agents)]
             for obj_id, obj in game_objects.items():
                 obj["id"] = obj_id
+                if "agent_id" in obj:
+                    agents[obj["agent_id"]] = obj
                 self.sprite_renderers[obj["type"]].render(obj, self.tile_size)
                 if obj_id == self.selected_object_id:
                     self.draw_selection(obj)
-                if "agent_id" in obj:
-                    agents[obj["agent_id"]] = obj
+
             self.handle_mouse_input(game_objects)
             self.draw_mouse()
 
@@ -227,7 +250,8 @@ class MettaGridRaylibRenderer:
             self.draw_attacks(game_objects, actions, agents)
 
             rl.EndMode2D()
-            self.render_sidebar(current_timestep, game_objects)
+            self.render_sidebar(current_timestep, game_objects, observations)
+
             rl.EndDrawing()
 
             if not self.paused or action is not None:
@@ -253,10 +277,10 @@ class MettaGridRaylibRenderer:
             if self.selected_object_id is not None and "agent_id" in game_objects[self.selected_object_id]:
                 self.selected_agent_idx = game_objects[self.selected_object_id]["agent_id"]
 
-    def render_sidebar(self, current_timestep, game_objects):
+    def render_sidebar(self, current_timestep, game_objects, observations):
         font_size = 14
-        sidebar_x = int(self.width * self.tile_size)
-        sidebar_height = int(self.height * self.tile_size)
+        sidebar_x = rl.GetScreenWidth() - self.sidebar_width
+        sidebar_height = rl.GetScreenHeight()
         rl.DrawRectangle(sidebar_x, 0, self.sidebar_width, sidebar_height, colors.DARKGRAY)
 
         y = 10
@@ -288,10 +312,27 @@ class MettaGridRaylibRenderer:
         draw_object_info("Selected" + mc, self.selected_object_id, colors.YELLOW)
         draw_object_info("Hover", self.hover_object_id, colors.GREEN)
 
+        if self.selected_agent_idx is not None and self.obs_idx > -1:
+            self.obs_idx = min(self.obs_idx, len(observations[self.selected_agent_idx]) - 1)
+            obs = observations[self.selected_agent_idx][self.obs_idx]
+            # obs is a 11x11 grid of ints
+            # draw a 11x11 grid of text on the sidebar
+            for r in range(obs.shape[0]):
+                for c in range(obs.shape[1]):
+                    rl.DrawTextEx(self.font, f"{obs[r][c]}".encode(),
+                                  (sidebar_x + 10 + c * font_size, y + r * font_size), font_size +2, 1, colors.WHITE)
+
         # Display current timestep at the bottom of the sidebar
         timestep_text = f"Timestep: {current_timestep}"
         rl.DrawTextEx(self.font, timestep_text.encode(),
                       (sidebar_x + 10, sidebar_height - 30), font_size, 1, colors.WHITE)
+        feature_name = "disabled"
+        if self.obs_idx > -1:
+            feature_name = self.env.grid_features()[self.obs_idx]
+        obs_txt = f"Obs: {feature_name} (-/=)"
+        rl.DrawTextEx(self.font, obs_txt.encode(),
+                      (sidebar_x + 10, sidebar_height - 60), font_size, 1, colors.WHITE)
+
 
     def draw_selection(self, obj):
         x, y = obj["c"] * self.tile_size, obj["r"] * self.tile_size
@@ -361,6 +402,11 @@ class MettaGridRaylibRenderer:
 
         if rl.IsKeyDown(rl.KEY_GRAVE) and self.selected_object_id is not None:
             self.mind_control = not self.mind_control
+
+        if rl.IsKeyDown(rl.KEY_MINUS):
+            self.obs_idx -= 1
+        if rl.IsKeyDown(rl.KEY_EQUAL):
+            self.obs_idx += 1
 
         if rl.IsKeyDown(rl.KEY_SPACE):
             self.paused = not self.paused

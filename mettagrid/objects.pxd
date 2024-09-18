@@ -61,10 +61,10 @@ cdef vector[string] InventoryItemNames # defined in objects.pyx
 
 
 cdef cppclass Agent(MettaObject):
-    unsigned int frozen
-    unsigned int freeze_duration
+    unsigned char frozen
+    unsigned char freeze_duration
     unsigned char energy
-    unsigned int orientation
+    unsigned char orientation
     unsigned char shield
     unsigned char shield_upkeep
     vector[unsigned char] inventory
@@ -76,8 +76,9 @@ cdef cppclass Agent(MettaObject):
         MettaObject.init_mo(cfg)
         this.frozen = 0
         this.freeze_duration = cfg[b"freeze_duration"]
-        this.energy = cfg[b"initial_energy"]
         this.max_energy = cfg[b"max_energy"]
+        this.energy = 0
+        this.update_energy(cfg[b"initial_energy"])
         this.shield_upkeep = cfg[b"upkeep.shield"]
         this.orientation = 0
         this.inventory.resize(InventoryItem.InventoryCount)
@@ -87,6 +88,15 @@ cdef cppclass Agent(MettaObject):
         this.inventory[<InventoryItem>item] += amount
         if this.inventory[<InventoryItem>item] > this.max_items:
             this.inventory[<InventoryItem>item] = this.max_items
+
+    inline unsigned char update_energy(short amount):
+        if amount < 0:
+            amount = max(-this.energy, amount)
+        else:
+            amount = min(this.max_energy - this.energy, amount)
+
+        this.energy += amount
+        return amount
 
     inline void obs(ObsType[:] obs):
         obs[0] = 1

@@ -95,24 +95,6 @@ class MettaGridEnv(pufferlib.PufferEnv):
 
     def _compute_max_energy(self):
         pass
-        # num_generators = self._griddly_yaml["Environment"]["Levels"][0].count("g")
-        # num_converters = self._griddly_yaml["Environment"]["Levels"][0].count("c")
-        # max_resources = num_generators * min(
-        #     self._game_builder.object_configs.generator.initial_resources,
-        #     self._max_steps / self._game_builder.object_configs.generator.cooldown)
-
-        # max_conversions = num_converters * (
-        #     self._max_steps / self._game_builder.object_configs.converter.cooldown
-        # )
-        # max_conv_energy = min(max_resources, max_conversions) * \
-        #     np.mean(list(self._game_builder.object_configs.converter.energy_output.values()))
-
-        # initial_energy = self._game_builder.object_configs.agent.initial_energy * self._game_builder.num_agents
-
-        # self._max_level_energy = max_conv_energy + initial_energy
-        # self._max_level_energy_per_agent = self._max_level_energy / self._game_builder.num_agents
-
-        # self._max_level_reward_per_agent = self._max_level_energy_per_agent
 
 
     @property
