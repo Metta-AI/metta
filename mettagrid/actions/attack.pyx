@@ -36,14 +36,13 @@ cdef class Attack(MettaActionHandler):
 
         target_loc.layer = GridLayer.Agent_Layer
         cdef Agent * agent_target = <Agent *>self.env._grid.object_at(target_loc)
+        cdef unsigned int shield_damage = 0
         if agent_target:
             self.env._stats.agent_incr(actor_id, self._stats.target[agent_target._type_id].c_str())
-            if agent_target.shield and agent_target.energy >= self.damage:
-                    agent_target.energy -= self.damage
-                    self.env._stats.agent_add(actor_id, "shield_damage", self.damage)
-            else:
-                self.env._stats.agent_add(actor_id, "shield_damage", agent_target.energy)
-                agent_target.energy = 0
+            if agent_target.shield:
+                shield_damage = agent_target.update_energy(-agent_target.energy)
+                self.env._stats.agent_add(actor_id, "shield_damage", shield_damage)
+            if shield_damage < self.damage:
                 agent_target.shield = False
                 agent_target.frozen = agent_target.freeze_duration
                 self.env._stats.agent_incr(actor_id, "attack.frozen")

@@ -35,7 +35,7 @@ cdef class Use(MettaActionHandler):
             return False
 
         cdef Usable *usable = <Usable*> target
-        actor.energy -= usable.use_cost
+        actor.update_energy(-usable.use_cost)
 
         usable.ready = 0
         self.env._event_manager.schedule_event(Events.Reset, usable.cooldown, usable.id, 0)
@@ -64,8 +64,7 @@ cdef class Use(MettaActionHandler):
             actor.update_inventory(converter.output_resource, 1)
             self.env._stats.agent_incr(actor_id, InventoryItemNames[converter.output_resource] + ".gained")
 
-            energy_gain = min(actor.max_energy - actor.energy, converter.output_energy)
-            actor.energy += energy_gain
+            energy_gain = actor.update_energy(converter.output_energy)
             self.env._stats.agent_add(actor_id, "energy.gained", energy_gain)
 
         return True
