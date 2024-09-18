@@ -5838,6 +5838,14 @@
         "documentation": {}
     },
     {
+        "label": "MettaGridEnv",
+        "importPath": "mettagrid.mettagrid_env",
+        "description": "mettagrid.mettagrid_env",
+        "isExtraImport": true,
+        "detail": "mettagrid.mettagrid_env",
+        "documentation": {}
+    },
+    {
         "label": "pufferlib",
         "kind": 6,
         "isExtraImport": true,
@@ -19857,7 +19865,7 @@
         "kind": 6,
         "importPath": "deps.mettagrid.mettagrid.renderer.raylib_renderer",
         "description": "deps.mettagrid.mettagrid.renderer.raylib_renderer",
-        "peekOfCode": "class AltarRenderer(ObjectRenderer):\n    def __init__(self):\n        super().__init__(\"items.png\", 16)\n    def _sprite_sheet_idx(self, obj):\n        if obj[\"altar:ready\"]:\n            return (11, 2)\n        else:\n            return (12, 2)\nclass MettaGridRaylibRenderer:\n    def __init__(self, map_width: int, map_height: int, cfg: OmegaConf):",
+        "peekOfCode": "class AltarRenderer(ObjectRenderer):\n    def __init__(self):\n        super().__init__(\"items.png\", 16)\n    def _sprite_sheet_idx(self, obj):\n        if obj[\"altar:ready\"]:\n            return (11, 2)\n        else:\n            return (12, 2)\nclass MettaGridRaylibRenderer:\n    def __init__(self, env: MettaGridEnv, cfg: OmegaConf):",
         "detail": "deps.mettagrid.mettagrid.renderer.raylib_renderer",
         "documentation": {}
     },
@@ -19866,7 +19874,7 @@
         "kind": 6,
         "importPath": "deps.mettagrid.mettagrid.renderer.raylib_renderer",
         "description": "deps.mettagrid.mettagrid.renderer.raylib_renderer",
-        "peekOfCode": "class MettaGridRaylibRenderer:\n    def __init__(self, map_width: int, map_height: int, cfg: OmegaConf):\n        self.width = map_width\n        self.height = map_height\n        self.sidebar_width = 250\n        self.tile_size = cfg.game.tile_size\n        self.cfg = cfg\n        rl.InitWindow(self.width*self.tile_size + self.sidebar_width, self.height*self.tile_size,\n            \"PufferLib Ray Grid\".encode())\n        # Load custom font",
+        "peekOfCode": "class MettaGridRaylibRenderer:\n    def __init__(self, env: MettaGridEnv, cfg: OmegaConf):\n        self.env = env\n        self.grid_width = env.map_width()\n        self.grid_height = env.map_height()\n        self.window_width = 1280\n        self.window_height = 720\n        self.sidebar_width = 250\n        self.tile_size = 24\n        self._update_layout()",
         "detail": "deps.mettagrid.mettagrid.renderer.raylib_renderer",
         "documentation": {}
     },
@@ -34059,7 +34067,7 @@
         "kind": 2,
         "importPath": "rl.pufferlib.play",
         "description": "rl.pufferlib.play",
-        "peekOfCode": "def play(cfg: OmegaConf):\n    device = cfg.framework.pufferlib.device\n    vecenv = make_vecenv(cfg, num_envs=1, render_mode=\"human\")\n    policy = load_policy_from_uri(cfg.eval.policy_uri, cfg)\n    agents_count = cfg.env.game.num_agents\n    obs, _ = vecenv.reset()\n    env = vecenv.envs[0]\n    renderer = MettaGridRaylibRenderer(env._c_env.map_width(), env._c_env.map_height(), cfg.env)\n    policy_rnn_state = None\n    total_rewards = np.zeros(vecenv.num_agents)",
+        "peekOfCode": "def play(cfg: OmegaConf):\n    device = cfg.framework.pufferlib.device\n    vecenv = make_vecenv(cfg, num_envs=1, render_mode=\"human\")\n    policy = load_policy_from_uri(cfg.eval.policy_uri, cfg)\n    agents_count = cfg.env.game.num_agents\n    obs, _ = vecenv.reset()\n    env = vecenv.envs[0]\n    renderer = MettaGridRaylibRenderer(env._c_env, cfg.env)\n    policy_rnn_state = None\n    total_rewards = np.zeros(vecenv.num_agents)",
         "detail": "rl.pufferlib.play",
         "documentation": {}
     },
