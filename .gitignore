@@ -15,4 +15,4 @@ cython_debug
 stats.profile
 deps
 /checkpoints/
-# .vscode/PythonImportHelper-v2-Completion.json
+.vscode/PythonImportHelper-v2-Completion.json
