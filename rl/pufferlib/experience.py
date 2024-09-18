@@ -7,20 +7,19 @@ import pufferlib
 import pufferlib.utils
 import pufferlib.pytorch
 
-
 class Experience:
     '''Flat tensor storage and array views for faster indexing'''
-    def __init__(self, batch_size, bptt_horizon, minibatch_size, obs_shape, obs_dtype, atn_shape,
+    def __init__(self, batch_size, bptt_horizon, minibatch_size, obs_shape, obs_dtype, atn_shape, atn_dtype,
                  cpu_offload=False, device='cuda', lstm=None, lstm_total_agents=0):
         if minibatch_size is None:
             minibatch_size = batch_size
 
         obs_dtype = pufferlib.pytorch.numpy_to_torch_dtype_dict[obs_dtype]
+        atn_dtype = pufferlib.pytorch.numpy_to_torch_dtype_dict[atn_dtype]
         pin = device == 'cuda' and cpu_offload
-        obs_device = device if not pin else 'cpu'
         self.obs=torch.zeros(batch_size, *obs_shape, dtype=obs_dtype,
             pin_memory=pin, device=device if not pin else 'cpu')
-        self.actions=torch.zeros(batch_size, *atn_shape, dtype=int, pin_memory=pin)
+        self.actions=torch.zeros(batch_size, *atn_shape, dtype=atn_dtype, pin_memory=pin)
         self.logprobs=torch.zeros(batch_size, pin_memory=pin)
         self.rewards=torch.zeros(batch_size, pin_memory=pin)
         self.dones=torch.zeros(batch_size, pin_memory=pin)
@@ -45,12 +44,12 @@ class Experience:
         num_minibatches = batch_size / minibatch_size
         self.num_minibatches = int(num_minibatches)
         if self.num_minibatches != num_minibatches:
-            raise ValueError('batch_size must be divisible by minibatch_size')
+            raise ValueError(f'batch_size {batch_size} must be divisible by minibatch_size {minibatch_size}')
 
         minibatch_rows = minibatch_size / bptt_horizon
         self.minibatch_rows = int(minibatch_rows)
         if self.minibatch_rows != minibatch_rows:
-            raise ValueError('minibatch_size must be divisible by bptt_horizon')
+            raise ValueError(f'minibatch_size {minibatch_size} must be divisible by bptt_horizon {bptt_horizon}')
 
         self.batch_size = batch_size
         self.bptt_horizon = bptt_horizon
@@ -90,14 +89,12 @@ class Experience:
         self.b_idxs_flat = self.b_idxs.reshape(
             self.num_minibatches, self.minibatch_size)
         self.sort_keys = []
-        self.ptr = 0
-        self.step = 0
         return idxs
 
     def flatten_batch(self, advantages_np):
-        advantages = torch.from_numpy(advantages_np).to(self.device)
+        advantages = torch.as_tensor(advantages_np).to(self.device)
         b_idxs, b_flat = self.b_idxs, self.b_idxs_flat
-        self.b_actions = self.actions.to(self.device, non_blocking=True)
+        self.b_actions = self.actions.to(self.device, non_blocking=True, dtype=torch.long)
         self.b_logprobs = self.logprobs.to(self.device, non_blocking=True)
         self.b_dones = self.dones.to(self.device, non_blocking=True)
         self.b_values = self.values.to(self.device, non_blocking=True)

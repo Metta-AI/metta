@@ -86,7 +86,8 @@ def run_carb_sweep_rollout():
     train_time = 0
     is_failure = False
     try:
-        stats, train_time = train(new_cfg, load_checkpoint=False)
+        trainer = PufferTrainer(new_cfg)
+        stats, train_time = trainer.train()
         observed_value = stats[_cfg.sweep.metric]
     except Exception:
         is_failure = True

@@ -1,5 +1,3 @@
-
-
 import numpy as np
 import rich
 from rich.console import Console
@@ -45,14 +43,12 @@ def fmt_perf(name, time, uptime):
     percent = 0 if uptime == 0 else int(100*time/uptime - 1e-5)
     return f'{c1}{name}', duration(time), f'{b2}{percent:2d}%'
 
-
-def print_dashboard(config, utilization, global_step, epoch,
+# TODO: Add env name to print_dashboard
+def print_dashboard(env_name, utilization, global_step, epoch,
         profile, losses, stats, msg, clear=False, max_stats=[0]):
     console = Console()
     if clear:
         console.clear()
-
-    env_name = config.env
 
     dashboard = Table(box=ROUND_OPEN, expand=True,
         show_header=False, border_style='bright_cyan')
@@ -123,9 +119,6 @@ def print_dashboard(config, utilization, global_step, epoch,
         try: # Discard non-numeric values
             int(value)
         except:
-            continue
-
-        if metric not in config.dashboard.user_stats:
             continue
 
         u = left if i % 2 == 0 else right

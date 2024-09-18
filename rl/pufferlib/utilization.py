@@ -29,9 +29,8 @@ class Utilization(Thread):
                 free, total = torch.cuda.mem_get_info()
                 self.gpu_mem.append(free / total)
             else:
-                self.gpu_util.append(1)
-                self.gpu_mem.append(1)
-
+                self.gpu_util.append(0)
+                self.gpu_mem.append(0)
             time.sleep(self.delay)
 
     def stop(self):

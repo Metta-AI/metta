@@ -8,6 +8,11 @@ from rl.carbs.carb_sweep import run_sweep
 from rl.pufferlib.train import train
 from rl.pufferlib.evaluate import evaluate
 from rl.pufferlib.play import play
+from rich.console import Console
+from rl.pufferlib.train import PufferTrainer
+import random
+import numpy as np
+import torch
 
 signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
 
@@ -15,13 +20,16 @@ signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
 def main(cfg):
     traceback.install(show_locals=False)
     print(OmegaConf.to_yaml(cfg))
+    seed_everything(cfg.seed, cfg.torch_deterministic)
 
     if cfg.wandb.track:
         init_wandb(cfg)
 
     try:
         if cfg.cmd == "train":
-            train(cfg)
+            trainer = PufferTrainer(cfg)
+            trainer.load_checkpoint()
+            trainer.train()
 
         if cfg.cmd == "evaluate":
             evaluate(cfg)
@@ -34,6 +42,16 @@ def main(cfg):
 
     except KeyboardInterrupt:
         os._exit(0)
+    except Exception:
+        Console().print_exception()
+        os._exit(0)
+
+def seed_everything(seed, torch_deterministic):
+    random.seed(seed)
+    np.random.seed(seed)
+    if seed is not None:
+        torch.manual_seed(seed)
+    torch.backends.cudnn.deterministic = torch_deterministic
 
 if __name__ == "__main__":
     main()

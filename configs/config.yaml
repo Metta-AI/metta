@@ -4,6 +4,9 @@ data_dir: ./train_dir
 
 dashboard: true
 
+seed: 1
+torch_deterministic: true
+
 defaults:
   - framework: pufferlib
   - agent: tuned

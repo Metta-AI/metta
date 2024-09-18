@@ -3182,14 +3182,6 @@
         "documentation": {}
     },
     {
-        "label": "OmegaConf",
-        "importPath": "omegaconf",
-        "description": "omegaconf",
-        "isExtraImport": true,
-        "detail": "omegaconf",
-        "documentation": {}
-    },
-    {
         "label": "DictConfig",
         "importPath": "omegaconf",
         "description": "omegaconf",
@@ -4357,14 +4349,6 @@
         "documentation": {}
     },
     {
-        "label": "Thread",
-        "importPath": "threading",
-        "description": "threading",
-        "isExtraImport": true,
-        "detail": "threading",
-        "documentation": {}
-    },
-    {
         "label": "traceback",
         "kind": 6,
         "isExtraImport": true,
@@ -4569,14 +4553,6 @@
     },
     {
         "label": "defaultdict",
-        "importPath": "collections",
-        "description": "collections",
-        "isExtraImport": true,
-        "detail": "collections",
-        "documentation": {}
-    },
-    {
-        "label": "deque",
         "importPath": "collections",
         "description": "collections",
         "isExtraImport": true,
@@ -9312,14 +9288,6 @@
         "documentation": {}
     },
     {
-        "label": "Console",
-        "importPath": "rich.console",
-        "description": "rich.console",
-        "isExtraImport": true,
-        "detail": "rich.console",
-        "documentation": {}
-    },
-    {
         "label": "Layout",
         "importPath": "rich.layout",
         "description": "rich.layout",
@@ -9333,14 +9301,6 @@
         "description": "rich.live",
         "isExtraImport": true,
         "detail": "rich.live",
-        "documentation": {}
-    },
-    {
-        "label": "Table",
-        "importPath": "rich.table",
-        "description": "rich.table",
-        "isExtraImport": true,
-        "detail": "rich.table",
         "documentation": {}
     },
     {
@@ -18848,19 +18808,19 @@
         "documentation": {}
     },
     {
+        "label": "PufferTrainer",
+        "importPath": "rl.pufferlib.train",
+        "description": "rl.pufferlib.train",
+        "isExtraImport": true,
+        "detail": "rl.pufferlib.train",
+        "documentation": {}
+    },
+    {
         "label": "CommError",
         "importPath": "wandb.errors",
         "description": "wandb.errors",
         "isExtraImport": true,
         "detail": "wandb.errors",
-        "documentation": {}
-    },
-    {
-        "label": "fast_gae",
-        "importPath": "fast_gae",
-        "description": "fast_gae",
-        "isExtraImport": true,
-        "detail": "fast_gae",
         "documentation": {}
     },
     {
@@ -18925,6 +18885,38 @@
         "description": "agent.metta_agent",
         "isExtraImport": true,
         "detail": "agent.metta_agent",
+        "documentation": {}
+    },
+    {
+        "label": "print_dashboard",
+        "importPath": "rl.pufferlib.dashboard",
+        "description": "rl.pufferlib.dashboard",
+        "isExtraImport": true,
+        "detail": "rl.pufferlib.dashboard",
+        "documentation": {}
+    },
+    {
+        "label": "Profile",
+        "importPath": "rl.pufferlib.profile",
+        "description": "rl.pufferlib.profile",
+        "isExtraImport": true,
+        "detail": "rl.pufferlib.profile",
+        "documentation": {}
+    },
+    {
+        "label": "Utilization",
+        "importPath": "rl.pufferlib.utilization",
+        "description": "rl.pufferlib.utilization",
+        "isExtraImport": true,
+        "detail": "rl.pufferlib.utilization",
+        "documentation": {}
+    },
+    {
+        "label": "fast_gae",
+        "importPath": "fast_gae",
+        "description": "fast_gae",
+        "isExtraImport": true,
+        "detail": "fast_gae",
         "documentation": {}
     },
     {
@@ -33726,259 +33718,43 @@
         "kind": 2,
         "importPath": "rl.pufferlib.checkpoint",
         "description": "rl.pufferlib.checkpoint",
-        "peekOfCode": "def try_load_checkpoint(data):\n    config = data.config\n    path = os.path.join(config.data_dir, config.exp_id)\n    if not os.path.exists(path):\n        print('No checkpoints found. Assuming new experiment')\n        return\n    trainer_path = os.path.join(path, 'trainer_state.pt')\n    resume_state = torch.load(trainer_path)\n    model_path = os.path.join(path, resume_state['model_name'])\n    data.policy.uncompiled.load_state_dict(model_path, map_location=config.device)",
+        "peekOfCode": "def try_load_checkpoint(data):\n    config = data.config\n    path = os.path.join(config.data_dir, config.exp_id)\n    if not os.path.exists(path):\n        print('No checkpoints found. Assuming new experiment')\n        return\n    trainer_path = os.path.join(path, 'trainer_state.pt')\n    resume_state = torch.load(trainer_path)\n    model_path = os.path.join(path, resume_state['model_name'])\n    data.global_step = resume_state['global_step']",
         "detail": "rl.pufferlib.checkpoint",
         "documentation": {}
     },
     {
-        "label": "Profile",
-        "kind": 6,
-        "importPath": "rl.pufferlib.clean_pufferl",
-        "description": "rl.pufferlib.clean_pufferl",
-        "peekOfCode": "class Profile:\n    SPS: ... = 0\n    uptime: ... = 0\n    remaining: ... = 0\n    eval_time: ... = 0\n    env_time: ... = 0\n    eval_forward_time: ... = 0\n    eval_misc_time: ... = 0\n    train_time: ... = 0\n    train_forward_time: ... = 0",
-        "detail": "rl.pufferlib.clean_pufferl",
-        "documentation": {}
-    },
-    {
-        "label": "Experience",
-        "kind": 6,
-        "importPath": "rl.pufferlib.clean_pufferl",
-        "description": "rl.pufferlib.clean_pufferl",
-        "peekOfCode": "class Experience:\n    '''Flat tensor storage and array views for faster indexing'''\n    def __init__(self, batch_size, bptt_horizon, minibatch_size, obs_shape, obs_dtype, atn_shape, atn_dtype,\n                 cpu_offload=False, device='cuda', lstm=None, lstm_total_agents=0):\n        if minibatch_size is None:\n            minibatch_size = batch_size\n        obs_dtype = pufferlib.pytorch.numpy_to_torch_dtype_dict[obs_dtype]\n        atn_dtype = pufferlib.pytorch.numpy_to_torch_dtype_dict[atn_dtype]\n        pin = device == 'cuda' and cpu_offload\n        obs_device = device if not pin else 'cpu'",
-        "detail": "rl.pufferlib.clean_pufferl",
-        "documentation": {}
-    },
-    {
-        "label": "Utilization",
-        "kind": 6,
-        "importPath": "rl.pufferlib.clean_pufferl",
-        "description": "rl.pufferlib.clean_pufferl",
-        "peekOfCode": "class Utilization(Thread):\n    def __init__(self, delay=1, maxlen=20):\n        super().__init__()\n        self.cpu_mem = deque(maxlen=maxlen)\n        self.cpu_util = deque(maxlen=maxlen)\n        self.gpu_util = deque(maxlen=maxlen)\n        self.gpu_mem = deque(maxlen=maxlen)\n        self.delay = delay\n        self.stopped = False\n        self.start()",
-        "detail": "rl.pufferlib.clean_pufferl",
-        "documentation": {}
-    },
-    {
-        "label": "create",
-        "kind": 2,
-        "importPath": "rl.pufferlib.clean_pufferl",
-        "description": "rl.pufferlib.clean_pufferl",
-        "peekOfCode": "def create(config, vecenv, policy, optimizer=None):\n    seed_everything(config.seed, config.torch_deterministic)\n    profile = Profile()\n    losses = make_losses()\n    utilization = Utilization()\n    msg = f'Model Size: {abbreviate(count_params(policy))} parameters'\n    if config.dashboard:\n        print_dashboard(config.env, utilization, 0, 0, profile, losses, {}, msg, clear=True)\n    vecenv.async_reset(config.seed)\n    obs_shape = vecenv.single_observation_space.shape",
-        "detail": "rl.pufferlib.clean_pufferl",
-        "documentation": {}
-    },
-    {
-        "label": "evaluate",
-        "kind": 2,
-        "importPath": "rl.pufferlib.clean_pufferl",
-        "description": "rl.pufferlib.clean_pufferl",
-        "peekOfCode": "def evaluate(data):\n    config, profile, experience = data.config, data.profile, data.experience\n    with profile.eval_misc:\n        policy = data.policy\n        infos = defaultdict(list)\n        lstm_h, lstm_c = experience.lstm_h, experience.lstm_c\n    while not experience.full:\n        with profile.env:\n            o, r, d, t, info, env_id, mask = data.vecenv.recv()\n            env_id = env_id.tolist()",
-        "detail": "rl.pufferlib.clean_pufferl",
-        "documentation": {}
-    },
-    {
-        "label": "train",
-        "kind": 2,
-        "importPath": "rl.pufferlib.clean_pufferl",
-        "description": "rl.pufferlib.clean_pufferl",
-        "peekOfCode": "def train(data):\n    config, profile, experience = data.config, data.profile, data.experience\n    data.losses = make_losses()\n    losses = data.losses\n    with profile.train_misc:\n        idxs = experience.sort_training_data()\n        dones_np = experience.dones_np[idxs]\n        values_np = experience.values_np[idxs]\n        rewards_np = experience.rewards_np[idxs]\n        # TODO: bootstrap between segment bounds",
-        "detail": "rl.pufferlib.clean_pufferl",
-        "documentation": {}
-    },
-    {
-        "label": "mean_and_log",
-        "kind": 2,
-        "importPath": "rl.pufferlib.clean_pufferl",
-        "description": "rl.pufferlib.clean_pufferl",
-        "peekOfCode": "def mean_and_log(data):\n    for k in list(data.stats.keys()):\n        v = data.stats[k]\n        try:\n            v = np.mean(v)\n        except:\n            del data.stats[k]\n        data.stats[k] = v\n    if data.wandb is None:\n        return",
-        "detail": "rl.pufferlib.clean_pufferl",
-        "documentation": {}
-    },
-    {
-        "label": "close",
-        "kind": 2,
-        "importPath": "rl.pufferlib.clean_pufferl",
-        "description": "rl.pufferlib.clean_pufferl",
-        "peekOfCode": "def close(data):\n    data.vecenv.close()\n    data.utilization.stop()\n    config = data.config\n    if data.wandb is not None:\n        data.wandb.finish()\nclass Profile:\n    SPS: ... = 0\n    uptime: ... = 0\n    remaining: ... = 0",
-        "detail": "rl.pufferlib.clean_pufferl",
-        "documentation": {}
-    },
-    {
-        "label": "make_losses",
-        "kind": 2,
-        "importPath": "rl.pufferlib.clean_pufferl",
-        "description": "rl.pufferlib.clean_pufferl",
-        "peekOfCode": "def make_losses():\n    return pufferlib.namespace(\n        policy_loss=0,\n        value_loss=0,\n        entropy=0,\n        old_approx_kl=0,\n        approx_kl=0,\n        clipfrac=0,\n        explained_variance=0,\n    )",
-        "detail": "rl.pufferlib.clean_pufferl",
-        "documentation": {}
-    },
-    {
-        "label": "save_checkpoint",
-        "kind": 2,
-        "importPath": "rl.pufferlib.clean_pufferl",
-        "description": "rl.pufferlib.clean_pufferl",
-        "peekOfCode": "def save_checkpoint(data):\n    config = data.config\n    path = os.path.join(config.data_dir, config.exp_id)\n    if not os.path.exists(path):\n        os.makedirs(path)\n    model_name = f'model_{data.epoch:06d}.pt'\n    model_path = os.path.join(path, model_name)\n    if os.path.exists(model_path):\n        return model_path\n    torch.save(data.uncompiled_policy, model_path)",
-        "detail": "rl.pufferlib.clean_pufferl",
-        "documentation": {}
-    },
-    {
-        "label": "try_load_checkpoint",
-        "kind": 2,
-        "importPath": "rl.pufferlib.clean_pufferl",
-        "description": "rl.pufferlib.clean_pufferl",
-        "peekOfCode": "def try_load_checkpoint(data):\n    config = data.config\n    path = os.path.join(config.data_dir, config.exp_id)\n    if not os.path.exists(path):\n        print('No checkpoints found. Assuming new experiment')\n        return\n    trainer_path = os.path.join(path, 'trainer_state.pt')\n    resume_state = torch.load(trainer_path)\n    model_path = os.path.join(path, resume_state['model_name'])\n    data.global_step = resume_state['global_step']",
-        "detail": "rl.pufferlib.clean_pufferl",
-        "documentation": {}
-    },
-    {
-        "label": "count_params",
-        "kind": 2,
-        "importPath": "rl.pufferlib.clean_pufferl",
-        "description": "rl.pufferlib.clean_pufferl",
-        "peekOfCode": "def count_params(policy):\n    return sum(p.numel() for p in policy.parameters() if p.requires_grad)\ndef rollout(cfg: OmegaConf, env_creator, env_kwargs, agent_creator, agent_kwargs,\n        backend, render_mode='auto', model_path=None, device='cuda'):\n    if render_mode != 'auto':\n        env_kwargs['render_mode'] = render_mode\n    # We are just using Serial vecenv to give a consistent\n    # single-agent/multi-agent API for evaluation\n    env = pufferlib.vector.make(env_creator, env_kwargs=env_kwargs, backend=backend)\n    if model_path is None:",
-        "detail": "rl.pufferlib.clean_pufferl",
-        "documentation": {}
-    },
-    {
-        "label": "rollout",
-        "kind": 2,
-        "importPath": "rl.pufferlib.clean_pufferl",
-        "description": "rl.pufferlib.clean_pufferl",
-        "peekOfCode": "def rollout(cfg: OmegaConf, env_creator, env_kwargs, agent_creator, agent_kwargs,\n        backend, render_mode='auto', model_path=None, device='cuda'):\n    if render_mode != 'auto':\n        env_kwargs['render_mode'] = render_mode\n    # We are just using Serial vecenv to give a consistent\n    # single-agent/multi-agent API for evaluation\n    env = pufferlib.vector.make(env_creator, env_kwargs=env_kwargs, backend=backend)\n    if model_path is None:\n        agent = agent_creator(env.driver_env, agent_kwargs).to(device)\n    else:",
-        "detail": "rl.pufferlib.clean_pufferl",
-        "documentation": {}
-    },
-    {
-        "label": "seed_everything",
-        "kind": 2,
-        "importPath": "rl.pufferlib.clean_pufferl",
-        "description": "rl.pufferlib.clean_pufferl",
-        "peekOfCode": "def seed_everything(seed, torch_deterministic):\n    random.seed(seed)\n    np.random.seed(seed)\n    if seed is not None:\n        torch.manual_seed(seed)\n    torch.backends.cudnn.deterministic = torch_deterministic\nROUND_OPEN = rich.box.Box(\n    \"╭──╮\\n\"\n    \"│  │\\n\"\n    \"│  │\\n\"",
-        "detail": "rl.pufferlib.clean_pufferl",
-        "documentation": {}
-    },
-    {
         "label": "abbreviate",
         "kind": 2,
-        "importPath": "rl.pufferlib.clean_pufferl",
-        "description": "rl.pufferlib.clean_pufferl",
+        "importPath": "rl.pufferlib.dashboard",
+        "description": "rl.pufferlib.dashboard",
         "peekOfCode": "def abbreviate(num):\n    if num < 1e3:\n        return f'{b2}{num:.0f}'\n    elif num < 1e6:\n        return f'{b2}{num/1e3:.1f}{c2}k'\n    elif num < 1e9:\n        return f'{b2}{num/1e6:.1f}{c2}m'\n    elif num < 1e12:\n        return f'{b2}{num/1e9:.1f}{c2}b'\n    else:",
-        "detail": "rl.pufferlib.clean_pufferl",
+        "detail": "rl.pufferlib.dashboard",
         "documentation": {}
     },
     {
         "label": "duration",
         "kind": 2,
-        "importPath": "rl.pufferlib.clean_pufferl",
-        "description": "rl.pufferlib.clean_pufferl",
+        "importPath": "rl.pufferlib.dashboard",
+        "description": "rl.pufferlib.dashboard",
         "peekOfCode": "def duration(seconds):\n    seconds = int(seconds)\n    h = seconds // 3600\n    m = (seconds % 3600) // 60\n    s = seconds % 60\n    return f\"{b2}{h}{c2}h {b2}{m}{c2}m {b2}{s}{c2}s\" if h else f\"{b2}{m}{c2}m {b2}{s}{c2}s\" if m else f\"{b2}{s}{c2}s\"\ndef fmt_perf(name, time, uptime):\n    percent = 0 if uptime == 0 else int(100*time/uptime - 1e-5)\n    return f'{c1}{name}', duration(time), f'{b2}{percent:2d}%'\n# TODO: Add env name to print_dashboard",
-        "detail": "rl.pufferlib.clean_pufferl",
+        "detail": "rl.pufferlib.dashboard",
         "documentation": {}
     },
     {
         "label": "fmt_perf",
         "kind": 2,
-        "importPath": "rl.pufferlib.clean_pufferl",
-        "description": "rl.pufferlib.clean_pufferl",
+        "importPath": "rl.pufferlib.dashboard",
+        "description": "rl.pufferlib.dashboard",
         "peekOfCode": "def fmt_perf(name, time, uptime):\n    percent = 0 if uptime == 0 else int(100*time/uptime - 1e-5)\n    return f'{c1}{name}', duration(time), f'{b2}{percent:2d}%'\n# TODO: Add env name to print_dashboard\ndef print_dashboard(env_name, utilization, global_step, epoch,\n        profile, losses, stats, msg, clear=False, max_stats=[0]):\n    console = Console()\n    if clear:\n        console.clear()\n    dashboard = Table(box=ROUND_OPEN, expand=True,",
-        "detail": "rl.pufferlib.clean_pufferl",
+        "detail": "rl.pufferlib.dashboard",
         "documentation": {}
     },
     {
         "label": "print_dashboard",
         "kind": 2,
-        "importPath": "rl.pufferlib.clean_pufferl",
-        "description": "rl.pufferlib.clean_pufferl",
+        "importPath": "rl.pufferlib.dashboard",
+        "description": "rl.pufferlib.dashboard",
         "peekOfCode": "def print_dashboard(env_name, utilization, global_step, epoch,\n        profile, losses, stats, msg, clear=False, max_stats=[0]):\n    console = Console()\n    if clear:\n        console.clear()\n    dashboard = Table(box=ROUND_OPEN, expand=True,\n        show_header=False, border_style='bright_cyan')\n    table = Table(box=None, expand=True, show_header=False)\n    dashboard.add_row(table)\n    cpu_percent = np.mean(utilization.cpu_util)",
-        "detail": "rl.pufferlib.clean_pufferl",
-        "documentation": {}
-    },
-    {
-        "label": "ROUND_OPEN",
-        "kind": 5,
-        "importPath": "rl.pufferlib.clean_pufferl",
-        "description": "rl.pufferlib.clean_pufferl",
-        "peekOfCode": "ROUND_OPEN = rich.box.Box(\n    \"╭──╮\\n\"\n    \"│  │\\n\"\n    \"│  │\\n\"\n    \"│  │\\n\"\n    \"│  │\\n\"\n    \"│  │\\n\"\n    \"│  │\\n\"\n    \"╰──╯\\n\"\n)",
-        "detail": "rl.pufferlib.clean_pufferl",
-        "documentation": {}
-    },
-    {
-        "label": "c1",
-        "kind": 5,
-        "importPath": "rl.pufferlib.clean_pufferl",
-        "description": "rl.pufferlib.clean_pufferl",
-        "peekOfCode": "c1 = '[bright_cyan]'\nc2 = '[white]'\nc3 = '[cyan]'\nb1 = '[bright_cyan]'\nb2 = '[bright_white]'\ndef abbreviate(num):\n    if num < 1e3:\n        return f'{b2}{num:.0f}'\n    elif num < 1e6:\n        return f'{b2}{num/1e3:.1f}{c2}k'",
-        "detail": "rl.pufferlib.clean_pufferl",
-        "documentation": {}
-    },
-    {
-        "label": "c2",
-        "kind": 5,
-        "importPath": "rl.pufferlib.clean_pufferl",
-        "description": "rl.pufferlib.clean_pufferl",
-        "peekOfCode": "c2 = '[white]'\nc3 = '[cyan]'\nb1 = '[bright_cyan]'\nb2 = '[bright_white]'\ndef abbreviate(num):\n    if num < 1e3:\n        return f'{b2}{num:.0f}'\n    elif num < 1e6:\n        return f'{b2}{num/1e3:.1f}{c2}k'\n    elif num < 1e9:",
-        "detail": "rl.pufferlib.clean_pufferl",
-        "documentation": {}
-    },
-    {
-        "label": "c3",
-        "kind": 5,
-        "importPath": "rl.pufferlib.clean_pufferl",
-        "description": "rl.pufferlib.clean_pufferl",
-        "peekOfCode": "c3 = '[cyan]'\nb1 = '[bright_cyan]'\nb2 = '[bright_white]'\ndef abbreviate(num):\n    if num < 1e3:\n        return f'{b2}{num:.0f}'\n    elif num < 1e6:\n        return f'{b2}{num/1e3:.1f}{c2}k'\n    elif num < 1e9:\n        return f'{b2}{num/1e6:.1f}{c2}m'",
-        "detail": "rl.pufferlib.clean_pufferl",
-        "documentation": {}
-    },
-    {
-        "label": "b1",
-        "kind": 5,
-        "importPath": "rl.pufferlib.clean_pufferl",
-        "description": "rl.pufferlib.clean_pufferl",
-        "peekOfCode": "b1 = '[bright_cyan]'\nb2 = '[bright_white]'\ndef abbreviate(num):\n    if num < 1e3:\n        return f'{b2}{num:.0f}'\n    elif num < 1e6:\n        return f'{b2}{num/1e3:.1f}{c2}k'\n    elif num < 1e9:\n        return f'{b2}{num/1e6:.1f}{c2}m'\n    elif num < 1e12:",
-        "detail": "rl.pufferlib.clean_pufferl",
-        "documentation": {}
-    },
-    {
-        "label": "b2",
-        "kind": 5,
-        "importPath": "rl.pufferlib.clean_pufferl",
-        "description": "rl.pufferlib.clean_pufferl",
-        "peekOfCode": "b2 = '[bright_white]'\ndef abbreviate(num):\n    if num < 1e3:\n        return f'{b2}{num:.0f}'\n    elif num < 1e6:\n        return f'{b2}{num/1e3:.1f}{c2}k'\n    elif num < 1e9:\n        return f'{b2}{num/1e6:.1f}{c2}m'\n    elif num < 1e12:\n        return f'{b2}{num/1e9:.1f}{c2}b'",
-        "detail": "rl.pufferlib.clean_pufferl",
-        "documentation": {}
-    },
-    {
-        "label": "abbreviate",
-        "kind": 2,
-        "importPath": "rl.pufferlib.dashboard",
-        "description": "rl.pufferlib.dashboard",
-        "peekOfCode": "def abbreviate(num):\n    if num < 1e3:\n        return f'{b2}{num:.0f}'\n    elif num < 1e6:\n        return f'{b2}{num/1e3:.1f}{c2}k'\n    elif num < 1e9:\n        return f'{b2}{num/1e6:.1f}{c2}m'\n    elif num < 1e12:\n        return f'{b2}{num/1e9:.1f}{c2}b'\n    else:",
-        "detail": "rl.pufferlib.dashboard",
-        "documentation": {}
-    },
-    {
-        "label": "duration",
-        "kind": 2,
-        "importPath": "rl.pufferlib.dashboard",
-        "description": "rl.pufferlib.dashboard",
-        "peekOfCode": "def duration(seconds):\n    seconds = int(seconds)\n    h = seconds // 3600\n    m = (seconds % 3600) // 60\n    s = seconds % 60\n    return f\"{b2}{h}{c2}h {b2}{m}{c2}m {b2}{s}{c2}s\" if h else f\"{b2}{m}{c2}m {b2}{s}{c2}s\" if m else f\"{b2}{s}{c2}s\"\ndef fmt_perf(name, time, uptime):\n    percent = 0 if uptime == 0 else int(100*time/uptime - 1e-5)\n    return f'{c1}{name}', duration(time), f'{b2}{percent:2d}%'\ndef print_dashboard(config, utilization, global_step, epoch,",
-        "detail": "rl.pufferlib.dashboard",
-        "documentation": {}
-    },
-    {
-        "label": "fmt_perf",
-        "kind": 2,
-        "importPath": "rl.pufferlib.dashboard",
-        "description": "rl.pufferlib.dashboard",
-        "peekOfCode": "def fmt_perf(name, time, uptime):\n    percent = 0 if uptime == 0 else int(100*time/uptime - 1e-5)\n    return f'{c1}{name}', duration(time), f'{b2}{percent:2d}%'\ndef print_dashboard(config, utilization, global_step, epoch,\n        profile, losses, stats, msg, clear=False, max_stats=[0]):\n    console = Console()\n    if clear:\n        console.clear()\n    env_name = config.env\n    dashboard = Table(box=ROUND_OPEN, expand=True,",
-        "detail": "rl.pufferlib.dashboard",
-        "documentation": {}
-    },
-    {
-        "label": "print_dashboard",
-        "kind": 2,
-        "importPath": "rl.pufferlib.dashboard",
-        "description": "rl.pufferlib.dashboard",
-        "peekOfCode": "def print_dashboard(config, utilization, global_step, epoch,\n        profile, losses, stats, msg, clear=False, max_stats=[0]):\n    console = Console()\n    if clear:\n        console.clear()\n    env_name = config.env\n    dashboard = Table(box=ROUND_OPEN, expand=True,\n        show_header=False, border_style='bright_cyan')\n    table = Table(box=None, expand=True, show_header=False)\n    dashboard.add_row(table)",
         "detail": "rl.pufferlib.dashboard",
         "documentation": {}
     },
@@ -34050,7 +33826,7 @@
         "kind": 6,
         "importPath": "rl.pufferlib.experience",
         "description": "rl.pufferlib.experience",
-        "peekOfCode": "class Experience:\n    '''Flat tensor storage and array views for faster indexing'''\n    def __init__(self, batch_size, bptt_horizon, minibatch_size, obs_shape, obs_dtype, atn_shape,\n                 cpu_offload=False, device='cuda', lstm=None, lstm_total_agents=0):\n        if minibatch_size is None:\n            minibatch_size = batch_size\n        obs_dtype = pufferlib.pytorch.numpy_to_torch_dtype_dict[obs_dtype]\n        pin = device == 'cuda' and cpu_offload\n        obs_device = device if not pin else 'cpu'\n        self.obs=torch.zeros(batch_size, *obs_shape, dtype=obs_dtype,",
+        "peekOfCode": "class Experience:\n    '''Flat tensor storage and array views for faster indexing'''\n    def __init__(self, batch_size, bptt_horizon, minibatch_size, obs_shape, obs_dtype, atn_shape, atn_dtype,\n                 cpu_offload=False, device='cuda', lstm=None, lstm_total_agents=0):\n        if minibatch_size is None:\n            minibatch_size = batch_size\n        obs_dtype = pufferlib.pytorch.numpy_to_torch_dtype_dict[obs_dtype]\n        atn_dtype = pufferlib.pytorch.numpy_to_torch_dtype_dict[atn_dtype]\n        pin = device == 'cuda' and cpu_offload\n        self.obs=torch.zeros(batch_size, *obs_shape, dtype=obs_dtype,",
         "detail": "rl.pufferlib.experience",
         "documentation": {}
     },
@@ -34136,11 +33912,11 @@
         "documentation": {}
     },
     {
-        "label": "train",
-        "kind": 2,
+        "label": "PufferTrainer",
+        "kind": 6,
         "importPath": "rl.pufferlib.train",
         "description": "rl.pufferlib.train",
-        "peekOfCode": "def train(cfg: OmegaConf, load_checkpoint: bool = True):\n    train_start = time.time()\n    pcfg = cfg.framework.pufferlib\n    target_batch_size = pcfg.train.forward_pass_minibatch_target_size // cfg.env.game.num_agents\n    if target_batch_size < 2: # pufferlib bug requires batch size >= 2\n        target_batch_size = 2\n    batch_size = (target_batch_size // pcfg.train.num_workers) * pcfg.train.num_workers\n    vecenv = make_vecenv(\n        cfg,\n        num_envs = batch_size * pcfg.train.async_factor,",
+        "peekOfCode": "class PufferTrainer:\n    def __init__(self, cfg: OmegaConf):\n        self.cfg = cfg\n        self.pcfg = cfg.framework.pufferlib\n        self.target_batch_size = self.pcfg.train.forward_pass_minibatch_target_size // cfg.env.game.num_agents\n        if self.target_batch_size < 2: # pufferlib bug requires batch size >= 2\n            self.target_batch_size = 2\n        self.batch_size = (self.target_batch_size // self.pcfg.train.num_workers) * self.pcfg.train.num_workers\n        self.vecenv = make_vecenv(\n            cfg,",
         "detail": "rl.pufferlib.train",
         "documentation": {}
     },
@@ -34257,7 +34033,16 @@
         "kind": 2,
         "importPath": "tools.run",
         "description": "tools.run",
-        "peekOfCode": "def main(cfg):\n    traceback.install(show_locals=False)\n    print(OmegaConf.to_yaml(cfg))\n    if cfg.wandb.track:\n        init_wandb(cfg)\n    try:\n        if cfg.cmd == \"train\":\n            train(cfg)\n        if cfg.cmd == \"evaluate\":\n            evaluate(cfg)",
+        "peekOfCode": "def main(cfg):\n    traceback.install(show_locals=False)\n    print(OmegaConf.to_yaml(cfg))\n    seed_everything(cfg.seed, cfg.torch_deterministic)\n    if cfg.wandb.track:\n        init_wandb(cfg)\n    try:\n        if cfg.cmd == \"train\":\n            trainer = PufferTrainer(cfg)\n            trainer.load_checkpoint()",
+        "detail": "tools.run",
+        "documentation": {}
+    },
+    {
+        "label": "seed_everything",
+        "kind": 2,
+        "importPath": "tools.run",
+        "description": "tools.run",
+        "peekOfCode": "def seed_everything(seed, torch_deterministic):\n    random.seed(seed)\n    np.random.seed(seed)\n    if seed is not None:\n        torch.manual_seed(seed)\n    torch.backends.cudnn.deterministic = torch_deterministic\nif __name__ == \"__main__\":\n    main()",
         "detail": "tools.run",
         "documentation": {}
     },
