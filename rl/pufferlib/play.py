@@ -13,7 +13,7 @@ def play(cfg: OmegaConf):
 
     obs, _ = vecenv.reset()
     env = vecenv.envs[0]
-    renderer = MettaGridRaylibRenderer(env._c_env.map_width(), env._c_env.map_height(), cfg.env)
+    renderer = MettaGridRaylibRenderer(env._c_env, cfg.env)
     policy_rnn_state = None
 
     total_rewards = np.zeros(vecenv.num_agents)
@@ -31,7 +31,8 @@ def play(cfg: OmegaConf):
         render_result = renderer.render(
             env._c_env.current_timestep(),
             env._c_env.grid_objects(),
-            actions
+            actions,
+            obs
         )
 
         obs, rewards, dones, truncated, infos = vecenv.step(render_result["actions"].cpu().numpy())
