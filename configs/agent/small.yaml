@@ -3,25 +3,18 @@
 _target_: agent.metta_agent.MettaAgent
 
 observation_encoder:
-  _target_: agent.simple_encoder.SimpleConvAgent
-  cnn_channels: 32
-  obs_key: grid_obs
-  normalize_features: True
+  _target_: agent.feature_encoder.MultiFeatureSetEncoder
 
+  grid_obs:
+    feature_names: []
 
-# observation_encoder:
-#   _target_: agent.feature_encoder.MultiFeatureSetEncoder
+    normalize_features: False
+    label_dim: 4
+    output_dim: 128
+    layers: 2
 
-#   grid_obs:
-#     feature_names: []
-
-#     normalize_features: False
-#     label_dim: 4
-#     output_dim: 128
-#     layers: 2
-
-#   global_vars:
-#     feature_names: []
+  global_vars:
+    feature_names: []
 
   #   normalize_features: True
 

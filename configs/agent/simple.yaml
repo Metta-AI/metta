@@ -1,0 +1,22 @@
+# @package agent
+
+_target_: agent.metta_agent.MettaAgent
+
+observation_encoder:
+  _target_: agent.simple_encoder.SimpleConvAgent
+  cnn_channels: 32
+  obs_key: grid_obs
+  normalize_features: True
+
+fc:
+  layers: 1
+  output_dim: 128
+
+decoder:
+  _target_: agent.decoder.Decoder
+
+core:
+  rnn_type: gru
+  rnn_num_layers: 1
+  rnn_size: 128
+
