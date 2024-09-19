@@ -5,11 +5,11 @@ from rich import traceback
 import signal # Aggressively exit on ctrl+c
 from rl.wandb.wandb import init_wandb
 from rl.carbs.carb_sweep import run_sweep
-from rl.pufferlib.train import train
 from rl.pufferlib.evaluate import evaluate
 from rl.pufferlib.play import play
 from rich.console import Console
 from rl.pufferlib.train import PufferTrainer
+from rl.pufferlib.dashboard import Dashboard
 import random
 import numpy as np
 import torch
@@ -22,13 +22,13 @@ def main(cfg):
     print(OmegaConf.to_yaml(cfg))
     seed_everything(cfg.seed, cfg.torch_deterministic)
 
-    if cfg.wandb.track:
+    dashboard = Dashboard()
+    if cfg.wandb.enabled:
         init_wandb(cfg)
 
     try:
         if cfg.cmd == "train":
-            trainer = PufferTrainer(cfg)
-            trainer.load_checkpoint()
+            trainer = PufferTrainer(cfg, dashboard)
             trainer.train()
 
         if cfg.cmd == "evaluate":
@@ -45,6 +45,7 @@ def main(cfg):
     except Exception:
         Console().print_exception()
         os._exit(0)
+
 
 def seed_everything(seed, torch_deterministic):
     random.seed(seed)

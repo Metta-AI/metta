@@ -11,7 +11,6 @@
             "module": "tools.run",
             "args": [
                 "experiment=mac.1",
-                "framework=pufferlib",
                 "agent=small",
                 "hardware=macbook",
                 "env=mettagrid/a20_b4_40x40",

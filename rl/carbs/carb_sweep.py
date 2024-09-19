@@ -21,7 +21,6 @@ from omegaconf import DictConfig, OmegaConf
 
 import wandb
 from rl.wandb.wandb import init_wandb
-from rl.pufferlib.train import train
 from wandb.errors import CommError
 
 global _cfg

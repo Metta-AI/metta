@@ -43,25 +43,22 @@ class Profile:
     def epoch_time(self):
         return self.train_time + self.eval_time
 
-    def update(self, data, interval_s=1):
-        global_step = data.global_step
+    def update(self, global_step, total_timesteps, timers):
         if global_step == 0:
             return True
 
         uptime = time.time() - self.start
-        if uptime - self.uptime < interval_s:
-            return False
 
         self.SPS = (global_step - self.prev_steps) / (uptime - self.uptime)
         self.prev_steps = global_step
         self.uptime = uptime
 
-        self.remaining = (data.config.total_timesteps - global_step) / self.SPS
-        self.eval_time = data._timers['evaluate'].elapsed
+        self.remaining = (total_timesteps - global_step) / self.SPS
+        self.eval_time = timers['evaluate'].elapsed
         self.eval_forward_time = self.eval_forward.elapsed
         self.env_time = self.env.elapsed
         self.eval_misc_time = self.eval_misc.elapsed
-        self.train_time = data._timers['train'].elapsed
+        self.train_time = timers['train'].elapsed
         self.train_forward_time = self.train_forward.elapsed
         self.learn_time = self.learn.elapsed
         self.train_misc_time = self.train_misc.elapsed

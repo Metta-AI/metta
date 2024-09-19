@@ -1,0 +1,39 @@
+
+num_envs_per_worker: ???
+num_workers: ???
+
+env: ${env.name}
+exp_id: ${experiment}
+
+seed: 1
+
+cpu_offload: False
+total_timesteps: 50_000_000_000
+learning_rate: 2.5e-4
+num_steps: 256
+anneal_lr: False
+gamma: 0.99
+gae_lambda: 0.95
+num_minibatches: 4
+update_epochs: 1
+norm_adv: True
+clip_coef: 0.1
+clip_vloss: True
+ent_coef: 0.002
+vf_coef: 0.976
+max_grad_norm: 0.5
+target_kl: null
+
+env_batch_size: null
+zero_copy: True
+verbose: True
+checkpoint_interval: 200
+batch_size: 1024
+minibatch_size: 512
+bptt_horizon: 256
+vf_clip_coef: 0.1
+compile: False
+compile_mode: reduce-overhead
+
+forward_pass_minibatch_target_size: 4096
+async_factor: 3

@@ -28,3 +28,6 @@ def load_policy_from_uri(uri: str, cfg: OmegaConf):
         return load_policy_from_file(uri, cfg.framework.pufferlib.device)
     else:
         return load_policy_from_dir(uri, cfg.framework.pufferlib.device)
+
+def count_params(policy):
+    return sum(p.numel() for p in policy.parameters() if p.requires_grad)

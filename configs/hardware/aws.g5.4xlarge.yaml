@@ -3,7 +3,6 @@
 defaults:
   - aws
 
-framework:
-  pufferlib:
-    train:
-      num_workers: 16 # num cores
+
+train:
+  num_workers: 16 # num cores

@@ -2,6 +2,8 @@ import numpy as np
 import rich
 from rich.console import Console
 from rich.table import Table
+from rl.pufferlib.utilization import Utilization
+from rl.pufferlib.policy import count_params
 
 ROUND_OPEN = rich.box.Box(
     "╭──╮\n"
@@ -43,99 +45,121 @@ def fmt_perf(name, time, uptime):
     percent = 0 if uptime == 0 else int(100*time/uptime - 1e-5)
     return f'{c1}{name}', duration(time), f'{b2}{percent:2d}%'
 
-# TODO: Add env name to print_dashboard
-def print_dashboard(env_name, utilization, global_step, epoch,
-        profile, losses, stats, msg, clear=False, max_stats=[0]):
-    console = Console()
-    if clear:
-        console.clear()
+class Dashboard:
+    def __init__(self, clear=False, max_stats=[0]):
+        self.env_name = None
+        self.utilization = Utilization()
+        self.global_step = 0
+        self.epoch = 0
+        self.profile = None
+        self.losses = None
+        self.stats = None
+        self.msg = None
+        self.policy_params = None
+        self.clear = clear
+        self.max_stats = max_stats
+        self.msg = ""
 
-    dashboard = Table(box=ROUND_OPEN, expand=True,
-        show_header=False, border_style='bright_cyan')
+    def set_policy(self, policy):
+        self.policy_params = count_params(policy)
 
-    table = Table(box=None, expand=True, show_header=False)
-    dashboard.add_row(table)
-    cpu_percent = np.mean(utilization.cpu_util)
-    dram_percent = np.mean(utilization.cpu_mem)
-    gpu_percent = np.mean(utilization.gpu_util)
-    vram_percent = np.mean(utilization.gpu_mem)
-    table.add_column(justify="left", width=30)
-    table.add_column(justify="center", width=12)
-    table.add_column(justify="center", width=12)
-    table.add_column(justify="center", width=13)
-    table.add_column(justify="right", width=13)
-    table.add_row(
-        f':blowfish: {c1}PufferLib {b2}1.0.0',
-        f'{c1}CPU: {c3}{cpu_percent:.1f}%',
-        f'{c1}GPU: {c3}{gpu_percent:.1f}%',
-        f'{c1}DRAM: {c3}{dram_percent:.1f}%',
-        f'{c1}VRAM: {c3}{vram_percent:.1f}%',
-    )
+    def log(self, msg):
+        self.msg = msg
 
-    s = Table(box=None, expand=True)
-    s.add_column(f"{c1}Summary", justify='left', vertical='top', width=16)
-    s.add_column(f"{c1}Value", justify='right', vertical='top', width=8)
-    s.add_row(f'{c2}Environment', f'{b2}{env_name}')
-    s.add_row(f'{c2}Agent Steps', abbreviate(global_step))
-    s.add_row(f'{c2}SPS', abbreviate(profile.SPS))
-    s.add_row(f'{c2}Epoch', abbreviate(epoch))
-    s.add_row(f'{c2}Uptime', duration(profile.uptime))
-    s.add_row(f'{c2}Remaining', duration(profile.remaining))
+    def print(self):
+        console = Console()
+        if self.clear:
+            console.clear()
 
-    p = Table(box=None, expand=True, show_header=False)
-    p.add_column(f"{c1}Performance", justify="left", width=10)
-    p.add_column(f"{c1}Time", justify="right", width=8)
-    p.add_column(f"{c1}%", justify="right", width=4)
-    p.add_row(*fmt_perf('Evaluate', profile.eval_time, profile.uptime))
-    p.add_row(*fmt_perf('  Forward', profile.eval_forward_time, profile.uptime))
-    p.add_row(*fmt_perf('  Env', profile.env_time, profile.uptime))
-    p.add_row(*fmt_perf('  Misc', profile.eval_misc_time, profile.uptime))
-    p.add_row(*fmt_perf('Train', profile.train_time, profile.uptime))
-    p.add_row(*fmt_perf('  Forward', profile.train_forward_time, profile.uptime))
-    p.add_row(*fmt_perf('  Learn', profile.learn_time, profile.uptime))
-    p.add_row(*fmt_perf('  Misc', profile.train_misc_time, profile.uptime))
+        dashboard = Table(box=ROUND_OPEN, expand=True,
+            show_header=False, border_style='bright_cyan')
 
-    l = Table(box=None, expand=True, )
-    l.add_column(f'{c1}Losses', justify="left", width=16)
-    l.add_column(f'{c1}Value', justify="right", width=8)
-    for metric, value in losses.items():
-        l.add_row(f'{c2}{metric}', f'{b2}{value:.3f}')
+        table = Table(box=None, expand=True, show_header=False)
+        dashboard.add_row(table)
+        cpu_percent = np.mean(self.utilization.cpu_util)
+        dram_percent = np.mean(self.utilization.cpu_mem)
+        gpu_percent = np.mean(self.utilization.gpu_util)
+        vram_percent = np.mean(self.utilization.gpu_mem)
+        table.add_column(justify="left", width=30)
+        table.add_column(justify="center", width=12)
+        table.add_column(justify="center", width=12)
+        table.add_column(justify="center", width=13)
+        table.add_column(justify="right", width=13)
+        table.add_row(
+            f':blowfish: {c1}PufferLib {b2}1.0.0',
+            f'{c1}CPU: {c3}{cpu_percent:.1f}%',
+            f'{c1}GPU: {c3}{gpu_percent:.1f}%',
+            f'{c1}DRAM: {c3}{dram_percent:.1f}%',
+            f'{c1}VRAM: {c3}{vram_percent:.1f}%',
+        )
 
-    monitor = Table(box=None, expand=True, pad_edge=False)
-    monitor.add_row(s, p, l)
-    dashboard.add_row(monitor)
+        s = Table(box=None, expand=True)
+        s.add_column(f"{c1}Summary", justify='left', vertical='top', width=16)
+        s.add_column(f"{c1}Value", justify='right', vertical='top', width=8)
+        s.add_row(f'{c2}Environment', f'{b2}{self.env_name}')
+        s.add_row(f'{c2}Agent Steps', abbreviate(self.global_step))
+        s.add_row(f'{c2}SPS', abbreviate(self.profile.SPS))
+        s.add_row(f'{c2}Epoch', abbreviate(self.epoch))
+        s.add_row(f'{c2}Uptime', duration(self.profile.uptime))
+        s.add_row(f'{c2}Remaining', duration(self.profile.remaining))
 
-    table = Table(box=None, expand=True, pad_edge=False)
-    dashboard.add_row(table)
-    left = Table(box=None, expand=True)
-    right = Table(box=None, expand=True)
-    table.add_row(left, right)
-    left.add_column(f"{c1}User Stats", justify="left", width=20)
-    left.add_column(f"{c1}Value", justify="right", width=10)
-    right.add_column(f"{c1}User Stats", justify="left", width=20)
-    right.add_column(f"{c1}Value", justify="right", width=10)
-    i = 0
-    for metric, value in stats.items():
-        try: # Discard non-numeric values
-            int(value)
-        except:
-            continue
+        p = Table(box=None, expand=True, show_header=False)
+        p.add_column(f"{c1}Performance", justify="left", width=10)
+        p.add_column(f"{c1}Time", justify="right", width=8)
+        p.add_column(f"{c1}%", justify="right", width=4)
+        p.add_row(*fmt_perf('Evaluate', self.profile.eval_time, self.profile.uptime))
+        p.add_row(*fmt_perf('  Forward', self.profile.eval_forward_time, self.profile.uptime))
+        p.add_row(*fmt_perf('  Env', self.profile.env_time, self.profile.uptime))
+        p.add_row(*fmt_perf('  Misc', self.profile.eval_misc_time, self.profile.uptime))
+        p.add_row(*fmt_perf('Train', self.profile.train_time, self.profile.uptime))
+        p.add_row(*fmt_perf('  Forward', self.profile.train_forward_time, self.profile.uptime))
+        p.add_row(*fmt_perf('  Learn', self.profile.learn_time, self.profile.uptime))
+        p.add_row(*fmt_perf('  Misc', self.profile.train_misc_time, self.profile.uptime))
 
-        u = left if i % 2 == 0 else right
-        u.add_row(f'{c2}{metric}', f'{b2}{value:.3f}')
-        i += 1
+        l = Table(box=None, expand=True, )
+        l.add_column(f'{c1}Losses', justify="left", width=16)
+        l.add_column(f'{c1}Value', justify="right", width=8)
+        for metric, value in self.losses.items():
+            l.add_row(f'{c2}{metric}', f'{b2}{value:.3f}')
 
-    for i in range(max_stats[0] - i):
-        u = left if i % 2 == 0 else right
-        u.add_row('', '')
+        monitor = Table(box=None, expand=True, pad_edge=False)
+        monitor.add_row(s, p, l)
+        dashboard.add_row(monitor)
 
-    max_stats[0] = max(max_stats[0], i)
+        table = Table(box=None, expand=True, pad_edge=False)
+        dashboard.add_row(table)
+        left = Table(box=None, expand=True)
+        right = Table(box=None, expand=True)
+        table.add_row(left, right)
+        left.add_column(f"{c1}User Stats", justify="left", width=20)
+        left.add_column(f"{c1}Value", justify="right", width=10)
+        right.add_column(f"{c1}User Stats", justify="left", width=20)
+        right.add_column(f"{c1}Value", justify="right", width=10)
+        i = 0
+        for metric, value in self.stats.items():
+            try: # Discard non-numeric values
+                int(value)
+            except:
+                continue
 
-    table = Table(box=None, expand=True, pad_edge=False)
-    dashboard.add_row(table)
-    table.add_row(f' {c1}Message: {c2}{msg}')
+            u = left if i % 2 == 0 else right
+            u.add_row(f'{c2}{metric}', f'{b2}{value:.3f}')
+            i += 1
 
-    with console.capture() as capture:
-        console.print(dashboard)
+        for i in range(self.max_stats[0] - i):
+            u = left if i % 2 == 0 else right
+            u.add_row('', '')
 
-    print('\033[0;0H' + capture.get())
+        self.max_stats[0] = max(self.max_stats[0], i)
+
+        table = Table(box=None, expand=True, pad_edge=False)
+        dashboard.add_row(table)
+        table.add_row(f' {c1}Message: {c2}{self.msg}')
+
+        with console.capture() as capture:
+            console.print(dashboard)
+
+        print('\033[0;0H' + capture.get())
+
+    def close(self):
+        self.utilization.stop()

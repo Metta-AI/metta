@@ -1,0 +1,50 @@
+
+num_envs_per_worker: ???
+num_workers: ???
+
+env: ${env.name}
+exp_id: ${experiment}
+seed: 1
+
+cpu_offload: false
+total_timesteps: 50_000_000_000
+learning_rate: 0.0012654662762525116
+num_steps: 256
+anneal_lr: false
+gamma: 0.7755949999823327
+gae_lambda: 0.9061454965924297
+update_epochs: 4
+norm_adv: true
+clip_coef: 0.059061983960164655
+clip_vloss: true
+ent_coef: 0.005792010009804944
+vf_coef: 0.6632257135848436
+max_grad_norm: 0.07688769698143005
+target_kl: null
+
+env_batch_size: null
+zero_copy: true
+verbose: true
+checkpoint_interval: 200
+batch_size: 262144
+minibatch_size: 4096
+bptt_horizon: 16
+vf_clip_coef: 0.0008792699500449386
+compile: false
+compile_mode: reduce-overhead
+
+forward_pass_minibatch_target_size: 4096
+async_factor: 2
+
+  # batch_size: 65536
+  # bptt_horizon: 16
+  # clip_coef: 0.04728613545570126
+  # ent_coef: 0.0031004385634700684
+  # forward_pass_minibatch_target_size: 1024
+  # gae_lambda: 0.8120999900476903
+  # gamma: 0.940973350550458
+  # learning_rate: 0.0002826260362762246
+  # max_grad_norm: 0.6681094765663147
+  # update_epochs: 1
+  # vf_clip_coef: 0.07330936935607932
+  # vf_coef: 0.7221810301577948

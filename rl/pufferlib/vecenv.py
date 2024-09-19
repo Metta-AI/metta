@@ -15,8 +15,7 @@ def make_env_func(cfg: OmegaConf, render_mode='rgb_array'):
     return env
 
 def make_vecenv(cfg: OmegaConf, num_envs=1, batch_size=None, num_workers=1, render_mode=None, **kwargs):
-    pcfg = cfg.framework.pufferlib
-    vec = pcfg.vectorization
+    vec = cfg.vectorization
     if vec == 'serial' or num_workers == 1:
         vec = pufferlib.vector.Serial
     elif vec == 'multiprocessing':

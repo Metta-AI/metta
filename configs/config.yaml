@@ -2,16 +2,17 @@ cmd: ???
 experiment: ???
 data_dir: ./train_dir
 
+vectorization: multiprocessing
 dashboard: true
 
 seed: 1
 torch_deterministic: true
 
 defaults:
-  - framework: pufferlib
   - agent: tuned
-  - env: mettagrid/a20_b4_40x40
   - hardware: macbook
+  - env: mettagrid/a20_b4_40x40
+  - train: train
   - wandb: wandb
   - sweep: sweep
   - eval: eval
