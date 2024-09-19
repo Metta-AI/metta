@@ -13,10 +13,7 @@ from sample_factory.algo.utils.action_distributions import sample_actions_log_pr
 from tensordict import TensorDict
 from torch import Tensor, nn
 import torch
-
 from agent.agent_interface import MettaAgentInterface
-from agent.feature_encoder import MultiFeatureSetEncoder
-
 class MettaAgent(nn.Module, MettaAgentInterface):
     def __init__(
         self,
@@ -30,12 +27,9 @@ class MettaAgent(nn.Module, MettaAgentInterface):
         self.observation_space = obs_space
         self.action_space = action_space
 
-        self._encoder = MultiFeatureSetEncoder(
-            obs_space,
-            cfg.observation_encoders,
-            cfg.fc.layers,
-            cfg.fc.output_dim
-        )
+        self._encoder = hydra.utils.instantiate(
+            cfg.observation_encoder,
+            obs_space, cfg.fc)
 
         self._decoder = hydra.utils.instantiate(
             cfg.decoder,

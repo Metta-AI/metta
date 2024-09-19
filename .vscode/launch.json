@@ -10,7 +10,7 @@
             "request": "launch",
             "module": "tools.run",
             "args": [
-                "experiment=mac.1",
+                "experiment=mac.simple_encoder.0",
                 "framework=pufferlib",
                 "agent=small",
                 "hardware=macbook",
@@ -79,7 +79,7 @@
             "module": "tools.run",
             "preLaunchTask": "build_cython_extensions",
             "args": [
-                "experiment=mac.sf.new",
+                "experiment=mac.",
                 "framework=pufferlib",
                 "agent=small",
                 "hardware=macbook",
