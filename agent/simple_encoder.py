@@ -58,7 +58,7 @@ class SimpleConvAgent(nn.Module):
         self._obs_norm = self._obs_norm.view(1, self._num_objects, 1, 1)
 
     def forward(self, obs_dict):
-        self._obs_norm.to(obs_dict[self._obs_key].device)
+        self._obs_norm = self._obs_norm.to(obs_dict.device)
         obs = obs_dict[self._obs_key] / self._obs_norm
         return self.network(obs)
 
