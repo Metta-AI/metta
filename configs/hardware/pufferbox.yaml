@@ -1,34 +1,26 @@
 # @package __global__
 
-framework:
-  sample_factory:
-    device: gpu
-    batch_size: 16384
-    decorrelate_experience_max_seconds: 150
-    train_for_env_steps: 9999999999999
+  device: cuda
+  vectorization: multiprocessing
+  train:
+    num_workers: 24 # num cores
+    minibatch_size: 4096
+    async_factor: 2
+    zero_copy: True
+    total_timesteps: 7e9
+    checkpoint_interval: 300
 
-  pufferlib:
-    device: cuda
-    vectorization: multiprocessing
-    train:
-      num_workers: 24 # num cores
-      minibatch_size: 4096
-      async_factor: 2
-      zero_copy: True
-      total_timesteps: 7e9
-      checkpoint_interval: 300
-
-      # from carbs
-      batch_size: 65536
-      bptt_horizon: 16
-      clip_coef: 0.04728613545570126
-      ent_coef: 0.0031004385634700684
-      forward_pass_minibatch_target_size: 1024
-      gae_lambda: 0.8120999900476903
-      gamma: 0.940973350550458
-      learning_rate: 0.0002826260362762246
-      max_grad_norm: 0.6681094765663147
-      update_epochs: 1
-      vf_clip_coef: 0.07330936935607932
-      vf_coef: 0.7221810301577948
+    # from carbs
+    batch_size: 65536
+    bptt_horizon: 16
+    clip_coef: 0.04728613545570126
+    ent_coef: 0.0031004385634700684
+    forward_pass_minibatch_target_size: 1024
+    gae_lambda: 0.8120999900476903
+    gamma: 0.940973350550458
+    learning_rate: 0.0002826260362762246
+    max_grad_norm: 0.6681094765663147
+    update_epochs: 1
+    vf_clip_coef: 0.07330936935607932
+    vf_coef: 0.7221810301577948
 
