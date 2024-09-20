@@ -56,22 +56,33 @@ game:
       hp: 10
 
   actions:
+    noop:
+      enabled: true
+      cost: 0
     move:
+      enabled: true
       cost: 0
     rotate:
+      enabled: true
       cost: 0
     jump:
+      enabled: false
       cost: 3
     shield:
+      enabled: true
       cost: 1
     transfer:
+      enabled: false
       cost: 0
     use:
+      enabled: true
       cost: 0
     attack:
+      enabled: true
       cost: 5
       damage: 5
     gift:
+      enabled: false
       cost: 0
 
   map:

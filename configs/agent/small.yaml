@@ -2,7 +2,9 @@
 
 _target_: agent.metta_agent.MettaAgent
 
-observation_encoders:
+observation_encoder:
+  _target_: agent.feature_encoder.MultiFeatureSetEncoder
+
   grid_obs:
     feature_names: []
 

@@ -10,7 +10,8 @@
             "request": "launch",
             "module": "tools.run",
             "args": [
-                "experiment=mac.1",
+                "experiment=mac.simple_encoder.7",
+                "framework=pufferlib",
                 "agent=small",
                 "hardware=macbook",
                 "env=mettagrid/a20_b4_40x40",
@@ -19,6 +20,9 @@
                 "env.game.max_steps=1000",
                 "env.kinship.team_size=5",
                 "env.kinship.team_reward=0.8",
+
+                // "env.game.actions.attack.enabled=false",
+
                 // "wandb.track=True",
                 // "env.substrate_name=running_with_scissors_in_the_matrix__arena",
 
@@ -78,17 +82,19 @@
             "module": "tools.run",
             "preLaunchTask": "build_cython_extensions",
             "args": [
-                "experiment=mac.sf.new",
+                "experiment=mac.",
                 "framework=pufferlib",
-                "agent=small",
+                "agent=simple",
                 "hardware=macbook",
                 "env=mettagrid/a20_b4_40x40",
                 // "env=mettagrid/a20_b4_40x40",
                 "cmd=play",
-                // "eval.policy_uri=wandb://p2.tuned.3_model:latest",
-                "eval.policy_uri=wandb://p2.tuned.4_model:latest",
+                "eval.policy_uri=wandb://p2.sweep.simple_model:v12"%,
+                // "eval.policy_uri=train_dir/pufferlib/mac.simple_encoder.4",
                 // "framework.pufferlib.render_mode=raylib",
                 "framework.pufferlib.render_mode=human",
+                "env.game.actions.attack.cost=251",
+                "env.normalize_rewards=False",
                 "env.game.max_steps=10000",
                 "env.kinship.team_size=5",
                 "env.kinship.team_reward=0.8",

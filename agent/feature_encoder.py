@@ -11,7 +11,7 @@ from .lib.util import make_nn_stack, embed_strings
 import numpy as np
 import torch
 
-
+from omegaconf import OmegaConf
 from agent.lib.normalizer import FeatureListNormalizer
 from .lib.util import make_nn_stack
 
@@ -75,19 +75,19 @@ class FeatureSetEncoder(nn.Module):
         return self._output_dim
 
 class MultiFeatureSetEncoder(nn.Module):
-    def __init__(self, obs_space, encoders_cfg, layers: int, output_dim: int):
+    def __init__(self, obs_space, fc_cfg: OmegaConf, **cfg):
         super().__init__()
 
         self.feature_set_encoders = nn.ModuleDict({
             name: FeatureSetEncoder(obs_space, name, **cfg)
-            for name, cfg in encoders_cfg.items()
+            for name, cfg in cfg.items()
             if len(cfg.feature_names) > 0
         })
 
         self.merged_encoder = make_nn_stack(
             input_size=sum(encoder.output_dim() for encoder in self.feature_set_encoders.values()),
-            output_size=output_dim,
-            hidden_sizes=[output_dim] * (layers - 1),
+            output_size=fc_cfg.output_dim,
+            hidden_sizes=[fc_cfg.output_dim] * (fc_cfg.layers - 1),
         )
 
     def forward(self, obs_dict):
