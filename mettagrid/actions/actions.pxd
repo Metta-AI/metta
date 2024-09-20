@@ -15,7 +15,6 @@ cdef struct StatNames:
 
 cdef class MettaActionHandler(ActionHandler):
     cdef StatNames _stats
-    cdef string action_name
     cdef int action_cost
 
     cdef bint handle_action(
