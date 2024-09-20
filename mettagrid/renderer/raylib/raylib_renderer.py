@@ -3,163 +3,36 @@
 # type: ignore
 import os
 import sys
+from types import SimpleNamespace
 
 import numpy as np
 import pyray as ray
-import torch
 from cffi import FFI
 from omegaconf import OmegaConf
 from raylib import colors, rl
-from types import SimpleNamespace
+from collections import defaultdict
 
 from mettagrid.mettagrid_env import MettaGridEnv
-
-
-Actions = SimpleNamespace(
-    Noop = 0,
-    Move = 1,
-    Rotate = 2,
-    Use = 3,
-    Attack = 4,
-    ToggleShield = 5,
+from mettagrid.renderer.raylib.object_render import (
+    AgentRenderer,
+    AltarRenderer,
+    ConverterRenderer,
+    GeneratorRenderer,
+    WallRenderer,
 )
-
-class ObjectRenderer:
-    def __init__(self, sprite_sheet, tile_size=24):
-        sprites_dir = "deps/mettagrid/mettagrid/renderer/assets/"
-        sprite_sheet_path = os.path.join(sprites_dir, sprite_sheet)
-        assert os.path.exists(sprite_sheet_path), f"Sprite sheet {sprite_sheet_path} does not exist"
-        self.sprite_sheet = rl.LoadTexture(sprite_sheet_path.encode())
-        self.tile_size = tile_size
-
-    def _sprite_sheet_idx(self, obj):
-        return (0, 0)
-
-    def render(self, obj, render_tile_size):
-        dest_rect = (
-            obj["c"] * render_tile_size, obj["r"] * render_tile_size,
-            render_tile_size, render_tile_size)
-        tile_idx_x, tile_idx_y = self._sprite_sheet_idx(obj)
-        src_rect = (
-            tile_idx_x * self.tile_size, tile_idx_y * self.tile_size,
-            self.tile_size, self.tile_size)
-
-        rl.DrawTexturePro(
-            self.sprite_sheet, src_rect, dest_rect,
-            (0, 0), 0, colors.WHITE)
-
-class AgentRenderer(ObjectRenderer):
-    def __init__(self, cfg: OmegaConf):
-        super().__init__("monsters.png", 16)
-        self.cfg = cfg
-
-    def _sprite_sheet_idx(self, obj):
-        # orientation: 0 = Up, 1 = Down, 2 = Left, 3 = Right
-        # sprites: 0 = Right, 1 = Up, 2 = Down, 3 = Left
-        orientation_offset = [1, 2, 3, 0][obj["agent:orientation"]]
-        return (4 * ((obj["agent_id"] // 12) % 4) + orientation_offset, 2 * (obj["agent_id"] % 12))
-
-    def render(self, obj, render_tile_size):
-        super().render(obj, render_tile_size)
-        self.draw_energy_bar(obj, render_tile_size)
-        # self.draw_hp_bar(obj, render_tile_size)
-        self.draw_frozen_effect(obj, render_tile_size)
-        self.draw_shield_effect(obj, render_tile_size)
-
-    def draw_energy_bar(self, obj, render_tile_size):
-        x = obj["c"] * render_tile_size
-        y = obj["r"] * render_tile_size - 8  # 8 pixels above the agent
-        width = render_tile_size
-        height = 3  # 3 pixels tall
-        max_energy = self.cfg.max_energy
-
-        energy = min(max(obj["agent:energy"], 0), max_energy)
-        blue_width = int(width * energy / max_energy)
-
-        # Draw red background
-        rl.DrawRectangle(x, y, width, height, colors.RED)
-        # Draw blue foreground based on energy
-        rl.DrawRectangle(x, y, blue_width, height, colors.BLUE)
-
-    def draw_hp_bar(self, obj, render_tile_size):
-        x = obj["c"] * render_tile_size
-        y = obj["r"] * render_tile_size - 4  # 4 pixels above the agent, below energy bar
-        width = render_tile_size
-        height = 3  # 3 pixels tall
-
-        hp = min(max(obj["agent:hp"], 0), 10)  # Clamp between 0 and 10
-        green_width = int(width * hp / 10)
-
-        # Draw red background
-        rl.DrawRectangle(x, y, width, height, colors.RED)
-        # Draw green foreground based on HP
-        rl.DrawRectangle(x, y, green_width, height, colors.GREEN)
-
-    def draw_frozen_effect(self, obj, render_tile_size):
-        frozen = obj.get("agent:frozen", 0)
-        if frozen > 0:
-            x = obj["c"] * render_tile_size + render_tile_size // 2
-            y = obj["r"] * render_tile_size + render_tile_size // 2
-            radius = render_tile_size // 2
-
-            # Calculate alpha based on frozen value
-            base_alpha = 102  # 40% of 255
-            alpha = int(base_alpha * (frozen / self.cfg.freeze_duration))
-
-            # Create a semi-transparent gray color
-            frozen_color = ray.Color(128, 128, 128, alpha)
-
-            # Draw the semi-transparent circle
-            ray.draw_circle(x, y, radius, frozen_color)
-
-    def draw_shield_effect(self, obj, render_tile_size):
-        if obj.get("agent:shield", False):
-            x = obj["c"] * render_tile_size + render_tile_size // 2
-            y = obj["r"] * render_tile_size + render_tile_size // 2
-            radius = render_tile_size // 2 + 2  # Slightly larger than the agent
-
-            # Draw a blue circle
-            ray.draw_circle_lines(x, y, radius, ray.BLUE)
-
-class WallRenderer(ObjectRenderer):
-    def __init__(self):
-        super().__init__("wall.png")
-
-class GeneratorRenderer(ObjectRenderer):
-    def __init__(self):
-        super().__init__("items.png", 16)
-
-    def _sprite_sheet_idx(self, obj):
-        if obj["generator:ready"]:
-            return (14, 2)
-        else:
-            return (13, 2)
-
-class ConverterRenderer(ObjectRenderer):
-    def __init__(self):
-        super().__init__("items.png", 16)
-
-    def _sprite_sheet_idx(self, obj):
-        if obj["converter:ready"]:
-            return (12, 0)
-        else:
-            return (13, 0)
-class AltarRenderer(ObjectRenderer):
-    def __init__(self):
-        super().__init__("items.png", 16)
-
-    def _sprite_sheet_idx(self, obj):
-        if obj["altar:ready"]:
-            return (11, 2)
-        else:
-            return (12, 2)
-
 
 class MettaGridRaylibRenderer:
     def __init__(self, env: MettaGridEnv, cfg: OmegaConf):
         self.env = env
         self.grid_width = env.map_width()
         self.grid_height = env.map_height()
+
+        # convert any missing actions to noop
+        actions_dict = { name: idx for idx, name in enumerate(env.action_names()) }
+        noop_idx = actions_dict["noop"]
+        self.actions = defaultdict(lambda: noop_idx)
+        for name in actions_dict:
+            self.actions[name] = actions_dict[name]
 
         self.window_width = 1280
         self.window_height = 720
@@ -240,7 +113,7 @@ class MettaGridRaylibRenderer:
             self.draw_mouse()
 
             if self.mind_control and self.selected_agent_idx is not None:
-                actions[self.selected_agent_idx][0] = Actions.Noop
+                actions[self.selected_agent_idx][0] = self.actions["noop"]
 
             action = self.get_action()
             if self.selected_agent_idx is not None and action is not None:
@@ -341,7 +214,7 @@ class MettaGridRaylibRenderer:
 
     def draw_attacks(self, objects, actions, agents):
         for agent_id, action in enumerate(actions):
-            if action[0] != Actions.Attack:
+            if action[0] != self.actions["attack"]:
                 continue
             agent = agents[agent_id]
             if agent["agent:energy"] < self.cfg.game.actions.attack.cost:
@@ -373,27 +246,27 @@ class MettaGridRaylibRenderer:
 
         key_actions = {
             # move
-            rl.KEY_E: (Actions.Move, 0),
-            rl.KEY_Q: (Actions.Move, 1),
+            rl.KEY_E: (self.actions["move"], 0),
+            rl.KEY_Q: (self.actions["move"], 1),
             # rotate
-            rl.KEY_W: (Actions.Rotate, 0),
-            rl.KEY_S: (Actions.Rotate, 1),
-            rl.KEY_A: (Actions.Rotate, 2),
-            rl.KEY_D: (Actions.Rotate, 3),
+            rl.KEY_W: (self.actions["rotate"], 0),
+            rl.KEY_S: (self.actions["rotate"], 1),
+            rl.KEY_A: (self.actions["rotate"], 2),
+            rl.KEY_D: (self.actions["rotate"], 3),
             # use
-            rl.KEY_U: (Actions.Use, 0),
+            rl.KEY_U: (self.actions["use"], 0),
             # attack
-            rl.KEY_KP_1: (Actions.Attack, 1),  # KEY_1
-            rl.KEY_KP_2: (Actions.Attack, 2),  # KEY_2
-            rl.KEY_KP_3: (Actions.Attack, 3),  # KEY_3
-            rl.KEY_KP_4: (Actions.Attack, 4),  # KEY_4
-            rl.KEY_KP_5: (Actions.Attack, 5),  # KEY_5
-            rl.KEY_KP_6: (Actions.Attack, 6),  # KEY_6
-            rl.KEY_KP_7: (Actions.Attack, 7),  # KEY_7
-            rl.KEY_KP_8: (Actions.Attack, 8),  # KEY_8
-            rl.KEY_KP_9: (Actions.Attack, 9),  # KEY_9
+            rl.KEY_KP_1: (self.actions["attack"], 1),  # KEY_1
+            rl.KEY_KP_2: (self.actions["attack"], 2),  # KEY_2
+            rl.KEY_KP_3: (self.actions["attack"], 3),  # KEY_3
+            rl.KEY_KP_4: (self.actions["attack"], 4),  # KEY_4
+            rl.KEY_KP_5: (self.actions["attack"], 5),  # KEY_5
+            rl.KEY_KP_6: (self.actions["attack"], 6),  # KEY_6
+            rl.KEY_KP_7: (self.actions["attack"], 7),  # KEY_7
+            rl.KEY_KP_8: (self.actions["attack"], 8),  # KEY_8
+            rl.KEY_KP_9: (self.actions["attack"], 9),  # KEY_9
             # toggle shield
-            rl.KEY_O: (Actions.ToggleShield, 0),
+            rl.KEY_O: (self.actions["shield"], 0),
         }
 
         for key, action in key_actions.items():

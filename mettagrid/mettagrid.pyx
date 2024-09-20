@@ -31,6 +31,22 @@ cdef class MettaGrid(GridEnv):
     def __init__(self, cfg: OmegaConf, map: np.ndarray):
         self._cfg = cfg
 
+        actions = []
+        if cfg.actions.noop.enabled:
+            actions.append(Noop(cfg.actions.noop))
+        if cfg.actions.move.enabled:
+            actions.append(Move(cfg.actions.move))
+        if cfg.actions.rotate.enabled:
+            actions.append(Rotate(cfg.actions.rotate))
+        if cfg.actions.use.enabled:
+            actions.append(Use(cfg.actions.use))
+        if cfg.actions.attack.enabled:
+            actions.append(Attack(cfg.actions.attack))
+        if cfg.actions.shield.enabled:
+            actions.append(Shield(cfg.actions.shield))
+        if cfg.actions.gift.enabled:
+            actions.append(Gift(cfg.actions.gift))
+
         GridEnv.__init__(
             self,
             cfg.num_agents,
@@ -40,18 +56,8 @@ cdef class MettaGrid(GridEnv):
             dict(ObjectLayers).values(),
             cfg.obs_width, cfg.obs_height,
             MettaObservationEncoder(),
-            [
-                Noop(SimpleNamespace(cost=0)),
-                Move(cfg.actions.move),
-                Rotate(cfg.actions.rotate),
-                Use(cfg.actions.use),
-                Attack(cfg.actions.attack),
-                Shield(cfg.actions.shield),
-                Gift(cfg.actions.gift),
-            ],
-            [
-                ResetHandler()
-            ]
+            actions,
+            [ ResetHandler() ]
         )
 
         cdef Agent *agent
@@ -80,10 +86,6 @@ cdef class MettaGrid(GridEnv):
         grid = self.render_ascii(["A", "#", "g", "c", "a"])
         for r in grid:
             print("".join(r))
-
-    @property
-    def action_space(self):
-        return gym.spaces.MultiDiscrete((self.num_actions(), 10), dtype=np.uint32)
 
     cpdef grid_objects(self):
         cdef GridObject *obj
