@@ -1,7 +1,8 @@
-from torch import nn
-from .lib.util import layer_init
-from omegaconf import OmegaConf
 import torch
+from omegaconf import OmegaConf
+from pufferlib.pytorch import layer_init
+from torch import nn
+
 
 class SimpleConvAgent(nn.Module):
 

@@ -2,7 +2,7 @@ from omegaconf import OmegaConf
 import torch
 import numpy as np
 from rl.pufferlib.policy import load_policy_from_uri
-from mettagrid.renderer.raylib_renderer import MettaGridRaylibRenderer
+from mettagrid.renderer.raylib.raylib_renderer import MettaGridRaylibRenderer
 from rl.pufferlib.vecenv import make_vecenv
 
 def play(cfg: OmegaConf):
@@ -27,7 +27,6 @@ def play(cfg: OmegaConf):
             else:
                 actions, _, _, _ = policy(obs)
 
-        actions = actions.view(agents_count, -1)
         render_result = renderer.render(
             env._c_env.current_timestep(),
             env._c_env.grid_objects(),
