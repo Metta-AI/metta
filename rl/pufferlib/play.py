@@ -6,10 +6,10 @@ from mettagrid.renderer.raylib.raylib_renderer import MettaGridRaylibRenderer
 from rl.pufferlib.vecenv import make_vecenv
 
 def play(cfg: OmegaConf):
-    device = cfg.framework.pufferlib.device
+    device = cfg.device
     vecenv = make_vecenv(cfg, num_envs=1, render_mode="human")
+
     policy = load_policy_from_uri(cfg.eval.policy_uri, cfg)
-    agents_count = cfg.env.game.num_agents
 
     obs, _ = vecenv.reset()
     env = vecenv.envs[0]
