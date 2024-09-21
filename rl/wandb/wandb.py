@@ -3,7 +3,8 @@ from omegaconf import OmegaConf
 
 def init_wandb(cfg, resume=True, name=None):
     #os.environ["WANDB_SILENT"] = "true"
-    if not cfg.wandb.enabled and not cfg.wandb.track:
+    if not cfg.wandb.enabled:
+        assert not cfg.wandb.track, "wandb.track wont work if wandb.enabled is False"
         return
 
     if wandb.run is not None:
