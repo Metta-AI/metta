@@ -3,8 +3,8 @@ from omegaconf import OmegaConf
 
 def init_wandb(cfg, resume=True, name=None):
     #os.environ["WANDB_SILENT"] = "true"
-    if cfg.wandb.track and not cfg.wandb.enabled:
-        raise ValueError("wandb.enabled must be True if wandb.track is True")
+    if not cfg.wandb.enabled and not cfg.wandb.track:
+        return
 
     if wandb.run is not None:
         print("wandb.init() has already been called, ignoring.")
@@ -21,5 +21,4 @@ def init_wandb(cfg, resume=True, name=None):
         monitor_gym=True,
         save_code=True,
         resume=resume,
-
     )

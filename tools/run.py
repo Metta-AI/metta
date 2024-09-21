@@ -20,9 +20,7 @@ def main(cfg):
     traceback.install(show_locals=False)
     print(OmegaConf.to_yaml(cfg))
     seed_everything(cfg.seed, cfg.torch_deterministic)
-
-    if cfg.wandb.enabled:
-        init_wandb(cfg)
+    init_wandb(cfg)
 
     try:
         if cfg.cmd == "train":
