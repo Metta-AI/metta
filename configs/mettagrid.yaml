@@ -80,7 +80,7 @@ game:
       enabled: true
     gift:
       cost: 0
-      enabled: false
+      enabled: true
 
   map:
     layout:

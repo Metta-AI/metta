@@ -109,6 +109,9 @@ class MettaGridEnv(pufferlib.PufferEnv):
     def action_space(self):
         return self._env.action_space
 
+    def action_names(self):
+        return self._env.action_names()
+
     @property
     def player_count(self):
         return self._num_agents
