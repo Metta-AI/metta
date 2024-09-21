@@ -10,10 +10,10 @@ torch_deterministic: true
 
 defaults:
   - agent: tuned
-  - hardware: macbook
   - env: mettagrid/a20_b4_40x40
   - train: train
   - wandb: wandb
   - sweep: sweep
   - eval: eval
+  - hardware: macbook
 

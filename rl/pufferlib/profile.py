@@ -54,11 +54,11 @@ class Profile:
         self.uptime = uptime
 
         self.remaining = (total_timesteps - global_step) / self.SPS
-        self.eval_time = timers['evaluate'].elapsed
+        self.eval_time = timers['_evaluate'].elapsed
         self.eval_forward_time = self.eval_forward.elapsed
         self.env_time = self.env.elapsed
         self.eval_misc_time = self.eval_misc.elapsed
-        self.train_time = timers['train'].elapsed
+        self.train_time = timers['_train'].elapsed
         self.train_forward_time = self.train_forward.elapsed
         self.learn_time = self.learn.elapsed
         self.train_misc_time = self.train_misc.elapsed

@@ -3,6 +3,9 @@ from omegaconf import OmegaConf
 
 def init_wandb(cfg, resume=True, name=None):
     #os.environ["WANDB_SILENT"] = "true"
+    if cfg.wandb.track and not cfg.wandb.enabled:
+        raise ValueError("wandb.enabled must be True if wandb.track is True")
+
     if wandb.run is not None:
         print("wandb.init() has already been called, ignoring.")
         return

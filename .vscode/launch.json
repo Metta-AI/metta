@@ -10,9 +10,10 @@
             "request": "launch",
             "module": "tools.run",
             "args": [
-                "experiment=mac.simple_encoder.7",
-                "framework=pufferlib",
-                "agent=small",
+                "experiment=mac.simple_encoder.9",
+                // "train.resume=false",
+                // "train.init_policy_uri=wandb://p2.sweep.simple_model:v25",
+                "agent=simple",
                 "hardware=macbook",
                 "env=mettagrid/a20_b4_40x40",
                 // "env=mettagrid/a20_b4_40x40",
@@ -23,6 +24,7 @@
 
                 // "env.game.actions.attack.enabled=false",
 
+                "wandb.enabled=True",
                 // "wandb.track=True",
                 // "env.substrate_name=running_with_scissors_in_the_matrix__arena",
 
@@ -89,7 +91,7 @@
                 "env=mettagrid/a20_b4_40x40",
                 // "env=mettagrid/a20_b4_40x40",
                 "cmd=play",
-                "eval.policy_uri=wandb://p2.sweep.simple_model:v12"%,
+                "eval.policy_uri=wandb://p2.sweep.simple_model:v12",
                 // "eval.policy_uri=train_dir/pufferlib/mac.simple_encoder.4",
                 // "framework.pufferlib.render_mode=raylib",
                 "framework.pufferlib.render_mode=human",

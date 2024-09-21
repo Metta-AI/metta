@@ -9,12 +9,10 @@ def load_policy_from_file(path: str, device: str):
     return torch.load(path, map_location=device, weights_only=False)
 
 def load_policy_from_wandb(uri: str, cfg: OmegaConf):
-    init_wandb(cfg)
-
     artifact = wandb.use_artifact(uri[len("wandb://"):], type="model")
     return load_policy_from_file(artifact.file(
         root=os.path.join(cfg.data_dir, "artifacts")
-    ), cfg.framework.pufferlib.device)
+    ), cfg.device)
 
 def load_policy_from_dir(path: str, device: str):
     trainer_state = torch.load(os.path.join(path, 'trainer_state.pt'))
@@ -25,9 +23,9 @@ def load_policy_from_uri(uri: str, cfg: OmegaConf):
     if uri.startswith("wandb://"):
         return load_policy_from_wandb(uri, cfg)
     elif uri.endswith(".pt"):
-        return load_policy_from_file(uri, cfg.framework.pufferlib.device)
+        return load_policy_from_file(uri, cfg.device)
     else:
-        return load_policy_from_dir(uri, cfg.framework.pufferlib.device)
+        return load_policy_from_dir(uri, cfg.device)
 
 def count_params(policy):
     return sum(p.numel() for p in policy.parameters() if p.requires_grad)

@@ -1,6 +1,8 @@
 
 num_envs_per_worker: ???
 num_workers: ???
+init_policy_uri: null
+resume: true
 
 env: ${env.name}
 exp_id: ${experiment}

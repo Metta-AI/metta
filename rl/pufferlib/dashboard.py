@@ -1,70 +1,59 @@
+import time
+from collections import defaultdict
+from threading import Thread
+
 import numpy as np
 import rich
+from omegaconf import OmegaConf
 from rich.console import Console
 from rich.table import Table
-from rl.pufferlib.utilization import Utilization
+
+import wandb
 from rl.pufferlib.policy import count_params
-
-ROUND_OPEN = rich.box.Box(
-    "╭──╮\n"
-    "│  │\n"
-    "│  │\n"
-    "│  │\n"
-    "│  │\n"
-    "│  │\n"
-    "│  │\n"
-    "╰──╯\n"
-)
-
-c1 = '[bright_cyan]'
-c2 = '[white]'
-c3 = '[cyan]'
-b1 = '[bright_cyan]'
-b2 = '[bright_white]'
-
-def abbreviate(num):
-    if num < 1e3:
-        return f'{b2}{num:.0f}'
-    elif num < 1e6:
-        return f'{b2}{num/1e3:.1f}{c2}k'
-    elif num < 1e9:
-        return f'{b2}{num/1e6:.1f}{c2}m'
-    elif num < 1e12:
-        return f'{b2}{num/1e9:.1f}{c2}b'
-    else:
-        return f'{b2}{num/1e12:.1f}{c2}t'
-
-def duration(seconds):
-    seconds = int(seconds)
-    h = seconds // 3600
-    m = (seconds % 3600) // 60
-    s = seconds % 60
-    return f"{b2}{h}{c2}h {b2}{m}{c2}m {b2}{s}{c2}s" if h else f"{b2}{m}{c2}m {b2}{s}{c2}s" if m else f"{b2}{s}{c2}s"
-
-def fmt_perf(name, time, uptime):
-    percent = 0 if uptime == 0 else int(100*time/uptime - 1e-5)
-    return f'{c1}{name}', duration(time), f'{b2}{percent:2d}%'
-
-class Dashboard:
-    def __init__(self, clear=False, max_stats=[0]):
-        self.env_name = None
-        self.utilization = Utilization()
+from rl.pufferlib.utilization import Utilization
+from rl.pufferlib.profile import Profile
+class Dashboard(Thread):
+    def __init__(self, cfg: OmegaConf, profile: Profile, clear=False, delay=1, max_stats=[0]):
+        super().__init__()
+        self.utilization = Utilization(delay=10)
         self.global_step = 0
         self.epoch = 0
-        self.profile = None
-        self.losses = None
-        self.stats = None
+        self.profile = profile
+        self.losses = {}
+        self.stats = defaultdict(list)
         self.msg = None
-        self.policy_params = None
+        self.policy_params = 0
         self.clear = clear
         self.max_stats = max_stats
         self.msg = ""
+        self.wandb_status = "Disabled"
+        if cfg.wandb.enabled:
+            self.wandb_status = "(e: " + wandb.run.url
+        if cfg.wandb.track:
+            self.wandb_status = "(t): " + wandb.run.url
+
+        self.delay = delay
+        self.stopped = False
+        self.start()
+
+    def run(self):
+        while not self.stopped:
+            self.print()
+            time.sleep(self.delay)
+
+    def stop(self):
+        self.stopped = True
+
 
     def set_policy(self, policy):
         self.policy_params = count_params(policy)
 
     def log(self, msg):
         self.msg = msg
+
+    def update_stats(self, stats):
+        if len(stats) > 0:
+            self.stats = stats
 
     def print(self):
         console = Console()
@@ -96,12 +85,13 @@ class Dashboard:
         s = Table(box=None, expand=True)
         s.add_column(f"{c1}Summary", justify='left', vertical='top', width=16)
         s.add_column(f"{c1}Value", justify='right', vertical='top', width=8)
-        s.add_row(f'{c2}Environment', f'{b2}{self.env_name}')
+        s.add_row(f'{c2}Policy Params', abbreviate(self.policy_params))
         s.add_row(f'{c2}Agent Steps', abbreviate(self.global_step))
         s.add_row(f'{c2}SPS', abbreviate(self.profile.SPS))
         s.add_row(f'{c2}Epoch', abbreviate(self.epoch))
         s.add_row(f'{c2}Uptime', duration(self.profile.uptime))
         s.add_row(f'{c2}Remaining', duration(self.profile.remaining))
+
 
         p = Table(box=None, expand=True, show_header=False)
         p.add_column(f"{c1}Performance", justify="left", width=10)
@@ -154,8 +144,8 @@ class Dashboard:
 
         table = Table(box=None, expand=True, pad_edge=False)
         dashboard.add_row(table)
+        table.add_row(f' {c1}WandDb {b2}{self.wandb_status}')
         table.add_row(f' {c1}Message: {c2}{self.msg}')
-
         with console.capture() as capture:
             console.print(dashboard)
 
@@ -163,3 +153,44 @@ class Dashboard:
 
     def close(self):
         self.utilization.stop()
+
+
+ROUND_OPEN = rich.box.Box(
+    "╭──╮\n"
+    "│  │\n"
+    "│  │\n"
+    "│  │\n"
+    "│  │\n"
+    "│  │\n"
+    "│  │\n"
+    "╰──╯\n"
+)
+
+c1 = '[bright_cyan]'
+c2 = '[white]'
+c3 = '[cyan]'
+b1 = '[bright_cyan]'
+b2 = '[bright_white]'
+
+def abbreviate(num):
+    if num < 1e3:
+        return f'{b2}{num:.0f}'
+    elif num < 1e6:
+        return f'{b2}{num/1e3:.1f}{c2}k'
+    elif num < 1e9:
+        return f'{b2}{num/1e6:.1f}{c2}m'
+    elif num < 1e12:
+        return f'{b2}{num/1e9:.1f}{c2}b'
+    else:
+        return f'{b2}{num/1e12:.1f}{c2}t'
+
+def duration(seconds):
+    seconds = int(seconds)
+    h = seconds // 3600
+    m = (seconds % 3600) // 60
+    s = seconds % 60
+    return f"{b2}{h}{c2}h {b2}{m}{c2}m {b2}{s}{c2}s" if h else f"{b2}{m}{c2}m {b2}{s}{c2}s" if m else f"{b2}{s}{c2}s"
+
+def fmt_perf(name, time, uptime):
+    percent = 0 if uptime == 0 else int(100*time/uptime - 1e-5)
+    return f'{c1}{name}', duration(time), f'{b2}{percent:2d}%'

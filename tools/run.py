@@ -9,7 +9,6 @@ from rl.pufferlib.evaluate import evaluate
 from rl.pufferlib.play import play
 from rich.console import Console
 from rl.pufferlib.train import PufferTrainer
-from rl.pufferlib.dashboard import Dashboard
 import random
 import numpy as np
 import torch
@@ -22,13 +21,12 @@ def main(cfg):
     print(OmegaConf.to_yaml(cfg))
     seed_everything(cfg.seed, cfg.torch_deterministic)
 
-    dashboard = Dashboard()
     if cfg.wandb.enabled:
         init_wandb(cfg)
 
     try:
         if cfg.cmd == "train":
-            trainer = PufferTrainer(cfg, dashboard)
+            trainer = PufferTrainer(cfg)
             trainer.train()
 
         if cfg.cmd == "evaluate":

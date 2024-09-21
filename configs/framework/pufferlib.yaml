@@ -1,6 +1,0 @@
-train_dir: ${data_dir}/pufferlib
-pufferlib:
-
-  baseline: false
-  backend: clean_pufferl
-  render_mode: rgb_array
