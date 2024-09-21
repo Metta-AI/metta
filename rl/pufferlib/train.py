@@ -297,7 +297,7 @@ class PufferTrainer:
         model_name = f'model_{self.epoch:06d}.pt'
         model_path = os.path.join(path, model_name)
         if os.path.exists(model_path):
-            self.dashboard.log(f"Checkpoint already exists. Skipping save.")
+            self.dashboard.log("Checkpoint already exists. Skipping save.")
             return model_path
 
         torch.save(self.uncompiled_policy, model_path)
@@ -316,7 +316,10 @@ class PufferTrainer:
 
         self.dashboard.log(f"Checkpoint Saved. Model: {model_path}")
 
-        if self.cfg.wandb.enabled:
+        if self.cfg.wandb.enabled and (
+            self.epoch % self.cfg.train.wandb_checkpoint_interval == 0 or
+            done_training
+        ):
             artifact_name = f"{self.cfg.experiment}_model"
             artifact = wandb.Artifact(
                 artifact_name,
