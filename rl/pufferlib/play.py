@@ -27,14 +27,15 @@ def play(cfg: OmegaConf):
             else:
                 actions, _, _, _ = policy(obs)
 
-        render_result = renderer.render(
-            env._c_env.current_timestep(),
-            env._c_env.grid_objects(),
+        renderer.update(
             actions,
-            obs
+            obs,
+            env._c_env.current_timestep()
         )
+        renderer.render_and_wait()
+        actions = renderer.get_actions()
 
-        obs, rewards, dones, truncated, infos = vecenv.step(render_result["actions"].cpu().numpy())
+        obs, rewards, dones, truncated, infos = vecenv.step(actions.cpu().numpy())
         total_rewards += rewards
         if any(dones) or any(truncated):
             print(f"Total rewards: {total_rewards}")
