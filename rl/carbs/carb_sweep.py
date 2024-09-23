@@ -4,8 +4,9 @@ import math
 import time
 import traceback
 from math import ceil, floor, log
-
-import hydra
+from rl.pufferlib.evaluate import evaluate
+from rl.pufferlib.dashboard import Dashboard
+from rl.pufferlib.train import PufferTrainer
 import numpy as np
 import torch
 from carbs import (
@@ -24,13 +25,23 @@ from rl.wandb.wandb import init_wandb
 from wandb.errors import CommError
 
 global _cfg
-def run_sweep(cfg: OmegaConf):
-    try:
-        print(f"Loading previous sweep {cfg.experiment}...")
-        artifact = wandb.use_artifact(cfg.experiment + ":latest", type="sweep")
-        sweep_id = artifact.metadata["sweep_id"]
-    except CommError:
-        print(f"No previous sweep {cfg.experiment} found, creating...")
+global _dashboard
+def run_sweep(cfg: OmegaConf, dashboard: Dashboard):
+    init_wandb(cfg)
+    global _dashboard
+    _dashboard = dashboard
+
+    sweep_id = None
+    if cfg.sweep.resume:
+        try:
+            _dashboard.log(f"Loading previous sweep {cfg.experiment}...")
+            artifact = wandb.use_artifact(cfg.experiment + ":latest", type="sweep")
+            sweep_id = artifact.metadata["sweep_id"]
+        except CommError:
+            _dashboard.log(f"No previous sweep {cfg.experiment} found, creating...")
+
+    if sweep_id is None:
+        _dashboard.log(f"Creating new sweep {cfg.experiment}...")
         sweep_id = wandb.sweep(
             sweep=_wandb_sweep_cfg(cfg),
             project=cfg.wandb.project,
@@ -40,12 +51,13 @@ def run_sweep(cfg: OmegaConf):
 
     global _cfg
     _cfg = cfg
-    wandb.finish()
+    wandb.finish(quiet=True)
     wandb.agent(sweep_id, function=run_carb_sweep_rollout,
                 entity=cfg.wandb.entity, project=cfg.wandb.project, count=10000)
 
 def run_carb_sweep_rollout():
     global _cfg
+    global _dashboard
     init_wandb(_cfg)
     np.random.seed(int(time.time()))
     torch.manual_seed(int(time.time()))
@@ -53,14 +65,13 @@ def run_carb_sweep_rollout():
     carbs_controller = _load_carbs_state(_cfg)
     carbs_controller._set_seed(int(time.time()))
 
-    print(f"CARBS: obs: {carbs_controller.observation_count}")
+    _dashboard.log(f"CARBS: obs: {carbs_controller.observation_count}")
     orig_suggestion = carbs_controller.suggest().suggestion
     carbs_controller.num_suggestions += 1
-    wandb.run.name = f"{wandb.run.name}-{carbs_controller.num_suggestions}"
 
     suggestion = orig_suggestion.copy()
     del suggestion["suggestion_uuid"]
-    print("Carbs Suggestion:", suggestion)
+    _dashboard.log(f"Carbs Suggestion: {suggestion}")
     wandb.config.__dict__["_locked"] = {}
 
     new_cfg = _cfg.copy()
@@ -77,35 +88,63 @@ def run_carb_sweep_rollout():
             suggestion[key] = value
         new_cfg_param[param_name] = value
     wandb.config.update(suggestion, allow_val_change=True)
-    print("Sweep Params:", suggestion)
-
+    _dashboard.log(f"Sweep Params: {suggestion}")
     _save_carbs_state(carbs_controller, _cfg.experiment, wandb.run.sweep_id)
+    wandb.finish(quiet=True)
 
-    observed_value = 0
+    sweep_experiment = f"{new_cfg.experiment}-{carbs_controller.num_suggestions}"
+    new_cfg.experiment = sweep_experiment
+    new_cfg.train.resume = False
+    init_wandb(new_cfg)
+    objective = 0
     train_time = 0
     is_failure = False
+    trainer = None
     try:
-        trainer = PufferTrainer(new_cfg)
-        stats, train_time = trainer.train()
-        observed_value = stats[_cfg.sweep.metric]
+        trainer = PufferTrainer(new_cfg, _dashboard)
+        trainer.train()
+        trainer.close()
+        train_time = trainer.train_time
+        model_artifact_name = trainer._upload_model_to_wandb()
+        model_uri = f"wandb://{model_artifact_name}"
+        eval_cfg = new_cfg.copy()
+        eval_cfg.eval = _cfg.sweep.eval.copy()
+        eval_cfg.eval.policy_uri = model_uri
+        eval_cfg.wandb.track = False
+        stats = evaluate(eval_cfg)
+
+        metric = stats[0].get(_cfg.sweep.metric, {"sum": 0, "count": 1})
+        objective = metric["sum"] / metric["count"]
+
     except Exception:
+        if trainer is not None:
+            trainer.close()
         is_failure = True
+        _dashboard.log(traceback.format_exc())
         traceback.print_exc()
+    wandb.finish(quiet=True)
 
-    print("Observed Value:", observed_value)
-    print("Train Time:", train_time)
-    print("Is Failure:", is_failure)
 
+    init_wandb(_cfg)
     carbs_controller = _load_carbs_state(_cfg)
     carbs_controller.observe(
         ObservationInParam(
             input=orig_suggestion,
-            output=observed_value,
+            output=objective,
             cost=train_time,
             is_failure=is_failure,
         )
     )
     _save_carbs_state(carbs_controller, _cfg.experiment, wandb.run.sweep_id)
+    _dashboard.update_carbs(
+        num_observations=carbs_controller.observation_count,
+        num_suggestions=carbs_controller.num_suggestions,
+        last_metric=objective,
+        last_run_time=train_time,
+        last_run_success=not is_failure,
+        num_failures=len(carbs_controller.failure_observations),
+    )
+    wandb.finish(quiet=True)
 
 def _wandb_distribution(param):
     if param.space == "log":
@@ -151,7 +190,7 @@ def _carbs_params_spaces(cfg: OmegaConf):
             scale = 4
 
         if param.search_center < param.min or param.search_center > param.max:
-            raise ValueError(f"Search center {param.search_center} is not in range [{param.min}, {param.max}]")
+            raise ValueError(f"Search center for {param_name}: {param.search_center} is not in range [{param.min}, {param.max}]")
 
         param_spaces.append(
             Param(

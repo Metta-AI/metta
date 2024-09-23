@@ -24,14 +24,14 @@ from fast_gae import fast_gae
 
 
 class PufferTrainer:
-    def __init__(self, cfg: OmegaConf):
+    def __init__(self, cfg: OmegaConf, dashboard: Dashboard):
         self.cfg = cfg
+        self.dashboard = dashboard
+
         self.device = cfg.device
+        self._last_saved_model_path = None
 
         self._make_vecenv()
-
-        self.profile = Profile()
-        self.dashboard = Dashboard(cfg, self.profile)
 
         self.vecenv.async_reset(self.cfg.seed)
         obs_shape = self.vecenv.single_observation_space.shape
@@ -73,28 +73,27 @@ class PufferTrainer:
                 f"{self.uncompiled_policy._action_names} != {self.vecenv.driver_env.action_names()}")
 
     def train(self):
-        train_start = time.time()
+        self.train_start = time.time()
 
         self.dashboard.log("Starting training")
 
         while self.global_step < self.cfg.train.total_timesteps:
             self._evaluate()
             self._train()
+            self._process_stats()
+            if self.epoch % self.cfg.train.checkpoint_interval == 0:
+                self._save_checkpoint()
+            if self.epoch % self.cfg.train.wandb_checkpoint_interval == 0:
+                self._upload_model_to_wandb()
 
-        train_time = time.time() - train_start
-
-        num_evals = 0
-        while len(self.stats) == 0:
-            num_evals += 1
-            self._evaluate()
-            self.dashboard.log(f"Running final evaluation: {num_evals}")
-
-        self.close()
-        return self.stats, train_time
+        self.train_time = time.time() - self.train_start
+        self._save_checkpoint()
+        self._upload_model_to_wandb()
+        self.dashboard.log(f"Training complete. Total time: {self.train_time:.2f} seconds")
 
     @pufferlib.utils.profile
     def _evaluate(self):
-        experience, profile = self.experience, self.profile
+        experience, profile = self.experience, self.dashboard.profile
 
         with profile.eval_misc:
             policy = self.policy
@@ -162,7 +161,7 @@ class PufferTrainer:
 
     @pufferlib.utils.profile
     def _train(self):
-        experience, profile = self.experience, self.profile
+        experience, profile = self.experience, self.dashboard.profile
         self.losses = self._make_losses()
         self.dashboard.losses = self.losses
 
@@ -281,25 +280,14 @@ class PufferTrainer:
                 self.cfg.train.total_timesteps,
                 self._timers
             )
-            self._process_stats()
-            self._maybe_save_checkpoint()
 
-    def _maybe_save_checkpoint(self):
-        done_training = self.global_step >= self.cfg.train.total_timesteps
-        if self.epoch % self.cfg.train.checkpoint_interval != 0 and not done_training:
-            return
-
-        self.dashboard.log(f"Saving checkpoint at step {self.global_step}")
+    def _save_checkpoint(self):
         path = os.path.join(self.cfg.data_dir, "pufferlib", self.cfg.experiment)
         if not os.path.exists(path):
             os.makedirs(path)
 
         model_name = f'model_{self.epoch:06d}.pt'
         model_path = os.path.join(path, model_name)
-        if os.path.exists(model_path):
-            self.dashboard.log("Checkpoint already exists. Skipping save.")
-            return model_path
-
         torch.save(self.uncompiled_policy, model_path)
 
         state = {
@@ -313,31 +301,31 @@ class PufferTrainer:
         state_path = os.path.join(path, 'trainer_state.pt')
         torch.save(state, state_path + '.tmp')
         os.rename(state_path + '.tmp', state_path)
+        self.dashboard.update_checkpoint(model_path, self.global_step, self.epoch)
+        self._last_saved_model_path = model_path
 
-        self.dashboard.log(f"Checkpoint Saved. Model: {model_path}")
+    def _upload_model_to_wandb(self):
+        if self._last_saved_model_path is None:
+            return
+        if not self.cfg.wandb.track:
+            return
 
-        if self.cfg.wandb.enabled and (
-            self.epoch % self.cfg.train.wandb_checkpoint_interval == 0 or
-            done_training
-        ):
-            artifact_name = f"{self.cfg.experiment}_model"
-            artifact = wandb.Artifact(
-                artifact_name,
-                type="model",
-                metadata={
-                    "model_name": model_name,
-                    "agent_step": self.global_step,
-                    "epoch": self.epoch,
-                    "exp_id": self.cfg.experiment,
-                }
-            )
-            artifact.add_file(model_path)
-            artifact = wandb.run.log_artifact(artifact)
-            artifact.wait()
-            self.dashboard.log(f"Wandb Model Saved: {artifact.name}")
-
-        return model_path
-
+        artifact_name = f"{self.cfg.experiment}_model"
+        artifact = wandb.Artifact(
+            artifact_name,
+            type="model",
+            metadata={
+                "model_name": self._last_saved_model_path,
+                "agent_step": self.global_step,
+                "epoch": self.epoch,
+                "exp_id": self.cfg.experiment,
+            }
+        )
+        artifact.add_file(self._last_saved_model_path)
+        artifact = wandb.run.log_artifact(artifact)
+        artifact.wait()
+        self.dashboard.update_wandb_model(artifact)
+        return artifact.name
 
     def _try_load_checkpoint(self):
         path = os.path.join(self.cfg.data_dir, "pufferlib", self.cfg.experiment)
@@ -356,6 +344,7 @@ class PufferTrainer:
             self.policy = torch.compile(self.policy, mode=self.cfg.train.compile_mode)
         self.optimizer.load_state_dict(resume_state['optimizer_state_dict'])
         self.dashboard.log(f'Loaded checkpoint {resume_state["model_name"]}')
+        self._last_saved_model_path = model_path
 
     def _process_stats(self):
         for k in list(self.stats.keys()):
@@ -371,13 +360,13 @@ class PufferTrainer:
 
         if self.cfg.wandb.track:
             wandb.log({
-                '0verview/SPS': self.profile.SPS,
+                '0verview/SPS': self.dashboard.profile.SPS,
                 '0verview/agent_steps': self.global_step,
             '0verview/epoch': self.epoch,
             '0verview/learning_rate': self.optimizer.param_groups[0]["lr"],
             **{f'environment/{k}': v for k, v in self.stats.items()},
             **{f'losses/{k}': v for k, v in self.losses.items()},
-            **{f'performance/{k}': v for k, v in self.profile},
+            **{f'performance/{k}': v for k, v in self.dashboard.profile},
         })
         self.stats = defaultdict(list)
 

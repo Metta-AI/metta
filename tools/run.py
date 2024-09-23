@@ -7,11 +7,13 @@ from rl.wandb.wandb import init_wandb
 from rl.carbs.carb_sweep import run_sweep
 from rl.pufferlib.evaluate import evaluate
 from rl.pufferlib.play import play
+from rl.pufferlib.dashboard import Dashboard
 from rich.console import Console
 from rl.pufferlib.train import PufferTrainer
 import random
 import numpy as np
 import torch
+from util.stats import print_policy_stats
 
 signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
 
@@ -21,20 +23,23 @@ def main(cfg):
     print(OmegaConf.to_yaml(cfg))
     seed_everything(cfg.seed, cfg.torch_deterministic)
     init_wandb(cfg)
+    dashboard = Dashboard(cfg, clear=True, max_stats=5)
 
     try:
         if cfg.cmd == "train":
-            trainer = PufferTrainer(cfg)
+            trainer = PufferTrainer(cfg, dashboard)
             trainer.train()
+            trainer.close()
 
         if cfg.cmd == "evaluate":
-            evaluate(cfg)
+            stats = evaluate(cfg, dashboard)
+            print_policy_stats(stats)
 
         if cfg.cmd == "play":
             play(cfg)
 
         if cfg.cmd == "sweep":
-            run_sweep(cfg)
+            run_sweep(cfg, dashboard)
 
     except KeyboardInterrupt:
         os._exit(0)

@@ -3,11 +3,10 @@ import torch
 import time
 import numpy as np
 from rl.pufferlib.policy import load_policy_from_uri
-from util.stats import print_policy_stats
 from rl.pufferlib.vecenv import make_vecenv
-
-def evaluate(cfg: OmegaConf):
-    device = cfg.framework.pufferlib.device
+from rl.pufferlib.dashboard import Dashboard
+def evaluate(cfg: OmegaConf, dashboard: Dashboard):
+    device = cfg.device
     vecenv = make_vecenv(cfg, num_envs=cfg.eval.num_envs)
     num_envs = len(vecenv.envs)
 
@@ -24,7 +23,7 @@ def evaluate(cfg: OmegaConf):
     policy_agents_count = max(1, int(cfg.env.game.num_agents * policy_agent_pct))
     baseline_agents_count = agents_count - policy_agents_count
 
-    print(f'Policy Agents: {policy_agents_count}, Baseline Agents: {baseline_agents_count}')
+    dashboard.log(f'Policy Agents: {policy_agents_count}, Baseline Agents: {baseline_agents_count}')
 
     slice_idxs = torch.arange(vecenv.num_agents).reshape(num_envs, agents_count).to(device=device)
     policy_idxs = slice_idxs[:, :policy_agents_count].reshape(policy_agents_count * num_envs)
@@ -102,6 +101,5 @@ def evaluate(cfg: OmegaConf):
                     stats[k] = {"sum": 0, "count": num_policy_agents}
                 stats[k]["sum"] += v
 
-    print_policy_stats(policy_stats)
 
     return policy_stats

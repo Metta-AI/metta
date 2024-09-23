@@ -1,6 +1,7 @@
 import time
 from collections import defaultdict
 from threading import Thread
+from collections import deque
 
 import numpy as np
 import rich
@@ -13,24 +14,39 @@ from rl.pufferlib.policy import count_params
 from rl.pufferlib.utilization import Utilization
 from rl.pufferlib.profile import Profile
 class Dashboard(Thread):
-    def __init__(self, cfg: OmegaConf, profile: Profile, clear=False, delay=1, max_stats=[0]):
+    def __init__(self, cfg: OmegaConf, clear=False, delay=1, max_stats=5, max_msg_log=10):
         super().__init__()
+        self.cfg = cfg
         self.utilization = Utilization(delay=10)
         self.global_step = 0
         self.epoch = 0
-        self.profile = profile
+        self.profile = Profile()
         self.losses = {}
         self.stats = defaultdict(list)
-        self.msg = None
+        self.msg_log = deque(maxlen=max_msg_log)
         self.policy_params = 0
         self.clear = clear
         self.max_stats = max_stats
-        self.msg = ""
-        self.wandb_status = "Disabled"
-        if cfg.wandb.enabled:
-            self.wandb_status = "(e: " + wandb.run.url
-        if cfg.wandb.track:
-            self.wandb_status = "(t): " + wandb.run.url
+        self.checkpoint = {
+            "saved_at": 0,
+            "path": "",
+            "steps": 0,
+            "epoch": 0,
+        }
+        self.wandb_model = {
+            "saved_at": 0,
+            "name": "",
+            "steps": 0,
+            "epoch": 0,
+        }
+        self.carbs = {
+            "num_observations": 0,
+            "num_suggestions": 0,
+            "last_metric": 0,
+            "last_run_time": 0,
+            "last_run_success": False,
+            "num_failures": 0,
+        }
 
         self.delay = delay
         self.stopped = False
@@ -42,14 +58,34 @@ class Dashboard(Thread):
             time.sleep(self.delay)
 
     def stop(self):
+        self.utilization.stop()
         self.stopped = True
 
+    def update_checkpoint(self, path, steps, epoch):
+        self.checkpoint["path"] = path
+        self.checkpoint["steps"] = steps
+        self.checkpoint["epoch"] = epoch
+        self.checkpoint["saved_at"] = time.time()
+
+    def update_wandb_model(self, artifact):
+        self.wandb_model["name"] = artifact.name
+        self.wandb_model["epoch"] = artifact.metadata["epoch"]
+        self.wandb_model["steps"] = artifact.metadata["agent_step"]
+        self.wandb_model["saved_at"] = time.time()
+
+    def update_carbs(self, num_observations, num_suggestions, last_metric, last_run_time, last_run_success, num_failures):
+        self.carbs["num_observations"] = num_observations
+        self.carbs["num_suggestions"] = num_suggestions
+        self.carbs["last_metric"] = last_metric
+        self.carbs["last_run_time"] = last_run_time
+        self.carbs["last_run_success"] = last_run_success
+        self.carbs["num_failures"] = num_failures
 
     def set_policy(self, policy):
         self.policy_params = count_params(policy)
 
     def log(self, msg):
-        self.msg = msg
+        self.msg_log.append(msg)
 
     def update_stats(self, stats):
         if len(stats) > 0:
@@ -106,7 +142,7 @@ class Dashboard(Thread):
         p.add_row(*fmt_perf('  Learn', self.profile.learn_time, self.profile.uptime))
         p.add_row(*fmt_perf('  Misc', self.profile.train_misc_time, self.profile.uptime))
 
-        l = Table(box=None, expand=True, )
+        l = Table(box=None, expand=True)
         l.add_column(f'{c1}Losses', justify="left", width=16)
         l.add_column(f'{c1}Value', justify="right", width=8)
         for metric, value in self.losses.items():
@@ -127,6 +163,8 @@ class Dashboard(Thread):
         right.add_column(f"{c1}Value", justify="right", width=10)
         i = 0
         for metric, value in self.stats.items():
+            if i >= self.max_stats:
+                break
             try: # Discard non-numeric values
                 int(value)
             except:
@@ -136,23 +174,41 @@ class Dashboard(Thread):
             u.add_row(f'{c2}{metric}', f'{b2}{value:.3f}')
             i += 1
 
-        for i in range(self.max_stats[0] - i):
+        for i in range(self.max_stats - i):
             u = left if i % 2 == 0 else right
             u.add_row('', '')
 
-        self.max_stats[0] = max(self.max_stats[0], i)
-
-        table = Table(box=None, expand=True, pad_edge=False)
+        table = Table(box=None, expand=False, pad_edge=False)
         dashboard.add_row(table)
-        table.add_row(f' {c1}WandDb {b2}{self.wandb_status}')
-        table.add_row(f' {c1}Message: {c2}{self.msg}')
+        table.add_row(f' {c1}Checkpoint: {b2}{self.checkpoint["path"]} epoch: {self.checkpoint["epoch"]} steps: {self.checkpoint["steps"]}')
+        table.add_row(f' {c1}WandDb Model: {b2}{self.wandb_model["name"]} epoch: {self.wandb_model["epoch"]} steps: {self.wandb_model["steps"]}')
+        wandb_status = "Disabled"
+        if wandb.run:
+            wandb_status = f"(e) ({wandb.run.name}): {wandb.run.url}"
+            if self.cfg.wandb.track:
+                wandb_status = f"(t) ({wandb.run.name}): {wandb.run.url}"
+        else:
+            if self.cfg.wandb.track:
+                wandb_status = "(t): Not Initialized"
+        table.add_row(f' {c1}WandDb: {b2}{wandb_status}')
+
+        table.add_row(
+            f' {c1}Carbs: {b2}' +
+            f'o: {self.carbs["num_observations"]} ' +
+            f's: {self.carbs["num_suggestions"]} ' +
+            f'm: {self.carbs["last_metric"]} ' +
+            f't: {self.carbs["last_run_time"]} ' +
+            f't: {self.carbs["last_run_success"]} ' +
+            f'f: {self.carbs["num_failures"]}')
+
+        table = Table(box=ROUND_OPEN, expand=True, pad_edge=False)
+        dashboard.add_row(table)
+        for msg in self.msg_log:
+            table.add_row(f'{c2}{msg}')
         with console.capture() as capture:
             console.print(dashboard)
 
         print('\033[0;0H' + capture.get())
-
-    def close(self):
-        self.utilization.stop()
 
 
 ROUND_OPEN = rich.box.Box(
