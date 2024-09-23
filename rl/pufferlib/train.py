@@ -288,6 +288,7 @@ class PufferTrainer:
 
         model_name = f'model_{self.epoch:06d}.pt'
         model_path = os.path.join(path, model_name)
+
         torch.save(self.uncompiled_policy, model_path)
 
         state = {
