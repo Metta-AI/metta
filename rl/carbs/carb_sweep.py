@@ -111,7 +111,7 @@ def run_carb_sweep_rollout():
         eval_cfg.eval = _cfg.sweep.eval.copy()
         eval_cfg.eval.policy_uri = model_uri
         eval_cfg.wandb.track = False
-        stats = evaluate(eval_cfg)
+        stats = evaluate(eval_cfg, _dashboard)
 
         metric = stats[0].get(_cfg.sweep.metric, {"sum": 0, "count": 1})
         objective = metric["sum"] / metric["count"]
