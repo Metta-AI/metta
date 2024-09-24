@@ -9,12 +9,13 @@ import torch
 from omegaconf import OmegaConf
 import wandb
 import os
+from copy import deepcopy
 
-from rl.pufferlib.dashboard import Dashboard
 from rl.pufferlib.experience import Experience
-from rl.pufferlib.profile import Profile
 from rl.pufferlib.vecenv import make_vecenv
 from rl.pufferlib.policy import load_policy_from_uri
+from rl.wandb.wandb import init_wandb
+from rl.pufferlib.profile import Profile
 
 from . import puffer_agent_wrapper
 
@@ -24,12 +25,14 @@ from fast_gae import fast_gae
 
 
 class PufferTrainer:
-    def __init__(self, cfg: OmegaConf, dashboard: Dashboard):
+    def __init__(self, cfg: OmegaConf):
         self.cfg = cfg
-        self.dashboard = dashboard
-
         self.device = cfg.device
-        self._last_saved_model_path = None
+        self.profile = Profile()
+        self.losses = self._make_losses()
+        self.stats = defaultdict(list)
+        self.recent_stats = defaultdict(list)
+        self.last_saved_state = None
 
         self._make_vecenv()
 
@@ -44,10 +47,9 @@ class PufferTrainer:
         if self.cfg.train.init_policy_uri is None:
             self.uncompiled_policy = puffer_agent_wrapper.make_policy(self.vecenv.driver_env, self.cfg)
         else:
-            self.dashboard.log(f"Loading policy from {self.cfg.train.init_policy_uri}")
+            print(f"Loading policy from {self.cfg.train.init_policy_uri}")
             self.uncompiled_policy = load_policy_from_uri(self.cfg.train.init_policy_uri, self.cfg)
-            self.dashboard.log(f"Initialized policy from {self.cfg.train.init_policy_uri}")
-        self.dashboard.set_policy(self.uncompiled_policy)
+            print(f"Initialized policy from {self.cfg.train.init_policy_uri}")
         self.policy = self.uncompiled_policy
         if self.cfg.train.compile:
             self.policy = torch.compile(self.policy, mode=self.cfg.train.compile_mode)
@@ -61,7 +63,9 @@ class PufferTrainer:
             lr=self.cfg.train.learning_rate, eps=1e-5)
         self.global_step = 0
         self.epoch = 0
-        self.stats = defaultdict(list)
+        if len(self.stats) > 0:
+            self.recent_stats = deepcopy(self.stats)
+        self.stats.clear()
         self.last_log_time = 0
 
         if self.cfg.train.resume:
@@ -74,8 +78,8 @@ class PufferTrainer:
 
     def train(self):
         self.train_start = time.time()
-
-        self.dashboard.log("Starting training")
+        init_wandb(self.cfg)
+        print("Starting training")
 
         while self.global_step < self.cfg.train.total_timesteps:
             self._evaluate()
@@ -89,11 +93,11 @@ class PufferTrainer:
         self.train_time = time.time() - self.train_start
         self._save_checkpoint()
         self._upload_model_to_wandb()
-        self.dashboard.log(f"Training complete. Total time: {self.train_time:.2f} seconds")
+        print(f"Training complete. Total time: {self.train_time:.2f} seconds")
 
     @pufferlib.utils.profile
     def _evaluate(self):
-        experience, profile = self.experience, self.dashboard.profile
+        experience, profile = self.experience, self.profile
 
         with profile.eval_misc:
             policy = self.policy
@@ -107,7 +111,6 @@ class PufferTrainer:
 
             with profile.eval_misc:
                 self.global_step += sum(mask)
-                self.dashboard.global_step = self.global_step
 
                 o = torch.as_tensor(o)
                 o_device = o.to(self.device)
@@ -161,9 +164,8 @@ class PufferTrainer:
 
     @pufferlib.utils.profile
     def _train(self):
-        experience, profile = self.experience, self.dashboard.profile
+        experience, profile = self.experience, self.profile
         self.losses = self._make_losses()
-        self.dashboard.losses = self.losses
 
         with profile.train_misc:
             idxs = experience.sort_training_data()
@@ -274,7 +276,6 @@ class PufferTrainer:
             explained_var = np.nan if var_y == 0 else 1 - np.var(y_true - y_pred) / var_y
             self.losses.explained_variance = explained_var
             self.epoch += 1
-            self.dashboard.epoch = self.epoch
             profile.update(
                 self.global_step,
                 self.cfg.train.total_timesteps,
@@ -302,11 +303,14 @@ class PufferTrainer:
         state_path = os.path.join(path, 'trainer_state.pt')
         torch.save(state, state_path + '.tmp')
         os.rename(state_path + '.tmp', state_path)
-        self.dashboard.update_checkpoint(model_path, self.global_step, self.epoch)
-        self._last_saved_model_path = model_path
+        self.last_saved_state = {
+            "model_path": model_path,
+            "global_step": self.global_step,
+            "epoch": self.epoch,
+        }
 
     def _upload_model_to_wandb(self):
-        if self._last_saved_model_path is None:
+        if self.last_saved_state is None:
             return
         if not self.cfg.wandb.track:
             return
@@ -316,16 +320,15 @@ class PufferTrainer:
             artifact_name,
             type="model",
             metadata={
-                "model_name": self._last_saved_model_path,
-                "agent_step": self.global_step,
-                "epoch": self.epoch,
+                "model_name": self.last_saved_state["model_name"],
+                "agent_step": self.last_saved_state["global_step"],
+                "epoch": self.last_saved_state["epoch"],
                 "exp_id": self.cfg.experiment,
             }
         )
-        artifact.add_file(self._last_saved_model_path)
+        artifact.add_file(self.last_saved_state["model_path"])
         artifact = wandb.run.log_artifact(artifact)
         artifact.wait()
-        self.dashboard.update_wandb_model(artifact)
         return artifact.name
 
     def _try_load_checkpoint(self):
@@ -344,8 +347,12 @@ class PufferTrainer:
         if self.cfg.train.compile:
             self.policy = torch.compile(self.policy, mode=self.cfg.train.compile_mode)
         self.optimizer.load_state_dict(resume_state['optimizer_state_dict'])
-        self.dashboard.log(f'Loaded checkpoint {resume_state["model_name"]}')
-        self._last_saved_model_path = model_path
+        print(f'Loaded checkpoint {resume_state["model_name"]}')
+        self.last_saved_state = {
+            "model_path": model_path,
+            "global_step": self.global_step,
+            "epoch": self.epoch,
+        }
 
     def _process_stats(self):
         for k in list(self.stats.keys()):
@@ -357,19 +364,19 @@ class PufferTrainer:
 
             self.stats[k] = v
 
-        self.dashboard.update_stats(self.stats)
-
         if self.cfg.wandb.track:
             wandb.log({
-                '0verview/SPS': self.dashboard.profile.SPS,
+                '0verview/SPS': self.profile.SPS,
                 '0verview/agent_steps': self.global_step,
             '0verview/epoch': self.epoch,
             '0verview/learning_rate': self.optimizer.param_groups[0]["lr"],
             **{f'environment/{k}': v for k, v in self.stats.items()},
             **{f'losses/{k}': v for k, v in self.losses.items()},
-            **{f'performance/{k}': v for k, v in self.dashboard.profile},
+            **{f'performance/{k}': v for k, v in self.profile},
         })
-        self.stats = defaultdict(list)
+        if len(self.stats) > 0:
+            self.recent_stats = deepcopy(self.stats)
+        self.stats.clear()
 
     def close(self):
         self.vecenv.close()

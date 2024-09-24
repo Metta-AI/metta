@@ -18,13 +18,14 @@
                 "env=mettagrid/a20_b4_40x40",
                 // "env=mettagrid/a20_b4_40x40",
                 "cmd=train",
-                "env.game.max_steps=1000",
+                "env.game.max_steps=100",
                 "env.kinship.team_size=5",
                 "env.kinship.team_reward=0.8",
 
                 // "env.game.actions.attack.enabled=false",
 
                 "wandb.enabled=True",
+                "wandb.track=False",
                 // "wandb.track=True",
                 // "env.substrate_name=running_with_scissors_in_the_matrix__arena",
 
@@ -66,14 +67,14 @@
             "args": [
                 "cmd=sweep",
                 "sweep.resume=true",
-                "experiment=mac.carbsweep.4",
+                "experiment=mac.carbsweep.5",
                 "agent=simple",
                 "hardware=macbook",
                 "sweep=fast",
                 "wandb.track=enabled",
                 "wandb.enabled=True",
                 "env=mettagrid/a20_b4_40x40",
-                "env.game.max_steps=100",
+                "env.game.max_steps=1000",
                 "train.total_timesteps=100000",
                 // "env=mettagrid/a20_b4_40x40",
             ],
