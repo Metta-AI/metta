@@ -56,14 +56,19 @@ def main(cfg):
             trainer.close()
 
         if cfg.cmd == "evaluate":
-            stats = evaluate(cfg, dashboard)
+            dashboard = Dashboard(cfg, components=[
+                Utilization(),
+                WanDb(cfg.wandb),
+                Logs(stdout_path, stderr_path),
+            ])
+            stats = evaluate(cfg)
             print_policy_stats(stats)
 
         if cfg.cmd == "play":
-            play(cfg, dashboard)
+            play(cfg)
 
         if cfg.cmd == "sweep":
-            run_sweep(cfg, dashboard)
+            run_sweep(cfg)
 
     except KeyboardInterrupt:
         print("Ctrl+C detected, exiting...")

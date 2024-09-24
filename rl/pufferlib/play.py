@@ -4,13 +4,12 @@ import numpy as np
 from rl.pufferlib.policy import load_policy_from_uri
 from mettagrid.renderer.raylib.raylib_renderer import MettaGridRaylibRenderer
 from rl.pufferlib.vecenv import make_vecenv
-from rl.pufferlib.dashboard.dashboard import Dashboard
-def play(cfg: OmegaConf, dashboard: Dashboard):
+
+def play(cfg: OmegaConf):
     device = cfg.device
     vecenv = make_vecenv(cfg, num_envs=1, render_mode="human")
 
     policy = load_policy_from_uri(cfg.eval.policy_uri, cfg)
-    dashboard.set_policy(policy)
 
     obs, _ = vecenv.reset()
     env = vecenv.envs[0]
