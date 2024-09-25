@@ -6,9 +6,10 @@ from .dashboard import DashboardComponent
 from .dashboard import c1, b1, c2, b2, c3, ROUND_OPEN
 from .dashboard import abbreviate, duration, fmt_perf
 from .user_stats import UserStats
+from .policy import Policy
 from rl.pufferlib.train import PufferTrainer
 
-class Trainer(DashboardComponent):
+class Training(DashboardComponent):
     def __init__(self, trainer: PufferTrainer):
         super().__init__()
         self.trainer = trainer
@@ -48,4 +49,5 @@ class Trainer(DashboardComponent):
         us = UserStats(self.trainer.recent_stats, max_stats=8)
         t = Table(box=None, expand=True)
         t.add_row(s, p, l, us.render())
+
         return t

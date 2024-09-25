@@ -18,7 +18,8 @@ from io import StringIO
 from rl.pufferlib.dashboard.utilization import Utilization
 from rl.pufferlib.dashboard.logs import Logs
 from rl.pufferlib.dashboard.wandb import WanDb
-from rl.pufferlib.dashboard.trainer import Trainer
+from rl.pufferlib.dashboard.training import Training
+from rl.pufferlib.dashboard.policy import Policy
 import rich
 
 signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
@@ -49,7 +50,8 @@ def main(cfg):
             dashboard = Dashboard(cfg, components=[
                 Utilization(),
                 WanDb(cfg.wandb),
-                Trainer(trainer),
+                Training(trainer),
+                Policy(trainer.policy_checkpoint),
                 Logs(stdout_path, stderr_path),
             ])
             trainer.train()

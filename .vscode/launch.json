@@ -26,6 +26,7 @@
 
                 "wandb.enabled=True",
                 "wandb.track=False",
+                "train.wandb_checkpoint_interval=1",
                 // "wandb.track=True",
                 // "env.substrate_name=running_with_scissors_in_the_matrix__arena",
 

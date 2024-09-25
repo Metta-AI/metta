@@ -30,10 +30,10 @@ class Logs(DashboardComponent):
         headers = []
         columns = []
         if len(stdout_log_content) > 0:
-            headers.append(c1 + "Logs")
+            headers.append(c1 + f"Logs: {self.stdout_log_path}")
             columns.append(stdout)
         if len(stderr_log_content) > 0:
-            headers.append(c1 + "Error")
+            headers.append(c1 + f"Error: {self.stderror_log_path}")
             columns.append(stderr)
 
         table = Table(box=ROUND_OPEN, expand=True, show_header=False, border_style='bright_cyan')

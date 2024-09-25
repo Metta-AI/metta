@@ -13,7 +13,7 @@ class UserStats(DashboardComponent):
 
     def render(self):
         table = Table(box=ROUND_OPEN, expand=True, pad_edge=False)
-        table.add_column(f"{c1}User Stats", justify="left", width=20)
+        table.add_column(f"{c1}Env Stats", justify="left", width=20)
         table.add_column(f"{c1}Value", justify="right", width=10)
         i = 0
         for metric, value in self.stats.items():

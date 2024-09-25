@@ -16,6 +16,7 @@ from rl.pufferlib.vecenv import make_vecenv
 from rl.pufferlib.policy import load_policy_from_uri
 from rl.wandb.wandb import init_wandb
 from rl.pufferlib.profile import Profile
+from rl.pufferlib.policy import count_params
 
 from . import puffer_agent_wrapper
 
@@ -23,6 +24,20 @@ torch.set_float32_matmul_precision('high')
 
 from fast_gae import fast_gae
 
+class PolicyCheckpoint:
+    def __init__(self):
+        self.agent_steps = 0
+        self.epoch = 0
+        self.model_name = None
+        self.model_path = None
+        self.wandb_model_artifact = None
+        self.num_params = 0
+
+    def update(self, agent_steps: int, epoch: int, model_name: str, model_path: str):
+        self.agent_steps = agent_steps
+        self.epoch = epoch
+        self.model_name = model_name
+        self.model_path = model_path
 
 class PufferTrainer:
     def __init__(self, cfg: OmegaConf):
@@ -32,7 +47,7 @@ class PufferTrainer:
         self.losses = self._make_losses()
         self.stats = defaultdict(list)
         self.recent_stats = defaultdict(list)
-        self.last_saved_state = None
+        self.policy_checkpoint = PolicyCheckpoint()
 
         self._make_vecenv()
 
@@ -51,6 +66,7 @@ class PufferTrainer:
             self.uncompiled_policy = load_policy_from_uri(self.cfg.train.init_policy_uri, self.cfg)
             print(f"Initialized policy from {self.cfg.train.init_policy_uri}")
         self.policy = self.uncompiled_policy
+        self.policy_checkpoint.num_params = count_params(self.uncompiled_policy)
         if self.cfg.train.compile:
             self.policy = torch.compile(self.policy, mode=self.cfg.train.compile_mode)
 
@@ -66,7 +82,6 @@ class PufferTrainer:
         if len(self.stats) > 0:
             self.recent_stats = deepcopy(self.stats)
         self.stats.clear()
-        self.last_log_time = 0
 
         if self.cfg.train.resume:
             self._try_load_checkpoint()
@@ -303,32 +318,29 @@ class PufferTrainer:
         state_path = os.path.join(path, 'trainer_state.pt')
         torch.save(state, state_path + '.tmp')
         os.rename(state_path + '.tmp', state_path)
-        self.last_saved_state = {
-            "model_path": model_path,
-            "global_step": self.global_step,
-            "epoch": self.epoch,
-        }
+        self.policy_checkpoint.update(self.global_step, self.epoch, model_name, model_path)
 
     def _upload_model_to_wandb(self):
-        if self.last_saved_state is None:
+        if self.policy_checkpoint is None:
             return
-        if not self.cfg.wandb.track:
+        if not self.cfg.wandb.enabled:
             return
 
-        artifact_name = f"{self.cfg.experiment}_model"
+        artifact_name = f"{self.cfg.experiment}"
         artifact = wandb.Artifact(
             artifact_name,
             type="model",
             metadata={
-                "model_name": self.last_saved_state["model_name"],
-                "agent_step": self.last_saved_state["global_step"],
-                "epoch": self.last_saved_state["epoch"],
+                "model_name": self.policy_checkpoint.model_name,
+                "agent_step": self.policy_checkpoint.agent_steps,
+                "epoch": self.policy_checkpoint.epoch,
                 "exp_id": self.cfg.experiment,
             }
         )
-        artifact.add_file(self.last_saved_state["model_path"])
+        artifact.add_file(self.policy_checkpoint.model_path)
         artifact = wandb.run.log_artifact(artifact)
         artifact.wait()
+        self.policy_checkpoint.wandb_model_artifact = artifact
         return artifact.name
 
     def _try_load_checkpoint(self):
@@ -348,11 +360,7 @@ class PufferTrainer:
             self.policy = torch.compile(self.policy, mode=self.cfg.train.compile_mode)
         self.optimizer.load_state_dict(resume_state['optimizer_state_dict'])
         print(f'Loaded checkpoint {resume_state["model_name"]}')
-        self.last_saved_state = {
-            "model_path": model_path,
-            "global_step": self.global_step,
-            "epoch": self.epoch,
-        }
+        self.policy_checkpoint.update(self.global_step, self.epoch, resume_state['model_name'], model_path)
 
     def _process_stats(self):
         for k in list(self.stats.keys()):

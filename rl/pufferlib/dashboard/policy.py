@@ -1,35 +1,38 @@
 
-import numpy as np
 from rich.table import Table
 
-from rl.pufferlib.utilization import Utilization
 
-from .component import DashboardComponent
-from .component import c1, b1, c2, b2, c3
-from .component import abbreviate, duration, fmt_perf
-from rl.pufferlib.policy import count_params
+from .dashboard import DashboardComponent
+from .dashboard import c1, c2, b2
+from .dashboard import abbreviate, ROUND_OPEN
+from rl.pufferlib.train import PolicyCheckpoint
 
 
 class Policy(DashboardComponent):
-    def __init__(self):
+    def __init__(self, checkpoint: PolicyCheckpoint):
         super().__init__()
-        self.policy = None
-        self.num_params = 0
-        self.saved_at = 0
-        self.epoch = 0
-        self.agent_steps = 0
+        self.checkpoint = checkpoint
         self.wandb_model_name = None
         self.wandb_url = None
 
-    def set_policy(self, policy):
-        self.num_params = count_params(policy)
-
     def render(self):
-        table = Table(box=None, expand=True, pad_edge=False)
-        table.add_row(f'{c2}Policy Params', abbreviate(self.num_params))
-        table.add_row(f'{c2}Epoch', abbreviate(self.epoch))
-        table.add_row(f'{c2}Agent Steps', abbreviate(self.agent_steps))
-        table.add_row(f'{c2}Wandb Model', abbreviate(self.wandb_model_name))
-        table.add_row(f' {c1}Checkpoint: {b2}{self.checkpoint["path"]} epoch: {self.checkpoint["epoch"]} steps: {self.checkpoint["steps"]}')
-        table.add_row(f' {c1}WandDb Model: {b2}{self.wandb_model["name"]} epoch: {self.wandb_model["epoch"]} steps: {self.wandb_model["steps"]}')
+        table = Table(box=ROUND_OPEN, expand=False)
+        table.add_column(f"{c1}Model", justify='left', vertical='top')
+        table.add_column(f"{c1}Value", justify='right', vertical='top')
+        table.add_row(f'{c2}Params', abbreviate(self.checkpoint.num_params))
+        if self.checkpoint.model_name:
+            table.add_row(f'{c2}Epoch', abbreviate(self.checkpoint.epoch))
+            table.add_row(f'{c2}Agent Steps', abbreviate(self.checkpoint.agent_steps))
+            table.add_row(f'{c2}Path', self.checkpoint.model_path)
+
+        if self.checkpoint.wandb_model_artifact:
+            entity = self.checkpoint.wandb_model_artifact.entity
+            project = self.checkpoint.wandb_model_artifact.project
+            uri = f"wandb://{self.checkpoint.wandb_model_artifact.name}"
+            name, version = self.checkpoint.wandb_model_artifact.name.split(":")
+
+            url = f"https://wandb.ai/{entity}/{project}/artifacts/model/{name}/{version}"
+            table.add_row(f'{c2}Wandb Model', uri)
+            table.add_row(f'{c2}Wandb URL', url)
+
         return table
