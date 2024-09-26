@@ -32,7 +32,7 @@ wandb_checkpoint_interval: 300
 batch_size: 524288
 minibatch_size: 4096
 bptt_horizon: 4
-vf_clip_coef: 0.0008792699500449386
+vf_clip_coef: 0.0173907209540233
 compile: false
 compile_mode: reduce-overhead
 
