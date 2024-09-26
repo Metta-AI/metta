@@ -26,38 +26,6 @@
 
                 "wandb.enabled=True",
                 "wandb.track=False",
-                "train.wandb_checkpoint_interval=1",
-                // "wandb.track=True",
-                // "env.substrate_name=running_with_scissors_in_the_matrix__arena",
-
-                // "sample_factory.aux_loss_coeff=0.1",
-
-                // "framework.wandb.track=True",
-
-                // "sample_factory.wandb_project=mp_rws"
-                // "+sample_factory.restart_behavior=restart",
-                // "sample_factory.num_workers=2",
-
-                // "+env.extra_variables=2",
-                // "--restart_behavior=restart",
-
-                // "--config=sandbox_agent",
-                // "--agent_embedding_layers=0",
-                // "--agent_fc_skip=True",
-                // "--serial=True",
-
-                // "--normalize_input=False",
-
-                // common setting
-                // "--async_rl=False",
-                // "--batch_size=1792",
-                // "--with_wandb=True",
-
-                // sandbox settings
-                // "--device=cpu",
-
-                // "--train_for_env_steps=1000"
-
             ],
         },
         {

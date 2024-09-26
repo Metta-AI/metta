@@ -108,6 +108,7 @@ class PufferTrainer:
         self.train_time = time.time() - self.train_start
         self._save_checkpoint()
         self._upload_model_to_wandb()
+        wandb.finish(quiet=True)
         print(f"Training complete. Total time: {self.train_time:.2f} seconds")
 
     @pufferlib.utils.profile

@@ -1,26 +1,26 @@
 import os
-import sys
-import hydra
-from omegaconf import OmegaConf
-from rich import traceback
-import signal # Aggressively exit on ctrl+c
-from rl.carbs.carb_sweep import run_sweep
-from rl.pufferlib.evaluate import evaluate
-from rl.pufferlib.play import play
-from rl.pufferlib.dashboard.dashboard import Dashboard
-from rich.console import Console
-from rl.pufferlib.train import PufferTrainer
 import random
+import signal  # Aggressively exit on ctrl+c
+import sys
+
+import hydra
 import numpy as np
 import torch
-from util.stats import print_policy_stats
-from io import StringIO
-from rl.pufferlib.dashboard.utilization import Utilization
+from omegaconf import OmegaConf
+from rich import traceback
+from rich.console import Console
+
+from rl.carbs.carbs_controller import CarbsController
+from rl.pufferlib.dashboard.dashboard import Dashboard
 from rl.pufferlib.dashboard.logs import Logs
-from rl.pufferlib.dashboard.wandb import WanDb
-from rl.pufferlib.dashboard.training import Training
 from rl.pufferlib.dashboard.policy import Policy
-import rich
+from rl.pufferlib.dashboard.training import Training
+from rl.pufferlib.dashboard.utilization import Utilization
+from rl.pufferlib.dashboard.wandb import WanDb
+from rl.pufferlib.evaluate import evaluate
+from rl.pufferlib.play import play
+from rl.pufferlib.train import PufferTrainer
+from util.stats import print_policy_stats
 
 signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
 
@@ -70,7 +70,8 @@ def main(cfg):
             play(cfg)
 
         if cfg.cmd == "sweep":
-            run_sweep(cfg)
+            carbs_controller = CarbsController(cfg)
+            carbs_controller.run_sweep()
 
     except KeyboardInterrupt:
         print("Ctrl+C detected, exiting...")
