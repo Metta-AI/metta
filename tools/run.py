@@ -79,6 +79,7 @@ def main(cfg):
 
     except KeyboardInterrupt:
         print("Ctrl+C detected, exiting...")
+        restore_io()
         os._exit(0)
     except Exception:
         error = sys.exc_info()
@@ -90,6 +91,7 @@ def main(cfg):
     finally:
         if dashboard is not None:
             dashboard.stop()
+
     restore_io()
     if error:
         tb = traceback.Traceback.from_exception(
