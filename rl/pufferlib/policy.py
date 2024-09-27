@@ -9,6 +9,7 @@ def load_policy_from_file(path: str, device: str):
     return torch.load(path, map_location=device, weights_only=False)
 
 def load_policy_from_wandb(uri: str, cfg: OmegaConf):
+    init_wandb(cfg)
     artifact = wandb.use_artifact(uri[len("wandb://"):], type="model")
     return load_policy_from_file(artifact.file(
         root=os.path.join(cfg.data_dir, "artifacts")

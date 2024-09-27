@@ -8,6 +8,8 @@ from rich.console import Console
 from rich.table import Table
 from rich.live import Live
 
+import sys
+
 class Dashboard(Thread):
     def __init__(self, cfg: OmegaConf, delay=1, components=None):
         super().__init__()
@@ -15,6 +17,8 @@ class Dashboard(Thread):
         self.delay = delay
 
         self._components = components or []
+        for component in self._components:
+            component._dashboard = self
 
         tty_file = open('/dev/tty', 'w')
         self.console = Console(file=tty_file, force_terminal=True)
@@ -56,6 +60,11 @@ class Dashboard(Thread):
         for component in self._components:
             component.stop()
         self._stopped = True
+        sys.stdout.close()
+        sys.stderr.close()
+        sys.stdout = self._original_stdout
+        sys.stderr = self._original_stderr
+
 
     def _render(self):
         dashboard = Table(box=ROUND_OPEN, expand=True,
@@ -68,7 +77,7 @@ class Dashboard(Thread):
 
 class DashboardComponent:
     def __init__(self):
-        pass
+        self._dashboard = None
 
     def render(self):
         pass

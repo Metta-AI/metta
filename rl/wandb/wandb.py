@@ -3,14 +3,8 @@ import os
 from omegaconf import OmegaConf
 
 def init_wandb(cfg, resume=True, name=None):
-    #os.environ["WANDB_SILENT"] = "true"
     if not cfg.wandb.enabled:
         assert not cfg.wandb.track, "wandb.track wont work if wandb.enabled is False"
-        return
-
-    os.environ["WANDB_SILENT"] = "true"
-    if wandb.run is not None:
-        print("wandb.init() has already been called, ignoring.")
         return
 
     wandb.init(
@@ -25,3 +19,6 @@ def init_wandb(cfg, resume=True, name=None):
         save_code=True,
         resume=resume,
     )
+
+    wandb.save(os.path.join(cfg.data_dir, cfg.experiment, "*.log"), policy="live")
+    wandb.save(os.path.join(cfg.data_dir, cfg.experiment, "*.yaml"), policy="live")

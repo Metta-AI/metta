@@ -40,7 +40,6 @@ def run_sweep(cfg: OmegaConf, dashboard: Dashboard):
 
     global _cfg
     _cfg = cfg
-    wandb.finish(quiet=True)
     wandb.agent(sweep_id, function=run_carb_sweep_rollout,
                 entity=cfg.wandb.entity, project=cfg.wandb.project, count=10000)
 

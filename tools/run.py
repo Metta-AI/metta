@@ -18,25 +18,22 @@ from rl.pufferlib.dashboard.training import Training
 from rl.pufferlib.dashboard.utilization import Utilization
 from rl.pufferlib.dashboard.wandb import WanDb
 from rl.pufferlib.evaluate import evaluate
+from rl.pufferlib.dashboard.carbs import Carbs
 from rl.pufferlib.play import play
 from rl.pufferlib.train import PufferTrainer
 from util.stats import print_policy_stats
-
+from util.logging import remap_io, restore_io
+from rl.wandb.wandb import init_wandb
+import wandb
 signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
+
+os.environ["WANDB_SILENT"] = "true"
+os.environ["PYDEVD_DISABLE_FILE_VALIDATION"] = "1"
 
 @hydra.main(version_base=None, config_path="../configs", config_name="config")
 def main(cfg):
-    os.makedirs(cfg.data_dir, exist_ok=True)
-    os.makedirs(os.path.join(cfg.data_dir, cfg.experiment), exist_ok=True)
-    stdout_path = os.path.join(cfg.data_dir, cfg.experiment, 'out.log')
-    stderr_path = os.path.join(cfg.data_dir, cfg.experiment, 'error.log')
-    original_stdout = sys.stdout
-    original_stderr = sys.stderr
-    stdout = open(stdout_path, 'w')
-    stderr = open(stderr_path, 'w')
-    sys.stderr = stderr
-    sys.stdout = stdout
-
+    logs_path = os.path.join(cfg.data_dir, cfg.experiment)
+    remap_io(logs_path)
     traceback.install(show_locals=False)
 
     print(OmegaConf.to_yaml(cfg))
@@ -46,22 +43,23 @@ def main(cfg):
     error = False
     try:
         if cfg.cmd == "train":
+            init_wandb(cfg)
             trainer = PufferTrainer(cfg)
             dashboard = Dashboard(cfg, components=[
                 Utilization(),
                 WanDb(cfg.wandb),
                 Training(trainer),
                 Policy(trainer.policy_checkpoint),
-                Logs(stdout_path, stderr_path),
+                Logs(logs_path),
             ])
             trainer.train()
             trainer.close()
-
+            wandb.finish(quiet=True)
         if cfg.cmd == "evaluate":
             dashboard = Dashboard(cfg, components=[
                 Utilization(),
                 WanDb(cfg.wandb),
-                Logs(stdout_path, stderr_path),
+                Logs(logs_path),
             ])
             stats = evaluate(cfg)
             print_policy_stats(stats)
@@ -71,6 +69,12 @@ def main(cfg):
 
         if cfg.cmd == "sweep":
             carbs_controller = CarbsController(cfg)
+            dashboard = Dashboard(cfg, components=[
+                Utilization(),
+                WanDb(cfg.wandb),
+                Carbs(carbs_controller),
+                Logs(logs_path),
+            ])
             carbs_controller.run_sweep()
 
     except KeyboardInterrupt:
@@ -78,7 +82,7 @@ def main(cfg):
         os._exit(0)
     except Exception:
         error = sys.exc_info()
-        Console(file=stderr).print_exception(
+        Console().print_exception(
             show_locals=True,
             extra_lines=3,
             suppress=[]
@@ -86,11 +90,7 @@ def main(cfg):
     finally:
         if dashboard is not None:
             dashboard.stop()
-        sys.stdout = original_stdout
-        sys.stderr = original_stderr
-        stdout.close()
-        stderr.close()
-
+    restore_io()
     if error:
         tb = traceback.Traceback.from_exception(
                     *error,

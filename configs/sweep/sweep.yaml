@@ -1,6 +1,6 @@
 metric: action.use.altar
 resume: true
-
+rollout_count: 10000
 eval:
   num_envs: 1024
   num_episodes: 1024
