@@ -80,6 +80,7 @@ class CarbsController:
         score = 0
         self._generate_carbs_suggestion()
         init_wandb(self._train_cfg)
+        wandb.config.update(self._rollout_params, allow_val_change=True)
 
         print("Running rollout: ", self._train_cfg.experiment)
         try:
@@ -131,6 +132,24 @@ class CarbsController:
         self._train_cfg = self._cfg.copy()
         self._eval_cfg = self._cfg.copy()
         self._train_cfg.experiment += f".t.{self._num_suggestions}"
+
+        self._rollout_params = self._suggestion.copy()
+        del self._rollout_params["suggestion_uuid"]
+        for key, value in self._rollout_params.items():
+            new_cfg_param = self._train_cfg
+            sweep_param = self._cfg.sweep.parameters
+            key_parts = key.split(".")
+            for k in key_parts[:-1]:
+                new_cfg_param = new_cfg_param[k]
+                sweep_param = sweep_param[k]
+            param_name = key_parts[-1]
+            if sweep_param[param_name].space == "pow2":
+                value = 2**value
+                self._rollout_params[key] = value
+            new_cfg_param[param_name] = value
+
+        print(f"Sweep Params: {self._rollout_params}")
+
         self._eval_cfg.experiment += f".e.{self._num_suggestions}"
         self._train_cfg.wandb.track = False
         self._save()
