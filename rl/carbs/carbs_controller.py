@@ -151,7 +151,7 @@ class CarbsController:
         print(f"Sweep Params: {self._rollout_params}")
 
         self._eval_cfg.experiment += f".e.{self._num_suggestions}"
-        self._train_cfg.wandb.track = False
+        self._eval_cfg.wandb.track = False
         self._save()
 
     def _record_observation(self, score, is_failure, rollout_time):
