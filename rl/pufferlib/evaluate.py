@@ -101,5 +101,5 @@ def evaluate(cfg: OmegaConf):
                     stats[k] = {"sum": 0, "count": num_policy_agents}
                 stats[k]["sum"] += v
 
-
+    vecenv.close()
     return policy_stats
