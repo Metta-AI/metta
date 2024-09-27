@@ -1,4 +1,4 @@
-metric: action.use.altar
+metric: action.use
 rollout_count: 100000
 resume: true
 

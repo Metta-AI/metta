@@ -103,7 +103,13 @@ b1 = '[bright_cyan]'
 b2 = '[bright_white]'
 
 def abbreviate(num):
-    if num < 1e3:
+    if num < 1e-3:
+        return f'{b2}{num:.000f}'
+    elif num < 0.1:
+        return f'{b2}{num:.00f}'
+    elif num < 1:
+        return f'{b2}{num:.00f}'
+    elif num < 1e3:
         return f'{b2}{num:.0f}'
     elif num < 1e6:
         return f'{b2}{num/1e3:.1f}{c2}k'

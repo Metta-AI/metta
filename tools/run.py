@@ -27,7 +27,6 @@ import wandb
 signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
 
 os.environ["WANDB_SILENT"] = "true"
-os.environ["PYDEVD_DISABLE_FILE_VALIDATION"] = "1"
 
 @hydra.main(version_base=None, config_path="../configs", config_name="config")
 def main(cfg):

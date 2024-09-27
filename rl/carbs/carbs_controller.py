@@ -9,6 +9,7 @@ from rl.pufferlib.evaluate import evaluate
 from rl.pufferlib.train import PufferTrainer
 from .util import carbs_params_spaces, wandb_sweep_cfg
 import yaml
+from copy import deepcopy
 from carbs import (
     CARBS,
     CARBSParams,
@@ -52,7 +53,7 @@ class CarbsController:
                 CARBSParams(
                     better_direction_sign=1,
                     resample_frequency=5,
-                    num_random_samples=5,
+                    num_random_samples=len(carbs_spaces),
                     checkpoint_dir=f"{self._cfg.data_dir}/{self._cfg.experiment}/carbs/",
                     is_wandb_logging_enabled=False,
                 ),
@@ -76,6 +77,8 @@ class CarbsController:
     def run_rollout(self):
         remap_io(self._sweep_dir)
         start_time = time.time()
+        train_time = 0
+        eval_time = 0
         is_failure = False
         score = 0
         self._generate_carbs_suggestion()
@@ -87,13 +90,26 @@ class CarbsController:
             self._stage = "train"
             self._trainer = PufferTrainer(self._train_cfg)
             print("Training: ", self._train_cfg.experiment)
+            train_time = time.time()
             self._trainer.train()
+            train_time = time.time() - train_time
             model_artifact_name = self._trainer._upload_model_to_wandb()
             print("Evaluating: ", model_artifact_name)
+
             self._stage = "eval"
+            eval_time = time.time()
             self._eval_cfg.eval.policy_uri = f"wandb://{model_artifact_name}"
             stats = evaluate(self._eval_cfg)
-            score = stats[0].get(self._cfg.sweep.metric, 0)
+            if self._cfg.sweep.metric not in stats[0]:
+                score = 0
+            else:
+                metric = stats[0][self._cfg.sweep.metric]
+                if metric["count"] == 0:
+                    score = 0
+                else:
+                    score = metric["sum"] / metric["count"]
+
+            eval_time = time.time() - eval_time
         except Exception:
             traceback.print_exc()
             is_failure = True
@@ -102,7 +118,7 @@ class CarbsController:
         print(f"Rollout {failure_msg} {self._train_cfg.experiment}: {score}, {rollout_time}")
         wandb.finish(quiet=True)
 
-        self._record_observation(score, is_failure, rollout_time)
+        self._record_observation(score, is_failure, rollout_time, train_time, eval_time)
         self._save()
 
     def _load(self):
@@ -129,8 +145,7 @@ class CarbsController:
         self._load()
         self._suggestion = self._carbs.suggest().suggestion
         self._num_suggestions += 1
-        self._train_cfg = self._cfg.copy()
-        self._eval_cfg = self._cfg.copy()
+        self._train_cfg = deepcopy(self._cfg)
         self._train_cfg.experiment += f".t.{self._num_suggestions}"
 
         self._rollout_params = self._suggestion.copy()
@@ -150,16 +165,21 @@ class CarbsController:
 
         print(f"Sweep Params: {self._rollout_params}")
 
+        self._eval_cfg = deepcopy(self._train_cfg)
+        self._eval_cfg.train = None
         self._eval_cfg.experiment += f".e.{self._num_suggestions}"
+        self._eval_cfg.eval = deepcopy(self._cfg.sweep.eval)
         self._eval_cfg.wandb.track = False
         self._save()
 
-    def _record_observation(self, score, is_failure, rollout_time):
+    def _record_observation(self, score, is_failure, rollout_time, train_time, eval_time):
         self._load()
         self._last_rollout_result = {
             "score": score,
             "is_failure" : is_failure,
-            "rollout_time": rollout_time
+            "rollout_time": rollout_time,
+            "train_time": train_time,
+            "eval_time": eval_time,
         }
         self._carbs.observe(
             ObservationInParam(
@@ -167,7 +187,8 @@ class CarbsController:
                 output=score,
                 cost=rollout_time,
                 is_failure=is_failure,
-        ))
+            )
+        )
         self._num_observations += 1
         self._num_failures += 1 if is_failure else 0
         self._save()
