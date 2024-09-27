@@ -91,7 +91,6 @@ def main(cfg):
     finally:
         if dashboard is not None:
             dashboard.stop()
-
     restore_io()
     if error:
         tb = traceback.Traceback.from_exception(

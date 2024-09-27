@@ -81,7 +81,7 @@ parameters:
       max: 128
     total_timesteps:
       space: linear
-      search_center: 2.5e8
+      search_center: 2.5e7
       min: 2e7
       max: 1e13
       is_int: true
