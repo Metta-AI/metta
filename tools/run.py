@@ -36,7 +36,7 @@ def main(cfg):
 
     print(OmegaConf.to_yaml(cfg))
     seed_everything(cfg.seed, cfg.torch_deterministic)
-    logs_path = os.path.join(cfg.data_dir, cfg.experiment)
+    os.makedirs(cfg.data_dir, exist_ok=True)
 
     dashboard = None
     error = False
