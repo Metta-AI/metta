@@ -7,8 +7,8 @@ def remap_io(logs_path: str):
     stdout_log_path = os.path.join(logs_path, 'out.log')
     stderr_log_path = os.path.join(logs_path, 'error.log')
     print("Remapping stdout and stderr to ", stdout_log_path, stderr_log_path)
-    stdout = open(stdout_log_path, 'w')
-    stderr = open(stderr_log_path, 'w')
+    stdout = open(stdout_log_path, 'a')
+    stderr = open(stderr_log_path, 'a')
     sys.stderr = stderr
     sys.stdout = stdout
     logger.remove()  # Remove default handler
