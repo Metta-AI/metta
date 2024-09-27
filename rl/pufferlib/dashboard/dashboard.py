@@ -7,6 +7,7 @@ import rich
 from rich.console import Console
 from rich.table import Table
 from rich.live import Live
+from util.logging import remap_io, restore_io
 
 import sys
 
@@ -22,7 +23,7 @@ class Dashboard(Thread):
 
         tty_file = open('/dev/tty', 'w')
         self.console = Console(file=tty_file, force_terminal=True)
-
+        remap_io(os.path.join(cfg.data_dir, cfg.experiment))
         self._stopped = False
         self.start()
 
@@ -60,10 +61,8 @@ class Dashboard(Thread):
         for component in self._components:
             component.stop()
         self._stopped = True
-        sys.stdout.close()
-        sys.stderr.close()
-        sys.stdout = self._original_stdout
-        sys.stderr = self._original_stderr
+        restore_io()
+
 
 
     def _render(self):

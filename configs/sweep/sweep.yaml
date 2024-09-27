@@ -1,4 +1,5 @@
 metric: action.use.altar
+rollout_count: 100000
 resume: true
 
 eval:

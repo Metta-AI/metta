@@ -22,7 +22,6 @@ from rl.pufferlib.dashboard.carbs import Carbs
 from rl.pufferlib.play import play
 from rl.pufferlib.train import PufferTrainer
 from util.stats import print_policy_stats
-from util.logging import remap_io, restore_io
 from rl.wandb.wandb import init_wandb
 import wandb
 signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
@@ -32,12 +31,12 @@ os.environ["PYDEVD_DISABLE_FILE_VALIDATION"] = "1"
 
 @hydra.main(version_base=None, config_path="../configs", config_name="config")
 def main(cfg):
-    logs_path = os.path.join(cfg.data_dir, cfg.experiment)
-    remap_io(logs_path)
+
     traceback.install(show_locals=False)
 
     print(OmegaConf.to_yaml(cfg))
     seed_everything(cfg.seed, cfg.torch_deterministic)
+    logs_path = os.path.join(cfg.data_dir, cfg.experiment)
 
     dashboard = None
     error = False
@@ -79,7 +78,6 @@ def main(cfg):
 
     except KeyboardInterrupt:
         print("Ctrl+C detected, exiting...")
-        restore_io()
         os._exit(0)
     except Exception:
         error = sys.exc_info()
@@ -91,7 +89,6 @@ def main(cfg):
     finally:
         if dashboard is not None:
             dashboard.stop()
-        restore_io()
     if error:
         tb = traceback.Traceback.from_exception(
                     *error,

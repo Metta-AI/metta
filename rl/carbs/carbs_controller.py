@@ -156,7 +156,11 @@ class CarbsController:
 
     def _record_observation(self, score, is_failure, rollout_time):
         self._load()
-        self._last_rollout_result = (score, is_failure, rollout_time)
+        self._last_rollout_result = {
+            "score": score,
+            "is_failure" : is_failure,
+            "rollout_time": rollout_time
+        }
         self._carbs.observe(
             ObservationInParam(
                 input=self._suggestion,
