@@ -62,7 +62,7 @@
                 // "env=mettagrid/a20_b4_40x40",
                 "cmd=play",
                 "wandb.enabled=True",
-                "eval.policy_uri=wandb://p2.refactor.new.0:latest",
+                "eval.policy_uri=wandb://p2.swap.0:latest",
                 // "eval.policy_uri=train_dir/pufferlib/mac.simple_encoder.4",
                 // "env.game.actions.attack.enabled=false",
                 "env.normalize_rewards=False",
@@ -81,7 +81,7 @@
                 "experiment=mac.5",
                 "wandb.enabled=True",
                 // "env=mettagrid/behaviors/resources/competition/10x10_2a",
-                "eval.policy_uri=wandb://p2.refactor.new.0:latest",
+                "eval.policy_uri=wandb://p2.sweap.0:latest",
 
                 // "eval.policy_uri=train_dir/pufferlib/mac.1",
                 // "eval.baseline_uris=[wandb://p2.tuned.4_model:v200]",

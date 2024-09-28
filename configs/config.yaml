@@ -3,7 +3,7 @@ experiment: ???
 data_dir: ./train_dir
 
 vectorization: multiprocessing
-dashboard: true
+dashboard: false
 
 seed: 1
 torch_deterministic: true

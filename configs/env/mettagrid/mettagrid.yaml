@@ -84,6 +84,9 @@ game:
     gift:
       enabled: false
       cost: 0
+    swap:
+      enabled: true
+      cost: 0
 
   map:
     # _target_: env.griddly.mettagrid.level_builder.MettaGridLevelBuilder

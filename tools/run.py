@@ -44,23 +44,25 @@ def main(cfg):
         if cfg.cmd == "train":
             init_wandb(cfg)
             trainer = PufferTrainer(cfg)
-            dashboard = Dashboard(cfg, components=[
-                Utilization(),
-                WanDb(cfg.wandb),
-                Training(trainer),
-                Policy(trainer.policy_checkpoint),
-                Logs(logs_path),
-            ])
+            if cfg.dashboard:
+                dashboard = Dashboard(cfg, components=[
+                    Utilization(),
+                    WanDb(cfg.wandb),
+                    Training(trainer),
+                    Policy(trainer.policy_checkpoint),
+                    Logs(logs_path),
+                ])
             trainer.train()
             trainer.close()
             wandb.finish(quiet=True)
         if cfg.cmd == "evaluate":
             init_wandb(cfg)
-            dashboard = Dashboard(cfg, components=[
-                Utilization(),
-                WanDb(cfg.wandb),
-                Logs(logs_path),
-            ])
+            if cfg.dashboard:
+                dashboard = Dashboard(cfg, components=[
+                    Utilization(),
+                    WanDb(cfg.wandb),
+                    Logs(logs_path),
+                ])
             tournament = PufferTournament(cfg, cfg.eval.policy_uri, cfg.eval.baseline_uris)
             stats = tournament.evaluate()
             print_policy_stats(stats)
@@ -70,12 +72,13 @@ def main(cfg):
 
         if cfg.cmd == "sweep":
             carbs_controller = CarbsController(cfg)
-            dashboard = Dashboard(cfg, components=[
-                Utilization(),
-                WanDb(cfg.wandb),
-                Carbs(carbs_controller),
-                Logs(logs_path),
-            ])
+            if cfg.dashboard:
+                dashboard = Dashboard(cfg, components=[
+                    Utilization(),
+                    WanDb(cfg.wandb),
+                    Carbs(carbs_controller),
+                    Logs(logs_path),
+                ])
             carbs_controller.run_sweep()
 
     except KeyboardInterrupt:
