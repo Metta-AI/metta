@@ -11,6 +11,7 @@ from mettagrid.actions.actions cimport MettaActionHandler
 cdef class Attack(MettaActionHandler):
     def __init__(self, cfg: OmegaConf):
         MettaActionHandler.__init__(self, cfg, "attack")
+        self.damage = cfg.damage
 
     cdef unsigned char max_arg(self):
         return 9
@@ -36,11 +37,12 @@ cdef class Attack(MettaActionHandler):
 
         target_loc.layer = GridLayer.Agent_Layer
         cdef Agent * agent_target = <Agent *>self.env._grid.object_at(target_loc)
-        cdef unsigned int shield_damage = 0
+
+        cdef unsigned short shield_damage = 0
         if agent_target:
             self.env._stats.agent_incr(actor_id, self._stats.target[agent_target._type_id].c_str())
             if agent_target.shield:
-                shield_damage = agent_target.update_energy(-agent_target.energy)
+                shield_damage = -agent_target.update_energy(-self.damage)
                 self.env._stats.agent_add(actor_id, "shield_damage", shield_damage)
             if shield_damage < self.damage:
                 agent_target.shield = False

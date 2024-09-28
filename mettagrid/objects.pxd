@@ -89,7 +89,7 @@ cdef cppclass Agent(MettaObject):
         if this.inventory[<InventoryItem>item] > this.max_items:
             this.inventory[<InventoryItem>item] = this.max_items
 
-    inline unsigned char update_energy(short amount):
+    inline short update_energy(short amount):
         if amount < 0:
             amount = max(-this.energy, amount)
         else:
