@@ -21,6 +21,7 @@ from mettagrid.actions.attack import Attack
 from mettagrid.actions.shield import Shield
 from mettagrid.actions.gift import Gift
 from mettagrid.actions.noop import Noop
+from mettagrid.actions.swap import Swap
 
 obs_np_type = np.uint8
 
@@ -46,6 +47,8 @@ cdef class MettaGrid(GridEnv):
             actions.append(Shield(cfg.actions.shield))
         if cfg.actions.gift.enabled:
             actions.append(Gift(cfg.actions.gift))
+        if cfg.actions.swap.enabled:
+            actions.append(Swap(cfg.actions.swap))
 
         GridEnv.__init__(
             self,

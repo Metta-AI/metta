@@ -2,7 +2,7 @@
 
 name: "GDY-MettaGrid"
 _target_: mettagrid.mettagrid_env.MettaGridEnv
-normalize_rewards: True
+normalize_rewards: False
 
 hidden_features:
   grid_obs: [
@@ -79,6 +79,9 @@ game:
       damage: 5
       enabled: true
     gift:
+      cost: 0
+      enabled: true
+    swap:
       cost: 0
       enabled: true
 
