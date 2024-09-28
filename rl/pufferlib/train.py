@@ -318,6 +318,7 @@ class PufferTrainer:
         torch.save(state, state_path + '.tmp')
         os.rename(state_path + '.tmp', state_path)
         self.policy_checkpoint.update(self.global_step, self.epoch, model_name, model_path)
+        print(f"Saved model to {model_path}")
 
     def _upload_model_to_wandb(self):
         if self.policy_checkpoint is None:
@@ -340,6 +341,7 @@ class PufferTrainer:
         artifact = wandb.run.log_artifact(artifact)
         artifact.wait()
         self.policy_checkpoint.wandb_model_artifact = artifact
+        print(f"Uploaded model to wandb: {artifact.name}")
         return artifact.name
 
     def _try_load_checkpoint(self):
