@@ -80,7 +80,7 @@ game:
     attack:
       enabled: true
       cost: 5
-      damage: 5
+      damage: 10
     gift:
       enabled: false
       cost: 0

@@ -1,5 +1,8 @@
 #/bin/bash -e
 
+# abort on error
+set -e
+
 pkill -9 -f wandb
 pkill -9 -f python
 git pull
