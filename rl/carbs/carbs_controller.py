@@ -5,7 +5,7 @@ from rl.wandb.wandb import init_wandb
 
 import time
 import traceback
-from rl.pufferlib.evaluate import evaluate
+from rl.pufferlib.evaluate import PufferTournament
 from rl.pufferlib.train import PufferTrainer
 from .util import carbs_params_spaces, wandb_sweep_cfg
 import yaml
@@ -98,8 +98,8 @@ class CarbsController:
 
             self._stage = "eval"
             eval_time = time.time()
-            self._eval_cfg.eval.policy_uri = f"wandb://{model_artifact_name}"
-            stats = evaluate(self._eval_cfg)
+            tournament = PufferTournament(self._eval_cfg, self._eval_cfg.eval.policy_uri, self._eval_cfg.eval.baseline_uris)
+            stats = tournament.evaluate()
             if self._cfg.sweep.metric not in stats[0]:
                 score = 0
             else:

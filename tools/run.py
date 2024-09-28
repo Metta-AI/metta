@@ -17,7 +17,7 @@ from rl.pufferlib.dashboard.policy import Policy
 from rl.pufferlib.dashboard.training import Training
 from rl.pufferlib.dashboard.utilization import Utilization
 from rl.pufferlib.dashboard.wandb import WanDb
-from rl.pufferlib.evaluate import evaluate
+from rl.pufferlib.evaluate import PufferTournament
 from rl.pufferlib.dashboard.carbs import Carbs
 from rl.pufferlib.play import play
 from rl.pufferlib.train import PufferTrainer
@@ -55,14 +55,16 @@ def main(cfg):
             trainer.close()
             wandb.finish(quiet=True)
         if cfg.cmd == "evaluate":
+            init_wandb(cfg)
             dashboard = Dashboard(cfg, components=[
                 Utilization(),
                 WanDb(cfg.wandb),
                 Logs(logs_path),
             ])
-            stats = evaluate(cfg)
+            tournament = PufferTournament(cfg, cfg.eval.policy_uri, cfg.eval.baseline_uris)
+            stats = tournament.evaluate()
             print_policy_stats(stats)
-
+            wandb.finish(quiet=True)
         if cfg.cmd == "play":
             play(cfg)
 
