@@ -5,7 +5,7 @@ resume: true
 eval:
   num_envs: 1024
   num_episodes: 1024
-  max_time_s: 60
+  max_time_s: 600
   policy_agents_pct: 1.0
 
   policy_uri: null
