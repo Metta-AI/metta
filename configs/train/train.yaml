@@ -4,10 +4,6 @@ num_workers: ???
 init_policy_uri: null
 resume: true
 
-env: ${env.name}
-exp_id: ${experiment}
-seed: 1
-
 cpu_offload: false
 total_timesteps: 50_000_000_000
 learning_rate: 0.0012654662762525116

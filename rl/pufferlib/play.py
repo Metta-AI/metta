@@ -1,15 +1,12 @@
 from omegaconf import OmegaConf
 import torch
 import numpy as np
-from rl.pufferlib.policy import load_policy_from_uri
 from mettagrid.renderer.raylib.raylib_renderer import MettaGridRaylibRenderer
 from rl.pufferlib.vecenv import make_vecenv
 
-def play(cfg: OmegaConf):
+def play(cfg: OmegaConf, policy):
     device = cfg.device
     vecenv = make_vecenv(cfg, num_envs=1, render_mode="human")
-
-    policy = load_policy_from_uri(cfg.eval.policy_uri, cfg)
 
     obs, _ = vecenv.reset()
     env = vecenv.envs[0]

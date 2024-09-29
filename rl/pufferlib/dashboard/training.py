@@ -7,7 +7,7 @@ from .dashboard import c1, b1, c2, b2, c3, ROUND_OPEN
 from .dashboard import abbreviate, duration, fmt_perf
 from .user_stats import UserStats
 from .policy import Policy
-from rl.pufferlib.train import PufferTrainer
+from rl.pufferlib.trainerimport PufferTrainer
 
 class Training(DashboardComponent):
     def __init__(self, trainer: PufferTrainer):

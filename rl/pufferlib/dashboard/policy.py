@@ -5,7 +5,7 @@ from rich.table import Table
 from .dashboard import DashboardComponent
 from .dashboard import c1, c2, b2
 from .dashboard import abbreviate, ROUND_OPEN
-from rl.pufferlib.train import PolicyCheckpoint
+from rl.pufferlib.trainer import PolicyCheckpoint
 
 
 class Policy(DashboardComponent):

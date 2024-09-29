@@ -1,6 +1,7 @@
-cmd: ???
-experiment: ???
+run: ???
 data_dir: ./train_dir
+run_dir: ${data_dir}/${run}
+sweep_id: null
 
 vectorization: multiprocessing
 dashboard: false
@@ -9,11 +10,18 @@ seed: 1
 torch_deterministic: true
 
 defaults:
-  - agent: tuned
-  - env: mettagrid/a20_b4_40x40
+  - agent: simple
+  - env: mettagrid/a20_40x40
   - train: train
-  - wandb: wandb
-  - sweep: sweep
   - eval: eval
+  - sweep: sweep
   - hardware: macbook
+
+wandb:
+  enabled: False
+  track: False
+  project: metta
+  entity: metta-research
+  group: metta
+  name: ${run}
 

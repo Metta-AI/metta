@@ -1,28 +1,27 @@
+import os
 import time
+import warnings
 from collections import defaultdict
+from copy import deepcopy
 
 import numpy as np
+import torch
+import wandb
+from fast_gae import fast_gae
+from omegaconf import OmegaConf
+from rl.pufferlib.experience import Experience
+from rl.pufferlib.policy import count_params, load_policy_from_uri
+from rl.pufferlib.profile import Profile
+from rl.pufferlib.vecenv import make_vecenv
+
 import pufferlib
 import pufferlib.pytorch
 import pufferlib.utils
-import torch
-from omegaconf import OmegaConf
-import wandb
-import os
-from copy import deepcopy
-
-from rl.pufferlib.experience import Experience
-from rl.pufferlib.vecenv import make_vecenv
-from rl.pufferlib.policy import load_policy_from_uri
-from rl.wandb.wandb import init_wandb
-from rl.pufferlib.profile import Profile
-from rl.pufferlib.policy import count_params
 
 from . import puffer_agent_wrapper
 
 torch.set_float32_matmul_precision('high')
 
-from fast_gae import fast_gae
 
 class PolicyCheckpoint:
     def __init__(self):
@@ -40,7 +39,7 @@ class PolicyCheckpoint:
         self.model_path = model_path
 
 class PufferTrainer:
-    def __init__(self, cfg: OmegaConf):
+    def __init__(self, cfg: OmegaConf, wandb_run):
         self.cfg = cfg
         self.device = cfg.device
         self.profile = Profile()
@@ -48,6 +47,7 @@ class PufferTrainer:
         self.stats = defaultdict(list)
         self.recent_stats = defaultdict(list)
         self.policy_checkpoint = PolicyCheckpoint()
+        self.wandb_run = wandb_run
 
         self._make_vecenv()
 
@@ -297,12 +297,8 @@ class PufferTrainer:
             )
 
     def _save_checkpoint(self):
-        path = os.path.join(self.cfg.data_dir, "pufferlib", self.cfg.experiment)
-        if not os.path.exists(path):
-            os.makedirs(path)
-
         model_name = f'model_{self.epoch:06d}.pt'
-        model_path = os.path.join(path, model_name)
+        model_path = os.path.join(self.cfg.run_dir, model_name)
 
         torch.save(self.uncompiled_policy, model_path)
 
@@ -312,9 +308,9 @@ class PufferTrainer:
             'agent_step': self.global_step,
             'epoch': self.epoch,
             'model_name': model_name,
-            'exp_id': self.cfg.experiment,
+            'run': self.cfg.run,
         }
-        state_path = os.path.join(path, 'trainer_state.pt')
+        state_path = os.path.join(self.cfg.run_dir, 'trainer_state.pt')
         torch.save(state, state_path + '.tmp')
         os.rename(state_path + '.tmp', state_path)
         self.policy_checkpoint.update(self.global_step, self.epoch, model_name, model_path)
@@ -323,10 +319,10 @@ class PufferTrainer:
     def _upload_model_to_wandb(self):
         if self.policy_checkpoint is None:
             return
-        if not self.cfg.wandb.enabled:
+        if not self.wandb_run:
             return
 
-        artifact_name = f"{self.cfg.experiment}"
+        artifact_name = f"{self.cfg.run}"
         artifact = wandb.Artifact(
             artifact_name,
             type="model",
@@ -334,33 +330,44 @@ class PufferTrainer:
                 "model_name": self.policy_checkpoint.model_name,
                 "agent_step": self.policy_checkpoint.agent_steps,
                 "epoch": self.policy_checkpoint.epoch,
-                "exp_id": self.cfg.experiment,
+                "run": self.cfg.run,
             }
         )
         artifact.add_file(self.policy_checkpoint.model_path)
-        artifact = wandb.run.log_artifact(artifact)
+        artifact = self.wandb_run.log_artifact(artifact)
         artifact.wait()
         self.policy_checkpoint.wandb_model_artifact = artifact
         print(f"Uploaded model to wandb: {artifact.name}")
         return artifact.name
 
     def _try_load_checkpoint(self):
-        path = os.path.join(self.cfg.data_dir, "pufferlib", self.cfg.experiment)
-        if not os.path.exists(path):
-            print('No checkpoints found. Assuming new experiment')
+        print("Trying to load training checkpoint")
+
+        trainer_path = os.path.join(self.cfg.run_dir, 'trainer_state.pt')
+        if not os.path.exists(trainer_path):
+            print('No trainer state found. Assuming new run')
             return
 
-        trainer_path = os.path.join(path, 'trainer_state.pt')
-        resume_state = torch.load(trainer_path)
-        model_path = os.path.join(path, resume_state['model_name'])
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=FutureWarning)
+            resume_state = torch.load(trainer_path)
+        model_path = os.path.join(self.cfg.run_dir, resume_state['model_name'])
+
+        print(f"Resuming from {model_path}")
+        print("Epoch:", resume_state['epoch'])
+        print("Global step:", resume_state['global_step'])
+
         self.global_step = resume_state['global_step']
         self.epoch = resume_state['epoch']
-        self.uncompiled_policy = torch.load(model_path, map_location=self.device)
+
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=FutureWarning)
+            self.uncompiled_policy = torch.load(model_path, map_location=self.device)
+
         self.policy = self.uncompiled_policy
         if self.cfg.train.compile:
             self.policy = torch.compile(self.policy, mode=self.cfg.train.compile_mode)
         self.optimizer.load_state_dict(resume_state['optimizer_state_dict'])
-        print(f'Loaded checkpoint {resume_state["model_name"]}')
         self.policy_checkpoint.update(self.global_step, self.epoch, resume_state['model_name'], model_path)
 
     def _process_stats(self):
@@ -373,8 +380,8 @@ class PufferTrainer:
 
             self.stats[k] = v
 
-        if self.cfg.wandb.track:
-            wandb.log({
+        if self.wandb_run and self.cfg.wandb.track:
+            self.wandb_run.log({
                 '0verview/SPS': self.profile.SPS,
                 '0verview/agent_steps': self.global_step,
             '0verview/epoch': self.epoch,

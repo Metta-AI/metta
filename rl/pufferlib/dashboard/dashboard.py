@@ -9,6 +9,7 @@ from rich.table import Table
 from rich.live import Live
 from util.logging import remap_io, restore_io
 
+
 import sys
 
 class Dashboard(Thread):

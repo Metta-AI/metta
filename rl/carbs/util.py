@@ -2,6 +2,10 @@ import math
 
 from omegaconf import OmegaConf, DictConfig
 
+from dataclasses import dataclass
+from carbs import CARBS
+from typing import Dict
+
 from carbs import (
     CARBS,
     CARBSParams,
@@ -11,6 +15,12 @@ from carbs import (
     ObservationInParam,
     Param,
 )
+
+from typing import Set
+from dataclasses import field
+
+import os
+import yaml
 
 def _wandb_distribution(param):
     if param.space == "log":
@@ -50,11 +60,9 @@ def carbs_params_spaces(cfg: OmegaConf):
             param.min = int(math.log2(param.min))
             param.max = int(math.log2(param.max))
             param.search_center = int(math.log2(param.search_center))
-
         scale = param.get("scale", 1)
         if param.space == "pow2" or param.get("is_int", False):
             scale = 4
-
         if param.search_center < param.min or param.search_center > param.max:
             raise ValueError(f"Search center for {param_name}: {param.search_center} is not in range [{param.min}, {param.max}]")
 
@@ -68,8 +76,9 @@ def carbs_params_spaces(cfg: OmegaConf):
                     rounding_factor=param.get("rounding_factor", 1),
                     scale=scale,
                 ),
-                search_center=param.search_center,                )
+                search_center=param.search_center,
             )
+        )
     return param_spaces
 
 
@@ -89,10 +98,10 @@ def wandb_sweep_cfg(cfg: OmegaConf):
         "method": "bayes",
         "metric": {
             "goal": "maximize",
-            "name": "environment/agent/" + cfg.sweep.metric,
+            "name": "eval_metric",
         },
         "parameters": {},
-        "name": cfg.wandb.name,
+        "name": cfg.run,
     }
     for param_name, param in params.items():
         wandb_sweep_cfg["parameters"][param_name] = {
@@ -101,3 +110,49 @@ def wandb_sweep_cfg(cfg: OmegaConf):
             "distribution": _wandb_distribution(param),
         }
     return wandb_sweep_cfg
+
+@dataclass
+class CarbsSweepState:
+    wandb_sweep_id: str
+    carbs: CARBS
+    num_suggestions: int = 0
+    num_observations: int = 0
+    num_failures: int = 0
+
+def load_sweep_state(sweep_dir: str) -> CarbsSweepState:
+    with open(os.path.join(sweep_dir, "sweep.yaml"), "r") as f:
+        sweep_state = yaml.safe_load(f)
+        sweep_state["carbs"] = CARBS.load_from_string(sweep_state["carbs"])
+    return CarbsSweepState(**sweep_state)
+
+def save_sweep_state(sweep_dir: str, sweep_state: CarbsSweepState):
+    with open(os.path.join(sweep_dir, "sweep.yaml"), "w") as f:
+        sweep_state_dict = sweep_state.__dict__.copy()
+        sweep_state_dict["carbs"] = sweep_state.carbs.serialize()
+        yaml.dump(sweep_state_dict, f, default_flow_style=False)
+
+def apply_carbs_suggestion(cfg: OmegaConf, suggestion: DictConfig):
+    for key, value in suggestion.items():
+        if key == "suggestion_uuid":
+            continue
+        new_cfg_param = cfg
+        key_parts = key.split(".")
+        for k in key_parts[:-1]:
+            new_cfg_param = new_cfg_param[k]
+        param_name = key_parts[-1]
+        new_cfg_param[param_name] = value
+
+def pow2_suggestion(cfg: OmegaConf, suggestion: DictConfig):
+    new_suggestion = {}
+    for key, value in suggestion.items():
+        if key == "suggestion_uuid":
+            continue
+        sweep_param = cfg.sweep.parameters
+        key_parts = key.split(".")
+        for k in key_parts[:-1]:
+            sweep_param = sweep_param[k]
+        param_name = key_parts[-1]
+        if sweep_param[param_name].space == "pow2":
+            value = 2**value
+        new_suggestion[key] = value
+    return new_suggestion

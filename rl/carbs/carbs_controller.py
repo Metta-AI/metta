@@ -1,12 +1,11 @@
 from omegaconf import OmegaConf
 
 import wandb
-from rl.wandb.wandb import init_wandb
 
 import time
 import traceback
 from rl.pufferlib.evaluate import PufferTournament
-from rl.pufferlib.train import PufferTrainer
+from rl.pufferlib.trainer import PufferTrainer
 from .util import carbs_params_spaces, wandb_sweep_cfg
 import yaml
 from copy import deepcopy

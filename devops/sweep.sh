@@ -1,3 +1,3 @@
 #/bin/bash -e
 
-./devops/run.sh cmd=sweep "$@"
+./devops/run.sh sweep "$@"

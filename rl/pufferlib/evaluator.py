@@ -2,11 +2,10 @@ from omegaconf import OmegaConf
 import torch
 import time
 import numpy as np
-from rl.pufferlib.policy import load_policy_from_uri
 from rl.pufferlib.vecenv import make_vecenv
 
-class PufferTournament():
-    def __init__(self, cfg, policy_uri, baseline_uris) -> None:
+class PufferEvaluator():
+    def __init__(self, cfg: OmegaConf, policy, baselines) -> None:
         self._cfg = cfg
         self._device = cfg.device
 
@@ -15,10 +14,8 @@ class PufferTournament():
         self._min_episodes = cfg.eval.num_episodes
         self._max_time_s = cfg.eval.max_time_s
 
-        self._policy_uri = policy_uri
-        self._baseline_uris = baseline_uris
-        self._policy = load_policy_from_uri(policy_uri, cfg)
-        self._baselines = [load_policy_from_uri(b, cfg) for b in baseline_uris]
+        self._policy = policy
+        self._baselines = baselines
         self._policy_agent_pct = cfg.eval.policy_agents_pct
         if len(self._baselines) == 0:
             self._baselines = [self._policy]
@@ -50,6 +47,18 @@ class PufferTournament():
         self._agent_stats = [{} for a in range(self._total_agents)]
 
     def evaluate(self):
+        print("Evaluating policy:")
+        print(self._policy)
+        print("Against baselines:")
+        for baseline in self._baselines:
+            print(baseline.path)
+        print("Total agents:", self._total_agents)
+        print("Policy agents per env:", self._policy_agents_per_env)
+        print("Baseline agents per env:", self._baseline_agents_per_env)
+        print("Num envs:", self._num_envs)
+        print("Min episodes:", self._min_episodes)
+        print("Max time:", self._max_time_s)
+
         obs, _ = self._vecenv.reset()
         policy_rnn_state = None
         baselines_rnn_state = [None for _ in range(len(self._baselines))]
@@ -116,7 +125,10 @@ class PufferTournament():
                         stats[k] = {"sum": 0, "count": num_policy_agents}
                     stats[k]["sum"] += v
 
+        print("Total episodes:", self._completed_episodes)
+        print("Evaluation time:", time.time() - start)
         return policy_stats
 
     def close(self):
         self._vecenv.close()
+
