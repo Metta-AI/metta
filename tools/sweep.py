@@ -1,6 +1,5 @@
 import os
 import signal  # Aggressively exit on ctrl+c
-import time
 from copy import deepcopy
 
 import hydra
@@ -9,24 +8,20 @@ import yaml
 from omegaconf import OmegaConf
 from rich import traceback
 from rl.carbs.util import (
-    CarbsSweepState,
     apply_carbs_suggestion,
-    carbs_params_spaces,
+    create_sweep_state,
     load_sweep_state,
+    pow2_suggestion,
     save_sweep_state,
-    wandb_sweep_cfg,
 )
-from carbs import CARBS, CARBSParams
-
-from rl.pufferlib.trainer import PufferTrainer
-from rl.wandb.wandb_context import WandbContext
-
-from rl.carbs.util import ObservationInParam
+from carbs import ObservationInParam
 from rl.pufferlib.evaluator import PufferEvaluator
 from rl.pufferlib.policy import load_policy_from_uri
-from util.stats import print_policy_stats
+from rl.pufferlib.trainer import PufferTrainer
+from rl.wandb.wandb_context import WandbContext
 from util.seeding import seed_everything
-from rl.carbs.util import pow2_suggestion
+from util.stats import print_policy_stats
+
 signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
 
 global _cfg
@@ -51,35 +46,6 @@ def main(cfg):
                 function=run_carb_sweep_rollout,
                 count=999999)
 
-
-def create_sweep_state(cfg):
-    wandb_sweep_id = wandb.sweep(
-        sweep=wandb_sweep_cfg(cfg),
-        project=cfg.wandb.project,
-        entity=cfg.wandb.entity,
-    )
-    print(f"WanDb Sweep created with ID: {wandb_sweep_id}")
-    carbs_spaces = carbs_params_spaces(cfg)
-
-    carbs = CARBS(
-        CARBSParams(
-            better_direction_sign=1,
-                resample_frequency=5,
-                num_random_samples=len(carbs_spaces),
-                checkpoint_dir=f"{cfg.run_dir}/carbs/",
-                is_wandb_logging_enabled=False,
-            ),
-            carbs_spaces
-    )
-    carbs._set_seed(int(time.time()))
-    carbs_state = CarbsSweepState(
-        wandb_sweep_id=wandb_sweep_id,
-        carbs=carbs,
-    )
-
-    save_sweep_state(cfg.run_dir, carbs_state)
-    print(f"Sweep created at {cfg.run_dir}")
-    return carbs_state
 
 def run_carb_sweep_rollout():
     print("Running carb sweep rollout")

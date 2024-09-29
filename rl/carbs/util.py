@@ -1,26 +1,19 @@
 import math
-
-from omegaconf import OmegaConf, DictConfig
-
+import os
 from dataclasses import dataclass
-from carbs import CARBS
-from typing import Dict
-
+import time
+import wandb
+import yaml
 from carbs import (
-    CARBS,
-    CARBSParams,
     LinearSpace,
     LogitSpace,
     LogSpace,
-    ObservationInParam,
     Param,
+    CARBS,
+    CARBSParams,
 )
+from omegaconf import DictConfig, OmegaConf
 
-from typing import Set
-from dataclasses import field
-
-import os
-import yaml
 
 def _wandb_distribution(param):
     if param.space == "log":
@@ -156,3 +149,32 @@ def pow2_suggestion(cfg: OmegaConf, suggestion: DictConfig):
             value = 2**value
         new_suggestion[key] = value
     return new_suggestion
+
+def create_sweep_state(cfg):
+    wandb_sweep_id = wandb.sweep(
+        sweep=wandb_sweep_cfg(cfg),
+        project=cfg.wandb.project,
+        entity=cfg.wandb.entity,
+    )
+    print(f"WanDb Sweep created with ID: {wandb_sweep_id}")
+    carbs_spaces = carbs_params_spaces(cfg)
+
+    carbs = CARBS(
+        CARBSParams(
+            better_direction_sign=1,
+                resample_frequency=5,
+                num_random_samples=len(carbs_spaces),
+                checkpoint_dir=f"{cfg.run_dir}/carbs/",
+                is_wandb_logging_enabled=False,
+            ),
+            carbs_spaces
+    )
+    carbs._set_seed(int(time.time()))
+    carbs_state = CarbsSweepState(
+        wandb_sweep_id=wandb_sweep_id,
+        carbs=carbs,
+    )
+
+    save_sweep_state(cfg.run_dir, carbs_state)
+    print(f"Sweep created at {cfg.run_dir}")
+    return carbs_state
