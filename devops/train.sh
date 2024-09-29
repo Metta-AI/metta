@@ -1,5 +1,3 @@
 #/bin/bash -e
 
-./devops/run.sh \
-    train \
-    "$@"
+./devops/run.sh train "$@"
