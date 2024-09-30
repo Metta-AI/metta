@@ -96,6 +96,7 @@ def run_suggested_rollout(cfg, suggestion, sweep_state):
         trainer.train()
 
         eval_cfg = deepcopy(train_cfg)
+        eval_cfg.eval = cfg.sweep.eval
         policy_uri = trainer.policy_checkpoint.model_path
         policy = load_policy_from_uri(policy_uri, eval_cfg, wandb_run)
         evaluator = PufferEvaluator(eval_cfg, policy, [])
