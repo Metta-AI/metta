@@ -374,22 +374,20 @@ class PufferTrainer:
         for k in list(self.stats.keys()):
             v = self.stats[k]
             try:
-                v = np.mean(v)
+                self.stats[k] = np.mean(v)
             except:
                 del self.stats[k]
-
-            self.stats[k] = v
 
         if self.wandb_run and self.cfg.wandb.track:
             self.wandb_run.log({
                 '0verview/SPS': self.profile.SPS,
                 '0verview/agent_steps': self.global_step,
-            '0verview/epoch': self.epoch,
-            '0verview/learning_rate': self.optimizer.param_groups[0]["lr"],
-            **{f'environment/{k}': v for k, v in self.stats.items()},
-            **{f'losses/{k}': v for k, v in self.losses.items()},
-            **{f'performance/{k}': v for k, v in self.profile},
-        })
+                '0verview/epoch': self.epoch,
+                '0verview/learning_rate': self.optimizer.param_groups[0]["lr"],
+                **{f'environment/{k}': v for k, v in self.stats.items()},
+                **{f'losses/{k}': v for k, v in self.losses.items()},
+                **{f'performance/{k}': v for k, v in self.profile},
+            })
         if len(self.stats) > 0:
             self.recent_stats = deepcopy(self.stats)
         self.stats.clear()

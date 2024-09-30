@@ -11,9 +11,6 @@
             "module": "tools.train",
             "args": [
                 "run=mac.train.0",
-                "+train=train",
-                "agent=simple",
-                "+hardware=macbook",
                 // "env=mettagrid/a20_b4_40x40",
                 "env.game.max_steps=100",
                 // "env.kinship.team_size=5",
