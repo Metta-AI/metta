@@ -45,5 +45,11 @@ def load_policies_from_dir(path: str, cfg: OmegaConf):
     print(f"Loaded {len(policies)} policies")
     return policies
 
+def load_policies_from_wandb(uri: str, cfg: OmegaConf, wandb_run):
+    artifact = wandb_run.use_artifact(uri[len("wandb://"):], type="model")
+    return load_policies_from_dir(artifact.file(
+        root=os.path.join(cfg.data_dir, "artifacts")
+    ), cfg)
+
 def count_params(policy):
     return sum(p.numel() for p in policy.parameters() if p.requires_grad)

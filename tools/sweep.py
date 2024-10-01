@@ -64,7 +64,13 @@ def run_carb_sweep_rollout():
         os._exit(0)
 
     sweep_state = load_sweep_state(cfg.run_dir)
-    suggestion = sweep_state.carbs.suggest().suggestion
+    try:
+        suggestion = sweep_state.carbs.suggest().suggestion
+    except Exception as e:
+        print(f"Error suggesting CARBS: {e}")
+        Console().print_exception()
+        os._exit(1)
+
     sweep_state.num_suggestions += 1
     save_sweep_state(cfg.run_dir, sweep_state)
 
