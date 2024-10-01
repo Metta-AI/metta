@@ -100,6 +100,7 @@ def run_carb_sweep_rollout():
 
 def run_suggested_rollout(cfg, suggestion, sweep_state):
     train_cfg = deepcopy(cfg)
+    train_cfg.sweep = {}
     run_id = sweep_state.num_suggestions
     train_cfg.run = cfg.run + ".r." + str(run_id)
     train_cfg.data_dir = os.path.join(cfg.run_dir, "runs")
@@ -147,10 +148,10 @@ def run_suggested_rollout(cfg, suggestion, sweep_state):
     with open(os.path.join(train_cfg.run_dir, "eval_config.yaml"), "w") as f:
         OmegaConf.save(eval_cfg, f)
 
-    with WandbContext(cfg) as sweep_run:
-        upload_policy_to_wandb(
-            sweep_run,
-            trainer.policy_checkpoint.model_path,
+    wandb_api = wandb.Api()
+    sweep_run = wandb_api.run(cfg.wandb.entity + "/" + cfg.wandb.project + "/" + cfg.run)
+    upload_policy_to_wandb(
+        trainer.policy_checkpoint.model_path,
             f"{train_cfg.run}.model",
             metadata={
                 "training_run": train_cfg.run,
@@ -165,17 +166,18 @@ def run_suggested_rollout(cfg, suggestion, sweep_state):
                 os.path.join(train_cfg.run_dir, "train_config.yaml"),
                 os.path.join(train_cfg.run_dir, "eval_config.yaml"),
             ],
+            wandb_run_id=sweep_run.id,
         )
-        sweep_run.log({
-            "num_suggestions": sweep_state.num_suggestions,
-            "num_failures": sweep_state.num_failures,
-            "num_observations": sweep_state.num_observations,
-            "training_time": trainer.train_time,
-            "eval_objective": objective,
-            "agent_step": trainer.policy_checkpoint.agent_steps,
-            "epoch": trainer.policy_checkpoint.epoch,
-            "run_id": run_id,
-        }, step=run_id)
+    sweep_run.log({
+        "num_suggestions": sweep_state.num_suggestions,
+        "num_failures": sweep_state.num_failures,
+        "num_observations": sweep_state.num_observations,
+        "training_time": trainer.train_time,
+        "eval_objective": objective,
+        "agent_step": trainer.policy_checkpoint.agent_steps,
+        "epoch": trainer.policy_checkpoint.epoch,
+        "run_id": run_id,
+    }, step=run_id)
 
     sweep_state.carbs.observe(
         ObservationInParam(

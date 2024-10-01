@@ -326,7 +326,6 @@ class PufferTrainer:
             return
 
         artifact_name = upload_policy_to_wandb(
-            self.wandb_run,
             self.policy_checkpoint.model_path,
             f"{self.cfg.run}",
             metadata={
@@ -334,7 +333,8 @@ class PufferTrainer:
                 "agent_step": self.policy_checkpoint.agent_steps,
                 "epoch": self.policy_checkpoint.epoch,
                 "run": self.cfg.run,
-            }
+            },
+            wandb_run_id=self.wandb_run.id,
         )
 
         return artifact_name
