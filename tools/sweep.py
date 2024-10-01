@@ -103,6 +103,7 @@ def run_suggested_rollout(cfg, suggestion, sweep_state):
     run_id = sweep_state.num_suggestions
     train_cfg.run = cfg.run + ".r." + str(run_id)
     train_cfg.data_dir = os.path.join(cfg.run_dir, "runs")
+    train_cfg.wandb.group = train_cfg.run
     apply_carbs_suggestion(train_cfg, pow2_suggestion(cfg, suggestion))
     print("Generated train config: ")
     print(OmegaConf.to_yaml(train_cfg))
@@ -139,6 +140,13 @@ def run_suggested_rollout(cfg, suggestion, sweep_state):
     print(f"Sweep Objective: {objective}")
     print(f"Sweep Train Time: {trainer.train_time}")
 
+    with open(os.path.join(train_cfg.run_dir, "eval_stats.yaml"), "w") as f:
+        yaml.dump(stats, f)
+    with open(os.path.join(train_cfg.run_dir, "train_config.yaml"), "w") as f:
+        OmegaConf.save(train_cfg, f)
+    with open(os.path.join(train_cfg.run_dir, "eval_config.yaml"), "w") as f:
+        OmegaConf.save(eval_cfg, f)
+
     with WandbContext(cfg) as sweep_run:
         upload_policy_to_wandb(
             sweep_run,
@@ -150,11 +158,13 @@ def run_suggested_rollout(cfg, suggestion, sweep_state):
                 "epoch": trainer.policy_checkpoint.epoch,
                 "training_time": trainer.train_time,
                 "eval_objective": objective,
-                "eval_stats": base64.b64encode(yaml.dump(stats).encode()).decode(),
-                "train_config": base64.b64encode(OmegaConf.to_yaml(train_cfg).encode()).decode(),
-                "eval_config": base64.b64encode(OmegaConf.to_yaml(eval_cfg).encode()).decode(),
             },
             artifact_type="sweep_model",
+            additional_files=[
+                os.path.join(train_cfg.run_dir, "eval_stats.yaml"),
+                os.path.join(train_cfg.run_dir, "train_config.yaml"),
+                os.path.join(train_cfg.run_dir, "eval_config.yaml"),
+            ],
         )
         sweep_run.log({
             "num_suggestions": sweep_state.num_suggestions,

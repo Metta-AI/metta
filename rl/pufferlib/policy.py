@@ -3,6 +3,7 @@ import os
 import torch
 import warnings
 import wandb
+
 def load_policy_from_file(path: str, device: str):
     assert path.endswith('.pt'), f"Policy file {path} does not have a .pt extension"
     with warnings.catch_warnings():
@@ -12,10 +13,12 @@ def load_policy_from_file(path: str, device: str):
     return policy
 
 def load_policy_from_wandb(uri: str, cfg: OmegaConf, wandb_run):
-    artifact = wandb_run.use_artifact(uri[len("wandb://"):], type="model")
-    return load_policy_from_file(artifact.file(
-        root=os.path.join(cfg.data_dir, "artifacts")
-    ), cfg.device)
+    artifact = wandb_run.use_artifact(uri[len("wandb://"):])
+    data_dir = artifact.download(root=os.path.join(cfg.data_dir, "artifacts"))
+    return load_policy_from_file(
+        os.path.join(data_dir, "model.pt"),
+        cfg.device
+    )
 
 
 def load_policy_from_dir(path: str, device: str):
@@ -47,20 +50,29 @@ def load_policies_from_dir(path: str, cfg: OmegaConf):
 
 def load_policies_from_wandb(uri: str, cfg: OmegaConf, wandb_run):
     artifact = wandb_run.use_artifact(uri[len("wandb://"):], type="model")
-    return load_policies_from_dir(artifact.file(
+    return load_policies_from_dir(artifact.download(
         root=os.path.join(cfg.data_dir, "artifacts")
     ), cfg)
 
 def count_params(policy):
     return sum(p.numel() for p in policy.parameters() if p.requires_grad)
 
-def upload_policy_to_wandb(wandb_run, policy_path, name, metadata=None, artifact_type="model"):
+def upload_policy_to_wandb(
+        wandb_run,
+        policy_path,
+        name,
+        metadata=None, artifact_type="model",
+        additional_files=None,
+    ):
     artifact = wandb.Artifact(
         name,
         type=artifact_type,
         metadata=metadata or {}
     )
-    artifact.add_file(policy_path)
+    artifact.add_file(policy_path, name="model.pt")
+    if additional_files:
+        for file in additional_files:
+            artifact.add_file(file)
     artifact = wandb_run.log_artifact(artifact)
     artifact.wait()
     print(f"Uploaded model to wandb: {artifact.name}")
