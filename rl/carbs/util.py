@@ -13,7 +13,7 @@ from carbs import (
     CARBSParams,
 )
 from omegaconf import DictConfig, OmegaConf
-
+from rl.wandb.wandb_context import WandbContext
 
 def _wandb_distribution(param):
     if param.space == "log":
@@ -151,12 +151,14 @@ def pow2_suggestion(cfg: OmegaConf, suggestion: DictConfig):
     return new_suggestion
 
 def create_sweep_state(cfg):
-    wandb_sweep_id = wandb.sweep(
-        sweep=wandb_sweep_cfg(cfg),
+    with WandbContext(cfg) as wandb_ctx:
+        wandb_sweep_id = wandb.sweep(
+            sweep=wandb_sweep_cfg(cfg),
         project=cfg.wandb.project,
-        entity=cfg.wandb.entity,
-    )
-    print(f"WanDb Sweep created with ID: {wandb_sweep_id}")
+            entity=cfg.wandb.entity,
+        )
+        wandb.save()
+        print(f"WanDb Sweep created with ID: {wandb_sweep_id}")
     carbs_spaces = carbs_params_spaces(cfg)
 
     carbs = CARBS(
