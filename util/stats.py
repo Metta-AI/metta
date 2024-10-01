@@ -32,7 +32,7 @@ def get_stat_value(stat):
         return safe_float(stat.get('sum', np.nan) / stat.get('count', 1))
     return safe_float(stat)
 
-def print_policy_stats(policy_stats):
+def print_policy_stats(policy_stats, file=None):
     # Create a DataFrame with policies as columns
     df = pd.DataFrame({f"Policy {i+1}": {k: get_stat_value(v) for k, v in policy.items()}
                        for i, policy in enumerate(policy_stats)})
@@ -91,4 +91,4 @@ def print_policy_stats(policy_stats):
 
     # Create and print the table
     table = tabulate(table_data, headers=headers, tablefmt='grid', numalign='right')
-    print(table)
+    print(table, file=file)

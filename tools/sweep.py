@@ -104,7 +104,7 @@ def run_suggested_rollout(cfg, suggestion, sweep_state):
     run_id = sweep_state.num_suggestions
     train_cfg.run = cfg.run + ".r." + str(run_id)
     train_cfg.data_dir = os.path.join(cfg.run_dir, "runs")
-    train_cfg.wandb.group = train_cfg.run
+    train_cfg.wandb.group = cfg.run
     apply_carbs_suggestion(train_cfg, pow2_suggestion(cfg, suggestion))
     print("Generated train config: ")
     print(OmegaConf.to_yaml(train_cfg))
@@ -147,9 +147,10 @@ def run_suggested_rollout(cfg, suggestion, sweep_state):
         OmegaConf.save(train_cfg, f)
     with open(os.path.join(train_cfg.run_dir, "eval_config.yaml"), "w") as f:
         OmegaConf.save(eval_cfg, f)
+    with open(os.path.join(train_cfg.run_dir, "eval_stats.txt"), "w") as f:
+        print_policy_stats(stats, file=f)
 
-    wandb_api = wandb.Api()
-    sweep_run = wandb_api.run(cfg.wandb.entity + "/" + cfg.wandb.project + "/" + cfg.run)
+    sweep_run_id = cfg.wandb.entity + "/" + cfg.wandb.project + "/" + cfg.run
     upload_policy_to_wandb(
         trainer.policy_checkpoint.model_path,
             f"{train_cfg.run}.model",
@@ -165,19 +166,10 @@ def run_suggested_rollout(cfg, suggestion, sweep_state):
                 os.path.join(train_cfg.run_dir, "eval_stats.yaml"),
                 os.path.join(train_cfg.run_dir, "train_config.yaml"),
                 os.path.join(train_cfg.run_dir, "eval_config.yaml"),
+                os.path.join(train_cfg.run_dir, "eval_stats.txt"),
             ],
-            wandb_run_id=sweep_run.id,
+            wandb_run_id=sweep_run_id,
         )
-    sweep_run.log({
-        "num_suggestions": sweep_state.num_suggestions,
-        "num_failures": sweep_state.num_failures,
-        "num_observations": sweep_state.num_observations,
-        "training_time": trainer.train_time,
-        "eval_objective": objective,
-        "agent_step": trainer.policy_checkpoint.agent_steps,
-        "epoch": trainer.policy_checkpoint.epoch,
-        "run_id": run_id,
-    }, step=run_id)
 
     sweep_state.carbs.observe(
         ObservationInParam(
