@@ -2,7 +2,7 @@ from omegaconf import OmegaConf
 import os
 import torch
 import warnings
-
+import wandb
 def load_policy_from_file(path: str, device: str):
     assert path.endswith('.pt'), f"Policy file {path} does not have a .pt extension"
     with warnings.catch_warnings():
@@ -53,3 +53,15 @@ def load_policies_from_wandb(uri: str, cfg: OmegaConf, wandb_run):
 
 def count_params(policy):
     return sum(p.numel() for p in policy.parameters() if p.requires_grad)
+
+def upload_policy_to_wandb(wandb_run, policy_path, name, metadata=None, artifact_type="model"):
+    artifact = wandb.Artifact(
+        name,
+        type=artifact_type,
+        metadata=metadata or {}
+    )
+    artifact.add_file(policy_path)
+    artifact = wandb_run.log_artifact(artifact)
+    artifact.wait()
+    print(f"Uploaded model to wandb: {artifact.name}")
+    return artifact.name

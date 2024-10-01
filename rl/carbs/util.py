@@ -115,7 +115,9 @@ class CarbsSweepState:
 def load_sweep_state(sweep_dir: str) -> CarbsSweepState:
     with open(os.path.join(sweep_dir, "sweep.yaml"), "r") as f:
         sweep_state = yaml.safe_load(f)
-        sweep_state["carbs"] = CARBS.load_from_string(sweep_state["carbs"])
+        carbs = CARBS.load_from_string(sweep_state["carbs"])
+        carbs._set_seed(int(time.time()))
+        sweep_state["carbs"] = carbs
     return CarbsSweepState(**sweep_state)
 
 def save_sweep_state(sweep_dir: str, sweep_state: CarbsSweepState):

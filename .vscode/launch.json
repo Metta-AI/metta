@@ -49,7 +49,7 @@
                 // "env=mettagrid/a20_b4_40x40",
                 // "env=mettagrid/a20_b4_40x40",
                 "wandb.enabled=True",
-                "eval.policy_uri=p2.sweep.no_attack.5.r.1:v0",
+                "eval.policy_uri=wandb://p2.sweep.no_attack.5.r.1:v0",
                 "eval.baseline_uris=[wandb://p2.swap.2:latest]",
                 // "eval.policy_uri=train_dir/pufferlib/mac.simple_encoder.4",
                 // "env.game.actions.attack.enabled=false",

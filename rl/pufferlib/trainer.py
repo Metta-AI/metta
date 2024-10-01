@@ -6,11 +6,14 @@ from copy import deepcopy
 
 import numpy as np
 import torch
-import wandb
 from fast_gae import fast_gae
 from omegaconf import OmegaConf
 from rl.pufferlib.experience import Experience
-from rl.pufferlib.policy import count_params, load_policy_from_uri
+from rl.pufferlib.policy import (
+    upload_policy_to_wandb,
+    count_params,
+    load_policy_from_uri,
+)
 from rl.pufferlib.profile import Profile
 from rl.pufferlib.vecenv import make_vecenv
 
@@ -322,10 +325,10 @@ class PufferTrainer:
         if not self.wandb_run:
             return
 
-        artifact_name = f"{self.cfg.run}"
-        artifact = wandb.Artifact(
-            artifact_name,
-            type="model",
+        artifact_name = upload_policy_to_wandb(
+            self.wandb_run,
+            self.policy_checkpoint.model_path,
+            f"{self.cfg.run}",
             metadata={
                 "model_name": self.policy_checkpoint.model_name,
                 "agent_step": self.policy_checkpoint.agent_steps,
@@ -333,12 +336,8 @@ class PufferTrainer:
                 "run": self.cfg.run,
             }
         )
-        artifact.add_file(self.policy_checkpoint.model_path)
-        artifact = self.wandb_run.log_artifact(artifact)
-        artifact.wait()
-        self.policy_checkpoint.wandb_model_artifact = artifact
-        print(f"Uploaded model to wandb: {artifact.name}")
-        return artifact.name
+
+        return artifact_name
 
     def _try_load_checkpoint(self):
         print("Trying to load training checkpoint")

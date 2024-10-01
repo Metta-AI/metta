@@ -23,6 +23,9 @@ from rl.pufferlib.trainer import PufferTrainer
 from rl.wandb.wandb_context import WandbContext
 from util.seeding import seed_everything
 from util.stats import print_policy_stats
+from rl.pufferlib.policy import upload_policy_to_wandb
+
+import base64
 
 signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
 
@@ -97,7 +100,8 @@ def run_carb_sweep_rollout():
 
 def run_suggested_rollout(cfg, suggestion, sweep_state):
     train_cfg = deepcopy(cfg)
-    train_cfg.run = cfg.run + ".r." + str(sweep_state.num_suggestions)
+    run_id = sweep_state.num_suggestions
+    train_cfg.run = cfg.run + ".r." + str(run_id)
     train_cfg.data_dir = os.path.join(cfg.run_dir, "runs")
     apply_carbs_suggestion(train_cfg, pow2_suggestion(cfg, suggestion))
     print("Generated train config: ")
@@ -113,6 +117,7 @@ def run_suggested_rollout(cfg, suggestion, sweep_state):
         wandb_run.config.update(pow2_suggestion(cfg, suggestion), allow_val_change=True)
         trainer = PufferTrainer(train_cfg, wandb_run)
         trainer.train()
+        trainer.close()
 
         eval_cfg = deepcopy(train_cfg)
         eval_cfg.eval = cfg.sweep.eval
@@ -133,6 +138,35 @@ def run_suggested_rollout(cfg, suggestion, sweep_state):
 
     print(f"Sweep Objective: {objective}")
     print(f"Sweep Train Time: {trainer.train_time}")
+
+    with WandbContext(cfg) as sweep_run:
+        upload_policy_to_wandb(
+            sweep_run,
+            trainer.policy_checkpoint.model_path,
+            f"{train_cfg.run}.model",
+            metadata={
+                "training_run": train_cfg.run,
+                "agent_step": trainer.policy_checkpoint.agent_steps,
+                "epoch": trainer.policy_checkpoint.epoch,
+                "training_time": trainer.train_time,
+                "eval_objective": objective,
+                "eval_stats": base64.b64encode(yaml.dump(stats).encode()).decode(),
+                "train_config": base64.b64encode(OmegaConf.to_yaml(train_cfg).encode()).decode(),
+                "eval_config": base64.b64encode(OmegaConf.to_yaml(eval_cfg).encode()).decode(),
+            },
+            artifact_type="sweep_model",
+        )
+        sweep_run.log({
+            "num_suggestions": sweep_state.num_suggestions,
+            "num_failures": sweep_state.num_failures,
+            "num_observations": sweep_state.num_observations,
+            "training_time": trainer.train_time,
+            "eval_objective": objective,
+            "agent_step": trainer.policy_checkpoint.agent_steps,
+            "epoch": trainer.policy_checkpoint.epoch,
+            "run_id": run_id,
+        }, step=run_id)
+
     sweep_state.carbs.observe(
         ObservationInParam(
             input=suggestion,
