@@ -81,11 +81,10 @@ parameters:
       min: 1
       max: 128
     total_timesteps:
-      space: linear
+      space: log
       search_center: 3e8
       min: 2e7
-      max: 1e13
-      is_int: true
+      max: 1e10
     # compile:
     #   space: linear
     #   is_int: true

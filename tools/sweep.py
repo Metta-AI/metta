@@ -7,6 +7,8 @@ import wandb
 import yaml
 from omegaconf import OmegaConf
 from rich import traceback
+from rich.console import Console
+
 from rl.carbs.util import (
     apply_carbs_suggestion,
     create_sweep_state,
@@ -25,6 +27,7 @@ from util.stats import print_policy_stats
 signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
 
 global _cfg
+global _consecutive_failures
 @hydra.main(version_base=None, config_path="../configs", config_name="config")
 def main(cfg):
     global _cfg
@@ -40,6 +43,9 @@ def main(cfg):
     else:
         sweep_state = create_sweep_state(cfg)
 
+    global _consecutive_failures
+    _consecutive_failures = 0
+
     wandb.agent(sweep_state.wandb_sweep_id,
                 entity=cfg.wandb.entity,
                 project=cfg.wandb.project,
@@ -51,6 +57,11 @@ def run_carb_sweep_rollout():
     print("Running carb sweep rollout")
     global _cfg
     cfg = _cfg
+
+    global _consecutive_failures
+    if _consecutive_failures > 10:
+        print("Too many consecutive failures, exiting")
+        os._exit(0)
 
     sweep_state = load_sweep_state(cfg.run_dir)
     suggestion = sweep_state.carbs.suggest().suggestion
@@ -64,7 +75,8 @@ def run_carb_sweep_rollout():
         run_suggested_rollout(cfg, suggestion, sweep_state)
     except Exception as e:
         print(f"Error running suggested rollout: {e}")
-        wandb.log({"error": str(e)})
+        Console().print_exception()
+        _consecutive_failures += 1
         sweep_state.carbs.observe(
             ObservationInParam(
                 input=suggestion,
@@ -75,6 +87,7 @@ def run_carb_sweep_rollout():
         )
         sweep_state.num_failures += 1
         save_sweep_state(cfg.run_dir, sweep_state)
+        _consecutive_failures = 0
 
 def run_suggested_rollout(cfg, suggestion, sweep_state):
     train_cfg = deepcopy(cfg)
