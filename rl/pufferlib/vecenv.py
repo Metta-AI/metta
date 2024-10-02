@@ -34,7 +34,5 @@ def make_vecenv(cfg: OmegaConf, num_envs=1, batch_size=None, num_workers=1, rend
         **kwargs
     )
 
-    print("Creating vecenv with args: ", vecenv_args)
     vecenv = pufferlib.vector.make(make_env_func, **vecenv_args)
-    print("Vecenv created")
     return vecenv

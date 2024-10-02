@@ -3,6 +3,7 @@ num_envs_per_worker: ???
 num_workers: ???
 init_policy_uri: null
 resume: true
+init_policy_selector: null
 
 cpu_offload: false
 total_timesteps: 50_000_000_000
