@@ -15,7 +15,6 @@
                 "env.game.max_steps=100",
                 // "env.kinship.team_size=5",
                 // "env.kinship.team_reward=0.8",
-
                 // "env.game.actions.attack.enabled=false",
                 "wandb.enabled=True",
                 "wandb.track=False",
@@ -68,8 +67,7 @@
                 "run=mac.eval.3",
                 "wandb.enabled=True",
                 // "env=mettagrid/behaviors/resources/competition/10x10_2a",
-                "eval.policy_uri=wandb://metta-research/metta/p2.sweep.no_attack.6.r.4.model:v0",
-                "eval.baseline_uris=[wandb://p2.sweep.no_attack.6.r.14:v5]",
+                "eval.policy_uri=wandb://sweep_model/p2.sweep.g.1@top_1.eval_objective",
                 "eval.max_baselines=0",
                 "eval.num_envs=10",
                 "eval.num_episodes=30",
@@ -77,6 +75,21 @@
                 // "eval.policy_uri=train_dir/pufferlib/mac.1",
                 // "eval.baseline_uris=[wandb://p2.tuned.4_model:v200]",
             ],
+            // "args": [
+            //     // "run=mac.eval.3",
+            //     "wandb.enabled=True",
+            //     // "env=mettagrid/behaviors/resources/competition/10x10_2a",
+            //     // "eval.policy_uri=wandb://metta-research/metta/p2.sweep.no_attack.g1.r.5:latest",
+            //     "eval.policy_uri=wandb://sweep_model/p2.sweep.g.1@top_1.eval_objective",
+            //     // "eval.baseline_uris=[wandb://p2.sweep.no_attack.6.r.14:v5]",
+            //     "eval.max_baselines=0",
+            //     "eval.num_envs=10",
+            //     "eval.num_episodes=30",
+
+            //     // "eval.policy_uri=train_dir/pufferlib/mac.1",
+            //     // "eval.baseline_uris=[wandb://p2.tuned.4_model:v200]",
+
+            // ],
         },
         {
             "name": "Dump Griddly Config",
