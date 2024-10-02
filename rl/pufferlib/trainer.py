@@ -66,7 +66,7 @@ class PufferTrainer:
             self.uncompiled_policy = puffer_agent_wrapper.make_policy(self.vecenv.driver_env, self.cfg)
         else:
             print(f"Loading policy from {self.cfg.train.init_policy_uri}")
-            self.uncompiled_policy = load_policy_from_uri(self.cfg.train.init_policy_uri, self.cfg)
+            self.uncompiled_policy = load_policy_from_uri(self.cfg.train.init_policy_uri, self.cfg, self.wandb_run)
             print(f"Initialized policy from {self.cfg.train.init_policy_uri}")
         self.policy = self.uncompiled_policy
         self.policy_checkpoint.num_params = count_params(self.uncompiled_policy)
