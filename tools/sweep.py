@@ -79,6 +79,8 @@ def run_carb_sweep_rollout():
 
     print("Generated CARBS suggestion: ")
     print(yaml.dump(suggestion, default_flow_style=False))
+    with open(os.path.join(cfg.run_dir, "carbs_suggestion.yaml"), "w") as f:
+        yaml.dump(suggestion, f)
 
     try:
         run_suggested_rollout(cfg, suggestion, sweep_state)
@@ -106,13 +108,19 @@ def run_suggested_rollout(cfg, suggestion, sweep_state):
     train_cfg.data_dir = os.path.join(cfg.run_dir, "runs")
     train_cfg.wandb.group = cfg.run
     apply_carbs_suggestion(train_cfg, pow2_suggestion(cfg, suggestion))
-    print("Generated train config: ")
-    print(OmegaConf.to_yaml(train_cfg))
-
     os.makedirs(train_cfg.run_dir, exist_ok=True)
 
-    with open(os.path.join(train_cfg.run_dir, "config.yaml"), "w") as f:
+    eval_cfg = deepcopy(train_cfg)
+    eval_cfg.eval = cfg.sweep.eval
+
+    with open(os.path.join(cfg.run_dir, "config.yaml"), "w") as f:
         OmegaConf.save(train_cfg, f)
+    with open(os.path.join(train_cfg.run_dir, "train_config.yaml"), "w") as f:
+        OmegaConf.save(train_cfg, f)
+    with open(os.path.join(train_cfg.run_dir, "eval_config.yaml"), "w") as f:
+        OmegaConf.save(eval_cfg, f)
+    with open(os.path.join(train_cfg.run_dir, "carbs_suggestion.yaml"), "w") as f:
+        yaml.dump(suggestion, f)
 
     with WandbContext(train_cfg) as wandb_run:
         wandb_run.config.__dict__["_locked"] = {}
@@ -121,8 +129,6 @@ def run_suggested_rollout(cfg, suggestion, sweep_state):
         trainer.train()
         trainer.close()
 
-        eval_cfg = deepcopy(train_cfg)
-        eval_cfg.eval = cfg.sweep.eval
         policy_uri = trainer.policy_checkpoint.model_path
         policy = load_policy_from_uri(policy_uri, eval_cfg, wandb_run)
         evaluator = PufferEvaluator(eval_cfg, policy, [])
@@ -136,50 +142,65 @@ def run_suggested_rollout(cfg, suggestion, sweep_state):
 
         if metric is not None:
             objective = metric["sum"] / metric["count"]
-            wandb.log({"eval_metric": objective})
+            wandb_run.log(
+                {"eval_metric": objective},
+                step=trainer.policy_checkpoint.agent_steps)
 
-    print(f"Sweep Objective: {objective}")
-    print(f"Sweep Train Time: {trainer.train_time}")
+        wandb_run.summary["num_suggestions"] = sweep_state.num_suggestions
+        wandb_run.summary["num_failures"] = sweep_state.num_failures
+        wandb_run.summary["num_observations"] = sweep_state.num_observations
+        wandb_run.summary["training_time"] = trainer.train_time
+        wandb_run.summary["eval_objective"] = objective
+        wandb_run.summary["agent_step"] = trainer.policy_checkpoint.agent_steps
+        wandb_run.summary["epoch"] = trainer.policy_checkpoint.epoch
+        wandb_run.summary["run_id"] = run_id
 
-    with open(os.path.join(train_cfg.run_dir, "eval_stats.yaml"), "w") as f:
-        yaml.dump(stats, f)
-    with open(os.path.join(train_cfg.run_dir, "train_config.yaml"), "w") as f:
-        OmegaConf.save(train_cfg, f)
-    with open(os.path.join(train_cfg.run_dir, "eval_config.yaml"), "w") as f:
-        OmegaConf.save(eval_cfg, f)
-    with open(os.path.join(train_cfg.run_dir, "eval_stats.txt"), "w") as f:
-        print_policy_stats(stats, file=f)
+        print(f"Sweep Objective: {objective}")
+        print(f"Sweep Train Time: {trainer.train_time}")
 
-    sweep_run_id = cfg.wandb.entity + "/" + cfg.wandb.project + "/" + cfg.run
-    upload_policy_to_wandb(
-        trainer.policy_checkpoint.model_path,
-        f"{train_cfg.run}.model",
-        metadata={
-            "training_run": train_cfg.run,
-            "agent_step": trainer.policy_checkpoint.agent_steps,
-            "epoch": trainer.policy_checkpoint.epoch,
-            "training_time": trainer.train_time,
-            "eval_objective": objective,
-        },
-        artifact_type="sweep_model",
-        additional_files=[
-            os.path.join(train_cfg.run_dir, "eval_stats.yaml"),
-            os.path.join(train_cfg.run_dir, "train_config.yaml"),
-            os.path.join(train_cfg.run_dir, "eval_config.yaml"),
-            os.path.join(train_cfg.run_dir, "eval_stats.txt"),
-        ],
-        wandb_run_id=sweep_run_id,
-    )
+        with open(os.path.join(train_cfg.run_dir, "eval_stats.yaml"), "w") as f:
+            yaml.dump(stats, f)
+        with open(os.path.join(train_cfg.run_dir, "eval_config.yaml"), "w") as f:
+            OmegaConf.save(eval_cfg, f)
+        with open(os.path.join(train_cfg.run_dir, "eval_stats.txt"), "w") as f:
+            print_policy_stats(stats, file=f)
 
-    sweep_state.carbs.observe(
-        ObservationInParam(
-            input=suggestion,
-            output=objective,
-            cost=trainer.train_time,
-            is_failure=False,
+        final_model_artifact = upload_policy_to_wandb(
+            wandb_run,
+            trainer.policy_checkpoint.model_path,
+            f"{train_cfg.run}.model",
+            metadata={
+                "training_run": train_cfg.run,
+                "agent_step": trainer.policy_checkpoint.agent_steps,
+                "epoch": trainer.policy_checkpoint.epoch,
+                "training_time": trainer.train_time,
+                "eval_objective": objective,
+            },
+            artifact_type="sweep_model",
+            additional_files=[
+                os.path.join(train_cfg.run_dir, f) for f in [
+                    "train_config.yaml",
+                    "eval_config.yaml",
+                    "eval_stats.txt",
+                    "eval_stats.yaml",
+                    "carbs_suggestion.yaml",
+                    "eval_config.yaml",
+                ]
+            ]
         )
-    )
-    sweep_state.num_observations += 1
-    save_sweep_state(cfg.run_dir, sweep_state)
+        final_model_artifact.link(
+            cfg.run, [train_cfg.run]
+        )
+
+        sweep_state.carbs.observe(
+            ObservationInParam(
+                input=suggestion,
+                output=objective,
+                cost=trainer.train_time,
+                is_failure=False,
+            )
+        )
+        sweep_state.num_observations += 1
+        save_sweep_state(cfg.run_dir, sweep_state)
 if __name__ == "__main__":
     main()

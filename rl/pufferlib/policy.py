@@ -58,13 +58,12 @@ def count_params(policy):
     return sum(p.numel() for p in policy.parameters() if p.requires_grad)
 
 def upload_policy_to_wandb(
+        wandb_run,
         policy_path,
         name,
         metadata=None, artifact_type="model",
         additional_files=None,
-        wandb_run_id=None,
     ):
-    wandb_api = wandb.Api()
 
     artifact = wandb.Artifact(
         name,
@@ -77,9 +76,6 @@ def upload_policy_to_wandb(
             artifact.add_file(file)
     artifact.save()
     artifact.wait()
-    if wandb_run_id:
-        artifact = wandb_api.artifact(artifact.qualified_name)
-        wandb_run = wandb_api.run(wandb_run_id)
-        wandb_run.log_artifact(artifact)
-    print(f"Uploaded model to wandb: {artifact.name} to run {wandb_run_id}")
-    return artifact.name
+    wandb_run.log_artifact(artifact)
+    print(f"Uploaded model to wandb: {artifact.name} to run {wandb_run.id}")
+    return artifact
