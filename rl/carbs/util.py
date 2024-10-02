@@ -168,7 +168,7 @@ def create_sweep_state(cfg):
         CARBSParams(
             better_direction_sign=1,
                 resample_frequency=5,
-                num_random_samples=len(carbs_spaces),
+                num_random_samples=cfg.sweep.num_random_samples,
                 checkpoint_dir=f"{cfg.run_dir}/carbs/",
                 is_wandb_logging_enabled=False,
             ),

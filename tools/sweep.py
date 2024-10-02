@@ -108,6 +108,7 @@ def run_suggested_rollout(cfg, suggestion, sweep_state):
     train_cfg.data_dir = os.path.join(cfg.run_dir, "runs")
     train_cfg.wandb.group = cfg.run
     apply_carbs_suggestion(train_cfg, pow2_suggestion(cfg, suggestion))
+
     os.makedirs(train_cfg.run_dir, exist_ok=True)
 
     eval_cfg = deepcopy(train_cfg)

@@ -36,6 +36,8 @@ compile_mode: reduce-overhead
 forward_pass_minibatch_target_size: 4096
 async_factor: 2
 
+top_policy_selector: 1
+
   # batch_size: 65536
   # bptt_horizon: 16
   # clip_coef: 0.04728613545570126
