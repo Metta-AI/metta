@@ -65,6 +65,7 @@ def upload_policy_to_wandb(
         wandb_run_id=None,
     ):
     wandb_api = wandb.Api()
+
     artifact = wandb.Artifact(
         name,
         type=artifact_type,
@@ -78,7 +79,7 @@ def upload_policy_to_wandb(
     artifact.wait()
     if wandb_run_id:
         artifact = wandb_api.artifact(artifact.qualified_name)
-        wandb_run_id = wandb_api.run(wandb_run_id)
-        wandb_run_id.log_artifact(artifact)
-    print(f"Uploaded model to wandb: {artifact.name} to run {wandb_run_id.id}")
+        wandb_run = wandb_api.run(wandb_run_id)
+        wandb_run.log_artifact(artifact)
+    print(f"Uploaded model to wandb: {artifact.name} to run {wandb_run_id}")
     return artifact.name

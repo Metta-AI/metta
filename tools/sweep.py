@@ -153,23 +153,23 @@ def run_suggested_rollout(cfg, suggestion, sweep_state):
     sweep_run_id = cfg.wandb.entity + "/" + cfg.wandb.project + "/" + cfg.run
     upload_policy_to_wandb(
         trainer.policy_checkpoint.model_path,
-            f"{train_cfg.run}.model",
-            metadata={
-                "training_run": train_cfg.run,
-                "agent_step": trainer.policy_checkpoint.agent_steps,
-                "epoch": trainer.policy_checkpoint.epoch,
-                "training_time": trainer.train_time,
-                "eval_objective": objective,
-            },
-            artifact_type="sweep_model",
-            additional_files=[
-                os.path.join(train_cfg.run_dir, "eval_stats.yaml"),
-                os.path.join(train_cfg.run_dir, "train_config.yaml"),
-                os.path.join(train_cfg.run_dir, "eval_config.yaml"),
-                os.path.join(train_cfg.run_dir, "eval_stats.txt"),
-            ],
-            wandb_run_id=sweep_run_id,
-        )
+        f"{train_cfg.run}.model",
+        metadata={
+            "training_run": train_cfg.run,
+            "agent_step": trainer.policy_checkpoint.agent_steps,
+            "epoch": trainer.policy_checkpoint.epoch,
+            "training_time": trainer.train_time,
+            "eval_objective": objective,
+        },
+        artifact_type="sweep_model",
+        additional_files=[
+            os.path.join(train_cfg.run_dir, "eval_stats.yaml"),
+            os.path.join(train_cfg.run_dir, "train_config.yaml"),
+            os.path.join(train_cfg.run_dir, "eval_config.yaml"),
+            os.path.join(train_cfg.run_dir, "eval_stats.txt"),
+        ],
+        wandb_run_id=sweep_run_id,
+    )
 
     sweep_state.carbs.observe(
         ObservationInParam(
