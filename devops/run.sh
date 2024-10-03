@@ -5,8 +5,6 @@ args="${@:2}"
 
 echo "Running command: $cmd with args: $args"
 
-pkill -9 -f wandb
-pkill -9 -f python
 git pull
 cd deps/puffergrid && git pull && python setup.py build_ext --inplace && cd ../..
 # cd deps/pufferlib && git pull && python setup.py build_ext --inplace && cd ../..
