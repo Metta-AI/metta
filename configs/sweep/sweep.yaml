@@ -14,12 +14,12 @@ eval:
 
 
 parameters:
-  env:
-    normalize_rewards:
-      space: linear
-      is_int: true
-      min: 0
-      max: 1
+  # env:
+  #   normalize_rewards:
+  #     space: linear
+  #     is_int: true
+  #     min: 0
+  #     max: 1
 
   train:
     learning_rate:
@@ -73,9 +73,10 @@ parameters:
       max: 32768
     top_policy_selector:
       space: linear
-      min: 1
+      min: 0
       max: 10
-    # async_factor:
+      is_int: true
+
     #   space: linear
     #   search_center: 2
     #   is_int: true
