@@ -2,7 +2,7 @@ from scipy.stats import mannwhitneyu
 import numpy as np
 from tabulate import tabulate
 from termcolor import colored
-    
+
 def significance_and_effect(interpretations):
     all_positive = all(interpretation == "pos. effect" for interpretation in interpretations)
     all_negative = all(interpretation == "neg. effect" for interpretation in interpretations)
@@ -27,7 +27,7 @@ def significance_and_effect(interpretations):
         return "No interpretation."
 
 
-def mann_whitney_u_test(stats, policy_names, categories_list):  
+def mann_whitney_u_test(stats, policy_names, categories_list):
     """
     Perform the Mann-Whitney U test on the given episode scores for each stat in stat_list.
 
@@ -47,7 +47,7 @@ def mann_whitney_u_test(stats, policy_names, categories_list):
     for stat_name in categories_list:
         if stat_name == 'policy_name':
             continue
-        
+
         episode_scores = stats[stat_name]
 
         # Collect non-None scores per policy
@@ -99,7 +99,7 @@ def mann_whitney_u_test(stats, policy_names, categories_list):
             policy2_scores = comparison[1]
             interpretation = None
             if len(policy1_scores) == len(policy2_scores) and len(policy1_scores) > 0:
-                #for some reason, mannwhitneyu seems to want Y followed by X. Otherwise it returns U2 
+                #for some reason, mannwhitneyu seems to want Y followed by X. Otherwise it returns U2
                 u_statistic, p_value = mannwhitneyu(policy2_scores, policy1_scores)
                 n1 = len(policy1_scores)
                 n2 = len(policy2_scores)
@@ -152,10 +152,8 @@ def mann_whitney_u_test(stats, policy_names, categories_list):
     for policy_name in policy_names:
         header = f"{policy_name}\n(mean ± std)\n(p-val, effect size)"
         headers.append(header)
-    
-    print(tabulate(data_rows, headers=headers, tablefmt="fancy_grid"))
 
-    return results
+    return tabulate(data_rows, headers=headers, tablefmt="fancy_grid")
 
 def elo_test(stats, policy_names, categories_list):
     """
@@ -205,7 +203,7 @@ def elo_test(stats, policy_names, categories_list):
     for policy_name in policy_names:
         header = f"{policy_name}\nElo"
         headers.append(header)
-    
+
     # formatted_elo = ['Elo:']
     # for elo_val in elo:
     #     formatted_elo.append(f"{elo_val:.2f}")
@@ -213,7 +211,7 @@ def elo_test(stats, policy_names, categories_list):
     # Start formatting with 'Elo:'
     formatted_elo = ['Elo:']
 
-    # Handle the color of policy1's score 
+    # Handle the color of policy1's score
     max_elo = max(elo)
     min_elo = min(elo)
     # first_elo_rounded = round(elo[0])
@@ -227,10 +225,10 @@ def elo_test(stats, policy_names, categories_list):
     # Handle the rest of the elements (rounded)
     for elo_val in elo[1:]:
         formatted_elo.append(f"{round(elo_val)}")
-    
+
     data_rows = [formatted_elo]
 
-    print(tabulate(data_rows, headers=headers, tablefmt="fancy_grid"))
+    return tabulate(data_rows, headers=headers, tablefmt="fancy_grid")
 
 
 def kruskal_wallis_test(stats, policy_names, categories_list):

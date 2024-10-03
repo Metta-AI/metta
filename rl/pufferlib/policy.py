@@ -55,6 +55,7 @@ def load_policy_from_uri(uri: str, cfg: OmegaConf, wandb_run):
         return None
     print(f"Loaded policy from {uri}")
     policy.uri = uri
+    policy.name = extract_policy_name(uri)
     return policy
 
 def load_policies_from_dir(path: str, cfg: OmegaConf):
@@ -135,3 +136,16 @@ def select_artifact(collection, selector: str, cfg: OmegaConf):
         return random.choice(top)
     else:
         raise ValueError(f"Invalid selector {selector}")
+
+def extract_policy_name(uri):
+    # Handle URIs starting with 'wandb://'
+    if uri.startswith("wandb://"):
+        uri = uri[len("wandb://"):]
+    # Split the URI to extract the policy name
+    parts = uri.split('/')
+    if len(parts) >= 2:
+        model_part = parts[1]
+        model_name = model_part.split('@')[0]
+        return model_name
+    else:
+        return uri

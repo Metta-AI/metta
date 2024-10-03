@@ -1,25 +1,11 @@
-from omegaconf import OmegaConf
-import torch
 import time
-import numpy as np
-import os
-from rl.pufferlib.vecenv import make_vecenv
-from util.eval_analyzer import print_policy_stats
 
-#---New---
-def extract_policy_name(uri):
-    # Handle URIs starting with 'wandb://'
-    if uri.startswith("wandb://"):
-        uri = uri[len("wandb://"):]
-    # Split the URI to extract the policy name
-    parts = uri.split('/')
-    if len(parts) >= 2:
-        model_part = parts[1]
-        model_name = model_part.split('@')[0]
-        return model_name
-    else:
-        return uri
-#---End New---
+import numpy as np
+import torch
+from omegaconf import OmegaConf
+
+from rl.pufferlib.vecenv import make_vecenv
+
 
 class PufferEvaluator():
     def __init__(self, cfg: OmegaConf, policy, baselines) -> None:
@@ -58,15 +44,14 @@ class PufferEvaluator():
             self._baseline_idxs = slice_idxs[:, self._policy_agents_per_env:]\
                 .reshape(self._num_envs*self._baseline_agents_per_env)\
                 .split(self._baseline_agents_per_env*envs_per_opponent)
-            
+
         self._completed_episodes = 0
         self._total_rewards = np.zeros(self._total_agents)
         self._agent_stats = [{} for a in range(self._total_agents)]
 
-        #---NEW---
         # Extract policy names
-        self._policy_name = extract_policy_name(self._cfg.eval.policy_uri)
-        self._baseline_names = [extract_policy_name(uri) for uri in self._cfg.eval.baseline_uris]
+        self._policy_name = policy.name
+        self._baseline_names = [b.name for b in self._baselines]
 
         # Create mapping from agent index to policy name
         self._agent_idx_to_policy_name = {}
@@ -76,14 +61,13 @@ class PufferEvaluator():
         for i, baseline_agent_idxs in enumerate(self._baseline_idxs):
             for agent_idx in baseline_agent_idxs:
                 self._agent_idx_to_policy_name[agent_idx.item()] = self._baseline_names[i]
-        #---END NEW---
 
     def evaluate(self):
         print("Evaluating policy:")
         print(self._policy) #should this be self._policy_name?
         print("Against baselines:")
         for baseline in self._baselines: #likewise, self._baseline_names[]?
-            print(baseline.path) 
+            print(baseline.path)
         print("Total agents:", self._total_agents)
         print("Policy agents per env:", self._policy_agents_per_env)
         print("Baseline agents per env:", self._baseline_agents_per_env)
@@ -95,7 +79,7 @@ class PufferEvaluator():
         policy_rnn_state = None
         baselines_rnn_state = [None for _ in range(len(self._baselines))]
 
-        game_stats = []  #---NEW---
+        game_stats = []
 
         start = time.time()
 
@@ -139,7 +123,6 @@ class PufferEvaluator():
             self._total_rewards += rewards
             self._completed_episodes += sum([e.done for e in self._vecenv.envs])
 
-            #---NEW---
             if len(infos) > 0:
                 for n in range(len(infos)):
                     if "agent_raw" in infos[n]:
@@ -151,39 +134,11 @@ class PufferEvaluator():
                             else:
                                 one_episode[m]['policy_name'] = "No Name Found"
                         game_stats.append(one_episode)
-            #---END NEW---
 
-        #     agent_infos = []
-        #     for info in infos:
-        #         if "agent_raw" in info:
-        #             agent_infos.extend(info["agent_raw"])
-
-        #     for idx, info in enumerate(agent_infos):
-        #         for k, v in info.items():
-        #             if k not in self._agent_stats[idx]:
-        #                 self._agent_stats[idx][k] = 0
-        #             self._agent_stats[idx][k] += v
-
-        # policy_stats = [{} for a in range(len(self._baselines) + 1)]
-        # policy_idxs = [self._policy_idxs] + list(self._baseline_idxs)
-        # for policy_idx, stats in enumerate(policy_stats):
-        #     num_policy_agents = len(policy_idxs[policy_idx])
-        #     for agent_idx in policy_idxs[policy_idx]:
-        #         for k, v in self._agent_stats[agent_idx.item()].items():
-        #             if k not in stats:
-        #                 stats[k] = {"sum": 0, "count": num_policy_agents}
-        #             stats[k]["sum"] += v
 
         print("Total episodes:", self._completed_episodes)
         print("Evaluation time:", time.time() - start)
-
-        #---NEW---
-        # print_policy_stats(game_stats, '1v1', 'all')
-        # print_policy_stats(game_stats, 'elo_1v1', 'altar')
-        #---END NEW---
-
-        # return policy_stats
-        return game_stats #new
+        return game_stats
 
     def close(self):
         self._vecenv.close()

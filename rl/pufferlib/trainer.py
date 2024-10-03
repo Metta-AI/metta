@@ -51,6 +51,7 @@ class PufferTrainer:
         self.recent_stats = defaultdict(list)
         self.policy_checkpoint = PolicyCheckpoint()
         self.wandb_run = wandb_run
+        self.checkpoints = []
 
         self._make_vecenv()
 
@@ -302,7 +303,7 @@ class PufferTrainer:
     def _save_checkpoint(self):
         model_name = f'model_{self.epoch:06d}.pt'
         model_path = os.path.join(self.cfg.run_dir, model_name)
-
+        self.checkpoints.append(model_path)
         torch.save(self.uncompiled_policy, model_path)
 
         state = {

@@ -10,7 +10,7 @@ from rl.pufferlib.policy import load_policy_from_uri
 from util.eval_analyzer import print_policy_stats
 from rl.wandb.wandb_context import WandbContext
 from util.seeding import seed_everything
-from rl.pufferlib.policy import load_policies_from_dir
+
 signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
 
 @hydra.main(version_base=None, config_path="../configs", config_name="config")

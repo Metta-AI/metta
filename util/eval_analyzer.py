@@ -1,19 +1,19 @@
 import json
 from tabulate import tabulate
 from termcolor import colored
-from util.stats_library import *
+from util.stats_library import mann_whitney_u_test, kruskal_wallis_test, significance_and_effect
+import sys
 
-#================================================================================
-# LOOKUP DICTIONARIES
-#================================================================================
-# Function lookup dictionary
-function_lookup = {
-    '1v1': 'mann_whitney_u_test',
-    'elo_1v1': 'elo_test',
-    'glicko2_1v1': 'glicko2_test',
-    'multiplayer': 'kruskal_wallis_test',
+eval_methods = {
+    '1v1': mann_whitney_u_test,
+    'elo_1v1': kruskal_wallis_test,
+    'glicko2_1v1': significance_and_effect,
+    'multiplayer': kruskal_wallis_test,
 }
-# Stat category lookup dictionary. This approach deals with the situation where an episode doesn't have a stat, which happens if none of the agents have a finite score in the category.
+
+# Stat category lookup dictionary. This approach deals with
+# the situation where an episode doesn't have a stat,
+# which happens if none of the agents have a finite score in the category.
 stat_category_lookup = {
     'altar': ['action.use.energy.altar'],
     'all': [
@@ -70,34 +70,24 @@ stat_category_lookup = {
         "shield_upkeep"
     ],
 }
-#================================================================================
-#END LOOKUP DICTIONARIES
-#================================================================================
 
-def print_policy_stats(data, eval_method, stat_category):
+def print_policy_stats(data: list, eval_method: str, stat_category: str, file=sys.stdout):
     """
-    Process game statistics data and perform statistical tests based on the evaluation method and stat category.
+    Process game statistics data and perform statistical tests based on
+    the evaluation method and stat category.
 
     Parameters:
     data (list): The game data loaded from JSON.
-    eval_method (str): The evaluation method to use ('1v1' or 'multiplayer').
+    eval_method (function): The evaluation method to use ('1v1' or 'multiplayer').
     stat_category (str): The category of statistics to analyze.
 
     Output:
     Prints the statistical test results.
     """
 
-    # Get the function and stats list based on the evaluation method and stat category
-    test_func_name = function_lookup.get(eval_method)
-    if test_func_name is None:
-        raise ValueError(f"Unknown method: {eval_method}")
-    test_func = globals()[test_func_name]
+    test_func = eval_methods[eval_method]
+    categories_list = stat_category_lookup[stat_category]
 
-    categories_list = stat_category_lookup.get(stat_category)
-    if categories_list is None:
-        raise ValueError(f"Unknown stat category: {stat_category}")
-
-    #---start extracting data---
     # Extract all policy names from the data
     policy_names = []
     for episode in data:
@@ -111,7 +101,7 @@ def print_policy_stats(data, eval_method, stat_category):
     for stat_name in categories_list:
         # Create a dictionary for each stat with a dictionary of each policy,
         # the values of which are lists of None as long as the number of episodes
-        stats[stat_name] = {policy_name: [None] * len(data) for policy_name in policy_names}
+        stats[stat_name] = { policy_name: [None] * len(data) for policy_name in policy_names }
 
     # Extract stats per policy per episode
     for idx, episode in enumerate(data):
@@ -129,10 +119,10 @@ def print_policy_stats(data, eval_method, stat_category):
                     else:
                         stats[stat_name][policy][idx] = stat_value
                 # Else, leave as None
-    #---end extracting data---
 
     # Run statistical analysis and print results
-    test_func(stats, policy_names, categories_list)
+    result = test_func(stats, policy_names, categories_list)
+    print(result, file=file)
 
 
 # If you're running on Windows and need ANSI color support

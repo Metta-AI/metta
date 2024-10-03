@@ -5,10 +5,10 @@ from copy import deepcopy
 import hydra
 import wandb
 import yaml
+from carbs import ObservationInParam
 from omegaconf import OmegaConf
 from rich import traceback
 from rich.console import Console
-
 from rl.carbs.util import (
     apply_carbs_suggestion,
     create_sweep_state,
@@ -16,16 +16,12 @@ from rl.carbs.util import (
     pow2_suggestion,
     save_sweep_state,
 )
-from carbs import ObservationInParam
 from rl.pufferlib.evaluator import PufferEvaluator
-from rl.pufferlib.policy import load_policy_from_uri
+from rl.pufferlib.policy import load_policy_from_uri, upload_policy_to_wandb
 from rl.pufferlib.trainer import PufferTrainer
 from rl.wandb.wandb_context import WandbContext
 from util.seeding import seed_everything
-from util.stats import print_policy_stats
-from rl.pufferlib.policy import upload_policy_to_wandb
-
-import base64
+from util.eval_analyzer import print_policy_stats
 
 signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
 
@@ -131,20 +127,29 @@ def run_suggested_rollout(cfg, suggestion, sweep_state):
 
         policy_uri = trainer.policy_checkpoint.model_path
         policy = load_policy_from_uri(policy_uri, eval_cfg, wandb_run)
-        evaluator = PufferEvaluator(eval_cfg, policy, [])
+        policy.name = "final"
+        initial_policy = load_policy_from_uri(trainer.checkpoints[0], eval_cfg, wandb_run)
+        initial_policy.name = "initial"
+        evaluator = PufferEvaluator(eval_cfg, policy, [initial_policy])
         stats = evaluator.evaluate()
         evaluator.close()
 
-        print_policy_stats(stats)
-        metric = stats[0].get(cfg.sweep.metric, None)
-        print(f"Sweep Metric: {cfg.sweep.metric} = {metric}")
-        objective = 0
+        print_policy_stats(stats, '1v1', 'all')
+        print_policy_stats(stats, 'elo_1v1', 'altar')
 
-        if metric is not None:
-            objective = metric["sum"] / metric["count"]
-            wandb_run.log(
-                {"eval_metric": objective},
-                step=trainer.policy_checkpoint.agent_steps)
+        sum = 0
+        count = 0
+        for game in stats:
+            for agent in game:
+                if agent["policy_name"] == "final":
+                    sum += agent.get(cfg.sweep.metric, 0)
+                    count += 1
+        print(f"Sweep Metric: {cfg.sweep.metric} = {sum} / {count}")
+        objective = sum / count
+
+        wandb_run.log(
+            {"eval_metric": objective},
+            step=trainer.policy_checkpoint.agent_steps)
 
         wandb_run.summary["num_suggestions"] = sweep_state.num_suggestions
         wandb_run.summary["num_failures"] = sweep_state.num_failures
@@ -163,7 +168,8 @@ def run_suggested_rollout(cfg, suggestion, sweep_state):
         with open(os.path.join(train_cfg.run_dir, "eval_config.yaml"), "w") as f:
             OmegaConf.save(eval_cfg, f)
         with open(os.path.join(train_cfg.run_dir, "eval_stats.txt"), "w") as f:
-            print_policy_stats(stats, file=f)
+            print_policy_stats(stats, '1v1', 'all', file=f)
+            print_policy_stats(stats, 'elo_1v1', 'altar', file=f)
 
         final_model_artifact = upload_policy_to_wandb(
             wandb_run,
