@@ -12,19 +12,19 @@ def significance_and_effect(interpretations):
 
     # Case mapping based on effect direction and significance
     if all_positive:
-        return colored("🦾 Greater than all!", "green")  # All positive effects
+        return colored("Greater than all!", "green")  # All positive effects
     elif all_negative:
-        return colored("📉 Less than all!", "red", attrs=["bold"]) # All negative effects
+        return colored("Less than all!", "red", attrs=["bold"]) # All negative effects
     elif any_positive and any_negative:
-        return colored("🥴 Mixed results.", "yellow")  # Some positive, some negative
+        return colored("Mixed results.", "yellow")  # Some positive, some negative
     elif any_positive and not any_negative:
-        return colored("🤠 Some pos., none neg.", "yellow")  # Some positive, no negative
+        return colored("Some pos., none neg.", "yellow")  # Some positive, no negative
     elif any_negative and not any_positive:
-        return colored("🤔 Some neg., none pos.", "yellow") # Some negative, no positive
+        return colored("Some neg., none pos.", "yellow") # Some negative, no positive
     elif all_no_effect:
-        return colored("😐 No significance.", "yellow") # All no effect
+        return colored("No significance.", "yellow") # All no effect
     else:
-        return "Unknown Case"
+        return "No interpretation."
 
 
 def mann_whitney_u_test(stats, policy_names, categories_list):  
@@ -49,7 +49,6 @@ def mann_whitney_u_test(stats, policy_names, categories_list):
             continue
         
         episode_scores = stats[stat_name]
-
 
         # Collect non-None scores per policy
         scores_per_policy = {}
@@ -158,7 +157,7 @@ def mann_whitney_u_test(stats, policy_names, categories_list):
 
     return results
 
-def elo_1v1_test(stats, policy_names, categories_list):
+def elo_test(stats, policy_names, categories_list):
     """
     Perform the 1v1 Elo test on the given episode scores for each stat in stat_list.
     Assumes all games are 1v1.
@@ -172,7 +171,8 @@ def elo_1v1_test(stats, policy_names, categories_list):
 
     all_scores = stats['action.use.energy.altar']
 
-    elo = [0] * len(policy_names)
+    elo = [1000] * len(policy_names)
+    #note, apparently is standard to start w 1,000 but I find that starting at 0 shows unanimous otcomes more clearly
 
     def get_elo_constant(e):
         #dynamic elo constant based on episode number
@@ -206,9 +206,27 @@ def elo_1v1_test(stats, policy_names, categories_list):
         header = f"{policy_name}\nElo"
         headers.append(header)
     
+    # formatted_elo = ['Elo:']
+    # for elo_val in elo:
+    #     formatted_elo.append(f"{elo_val:.2f}")
+
+    # Start formatting with 'Elo:'
     formatted_elo = ['Elo:']
-    for elo_val in elo:
-        formatted_elo.append(f"{elo_val:.2f}")
+
+    # Handle the color of policy1's score 
+    max_elo = max(elo)
+    min_elo = min(elo)
+    # first_elo_rounded = round(elo[0])
+    if elo[0] == max_elo:
+        formatted_elo.append(colored(f"{round(elo[0])}", "green"))
+    elif elo[0] == min_elo:
+        formatted_elo.append(colored(f"{round(elo[0])}", "red"))
+    else:
+        formatted_elo.append(colored(f"{round(elo[0])}", "yellow"))
+
+    # Handle the rest of the elements (rounded)
+    for elo_val in elo[1:]:
+        formatted_elo.append(f"{round(elo_val)}")
     
     data_rows = [formatted_elo]
 
@@ -218,5 +236,11 @@ def elo_1v1_test(stats, policy_names, categories_list):
 def kruskal_wallis_test(stats, policy_names, categories_list):
     """
     Function to perform Kruskal-Wallis test. Currently not implemented.
+    """
+    pass
+
+def glicko2_test(stats, policy_names, categories_list):
+    """
+    Function to perform Glicko-2 test. Currently not implemented.
     """
     pass

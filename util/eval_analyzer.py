@@ -9,7 +9,8 @@ from util.stats_library import *
 # Function lookup dictionary
 function_lookup = {
     '1v1': 'mann_whitney_u_test',
-    'elo_1v1': 'elo_1v1_test',
+    'elo_1v1': 'elo_test',
+    'glicko2_1v1': 'glicko2_test',
     'multiplayer': 'kruskal_wallis_test',
 }
 # Stat category lookup dictionary. This approach deals with the situation where an episode doesn't have a stat, which happens if none of the agents have a finite score in the category.
@@ -85,6 +86,7 @@ def print_policy_stats(data, eval_method, stat_category):
     Output:
     Prints the statistical test results.
     """
+
     # Get the function and stats list based on the evaluation method and stat category
     test_func_name = function_lookup.get(eval_method)
     if test_func_name is None:
