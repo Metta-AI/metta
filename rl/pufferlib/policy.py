@@ -21,9 +21,13 @@ def load_policy_from_wandb(uri: str, cfg: OmegaConf, wandb_run):
             type_name=atype,
             name=f"{cfg.wandb.entity}/{cfg.wandb.project}/{name}")
         artifact = select_artifact(collection, selector, cfg)
+        if artifact is None:
+            return None
+        artifact = wandb_run.use_artifact(artifact.qualified_name)
     else:
         artifact = wandb_run.use_artifact(uri[len("wandb://"):])
-    data_dir = artifact.download(root=os.path.join(cfg.data_dir, "artifacts"))
+    data_dir = artifact.download(
+        root=os.path.join(cfg.data_dir, "artifacts", artifact.name))
     print(f"Downloaded artifact {artifact.name} to {data_dir}")
     return load_policy_from_file(
         os.path.join(data_dir, "model.pt"),
@@ -45,6 +49,9 @@ def load_policy_from_uri(uri: str, cfg: OmegaConf, wandb_run):
         policy = load_policy_from_file(uri, cfg.device)
     else:
         policy = load_policy_from_dir(uri, cfg.device)
+    if policy is None:
+        print(f"Failed to load policy from {uri}")
+        return None
     print(f"Loaded policy from {uri}")
     policy.uri = uri
     return policy
@@ -105,12 +112,20 @@ def select_artifact(collection, selector: str, cfg: OmegaConf):
         return a
     elif selector.startswith("top"):
         if selector.startswith("top_"):
-            n, metric = selector[len("top_"):].split("_")
+            n, metric = selector[len("top_"):].split(".")
         else:
             _, metric = selector.split(".")
             n = cfg.train.top_policy_selector
         n = int(n)
+
+        if n == 0:
+            print(f"Selector {selector} is 0, skipping")
+            return None
+
         top = sorted(artifacts, key=lambda x: x.metadata.get(metric, 0))[-n:]
+        if len(top) == 0:
+            print(f"No artifacts found for {selector}")
+            return None
         print(f"Top {n} artifacts by {metric}:")
         print(f"{'Artifact':<40} | {metric:<20}")
         print("-" * 62)

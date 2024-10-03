@@ -73,7 +73,7 @@ parameters:
       max: 32768
     top_policy_selector:
       space: linear
-      min: 1
+      min: 0
       max: 10
       is_int: true
 
