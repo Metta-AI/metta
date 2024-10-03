@@ -20,7 +20,7 @@ def load_policy_from_wandb(uri: str, cfg: OmegaConf, wandb_run):
         collection = wandb.Api().artifact_collection(
             type_name=atype,
             name=f"{cfg.wandb.entity}/{cfg.wandb.project}/{name}")
-        artifact = select_artifact(collection, selector)
+        artifact = select_artifact(collection, selector, cfg)
     else:
         artifact = wandb_run.use_artifact(uri[len("wandb://"):])
     data_dir = artifact.download(root=os.path.join(cfg.data_dir, "artifacts"))
@@ -90,7 +90,7 @@ def upload_policy_to_wandb(
     print(f"Uploaded model to wandb: {artifact.name} to run {wandb_run.id}")
     return artifact
 
-def select_artifact(collection, selector: str):
+def select_artifact(collection, selector: str, cfg: OmegaConf):
     artifacts = list(collection.artifacts())
     if selector == "rand":
         return random.choice(artifacts)
@@ -103,8 +103,12 @@ def select_artifact(collection, selector: str):
         a = max(artifacts, key=lambda x: x.metadata.get(metric, 0))
         print(f"Selected artifact {a.name} with eval_metric {a.metadata.get(metric, 0)}")
         return a
-    elif selector.startswith("top_"):
-        n, metric = selector[len("top_"):].split(".")
+    elif selector.startswith("top"):
+        if selector.startswith("top_"):
+            n, metric = selector[len("top_"):].split("_")
+        else:
+            _, metric = selector.split(".")
+            n = cfg.train.top_policy_selector
         n = int(n)
         top = sorted(artifacts, key=lambda x: x.metadata.get(metric, 0))[-n:]
         print(f"Top {n} artifacts by {metric}:")

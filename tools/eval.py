@@ -24,7 +24,7 @@ def main(cfg):
         baselines = []
         for uri in cfg.eval.baseline_uris:
             baselines.append(load_policy_from_uri(uri, cfg, wandb_run))
-        baselines = baselines[:cfg.eval.max_baselines]
+        baselines = baselines[0:cfg.eval.max_baselines]
         evaluator = PufferEvaluator(cfg, policy, baselines)
         stats = evaluator.evaluate()
         print_policy_stats(stats)
