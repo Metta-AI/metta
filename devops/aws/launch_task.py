@@ -26,7 +26,7 @@ machine_profiles = {
 def submit_batch_job(args, task_args):
     batch = boto3.client('batch')
 
-    job_name = args.experiment.replace('.', '_')
+    job_name = args.run.replace('.', '_')
     job_queue = "metta-batch-jq-" + args.instance_type.replace('.', '-')
     job_definition = "metta-batch-train-jd"
 
@@ -58,17 +58,14 @@ def container_config(args, task_args):
         'ln -s /mnt/efs/train_dir train_dir',
     ]
     train_cmd = [
-        './devops/train.sh',
-        f'experiment={args.experiment}',
-        f'framework={args.framework}',
+        './devops/run.sh',
+        args.cmd,
+        f'run={args.run}',
         'hardware=aws.' + args.instance_type,
         *task_args,
     ]
     if args.git_branch is not None:
         setup_cmds.append(f'git checkout {args.git_branch}')
-    if args.init_model is not None:
-        setup_cmds.append(f'./devops/load_model.sh {args.init_model}',)
-        train_cmd.append(f'+framework.init_checkpoint_path=train_dir/{args.init_model}/latest.pth')
 
     print("\n".join([
             "Setup:",
@@ -110,9 +107,8 @@ def container_config(args, task_args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Launch an AWS Batch task with a wandb key.')
     parser.add_argument('--cluster', default="metta", help='The name of the ECS cluster.')
-    parser.add_argument('--experiment', required=True, help='The experiment to run.')
-    parser.add_argument('--framework', default="pufferlib", choices=["sample_factory", "pufferlib"], help='The framework to use.')
-    parser.add_argument('--init_model', default=None, help='The experiment to run.')
+    parser.add_argument('--run', required=True, help='The run id.')
+    parser.add_argument('--cmd', required=True, choices=["train", "sweep"], help='The command to run.')
     parser.add_argument('--git_branch', default=None, help='The git branch to use for the task.')
     parser.add_argument('--instance_type', default="g5.8xlarge", help='The instance type to use for the task.')
     args, task_args = parser.parse_known_args()
