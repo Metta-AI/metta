@@ -171,10 +171,10 @@ def create_sweep_state(cfg):
                 num_random_samples=cfg.sweep.num_random_samples,
                 checkpoint_dir=f"{cfg.run_dir}/carbs/",
                 is_wandb_logging_enabled=False,
+                seed=int(time.time()),
             ),
             carbs_spaces
     )
-    carbs._set_seed(int(time.time()))
     carbs_state = CarbsSweepState(
         wandb_sweep_id=wandb_sweep_id,
         carbs=carbs,
