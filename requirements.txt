@@ -19,4 +19,6 @@ tabulate
 termcolor
 torchrl
 uvicorn
+wandb==0.18.3
+wandb-core==0.17
 websockets
