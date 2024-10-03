@@ -17,9 +17,10 @@ def load_policy_from_wandb(uri: str, cfg: OmegaConf, wandb_run):
     if "@" in artifact_path:
         path, selector = artifact_path.split("@")
         atype, name = path.split("/")
-        collection = wandb.Api().artifact_collection(
-            type_name=atype,
-            name=f"{cfg.wandb.entity}/{cfg.wandb.project}/{name}")
+        apath = f"{cfg.wandb.entity}/{cfg.wandb.project}/{atype}/{name}"
+        if not wandb.Api().artifact_collection_exists(type_name=atype, name=apath):
+            return None
+        collection = wandb.Api().artifact_collection(type_name=atype, name=apath)
         artifact = select_artifact(collection, selector, cfg)
         if artifact is None:
             return None
