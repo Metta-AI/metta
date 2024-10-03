@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict
+from typing import List
 
 import hydra
 from omegaconf import OmegaConf
@@ -19,6 +19,8 @@ class MettaAgent(nn.Module, MettaAgentInterface):
         self,
         obs_space: ObsSpace,
         action_space: ActionSpace,
+        grid_features: List[str],
+        global_features: List[str],
         **cfg
     ):
         super().__init__()
@@ -29,7 +31,7 @@ class MettaAgent(nn.Module, MettaAgentInterface):
 
         self._encoder = hydra.utils.instantiate(
             cfg.observation_encoder,
-            obs_space, cfg.fc)
+            obs_space, grid_features, global_features, cfg.fc)
 
         self._decoder = hydra.utils.instantiate(
             cfg.decoder,

@@ -1,3 +1,5 @@
+from typing import List
+
 import torch
 from omegaconf import OmegaConf
 from pufferlib.pytorch import layer_init
@@ -7,8 +9,10 @@ from torch import nn
 class SimpleConvAgent(nn.Module):
 
     def __init__(self,
-                obs_space,
-                fc_cfg: OmegaConf, **cfg):
+                 obs_space,
+                 grid_features: List[str],
+                 global_features: List[str],
+                 fc_cfg: OmegaConf, **cfg):
         super().__init__()
         cfg = OmegaConf.create(cfg)
         self._obs_key = cfg.obs_key

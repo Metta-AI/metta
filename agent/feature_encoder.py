@@ -75,13 +75,21 @@ class FeatureSetEncoder(nn.Module):
         return self._output_dim
 
 class MultiFeatureSetEncoder(nn.Module):
-    def __init__(self, obs_space, fc_cfg: OmegaConf, **cfg):
+    def __init__(self,
+                 obs_space,
+                 grid_features, global_features,
+                fc_cfg: OmegaConf, **cfg):
         super().__init__()
+        cfg = OmegaConf.create(cfg)
+        if "grid_obs" in cfg:
+            cfg.grid_obs.feature_names = grid_features
+        if "global_vars" in cfg:
+            cfg.global_vars.feature_names = global_features
 
         self.feature_set_encoders = nn.ModuleDict({
-            name: FeatureSetEncoder(obs_space, name, **cfg)
-            for name, cfg in cfg.items()
-            if len(cfg.feature_names) > 0
+            name: FeatureSetEncoder(obs_space, name, **fs_cfg)
+            for name, fs_cfg in cfg.items()
+            if len(fs_cfg.feature_names) > 0
         })
 
         self.merged_encoder = make_nn_stack(

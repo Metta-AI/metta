@@ -17,6 +17,7 @@
                 // "env.kinship.team_reward=0.8",
 
                 // "env.game.actions.attack.enabled=false",
+                "agent=simple",
                 "wandb.enabled=True",
                 "wandb.track=False",
             ],

@@ -57,8 +57,12 @@ def make_policy(env: PufferEnv, cfg: OmegaConf):
             dtype=np.int32)
     })
     agent = hydra.utils.instantiate(
-        cfg.agent, obs_space,
-        env.single_action_space, _recursive_=False)
+        cfg.agent,
+        obs_space,
+        env.single_action_space,
+        env.grid_features,
+        env.global_features,
+        _recursive_=False)
     puffer_agent = PufferAgentWrapper(agent, env)
 
     if cfg.agent.core.rnn_num_layers > 0:
