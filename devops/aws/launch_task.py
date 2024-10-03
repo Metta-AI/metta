@@ -108,7 +108,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Launch an AWS Batch task with a wandb key.')
     parser.add_argument('--cluster', default="metta", help='The name of the ECS cluster.')
     parser.add_argument('--run', required=True, help='The run id.')
-    parser.add_argument('--cmd', required=True, choices=["train", "sweep"], help='The command to run.')
+    parser.add_argument('--cmd', required=True, choices=["train", "sweep", "evolve"], help='The command to run.')
     parser.add_argument('--git_branch', default=None, help='The git branch to use for the task.')
     parser.add_argument('--instance_type', default="g5.8xlarge", help='The instance type to use for the task.')
     args, task_args = parser.parse_known_args()
