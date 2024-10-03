@@ -5,9 +5,11 @@ run_id=""
 for arg in "$@"; do
     if [[ $arg == run=* ]]; then
         run_id="${arg#run=}"
-        break
+        brea
     fi
 done
+
+
 
 if [ -z "$run_id" ]; then
     echo "Error: run_id not provided. Please include run=<run_id> in the arguments."

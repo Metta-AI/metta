@@ -59,8 +59,7 @@ def container_config(args, task_args):
         'ln -s /mnt/efs/train_dir train_dir',
     ]
     train_cmd = [
-        './devops/run.sh',
-        args.cmd,
+        f'./devops/{args.cmd}.sh',
         f'run={args.run}',
         'hardware=aws.' + args.instance_type,
         *task_args,
