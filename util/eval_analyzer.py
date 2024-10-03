@@ -15,7 +15,7 @@ eval_methods = {
 # the situation where an episode doesn't have a stat,
 # which happens if none of the agents have a finite score in the category.
 stat_category_lookup = {
-    'altar': ['action.use.energy.altar'],
+    'altar': ['action.use.altar'],
     'all': [
         "action.rotate.energy",
         "action.attack",
