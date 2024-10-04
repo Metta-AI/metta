@@ -6,22 +6,20 @@ from copy import deepcopy
 
 import numpy as np
 import torch
-import wandb
-
 from fast_gae import fast_gae
 from omegaconf import OmegaConf
+
+import pufferlib
+import pufferlib.utils
+
 from rl.pufferlib.experience import Experience
 from rl.pufferlib.policy import (
-    upload_policy_to_wandb,
     count_params,
     load_policy_from_uri,
+    upload_policy_to_wandb,
 )
 from rl.pufferlib.profile import Profile
 from rl.pufferlib.vecenv import make_vecenv
-
-import pufferlib
-import pufferlib.pytorch
-import pufferlib.utils
 
 from . import puffer_agent_wrapper
 
@@ -97,12 +95,8 @@ class PufferTrainer:
                 f"{self.uncompiled_policy._action_names} != {self.vecenv.driver_env.action_names()}")
 
         if self.cfg.wandb.track and wandb_run:
-            step_metric = "train/agent_steps"
-            wandb.define_metric("0verview/*", step_metric=step_metric)
-            wandb.define_metric("env/*", step_metric=step_metric)
-            wandb.define_metric("losses/*", step_metric=step_metric)
-            wandb.define_metric("performance/*", step_metric=step_metric)
-            wandb.define_metric("train/*", step_metric=step_metric)
+            for k in ["0verview", "env", "losses", "performance", "train"]:
+                wandb_run.define_metric(f"{k}/*", step_metric="train/agent_steps")
 
     def train(self):
         self.train_start = time.time()

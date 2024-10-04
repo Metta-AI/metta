@@ -24,8 +24,8 @@ def main(cfg):
 
     create_sweep_state_if_needed(cfg)
 
-    with CarbsSweep(cfg.run_dir) as sweep_state:
-        wandb_sweep_id = sweep_state.wandb_sweep_id
+    with CarbsSweep(cfg.run_dir) as sweep:
+        wandb_sweep_id = sweep.wandb_sweep_id
 
     global _consecutive_failures
     _consecutive_failures = 0
