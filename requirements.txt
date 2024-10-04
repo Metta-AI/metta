@@ -16,7 +16,7 @@ raylib
 rich
 scipy
 tabulate
-termcolor
+termcolor==2.4.0
 torchrl
 uvicorn
 wandb==0.18.3
