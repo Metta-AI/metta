@@ -9,7 +9,7 @@ observation_encoders:
     normalize_features: True
     label_dim: 4
     output_dim: 512
-    layers: 4
+    layers: 3
 
   global_vars:
     feature_names: []
@@ -48,7 +48,7 @@ observation_encoders:
   #   layers: 2
 
 fc:
-  layers: 3
+  layers: 2
   output_dim: 512
 
 decoder:
