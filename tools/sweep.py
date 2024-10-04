@@ -198,6 +198,7 @@ def run_suggested_rollout(cfg, suggestion, sweep_state):
             cfg.run, [train_cfg.run]
         )
 
+        sweep_state = load_sweep_state(cfg.run_dir)
         sweep_state.carbs.observe(
             ObservationInParam(
                 input=suggestion,
