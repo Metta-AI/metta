@@ -1,0 +1,8 @@
+# @package __global__
+
+defaults:
+  - aws
+
+
+train:
+  num_workers: 32 # num cores
