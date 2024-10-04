@@ -21,7 +21,10 @@ machine_profiles = {
         "vcpus": 64,
         "memory": 250,
     },
-}
+    "g6.8xlarge": {
+        "vcpus": 32,
+        "memory": 120,
+    },}
 
 def submit_batch_job(args, task_args):
     batch = boto3.client('batch')
