@@ -4,7 +4,7 @@ import math
 import os
 import time
 from dataclasses import dataclass
-
+import random
 import wandb
 import yaml
 from carbs import (
@@ -118,34 +118,45 @@ class CarbsSweepState:
 
 
 @contextlib.contextmanager
-def load_sweep_state(sweep_dir: str) -> CarbsSweepState:
-    lock_file = os.path.join(sweep_dir, "sweep.lock")
-    max_retries = 3
-    retry_delay = 1
+def CarbsSweep(sweep_dir: str) -> CarbsSweepState:
+    with _carbs_lock(sweep_dir):
+        try:
+            sweep_state = _load_sweep_state(sweep_dir)
+            yield sweep_state
+        finally:
+            _save_sweep_state(sweep_dir, sweep_state)
+
+
+@contextlib.contextmanager
+def _carbs_lock(sweep_dir: str, max_retries: int = 3, retry_delay: int = 10):
+    lock_file = os.path.join(sweep_dir, "carbs.lock")
     lockf = None
 
     for attempt in range(max_retries):
         try:
+            os.makedirs(os.path.dirname(lock_file), exist_ok=True)
             lockf = open(lock_file, 'w')
             fcntl.flock(lockf, fcntl.LOCK_EX | fcntl.LOCK_NB)
             break
-        except IOError:
+        except (IOError, OSError) as e:
             if lockf:
                 lockf.close()
             if attempt < max_retries - 1:
-                time.sleep(retry_delay)
+                delay = random.uniform(retry_delay, 2 * retry_delay)
+                print(f"Failed to acquire CARBS lock, retrying in {delay:.2f} seconds...")
+                time.sleep(delay)
             else:
-                raise IOError("Failed to acquire lock after 3 attempts.")
+                print(f"Failed to acquire CARBS lock after {max_retries} attempts.")
+                raise IOError(f"Failed to acquire CARBS lock after {max_retries} attempts: {str(e)}")
 
     try:
-        sweep_state = _load_sweep_state(sweep_dir)
-        yield sweep_state
+        yield
     finally:
-        _save_sweep_state(sweep_dir, sweep_state)
         if lockf:
             fcntl.flock(lockf, fcntl.LOCK_UN)
             lockf.close()
         os.remove(lock_file)
+
 
 def _load_sweep_state(sweep_dir: str) -> CarbsSweepState:
     with open(os.path.join(sweep_dir, "sweep.yaml"), "r") as f:
@@ -187,33 +198,43 @@ def pow2_suggestion(cfg: OmegaConf, suggestion: DictConfig):
         new_suggestion[key] = value
     return new_suggestion
 
-def create_sweep_state(cfg):
+def create_sweep_state_if_needed(cfg):
+    with _carbs_lock(cfg.run_dir):
+        _create_sweep_state(cfg)
+
+def _create_sweep_state(cfg):
+    if os.path.exists(os.path.join(cfg.run_dir, "sweep.yaml")):
+        print(f"Sweep already exists at {cfg.run_dir}")
+        return
+
+    os.makedirs(cfg.run_dir, exist_ok=True)
+
     with WandbContext(cfg) as wandb_ctx:
         wandb_sweep_id = wandb.sweep(
-            sweep=wandb_sweep_cfg(cfg),
-        project=cfg.wandb.project,
-            entity=cfg.wandb.entity,
-        )
+                sweep=wandb_sweep_cfg(cfg),
+            project=cfg.wandb.project,
+                entity=cfg.wandb.entity,
+            )
         wandb.save()
         print(f"WanDb Sweep created with ID: {wandb_sweep_id}")
 
-    carbs_spaces = carbs_params_spaces(cfg)
+        carbs_spaces = carbs_params_spaces(cfg)
 
-    carbs = CARBS(
-        CARBSParams(
-            better_direction_sign=1,
-                resample_frequency=5,
-                num_random_samples=cfg.sweep.num_random_samples,
-                checkpoint_dir=f"{cfg.run_dir}/carbs/",
-                is_wandb_logging_enabled=False,
-                seed=int(time.time()),
-            ),
-            carbs_spaces
-    )
-    carbs_state = CarbsSweepState(
-        wandb_sweep_id=wandb_sweep_id,
-        carbs=carbs,
-    )
+        carbs = CARBS(
+            CARBSParams(
+                better_direction_sign=1,
+                    resample_frequency=5,
+                    num_random_samples=cfg.sweep.num_random_samples,
+                    checkpoint_dir=f"{cfg.run_dir}/carbs/",
+                    is_wandb_logging_enabled=False,
+                    seed=int(time.time()),
+                ),
+                carbs_spaces
+        )
+        carbs_state = CarbsSweepState(
+            wandb_sweep_id=wandb_sweep_id,
+            carbs=carbs,
+        )
 
     _save_sweep_state(cfg.run_dir, carbs_state)
     print(f"Sweep created at {cfg.run_dir}")

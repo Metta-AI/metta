@@ -11,8 +11,8 @@ from rich import traceback
 from rich.console import Console
 from rl.carbs.util import (
     apply_carbs_suggestion,
-    create_sweep_state,
-    load_sweep_state,
+    create_sweep_state_if_needed,
+    CarbsSweep,
     pow2_suggestion,
 )
 from rl.pufferlib.evaluator import PufferEvaluator
@@ -34,13 +34,10 @@ def main(cfg):
     traceback.install(show_locals=False)
     print(OmegaConf.to_yaml(cfg))
     seed_everything(cfg.seed, cfg.torch_deterministic)
-    os.makedirs(cfg.run_dir, exist_ok=True)
 
-    wandb_sweep_id = None
-    if not os.path.exists(os.path.join(cfg.run_dir, "sweep.yaml")):
-        create_sweep_state(cfg)
+    create_sweep_state_if_needed(cfg)
 
-    with load_sweep_state(cfg.run_dir) as sweep_state:
+    with CarbsSweep(cfg.run_dir) as sweep_state:
         wandb_sweep_id = sweep_state.wandb_sweep_id
 
     global _consecutive_failures
@@ -69,7 +66,7 @@ def run_carb_sweep_rollout():
             wandb_run.save(os.path.join(cfg.run_dir, "*.yaml"), base_path=cfg.run_dir)
 
         run_id = None
-        with load_sweep_state(cfg.run_dir) as sweep_state:
+        with CarbsSweep(cfg.run_dir) as sweep_state:
             try:
                 suggestion = sweep_state.carbs.suggest().suggestion
             except Exception as e:
@@ -98,7 +95,7 @@ def run_carb_sweep_rollout():
             print(f"Error running suggested rollout: {e}")
             Console().print_exception()
             _consecutive_failures += 1
-            with load_sweep_state(cfg.run_dir) as sweep_state:
+            with CarbsSweep(cfg.run_dir) as sweep_state:
                 sweep_state.carbs.observe(
                     ObservationInParam(
                         input=suggestion,
@@ -209,7 +206,7 @@ def run_suggested_rollout(cfg, suggestion, run_id):
             cfg.run, [train_cfg.run]
         )
 
-        with load_sweep_state(cfg.run_dir) as sweep_state:
+        with CarbsSweep(cfg.run_dir) as sweep_state:
             sweep_state.carbs.observe(
                 ObservationInParam(
                     input=suggestion,
