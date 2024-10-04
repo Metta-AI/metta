@@ -1,19 +1,23 @@
+import contextlib
+import fcntl
 import math
 import os
-from dataclasses import dataclass
 import time
+from dataclasses import dataclass
+
 import wandb
 import yaml
 from carbs import (
+    CARBS,
+    CARBSParams,
     LinearSpace,
     LogitSpace,
     LogSpace,
     Param,
-    CARBS,
-    CARBSParams,
 )
 from omegaconf import DictConfig, OmegaConf
 from rl.wandb.wandb_context import WandbContext
+
 
 def _wandb_distribution(param):
     if param.space == "log":
@@ -112,7 +116,38 @@ class CarbsSweepState:
     num_observations: int = 0
     num_failures: int = 0
 
+
+@contextlib.contextmanager
 def load_sweep_state(sweep_dir: str) -> CarbsSweepState:
+    lock_file = os.path.join(sweep_dir, "sweep.lock")
+    max_retries = 3
+    retry_delay = 1
+    lockf = None
+
+    for attempt in range(max_retries):
+        try:
+            lockf = open(lock_file, 'w')
+            fcntl.flock(lockf, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            break
+        except IOError:
+            if lockf:
+                lockf.close()
+            if attempt < max_retries - 1:
+                time.sleep(retry_delay)
+            else:
+                raise IOError("Failed to acquire lock after 3 attempts.")
+
+    try:
+        sweep_state = _load_sweep_state(sweep_dir)
+        yield sweep_state
+    finally:
+        _save_sweep_state(sweep_dir, sweep_state)
+        if lockf:
+            fcntl.flock(lockf, fcntl.LOCK_UN)
+            lockf.close()
+        os.remove(lock_file)
+
+def _load_sweep_state(sweep_dir: str) -> CarbsSweepState:
     with open(os.path.join(sweep_dir, "sweep.yaml"), "r") as f:
         sweep_state = yaml.safe_load(f)
         carbs = CARBS.load_from_string(sweep_state["carbs"])
@@ -120,7 +155,7 @@ def load_sweep_state(sweep_dir: str) -> CarbsSweepState:
         sweep_state["carbs"] = carbs
     return CarbsSweepState(**sweep_state)
 
-def save_sweep_state(sweep_dir: str, sweep_state: CarbsSweepState):
+def _save_sweep_state(sweep_dir: str, sweep_state: CarbsSweepState):
     with open(os.path.join(sweep_dir, "sweep.yaml"), "w") as f:
         sweep_state_dict = sweep_state.__dict__.copy()
         sweep_state_dict["carbs"] = sweep_state.carbs.serialize()
@@ -180,6 +215,5 @@ def create_sweep_state(cfg):
         carbs=carbs,
     )
 
-    save_sweep_state(cfg.run_dir, carbs_state)
+    _save_sweep_state(cfg.run_dir, carbs_state)
     print(f"Sweep created at {cfg.run_dir}")
-    return carbs_state
