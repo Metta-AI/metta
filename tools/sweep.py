@@ -63,50 +63,58 @@ def run_carb_sweep_rollout():
         print("Too many consecutive failures, exiting")
         os._exit(0)
 
-    with load_sweep_state(cfg.run_dir) as sweep_state:
+    with WandbContext(cfg, name=cfg.run + ".init") as wandb_run:
+        with open(os.path.join(cfg.run_dir, "sweep_config.yaml"), "w") as f:
+            OmegaConf.save(cfg, f)
+            wandb_run.save(os.path.join(cfg.run_dir, "*.yaml"), base_path=cfg.run_dir)
+
+        run_id = None
+        with load_sweep_state(cfg.run_dir) as sweep_state:
+            try:
+                suggestion = sweep_state.carbs.suggest().suggestion
+            except Exception as e:
+                print(f"Error suggesting CARBS: {e}")
+                Console().print_exception()
+                _consecutive_failures += 1
+                raise e
+
+            sweep_state.num_suggestions += 1
+            wandb_run.summary["num_suggestions"] = sweep_state.num_suggestions
+            wandb_run.summary["num_failures"] = sweep_state.num_failures
+            wandb_run.summary["num_observations"] = sweep_state.num_observations
+            run_id = cfg.run + ".r." + str(sweep_state.num_suggestions)
+            wandb_run.name = run_id
+
+    with WandbContext(cfg, name=run_id) as wandb_run:
+        print("Generated CARBS suggestion: ")
+        print(yaml.dump(suggestion, default_flow_style=False))
+        with open(os.path.join(cfg.run_dir, "carbs_suggestion.yaml"), "w") as f:
+                yaml.dump(suggestion, f)
+                wandb_run.save(os.path.join(cfg.run_dir, "*.yaml"), base_path=cfg.run_dir)
         try:
-            suggestion = sweep_state.carbs.suggest().suggestion
+            run_suggested_rollout(cfg, suggestion, run_id)
+            _consecutive_failures = 0
         except Exception as e:
-            print(f"Error suggesting CARBS: {e}")
+            print(f"Error running suggested rollout: {e}")
             Console().print_exception()
             _consecutive_failures += 1
-        sweep_state.num_suggestions += 1
-
-    print("Generated CARBS suggestion: ")
-    print(yaml.dump(suggestion, default_flow_style=False))
-    with open(os.path.join(cfg.run_dir, "carbs_suggestion.yaml"), "w") as f:
-        yaml.dump(suggestion, f)
-
-    try:
-        run_suggested_rollout(cfg, suggestion)
-    except Exception as e:
-        print(f"Error running suggested rollout: {e}")
-        Console().print_exception()
-        _consecutive_failures += 1
-        with load_sweep_state(cfg.run_dir) as sweep_state:
-            sweep_state.carbs.observe(
-                ObservationInParam(
-                    input=suggestion,
-                    output=0,
-                    cost=0,
-                    is_failure=True,
+            with load_sweep_state(cfg.run_dir) as sweep_state:
+                sweep_state.carbs.observe(
+                    ObservationInParam(
+                        input=suggestion,
+                        output=0,
+                        cost=0,
+                        is_failure=True,
+                    )
                 )
-            )
-            sweep_state.num_failures += 1
+                sweep_state.num_failures += 1
 
-        _consecutive_failures = 0
 
-def run_suggested_rollout(cfg, suggestion):
+def run_suggested_rollout(cfg, suggestion, run_id):
     train_cfg = deepcopy(cfg)
     train_cfg.sweep = {}
-    carbs_stats = {}
-    with load_sweep_state(cfg.run_dir) as sweep_state:
-        run_id = sweep_state.num_suggestions
-        carbs_stats["num_suggestions"] = sweep_state.num_suggestions
-        carbs_stats["num_failures"] = sweep_state.num_failures
-        carbs_stats["num_observations"] = sweep_state.num_observations
 
-    train_cfg.run = cfg.run + ".r." + str(run_id)
+    train_cfg.run = run_id
     train_cfg.data_dir = os.path.join(cfg.run_dir, "runs")
     train_cfg.wandb.group = cfg.run
     apply_carbs_suggestion(train_cfg, pow2_suggestion(cfg, suggestion))
@@ -157,8 +165,6 @@ def run_suggested_rollout(cfg, suggestion):
             {"eval_metric": objective},
             step=trainer.policy_checkpoint.agent_steps)
 
-        for key, value in carbs_stats.items():
-            wandb_run.summary[key] = value
         wandb_run.summary["training_time"] = trainer.train_time
         wandb_run.summary["eval_objective"] = objective
         wandb_run.summary["agent_step"] = trainer.policy_checkpoint.agent_steps
