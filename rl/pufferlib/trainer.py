@@ -6,6 +6,8 @@ from copy import deepcopy
 
 import numpy as np
 import torch
+import wandb
+
 from fast_gae import fast_gae
 from omegaconf import OmegaConf
 from rl.pufferlib.experience import Experience
@@ -24,7 +26,6 @@ import pufferlib.utils
 from . import puffer_agent_wrapper
 
 torch.set_float32_matmul_precision('high')
-
 
 class PolicyCheckpoint:
     def __init__(self):
@@ -94,6 +95,14 @@ class PufferTrainer:
             raise ValueError(
                 "Action names do not match between policy and environment: "
                 f"{self.uncompiled_policy._action_names} != {self.vecenv.driver_env.action_names()}")
+
+        if self.cfg.wandb.track and wandb_run:
+            step_metric = "train/agent_steps"
+            wandb.define_metric("0verview/*", step_metric=step_metric)
+            wandb.define_metric("env/*", step_metric=step_metric)
+            wandb.define_metric("losses/*", step_metric=step_metric)
+            wandb.define_metric("performance/*", step_metric=step_metric)
+            wandb.define_metric("train/*", step_metric=step_metric)
 
     def train(self):
         self.train_start = time.time()
@@ -379,15 +388,23 @@ class PufferTrainer:
                 del self.stats[k]
 
         if self.wandb_run and self.cfg.wandb.track:
+            overview = {
+                'SPS': self.profile.SPS,
+            }
+            for k, v in self.cfg.train.stats.overview.items():
+                if k in self.stats:
+                    overview[v] = self.stats[k]
+
             self.wandb_run.log({
-                '0verview/SPS': self.profile.SPS,
-                '0verview/agent_steps': self.global_step,
-                '0verview/epoch': self.epoch,
-                '0verview/learning_rate': self.optimizer.param_groups[0]["lr"],
-                **{f'environment/{k}': v for k, v in self.stats.items()},
+                **{f'0verview/{k}': v for k, v in overview.items()},
+                **{f'env/{k}': v for k, v in self.stats.items()},
                 **{f'losses/{k}': v for k, v in self.losses.items()},
                 **{f'performance/{k}': v for k, v in self.profile},
+                'train/agent_steps': self.global_step,
+                'train/epoch': self.epoch,
+                'train/learning_rate': self.optimizer.param_groups[0]["lr"],
             })
+
         if len(self.stats) > 0:
             self.recent_stats = deepcopy(self.stats)
         self.stats.clear()

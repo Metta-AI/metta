@@ -38,6 +38,12 @@ async_factor: 2
 
 top_policy_selector: 1
 
+stats:
+  overview:
+    episode/reward.mean: episode_reward
+  step: train/agent_steps
+
+
   # batch_size: 65536
   # bptt_horizon: 16
   # clip_coef: 0.04728613545570126
