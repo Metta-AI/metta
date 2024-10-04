@@ -69,6 +69,8 @@ def container_config(args, task_args):
     ]
     if args.git_branch is not None:
         setup_cmds.append(f'git checkout {args.git_branch}')
+        setup_cmds.append(f'pip uninstall termcolor')
+        setup_cmds.append(f'pip install termcolor==2.4.0')
 
     print("\n".join([
             "Setup:",
