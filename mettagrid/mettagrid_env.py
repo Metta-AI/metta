@@ -24,7 +24,7 @@ class MettaGridEnv(pufferlib.PufferEnv):
 
 
     def make_env(self):
-        scfg = sample_config(self._cfg.game)
+        scfg = sample_config(self._cfg.game, self._cfg.sampling)
         assert isinstance(scfg, Dict)
         game_cfg = OmegaConf.create(scfg)
         self._game_builder = MettaGridGameBuilder(**scfg) # type: ignore
