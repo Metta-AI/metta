@@ -66,7 +66,8 @@ class CarbsSweepRollout:
                     )
                 )
                 sweep_state.num_failures += 1
-
+            return False
+        return True
 
     def _run(self):
         start_time = time.time()
