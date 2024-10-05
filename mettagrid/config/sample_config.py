@@ -23,10 +23,21 @@ def sample_config(value, sampling: float):
             if sampling == 0:
                 return center
             else:
-                range_width = max_val - min_val
-                scaled_stdev = sampling * range_width * 6
-                val = np.random.normal(center, scaled_stdev)
+                # Calculate the available range on both sides of the center
+                left_range = center - min_val
+                right_range = max_val - center
+
+                # Scale the ranges based on the sampling parameter
+                scaled_left = min(left_range, sampling * left_range)
+                scaled_right = min(right_range, sampling * right_range)
+
+                # Generate a random value within the scaled range
+                val = np.random.uniform(center - scaled_left, center + scaled_right)
+
+                # Clip to ensure we stay within [min_val, max_val]
                 val = np.clip(val, min_val, max_val)
+
+                # Return integer if the original values were integers
                 return int(round(val)) if isinstance(value[0], int) else val
         return value
     return value
