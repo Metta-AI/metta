@@ -94,7 +94,7 @@ parameters:
     total_timesteps:
       space: log
       search_center: 3e8
-      min: 2e7
+      min: 2e8
       max: 1e10
     # compile:
     #   space: linear
