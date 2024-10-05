@@ -95,6 +95,7 @@ class PufferTrainer:
                 f"{self.uncompiled_policy._action_names} != {self.vecenv.driver_env.action_names()}")
 
         if self.cfg.wandb.track and wandb_run:
+            wandb_run.define_metric("train/agent_steps")
             for k in ["0verview", "env", "losses", "performance", "train"]:
                 wandb_run.define_metric(f"{k}/*", step_metric="train/agent_steps")
 

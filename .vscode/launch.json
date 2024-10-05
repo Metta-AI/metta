@@ -10,7 +10,7 @@
             "request": "launch",
             "module": "tools.train",
             "args": [
-                "run=mac.train.4",
+                "run=mac.train.5",
                 // "env=mettagrid/a20_b4_40x40",
                 "env.game.max_steps=100",
                 // "env.kinship.team_size=5",
@@ -20,6 +20,7 @@
                 "agent=simple",
                 "wandb.enabled=True",
                 "wandb.track=True",
+                "agent=big"
             ],
         },
         {

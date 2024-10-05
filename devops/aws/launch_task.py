@@ -115,7 +115,9 @@ if __name__ == "__main__":
     parser.add_argument('--run', required=True, help='The run id.')
     parser.add_argument('--cmd', required=True, choices=["train", "sweep", "evolve"], help='The command to run.')
     parser.add_argument('--git_branch', default=None, help='The git branch to use for the task.')
-    parser.add_argument('--instance_type', default="g5.8xlarge", help='The instance type to use for the task.')
+    parser.add_argument('--instance_type', default="g6.8xlarge", help='The instance type to use for the task.')
+    parser.add_argument('--copies', type=int, default=1, help='Number of job copies to submit.')
     args, task_args = parser.parse_known_args()
 
-    submit_batch_job(args, task_args)
+    for _ in range(args.copies):
+        submit_batch_job(args, task_args)

@@ -22,6 +22,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Stop running AWS Batch jobs with a specific prefix.')
     parser.add_argument('--job_prefix', type=str, required=True, help='Prefix of job names to stop')
     args = parser.parse_args()
+    args.job_prefix = args.job_prefix.replace('.', '_')
 
     stop_batch_jobs(args.job_prefix)
     print(f"WARNING: This will stop all running AWS Batch jobs that start with '{args.job_prefix}'.")

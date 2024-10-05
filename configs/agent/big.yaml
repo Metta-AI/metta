@@ -2,14 +2,16 @@
 
 _target_: agent.metta_agent.MettaAgent
 
-observation_encoders:
+observation_encoder:
+  _target_: agent.feature_encoder.MultiFeatureSetEncoder
+
   grid_obs:
     feature_names: []
 
-    normalize_features: True
+    normalize_features: False
     label_dim: 4
-    output_dim: 512
-    layers: 3
+    output_dim: 128
+    layers: 2
 
   global_vars:
     feature_names: []
