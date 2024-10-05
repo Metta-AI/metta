@@ -75,10 +75,11 @@ class CarbsSweepRollout:
         train_cfg.run = self.run_id
         train_cfg.data_dir = os.path.join(self.cfg.run_dir, "runs")
         train_cfg.wandb.group = self.cfg.run
-        apply_carbs_suggestion(train_cfg, pow2_suggestion(self.cfg, self.suggestion))
 
         eval_cfg = deepcopy(train_cfg)
         eval_cfg.eval = self.cfg.sweep.eval
+
+        apply_carbs_suggestion(train_cfg, pow2_suggestion(self.cfg, self.suggestion))
 
         self._log_file("config.yaml", self.cfg)
         self._log_file("train_config.yaml", train_cfg)

@@ -13,6 +13,7 @@
                 "run=mac.train.5",
                 // "env=mettagrid/a20_b4_40x40",
                 "env.game.max_steps=100",
+                "env.sampling=0.1",
                 // "env.kinship.team_size=5",
                 // "env.kinship.team_reward=0.8",
 
@@ -20,7 +21,6 @@
                 "agent=simple",
                 "wandb.enabled=True",
                 "wandb.track=True",
-                "agent=big"
             ],
         },
         {
@@ -29,10 +29,9 @@
             "request": "launch",
             "module": "tools.sweep",
             "args": [
-                "run=mac.sweep.4",
+                "run=mac.sweep.6",
                 "sweep=fast",
                 "sweep.metric=action.use",
-                "train.init_policy_uri=wandb://sweep_model/mac.sweep.3@top.eval_objective",
                 // "env=mettagrid/a20_b4_40x40",
                 "env.game.max_steps=100",
                 // "env.kinship.team_size=5",
