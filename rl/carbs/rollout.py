@@ -1,6 +1,6 @@
 import os
 from copy import deepcopy
-
+import time
 import yaml
 from carbs import ObservationInParam
 from omegaconf import OmegaConf
@@ -69,6 +69,7 @@ class CarbsSweepRollout:
 
 
     def _run(self):
+        start_time = time.time()
         train_cfg = deepcopy(self.cfg)
         train_cfg.sweep = {}
 
@@ -89,10 +90,13 @@ class CarbsSweepRollout:
         with WandbContext(train_cfg) as wandb_run:
             self._update_wandb_config(wandb_run)
 
+            train_start_time = time.time()
             trainer = PufferTrainer(train_cfg, wandb_run)
             trainer.train()
             trainer.close()
+            train_time = time.time() - train_start_time
 
+            eval_start_time = time.time()
             policy_uri = trainer.policy_checkpoint.model_path
             policy = load_policy_from_uri(policy_uri, eval_cfg, wandb_run)
             policy.name = "final"
@@ -101,6 +105,7 @@ class CarbsSweepRollout:
             evaluator = PufferEvaluator(eval_cfg, policy, [initial_policy])
             stats = evaluator.evaluate()
             evaluator.close()
+            eval_time = time.time() - eval_start_time
 
             print_policy_stats(stats, '1v1', 'all')
             print_policy_stats(stats, 'elo_1v1', 'altar')
@@ -111,7 +116,8 @@ class CarbsSweepRollout:
                 {"eval_metric": eval_metric},
                 step=trainer.policy_checkpoint.agent_steps)
 
-            wandb_run.summary["training_time"] = trainer.train_time
+            wandb_run.summary["training_time"] = train_time
+            wandb_run.summary["eval_time"] = eval_time
             wandb_run.summary["eval_metric"] = eval_metric
             wandb_run.summary["agent_step"] = trainer.policy_checkpoint.agent_steps
             wandb_run.summary["epoch"] = trainer.policy_checkpoint.epoch
@@ -152,14 +158,16 @@ class CarbsSweepRollout:
                 self.cfg.run, [self.run_id]
             )
 
+            total_time = time.time() - start_time
             with CarbsSweep(self.cfg.run_dir) as sweep_state:
                 sweep_state.carbs.observe(
                     ObservationInParam(
                         input=self.suggestion,
                         output=eval_metric,
-                        cost=trainer.train_time,
+                        cost=total_time,
                         is_failure=False))
                 sweep_state.num_observations += 1
+            wandb_run.summary["total_time"] = total_time
 
     def _compute_objective(self, stats):
         sum = 0
@@ -175,7 +183,7 @@ class CarbsSweepRollout:
     def _log_file(self, name: str, data):
         with open(os.path.join(self.run_dir, name), "w") as f:
             if isinstance(data, OmegaConf):
-                OmegaConf.save(data, f)
+                yaml.dump(OmegaConf.to_container(data, resolve=True), f)
             else:
                 yaml.dump(data, f)
 
