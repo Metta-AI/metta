@@ -34,3 +34,8 @@ git clone https://github.com/kywch/carbs.git
 cd carbs
 pip install -e .
 cd ..
+
+git clone https://github.com/Metta-AI/wandb_carbs.git
+cd wandb_carbs
+pip install -e .
+cd ..

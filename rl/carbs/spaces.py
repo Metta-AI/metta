@@ -6,8 +6,15 @@ from carbs import (
     LogSpace,
     Param,
 )
-from omegaconf import DictConfig, OmegaConf
+from carbs import (
+    CARBS,
+    CARBSParams,
+)
 
+from wandb_carbs import WandbCarbs
+from typing import Set
+from omegaconf import DictConfig, OmegaConf
+import time
 _carbs_space = {
     "log": LogSpace,
     "linear": LinearSpace,
@@ -15,8 +22,11 @@ _carbs_space = {
     "logit": LogitSpace,
 }
 
-def _carbs_params_spaces(cfg: OmegaConf):
+def carbs_params_from_cfg(cfg: OmegaConf):
+    cfg = OmegaConf.create(OmegaConf.to_container(cfg, resolve=True))
+
     param_spaces = []
+    pow2_params = set()
     params = _fully_qualified_parameters(cfg.sweep.parameters)
     for param_name, param in params.items():
         train_cfg_param = cfg
@@ -28,10 +38,16 @@ def _carbs_params_spaces(cfg: OmegaConf):
             OmegaConf.set_struct(param, True)
 
         if param.space == "pow2":
-            param.min = int(math.log2(param.min))
-            param.max = int(math.log2(param.max))
-            param.search_center = int(math.log2(param.search_center))
+            try:
+                param.min = int(math.log2(param.min))
+                param.max = int(math.log2(param.max))
+                param.search_center = int(math.log2(param.search_center))
+            except Exception as e:
+                print(f"Error setting pow2 params for {param_name}=({param.min}, {param.max}, {param.search_center}): {e}")
+                raise e
+            pow2_params.add(param_name)
         scale = param.get("scale", 1)
+
         if param.space == "pow2" or param.get("is_int", False):
             scale = 4
         if param.search_center < param.min or param.search_center > param.max:
@@ -50,7 +66,7 @@ def _carbs_params_spaces(cfg: OmegaConf):
                 search_center=param.search_center,
             )
         )
-    return param_spaces
+    return param_spaces, pow2_params
 
 
 def _fully_qualified_parameters(nested_dict, prefix=''):
@@ -63,37 +79,33 @@ def _fully_qualified_parameters(nested_dict, prefix=''):
             qualified_params.update(_fully_qualified_parameters(value, new_prefix))
     return qualified_params
 
-def wandb_sweep_cfg(cfg: OmegaConf):
-    params = _fully_qualified_parameters(cfg.sweep.parameters)
-    wandb_sweep_cfg = {
-        "method": "bayes",
-        "metric": {
-            "goal": "maximize",
-            "name": "eval_metric",
-        },
-        "parameters": {},
-        "name": cfg.run,
-    }
-    for param_name, param in params.items():
-        wandb_sweep_cfg["parameters"][param_name] = {
-            "min": param.min,
-            "max": param.max,
-            "distribution": _wandb_distribution(param),
-        }
-    return wandb_sweep_cfg
 
-def _wandb_distribution(param):
-    if param.space == "log":
-        return "log_uniform_values"
-    elif param.space == "linear":
-        return "uniform"
-    elif param.space == "logit":
-        return "uniform"
-    elif param.space == "pow2":
-        return "int_uniform"
-    elif param.space == "linear":
-        if param.is_int:
-            return "int_uniform"
-        else:
-            return "uniform"
+class Pow2WandbCarbs(WandbCarbs):
+    def __init__(self, cfg: OmegaConf, wandb_run, pow2_params: Set[str]):
+        self.pow2_params = pow2_params
+        super().__init__(cfg, wandb_run)
 
+    def suggest(self):
+        suggestion = super().suggest()
+        for param in self._carbs.params:
+            if param.name in self.pow2_params:
+                suggestion[param.name] = 2 ** suggestion[param.name]
+        return suggestion
+
+def carbs_from_cfg(cfg: OmegaConf, run) -> Pow2WandbCarbs:
+    carbs_params, pow2_params = carbs_params_from_cfg(cfg)
+    return Pow2WandbCarbs(
+        CARBS(
+            CARBSParams(
+                better_direction_sign=1,
+                resample_frequency=5,
+                num_random_samples=cfg.sweep.num_random_samples,
+                checkpoint_dir=f"{cfg.run_dir}/carbs/",
+                is_wandb_logging_enabled=False,
+                seed=int(time.time()),
+            ),
+            carbs_params
+        ),
+        run,
+        pow2_params
+    )

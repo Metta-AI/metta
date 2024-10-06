@@ -1,3 +1,4 @@
+import logging
 import os
 import signal  # Aggressively exit on ctrl+c
 
@@ -5,11 +6,25 @@ import hydra
 import wandb
 from omegaconf import OmegaConf
 from rich import traceback
+from rich.logging import RichHandler
 from rl.carbs.rollout import CarbsSweepRollout
-from rl.carbs.sweep import CarbsSweep, create_sweep_state_if_needed
+from rl.carbs.spaces import carbs_params_from_cfg
+from rl.wandb.sweep import sweep_id_from_name
+from rl.wandb.wandb_context import WandbContext
 from util.seeding import seed_everything
 
+from wandb_carbs import create_sweep
+
 signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
+
+# Set up colored logging for the current file
+logging.basicConfig(
+    level="DEBUG",
+    format="%(message)s",
+    datefmt="[%X]",
+    handlers=[RichHandler(rich_tracebacks=True)]
+)
+logger = logging.getLogger(__name__)
 
 global _cfg
 global _consecutive_failures
@@ -17,20 +32,29 @@ global _consecutive_failures
 def main(cfg):
     global _cfg
     _cfg = cfg
+    OmegaConf.set_readonly(_cfg, True)
 
     traceback.install(show_locals=False)
     print(OmegaConf.to_yaml(cfg))
     seed_everything(cfg.seed, cfg.torch_deterministic)
+    os.makedirs(cfg.run_dir, exist_ok=True)
 
-    create_sweep_state_if_needed(cfg)
+    sweep_id = sweep_id_from_name(cfg.wandb.project, cfg.run)
+    if not sweep_id:
+        logger.debug(f"Sweep {cfg.run} not found, creating new sweep")
+        sweep_id = create_sweep(
+            cfg.run,
+            cfg.wandb.entity,
+            cfg.wandb.project,
+            carbs_params_from_cfg(cfg)[0]
+        )
 
-    with CarbsSweep(cfg.run_dir) as sweep:
-        wandb_sweep_id = sweep.wandb_sweep_id
+        logger.debug(f"WanDb Sweep created with ID: {sweep_id}")
 
     global _consecutive_failures
     _consecutive_failures = 0
 
-    wandb.agent(wandb_sweep_id,
+    wandb.agent(sweep_id,
                 entity=cfg.wandb.entity,
                 project=cfg.wandb.project,
                 function=run_carb_sweep_rollout,
@@ -41,15 +65,18 @@ def run_carb_sweep_rollout():
     global _cfg
 
     if _consecutive_failures > 10:
-        print("Too many consecutive failures, exiting")
+        logger.debug("Too many consecutive failures, exiting")
         os._exit(0)
 
+    success = False
     try:
-        rollout = CarbsSweepRollout(_cfg)
-        if rollout.run():
-            _consecutive_failures = 0
-        else:
-            _consecutive_failures += 1
+        with WandbContext(_cfg) as wandb_run:
+            rollout = CarbsSweepRollout(_cfg, wandb_run)
+            success = rollout.run()
+            if success:
+                _consecutive_failures += 1
+            else:
+                _consecutive_failures = 0
     except Exception as e:
         _consecutive_failures += 1
         raise e

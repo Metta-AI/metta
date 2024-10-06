@@ -169,12 +169,23 @@ if __name__ == "__main__":
     parser.add_argument('--max-jobs', type=int, default=10, help='The maximum number of jobs to display.')
     parser.add_argument('--ecs', action='store_true', help='Include ECS tasks in the status dump.')
     parser.add_argument('--no-color', action='store_true', help='Disable color output.')
+    parser.add_argument('--queue', default='g6-8xlarge', help='Specify the job queue(s) to check. Use "all" for all queues.')
     args = parser.parse_args()
 
     init()  # Initialize colorama
 
     job_queues = get_batch_job_queues()
-    jobs_by_queue = {queue: get_batch_jobs(queue, args.max_jobs) for queue in job_queues}
+    args.queue = f"metta-batch-jq-{args.queue}"
+
+    if args.queue.lower() == 'all':
+        selected_queues = job_queues
+    else:
+        selected_queues = [queue for queue in job_queues if args.queue in queue]
+        if not selected_queues:
+            print(f"No job queues found matching '{args.queue}'. Available queues: {', '.join(job_queues)}")
+            exit(1)
+
+    jobs_by_queue = {queue: get_batch_jobs(queue, args.max_jobs) for queue in selected_queues}
 
     ecs_tasks = []
     if args.ecs:
