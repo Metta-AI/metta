@@ -71,6 +71,7 @@ class CarbsSweepRollout:
 
         train_start_time = time.time()
         trainer = PufferTrainer(train_cfg, wandb_run)
+        initial_policy = trainer.uncompiled_policy
         trainer.train()
         trainer.close()
         train_time = time.time() - train_start_time
@@ -79,15 +80,13 @@ class CarbsSweepRollout:
         policy_uri = trainer.policy_checkpoint.model_path
         policy = load_policy_from_uri(policy_uri, eval_cfg, wandb_run)
         policy.name = "final"
-        initial_policy = load_policy_from_uri(trainer.checkpoints[0], eval_cfg, wandb_run)
-        initial_policy.name = "initial"
         evaluator = PufferEvaluator(eval_cfg, policy, [initial_policy])
         stats = evaluator.evaluate()
         evaluator.close()
         eval_time = time.time() - eval_start_time
 
-        print_policy_stats(stats, '1v1', 'all')
-        print_policy_stats(stats, 'elo_1v1', 'altar')
+        # print_policy_stats(stats, '1v1', 'all')
+        # print_policy_stats(stats, 'elo_1v1', 'altar')
 
         eval_metric = self._compute_objective(stats)
 
@@ -95,16 +94,27 @@ class CarbsSweepRollout:
             {"eval_metric": eval_metric},
             step=trainer.policy_checkpoint.agent_steps)
 
+        total_lineage_time = time.time() - start_time
+        policy_generation = 0
+        if hasattr(initial_policy, "metadata"):
+            total_lineage_time += initial_policy.metadata.get("total_lineage_time", 0)
+            policy_generation = initial_policy.metadata.get("policy_generation", 0) + 1
+
         wandb_run.summary.update({
             "training_time": train_time,
             "eval_time": eval_time,
             "eval_metric": eval_metric,
             "agent_step": trainer.policy_checkpoint.agent_steps,
             "epoch": trainer.policy_checkpoint.epoch,
+            "total_lineage_time": total_lineage_time,
+            "policy_generation": policy_generation,
         })
 
         print(f"Sweep Objective: {eval_metric}")
         print(f"Sweep Train Time: {trainer.train_time}")
+        print(f"Sweep Eval Time: {eval_time}")
+        print(f"Sweep Total Lineage Time: {total_lineage_time}")
+        print(f"Sweep Policy Generation: {policy_generation}")
 
         self._log_file("eval_stats.yaml", stats)
         self._log_file("eval_config.yaml", eval_cfg)
@@ -123,6 +133,8 @@ class CarbsSweepRollout:
                 "train_time": train_time,
                 "eval_time": eval_time,
                 "eval_objective": eval_metric,
+                "total_lineage_time": total_lineage_time,
+                "policy_generation": policy_generation,
             },
             artifact_type="sweep_model",
             additional_files=[
@@ -141,7 +153,7 @@ class CarbsSweepRollout:
         )
 
         total_time = time.time() - start_time
-        self.wandb_carbs.record_observation(eval_metric, total_time)
+        self.wandb_carbs.record_observation(eval_metric, total_lineage_time)
         wandb_run.summary.update({"total_time": total_time})
 
     def _compute_objective(self, stats):

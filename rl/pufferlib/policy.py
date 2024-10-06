@@ -4,6 +4,8 @@ import torch
 import warnings
 import wandb
 import random
+from copy import deepcopy
+
 def load_policy_from_file(path: str, device: str):
     assert path.endswith('.pt'), f"Policy file {path} does not have a .pt extension"
     with warnings.catch_warnings():
@@ -30,10 +32,15 @@ def load_policy_from_wandb(uri: str, cfg: OmegaConf, wandb_run):
     data_dir = artifact.download(
         root=os.path.join(cfg.data_dir, "artifacts", artifact.name))
     print(f"Downloaded artifact {artifact.name} to {data_dir}")
-    return load_policy_from_file(
+
+    policy = load_policy_from_file(
         os.path.join(data_dir, "model.pt"),
         cfg.device
     )
+    policy.uri = f"wandb://{artifact.type}/{artifact.name}"
+    policy.name = artifact.name
+    policy.metadata = deepcopy(artifact.metadata)
+    return policy
 
 
 def load_policy_from_dir(path: str, device: str):
@@ -54,8 +61,10 @@ def load_policy_from_uri(uri: str, cfg: OmegaConf, wandb_run):
         print(f"Failed to load policy from {uri}")
         return None
     print(f"Loaded policy from {uri}")
-    policy.uri = uri
-    policy.name = extract_policy_name(uri)
+    if not hasattr(policy, "uri"):
+        policy.uri = uri
+    if not hasattr(policy, "name"):
+        policy.name = extract_policy_name(uri)
     return policy
 
 def load_policies_from_dir(path: str, cfg: OmegaConf):
