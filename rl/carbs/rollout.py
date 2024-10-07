@@ -27,15 +27,12 @@ class CarbsSweepRollout:
         self.wandb_carbs = carbs_from_cfg(cfg, wandb_run)
         self.suggestion = self.wandb_carbs.suggest()
 
-        with open(os.path.join(self.cfg.run_dir, "sweep_config.yaml"), "w") as f:
-            OmegaConf.save(self.cfg, f)
-            wandb.run.save(os.path.join(self.cfg.run_dir, "*.yaml"), base_path=self.cfg.run_dir)
+        self._log_file("sweep_config.yaml", self.cfg)
 
         print("Generated CARBS suggestion: ")
         print(yaml.dump(self.suggestion, default_flow_style=False))
-        with open(os.path.join(self.cfg.run_dir, "carbs_suggestion.yaml"), "w") as f:
-            yaml.dump(self.suggestion, f)
-            wandb.run.save(os.path.join(self.cfg.run_dir, "*.yaml"), base_path=self.cfg.run_dir)
+        self._log_file("carbs_suggestion.yaml", self.suggestion)
+
 
     def run(self):
         try:
@@ -169,11 +166,12 @@ class CarbsSweepRollout:
         return sum / count
 
     def _log_file(self, name: str, data):
-        with open(os.path.join(self.run_dir, name), "w") as f:
-            if isinstance(data, OmegaConf):
-                yaml.dump(OmegaConf.to_container(data), f)
-            else:
-                yaml.dump(data, f)
+        path = os.path.join(self.run_dir, name)
+        with open(path, "w") as f:
+            if isinstance(data, DictConfig):
+                data = OmegaConf.to_container(data, resolve=True)
+            yaml.dump(data, f, default_flow_style=False, sort_keys=False)
+        wandb.run.save(path, base_path=self.run_dir)
 
     def _apply_carbs_suggestion(self, config: OmegaConf, suggestion: DictConfig):
         for key, value in suggestion.items():
