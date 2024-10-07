@@ -1,20 +1,18 @@
 import math
+import time
 
 from carbs import (
+    CARBS,
+    CARBSParams,
     LinearSpace,
     LogitSpace,
     LogSpace,
     Param,
 )
-from carbs import (
-    CARBS,
-    CARBSParams,
-)
-
-from wandb_carbs import WandbCarbs
-from typing import Set
 from omegaconf import DictConfig, OmegaConf
-import time
+
+from wandb_carbs import Pow2WandbCarbs
+
 _carbs_space = {
     "log": LogSpace,
     "linear": LinearSpace,
@@ -80,24 +78,6 @@ def _fully_qualified_parameters(nested_dict, prefix=''):
     return qualified_params
 
 
-class Pow2WandbCarbs(WandbCarbs):
-    def __init__(self, cfg: OmegaConf, wandb_run, pow2_params: Set[str]):
-        self.pow2_params = pow2_params
-        super().__init__(cfg, wandb_run)
-
-    def suggest(self):
-        suggestion = super().suggest()
-        for param in self._carbs.params:
-            if param.name in self.pow2_params:
-                suggestion[param.name] = 2 ** suggestion[param.name]
-        return suggestion
-
-    def _suggestion_from_run(self, run):
-        suggestion = super()._suggestion_from_run(run)
-        for param in self._carbs.params:
-            if param.name in self.pow2_params:
-                suggestion[param.name] = int(math.log2(suggestion[param.name]))
-        return suggestion
 
 def carbs_from_cfg(cfg: OmegaConf, run) -> Pow2WandbCarbs:
     carbs_params, pow2_params = carbs_params_from_cfg(cfg)
@@ -113,6 +93,5 @@ def carbs_from_cfg(cfg: OmegaConf, run) -> Pow2WandbCarbs:
             ),
             carbs_params
         ),
-        run,
-        pow2_params
+        pow2_params, run
     )
