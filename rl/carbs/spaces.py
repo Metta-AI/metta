@@ -92,6 +92,13 @@ class Pow2WandbCarbs(WandbCarbs):
                 suggestion[param.name] = 2 ** suggestion[param.name]
         return suggestion
 
+    def _suggestion_from_run(self, run):
+        suggestion = super()._suggestion_from_run(run)
+        for param in self._carbs.params:
+            if param.name in self.pow2_params:
+                suggestion[param.name] = int(math.log2(suggestion[param.name]))
+        return suggestion
+
 def carbs_from_cfg(cfg: OmegaConf, run) -> Pow2WandbCarbs:
     carbs_params, pow2_params = carbs_params_from_cfg(cfg)
     return Pow2WandbCarbs(

@@ -67,7 +67,7 @@ class PufferEvaluator():
         print(self._policy) #should this be self._policy_name?
         print("Against baselines:")
         for baseline in self._baselines: #likewise, self._baseline_names[]?
-            print(baseline.path)
+            print(baseline.name)
         print("Total agents:", self._total_agents)
         print("Policy agents per env:", self._policy_agents_per_env)
         print("Baseline agents per env:", self._baseline_agents_per_env)

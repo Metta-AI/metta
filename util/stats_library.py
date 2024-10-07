@@ -153,7 +153,7 @@ def mann_whitney_u_test(stats, policy_names, categories_list):
         header = f"{policy_name}\n(mean ± std)\n(p-val, effect size)"
         headers.append(header)
 
-    return tabulate(data_rows, headers=headers, tablefmt="fancy_grid")
+    return None, tabulate(data_rows, headers=headers, tablefmt="fancy_grid")
 
 def elo_test(stats, policy_names, categories_list):
     """
@@ -164,10 +164,10 @@ def elo_test(stats, policy_names, categories_list):
     winning_margin = 10 # set a minimum winning margin for a win. If less than this, it's a tie.
     all_scores = []
     for policy in policy_names:
-        all_scores.append(stats['action.use.energy.altar'][policy])
+        all_scores.append(stats['action.use.altar'][policy])
     total_episodes = len(all_scores[0])
 
-    all_scores = stats['action.use.energy.altar']
+    all_scores = stats['action.use.altar']
 
     elo = [1000] * len(policy_names)
     #note, apparently is standard to start w 1,000 but I find that starting at 0 shows unanimous otcomes more clearly
@@ -228,7 +228,7 @@ def elo_test(stats, policy_names, categories_list):
 
     data_rows = [formatted_elo]
 
-    return tabulate(data_rows, headers=headers, tablefmt="fancy_grid")
+    return elo, tabulate(data_rows, headers=headers, tablefmt="fancy_grid")
 
 
 def kruskal_wallis_test(stats, policy_names, categories_list):

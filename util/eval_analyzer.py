@@ -1,13 +1,13 @@
 import json
 from tabulate import tabulate
 from termcolor import colored
-from util.stats_library import mann_whitney_u_test, kruskal_wallis_test, significance_and_effect
+from util.stats_library import mann_whitney_u_test, kruskal_wallis_test, significance_and_effect, elo_test, glicko2_test
 import sys
 
 eval_methods = {
     '1v1': mann_whitney_u_test,
-    'elo_1v1': kruskal_wallis_test,
-    'glicko2_1v1': significance_and_effect,
+    'elo_1v1': elo_test,
+    'glicko2_1v1': glicko2_test,
     'multiplayer': kruskal_wallis_test,
 }
 
@@ -46,7 +46,6 @@ stat_category_lookup = {
         "r1.gained",
         "action.use",
         "damage.wall",
-        "policy_name"
     ],
     'adversarial': [
         "action.attack",
@@ -71,7 +70,7 @@ stat_category_lookup = {
     ],
 }
 
-def print_policy_stats(data: list, eval_method: str, stat_category: str, file=sys.stdout):
+def analyze_policy_stats(data: list, eval_method: str, stat_category: str, file=sys.stdout):
     """
     Process game statistics data and perform statistical tests based on
     the evaluation method and stat category.
@@ -92,37 +91,28 @@ def print_policy_stats(data: list, eval_method: str, stat_category: str, file=sy
     policy_names = []
     for episode in data:
         for agent in episode:
-            policy_name = agent.get('policy_name', None)
+            policy_name = agent.get('policy_name', "unknown")
             if policy_name and policy_name not in policy_names:
                 policy_names.append(policy_name)
 
     # Initialize stats dictionaries for each stat and policy
     stats = {}
     for stat_name in categories_list:
-        # Create a dictionary for each stat with a dictionary of each policy,
-        # the values of which are lists of None as long as the number of episodes
-        stats[stat_name] = { policy_name: [None] * len(data) for policy_name in policy_names }
+        stats[stat_name] = { policy_name: [0] * len(data) for policy_name in policy_names }
 
     # Extract stats per policy per episode
     for idx, episode in enumerate(data):
         for agent in episode:
-            policy = agent.get('policy_name', None)
+            policy = agent.get('policy_name', "unknown")
             if policy is None:
                 continue
             # Loop through each stat and add to this policy's scores for the episode
             for stat_name in categories_list:
-                stat_value = agent.get(stat_name, None)
-                # Sum the stat values for the policy at the current episode index
-                if stat_value is not None:
-                    if stats[stat_name][policy][idx] is not None:
-                        stats[stat_name][policy][idx] += stat_value
-                    else:
-                        stats[stat_name][policy][idx] = stat_value
-                # Else, leave as None
+                stats[stat_name][policy][idx] += agent.get(stat_name, 0)
 
     # Run statistical analysis and print results
-    result = test_func(stats, policy_names, categories_list)
-    print(result, file=file)
+    return test_func(stats, policy_names, categories_list)
+
 
 
 # If you're running on Windows and need ANSI color support

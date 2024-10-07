@@ -7,7 +7,7 @@ from rich import traceback
 from rl.pufferlib.evaluator import PufferEvaluator
 from rl.pufferlib.policy import load_policy_from_uri
 # from util.stats import print_policy_stats
-from util.eval_analyzer import print_policy_stats
+from util.eval_analyzer import analyze_policy_stats
 from rl.wandb.wandb_context import WandbContext
 from util.seeding import seed_everything
 
@@ -29,8 +29,8 @@ def main(cfg):
         evaluator = PufferEvaluator(cfg, policy, baselines)
         stats = evaluator.evaluate()
         # print_policy_stats(stats)
-        print_policy_stats(stats, '1v1', 'all')
-        print_policy_stats(stats, 'elo_1v1', 'altar')
+        analyze_policy_stats(stats, '1v1', 'all')
+        analyze_policy_stats(stats, 'elo_1v1', 'altar')
 
 
 if __name__ == "__main__":

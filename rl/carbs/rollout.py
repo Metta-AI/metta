@@ -11,7 +11,7 @@ from rl.pufferlib.evaluator import PufferEvaluator
 from rl.pufferlib.policy import load_policy_from_uri, upload_policy_to_wandb
 from rl.pufferlib.trainer import PufferTrainer
 from rl.wandb.sweep import generate_run_id_for_sweep
-from util.eval_analyzer import print_policy_stats
+from util.eval_analyzer import analyze_policy_stats
 
 
 
@@ -89,8 +89,9 @@ class CarbsSweepRollout:
         evaluator.close()
         eval_time = time.time() - eval_start_time
 
-        # print_policy_stats(stats, '1v1', 'all')
-        # print_policy_stats(stats, 'elo_1v1', 'altar')
+        print(analyze_policy_stats(stats, '1v1', 'all')[1])
+        elo, elo_table = analyze_policy_stats(stats, 'elo_1v1', 'altar')
+        print(elo_table)
 
         eval_metric = self._compute_objective(stats)
 
@@ -123,8 +124,6 @@ class CarbsSweepRollout:
         self._log_file("eval_stats.yaml", stats)
         self._log_file("eval_config.yaml", eval_cfg)
         self._log_file("eval_stats.txt", stats)
-        print_policy_stats(stats, '1v1', 'all')
-        print_policy_stats(stats, 'elo_1v1', 'altar')
 
         final_model_artifact = upload_policy_to_wandb(
             wandb_run,

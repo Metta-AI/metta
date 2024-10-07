@@ -37,11 +37,12 @@ def main(cfg):
     traceback.install(show_locals=False)
     print(OmegaConf.to_yaml(cfg))
     seed_everything(cfg.seed, cfg.torch_deterministic)
-    os.makedirs(cfg.run_dir, exist_ok=True)
 
     sweep_id = sweep_id_from_name(cfg.wandb.project, cfg.run)
     if not sweep_id:
         logger.debug(f"Sweep {cfg.run} not found, creating new sweep")
+        os.makedirs(cfg.run_dir)
+
         sweep_id = create_sweep(
             cfg.run,
             cfg.wandb.entity,
