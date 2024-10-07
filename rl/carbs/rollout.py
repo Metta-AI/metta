@@ -72,15 +72,19 @@ class CarbsSweepRollout:
         train_start_time = time.time()
         trainer = PufferTrainer(train_cfg, wandb_run)
         initial_policy = trainer.uncompiled_policy
+        if hasattr(initial_policy, "name"):
+            initial_policy.name = "initial"
         trainer.train()
         trainer.close()
         train_time = time.time() - train_start_time
 
         eval_start_time = time.time()
         policy_uri = trainer.policy_checkpoint.model_path
-        policy = load_policy_from_uri(policy_uri, eval_cfg, wandb_run)
-        policy.name = "final"
-        evaluator = PufferEvaluator(eval_cfg, policy, [initial_policy])
+        print(f"Loading policy from {trainer.policy_checkpoint.model_path}")
+        trained_policy = load_policy_from_uri(policy_uri, eval_cfg, wandb_run)
+        trained_policy.name = "final"
+        print(f"Evaluating policy {trained_policy.name} against {initial_policy.name}")
+        evaluator = PufferEvaluator(eval_cfg, trained_policy, [initial_policy])
         stats = evaluator.evaluate()
         evaluator.close()
         eval_time = time.time() - eval_start_time

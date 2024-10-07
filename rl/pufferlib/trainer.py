@@ -99,6 +99,9 @@ class PufferTrainer:
             for k in ["0verview", "env", "losses", "performance", "train"]:
                 wandb_run.define_metric(f"{k}/*", step_metric="train/agent_steps")
 
+        if not hasattr(self.uncompiled_policy, "name"):
+            self.uncompiled_policy.name = "initial"
+
     def train(self):
         self.train_start = time.time()
         print("Starting training")
