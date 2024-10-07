@@ -48,7 +48,7 @@ class MettaGridRaylibRenderer:
         self._setup_action_handling()
 
         self.sprite_renderers = [
-            AgentRenderer(cfg.game.objects.agent),
+            AgentRenderer(cfg.objects.agent),
             WallRenderer(),
             GeneratorRenderer(),
             ConverterRenderer(),
@@ -241,7 +241,7 @@ class MettaGridRaylibRenderer:
             if action[0] == self.action_ids["noop"] or action[0] != self.action_ids["attack"]:
                 continue
             agent = self.agents[agent_id]
-            if agent["agent:energy"] < self.cfg.game.actions.attack.cost:
+            if agent["agent:energy"] < self.cfg.actions.attack.cost:
                 continue
 
             distance = 1 + (action[1] - 1) // 3
