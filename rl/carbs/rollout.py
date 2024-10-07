@@ -3,10 +3,9 @@ import time
 
 import wandb
 import yaml
-from omegaconf import OmegaConf
+from omegaconf import OmegaConf, DictConfig
 from rich.console import Console
 from rl.carbs.spaces import carbs_from_cfg
-from rl.carbs.sweep import apply_carbs_suggestion
 from rl.pufferlib.evaluator import PufferEvaluator
 from rl.pufferlib.policy import load_policy_from_uri, upload_policy_to_wandb
 from rl.pufferlib.trainer import PufferTrainer
@@ -14,13 +13,15 @@ from rl.wandb.sweep import generate_run_id_for_sweep
 from util.eval_analyzer import analyze_policy_stats
 
 
-
 class CarbsSweepRollout:
     def __init__(self, cfg: OmegaConf, wandb_run):
         self.cfg = cfg
         self.wandb_run = wandb_run
         self.sweep_id = wandb_run.sweep_id
+
         self.run_id = generate_run_id_for_sweep(self.sweep_id)
+        self.run_dir = os.path.join(self.cfg.run_dir, "runs", self.run_id)
+        os.makedirs(self.run_dir)
         wandb_run.name = self.run_id
 
         self.wandb_carbs = carbs_from_cfg(cfg, wandb_run)
@@ -29,9 +30,6 @@ class CarbsSweepRollout:
         with open(os.path.join(self.cfg.run_dir, "sweep_config.yaml"), "w") as f:
             OmegaConf.save(self.cfg, f)
             wandb.run.save(os.path.join(self.cfg.run_dir, "*.yaml"), base_path=self.cfg.run_dir)
-
-        self.run_dir = os.path.join(self.cfg.run_dir, "runs", self.run_id)
-        os.makedirs(self.run_dir, exist_ok=True)
 
         print("Generated CARBS suggestion: ")
         print(yaml.dump(self.suggestion, default_flow_style=False))
@@ -62,7 +60,7 @@ class CarbsSweepRollout:
         eval_cfg = OmegaConf.create(OmegaConf.to_container(self.cfg))
         eval_cfg.eval = OmegaConf.create(OmegaConf.to_container(self.cfg.sweep.eval))
 
-        apply_carbs_suggestion(train_cfg, self.suggestion)
+        self._apply_carbs_suggestion(train_cfg, self.suggestion)
 
         self._log_file("config.yaml", self.cfg)
         self._log_file("train_config.yaml", train_cfg)
@@ -176,4 +174,15 @@ class CarbsSweepRollout:
                 yaml.dump(OmegaConf.to_container(data), f)
             else:
                 yaml.dump(data, f)
+
+    def _apply_carbs_suggestion(self, config: OmegaConf, suggestion: DictConfig):
+        for key, value in suggestion.items():
+            if key == "suggestion_uuid":
+                continue
+            new_cfg_param = config
+            key_parts = key.split(".")
+            for k in key_parts[:-1]:
+                new_cfg_param = new_cfg_param[k]
+            param_name = key_parts[-1]
+            new_cfg_param[param_name] = value
 

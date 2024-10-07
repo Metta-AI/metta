@@ -29,10 +29,10 @@
             "request": "launch",
             "module": "tools.sweep",
             "args": [
-                "run=mac.sweep.8",
+                "run=mac.sweep.9",
                 "sweep=fast",
                 "sweep.metric=action.use",
-                "train.init_policy_uri=wandb://sweep_model/mac.sweep.8@best.eval_objective",
+                "train.init_policy_uri=wandb://sweep_model/mac.sweep.9@best.eval_objective",
                 // "env=mettagrid/a20_b4_40x40",
                 "env.game.max_steps=100",
                 // "env.kinship.team_size=5",
