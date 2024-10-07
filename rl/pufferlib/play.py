@@ -3,6 +3,7 @@ import torch
 import numpy as np
 from mettagrid.renderer.raylib.raylib_renderer import MettaGridRaylibRenderer
 from rl.pufferlib.vecenv import make_vecenv
+from mettagrid.config.sample_config import sample_config
 
 def play(cfg: OmegaConf, policy):
     device = cfg.device
@@ -14,7 +15,8 @@ def play(cfg: OmegaConf, policy):
     assert policy._action_names == env._c_env.action_names(), \
         f"Action names do not match: {policy._action_names} != {env._c_env.action_names()}"
 
-    renderer = MettaGridRaylibRenderer(env._c_env, cfg.env)
+    game_cfg = OmegaConf.create(sample_config(cfg.env.game, cfg.env.sampling))
+    renderer = MettaGridRaylibRenderer(env._c_env, game_cfg)
     policy_rnn_state = None
 
     total_rewards = np.zeros(vecenv.num_agents)
