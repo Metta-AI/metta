@@ -29,7 +29,7 @@
             "request": "launch",
             "module": "tools.sweep",
             "args": [
-                "run=b.gpop.simple.no_attack.2.r.2",
+                "run=mac.sweep.9",
                 "sweep=fast",
                 "sweep.metric=action.use",
                 "train.init_policy_uri=wandb://sweep_model/mac.sweep.9@best.eval_objective",
@@ -71,8 +71,8 @@
                 "run=mac.eval.3",
                 "wandb.enabled=True",
                 // "env=mettagrid/behaviors/resources/competition/10x10_2a",
-                "eval.policy_uri=wandb://sweep_model/p2.pop.1@best.eval_objective",
-                "eval.baseline_uris=[wandb://sweep_model/p2.sweep.g.2@best.eval_objective]",
+                "eval.policy_uri=wandb://sweep_model/b.gpop.simple.2@best.eval_objective",
+                "eval.baseline_uris=[wandb://sweep_model/b.gpop.simple.2@best.eval_objective]",
                 "eval.num_envs=10",
                 "eval.num_episodes=30",
 
