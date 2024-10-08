@@ -7,7 +7,7 @@ from omegaconf import OmegaConf
 
 from rl.pufferlib.vecenv import make_vecenv
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("evaluator")
 
 class PufferEvaluator():
     def __init__(self, cfg: OmegaConf, policy, baselines) -> None:
