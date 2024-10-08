@@ -119,7 +119,6 @@ class CarbsSweepRollout:
         print(f"Sweep Objective: {eval_metric}")
         print(f"Sweep Train Time: {train_time}")
         print(f"Sweep Eval Time: {eval_time}")
-        print(f"Sweep Run Cost: {run_cost}")
         print(f"Sweep Total Lineage Time: {total_lineage_time}")
         print(f"Sweep Policy Generation: {policy_generation}")
 
