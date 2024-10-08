@@ -91,7 +91,7 @@ parameters:
       space: log
       search_center: 3e7
       min: 1e7
-      max: 5e8
+      max: 5e9
     # compile:
     #   space: linear
     #   is_int: true
