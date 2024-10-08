@@ -29,8 +29,8 @@ def main(cfg):
         evaluator = PufferEvaluator(cfg, policy, baselines)
         stats = evaluator.evaluate()
         # print_policy_stats(stats)
-        print(analyze_policy_stats(stats, '1v1', 'all'))
-        print(analyze_policy_stats(stats, 'elo_1v1', 'altar'))
+        print(analyze_policy_stats(stats, '1v1', 'all')[1])
+        print(analyze_policy_stats(stats, 'elo_1v1', 'altar')[1])
 
 
 if __name__ == "__main__":
