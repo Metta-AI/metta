@@ -25,6 +25,7 @@ parameters:
       space: linear
       min: 0.0
       max: 1.0
+      search_center: 0.001
 
   train:
     learning_rate:

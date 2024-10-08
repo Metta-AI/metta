@@ -12,8 +12,10 @@ def load_policy_from_file(path: str, device: str):
         warnings.filterwarnings("ignore", category=FutureWarning)
         policy = torch.load(path, map_location=device, weights_only=False)
         policy.path = path
-        policy.name = "/".join(path.split("/")[-2:])
-        policy.uri = path
+        if not hasattr(policy, "name"):
+            policy.name = "/".join(path.split("/")[-2:])
+        if not hasattr(policy, "uri"):
+            policy.uri = path
     return policy
 
 def load_policy_from_wandb(uri: str, cfg: OmegaConf, wandb_run):
