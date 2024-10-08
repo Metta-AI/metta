@@ -67,6 +67,10 @@ class PufferTrainer:
             self.uncompiled_policy = load_policy_from_uri(self.cfg.train.init_policy_uri, self.cfg, self.wandb_run)
         if self.uncompiled_policy is None:
             self.uncompiled_policy = puffer_agent_wrapper.make_policy(self.vecenv.driver_env, self.cfg)
+            torch.save(self.uncompiled_policy, os.path.join(self.cfg.run_dir, "initial_policy.pt"))
+            self.uncompiled_policy.uri = os.path.join(self.cfg.run_dir, "initial_policy.pt")
+            self.uncompiled_policy.name = "initial_policy.pt"
+            print("No initial policy found, creating new")
 
         self.policy = self.uncompiled_policy
         self.policy_checkpoint.num_params = count_params(self.uncompiled_policy)
@@ -99,8 +103,8 @@ class PufferTrainer:
             for k in ["0verview", "env", "losses", "performance", "train"]:
                 wandb_run.define_metric(f"{k}/*", step_metric="train/agent_steps")
 
-        if not hasattr(self.uncompiled_policy, "name"):
-            self.uncompiled_policy.name = "initial"
+        assert hasattr(self.uncompiled_policy, "uri")
+        assert hasattr(self.uncompiled_policy, "name")
 
     def train(self):
         self.train_start = time.time()
@@ -311,6 +315,8 @@ class PufferTrainer:
         model_name = f'model_{self.epoch:06d}.pt'
         model_path = os.path.join(self.cfg.run_dir, model_name)
         self.checkpoints.append(model_path)
+        self.uncompiled_policy.uri = model_path
+        self.uncompiled_policy.name = model_name
         torch.save(self.uncompiled_policy, model_path)
 
         state = {
@@ -369,7 +375,7 @@ class PufferTrainer:
 
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=FutureWarning)
-            self.uncompiled_policy = torch.load(model_path, map_location=self.device)
+            self.uncompiled_policy = load_policy_from_uri(model_path, self.cfg, self.wandb_run)
 
         self.policy = self.uncompiled_policy
         if self.cfg.train.compile:

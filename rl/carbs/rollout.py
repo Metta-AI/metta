@@ -66,18 +66,18 @@ class CarbsSweepRollout:
 
         train_start_time = time.time()
         trainer = PufferTrainer(train_cfg, wandb_run)
-        initial_policy = trainer.uncompiled_policy
-        if hasattr(initial_policy, "name"):
-            initial_policy.name = "initial"
+        initial_policy_uri = trainer.uncompiled_policy.uri
         trainer.train()
         trainer.close()
         train_time = time.time() - train_start_time
 
         eval_start_time = time.time()
         policy_uri = trainer.policy_checkpoint.model_path
-        print(f"Loading policy from {trainer.policy_checkpoint.model_path}")
+        print(f"Loading final policy from {trainer.policy_checkpoint.model_path}")
         trained_policy = load_policy_from_uri(policy_uri, eval_cfg, wandb_run)
-        trained_policy.name = "final"
+        print(f"Loading initial policy from {initial_policy_uri}")
+        initial_policy = load_policy_from_uri(initial_policy_uri, eval_cfg, wandb_run)
+
         print(f"Evaluating policy {trained_policy.name} against {initial_policy.name}")
         evaluator = PufferEvaluator(eval_cfg, trained_policy, [initial_policy])
         stats = evaluator.evaluate()
@@ -88,7 +88,8 @@ class CarbsSweepRollout:
         elo, elo_table = analyze_policy_stats(stats, 'elo_1v1', 'altar')
         print(elo_table)
 
-        eval_metric = self._compute_objective(stats)
+        # eval_metric = self._compute_objective(stats, trained_policy.name, [initial_policy.name])
+        eval_metric = elo[0] - elo[1]
 
         wandb_run.log(
             {"eval_metric": eval_metric},
@@ -108,11 +109,17 @@ class CarbsSweepRollout:
             "epoch": trainer.policy_checkpoint.epoch,
             "total_lineage_time": total_lineage_time,
             "policy_generation": policy_generation,
+            "trained_policy_uri": trained_policy.uri,
+            "init_policy_uri": initial_policy_uri,
+            "trained_policy_elo": elo[0],
+            "init_policy_elo": elo[1],
+            "elo_delta": elo[0] - elo[1],
         })
 
         print(f"Sweep Objective: {eval_metric}")
-        print(f"Sweep Train Time: {trainer.train_time}")
+        print(f"Sweep Train Time: {train_time}")
         print(f"Sweep Eval Time: {eval_time}")
+        print(f"Sweep Run Cost: {run_cost}")
         print(f"Sweep Total Lineage Time: {total_lineage_time}")
         print(f"Sweep Policy Generation: {policy_generation}")
 
@@ -133,33 +140,27 @@ class CarbsSweepRollout:
                 "eval_objective": eval_metric,
                 "total_lineage_time": total_lineage_time,
                 "policy_generation": policy_generation,
+                "trained_policy_elo": elo[0],
+                "init_policy_elo": elo[1],
+                "elo_delta": elo[0] - elo[1],
             },
             artifact_type="sweep_model",
-            additional_files=[
-                os.path.join(self.run_dir, f) for f in [
-                    "train_config.yaml",
-                    "eval_config.yaml",
-                    "eval_stats.txt",
-                    "eval_stats.yaml",
-                    "carbs_suggestion.yaml",
-                    "eval_config.yaml",
-                ]
-            ]
         )
         final_model_artifact.link(
             self.cfg.run, [self.run_id]
         )
 
         total_time = time.time() - start_time
-        self.wandb_carbs.record_observation(eval_metric, total_lineage_time)
-        wandb_run.summary.update({"total_time": total_time})
+        print(f"Carbs Observation: {eval_metric}, {total_time}")
+        self.wandb_carbs.record_observation(eval_metric, total_time)
+        wandb_run.summary.update({"run_time": total_time})
 
-    def _compute_objective(self, stats):
+    def _compute_objective(self, stats, trained_policy_name, baseline_policy_names):
         sum = 0
         count = 0
         for game in stats:
             for agent in game:
-                if agent["policy_name"] == "final":
+                if agent["policy_name"] == trained_policy_name:
                     sum += agent.get(self.cfg.sweep.metric, 0)
                     count += 1
         print(f"Sweep Metric: {self.cfg.sweep.metric} = {sum} / {count}")

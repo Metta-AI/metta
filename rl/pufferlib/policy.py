@@ -12,6 +12,8 @@ def load_policy_from_file(path: str, device: str):
         warnings.filterwarnings("ignore", category=FutureWarning)
         policy = torch.load(path, map_location=device, weights_only=False)
         policy.path = path
+        policy.name = "/".join(path.split("/")[-2:])
+        policy.uri = path
     return policy
 
 def load_policy_from_wandb(uri: str, cfg: OmegaConf, wandb_run):
@@ -37,7 +39,7 @@ def load_policy_from_wandb(uri: str, cfg: OmegaConf, wandb_run):
         os.path.join(data_dir, "model.pt"),
         cfg.device
     )
-    policy.uri = f"wandb://{artifact.type}/{artifact.name}"
+    policy.uri = f"wandb://{artifact.qualified_name}"
     policy.name = artifact.name
     policy.metadata = deepcopy(artifact.metadata)
     return policy
@@ -134,15 +136,15 @@ def select_artifact(collection, selector: str, cfg: OmegaConf):
             return None
 
         top = sorted(artifacts, key=lambda x: x.metadata.get(metric, 0))[-n:]
-        if len(top) == 0:
-            print(f"No artifacts found for {selector}")
+        if len(top) < n:
+            print(f"No artifacts found for {selector}, found {len(top)}")
             return None
         print(f"Top {n} artifacts by {metric}:")
         print(f"{'Artifact':<40} | {metric:<20}")
         print("-" * 62)
         for a in top:
             print(f"{a.name:<40} | {a.metadata.get(metric, 0):<20.4f}")
-        return random.choice(top)
+        return top[-n]
     else:
         raise ValueError(f"Invalid selector {selector}")
 
@@ -150,6 +152,8 @@ def extract_policy_name(uri):
     # Handle URIs starting with 'wandb://'
     if uri.startswith("wandb://"):
         uri = uri[len("wandb://"):]
+    if uri.endswith(".pt"):
+        return "/".join(uri.split("/")[-2:])
     # Split the URI to extract the policy name
     parts = uri.split('/')
     if len(parts) >= 2:
