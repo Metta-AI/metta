@@ -93,9 +93,9 @@ parameters:
       max: 128
     total_timesteps:
       space: log
-      search_center: 3e8
-      min: 2e8
-      max: 1e10
+      search_center: 3e6
+      min: 2e6
+      max: 1e8
     # compile:
     #   space: linear
     #   is_int: true
