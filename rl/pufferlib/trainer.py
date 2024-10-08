@@ -1,6 +1,7 @@
 import os
 import time
 import warnings
+import logging
 from collections import defaultdict
 from copy import deepcopy
 
@@ -24,6 +25,8 @@ from rl.pufferlib.vecenv import make_vecenv
 from . import puffer_agent_wrapper
 
 torch.set_float32_matmul_precision('high')
+
+logger = logging.getLogger(__name__)
 
 class PolicyCheckpoint:
     def __init__(self):
@@ -63,14 +66,14 @@ class PufferTrainer:
 
         self.uncompiled_policy = None
         if self.cfg.train.init_policy_uri is not None:
-            print(f"Loading policy from {self.cfg.train.init_policy_uri}")
+            logger.info(f"Loading policy from {self.cfg.train.init_policy_uri}")
             self.uncompiled_policy = load_policy_from_uri(self.cfg.train.init_policy_uri, self.cfg, self.wandb_run)
         if self.uncompiled_policy is None:
             self.uncompiled_policy = puffer_agent_wrapper.make_policy(self.vecenv.driver_env, self.cfg)
             torch.save(self.uncompiled_policy, os.path.join(self.cfg.run_dir, "initial_policy.pt"))
             self.uncompiled_policy.uri = os.path.join(self.cfg.run_dir, "initial_policy.pt")
             self.uncompiled_policy.name = "initial_policy.pt"
-            print("No initial policy found, creating new")
+            logger.info("No initial policy found, creating new")
 
         self.policy = self.uncompiled_policy
         self.policy_checkpoint.num_params = count_params(self.uncompiled_policy)
@@ -108,7 +111,7 @@ class PufferTrainer:
 
     def train(self):
         self.train_start = time.time()
-        print("Starting training")
+        logger.info("Starting training")
 
         while self.global_step < self.cfg.train.total_timesteps:
             self._evaluate()
@@ -122,7 +125,7 @@ class PufferTrainer:
         self.train_time = time.time() - self.train_start
         self._save_checkpoint()
         self._upload_model_to_wandb()
-        print(f"Training complete. Total time: {self.train_time:.2f} seconds")
+        logger.info(f"Training complete. Total time: {self.train_time:.2f} seconds")
 
     @pufferlib.utils.profile
     def _evaluate(self):
@@ -331,7 +334,7 @@ class PufferTrainer:
         torch.save(state, state_path + '.tmp')
         os.rename(state_path + '.tmp', state_path)
         self.policy_checkpoint.update(self.global_step, self.epoch, model_name, model_path)
-        print(f"Saved model to {model_path}")
+        logger.info(f"Saved model to {model_path}")
 
     def _upload_model_to_wandb(self):
         if self.policy_checkpoint is None:
@@ -354,11 +357,11 @@ class PufferTrainer:
         return artifact_name
 
     def _try_load_checkpoint(self):
-        print("Trying to load training checkpoint")
+        logger.info("Trying to load training checkpoint")
 
         trainer_path = os.path.join(self.cfg.run_dir, 'trainer_state.pt')
         if not os.path.exists(trainer_path):
-            print('No trainer state found. Assuming new run')
+            logger.info('No trainer state found. Assuming new run')
             return
 
         with warnings.catch_warnings():
@@ -366,9 +369,9 @@ class PufferTrainer:
             resume_state = torch.load(trainer_path)
         model_path = os.path.join(self.cfg.run_dir, resume_state['model_name'])
 
-        print(f"Resuming from {model_path}")
-        print("Epoch:", resume_state['epoch'])
-        print("Global step:", resume_state['global_step'])
+        logger.info(f"Resuming from {model_path}")
+        logger.info(f"Epoch: {resume_state['epoch']}")
+        logger.info(f"Global step: {resume_state['global_step']}")
 
         self.global_step = resume_state['global_step']
         self.epoch = resume_state['epoch']

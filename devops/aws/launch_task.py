@@ -1,8 +1,10 @@
-import boto3
 import argparse
 import netrc
 import os
-import logging
+import random
+import string
+
+import boto3
 
 machine_profiles = {
     "g5.2xlarge": {
@@ -29,7 +31,8 @@ machine_profiles = {
 def submit_batch_job(args, task_args):
     batch = boto3.client('batch')
 
-    job_name = args.run.replace('.', '_')
+    random_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=5))
+    job_name = args.run.replace('.', '_') + "_" + random_id
     job_queue = "metta-batch-jq-" + args.instance_type.replace('.', '-')
     job_definition = "metta-batch-train-jd"
 
@@ -37,13 +40,13 @@ def submit_batch_job(args, task_args):
         jobName=job_name,
         jobQueue=job_queue,
         jobDefinition=job_definition,
-        containerOverrides=container_config(args, task_args)
+        containerOverrides=container_config(args, task_args, job_name)
     )
 
     print(f"Submitted job {job_name} to queue {job_queue} with job ID {response['jobId']}")
     print(f"https://us-east-1.console.aws.amazon.com/batch/v2/home?region=us-east-1#/jobs/detail/{response['jobId']}")
 
-def container_config(args, task_args):
+def container_config(args, task_args, job_name):
     # Get the wandb key from the .netrc file
     netrc_info = netrc.netrc(os.path.expanduser('~/.netrc'))
     wandb_key = netrc_info.authenticators('api.wandb.ai')[2]
@@ -69,8 +72,8 @@ def container_config(args, task_args):
     ]
     if args.git_branch is not None:
         setup_cmds.append(f'git checkout {args.git_branch}')
-        setup_cmds.append(f'pip uninstall termcolor')
-        setup_cmds.append(f'pip install termcolor==2.4.0')
+        setup_cmds.append('pip uninstall termcolor')
+        setup_cmds.append('pip install termcolor==2.4.0')
 
     print("\n".join([
             "Setup:",
@@ -97,6 +100,10 @@ def container_config(args, task_args):
                 'value': wandb_key
             },
             {
+                'name': 'WANDB_SILENT',
+                'value': 'true'
+            },
+            {
                 'name': 'TRANSFORMERS_TOKEN',
                 'value': hugging_face_key
             },
@@ -104,6 +111,10 @@ def container_config(args, task_args):
                 'name': 'COLOR_LOGGING',
                 'value': 'false'
             },
+            {
+                'name': 'WANDB_HOST',
+                'value': job_name
+            }
         ],
         'vcpus': machine_profiles[args.instance_type]['vcpus'],
         'memory': machine_profiles[args.instance_type]['memory'],
