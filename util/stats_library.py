@@ -153,7 +153,7 @@ def mann_whitney_u_test(stats, policy_names, categories_list):
         header = f"{policy_name}\n(mean ± std)\n(p-val, effect size)"
         headers.append(header)
 
-    return None, tabulate(data_rows, headers=headers, tablefmt="fancy_grid")
+    return results, tabulate(data_rows, headers=headers, tablefmt="fancy_grid")
 
 def elo_test(stats, policy_names, categories_list):
     """

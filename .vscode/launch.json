@@ -32,7 +32,7 @@
                 "run=mac.sweep.11",
                 "sweep=fast",
                 "sweep.metric=action.use",
-                "train.init_policy_uri=wandb://sweep_model/mac.sweep.11@top.eval_objective",
+                "train.init_policy_uri=wandb://sweep_model/mac.sweep.11@top.train_policy_mean",
                 // "env=mettagrid/a20_b4_40x40",
                 "env.game.max_steps=100",
                 // "env.kinship.team_size=5",

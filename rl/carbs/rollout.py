@@ -84,12 +84,26 @@ class CarbsSweepRollout:
         evaluator.close()
         eval_time = time.time() - eval_start_time
 
-        print(analyze_policy_stats(stats, '1v1', 'all')[1])
+        policy_stats, policy_stats_table = analyze_policy_stats(stats, '1v1', 'all')
+        print(policy_stats_table)
         elo, elo_table = analyze_policy_stats(stats, 'elo_1v1', 'altar')
         print(elo_table)
 
-        # eval_metric = self._compute_objective(stats, trained_policy.name, [initial_policy.name])
-        eval_metric = elo[0] - elo[1]
+        train_mean = 0
+        init_mean = 0
+        eval_metric = 0
+
+        stat_items = list(filter(lambda x: x['stat_name'] == self.cfg.sweep.metric, policy_stats))
+        if len(stat_items) > 0:
+            for stat in stat_items[0]['policy_stats']:
+                if stat['policy_name'] == trained_policy.name:
+                    train_mean = stat['mean']
+                elif stat['policy_name'] == initial_policy.name:
+                    init_mean = stat['mean']
+                else:
+                    raise ValueError(f"Policy {stat['policy_name']} not found in stats")
+
+            eval_metric = train_mean - init_mean
 
         wandb_run.log(
             {"eval_metric": eval_metric},
@@ -105,6 +119,8 @@ class CarbsSweepRollout:
             "training_time": train_time,
             "eval_time": eval_time,
             "eval_metric": eval_metric,
+            "train_policy_mean": train_mean,
+            "init_policy_mean": init_mean,
             "agent_step": trainer.policy_checkpoint.agent_steps,
             "epoch": trainer.policy_checkpoint.epoch,
             "total_lineage_time": total_lineage_time,
@@ -137,6 +153,8 @@ class CarbsSweepRollout:
                 "train_time": train_time,
                 "eval_time": eval_time,
                 "eval_objective": eval_metric,
+                "train_policy_mean": train_mean,
+                "init_policy_mean": init_mean,
                 "total_lineage_time": total_lineage_time,
                 "policy_generation": policy_generation,
                 "trained_policy_elo": elo[0],
