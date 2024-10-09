@@ -1,3 +1,4 @@
+import __future__
 import math
 import time
 
@@ -10,8 +11,11 @@ from carbs import (
     Param,
 )
 from omegaconf import DictConfig, OmegaConf
-
+from collections import defaultdict
 from wandb_carbs import Pow2WandbCarbs
+import numpy as np
+import logging
+logger = logging.getLogger("sweep_rollout")
 
 _carbs_space = {
     "log": LogSpace,
@@ -78,20 +82,45 @@ def _fully_qualified_parameters(nested_dict, prefix=''):
     return qualified_params
 
 
+class MettaCarbs(Pow2WandbCarbs):
+    def __init__(self, cfg: OmegaConf, run):
+        self.cfg = cfg
+        carbs_params, pow2_params = carbs_params_from_cfg(cfg)
+        self.generation = 0
 
-def carbs_from_cfg(cfg: OmegaConf, run) -> Pow2WandbCarbs:
-    carbs_params, pow2_params = carbs_params_from_cfg(cfg)
-    return Pow2WandbCarbs(
-        CARBS(
-            CARBSParams(
-                better_direction_sign=1,
-                resample_frequency=5,
-                num_random_samples=cfg.sweep.num_random_samples,
-                checkpoint_dir=f"{cfg.run_dir}/carbs/",
-                is_wandb_logging_enabled=False,
-                seed=int(time.time()),
+        super().__init__(
+            CARBS(
+                CARBSParams(
+                    better_direction_sign=1,
+                    resample_frequency=5,
+                    num_random_samples=cfg.sweep.num_random_samples,
+                    checkpoint_dir=f"{cfg.run_dir}/carbs/",
+                    is_wandb_logging_enabled=False,
+                    seed=int(time.time()),
+                ),
+                carbs_params
             ),
-            carbs_params
-        ),
-        pow2_params, run
-    )
+            pow2_params, run)
+
+    def _get_runs_from_wandb(self):
+        runs = super()._get_runs_from_wandb()
+        if not self.cfg.sweep.generation.enabled:
+            return runs
+
+        generations = defaultdict(list)
+        for run in runs:
+            if run.summary["carbs.state"] == "success":
+                generation = run.summary.get("generation", 0)
+                generations[generation].append(run)
+        max_gen = max(generations.keys())
+        if len(generations[max_gen]) < self.cfg.sweep.generation.min_samples:
+            self.generation = max_gen
+            logger.info(f"Updating newest generation: {self.generation} with {len(generations[self.generation])} samples")
+        elif np.random.random() >= self.cfg.sweep.generation.regen_pct:
+            self.generation = max_gen + 1
+            logger.info(f"New creating a new generation: {self.generation}")
+        else:
+            self.generation = np.random.randint(max_gen + 1)
+            logger.info(f"Updating generation: {self.generation} with {len(generations[self.generation])} samples")
+
+        return [run for run in runs if run.summary.get("generation", 0) == self.generation]

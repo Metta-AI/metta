@@ -6,7 +6,7 @@ import wandb
 import yaml
 from omegaconf import OmegaConf, DictConfig
 from rich.console import Console
-from rl.carbs.spaces import carbs_from_cfg
+from rl.carbs.metta_carbs import MettaCarbs
 from rl.pufferlib.evaluator import PufferEvaluator
 from rl.pufferlib.policy import load_policy_from_uri, upload_policy_to_wandb
 from rl.pufferlib.trainer import PufferTrainer
@@ -26,9 +26,8 @@ class CarbsSweepRollout:
         os.makedirs(self.run_dir)
         wandb_run.name = self.run_id
 
-        self.wandb_carbs = carbs_from_cfg(cfg, wandb_run)
-        self.suggestion = self.wandb_carbs.suggest()
-
+        self.carbs = MettaCarbs(cfg, wandb_run)
+        self.suggestion = self.carbs.suggest()
         self._log_file("sweep_config.yaml", self.cfg)
 
         logger.info("Generated CARBS suggestion: ")
@@ -42,12 +41,13 @@ class CarbsSweepRollout:
         except Exception as e:
             logger.error(f"Error running suggested rollout: {e}")
             Console().print_exception()
-            self.wandb_carbs.record_failure()
+            self.carbs.record_failure()
             return False
         return True
 
     def _run(self):
         wandb_run = self.wandb_run
+        sweep_stats = {}
         start_time = time.time()
         train_cfg = OmegaConf.create(OmegaConf.to_container(self.cfg))
         train_cfg.sweep = {}
@@ -60,25 +60,47 @@ class CarbsSweepRollout:
         eval_cfg.eval = OmegaConf.create(OmegaConf.to_container(self.cfg.sweep.eval))
 
         self._apply_carbs_suggestion(train_cfg, self.suggestion)
+        if self.cfg.sweep.generation.enabled:
+            train_cfg.train.policy_selector.generation = self.carbs.generation - 1
 
         self._log_file("config.yaml", self.cfg)
         self._log_file("train_config.yaml", train_cfg)
         self._log_file("eval_config.yaml", eval_cfg)
         self._log_file("carbs_suggestion.yaml", self.suggestion)
 
+
         train_start_time = time.time()
         trainer = PufferTrainer(train_cfg, wandb_run)
+
         initial_policy_uri = trainer.uncompiled_policy.uri
+        logger.info(f"Loading initial policy from {initial_policy_uri}")
+        initial_policy = load_policy_from_uri(initial_policy_uri, eval_cfg, wandb_run)
+        initial_metadata = {}
+        if hasattr(initial_policy, "metadata"):
+            initial_metadata = initial_policy.metadata
+
+        sweep_stats.update({
+            "score.metric": eval_cfg.sweep.metric,
+            "initial.uri": initial_policy_uri,
+            "generation": initial_metadata.get("generation", 0) + 1
+        })
+        wandb_run.summary.update(sweep_stats)
+
         trainer.train()
         trainer.close()
         train_time = time.time() - train_start_time
+
+        sweep_stats.update({
+            "train.agent_steps": trainer.policy_checkpoint.agent_steps,
+            "train.epoch": trainer.policy_checkpoint.epoch,
+            "time.train": train_time,
+        })
+        wandb_run.summary.update(sweep_stats)
 
         eval_start_time = time.time()
         policy_uri = trainer.policy_checkpoint.model_path
         logger.info(f"Loading final policy from {trainer.policy_checkpoint.model_path}")
         trained_policy = load_policy_from_uri(policy_uri, eval_cfg, wandb_run)
-        logger.info(f"Loading initial policy from {initial_policy_uri}")
-        initial_policy = load_policy_from_uri(initial_policy_uri, eval_cfg, wandb_run)
 
         logger.info(f"Evaluating policy {trained_policy.name} against {initial_policy.name}")
         evaluator = PufferEvaluator(eval_cfg, trained_policy, [initial_policy])
@@ -105,13 +127,7 @@ class CarbsSweepRollout:
         initial_score = altar_results[eval_cfg.sweep.metric]['policy_stats'][initial_policy.name]['mean']
         eval_metric = final_score - initial_score
 
-        initial_metadata = {}
-        if hasattr(initial_policy, "metadata"):
-            initial_metadata = initial_policy.metadata
-
-        sweep_stats = {
-            "score.metric": eval_cfg.sweep.metric,
-
+        sweep_stats.update({
             "initial.uri": initial_policy_uri,
             "initial.score": initial_score,
             "initial.elo": elo_results[initial_policy.name],
@@ -120,20 +136,15 @@ class CarbsSweepRollout:
             "final.score": final_score,
             "final.elo": elo_results[trained_policy.name],
 
-            "train.agent_steps": trainer.policy_checkpoint.agent_steps,
-            "train.epoch": trainer.policy_checkpoint.epoch,
-
-            "time.train": train_time,
             "time.eval": eval_time,
             "time.total": train_time + eval_time,
 
             "delta.elo": elo_results[trained_policy.name] - elo_results[initial_policy.name],
             "delta.score": final_score - initial_score,
-        }
+        })
 
         for stat in ["train.agent_steps", "train.epoch", "time.train", "time.eval", "time.total"]:
             sweep_stats["lineage." + stat] = sweep_stats[stat] + initial_metadata.get("lineage." + stat, 0)
-        sweep_stats["generation"] = initial_metadata.get("generation", 0) + 1
 
         wandb_run.summary.update(sweep_stats)
         logger.info(
@@ -157,7 +168,7 @@ class CarbsSweepRollout:
 
         total_time = time.time() - start_time
         logger.info(f"Carbs Observation: {eval_metric}, {total_time}")
-        self.wandb_carbs.record_observation(eval_metric, total_time)
+        self.carbs.record_observation(eval_metric, total_time)
         wandb_run.summary.update({"run_time": total_time})
 
     def _log_file(self, name: str, data):
