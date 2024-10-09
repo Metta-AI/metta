@@ -12,18 +12,28 @@ def load_policy_from_file(path: str, device: str):
         warnings.filterwarnings("ignore", category=FutureWarning)
         policy = torch.load(path, map_location=device, weights_only=False)
         policy.path = path
+        if not hasattr(policy, "name"):
+            policy.name = "/".join(path.split("/")[-2:])
+        if not hasattr(policy, "uri"):
+            policy.uri = path
     return policy
 
 def load_policy_from_wandb(uri: str, cfg: OmegaConf, wandb_run):
     artifact_path = uri[len("wandb://"):]
     if "@" in artifact_path:
-        path, selector = artifact_path.split("@")
+        if artifact_path.endswith("@"):
+            path = artifact_path[:-1]
+            selector = cfg.train.policy_selector.range
+        else:
+            path, selector = artifact_path.split("@")
+            selector = int(selector)
+
         atype, name = path.split("/")
         apath = f"{cfg.wandb.entity}/{cfg.wandb.project}/{name}"
         if not wandb.Api().artifact_collection_exists(type=atype, name=apath):
             return None
         collection = wandb.Api().artifact_collection(type_name=atype, name=apath)
-        artifact = select_artifact(collection, selector, cfg)
+        artifact = select_artifact(collection, cfg, selector)
         if artifact is None:
             return None
         artifact = wandb_run.use_artifact(artifact.qualified_name)
@@ -37,7 +47,7 @@ def load_policy_from_wandb(uri: str, cfg: OmegaConf, wandb_run):
         os.path.join(data_dir, "model.pt"),
         cfg.device
     )
-    policy.uri = f"wandb://{artifact.type}/{artifact.name}"
+    policy.uri = f"wandb://{artifact.qualified_name}"
     policy.name = artifact.name
     policy.metadata = deepcopy(artifact.metadata)
     return policy
@@ -108,41 +118,24 @@ def upload_policy_to_wandb(
     print(f"Uploaded model to wandb: {artifact.name} to run {wandb_run.id}")
     return artifact
 
-def select_artifact(collection, selector: str, cfg: OmegaConf):
+def select_artifact(collection, cfg: OmegaConf, n: int):
     artifacts = list(collection.artifacts())
-    if selector == "rand":
+    selector = cfg.train.policy_selector
+    if selector.type == "rand":
         return random.choice(artifacts)
-    elif selector == "best":
-        a = max(artifacts, key=lambda x: x.metadata.get("eval_metric", 0))
-        print(f"Selected artifact {a.name} with eval_metric {a.metadata.get('eval_metric', 0)}")
-        return a
-    elif selector.startswith("best."):
-        _, metric = selector.split(".")
-        a = max(artifacts, key=lambda x: x.metadata.get(metric, 0))
-        print(f"Selected artifact {a.name} with eval_metric {a.metadata.get(metric, 0)}")
-        return a
-    elif selector.startswith("top"):
-        if selector.startswith("top_"):
-            n, metric = selector[len("top_"):].split(".")
-        else:
-            _, metric = selector.split(".")
-            n = cfg.train.top_policy_selector
-        n = int(n)
-
-        if n == 0:
-            print(f"Selector {selector} is 0, skipping")
-            return None
+    elif selector.type == "top":
+        metric = selector.metric
 
         top = sorted(artifacts, key=lambda x: x.metadata.get(metric, 0))[-n:]
-        if len(top) == 0:
-            print(f"No artifacts found for {selector}")
+        if len(top) < n:
+            print(f"No artifacts found for {selector}, found {len(top)}")
             return None
         print(f"Top {n} artifacts by {metric}:")
         print(f"{'Artifact':<40} | {metric:<20}")
         print("-" * 62)
         for a in top:
             print(f"{a.name:<40} | {a.metadata.get(metric, 0):<20.4f}")
-        return random.choice(top)
+        return top[-n]
     else:
         raise ValueError(f"Invalid selector {selector}")
 
@@ -150,6 +143,8 @@ def extract_policy_name(uri):
     # Handle URIs starting with 'wandb://'
     if uri.startswith("wandb://"):
         uri = uri[len("wandb://"):]
+    if uri.endswith(".pt"):
+        return "/".join(uri.split("/")[-2:])
     # Split the URI to extract the policy name
     parts = uri.split('/')
     if len(parts) >= 2:

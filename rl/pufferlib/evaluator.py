@@ -1,4 +1,5 @@
 import time
+import logging
 
 import numpy as np
 import torch
@@ -6,6 +7,7 @@ from omegaconf import OmegaConf
 
 from rl.pufferlib.vecenv import make_vecenv
 
+logger = logging.getLogger("evaluator")
 
 class PufferEvaluator():
     def __init__(self, cfg: OmegaConf, policy, baselines) -> None:
@@ -29,7 +31,7 @@ class PufferEvaluator():
         self._policy_agents_per_env = max(1, int(self._agents_per_env * self._policy_agent_pct))
         self._baseline_agents_per_env = self._agents_per_env - self._policy_agents_per_env
 
-        print(f'Tournament: Policy Agents: {self._policy_agents_per_env}, ' +
+        logger.info(f'Tournament: Policy Agents: {self._policy_agents_per_env}, ' +
               f'Baseline Agents: {self._baseline_agents_per_env}')
 
         slice_idxs = torch.arange(self._vecenv.num_agents)\
@@ -63,17 +65,17 @@ class PufferEvaluator():
                 self._agent_idx_to_policy_name[agent_idx.item()] = self._baseline_names[i]
 
     def evaluate(self):
-        print("Evaluating policy:")
-        print(self._policy) #should this be self._policy_name?
-        print("Against baselines:")
+        logger.info("Evaluating policy:")
+        logger.info(self._policy) #should this be self._policy_name?
+        logger.info("Against baselines:")
         for baseline in self._baselines: #likewise, self._baseline_names[]?
-            print(baseline.name)
-        print("Total agents:", self._total_agents)
-        print("Policy agents per env:", self._policy_agents_per_env)
-        print("Baseline agents per env:", self._baseline_agents_per_env)
-        print("Num envs:", self._num_envs)
-        print("Min episodes:", self._min_episodes)
-        print("Max time:", self._max_time_s)
+            logger.info(baseline.name)
+        logger.info(f"Total agents: {self._total_agents}")
+        logger.info(f"Policy agents per env: {self._policy_agents_per_env}")
+        logger.info(f"Baseline agents per env: {self._baseline_agents_per_env}")
+        logger.info(f"Num envs: {self._num_envs}")
+        logger.info(f"Min episodes: {self._min_episodes}")
+        logger.info(f"Max time: {self._max_time_s}")
 
         obs, _ = self._vecenv.reset()
         policy_rnn_state = None
@@ -136,8 +138,8 @@ class PufferEvaluator():
                         game_stats.append(one_episode)
 
 
-        print("Total episodes:", self._completed_episodes)
-        print("Evaluation time:", time.time() - start)
+        logger.info(f"Total episodes: {self._completed_episodes}")
+        logger.info(f"Evaluation time: {time.time() - start}")
         return game_stats
 
     def close(self):

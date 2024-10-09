@@ -3,6 +3,8 @@
 cmd="$1"
 args="${@:2}"
 
+export PYTHONUNBUFFERED=1
+
 echo "Running command: $cmd with args: $args"
 
 git pull
@@ -15,4 +17,3 @@ HYDRA_FULL_ERROR=1 python -m tools.$cmd \
     hardware=pufferbox \
     wandb.enabled=true \
     wandb.track=true $args
-
