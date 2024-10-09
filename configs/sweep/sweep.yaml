@@ -11,6 +11,10 @@ eval:
   policy_uri: null
   baseline_uris: []
 
+generation:
+  enabled: true
+  min_samples: 5
+  regen_pct: 0.25
 
 parameters:
   # env:

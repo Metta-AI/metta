@@ -5,6 +5,9 @@ import warnings
 import wandb
 import random
 from copy import deepcopy
+import logging
+
+logger = logging.getLogger("policy")
 
 def load_policy_from_file(path: str, device: str):
     assert path.endswith('.pt'), f"Policy file {path} does not have a .pt extension"
@@ -41,7 +44,7 @@ def load_policy_from_wandb(uri: str, cfg: OmegaConf, wandb_run):
         artifact = wandb_run.use_artifact(uri[len("wandb://"):])
     data_dir = artifact.download(
         root=os.path.join(cfg.data_dir, "artifacts", artifact.name))
-    print(f"Downloaded artifact {artifact.name} to {data_dir}")
+    logger.info(f"Downloaded artifact {artifact.name} to {data_dir}")
 
     policy = load_policy_from_file(
         os.path.join(data_dir, "model.pt"),
@@ -59,7 +62,7 @@ def load_policy_from_dir(path: str, device: str):
     return load_policy_from_file(model_path, device)
 
 def load_policy_from_uri(uri: str, cfg: OmegaConf, wandb_run):
-    print(f"Loading policy from {uri}")
+    logger.info(f"Loading policy from {uri}")
     policy = None
     if uri.startswith("wandb://"):
         policy = load_policy_from_wandb(uri, cfg, wandb_run)
@@ -68,9 +71,9 @@ def load_policy_from_uri(uri: str, cfg: OmegaConf, wandb_run):
     else:
         policy = load_policy_from_dir(uri, cfg.device)
     if policy is None:
-        print(f"Failed to load policy from {uri}")
+        logger.info(f"Failed to load policy from {uri}")
         return None
-    print(f"Loaded policy from {uri}")
+    logger.info(f"Loaded policy from {uri}")
     if not hasattr(policy, "uri"):
         policy.uri = uri
     if not hasattr(policy, "name"):
@@ -78,12 +81,12 @@ def load_policy_from_uri(uri: str, cfg: OmegaConf, wandb_run):
     return policy
 
 def load_policies_from_dir(path: str, cfg: OmegaConf):
-    print(f"Loading policies from {path}")
+    logger.info(f"Loading policies from {path}")
     policies = []
     for file in os.listdir(path):
         if file.endswith(".pt") and file.startswith("model_"):
             policies.append(load_policy_from_file(os.path.join(path, file), cfg.device))
-    print(f"Loaded {len(policies)} policies")
+    logger.info(f"Loaded {len(policies)} policies")
     return policies
 
 def load_policies_from_wandb(uri: str, cfg: OmegaConf, wandb_run):
@@ -115,12 +118,17 @@ def upload_policy_to_wandb(
     artifact.save()
     artifact.wait()
     wandb_run.log_artifact(artifact)
-    print(f"Uploaded model to wandb: {artifact.name} to run {wandb_run.id}")
+    logger.info(f"Uploaded model to wandb: {artifact.name} to run {wandb_run.id}")
     return artifact
 
 def select_artifact(collection, cfg: OmegaConf, n: int):
     artifacts = list(collection.artifacts())
     selector = cfg.train.policy_selector
+
+    if selector.generation is not None:
+        logger.info(f"Selecting generation {selector.generation}")
+        artifacts = [a for a in artifacts if a.metadata.get("generation", 0) == selector.generation]
+
     if selector.type == "rand":
         return random.choice(artifacts)
     elif selector.type == "top":
@@ -128,13 +136,13 @@ def select_artifact(collection, cfg: OmegaConf, n: int):
 
         top = sorted(artifacts, key=lambda x: x.metadata.get(metric, 0))[-n:]
         if len(top) < n:
-            print(f"No artifacts found for {selector}, found {len(top)}")
+            logger.info(f"No artifacts found for {selector}, found {len(top)}")
             return None
-        print(f"Top {n} artifacts by {metric}:")
-        print(f"{'Artifact':<40} | {metric:<20}")
-        print("-" * 62)
+        logger.info(f"Top {n} artifacts by {metric}:")
+        logger.info(f"{'Artifact':<40} | {metric:<20}")
+        logger.info("-" * 62)
         for a in top:
-            print(f"{a.name:<40} | {a.metadata.get(metric, 0):<20.4f}")
+            logger.info(f"{a.name:<40} | {a.metadata.get(metric, 0):<20.4f}")
         return top[-n]
     else:
         raise ValueError(f"Invalid selector {selector}")

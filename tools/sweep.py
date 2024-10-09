@@ -8,7 +8,7 @@ from omegaconf import OmegaConf
 from rich import traceback
 from rich.logging import RichHandler
 from rl.carbs.rollout import CarbsSweepRollout
-from rl.carbs.spaces import carbs_params_from_cfg
+from rl.carbs.metta_carbs import carbs_params_from_cfg
 from rl.wandb.sweep import sweep_id_from_name
 from rl.wandb.wandb_context import WandbContext
 from util.seeding import seed_everything
