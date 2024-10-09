@@ -11,8 +11,8 @@ from rl.pufferlib.evaluator import PufferEvaluator
 from rl.pufferlib.policy import load_policy_from_uri, upload_policy_to_wandb
 from rl.pufferlib.trainer import PufferTrainer
 from rl.wandb.sweep import generate_run_id_for_sweep
-from util.eval_analyzer import analyze_policy_stats
-
+from util.eval_analyzer import Analysis
+import json
 logger = logging.getLogger("sweep_rollout")
 
 class CarbsSweepRollout:
@@ -85,86 +85,72 @@ class CarbsSweepRollout:
         stats = evaluator.evaluate()
         evaluator.close()
         eval_time = time.time() - eval_start_time
-
-        policy_stats, policy_stats_table = analyze_policy_stats(stats, '1v1', 'all')
-        logger.info("\n" + policy_stats_table)
-        elo, elo_table = analyze_policy_stats(stats, 'elo_1v1', 'altar')
-        logger.info("\n" + elo_table)
-
-        train_mean = 0
-        init_mean = 0
-        eval_metric = 0
-
-        stat_items = list(filter(lambda x: x['stat_name'] == self.cfg.sweep.metric, policy_stats))
-        if len(stat_items) > 0:
-            for stat in stat_items[0]['policy_stats']:
-                if stat['policy_name'] == trained_policy.name:
-                    train_mean = stat['mean']
-                elif stat['policy_name'] == initial_policy.name:
-                    init_mean = stat['mean']
-                else:
-                    raise ValueError(f"Policy {stat['policy_name']} not found in stats")
-
-            eval_metric = train_mean - init_mean
-
-        wandb_run.log(
-            {"eval_metric": eval_metric},
-            step=trainer.policy_checkpoint.agent_steps)
-
-        total_lineage_time = time.time() - start_time
-        policy_generation = 0
-        if hasattr(initial_policy, "metadata"):
-            total_lineage_time += initial_policy.metadata.get("total_lineage_time", 0)
-            policy_generation = initial_policy.metadata.get("policy_generation", 0) + 1
-
-        wandb_run.summary.update({
-            "training_time": train_time,
-            "eval_time": eval_time,
-            "eval_metric": eval_metric,
-            "train_policy_mean": train_mean,
-            "init_policy_mean": init_mean,
-            "agent_step": trainer.policy_checkpoint.agent_steps,
-            "epoch": trainer.policy_checkpoint.epoch,
-            "total_lineage_time": total_lineage_time,
-            "policy_generation": policy_generation,
-            "trained_policy_uri": trained_policy.uri,
-            "init_policy_uri": initial_policy_uri,
-            "trained_policy_elo": elo[0],
-            "init_policy_elo": elo[1],
-            "elo_delta": elo[0] - elo[1],
-        })
-
-        logger.info(f"Sweep Objective: {eval_metric}")
-        logger.info(f"Sweep Train Time: {train_time}")
-        logger.info(f"Sweep Eval Time: {eval_time}")
-        logger.info(f"Sweep Total Lineage Time: {total_lineage_time}")
-        logger.info(f"Sweep Policy Generation: {policy_generation}")
-
         self._log_file("eval_stats.yaml", stats)
-        self._log_file("eval_config.yaml", eval_cfg)
-        self._log_file("eval_stats.txt", stats)
+
+        elo_analysis = Analysis(stats, eval_method='elo_1v1', stat_category=eval_cfg.sweep.metric)
+        elo_results = elo_analysis.get_results()
+        logger.info("\n" + elo_analysis.get_display_results())
+        self._log_file("elo_results.yaml", elo_results)
+
+        p_analysis = Analysis(stats, eval_method='1v1', stat_category='all')
+        logger.info("\n" + p_analysis.get_display_results())
+        self._log_file("p_results.yaml", p_analysis.get_results())
+
+        altar_analysis = Analysis(stats, eval_method='1v1', stat_category=eval_cfg.sweep.metric)
+        logger.info("\n" + altar_analysis.get_display_results())
+        altar_results = altar_analysis.get_results()
+        self._log_file("altar_results.yaml", altar_results)
+
+        final_score = altar_results[eval_cfg.sweep.metric]['policy_stats'][trained_policy.name]['mean']
+        initial_score = altar_results[eval_cfg.sweep.metric]['policy_stats'][initial_policy.name]['mean']
+        eval_metric = final_score - initial_score
+
+        initial_metadata = {}
+        if hasattr(initial_policy, "metadata"):
+            initial_metadata = initial_policy.metadata
+
+        sweep_stats = {
+            "score.metric": eval_cfg.sweep.metric,
+
+            "initial.uri": initial_policy_uri,
+            "initial.score": initial_score,
+            "initial.elo": elo_results[initial_policy.name],
+
+            "final.uri": trained_policy.uri,
+            "final.score": final_score,
+            "final.elo": elo_results[trained_policy.name],
+
+            "train.agent_steps": trainer.policy_checkpoint.agent_steps,
+            "train.epoch": trainer.policy_checkpoint.epoch,
+
+            "time.train": train_time,
+            "time.eval": eval_time,
+            "time.total": train_time + eval_time,
+
+            "delta.elo": elo_results[trained_policy.name] - elo_results[initial_policy.name],
+            "delta.score": final_score - initial_score,
+        }
+
+        for stat in ["train.agent_steps", "train.epoch", "time.train", "time.eval", "time.total"]:
+            sweep_stats["lineage." + stat] = sweep_stats[stat] + initial_metadata.get("lineage." + stat, 0)
+        sweep_stats["generation"] = initial_metadata.get("generation", 0) + 1
+
+        wandb_run.summary.update(sweep_stats)
+        logger.info(
+            "Sweep Stats: \n" +
+            json.dumps({ k: str(v) for k, v in sweep_stats.items() }, indent=4))
 
         final_model_artifact = upload_policy_to_wandb(
             wandb_run,
             trainer.policy_checkpoint.model_path,
             f"{self.run_id}.model",
             metadata={
+                **sweep_stats,
                 "training_run": train_cfg.run,
-                "agent_step": trainer.policy_checkpoint.agent_steps,
-                "epoch": trainer.policy_checkpoint.epoch,
-                "train_time": train_time,
-                "eval_time": eval_time,
-                "eval_objective": eval_metric,
-                "train_policy_mean": train_mean,
-                "init_policy_mean": init_mean,
-                "total_lineage_time": total_lineage_time,
-                "policy_generation": policy_generation,
-                "trained_policy_elo": elo[0],
-                "init_policy_elo": elo[1],
-                "elo_delta": elo[0] - elo[1],
             },
             artifact_type="sweep_model",
         )
+
         final_model_artifact.link(
             self.cfg.run, [self.run_id]
         )
@@ -173,17 +159,6 @@ class CarbsSweepRollout:
         logger.info(f"Carbs Observation: {eval_metric}, {total_time}")
         self.wandb_carbs.record_observation(eval_metric, total_time)
         wandb_run.summary.update({"run_time": total_time})
-
-    def _compute_objective(self, stats, trained_policy_name, baseline_policy_names):
-        sum = 0
-        count = 0
-        for game in stats:
-            for agent in game:
-                if agent["policy_name"] == trained_policy_name:
-                    sum += agent.get(self.cfg.sweep.metric, 0)
-                    count += 1
-        logger.info(f"Sweep Metric: {self.cfg.sweep.metric} = {sum} / {count}")
-        return sum / count
 
     def _log_file(self, name: str, data):
         path = os.path.join(self.run_dir, name)

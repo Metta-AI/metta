@@ -49,7 +49,7 @@ def significance_and_effect(interpretations):
 
 class MannWhitneyUTest(StatisticalTest):
     def run_test(self):
-        self.results = []
+        self.results = {}
         for stat_name in self.categories_list:
             if stat_name == 'policy_name':
                 continue
@@ -66,7 +66,7 @@ class MannWhitneyUTest(StatisticalTest):
                 scores_per_policy[policy] = scores
 
             # Collect policy stats (mean, std_dev)
-            policy_stats = []
+            policy_stats = {}
             for policy in self.policy_names:
                 scores = [score for idx, score in scores_per_policy[policy]]
                 if scores:
@@ -76,17 +76,15 @@ class MannWhitneyUTest(StatisticalTest):
                     else:
                         mean = None
                         std_dev = None
-                    policy_stats.append({
-                        'policy_name': policy,
+                    policy_stats[policy] = {
                         'mean': mean,
                         'std_dev': std_dev
-                    })
+                    }
                 else:
-                    policy_stats.append({
-                        'policy_name': policy,
+                    policy_stats[policy] = {
                         'mean': None,
                         'std_dev': None
-                    })
+                    }
 
             # Prepare comparisons
             policy1 = self.policy_names[0]
@@ -141,26 +139,23 @@ class MannWhitneyUTest(StatisticalTest):
 
             summary_value = significance_and_effect(interpretations)
 
-            result = {
-                'stat_name': stat_name,
+            self.results[stat_name] = {
                 'policy_stats': policy_stats,
                 'comparisons': comparisons,
                 'summary_value': summary_value
             }
 
-            self.results.append(result)
-
     def format_results(self):
         data_rows = []
-        for result in self.results:
-            stat_name = result['stat_name']
+        for stat_name, result in self.results.items():
             policy_stats = result['policy_stats']
             comparisons = result['comparisons']
             summary_value = result['summary_value']
 
             # Top row with means and standard deviations
             top_data_row = [stat_name]
-            for policy_stat in policy_stats:
+            for policy_name in self.policy_names:
+                policy_stat = policy_stats[policy_name]
                 mean = policy_stat['mean']
                 std_dev = policy_stat['std_dev']
                 if mean is not None and std_dev is not None:
@@ -205,8 +200,8 @@ class MannWhitneyUTest(StatisticalTest):
 
 class EloTest(StatisticalTest):
     def run_test(self):
-        winning_margin = 10  # Set a minimum winning margin for a win
-        all_scores = self.stats['action.use.energy.altar']
+        winning_margin = 1  # Set a minimum winning margin for a win
+        all_scores = next(iter(self.stats.values()))
         total_episodes = len(next(iter(all_scores.values())))
 
         elo = {policy: 1000 for policy in self.policy_names}

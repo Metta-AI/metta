@@ -31,27 +31,21 @@ def main(cfg):
 
         elo_analysis = Analysis(stats, eval_method='elo_1v1', stat_category='altar')
 
-        # Run the analysis
-        elo_analysis.run_analysis()
-
         # Get raw results
         elo_results = elo_analysis.get_results()
         print(elo_results) # Printing raw results for demonstration purposes
 
         # Print formatted results
-        elo_analysis.display_results()
+        print(elo_analysis.get_display_results())
 
         p_analysis = Analysis(stats, eval_method='1v1', stat_category='all')
-
-        # Run the analysis
-        p_analysis.run_analysis()
 
         # Get raw results
         p_results = p_analysis.get_results()
         print(p_results) # Printing raw results for demonstration purposes
 
         # Print formatted results
-        p_analysis.display_results()
+        print(p_analysis.get_display_results())
 
 
 if __name__ == "__main__":

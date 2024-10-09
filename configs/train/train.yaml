@@ -39,7 +39,7 @@ async_factor: 2
 policy_selector:
   type: top
   range: 1
-  metric: train_policy_mean
+  metric: final.score
 
 stats:
   overview:
