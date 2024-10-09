@@ -75,9 +75,9 @@ def run_carb_sweep_rollout():
             rollout = CarbsSweepRollout(_cfg, wandb_run)
             success = rollout.run()
             if success:
-                _consecutive_failures += 1
-            else:
                 _consecutive_failures = 0
+            else:
+                _consecutive_failures += 1
     except Exception as e:
         _consecutive_failures += 1
         raise e
