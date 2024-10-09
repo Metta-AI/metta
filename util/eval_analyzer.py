@@ -1,21 +1,15 @@
-import json
-from tabulate import tabulate
-from termcolor import colored
-from util.stats_library import mann_whitney_u_test, kruskal_wallis_test, significance_and_effect, elo_test, glicko2_test
 import sys
+from util.stats_library import *
 
 eval_methods = {
-    '1v1': mann_whitney_u_test,
-    'elo_1v1': elo_test,
-    'glicko2_1v1': glicko2_test,
-    'multiplayer': kruskal_wallis_test,
+    '1v1': MannWhitneyUTest,
+    'elo_1v1': EloTest,
+    'glicko2_1v1': Glicko2Test,
+    'multiplayer': KruskalWallisTest,
 }
 
-# Stat category lookup dictionary. This approach deals with
-# the situation where an episode doesn't have a stat,
-# which happens if none of the agents have a finite score in the category.
 stat_category_lookup = {
-    'altar': ['action.use.altar'],
+    'altar': ['action.use.energy.altar'],
     'all': [
         "action.rotate.energy",
         "action.attack",
@@ -70,51 +64,60 @@ stat_category_lookup = {
     ],
 }
 
-def analyze_policy_stats(data: list, eval_method: str, stat_category: str, file=sys.stdout):
-    """
-    Process game statistics data and perform statistical tests based on
-    the evaluation method and stat category.
+class Analysis:
+    def __init__(self, data: list, eval_method: str, stat_category: str):
+        self.data = data
+        self.eval_method = eval_method
+        self.stat_category = stat_category
+        self.categories_list = stat_category_lookup[stat_category]
+        self.policy_names = []
+        self.stats = {}
+        self.results = None
+        self.test_instance = None  # Store the test instance
+        self.prepare_data()
 
-    Parameters:
-    data (list): The game data loaded from JSON.
-    eval_method (function): The evaluation method to use ('1v1' or 'multiplayer').
-    stat_category (str): The category of statistics to analyze.
+    def prepare_data(self):
+        # Extract policy names
+        for episode in self.data:
+            for agent in episode:
+                policy_name = agent.get('policy_name', "unknown")
+                if policy_name and policy_name not in self.policy_names:
+                    self.policy_names.append(policy_name)
 
-    Output:
-    Prints the statistical test results.
-    """
+        # Initialize stats dictionaries for each stat and policy with None values
+        for stat_name in self.categories_list:
+            self.stats[stat_name] = { policy_name: [None] * len(self.data) for policy_name in self.policy_names }
 
-    test_func = eval_methods[eval_method]
-    categories_list = stat_category_lookup[stat_category]
+        # Extract stats per policy per episode
+        for idx, episode in enumerate(self.data):
+            # Keep track of which policies participated in this episode
+            policies_in_episode = set()
+            for agent in episode:
+                policy = agent.get('policy_name', "unknown")
+                if policy is None:
+                    continue
+                policies_in_episode.add(policy)
+                # Loop through each stat and set this policy's stat for the episode
+                for stat_name in self.categories_list:
+                    stat_value = agent.get(stat_name, 0)
+                    if self.stats[stat_name][policy][idx] is None:
+                        self.stats[stat_name][policy][idx] = stat_value
+                    else:
+                        self.stats[stat_name][policy][idx] += stat_value
+            # For policies not in this episode, their stat remains None
 
-    # Extract all policy names from the data
-    policy_names = []
-    for episode in data:
-        for agent in episode:
-            policy_name = agent.get('policy_name', "unknown")
-            if policy_name and policy_name not in policy_names:
-                policy_names.append(policy_name)
+    def run_analysis(self):
+        test_class = eval_methods[self.eval_method]
+        self.test_instance = test_class(self.stats, self.policy_names, self.categories_list)
+        self.test_instance.run_test()
+        self.results = self.test_instance.get_results()
 
-    # Initialize stats dictionaries for each stat and policy
-    stats = {}
-    for stat_name in categories_list:
-        stats[stat_name] = { policy_name: [0] * len(data) for policy_name in policy_names }
+    def get_results(self):
+        return self.results
 
-    # Extract stats per policy per episode
-    for idx, episode in enumerate(data):
-        for agent in episode:
-            policy = agent.get('policy_name', "unknown")
-            if policy is None:
-                continue
-            # Loop through each stat and add to this policy's scores for the episode
-            for stat_name in categories_list:
-                stats[stat_name][policy][idx] += agent.get(stat_name, 0)
-
-    # Run statistical analysis and print results
-    return test_func(stats, policy_names, categories_list)
-
-
-
-# If you're running on Windows and need ANSI color support
-# import colorama
-# colorama.init()
+    def display_results(self):
+        if self.test_instance:
+            formatted_output = self.test_instance.get_formatted_results()
+            print(formatted_output)
+        else:
+            print("No analysis has been run yet.")
