@@ -112,7 +112,9 @@ class MettaCarbs(Pow2WandbCarbs):
             if run.summary["carbs.state"] == "success":
                 generation = run.summary.get("generation", 0)
                 generations[generation].append(run)
-        max_gen = max(generations.keys())
+        max_gen = 0
+        if len(generations) > 0:
+            max_gen = max(generations.keys())
         if len(generations[max_gen]) < self.cfg.sweep.generation.min_samples:
             self.generation = max_gen
             logger.info(f"Updating newest generation: {self.generation} with {len(generations[self.generation])} samples")
