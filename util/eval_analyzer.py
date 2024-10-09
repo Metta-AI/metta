@@ -9,7 +9,9 @@ eval_methods = {
 }
 
 stat_category_lookup = {
-    'altar': ['action.use.energy.altar'],
+    'action.use.altar': ['action.use.altar'],
+    'action.use': ['action.use'],
+    'altar': ['action.use.altar'],
     'all': [
         "action.rotate.energy",
         "action.attack",
@@ -72,11 +74,12 @@ class Analysis:
         self.categories_list = stat_category_lookup[stat_category]
         self.policy_names = []
         self.stats = {}
-        self.results = None
-        self.test_instance = None  # Store the test instance
-        self.prepare_data()
+        self._prepare_data()
+        test_class = eval_methods[self.eval_method]
+        self.test_instance = test_class(self.stats, self.policy_names, self.categories_list)
+        self.test_instance.run_test()
 
-    def prepare_data(self):
+    def _prepare_data(self):
         # Extract policy names
         for episode in self.data:
             for agent in episode:
@@ -106,18 +109,9 @@ class Analysis:
                         self.stats[stat_name][policy][idx] += stat_value
             # For policies not in this episode, their stat remains None
 
-    def run_analysis(self):
-        test_class = eval_methods[self.eval_method]
-        self.test_instance = test_class(self.stats, self.policy_names, self.categories_list)
-        self.test_instance.run_test()
-        self.results = self.test_instance.get_results()
-
     def get_results(self):
-        return self.results
+        return self.test_instance.get_results()
 
-    def display_results(self):
-        if self.test_instance:
-            formatted_output = self.test_instance.get_formatted_results()
-            print(formatted_output)
-        else:
-            print("No analysis has been run yet.")
+    def get_display_results(self):
+        return self.test_instance.get_formatted_results()
+
