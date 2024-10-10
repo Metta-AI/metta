@@ -32,7 +32,7 @@
             "request": "launch",
             "module": "tools.sweep",
             "args": [
-                "run=mac.sweep.15",
+                "run=mac.sweep.16",
                 "sweep=fast",
                 "sweep.metric=action.use",
                 "agent.policy_selector.uri=wandb://sweep_model/mac.sweep.14@",
@@ -42,6 +42,9 @@
                 // "env.kinship.team_reward=0.8",
                 "wandb.enabled=True",
                 "wandb.track=False",
+
+                "train=pong",
+                "+env.atari=pong",
             ],
         },
         {
