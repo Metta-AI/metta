@@ -50,9 +50,10 @@ class PufferAgentWrapper(nn.Module):
 
 def make_policy(env: PufferEnv, cfg: OmegaConf):
     if "atari" in cfg.env:
+        policy = pufferlib.environments.atari.torch.Policy(env)
+        policy.to(cfg.device)
         return  pufferlib.frameworks.cleanrl.RecurrentPolicy(
-            pufferlib.environments.atari.torch.Recurrent(
-            env, pufferlib.environments.atari.torch.Policy(env)))
+            pufferlib.environments.atari.torch.Recurrent(env, policy))
 
     obs_space = gym.spaces.Dict({
         "grid_obs": env.single_observation_space,
