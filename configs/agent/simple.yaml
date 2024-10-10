@@ -23,6 +23,6 @@ core:
 policy_selector:
   uri: null
   type: top
-  range: 1
+  range: 0
   metric: final.score
   generation: null

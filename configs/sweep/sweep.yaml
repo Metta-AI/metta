@@ -12,7 +12,7 @@ eval:
   baseline_uris: []
 
 generation:
-  enabled: true
+  enabled: false
   min_samples: 5
   regen_pct: 0.25
 
@@ -102,13 +102,13 @@ parameters:
         #   min: 0
         #   max: 1
 
-  agent:
-    policy_selector:
-      range:
-        space: linear
-        min: 1
-        max: 5
-        is_int: true
+  # agent:
+  #   policy_selector:
+  #     range:
+  #       space: linear
+  #       min: 1
+  #       max: 5
+  #       is_int: true
 
 
   # agent:
