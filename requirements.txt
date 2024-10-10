@@ -23,4 +23,3 @@ wandb==0.18.3
 wandb-core==0.17.0b11
 websockets
 
-pufferlib[atari]
