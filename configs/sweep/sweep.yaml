@@ -64,7 +64,7 @@ parameters:
     max_grad_norm:
       space: linear
       min: 0.0
-      max: 1.0
+      max: 6.0
     ent_coef:
       space: log
       min: 1e-5

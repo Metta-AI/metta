@@ -122,11 +122,15 @@ class PufferTrainer:
                 self._save_checkpoint()
             if self.epoch % self.cfg.train.wandb_checkpoint_interval == 0:
                 self._upload_model_to_wandb()
+            self._on_train_step()
 
         self.train_time = time.time() - self.train_start
         self._save_checkpoint()
         self._upload_model_to_wandb()
         logger.info(f"Training complete. Total time: {self.train_time:.2f} seconds")
+
+    def _on_train_step(self):
+        pass
 
     @pufferlib.utils.profile
     def _evaluate(self):

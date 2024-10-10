@@ -15,6 +15,23 @@ from util.eval_analyzer import Analysis
 import json
 logger = logging.getLogger("sweep_rollout")
 
+class AbortingTrainer(PufferTrainer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def _on_train_step(self):
+        if "abort" not in wandb.Api().run(self.wandb_run.id).tags:
+            return
+
+        logger.info("Abort tag detected. Stopping the run.")
+        self.cfg.train.total_timesteps = int(self.global_step)
+        self.wandb_run.config.update({
+            "train.total_timesteps": self.cfg.train.total_timesteps
+        }, allow_val_change=True)
+        self.wandb_run.summary.update({
+            "carbs.abort": 1
+        })
+
 class CarbsSweepRollout:
     def __init__(self, cfg: OmegaConf, wandb_run):
         self.cfg = cfg
@@ -41,7 +58,6 @@ class CarbsSweepRollout:
         logger.info("Generated CARBS suggestion: ")
         logger.info(yaml.dump(self.suggestion, default_flow_style=False))
         self._log_file("carbs_suggestion.yaml", self.suggestion)
-
 
     def run(self):
         try:
@@ -78,7 +94,7 @@ class CarbsSweepRollout:
 
 
         train_start_time = time.time()
-        trainer = PufferTrainer(train_cfg, wandb_run)
+        trainer = AbortingTrainer(train_cfg, wandb_run)
 
         initial_policy_uri = trainer.uncompiled_policy.uri
         logger.info(f"Loading initial policy from {initial_policy_uri}")
