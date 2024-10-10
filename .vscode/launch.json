@@ -10,10 +10,12 @@
             "request": "launch",
             "module": "tools.train",
             "args": [
-                "run=mac.train.5",
+                "run=mac.train.pong.0",
                 // "env=mettagrid/a20_b4_40x40",
+                "+env.atari=pong",
                 "env.game.max_steps=100",
                 "env.sampling=0.1",
+
                 // "env.kinship.team_size=5",
                 // "env.kinship.team_reward=0.8",
 
