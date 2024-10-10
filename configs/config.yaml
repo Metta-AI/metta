@@ -11,7 +11,7 @@ torch_deterministic: true
 
 defaults:
   - agent: simple
-  - env: mettagrid/a20_40x40
+  - env: mettagrid/a20_train
   - train: train
   - eval: eval
   - sweep: sweep
