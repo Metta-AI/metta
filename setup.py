@@ -1,10 +1,11 @@
 from sympy import li
 from setuptools import Extension, setup, find_packages, Command
-import subprocess
 from Cython.Build import cythonize
 import numpy
 import os
-
+import multiprocessing
+import sys
+multiprocessing.freeze_support()
 
 def build_ext(srcs, module_name=None):
     if module_name is None:
@@ -39,10 +40,13 @@ if debug:
 
 os.makedirs(build_dir, exist_ok=True)
 
+num_threads = multiprocessing.cpu_count() if sys.platform == 'linux' else None
+
 setup(
     name='metta',
     version='0.1',
     packages=find_packages(),
+    nthreads=num_threads,
     install_requires=[
         "hydra-core",
         "jmespath",
@@ -70,7 +74,7 @@ setup(
     include_dirs=[numpy.get_include()],
     ext_modules=cythonize(
         ext_modules,
-        build_dir='build',
+        build_dir=build_dir,
         compiler_directives={
             "language_level": "3",
             "embedsignature": debug,
