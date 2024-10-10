@@ -1,46 +1,42 @@
 
 num_envs_per_worker: ???
 num_workers: ???
-init_policy_uri: null
 resume: true
-init_policy_selector: null
 
-cpu_offload: false
 total_timesteps: 50_000_000_000
-learning_rate: 0.0012654662762525116
-num_steps: 256
-anneal_lr: false
-gamma: 0.7755949999823327
-gae_lambda: 0.9061454965924297
-update_epochs: 4
-norm_adv: true
-clip_coef: 0.059061983960164655
-clip_vloss: true
-ent_coef: 0.005792010009804944
-vf_coef: 0.6632257135848436
-max_grad_norm: 0.07688769698143005
+
+clip_coef: 0.011102333784435113
+ent_coef: 0.01376980586465873
+gae_lambda: 0.9776227170639571
+gamma: 0.8567482546637853
+learning_rate: 0.002064722899262613
+max_grad_norm: 0.8660179376602173
+vf_clip_coef: 0.26475190539131727
+vf_coef: 0.3403069830175013
+
+norm_adv: True
+clip_vloss: True
 target_kl: null
+anneal_lr: false
 
 env_batch_size: null
 zero_copy: true
 verbose: true
+
 checkpoint_interval: 60
 wandb_checkpoint_interval: 300
+
 batch_size: 262144
-minibatch_size: 4096
+minibatch_size: 32768
 bptt_horizon: 16
-vf_clip_coef: 0.0008792699500449386
+update_epochs: 1
+
+cpu_offload: false
 compile: false
 compile_mode: reduce-overhead
 
 forward_pass_minibatch_target_size: 4096
 async_factor: 2
-
-policy_selector:
-  type: top
-  range: 1
-  metric: final.score
-  generation: null
 
 stats:
   overview:
@@ -48,15 +44,3 @@ stats:
   step: train/agent_steps
 
 
-  # batch_size: 65536
-  # bptt_horizon: 16
-  # clip_coef: 0.04728613545570126
-  # ent_coef: 0.0031004385634700684
-  # forward_pass_minibatch_target_size: 1024
-  # gae_lambda: 0.8120999900476903
-  # gamma: 0.940973350550458
-  # learning_rate: 0.0002826260362762246
-  # max_grad_norm: 0.6681094765663147
-  # update_epochs: 1
-  # vf_clip_coef: 0.07330936935607932
-  # vf_coef: 0.7221810301577948

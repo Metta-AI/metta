@@ -65,9 +65,9 @@ class PufferTrainer:
         total_agents = self.vecenv.num_agents
 
         self.uncompiled_policy = None
-        if self.cfg.train.init_policy_uri is not None:
-            logger.info(f"Loading policy from {self.cfg.train.init_policy_uri}")
-            self.uncompiled_policy = load_policy_from_uri(self.cfg.train.init_policy_uri, self.cfg, self.wandb_run)
+        if self.cfg.agent.policy_selector.uri is not None:
+            logger.info(f"Loading policy from {self.cfg.agent.policy_selector.uri}")
+            self.uncompiled_policy = load_policy_from_uri(self.cfg.agent.policy_selector.uri, self.cfg, self.wandb_run)
         if self.uncompiled_policy is None:
             self.uncompiled_policy = puffer_agent_wrapper.make_policy(self.vecenv.driver_env, self.cfg)
             torch.save(self.uncompiled_policy, os.path.join(self.cfg.run_dir, "initial_policy.pt"))

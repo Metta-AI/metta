@@ -87,6 +87,7 @@ class MettaCarbs(Pow2WandbCarbs):
         self.cfg = cfg
         carbs_params, pow2_params = carbs_params_from_cfg(cfg)
         self.generation = 0
+        self.runs = []
 
         super().__init__(
             CARBS(
@@ -125,4 +126,5 @@ class MettaCarbs(Pow2WandbCarbs):
             self.generation = np.random.randint(max_gen + 1)
             logger.info(f"Updating generation: {self.generation} with {len(generations[self.generation])} samples")
 
-        return [run for run in runs if run.summary.get("generation", 0) == self.generation]
+        self.runs = [run for run in runs if run.summary.get("generation", 0) == self.generation]
+        return self.runs
