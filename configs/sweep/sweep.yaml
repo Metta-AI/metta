@@ -75,7 +75,7 @@ parameters:
       max: 524288
     minibatch_size:
       space: pow2
-      min: 1024
+      min: 512
       max: 32768
     forward_pass_minibatch_target_size:
       space: pow2
@@ -102,6 +102,7 @@ parameters:
         #   min: 0
         #   max: 1
 
+  agent:
     policy_selector:
       range:
         space: linear

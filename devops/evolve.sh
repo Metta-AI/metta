@@ -18,4 +18,4 @@ fi
 
 echo "Evolving run: $run_id"
 
-./devops/run.sh sweep train.init_policy_uri="wandb://sweep_model/$run_id@" "$@"
+./devops/run.sh sweep agent.policy_selector.uri="wandb://sweep_model/$run_id@" "$@"

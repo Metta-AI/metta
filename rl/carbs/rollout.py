@@ -26,9 +26,17 @@ class CarbsSweepRollout:
         os.makedirs(self.run_dir)
         wandb_run.name = self.run_id
 
+        self._log_file("run_cfg.yaml", self.cfg)
+
         self.carbs = MettaCarbs(cfg, wandb_run)
+        self._log_file("carbs_state.yaml", {
+            "generation": self.carbs.generation,
+            "observations": self.carbs._observations,
+            "params": str(self.carbs._carbs.params)
+        })
+
         self.suggestion = self.carbs.suggest()
-        self._log_file("sweep_config.yaml", self.cfg)
+        self._log_file("carbs_suggestion.yaml", self.suggestion)
 
         logger.info("Generated CARBS suggestion: ")
         logger.info(yaml.dump(self.suggestion, default_flow_style=False))
@@ -61,7 +69,7 @@ class CarbsSweepRollout:
 
         self._apply_carbs_suggestion(train_cfg, self.suggestion)
         if self.cfg.sweep.generation.enabled:
-            train_cfg.train.policy_selector.generation = self.carbs.generation - 1
+            train_cfg.agent.policy_selector.generation = self.carbs.generation - 1
 
         self._log_file("config.yaml", self.cfg)
         self._log_file("train_config.yaml", train_cfg)
@@ -125,7 +133,7 @@ class CarbsSweepRollout:
 
         final_score = altar_results[eval_cfg.sweep.metric]['policy_stats'][trained_policy.name]['mean']
         initial_score = altar_results[eval_cfg.sweep.metric]['policy_stats'][initial_policy.name]['mean']
-        eval_metric = final_score - initial_score
+        eval_metric = final_score
 
         sweep_stats.update({
             "initial.uri": initial_policy_uri,
@@ -176,7 +184,8 @@ class CarbsSweepRollout:
         with open(path, "w") as f:
             if isinstance(data, DictConfig):
                 data = OmegaConf.to_container(data, resolve=True)
-            yaml.dump(data, f, default_flow_style=False, sort_keys=False)
+            json.dump(data, f, indent=4)
+
         wandb.run.save(path, base_path=self.run_dir)
 
     def _apply_carbs_suggestion(self, config: OmegaConf, suggestion: DictConfig):

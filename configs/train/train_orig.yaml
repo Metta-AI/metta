@@ -16,9 +16,7 @@ gamma: 0.99
 gae_lambda: 0.95
 num_minibatches: 4
 update_epochs: 1
-norm_adv: True
 clip_coef: 0.1
-clip_vloss: True
 ent_coef: 0.002
 vf_coef: 0.976
 max_grad_norm: 0.5

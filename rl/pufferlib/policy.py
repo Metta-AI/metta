@@ -26,7 +26,7 @@ def load_policy_from_wandb(uri: str, cfg: OmegaConf, wandb_run):
     if "@" in artifact_path:
         if artifact_path.endswith("@"):
             path = artifact_path[:-1]
-            selector = cfg.train.policy_selector.range
+            selector = cfg.agent.policy_selector.range
         else:
             path, selector = artifact_path.split("@")
             selector = int(selector)
@@ -123,7 +123,7 @@ def upload_policy_to_wandb(
 
 def select_artifact(collection, cfg: OmegaConf, n: int):
     artifacts = list(collection.artifacts())
-    selector = cfg.train.policy_selector
+    selector = cfg.agent.policy_selector
 
     if selector.generation is not None:
         logger.info(f"Selecting generation {selector.generation}")
