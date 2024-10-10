@@ -13,6 +13,7 @@
                 "run=mac.train.pong.0",
                 // "env=mettagrid/a20_b4_40x40",
                 "+env.atari=pong",
+                "train=pong",
                 "env.game.max_steps=100",
                 "env.sampling=0.1",
 
