@@ -1,6 +1,6 @@
 metric: action.use.altar
 rollout_count: 100000
-num_random_samples: 5
+num_random_samples: 10
 resume: true
 
 eval:
@@ -93,9 +93,9 @@ parameters:
       max: 128
     total_timesteps:
       space: log
-      search_center: 3e7
-      min: 1e7
-      max: 5e9
+      search_center: 1.1e9
+      min: 1e9
+      max: 1e10
     # compile:
     #   space: linear
     #   is_int: true

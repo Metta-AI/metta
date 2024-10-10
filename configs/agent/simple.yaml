@@ -6,7 +6,7 @@ observation_encoder:
   _target_: agent.simple_encoder.SimpleConvAgent
   cnn_channels: 32
   obs_key: grid_obs
-  normalize_features: True
+  normalize_features: False
 
 fc:
   layers: 1
