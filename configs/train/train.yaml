@@ -26,16 +26,16 @@ verbose: true
 checkpoint_interval: 60
 wandb_checkpoint_interval: 300
 
-batch_size: 2**17
-minibatch_size: 2**12
-bptt_horizon: 2**5
+batch_size: 131072
+minibatch_size: 4096
+bptt_horizon: 32
 update_epochs: 3
 
 cpu_offload: false
 compile: false
 compile_mode: reduce-overhead
 
-forward_pass_minibatch_target_size: 2**10
+forward_pass_minibatch_target_size: 1024
 async_factor: 2
 
 stats:
