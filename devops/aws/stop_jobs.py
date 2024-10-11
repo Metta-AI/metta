@@ -1,16 +1,30 @@
 import boto3
 import argparse
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from botocore.exceptions import ClientError
 from devops.aws.cluster_info import get_batch_job_queues, get_batch_jobs
 
 def stop_job(batch, job, job_prefix):
     if job['status'] == 'RUNNING' and job['name'].startswith(job_prefix):
         job_id = job['stop_command'].split()[-1]
-        try:
-            batch.terminate_job(jobId=job_id, reason=f'Stopped by stop_jobs script (prefix: {job_prefix})')
-            return f"Successfully stopped job: {job['name']} (ID: {job_id})"
-        except Exception as e:
-            return f"Failed to stop job {job['name']} (ID: {job_id}): {str(e)}"
+        max_retries = 5
+        retry_delay = 1
+        for attempt in range(max_retries):
+            try:
+                batch.terminate_job(jobId=job_id, reason=f'Stopped by stop_jobs script (prefix: {job_prefix})')
+                return f"Successfully stopped job: {job['name']} (ID: {job_id})"
+            except ClientError as e:
+                if e.response['Error']['Code'] == 'ThrottlingException':
+                    if attempt < max_retries - 1:
+                        time.sleep(retry_delay)
+                        retry_delay *= 2  # Exponential backoff
+                    else:
+                        return f"Failed to stop job {job['name']} (ID: {job_id}) after {max_retries} attempts: Throttling"
+                else:
+                    return f"Failed to stop job {job['name']} (ID: {job_id}): {str(e)}"
+            except Exception as e:
+                return f"Failed to stop job {job['name']} (ID: {job_id}): {str(e)}"
     return None
 
 def stop_batch_jobs(job_prefix):

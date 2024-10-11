@@ -26,9 +26,9 @@ parameters:
       min: 4
       max: 8
     total_timesteps:
-      search_center: 1e8
+      search_center: 1e4
       min: 1e3
-      max: 1e9
+      max: 1e4
 
 
 
