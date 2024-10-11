@@ -3,11 +3,8 @@ import pufferlib
 import pufferlib.utils
 import pufferlib.vector
 import hydra
-import pufferlib.environments.atari
 
 def make_env_func(cfg: OmegaConf, render_mode='rgb_array'):
-    if "atari" in cfg:
-        return pufferlib.environments.atari.environment.make("pong")
     env = hydra.utils.instantiate(cfg, render_mode=render_mode)
     env.emulated = None
     env.single_observation_space = env.observation_space

@@ -24,9 +24,15 @@ class PufferAgentWrapper(nn.Module):
     def __init__(self, agent: MettaAgent, env: PettingZooPufferEnv):
         super().__init__()
         # self.dtype = pufferlib.pytorch.nativize_dtype(env.emulated)
-        # xcxc
-        self.atn_type = nn.Linear(agent.decoder_out_size(), env.action_space[0].n)
-        self.atn_param = nn.Linear(agent.decoder_out_size(), env.action_space[1].n)
+        if type(env.action_space) == gym.spaces.Discrete:
+            self.atn_type = nn.Linear(agent.decoder_out_size(), env.action_space.n)
+            self.atn_param = None
+        elif len(env.action_space.nvec) == 2:
+            self.atn_type = nn.Linear(agent.decoder_out_size(), env.action_space.nvec[0])
+            self.atn_param = None
+        else:
+            raise ValueError(f"Unsupported action space: {env.action_space}")
+
         self._agent = agent
         print(self)
 
@@ -44,16 +50,15 @@ class PufferAgentWrapper(nn.Module):
         return td["encoded_obs"], None
 
     def decode_actions(self, flat_hidden, lookup, concat=None):
-        action = [self.atn_type(flat_hidden), self.atn_param(flat_hidden)]
+        if self.atn_param is None:
+            action = self.atn_type(flat_hidden)
+        else:
+            action = [self.atn_type(flat_hidden), self.atn_param(flat_hidden)]
+
         value = self._agent._critic_linear(flat_hidden)
         return action, value
 
 def make_policy(env: PufferEnv, cfg: OmegaConf):
-    if "atari" in cfg.env:
-        policy = pufferlib.environments.atari.torch.Policy(env)
-        return  pufferlib.frameworks.cleanrl.RecurrentPolicy(
-            pufferlib.environments.atari.torch.Recurrent(env, policy)).to(cfg.device)
-
     obs_space = gym.spaces.Dict({
         "grid_obs": env.single_observation_space,
         "global_vars": gym.spaces.Box(
