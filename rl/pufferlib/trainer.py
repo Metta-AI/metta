@@ -96,11 +96,10 @@ class PufferTrainer:
         if self.cfg.train.resume:
             self._try_load_checkpoint()
 
-        if "atari" not in self.cfg.env:
-            if self.uncompiled_policy._action_names != self.vecenv.driver_env.action_names():
-                raise ValueError(
-                    "Action names do not match between policy and environment: "
-                    f"{self.uncompiled_policy._action_names} != {self.vecenv.driver_env.action_names()}")
+        if self.uncompiled_policy._action_names != self.vecenv.driver_env.action_names():
+            raise ValueError(
+                "Action names do not match between policy and environment: "
+                f"{self.uncompiled_policy._action_names} != {self.vecenv.driver_env.action_names()}")
 
         if self.cfg.wandb.track and wandb_run:
             wandb_run.define_metric("train/agent_steps")

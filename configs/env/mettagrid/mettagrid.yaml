@@ -5,6 +5,7 @@ _target_: mettagrid.mettagrid_env.MettaGridEnv
 
 report_stats_interval: 100
 normalize_rewards: true
+flatten_actions: false
 
 sampling: 0
 
