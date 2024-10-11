@@ -10,10 +10,8 @@
             "request": "launch",
             "module": "tools.train",
             "args": [
-                "run=mac.train.pong.0",
+                "run=mac.train.mac.new.0",
                 // "env=mettagrid/a20_b4_40x40",
-                "+env.atari=pong",
-                "train=pong",
                 "env.game.max_steps=100",
                 "env.sampling=0.1",
 
@@ -35,7 +33,7 @@
                 "run=mac.sweep.16",
                 "sweep=fast",
                 "sweep.metric=action.use",
-                "agent.policy_selector.uri=wandb://sweep_model/mac.sweep.14@",
+                // "agent.poli  cy_selector.uri=wandb://sweep_model/mac.sweep.14@",
                 // "env=mettagrid/a20_b4_40x40",
                 "env.game.max_steps=100",
                 // "env.kinship.team_size=5",
@@ -43,8 +41,6 @@
                 "wandb.enabled=True",
                 "wandb.track=False",
 
-                "train=pong",
-                "+env.atari=pong",
             ],
         },
         {
