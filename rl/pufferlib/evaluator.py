@@ -112,14 +112,18 @@ class PufferEvaluator():
 
 
             if len(self._baselines) > 0:
+                dim = 0 if self._cfg.env.flatten_actions else 1
                 actions = torch.cat([
                     policy_actions.view(self._num_envs, self._policy_agents_per_env, -1),
-                    torch.cat(baseline_actions, dim=1).view(self._num_envs, self._baseline_agents_per_env, -1),
+                    torch.cat(baseline_actions, dim=dim).view(self._num_envs, self._baseline_agents_per_env, -1),
                 ], dim=1)
             else:
                 actions = policy_actions
 
-            actions = actions.view(self._num_envs*self._agents_per_env, -1)
+            if self._cfg.env.flatten_actions:
+                actions = actions.view(-1)
+            else:
+                actions = actions.view(self._num_envs*self._agents_per_env, -1)
 
             obs, rewards, dones, truncated, infos = self._vecenv.step(actions.cpu().numpy())
             self._total_rewards += rewards
