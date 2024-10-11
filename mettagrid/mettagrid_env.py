@@ -7,7 +7,7 @@ from omegaconf import OmegaConf
 from mettagrid.config.game_builder import MettaGridGameBuilder
 from mettagrid.config.sample_config import sample_config
 from mettagrid.mettagrid_c import MettaGrid # pylint: disable=E0611
-
+from gymnasium import spaces
 
 class MettaGridEnv(pufferlib.PufferEnv):
     def __init__(self, render_mode: str, **cfg):
@@ -18,10 +18,26 @@ class MettaGridEnv(pufferlib.PufferEnv):
         self.make_env()
 
         self._renderer = None
+        self._action_space = self._env.action_space
+        if self._cfg.flatten_actions:
+            self._action_map = [
+                (0, 0), # Noop
+                (0, 1), # Move Forward
+                (0, 2), # Move Backward
+                (1, 0), # Rotate Left
+                (1, 1), # Rotate Right
+                (1, 2), # Rotate Up
+                (1, 3), # Rotate Down
+                (2, 0), # Use
+                (3, 0), # Attack
+                (4, 0), # Shield
+                (5, 0), # Gift
+                (6, 0), # Swap
+            ]
+            self._action_space = spaces.Discrete(len(self._action_map))
 
         self.done = False
         self.buf = None
-
 
     def make_env(self):
         scfg = sample_config(self._cfg.game, self._cfg.sampling)
@@ -45,6 +61,7 @@ class MettaGridEnv(pufferlib.PufferEnv):
 
     def reset(self, seed=None):
         self.make_env()
+
         if hasattr(self, "buf") and self.buf is not None:
             self._c_env.set_buffers(
                 self.buf.observations,
@@ -59,6 +76,14 @@ class MettaGridEnv(pufferlib.PufferEnv):
         return obs, infos
 
     def step(self, actions):
+        assert not self.done, "Environment already done"
+
+        if self._cfg.flatten_actions:
+            new_actions = np.zeros((self._num_agents, 2), dtype=np.int32)
+            for idx in range(self._num_agents):
+                new_actions[idx] = self._action_map[actions[idx]]
+            actions = new_actions
+
         obs, rewards, terminated, truncated, infos = self._c_env.step(actions.astype(np.int32))
 
         if self._cfg.normalize_rewards:
@@ -68,7 +93,8 @@ class MettaGridEnv(pufferlib.PufferEnv):
         if terminated.all() or truncated.all():
             self.done = True
             self.process_episode_stats(infos)
-        return obs, list(rewards), terminated.all(), truncated.all(), infos
+
+        return obs, rewards, terminated, truncated, infos
 
     def process_episode_stats(self, infos: Dict[str, Any]):
         episode_rewards = self._c_env.get_episode_rewards()
@@ -87,6 +113,7 @@ class MettaGridEnv(pufferlib.PufferEnv):
         infos["agent_raw"] = stats["agent"]
         infos["game"] = stats["game"]
         infos["agent"] = {}
+
         for agent_stats in stats["agent"]:
             for n, v in agent_stats.items():
                 infos["agent"][n] = infos["agent"].get(n, 0) + v
@@ -107,7 +134,7 @@ class MettaGridEnv(pufferlib.PufferEnv):
 
     @property
     def action_space(self):
-        return self._env.action_space
+        return self._action_space
 
     def action_names(self):
         return self._env.action_names()
