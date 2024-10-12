@@ -81,7 +81,7 @@ class MettaGridRaylibRenderer:
         self.paused = False
         self.obs_idx = -1
 
-    def update(self, actions, observations, current_timestep):
+    def update(self, actions, observations, rewards, total_rewards, current_timestep):
         self.actions = actions
         self.observations = observations
         self.current_timestep = current_timestep
@@ -89,7 +89,10 @@ class MettaGridRaylibRenderer:
         for obj_id, obj in self.game_objects.items():
             obj["id"] = obj_id
             if "agent_id" in obj:
-                self.agents[obj["agent_id"]] = obj
+                agent_id = obj["agent_id"]
+                self.agents[agent_id] = obj
+                obj["last_reward"] = rewards[agent_id]
+                obj["total_reward"] = total_rewards[agent_id]
         if self.selected_agent_idx is not None and self.mind_control:
             self.actions[self.selected_agent_idx][0] = self.action_ids["noop"]
 

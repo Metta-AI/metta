@@ -29,8 +29,9 @@ cdef class MettaGrid(GridEnv):
     cdef:
         object _cfg
 
-    def __init__(self, cfg: OmegaConf, map: np.ndarray):
-        self._cfg = cfg
+    def __init__(self, env_cfg: OmegaConf, map: np.ndarray):
+        self._cfg = env_cfg.game
+        cfg = self._cfg
 
         actions = []
         if cfg.actions.noop.enabled:
@@ -60,7 +61,8 @@ cdef class MettaGrid(GridEnv):
             cfg.obs_width, cfg.obs_height,
             MettaObservationEncoder(),
             actions,
-            [ ResetHandler() ]
+            [ ResetHandler() ],
+            use_flat_actions=env_cfg.flatten_actions
         )
 
         cdef Agent *agent

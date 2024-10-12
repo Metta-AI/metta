@@ -18,34 +18,16 @@ class MettaGridEnv(pufferlib.PufferEnv):
         self.make_env()
 
         self._renderer = None
-        self._action_space = self._env.action_space
-        if self._cfg.flatten_actions:
-            self._action_map = [
-                (0, 0), # Noop
-                (0, 1), # Move Forward
-                (0, 2), # Move Backward
-                (1, 0), # Rotate Left
-                (1, 1), # Rotate Right
-                (1, 2), # Rotate Up
-                (1, 3), # Rotate Down
-                (2, 0), # Use
-                (3, 0), # Attack
-                (4, 0), # Shield
-                (5, 0), # Gift
-                (6, 0), # Swap
-            ]
-            self._action_space = spaces.Discrete(len(self._action_map))
-
         self.done = False
         self.buf = None
 
     def make_env(self):
-        scfg = sample_config(self._cfg.game, self._cfg.sampling)
+        scfg = sample_config(self._cfg, self._cfg.sampling)
         assert isinstance(scfg, Dict)
-        game_cfg = OmegaConf.create(scfg)
-        self._game_builder = MettaGridGameBuilder(**scfg) # type: ignore
+        env_cfg = OmegaConf.create(scfg)
+        self._game_builder = MettaGridGameBuilder(**env_cfg.game) # type: ignore
         level = self._game_builder.level()
-        self._c_env = MettaGrid(game_cfg, level)
+        self._c_env = MettaGrid(env_cfg, level)
         self._grid_env = self._c_env
         self._num_agents = self._c_env.num_agents()
 
@@ -77,13 +59,6 @@ class MettaGridEnv(pufferlib.PufferEnv):
 
     def step(self, actions):
         assert not self.done, "Environment already done"
-
-        if self._cfg.flatten_actions:
-            new_actions = np.zeros((self._num_agents, 2), dtype=np.int32)
-            for idx in range(self._num_agents):
-                new_actions[idx] = self._action_map[actions[idx]]
-            actions = new_actions
-
         obs, rewards, terminated, truncated, infos = self._c_env.step(actions.astype(np.int32))
 
         if self._cfg.normalize_rewards:
@@ -123,7 +98,6 @@ class MettaGridEnv(pufferlib.PufferEnv):
     def _compute_max_energy(self):
         pass
 
-
     @property
     def _max_steps(self):
         return self._game_builder.max_steps
@@ -134,7 +108,7 @@ class MettaGridEnv(pufferlib.PufferEnv):
 
     @property
     def action_space(self):
-        return self._action_space
+        return self._env.action_space
 
     def action_names(self):
         return self._env.action_names()
