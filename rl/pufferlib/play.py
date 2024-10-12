@@ -19,7 +19,9 @@ def play(cfg: OmegaConf, policy):
     renderer = MettaGridRaylibRenderer(env._c_env, game_cfg)
     policy_rnn_state = None
 
+    rewards = np.zeros(vecenv.num_agents)
     total_rewards = np.zeros(vecenv.num_agents)
+
     while True:
         with torch.no_grad():
             obs = torch.as_tensor(obs).to(device=device)
@@ -31,14 +33,16 @@ def play(cfg: OmegaConf, policy):
                 actions, _, _, _ = policy(obs)
 
         renderer.update(
-            actions,
+            env._c_env.unflatten_actions(actions.cpu().numpy()),
             obs,
-            env._c_env.current_timestep()
+            rewards,
+            total_rewards,
+            env._c_env.current_timestep(),
         )
         renderer.render_and_wait()
-        actions = renderer.get_actions()
+        actions = env._c_env.flatten_actions(renderer.get_actions())
 
-        obs, rewards, dones, truncated, infos = vecenv.step(actions.cpu().numpy())
+        obs, rewards, dones, truncated, infos = vecenv.step(actions)
         total_rewards += rewards
         if any(dones) or any(truncated):
             print(f"Total rewards: {total_rewards}")
