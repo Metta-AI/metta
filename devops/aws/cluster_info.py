@@ -2,30 +2,73 @@ import boto3
 import argparse
 from colorama import init, Fore, Style
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from botocore.config import Config
+
+# Configure boto3 to use a higher max_pool_connections
+config = Config(
+    retries = {'max_attempts': 10, 'mode': 'standard'},
+    max_pool_connections = 50
+)
 
 def get_batch_job_queues():
-    batch = boto3.client('batch')
+    batch = boto3.client('batch', config=config)
     response = batch.describe_job_queues()
     return [queue['jobQueueName'] for queue in response['jobQueues']]
 
 def get_batch_jobs(job_queue, max_jobs):
-    batch = boto3.client('batch')
-    ecs = boto3.client('ecs')
-    ec2 = boto3.client('ec2')
+    batch = boto3.client('batch', config=config)
+    ecs = boto3.client('ecs', config=config)
+    ec2 = boto3.client('ec2', config=config)
 
     def get_jobs_by_status(status):
-        response = batch.list_jobs(jobQueue=job_queue, jobStatus=status)
+        response = batch.list_jobs(jobQueue=job_queue, jobStatus=status, maxResults=min(max_jobs, 100))
         return response['jobSummaryList']
 
     with ThreadPoolExecutor() as executor:
-        running_jobs_future = executor.submit(get_jobs_by_status, 'RUNNING')
-        other_jobs_futures = [executor.submit(get_jobs_by_status, state) for state in ['SUBMITTED', 'PENDING', 'RUNNABLE', 'STARTING', 'SUCCEEDED', 'FAILED']]
+        job_futures = [executor.submit(get_jobs_by_status, state) for state in ['RUNNING', 'SUBMITTED', 'PENDING', 'RUNNABLE', 'STARTING', 'SUCCEEDED', 'FAILED']]
+        all_jobs = [job for future in job_futures for job in future.result()]
 
-        running_jobs = running_jobs_future.result()
-        other_jobs = [job for future in other_jobs_futures for job in future.result()]
+    all_jobs = sorted(all_jobs, key=lambda job: job['createdAt'], reverse=True)[:max_jobs]
 
-    other_jobs = sorted(other_jobs, key=lambda job: job['createdAt'])[-max_jobs:]
-    all_jobs = other_jobs + running_jobs
+    job_ids = [job['jobId'] for job in all_jobs]
+    job_descriptions = batch.describe_jobs(jobs=job_ids)['jobs']
+
+    task_arns = [job['container'].get('taskArn') for job in job_descriptions if job['container'].get('taskArn')]
+    cluster_arns = [job['container'].get('containerInstanceArn') for job in job_descriptions if job['container'].get('containerInstanceArn')]
+
+    # Batch describe tasks
+    tasks_by_cluster = {}
+    for i in range(0, len(task_arns), 100):
+        chunk = task_arns[i:i+100]
+        cluster_name = cluster_arns[i].split('/')[1] if cluster_arns[i] else None
+        if cluster_name:
+            tasks_by_cluster.setdefault(cluster_name, []).extend(chunk)
+
+    task_descriptions = {}
+    for cluster_name, tasks in tasks_by_cluster.items():
+        response = ecs.describe_tasks(cluster=cluster_name, tasks=tasks)
+        task_descriptions.update({task['taskArn']: task for task in response['tasks']})
+
+    # Batch describe container instances
+    container_instances_by_cluster = {}
+    for task in task_descriptions.values():
+        cluster_name = task['clusterArn'].split('/')[1]
+        container_instances_by_cluster.setdefault(cluster_name, set()).add(task['containerInstanceArn'])
+
+    container_instance_descriptions = {}
+    for cluster_name, container_instances in container_instances_by_cluster.items():
+        for i in range(0, len(container_instances), 100):
+            chunk = list(container_instances)[i:i+100]
+            response = ecs.describe_container_instances(cluster=cluster_name, containerInstances=chunk)
+            container_instance_descriptions.update({instance['containerInstanceArn']: instance for instance in response['containerInstances']})
+
+    # Batch describe EC2 instances
+    ec2_instance_ids = [instance['ec2InstanceId'] for instance in container_instance_descriptions.values()]
+    ec2_instances = {}
+    for i in range(0, len(ec2_instance_ids), 100):
+        chunk = ec2_instance_ids[i:i+100]
+        response = ec2.describe_instances(InstanceIds=chunk)
+        ec2_instances.update({instance['InstanceId']: instance for reservation in response['Reservations'] for instance in reservation['Instances']})
 
     def get_job_details(job):
         job_id = job['jobId']
@@ -33,24 +76,22 @@ def get_batch_jobs(job_queue, max_jobs):
         job_status = job['status']
         job_link = f"https://console.aws.amazon.com/batch/home?region=us-east-1#jobs/detail/{job_id}"
 
-        job_desc = batch.describe_jobs(jobs=[job_id])['jobs'][0]
-        container = job_desc['container']
+        job_desc = next((j for j in job_descriptions if j['jobId'] == job_id), {})
+        container = job_desc.get('container', {})
         task_arn = container.get('taskArn')
-        cluster_arn = container.get('containerInstanceArn')
 
         num_retries = len(job_desc.get('attempts', [])) - 1
 
         public_ip = ''
-        if task_arn and cluster_arn:
-            cluster_name = cluster_arn.split('/')[1]
-            task_desc = ecs.describe_tasks(cluster=cluster_name, tasks=[task_arn])
-            if task_desc['tasks']:
-                container_instance_arn = task_desc['tasks'][0]['containerInstanceArn']
-                container_instance_desc = ecs.describe_container_instances(cluster=cluster_name, containerInstances=[container_instance_arn])
-                ec2_instance_id = container_instance_desc['containerInstances'][0]['ec2InstanceId']
-
-                instances = ec2.describe_instances(InstanceIds=[ec2_instance_id])
-                public_ip = instances['Reservations'][0]['Instances'][0].get('PublicIpAddress', '')
+        if task_arn:
+            task_desc = task_descriptions.get(task_arn, {})
+            container_instance_arn = task_desc.get('containerInstanceArn')
+            if container_instance_arn:
+                container_instance_desc = container_instance_descriptions.get(container_instance_arn, {})
+                ec2_instance_id = container_instance_desc.get('ec2InstanceId')
+                if ec2_instance_id:
+                    ec2_instance = ec2_instances.get(ec2_instance_id, {})
+                    public_ip = ec2_instance.get('PublicIpAddress', '')
 
         stop_command = f"aws batch terminate-job --reason man_stop --job-id {job_id}" if job_status == 'RUNNING' else ''
 
@@ -69,27 +110,55 @@ def get_batch_jobs(job_queue, max_jobs):
     return job_details
 
 def get_ecs_clusters():
-    ecs = boto3.client('ecs')
+    ecs = boto3.client('ecs', config=config)
     response = ecs.list_clusters()
     return response['clusterArns']
 
 def get_ecs_tasks(clusters, max_tasks):
-    ecs = boto3.client('ecs')
-    ec2 = boto3.client('ec2')
+    ecs = boto3.client('ecs', config=config)
+    ec2 = boto3.client('ec2', config=config)
+
+    all_tasks = []
+    for cluster in clusters:
+        response = ecs.list_tasks(cluster=cluster, maxResults=min(max_tasks, 100))
+        all_tasks.extend([(cluster, task_arn) for task_arn in response['taskArns']])
+
+    all_tasks = all_tasks[:max_tasks]
+
+    task_descriptions = {}
+    for i in range(0, len(all_tasks), 100):
+        chunk = all_tasks[i:i+100]
+        cluster = chunk[0][0]  # Assuming all tasks in the chunk are from the same cluster
+        task_arns = [task[1] for task in chunk]
+        response = ecs.describe_tasks(cluster=cluster, tasks=task_arns)
+        task_descriptions.update({task['taskArn']: task for task in response['tasks']})
+
+    container_instances = set(task['containerInstanceArn'] for task in task_descriptions.values())
+    container_instance_descriptions = {}
+    for i in range(0, len(container_instances), 100):
+        chunk = list(container_instances)[i:i+100]
+        response = ecs.describe_container_instances(cluster=cluster, containerInstances=chunk)
+        container_instance_descriptions.update({instance['containerInstanceArn']: instance for instance in response['containerInstances']})
+
+    ec2_instance_ids = [instance['ec2InstanceId'] for instance in container_instance_descriptions.values()]
+    ec2_instances = {}
+    for i in range(0, len(ec2_instance_ids), 100):
+        chunk = ec2_instance_ids[i:i+100]
+        response = ec2.describe_instances(InstanceIds=chunk)
+        ec2_instances.update({instance['InstanceId']: instance for reservation in response['Reservations'] for instance in reservation['Instances']})
 
     def get_task_details(cluster, task_arn):
-        task_desc = ecs.describe_tasks(cluster=cluster, tasks=[task_arn])['tasks'][0]
+        task_desc = task_descriptions[task_arn]
         task_id = task_arn.split('/')[-1]
         task_name = task_desc['overrides']['containerOverrides'][0]['name']
         task_status = task_desc['lastStatus']
         task_link = f"https://console.aws.amazon.com/ecs/home?region=us-east-1#/clusters/{cluster}/tasks/{task_id}/details"
 
         container_instance_arn = task_desc['containerInstanceArn']
-        container_instance_desc = ecs.describe_container_instances(cluster=cluster, containerInstances=[container_instance_arn])
-        ec2_instance_id = container_instance_desc['containerInstances'][0]['ec2InstanceId']
+        container_instance_desc = container_instance_descriptions[container_instance_arn]
+        ec2_instance_id = container_instance_desc['ec2InstanceId']
 
-        instances = ec2.describe_instances(InstanceIds=[ec2_instance_id])
-        public_ip = instances['Reservations'][0]['Instances'][0].get('PublicIpAddress', '')
+        public_ip = ec2_instances[ec2_instance_id].get('PublicIpAddress', '')
 
         stop_command = f"aws ecs stop-task --cluster {cluster} --task {task_arn}" if task_status == 'RUNNING' else ''
 
@@ -102,15 +171,8 @@ def get_ecs_tasks(clusters, max_tasks):
             'stop_command': stop_command
         }
 
-    task_details = []
     with ThreadPoolExecutor() as executor:
-        futures = []
-        for cluster in clusters:
-            response = ecs.list_tasks(cluster=cluster, maxResults=max_tasks)
-            futures.extend([executor.submit(get_task_details, cluster, task_arn) for task_arn in response['taskArns']])
-
-        for future in as_completed(futures):
-            task_details.append(future.result())
+        task_details = list(executor.map(lambda x: get_task_details(*x), all_tasks))
 
     return task_details
 
