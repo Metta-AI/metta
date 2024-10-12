@@ -26,7 +26,7 @@ game:
       max_energy: 250
       max_inventory: 5
       freeze_duration: 10
-      energy_reward: False
+      energy_reward: 0.0
       hp: 1
       mortal: False
       upkeep.time: 0
