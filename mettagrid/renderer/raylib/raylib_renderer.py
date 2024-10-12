@@ -95,6 +95,7 @@ class MettaGridRaylibRenderer:
                 obj["total_reward"] = total_rewards[agent_id]
         if self.selected_agent_idx is not None and self.mind_control:
             self.actions[self.selected_agent_idx][0] = self.action_ids["noop"]
+            self.actions[self.selected_agent_idx][1] = 0
 
         return self.paused
 
@@ -241,9 +242,11 @@ class MettaGridRaylibRenderer:
 
     def draw_attacks(self):
         for agent_id, action in enumerate(self.actions):
-            if action[0] == self.action_ids["noop"] or action[0] != self.action_ids["attack"]:
+            if action[0] != self.action_ids["attack"]:
                 continue
             agent = self.agents[agent_id]
+            if agent["agent:frozen"]:
+                continue
             if agent["agent:energy"] < self.cfg.actions.attack.cost:
                 continue
 
