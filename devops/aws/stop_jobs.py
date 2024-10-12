@@ -27,9 +27,12 @@ def stop_job(batch, job, job_prefix):
                 return f"Failed to stop job {job['name']} (ID: {job_id}): {str(e)}"
     return None
 
-def stop_batch_jobs(job_prefix):
+def stop_batch_jobs(job_prefix, job_queue=None):
     batch = boto3.client('batch')
-    job_queues = get_batch_job_queues()
+    if job_queue:
+        job_queues = [job_queue]
+    else:
+        job_queues = get_batch_job_queues()
 
     with ThreadPoolExecutor(max_workers=10) as executor:
         futures = []
@@ -46,7 +49,8 @@ def stop_batch_jobs(job_prefix):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Stop running AWS Batch jobs with a specific prefix.')
     parser.add_argument('--job_prefix', type=str, required=True, help='Prefix of job names to stop')
+    parser.add_argument('--job_queue', type=str, default="metta-batch-jq-g6-8xlarge", help='Specific job queue to stop jobs from')
     args = parser.parse_args()
     args.job_prefix = args.job_prefix.replace('.', '_')
 
-    stop_batch_jobs(args.job_prefix)
+    stop_batch_jobs(args.job_prefix, args.job_queue)
