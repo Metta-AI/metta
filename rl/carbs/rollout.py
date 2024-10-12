@@ -38,7 +38,7 @@ class CarbsSweepRollout:
         self.wandb_run = wandb_run
         self.sweep_id = wandb_run.sweep_id
 
-        self.run_id = generate_run_id_for_sweep(self.sweep_id)
+        self.run_id = generate_run_id_for_sweep(self.sweep_id, self.cfg.run_dir)
         self.run_dir = os.path.join(self.cfg.run_dir, "runs", self.run_id)
         os.makedirs(self.run_dir)
         wandb_run.name = self.run_id

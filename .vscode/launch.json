@@ -56,7 +56,7 @@
                 // "env=mettagrid/a20_b4_40x40",
                 // "env=mettagrid/a20_b4_40x40",
                 "wandb.enabled=True",
-                "eval.policy_uri=wandb://metta-research/metta/b.nas.flat.train.0:latest",
+                "eval.policy_uri=wandb://metta-research/metta/p2.nas.flat.train.er.0:latest",
 
                 // "eval.policy_uri=wandb://metta-research/metta/b.nas.flat.4.r.9.model:v0",
                 // "eval.policy_uri=wandb://metta-research/metta/p2.sweep.no_attack.g1.r.5:v19",
