@@ -65,6 +65,9 @@ cdef class Use(MettaActionHandler):
             self.env._stats.agent_incr(actor_id, InventoryItemNames[converter.output_resource] + ".gained")
 
             energy_gain = actor.update_energy(converter.output_energy)
+
             self.env._stats.agent_add(actor_id, "energy.gained", energy_gain)
+
+            self.env._rewards[actor_id] += actor.energy_reward * energy_gain
 
         return True
