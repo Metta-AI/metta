@@ -21,12 +21,12 @@ def main(cfg):
     seed_everything(cfg.seed, cfg.torch_deterministic)
 
     with WandbContext(cfg) as wandb_run:
-        policy = load_policy_from_uri(cfg.eval.policy_uri, cfg, wandb_run)
+        policy = load_policy_from_uri(cfg.evaluator.policy_uri, cfg, wandb_run)
         baselines = []
-        for uri in cfg.eval.baseline_uris:
+        for uri in cfg.evaluator.baseline_uris:
             baselines.append(load_policy_from_uri(uri, cfg, wandb_run))
-        baselines = baselines[0:cfg.eval.max_baselines]
-        evaluator = PufferEvaluator(cfg, policy, baselines)
+        baselines = baselines[0:cfg.evaluator.max_baselines]
+        evaluator = hydra.utils.instantiate(cfg.evaluator, cfg, policy, baselines)
         stats = evaluator.evaluate()
 
         elo_analysis = Analysis(stats, eval_method='elo_1v1', stat_category='altar')

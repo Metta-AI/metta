@@ -10,18 +10,18 @@ from rl.pufferlib.vecenv import make_vecenv
 logger = logging.getLogger("evaluator")
 
 class PufferEvaluator():
-    def __init__(self, cfg: OmegaConf, policy, baselines) -> None:
+    def __init__(self, cfg: OmegaConf, policy, baselines, **kwargs) -> None:
         self._cfg = cfg
         self._device = cfg.device
 
-        self._vecenv = make_vecenv(self._cfg, num_envs=cfg.eval.num_envs)
-        self._num_envs = cfg.eval.num_envs
-        self._min_episodes = cfg.eval.num_episodes
-        self._max_time_s = cfg.eval.max_time_s
+        self._vecenv = make_vecenv(self._cfg, num_envs=cfg.evaluator.num_envs)
+        self._num_envs = cfg.evaluator.num_envs
+        self._min_episodes = cfg.evaluator.num_episodes
+        self._max_time_s = cfg.evaluator.max_time_s
 
         self._policy = policy
         self._baselines = baselines
-        self._policy_agent_pct = cfg.eval.policy_agents_pct
+        self._policy_agent_pct = cfg.evaluator.policy_agents_pct
         if len(self._baselines) == 0:
             self._baselines = [self._policy]
             self._policy_agent_pct = 0.9

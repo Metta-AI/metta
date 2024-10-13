@@ -24,7 +24,7 @@ def main(cfg):
         OmegaConf.save(cfg, f)
 
     with WandbContext(cfg) as wandb_run:
-        policy = load_policy_from_uri(cfg.eval.policy_uri, cfg, wandb_run)
+        policy = load_policy_from_uri(cfg.evaluator.policy_uri, cfg, wandb_run)
         play(cfg, policy)
 
 

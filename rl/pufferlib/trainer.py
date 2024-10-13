@@ -9,6 +9,7 @@ import numpy as np
 import torch
 from fast_gae import fast_gae
 from omegaconf import OmegaConf
+import wandb
 
 import pufferlib
 import pufferlib.utils
@@ -44,8 +45,9 @@ class PolicyCheckpoint:
         self.model_path = model_path
 
 class PufferTrainer:
-    def __init__(self, cfg: OmegaConf, wandb_run):
+    def __init__(self, cfg: OmegaConf, wandb_run, **kwargs):
         self.cfg = cfg
+        self.trainer_cfg = cfg.trainer
         self.device = cfg.device
         self.profile = Profile()
         self.losses = self._make_losses()
@@ -77,23 +79,23 @@ class PufferTrainer:
 
         self.policy = self.uncompiled_policy
         self.policy_checkpoint.num_params = count_params(self.uncompiled_policy)
-        if self.cfg.train.compile:
-            self.policy = torch.compile(self.policy, mode=self.cfg.train.compile_mode)
+        if self.trainer_cfg.compile:
+            self.policy = torch.compile(self.policy, mode=self.trainer_cfg.compile_mode)
 
         lstm = self.policy.lstm if hasattr(self.policy, 'lstm') else None
-        self.experience = Experience(self.cfg.train.batch_size, self.cfg.train.bptt_horizon,
-            self.cfg.train.minibatch_size, obs_shape, obs_dtype, atn_shape, atn_dtype,
-            self.cfg.train.cpu_offload, self.device, lstm, total_agents)
+        self.experience = Experience(self.trainer_cfg.batch_size, self.trainer_cfg.bptt_horizon,
+            self.trainer_cfg.minibatch_size, obs_shape, obs_dtype, atn_shape, atn_dtype,
+            self.trainer_cfg.cpu_offload, self.device, lstm, total_agents)
 
         self.optimizer = torch.optim.Adam(self.policy.parameters(),
-            lr=self.cfg.train.learning_rate, eps=1e-5)
+            lr=self.trainer_cfg.learning_rate, eps=1e-5)
         self.global_step = 0
         self.epoch = 0
         if len(self.stats) > 0:
             self.recent_stats = deepcopy(self.stats)
         self.stats.clear()
 
-        if self.cfg.train.resume:
+        if self.trainer_cfg.resume:
             self._try_load_checkpoint()
 
         if self.uncompiled_policy._action_names != self.vecenv.driver_env.action_names():
@@ -113,13 +115,13 @@ class PufferTrainer:
         self.train_start = time.time()
         logger.info("Starting training")
 
-        while self.global_step < self.cfg.train.total_timesteps:
+        while self.global_step < self.trainer_cfg.total_timesteps:
             self._evaluate()
             self._train()
             self._process_stats()
-            if self.epoch % self.cfg.train.checkpoint_interval == 0:
+            if self.epoch % self.trainer_cfg.checkpoint_interval == 0:
                 self._save_checkpoint()
-            if self.epoch % self.cfg.train.wandb_checkpoint_interval == 0:
+            if self.epoch % self.trainer_cfg.wandb_checkpoint_interval == 0:
                 self._upload_model_to_wandb()
             self._on_train_step()
 
@@ -172,7 +174,7 @@ class PufferTrainer:
                 value = value.flatten()
                 actions = actions.cpu().numpy()
                 mask = torch.as_tensor(mask)# * policy.mask)
-                o = o if self.cfg.train.cpu_offload else o_device
+                o = o if self.trainer_cfg.cpu_offload else o_device
                 self.experience.store(o, value, actions, logprob, r, d, env_id, mask)
 
                 for i in info:
@@ -210,12 +212,12 @@ class PufferTrainer:
             rewards_np = experience.rewards_np[idxs]
             # TODO: bootstrap between segment bounds
             advantages_np = fast_gae.compute_gae(dones_np, values_np,
-                rewards_np, self.cfg.train.gamma, self.cfg.train.gae_lambda)
+                rewards_np, self.trainer_cfg.gamma, self.trainer_cfg.gae_lambda)
             experience.flatten_batch(advantages_np)
 
         # Optimizing the policy and value network
-        total_minibatches = experience.num_minibatches * self.cfg.train.update_epochs
-        for epoch in range(self.cfg.train.update_epochs):
+        total_minibatches = experience.num_minibatches * self.trainer_cfg.update_epochs
+        for epoch in range(self.trainer_cfg.update_epochs):
             lstm_state = None
             for mb in range(experience.num_minibatches):
                 with profile.train_misc:
@@ -249,27 +251,27 @@ class PufferTrainer:
                         # calculate approx_kl http://joschu.net/blog/kl-approx.html
                         old_approx_kl = (-logratio).mean()
                         approx_kl = ((ratio - 1) - logratio).mean()
-                        clipfrac = ((ratio - 1.0).abs() > self.cfg.train.clip_coef).float().mean()
+                        clipfrac = ((ratio - 1.0).abs() > self.trainer_cfg.clip_coef).float().mean()
 
                     adv = adv.reshape(-1)
-                    if self.cfg.train.norm_adv:
+                    if self.trainer_cfg.norm_adv:
                         adv = (adv - adv.mean()) / (adv.std() + 1e-8)
 
                     # Policy loss
                     pg_loss1 = -adv * ratio
                     pg_loss2 = -adv * torch.clamp(
-                        ratio, 1 - self.cfg.train.clip_coef, 1 + self.cfg.train.clip_coef
+                        ratio, 1 - self.trainer_cfg.clip_coef, 1 + self.trainer_cfg.clip_coef
                     )
                     pg_loss = torch.max(pg_loss1, pg_loss2).mean()
 
                     # Value loss
                     newvalue = newvalue.view(-1)
-                    if self.cfg.train.clip_vloss:
+                    if self.trainer_cfg.clip_vloss:
                         v_loss_unclipped = (newvalue - ret) ** 2
                         v_clipped = val + torch.clamp(
                             newvalue - val,
-                            -self.cfg.train.vf_clip_coef,
-                            self.cfg.train.vf_clip_coef,
+                            -self.trainer_cfg.vf_clip_coef,
+                            self.trainer_cfg.vf_clip_coef,
                         )
                         v_loss_clipped = (v_clipped - ret) ** 2
                         v_loss_max = torch.max(v_loss_unclipped, v_loss_clipped)
@@ -278,12 +280,12 @@ class PufferTrainer:
                         v_loss = 0.5 * ((newvalue - ret) ** 2).mean()
 
                     entropy_loss = entropy.mean()
-                    loss = pg_loss - self.cfg.train.ent_coef * entropy_loss + v_loss * self.cfg.train.vf_coef
+                    loss = pg_loss - self.trainer_cfg.ent_coef * entropy_loss + v_loss * self.trainer_cfg.vf_coef
 
                 with profile.learn:
                     self.optimizer.zero_grad()
                     loss.backward()
-                    torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.cfg.train.max_grad_norm)
+                    torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.trainer_cfg.max_grad_norm)
                     self.optimizer.step()
                     if self.device == 'cuda':
                         torch.cuda.synchronize()
@@ -296,14 +298,14 @@ class PufferTrainer:
                     self.losses.approx_kl += approx_kl.item() / total_minibatches
                     self.losses.clipfrac += clipfrac.item() / total_minibatches
 
-            if self.cfg.train.target_kl is not None:
-                if approx_kl > self.cfg.train.target_kl:
+            if self.trainer_cfg.target_kl is not None:
+                if approx_kl > self.trainer_cfg.target_kl:
                     break
 
         with profile.train_misc:
-            if self.cfg.train.anneal_lr:
-                frac = 1.0 - self.global_step / self.cfg.train.total_timesteps
-                lrnow = frac * self.cfg.train.learning_rate
+            if self.trainer_cfg.anneal_lr:
+                frac = 1.0 - self.global_step / self.trainer_cfg.total_timesteps
+                lrnow = frac * self.trainer_cfg.learning_rate
                 self.optimizer.param_groups[0]["lr"] = lrnow
 
             y_pred = experience.values_np
@@ -314,7 +316,7 @@ class PufferTrainer:
             self.epoch += 1
             profile.update(
                 self.global_step,
-                self.cfg.train.total_timesteps,
+                self.trainer_cfg.total_timesteps,
                 self._timers
             )
 
@@ -385,8 +387,8 @@ class PufferTrainer:
             self.uncompiled_policy = load_policy_from_uri(model_path, self.cfg, self.wandb_run)
 
         self.policy = self.uncompiled_policy
-        if self.cfg.train.compile:
-            self.policy = torch.compile(self.policy, mode=self.cfg.train.compile_mode)
+        if self.trainer_cfg.compile:
+            self.policy = torch.compile(self.policy, mode=self.trainer_cfg.compile_mode)
         self.optimizer.load_state_dict(resume_state['optimizer_state_dict'])
         self.policy_checkpoint.update(self.global_step, self.epoch, resume_state['model_name'], model_path)
 
@@ -402,7 +404,7 @@ class PufferTrainer:
             overview = {
                 'SPS': self.profile.SPS,
             }
-            for k, v in self.cfg.train.stats.overview.items():
+            for k, v in self.trainer_cfg.stats.overview.items():
                 if k in self.stats:
                     overview[v] = self.stats[k]
 
@@ -436,14 +438,32 @@ class PufferTrainer:
         )
 
     def _make_vecenv(self):
-        self.target_batch_size = self.cfg.train.forward_pass_minibatch_target_size // self.cfg.env.game.num_agents
+        self.target_batch_size = self.trainer_cfg.forward_pass_minibatch_target_size // self.cfg.env.game.num_agents
         if self.target_batch_size < 2: # pufferlib bug requires batch size >= 2
             self.target_batch_size = 2
-        self.batch_size = (self.target_batch_size // self.cfg.train.num_workers) * self.cfg.train.num_workers
+        self.batch_size = (self.target_batch_size // self.trainer_cfg.num_workers) * self.trainer_cfg.num_workers
 
         self.vecenv = make_vecenv(
             self.cfg,
-            num_envs = self.batch_size * self.cfg.train.async_factor,
+            num_envs = self.batch_size * self.trainer_cfg.async_factor,
             batch_size = self.batch_size,
-            num_workers=self.cfg.train.num_workers,
-            zero_copy=self.cfg.train.zero_copy)
+            num_workers=self.trainer_cfg.num_workers,
+            zero_copy=self.trainer_cfg.zero_copy)
+
+
+class AbortingTrainer(PufferTrainer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def _on_train_step(self):
+        if self.wandb_run is None:
+            return
+
+        if "abort" not in wandb.Api().run(self.wandb_run.path).tags:
+            return
+
+        logger.info("Abort tag detected. Stopping the run.")
+        self.cfg.trainer.total_timesteps = int(self.global_step)
+        self.wandb_run.config.update({
+            "trainer.total_timesteps": self.cfg.trainer.total_timesteps
+        }, allow_val_change=True)

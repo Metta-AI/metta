@@ -4,5 +4,5 @@ defaults:
   - aws
 
 
-train:
+trainer:
   num_workers: 32 # num cores

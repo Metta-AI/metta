@@ -12,8 +12,8 @@ torch_deterministic: true
 defaults:
   - agent: simple
   - env: mettagrid/a20_train
-  - train: train
-  - eval: eval
+  - trainer: puffer
+  - evaluator: puffer
   - sweep: sweep
   - hardware: macbook
 
