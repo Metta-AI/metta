@@ -5,18 +5,17 @@ resume: true
 
 total_timesteps: 50_000_000_000
 
-learning_rate: 0.0017192769489563081
-gamma: 0.9572813674006454
-gae_lambda: 0.8476682827579273
-clip_coef: 0.013625670729361545
-vf_coef: 0.8085671540195685
-vf_clip_coef: 0.07744138835309457
-max_grad_norm: 1.1407346725463867
-ent_coef: 0.0038399624938849557
+learning_rate: 0.00020835356040689622
+gamma: 0.9760678445162678
+gae_lambda: 0.8541772527725204
+clip_coef: 0.00543719755631712
+vf_coef: 0.9561293928388225
+vf_clip_coef: 0.10753550455714021
+max_grad_norm: 0.7503865957260132
+ent_coef: 0.0013623443046486452
 
-
-norm_adv: True
-clip_vloss: True
+norm_adv: true
+clip_vloss: true
 target_kl: null
 anneal_lr: false
 
@@ -28,20 +27,18 @@ checkpoint_interval: 60
 wandb_checkpoint_interval: 300
 
 batch_size: 262144
-minibatch_size: 16384
+minibatch_size: 2048
 bptt_horizon: 32
-update_epochs: 3
+update_epochs: 4
 
 cpu_offload: false
 compile: false
 compile_mode: reduce-overhead
 
-forward_pass_minibatch_target_size: 4096
+forward_pass_minibatch_target_size: 2048
 async_factor: 2
 
 stats:
   overview:
     episode/reward.mean: episode_reward
   step: train/agent_steps
-
-
