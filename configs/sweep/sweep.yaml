@@ -1,9 +1,11 @@
+
+
 metric: action.use.altar
 rollout_count: 100000
 num_random_samples: 10
 resume: true
 
-eval:
+evaluator:
   num_envs: 100
   num_episodes: 100
   max_time_s: 600
@@ -30,7 +32,7 @@ parameters:
   #     min: 0
   #     max: 1
 
-  train:
+  trainer:
     learning_rate:
       space: log
       min: 1e-5

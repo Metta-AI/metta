@@ -38,7 +38,8 @@ def main(cfg):
         OmegaConf.save(cfg, f)
 
     with WandbContext(cfg) as wandb_run:
-        trainer = PufferTrainer(cfg, wandb_run)
+        # trainer = PufferTrainer(cfg, wandb_run)
+        trainer = hydra.utils.instantiate(cfg.trainer, cfg, wandb_run)
         trainer.train()
         trainer.close()
 

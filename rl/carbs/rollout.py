@@ -4,33 +4,17 @@ import logging
 
 import wandb
 import yaml
+import hydra
 from omegaconf import OmegaConf, DictConfig
 from rich.console import Console
 from rl.carbs.metta_carbs import MettaCarbs
 from rl.pufferlib.evaluator import PufferEvaluator
 from rl.pufferlib.policy import load_policy_from_uri, upload_policy_to_wandb
-from rl.pufferlib.trainer import PufferTrainer
 from rl.wandb.sweep import generate_run_id_for_sweep
 from util.eval_analyzer import Analysis
 import json
 logger = logging.getLogger("sweep_rollout")
 
-class AbortingTrainer(PufferTrainer):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-    def _on_train_step(self):
-        if "abort" not in wandb.Api().run(self.wandb_run.id).tags:
-            return
-
-        logger.info("Abort tag detected. Stopping the run.")
-        self.cfg.train.total_timesteps = int(self.global_step)
-        self.wandb_run.config.update({
-            "train.total_timesteps": self.cfg.train.total_timesteps
-        }, allow_val_change=True)
-        self.wandb_run.summary.update({
-            "carbs.abort": 1
-        })
 
 class CarbsSweepRollout:
     def __init__(self, cfg: OmegaConf, wandb_run):
@@ -81,7 +65,7 @@ class CarbsSweepRollout:
         train_cfg.wandb.group = self.cfg.run
 
         eval_cfg = OmegaConf.create(OmegaConf.to_container(self.cfg))
-        eval_cfg.eval = OmegaConf.create(OmegaConf.to_container(self.cfg.sweep.eval))
+        eval_cfg.evaluator = OmegaConf.create(OmegaConf.to_container(self.cfg.sweep.evaluator))
 
         self._apply_carbs_suggestion(train_cfg, self.suggestion)
         if self.cfg.sweep.generation.enabled:
@@ -94,7 +78,7 @@ class CarbsSweepRollout:
 
 
         train_start_time = time.time()
-        trainer = AbortingTrainer(train_cfg, wandb_run)
+        trainer = hydra.utils.instantiate(train_cfg.trainer, train_cfg, wandb_run)
 
         initial_policy_uri = trainer.uncompiled_policy.uri
         logger.info(f"Loading initial policy from {initial_policy_uri}")
@@ -127,7 +111,8 @@ class CarbsSweepRollout:
         trained_policy = load_policy_from_uri(policy_uri, eval_cfg, wandb_run)
 
         logger.info(f"Evaluating policy {trained_policy.name} against {initial_policy.name}")
-        evaluator = PufferEvaluator(eval_cfg, trained_policy, [initial_policy])
+        evaluator = hydra.utils.instantiate(eval_cfg.evaluator, eval_cfg, trained_policy, [initial_policy])
+
         stats = evaluator.evaluate()
         evaluator.close()
         eval_time = time.time() - eval_start_time
