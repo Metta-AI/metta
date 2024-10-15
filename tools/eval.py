@@ -22,6 +22,7 @@ def main(cfg):
 
         evaluator = hydra.utils.instantiate(cfg.evaluator, cfg, policy_store)
         stats = evaluator.evaluate()
+        evaluator.close()
 
         p_analysis = Analysis(stats, eval_method='1v1', stat_category='all')
 
