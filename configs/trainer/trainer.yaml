@@ -1,0 +1,8 @@
+initial_policy:
+  uri: null
+  type: top
+  range: 1
+  metric: epoch
+  filters: {}
+
+checkpoint_dir: ${run_dir}/checkpoints
