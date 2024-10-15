@@ -4,16 +4,18 @@ import numpy as np
 from mettagrid.renderer.raylib.raylib_renderer import MettaGridRaylibRenderer
 from rl.pufferlib.vecenv import make_vecenv
 from mettagrid.config.sample_config import sample_config
+from agent.policy_store import PolicyRecord
 
-def play(cfg: OmegaConf, policy):
+def play(cfg: OmegaConf, policy_record: PolicyRecord):
     device = cfg.device
     vecenv = make_vecenv(cfg, num_envs=1, render_mode="human")
 
     obs, _ = vecenv.reset()
     env = vecenv.envs[0]
+    policy = policy_record.policy()
 
-    assert policy._action_names == env._c_env.action_names(), \
-        f"Action names do not match: {policy._action_names} != {env._c_env.action_names()}"
+    assert policy_record.metadata["action_names"] == env._c_env.action_names(), \
+        f"Action names do not match: {policy_record._action_names} != {env._c_env.action_names()}"
 
     game_cfg = OmegaConf.create(sample_config(cfg.env.game, cfg.env.sampling))
     renderer = MettaGridRaylibRenderer(env._c_env, game_cfg)

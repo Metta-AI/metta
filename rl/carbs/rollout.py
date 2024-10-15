@@ -8,10 +8,10 @@ import hydra
 from omegaconf import OmegaConf, DictConfig
 from rich.console import Console
 from rl.carbs.metta_carbs import MettaCarbs
-from rl.pufferlib.evaluator import PufferEvaluator
-from rl.pufferlib.policy import load_policy_from_uri, upload_policy_to_wandb
 from rl.wandb.sweep import generate_run_id_for_sweep
 from util.eval_analyzer import Analysis
+from agent.policy_store import PolicyStore
+
 import json
 logger = logging.getLogger("sweep_rollout")
 
@@ -60,37 +60,33 @@ class CarbsSweepRollout:
         train_cfg = OmegaConf.create(OmegaConf.to_container(self.cfg))
         train_cfg.sweep = {}
 
+        policy_store = PolicyStore(train_cfg, wandb_run)
+
         train_cfg.run = self.run_id
-        train_cfg.data_dir = os.path.join(self.cfg.run_dir, "runs")
+        train_cfg.run_dir = os.path.join(self.cfg.run_dir, "runs", self.run_id)
         train_cfg.wandb.group = self.cfg.run
 
         eval_cfg = OmegaConf.create(OmegaConf.to_container(self.cfg))
-        eval_cfg.evaluator = OmegaConf.create(OmegaConf.to_container(self.cfg.sweep.evaluator))
+        eval_cfg.evaluator.update(self.cfg.sweep.evaluator)
 
         self._apply_carbs_suggestion(train_cfg, self.suggestion)
-        if self.cfg.sweep.generation.enabled:
-            train_cfg.agent.policy_selector.generation = self.carbs.generation - 1
+
+        # if self.cfg.sweep.generation.enabled:
+        #     train_cfg.agent.policy_selector.generation = self.carbs.generation - 1
 
         self._log_file("config.yaml", self.cfg)
         self._log_file("train_config.yaml", train_cfg)
         self._log_file("eval_config.yaml", eval_cfg)
         self._log_file("carbs_suggestion.yaml", self.suggestion)
 
-
         train_start_time = time.time()
-        trainer = hydra.utils.instantiate(train_cfg.trainer, train_cfg, wandb_run)
-
-        initial_policy_uri = trainer.uncompiled_policy.uri
-        logger.info(f"Loading initial policy from {initial_policy_uri}")
-        initial_policy = load_policy_from_uri(initial_policy_uri, eval_cfg, wandb_run)
-        initial_metadata = {}
-        if hasattr(initial_policy, "metadata"):
-            initial_metadata = initial_policy.metadata
+        trainer = hydra.utils.instantiate(train_cfg.trainer, train_cfg, wandb_run, policy_store)
+        initial_pr = trainer.initial_pr
 
         sweep_stats.update({
-            "score.metric": eval_cfg.sweep.metric,
-            "initial.uri": initial_policy_uri,
-            "generation": initial_metadata.get("generation", 0) + 1
+            "score.metric": self.cfg.sweep.metric,
+            "initial.uri": initial_pr.uri,
+            "generation": initial_pr.metadata["generation"]
         })
         wandb_run.summary.update(sweep_stats)
 
@@ -99,20 +95,23 @@ class CarbsSweepRollout:
         train_time = time.time() - train_start_time
 
         sweep_stats.update({
-            "train.agent_steps": trainer.policy_checkpoint.agent_steps,
-            "train.epoch": trainer.policy_checkpoint.epoch,
+            "train.agent_steps": trainer.agent_steps,
+            "train.epoch": trainer.epoch,
             "time.train": train_time,
         })
         wandb_run.summary.update(sweep_stats)
 
         eval_start_time = time.time()
-        policy_uri = trainer.policy_checkpoint.model_path
-        logger.info(f"Loading final policy from {trainer.policy_checkpoint.model_path}")
-        trained_policy = load_policy_from_uri(policy_uri, eval_cfg, wandb_run)
 
-        logger.info(f"Evaluating policy {trained_policy.name} against {initial_policy.name}")
-        evaluator = hydra.utils.instantiate(eval_cfg.evaluator, eval_cfg, trained_policy, [initial_policy])
+        final_pr = trainer.last_pr
 
+        policy_store.add_to_wandb_run(wandb_run.id, final_pr)
+        logger.info(f"Final policy saved to {final_pr.uri}")
+
+        logger.info(f"Evaluating policy {final_pr.name} against {initial_pr.name}")
+        eval_cfg.evaluator.policy.uri = final_pr.uri
+        eval_cfg.evaluator.baselines.uri = initial_pr.uri
+        evaluator = hydra.utils.instantiate(eval_cfg.evaluator, eval_cfg, policy_store)
         stats = evaluator.evaluate()
         evaluator.close()
         eval_time = time.time() - eval_start_time
@@ -132,48 +131,44 @@ class CarbsSweepRollout:
         altar_results = altar_analysis.get_results()
         self._log_file("altar_results.yaml", altar_results)
 
-        final_score = altar_results[eval_cfg.sweep.metric]['policy_stats'][trained_policy.name]['mean']
-        initial_score = altar_results[eval_cfg.sweep.metric]['policy_stats'][initial_policy.name]['mean']
+        final_score = altar_results[eval_cfg.sweep.metric]['policy_stats'][final_pr.name]['mean']
+        initial_score = altar_results[eval_cfg.sweep.metric]['policy_stats'][initial_pr.name]['mean']
         eval_metric = final_score
 
         sweep_stats.update({
-            "initial.uri": initial_policy_uri,
+            "initial.uri": initial_pr.uri,
             "initial.score": initial_score,
-            "initial.elo": elo_results[initial_policy.name],
+            "initial.elo": elo_results[initial_pr.name],
 
-            "final.uri": trained_policy.uri,
+            "final.uri": final_pr.uri,
             "final.score": final_score,
-            "final.elo": elo_results[trained_policy.name],
+            "final.elo": elo_results[final_pr.name],
 
             "time.eval": eval_time,
             "time.total": train_time + eval_time,
 
-            "delta.elo": elo_results[trained_policy.name] - elo_results[initial_policy.name],
+            "delta.elo": elo_results[final_pr.name] - elo_results[initial_pr.name],
             "delta.score": final_score - initial_score,
         })
 
         for stat in ["train.agent_steps", "train.epoch", "time.train", "time.eval", "time.total"]:
-            sweep_stats["lineage." + stat] = sweep_stats[stat] + initial_metadata.get("lineage." + stat, 0)
+            sweep_stats["lineage." + stat] = sweep_stats[stat] + initial_pr.metadata.get("lineage." + stat, 0)
 
         wandb_run.summary.update(sweep_stats)
         logger.info(
             "Sweep Stats: \n" +
             json.dumps({ k: str(v) for k, v in sweep_stats.items() }, indent=4))
 
-        final_model_artifact = upload_policy_to_wandb(
-            wandb_run,
-            trainer.policy_checkpoint.model_path,
-            f"{self.run_id}.model",
-            metadata={
-                **sweep_stats,
-                "training_run": train_cfg.run,
-            },
-            artifact_type="sweep_model",
-        )
+        final_pr.metadata.update({
+            **sweep_stats,
+            "training_run": train_cfg.run,
+        })
 
-        final_model_artifact.link(
-            self.cfg.run, [self.run_id]
-        )
+        policy_store.add_to_wandb_sweep(self.sweep_id, final_pr)
+
+        # final_model_artifact.link(
+        #     self.sweep_id, [self.run_id]
+        # )
 
         total_time = time.time() - start_time
         logger.info(f"Carbs Observation: {eval_metric}, {total_time}")

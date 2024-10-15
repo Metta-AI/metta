@@ -1,16 +1,24 @@
 import time
 import logging
-
+from typing import List
 import numpy as np
 import torch
 from omegaconf import OmegaConf
-
+from agent.policy_store import PolicyStore
 from rl.pufferlib.vecenv import make_vecenv
 
 logger = logging.getLogger("evaluator")
 
 class PufferEvaluator():
-    def __init__(self, cfg: OmegaConf, policy, baselines, **kwargs) -> None:
+    def __init__(
+        self,
+        cfg: OmegaConf,
+        policy_store: PolicyStore,
+        policy: OmegaConf,
+        baselines: List[OmegaConf],
+        **kwargs
+    ) -> None:
+
         self._cfg = cfg
         self._device = cfg.device
 
@@ -19,11 +27,12 @@ class PufferEvaluator():
         self._min_episodes = cfg.evaluator.num_episodes
         self._max_time_s = cfg.evaluator.max_time_s
 
-        self._policy = policy
-        self._baselines = baselines
+        self._policy_pr = policy_store.policy(policy)
+        self._baseline_prs = policy_store.policies(baselines)
+
         self._policy_agent_pct = cfg.evaluator.policy_agents_pct
-        if len(self._baselines) == 0:
-            self._baselines = [self._policy]
+        if len(self._baseline_prs) == 0:
+            self._baseline_prs = [self._policy_pr]
             self._policy_agent_pct = 0.9
 
         self._agents_per_env = cfg.env.game.num_agents
@@ -41,8 +50,8 @@ class PufferEvaluator():
             .reshape(self._policy_agents_per_env * self._num_envs)
 
         self._baseline_idxs = []
-        if len(self._baselines) > 0:
-            envs_per_opponent = self._num_envs // len(self._baselines)
+        if len(self._baseline_prs) > 0:
+            envs_per_opponent = self._num_envs // len(self._baseline_prs)
             self._baseline_idxs = slice_idxs[:, self._policy_agents_per_env:]\
                 .reshape(self._num_envs*self._baseline_agents_per_env)\
                 .split(self._baseline_agents_per_env*envs_per_opponent)
@@ -52,8 +61,8 @@ class PufferEvaluator():
         self._agent_stats = [{} for a in range(self._total_agents)]
 
         # Extract policy names
-        self._policy_name = policy.name
-        self._baseline_names = [b.name for b in self._baselines]
+        self._policy_name = self._policy_pr.name
+        self._baseline_names = [b.name for b in self._baseline_prs]
 
         # Create mapping from agent index to policy name
         self._agent_idx_to_policy_name = {}
@@ -66,9 +75,9 @@ class PufferEvaluator():
 
     def evaluate(self):
         logger.info("Evaluating policy:")
-        logger.info(self._policy) #should this be self._policy_name?
+        logger.info(self._policy_pr.name)
         logger.info("Against baselines:")
-        for baseline in self._baselines: #likewise, self._baseline_names[]?
+        for baseline in self._baseline_prs:
             logger.info(baseline.name)
         logger.info(f"Total agents: {self._total_agents}")
         logger.info(f"Policy agents per env: {self._policy_agents_per_env}")
@@ -79,7 +88,7 @@ class PufferEvaluator():
 
         obs, _ = self._vecenv.reset()
         policy_rnn_state = None
-        baselines_rnn_state = [None for _ in range(len(self._baselines))]
+        baselines_rnn_state = [None for _ in range(len(self._baseline_prs))]
 
         game_stats = []
 
@@ -92,17 +101,18 @@ class PufferEvaluator():
                 my_obs = obs[self._policy_idxs]
 
                 # Parallelize across opponents
-                if hasattr(self._policy, 'lstm'):
-                    policy_actions, _, _, _, policy_rnn_state = self._policy(my_obs, policy_rnn_state)
+                policy = self._policy_pr.policy()
+                if hasattr(policy, 'lstm'):
+                    policy_actions, _, _, _, policy_rnn_state = policy(my_obs, policy_rnn_state)
                 else:
-                    policy_actions, _, _, _ = self._policy(my_obs)
+                    policy_actions, _, _, _ = policy(my_obs)
 
                 # Iterate opponent policies
-                for i in range(len(self._baselines)):
+                for i in range(len(self._baseline_prs)):
                     baseline_obs = obs[self._baseline_idxs[i]]
                     baseline_rnn_state = baselines_rnn_state[i]
 
-                    baseline = self._baselines[i]
+                    baseline = self._baseline_prs[i].policy()
                     if hasattr(baseline, 'lstm'):
                         baseline_action, _, _, _, baselines_rnn_state[i] = baseline(baseline_obs, baseline_rnn_state)
                     else:
@@ -111,7 +121,7 @@ class PufferEvaluator():
                     baseline_actions.append(baseline_action)
 
 
-            if len(self._baselines) > 0:
+            if len(self._baseline_prs) > 0:
                 dim = 0 if self._cfg.env.flatten_actions else 1
                 actions = torch.cat([
                     policy_actions.view(self._num_envs, self._policy_agents_per_env, -1),

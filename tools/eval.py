@@ -4,13 +4,10 @@ import signal  # Aggressively exit on ctrl+c
 import hydra
 from omegaconf import OmegaConf
 from rich import traceback
-from rl.pufferlib.evaluator import PufferEvaluator
-from rl.pufferlib.policy import load_policy_from_uri
-# from util.stats import print_policy_stats
 from util.eval_analyzer import Analysis
 from rl.wandb.wandb_context import WandbContext
 from util.seeding import seed_everything
-
+from agent.policy_store import PolicyStore
 signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
 
 @hydra.main(version_base=None, config_path="../configs", config_name="config")
@@ -21,15 +18,13 @@ def main(cfg):
     seed_everything(cfg.seed, cfg.torch_deterministic)
 
     with WandbContext(cfg) as wandb_run:
-        policy = load_policy_from_uri(cfg.evaluator.policy_uri, cfg, wandb_run)
-        baselines = []
-        for uri in cfg.evaluator.baseline_uris:
-            baselines.append(load_policy_from_uri(uri, cfg, wandb_run))
-        baselines = baselines[0:cfg.evaluator.max_baselines]
-        evaluator = hydra.utils.instantiate(cfg.evaluator, cfg, policy, baselines)
-        stats = evaluator.evaluate()
+        policy_store = PolicyStore(cfg, wandb_run)
 
-        elo_analysis = Analysis(stats, eval_method='elo_1v1', stat_category='altar')
+        evaluator = hydra.utils.instantiate(cfg.evaluator, cfg, policy_store)
+        stats = evaluator.evaluate()
+        evaluator.close()
+
+        elo_analysis = Analysis(stats, eval_method='elo_1v1', stat_category=cfg.sweep.metric)
 
         # Get raw results
         elo_results = elo_analysis.get_results()

@@ -61,9 +61,3 @@ core:
   rnn_num_layers: 1
   rnn_size: 128
 
-policy_selector:
-  uri: null
-  type: top
-  range: 1
-  metric: final.score
-  generation: null

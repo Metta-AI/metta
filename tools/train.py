@@ -5,13 +5,11 @@ import logging
 import hydra
 from omegaconf import OmegaConf
 from rich import traceback
-from rich.console import Console
 from rich.logging import RichHandler
 
-from rl.pufferlib.trainer import PufferTrainer
 from rl.wandb.wandb_context import WandbContext
 from util.seeding import seed_everything
-
+from agent.policy_store import PolicyStore
 
 signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
 
@@ -38,8 +36,8 @@ def main(cfg):
         OmegaConf.save(cfg, f)
 
     with WandbContext(cfg) as wandb_run:
-        # trainer = PufferTrainer(cfg, wandb_run)
-        trainer = hydra.utils.instantiate(cfg.trainer, cfg, wandb_run)
+        policy_store = PolicyStore(cfg, wandb_run)
+        trainer = hydra.utils.instantiate(cfg.trainer, cfg, wandb_run, policy_store)
         trainer.train()
         trainer.close()
 

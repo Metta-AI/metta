@@ -10,8 +10,6 @@ evaluator:
   num_episodes: 100
   max_time_s: 600
   policy_agents_pct: 0.5
-  policy_uri: null
-  baseline_uris: []
 
 generation:
   enabled: false
