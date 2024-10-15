@@ -147,7 +147,7 @@ class CarbsSweepRollout:
             "time.eval": eval_time,
             "time.total": train_time + eval_time,
 
-            "delta.elo": elo_results[final_pr.name] - elo_results[initial_pr.name],
+            "delta.elo": elo_results[final_pr.name]['score'] - elo_results[initial_pr.name]['score'],
             "delta.score": final_score - initial_score,
         })
 
