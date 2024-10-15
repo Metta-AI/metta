@@ -9,6 +9,7 @@ eval_methods = {
 }
 
 stat_category_lookup = {
+    # Existing category definitions remain unchanged
     'action.use.altar': ['action.use.altar'],
     'action.use': ['action.use'],
     'altar': ['action.use.altar'],
@@ -67,7 +68,7 @@ stat_category_lookup = {
 }
 
 class Analysis:
-    def __init__(self, data: list, eval_method: str, stat_category: str):
+    def __init__(self, data: list, eval_method: str, stat_category: str, **kwargs):
         self.data = data
         self.eval_method = eval_method
         self.stat_category = stat_category
@@ -76,7 +77,7 @@ class Analysis:
         self.stats = {}
         self._prepare_data()
         test_class = eval_methods[self.eval_method]
-        self.test_instance = test_class(self.stats, self.policy_names, self.categories_list)
+        self.test_instance = test_class(self.stats, self.policy_names, self.categories_list, **kwargs)
         self.test_instance.run_test()
 
     def _prepare_data(self):
@@ -114,4 +115,3 @@ class Analysis:
 
     def get_display_results(self):
         return self.test_instance.get_formatted_results()
-
