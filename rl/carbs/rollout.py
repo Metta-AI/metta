@@ -105,7 +105,7 @@ class CarbsSweepRollout:
 
         final_pr = trainer.last_pr
 
-        policy_store.add_to_wandb_run(wandb_run.id, final_pr)
+        policy_store.add_to_wandb_run(wandb_run.name, final_pr)
         logger.info(f"Final policy saved to {final_pr.uri}")
 
         logger.info(f"Evaluating policy {final_pr.name} against {initial_pr.name}")
