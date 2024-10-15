@@ -1,6 +1,9 @@
 
 _target_: rl.pufferlib.trainer.AbortingTrainer
 
+defaults:
+  - trainer
+
 num_workers: ???
 resume: true
 

@@ -7,8 +7,7 @@ from rich import traceback
 from rl.pufferlib.play import play
 from rl.wandb.wandb_context import WandbContext
 from util.seeding import seed_everything
-from rl.pufferlib.policy import load_policy_from_uri
-
+from agent.policy_store import PolicyStore
 signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
 
 @hydra.main(version_base=None, config_path="../configs", config_name="config")
@@ -24,7 +23,8 @@ def main(cfg):
         OmegaConf.save(cfg, f)
 
     with WandbContext(cfg) as wandb_run:
-        policy = load_policy_from_uri(cfg.evaluator.policy_uri, cfg, wandb_run)
+        policy_store = PolicyStore(cfg, wandb_run)
+        policy = policy_store.policy(cfg.evaluator.policy)
         play(cfg, policy)
 
 

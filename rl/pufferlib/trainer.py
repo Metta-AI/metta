@@ -1,51 +1,33 @@
-import os
-import time
-import warnings
 import logging
+import time
 from collections import defaultdict
 from copy import deepcopy
 
 import numpy as np
-import torch
-from fast_gae import fast_gae
-from omegaconf import OmegaConf
-import wandb
-
 import pufferlib
 import pufferlib.utils
+import torch
+import wandb
+from fast_gae import fast_gae
+from agent.policy_store import PolicyStore
+from omegaconf import OmegaConf
 
 from rl.pufferlib.experience import Experience
-from rl.pufferlib.policy import (
-    count_params,
-    load_policy_from_uri,
-    upload_policy_to_wandb,
-)
 from rl.pufferlib.profile import Profile
+from rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
 from rl.pufferlib.vecenv import make_vecenv
-
-from . import puffer_agent_wrapper
-
+import os
 torch.set_float32_matmul_precision('high')
 
-logger = logging.getLogger(__name__)
-
-class PolicyCheckpoint:
-    def __init__(self):
-        self.agent_steps = 0
-        self.epoch = 0
-        self.model_name = None
-        self.model_path = None
-        self.wandb_model_artifact = None
-        self.num_params = 0
-
-    def update(self, agent_steps: int, epoch: int, model_name: str, model_path: str):
-        self.agent_steps = agent_steps
-        self.epoch = epoch
-        self.model_name = model_name
-        self.model_path = model_path
+logger = logging.getLogger("trainer")
 
 class PufferTrainer:
-    def __init__(self, cfg: OmegaConf, wandb_run, **kwargs):
+    def __init__(self,
+                 cfg: OmegaConf,
+                 wandb_run,
+                 policy_store: PolicyStore,
+                 **kwargs):
+
         self.cfg = cfg
         self.trainer_cfg = cfg.trainer
         self.device = cfg.device
@@ -53,81 +35,70 @@ class PufferTrainer:
         self.losses = self._make_losses()
         self.stats = defaultdict(list)
         self.recent_stats = defaultdict(list)
-        self.policy_checkpoint = PolicyCheckpoint()
         self.wandb_run = wandb_run
-        self.checkpoints = []
+        self.policy_store = policy_store
 
         self._make_vecenv()
 
-        self.vecenv.async_reset(self.cfg.seed)
-        obs_shape = self.vecenv.single_observation_space.shape
-        obs_dtype = self.vecenv.single_observation_space.dtype
-        atn_shape = self.vecenv.single_action_space.shape
-        atn_dtype = self.vecenv.single_action_space.dtype
-        total_agents = self.vecenv.num_agents
+        os.makedirs(cfg.trainer.checkpoint_dir, exist_ok=True)
+        checkpoint = TrainerCheckpoint.load(cfg.run_dir)
 
-        self.uncompiled_policy = None
-        if self.cfg.agent.policy_selector.uri is not None:
-            logger.info(f"Loading policy from {self.cfg.agent.policy_selector.uri}")
-            self.uncompiled_policy = load_policy_from_uri(self.cfg.agent.policy_selector.uri, self.cfg, self.wandb_run)
-        if self.uncompiled_policy is None:
-            self.uncompiled_policy = puffer_agent_wrapper.make_policy(self.vecenv.driver_env, self.cfg)
-            torch.save(self.uncompiled_policy, os.path.join(self.cfg.run_dir, "initial_policy.pt"))
-            self.uncompiled_policy.uri = os.path.join(self.cfg.run_dir, "initial_policy.pt")
-            self.uncompiled_policy.name = "initial_policy.pt"
+        if checkpoint.policy_path:
+            policy_record = policy_store.policy(checkpoint.policy_path)
+        elif cfg.trainer.initial_policy.uri is not None:
+            policy_record = policy_store.policy(cfg.trainer.initial_policy)
+        else:
             logger.info("No initial policy found, creating new")
+            policy_record = policy_store.create(self.vecenv.driver_env)
 
-        self.policy = self.uncompiled_policy
-        self.policy_checkpoint.num_params = count_params(self.uncompiled_policy)
+        if policy_record.metadata["action_names"] != self.vecenv.driver_env.action_names():
+            raise ValueError(
+                "Action names do not match between policy and environment: "
+                f"{self.policy_record.action_names()} != {self.vecenv.driver_env.action_names()}")
+
+        self.initial_pr = policy_record
+        self.last_pr = policy_record
+        self.policy = policy_record.policy()
+        self.uncompiled_policy = self.policy
+
         if self.trainer_cfg.compile:
             self.policy = torch.compile(self.policy, mode=self.trainer_cfg.compile_mode)
 
-        lstm = self.policy.lstm if hasattr(self.policy, 'lstm') else None
-        self.experience = Experience(self.trainer_cfg.batch_size, self.trainer_cfg.bptt_horizon,
-            self.trainer_cfg.minibatch_size, obs_shape, obs_dtype, atn_shape, atn_dtype,
-            self.trainer_cfg.cpu_offload, self.device, lstm, total_agents)
+        self._make_experience_buffer()
 
+        self.agent_steps = checkpoint.agent_steps
+        self.epoch = checkpoint.epoch
         self.optimizer = torch.optim.Adam(self.policy.parameters(),
             lr=self.trainer_cfg.learning_rate, eps=1e-5)
-        self.global_step = 0
-        self.epoch = 0
-        if len(self.stats) > 0:
-            self.recent_stats = deepcopy(self.stats)
-        self.stats.clear()
 
-        if self.trainer_cfg.resume:
-            self._try_load_checkpoint()
+        if checkpoint.agent_steps > 0:
+            self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
+            self.agent_steps = checkpoint.agent_steps
+            self.epoch = checkpoint.epoch
 
-        if self.uncompiled_policy._action_names != self.vecenv.driver_env.action_names():
-            raise ValueError(
-                "Action names do not match between policy and environment: "
-                f"{self.uncompiled_policy._action_names} != {self.vecenv.driver_env.action_names()}")
 
         if self.cfg.wandb.track and wandb_run:
             wandb_run.define_metric("train/agent_steps")
             for k in ["0verview", "env", "losses", "performance", "train"]:
                 wandb_run.define_metric(f"{k}/*", step_metric="train/agent_steps")
 
-        assert hasattr(self.uncompiled_policy, "uri")
-        assert hasattr(self.uncompiled_policy, "name")
-
     def train(self):
         self.train_start = time.time()
         logger.info("Starting training")
 
-        while self.global_step < self.trainer_cfg.total_timesteps:
+        while self.agent_steps < self.trainer_cfg.total_timesteps:
             self._evaluate()
             self._train()
             self._process_stats()
             if self.epoch % self.trainer_cfg.checkpoint_interval == 0:
-                self._save_checkpoint()
+                self._checkpoint_trainer()
             if self.epoch % self.trainer_cfg.wandb_checkpoint_interval == 0:
-                self._upload_model_to_wandb()
+                self._save_policy_to_wandb()
             self._on_train_step()
 
         self.train_time = time.time() - self.train_start
-        self._save_checkpoint()
-        self._upload_model_to_wandb()
+        self._checkpoint_trainer()
+        self._save_policy_to_wandb()
         logger.info(f"Training complete. Total time: {self.train_time:.2f} seconds")
 
     def _on_train_step(self):
@@ -148,7 +119,7 @@ class PufferTrainer:
                 env_id = env_id.tolist()
 
             with profile.eval_misc:
-                self.global_step += sum(mask)
+                self.agent_steps += sum(mask)
 
                 o = torch.as_tensor(o)
                 o_device = o.to(self.device)
@@ -304,7 +275,7 @@ class PufferTrainer:
 
         with profile.train_misc:
             if self.trainer_cfg.anneal_lr:
-                frac = 1.0 - self.global_step / self.trainer_cfg.total_timesteps
+                frac = 1.0 - self.agent_steps / self.trainer_cfg.total_timesteps
                 lrnow = frac * self.trainer_cfg.learning_rate
                 self.optimizer.param_groups[0]["lr"] = lrnow
 
@@ -315,82 +286,46 @@ class PufferTrainer:
             self.losses.explained_variance = explained_var
             self.epoch += 1
             profile.update(
-                self.global_step,
+                self.agent_steps,
                 self.trainer_cfg.total_timesteps,
                 self._timers
             )
 
-    def _save_checkpoint(self):
-        model_name = f'model_{self.epoch:06d}.pt'
-        model_path = os.path.join(self.cfg.run_dir, model_name)
-        self.checkpoints.append(model_path)
-        self.uncompiled_policy.uri = model_path
-        self.uncompiled_policy.name = model_name
-        torch.save(self.uncompiled_policy, model_path)
+    def _checkpoint_trainer(self):
+        pr = self._checkpoint_policy()
+        self.checkpoint = TrainerCheckpoint(
+            self.agent_steps,
+            self.epoch,
+            self.optimizer.state_dict(),
+            pr.local_path()
+        ).save(self.cfg.run_dir)
 
-        state = {
-            'optimizer_state_dict': self.optimizer.state_dict(),
-            'global_step': self.global_step,
-            'agent_step': self.global_step,
-            'epoch': self.epoch,
-            'model_name': model_name,
-            'run': self.cfg.run,
-        }
-        state_path = os.path.join(self.cfg.run_dir, 'trainer_state.pt')
-        torch.save(state, state_path + '.tmp')
-        os.rename(state_path + '.tmp', state_path)
-        self.policy_checkpoint.update(self.global_step, self.epoch, model_name, model_path)
-        logger.info(f"Saved model to {model_path}")
+    def _checkpoint_policy(self):
+        name = self.policy_store.make_model_name(self.epoch)
 
-    def _upload_model_to_wandb(self):
-        if self.policy_checkpoint is None:
-            return
-        if not self.wandb_run:
-            return
+        generation = 0
+        if self.initial_pr:
+            generation = self.initial_pr.metadata.get("generation", 0) + 1
 
-        artifact_name = upload_policy_to_wandb(
-            self.wandb_run,
-            self.policy_checkpoint.model_path,
-            f"{self.cfg.run}",
+        self.last_pr = self.policy_store.save(
+            name,
+            os.path.join(self.cfg.trainer.checkpoint_dir, name),
+            self.uncompiled_policy,
             metadata={
-                "model_name": self.policy_checkpoint.model_name,
-                "agent_step": self.policy_checkpoint.agent_steps,
-                "epoch": self.policy_checkpoint.epoch,
+                "agent_step": self.agent_steps,
+                "epoch": self.epoch,
                 "run": self.cfg.run,
+                "action_names": self.vecenv.driver_env.action_names(),
+                "generation": generation,
+                "initial_uri": self.initial_pr.uri
             }
         )
+        return self.last_pr
 
-        return artifact_name
-
-    def _try_load_checkpoint(self):
-        logger.info("Trying to load training checkpoint")
-
-        trainer_path = os.path.join(self.cfg.run_dir, 'trainer_state.pt')
-        if not os.path.exists(trainer_path):
-            logger.info('No trainer state found. Assuming new run')
-            return
-
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", category=FutureWarning)
-            resume_state = torch.load(trainer_path)
-        model_path = os.path.join(self.cfg.run_dir, resume_state['model_name'])
-
-        logger.info(f"Resuming from {model_path}")
-        logger.info(f"Epoch: {resume_state['epoch']}")
-        logger.info(f"Global step: {resume_state['global_step']}")
-
-        self.global_step = resume_state['global_step']
-        self.epoch = resume_state['epoch']
-
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", category=FutureWarning)
-            self.uncompiled_policy = load_policy_from_uri(model_path, self.cfg, self.wandb_run)
-
-        self.policy = self.uncompiled_policy
-        if self.trainer_cfg.compile:
-            self.policy = torch.compile(self.policy, mode=self.trainer_cfg.compile_mode)
-        self.optimizer.load_state_dict(resume_state['optimizer_state_dict'])
-        self.policy_checkpoint.update(self.global_step, self.epoch, resume_state['model_name'], model_path)
+    def _save_policy_to_wandb(self):
+        if self.wandb_run and self.cfg.wandb.track:
+            pr = self._checkpoint_policy()
+            self.policy_store.add_to_wandb_run(self.wandb_run.id, pr)
 
     def _process_stats(self):
         for k in list(self.stats.keys()):
@@ -413,7 +348,7 @@ class PufferTrainer:
                 **{f'env/{k}': v for k, v in self.stats.items()},
                 **{f'losses/{k}': v for k, v in self.losses.items()},
                 **{f'performance/{k}': v for k, v in self.profile},
-                'train/agent_steps': self.global_step,
+                'train/agent_steps': self.agent_steps,
                 'train/epoch': self.epoch,
                 'train/learning_rate': self.optimizer.param_groups[0]["lr"],
             })
@@ -425,6 +360,17 @@ class PufferTrainer:
     def close(self):
         self.vecenv.close()
 
+    def _make_experience_buffer(self):
+        obs_shape = self.vecenv.single_observation_space.shape
+        obs_dtype = self.vecenv.single_observation_space.dtype
+        atn_shape = self.vecenv.single_action_space.shape
+        atn_dtype = self.vecenv.single_action_space.dtype
+        total_agents = self.vecenv.num_agents
+
+        lstm = self.policy.lstm if hasattr(self.policy, 'lstm') else None
+        self.experience = Experience(self.trainer_cfg.batch_size, self.trainer_cfg.bptt_horizon,
+            self.trainer_cfg.minibatch_size, obs_shape, obs_dtype, atn_shape, atn_dtype,
+            self.trainer_cfg.cpu_offload, self.device, lstm, total_agents)
 
     def _make_losses(self):
         return pufferlib.namespace(
@@ -450,6 +396,8 @@ class PufferTrainer:
             num_workers=self.trainer_cfg.num_workers,
             zero_copy=self.trainer_cfg.zero_copy)
 
+        self.vecenv.async_reset(self.cfg.seed)
+
 
 class AbortingTrainer(PufferTrainer):
     def __init__(self, *args, **kwargs):
@@ -463,7 +411,7 @@ class AbortingTrainer(PufferTrainer):
             return
 
         logger.info("Abort tag detected. Stopping the run.")
-        self.cfg.trainer.total_timesteps = int(self.global_step)
+        self.cfg.trainer.total_timesteps = int(self.agent_steps)
         self.wandb_run.config.update({
             "trainer.total_timesteps": self.cfg.trainer.total_timesteps
         }, allow_val_change=True)
