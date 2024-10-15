@@ -4,12 +4,13 @@ from tabulate import tabulate
 from termcolor import colored
 
 class StatisticalTest:
-    def __init__(self, stats, policy_names, categories_list):
+    def __init__(self, stats, policy_names, categories_list, **kwargs):
         self.stats = stats
         self.policy_names = policy_names
         self.categories_list = categories_list
         self.results = None  # Raw results
         self.formatted_results = None  # Formatted string for display
+        self.params = kwargs  # Store additional parameters
 
     def run_test(self):
         raise NotImplementedError
@@ -26,6 +27,7 @@ class StatisticalTest:
         return self.formatted_results
 
 def significance_and_effect(interpretations):
+    # Existing code remains unchanged
     all_positive = all(interpretation == "pos. effect" for interpretation in interpretations)
     all_negative = all(interpretation == "neg. effect" for interpretation in interpretations)
     any_positive = any(interpretation == "pos. effect" for interpretation in interpretations)
@@ -48,6 +50,7 @@ def significance_and_effect(interpretations):
         return "No interpretation."
 
 class MannWhitneyUTest(StatisticalTest):
+    # Existing code remains unchanged
     def run_test(self):
         self.results = {}
         for stat_name in self.categories_list:
@@ -146,6 +149,7 @@ class MannWhitneyUTest(StatisticalTest):
             }
 
     def format_results(self):
+        # Existing code remains unchanged
         data_rows = []
         for stat_name, result in self.results.items():
             policy_stats = result['policy_stats']
@@ -199,23 +203,43 @@ class MannWhitneyUTest(StatisticalTest):
         self.formatted_results = tabulate(data_rows, headers=headers, tablefmt="fancy_grid")
 
 class EloTest(StatisticalTest):
+    def __init__(self, stats, policy_names, categories_list, **kwargs):
+        super().__init__(stats, policy_names, categories_list, **kwargs)
+        initial_elo_scores = self.params.get('initial_elo_scores', None)
+
+        # Initialize elo scores and episodes
+        if initial_elo_scores is None:
+            # Initialize with default values
+            self.elo_scores = {policy: {'score': 1000, 'episodes': 0} for policy in self.policy_names}
+        else:
+            # Initialize with provided values, defaulting missing entries
+            self.elo_scores = {}
+            for policy in self.policy_names:
+                self.elo_scores[policy] = initial_elo_scores.get(policy, {'score': 1000, 'episodes': 0})
+
     def run_test(self):
         winning_margin = 1  # Set a minimum winning margin for a win
-        all_scores = next(iter(self.stats.values()))
+        # Use the first stat in categories_list instead of hardcoding 'altar'
+        stat_name = self.categories_list[0]
+        all_scores = self.stats[stat_name]
         total_episodes = len(next(iter(all_scores.values())))
 
-        elo = {policy: 1000 for policy in self.policy_names}
-
-        def get_elo_constant(e):
-            e += 1
-            Ki = 32
-            Kf = 2
-            return Ki + (Kf - Ki) / (total_episodes - 1) * (e - 1)
+        def get_k(policy):
+            n = self.elo_scores[policy]['episodes']
+            # Adjust K based on the number of episodes played by this policy
+            if n < 30:
+                return 32
+            elif n < 100:
+                return 16
+            else:
+                return 8
 
         for episode_no in range(total_episodes):
-            K = get_elo_constant(episode_no)
             # Get policies that participated in this episode
-            participating_policies = [policy for policy in self.policy_names if all_scores[policy][episode_no] is not None]
+            participating_policies = [
+                policy for policy in self.policy_names
+                if all_scores[policy][episode_no] is not None
+            ]
 
             # If fewer than 2 policies participated, skip this episode
             if len(participating_policies) < 2:
@@ -227,33 +251,51 @@ class EloTest(StatisticalTest):
                     policy_j = participating_policies[j]
                     score_i = all_scores[policy_i][episode_no]
                     score_j = all_scores[policy_j][episode_no]
-                    if score_i is not None and score_j is not None:
-                        E_i = 1 / (1 + 10 ** ((elo[policy_j] - elo[policy_i]) / 400))
-                        E_j = 1 - E_i
-                        if (score_i - score_j) > winning_margin:
-                            S_i = 1
-                            S_j = 0
-                        elif (score_j - score_i) > winning_margin:
-                            S_i = 0
-                            S_j = 1
-                        else:
-                            S_i = 0.5
-                            S_j = 0.5
-                        elo[policy_i] += K * (S_i - E_i)
-                        elo[policy_j] += K * (S_j - E_j)
 
-        self.results = elo
+                    if score_i is not None and score_j is not None:
+                        # Retrieve current ELO scores
+                        elo_i = self.elo_scores[policy_i]['score']
+                        elo_j = self.elo_scores[policy_j]['score']
+
+                        # Calculate expected scores
+                        E_i = 1 / (1 + 10 ** ((elo_j - elo_i) / 400))
+                        E_j = 1 - E_i
+
+                        # Determine actual scores
+                        if (score_i - score_j) > winning_margin:
+                            S_i, S_j = 1, 0
+                        elif (score_j - score_i) > winning_margin:
+                            S_i, S_j = 0, 1
+                        else:
+                            S_i, S_j = 0.5, 0.5
+
+                        # Get K values per policy
+                        K_i = get_k(policy_i)
+                        K_j = get_k(policy_j)
+
+                        # Update elo ratings
+                        self.elo_scores[policy_i]['score'] += K_i * (S_i - E_i)
+                        self.elo_scores[policy_j]['score'] += K_j * (S_j - E_j)
+
+                        # Update episodes played per policy
+                        self.elo_scores[policy_i]['episodes'] += 1
+                        self.elo_scores[policy_j]['episodes'] += 1
+
+        # Output updated elo scores and episodes played
+        self.results = self.elo_scores
 
     def format_results(self):
         # Headers
-        headers = ['Policy', 'Elo Rating']
+        headers = ['Policy', 'Elo Rating', 'Episodes Played']
         data_rows = []
 
-        max_elo = max(self.results.values())
-        min_elo = min(self.results.values())
+        elo_values = [data['score'] for data in self.results.values()]
+        max_elo = max(elo_values)
+        min_elo = min(elo_values)
 
         for policy in self.policy_names:
-            elo_rating = self.results[policy]
+            elo_rating = self.results[policy]['score']
+            episodes_played = self.results[policy]['episodes']
             elo_rounded = round(elo_rating)
             if elo_rating == max_elo:
                 elo_str = colored(f"{elo_rounded}", "green")
@@ -261,7 +303,7 @@ class EloTest(StatisticalTest):
                 elo_str = colored(f"{elo_rounded}", "red")
             else:
                 elo_str = colored(f"{elo_rounded}", "yellow")
-            data_rows.append([policy, elo_str])
+            data_rows.append([policy, elo_str, episodes_played])
 
         self.formatted_results = tabulate(data_rows, headers=headers, tablefmt="fancy_grid")
 
