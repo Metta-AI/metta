@@ -325,7 +325,7 @@ class PufferTrainer:
     def _save_policy_to_wandb(self):
         if self.wandb_run and self.cfg.wandb.track:
             pr = self._checkpoint_policy()
-            self.policy_store.add_to_wandb_run(self.wandb_run.id, pr)
+            self.policy_store.add_to_wandb_run(self.wandb_run.name, pr)
 
     def _process_stats(self):
         for k in list(self.stats.keys()):
