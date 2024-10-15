@@ -36,6 +36,8 @@ class AgentRenderer(ObjectRenderer):
     def __init__(self, cfg: OmegaConf):
         super().__init__("monsters.png", 16)
         self.cfg = cfg
+        self.obs_width = 11  # Assuming these values, adjust if necessary
+        self.obs_height = 11
 
     def _sprite_sheet_idx(self, obj):
         # orientation: 0 = Up, 1 = Down, 2 = Left, 3 = Right
@@ -49,6 +51,7 @@ class AgentRenderer(ObjectRenderer):
         # self.draw_hp_bar(obj, render_tile_size)
         self.draw_frozen_effect(obj, render_tile_size)
         self.draw_shield_effect(obj, render_tile_size)
+        self.draw_observation_area(obj, render_tile_size)
 
     def draw_energy_bar(self, obj, render_tile_size):
         x = obj["c"] * render_tile_size
@@ -104,6 +107,22 @@ class AgentRenderer(ObjectRenderer):
 
             # Draw a blue circle
             ray.draw_circle_lines(x, y, radius, ray.BLUE)
+
+    def draw_observation_area(self, obj, render_tile_size):
+        x = obj["c"] * render_tile_size
+        y = obj["r"] * render_tile_size
+        width = self.obs_width * render_tile_size
+        height = self.obs_height * render_tile_size
+
+        # Calculate the top-left corner of the observation area
+        obs_x = x - (self.obs_width // 2) * render_tile_size
+        obs_y = y - (self.obs_height // 2) * render_tile_size
+
+        # Create a semi-transparent grey color
+        grey_color = ray.Color(128, 128, 128, 32)  # RGBA: 128, 128, 128, 25% opacity
+
+        # Draw the semi-transparent grey square
+        ray.draw_rectangle(obs_x, obs_y, width, height, grey_color)
 
 class WallRenderer(ObjectRenderer):
     def __init__(self):
