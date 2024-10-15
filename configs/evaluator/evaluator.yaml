@@ -1,0 +1,18 @@
+num_envs: 1024
+num_episodes: 1024
+max_time_s: 60
+policy_agents_pct: 0.5
+
+policy:
+  uri: null
+  type: top
+  range: 1
+  metric: epoch
+  filters: {}
+
+baselines:
+  uri: null
+  type: top
+  range: 5
+  metric: epoch
+  filters: {}
