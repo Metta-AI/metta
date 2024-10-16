@@ -1,3 +1,5 @@
+num_workers: ???
+
 initial_policy:
   uri: null
   type: top

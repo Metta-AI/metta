@@ -1,0 +1,69 @@
+from copy import deepcopy
+from typing import Union
+
+import gymnasium as gym
+
+
+from sample_factory.envs.env_utils import TrainingInfoInterface
+from pettingzoo import utils as pettingzoo_utils
+
+import numpy as np
+
+class SampleFactoryEnvWrapper(gym.Env, TrainingInfoInterface):
+
+    def __init__(self, env: gym.Env, env_id: int):
+
+        TrainingInfoInterface.__init__(self)
+
+        self.env = env
+        self.multi_agent = True
+
+        self.observation_space = gym.spaces.Dict({
+            "grid_obs": env.observation_space,
+            "global_vars": gym.spaces.Box(
+            low=-np.inf, high=np.inf,
+            shape=[ 0 ],
+            dtype=np.int32)
+        })
+
+        self.curr_episode_steps = 0
+        self.num_agents = env.player_count
+
+        action_space = env.action_space
+        if isinstance(action_space, gym.spaces.MultiDiscrete):
+            action_space = gym.spaces.Tuple(
+                [gym.spaces.Discrete(num_actions) for num_actions in action_space.nvec]
+            )
+        self.action_space = action_space
+
+        self.current_episode = 0
+        self.env_id = env_id
+
+
+    def reset(self, **kwargs):
+        self.current_episode += 1
+        self.curr_episode_steps = 0
+        return self.env.reset(**kwargs)
+
+    def step(self, actions):
+        actions = np.array(actions).astype(np.int32)
+        obs, rewards, terminated, truncated, infos_dict = self.env.step(actions)
+        self.curr_episode_steps += 1
+
+        # auto-reset the environment
+        if terminated.all() or truncated.all():
+            obs = self.reset()[0]
+
+        # # For better readability, make `infos` a list.
+        # # In case of a single player, get the first element before returning
+
+        infos = [deepcopy(infos_dict) for _ in range(self.num_agents)]
+        if "episode_extra_stats" in infos_dict:
+            for i in range(self.num_agents):
+                infos[i]["episode_extra_stats"] = infos_dict["episode_extra_stats"][i]
+
+
+        return obs, rewards, terminated, truncated, infos
+
+    def render(self, *args, **kwargs):
+        return self.env.render(*args, **kwargs)
