@@ -54,14 +54,11 @@ class SampleFactoryEnvWrapper(gym.Env, TrainingInfoInterface):
         if terminated.all() or truncated.all():
             obs = self.reset()[0]
 
-        # # For better readability, make `infos` a list.
-        # # In case of a single player, get the first element before returning
-
-        infos = [deepcopy(infos_dict) for _ in range(self.num_agents)]
-        if "episode_extra_stats" in infos_dict:
+        infos = [{} for _ in range(self.num_agents)]
+        if "agent_raw" in infos_dict:
             for i in range(self.num_agents):
-                infos[i]["episode_extra_stats"] = infos_dict["episode_extra_stats"][i]
-
+                infos[i]["episode_extra_stats"] = deepcopy(infos_dict["agent_raw"][i])
+                infos[i]["episode_extra_stats"].update(infos_dict["game"])
 
         return obs, rewards, terminated, truncated, infos
 
