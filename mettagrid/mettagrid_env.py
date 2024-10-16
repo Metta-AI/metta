@@ -7,9 +7,9 @@ from omegaconf import OmegaConf
 from mettagrid.config.game_builder import MettaGridGameBuilder
 from mettagrid.config.sample_config import sample_config
 from mettagrid.mettagrid_c import MettaGrid # pylint: disable=E0611
-from gymnasium import spaces
+import gymnasium as gym
 
-class MettaGridEnv(pufferlib.PufferEnv):
+class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     def __init__(self, render_mode: str, **cfg):
         super().__init__()
 
@@ -18,6 +18,7 @@ class MettaGridEnv(pufferlib.PufferEnv):
         self.make_env()
 
         self._renderer = None
+        # Pufferlib
         self.done = False
         self.buf = None
 
@@ -41,7 +42,7 @@ class MettaGridEnv(pufferlib.PufferEnv):
         #self._env = FeatureMasker(self._env, self._cfg.hidden_features)
         self.done = False
 
-    def reset(self, seed=None):
+    def reset(self, seed=None, options=None):
         self.make_env()
 
         if hasattr(self, "buf") and self.buf is not None:
@@ -58,8 +59,10 @@ class MettaGridEnv(pufferlib.PufferEnv):
         return obs, infos
 
     def step(self, actions):
-        assert not self.done, "Environment already done"
-        obs, rewards, terminated, truncated, infos = self._c_env.step(actions.astype(np.int32))
+        assert not self.done, "Episode is done"
+
+        actions = np.array(actions).astype(np.int32)
+        obs, rewards, terminated, truncated, infos = self._c_env.step(actions)
 
         if self._cfg.normalize_rewards:
             rewards -= rewards.mean()
