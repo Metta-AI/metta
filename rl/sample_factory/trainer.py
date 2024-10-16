@@ -1,5 +1,6 @@
 import json
 import hydra
+from copy import deepcopy
 
 from omegaconf import OmegaConf
 from sample_factory.algo.utils.context import global_model_factory
@@ -38,8 +39,12 @@ class SampleFactoryTrainer():
                  policy_store: PolicyStore,
                  **kwargs):
 
+        sf_args = deepcopy(cfg.trainer.args)
+        if sf_args.get["device"] == "cuda":
+            sf_args["device"] = "gpu"
+
         self.sf_args = [
-            f"--{k}={v}" for k, v in cfg.trainer.args.items()
+            f"--{k}={v}" for k, v in sf_args.items()
         ] + [
             f"--{k}={v}" for k, v in cfg.agent.core.items() if k.startswith("rnn_")
         ]
