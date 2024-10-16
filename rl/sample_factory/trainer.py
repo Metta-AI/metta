@@ -40,7 +40,7 @@ class SampleFactoryTrainer():
                  **kwargs):
 
         sf_args = deepcopy(cfg.trainer.args)
-        if sf_args.get["device"] == "cuda":
+        if sf_args["device"] == "cuda":
             sf_args["device"] = "gpu"
 
         self.sf_args = [
