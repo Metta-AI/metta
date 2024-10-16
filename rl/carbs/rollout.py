@@ -164,7 +164,7 @@ class CarbsSweepRollout:
             "training_run": train_cfg.run,
         })
 
-        policy_store.add_to_wandb_sweep(self.sweep_id, final_pr)
+        policy_store.add_to_wandb_sweep(self.cfg.run, final_pr)
 
         # final_model_artifact.link(
         #     self.sweep_id, [self.run_id]
