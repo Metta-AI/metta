@@ -4,7 +4,6 @@ _target_: rl.pufferlib.trainer.AbortingTrainer
 defaults:
   - trainer
 
-num_workers: ???
 resume: true
 
 total_timesteps: 50_000_000_000

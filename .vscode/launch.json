@@ -28,6 +28,29 @@
             ],
         },
         {
+            "name": "Train (SF) Metta",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "tools.train",
+            "args": [
+                "run=mac.sf.trainer.0",
+                "trainer=samplefactory",
+                // "trainer.initial_policy.uri=wandb://run/mac.trainer.4",
+                // "env=mettagrid/a20_b4_40x40",
+                "env.game.max_steps=100",
+                "env.sampling=0.1",
+                "env.flatten_actions=true",
+
+                // "env.kinship.team_size=5",
+                // "env.kinship.team_reward=0.8",
+
+                // "env.game.actions.attack.enabled=false",
+                "agent=simple",
+                "wandb.enabled=True",
+                "wandb.track=True",
+                // "trainer.wandb_checkpoint_interval=1"
+            ],
+        },        {
             "name": "Run Sweep",
             "type": "debugpy",
             "request": "launch",
