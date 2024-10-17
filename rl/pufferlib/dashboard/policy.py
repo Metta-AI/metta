@@ -22,7 +22,7 @@ class Policy(DashboardComponent):
         table.add_row(f'{c2}Params', abbreviate(self.checkpoint.num_params))
         if self.checkpoint.model_name:
             table.add_row(f'{c2}Epoch', abbreviate(self.checkpoint.epoch))
-            table.add_row(f'{c2}Agent Steps', abbreviate(self.checkpoint.agent_steps))
+            table.add_row(f'{c2}Agent Steps', abbreviate(self.checkpoint.agent_step))
             table.add_row(f'{c2}Path', self.checkpoint.model_path)
 
         if self.checkpoint.wandb_model_artifact:

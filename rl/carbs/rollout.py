@@ -95,7 +95,7 @@ class CarbsSweepRollout:
         train_time = time.time() - train_start_time
 
         sweep_stats.update({
-            "train.agent_steps": trainer.agent_steps,
+            "train.agent_step": trainer.agent_step,
             "train.epoch": trainer.epoch,
             "time.train": train_time,
         })
@@ -151,7 +151,7 @@ class CarbsSweepRollout:
             "delta.score": final_score - initial_score,
         })
 
-        for stat in ["train.agent_steps", "train.epoch", "time.train", "time.eval", "time.total"]:
+        for stat in ["train.agent_step", "train.epoch", "time.train", "time.eval", "time.total"]:
             sweep_stats["lineage." + stat] = sweep_stats[stat] + initial_pr.metadata.get("lineage." + stat, 0)
 
         wandb_run.summary.update(sweep_stats)
