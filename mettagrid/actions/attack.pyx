@@ -42,7 +42,7 @@ cdef class Attack(MettaActionHandler):
         if agent_target:
             self.env._stats.agent_incr(actor_id, self._stats.target[agent_target._type_id].c_str())
             if agent_target.shield:
-                shield_damage = -agent_target.update_energy(-self.damage)
+                shield_damage = -agent_target.update_energy(-self.damage, &self.env._rewards[actor_id])
                 self.env._stats.agent_add(actor_id, "shield_damage", shield_damage)
             if shield_damage < self.damage:
                 agent_target.shield = False

@@ -5,6 +5,7 @@ _target_: mettagrid.mettagrid_env.MettaGridEnv
 
 normalize_rewards: False
 flatten_actions: false
+sampling: 0.0
 
 hidden_features:
   grid_obs: [
@@ -26,7 +27,7 @@ game:
       max_energy: 250
       max_inventory: 5
       freeze_duration: 10
-      energy_reward: 0.0
+      energy_reward: 0
       hp: 1
       mortal: False
       upkeep.time: 0
