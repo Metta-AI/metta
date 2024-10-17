@@ -116,7 +116,9 @@ class PolicyStore:
         logger.info(f"Saving policy to {path}")
         pr = PolicyRecord(self, path, "file://" + path, metadata)
         pr._policy = policy
+        pr._policy_store = None
         torch.save(pr, path)
+        pr._policy_store = self
         self._cached_prs[path] = pr
         return pr
 
@@ -210,6 +212,7 @@ class PolicyStore:
                 map_location=self._device,
                 weights_only=False,
             )
+            pr._policy_store = self
             pr._local_path = path
             self._cached_prs[path] = pr
             if metadata_only:

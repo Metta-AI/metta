@@ -66,27 +66,24 @@ class PufferTrainer:
 
         self._make_experience_buffer()
 
-        self.agent_steps = checkpoint.agent_steps
+        self.agent_step = checkpoint.agent_step
         self.epoch = checkpoint.epoch
         self.optimizer = torch.optim.Adam(self.policy.parameters(),
             lr=self.trainer_cfg.learning_rate, eps=1e-5)
 
-        if checkpoint.agent_steps > 0:
+        if checkpoint.agent_step > 0:
             self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
-            self.agent_steps = checkpoint.agent_steps
-            self.epoch = checkpoint.epoch
-
 
         if self.cfg.wandb.track and wandb_run:
-            wandb_run.define_metric("train/agent_steps")
+            wandb_run.define_metric("train/agent_step")
             for k in ["0verview", "env", "losses", "performance", "train"]:
-                wandb_run.define_metric(f"{k}/*", step_metric="train/agent_steps")
+                wandb_run.define_metric(f"{k}/*", step_metric="train/agent_step")
 
     def train(self):
         self.train_start = time.time()
         logger.info("Starting training")
 
-        while self.agent_steps < self.trainer_cfg.total_timesteps:
+        while self.agent_step < self.trainer_cfg.total_timesteps:
             self._evaluate()
             self._train()
             self._process_stats()
@@ -119,7 +116,7 @@ class PufferTrainer:
                 env_id = env_id.tolist()
 
             with profile.eval_misc:
-                self.agent_steps += sum(mask)
+                self.agent_step += sum(mask)
 
                 o = torch.as_tensor(o)
                 o_device = o.to(self.device)
@@ -275,7 +272,7 @@ class PufferTrainer:
 
         with profile.train_misc:
             if self.trainer_cfg.anneal_lr:
-                frac = 1.0 - self.agent_steps / self.trainer_cfg.total_timesteps
+                frac = 1.0 - self.agent_step / self.trainer_cfg.total_timesteps
                 lrnow = frac * self.trainer_cfg.learning_rate
                 self.optimizer.param_groups[0]["lr"] = lrnow
 
@@ -286,7 +283,7 @@ class PufferTrainer:
             self.losses.explained_variance = explained_var
             self.epoch += 1
             profile.update(
-                self.agent_steps,
+                self.agent_step,
                 self.trainer_cfg.total_timesteps,
                 self._timers
             )
@@ -294,7 +291,7 @@ class PufferTrainer:
     def _checkpoint_trainer(self):
         pr = self._checkpoint_policy()
         self.checkpoint = TrainerCheckpoint(
-            self.agent_steps,
+            self.agent_step,
             self.epoch,
             self.optimizer.state_dict(),
             pr.local_path()
@@ -312,7 +309,7 @@ class PufferTrainer:
             os.path.join(self.cfg.trainer.checkpoint_dir, name),
             self.uncompiled_policy,
             metadata={
-                "agent_step": self.agent_steps,
+                "agent_step": self.agent_step,
                 "epoch": self.epoch,
                 "run": self.cfg.run,
                 "action_names": self.vecenv.driver_env.action_names(),
@@ -348,7 +345,7 @@ class PufferTrainer:
                 **{f'env/{k}': v for k, v in self.stats.items()},
                 **{f'losses/{k}': v for k, v in self.losses.items()},
                 **{f'performance/{k}': v for k, v in self.profile},
-                'train/agent_steps': self.agent_steps,
+                'train/agent_step': self.agent_step,
                 'train/epoch': self.epoch,
                 'train/learning_rate': self.optimizer.param_groups[0]["lr"],
             })
@@ -411,7 +408,7 @@ class AbortingTrainer(PufferTrainer):
             return
 
         logger.info("Abort tag detected. Stopping the run.")
-        self.cfg.trainer.total_timesteps = int(self.agent_steps)
+        self.cfg.trainer.total_timesteps = int(self.agent_step)
         self.wandb_run.config.update({
             "trainer.total_timesteps": self.cfg.trainer.total_timesteps
         }, allow_val_change=True)
