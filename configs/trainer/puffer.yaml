@@ -8,17 +8,17 @@ resume: true
 
 total_timesteps: 50_000_000_000
 
-clip_coef: 0.008382892289546974
-ent_coef: 0.0017611426502763987
-gae_lambda: 0.8713683341532528
-gamma: 0.9708783747411333
-learning_rate: 0.000676965297090035
-max_grad_norm: 0.7289800643920898
-vf_clip_coef: 0.10128186719781306
-vf_coef: 0.7190190133046412
+clip_coef: 0.1
+ent_coef: 0.002
+gae_lambda: 0.9
+gamma: 0.97
+learning_rate: 0.0006
+max_grad_norm: 0.5
+vf_clip_coef: 0.1
+vf_coef: 0.5
 
-norm_adv: True
-clip_vloss: True
+norm_adv: true
+clip_vloss: true
 target_kl: null
 anneal_lr: false
 
@@ -30,15 +30,15 @@ checkpoint_interval: 60
 wandb_checkpoint_interval: 300
 
 batch_size: 131072
-minibatch_size: 4096
-bptt_horizon: 32
-update_epochs: 3
+minibatch_size: 32768
+bptt_horizon: 16
+update_epochs: 1
 
 cpu_offload: false
 compile: false
 compile_mode: reduce-overhead
 
-forward_pass_minibatch_target_size: 1024
+forward_pass_minibatch_target_size: 2048
 async_factor: 2
 
 stats:

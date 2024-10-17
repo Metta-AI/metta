@@ -7,7 +7,8 @@ defaults:
 args:
   train_dir: ${data_dir}/sample_factory
   device: ${device}
-  decorrelate_experience_max_seconds: 0
+  decorrelate_experience_max_seconds: 150
+
   num_workers: ${..num_workers}
   save_every_sec: 30
   experiment: ${run}
@@ -29,4 +30,4 @@ args:
   policy_initialization: orthogonal
 
   learning_rate: 0.0001
-  max_policy_lag: 50
+  max_policy_lag: 500

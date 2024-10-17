@@ -88,6 +88,7 @@
                 "agent=simple",
                 "env.game.max_steps=10000",
                 "agent.policy_selector.range=1",
+                "env.game.objects.agent.energy_reward=0.1",
                 // "env.game.num_agents=100",
                 // "env.game.map.room.width=100",
                 // "env.game.map.room.height=100",
