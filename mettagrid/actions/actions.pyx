@@ -32,7 +32,7 @@ cdef class MettaActionHandler(ActionHandler):
         cdef Agent *actor = <Agent*>self.env._grid.object(actor_object_id)
 
         if actor.shield:
-            actor.update_energy(-actor.shield_upkeep)
+            actor.update_energy(-actor.shield_upkeep, &self.env._rewards[actor_id])
             self.env._stats.agent_add(actor_id, "shield_upkeep", actor.shield_upkeep)
             self.env._stats.agent_incr(actor_id, "status.shield.ticks")
             if actor.energy == 0:
@@ -46,7 +46,7 @@ cdef class MettaActionHandler(ActionHandler):
         if actor.energy < self.action_cost:
             return False
 
-        actor.update_energy(-self.action_cost)
+        actor.update_energy(-self.action_cost, &self.env._rewards[actor_id])
         self.env._stats.agent_add(actor_id, self._stats.action_energy.c_str(), self.action_cost)
 
         cdef bint result = self._handle_action(actor_id, actor, arg)

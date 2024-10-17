@@ -79,25 +79,28 @@ cdef cppclass Agent(MettaObject):
         this.freeze_duration = cfg[b"freeze_duration"]
         this.max_energy = cfg[b"max_energy"]
         this.energy = 0
-        this.update_energy(cfg[b"initial_energy"])
+        this.update_energy(cfg[b"initial_energy"], NULL)
         this.shield_upkeep = cfg[b"upkeep.shield"]
         this.orientation = 0
         this.inventory.resize(InventoryItem.InventoryCount)
         this.max_items = cfg[b"max_inventory"]
-        this.energy_reward = cfg[b"energy_reward"]
+        this.energy_reward = float(cfg[b"energy_reward"]) / 1000.0
 
     inline void update_inventory(InventoryItem item, short amount):
         this.inventory[<InventoryItem>item] += amount
         if this.inventory[<InventoryItem>item] > this.max_items:
             this.inventory[<InventoryItem>item] = this.max_items
 
-    inline short update_energy(short amount):
+    inline short update_energy(short amount, float *reward):
         if amount < 0:
             amount = max(-this.energy, amount)
         else:
             amount = min(this.max_energy - this.energy, amount)
 
         this.energy += amount
+        if amount > 0 and reward is not NULL:
+            reward[0] += amount * this.energy_reward
+
         return amount
 
     inline void obs(ObsType[:] obs):

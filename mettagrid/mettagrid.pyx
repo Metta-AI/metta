@@ -30,7 +30,7 @@ cdef class MettaGrid(GridEnv):
         object _cfg
 
     def __init__(self, env_cfg: OmegaConf, map: np.ndarray):
-        self._cfg = env_cfg.game
+        self._cfg = OmegaConf.create(env_cfg.game)
         cfg = self._cfg
 
         actions = []
