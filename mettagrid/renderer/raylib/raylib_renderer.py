@@ -244,6 +244,8 @@ class MettaGridRaylibRenderer:
         for agent_id, action in enumerate(self.actions):
             if action[0] != self.action_ids["attack"]:
                 continue
+            if action[0] == self.action_ids["noop"]:
+                continue
             agent = self.agents[agent_id]
             if agent["agent:frozen"]:
                 continue

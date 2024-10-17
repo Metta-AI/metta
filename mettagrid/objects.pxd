@@ -153,7 +153,7 @@ cdef cppclass Generator(Usable):
         obs[0] = 1
         obs[1] = this.hp
         obs[2] = this.r1
-        obs[3] = this.ready
+        obs[3] = this.ready and this.r1 > 0
 
 
     @staticmethod
