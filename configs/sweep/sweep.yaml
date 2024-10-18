@@ -75,7 +75,7 @@ parameters:
     minibatch_size:
       space: pow2
       min: 16384
-      max: 65536
+      max: 131072
     # forward_pass_minibatch_target_size:
     #   space: pow2
     #   min: 1024
