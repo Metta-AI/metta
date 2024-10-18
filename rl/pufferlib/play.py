@@ -15,7 +15,7 @@ def play(cfg: OmegaConf, policy_record: PolicyRecord):
     policy = policy_record.policy()
 
     assert policy_record.metadata["action_names"] == env._c_env.action_names(), \
-        f"Action names do not match: {policy_record._action_names} != {env._c_env.action_names()}"
+        f"Action names do not match: {policy_record.metadata['action_names']} != {env._c_env.action_names()}"
 
     game_cfg = OmegaConf.create(sample_config(cfg.env.game, cfg.env.sampling))
     renderer = MettaGridRaylibRenderer(env._c_env, game_cfg)

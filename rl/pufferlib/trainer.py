@@ -59,6 +59,7 @@ class PufferTrainer:
         self.initial_pr = policy_record
         self.last_pr = policy_record
         self.policy = policy_record.policy()
+        self.policy_record = policy_record
         self.uncompiled_policy = self.policy
 
         if self.trainer_cfg.compile:
