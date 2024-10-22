@@ -51,16 +51,19 @@ class PolicyStore:
 
     def policies(self, policy_selector_cfg: OmegaConf) -> List[PolicyRecord]:
         prs = []
+        version = None
         if policy_selector_cfg.uri.startswith("wandb://"):
             wandb_uri = policy_selector_cfg.uri[len("wandb://"):]
+            if ":" in wandb_uri:
+                wandb_uri, version = wandb_uri.split(":")
             if wandb_uri.startswith("run/"):
                 run_id = wandb_uri[len("run/"):]
-                prs = self._prs_from_wandb_run(run_id)
+                prs = self._prs_from_wandb_run(run_id, version)
             elif wandb_uri.startswith("sweep/"):
                 sweep_name = wandb_uri[len("sweep/"):]
-                prs = self._prs_from_wandb_sweep(sweep_name)
+                prs = self._prs_from_wandb_sweep(sweep_name, version)
             else:
-                prs = self._prs_from_wandb_artifact(wandb_uri)
+                prs = self._prs_from_wandb_artifact(wandb_uri, version)
 
         elif policy_selector_cfg.uri.startswith("file://"):
             prs = self._prs_from_path(policy_selector_cfg.uri[len("file://"):])
@@ -168,7 +171,7 @@ class PolicyStore:
             for path in paths
         ]
 
-    def _prs_from_wandb_artifact(self, uri: str) -> List[PolicyRecord]:
+    def _prs_from_wandb_artifact(self, uri: str, version: str = None) -> List[PolicyRecord]:
         entity, project, artifact_type, name = uri.split("/")
         path = f"{entity}/{project}/{name}"
         if not wandb.Api().artifact_collection_exists(type=artifact_type, name=path):
@@ -176,20 +179,31 @@ class PolicyStore:
             return []
         artifact_collection = wandb.Api().artifact_collection(type_name=artifact_type, name=path)
 
-        return [PolicyRecord(
-            self,
-            name=a.name,
-            uri="wandb://" + a.qualified_name,
-            metadata=a.metadata
-        ) for a in artifact_collection.artifacts()]
+        artifacts = artifact_collection.artifacts()
 
-    def _prs_from_wandb_sweep(self, sweep_name: str) -> List[PolicyRecord]:
-        return self._prs_from_wandb_artifact(
-            f"{self._cfg.wandb.entity}/{self._cfg.wandb.project}/sweep_model/{sweep_name}")
+        if version is not None:
+            artifacts = [a for a in artifacts if a.version == version]
 
-    def _prs_from_wandb_run(self, run_id: str) -> List[PolicyRecord]:
+        return [
+            PolicyRecord(
+                self,
+                name=a.name,
+                uri="wandb://" + a.qualified_name,
+                metadata=a.metadata
+            ) for a in artifacts
+        ]
+
+    def _prs_from_wandb_sweep(self, sweep_name: str, version: str = None) -> List[PolicyRecord]:
         return self._prs_from_wandb_artifact(
-            f"{self._cfg.wandb.entity}/{self._cfg.wandb.project}/model/{run_id}")
+            f"{self._cfg.wandb.entity}/{self._cfg.wandb.project}/sweep_model/{sweep_name}",
+            version
+        )
+
+    def _prs_from_wandb_run(self, run_id: str, version: str = None) -> List[PolicyRecord]:
+        return self._prs_from_wandb_artifact(
+            f"{self._cfg.wandb.entity}/{self._cfg.wandb.project}/model/{run_id}",
+            version
+        )
 
     def _load_from_uri(self, uri: str):
         if uri.startswith("wandb://"):
