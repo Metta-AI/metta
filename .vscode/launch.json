@@ -83,7 +83,7 @@
                 // "env=mettagrid/a20_b4_40x40",
                 "wandb.enabled=True",
                 // "evaluator.policy.uri=wandb://run/b.simple.train.nas.t100.a10.ie.50.er",
-                "evaluator.policy.uri=wandb://run/p2.simple.er.2",
+                "evaluator.policy.uri=wandb://run/p2.simple.train.er.poor",
                 // "evaluator.policy.uri=wandb://run/b.simple.train.nas.a10.ie.250.er",
                 // "env.game.actions.attack.enabled=false",
                 // "env.game.actions.shield.enabled=false",

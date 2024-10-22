@@ -13,6 +13,6 @@ game:
       objects:
         agent: ${....num_agents}
         altar: [1, 10, 5]
-        converter: [1, 5, 2]
-        generator: [1, 10, 5]
+        converter: [1, 10, 3]
+        generator: [1, 15, 10]
         wall: [10, 100, 40]
