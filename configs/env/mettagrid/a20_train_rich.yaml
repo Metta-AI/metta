@@ -1,7 +1,7 @@
 # @package env
 
 defaults:
-  - mettagrid/poor
+  - mettagrid/mettagrid
 
 game:
   num_agents: 20
@@ -13,6 +13,6 @@ game:
       objects:
         agent: ${....num_agents}
         altar: [1, 10, 5]
-        converter: [1, 5, 2]
-        generator: [1, 10, 5]
+        converter: [3, 30, 10]
+        generator: [10, 80, 50]
         wall: [10, 100, 40]
