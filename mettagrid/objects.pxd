@@ -98,7 +98,7 @@ cdef cppclass Agent(MettaObject):
             amount = min(this.max_energy - this.energy, amount)
 
         this.energy += amount
-        if amount > 0 and reward is not NULL:
+        if reward is not NULL:
             reward[0] += amount * this.energy_reward
 
         return amount
