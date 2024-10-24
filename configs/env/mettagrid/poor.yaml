@@ -1,29 +1,7 @@
-# @package env
-
-name: "GDY-MettaGrid"
-_target_: mettagrid.mettagrid_env.MettaGridEnv
-
-report_stats_interval: 100
-normalize_rewards: false
-flatten_actions: false
-
-sampling: 0
-
-hidden_features:
-  grid_obs: [
-    "agent:energy",
-    "agent:hp",
-  ]
+defaults:
+  - mettagrid
 
 game:
-  # _target_: env.griddly.mettagrid.game_builder.MettaGridGameBuilder
-  obs_width: 11
-  obs_height: 11
-  max_steps: 1000
-  tile_size: 16
-  num_agents: ???
-  no_energy_steps: 500
-
   objects:
     agent:
       initial_energy: [0, 250, 100]
@@ -57,39 +35,6 @@ game:
 
     wall:
       hp: [1, 20, 10]
-
-  actions:
-    noop:
-      enabled: true
-      cost: 0
-    move:
-      enabled: true
-      cost: 0
-    rotate:
-      enabled: true
-      cost: 0
-    jump:
-      enabled: false
-      cost: 3
-    shield:
-      enabled: true
-      cost: 1
-    transfer:
-      enabled: false
-      cost: 0
-    use:
-      enabled: true
-      cost: 0
-    attack:
-      enabled: true
-      cost: 5
-      damage: 20
-    gift:
-      enabled: false
-      cost: 0
-    swap:
-      enabled: true
-      cost: 0
 
   map:
     # _target_: env.griddly.mettagrid.level_builder.MettaGridLevelBuilder

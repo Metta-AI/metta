@@ -1,7 +1,5 @@
-# @package env
-
 defaults:
-  - mettagrid/poor
+  - poor
 
 game:
   num_agents: 20
