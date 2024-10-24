@@ -13,7 +13,7 @@ from puffergrid.grid_object cimport GridObject
 from puffergrid.observation_encoder cimport ObsType
 
 from mettagrid.objects cimport ObjectLayers, Agent, ResetHandler, Wall, Generator, Converter, Altar
-from mettagrid.objects cimport MettaObservationEncoder
+from mettagrid.observation_encoder cimport MettaObservationEncoder, MettaCompactObservationEncoder
 from mettagrid.actions.move import Move
 from mettagrid.actions.rotate import Rotate
 from mettagrid.actions.use import Use
@@ -32,6 +32,10 @@ cdef class MettaGrid(GridEnv):
     def __init__(self, env_cfg: OmegaConf, map: np.ndarray):
         self._cfg = OmegaConf.create(env_cfg.game)
         cfg = self._cfg
+
+        obs_encoder = MettaObservationEncoder()
+        if env_cfg.compact_obs:
+            obs_encoder = MettaCompactObservationEncoder()
 
         actions = []
         if cfg.actions.noop.enabled:
@@ -59,7 +63,7 @@ cdef class MettaGrid(GridEnv):
             cfg.max_steps,
             dict(ObjectLayers).values(),
             cfg.obs_width, cfg.obs_height,
-            MettaObservationEncoder(),
+            obs_encoder,
             actions,
             [ ResetHandler() ],
             use_flat_actions=env_cfg.flatten_actions

@@ -31,7 +31,7 @@ class MettaGridGameBuilder():
             "altar": "a",
             "converter": "c",
             "generator": "g",
-            "wall": "w",
+            "wall": "W",
             "empty": " ",
         }
 
@@ -65,7 +65,7 @@ class MettaGridGameBuilder():
         level = np.concatenate(layers, axis=0)
         assert num_agents == self.num_agents, f"Number of agents in map ({num_agents}) does not match num_agents ({self.num_agents})"
 
-        footer = np.full((1, level.shape[1]), "W", dtype="U6")
+        footer = np.full((1, level.shape[1]), self._symbols["wall"], dtype="U6")
         footer[0, 0] = "q"
 
         level = np.concatenate([level, footer], axis=0)
@@ -89,7 +89,7 @@ class MettaGridGameBuilder():
         symbols = np.array(symbols).astype("U8")
         np.random.shuffle(symbols)
         content = symbols.reshape(content_height, content_width)
-        room = np.full((room_config.height, room_config.width), "W", dtype="U6")
+        room = np.full((room_config.height, room_config.width), self._symbols["wall"], dtype="U6")
         room[room_config.border:room_config.border+content_height,
              room_config.border:room_config.border+content_width] = content
 

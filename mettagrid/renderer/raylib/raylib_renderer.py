@@ -118,8 +118,8 @@ class MettaGridRaylibRenderer:
 
     def _update_layout(self):
         sidebar_width = 250
-        self.tile_size = min((self.window_width - sidebar_width) // self.grid_width,
-                             self.window_height // self.grid_height)
+        self.tile_size = max(5, min((self.window_width - sidebar_width) // self.grid_width,
+                             self.window_height // self.grid_height))
         self.sidebar_width = self.window_width - self.grid_width * self.tile_size
 
     def _cdata_to_numpy(self):
