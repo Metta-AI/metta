@@ -1,7 +1,6 @@
-# @package env
 
 defaults:
-  - mettagrid/mettagrid
+  - mettagrid
 
 
 game:

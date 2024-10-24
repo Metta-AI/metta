@@ -1,11 +1,10 @@
-# @package env
-
 name: "GDY-MettaGrid"
 _target_: mettagrid.mettagrid_env.MettaGridEnv
 
 report_stats_interval: 100
 normalize_rewards: false
 flatten_actions: false
+compact_obs: false
 
 sampling: 0
 
