@@ -72,11 +72,11 @@ class SimpleConvAgent(nn.Module):
 
     def forward(self, obs_dict):
         obs = obs_dict[self._obs_key]
-        # if self._normalizer:
-        #     self._normalizer(obs)
+        if self._normalizer:
+            self._normalizer(obs)
 
-        self._obs_norm = self._obs_norm.to(obs.device)
-        obs = obs / self._obs_norm
+        # self._obs_norm = self._obs_norm.to(obs.device)
+        # obs = obs / self._obs_norm
         return self.network(obs)
 
     def output_dim(self):
