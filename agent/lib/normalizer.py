@@ -19,4 +19,4 @@ class FeatureListNormalizer(nn.Module):
     def forward(self, obs):
         with torch.no_grad():
             for fidx, norm in enumerate(self._normalizers):
-                norm(obs[fidx, :, :])
+                norm(obs[:, fidx, :, :])
