@@ -33,11 +33,11 @@ class SimpleConvAgent(nn.Module):
         )
 
         self._normalizer = None
-        if cfg.normalize_features:
+        if cfg.auto_normalize:
             self._normalizer = FeatureListNormalizer(
                 grid_features, obs_space[self._obs_key].shape[1:])
 
-        obs_norms = [1] * self._num_objects
+        self._obs_norm = None
         if cfg.normalize_features:
             obs_norms = [
                 1, # 'agent',
@@ -66,19 +66,19 @@ class SimpleConvAgent(nn.Module):
                 1, # 'altar:ready'
             ]
 
-
-        self._obs_norm = torch.tensor(obs_norms, dtype=torch.float32)
-        self._obs_norm = self._obs_norm.view(1, self._num_objects, 1, 1)
+            self._obs_norm = torch.tensor(obs_norms, dtype=torch.float32)
+            self._obs_norm = self._obs_norm.view(1, self._num_objects, 1, 1)
 
     def forward(self, obs_dict):
         obs = obs_dict[self._obs_key]
 
+        if self._obs_norm is not None:
+            self._obs_norm = self._obs_norm.to(obs.device)
+            obs = obs / self._obs_norm
+
         if self._normalizer:
-            # obs = obs.clone()
             self._normalizer(obs)
 
-        # self._obs_norm = self._obs_norm.to(obs.device)
-        # obs = obs / self._obs_norm
         return self.network(obs)
 
     def output_dim(self):
