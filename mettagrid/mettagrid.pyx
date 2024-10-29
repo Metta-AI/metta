@@ -23,8 +23,6 @@ from mettagrid.actions.gift import Gift
 from mettagrid.actions.noop import Noop
 from mettagrid.actions.swap import Swap
 
-obs_np_type = np.uint8
-
 cdef class MettaGrid(GridEnv):
     cdef:
         object _cfg
@@ -98,7 +96,7 @@ cdef class MettaGrid(GridEnv):
 
     cpdef grid_objects(self):
         cdef GridObject *obj
-        cdef ObsType[:] obj_data = np.zeros(len(self._obs_encoder.feature_names()), dtype=obs_np_type)
+        cdef ObsType[:] obj_data = np.zeros(len(self._obs_encoder.feature_names()), dtype=self._obs_encoder.obs_np_type())
         cdef unsigned int obj_id, i
         cdef MettaObservationEncoder obs_encoder = <MettaObservationEncoder>self._obs_encoder
         objects = {}
