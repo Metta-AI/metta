@@ -6,8 +6,8 @@ observation_encoder:
   _target_: agent.simple_encoder.SimpleConvAgent
   cnn_channels: 64
   obs_key: grid_obs
-  normalize_features: false
-  auto_normalize: true
+  normalize_features: true
+  auto_normalize: false
 
 fc:
   layers: 1
