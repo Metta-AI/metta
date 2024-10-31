@@ -11,11 +11,11 @@
             "module": "tools.train",
             "args": [
                 "run=mac.trainer.7",
-                "trainer.initial_policy.uri=wandb://run/p2.simple.train.rich.norm.auto.3",
+                // "trainer.initial_policy.uri=wandb://run/p2.simple.train.rich.norm.auto.3",
                 // "env=mettagrid/a20_b4_40x40",
                 "env.game.max_steps=100",
                 "env.sampling=0.1",
-                "env.flatten_actions=true",
+                "env.flatten_actions=false",
                 // "env.compact_obs=true",
                 // "env.kinship.team_size=5",
                 // "env.kinship.team_reward=0.8",
