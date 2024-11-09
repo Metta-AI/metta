@@ -109,9 +109,21 @@ class Analysis:
                     else:
                         self.stats[stat_name][policy][idx] += stat_value
             # For policies not in this episode, their stat remains None
-
+            
     def get_results(self):
         return self.test_instance.get_results()
 
     def get_display_results(self):
         return self.test_instance.get_formatted_results()
+    
+    def get_verbose_results(self):
+        if hasattr(self.test_instance, 'get_verbose_results'):
+            return self.test_instance.get_verbose_results()
+        else:
+            raise NotImplementedError(f"The eval_method {self.eval_method} does not currently support verbose results.")
+    
+    def get_updated_historicals(self):
+        if hasattr(self.test_instance, 'get_updated_historicals'):
+            return self.test_instance.get_updated_historicals()
+        else:
+            raise NotImplementedError(f"The eval_method {self.eval_method} does not currently support updating historical scores.")

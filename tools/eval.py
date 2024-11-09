@@ -1,6 +1,6 @@
 import os
 import signal  # Aggressively exit on ctrl+c
-
+import json # For loading historical elo or glicko scores from local disk
 import hydra
 from omegaconf import OmegaConf
 from rich import traceback
@@ -33,20 +33,58 @@ def main(cfg):
         # Print formatted results
         print(p_analysis.get_display_results())
 
-        #delete below after testing. Some dummy historical elo scores :)
-        initial_elo_scores = {
-            'b.gpop.simple.2:v0': {'score': 500, 'episodes': 37},
-            'Policy 2': {'score': 1500, 'episodes': 12}
-        }
+        #--------Elo Analysis--------#
+        # Load the historical elo scores from disk
+        with open("evals/elo_scores.json", "r") as file:
+            historical_elo_scores = json.load(file)
 
-        elo_analysis = Analysis(stats, eval_method='elo_1v1', stat_category='altar', initial_elo_scores=initial_elo_scores)
-
+        elo_analysis = Analysis(stats, eval_method='elo_1v1', stat_category='altar', initial_elo_scores=historical_elo_scores)
         # Get raw results
         elo_results = elo_analysis.get_results()
-        print(elo_results) # Printing raw results for demonstration purposes
 
         # Print formatted results
         print(elo_analysis.get_display_results())
+
+        updated_elo_scores = elo_analysis.get_updated_historicals()
+        print(updated_elo_scores)
+
+        # Overwrite the JSON file with updated elo scores
+        with open("evals/elo_scores.json", "w") as file:
+            json.dump(updated_elo_scores, file, indent=4)
+        #------End Elo Analysis--------#
+        
+        #--------Glicko Analysis--------#
+        with open("evals/glicko_scores.json", "r") as file:
+            historical_glicko_scores = json.load(file)
+
+        glicko_analysis = Analysis(
+            data=stats,
+            eval_method='glicko2_1v1',
+            stat_category='action.use.altar',
+            initial_glicko2_scores=historical_glicko_scores
+        )
+
+        # print(glicko_analysis.get_results())
+        print(glicko_analysis.get_display_results())
+
+        updated_glicko_scores = glicko_analysis.get_updated_historicals()
+        with open("evals/glicko_scores.json", "w") as file:
+            json.dump(updated_glicko_scores, file, indent=4)
+
+        from pprint import pprint
+
+        print("Old glicko scores:")
+        if historical_glicko_scores:
+            pprint(historical_glicko_scores)
+
+        print("New glicko scores:")
+        pprint(updated_glicko_scores)
+
+        verbose_results = glicko_analysis.get_verbose_results()
+        print("Verbose results:")
+        pprint(verbose_results)
+
+
 
 
 if __name__ == "__main__":
