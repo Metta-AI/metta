@@ -11,11 +11,14 @@ import wandb
 from fast_gae import fast_gae
 from agent.policy_store import PolicyStore
 from omegaconf import OmegaConf
+import json
 
 from rl.pufferlib.experience import Experience
 from rl.pufferlib.profile import Profile
 from rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
 from rl.pufferlib.vecenv import make_vecenv
+from util.eval_analyzer import Analysis
+import hydra
 import os
 torch.set_float32_matmul_precision('high')
 
@@ -98,6 +101,40 @@ class PufferTrainer:
         self._checkpoint_trainer()
         self._save_policy_to_wandb()
         logger.info(f"Training complete. Total time: {self.train_time:.2f} seconds")
+
+        # ---update Glicko2 scores and log them---
+        try:
+            evaluator = hydra.utils.instantiate(self.cfg.evaluator, self.cfg, self.policy_store)
+            stats = evaluator.evaluate() if evaluator else None
+        except Exception as e:
+            logger.error(f"Error during evaluator setup or evaluation: {e}")
+            stats = None
+        finally:
+            if evaluator:
+                evaluator.close()
+        
+        with open("evals/glicko_scores.json", "r") as file:
+            historical_glicko_scores = json.load(file)
+
+        if stats:
+            try:
+                glicko_analysis = Analysis(
+                    data=stats,
+                    eval_method='glicko2_1v1',
+                    stat_category='action.use.altar',
+                    initial_glicko2_scores=historical_glicko_scores
+                )
+                results = glicko_analysis.get_results()
+                logger.info(f"Glicko2 scores: {results}")
+
+                updated_glicko_scores = glicko_analysis.get_updated_historicals()
+                with open("evals/glicko_scores.json", "w") as file:
+                    json.dump(updated_glicko_scores, file, indent=4)
+            except Exception as e:
+                logger.error(f"Failed during Glicko2 analysis or updating scores: {e}")
+        else:
+            logger.warning("Skipping Glicko2 analysis due to missing evaluation stats.")
+        # ---end Glicko2 scores---
 
     def _on_train_step(self):
         pass
