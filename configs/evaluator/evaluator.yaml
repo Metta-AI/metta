@@ -11,8 +11,12 @@ policy:
   filters: {}
 
 baselines:
+  elo_scores_path: null
+  glicko_scores_path: null
   uri: null
   type: top
   range: 5
   metric: epoch
   filters: {}
+
+

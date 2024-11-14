@@ -1,6 +1,6 @@
 import os
 import signal  # Aggressively exit on ctrl+c
-
+import json # For loading historical elo or glicko scores from local disk
 import hydra
 from omegaconf import OmegaConf
 from rich import traceback
@@ -8,11 +8,11 @@ from util.eval_analyzer import Analysis
 from rl.wandb.wandb_context import WandbContext
 from util.seeding import seed_everything
 from agent.policy_store import PolicyStore
+from util.stats_library import Glicko2Test
 signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
 
 @hydra.main(version_base=None, config_path="../configs", config_name="config")
 def main(cfg):
-
     traceback.install(show_locals=False)
     print(OmegaConf.to_yaml(cfg))
     seed_everything(cfg.seed, cfg.torch_deterministic)
@@ -24,30 +24,46 @@ def main(cfg):
         stats = evaluator.evaluate()
         evaluator.close()
 
-        p_analysis = Analysis(stats, eval_method='1v1', stat_category='all')
+        print_significance(cfg, stats)
+        print_elo(cfg, stats)
+        print_glicko(cfg, stats)
 
-        # Get raw results
-        p_results = p_analysis.get_results()
-        print(p_results) # Printing raw results for demonstration purposes
+def _load_scores(scores_path):
+    if scores_path and os.path.exists(scores_path):
+        with open(scores_path, "r") as file:
+            return json.load(file)
+    return {}
 
-        # Print formatted results
-        print(p_analysis.get_display_results())
+def _save_scores(scores_path, scores):
+    if scores_path:
+        with open(scores_path, "w") as file:
+            json.dump(scores, file, indent=4)
 
-        #delete below after testing. Some dummy historical elo scores :)
-        initial_elo_scores = {
-            'b.gpop.simple.2:v0': {'score': 500, 'episodes': 37},
-            'Policy 2': {'score': 1500, 'episodes': 12}
-        }
+def print_elo(cfg, stats):
+    old_scores = _load_scores(cfg.evaluator.baselines.elo_scores_path)
 
-        elo_analysis = Analysis(stats, eval_method='elo_1v1', stat_category='altar', initial_elo_scores=initial_elo_scores)
+    elo_analysis = Analysis(stats, eval_method='elo_1v1', stat_category='altar',
+                            initial_elo_scores=old_scores)
+    print(elo_analysis.get_display_results())
 
-        # Get raw results
-        elo_results = elo_analysis.get_results()
-        print(elo_results) # Printing raw results for demonstration purposes
+    _save_scores(cfg.evaluator.baselines.elo_scores_path,
+                 elo_analysis.get_updated_historicals())
 
-        # Print formatted results
-        print(elo_analysis.get_display_results())
+def print_glicko(cfg, stats):
+    old_scores = _load_scores(cfg.evaluator.baselines.glicko_scores_path)
 
+    test = Glicko2Test(stats, 'action.use.altar', old_scores)
+
+    print(test.get_display_results())
+
+    _save_scores(
+        cfg.evaluator.baselines.glicko_scores_path,
+        test.get_updated_historicals())
+
+
+def print_significance(cfg, stats):
+    p_analysis = Analysis(stats, eval_method='1v1', stat_category='all')
+    print(p_analysis.get_display_results())
 
 if __name__ == "__main__":
     main()
