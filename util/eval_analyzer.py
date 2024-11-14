@@ -80,34 +80,6 @@ class Analysis:
         self.test_instance = test_class(self.stats, self.policy_names, self.categories_list, **kwargs)
         self.test_instance.run_test()
 
-    def _prepare_data(self):
-        # Extract policy names
-        for episode in self.data:
-            for agent in episode:
-                policy_name = agent.get('policy_name', "unknown")
-                if policy_name and policy_name not in self.policy_names:
-                    self.policy_names.append(policy_name)
-
-        # Initialize stats dictionaries for each stat and policy with None values
-        for stat_name in self.categories_list:
-            self.stats[stat_name] = { policy_name: [None] * len(self.data) for policy_name in self.policy_names }
-
-        # Extract stats per policy per episode
-        for idx, episode in enumerate(self.data):
-            # Keep track of which policies participated in this episode
-            policies_in_episode = set()
-            for agent in episode:
-                policy = agent.get('policy_name', "unknown")
-                if policy is None:
-                    continue
-                policies_in_episode.add(policy)
-                # Loop through each stat and set this policy's stat for the episode
-                for stat_name in self.categories_list:
-                    stat_value = agent.get(stat_name, 0)
-                    if self.stats[stat_name][policy][idx] is None:
-                        self.stats[stat_name][policy][idx] = stat_value
-                    else:
-                        self.stats[stat_name][policy][idx] += stat_value
             # For policies not in this episode, their stat remains None
 
     def get_results(self):
@@ -115,3 +87,15 @@ class Analysis:
 
     def get_display_results(self):
         return self.test_instance.get_formatted_results()
+
+    def get_verbose_results(self):
+        if hasattr(self.test_instance, 'get_verbose_results'):
+            return self.test_instance.get_verbose_results()
+        else:
+            raise NotImplementedError(f"The eval_method {self.eval_method} does not currently support verbose results.")
+
+    def get_updated_historicals(self):
+        if hasattr(self.test_instance, 'get_updated_historicals'):
+            return self.test_instance.get_updated_historicals()
+        else:
+            raise NotImplementedError(f"The eval_method {self.eval_method} does not currently support updating historical scores.")
