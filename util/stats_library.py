@@ -3,16 +3,16 @@ import numpy as np
 from tabulate import tabulate
 from termcolor import colored
 from typing import Dict, Any
-from collections import defaultdict
 from typing import List
 
 class StatisticalTest:
-    def __init__(self, stats, categories: List[str]):
-        self.stats = stats
+    def __init__(self, data, categories: List[str]):
         self.categories = categories
+        self.prior_scores = {}
+        self.stats = {}
 
         self.policy_names = []
-        for episode in self.data:
+        for episode in data:
             for agent in episode:
                 policy_name = agent.get('policy_name', "unknown")
                 if policy_name and policy_name not in self.policy_names:
@@ -20,10 +20,10 @@ class StatisticalTest:
 
         # Initialize stats dictionaries for each stat and policy with None values
         for stat_name in self.categories:
-            self.stats[stat_name] = { policy_name: [None] * len(self.data) for policy_name in self.policy_names }
+            self.stats[stat_name] = { policy_name: [None] * len(data) for policy_name in self.policy_names }
 
         # Extract stats per policy per episode
-        for idx, episode in enumerate(self.data):
+        for idx, episode in enumerate(data):
             # Keep track of which policies participated in this episode
             policies_in_episode = set()
             for agent in episode:
@@ -42,8 +42,12 @@ class StatisticalTest:
     def evaluate(self) -> Dict[str, Any]:
         raise NotImplementedError
 
-    def format_results(self, results: Dict[str, Any]) -> str:
+    def format_results(self, results: Dict[str, Any]):
         raise NotImplementedError
+
+    def withHistoricalData(self, prior_scores: Dict[str, Any]):
+        self.prior_scores = prior_scores
+        return self
 
 class MannWhitneyUTest(StatisticalTest):
     def evaluate(self) -> Dict[str, Any]:
@@ -144,7 +148,7 @@ class MannWhitneyUTest(StatisticalTest):
             }
         return results
 
-    def format_results(self, results: Dict[str, Any]) -> str:
+    def format_results(self, results: Dict[str, Any]):
         data_rows = []
         for stat_name, result in results.items():
             policy_stats = result['policy_stats']
@@ -195,14 +199,13 @@ class MannWhitneyUTest(StatisticalTest):
             headers.append(header)
 
         # Generate the formatted table
-        self.formatted_results = tabulate(data_rows, headers=headers, tablefmt="fancy_grid")
+        return tabulate(data_rows, headers=headers, tablefmt="fancy_grid")
 
 class EloTest(StatisticalTest):
-
-    def evaluate(self, prior_scores: Dict[str, Any] = None) -> Dict[str, Any]:
+    def evaluate(self) -> Dict[str, Any]:
         scores = {}
         for policy in self.policy_names:
-            scores[policy] = prior_scores.get(policy, {'score': 1000, 'matches': 0})
+            scores[policy] = self.prior_scores.get(policy, {'score': 1000, 'matches': 0})
 
         winning_margin = 1  # Set a minimum winning margin for a win
         # Use the first stat in categories_list instead of hardcoding 'altar'
@@ -210,15 +213,7 @@ class EloTest(StatisticalTest):
         all_scores = self.stats[stat_name]
         total_episodes = len(all_scores[self.policy_names[0]])
 
-        def get_k(policy):
-            n = scores[policy]['matches']
-            # Adjust K based on the number of episodes played by this policy
-            if n < 30:
-                return 32
-            elif n < 100:
-                return 16
-            else:
-                return 8
+
 
         for episode_no in range(total_episodes):
             # Get policies that participated in this episode
@@ -256,8 +251,8 @@ class EloTest(StatisticalTest):
                             S_i, S_j = 0.5, 0.5
 
                         # Get K values per policy
-                        K_i = get_k(policy_i)
-                        K_j = get_k(policy_j)
+                        K_i = self._get_k(scores, policy_i)
+                        K_j = self._get_k(scores, policy_j)
 
                         # Update elo ratings
                         scores[policy_i]['score'] += K_i * (S_i - E_i)
@@ -269,7 +264,7 @@ class EloTest(StatisticalTest):
 
         return scores
 
-    def format_results(self, results: Dict[str, Any]) -> str:
+    def format_results(self, results: Dict[str, Any]):
         # Headers
         headers = ['Policy', 'Elo Rating', 'Matches Played']
         data_rows = []
@@ -292,13 +287,22 @@ class EloTest(StatisticalTest):
 
         return tabulate(data_rows, headers=headers, tablefmt="fancy_grid")
 
+    def _get_k(self, scores, policy):
+        n = scores[policy]['matches']
+        # Adjust K based on the number of episodes played by this policy
+        if n < 30:
+            return 32
+        elif n < 100:
+            return 16
+        else:
+            return 8
 # Placeholder classes for KruskalWallisTest for multiplayer significance analysis
 class KruskalWallisTest(StatisticalTest):
     def evaluate(self) -> Dict[str, Any]:
         # Not implemented yet
         pass
 
-    def format_results(self, results: Dict[str, Any]) -> str:
+    def format_results(self, results: Dict[str, Any]):
         # Not implemented yet
         pass
 
@@ -315,9 +319,8 @@ class Glicko2Test(StatisticalTest):
         self.max_iterations = max_iterations
 
 
-    def evaluate(self, prior_scores: Dict[str, Any] = None) -> Dict[str, Any]:
+    def evaluate(self, verbose: bool = False) -> Dict[str, Any]:
         ratings = {}
-        print(f"Tau: {self.tau}")
 
         for policy in self.policy_names:
             ratings[policy] = {
@@ -327,28 +330,32 @@ class Glicko2Test(StatisticalTest):
                 'matches': 0
             }
             # Use initial ratings if provided, else default values
-            if policy in self.initial_ratings:
-                rating_info = self.initial_ratings[policy]
-                mu = (rating_info['rating'] - 1500) / 173.7178  # Convert rating to mu
-                phi = rating_info['RD'] / 173.7178  # Convert RD to phi
-                sigma = rating_info.get('sigma', self.initial_sigma)
-                matches = rating_info.get('matches', 0)
+            if policy in self.prior_scores:
+                rating_info = self.prior_scores[policy]
+                ratings[policy]['mu'] = (rating_info['rating'] - 1500) / 173.7178  # Convert rating to mu
+                ratings[policy]['phi'] = rating_info['RD'] / 173.7178  # Convert RD to phi
+                ratings[policy]['sigma'] = rating_info.get('sigma', self.initial_sigma)
+                ratings[policy]['matches'] = rating_info.get('matches', 0)
 
-            # Collect all match results over all episodes
+        # Collect all match results over all episodes
         stat_name = self.categories[0]
         all_scores = self.stats[stat_name]
-        total_episodes = len(next(iter(all_scores.values())))
+        total_episodes = len(all_scores[self.policy_names[0]])
 
         # For each policy, collect matches over all episodes
         policy_matches = {policy: [] for policy in self.policy_names}
         # Extra metrics for checking if Glicko is doing the job
-        self.verbose_results = {policy: {'total_score': 0,
-                                'wins': 0,
-                                'losses': 0,
-                                'win_pct': 0,
-                                'avg_score': 0,
-                                'rank': 0,
-                                'glicko2': 0} for policy in self.policy_names}
+        verbose_results = {
+            policy: {
+                'total_score': 0,
+                'wins': 0,
+                'losses': 0,
+                'win_pct': 0,
+                'avg_score': 0,
+                'rank': 0,
+                'glicko2': 0
+            } for policy in self.policy_names
+        }
 
         for episode_no in range(total_episodes):
             # Get policies that participated in this episode
@@ -381,14 +388,14 @@ class Glicko2Test(StatisticalTest):
                         s_j = 0.5
 
                     #delete aux metrics after testing
-                    self.verbose_results[policy_i]['total_score'] += score_i
-                    self.verbose_results[policy_j]['total_score'] += score_j
+                    verbose_results[policy_i]['total_score'] += score_i
+                    verbose_results[policy_j]['total_score'] += score_j
                     if s_i == 1:
-                        self.verbose_results[policy_i]['wins'] += 1
-                        self.verbose_results[policy_j]['losses'] += 1
+                        verbose_results[policy_i]['wins'] += 1
+                        verbose_results[policy_j]['losses'] += 1
                     elif s_j == 1:
-                        self.verbose_results[policy_j]['wins'] += 1
-                        self.verbose_results[policy_i]['losses'] += 1
+                        verbose_results[policy_j]['wins'] += 1
+                        verbose_results[policy_i]['losses'] += 1
 
                     # Record matches
                     policy_matches[policy_i].append({
@@ -408,9 +415,9 @@ class Glicko2Test(StatisticalTest):
                 continue
 
             # Get current rating parameters
-            mu = self.ratings[policy]['mu']
-            phi = self.ratings[policy]['phi']
-            sigma = self.ratings[policy]['sigma']
+            mu = ratings[policy]['mu']
+            phi = ratings[policy]['phi']
+            sigma = ratings[policy]['sigma']
 
             # Compute v (variance), delta, and update factors
             v_inv = 0.0
@@ -419,8 +426,8 @@ class Glicko2Test(StatisticalTest):
             for match in matches:
                 opponent = match['opponent']
                 s = match['score']
-                mu_j = self.ratings[opponent]['mu']
-                phi_j = self.ratings[opponent]['phi']
+                mu_j = ratings[opponent]['mu']
+                phi_j = ratings[opponent]['phi']
                 g_phi_j = 1 / np.sqrt(1 + 3 * phi_j**2 / (np.pi**2))
                 E_s = 1 / (1 + np.exp(-g_phi_j * (mu - mu_j)))
                 v_inv += (g_phi_j**2) * E_s * (1 - E_s)
@@ -481,10 +488,10 @@ class Glicko2Test(StatisticalTest):
             mu_prime = mu + phi_prime**2 * delta
 
             # Update ratings
-            self.ratings[policy]['mu'] = mu_prime
-            self.ratings[policy]['phi'] = phi_prime
-            self.ratings[policy]['sigma'] = sigma_prime
-            self.ratings[policy]['matches'] += len(matches)
+            ratings[policy]['mu'] = mu_prime
+            ratings[policy]['phi'] = phi_prime
+            ratings[policy]['sigma'] = sigma_prime
+            ratings[policy]['matches'] += len(matches)
 
         # After processing all matches, convert μ and φ back to ratings and RD
         # rating = μ * 173.7178 + 1500
@@ -493,15 +500,15 @@ class Glicko2Test(StatisticalTest):
         # Store the final ratings
         results = {}
         for policy in self.policy_names:
-            mu = self.ratings[policy]['mu']
-            phi = self.ratings[policy]['phi']
+            mu = ratings[policy]['mu']
+            phi = ratings[policy]['phi']
             rating = mu * 173.7178 + 1500
             RD = phi * 173.7178
             results[policy] = {
                 'rating': rating,
                 'RD': RD,
-                'sigma': self.ratings[policy]['sigma'],
-                'matches': self.ratings[policy]['matches']
+                'sigma': ratings[policy]['sigma'],
+                'matches': ratings[policy]['matches']
             }
 
         #calculate summary verbose metrics
@@ -510,24 +517,20 @@ class Glicko2Test(StatisticalTest):
             if not matches:
                 # No matches, proceed to next
                 continue
-            self.verbose_results[policy]['avg_score'] = self.verbose_results[policy]['total_score'] / len(matches)
-            self.verbose_results[policy]['win_pct'] = self.verbose_results[policy]['wins'] / len(matches)
+            verbose_results[policy]['avg_score'] = verbose_results[policy]['total_score'] / len(matches)
+            verbose_results[policy]['win_pct'] = verbose_results[policy]['wins'] / len(matches)
         #calculate rank by win pct and add glicko scores to aux_metrics
-        sorted_aux_metrics = sorted(self.verbose_results.items(), key=lambda x: x[1]['win_pct'], reverse=True)
+        sorted_aux_metrics = sorted(verbose_results.items(), key=lambda x: x[1]['win_pct'], reverse=True)
         for i, (policy, metrics) in enumerate(sorted_aux_metrics):
             metrics['rank'] = i + 1
             metrics['glicko2'] = results[policy]['rating']
 
-    def get_verbose_results(self):
-        return self.verbose_results
+        if verbose:
+            return results, verbose_results
+        else:
+            return results
 
-    def get_updated_historicals(self):
-        if self.initial_ratings is not None:
-            self.updated_scores = update_scores(self.initial_ratings, results)
-            return self.updated_scores
-        return None
-
-    def format_results(self):
+    def format_results(self, results: Dict[str, Any]):
         # Headers
         headers = ['Policy', 'Glicko-2 Rating', 'Rating Deviation', 'Matches Played']
         data_rows = []
@@ -550,7 +553,7 @@ class Glicko2Test(StatisticalTest):
                 rating_str = colored(f"{rating_rounded}", "yellow")
             data_rows.append([policy, rating_str, RD_rounded, matches])
 
-        self.formatted_results = tabulate(data_rows, headers=headers, tablefmt="fancy_grid")
+        return tabulate(data_rows, headers=headers, tablefmt="fancy_grid")
 
 
 def significance_and_effect(interpretations):
