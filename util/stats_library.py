@@ -1,9 +1,12 @@
-from scipy.stats import mannwhitneyu
+import json
+import os
+from typing import Any, Dict, List
+
 import numpy as np
+from scipy.stats import mannwhitneyu
 from tabulate import tabulate
 from termcolor import colored
-from typing import Dict, Any
-from typing import List
+
 
 class StatisticalTest:
     def __init__(self, data, categories: List[str]):
@@ -586,3 +589,26 @@ def update_scores(historical_scores, new_scores):
         else:
             historical_scores[policy] = scores
     return historical_scores
+
+def get_test_results(test: StatisticalTest, scores_path: str = None):
+    historical_data = {}
+    if scores_path and os.path.exists(scores_path):
+        with open(scores_path, "r") as file:
+            print(f"Loading historical data from {scores_path}")
+            try:
+                historical_data = json.load(file)
+            except json.JSONDecodeError:
+                print(f"Failed to load historical data from {scores_path}")
+            test.withHistoricalData(historical_data)
+
+    results = test.evaluate()
+    formatted_results = test.format_results(results)
+
+    if scores_path:
+        os.makedirs(os.path.dirname(scores_path), exist_ok=True)
+        with open(scores_path, "w") as file:
+            print(f"Saving updated historical data to {scores_path}")
+            historical_data.update(results)
+            json.dump(historical_data, file, indent=4)
+
+    return results, formatted_results

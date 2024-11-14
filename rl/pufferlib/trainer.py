@@ -1,25 +1,26 @@
+import json
 import logging
+import os
 import time
 from collections import defaultdict
 from copy import deepcopy
 
+import hydra
 import numpy as np
 import pufferlib
 import pufferlib.utils
 import torch
 import wandb
-from fast_gae import fast_gae
 from agent.policy_store import PolicyStore
+from fast_gae import fast_gae
 from omegaconf import OmegaConf
-import json
+from util.stats_library import Glicko2Test, get_test_results
 
 from rl.pufferlib.experience import Experience
 from rl.pufferlib.profile import Profile
 from rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
 from rl.pufferlib.vecenv import make_vecenv
-from util.eval_analyzer import Analysis
-import hydra
-import os
+
 torch.set_float32_matmul_precision('high')
 
 logger = logging.getLogger("trainer")
@@ -95,6 +96,9 @@ class PufferTrainer:
                 self._checkpoint_trainer()
             if self.epoch % self.trainer_cfg.wandb_checkpoint_interval == 0:
                 self._save_policy_to_wandb()
+            if self.epoch % self.trainer_cfg.evaluate_interval == 0:
+                self._evaluate_policy()
+
             self._on_train_step()
 
         self.train_time = time.time() - self.train_start
@@ -102,39 +106,23 @@ class PufferTrainer:
         self._save_policy_to_wandb()
         logger.info(f"Training complete. Total time: {self.train_time:.2f} seconds")
 
-        # ---update Glicko2 scores and log them---
-        try:
-            evaluator = hydra.utils.instantiate(self.cfg.evaluator, self.cfg, self.policy_store)
-            stats = evaluator.evaluate() if evaluator else None
-        except Exception as e:
-            logger.error(f"Error during evaluator setup or evaluation: {e}")
-            stats = None
-        finally:
-            if evaluator:
-                evaluator.close()
-        
-        with open("evals/glicko_scores.json", "r") as file:
-            historical_glicko_scores = json.load(file)
+    def _evaluate_policy(self):
+        if self.cfg.evaluator.baselines.uri is None:
+            return
 
-        if stats:
-            try:
-                glicko_analysis = Analysis(
-                    data=stats,
-                    eval_method='glicko2_1v1',
-                    stat_category='action.use.altar',
-                    initial_glicko2_scores=historical_glicko_scores
-                )
-                results = glicko_analysis.get_results()
-                logger.info(f"Glicko2 scores: {results}")
+        baseline_records = self.policy_store.policies(self.cfg.evaluator.baselines)
+        evaluator = hydra.utils.instantiate(self.cfg.evaluator, self.cfg, self.last_pr, baseline_records)
+        stats = evaluator.evaluate()
+        evaluator.close()
 
-                updated_glicko_scores = glicko_analysis.get_updated_historicals()
-                with open("evals/glicko_scores.json", "w") as file:
-                    json.dump(updated_glicko_scores, file, indent=4)
-            except Exception as e:
-                logger.error(f"Failed during Glicko2 analysis or updating scores: {e}")
-        else:
-            logger.warning("Skipping Glicko2 analysis due to missing evaluation stats.")
-        # ---end Glicko2 scores---
+        if stats is None:
+            logger.warning("Evaluate Policy: No stats to evaluate")
+            return
+
+        results, formatted_results = get_test_results(
+            Glicko2Test(stats, self.cfg.evaluator.stat_categories['altar']),
+            self.cfg.evaluator.baselines.glicko_scores_path)
+        logger.info(f"Glicko2 scores: \n{formatted_results}")
 
     def _on_train_step(self):
         pass

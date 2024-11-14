@@ -4,18 +4,16 @@ from typing import List
 import numpy as np
 import torch
 from omegaconf import OmegaConf
-from agent.policy_store import PolicyStore
 from rl.pufferlib.vecenv import make_vecenv
-
+from agent.policy_store import PolicyRecord
 logger = logging.getLogger("evaluator")
 
 class PufferEvaluator():
     def __init__(
         self,
         cfg: OmegaConf,
-        policy_store: PolicyStore,
-        policy: OmegaConf,
-        baselines: List[OmegaConf],
+        policy_record: PolicyRecord,
+        baseline_records: List[PolicyRecord],
         **kwargs
     ) -> None:
 
@@ -27,8 +25,8 @@ class PufferEvaluator():
         self._min_episodes = cfg.evaluator.num_episodes
         self._max_time_s = cfg.evaluator.max_time_s
 
-        self._policy_pr = policy_store.policy(policy)
-        self._baseline_prs = policy_store.policies(baselines)
+        self._policy_pr = policy_record
+        self._baseline_prs = baseline_records
 
         self._policy_agent_pct = cfg.evaluator.policy_agents_pct
         if len(self._baseline_prs) == 0:
