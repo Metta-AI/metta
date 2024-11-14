@@ -4,11 +4,11 @@ import json # For loading historical elo or glicko scores from local disk
 import hydra
 from omegaconf import OmegaConf
 from rich import traceback
-from util.eval_analyzer import Analysis
 from rl.wandb.wandb_context import WandbContext
 from util.seeding import seed_everything
 from agent.policy_store import PolicyStore
-from util.stats_library import Glicko2Test
+from util.stats_library import Glicko2Test, MannWhitneyUTest, EloTest, StatisticalTest
+
 signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
 
 @hydra.main(version_base=None, config_path="../configs", config_name="config")
@@ -24,46 +24,30 @@ def main(cfg):
         stats = evaluator.evaluate()
         evaluator.close()
 
-        print_significance(cfg, stats)
-        print_elo(cfg, stats)
-        print_glicko(cfg, stats)
+        print_test_results(MannWhitneyUTest(stats, cfg.evaluator.stat_categories['all']))
+        print_test_results(EloTest(stats, cfg.evaluator.stat_categories['altar']), cfg.evaluator.baselines.elo_scores_path)
+        print_test_results(Glicko2Test(stats, cfg.evaluator.stat_categories['altar']), cfg.evaluator.baselines.glicko_scores_path)
 
-def _load_scores(scores_path):
+def print_test_results(test: StatisticalTest, scores_path: str = None):
+    historical_data = {}
     if scores_path and os.path.exists(scores_path):
         with open(scores_path, "r") as file:
-            return json.load(file)
-    return {}
+            print(f"Loading historical data from {scores_path}")
+            try:
+                historical_data = json.load(file)
+            except json.JSONDecodeError:
+                print(f"Failed to load historical data from {scores_path}")
+            test.withHistoricalData(historical_data)
 
-def _save_scores(scores_path, scores):
+    results = test.evaluate()
+    print(test.format_results(results))
+
     if scores_path:
+        os.makedirs(os.path.dirname(scores_path), exist_ok=True)
         with open(scores_path, "w") as file:
-            json.dump(scores, file, indent=4)
-
-def print_elo(cfg, stats):
-    old_scores = _load_scores(cfg.evaluator.baselines.elo_scores_path)
-
-    elo_analysis = Analysis(stats, eval_method='elo_1v1', stat_category='altar',
-                            initial_elo_scores=old_scores)
-    print(elo_analysis.get_display_results())
-
-    _save_scores(cfg.evaluator.baselines.elo_scores_path,
-                 elo_analysis.get_updated_historicals())
-
-def print_glicko(cfg, stats):
-    old_scores = _load_scores(cfg.evaluator.baselines.glicko_scores_path)
-
-    test = Glicko2Test(stats, 'action.use.altar', old_scores)
-
-    print(test.get_display_results())
-
-    _save_scores(
-        cfg.evaluator.baselines.glicko_scores_path,
-        test.get_updated_historicals())
-
-
-def print_significance(cfg, stats):
-    p_analysis = Analysis(stats, eval_method='1v1', stat_category='all')
-    print(p_analysis.get_display_results())
+            print(f"Saving updated historical data to {scores_path}")
+            historical_data.update(results)
+            json.dump(historical_data, file, indent=4)
 
 if __name__ == "__main__":
     main()
