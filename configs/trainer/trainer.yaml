@@ -8,3 +8,5 @@ initial_policy:
   filters: {}
 
 checkpoint_dir: ${run_dir}/checkpoints
+
+evaluate_interval: 10
