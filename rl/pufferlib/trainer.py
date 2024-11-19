@@ -122,6 +122,13 @@ class PufferTrainer:
         results, formatted_results = get_test_results(
             Glicko2Test(stats, self.cfg.evaluator.stat_categories['altar']),
             self.cfg.evaluator.baselines.glicko_scores_path)
+
+        self.wandb_run.log({
+            "eval/glicko2": results.get(self.last_pr.name, 0)["rating"],
+            "train/agent_step": self.agent_step,
+            "train/epoch": self.epoch,
+        })
+
         logger.info(f"Glicko2 scores: \n{formatted_results}")
 
     def _on_train_step(self):
