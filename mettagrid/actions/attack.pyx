@@ -42,11 +42,12 @@ cdef class Attack(MettaActionHandler):
         if agent_target:
             self.env._stats.agent_incr(actor_id, self._stats.target[agent_target._type_id].c_str())
             if agent_target.shield:
-                shield_damage = -agent_target.update_energy(-self.damage, &self.env._rewards[actor_id])
+                shield_damage = -agent_target.update_energy(-self.damage, NULL)
                 self.env._stats.agent_add(actor_id, "shield_damage", shield_damage)
             if shield_damage < self.damage:
                 agent_target.shield = False
                 agent_target.frozen = agent_target.freeze_duration
+                agent_target.update_energy(-agent_target.energy, NULL)
                 self.env._stats.agent_incr(actor_id, "attack.frozen")
                 for item in range(InventoryItem.InventoryCount):
                     actor.update_inventory(item, agent_target.inventory[item])
