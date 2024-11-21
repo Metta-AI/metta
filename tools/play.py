@@ -21,7 +21,7 @@ def main(cfg):
     os.makedirs(cfg.run_dir, exist_ok=True)
     with open(os.path.join(cfg.run_dir, "config.yaml"), "w") as f:
         OmegaConf.save(cfg, f)
-
+   
     with WandbContext(cfg) as wandb_run:
         policy_store = PolicyStore(cfg, wandb_run)
         policy = policy_store.policy(cfg.evaluator.policy)

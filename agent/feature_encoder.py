@@ -1,3 +1,14 @@
+"""
+This file defines a feature encoding module for processing observations in a deep learning model.
+It contains the FeatureSetEncoder class which:
+- Takes raw observation features and their names as input
+- Optionally normalizes the features
+- Embeds feature names into vectors
+- Processes features through neural network layers
+- Outputs encoded feature representations
+
+The encoder is designed to work with Sample Factory RL framework and MettaAgent interface.
+"""
 
 from __future__ import annotations
 from typing import List

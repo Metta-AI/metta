@@ -1,3 +1,19 @@
+"""
+This file implements a Profile class for tracking and measuring performance metrics during training.
+
+The Profile class provides:
+- Tracking of steps per second (SPS)
+- Timing of different training phases (eval, env, forward passes, etc)
+- Uptime and remaining time estimation
+- Profilers for detailed timing breakdowns
+
+Key features:
+- Tracks overall training progress and timing
+- Measures performance of different training components
+- Provides timing breakdowns for analysis
+- Helps monitor training efficiency
+"""
+
 import time
 
 import pufferlib
