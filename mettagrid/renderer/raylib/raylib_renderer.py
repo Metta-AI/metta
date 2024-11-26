@@ -168,6 +168,11 @@ class MettaGridRaylibRenderer:
             if self.selected_object_id is not None and "agent_id" in self.game_objects[self.selected_object_id]:
                 self.selected_agent_idx = self.game_objects[self.selected_object_id]["agent_id"]
 
+    def _draw_text_right_aligned(self, text, x, y, font_size):
+        """Draw text right aligned at (x, y), useful for displaying numbers."""
+        text_width = rl.MeasureTextEx(self.font, text, font_size, 1).x
+        rl.DrawTextEx(self.font, text, (x - text_width, y), font_size, 1, colors.WHITE)
+
     def render_sidebar(self):
         font_size = 14
         sidebar_x = rl.GetScreenWidth() - self.sidebar_width
@@ -220,16 +225,24 @@ class MettaGridRaylibRenderer:
             # draw a 11x11 grid of text on the sidebar
             for r in range(obs.shape[0]):
                 for c in range(obs.shape[1]):
-                    rl.DrawTextEx(self.font, f"{obs[r][c]}".encode(),
-                                  (sidebar_x + 10 + c * font_size, y + r * font_size), font_size +2, 1, colors.WHITE)
+                    text = f"{obs[r][c]}".encode()
+                    self._draw_text_right_aligned(
+                        text,
+                        sidebar_x + 10 + (c + 1) * font_size * 3,
+                        y + r * font_size,
+                        font_size + 2
+                    )
 
         # Display current timestep at the bottom of the sidebar
         timestep_text = f"Timestep: {self.current_timestep}"
         rl.DrawTextEx(self.font, timestep_text.encode(),
                       (sidebar_x + 10, sidebar_height - 30), font_size, 1, colors.WHITE)
         feature_name = "disabled"
-        if self.obs_idx > -1:
-            feature_name = self.env.grid_features()[self.obs_idx]
+
+        # Clamp the observation index to be between -1 and the number of features minus 1
+        self.obs_idx = max(-1, min(self.obs_idx, len(self.env.grid_features()) - 1))
+        feature_name = self.env.grid_features()[self.obs_idx]
+
         obs_txt = f"Obs: {feature_name} (-/=)"
         rl.DrawTextEx(self.font, obs_txt.encode(),
                       (sidebar_x + 10, sidebar_height - 60), font_size, 1, colors.WHITE)
@@ -273,25 +286,25 @@ class MettaGridRaylibRenderer:
             ray.draw_line(int(start_x), int(start_y), int(end_x), int(end_y), ray.RED)
 
     def handle_keyboard_input(self):
-        if rl.IsKeyDown(rl.KEY_ESCAPE):
+        if rl.IsKeyPressed(rl.KEY_ESCAPE):
             sys.exit(0)
 
         if self.selected_agent_idx is not None:
             for key, action in self.key_actions.items():
-                if rl.IsKeyDown(key):
+                if rl.IsKeyPressed(key):
                     self.actions[self.selected_agent_idx][0] = action[0]
                     self.actions[self.selected_agent_idx][1] = action[1]
                     self.user_action = True
 
-        if rl.IsKeyDown(rl.KEY_GRAVE) and self.selected_object_id is not None:
+        if rl.IsKeyPressed(rl.KEY_GRAVE) and self.selected_object_id is not None:
             self.mind_control = not self.mind_control
 
-        if rl.IsKeyDown(rl.KEY_MINUS):
+        if rl.IsKeyPressed(rl.KEY_MINUS):
             self.obs_idx -= 1
-        if rl.IsKeyDown(rl.KEY_EQUAL):
+        if rl.IsKeyPressed(rl.KEY_EQUAL):
             self.obs_idx += 1
 
-        if rl.IsKeyDown(rl.KEY_SPACE):
+        if rl.IsKeyPressed(rl.KEY_SPACE):
             self.paused = not self.paused
 
     def draw_mouse(self):
