@@ -130,6 +130,7 @@ class MettaGridRaylibRenderer:
         # return np.frombuffer(cdata, dtype=np.uint8).reshape((height, width, channels))[:, :, :3]
 
     def _render(self):
+
         # Update window size if it has changed
         if rl.IsWindowResized():
             self.window_width = rl.GetScreenWidth()
@@ -150,6 +151,10 @@ class MettaGridRaylibRenderer:
 
         rl.EndMode2D()
         self.render_sidebar()
+
+        if rl.IsKeyDown(rl.KEY_SLASH): # Also the `?` key.
+            self._draw_help_overlay()
+
         rl.EndDrawing()
 
     def handle_mouse_input(self):
@@ -168,10 +173,10 @@ class MettaGridRaylibRenderer:
             if self.selected_object_id is not None and "agent_id" in self.game_objects[self.selected_object_id]:
                 self.selected_agent_idx = self.game_objects[self.selected_object_id]["agent_id"]
 
-    def _draw_text_right_aligned(self, text, x, y, font_size):
+    def _draw_text_right_aligned(self, text, x, y, font_size, color=colors.WHITE):
         """Draw text right aligned at (x, y), useful for displaying numbers."""
         text_width = rl.MeasureTextEx(self.font, text, font_size, 1).x
-        rl.DrawTextEx(self.font, text, (x - text_width, y), font_size, 1, colors.WHITE)
+        rl.DrawTextEx(self.font, text, (x - text_width, y), font_size, 1)
 
     def render_sidebar(self):
         font_size = 14
@@ -243,10 +248,9 @@ class MettaGridRaylibRenderer:
         self.obs_idx = max(-1, min(self.obs_idx, len(self.env.grid_features()) - 1))
         feature_name = self.env.grid_features()[self.obs_idx]
 
-        obs_txt = f"Obs: {feature_name} (-/=)"
+        obs_txt = f"Press ? for help. Obs: {feature_name} (-/=)"
         rl.DrawTextEx(self.font, obs_txt.encode(),
                       (sidebar_x + 10, sidebar_height - 60), font_size, 1, colors.WHITE)
-
 
     def draw_selection(self, obj):
         x, y = obj["c"] * self.tile_size, obj["r"] * self.tile_size
@@ -285,8 +289,54 @@ class MettaGridRaylibRenderer:
             end_y = target_loc[0] * self.tile_size + self.tile_size // 2
             ray.draw_line(int(start_x), int(start_y), int(end_x), int(end_y), ray.RED)
 
+    def _draw_help_overlay(self):
+        """ Draws a help overlay on the screen with the available keys and their actions. """
+
+        font_size = 16
+        help_text = """
+        * Click on an agent to select it
+        * `SPACE` toggle pause
+
+        * `-` decrement observation layer index
+        * `=` increment observation layer index
+
+        * `E` move forward
+        * `Q` move backward
+
+        * `W` face up
+        * `S` face down
+        * `A` face left
+        * `D` face right
+
+        * Key `1` to `9` attacks with that type of an attack.
+        * `U` use
+        * `O` toggle shield
+        * `P` swap
+
+        * `~` toggle mind control - the agent will ignore the AI and just sit
+            there allowing the player to move it around without the AI making
+            decisions.
+        """
+        # Figure out how big to make the box to fit the text.
+        size = rl.MeasureTextEx(self.font, help_text.encode(), font_size, 1)
+        size_x = int(size.x + 30)
+        size_y = int(size.y + 30)
+        # Position the box in the middle of the screen.
+        pos_x = (rl.GetScreenWidth() - size_x) // 2
+        pos_y = (rl.GetScreenHeight() - size_y) // 2
+        # Draw a semi-transparent black rectangle behind the text.
+        rl.DrawRectangle(pos_x, pos_y, size_x, size_y, (0, 0, 0, 200))
+        rl.DrawTextEx(
+            self.font,
+            help_text.encode(),
+            (pos_x + 15, pos_y + 15),
+            font_size,
+            1,
+            colors.WHITE
+        )
+
     def handle_keyboard_input(self):
-        if rl.IsKeyPressed(rl.KEY_ESCAPE):
+        if rl.IsKeyPressed(rl.KEY_ESCAPE) or rl.WindowShouldClose():
             sys.exit(0)
 
         if self.selected_agent_idx is not None:
@@ -350,7 +400,7 @@ class MettaGridRaylibRenderer:
 
     def _setup_action_handling(self):
         # convert any missing actions to noop
-        actions_dict = { name: idx for idx, name in enumerate(self.env.action_names()) }
+        actions_dict = {name: idx for idx, name in enumerate(self.env.action_names())}
         noop_idx = actions_dict["noop"]
         self.action_ids = defaultdict(lambda: noop_idx)
         for name in actions_dict:
