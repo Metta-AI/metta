@@ -1,10 +1,10 @@
-boto3
-colorama
+#boto3
+#colorama
 # chex
 hydra-core
-fastapi
-imageio
-jmespath
+#fastapi
+#imageio
+#jmespath
 matplotlib
 # numpy==2.0.0
 pettingzoo
