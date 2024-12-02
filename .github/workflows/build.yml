@@ -40,6 +40,7 @@ jobs:
     - name: Run tests
       env:
         HYDRA_FULL_ERROR: 1
+        PYTHONPATH: ${{ github.workspace }}
       run: |
         pwd
         ls -la
