@@ -25,15 +25,16 @@ jobs:
 
     - name: Install PufferGrid
       run: |
+        cd ..
         git clone https://github.com/Metta-AI/puffergrid.git
         cd puffergrid
         git pull
         python setup.py build_ext --inplace
         pip install -e .
-        cd ..
 
     - name: Install PufferLib
       run: |
+        cd ..
         git clone https://github.com/Metta-AI/pufferlib.git
         cd pufferlib
         git fetch
@@ -42,7 +43,6 @@ jobs:
         git pull
         python setup.py build_ext --inplace
         pip install -e .
-        cd ..
 
     - name: Run setup.py
       run: |
@@ -56,4 +56,5 @@ jobs:
       run: |
         pwd
         ls -la
+        ls -la ..
         python tests/test_metagrid.py
