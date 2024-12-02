@@ -38,5 +38,7 @@ jobs:
         pip install -e .
 
     - name: Run tests
+      env:
+        HYDRA_FULL_ERROR: 1
       run: |
         python tests/test_metagrid.py
