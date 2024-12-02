@@ -31,7 +31,7 @@ def play(cfg: OmegaConf, policy_record: PolicyRecord):
             if hasattr(policy, 'lstm'):
                 actions, _, _, _, policy_rnn_state = policy(obs, policy_rnn_state)
             else:
-                actions, _, _, _ = policy(obs)
+                actions, _, _, _ = policy(obs) #if we are not using an RNN, then we don't need the rnn state
 
         renderer.update(
             env._c_env.unflatten_actions(actions.cpu().numpy()),

@@ -1,3 +1,20 @@
+"""
+This file implements an Experience class for storing and managing experience data during reinforcement learning training.
+
+The Experience class provides:
+- Flat tensor storage for observations, actions, rewards, etc.
+- Array views for faster indexing
+- Support for LSTM state storage
+- Minibatch handling for training
+- CPU/GPU memory management
+
+Key features:
+- Stores trajectories in fixed-size tensors
+- Supports both CPU and GPU storage with optional CPU offloading
+- Handles LSTM hidden states if using recurrent policies
+- Provides numpy array views for efficient indexing
+- Manages minibatch creation for training
+"""
 
 import numpy as np
 
