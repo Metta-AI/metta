@@ -1,10 +1,6 @@
 
 import os
 
-# Print current working directory
-print("Current working directory:", os.getcwd())
-
-
 import time
 
 import hydra

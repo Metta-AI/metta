@@ -54,7 +54,4 @@ jobs:
         HYDRA_FULL_ERROR: 1
         PYTHONPATH: ${{ github.workspace }}
       run: |
-        pwd
-        ls -la
-        ls -la ..
         python tests/test_metagrid.py
