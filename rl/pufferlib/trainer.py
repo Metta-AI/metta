@@ -212,7 +212,7 @@ class PufferTrainer:
             values_np = experience.values_np[idxs]
             rewards_np = experience.rewards_np[idxs]
             # TODO: bootstrap between segment bounds
-            advantages_np = fast_gae.compute_gae(dones_np, values_np,
+            advantages_np = fast_gae.compute_gae(dones_np, values_np, #generalized advantage estimation
                 rewards_np, self.trainer_cfg.gamma, self.trainer_cfg.gae_lambda)
             experience.flatten_batch(advantages_np)
 

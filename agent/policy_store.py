@@ -1,3 +1,14 @@
+"""
+This file implements a PolicyStore class that manages loading and caching of trained policies.
+It provides functionality to:
+- Load policies from local files or remote URIs
+- Cache loaded policies to avoid reloading
+- Select policies based on metadata filters
+- Track policy metadata and versioning
+
+The PolicyStore is used by the training system to manage opponent policies and checkpoints.
+"""
+
 from omegaconf import OmegaConf
 import wandb
 from rl.pufferlib.puffer_agent_wrapper import make_policy
