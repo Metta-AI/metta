@@ -8,7 +8,7 @@ hydra-core
 matplotlib
 # numpy==2.0.0
 pettingzoo
-sample_factory
+#sample_factory
 pynvml
 pytest
 PyYAML
@@ -21,7 +21,7 @@ torchrl
 uvicorn
 wandb==0.18.3
 wandb-core==0.17.0b11
-websockets
+#websockets
 
 
 # It needs for sure:
