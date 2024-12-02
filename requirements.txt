@@ -1,0 +1,25 @@
+boto3
+colorama
+# chex
+hydra-core
+fastapi
+imageio
+jmespath
+matplotlib
+# numpy==2.0.0
+pettingzoo
+sample_factory
+pynvml
+pytest
+PyYAML
+raylib
+rich
+scipy
+tabulate
+termcolor==2.4.0
+torchrl
+uvicorn
+wandb==0.18.3
+wandb-core==0.17.0b11
+websockets
+
