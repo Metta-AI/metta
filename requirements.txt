@@ -25,4 +25,5 @@ wandb-core==0.17.0b11
 
 
 # It needs for sure:
-pandas==2.2.3
+pandas>=2.2.3
+cython>=3.0.11
