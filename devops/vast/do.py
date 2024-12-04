@@ -61,13 +61,17 @@ def kill_command(args):
     cmd_str = f"vastai destroy instance {label_to_id(args.label)}"
     subprocess.run(cmd_str, shell=True, check=True)
 
+def get_str(dict, value):
+    """ Get display string even if missing or None. """
+    return str(dict.get(value)).strip()
+
 def show_command(args):
     """ Show all current instances. """
     cmd_str = "vastai show instances --raw"
     output = subprocess.run(cmd_str, shell=True, check=True, capture_output=True, text=True)
     instances = json.loads(output.stdout)
     for instance in instances:
-        print(f"{instance['label']} status:{instance['actual_status']} CPU:{instance['cpu_util']}% GPU:{instance['gpu_util']}% [{instance['status_msg'].strip()}]")
+        print(f"{instance['label']} status:{get_str(instance, 'actual_status')} CPU:{get_str(instance, 'cpu_util')}% GPU:{get_str(instance, 'gpu_util')}% [{get_str(instance, 'status_msg')}]")
 
 def wait_for_ready(label):
     """ Wait for a machine with the given label to become ready. """
@@ -111,6 +115,36 @@ def send_keys(process, keys):
     process.stdin.write(f"{keys}\n".encode())
     process.stdin.flush()
 
+def setup_command(args):
+    """ Setup the machine for training. """
+    wait_for_ready(args.label)
+    instance = label_to_instance(args.label)
+    ssh_host = instance['ssh_host']
+    ssh_port = instance['ssh_port']
+    cmd = f"ssh -t -o StrictHostKeyChecking=no -p {ssh_port} root@{ssh_host} 'cd /workspace/metta && git pull && pip install -r requirements.txt && bash devops/setup_build.sh'"
+    subprocess.run(cmd, shell=True, check=True)
+    # Copy the .netrc file
+    scp_cmd = f"scp -P {ssh_port} $HOME/.netrc root@{ssh_host}:/root/.netrc"
+    subprocess.run(scp_cmd, shell=True, check=True)
+
+def rsync_command(args):
+    """ Rsync a working directory to a machine. """
+    wait_for_ready(args.label)
+    instance = label_to_instance(args.label)
+    ssh_host = instance['ssh_host']
+    ssh_port = instance['ssh_port']
+    # Walk dirs and recursively only rsync .py, .pyd, .pyx .yaml, .sh.
+    # current folder to /workspace/metta
+    # show files transferred
+    cmd = (
+        f"rsync -avz -e 'ssh -p {ssh_port}' --progress "
+        f"--include='*/' "  # Include all directories
+        f"--include='**/*.py' --include='**/*.pyd' --include='**/*.pyx' "
+        f"--include='**/*.yaml' --include='**/*.sh' --exclude='*' "
+        f"./ root@{ssh_host}:/workspace/metta"
+    )
+    subprocess.run(cmd, shell=True, check=True)
+
 def train_command(args):
     """ Train a model on a machine with the given label. """
     # THIS COMMAND IS STILL A WIP
@@ -127,12 +161,10 @@ def train_command(args):
     # Send commands sequentially
     send_keys(process, "cd /workspace/metta")
     send_keys(process, "screen -Rq")
-    send_keys(process, "git pull")
-    send_keys(process, "pip install -r requirements.txt")
-    send_keys(process, "bash devops/setup_build.sh")
     # Run the train command
     send_keys(process, f"python -m tools.train --run={args.label} hardware=pufferbox wandb.enabled=true wandb.track=true {' '.join(args.train_args)}")
 
+    x
 def main():
     """ Swiss Army Knife for vast.ai. """
 
@@ -173,6 +205,12 @@ def main():
     tmux_parser = subparsers.add_parser('tmux', help='SSH into machine and open start or attach to existing tmux session')
     tmux_parser.add_argument('label', type=str, help='Instance ID')
 
+    setup_parser = subparsers.add_parser('setup', help='Setup a machine')
+    setup_parser.add_argument('label', type=str, help='Instance ID')
+
+    rsync_parser = subparsers.add_parser('rsync', help='Rsync a working directory to a machine')
+    rsync_parser.add_argument('label', type=str, help='Instance ID')
+
     train_parser = subparsers.add_parser('train', help='Train a model')
     train_parser.add_argument('label', type=str, help='Instance ID')
     train_parser.add_argument('train_args', nargs=argparse.REMAINDER, help='Arguments to pass to the train script')
@@ -193,6 +231,10 @@ def main():
         screen_command(args)
     elif args.command == 'tmux':
         tmux_command(args)
+    elif args.command == 'setup':
+        setup_command(args)
+    elif args.command == 'rsync':
+        rsync_command(args)
     elif args.command == 'train':
         train_command(args)
     else:
