@@ -31,7 +31,13 @@ def rent_command(args):
     print(f"Renting with label: {args.label}")
     cmd_str = gen_search_cmd(args)
 
-    output = subprocess.run(cmd_str, shell=True, check=True, capture_output=True, text=True)
+    output = subprocess.run(
+        cmd_str,
+        shell=True,
+        check=True,
+        capture_output=True,
+        text=True
+    )
     server_id = output.stdout.splitlines()[1].split()[0]
 
     cmd_str = f"vastai create instance {server_id} \
@@ -45,7 +51,13 @@ def rent_command(args):
 
 def label_to_instance(label):
     """ Get the instance from the label. """
-    output = subprocess.run("vastai show instances --raw", shell=True, check=True, capture_output=True, text=True)
+    output = subprocess.run(
+        "vastai show instances --raw",
+        shell=True,
+        check=True,
+        capture_output=True,
+        text=True
+    )
     instances = json.loads(output.stdout)
     for instance in instances:
         if instance['label'] == label:
@@ -68,16 +80,28 @@ def get_str(dict, value):
 def show_command(args):
     """ Show all current instances. """
     cmd_str = "vastai show instances --raw"
-    output = subprocess.run(cmd_str, shell=True, check=True, capture_output=True, text=True)
+    output = subprocess.run(
+        cmd_str,
+        shell=True,
+        check=True,
+        capture_output=True,
+        text=True
+    )
     instances = json.loads(output.stdout)
     for instance in instances:
-        print(f"{instance['label']} status:{get_str(instance, 'actual_status')} CPU:{get_str(instance, 'cpu_util')}% GPU:{get_str(instance, 'gpu_util')}% [{get_str(instance, 'status_msg')}]")
+        print(f"{instance['label']} \
+          status:{get_str(instance, 'actual_status')} \
+          CPU:{get_str(instance, 'cpu_util')}% \
+          GPU:{get_str(instance, 'gpu_util')}% \
+          [{get_str(instance, 'status_msg')}]")
 
 def wait_for_ready(label):
     """ Wait for a machine with the given label to become ready. """
     instance = label_to_instance(label)
     while instance['actual_status'] != 'running':
-        print(f"Waiting for instance {label} to become ready... ({instance['actual_status']})")
+        print(
+          f"Waiting for instance {label} to become ready... \
+          ({instance['actual_status']})")
         time.sleep(5)
         instance = label_to_instance(label)
 
@@ -96,7 +120,10 @@ def screen_command(args):
     instance = label_to_instance(args.label)
     ssh_host = instance['ssh_host']
     ssh_port = instance['ssh_port']
-    cmd = f"ssh -t -o StrictHostKeyChecking=no -p {ssh_port} root@{ssh_host} 'cd /workspace/metta && screen -Rq'"
+    cmd = f"ssh -t -o \
+      StrictHostKeyChecking=no -p {ssh_port} \
+      root@{ssh_host} \
+      'cd /workspace/metta && screen -Rq'"
     print("Use ^A-D to detach from screen session.")
     subprocess.run(cmd, shell=True, check=True)
 
@@ -106,14 +133,12 @@ def tmux_command(args):
     instance = label_to_instance(args.label)
     ssh_host = instance['ssh_host']
     ssh_port = instance['ssh_port']
-    cmd = f"ssh -t -o StrictHostKeyChecking=no -p {ssh_port} root@{ssh_host} 'cd /workspace/metta && tmux new-session -A -s metta'"
+    cmd = f"ssh -t -o \
+      StrictHostKeyChecking=no -p {ssh_port} \
+      root@{ssh_host} \
+      'cd /workspace/metta && tmux new-session -A -s metta'"
     print("Use ^B-D to detach from tmux session.")
     subprocess.run(cmd, shell=True, check=True)
-
-def send_keys(process, keys):
-    """Send keyboard input to a process"""
-    process.stdin.write(f"{keys}\n".encode())
-    process.stdin.flush()
 
 def setup_command(args):
     """ Setup the machine for training. """
@@ -121,7 +146,18 @@ def setup_command(args):
     instance = label_to_instance(args.label)
     ssh_host = instance['ssh_host']
     ssh_port = instance['ssh_port']
-    cmd = f"ssh -t -o StrictHostKeyChecking=no -p {ssh_port} root@{ssh_host} 'cd /workspace/metta && git pull && pip install -r requirements.txt && bash devops/setup_build.sh'"
+
+    cmd_setup = [
+      "cd /workspace/metta",
+      "git config --global --add safe.directory /workspace/metta",
+      "git pull",
+      "pip install -r requirements.txt",
+      "bash devops/setup_build.sh"
+    ]
+    cmd = f"ssh -t -o \
+      StrictHostKeyChecking=no -p {ssh_port} \
+      root@{ssh_host} \
+      '{' && '.join(cmd_setup)}'"
     subprocess.run(cmd, shell=True, check=True)
     # Copy the .netrc file
     scp_cmd = f"scp -P {ssh_port} $HOME/.netrc root@{ssh_host}:/root/.netrc"
@@ -133,9 +169,9 @@ def rsync_command(args):
     instance = label_to_instance(args.label)
     ssh_host = instance['ssh_host']
     ssh_port = instance['ssh_port']
-    # Walk dirs and recursively only rsync .py, .pyd, .pyx .yaml, .sh.
-    # current folder to /workspace/metta
-    # show files transferred
+    # Walk dirs and recursively rsync only .py, .pyd, .pyx .yaml, and .sh files.
+    # Current folder to /workspace/metta.
+    # Show files transferred.
     cmd = (
         f"rsync -avz -e 'ssh -p {ssh_port}' --progress "
         f"--include='*/' "  # Include all directories
@@ -145,51 +181,79 @@ def rsync_command(args):
     )
     subprocess.run(cmd, shell=True, check=True)
 
-def train_command(args):
-    """ Train a model on a machine with the given label. """
-    # THIS COMMAND IS STILL A WIP
-    wait_for_ready(args.label)
-    instance = label_to_instance(args.label)
-    ssh_host = instance['ssh_host']
-    ssh_port = instance['ssh_port']
-    # Start the SSH session
-    process = subprocess.Popen(
-        f"ssh -t -o StrictHostKeyChecking=no -p {ssh_port} root@{ssh_host}",
-        stdin=subprocess.PIPE,
-        shell=True
-    )
-    # Send commands sequentially
-    send_keys(process, "cd /workspace/metta")
-    send_keys(process, "screen -Rq")
-    # Run the train command
-    send_keys(process, f"python -m tools.train --run={args.label} hardware=pufferbox wandb.enabled=true wandb.track=true {' '.join(args.train_args)}")
+def send_keys(process, keys):
+    """Send keyboard input to a process"""
+    process.stdin.write(f"{keys}\n".encode())
+    process.stdin.flush()
 
-    x
 def main():
     """ Swiss Army Knife for vast.ai. """
 
     parser = argparse.ArgumentParser(description='VAST CLI tool')
-    subparsers = parser.add_subparsers(dest='command', help='Available commands')
+    subparsers = parser.add_subparsers(
+        dest='command',
+        help='Available commands'
+    )
 
-    search_parser = subparsers.add_parser('search', help='Search for machines')
-    search_parser.add_argument('--num-gpus', type=int, default=1, help='Number of GPUs')
-    search_parser.add_argument('--min-cpu-cores', type=int, default=8, help='Minimum CPU cores')
-    search_parser.add_argument('--min-inet', type=int, default=100, help='Minimum internet speed (up/down) in Mbps')
-    search_parser.add_argument('--min-cuda', type=str, default='12.1', help='Minimum CUDA version')
-    search_parser.add_argument('--geo', type=str, default='US', help='Geolocation')
-    search_parser.add_argument('--gpu-name', type=str, default='RTX_4090', help='GPU model')
-    search_parser.add_argument('--max-dph', type=float, default=1.0, help='Maximum dollars per hour')
+    search_parser = subparsers.add_parser(
+      'search',
+      help='Search for machines'
+    )
+    search_parser.add_argument(
+      '--num-gpus',
+      type=int,
+      default=1,
+      help='Number of GPUs'
+    )
+    search_parser.add_argument(
+      '--min-cpu-cores',
+      type=int,
+      default=8,
+      help='Minimum CPU cores'
+    )
+    search_parser.add_argument(
+      '--min-inet',
+      type=int,
+      default=100,
+      help='Minimum internet speed (up/down) in Mbps'
+    )
+    search_parser.add_argument(
+      '--min-cuda',
+      type=str,
+      default='12.1',
+      help='Minimum CUDA version'
+    )
 
     rent_parser = subparsers.add_parser('rent', help='Rent a machine')
-    rent_parser.add_argument('label', type=str, help='Label for the instance')
-    rent_parser.add_argument('--image', type=str, default='mettaai/metta:latest', help='Image to use')
-    rent_parser.add_argument('--num-gpus', type=int, default=1, help='Number of GPUs')
-    rent_parser.add_argument('--min-cpu-cores', type=int, default=8, help='Minimum CPU cores')
-    rent_parser.add_argument('--min-inet', type=int, default=100, help='Minimum internet speed (up/down) in Mbps')
-    rent_parser.add_argument('--min-cuda', type=str, default='12.1', help='Minimum CUDA version')
-    rent_parser.add_argument('--geo', type=str, default='US', help='Geolocation')
-    rent_parser.add_argument('--gpu-name', type=str, default='RTX_4090', help='GPU model')
-    rent_parser.add_argument('--max-dph', type=float, default=1.0, help='Maximum dollars per hour')
+    rent_parser.add_argument(
+      'label',
+      type=str,
+      help='Label for the instance'
+    )
+    rent_parser.add_argument(
+      '--image',
+      type=str,
+      default='mettaai/metta:latest',
+      help='Image to use'
+    )
+    rent_parser.add_argument(
+      '--num-gpus',
+      type=int,
+      default=1,
+      help='Number of GPUs'
+    )
+    rent_parser.add_argument(
+      '--min-cpu-cores',
+      type=int,
+      default=8,
+      help='Minimum CPU cores'
+    )
+    rent_parser.add_argument(
+      '--min-inet',
+      type=int,
+      default=100,
+      help='Minimum internet speed (up/down) in Mbps'
+    )
 
     kill_parser = subparsers.add_parser('kill', help='Destroy a machine')
     kill_parser.add_argument('label', type=str, help='Instance ID')
@@ -199,21 +263,26 @@ def main():
     ssh_parser = subparsers.add_parser('ssh', help='SSH into a machine')
     ssh_parser.add_argument('label', type=str, help='Instance ID')
 
-    screen_parser = subparsers.add_parser('screen', help='SSH into machine and open start or attach to existing screen session')
+    screen_parser = subparsers.add_parser(
+      'screen',
+      help='SSH into machine and start or attach to existing screen session'
+    )
     screen_parser.add_argument('label', type=str, help='Instance ID')
 
-    tmux_parser = subparsers.add_parser('tmux', help='SSH into machine and open start or attach to existing tmux session')
+    tmux_parser = subparsers.add_parser(
+      'tmux',
+      help='SSH into machine and open start or attach to existing tmux session'
+    )
     tmux_parser.add_argument('label', type=str, help='Instance ID')
 
     setup_parser = subparsers.add_parser('setup', help='Setup a machine')
     setup_parser.add_argument('label', type=str, help='Instance ID')
 
-    rsync_parser = subparsers.add_parser('rsync', help='Rsync a working directory to a machine')
+    rsync_parser = subparsers.add_parser(
+      'rsync',
+      help='Rsync a working directory to a machine'
+    )
     rsync_parser.add_argument('label', type=str, help='Instance ID')
-
-    train_parser = subparsers.add_parser('train', help='Train a model')
-    train_parser.add_argument('label', type=str, help='Instance ID')
-    train_parser.add_argument('train_args', nargs=argparse.REMAINDER, help='Arguments to pass to the train script')
 
     args = parser.parse_args()
 
@@ -235,8 +304,6 @@ def main():
         setup_command(args)
     elif args.command == 'rsync':
         rsync_command(args)
-    elif args.command == 'train':
-        train_command(args)
     else:
         parser.print_help()
 
