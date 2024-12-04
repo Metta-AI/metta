@@ -224,7 +224,10 @@ def main():
       help='Minimum CUDA version'
     )
 
-    rent_parser = subparsers.add_parser('rent', help='Rent a machine')
+    rent_parser = subparsers.add_parser(
+      'rent',
+      help='Rent a machine'
+    )
     rent_parser.add_argument(
       'label',
       type=str,
@@ -255,13 +258,30 @@ def main():
       help='Minimum internet speed (up/down) in Mbps'
     )
 
-    kill_parser = subparsers.add_parser('kill', help='Destroy a machine')
-    kill_parser.add_argument('label', type=str, help='Instance ID')
+    kill_parser = subparsers.add_parser(
+      'kill',
+      help='Destroy a machine'
+    )
+    kill_parser.add_argument(
+      'label',
+      type=str,
+      help='Instance ID'
+    )
 
-    show_parser = subparsers.add_parser('show', help='Show a machine')
+    show_parser = subparsers.add_parser(
+      'show',
+      help='Show a machine'
+    )
 
-    ssh_parser = subparsers.add_parser('ssh', help='SSH into a machine')
-    ssh_parser.add_argument('label', type=str, help='Instance ID')
+    ssh_parser = subparsers.add_parser(
+      'ssh',
+      help='SSH into a machine'
+    )
+    ssh_parser.add_argument(
+      'label',
+      type=str,
+      help='Instance ID'
+    )
 
     screen_parser = subparsers.add_parser(
       'screen',
@@ -273,10 +293,21 @@ def main():
       'tmux',
       help='SSH into machine and open start or attach to existing tmux session'
     )
-    tmux_parser.add_argument('label', type=str, help='Instance ID')
+    tmux_parser.add_argument(
+      'label',
+      type=str,
+      help='Instance ID'
+    )
 
-    setup_parser = subparsers.add_parser('setup', help='Setup a machine')
-    setup_parser.add_argument('label', type=str, help='Instance ID')
+    setup_parser = subparsers.add_parser(
+      'setup',
+      help='Setup a machine'
+    )
+    setup_parser.add_argument(
+      'label',
+      type=str,
+      help='Instance ID'
+    )
 
     rsync_parser = subparsers.add_parser(
       'rsync',
@@ -285,7 +316,6 @@ def main():
     rsync_parser.add_argument('label', type=str, help='Instance ID')
 
     args = parser.parse_args()
-
     if args.command == 'search':
         search_command(args)
     elif args.command == 'rent':
