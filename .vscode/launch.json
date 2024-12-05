@@ -4,6 +4,7 @@
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
+        
         {
             "name": "Train Metta",
             "type": "debugpy",
@@ -114,7 +115,7 @@
                 "run=mac.eval.4",
                 "wandb.enabled=True",
                 // "env=mettagrid/behaviors/resources/competition/10x10_2a",
-                "evaluator.policy.uri=wandb://run/p2.train.norm.feat",
+                "evaluator.policy.uri=wandb://run/daphne.trainer.1",
                 "evaluator.baselines.uri=wandb://run/p2.train.norm.feat",
                 // "evaluator.baseline_uris=[wandb://sweep_model/mac.train.mac.new.1@1]",
                 "evaluator.baselines.range=5",
