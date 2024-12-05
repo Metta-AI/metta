@@ -156,14 +156,13 @@ def setup_command(args):
       "cd /workspace/metta",
       "git config --global --add safe.directory /workspace/metta"
     ]
-    if args.clean:
+    if args.clean or args.branch:
       cmd_setup.append("git reset --hard")
       cmd_setup.append("git clean -fdx")
       if args.branch:
         cmd_setup.append(f"git fetch origin {args.branch}")
         cmd_setup.append(f"git checkout {args.branch}")
-      else:
-        cmd_setup.append("git pull")
+      cmd_setup.append("git pull")
     cmd_setup.extend([
       "pip install -r requirements.txt",
       "bash devops/setup_build.sh"
