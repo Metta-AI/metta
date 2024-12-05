@@ -105,8 +105,9 @@ def wait_for_ready(label):
     instance = label_to_instance(label)
     while instance['actual_status'] != 'running':
         print(
-          f"Waiting for instance {label} to become ready... \
-          ({instance['actual_status']})")
+          f"Waiting for instance {label} to become ready... "
+          f"({instance['actual_status']})"
+        )
         time.sleep(5)
         instance = label_to_instance(label)
 
@@ -151,13 +152,21 @@ def setup_command(args):
     instance = label_to_instance(args.label)
     ssh_host = instance['ssh_host']
     ssh_port = instance['ssh_port']
-
     cmd_setup = [
       "cd /workspace/metta",
-      "git pull",
+    ]
+    if args.clean:
+      cmd_setup.append("git reset --hard")
+      cmd_setup.append("git clean -fdx")
+      if args.branch:
+        cmd_setup.append(f"git fetch origin {args.branch}")
+        cmd_setup.append(f"git checkout {args.branch}")
+      else:
+        cmd_setup.append("git pull")
+    cmd_setup.extend([
       "pip install -r requirements.txt",
       "bash devops/setup_build.sh"
-    ]
+    ])
     cmd = (
       f"ssh -t -o "
       f"StrictHostKeyChecking=no -p {ssh_port} "
@@ -357,6 +366,18 @@ def main():
       'label',
       type=str,
       help='Instance ID'
+    )
+    setup_parser.add_argument(
+      '--clean',
+      type=bool,
+      default=True,
+      help='Cleans the workspace before setup'
+    )
+    setup_parser.add_argument(
+      '--branch',
+      type=str,
+      default='main',
+      help='Git branch to checkout'
     )
 
     rsync_parser = subparsers.add_parser(
