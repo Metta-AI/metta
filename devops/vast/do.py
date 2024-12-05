@@ -154,6 +154,7 @@ def setup_command(args):
     ssh_port = instance['ssh_port']
     cmd_setup = [
       "cd /workspace/metta",
+      "git config --global --add safe.directory /workspace/metta"
     ]
     if args.clean:
       cmd_setup.append("git reset --hard")
