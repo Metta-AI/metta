@@ -9,14 +9,14 @@ from typing import List
 def gen_search_cmd(args):
     """ Generate the search command that matches the given criteria. """
     cmd_str = f'vastai search offers \
-        num_gpus={args.num_gpus} \
+        "num_gpus={args.num_gpus}" \
         "cpu_cores_effective>{args.min_cpu_cores}" \
         "inet_down>{args.min_inet}" \
         "inet_up>{args.min_inet}" \
         "cuda_vers>={args.min_cuda}" \
         "geolocation={args.geo}" \
-        gpu_name={args.gpu_name} \
-        rented=False \
+        "gpu_name={args.gpu_name}" \
+        "rented=False" \
         "dph<{args.max_dph}" \
         -o dph-'
     return cmd_str
@@ -30,6 +30,7 @@ def rent_command(args):
     """ Rent a machine with the given label. """
     print(f"Renting with label: {args.label}")
     cmd_str = gen_search_cmd(args)
+    print(cmd_str)
 
     output = subprocess.run(
         cmd_str,
@@ -38,7 +39,10 @@ def rent_command(args):
         capture_output=True,
         text=True
     )
-    server_id = output.stdout.splitlines()[1].split()[0]
+    try:
+        server_id = output.stdout.splitlines()[1].split()[0]
+    except IndexError:
+        quit("No server found")
 
     cmd_str = f"vastai create instance {server_id} \
         --image {args.image} \
@@ -89,19 +93,21 @@ def show_command(args):
     )
     instances = json.loads(output.stdout)
     for instance in instances:
-        print(f"{instance['label']} \
-          status:{get_str(instance, 'actual_status')} \
-          CPU:{get_str(instance, 'cpu_util')}% \
-          GPU:{get_str(instance, 'gpu_util')}% \
-          [{get_str(instance, 'status_msg')}]")
+        print(f"{instance['label']}"
+          f" status:{get_str(instance, 'actual_status')}"
+          f" CPU:{get_str(instance, 'cpu_util')}%"
+          f" GPU:{get_str(instance, 'gpu_util')}%"
+          f" [{get_str(instance, 'status_msg')}]"
+        )
 
 def wait_for_ready(label):
     """ Wait for a machine with the given label to become ready. """
     instance = label_to_instance(label)
     while instance['actual_status'] != 'running':
         print(
-          f"Waiting for instance {label} to become ready... \
-          ({instance['actual_status']})")
+          f"Waiting for instance {label} to become ready... "
+          f"({instance['actual_status']})"
+        )
         time.sleep(5)
         instance = label_to_instance(label)
 
@@ -146,21 +152,33 @@ def setup_command(args):
     instance = label_to_instance(args.label)
     ssh_host = instance['ssh_host']
     ssh_port = instance['ssh_port']
-
     cmd_setup = [
       "cd /workspace/metta",
-      "git config --global --add safe.directory /workspace/metta",
-      "git pull",
+      "git config --global --add safe.directory /workspace/metta"
+    ]
+    if args.clean:
+      cmd_setup.append("git reset --hard")
+      cmd_setup.append("git clean -fdx")
+      if args.branch:
+        cmd_setup.append(f"git fetch origin {args.branch}")
+        cmd_setup.append(f"git checkout {args.branch}")
+      else:
+        cmd_setup.append("git pull")
+    cmd_setup.extend([
       "pip install -r requirements.txt",
       "bash devops/setup_build.sh"
-    ]
-    cmd = f"ssh -t -o \
-      StrictHostKeyChecking=no -p {ssh_port} \
-      root@{ssh_host} \
-      '{' && '.join(cmd_setup)}'"
+    ])
+    cmd = (
+      f"ssh -t -o "
+      f"StrictHostKeyChecking=no -p {ssh_port} "
+      f"root@{ssh_host} "
+      f"'{' && '.join(cmd_setup)}'"
+    )
     subprocess.run(cmd, shell=True, check=True)
     # Copy the .netrc file
-    scp_cmd = f"scp -P {ssh_port} $HOME/.netrc root@{ssh_host}:/root/.netrc"
+    scp_cmd = (
+      f"scp -P {ssh_port} $HOME/.netrc root@{ssh_host}:/root/.netrc"
+    )
     subprocess.run(scp_cmd, shell=True, check=True)
 
 def rsync_command(args):
@@ -223,6 +241,24 @@ def main():
       default='12.1',
       help='Minimum CUDA version'
     )
+    search_parser.add_argument(
+      '--geo',
+      type=str,
+      default='US',
+      help='Geolocation'
+    )
+    search_parser.add_argument(
+      '--gpu-name',
+      type=str,
+      default='RTX_4090',
+      help='GPU name'
+    )
+    search_parser.add_argument(
+      '--max-dph',
+      type=int,
+      default=10,
+      help='Maximum daily price in dollars'
+    )
 
     rent_parser = subparsers.add_parser(
       'rent',
@@ -256,6 +292,30 @@ def main():
       type=int,
       default=100,
       help='Minimum internet speed (up/down) in Mbps'
+    )
+    rent_parser.add_argument(
+      '--min-cuda',
+      type=str,
+      default='12.1',
+      help='Minimum CUDA version'
+    )
+    rent_parser.add_argument(
+      '--geo',
+      type=str,
+      default='US',
+      help='Geolocation'
+    )
+    rent_parser.add_argument(
+      '--gpu-name',
+      type=str,
+      default='RTX_4090',
+      help='GPU name'
+    )
+    rent_parser.add_argument(
+      '--max-dph',
+      type=int,
+      default=1,
+      help='Maximum daily price in dollars'
     )
 
     kill_parser = subparsers.add_parser(
@@ -307,6 +367,18 @@ def main():
       'label',
       type=str,
       help='Instance ID'
+    )
+    setup_parser.add_argument(
+      '--clean',
+      type=bool,
+      default=True,
+      help='Cleans the workspace before setup'
+    )
+    setup_parser.add_argument(
+      '--branch',
+      type=str,
+      default='main',
+      help='Git branch to checkout'
     )
 
     rsync_parser = subparsers.add_parser(
