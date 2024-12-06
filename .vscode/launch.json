@@ -4,7 +4,14 @@
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
-        
+        {
+            "name": "Python: Current File",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
         {
             "name": "Train Metta",
             "type": "debugpy",
@@ -14,6 +21,7 @@
                 "run=daphne.trainer.0",
                 // "trainer.initial_policy.uri=wandb://run/p2.simple.train.rich.norm.auto.3",
                 // "env=mettagrid/a20_b4_40x40",
+                "env/mettagrid@env=rooms_without_walls",
                 "env.game.max_steps=100",
                 "env.sampling=0.1",
                 "env.flatten_actions=false",
@@ -22,7 +30,6 @@
                 // "env.compact_obs=true",
                 // "env.kinship.team_size=5",
                 // "env.kinship.team_reward=0.8",
-
                 // "env.game.actions.attack.enabled=false",
                 "agent=simple",
                 "wandb.enabled=True",
@@ -43,17 +50,16 @@
                 "env.game.max_steps=100",
                 "env.sampling=0.1",
                 "env.flatten_actions=true",
-
                 // "env.kinship.team_size=5",
                 // "env.kinship.team_reward=0.8",
-
                 // "env.game.actions.attack.enabled=false",
                 "agent=simple",
                 "wandb.enabled=True",
                 "wandb.track=True",
                 // "trainer.wandb_checkpoint_interval=1"
             ],
-        },        {
+        },
+        {
             "name": "Run Sweep",
             "type": "debugpy",
             "request": "launch",
@@ -71,7 +77,6 @@
                 "wandb.enabled=True",
                 "wandb.track=False",
                 "env.flatten_actions=true",
-
             ],
         },
         {
@@ -79,19 +84,18 @@
             "type": "debugpy",
             "request": "launch",
             "module": "tools.play",
-          //  "preLaunchTask": "build_cython_extensions",
+            //  "preLaunchTask": "build_cython_extensions",
             "args": [
                 "run=mac.play.4",
-                "env/mettagrid@env=rooms_without_walls",   
+                "env/mettagrid@env=rooms_without_walls",
                 "wandb.enabled=True",
                 "evaluator.policy.uri=wandb://run/daphne.trainer.2",
-               // "evaluator.policy.uri=wandb://run/george-50-agents-6060-grid",
-
+                // "evaluator.policy.uri=wandb://run/george-50-agents-6060-grid",
                 "env.flatten_actions=true",
                 "agent=simple",
                 "env.game.max_steps=10000",
                 "env.sampling=0.5",
-                "env.game.num_agents=200",
+                "env.game.num_agents=20",
                 // "env.game.map.room.objects.altar=10",
                 // "env.game.objects.agent.energy_reward=1",
                 // "env.game.num_agents=100",
@@ -110,11 +114,10 @@
             "args": [
                 "run=mac.eval.4",
                 "wandb.enabled=True",
-                "env/mettagrid@env=a20_train",   
+                "env/mettagrid@env=a20_train",
                 // "env=mettagrid/behaviors/resources/competition/10x10_2a",
                 "evaluator.baselines.uri=wandb://run/george-50-agents-6060-grid",
                 "evaluator.policy.uri=wandb://run/daphne-20-agents-6060-grid",
-
                 // "evaluator.baseline_uris=[wandb://sweep_model/mac.train.mac.new.1@1]",
                 "evaluator.baselines.range=5",
                 "evaluator.num_envs=10",
@@ -122,7 +125,6 @@
                 "env.game.max_steps=100",
                 "evaluator.max_time_s=6000",
                 "env.game.num_agents=35",
-
                 // "eval.policy_uri=train_dir/pufferlib/mac.1",
                 // "eval.baseline_uris=[wandb://p2.tuned.4_model:v200]",
             ],
@@ -166,8 +168,7 @@
             "type": "debugpy",
             "request": "launch",
             "module": "webui.server",
-            "args": [
-            ],
+            "args": [],
         },
     ]
 }
