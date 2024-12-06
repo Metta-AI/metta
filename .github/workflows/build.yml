@@ -23,7 +23,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install numpy>=1.26.4
         pip install cython==3.0.11
-        pip install scipy>=1.14.1
+        pip install sympy>=1.14.1
 
     - name: Install PufferGrid
       run: |
