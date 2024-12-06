@@ -99,14 +99,15 @@ game:
 
     room:
       # _target_: env.griddly.mettagrid.level_builder.MettaGridRoomBuilder
-      width: 25
-      height: 25
+      width: 50
+      height: 50
+      border: 0
       objects:
-        agent: 5
-        altar: 1
-        converter: 3
-        generator: 15
-        wall: 10
+        agent: 20
+        altar: 4
+        converter: 12
+        generator: 60
+        wall: 20
 
 kinship:
   # _target_: env.wrapper.reward_sharing.TeamRewardSharing
