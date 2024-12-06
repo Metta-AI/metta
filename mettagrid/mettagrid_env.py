@@ -62,8 +62,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         assert not self.done, "Episode is done"
 
         actions = np.array(actions).astype(np.int32)
-        assert actions.shape == (self._num_agents, 2), \
-            f"Actions shape must be (num_agents, 2), got {actions.shape}"
         obs, rewards, terminated, truncated, infos = self._c_env.step(actions)
 
         if self._cfg.normalize_rewards:
