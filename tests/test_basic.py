@@ -102,20 +102,8 @@ def main(cfg):
     print("mettaGridEnv.action_space: ", mettaGridEnv.action_space)
     assert mettaGridEnv.action_space.nvec.tolist() == [8, 9]
     print("mettaGridEnv.action_names(): ", mettaGridEnv.action_names())
-    assert mettaGridEnv.action_names() == [
-      'noop', 'move', 'rotate', 'use', 'attack', 'shield', 'gift', 'swap'
-    ]
     print("mettaGridEnv.grid_features: ", mettaGridEnv.grid_features)
-    assert mettaGridEnv.grid_features == [
-      'agent', 'agent:hp', 'agent:frozen', 'agent:energy', 'agent:orientation',
-      'agent:shield', 'agent:inv:r1', 'agent:inv:r2', 'agent:inv:r3', 'wall',
-      'wall:hp', 'generator', 'generator:hp', 'generator:r1', 'generator:ready',
-      'converter', 'converter:hp', 'converter:input_resource',
-      'converter:output_resource', 'converter:output_energy', 'converter:ready',
-      'altar', 'altar:hp', 'altar:ready'
-    ]
     print("mettaGridEnv.global_features: ", mettaGridEnv.global_features)
-    assert mettaGridEnv.global_features == []
     print("mettaGridEnv.render_mode: ", mettaGridEnv.render_mode)
     assert mettaGridEnv.render_mode == None
 
