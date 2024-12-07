@@ -1,5 +1,3 @@
-print("Starting setup.py")
-
 from sympy import li
 from setuptools import Extension, setup, find_packages, Command
 from Cython.Build import cythonize
@@ -45,8 +43,6 @@ os.makedirs(build_dir, exist_ok=True)
 
 num_threads = multiprocessing.cpu_count() if sys.platform == 'linux' else None
 
-print("Running setup.py")
-
 setup(
     name='metta',
     version='0.1',
@@ -81,6 +77,3 @@ setup(
         annotate=debug or annotate,
     ),
 )
-
-
-print("Done running setup.py")
