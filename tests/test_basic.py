@@ -29,6 +29,26 @@ import puffergrid.grid_object
 import puffergrid.observation_encoder
 import puffergrid.stats_tracker
 
+# Make sure all dependencies are installed:
+import hydra
+import jmespath
+import matplotlib
+import pettingzoo
+import pynvml
+import pytest
+import yaml
+import raylib
+import rich
+import scipy
+import tabulate
+import tensordict
+import torchrl
+import termcolor
+import wandb
+import wandb_core
+import pandas
+import tqdm
+
 @hydra.main(version_base=None, config_path="../configs", config_name="test_basic")
 def main(cfg):
 
