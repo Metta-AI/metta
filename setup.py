@@ -52,29 +52,6 @@ setup(
     version='0.1',
     packages=find_packages(),
     nthreads=num_threads,
-    install_requires=[
-        "hydra-core>=1.3.2",
-        "jmespath>=1.0.1",
-        "matplotlib>=3.9.2",
-        "pettingzoo>=1.24.1",
-        "pynvml>=11.5.3",
-        "pytest>=8.3.3",
-        "PyYAML>=6.0.2",
-        "raylib>=5.5.0.1",
-        "rich>=13.9.4",
-        "scipy>=1.14.1",
-        "tabulate>=0.9.0",
-        "tensordict>=0.6.2",
-        "torchrl>=0.6.0",
-        "termcolor>=2.4.0",
-        "wandb>=0.18.3",
-        "wandb-core>=0.17.0b11",
-        "pandas>=2.2.3",
-        "tqdm>=4.67.1",
-        # Sibling packages:
-        "pufferlib",
-        "puffergrid",
-    ],
     entry_points={
         'console_scripts': [
             # If you want to create any executable scripts in your package
