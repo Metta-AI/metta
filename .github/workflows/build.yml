@@ -46,13 +46,13 @@ jobs:
         python setup.py build_ext --inplace
         pip install -e .
 
-    - name: Run setup.py
+    - name: Run setup.py build_ext
       run: |
         python setup.py build_ext --inplace
 
     - name: Run pip install
       run: |
-        pip install -e . --verbose
+        python setup.py install
 
     - name: Run tests
       env:
