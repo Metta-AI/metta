@@ -66,7 +66,6 @@ setup(
         "wandb>=0.18.3",
         "wandb-core>=0.17.0b11",
         "pandas>=2.2.3",
-        "cython>=3.0.11",
         "tqdm>=4.67.1",
         # Sibling packages:
         "pufferlib",
