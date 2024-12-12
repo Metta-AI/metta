@@ -98,6 +98,7 @@ def show_command(args):
           f" CPU:{get_str(instance, 'cpu_util')}%"
           f" GPU:{get_str(instance, 'gpu_util')}%"
           f" [{get_str(instance, 'status_msg')}]"
+          f" root@{instance['ssh_host']}:{instance['ssh_port']}"
         )
 
 def wait_for_ready(label):
@@ -156,12 +157,11 @@ def setup_command(args):
       "cd /workspace/metta",
       "git config --global --add safe.directory /workspace/metta"
     ]
-    if args.clean or args.branch:
+    if args.clean or args.branch != 'main':
       cmd_setup.append("git reset --hard")
       cmd_setup.append("git clean -fdx")
-      if args.branch:
-        cmd_setup.append(f"git fetch origin {args.branch}")
-        cmd_setup.append(f"git checkout {args.branch}")
+      cmd_setup.append(f"git fetch origin {args.branch}")
+      cmd_setup.append(f"git checkout {args.branch}")
       cmd_setup.append("git pull")
     cmd_setup.extend([
       "pip install -r requirements.txt",
