@@ -65,27 +65,10 @@ class MettaGridGameBuilder():
         level = np.concatenate(layers, axis=0)
         assert num_agents == self.num_agents, f"Number of agents in map ({num_agents}) does not match num_agents ({self.num_agents})"
 
-        #footer = np.full((1, level.shape[1]), self._symbols["wall"], dtype="U6")
-        w,h = level.shape
-        left_wall = np.full((h+2,1), self._symbols["wall"], dtype="U6")
-        right_wall = np.full((h+2,1), self._symbols["wall"], dtype="U6")
-        top_wall = np.full((1,w), self._symbols["wall"], dtype="U6")
-        bottom_wall = np.full((1,w), self._symbols["wall"], dtype="U6")
+        footer = np.full((1, level.shape[1]), self._symbols["wall"], dtype="U6")
+        footer[0, 0] = "q"
 
-       # level = np.concatenate([left_wall, level, right_wall], axis=1)
-        level = np.concatenate([top_wall, level, bottom_wall], axis=0)
-        level = np.concatenate([left_wall, level, right_wall], axis=1)
-
-        #level[:,0] = self._symbols["wall"]
-        #level[0,:] = self._symbols["wall"]
-        #level[w-1,:] = self._symbols["wall"]
-        # level[:,h-1] = self._symbols["wall"]
-
-
-        
-       # footer[0, 0] = "q"
-
-       # level = np.concatenate([level, footer], axis=0)
+        level = np.concatenate([level, footer], axis=0)
         return level
 
     def build_room(self, room_config, starting_agent=1):
