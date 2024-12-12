@@ -109,7 +109,6 @@ def main(cfg):
 
     print("mettaGridEnv._c_env.map_width(): ", mettaGridEnv._c_env.map_width())
     assert mettaGridEnv._c_env.map_width() == 25
-    # Height has a border added to it on the bottom:
     print("mettaGridEnv._c_env.map_height(): ", mettaGridEnv._c_env.map_height())
     assert mettaGridEnv._c_env.map_height() == 25
 
