@@ -107,12 +107,11 @@ def main(cfg):
     print("mettaGridEnv.render_mode: ", mettaGridEnv.render_mode)
     assert mettaGridEnv.render_mode == None
 
-    # Event though we ask for size 25, the actual map has a border of 1 cell on
-    # each side.
     print("mettaGridEnv._c_env.map_width(): ", mettaGridEnv._c_env.map_width())
-    assert mettaGridEnv._c_env.map_width() == 25 + 2
+    assert mettaGridEnv._c_env.map_width() == 25
+    # Height has a border added to it on the bottom:
     print("mettaGridEnv._c_env.map_height(): ", mettaGridEnv._c_env.map_height())
-    assert mettaGridEnv._c_env.map_height() == 25 + 2
+    assert mettaGridEnv._c_env.map_height() == 25
 
     print("mettaGridEnv._c_env.num_agents(): ", mettaGridEnv._c_env.num_agents())
     assert mettaGridEnv._c_env.num_agents() == 5
