@@ -37,8 +37,8 @@ class MettaAgent(nn.Module, MettaAgentInterface):
             cfg.decoder,
             cfg.core.rnn_size)
 
-        self._critic_linear = nn.Linear(self.decoder_out_size(), 1)
-
+        # self._critic_linear = nn.Linear(self.decoder_out_size(), 1)
+        self._critic_linear = HiddenLayerModule(self.decoder_out_size(), 1024, 1)
         self.apply(self.initialize_weights)
 
     def decoder_out_size(self):
@@ -68,3 +68,16 @@ class MettaAgent(nn.Module, MettaAgentInterface):
             # I never noticed much difference between different initialization schemes, and here it seems safer to
             # go with default initialization,
             pass
+
+class HiddenLayerModule(nn.Module):
+    def __init__(self, input_size, hidden_size, output_size=1):
+        super(HiddenLayerModule, self).__init__()
+        self.fc1 = nn.Linear(input_size, hidden_size)  # Hidden layer
+        self.relu = nn.ReLU()                         # Activation
+        self.fc2 = nn.Linear(hidden_size, output_size)  # Output layer  
+
+    def forward(self, x):
+        x = self.fc1(x)
+        x = self.relu(x)
+        x = self.fc2(x)
+        return x
