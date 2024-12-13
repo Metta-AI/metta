@@ -35,6 +35,7 @@
       "train_dir": true,
       "outputs": true,
       ".pytest_cache": true,
+      "**/mettagrid": false,
     }
 
 }
