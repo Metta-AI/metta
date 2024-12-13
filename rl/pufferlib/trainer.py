@@ -1,168 +1,447 @@
-import time
+import json
 import logging
-from typing import List
+import os
+import time
+from collections import defaultdict
+from copy import deepcopy
+
+import hydra
 import numpy as np
+import pufferlib
+import pufferlib.utils
 import torch
+import wandb
+from agent.policy_store import PolicyStore
+from fast_gae import fast_gae
 from omegaconf import OmegaConf
+from util.stats_library import Glicko2Test, get_test_results
+
+from rl.pufferlib.experience import Experience
+from rl.pufferlib.profile import Profile
+from rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
 from rl.pufferlib.vecenv import make_vecenv
-from agent.policy_store import PolicyRecord
-logger = logging.getLogger("evaluator")
 
-class PufferEvaluator():
-    def __init__(
-        self,
-        cfg: OmegaConf,
-        policy_record: PolicyRecord,
-        baseline_records: List[PolicyRecord],
-        **kwargs
-    ) -> None:
+torch.set_float32_matmul_precision('high')
 
-        self._cfg = cfg
-        self._device = cfg.device
+logger = logging.getLogger("trainer")
 
-        self._num_envs = cfg.evaluator.num_envs
-        self._min_episodes = cfg.evaluator.num_episodes
-        self._max_time_s = cfg.evaluator.max_time_s
+class PufferTrainer:
+    def __init__(self,
+                 cfg: OmegaConf,
+                 wandb_run,
+                 policy_store: PolicyStore,
+                 **kwargs):
 
-        self._policy_pr = policy_record
-        self._baseline_prs = baseline_records
+        self.cfg = cfg
+        self.trainer_cfg = cfg.trainer
+        self.device = cfg.device
+        self.profile = Profile()
+        self.losses = self._make_losses()
+        self.stats = defaultdict(list)
+        self.recent_stats = defaultdict(list)
+        self.wandb_run = wandb_run
+        self.policy_store = policy_store
 
-        self._policy_agent_pct = cfg.evaluator.policy_agents_pct
-        if len(self._baseline_prs) == 0:
-            self._baseline_prs = [self._policy_pr]
-            self._policy_agent_pct = 0.9
+        self._make_vecenv()
 
-        self._agents_per_env = cfg.env.game.num_agents
-        self._policy_agents_per_env = max(1, int(self._agents_per_env * self._policy_agent_pct))
-        self._baseline_agents_per_env = self._agents_per_env - self._policy_agents_per_env
-        modulo = self._num_envs % len(self._baseline_prs)
-        if modulo != 0:
-            self._num_envs = self._num_envs - modulo + len(self._baseline_prs)
-            print(f"Adjusted num envs to {self._num_envs} to ensure divisibility")
-        self._total_agents = self._num_envs * self._agents_per_env
+        os.makedirs(cfg.trainer.checkpoint_dir, exist_ok=True)
+        checkpoint = TrainerCheckpoint.load(cfg.run_dir)
 
-        logger.info(f'Tournament: Policy Agents: {self._policy_agents_per_env}, ' +
-              f'Baseline Agents: {self._baseline_agents_per_env}')
-        
-        self._vecenv = make_vecenv(self._cfg, num_envs=self._num_envs)
+        if checkpoint.policy_path:
+            policy_record = policy_store.policy(checkpoint.policy_path)
+        elif cfg.trainer.initial_policy.uri is not None:
+            policy_record = policy_store.policy(cfg.trainer.initial_policy)
+        else:
+            logger.info("No initial policy found, creating new")
+            policy_record = policy_store.create(self.vecenv.driver_env)
 
-        slice_idxs = torch.arange(self._vecenv.num_agents)\
-            .reshape(self._num_envs, self._agents_per_env).to(device=self._device)
+        if policy_record.metadata["action_names"] != self.vecenv.driver_env.action_names():
+            raise ValueError(
+                "Action names do not match between policy and environment: "
+                f"{policy_record.metadata['action_names']} != {self.vecenv.driver_env.action_names()}")
 
-        self._policy_idxs = slice_idxs[:, :self._policy_agents_per_env]\
-            .reshape(self._policy_agents_per_env * self._num_envs)
+        self.initial_pr = policy_record
+        self.last_pr = policy_record
+        self.policy = policy_record.policy()
+        self.policy_record = policy_record
+        self.uncompiled_policy = self.policy
 
-        self._baseline_idxs = []
-        if len(self._baseline_prs) > 0: #shouldn't this always be true given line 33 above?
-            envs_per_opponent = self._num_envs // len(self._baseline_prs)
-            self._baseline_idxs = slice_idxs[:, self._policy_agents_per_env:]\
-                .reshape(self._num_envs*self._baseline_agents_per_env)\
-                .split(self._baseline_agents_per_env*envs_per_opponent)
+        if self.trainer_cfg.compile:
+            self.policy = torch.compile(self.policy, mode=self.trainer_cfg.compile_mode)
 
-        self._completed_episodes = 0
-        self._total_rewards = np.zeros(self._total_agents)
-        self._agent_stats = [{} for a in range(self._total_agents)]
+        self._make_experience_buffer()
 
-        # Extract policy names
-        self._policy_name = self._policy_pr.name
-        self._baseline_names = [b.name for b in self._baseline_prs]
-        print("|-----Policy name:-----|")
-        print(self._policy_name)
-        print("|-----Baseline names:-----|")
-        for b in self._baseline_prs:
-            print(b.name)
+        self.agent_step = checkpoint.agent_step
+        self.epoch = checkpoint.epoch
+        self.optimizer = torch.optim.Adam(self.policy.parameters(),
+            lr=self.trainer_cfg.learning_rate, eps=1e-5)
 
-        # Create mapping from agent index to policy name
-        self._agent_idx_to_policy_name = {}
-        for agent_idx in self._policy_idxs:
-            self._agent_idx_to_policy_name[agent_idx.item()] = self._policy_name
+        if checkpoint.agent_step > 0:
+            self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
 
-        for i, baseline_agent_idxs in enumerate(self._baseline_idxs):
-            for agent_idx in baseline_agent_idxs:
-                self._agent_idx_to_policy_name[agent_idx.item()] = self._baseline_names[i]
+        if self.cfg.wandb.track and wandb_run:
+            wandb_run.define_metric("train/agent_step")
+            for k in ["0verview", "env", "losses", "performance", "train"]:
+                wandb_run.define_metric(f"{k}/*", step_metric="train/agent_step")
 
-    def evaluate(self):
-        logger.info("Evaluating policy:")
-        logger.info(self._policy_pr.name)
-        logger.info("Against baselines:")
-        for baseline in self._baseline_prs:
-            logger.info(baseline.name)
-        logger.info(f"Total agents: {self._total_agents}")
-        logger.info(f"Policy agents per env: {self._policy_agents_per_env}")
-        logger.info(f"Baseline agents per env: {self._baseline_agents_per_env}")
-        logger.info(f"Num envs: {self._num_envs}")
-        logger.info(f"Min episodes: {self._min_episodes}")
-        logger.info(f"Max time: {self._max_time_s}")
+    def train(self):
+        self.train_start = time.time()
+        logger.info("Starting training")
 
-        obs, _ = self._vecenv.reset()
-        policy_rnn_state = None
-        baselines_rnn_state = [None for _ in range(len(self._baseline_prs))]
+        while self.agent_step < self.trainer_cfg.total_timesteps:
+            self._evaluate()
+            self._train()
+            self._process_stats()
+            if self.epoch % self.trainer_cfg.checkpoint_interval == 0:
+                self._checkpoint_trainer()
+            if self.epoch % self.trainer_cfg.wandb_checkpoint_interval == 0:
+                self._save_policy_to_wandb()
+            if self.epoch % self.trainer_cfg.evaluate_interval == 0:
+                self._evaluate_policy()
 
-        game_stats = []
+            self._on_train_step()
 
-        start = time.time()
+        self.train_time = time.time() - self.train_start
+        self._checkpoint_trainer()
+        self._save_policy_to_wandb()
+        logger.info(f"Training complete. Total time: {self.train_time:.2f} seconds")
 
-        while self._completed_episodes < self._min_episodes and time.time() - start < self._max_time_s:
-            baseline_actions = []
-            with torch.no_grad():
-                obs = torch.as_tensor(obs).to(device=self._device)
-                my_obs = obs[self._policy_idxs] 
+    def _evaluate_policy(self):
+        if self.cfg.evaluator.baselines.uri is None:
+            return
 
-                # Parallelize across opponents
-                policy = self._policy_pr.policy() #the given policy to evaluate
-                if hasattr(policy, 'lstm'):
-                    policy_actions, _, _, _, policy_rnn_state = policy(my_obs, policy_rnn_state)
+        baseline_records = self.policy_store.policies(self.cfg.evaluator.baselines)
+        evaluator = hydra.utils.instantiate(self.cfg.evaluator, self.cfg, self.last_pr, baseline_records)
+        stats = evaluator.evaluate()
+        evaluator.close()
+
+        if stats is None:
+            logger.warning("Evaluate Policy: No stats to evaluate")
+            return
+
+        results, formatted_results = get_test_results(
+            Glicko2Test(stats, self.cfg.evaluator.stat_categories['altar']),
+            self.cfg.evaluator.baselines.glicko_scores_path)
+
+        self.wandb_run.log({
+            "eval/glicko2": results.get(self.last_pr.name, 0)["rating"],
+            "train/agent_step": self.agent_step,
+            "train/epoch": self.epoch,
+        })
+
+        logger.info(f"Glicko2 scores: \n{formatted_results}")
+
+    def _on_train_step(self):
+        pass
+
+    @pufferlib.utils.profile
+    def _evaluate(self):
+        experience, profile = self.experience, self.profile
+
+        with profile.eval_misc:
+            policy = self.policy
+            infos = defaultdict(list)
+            lstm_h, lstm_c = experience.lstm_h, experience.lstm_c
+
+        while not experience.full:
+            with profile.env:
+                o, r, d, t, info, env_id, mask = self.vecenv.recv()
+                env_id = env_id.tolist()
+
+            with profile.eval_misc:
+                self.agent_step += sum(mask)
+
+                o = torch.as_tensor(o)
+                o_device = o.to(self.device)
+                r = torch.as_tensor(r)
+                d = torch.as_tensor(d)
+
+            with profile.eval_forward, torch.no_grad():
+                # TODO: In place-update should be faster. Leaking 7% speed max
+                # Also should be using a cuda tensor to index
+                if lstm_h is not None:
+                    h = lstm_h[:, env_id]
+                    c = lstm_c[:, env_id]
+                    actions, logprob, _, value, (h, c) = policy(o_device, (h, c))
+                    lstm_h[:, env_id] = h
+                    lstm_c[:, env_id] = c
                 else:
-                    policy_actions, _, _, _ = policy(my_obs)
+                    actions, logprob, _, value = policy(o_device)
 
-                # Iterate opponent policies
-                for i in range(len(self._baseline_prs)): #all baseline policies
-                    baseline_obs = obs[self._baseline_idxs[i]]
-                    baseline_rnn_state = baselines_rnn_state[i]
+                if self.device == 'cuda':
+                    torch.cuda.synchronize()
 
-                    baseline = self._baseline_prs[i].policy()
-                    if hasattr(baseline, 'lstm'):
-                        baseline_action, _, _, _, baselines_rnn_state[i] = baseline(baseline_obs, baseline_rnn_state)
+            with profile.eval_misc:
+                value = value.flatten()
+                actions = actions.cpu().numpy()
+                mask = torch.as_tensor(mask)# * policy.mask)
+                o = o if self.trainer_cfg.cpu_offload else o_device
+                self.experience.store(o, value, actions, logprob, r, d, env_id, mask)
+
+                for i in info:
+                    for k, v in pufferlib.utils.unroll_nested_dict(i):
+                        infos[k].append(v)
+
+            with profile.env:
+                self.vecenv.send(actions)
+
+        with profile.eval_misc:
+            for k, v in infos.items():
+                if isinstance(v, np.ndarray):
+                    v = v.tolist()
+                try:
+                    iter(v)
+                except TypeError:
+                    self.stats[k].append(v)
+                else:
+                    self.stats[k] += v
+
+        # TODO: Better way to enable multiple collects
+        experience.ptr = 0
+        experience.step = 0
+        return self.stats, infos
+
+    @pufferlib.utils.profile
+    def _train(self):
+        experience, profile = self.experience, self.profile
+        self.losses = self._make_losses()
+
+        with profile.train_misc:
+            idxs = experience.sort_training_data()
+            dones_np = experience.dones_np[idxs]
+            values_np = experience.values_np[idxs]
+            rewards_np = experience.rewards_np[idxs]
+            # TODO: bootstrap between segment bounds
+            advantages_np = fast_gae.compute_gae(dones_np, values_np, #generalized advantage estimation
+                rewards_np, self.trainer_cfg.gamma, self.trainer_cfg.gae_lambda)
+            experience.flatten_batch(advantages_np)
+
+        # Optimizing the policy and value network
+        total_minibatches = experience.num_minibatches * self.trainer_cfg.update_epochs
+        for epoch in range(self.trainer_cfg.update_epochs):
+            lstm_state = None
+            for mb in range(experience.num_minibatches):
+                with profile.train_misc:
+                    obs = experience.b_obs[mb]
+                    obs = obs.to(self.device)
+                    atn = experience.b_actions[mb]
+                    log_probs = experience.b_logprobs[mb]
+                    val = experience.b_values[mb]
+                    adv = experience.b_advantages[mb]
+                    ret = experience.b_returns[mb]
+
+                with profile.train_forward:
+                    if experience.lstm_h is not None:
+                        _, newlogprob, entropy, newvalue, lstm_state = self.policy(
+                            obs, state=lstm_state, action=atn)
+                        lstm_state = (lstm_state[0].detach(), lstm_state[1].detach())
                     else:
-                        baseline_action, _, _, _ = baseline(baseline_obs)
+                        _, newlogprob, entropy, newvalue = self.policy(
+                            obs.reshape(-1, *self.vecenv.single_observation_space.shape),
+                            action=atn,
+                        )
 
-                    baseline_actions.append(baseline_action)
+                    if self.device == 'cuda':
+                        torch.cuda.synchronize()
 
+                with profile.train_misc:
+                    logratio = newlogprob - log_probs.reshape(-1)
+                    ratio = logratio.exp()
 
-            if len(self._baseline_prs) > 0:
-                dim = 0 if self._cfg.env.flatten_actions else 1
-                actions = torch.cat([
-                    policy_actions.view(self._num_envs, self._policy_agents_per_env, -1),
-                    torch.cat(baseline_actions, dim=dim).view(self._num_envs, self._baseline_agents_per_env, -1),
-                ], dim=1)
-            else:
-                actions = policy_actions
+                    with torch.no_grad():
+                        # calculate approx_kl http://joschu.net/blog/kl-approx.html
+                        old_approx_kl = (-logratio).mean()
+                        approx_kl = ((ratio - 1) - logratio).mean()
+                        clipfrac = ((ratio - 1.0).abs() > self.trainer_cfg.clip_coef).float().mean()
 
-            if self._cfg.env.flatten_actions:
-                actions = actions.view(-1)
-            else:
-                actions = actions.view(self._num_envs*self._agents_per_env, -1)
+                    adv = adv.reshape(-1)
+                    if self.trainer_cfg.norm_adv:
+                        adv = (adv - adv.mean()) / (adv.std() + 1e-8)
 
-            obs, rewards, dones, truncated, infos = self._vecenv.step(actions.cpu().numpy())
-            self._total_rewards += rewards
-            self._completed_episodes += sum([e.done for e in self._vecenv.envs])
+                    # Policy loss
+                    pg_loss1 = -adv * ratio
+                    pg_loss2 = -adv * torch.clamp(
+                        ratio, 1 - self.trainer_cfg.clip_coef, 1 + self.trainer_cfg.clip_coef
+                    )
+                    pg_loss = torch.max(pg_loss1, pg_loss2).mean()
 
-            if len(infos) > 0:
-                for n in range(len(infos)):
-                    if "agent_raw" in infos[n]:
-                        one_episode = infos[n]["agent_raw"]
-                        for m in range(len(one_episode)):
-                            agent_idx = m + n * self._agents_per_env
-                            if agent_idx in self._agent_idx_to_policy_name:
-                                one_episode[m]['policy_name'] = self._agent_idx_to_policy_name[agent_idx]
-                            else:
-                                one_episode[m]['policy_name'] = "No Name Found"
-                        game_stats.append(one_episode)
+                    # Value loss
+                    newvalue = newvalue.view(-1)
+                    if self.trainer_cfg.clip_vloss:
+                        v_loss_unclipped = (newvalue - ret) ** 2
+                        v_clipped = val + torch.clamp(
+                            newvalue - val,
+                            -self.trainer_cfg.vf_clip_coef,
+                            self.trainer_cfg.vf_clip_coef,
+                        )
+                        v_loss_clipped = (v_clipped - ret) ** 2
+                        v_loss_max = torch.max(v_loss_unclipped, v_loss_clipped)
+                        v_loss = 0.5 * v_loss_max.mean()
+                    else:
+                        v_loss = 0.5 * ((newvalue - ret) ** 2).mean()
 
+                    entropy_loss = entropy.mean()
+                    loss = pg_loss - self.trainer_cfg.ent_coef * entropy_loss + v_loss * self.trainer_cfg.vf_coef
 
-        logger.info(f"Total episodes: {self._completed_episodes}")
-        logger.info(f"Evaluation time: {time.time() - start}")
-        return game_stats
+                with profile.learn:
+                    self.optimizer.zero_grad()
+                    loss.backward()
+                    torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.trainer_cfg.max_grad_norm)
+                    self.optimizer.step()
+                    if self.device == 'cuda':
+                        torch.cuda.synchronize()
+
+                with profile.train_misc:
+                    self.losses.policy_loss += pg_loss.item() / total_minibatches
+                    self.losses.value_loss += v_loss.item() / total_minibatches
+                    self.losses.entropy += entropy_loss.item() / total_minibatches
+                    self.losses.old_approx_kl += old_approx_kl.item() / total_minibatches
+                    self.losses.approx_kl += approx_kl.item() / total_minibatches
+                    self.losses.clipfrac += clipfrac.item() / total_minibatches
+
+            if self.trainer_cfg.target_kl is not None:
+                if approx_kl > self.trainer_cfg.target_kl:
+                    break
+
+        with profile.train_misc:
+            if self.trainer_cfg.anneal_lr:
+                frac = 1.0 - self.agent_step / self.trainer_cfg.total_timesteps
+                lrnow = frac * self.trainer_cfg.learning_rate
+                self.optimizer.param_groups[0]["lr"] = lrnow
+
+            y_pred = experience.values_np
+            y_true = experience.returns_np
+            var_y = np.var(y_true)
+            explained_var = np.nan if var_y == 0 else 1 - np.var(y_true - y_pred) / var_y
+            self.losses.explained_variance = explained_var
+            self.epoch += 1
+            profile.update(
+                self.agent_step,
+                self.trainer_cfg.total_timesteps,
+                self._timers
+            )
+
+    def _checkpoint_trainer(self):
+        pr = self._checkpoint_policy()
+        self.checkpoint = TrainerCheckpoint(
+            self.agent_step,
+            self.epoch,
+            self.optimizer.state_dict(),
+            pr.local_path()
+        ).save(self.cfg.run_dir)
+
+    def _checkpoint_policy(self):
+        name = self.policy_store.make_model_name(self.epoch)
+
+        generation = 0
+        if self.initial_pr:
+            generation = self.initial_pr.metadata.get("generation", 0) + 1
+
+        self.last_pr = self.policy_store.save(
+            name,
+            os.path.join(self.cfg.trainer.checkpoint_dir, name),
+            self.uncompiled_policy,
+            metadata={
+                "agent_step": self.agent_step,
+                "epoch": self.epoch,
+                "run": self.cfg.run,
+                "action_names": self.vecenv.driver_env.action_names(),
+                "generation": generation,
+                "initial_uri": self.initial_pr.uri
+            }
+        )
+        return self.last_pr
+
+    def _save_policy_to_wandb(self):
+        if self.wandb_run and self.cfg.wandb.track:
+            pr = self._checkpoint_policy()
+            self.policy_store.add_to_wandb_run(self.wandb_run.name, pr)
+
+    def _process_stats(self):
+        for k in list(self.stats.keys()):
+            v = self.stats[k]
+            try:
+                self.stats[k] = np.mean(v)
+            except:
+                del self.stats[k]
+
+        if self.wandb_run and self.cfg.wandb.track:
+            overview = {
+                'SPS': self.profile.SPS,
+            }
+            for k, v in self.trainer_cfg.stats.overview.items():
+                if k in self.stats:
+                    overview[v] = self.stats[k]
+
+            self.wandb_run.log({
+                **{f'0verview/{k}': v for k, v in overview.items()},
+                **{f'env/{k}': v for k, v in self.stats.items()},
+                **{f'losses/{k}': v for k, v in self.losses.items()},
+                **{f'performance/{k}': v for k, v in self.profile},
+                'train/agent_step': self.agent_step,
+                'train/epoch': self.epoch,
+                'train/learning_rate': self.optimizer.param_groups[0]["lr"],
+            })
+
+        if len(self.stats) > 0:
+            self.recent_stats = deepcopy(self.stats)
+        self.stats.clear()
 
     def close(self):
-        self._vecenv.close()
+        self.vecenv.close()
+
+    def _make_experience_buffer(self):
+        obs_shape = self.vecenv.single_observation_space.shape
+        obs_dtype = self.vecenv.single_observation_space.dtype
+        atn_shape = self.vecenv.single_action_space.shape
+        atn_dtype = self.vecenv.single_action_space.dtype
+        total_agents = self.vecenv.num_agents
+
+        lstm = self.policy.lstm if hasattr(self.policy, 'lstm') else None
+        self.experience = Experience(self.trainer_cfg.batch_size, self.trainer_cfg.bptt_horizon,
+            self.trainer_cfg.minibatch_size, obs_shape, obs_dtype, atn_shape, atn_dtype,
+            self.trainer_cfg.cpu_offload, self.device, lstm, total_agents)
+
+    def _make_losses(self):
+        return pufferlib.namespace(
+            policy_loss=0,
+            value_loss=0,
+            entropy=0,
+            old_approx_kl=0,
+            approx_kl=0,
+            clipfrac=0,
+            explained_variance=0,
+        )
+
+    def _make_vecenv(self):
+        self.target_batch_size = self.trainer_cfg.forward_pass_minibatch_target_size // self.cfg.env.game.num_agents
+        if self.target_batch_size < 2: # pufferlib bug requires batch size >= 2
+            self.target_batch_size = 2
+        self.batch_size = (self.target_batch_size // self.trainer_cfg.num_workers) * self.trainer_cfg.num_workers
+
+        self.vecenv = make_vecenv(
+            self.cfg,
+            num_envs = self.batch_size * self.trainer_cfg.async_factor,
+            batch_size = self.batch_size,
+            num_workers=self.trainer_cfg.num_workers,
+            zero_copy=self.trainer_cfg.zero_copy)
+
+        self.vecenv.async_reset(self.cfg.seed)
+
+
+class AbortingTrainer(PufferTrainer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def _on_train_step(self):
+        if self.wandb_run is None:
+            return
+
+        if "abort" not in wandb.Api().run(self.wandb_run.path).tags:
+            return
+
+        logger.info("Abort tag detected. Stopping the run.")
+        self.cfg.trainer.total_timesteps = int(self.agent_step)
+        self.wandb_run.config.update({
+            "trainer.total_timesteps": self.cfg.trainer.total_timesteps
+        }, allow_val_change=True)
