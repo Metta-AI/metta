@@ -437,7 +437,7 @@ class MettaGridRaylibRenderer:
         self.action_names = self.env.action_names()
 
         self.key_actions = {
-            # # move
+            # move
             rl.KEY_E: (self.action_ids["move"], 0),
             rl.KEY_Q: (self.action_ids["move"], 1),
             # use
