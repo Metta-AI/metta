@@ -412,10 +412,10 @@ class MettaGridRaylibRenderer:
 
         if orientation == 0:
             new_r = r - distance
-            new_c = c + offset
+            new_c = c - offset
         elif orientation == 1:
             new_r = r + distance
-            new_c = c - offset
+            new_c = c + offset
         elif orientation == 2:
             new_r = r + offset
             new_c = c - distance
