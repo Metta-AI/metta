@@ -92,6 +92,8 @@ game:
       rooms_x: 1
       rooms_y: 1
 
+    border: 0
+
     room:
       width: 25
       height: 25
