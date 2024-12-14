@@ -28,10 +28,10 @@ class PufferAgentWrapper(nn.Module):
             self.atn_type = nn.Linear(agent.decoder_out_size(), env.action_space.n)
             self.atn_param = None
         elif len(env.action_space.nvec) == 2:
-            self.atn_type = nn.Linear(agent.decoder_out_size(), env.action_space.nvec[0])
-            self.atn_param = nn.Linear(agent.decoder_out_size(), env.action_space.nvec[1])
-            # self.atn_type = HiddenLayerModule(agent.decoder_out_size(), 512, env.action_space.nvec[0])
-            # self.atn_param = HiddenLayerModule(agent.decoder_out_size(), 512, env.action_space.nvec[1])
+            # self.atn_type = nn.Linear(agent.decoder_out_size(), env.action_space.nvec[0])
+            # self.atn_param = nn.Linear(agent.decoder_out_size(), env.action_space.nvec[1])
+            self.atn_type = HiddenLayerModule(agent.decoder_out_size(), 512, env.action_space.nvec[0])
+            self.atn_param = HiddenLayerModule(agent.decoder_out_size(), 512, env.action_space.nvec[1])
         else:
             raise ValueError(f"Unsupported action space: {env.action_space}")
 
