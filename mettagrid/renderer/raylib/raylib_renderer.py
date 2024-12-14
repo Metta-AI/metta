@@ -176,7 +176,7 @@ class MettaGridRaylibRenderer:
     def _draw_text_right_aligned(self, text, x, y, font_size, color=colors.WHITE):
         """Draw text right aligned at (x, y), useful for displaying numbers."""
         text_width = rl.MeasureTextEx(self.font, text, font_size, 1).x
-        rl.DrawTextEx(self.font, text, (x - text_width, y), font_size, 1)
+        rl.DrawTextEx(self.font, text, (x - text_width, y), font_size, 1, color)
 
     def render_sidebar(self):
         font_size = 14
@@ -346,8 +346,37 @@ class MettaGridRaylibRenderer:
                     self.actions[self.selected_agent_idx][1] = action[1]
                     self.user_action = True
 
-        if rl.IsKeyPressed(rl.KEY_GRAVE) and self.selected_object_id is not None:
-            self.mind_control = not self.mind_control
+            # Do WASD movement actions.
+            agent = self.agents[self.selected_agent_idx]
+            orientation = agent["agent:orientation"]
+            def doAction(action_name, value):
+                self.actions[self.selected_agent_idx][0] = self.action_ids[action_name]
+                self.actions[self.selected_agent_idx][1] = value
+                self.user_action = True
+
+            if rl.IsKeyPressed(rl.KEY_W):
+                # Move Up.
+                if orientation == 0: doAction("move", 0)
+                elif orientation == 1: doAction("move", 1)
+                else: doAction("rotate", 0)
+            elif rl.IsKeyPressed(rl.KEY_S):
+                # Move Down.
+                if orientation == 1: doAction("move", 0)
+                elif orientation == 0: doAction("move", 1)
+                else: doAction("rotate", 1)
+            elif rl.IsKeyPressed(rl.KEY_A):
+                # Move left.
+                if orientation == 2: doAction("move", 0)
+                elif orientation == 3: doAction("move", 1)
+                else: doAction("rotate", 2)
+            elif rl.IsKeyPressed(rl.KEY_D):
+                # Move right.
+                if orientation == 3: doAction("move", 0)
+                elif orientation == 2: doAction("move", 1)
+                else: doAction("rotate", 3)
+
+            if rl.IsKeyPressed(rl.KEY_GRAVE):
+                self.mind_control = not self.mind_control
 
         if rl.IsKeyPressed(rl.KEY_MINUS):
             self.obs_idx -= 1
@@ -411,11 +440,6 @@ class MettaGridRaylibRenderer:
             # move
             rl.KEY_E: (self.action_ids["move"], 0),
             rl.KEY_Q: (self.action_ids["move"], 1),
-            # rotate
-            rl.KEY_W: (self.action_ids["rotate"], 0),
-            rl.KEY_S: (self.action_ids["rotate"], 1),
-            rl.KEY_A: (self.action_ids["rotate"], 2),
-            rl.KEY_D: (self.action_ids["rotate"], 3),
             # use
             rl.KEY_U: (self.action_ids["use"], 0),
             # attack
@@ -428,6 +452,17 @@ class MettaGridRaylibRenderer:
             rl.KEY_KP_7: (self.action_ids["attack"], 7),  # KEY_7
             rl.KEY_KP_8: (self.action_ids["attack"], 8),  # KEY_8
             rl.KEY_KP_9: (self.action_ids["attack"], 9),  # KEY_9
+
+            rl.KEY_ONE: (self.action_ids["attack"], 1),   # KEY_1
+            rl.KEY_TWO: (self.action_ids["attack"], 2),   # KEY_2
+            rl.KEY_THREE: (self.action_ids["attack"], 3), # KEY_3
+            rl.KEY_FOUR: (self.action_ids["attack"], 4),  # KEY_4
+            rl.KEY_FIVE: (self.action_ids["attack"], 5),  # KEY_5
+            rl.KEY_SIX: (self.action_ids["attack"], 6),   # KEY_6
+            rl.KEY_SEVEN: (self.action_ids["attack"], 7), # KEY_7
+            rl.KEY_EIGHT: (self.action_ids["attack"], 8), # KEY_8
+            rl.KEY_NINE: (self.action_ids["attack"], 9),  # KEY_9
+
             # toggle shield
             rl.KEY_O: (self.action_ids["shield"], 0),
             # swap
