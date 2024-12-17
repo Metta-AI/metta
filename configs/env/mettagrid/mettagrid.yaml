@@ -110,6 +110,8 @@ game:
         generator: 15
         wall: 10
 
+enable_last_action: false
+
 kinship:
   # _target_: env.wrapper.reward_sharing.TeamRewardSharing
   team_size: 1
