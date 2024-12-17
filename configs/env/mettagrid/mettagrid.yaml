@@ -30,32 +30,32 @@ game:
       max_inventory: [0, 10, 5]
       freeze_duration: [0, 200, 10]
       energy_reward: 1.0
-      hp: 10
+      hp: 1
       mortal: False
       upkeep.time: [0, 3, 0]
-      upkeep.shield: [0, 3, 1]
+      upkeep.shield: [0, 3, 3]
       use_cost: 0
 
     altar:
-      hp: 30
-      cooldown: [1, 10, 2]
+      hp: 25
+      cooldown: [1, 10, 10]
       use_cost: [20, 100, 100]
 
     converter:
-      hp: 30
-      cooldown: [1, 10, 2]
+      hp: 25
+      cooldown: [1, 10, 10]
       energy_output.r1: [10, 250, 100]
       energy_output.r2: [10, 100, 10]
       energy_output.r3: [1, 10, 1]
 
     generator:
-      hp: 30
-      cooldown: [0, 20, 5]
+      hp: 25
+      cooldown: [0, 20, 10]
       initial_resources: [1, 30, 30]
       use_cost: 0
 
     wall:
-      hp: [1, 20, 10]
+      hp: [1, 20, 1]
 
   actions:
     noop:
@@ -81,8 +81,8 @@ game:
       cost: 0
     attack:
       enabled: true
-      cost: 5
-      damage: 10
+      cost: 1
+      damage: 25
     gift:
       enabled: false
       cost: 0
@@ -101,8 +101,8 @@ game:
 
     room:
       # _target_: env.griddly.mettagrid.level_builder.MettaGridRoomBuilder
-      width: 25
-      height: 25
+      width: 15
+      height: 15
       objects:
         agent: 5
         altar: 1
