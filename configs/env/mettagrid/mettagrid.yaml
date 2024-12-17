@@ -97,6 +97,8 @@ game:
       rooms_x: 1
       rooms_y: 1
 
+    border: 0
+
     room:
       # _target_: env.griddly.mettagrid.level_builder.MettaGridRoomBuilder
       width: 50
