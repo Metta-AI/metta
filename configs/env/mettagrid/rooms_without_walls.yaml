@@ -7,6 +7,7 @@ game:
     layout:
       rooms_x: 2
       rooms_y: 2
+    border: 1
     room:
       width: 40
       height: 40
