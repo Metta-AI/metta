@@ -87,7 +87,7 @@
             //  "preLaunchTask": "build_cython_extensions",
             "args": [
                 "run=mac.play.4",
-                "env/mettagrid@env=rooms_without_walls",
+                "env/mettagrid@env=rooms_with_walls",
                 "wandb.enabled=True",
                 "evaluator.policy.uri=wandb://run/daphne.trainer.2",
                 // "evaluator.policy.uri=wandb://run/george-50-agents-6060-grid",
