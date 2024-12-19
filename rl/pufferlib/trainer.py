@@ -88,10 +88,15 @@ class PufferTrainer:
         self.train_start = time.time()
         logger.info("Starting training")
 
+        if self.trainer_cfg.evaluate_interval < self.trainer_cfg.checkpoint_interval:
+            self.trainer_cfg.evaluate_interval = self.trainer_cfg.checkpoint_interval
+            print("Evaluate interval is less than checkpoint interval, setting to checkpoint interval")
+
         while self.agent_step < self.trainer_cfg.total_timesteps:
             self._evaluate()
             self._train()
             self._process_stats()
+            print(f"Epoch: {self.epoch}, Agent Step: {self.agent_step}")
             if self.epoch % self.trainer_cfg.checkpoint_interval == 0:
                 self._checkpoint_trainer()
             if self.epoch % self.trainer_cfg.wandb_checkpoint_interval == 0:

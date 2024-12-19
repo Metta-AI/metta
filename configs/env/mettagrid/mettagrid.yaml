@@ -25,32 +25,32 @@ game:
 
   objects:
     agent:
-      initial_energy: [0, 250, 250]
-      max_energy: [0, 250, 250]
+      initial_energy: [0, 250, 1000]
+      max_energy: [0, 2000, 2000]
       max_inventory: [0, 10, 5]
-      freeze_duration: [0, 200, 10]
-      energy_reward: 1.0
+      freeze_duration: [0, 200, 0]
+      energy_reward: 0.0
       hp: 10
       mortal: False
       upkeep.time: [0, 3, 0]
-      upkeep.shield: [0, 3, 1]
+      upkeep.shield: [0, 3, 0]
       use_cost: 0
 
     altar:
       hp: 30
-      cooldown: [1, 10, 2]
+      cooldown: [1, 10, 1]
       use_cost: [20, 100, 100]
 
     converter:
       hp: 30
-      cooldown: [1, 10, 2]
+      cooldown: [1, 10, 1]
       energy_output.r1: [10, 250, 100]
       energy_output.r2: [10, 100, 10]
       energy_output.r3: [1, 10, 1]
 
     generator:
       hp: 30
-      cooldown: [0, 20, 5]
+      cooldown: [0, 20, 1]
       initial_resources: [1, 30, 30]
       use_cost: 0
 
@@ -72,19 +72,19 @@ game:
       cost: 3
     shield:
       enabled: true
-      cost: 1
+      cost: 0
     transfer:
-      enabled: false
+      enabled: true
       cost: 0
     use:
       enabled: true
       cost: 0
     attack:
       enabled: true
-      cost: 5
-      damage: 10
+      cost: 0
+      damage: 0
     gift:
-      enabled: false
+      enabled: true
       cost: 0
     swap:
       enabled: true
@@ -104,10 +104,10 @@ game:
       width: 25
       height: 25
       objects:
-        agent: 5
+        agent: 10
         altar: 1
         converter: 3
-        generator: 15
+        generator: 5
         wall: 10
 
 kinship:
