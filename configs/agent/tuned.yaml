@@ -15,5 +15,5 @@ decoder:
   _target_: agent.decoder.Decoder
 core:
   rnn_type: gru
-  rnn_num_layers: 2
-  rnn_size: 512
+  rnn_num_layers: 3
+  rnn_size: 768

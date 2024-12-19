@@ -28,8 +28,10 @@ class PufferAgentWrapper(nn.Module):
             self.atn_type = nn.Linear(agent.decoder_out_size(), env.action_space.n)
             self.atn_param = None
         elif len(env.action_space.nvec) == 2:
-            self.atn_type = nn.Linear(agent.decoder_out_size(), env.action_space.nvec[0])
-            self.atn_param = nn.Linear(agent.decoder_out_size(), env.action_space.nvec[1])
+            # self.atn_type = nn.Linear(agent.decoder_out_size(), env.action_space.nvec[0])
+            # self.atn_param = nn.Linear(agent.decoder_out_size(), env.action_space.nvec[1])
+            self.atn_type = HiddenLayerModule(agent.decoder_out_size(), 512, env.action_space.nvec[0])
+            self.atn_param = HiddenLayerModule(agent.decoder_out_size(), 512, env.action_space.nvec[1])
         else:
             raise ValueError(f"Unsupported action space: {env.action_space}")
 
@@ -88,3 +90,16 @@ def make_policy(env: PufferEnv, cfg: OmegaConf):
     puffer_agent._action_names = env.action_names()
     puffer_agent._grid_features = env._grid_env.grid_features()
     return puffer_agent.to(cfg.device)
+
+class HiddenLayerModule(nn.Module):
+    def __init__(self, input_size, hidden_size, output_size):
+        super(HiddenLayerModule, self).__init__()
+        self.fc1 = nn.Linear(input_size, hidden_size)  # Hidden layer
+        self.relu = nn.ReLU()                         # Activation
+        self.fc2 = nn.Linear(hidden_size, output_size)  # Output layer  
+
+    def forward(self, x):
+        x = self.fc1(x)
+        x = self.relu(x)
+        x = self.fc2(x)
+        return x
