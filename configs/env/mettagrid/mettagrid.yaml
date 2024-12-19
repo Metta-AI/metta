@@ -25,33 +25,33 @@ game:
 
   objects:
     agent:
-      initial_energy: [0, 250, 1000]
-      max_energy: [0, 2000, 2000]
-      max_inventory: [0, 10, 5]
-      freeze_duration: [0, 200, 0]
+      initial_energy: [2900, 2900, 2900]
+      max_energy: [10000, 10000, 10000]
+      max_inventory: [10000, 10000, 10000]
+      freeze_duration: [0, 0, 0]
       energy_reward: 0.0
       hp: 10
       mortal: False
-      upkeep.time: [0, 3, 0]
-      upkeep.shield: [0, 3, 0]
+      upkeep.time: [0, 0, 0]
+      upkeep.shield: [0, 0, 0]
       use_cost: 0
 
     altar:
       hp: 30
-      cooldown: [1, 10, 1]
-      use_cost: [20, 100, 100]
+      cooldown: [1, 1, 1]
+      use_cost: [3000, 3000, 3000]
 
     converter:
       hp: 30
-      cooldown: [1, 10, 1]
-      energy_output.r1: [10, 250, 100]
+      cooldown: [1, 1, 1]
+      energy_output.r1: [4000, 4000, 4000]
       energy_output.r2: [10, 100, 10]
       energy_output.r3: [1, 10, 1]
 
     generator:
       hp: 30
-      cooldown: [0, 20, 1]
-      initial_resources: [1, 30, 30]
+      cooldown: [1, 1, 1]
+      initial_resources: [4000, 4000, 4000]
       use_cost: 0
 
     wall:
@@ -68,13 +68,13 @@ game:
       enabled: true
       cost: 0
     jump:
-      enabled: false
-      cost: 3
+      enabled: true
+      cost: 0
     shield:
       enabled: true
       cost: 0
     transfer:
-      enabled: true
+      enabled: false
       cost: 0
     use:
       enabled: true
@@ -105,9 +105,9 @@ game:
       height: 25
       objects:
         agent: 10
-        altar: 1
-        converter: 3
-        generator: 5
+        altar: 8
+        converter: 8
+        generator: 8
         wall: 10
 
 kinship:

@@ -1,18 +1,19 @@
+# @package env
 
 defaults:
-  - mettagrid
+  - mettagrid/mettagrid
 
 
 game:
-  num_agents: 5
+  num_agents: 10
   map:
     room:
       width: 25
       height: 25
       border: 1
       objects:
-        agent: 5
-        altar: 1
-        converter: 3
+        agent: 10
+        altar: 15
+        converter: 15
         generator: 15
         wall: 60
