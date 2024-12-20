@@ -20,7 +20,6 @@ class PufferEvaluator():
         self._cfg = cfg
         self._device = cfg.device
 
-        self._vecenv = make_vecenv(self._cfg, num_envs=cfg.evaluator.num_envs)
         self._num_envs = cfg.evaluator.num_envs
         self._min_episodes = cfg.evaluator.num_episodes
         self._max_time_s = cfg.evaluator.max_time_s
@@ -33,14 +32,16 @@ class PufferEvaluator():
             self._baseline_prs = [self._policy_pr]
             self._policy_agent_pct = 0.9
 
-        self._agents_per_env = cfg.env.game.num_agents 
-        self._total_agents = self._num_envs * self._agents_per_env
+        self._agents_per_env = cfg.env.game.num_agents
         self._policy_agents_per_env = max(1, int(self._agents_per_env * self._policy_agent_pct))
         self._baseline_agents_per_env = self._agents_per_env - self._policy_agents_per_env
+        self._num_envs = self._num_envs // len(self._baseline_prs) * len(self._baseline_prs)
+        self._total_agents = self._num_envs * self._agents_per_env
 
         logger.info(f'Tournament: Policy Agents: {self._policy_agents_per_env}, ' +
               f'Baseline Agents: {self._baseline_agents_per_env}')
         
+        self._vecenv = make_vecenv(self._cfg, num_envs=self._num_envs)
 
         #each index is an agent, and we reshape it into a matrix of num_envs x agents_per_env
         #you can figure out which episode you're in by doing the floor division
@@ -51,11 +52,10 @@ class PufferEvaluator():
             .reshape(self._policy_agents_per_env * self._num_envs)
 
         self._baseline_idxs = []
-        if len(self._baseline_prs) > 0:
-            envs_per_opponent = self._num_envs // len(self._baseline_prs)
-            self._baseline_idxs = slice_idxs[:, self._policy_agents_per_env:]\
-                .reshape(self._num_envs*self._baseline_agents_per_env)\
-                .split(self._baseline_agents_per_env*envs_per_opponent)
+        envs_per_opponent = self._num_envs // len(self._baseline_prs)
+        self._baseline_idxs = slice_idxs[:, self._policy_agents_per_env:]\
+            .reshape(self._num_envs*self._baseline_agents_per_env)\
+            .split(self._baseline_agents_per_env*envs_per_opponent)
 
         self._completed_episodes = 0
         self._total_rewards = np.zeros(self._total_agents)
@@ -64,6 +64,11 @@ class PufferEvaluator():
         # Extract policy names
         self._policy_name = self._policy_pr.name
         self._baseline_names = [b.name for b in self._baseline_prs]
+        print("|-----Policy name:-----|")
+        print(self._policy_name)
+        print("|-----Baseline names:-----|")
+        for b in self._baseline_prs:
+            print(b.name)
 
         # Create mapping from agent index to policy name
         self._agent_idx_to_policy_name = {}
@@ -163,4 +168,3 @@ class PufferEvaluator():
 
     def close(self):
         self._vecenv.close()
-
