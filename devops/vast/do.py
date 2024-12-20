@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import subprocess
+import os
 import json
 import time
 import shlex
@@ -153,6 +154,20 @@ def setup_command(args):
     instance = label_to_instance(args.label)
     ssh_host = instance['ssh_host']
     ssh_port = instance['ssh_port']
+
+    # Add local SSH key.
+    ssh_keys = [
+        "id_rsa.pub",
+        "id_ed25519.pub",
+    ]
+    for key in ssh_keys:
+        key_path = os.path.expanduser(f"~/.ssh/{key}")
+        if os.path.exists(key_path):
+          print(f"Adding ssh key {key_path}")
+          ssh_key = open(key_path).read().split(" ")[1]
+          cmd_attach = f"vastai attach ssh {instance['id']} " + ssh_key
+          subprocess.run(cmd_attach, shell=True, check=True)
+
     cmd_setup = [
       "cd /workspace/metta",
       "git config --global --add safe.directory /workspace/metta"
