@@ -390,7 +390,6 @@ class Glicko2Test(StatisticalTest):
                         s_i = 0.5  # Draw
                         s_j = 0.5
 
-                    #delete aux metrics after testing
                     verbose_results[policy_i]['total_score'] += score_i
                     verbose_results[policy_j]['total_score'] += score_j
                     if s_i == 1:
@@ -591,15 +590,20 @@ def update_scores(historical_scores, new_scores):
     return historical_scores
 
 def get_test_results(test: StatisticalTest, scores_path: str = None):
+    # SINGLE CHECK FOR EMPTY POLICY LIST:
+    if not test.policy_names:
+        print("No policies found. Skipping test altogether.")
+        return {}, "No results to format (no policies found)."
+
     historical_data = {}
     if scores_path and os.path.exists(scores_path):
         with open(scores_path, "r") as file:
             print(f"Loading historical data from {scores_path}")
             try:
                 historical_data = json.load(file)
+                test.withHistoricalData(historical_data)
             except json.JSONDecodeError:
                 print(f"Failed to load historical data from {scores_path}")
-            test.withHistoricalData(historical_data)
 
     results = test.evaluate()
     formatted_results = test.format_results(results)

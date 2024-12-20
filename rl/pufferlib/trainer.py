@@ -88,6 +88,14 @@ class PufferTrainer:
         self.train_start = time.time()
         logger.info("Starting training")
 
+        print(f"wandb checkpoint interval: {self.trainer_cfg.wandb_checkpoint_interval}")
+        print(f"trainercheckpoint interval: {self.trainer_cfg.checkpoint_interval}")
+        print(f"evaluate interval: {self.trainer_cfg.evaluate_interval}")
+
+        # it doesn't make sense to evaluate more often than checkpointing since we need a saved policy to evaluate
+        if self.trainer_cfg.evaluate_interval < self.trainer_cfg.checkpoint_interval:
+            self.trainer_cfg.evaluate_interval = self.trainer_cfg.checkpoint_interval
+
         while self.agent_step < self.trainer_cfg.total_timesteps:
             self._evaluate()
             self._train()
@@ -123,11 +131,14 @@ class PufferTrainer:
             Glicko2Test(stats, self.cfg.evaluator.stat_categories['altar']),
             self.cfg.evaluator.baselines.glicko_scores_path)
 
-        self.wandb_run.log({
-            "eval/glicko2": results.get(self.last_pr.name, 0)["rating"],
-            "train/agent_step": self.agent_step,
-            "train/epoch": self.epoch,
-        })
+        rating = results.get(self.last_pr.name, {}).get("rating", None)
+
+        if rating is not None:
+            self.wandb_run.log({
+                "eval/glicko2": rating,
+                "train/agent_step": self.agent_step,
+                "train/epoch": self.epoch,
+            })
 
         logger.info(f"Glicko2 scores: \n{formatted_results}")
 
