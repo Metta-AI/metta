@@ -9,7 +9,6 @@ def make_env_func(cfg: OmegaConf, render_mode='rgb_array'):
     env.emulated = None
     env.single_observation_space = env.observation_space
     env.single_action_space = env.action_space
-    env.num_agents = env.player_count
 
     return env
 
