@@ -2,9 +2,9 @@
 defaults:
   - puffer
 
-ent_coef: 0.00209
-gae_lambda: 0.818
-gamma: 0.986
+ent_coef: 0.002
+gae_lambda: 0.9
+gamma: 0.99
 learning_rate: 0.00141
 vf_coef: 0.480
 

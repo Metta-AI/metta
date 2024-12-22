@@ -93,7 +93,6 @@ class PufferTrainer:
             print("Evaluate interval is less than checkpoint interval, setting to checkpoint interval")
 
         while self.agent_step < self.trainer_cfg.total_timesteps:
-            print(f"Epoch: {self.epoch}, Agent Step: {self.agent_step}")
             self._evaluate()
             self._train()
             self._process_stats()

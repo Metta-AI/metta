@@ -72,7 +72,7 @@ game:
       cost: 0
     shield:
       enabled: true
-      cost: 251
+      cost: 0
     transfer:
       enabled: false
       cost: 0
@@ -105,10 +105,10 @@ game:
       height: 10
       objects:
         agent: 5
-        altar: 2
-        converter: 15
-        generator: 15
-        wall: 5
+        altar: 5
+        converter: 20
+        generator: 20
+        wall: 10
 
 kinship:
   # _target_: env.wrapper.reward_sharing.TeamRewardSharing

@@ -9,12 +9,12 @@ resume: true
 total_timesteps: 50_000_000_000
 
 clip_coef: 0.1
-ent_coef: 0.006 #0.002
+ent_coef: 0.002
 gae_lambda: 0.9
 gamma: 0.99
 learning_rate: 0.0006
 max_grad_norm: 0.5
-vf_clip_coef: 0.1
+vf_clip_coef: 0.2
 vf_coef: 0.5
 
 norm_adv: true
