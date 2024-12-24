@@ -15,7 +15,6 @@
                 // "env=mettagrid/a20_b4_40x40",
                 "env.game.max_steps=100",
                 "env.sampling=0.1",
-                "env.flatten_actions=false",
                 "trainer.evaluate_interval=2",
                 "evaluator.baselines.uri=file://train_dir/mac.trainer.7/checkpoints/",
                 // "env.compact_obs=true",
@@ -81,7 +80,7 @@
           //  "preLaunchTask": "build_cython_extensions",
             "args": [
                 "run=mac.play.4",
-                "env/mettagrid@env=a20_b4_40x40",   
+                "env/mettagrid@env=a20_b4_40x40",
                 "wandb.enabled=True",
                 // "evaluator.policy.uri=wandb://run/b.simple.train.nas.t100.a10.ie.50.er",
                 "evaluator.policy.uri=wandb://run/p2.train.norm.feat",
