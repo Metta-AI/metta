@@ -10,17 +10,15 @@ from mettagrid.mettagrid_c import MettaGrid # pylint: disable=E0611
 import gymnasium as gym
 
 class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
-    def __init__(self, render_mode: str, **cfg):
-        super().__init__()
+    def __init__(self, render_mode: str, buf=None, **cfg):
 
         self._render_mode = render_mode
         self._cfg = OmegaConf.create(cfg)
         self.make_env()
 
         self._renderer = None
-        # Pufferlib
-        self.done = False
-        self.buf = None
+
+        super().__init__(buf)
 
     def make_env(self):
         scfg = sample_config(self._cfg, self._cfg.sampling)
@@ -40,17 +38,15 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         #self._env = Kinship(**sample_config(self._cfg.kinship), env=self._env)
         #self._env = RewardTracker(self._env)
         #self._env = FeatureMasker(self._env, self._cfg.hidden_features)
-        self.done = False
 
     def reset(self, seed=None, options=None):
         self.make_env()
 
-        if hasattr(self, "buf") and self.buf is not None:
-            self._c_env.set_buffers(
-                self.buf.observations,
-                self.buf.terminals,
-                self.buf.truncations,
-                self.buf.rewards)
+        self._c_env.set_buffers(
+            self.observations,
+            self.terminals,
+            self.truncations,
+            self.rewards)
 
         # obs, infos = self._env.reset(**kwargs)
         # self._compute_max_energy()
@@ -59,8 +55,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         return obs, infos
 
     def step(self, actions):
-        assert not self.done, "Episode is done"
-
         actions = np.array(actions).astype(np.int32)
         obs, rewards, terminated, truncated, infos = self._c_env.step(actions)
 
@@ -69,7 +63,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         infos = {}
         if terminated.all() or truncated.all():
-            self.done = True
             self.process_episode_stats(infos)
 
         return obs, rewards, terminated, truncated, infos
@@ -106,11 +99,11 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         return self._game_builder.max_steps
 
     @property
-    def observation_space(self):
+    def single_observation_space(self):
         return self._env.observation_space
 
     @property
-    def action_space(self):
+    def single_action_space(self):
         return self._env.action_space
 
     def action_names(self):
@@ -118,6 +111,10 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     @property
     def player_count(self):
+        return self._num_agents
+
+    @property
+    def num_agents(self):
         return self._num_agents
 
     def render(self):
