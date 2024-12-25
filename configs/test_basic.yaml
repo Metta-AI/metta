@@ -1,5 +1,3 @@
-# @package env
-
 name: "GDY-MettaGrid"
 _target_: mettagrid.mettagrid_env.MettaGridEnv
 
@@ -19,7 +17,7 @@ game:
   obs_height: 11
   max_steps: 5000
   tile_size: 16
-  num_agents: ???
+  num_agents: 5
   no_energy_steps: 500
 
   objects:
@@ -99,6 +97,7 @@ game:
     room:
       width: 25
       height: 25
+      border: 1
       num_agents: 5
       objects:
         agent: 5

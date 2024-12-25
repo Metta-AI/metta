@@ -65,11 +65,13 @@ class MettaGridGameBuilder():
         level = np.concatenate(layers, axis=0)
         assert num_agents == self.num_agents, f"Number of agents in map ({num_agents}) does not match num_agents ({self.num_agents})"
 
-        footer = np.full((1, level.shape[1]), self._symbols["wall"], dtype="U6")
-        footer[0, 0] = "q"
+        # Add map border around the level.
+        b = self.map_config.border
+        h, w = level.shape
+        final_level = np.full((h + b * 2, w + b * 2), self._symbols["wall"], dtype="U6")
+        final_level[b:b + h, b:b + w] = level
 
-        level = np.concatenate([level, footer], axis=0)
-        return level
+        return final_level
 
     def build_room(self, room_config, starting_agent=1):
         symbols = []
@@ -77,18 +79,22 @@ class MettaGridGameBuilder():
         content_height = room_config.height - 2*room_config.border
         area = content_width * content_height
 
+        # Add all objects in the proper amounts to a single large array.
         for obj_name, count in room_config.objects.items():
             symbol = self._symbols[obj_name]
             if obj_name == "agent":
                 symbols.extend([f"{symbol}{i+starting_agent}" for i in range(count)])
             else:
                 symbols.extend([symbol] * count)
-
         assert(len(symbols) <= area), f"Too many objects in room: {len(symbols)} > {area}"
         symbols.extend(["."] * (area - len(symbols)))
+
+        # Shuffle and reshape the array into a room.
         symbols = np.array(symbols).astype("U8")
         np.random.shuffle(symbols)
         content = symbols.reshape(content_height, content_width)
+
+        # Add room border.
         room = np.full((room_config.height, room_config.width), self._symbols["wall"], dtype="U6")
         room[room_config.border:room_config.border+content_height,
              room_config.border:room_config.border+content_width] = content

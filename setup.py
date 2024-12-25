@@ -48,24 +48,6 @@ setup(
     version='0.1',
     packages=find_packages(),
     nthreads=num_threads,
-    install_requires=[
-        "hydra-core",
-        "jmespath",
-        "matplotlib",
-        # "numpy==2.0.0",
-        "pettingzoo",
-	    "pufferlib",
-        "puffergrid",
-        "pynvml",
-        "pytest",
-        "PyYAML",
-        "raylib",
-        "rich",
-        "scipy",
-        "tabulate",
-        "tensordict",
-        "torchrl",
-    ],
     entry_points={
         'console_scripts': [
             # If you want to create any executable scripts in your package
