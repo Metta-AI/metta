@@ -41,7 +41,7 @@ class MettaGridRaylibRenderer:
         rl.SetWindowState(rl.FLAG_WINDOW_RESIZABLE)  # Make the window resizable
 
         # Load custom font
-        font_path = os.path.join("deps", "mettagrid", "mettagrid", "renderer", "assets", "arial.ttf")
+        font_path = "deps/mettagrid/mettagrid/renderer/assets/Inter-Regular.ttf"
         assert os.path.exists(font_path), f"Font {font_path} does not exist"
         self.font = rl.LoadFont(font_path.encode())
 
@@ -130,6 +130,7 @@ class MettaGridRaylibRenderer:
         # return np.frombuffer(cdata, dtype=np.uint8).reshape((height, width, channels))[:, :, :3]
 
     def _render(self):
+
         # Update window size if it has changed
         if rl.IsWindowResized():
             self.window_width = rl.GetScreenWidth()
@@ -150,6 +151,10 @@ class MettaGridRaylibRenderer:
 
         rl.EndMode2D()
         self.render_sidebar()
+
+        if rl.IsKeyDown(rl.KEY_SLASH): # Also the `?` key.
+            self._draw_help_overlay()
+
         rl.EndDrawing()
 
     def handle_mouse_input(self):
@@ -167,6 +172,11 @@ class MettaGridRaylibRenderer:
             self.selected_object_id = self.hover_object_id
             if self.selected_object_id is not None and "agent_id" in self.game_objects[self.selected_object_id]:
                 self.selected_agent_idx = self.game_objects[self.selected_object_id]["agent_id"]
+
+    def _draw_text_right_aligned(self, text, x, y, font_size, color=colors.WHITE):
+        """Draw text right aligned at (x, y), useful for displaying numbers."""
+        text_width = rl.MeasureTextEx(self.font, text, font_size, 1).x
+        rl.DrawTextEx(self.font, text, (x - text_width, y), font_size, 1, color)
 
     def render_sidebar(self):
         font_size = 14
@@ -220,20 +230,27 @@ class MettaGridRaylibRenderer:
             # draw a 11x11 grid of text on the sidebar
             for r in range(obs.shape[0]):
                 for c in range(obs.shape[1]):
-                    rl.DrawTextEx(self.font, f"{obs[r][c]}".encode(),
-                                  (sidebar_x + 10 + c * font_size, y + r * font_size), font_size +2, 1, colors.WHITE)
+                    text = f"{obs[r][c]}".encode()
+                    self._draw_text_right_aligned(
+                        text,
+                        sidebar_x + 10 + (c + 1) * font_size * 3,
+                        y + r * font_size,
+                        font_size + 2
+                    )
 
         # Display current timestep at the bottom of the sidebar
         timestep_text = f"Timestep: {self.current_timestep}"
         rl.DrawTextEx(self.font, timestep_text.encode(),
                       (sidebar_x + 10, sidebar_height - 30), font_size, 1, colors.WHITE)
         feature_name = "disabled"
-        if self.obs_idx > -1:
-            feature_name = self.env.grid_features()[self.obs_idx]
-        obs_txt = f"Obs: {feature_name} (-/=)"
+
+        # Clamp the observation index to be between -1 and the number of features minus 1
+        self.obs_idx = max(-1, min(self.obs_idx, len(self.env.grid_features()) - 1))
+        feature_name = self.env.grid_features()[self.obs_idx]
+
+        obs_txt = f"Press ? for help. Obs: {feature_name} (-/=)"
         rl.DrawTextEx(self.font, obs_txt.encode(),
                       (sidebar_x + 10, sidebar_height - 60), font_size, 1, colors.WHITE)
-
 
     def draw_selection(self, obj):
         x, y = obj["c"] * self.tile_size, obj["r"] * self.tile_size
@@ -272,26 +289,101 @@ class MettaGridRaylibRenderer:
             end_y = target_loc[0] * self.tile_size + self.tile_size // 2
             ray.draw_line(int(start_x), int(start_y), int(end_x), int(end_y), ray.RED)
 
+    def _draw_help_overlay(self):
+        """ Draws a help overlay on the screen with the available keys and their actions. """
+
+        font_size = 16
+        help_text = """
+        * Click on an agent to select it
+        * `SPACE` toggle pause
+
+        * `-` decrement observation layer index
+        * `=` increment observation layer index
+
+        * `E` move forward
+        * `Q` move backward
+
+        * `W` face up
+        * `S` face down
+        * `A` face left
+        * `D` face right
+
+        * Key `1` to `9` attacks with that type of an attack.
+        * `U` use
+        * `O` toggle shield
+        * `P` swap
+
+        * `~` toggle mind control - the agent will ignore the AI and just sit
+            there allowing the player to move it around without the AI making
+            decisions.
+        """
+        # Figure out how big to make the box to fit the text.
+        size = rl.MeasureTextEx(self.font, help_text.encode(), font_size, 1)
+        size_x = int(size.x + 30)
+        size_y = int(size.y + 30)
+        # Position the box in the middle of the screen.
+        pos_x = (rl.GetScreenWidth() - size_x) // 2
+        pos_y = (rl.GetScreenHeight() - size_y) // 2
+        # Draw a semi-transparent black rectangle behind the text.
+        rl.DrawRectangle(pos_x, pos_y, size_x, size_y, (0, 0, 0, 200))
+        rl.DrawTextEx(
+            self.font,
+            help_text.encode(),
+            (pos_x + 15, pos_y + 15),
+            font_size,
+            1,
+            colors.WHITE
+        )
+
     def handle_keyboard_input(self):
-        if rl.IsKeyDown(rl.KEY_ESCAPE):
+        if rl.IsKeyPressed(rl.KEY_ESCAPE) or rl.WindowShouldClose():
             sys.exit(0)
 
         if self.selected_agent_idx is not None:
             for key, action in self.key_actions.items():
-                if rl.IsKeyDown(key):
+                if rl.IsKeyPressed(key):
                     self.actions[self.selected_agent_idx][0] = action[0]
                     self.actions[self.selected_agent_idx][1] = action[1]
                     self.user_action = True
 
-        if rl.IsKeyDown(rl.KEY_GRAVE) and self.selected_object_id is not None:
-            self.mind_control = not self.mind_control
+            # Do WASD movement actions.
+            agent = self.agents[self.selected_agent_idx]
+            orientation = agent["agent:orientation"]
+            def doAction(action_name, value):
+                self.actions[self.selected_agent_idx][0] = self.action_ids[action_name]
+                self.actions[self.selected_agent_idx][1] = value
+                self.user_action = True
 
-        if rl.IsKeyDown(rl.KEY_MINUS):
+            if rl.IsKeyPressed(rl.KEY_W):
+                # Move Up.
+                if orientation == 0: doAction("move", 0)
+                elif orientation == 1: doAction("move", 1)
+                else: doAction("rotate", 0)
+            elif rl.IsKeyPressed(rl.KEY_S):
+                # Move Down.
+                if orientation == 1: doAction("move", 0)
+                elif orientation == 0: doAction("move", 1)
+                else: doAction("rotate", 1)
+            elif rl.IsKeyPressed(rl.KEY_A):
+                # Move left.
+                if orientation == 2: doAction("move", 0)
+                elif orientation == 3: doAction("move", 1)
+                else: doAction("rotate", 2)
+            elif rl.IsKeyPressed(rl.KEY_D):
+                # Move right.
+                if orientation == 3: doAction("move", 0)
+                elif orientation == 2: doAction("move", 1)
+                else: doAction("rotate", 3)
+
+            if rl.IsKeyPressed(rl.KEY_GRAVE):
+                self.mind_control = not self.mind_control
+
+        if rl.IsKeyPressed(rl.KEY_MINUS):
             self.obs_idx -= 1
-        if rl.IsKeyDown(rl.KEY_EQUAL):
+        if rl.IsKeyPressed(rl.KEY_EQUAL):
             self.obs_idx += 1
 
-        if rl.IsKeyDown(rl.KEY_SPACE):
+        if rl.IsKeyPressed(rl.KEY_SPACE):
             self.paused = not self.paused
 
     def draw_mouse(self):
@@ -320,10 +412,10 @@ class MettaGridRaylibRenderer:
 
         if orientation == 0:
             new_r = r - distance
-            new_c = c + offset
+            new_c = c - offset
         elif orientation == 1:
             new_r = r + distance
-            new_c = c - offset
+            new_c = c + offset
         elif orientation == 2:
             new_r = r + offset
             new_c = c - distance
@@ -337,7 +429,7 @@ class MettaGridRaylibRenderer:
 
     def _setup_action_handling(self):
         # convert any missing actions to noop
-        actions_dict = { name: idx for idx, name in enumerate(self.env.action_names()) }
+        actions_dict = {name: idx for idx, name in enumerate(self.env.action_names())}
         noop_idx = actions_dict["noop"]
         self.action_ids = defaultdict(lambda: noop_idx)
         for name in actions_dict:
@@ -348,11 +440,6 @@ class MettaGridRaylibRenderer:
             # move
             rl.KEY_E: (self.action_ids["move"], 0),
             rl.KEY_Q: (self.action_ids["move"], 1),
-            # rotate
-            rl.KEY_W: (self.action_ids["rotate"], 0),
-            rl.KEY_S: (self.action_ids["rotate"], 1),
-            rl.KEY_A: (self.action_ids["rotate"], 2),
-            rl.KEY_D: (self.action_ids["rotate"], 3),
             # use
             rl.KEY_U: (self.action_ids["use"], 0),
             # attack
@@ -365,6 +452,17 @@ class MettaGridRaylibRenderer:
             rl.KEY_KP_7: (self.action_ids["attack"], 7),  # KEY_7
             rl.KEY_KP_8: (self.action_ids["attack"], 8),  # KEY_8
             rl.KEY_KP_9: (self.action_ids["attack"], 9),  # KEY_9
+
+            rl.KEY_ONE: (self.action_ids["attack"], 1),   # KEY_1
+            rl.KEY_TWO: (self.action_ids["attack"], 2),   # KEY_2
+            rl.KEY_THREE: (self.action_ids["attack"], 3), # KEY_3
+            rl.KEY_FOUR: (self.action_ids["attack"], 4),  # KEY_4
+            rl.KEY_FIVE: (self.action_ids["attack"], 5),  # KEY_5
+            rl.KEY_SIX: (self.action_ids["attack"], 6),   # KEY_6
+            rl.KEY_SEVEN: (self.action_ids["attack"], 7), # KEY_7
+            rl.KEY_EIGHT: (self.action_ids["attack"], 8), # KEY_8
+            rl.KEY_NINE: (self.action_ids["attack"], 9),  # KEY_9
+
             # toggle shield
             rl.KEY_O: (self.action_ids["shield"], 0),
             # swap
