@@ -42,12 +42,11 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     def reset(self, seed=None, options=None):
         self.make_env()
 
-        if hasattr(self, "buf") and self.buf is not None:
-            self._c_env.set_buffers(
-                self.buf.observations,
-                self.buf.terminals,
-                self.buf.truncations,
-                self.buf.rewards)
+        self._c_env.set_buffers(
+            self.observations,
+            self.terminals,
+            self.truncations,
+            self.rewards)
 
         # obs, infos = self._env.reset(**kwargs)
         # self._compute_max_energy()
