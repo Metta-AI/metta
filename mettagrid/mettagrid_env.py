@@ -16,9 +16,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._cfg = OmegaConf.create(cfg)
         self.make_env()
         self.should_reset = False
-
         self._renderer = None
-
 
         super().__init__(buf)
 
@@ -58,10 +56,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         return obs, infos
 
     def step(self, actions):
-        if self.should_reset:
-            self.reset()
-            return self.observations, self.rewards, self.terminals, self.truncations, {}
-
         self.actions[:] = np.array(actions).astype(np.int32)
         self._c_env.step(self.actions)
 
@@ -133,6 +127,10 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             self._c_env.current_timestep(),
             self._c_env.grid_objects()
         )
+
+    @property
+    def done(self):
+        return self.should_reset
 
     @property
     def grid_features(self):
