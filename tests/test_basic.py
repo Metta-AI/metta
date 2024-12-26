@@ -97,10 +97,10 @@ def main(cfg):
     # Print some environment info:
     print("mettaGridEnv._max_steps: ", mettaGridEnv._max_steps)
     assert mettaGridEnv._max_steps == 5000
-    print("mettaGridEnv.observation_space: ", mettaGridEnv.observation_space)
-    assert mettaGridEnv.observation_space.shape == (24, 11, 11)
-    print("mettaGridEnv.action_space: ", mettaGridEnv.action_space)
-    assert mettaGridEnv.action_space.nvec.tolist() == [8, 9]
+    print("mettaGridEnv.single_observation_space: ", mettaGridEnv.single_observation_space)
+    assert mettaGridEnv.single_observation_space.shape == (24, 11, 11)
+    print("mettaGridEnv.single_action_space: ", mettaGridEnv.single_action_space)
+    assert mettaGridEnv.single_action_space.nvec.tolist() == [8, 9]
     print("mettaGridEnv.action_names(): ", mettaGridEnv.action_names())
     print("mettaGridEnv.grid_features: ", mettaGridEnv.grid_features)
     print("mettaGridEnv.global_features: ", mettaGridEnv.global_features)
