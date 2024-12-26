@@ -11,6 +11,7 @@ import pandas as pd
 from io import StringIO
 import re
 from multiprocessing import Pool
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 def parse_iterator_input(input_str):
     """Parse user input to generate a list of iterators."""
@@ -213,38 +214,38 @@ def wait_and_setup_instances(instances):
     
     return ready_instances
 
+def setup_instance(label, max_retries=3):
+    """Setup a single instance with retries."""
+    print(f"Starting setup for instance: {label}")
+    attempt = 0
+    while attempt < max_retries:
+        attempt += 1
+        print(f"[{label}] Setup attempt {attempt} of {max_retries}")
+        with open(f"setup_{label}.log", "a") as log_file:
+            setup_command = ["python3", "devops/vast/do.py", "setup", label]
+            process = subprocess.Popen(setup_command, stdout=log_file, stderr=subprocess.STDOUT)
+            process.wait()
+        if process.returncode == 0:
+            print(f"Setup completed for instance: {label} on attempt {attempt}")
+            return True
+        else:
+            print(f"Setup failed for instance: {label} on attempt {attempt}.")
+            print(f"Check setup_{label}.log for details.")
+            if attempt < max_retries:
+                print(f"Retrying setup for instance: {label}...")
+    print(f"Setup ultimately failed for instance: {label} after {max_retries} attempts.")
+    return False
+
 def setup_instances(instances, max_retries=3):
-    """
-    Run setup on specified instances, retrying on failure up to max_retries times.
-    """
-    for label in instances:
-        print(f"Starting setup for instance: {label}")
-        
-        # We will retry multiple times if it fails 
-        attempt = 0
-        while attempt < max_retries:
-            attempt += 1
-            print(f"[{label}] Setup attempt {attempt} of {max_retries}")
-            
-            # Open log file in append mode so we can keep track across retries
-            with open(f"setup_{label}.log", "a") as log_file:
-                setup_command = ["python3", "devops/vast/do.py", "setup", label]
-                process = subprocess.Popen(setup_command, stdout=log_file, stderr=subprocess.STDOUT)
-                process.wait()
-            
-            # Check the result
-            if process.returncode == 0:
-                print(f"Setup completed for instance: {label} on attempt {attempt}")
-                break
-            else:
-                print(f"Setup failed for instance: {label} on attempt {attempt}.")
-                print(f"Check setup_{label}.log for details.")
-                if attempt < max_retries:
-                    print(f"Retrying setup for instance: {label}...")
-        
-        # If max retries reached and still failing, give the final status
-        if process.returncode != 0:
-            print(f"Setup ultimately failed for instance: {label} after {max_retries} attempts.")
+    """Run setup on specified instances in parallel."""
+    with ThreadPoolExecutor() as executor:
+        futures = {executor.submit(setup_instance, label, max_retries): label for label in instances}
+        for future in as_completed(futures):
+            label = futures[future]
+            try:
+                future.result()
+            except Exception as e:
+                print(f"Setup encountered an exception for instance {label}: {e}")
 
 def parallel_rsync(label):
     """Helper function to run rsync for a single instance."""
@@ -277,7 +278,13 @@ def run_remote_command(label, command):
         print(f"Error: {result.stderr}")
         return
     
-    ssh_host, ssh_port = result.stdout.strip().split()
+    # Ensure the output is split correctly
+    ssh_details = result.stdout.strip().split()
+    if len(ssh_details) != 2:
+        print(f"Unexpected SSH details format for instance {label}: {result.stdout}")
+        return
+    
+    ssh_host, ssh_port = ssh_details
 
     # Create or reuse a named screen session (named train_<label>).
     full_command = (

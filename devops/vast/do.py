@@ -236,6 +236,13 @@ def send_keys(process, keys):
     process.stdin.write(f"{keys}\n".encode())
     process.stdin.flush()
 
+def get_ssh_details_command(args):
+    """Get SSH host and port for an instance."""
+    instance = label_to_instance(args.label)
+    ssh_host = instance['ssh_host']
+    ssh_port = instance['ssh_port']
+    print(f"{ssh_host} {ssh_port}")
+
 def main():
     """ Swiss Army Knife for vast.ai. """
 
@@ -468,6 +475,8 @@ def main():
         rsync_command(args)
     elif args.command == 'wait_for_ready':
         wait_for_ready(args.label)
+    elif args.command == 'get-ssh-details':
+        get_ssh_details_command(args)
     else:
         parser.print_help()
 
