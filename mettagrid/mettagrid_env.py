@@ -15,8 +15,10 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._render_mode = render_mode
         self._cfg = OmegaConf.create(cfg)
         self.make_env()
+        self.should_reset = False
 
         self._renderer = None
+
 
         super().__init__(buf)
 
@@ -52,20 +54,26 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         # self._compute_max_energy()
         # return obs, infos
         obs, infos = self._c_env.reset()
+        self.should_reset = False
         return obs, infos
 
     def step(self, actions):
-        actions = np.array(actions).astype(np.int32)
-        obs, rewards, terminated, truncated, infos = self._c_env.step(actions)
+        if self.should_reset:
+            self.reset()
+            return self.observations, self.rewards, self.terminals, self.truncations, {}
+
+        self.actions[:] = np.array(actions).astype(np.int32)
+        self._c_env.step(self.actions)
 
         if self._cfg.normalize_rewards:
-            rewards -= rewards.mean()
+            self.rewards -= self.rewards.mean()
 
         infos = {}
-        if terminated.all() or truncated.all():
+        if self.terminals.all() or self.truncations.all():
             self.process_episode_stats(infos)
+            self.should_reset = True
 
-        return obs, rewards, terminated, truncated, infos
+        return self.observations, self.rewards, self.terminals, self.truncations, infos
 
     def process_episode_stats(self, infos: Dict[str, Any]):
         episode_rewards = self._c_env.get_episode_rewards()
