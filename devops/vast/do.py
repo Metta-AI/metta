@@ -123,16 +123,34 @@ def ssh_command(args):
     subprocess.run(cmd, shell=True, check=True)
 
 def screen_command(args):
-    """ Like SSH, but starts or attaches to a screen session """
+    """
+    Like SSH, but starts or attaches to a screen session.
+    If --session is specified, attach/create that screen session name.
+    Otherwise, fallback to screen -Rq.
+    """
     wait_for_ready(args.label)
     instance = label_to_instance(args.label)
     ssh_host = instance['ssh_host']
     ssh_port = instance['ssh_port']
-    cmd = f"ssh -t -o \
-      StrictHostKeyChecking=no -p {ssh_port} \
-      root@{ssh_host} \
-      'cd /workspace/metta && screen -Rq'"
-    print("Use ^A-D to detach from screen session.")
+    
+    #AV added the below to allow for a named screen session.
+    if args.session:
+        # Attach or create a named session
+        session_name = args.session
+        cmd = (
+            f"ssh -t -o StrictHostKeyChecking=no -p {ssh_port} "
+            f"root@{ssh_host} "
+            f"'cd /workspace/metta && screen -R -S {session_name}'"
+        )
+    else:
+        # The original behavior when no session is specified
+        cmd = (
+            f"ssh -t -o StrictHostKeyChecking=no -p {ssh_port} "
+            f"root@{ssh_host} "
+            f"'cd /workspace/metta && screen -Rq'"
+        )
+
+    print("Use Ctrl+A then D to detach from screen session.")
     subprocess.run(cmd, shell=True, check=True)
 
 def tmux_command(args):
@@ -359,9 +377,15 @@ def main():
 
     screen_parser = subparsers.add_parser(
       'screen',
-      help='SSH into machine and start or attach to existing screen session'
+      help='SSH into machine and start or attach to an existing screen session'
     )
     screen_parser.add_argument('label', type=str, help='Instance ID')
+    screen_parser.add_argument(
+        '--session', 
+        type=str, 
+        default=None,
+        help='Optional screen session name to attach or create'
+    )
 
     tmux_parser = subparsers.add_parser(
       'tmux',
@@ -401,6 +425,28 @@ def main():
     )
     rsync_parser.add_argument('label', type=str, help='Instance ID')
 
+    #AV added below
+    ssh_details_parser = subparsers.add_parser(
+        'get-ssh-details',
+        help='Get SSH host and port for an instance'
+    )
+    ssh_details_parser.add_argument(
+        'label',
+        type=str,
+        help='Instance label'
+    )
+
+    # Add wait_for_ready command
+    wait_parser = subparsers.add_parser(
+        'wait_for_ready',
+        help='Wait for an instance to become ready'
+    )
+    wait_parser.add_argument(
+        'label',
+        type=str,
+        help='Instance label'
+    )
+
     args = parser.parse_args()
     if args.command == 'search':
         search_command(args)
@@ -420,6 +466,8 @@ def main():
         setup_command(args)
     elif args.command == 'rsync':
         rsync_command(args)
+    elif args.command == 'wait_for_ready':
+        wait_for_ready(args.label)
     else:
         parser.print_help()
 
