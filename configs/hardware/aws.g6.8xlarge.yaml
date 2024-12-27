@@ -5,4 +5,4 @@ defaults:
 
 
 trainer:
-  num_workers: 32 # num cores
+  num_workers: 16 # num cores
