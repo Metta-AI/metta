@@ -24,6 +24,13 @@ python -m devops.aws.launch_task \
     env.game.objects.agent.energy_reward=1
 ```
 
+## Stopping Jobs
+
+1. Stop a running job:
+```bash
+python -m devops.aws.stop_jobs --job_prefix=b.$USER.run_name
+```
+
 ## Monitoring Jobs
 
 1. Monitor jobs through AWS Batch Console:
