@@ -33,7 +33,12 @@ python -m devops.aws.stop_jobs --job_prefix=b.$USER.run_name
 
 ## Monitoring Jobs
 
-1. Monitor jobs through AWS Batch Console:
+1. Monitor jobs through command line:
+```bash
+python -m devops.aws.cluster_info
+```
+
+2. Monitor jobs through AWS Batch Console:
 - URL: [AWS Batch Console](https://us-east-1.console.aws.amazon.com/batch/home?region=us-east-1#jobs)
 - Queue: `metta-batch-jq-g6-8xlarge`
 
