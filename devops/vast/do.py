@@ -419,7 +419,7 @@ def main():
     elif args.command == 'setup':
         setup_command(args)
     elif args.command == 'rsync':
-        rsync_command(args)s
+        rsync_command(args)
     else:
         parser.print_help()
 
