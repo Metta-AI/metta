@@ -24,7 +24,6 @@
                 "env/mettagrid@env=a20_r2x2",
                 "env.game.max_steps=100",
                 "env.sampling=0.1",
-                "env.flatten_actions=false",
                 "trainer.evaluate_interval=2",
 
                 "evaluator.baselines.uri=file://train_dir/mac.trainer.7/checkpoints/",
