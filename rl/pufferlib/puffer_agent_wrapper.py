@@ -43,7 +43,7 @@ class PufferAgentWrapper(nn.Module):
     def encode_observations(self, flat_obs):
         obs = {
             "grid_obs": flat_obs.float(),
-            "global_vars": torch.zeros(flat_obs.shape[0], dtype=float).to(flat_obs.device)
+            "global_vars": torch.zeros(flat_obs.shape[0], dtype=torch.float32).to(flat_obs.device)
         }
         td = TensorDict({"obs": obs})
         self._agent.encode_observations(td)
