@@ -123,11 +123,7 @@
                 "wandb.enabled=True",
                 "env/mettagrid@env=a20_train",
                 // "env=mettagrid/behaviors/resources/competition/10x10_2a",
-                //"evaluator.baseline_uris=[wandb://run/60-agents-4-rooms,wandb://run/100-agents-4-rooms,wandb://run/160-agents-4-rooms]",
-
-              //  "evaluator.baselines.uri=wandb://run/george-50-agents-6060-grid",
                 "evaluator.baselines.uri=[wandb://run/60-agents-4-rooms-v1,wandb://run/100-agents-4-rooms-v1,wandb://run/160-agents-4-rooms]",
-
                 "evaluator.policy.uri=wandb://run/daphne-20-agents-4-rooms-v2",
                 // "evaluator.baseline_uris=[wandb://sweep_model/mac.train.mac.new.1@1]",
                 "evaluator.baselines.range=1",
