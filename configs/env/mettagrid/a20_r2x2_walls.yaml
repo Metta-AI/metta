@@ -11,11 +11,14 @@ game:
     room:
       width: 40
       height: 40
-      border: 0
+      border: 1
       objects:
         agent: 5
         altar: 5
         converter: 10
         generator: 50
-        wall: 40
+        wall: 40 
+  objects:
+    agent:
+      energy_reward: 1.0
  
