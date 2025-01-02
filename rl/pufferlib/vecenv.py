@@ -4,13 +4,8 @@ import pufferlib.utils
 import pufferlib.vector
 import hydra
 
-def make_env_func(cfg: OmegaConf, render_mode='rgb_array'):
-    env = hydra.utils.instantiate(cfg, render_mode=render_mode)
-    env.emulated = None
-    env.single_observation_space = env.observation_space
-    env.single_action_space = env.action_space
-    env.num_agents = env.player_count
-
+def make_env_func(cfg: OmegaConf, buf=None, render_mode='rgb_array'):
+    env = hydra.utils.instantiate(cfg, buf=buf, render_mode=render_mode)
     return env
 
 def make_vecenv(cfg: OmegaConf, num_envs=1, batch_size=None, num_workers=1, render_mode=None, **kwargs):
