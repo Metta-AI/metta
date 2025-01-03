@@ -1,0 +1,26 @@
+defaults:
+  - mettagrid
+
+game:
+  num_agents: 200
+  map:
+    layout:
+      rooms_x: 2
+      rooms_y: 5
+    border: 1
+    room:
+      width: 40
+      height: 40
+      border: 1
+      objects:
+        agent: 20
+        altar: 5
+        converter: 10
+        generator: 50
+        wall: 40 
+  objects:
+    agent:
+      energy_reward: 1.0
+    wall:
+      hp: 100
+ 
