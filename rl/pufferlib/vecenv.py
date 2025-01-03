@@ -4,12 +4,16 @@ import pufferlib.utils
 import pufferlib.vector
 import hydra
 
-def make_env_func(cfg: OmegaConf, render_mode='rgb_array'):
-    env = hydra.utils.instantiate(cfg, render_mode=render_mode)
-    env.emulated = None
-    env.single_observation_space = env.observation_space
-    env.single_action_space = env.action_space
+import mettagrid.fast
 
+def make_env_func(cfg: OmegaConf, render_mode='rgb_array'):
+    # env = hydra.utils.instantiate(cfg, render_mode=render_mode)
+    # env.emulated = None
+    # env.single_observation_space = env.observation_space
+    # env.single_action_space = env.action_space
+
+    cfg = OmegaConf.create(cfg)
+    env = mettagrid.fast.Environment(cfg)
     return env
 
 def make_vecenv(cfg: OmegaConf, num_envs=1, batch_size=None, num_workers=1, render_mode=None, **kwargs):
