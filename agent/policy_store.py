@@ -269,5 +269,3 @@ class PolicyStore:
         )
         pr.metadata.update(artifact.metadata)
         return pr
-
-
