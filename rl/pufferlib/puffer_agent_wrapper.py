@@ -3,7 +3,7 @@ import gymnasium as gym
 import hydra
 import numpy as np
 import pufferlib
-import pufferlib.frameworks.cleanrl
+import pufferlib.cleanrl
 import pufferlib.models
 import pufferlib.pytorch
 import torch
