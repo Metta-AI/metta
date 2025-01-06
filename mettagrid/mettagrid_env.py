@@ -18,6 +18,8 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self.should_reset = False
         self._renderer = None
 
+        
+
         super().__init__(buf)
 
     def make_env(self):
