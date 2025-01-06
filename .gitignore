@@ -17,4 +17,4 @@ replays
 stats.profile
 train_dir
 metta-research
-gpu_cache_names.json
+gpu_names_cache.json
