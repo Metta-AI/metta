@@ -29,3 +29,11 @@ policy_selector:
   range: 0
   metric: final.score
   generation: null
+
+critic:
+  hidden_sizes: [1024] # Set to [] for no hidden layer
+  
+actor:
+  hidden_sizes: 512 # Set to [] for no hidden layer
+
+
