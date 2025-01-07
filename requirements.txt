@@ -6,7 +6,6 @@ imageio>=2.36.0
 jmespath>=1.0.1
 matplotlib>=3.9.2
 pettingzoo>=1.24.1
-sample_factory>=2.1.1
 pynvml>=11.5.3
 pytest>=8.3.3
 PyYAML>=6.0.2
@@ -20,4 +19,5 @@ uvicorn>=0.32.1
 wandb==0.18.3
 wandb-core==0.17.0b11
 websockets>=14.1
-fast_gae>=0.0.4
+# sample_factory>=2.1.1
+# fast_gae>=0.0.4
