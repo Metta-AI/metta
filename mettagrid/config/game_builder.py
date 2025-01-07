@@ -46,8 +46,8 @@ class MettaGridGameBuilder():
     def level(self):
         layout = self.map_config.layout
 
-        if self.map_config.file:
-            return self.build_map_from_ascii(self.map_config.file)
+        if self.map_config.uri:
+            return self.build_map_from_ascii(self.map_config.uri)
 
         elif "rooms" in layout:
             return self.build_map(layout.rooms)
@@ -55,11 +55,11 @@ class MettaGridGameBuilder():
             return self.build_map(
                 [["room"] * layout.rooms_x] * layout.rooms_y)
         
-    def build_map_from_ascii(self, ascii_map_file):
+    def build_map_from_ascii(self, ascii_map_uri):
         """Currently this is only for a single room"""
 
 
-        with open(ascii_map_file, "r") as f:
+        with open(ascii_map_uri, "r") as f:
             ascii_map = f.read()
         # Convert ASCII map string to numpy array
         lines = ascii_map.strip().splitlines()
