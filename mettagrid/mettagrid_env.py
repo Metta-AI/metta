@@ -154,3 +154,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     @property
     def grid_objects(self):
         return self._c_env.grid_objects()
+
+    def close(self):
+        pass
