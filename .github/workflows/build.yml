@@ -1,0 +1,33 @@
+name: Python Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11.7'
+
+    - name: Install dependencies
+      run: |
+        conda create -n metta python=3.11.7
+        conda activate metta
+        pip install -r requirements.txt
+        bash ./devops/setup_build.sh
+
+    - name: Run test training
+      env:
+        HYDRA_FULL_ERROR: 1
+        PYTHONPATH: ${{ github.workspace }}
+      run: |
+        python -m tools.run cmd=train experiment=my_experiment trainer.total_timesteps=2
