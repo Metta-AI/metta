@@ -110,7 +110,7 @@ game:
         generator: 15
         wall: 10
 
-last_action_tracker: false
+track_last_action: false
 
 kinship:
   # _target_: env.wrapper.reward_sharing.TeamRewardSharing

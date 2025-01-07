@@ -65,7 +65,7 @@ class SimpleConvAgent(nn.Module):
                 30, # 'altar:hp',
                 1, # 'altar:ready'
             ]
-            if cfg.last_action_tracker:
+            if cfg.track_last_action:
                 obs_norms.extend([
                     10, # 'last_action'
                     10, # 'last_action_argument'
