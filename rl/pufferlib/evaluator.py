@@ -35,10 +35,7 @@ class PufferEvaluator():
         self._agents_per_env = cfg.env.game.num_agents
         self._policy_agents_per_env = max(1, int(self._agents_per_env * self._policy_agent_pct))
         self._baseline_agents_per_env = self._agents_per_env - self._policy_agents_per_env
-        modulo = self._num_envs % len(self._baseline_prs)
-        if modulo != 0:
-            self._num_envs = self._num_envs - modulo + len(self._baseline_prs)
-            print(f"Adjusted num envs to {self._num_envs} to ensure divisibility")
+        self._num_envs = self._num_envs // len(self._baseline_prs) * len(self._baseline_prs)
         self._total_agents = self._num_envs * self._agents_per_env
 
         logger.info(f'Tournament: Policy Agents: {self._policy_agents_per_env}, ' +
@@ -53,11 +50,10 @@ class PufferEvaluator():
             .reshape(self._policy_agents_per_env * self._num_envs)
 
         self._baseline_idxs = []
-        if len(self._baseline_prs) > 0: #shouldn't this always be true given line 33 above?
-            envs_per_opponent = self._num_envs // len(self._baseline_prs)
-            self._baseline_idxs = slice_idxs[:, self._policy_agents_per_env:]\
-                .reshape(self._num_envs*self._baseline_agents_per_env)\
-                .split(self._baseline_agents_per_env*envs_per_opponent)
+        envs_per_opponent = self._num_envs // len(self._baseline_prs)
+        self._baseline_idxs = slice_idxs[:, self._policy_agents_per_env:]\
+            .reshape(self._num_envs*self._baseline_agents_per_env)\
+            .split(self._baseline_agents_per_env*envs_per_opponent)
 
         self._completed_episodes = 0
         self._total_rewards = np.zeros(self._total_agents)

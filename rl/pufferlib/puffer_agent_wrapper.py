@@ -1,9 +1,10 @@
-
 import gymnasium as gym
 import hydra
 import numpy as np
 import pufferlib
-import pufferlib.frameworks.cleanrl
+import sys
+import pufferlib.cleanrl
+sys.modules['pufferlib.frameworks.cleanrl'] = pufferlib.cleanrl
 import pufferlib.models
 import pufferlib.pytorch
 import torch
@@ -24,8 +25,9 @@ class PufferAgentWrapper(nn.Module):
     def __init__(self, agent: MettaAgent, env: PettingZooPufferEnv):
         super().__init__()
         # self.dtype = pufferlib.pytorch.nativize_dtype(env.emulated)
-        if type(env.action_space) == gym.spaces.Discrete:
-            self.atn_type = nn.Linear(agent.decoder_out_size(), env.action_space.n)
+        if isinstance(env.single_action_space, pufferlib.spaces.Discrete):
+            # self.atn_type = nn.Linear(agent.decoder_out_size(), env.single_action_space.n)
+            self.atn_type = HiddenLayerModule(agent.decoder_out_size(), 512, env.single_action_space.n)
             self.atn_param = None
         elif len(env.action_space.nvec) == 2:
             # self.atn_type = nn.Linear(agent.decoder_out_size(), env.action_space.nvec[0])
@@ -33,7 +35,7 @@ class PufferAgentWrapper(nn.Module):
             self.atn_type = HiddenLayerModule(agent.decoder_out_size(), 512, env.action_space.nvec[0])
             self.atn_param = HiddenLayerModule(agent.decoder_out_size(), 512, env.action_space.nvec[1])
         else:
-            raise ValueError(f"Unsupported action space: {env.action_space}")
+            raise ValueError(f"Unsupported action space: {env.single_action_space}")
 
         self._agent = agent
         print(self)
@@ -83,9 +85,9 @@ def make_policy(env: PufferEnv, cfg: OmegaConf):
             hidden_size=cfg.agent.core.rnn_size,
             num_layers=cfg.agent.core.rnn_num_layers
         )
-        puffer_agent = pufferlib.frameworks.cleanrl.RecurrentPolicy(puffer_agent)
+        puffer_agent = pufferlib.cleanrl.RecurrentPolicy(puffer_agent)
     else:
-        puffer_agent = pufferlib.frameworks.cleanrl.Policy(puffer_agent)
+        puffer_agent = pufferlib.cleanrl.Policy(puffer_agent)
 
     puffer_agent._action_names = env.action_names()
     puffer_agent._grid_features = env._grid_env.grid_features()
