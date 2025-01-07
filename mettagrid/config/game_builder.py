@@ -20,9 +20,6 @@ class MettaGridGameBuilder():
             actions,
             map):
         
-        #map.file -> ascii map
-        #map is the omega config, add a file field to it which is the path of the ascii map
-
         self.obs_width = obs_width
         self.obs_height = obs_height
         self.tile_size = tile_size
@@ -79,40 +76,7 @@ class MettaGridGameBuilder():
         converter_count = 0
         generator_count = 0
 
-        # Parse each character in the ASCII map
-        for i, line in enumerate(lines):
-            for j, char in enumerate(line):
-                if char == "#":
-                    level[i,j] = self._symbols["wall"]
-                    wall_count += 1
-                elif char == "A":
-                    agent_count += 1
-                    level[i,j] = f"A{agent_count}"
-                elif char == "a":
-                    level[i,j] = self._symbols["altar"]
-                    altar_count += 1
-                elif char == "c":
-                    level[i,j] = self._symbols["converter"] 
-                    converter_count += 1
-                elif char == "g":
-                    level[i,j] = self._symbols["generator"]
-                    generator_count += 1
-                elif char == " ":
-                    level[i,j] = self._symbols["empty"]
-
-        self.num_agents = agent_count
-        self.obs_width = width
-        self.obs_height = height
-#
-        # self.map_config["room"]["width"] = width
-        # self.map_config["room"]["height"] = height
-        # self.map_config["room"]["objects"]["agent"] = agent_count
-        # self.map_config["room"]["objects"]["wall"] = wall_count
-        # self.map_config["room"]["objects"]["altar"] = altar_count
-        # self.map_config["room"]["objects"]["converter"] = converter_count
-        # self.map_config["room"]["objects"]["generator"] = generator_count
-
-
+        level = np.array([list(line) for line in lines])
 
         return level
 
