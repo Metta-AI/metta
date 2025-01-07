@@ -108,17 +108,18 @@ class PufferEvaluator():
             baseline_actions = []
             with torch.no_grad():
                 obs = torch.as_tensor(obs).to(device=self._device)
-                my_obs = obs[self._policy_idxs]  #observavtions that correspond to policy agent
+                # observavtions that correspond to policy agent
+                my_obs = obs[self._policy_idxs]  
 
                 # Parallelize across opponents
-                policy = self._policy_pr.policy() #the given policy to evaluate
+                policy = self._policy_pr.policy() # policy to evaluate
                 if hasattr(policy, 'lstm'):
-                    policy_actions, _, _, _, policy_rnn_state = policy(my_obs, policy_rnn_state) #actions that it wants to take 
+                    policy_actions, _, _, _, policy_rnn_state = policy(my_obs, policy_rnn_state) 
                 else:
                     policy_actions, _, _, _ = policy(my_obs)
 
                 # Iterate opponent policies
-                for i in range(len(self._baseline_prs)): #all baseline policies
+                for i in range(len(self._baseline_prs)): # all baseline policies
                     baseline_obs = obs[self._baseline_idxs[i]]
                     baseline_rnn_state = baselines_rnn_state[i]
 
@@ -150,7 +151,8 @@ class PufferEvaluator():
             self._total_rewards += rewards
             self._completed_episodes += sum([e.done for e in self._vecenv.envs])
 
-            if len(infos) > 0: #infos is a list of dictionaries
+             # infos is a list of dictionaries
+            if len(infos) > 0:
                 for n in range(len(infos)):
                     if "agent_raw" in infos[n]:
                         one_episode = infos[n]["agent_raw"]
