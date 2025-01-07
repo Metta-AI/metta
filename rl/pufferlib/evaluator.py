@@ -103,7 +103,7 @@ class PufferEvaluator():
         start = time.time()
 
 
-        #set of episodes that parallelize the environments
+        # set of episodes that parallelize the environments
         while self._completed_episodes < self._min_episodes and time.time() - start < self._max_time_s:
             baseline_actions = []
             with torch.no_grad():
