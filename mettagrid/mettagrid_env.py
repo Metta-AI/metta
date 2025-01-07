@@ -34,7 +34,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         env = self._grid_env
 
         self._env = env
-        #self._env = LastActionTracker(self._grid_env)
         #self._env = Kinship(**sample_config(self._cfg.kinship), env=self._env)
         #self._env = RewardTracker(self._env)
         #self._env = FeatureMasker(self._env, self._cfg.hidden_features)
@@ -143,3 +142,15 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     @property
     def render_mode(self):
         return self._render_mode
+
+    @property
+    def map_width(self):
+        return self._c_env.map_width()
+
+    @property
+    def map_height(self):
+        return self._c_env.map_height()
+
+    @property
+    def grid_objects(self):
+        return self._c_env.grid_objects()
