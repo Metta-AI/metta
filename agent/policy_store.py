@@ -61,7 +61,7 @@ class PolicyStore:
         assert len(prs) == 1, f"Expected 1 policy, got {len(prs)}"
         return prs[0]
 
-    def get_prs(self, uri, ptype, n, metric):
+    def _policy_records(self, uri, selector_type, n, metric):
         version = None
         if uri.startswith("wandb://"):
             wandb_uri = uri[len("wandb://"):]
@@ -81,10 +81,10 @@ class PolicyStore:
         else:
             prs = self._prs_from_path(uri)
 
-        if ptype == "rand":
+        if selector_type == "rand":
             return [random.choice(prs)]
 
-        elif ptype == "top":
+        elif selector_type == "top":
             metric = metric
 
             top = sorted(prs, key=lambda x: x.metadata.get(metric, 0))[-n:]
@@ -99,23 +99,22 @@ class PolicyStore:
 
             return top[-n:]
         else:
-            raise ValueError(f"Invalid selector type {ptype}")
+            raise ValueError(f"Invalid selector type {selector_type}")
 
 
     def policies(self, policy_selector_cfg: OmegaConf) -> List[PolicyRecord]:
         prs = []
         if isinstance(policy_selector_cfg.uri, ListConfig):
             for uri in policy_selector_cfg.uri:
-                prs += self.get_prs(uri, policy_selector_cfg.type, policy_selector_cfg.range, policy_selector_cfg.metric)
+                prs += self._policy_records(uri, policy_selector_cfg.type, policy_selector_cfg.range, policy_selector_cfg.metric)
         else:
-            prs = self.get_prs(policy_selector_cfg.uri, policy_selector_cfg.type, policy_selector_cfg.range, policy_selector_cfg.metric)
+            prs = self._policy_records(policy_selector_cfg.uri, policy_selector_cfg.type, policy_selector_cfg.range, policy_selector_cfg.metric)
                 
         for k,v in policy_selector_cfg.filters.items():
             prs = [pr for pr in prs if pr.metadata.get(k, None) == v]
 
         if len(prs) == 0:
             logger.warning("No policies found matching criteria")
-            return []
 
         return prs
 

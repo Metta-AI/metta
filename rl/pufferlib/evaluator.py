@@ -24,8 +24,10 @@ class PufferEvaluator():
         self._min_episodes = cfg.evaluator.num_episodes
         self._max_time_s = cfg.evaluator.max_time_s
 
-        self._policy_pr = policy_record #the one that plays all the matches
-        self._baseline_prs = baseline_records #list of baselines that distribute over the matches
+        # the one that plays all the matches
+        self._policy_pr = policy_record 
+        # list of baselines that distribute over the matches
+        self._baseline_prs = baseline_records 
 
         self._policy_agent_pct = cfg.evaluator.policy_agents_pct
         if len(self._baseline_prs) == 0:
@@ -43,8 +45,8 @@ class PufferEvaluator():
         
         self._vecenv = make_vecenv(self._cfg, num_envs=self._num_envs)
 
-        #each index is an agent, and we reshape it into a matrix of num_envs x agents_per_env
-        #you can figure out which episode you're in by doing the floor division
+        # each index is an agent, and we reshape it into a matrix of num_envs x agents_per_env
+        # you can figure out which episode you're in by doing the floor division
         slice_idxs = torch.arange(self._vecenv.num_agents)\
             .reshape(self._num_envs, self._agents_per_env).to(device=self._device)
 
@@ -144,7 +146,6 @@ class PufferEvaluator():
                 actions = actions.view(self._num_envs*self._agents_per_env, -1)
 
             obs, rewards, dones, truncated, infos = self._vecenv.step(actions.cpu().numpy())
-            #here, infos is actually empty 
 
             self._total_rewards += rewards
             self._completed_episodes += sum([e.done for e in self._vecenv.envs])
