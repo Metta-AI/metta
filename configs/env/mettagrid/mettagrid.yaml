@@ -92,7 +92,7 @@ game:
 
   map:
     # _target_: env.griddly.mettagrid.level_builder.MettaGridLevelBuilder
-    file: false
+    file: null
     layout:
       rooms_x: 1
       rooms_y: 1

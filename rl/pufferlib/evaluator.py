@@ -23,9 +23,10 @@ class PufferEvaluator():
         self._num_envs = cfg.evaluator.num_envs
         self._min_episodes = cfg.evaluator.num_episodes
         self._max_time_s = cfg.evaluator.max_time_s
-
-        self._policy_pr = policy_record #the one that plays all the matches
-        self._baseline_prs = baseline_records #list of baselines that distribute over the matches
+        # the one that plays all the matches
+        self._policy_pr = policy_record 
+        # list of baselines that distribute over the matches
+        self._baseline_prs = baseline_records 
 
         self._policy_agent_pct = cfg.evaluator.policy_agents_pct
         if len(self._baseline_prs) == 0:
