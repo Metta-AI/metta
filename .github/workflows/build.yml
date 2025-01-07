@@ -29,4 +29,4 @@ jobs:
         HYDRA_FULL_ERROR: 1
         PYTHONPATH: ${{ github.workspace }}
       run: |
-        conda run -n metta python -m tools.train run=my_experiment hardware=macbook trainer.total_timesteps=2
+        conda run -n metta python -m tools.train run=my_experiment trainer.total_timesteps=2
