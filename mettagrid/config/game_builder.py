@@ -58,24 +58,11 @@ class MettaGridGameBuilder():
     def build_map_from_ascii(self, ascii_map_file):
         """Currently this is only for a single room"""
 
-        #TODO: make this work for multiple rooms - need to detect the number of rooms
-
 
         with open(ascii_map_file, "r") as f:
             ascii_map = f.read()
         # Convert ASCII map string to numpy array
         lines = ascii_map.strip().splitlines()
-        height = len(lines)
-        width = len(lines[0])
-        level = np.full((height, width), ".", dtype="U6")
-
-        # Track number of agents found
-        agent_count = 0
-        wall_count = 0
-        altar_count = 0
-        converter_count = 0
-        generator_count = 0
-
         level = np.array([list(line) for line in lines])
 
         return level
