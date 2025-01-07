@@ -8,6 +8,7 @@ observation_encoder:
   obs_key: grid_obs
   normalize_features: true
   auto_normalize: false
+  track_last_action: $(..env.track_last_action)
 
 fc:
   layers: 1
