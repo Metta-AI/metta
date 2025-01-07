@@ -107,6 +107,8 @@ game:
         generator: 15
         wall: 10
 
+track_last_action: false
+
 kinship:
   team_size: 1
   team_reward: 0
