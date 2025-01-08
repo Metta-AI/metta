@@ -5,8 +5,8 @@ game:
   num_agents: 40
   map:
     room:
-      width: [5, 50, 25]
-      height: [5, 50, 25]
+      width: [5, 55, 25]
+      height: [5, 55, 25]
       border: 1
       objects:
         agent: 40
