@@ -101,7 +101,7 @@ game:
       num_agents: 5
       objects:
         agent: 5
-        altar: 1
+        altar: 10
         converter: 3
         generator: 15
         wall: 10
@@ -109,5 +109,6 @@ game:
 track_last_action: false
 
 kinship:
+  enabled: false
   team_size: 1
   team_reward: 0
