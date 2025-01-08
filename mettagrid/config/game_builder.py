@@ -99,10 +99,9 @@ class MettaGridGameBuilder():
         total_objects = sum(count for count in room_config.objects.values())
         while total_objects > 2*area / 3:
             for obj_name in room_config.objects:
-                print(f"Object name: {obj_name}")
                 if obj_name != "agent":
                     room_config.objects[obj_name] = max(1, room_config.objects[obj_name] // 2)
-            total_objects = sum(count for count in room_config.objects.values())
+                total_objects = sum(count for count in room_config.objects.values())
 
         # Add all objects in the proper amounts to a single large array.
         for obj_name, count in room_config.objects.items():
