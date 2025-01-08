@@ -65,7 +65,11 @@ class SimpleConvAgent(nn.Module):
                 30, # 'altar:hp',
                 1, # 'altar:ready'
             ]
-
+            if cfg.track_last_action:
+                obs_norms.extend([
+                    10, # 'last_action'
+                    10, # 'last_action_argument'
+                ])
             self._obs_norm = torch.tensor(obs_norms, dtype=torch.float32)
             self._obs_norm = self._obs_norm.view(1, self._num_objects, 1, 1)
 
