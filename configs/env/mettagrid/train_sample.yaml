@@ -15,4 +15,5 @@ game:
         generator: [10, 40, 30]
         wall: [10, 50, 30]
   objects:
+    agent:
     energy_reward: 1.0
