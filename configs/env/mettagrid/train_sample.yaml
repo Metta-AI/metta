@@ -16,4 +16,4 @@ game:
         wall: [10, 50, 30]
   objects:
     agent:
-    energy_reward: 1.0
+      energy_reward: 1.0
