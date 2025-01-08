@@ -9,7 +9,7 @@ game:
       height: [5, 50, 25]
       border: 1
       objects:
-        agent: ${....num_agents}
+        agent: 40
         altar: [1, 10, 5]
         converter: [3, 15, 10]
         generator: [10, 40, 30]
