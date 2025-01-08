@@ -26,5 +26,3 @@ uvicorn>=0.32.1
 wandb==0.18.3
 wandb-core==0.17.0b11
 websockets>=14.1
-# sample_factory>=2.1.1
-# fast_gae>=0.0.4
