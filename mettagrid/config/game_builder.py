@@ -94,6 +94,13 @@ class MettaGridGameBuilder():
         content_height = room_config.height - 2*room_config.border
         area = content_width * content_height
 
+        # Check if total objects exceed room size and halve counts if needed
+        total_objects = sum(count for count in room_config.objects.values())
+        while total_objects > area:
+            for obj_name in room_config.objects:
+                room_config.objects[obj_name] = max(1, room_config.objects[obj_name] // 2)
+            total_objects = sum(count for count in room_config.objects.values())
+
         # Add all objects in the proper amounts to a single large array.
         for obj_name, count in room_config.objects.items():
             symbol = self._symbols[obj_name]
