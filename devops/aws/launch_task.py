@@ -103,10 +103,10 @@ def container_config(args, task_args, job_name):
                 'name': 'WANDB_SILENT',
                 'value': 'true'
             },
-            {
-                'name': 'TRANSFORMERS_TOKEN',
-                'value': hugging_face_key
-            },
+            # {
+            #     'name': 'TRANSFORMERS_TOKEN',
+            #     'value': hugging_face_key
+            # },
             {
                 'name': 'COLOR_LOGGING',
                 'value': 'false'
