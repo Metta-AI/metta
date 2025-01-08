@@ -78,6 +78,7 @@ class MettaGridGameBuilder():
                 num_agents += room_config.objects.agent
             layers.append(np.concatenate(rooms, axis=1))
         level = np.concatenate(layers, axis=0)
+
         assert num_agents == self.num_agents, f"Number of agents in map ({num_agents}) does not match num_agents ({self.num_agents})"
 
         # Add map border around the level.
@@ -98,7 +99,8 @@ class MettaGridGameBuilder():
         total_objects = sum(count for count in room_config.objects.values())
         while total_objects > area:
             for obj_name in room_config.objects:
-                room_config.objects[obj_name] = max(1, room_config.objects[obj_name] // 2)
+                if obj_name != "num_agents":
+                    room_config.objects[obj_name] = max(1, room_config.objects[obj_name] // 2)
             total_objects = sum(count for count in room_config.objects.values())
 
         # Add all objects in the proper amounts to a single large array.
