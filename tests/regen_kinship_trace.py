@@ -46,39 +46,34 @@ def main(cfg):
     output += header("Kinship reward sharing")
     actions = [[0, 0]] * 20
     # Rotate agent 12 to face the altar
-    actions[12] = [0, 3]
+    actions[12] = [2, 2]
     (obs, rewards, terms, truncs, infos) = env.step(actions)
     output += render_to_string(env, show_team=True)
-    output += dump_agents(env, show_team=True)
+    output += dump_agents(env, show_team=True, agent_id=12)
     output += f"rewards: {rewards}\n"
     # Move agent 12 to the altar
-    actions[12] = [1, 1]
+    actions[12] = [1, 0]
     (obs, rewards, terms, truncs, infos) = env.step(actions)
     output += render_to_string(env, show_team=True)
-    output += dump_agents(env, show_team=True)
+    output += dump_agents(env, show_team=True, agent_id=12)
     output += f"rewards: {rewards}\n"
     # Make agent 12 use the the altar
     actions[12] = [3, 0]
     (obs, rewards, terms, truncs, infos) = env.step(actions)
     output += render_to_string(env, show_team=True)
-    output += dump_agents(env, show_team=True)
+    output += dump_agents(env, show_team=True, agent_id=12)
     output += f"rewards: {rewards}\n"
 
-    #output += header("# No Last Action Tracker:")
+    output += header("# No Kinship:")
 
-    # cfg.kinship.enabled = False
-    # env = mettagrid.mettagrid_env.MettaGridEnv(render_mode=None, **cfg)
-    # output += f"grid_features: {env.grid_features}\n"
+    cfg.kinship.enabled = False
+    env = mettagrid.mettagrid_env.MettaGridEnv(render_mode=None, **cfg)
+    output += f"grid_features: {env.grid_features}\n"
 
-    # assert "last_action" not in env.grid_features
-    # assert "last_action_argument" not in env.grid_features
+    assert "kinship" not in env.grid_features
 
-    # (obs, rewards, terminated, truncated, infos) = env.step([[1,2]]*5)
-    # output += f"rewards: {rewards}\n"
-    # output += f"terminated: {terminated}\n"
-    # output += f"truncated: {truncated}\n"
-    # output += f"infos: {infos}\n"
-    # output += f"obs.shape: {obs.shape}\n"
+    (obs, rewards, terminated, truncated, infos) = env.step([[0,0]]*20)
+    output += render_obs_to_string(env, obs, match="kinship")
 
     with open("tests/gold/track_kinship_trace.txt", "w") as f:
         f.write(output)

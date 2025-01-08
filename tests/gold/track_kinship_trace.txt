@@ -2,29 +2,29 @@
 Kinship:
 ================================================================================
 #########################
-#               2       #
+#               1       #
 #                      ##
-#             5         #
+#             4         #
 #              #    g   #
 #                       #
-#                 4     #
-#   2 c  g     a       ##
+#                 3     #
+#   1 c  g     a       ##
 #                       #
-#    gg     6     c 1   #
+#    gg     5     c 0   #
 #       g   #           #
-#    #  4  g  g #   4   #
-#       #a   #     7   g#
-#                #    2 #
-#    3           #    a #
-#            5      a 7 #
-#           g  a 5   1  #
-#         g     6       #
-#6          a           #
-#         g    3 g      #
-#           1      g    #
+#    #  3  g  g #   3   #
+#       #a   #     6   g#
+#                #    1 #
+#    2           #    a #
+#            4      a 6 #
+#           g  a 4   0  #
+#         g     5       #
+#5          a           #
+#         g    2 g      #
+#           0      g    #
 #         g             #
 #   a   a g           aa#
-#          3  c         #
+#          2  c         #
 #########################
 Agent id=27 agent_id=0 x=16 y=1 energy=250 shield=0 inventory=0
 Agent id=33 agent_id=1 x=14 y=3 energy=250 shield=0 inventory=0
@@ -56,38 +56,38 @@ Feature agent:kinship 9
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   2   0   0   0   0   0
+   0   0   0   0   0   1   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   5   0   0   0   0   0   0   0
+   0   0   0   4   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   0   0   4   0   0   0
+   0   0   0   0   0   0   0   3   0   0   0
 Agent: 1
 Feature agent:kinship 9
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   0   0   2   0   0   0
-   0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   5   0   0   0   0   0
-   0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   0   0   0   0   4   0
-   0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   0   0   0   0   0   0
-Agent: 2
-Feature agent:kinship 9
-   0   0   0   2   0   0   0   0   0   0   0
-   0   0   0   0   0   0   0   0   0   0   0
-   0   5   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   1   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   4   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   0   0   1   0   0   0
+   0   0   0   0   0   0   0   0   0   3   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   0   0   4   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+Agent: 2
+Feature agent:kinship 9
+   0   0   0   1   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   4   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   3   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   3   0   0   0
 Agent: 3
 Feature agent:kinship 9
    0   0   0   0   0   0   0   0   0   0   0
@@ -95,11 +95,11 @@ Feature agent:kinship 9
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   2   0   0   0   0   0
+   0   0   0   0   0   1   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   0   0   0   0   4   0
+   0   0   0   0   0   0   0   0   0   3   0
    0   0   0   0   0   0   0   0   0   0   0
 Agent: 4
 Feature agent:kinship 9
@@ -108,9 +108,9 @@ Feature agent:kinship 9
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   6   0   0   0   0   0
+   0   0   0   0   0   5   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   4   0   0   0   0   0   0   0   0   0
+   0   3   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
@@ -118,153 +118,153 @@ Agent: 5
 Feature agent:kinship 9
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   4   0   0   0   0   0   0   0
+   0   0   0   3   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   1   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   4   0   0   0   0   0
-   0   0   0   0   7   0   0   0   0   0   0
-   0   0   0   0   0   0   0   2   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   3   0   0   0   0   0
+   0   0   0   0   6   0   0   0   0   0   0
+   0   0   0   0   0   0   0   1   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
 Agent: 6
 Feature agent:kinship 9
    0   0   0   0   0   0   0   0   0   0   0
-   0   2   0   0   0   0   0   0   0   0   0
+   0   1   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   0   0   0   0   6   0
+   0   0   0   0   0   0   0   0   0   5   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   4   0   0   0   0   0
+   0   0   0   0   0   3   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   3   0   0   0   0   0   0   0   0
-   0   0   0   0   0   0   0   0   0   0   5
+   0   0   2   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   4
    0   0   0   0   0   0   0   0   0   0   0
 Agent: 7
 Feature agent:kinship 9
-   0   0   0   4   0   0   0   0   0   0   0
+   0   0   0   3   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   1   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   4   0   0   0   0   0
-   0   0   0   0   7   0   0   0   0   0   0
-   0   0   0   0   0   0   0   2   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   0   0   7   0   0   0
-   0   0   5   0   0   0   1   0   0   0   0
+   0   0   0   0   0   3   0   0   0   0   0
+   0   0   0   0   6   0   0   0   0   0   0
+   0   0   0   0   0   0   0   1   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   6   0   0   0
+   0   0   4   0   0   0   0   0   0   0   0
 Agent: 8
 Feature agent:kinship 9
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   0   1   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   0   4   0   0   0   0
-   0   0   0   0   0   7   0   0   0   0   0
-   0   0   0   0   0   0   0   0   2   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   0   0   0   7   0   0
-   0   0   0   5   0   0   0   1   0   0   0
-   0   0   6   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   3   0   0   0   0
+   0   0   0   0   0   6   0   0   0   0   0
+   0   0   0   0   0   0   0   0   1   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   6   0   0
+   0   0   0   4   0   0   0   0   0   0   0
+   0   0   5   0   0   0   0   0   0   0   0
 Agent: 9
 Feature agent:kinship 9
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   1   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   4   0   0   0   0   0   0   0
-   0   0   7   0   0   0   0   0   0   0   0
-   0   0   0   0   0   2   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   7   0   0   0   0   0
-   5   0   0   0   1   0   0   0   0   0   0
+   0   0   0   3   0   0   0   0   0   0   0
+   0   0   6   0   0   0   0   0   0   0   0
+   0   0   0   0   0   1   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   6   0   0   0   0   0
+   4   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
 Agent: 10
 Feature agent:kinship 9
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   0   0   0   4   0   0
+   0   0   0   0   0   0   0   0   3   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   3   0   0   0   0   0
+   0   0   0   0   0   2   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   6   0   0   0   0   0   0   0   0   0
+   0   5   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
 Agent: 11
 Feature agent:kinship 9
    0   0   0   0   0   0   0   0   0   0   0
-   4   0   0   0   0   0   0   0   0   0   0
+   3   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   5   0   0   0   0   0
-   0   0   0   0   0   0   0   0   0   5   0
-   0   0   0   0   0   0   0   0   6   0   0
+   0   0   0   0   0   4   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   4   0
+   0   0   0   0   0   0   0   0   5   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   0   0   3   0   0   0
-   0   0   0   0   1   0   0   0   0   0   0
+   0   0   0   0   0   0   0   2   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
 Agent: 12
 Feature agent:kinship 9
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   4   0   0   0   0   0   0   0
-   0   0   7   0   0   0   0   0   0   0   0
-   0   0   0   0   0   2   0   0   0   0   0
+   0   0   0   3   0   0   0   0   0   0   0
+   0   0   6   0   0   0   0   0   0   0   0
+   0   0   0   0   0   1   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   7   0   0   0   0   0
-   5   0   0   0   1   0   0   0   0   0   0
+   0   0   0   0   0   6   0   0   0   0   0
+   4   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
 Agent: 13
 Feature agent:kinship 9
-   0   0   0   0   0   0   0   0   4   0   0
-   0   0   0   0   0   0   0   7   0   0   0
-   0   0   0   0   0   0   0   0   0   0   2
+   0   0   0   0   0   0   0   0   3   0   0
+   0   0   0   0   0   0   0   6   0   0   0
+   0   0   0   0   0   0   0   0   0   0   1
    0   0   0   0   0   0   0   0   0   0   0
-   0   5   0   0   0   0   0   0   0   0   7
-   0   0   0   0   0   5   0   0   0   1   0
-   0   0   0   0   6   0   0   0   0   0   0
+   0   4   0   0   0   0   0   0   0   0   6
+   0   0   0   0   0   4   0   0   0   0   0
+   0   0   0   0   5   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   3   0   0   0   0   0   0   0
-   1   0   0   0   0   0   0   0   0   0   0
+   0   0   0   2   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
 Agent: 14
 Feature agent:kinship 9
-   0   0   0   0   4   0   0   0   0   0   0
-   0   0   0   7   0   0   0   0   0   0   0
-   0   0   0   0   0   0   2   0   0   0   0
+   0   0   0   0   3   0   0   0   0   0   0
+   0   0   0   6   0   0   0   0   0   0   0
+   0   0   0   0   0   0   1   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   0   7   0   0   0   0
-   0   5   0   0   0   1   0   0   0   0   0
-   6   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   6   0   0   0   0
+   0   4   0   0   0   0   0   0   0   0   0
+   5   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
 Agent: 15
 Feature agent:kinship 9
-   0   0   0   0   0   0   0   0   7   0   0
+   0   0   0   0   0   0   0   0   6   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   5   0   0   0   0   0   0   0   0
-   0   0   0   0   0   0   5   0   0   0   1
-   0   0   0   0   0   6   0   0   0   0   0
+   0   0   4   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   4   0   0   0   0
+   0   0   0   0   0   5   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   3   0   0   0   0   0   0
-   0   1   0   0   0   0   0   0   0   0   0
+   0   0   0   0   2   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
 Agent: 16
 Feature agent:kinship 9
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   0   0   0   0   3   0
+   0   0   0   0   0   0   0   0   0   2   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   6   0   0   0   0   0
+   0   0   0   0   0   5   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
@@ -273,37 +273,37 @@ Feature agent:kinship 9
 Agent: 17
 Feature agent:kinship 9
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   5   0   0   0   0   0   0   0
-   0   0   0   0   0   0   0   5   0   0   0
-   0   0   0   0   0   0   6   0   0   0   0
+   0   0   0   4   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   4   0   0   0
+   0   0   0   0   0   0   5   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   3   0   0   0   0   0
-   0   0   1   0   0   0   0   0   0   0   0
+   0   0   0   0   0   2   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   3   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   2   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
 Agent: 18
 Feature agent:kinship 9
-   0   0   0   0   0   0   5   0   0   0   0
-   0   0   0   0   0   0   0   0   0   0   5
-   0   0   0   0   0   0   0   0   0   6   0
+   0   0   0   0   0   0   4   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   4
+   0   0   0   0   0   0   0   0   0   5   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   0   0   0   3   0   0
-   0   0   0   0   0   1   0   0   0   0   0
+   0   0   0   0   0   0   0   0   2   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   3   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   2   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
 Agent: 19
 Feature agent:kinship 9
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   0   0   0   0   3   0
-   0   0   0   0   0   0   1   0   0   0   0
+   0   0   0   0   0   0   0   0   0   2   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   3   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   2   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
@@ -321,140 +321,348 @@ obs.shape: (20, 25, 11, 11)
 Kinship reward sharing
 ================================================================================
 #########################
-#               2       #
+#               1       #
 #                      ##
-#             5         #
+#             4         #
 #              #    g   #
 #                       #
-#                 4     #
-#   2 c  g     a       ##
+#                 3     #
+#   1 c  g     a       ##
 #                       #
-#    gg     6     c 1   #
+#    gg     5     c 0   #
 #       g   #           #
-#    #  4  g  g #   4   #
-#       #a   #     7   g#
-#                #    2 #
-#    3           #    a #
-#            5      a 7 #
-#           g  a 5   1  #
-#         g     6       #
-#6          a           #
-#         g    3 g      #
-#           1      g    #
+#    #  3  g  g #   3   #
+#       #a   #     6   g#
+#                #    1 #
+#    2           #    a #
+#            4      a 6 #
+#           g  a 4   0  #
+#         g     5       #
+#5          a           #
+#         g    2 g      #
+#           0      g    #
 #         g             #
 #   a   a g           aa#
-#          3  c         #
+#          2  c         #
 #########################
-Agent id=27 agent_id=0 x=16 y=1 energy=250 shield=0 inventory=0 team=2
-Agent id=33 agent_id=1 x=14 y=3 energy=250 shield=0 inventory=0 team=5
-Agent id=42 agent_id=2 x=18 y=6 energy=250 shield=0 inventory=0 team=4
-Agent id=45 agent_id=3 x=4 y=7 energy=250 shield=0 inventory=0 team=2
-Agent id=56 agent_id=4 x=12 y=9 energy=245 shield=0 inventory=0 team=6
-Agent id=58 agent_id=5 x=20 y=9 energy=250 shield=0 inventory=0 team=1
-Agent id=66 agent_id=6 x=8 y=11 energy=250 shield=0 inventory=0 team=4
-Agent id=70 agent_id=7 x=20 y=11 energy=250 shield=0 inventory=0 team=4
-Agent id=76 agent_id=8 x=19 y=12 energy=250 shield=0 inventory=0 team=7
-Agent id=81 agent_id=9 x=22 y=13 energy=0 shield=0 inventory=0 team=2
-Agent id=84 agent_id=10 x=5 y=14 energy=250 shield=0 inventory=0 team=3
-Agent id=89 agent_id=11 x=13 y=15 energy=250 shield=0 inventory=0 team=5
-Agent id=91 agent_id=12 x=22 y=15 energy=250 shield=0 inventory=0 team=7
-Agent id=96 agent_id=13 x=17 y=16 energy=250 shield=0 inventory=0 team=5
-Agent id=97 agent_id=14 x=21 y=16 energy=245 shield=0 inventory=0 team=1
-Agent id=101 agent_id=15 x=16 y=17 energy=250 shield=0 inventory=0 team=6
-Agent id=104 agent_id=16 x=1 y=18 energy=250 shield=0 inventory=0 team=6
-Agent id=109 agent_id=17 x=15 y=19 energy=250 shield=0 inventory=0 team=3
-Agent id=113 agent_id=18 x=12 y=20 energy=0 shield=0 inventory=0 team=1
-Agent id=127 agent_id=19 x=11 y=23 energy=245 shield=0 inventory=0 team=3
+Agent id=91 agent_id=12 x=22 y=15 energy=250 shield=0 inventory=0 team=6
 rewards: [0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.]
 #########################
-#               2       #
+#               1       #
 #                      ##
-#             5         #
+#             4         #
 #              #    g   #
 #                       #
-#                 4     #
-#   2 c  g     a       ##
+#                 3     #
+#   1 c  g     a       ##
 #                       #
-#    gg     6     c 1   #
+#    gg     5     c 0   #
 #       g   #           #
-#    #  4  g  g #   4   #
-#       #a   #     7   g#
-#                #    2 #
-#    3           #    a #
-#            5      a   #
-#           g  a 5   17 #
-#         g     6       #
-#6          a           #
-#         g    3 g      #
-#           1      g    #
+#    #  3  g  g #   3   #
+#       #a   #     6   g#
+#                #    1 #
+#    2           #    a #
+#            4      a6  #
+#           g  a 4   0  #
+#         g     5       #
+#5          a           #
+#         g    2 g      #
+#           0      g    #
 #         g             #
 #   a   a g           aa#
-#          3  c         #
+#          2  c         #
 #########################
-Agent id=27 agent_id=0 x=16 y=1 energy=250 shield=0 inventory=0 team=2
-Agent id=33 agent_id=1 x=14 y=3 energy=250 shield=0 inventory=0 team=5
-Agent id=42 agent_id=2 x=18 y=6 energy=250 shield=0 inventory=0 team=4
-Agent id=45 agent_id=3 x=4 y=7 energy=250 shield=0 inventory=0 team=2
-Agent id=56 agent_id=4 x=12 y=9 energy=245 shield=0 inventory=0 team=6
-Agent id=58 agent_id=5 x=20 y=9 energy=250 shield=0 inventory=0 team=1
-Agent id=66 agent_id=6 x=8 y=11 energy=250 shield=0 inventory=0 team=4
-Agent id=70 agent_id=7 x=20 y=11 energy=250 shield=0 inventory=0 team=4
-Agent id=76 agent_id=8 x=19 y=12 energy=250 shield=0 inventory=0 team=7
-Agent id=81 agent_id=9 x=22 y=13 energy=0 shield=0 inventory=0 team=2
-Agent id=84 agent_id=10 x=5 y=14 energy=250 shield=0 inventory=0 team=3
-Agent id=89 agent_id=11 x=13 y=15 energy=250 shield=0 inventory=0 team=5
-Agent id=91 agent_id=12 x=22 y=16 energy=250 shield=0 inventory=0 team=7
-Agent id=96 agent_id=13 x=17 y=16 energy=250 shield=0 inventory=0 team=5
-Agent id=97 agent_id=14 x=21 y=16 energy=245 shield=0 inventory=0 team=1
-Agent id=101 agent_id=15 x=16 y=17 energy=250 shield=0 inventory=0 team=6
-Agent id=104 agent_id=16 x=1 y=18 energy=250 shield=0 inventory=0 team=6
-Agent id=109 agent_id=17 x=15 y=19 energy=250 shield=0 inventory=0 team=3
-Agent id=113 agent_id=18 x=12 y=20 energy=0 shield=0 inventory=0 team=1
-Agent id=127 agent_id=19 x=11 y=23 energy=245 shield=0 inventory=0 team=3
+Agent id=91 agent_id=12 x=21 y=15 energy=250 shield=0 inventory=0 team=6
 rewards: [0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.]
 #########################
-#               2       #
+#               1       #
 #                      ##
-#             5         #
+#             4         #
 #              #    g   #
 #                       #
-#                 4     #
-#   2 c  g     a       ##
+#                 3     #
+#   1 c  g     a       ##
 #                       #
-#    gg     6     c 1   #
+#    gg     5     c 0   #
 #       g   #           #
-#    #  4  g  g #   4   #
-#       #a   #     7   g#
-#                #    2 #
-#    3           #    a #
-#            5      a   #
-#           g  a 5   17 #
-#         g     6       #
-#6          a           #
-#         g    3 g      #
-#           1      g    #
+#    #  3  g  g #   3   #
+#       #a   #     6   g#
+#                #    1 #
+#    2           #    a #
+#            4      a6  #
+#           g  a 4   0  #
+#         g     5       #
+#5          a           #
+#         g    2 g      #
+#           0      g    #
 #         g             #
 #   a   a g           aa#
-#          3  c         #
+#          2  c         #
 #########################
-Agent id=27 agent_id=0 x=16 y=1 energy=250 shield=0 inventory=0 team=2
-Agent id=33 agent_id=1 x=14 y=3 energy=250 shield=0 inventory=0 team=5
-Agent id=42 agent_id=2 x=18 y=6 energy=250 shield=0 inventory=0 team=4
-Agent id=45 agent_id=3 x=4 y=7 energy=250 shield=0 inventory=0 team=2
-Agent id=56 agent_id=4 x=12 y=9 energy=245 shield=0 inventory=0 team=6
-Agent id=58 agent_id=5 x=20 y=9 energy=250 shield=0 inventory=0 team=1
-Agent id=66 agent_id=6 x=8 y=11 energy=250 shield=0 inventory=0 team=4
-Agent id=70 agent_id=7 x=20 y=11 energy=250 shield=0 inventory=0 team=4
-Agent id=76 agent_id=8 x=19 y=12 energy=250 shield=0 inventory=0 team=7
-Agent id=81 agent_id=9 x=22 y=13 energy=0 shield=0 inventory=0 team=2
-Agent id=84 agent_id=10 x=5 y=14 energy=250 shield=0 inventory=0 team=3
-Agent id=89 agent_id=11 x=13 y=15 energy=250 shield=0 inventory=0 team=5
-Agent id=91 agent_id=12 x=22 y=16 energy=250 shield=0 inventory=0 team=7
-Agent id=96 agent_id=13 x=17 y=16 energy=250 shield=0 inventory=0 team=5
-Agent id=97 agent_id=14 x=21 y=16 energy=245 shield=0 inventory=0 team=1
-Agent id=101 agent_id=15 x=16 y=17 energy=250 shield=0 inventory=0 team=6
-Agent id=104 agent_id=16 x=1 y=18 energy=250 shield=0 inventory=0 team=6
-Agent id=109 agent_id=17 x=15 y=19 energy=250 shield=0 inventory=0 team=3
-Agent id=113 agent_id=18 x=12 y=20 energy=0 shield=0 inventory=0 team=1
-Agent id=127 agent_id=19 x=11 y=23 energy=245 shield=0 inventory=0 team=3
-rewards: [0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.]
+Agent id=91 agent_id=12 x=21 y=15 energy=150 shield=0 inventory=0 team=6
+rewards: [0.  0.  0.  0.  0.  0.  0.  0.  0.5 0.  0.  0.  0.5 0.  0.  0.  0.  0.
+ 0.  0. ]
+================================================================================
+# No Kinship:
+================================================================================
+grid_features: ['agent', 'agent:hp', 'agent:frozen', 'agent:energy', 'agent:orientation', 'agent:shield', 'agent:inv:r1', 'agent:inv:r2', 'agent:inv:r3', 'agent:kinship', 'wall', 'wall:hp', 'generator', 'generator:hp', 'generator:r1', 'generator:ready', 'converter', 'converter:hp', 'converter:input_resource', 'converter:output_resource', 'converter:output_energy', 'converter:ready', 'altar', 'altar:hp', 'altar:ready']
+Agent: 0
+Feature agent:kinship 9
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+Agent: 1
+Feature agent:kinship 9
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+Agent: 2
+Feature agent:kinship 9
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+Agent: 3
+Feature agent:kinship 9
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+Agent: 4
+Feature agent:kinship 9
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+Agent: 5
+Feature agent:kinship 9
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+Agent: 6
+Feature agent:kinship 9
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+Agent: 7
+Feature agent:kinship 9
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+Agent: 8
+Feature agent:kinship 9
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+Agent: 9
+Feature agent:kinship 9
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+Agent: 10
+Feature agent:kinship 9
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+Agent: 11
+Feature agent:kinship 9
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+Agent: 12
+Feature agent:kinship 9
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+Agent: 13
+Feature agent:kinship 9
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+Agent: 14
+Feature agent:kinship 9
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+Agent: 15
+Feature agent:kinship 9
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+Agent: 16
+Feature agent:kinship 9
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+Agent: 17
+Feature agent:kinship 9
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+Agent: 18
+Feature agent:kinship 9
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+Agent: 19
+Feature agent:kinship 9
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0

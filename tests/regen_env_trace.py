@@ -4,10 +4,12 @@ import mettagrid
 import mettagrid.mettagrid_env
 
 
-def dump_agents(env, show_team=False):
+def dump_agents(env, show_team=False, agent_id=None):
   output = ""
   for thing in env.grid_objects.values():
       if thing["type"] == 0: # agent
+        if agent_id is not None and thing["agent_id"] != agent_id:
+          continue
         output += (
           f"Agent id={thing['id']} " +
           f"agent_id={thing['agent_id']} " +
