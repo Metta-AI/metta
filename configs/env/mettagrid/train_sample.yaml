@@ -1,0 +1,16 @@
+defaults:
+  - mettagrid_sample
+
+game:
+  num_agents: 40
+  map:
+    room:
+      width: [5, 50, 25]
+      height: [5, 50, 25]
+      border: 1
+      objects:
+        agent: ${....num_agents}
+        altar: [1, 10, 5]
+        converter: [3, 15, 10]
+        generator: [10, 40, 30]
+        wall: [10, 50, 30]

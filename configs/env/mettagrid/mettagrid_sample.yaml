@@ -1,0 +1,116 @@
+name: "GDY-MettaGrid"
+_target_: mettagrid.mettagrid_env.MettaGridEnv
+
+report_stats_interval: 100
+normalize_rewards: false
+flatten_actions: true
+compact_obs: false
+
+sampling: 1
+
+hidden_features:
+  grid_obs: [
+    "agent:energy",
+    "agent:hp",
+  ]
+
+game:
+  # _target_: env.griddly.mettagrid.game_builder.MettaGridGameBuilder
+  obs_width: 11
+  obs_height: 11
+  max_steps: 1000
+  tile_size: 16
+  num_agents: ???
+  no_energy_steps: 500
+
+  objects:
+    agent:
+      initial_energy: [1, 250, 50]
+      max_energy: [1, 250, 0]
+      max_inventory: [1, 10, 5]
+      freeze_duration: [1, 200, 0]
+      energy_reward: [1, 1.0, 0.6]
+      hp: 10
+      mortal: False
+      upkeep.time: [1, 3, 0]
+      upkeep.shield: [1, 3, 1]
+      use_cost: 0
+
+    altar:
+      hp: 30
+      cooldown: [1, 10, 0]
+      use_cost: [1, 100, 0]
+
+    converter:
+      hp: 30
+      cooldown: [1, 10, 0]
+      energy_output.r1: [1, 100, 50] # output energy of the converter
+      energy_output.r2: [1, 100, 0]
+      energy_output.r3: [1, 10, 0]
+
+    generator:
+      hp: 30
+      cooldown: [1, 20, 5]
+      initial_resources: [0, 30, 15]
+      use_cost: 0
+
+    wall:
+      hp: [0, 10, 8]
+
+  actions:
+    noop:
+      enabled: true
+      cost: 0
+    move:
+      enabled: true
+      cost: 0
+    rotate:
+      enabled: true
+      cost: 0
+    jump:
+      enabled: false
+      cost: 3
+    shield:
+      enabled: true
+      cost: 1
+    transfer:
+      enabled: false
+      cost: 0
+    use:
+      enabled: true
+      cost: 0
+    attack:
+      enabled: true
+      cost: 5
+      damage: 10
+    gift:
+      enabled: false
+      cost: 0
+    swap:
+      enabled: true
+      cost: 0
+
+  map:
+    # _target_: env.griddly.mettagrid.level_builder.MettaGridLevelBuilder
+    uri: null
+    layout:
+      rooms_x: 1
+      rooms_y: 1
+
+    border: 0
+
+    room:
+      # _target_: env.griddly.mettagrid.level_builder.MettaGridRoomBuilder
+      width: 25
+      height: 25
+      objects:
+        agent: 5
+        altar: 1
+        converter: 3
+        generator: 15
+        wall: 10
+
+kinship:
+  # _target_: env.wrapper.reward_sharing.TeamRewardSharing
+  team_size: 1
+  team_reward: 0
