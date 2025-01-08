@@ -20,13 +20,11 @@ jobs:
 
     - name: Install dependencies
       run: |
-        conda create -n metta python=3.11.7 -y
-        conda run -n metta pip install -r requirements.txt
-        conda run -n metta bash ./devops/setup_build.sh
+        bash ./devops/setup_build.sh
 
     - name: Run test training
       env:
         HYDRA_FULL_ERROR: 1
         PYTHONPATH: ${{ github.workspace }}
       run: |
-        conda run -n metta python -m tools.train run=my_experiment trainer.total_timesteps=2
+        python -m tools.train run=my_experiment trainer.total_timesteps=2
