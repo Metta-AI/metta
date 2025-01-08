@@ -1,6 +1,8 @@
 defaults:
   - mettagrid
 
+sampling: 1
+
 game:
   num_agents: 40
   map:
