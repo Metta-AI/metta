@@ -14,5 +14,3 @@ game:
         converter: [3, 25, 10]
         generator: [10, 60, 40]
         wall: [10, 50, 30]
-defaults:
-  - mettagrid
