@@ -29,6 +29,7 @@ cd ..
 git clone https://github.com/Metta-AI/mettagrid.git
 cd mettagrid
 git pull
+pip install -r requirements.txt
 python setup.py build_ext --inplace
 pip install -e .
 cd ..
