@@ -27,6 +27,7 @@ cdef class MettaGrid(GridEnv):
     cdef:
         object _cfg
         int _num_teams
+        list _team_to_agents
 
     def __init__(self, cfg: OmegaConf, map: np.ndarray):
         cfg = OmegaConf.create(cfg)
@@ -92,7 +93,7 @@ cdef class MettaGrid(GridEnv):
 
         # Assign team to agents for kinship rewards sharing.
         if cfg.kinship.enabled:
-            team = 1
+            team = 0
             in_team = 0
             # Shuffle agent indices to randomize team assignment.
             indices = np.arange(0, self._agents.size())
@@ -103,7 +104,11 @@ cdef class MettaGrid(GridEnv):
                 if in_team == cfg.kinship.team_size:
                     in_team = 0
                     team += 1
-            self._num_teams = team
+            self._num_teams = team + 1
+            self._team_to_agents = [[] for i in range(self._num_teams)]
+            for id in range(self._agents.size()):
+                team = (<Agent*>self._agents[id]).team
+                self._team_to_agents[team].append(id)
 
     def render(self):
         grid = self.render_ascii(["A", "#", "g", "c", "a"])
@@ -141,21 +146,17 @@ cdef class MettaGrid(GridEnv):
     cpdef tuple[cnp.ndarray, cnp.ndarray, cnp.ndarray, cnp.ndarray, dict] step(self, cnp.ndarray actions):
         (obs, rewards, terms, truncs, infos) = super(MettaGrid, self).step(actions)
 
-        print("step")
-
         if self._cfg.kinship.enabled and self._cfg.kinship.team_reward > 0:
-            print("Giving team rewards")
             team_rewards = np.zeros(self._num_teams + 1)
             for agent_idx in range(self._agents.size()):
                 team = (<Agent*>self._agents[agent_idx]).team
                 team_rewards[team] += self._cfg.kinship.team_reward * rewards[agent_idx]
                 rewards[agent_idx] -= self._cfg.kinship.team_reward * rewards[agent_idx]
-            print("team_rewards:", team_rewards)
-            # team_idxs = team_rewards.nonzero()[0]
-            # for team in team_idxs:
-            #     team_agents = self._team_to_agents[team]
-            #     team_reward = team_rewards[team] / len(team_agents)
-            #     rewards[team_agents] += team_reward
-            # print("rewards:", rewards)
+
+            team_idxs = team_rewards.nonzero()[0]
+            for team in team_idxs:
+                team_agents = self._team_to_agents[team]
+                team_reward = team_rewards[team] / len(team_agents)
+                rewards[team_agents] += team_reward
 
         return (obs, rewards, terms, truncs, infos)
