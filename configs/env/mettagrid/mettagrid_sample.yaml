@@ -109,6 +109,7 @@ game:
         converter: 3
         generator: 15
         wall: 10
+track_last_action: false
 
 kinship:
   # _target_: env.wrapper.reward_sharing.TeamRewardSharing
