@@ -15,6 +15,7 @@ def main(cfg):
     cfg.kinship.team_reward = 1.0
     cfg.game.map.room.num_agents = 20
     cfg.game.map.room.objects.agent = 20
+    cfg.game.map.room.objects.altar = 10
     cfg.game.num_agents = 20
     env = mettagrid.mettagrid_env.MettaGridEnv(render_mode=None, **cfg)
     env.reset()

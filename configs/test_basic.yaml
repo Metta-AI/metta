@@ -101,7 +101,7 @@ game:
       num_agents: 5
       objects:
         agent: 5
-        altar: 10
+        altar: 1
         converter: 3
         generator: 15
         wall: 10
