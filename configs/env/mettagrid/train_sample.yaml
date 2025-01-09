@@ -2,7 +2,7 @@ defaults:
   - mettagrid
 
 game:
-  num_agents: 40
+  num_agents: 20
   map:
     room:
       width: [5, 75, 25]
