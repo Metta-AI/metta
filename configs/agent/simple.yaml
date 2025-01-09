@@ -20,8 +20,8 @@ decoder:
 
 core:
   rnn_type: gru
-  rnn_num_layers: 1
-  rnn_size: 128
+  rnn_num_layers: 2
+  rnn_size: 512
 
 policy_selector:
   uri: null
@@ -31,9 +31,9 @@ policy_selector:
   generation: null
 
 critic:
-  hidden_sizes: [1024] # Set to [] for no hidden layer
+  hidden_sizes: [2048] # Set to [] for no hidden layer
   
 actor:
-  hidden_sizes: 512 # Set to [] for no hidden layer
+  hidden_sizes: 1024 # Set to [] for no hidden layer
 
 
