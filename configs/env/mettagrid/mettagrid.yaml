@@ -28,12 +28,12 @@ game:
       initial_energy: [0, 250, 250]
       max_energy: [0, 250, 250]
       max_inventory: [0, 10, 5]
-      freeze_duration: [0, 0, 0] #[0, 200, 10] # flag as issue
+      freeze_duration: [0, 200, 10] #[0, 0, 0] restored
       energy_reward: 0.0
       hp: 10
       mortal: False
       upkeep.time: [0, 3, 0]
-      upkeep.shield: [0, 0, 0] #[0, 3, 1]
+      upkeep.shield: [0, 3, 1] # [0, 0, 0] restored
       use_cost: 0
 
     altar:
@@ -43,15 +43,15 @@ game:
 
     converter:
       hp: 30
-      cooldown: [1, 1, 1] #[1, 10, 2]
-      energy_output.r1: [10, 250, 150] #[10, 250, 100]
+      cooldown: [1, 10, 2] #[1, 1, 1] restored
+      energy_output.r1: [10, 250, 100] #[10, 250, 150] restored
       energy_output.r2: [10, 100, 10]
       energy_output.r3: [1, 10, 1]
 
     generator:
       hp: 30
-      cooldown: [0, 1, 1] #[0, 20, 5]
-      initial_resources: [1, 150, 150] #[1, 30, 30]
+      cooldown: [0, 20, 5] #[0, 1, 1] restored
+      initial_resources: [1, 30, 30] #[1, 150, 150] restored
       use_cost: 0
 
     wall:
@@ -81,8 +81,8 @@ game:
       cost: 0
     attack:
       enabled: true
-      cost: 251 #5
-      damage: 50 #10
+      cost: 5 #251 restored
+      damage: 10 #50 restored
     gift:
       enabled: false
       cost: 0
