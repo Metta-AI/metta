@@ -107,6 +107,7 @@ cdef class MettaGrid(GridEnv):
                     in_team = 0
                     team += 1
             self._num_teams = team + 1
+            # Create a backward mapping from team to agents.
             self._team_to_agents = [[] for i in range(self._num_teams)]
             for id in range(self._agents.size()):
                 team = self._agents_to_team[id]
