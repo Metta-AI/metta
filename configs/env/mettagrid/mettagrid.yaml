@@ -64,6 +64,9 @@ game:
     move:
       enabled: true
       cost: 0
+    run:
+      enabled: true
+      cost: 0
     rotate:
       enabled: true
       cost: 0

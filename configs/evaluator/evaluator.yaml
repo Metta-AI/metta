@@ -51,6 +51,7 @@ stat_categories:
     - r2.gained
     - r3.gained
     - action.move
+    - action.run
     - action.use.energy
     - r2.stolen
     - status.frozen.ticks
