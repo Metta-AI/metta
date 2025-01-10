@@ -81,7 +81,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         })
         stats = self._c_env.get_episode_stats()
 
-        infos["episode_rewards"] = episode_rewards
+        infos["episode_rewards"] = 1000 * episode_rewards / self._env_cfg.game.max_steps
         infos["agent_raw"] = stats["agent"]
         infos["game"] = stats["game"]
         infos["agent"] = {}
