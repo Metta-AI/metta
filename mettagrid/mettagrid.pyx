@@ -155,19 +155,7 @@ cdef class MettaGrid(GridEnv):
     cpdef tuple[cnp.ndarray, cnp.ndarray, cnp.ndarray, cnp.ndarray, dict] step(self, cnp.ndarray actions):
         (obs, rewards, terms, truncs, infos) = super(MettaGrid, self).step(actions)
 
-        if self._cfg.kinship.enabled and self._cfg.kinship.team_reward > 0:
-            team_rewards = np.zeros(self._num_teams + 1)
-            for agent_idx in range(self._agents.size()):
-                team = self._agents_to_team[agent_idx]
-                team_rewards[team] += self._cfg.kinship.team_reward * rewards[agent_idx]
-                rewards[agent_idx] -= self._cfg.kinship.team_reward * rewards[agent_idx]
-
-            team_idxs = team_rewards.nonzero()[0]
-            for team in team_idxs:
-                team_agents = self._team_to_agents[team]
-                team_reward = team_rewards[team] / len(team_agents)
-                rewards[team_agents] += team_reward
-
+        if self._cfg.kinship.enabled:
             # Insert kinship into observation.
             offset_r = obs.shape[2] // 2
             offset_c = obs.shape[3] // 2
@@ -178,9 +166,21 @@ cdef class MettaGrid(GridEnv):
                     team = self._agents_to_team[agent_idx]
                     relative_r = agent.location.r - observer_agent.location.r + offset_r
                     relative_c = agent.location.c - observer_agent.location.c + offset_c
-
                     if (relative_r >= 0 and relative_r < obs.shape[2] and
                         relative_c >= 0 and relative_c < obs.shape[3]):
                         obs[observer_idx][24][relative_r][relative_c] = team
+
+            if self._cfg.kinship.team_reward > 0:
+                # Split agent rewards into team rewards.
+                team_rewards = np.zeros(self._num_teams + 1)
+                for agent_idx in range(self._agents.size()):
+                    team = self._agents_to_team[agent_idx]
+                    team_rewards[team] += self._cfg.kinship.team_reward * rewards[agent_idx]
+                    rewards[agent_idx] -= self._cfg.kinship.team_reward * rewards[agent_idx]
+                team_idxs = team_rewards.nonzero()[0]
+                for team in team_idxs:
+                    team_agents = self._team_to_agents[team]
+                    team_reward = team_rewards[team] / len(team_agents)
+                    rewards[team_agents] += team_reward
 
         return (obs, rewards, terms, truncs, infos)
