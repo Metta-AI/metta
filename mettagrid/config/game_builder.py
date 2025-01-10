@@ -18,7 +18,8 @@ class MettaGridGameBuilder():
             no_energy_steps: int,
             objects,
             actions,
-            map):
+            map,
+            kinship):
 
         self.obs_width = obs_width
         self.obs_height = obs_height
