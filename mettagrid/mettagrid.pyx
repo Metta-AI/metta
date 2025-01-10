@@ -27,6 +27,7 @@ cdef class MettaGrid(GridEnv):
     cdef:
         object _cfg
         int _num_teams
+        list _agents_to_team
         list _team_to_agents
 
     def __init__(self, cfg: OmegaConf, map: np.ndarray):
@@ -93,13 +94,14 @@ cdef class MettaGrid(GridEnv):
 
         # Assign team to agents for kinship rewards sharing.
         if cfg.kinship.enabled:
-            team = 0
+            team = 1
             in_team = 0
             # Shuffle agent indices to randomize team assignment.
             indices = np.arange(0, self._agents.size())
             np.random.shuffle(indices)
+            self._agents_to_team = []
             for id in indices:
-                (<Agent*>self._agents[id]).team = team
+                self._agents_to_team.append(team)
                 in_team += 1
                 if in_team == cfg.kinship.team_size:
                     in_team = 0
@@ -107,8 +109,14 @@ cdef class MettaGrid(GridEnv):
             self._num_teams = team + 1
             self._team_to_agents = [[] for i in range(self._num_teams)]
             for id in range(self._agents.size()):
-                team = (<Agent*>self._agents[id]).team
+                team = self._agents_to_team[id]
                 self._team_to_agents[team].append(id)
+
+    cpdef list[str] grid_features(self):
+        cdef list[str] features = super(MettaGrid, self).grid_features()
+        if self._cfg.kinship.enabled:
+            features.append("agent:kinship")
+        return features
 
     def render(self):
         grid = self.render_ascii(["A", "#", "g", "c", "a"])
@@ -139,7 +147,8 @@ cdef class MettaGrid(GridEnv):
         for agent_idx in range(self._agents.size()):
             agent_object = objects[self._agents[agent_idx].id]
             agent_object["agent_id"] = agent_idx
-            agent_object["team"] = (<Agent*>self._agents[agent_idx]).team
+            if self._cfg.kinship.enabled:
+                agent_object["team"] = self._agents_to_team[agent_idx]
 
         return objects
 
@@ -149,7 +158,7 @@ cdef class MettaGrid(GridEnv):
         if self._cfg.kinship.enabled and self._cfg.kinship.team_reward > 0:
             team_rewards = np.zeros(self._num_teams + 1)
             for agent_idx in range(self._agents.size()):
-                team = (<Agent*>self._agents[agent_idx]).team
+                team = self._agents_to_team[agent_idx]
                 team_rewards[team] += self._cfg.kinship.team_reward * rewards[agent_idx]
                 rewards[agent_idx] -= self._cfg.kinship.team_reward * rewards[agent_idx]
 
@@ -158,5 +167,20 @@ cdef class MettaGrid(GridEnv):
                 team_agents = self._team_to_agents[team]
                 team_reward = team_rewards[team] / len(team_agents)
                 rewards[team_agents] += team_reward
+
+            # Insert kinship into observation.
+            offset_r = obs.shape[2] // 2
+            offset_c = obs.shape[3] // 2
+            for observer_idx in range(self._agents.size()):
+                observer_agent = self._agents[observer_idx]
+                for agent_idx in range(self._agents.size()):
+                    agent = self._agents[agent_idx]
+                    team = self._agents_to_team[agent_idx]
+                    relative_r = agent.location.r - observer_agent.location.r + offset_r
+                    relative_c = agent.location.c - observer_agent.location.c + offset_c
+
+                    if (relative_r >= 0 and relative_r < obs.shape[2] and
+                        relative_c >= 0 and relative_c < obs.shape[3]):
+                        obs[observer_idx][24][relative_r][relative_c] = team
 
         return (obs, rewards, terms, truncs, infos)
