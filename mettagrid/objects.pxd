@@ -69,7 +69,6 @@ cdef cppclass Agent(MettaObject):
     unsigned char max_items
     unsigned char max_energy
     float energy_reward
-    unsigned char team
 
     inline Agent(GridCoord r, GridCoord c, ObjectConfig cfg):
         GridObject.init(ObjectType.AgentT, GridLocation(r, c, GridLayer.Agent_Layer))
@@ -115,22 +114,13 @@ cdef cppclass Agent(MettaObject):
         for i in range(InventoryItem.InventoryCount):
             obs[idx + i] = this.inventory[i]
 
-        obs[idx + InventoryItem.InventoryCount] = this.team
-
     @staticmethod
     inline vector[string] feature_names():
-        features = [
-            "agent",
-            "agent:hp",
-            "agent:frozen",
-            "agent:energy",
-            "agent:orientation",
-            "agent:shield",
-        ]
-        for n in InventoryItemNames:
-            features.append("agent:inv:" + n)
-        features.append("agent:kinship")
-        return features
+        return [
+            "agent", "agent:hp", "agent:frozen", "agent:energy", "agent:orientation",
+            "agent:shield"
+        ] + [
+            "agent:inv:" + n for n in InventoryItemNames]
 
 
 cdef cppclass Wall(MettaObject):
