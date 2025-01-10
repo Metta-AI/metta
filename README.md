@@ -120,3 +120,35 @@ git lfs install
 ```
 python -m tools.run cmd=evaluate experiment=baseline.v0.5.4
 ```
+
+# Additional Game Details
+
+##Energy and Resources
+Many of the configuration parameters below are specified in configs/env/mettagrid/mettagrid.yaml.
+
+Resources are gathered at generators. Agents then take them to converters where they are converted from resources to energy. Energy is then taken to the altar and deposited for a reward, the only parameter the agents are rewarded for. However, setting `energy_reward` to a positive value (such as `1`) rewards the agents for energy in addition to altar rewards.
+
+## Attacking and Shielding
+
+Agents can emit an attack by selecting one of eight grid coordinates around them. The attacks have an energy cost and inflict some damage should it fall upon another agent or another object with an `hp` (hit point) value. Such innanimate objects can eventually be destroyed.
+
+- If the attack successfully hits another agent that does not have its shield activated then the attacked agent is frozen for `freeze_duration`, their energy is set to zero, and the resources in their inventory are transfered to the attacking agent.
+- However, if the attacked agent has its shield up then the attack merely drains the attacked agent's energy by the attack damage.
+- Activating a shield requires energy as specified by `upkeep.shield`.
+
+## Selected Other Configuration Parameters
+
+`upkeep.time`  - not currently used
+`upkeep.shield`  - cost per time step to keep a shield up
+
+for other objects:
+`cooldown`  - the number of time steps until the object becomes usable again
+
+converter:
+`energy_output.r2` and `energy_output.r3` - not currently implemented
+
+actions:
+`transfer`  - not enabled
+`gift`  - not enabled
+`swap` - allows an agent to swap places with another agent that is frozen from being attacked
+`track_last_action` - not currently implemented. Will add the agent's last action to its observations.
