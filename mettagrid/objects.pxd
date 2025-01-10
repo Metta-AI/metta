@@ -122,7 +122,6 @@ cdef cppclass Agent(MettaObject):
         ] + [
             "agent:inv:" + n for n in InventoryItemNames]
 
-
 cdef cppclass Wall(MettaObject):
     inline Wall(GridCoord r, GridCoord c, ObjectConfig cfg):
         GridObject.init(ObjectType.WallT, GridLocation(r, c, GridLayer.Object_Layer))
@@ -215,3 +214,4 @@ cdef class ResetHandler(EventHandler):
 
 cdef enum Events:
     Reset = 0
+
