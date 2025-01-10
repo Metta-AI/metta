@@ -80,6 +80,13 @@ test_shared_rewards(
 )
 
 test_shared_rewards(
+  msg = "1 reward split 50%",
+  rewards = [1, 0, 0, 0],
+  expected = [.75, .25, 0, 0],
+  team_reward = 0.5
+)
+
+test_shared_rewards(
   msg = "2 reward split 50%",
   rewards = [1, 1, 0, 0],
   expected = [1, 1, 0, 0],
