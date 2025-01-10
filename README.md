@@ -123,7 +123,7 @@ python -m tools.run cmd=evaluate experiment=baseline.v0.5.4
 
 # Additional Game Details
 
-##Energy and Resources
+## Energy and Resources
 Many of the configuration parameters below are specified in configs/env/mettagrid/mettagrid.yaml.
 
 Resources are gathered at generators. Agents then take them to converters where they are converted from resources to energy. Energy is then taken to the altar and deposited for a reward, the only parameter the agents are rewarded for. However, setting `energy_reward` to a positive value (such as `1`) rewards the agents for energy in addition to altar rewards.
@@ -138,17 +138,18 @@ Agents can emit an attack by selecting one of eight grid coordinates around them
 
 ## Selected Other Configuration Parameters
 
-`upkeep.time`  - not currently used
-`upkeep.shield`  - cost per time step to keep a shield up
+#### Agent
+- `upkeep.time` is not currently used
+- `upkeep.shield` is the cost per time step to keep a shield up
 
-for other objects:
-`cooldown`  - the number of time steps until the object becomes usable again
+#### Actions:
+- `transfer` is not enabled
+- `gift` is not enabled
+- `swap` allows an agent to swap places with another agent that is frozen from being attacked
+- `track_last_action` is not currently implemented. Will add the agent's last action to its observations.
 
-converter:
-`energy_output.r2` and `energy_output.r3` - not currently implemented
+#### For other objects: 
+- `cooldown` is the number of time steps until the object becomes usable again
 
-actions:
-`transfer`  - not enabled
-`gift`  - not enabled
-`swap` - allows an agent to swap places with another agent that is frozen from being attacked
-`track_last_action` - not currently implemented. Will add the agent's last action to its observations.
+#### Converter: 
+- `energy_output.r2` and `energy_output.r3` are not currently implemented
