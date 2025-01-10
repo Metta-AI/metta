@@ -6,5 +6,5 @@
     num_workers: 6 # num cores
     async_factor: 2
     zero_copy: True
-    checkpoint_interval: 300
+    checkpoint_interval: 30
 
