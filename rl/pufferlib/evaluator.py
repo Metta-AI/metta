@@ -23,9 +23,10 @@ class PufferEvaluator():
         self._num_envs = cfg.evaluator.num_envs
         self._min_episodes = cfg.evaluator.num_episodes
         self._max_time_s = cfg.evaluator.max_time_s
-
-        self._policy_pr = policy_record
-        self._baseline_prs = baseline_records
+        # the one that plays all the matches
+        self._policy_pr = policy_record 
+        # list of baselines that distribute over the matches
+        self._baseline_prs = baseline_records 
 
         self._policy_agent_pct = cfg.evaluator.policy_agents_pct
         if len(self._baseline_prs) == 0:
@@ -43,6 +44,8 @@ class PufferEvaluator():
         
         self._vecenv = make_vecenv(self._cfg, num_envs=self._num_envs)
 
+        # each index is an agent, and we reshape it into a matrix of num_envs x agents_per_env
+        # you can figure out which episode you're in by doing the floor division
         slice_idxs = torch.arange(self._vecenv.num_agents)\
             .reshape(self._num_envs, self._agents_per_env).to(device=self._device)
 
@@ -98,21 +101,24 @@ class PufferEvaluator():
 
         start = time.time()
 
+
+        # set of episodes that parallelize the environments
         while self._completed_episodes < self._min_episodes and time.time() - start < self._max_time_s:
             baseline_actions = []
             with torch.no_grad():
                 obs = torch.as_tensor(obs).to(device=self._device)
-                my_obs = obs[self._policy_idxs] 
+                # observavtions that correspond to policy agent
+                my_obs = obs[self._policy_idxs]  
 
                 # Parallelize across opponents
-                policy = self._policy_pr.policy() #the given policy to evaluate
+                policy = self._policy_pr.policy() # policy to evaluate
                 if hasattr(policy, 'lstm'):
-                    policy_actions, _, _, _, policy_rnn_state = policy(my_obs, policy_rnn_state)
+                    policy_actions, _, _, _, policy_rnn_state = policy(my_obs, policy_rnn_state) 
                 else:
                     policy_actions, _, _, _ = policy(my_obs)
 
                 # Iterate opponent policies
-                for i in range(len(self._baseline_prs)): #all baseline policies
+                for i in range(len(self._baseline_prs)): # all baseline policies
                     baseline_obs = obs[self._baseline_idxs[i]]
                     baseline_rnn_state = baselines_rnn_state[i]
 
@@ -140,9 +146,11 @@ class PufferEvaluator():
                 actions = actions.view(self._num_envs*self._agents_per_env, -1)
 
             obs, rewards, dones, truncated, infos = self._vecenv.step(actions.cpu().numpy())
+
             self._total_rewards += rewards
             self._completed_episodes += sum([e.done for e in self._vecenv.envs])
 
+             # infos is a list of dictionaries
             if len(infos) > 0:
                 for n in range(len(infos)):
                     if "agent_raw" in infos[n]:
