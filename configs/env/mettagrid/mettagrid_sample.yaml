@@ -29,7 +29,7 @@ game:
       max_energy: [1, 250, 0]
       max_inventory: [1, 10, 5]
       freeze_duration: [1, 200, 0]
-      energy_reward: [1, 1.0, 0.6]
+      energy_reward: [0, 1.0, 0.6]
       hp: 10
       mortal: False
       upkeep.time: [1, 3, 0]
