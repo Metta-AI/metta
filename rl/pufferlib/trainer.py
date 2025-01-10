@@ -104,7 +104,7 @@ class PufferTrainer:
                 self._checkpoint_trainer()
             if self.epoch % self.trainer_cfg.wandb_checkpoint_interval == 0:
                 self._save_policy_to_wandb()
-            if self.epoch % self.trainer_cfg.evaluate_interval == 0:
+            if self.epoch % self.trainer_cfg.evaluate_interval == 0 and self.trainer_cfg.evaluate:
                 self._evaluate_policy()
 
             self._on_train_step()
@@ -114,11 +114,13 @@ class PufferTrainer:
         self._save_policy_to_wandb()
         logger.info(f"Training complete. Total time: {self.train_time:.2f} seconds")
 
-    def _evaluate_policy(self):
-        if self.cfg.evaluator.baselines.uri is None:
-            return
-
-        baseline_records = self.policy_store.policies(self.cfg.evaluator.baselines)
+    def _evaluate_policy(self):      
+        if self.cfg.evaluator.baselines.uri:
+            baseline_records = self.policy_store.policies(self.cfg.evaluator.baselines)
+        else:
+            self.cfg.evaluator.baselines.uri = f"wandb://run/{self.cfg.run}"
+            baseline_records = self.policy_store.policies(self.cfg.evaluator.baselines)
+        
         evaluator = hydra.utils.instantiate(self.cfg.evaluator, self.cfg, self.last_pr, baseline_records)
         stats = evaluator.evaluate()
         evaluator.close()
