@@ -17,7 +17,8 @@ def sample_config(value, sampling: float):
             return value
         if isinstance(value[0], (int, float)):
             assert len(value) == 3, f"Expected (min, max, mean), but found {value}"
-            min_val, max_val, center = value
+            min_val, max_val, _ = value
+            center = (min_val + max_val) / 2
             if sampling == 0:
                 return center
             else:
