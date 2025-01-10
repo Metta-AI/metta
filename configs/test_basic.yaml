@@ -108,6 +108,7 @@ game:
 
   kinship:
     enabled: false
+    observed: false
     team_size: 1
     team_reward: 0
 
