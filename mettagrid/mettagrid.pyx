@@ -172,7 +172,7 @@ cdef class MettaGrid(GridEnv):
                     relative_c >= 0 and relative_c < obs.shape[3]):
                     obs[observer_idx][24][relative_r][relative_c] = team
 
-    cdef _compute_shared_rewards(self, cnp.ndarray rewards):
+    def _compute_shared_rewards(self, cnp.ndarray rewards):
         """ Compute shared rewards for agents in the same team. """
         team_rewards = np.zeros(self._num_teams + 1)
         for agent_idx in range(self._agents.size()):
