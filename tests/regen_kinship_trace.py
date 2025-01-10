@@ -36,7 +36,7 @@ def main(cfg):
 
     output += f"grid_features: {env.grid_features}\n"
 
-    # assert "kinship" in env.grid_features
+    assert "agent:kinship" in env.grid_features
 
     output += f"rewards: {rewards}\n"
     output += f"terminated: {terminated}\n"
@@ -45,6 +45,8 @@ def main(cfg):
     output += f"obs.shape: {obs.shape}\n"
 
     output += header("Kinship reward sharing")
+    # Here we will have agent 12 move and use the altar, and it should show
+    # the sharing of the reward with the other agents in the team.
     actions = [[0, 0]] * 20
     # Rotate agent 12 to face the altar
     actions[12] = [2, 2]
