@@ -9,6 +9,7 @@ observation_encoder:
   normalize_features: true
   auto_normalize: false
   track_last_action: ${env.track_last_action}
+  kinship: ${env.game.kinship}
 
 fc:
   layers: 1

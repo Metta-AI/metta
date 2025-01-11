@@ -70,6 +70,10 @@ class SimpleConvAgent(nn.Module):
                     10, # 'last_action'
                     10, # 'last_action_argument'
                 ])
+            if cfg.kinship.enabled and cfg.kinship.observed:
+                obs_norms.extend([
+                    10, # 'agent:kinship'
+                ])
             self._obs_norm = torch.tensor(obs_norms, dtype=torch.float32)
             self._obs_norm = self._obs_norm.view(1, self._num_objects, 1, 1)
 
