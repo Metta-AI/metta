@@ -65,7 +65,7 @@ The `Wall` object acts as an impassable barrier in the environment, restricting 
 
 ### Cooldown
 
-The `cooldown` property is a dictionary that defines the cooldown periods for various objects.
+The `cooldown` property determines how long before objects can be used again.
 
 ## Actions
 
