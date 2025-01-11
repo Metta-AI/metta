@@ -23,8 +23,6 @@ def make_nn_stack(
         if layer_norm and i < len(sizes) - 1:
             layers.append(nn.LayerNorm(sizes[i]))
 
-    # layers.append(nonlinearity)
-
     if use_skip:
         return SkipConnectionStack(layers)
     else:
