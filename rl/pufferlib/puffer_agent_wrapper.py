@@ -24,9 +24,8 @@ class Recurrent(pufferlib.models.LSTMWrapper):
         super().__init__(env, policy, input_size, hidden_size, num_layers)
 
 class PufferAgentWrapper(nn.Module):
-    def __init__(self, agent: MettaAgent, actor_hidden_sizes, env: PettingZooPufferEnv):
+    def __init__(self, agent: MettaAgent, actor_hidden_sizes: List[int], env: PettingZooPufferEnv):
         super().__init__()
-        actor_hidden_sizes = [actor_hidden_sizes] # need help: I had to convert to list to make this work. Passing in a list from cfg created another error.
         if isinstance(env.single_action_space, pufferlib.spaces.Discrete):
             self.atn_type = make_nn_stack(
                 input_size=agent.decoder_out_size(),
@@ -88,7 +87,7 @@ def make_policy(env: PufferEnv, cfg: OmegaConf):
         env.grid_features,
         env.global_features,
         _recursive_=False)
-    puffer_agent = PufferAgentWrapper(agent, cfg.agent.actor.hidden_sizes, env)
+    puffer_agent = PufferAgentWrapper(agent, list(cfg.agent.actor.hidden_sizes), env)
 
     if cfg.agent.core.rnn_num_layers > 0:
         puffer_agent = Recurrent(

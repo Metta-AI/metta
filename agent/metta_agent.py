@@ -42,7 +42,7 @@ class MettaAgent(nn.Module, MettaAgentInterface):
         self._critic_linear = make_nn_stack(
             self.decoder_out_size(), 
             1, 
-            cfg.critic.hidden_sizes, 
+            list(cfg.critic.hidden_sizes), 
             nonlinearity=nn.ReLU()
         )
 
