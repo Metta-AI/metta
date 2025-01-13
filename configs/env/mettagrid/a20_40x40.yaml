@@ -12,5 +12,5 @@ game:
         agent: 20
         altar: 5
         converter: 10
-        generator: 50
+        generator: 1
         wall: 40
