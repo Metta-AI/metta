@@ -38,19 +38,19 @@ game:
 
     altar:
       hp: 30
-      cooldown: [1, 10, 2]
+      cooldown: [1, 1, 2]
       use_cost: [20, 100, 100]
 
     converter:
       hp: 30
-      cooldown: [1, 10, 2]
+      cooldown: [1, 1, 2]
       energy_output.r1: [10, 250, 100]
       energy_output.r2: [10, 100, 10]
       energy_output.r3: [1, 10, 1]
 
     generator:
       hp: 30
-      cooldown: [0, 20, 5]
+      cooldown: [0, 1, 5]
       initial_resources: [1, 30, 30]
       use_cost: 0
 
