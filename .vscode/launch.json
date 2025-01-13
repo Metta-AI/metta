@@ -81,10 +81,11 @@
             "args": [
                 "run=mac.play.4",
                // "env/mettagrid@env=a20_b4_40x40",
-                "env/mettagrid@env=configzz",
+                "env/mettagrid@env=XXperiment",
                 "wandb.enabled=True",
                 // "evaluator.policy.uri=wandb://run/b.simple.train.nas.t100.a10.ie.50.er",
-                "evaluator.policy.uri=wandb://run/160-agents-4-rooms",
+                "evaluator.policy.uri=wandb://run/uniform_sampling_20_agents_v2",
+                //daphne-20-agents-4-rooms-v2 daphne-20-agents-4-rooms-test daphne-100-agents-4-rooms-v2 160-agents-4-rooms with-walls-40-agents-2-rooms with-walls-40-agents-smaller-batch2 uniform_sampling_20_agents_v1 uniform_sampling_20_agents_v4
                 // "evaluator.policy.uri=wandb://run/b.simple.train.nas.a10.ie.250.er",
                 // "env.game.actions.attack.enabled=false",
                 // "env.game.actions.shield.enabled=false",
