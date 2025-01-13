@@ -9,9 +9,8 @@ from omegaconf import OmegaConf, DictConfig
 from rich.console import Console
 from rl.carbs.metta_carbs import MettaCarbs
 from rl.wandb.sweep import generate_run_id_for_sweep
-from util.eval_analyzer import Analysis
 from agent.policy_store import PolicyStore
-
+from util.stats_library import EloTest, Glicko2Test, MannWhitneyUTest, get_test_results
 import json
 logger = logging.getLogger("sweep_rollout")
 
@@ -109,45 +108,48 @@ class CarbsSweepRollout:
         logger.info(f"Final policy saved to {final_pr.uri}")
 
         logger.info(f"Evaluating policy {final_pr.name} against {initial_pr.name}")
-        eval_cfg.evaluator.policy.uri = final_pr.uri
-        eval_cfg.evaluator.baselines.uri = initial_pr.uri
-        evaluator = hydra.utils.instantiate(eval_cfg.evaluator, eval_cfg, policy_store)
+        evaluator = hydra.utils.instantiate(eval_cfg.evaluator, eval_cfg, final_pr, [initial_pr])
         stats = evaluator.evaluate()
         evaluator.close()
         eval_time = time.time() - eval_start_time
         self._log_file("eval_stats.yaml", stats)
 
-        elo_analysis = Analysis(stats, eval_method='elo_1v1', stat_category=eval_cfg.sweep.metric)
-        elo_results = elo_analysis.get_results()
-        logger.info("\n" + elo_analysis.get_display_results())
-        self._log_file("elo_results.yaml", elo_results)
+        all_stats_results, fr = get_test_results(MannWhitneyUTest(stats, eval_cfg.evaluator.stat_categories['all']))
+        logger.info("\n" + fr)
+        self._log_file("all_stats.yaml", all_stats_results)
 
-        p_analysis = Analysis(stats, eval_method='1v1', stat_category='all')
-        logger.info("\n" + p_analysis.get_display_results())
-        self._log_file("p_results.yaml", p_analysis.get_results())
 
-        altar_analysis = Analysis(stats, eval_method='1v1', stat_category=eval_cfg.sweep.metric)
-        logger.info("\n" + altar_analysis.get_display_results())
-        altar_results = altar_analysis.get_results()
-        self._log_file("altar_results.yaml", altar_results)
+        sweep_glicko, fr = get_test_results(
+            Glicko2Test(stats, eval_cfg.evaluator.stat_categories[eval_cfg.sweep.metric]),
+            eval_cfg.evaluator.baselines.glicko_scores_path)
+        logger.info("\n" + fr)
+        self._log_file("sweep_glicko.yaml", sweep_glicko)
 
-        final_score = altar_results[eval_cfg.sweep.metric]['policy_stats'][final_pr.name]['mean']
-        initial_score = altar_results[eval_cfg.sweep.metric]['policy_stats'][initial_pr.name]['mean']
+        sweep_elo, fr = get_test_results(
+            EloTest(stats, eval_cfg.evaluator.stat_categories[eval_cfg.sweep.metric]),
+            eval_cfg.evaluator.baselines.elo_scores_path)
+        logger.info("\n" + fr)
+        self._log_file("sweep_elo.yaml", sweep_elo)
+
+        final_score = sweep_glicko[final_pr.name]["rating"]
+        initial_score = sweep_glicko[initial_pr.name]["rating"]
         eval_metric = final_score
 
         sweep_stats.update({
             "initial.uri": initial_pr.uri,
             "initial.score": initial_score,
-            "initial.elo": elo_results[initial_pr.name],
+            "initial.elo": sweep_elo[initial_pr.name]["score"],
 
             "final.uri": final_pr.uri,
             "final.score": final_score,
-            "final.elo": elo_results[final_pr.name],
+            "final.elo": sweep_elo[final_pr.name]["score"],
+            "final.glicko": sweep_glicko[final_pr.name]["rating"],
 
             "time.eval": eval_time,
             "time.total": train_time + eval_time,
 
-            "delta.elo": elo_results[final_pr.name]['score'] - elo_results[initial_pr.name]['score'],
+            "delta.elo": sweep_elo[final_pr.name]["score"] - sweep_elo[initial_pr.name]["score"],
+            "delta.glicko": sweep_glicko[final_pr.name]["rating"] - sweep_glicko[initial_pr.name]["rating"],
             "delta.score": final_score - initial_score,
         })
 
