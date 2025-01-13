@@ -27,17 +27,35 @@ The `Agent` object represents an individual agent in the environment. Agents can
 
 The `Altar` object allows agents to spend energy to gain rewards. Agents can power the altar by using the `use` action when near it. The altar has a cooldown period between uses.
 
+- Using the heart altar costs `altar.use_cost energy`. So, no matter how much energy you have, you are always dumping the same amount of energy in it and getting the same amount of reward. 
+- After the heart altar is used, it is unable to be used for altar.cooldown timesteps. 
+- A single use of the heart altar gives you a single unit of reward:
+        if `target._type_id == ObjectType.AltarT:
+            self.env._rewards[actor_id] += 1` 
+    
+
 ### Converter
 
 <img src="https://github.com/daveey/Griddly/blob/develop/resources/images/oryx/oryx_tiny_galaxy/tg_sliced/tg_items/tg_items_pda_A.png?raw=true" width="32"/>
 
 The `Converter` object allows agents to convert their harvested resources into energy. Agents can use converters by moving to them and taking the `use` action. Each use of a converter provides a specified amount of energy and has a cooldown period.
 
+- Using the converter does not cost any energy. 
+- Using the converter outputs `converter.energy_output.r1`  energy 
+    - see `this.output_energy = cfg[b"energy_output.r1"]` in the Converter cppclass
+- Using the converter increments resource 2 by one and decrements resource 1 by 1
+- There is currently no use for `converter.energy_output.r2` and `converter.energy_output.r3`
+- After the converter is used, it is unable to be used for `converter.cooldown` timesteps 
+
 ### Generator
 
 <img src="https://github.com/daveey/Griddly/blob/develop/resources/images/oryx/oryx_fantasy/ore-0.png?raw=true" width="32"/>
 
 The `Generator` object produces resources that agents can harvest. Agents can gather resources from generators by moving to them and taking the `use` action. Generators have a specified capacity and replenish resources over time.
+
+- Using the generator costs `generator.use_cost` (currently 0) energy
+- Using the generator once gives one resource 1
+- After the generator is used, it is unable to be used for `generator.cooldown` timesteps 
 
 ### Wall
 
@@ -72,4 +90,3 @@ The `use` action allows agents to interact with objects such as altars, converte
 ## Configuration
 
 The MettaGrid environment is highly configurable through the use of YAML configuration files. These files specify the layout of the gridworld, the placement of objects, and various properties of the objects and agents.
-
