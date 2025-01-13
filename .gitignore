@@ -18,3 +18,5 @@ stats.profile
 train_dir
 metta-research
 gpu_names_cache.json
+stderr.log
+sweep_id

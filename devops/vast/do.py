@@ -105,6 +105,7 @@ def show_command(args):
 def wait_for_ready(label):
     """ Wait for a machine with the given label to become ready. """
     instance = label_to_instance(label)
+    # Wait for the instance to become ready.
     while instance['actual_status'] != 'running':
         print(
           f"Waiting for instance {label} to become ready... "
@@ -112,6 +113,20 @@ def wait_for_ready(label):
         )
         time.sleep(5)
         instance = label_to_instance(label)
+
+def wait_for_ssh(label):
+    # Wait for the SSH key on the server to be ready.
+    instance = label_to_instance(label)
+    ssh_host = instance['ssh_host']
+    ssh_port = instance['ssh_port']
+    cmd = f"ssh -o StrictHostKeyChecking=no -p {ssh_port} root@{ssh_host} 'echo 1'"
+    while True:
+      try:
+        subprocess.run(cmd, shell=True, check=True)
+        break
+      except Exception as e:
+        print(f"Waiting for instance {label} to become ready... {e}")
+        time.sleep(5)
 
 def ssh_command(args):
     """ SSH into a machine with the given label. """
@@ -164,9 +179,11 @@ def setup_command(args):
         key_path = os.path.expanduser(f"~/.ssh/{key}")
         if os.path.exists(key_path):
           print(f"Adding ssh key {key_path}")
-          ssh_key = open(key_path).read().split(" ")[1]
-          cmd_attach = f"vastai attach ssh {instance['id']} " + ssh_key
+          ssh_key = open(key_path).read()
+          cmd_attach = f"vastai attach ssh {instance['id']} '" + ssh_key + "'"
           subprocess.run(cmd_attach, shell=True, check=True)
+
+    wait_for_ssh(args.label)
 
     cmd_setup = [
       "cd /workspace/metta",
