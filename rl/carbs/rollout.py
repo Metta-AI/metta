@@ -75,7 +75,6 @@ class CarbsSweepRollout:
 
         self._log_file("config.yaml", self.cfg)
         self._log_file("train_config.yaml", train_cfg)
-        self._log_file("eval_config.yaml", eval_cfg)
         self._log_file("carbs_suggestion.yaml", self.suggestion)
 
         train_start_time = time.time()
@@ -108,6 +107,8 @@ class CarbsSweepRollout:
         logger.info(f"Final policy saved to {final_pr.uri}")
 
         logger.info(f"Evaluating policy {final_pr.name} against {initial_pr.name}")
+        self._log_file("eval_config.yaml", eval_cfg)
+
         evaluator = hydra.utils.instantiate(eval_cfg.evaluator, eval_cfg, final_pr, [initial_pr])
         stats = evaluator.evaluate()
         evaluator.close()
