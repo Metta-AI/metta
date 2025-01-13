@@ -12,7 +12,7 @@ policy:
 
 baselines:
   elo_scores_path: null
-  glicko_scores_path: null
+  glicko_scores_path: ${run_dir}/eval
   uri: null
   type: top
   range: 5
