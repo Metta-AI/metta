@@ -1,4 +1,3 @@
-
 import hashlib
 from torch import nn
 import numpy as np
@@ -23,8 +22,6 @@ def make_nn_stack(
 
         if layer_norm and i < len(sizes) - 1:
             layers.append(nn.LayerNorm(sizes[i]))
-
-    layers.append(nonlinearity)
 
     if use_skip:
         return SkipConnectionStack(layers)
