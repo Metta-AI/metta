@@ -34,7 +34,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         env = self._grid_env
 
         self._env = env
-        #self._env = Kinship(**sample_config(self._cfg.kinship), env=self._env)
         #self._env = RewardTracker(self._env)
         #self._env = FeatureMasker(self._env, self._cfg.hidden_features)
 
