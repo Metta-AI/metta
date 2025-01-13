@@ -131,7 +131,7 @@ class PufferTrainer:
 
         results, formatted_results = get_test_results(
             Glicko2Test(stats, self.cfg.evaluator.stat_categories['altar']),
-            self.cfg.evaluator.baselines.glicko_scores_path)
+            scores_path = self.cfg.trainer.glicko_scores_path)      
 
         rating = results.get(self.last_pr.name, {}).get("rating", None)
 
