@@ -4,10 +4,12 @@ import mettagrid
 import mettagrid.mettagrid_env
 
 
-def dump_agents(env):
+def dump_agents(env, show_team=False, agent_id=None):
   output = ""
   for thing in env.grid_objects.values():
       if thing["type"] == 0: # agent
+        if agent_id is not None and thing["agent_id"] != agent_id:
+          continue
         output += (
           f"Agent id={thing['id']} " +
           f"agent_id={thing['agent_id']} " +
@@ -15,10 +17,11 @@ def dump_agents(env):
           f"y={thing['r']} " +
           f"energy={thing['agent:energy']} " +
           f"shield={thing['agent:shield']} " +
-          f"inventory={thing['agent:inv:r1']}" +
-          "\n"
+          f"inventory={thing['agent:inv:r1']}"
         )
-
+        if show_team:
+          output += f" team={thing['team']}"
+        output += "\n"
   return output
 
 
@@ -38,7 +41,7 @@ def dump_map(env):
   return output
 
 
-def render_to_string(env):
+def render_to_string(env, show_team=False):
     """ Render the environment to a string """
     output = ""
     for x in range(env.map_width):
@@ -47,7 +50,10 @@ def render_to_string(env):
         for thing in env.grid_objects.values():
           if thing["r"] == x and thing["c"] == y:
             if thing["type"] == 0: # agent
-              cell = "A"
+              if show_team:
+                cell = f"{thing['team']}"
+              else:
+                cell = "A"
             elif thing["type"] == 1: # wall
               cell = "#"
             elif thing["type"] == 2: # generator

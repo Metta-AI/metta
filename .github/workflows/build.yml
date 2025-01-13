@@ -55,3 +55,4 @@ jobs:
       run: |
         python tests/test_basic.py
         python tests/test_game_builder.py
+        python tests/test_kinship.py
