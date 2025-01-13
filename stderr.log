@@ -1,112 +1,0 @@
-wandb: Currently logged in as: daveey (metta-research). Use `wandb login --relogin` to force relogin
-wandb: WARNING Tried to auto resume run with id 8yje5rrx but id mac.carbsweep.5 is set.
-wandb: - Waiting for wandb.init()...wandb: \ Waiting for wandb.init()...wandb: wandb version 0.18.1 is available!  To upgrade, please run:
-wandb:  $ pip install wandb --upgrade
-wandb: Tracking run with wandb version 0.17.7
-wandb: Run data is saved locally in /Users/daveey/code/metta/wandb/run-20240923_113435-mac.carbsweep.5
-wandb: Run `wandb offline` to turn off syncing.
-wandb: Resuming run mac.carbsweep.5
-wandb: ⭐️ View project at https://wandb.ai/metta-research/metta
-wandb: 🚀 View run at https://wandb.ai/metta-research/metta/runs/mac.carbsweep.5
-wandb: - 0.000 MB of 0.020 MB uploadedwandb: \ 0.000 MB of 0.020 MB uploadedwandb: | 0.020 MB of 0.020 MB uploadedwandb:                                                                                
-wandb: 🚀 View run mac.carbsweep.5 at: https://wandb.ai/metta-research/metta/runs/mac.carbsweep.5
-wandb: ⭐️ View project at: https://wandb.ai/metta-research/metta
-wandb: Synced 4 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
-wandb: Agent Starting Run: gd4m6u6c with config:
-wandb: 	agent.observation_encoder.normalize_features: 0.7273423321304973
-wandb: 	env.normalize_rewards: 0.10469357096493705
-wandb: 	train.batch_size: 829
-wandb: 	train.bptt_horizon: 4
-wandb: 	train.clip_coef: 0.10144231745323584
-wandb: 	train.ent_coef: 8.276229876380693e-05
-wandb: 	train.forward_pass_minibatch_target_size: 352
-wandb: 	train.gae_lambda: 0.35650277894554605
-wandb: 	train.gamma: 0.5606347026752192
-wandb: 	train.learning_rate: 2.5915679861779305e-05
-wandb: 	train.max_grad_norm: 0.8659747776240205
-wandb: 	train.minibatch_size: 643
-wandb: 	train.total_timesteps: 11224853.068516972
-wandb: 	train.update_epochs: 5.877633797625594
-wandb: 	train.vf_clip_coef: 0.021921927613541725
-wandb: 	train.vf_coef: 0.8930178523983127
-wandb: WARNING Ignored wandb.init() arg project when running a sweep.
-wandb: WARNING Ignored wandb.init() arg entity when running a sweep.
-wandb: WARNING Ignored wandb.init() arg id when running a sweep.
-wandb: wandb version 0.18.1 is available!  To upgrade, please run:
-wandb:  $ pip install wandb --upgrade
-wandb: Tracking run with wandb version 0.17.7
-wandb: Run data is saved locally in /Users/daveey/code/metta/wandb/run-20240923_113444-gd4m6u6c
-wandb: Run `wandb offline` to turn off syncing.
-wandb: Syncing run mac.carbsweep.5
-wandb: ⭐️ View project at https://wandb.ai/metta-research/metta
-wandb: 🧹 View sweep at https://wandb.ai/metta-research/metta/sweeps/qa3y7v8j
-wandb: 🚀 View run at https://wandb.ai/metta-research/metta/runs/gd4m6u6c
-/Users/daveey/code/metta/deps/carbs/carbs/carbs.py:838: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
-  state = torch.load(f)
-wandb: - 0.013 MB of 0.013 MB uploadedwandb: \ 0.013 MB of 0.013 MB uploadedwandb: | 0.045 MB of 0.045 MB uploadedwandb:                                                                                
-wandb: 🚀 View run mac.carbsweep.5 at: https://wandb.ai/metta-research/metta/runs/gd4m6u6c
-wandb: ⭐️ View project at: https://wandb.ai/metta-research/metta
-wandb: Synced 7 W&B file(s), 0 media file(s), 1 artifact file(s) and 1 other file(s)
-wandb: WARNING Ignored wandb.init() arg project when running a sweep.
-wandb: WARNING Ignored wandb.init() arg entity when running a sweep.
-wandb: WARNING Ignored wandb.init() arg id when running a sweep.
-wandb: - Waiting for wandb.init()...wandb: \ Waiting for wandb.init()...wandb: wandb version 0.18.1 is available!  To upgrade, please run:
-wandb:  $ pip install wandb --upgrade
-wandb: Tracking run with wandb version 0.17.7
-wandb: Run data is saved locally in /Users/daveey/code/metta/wandb/run-20240923_113456-gd4m6u6c
-wandb: Run `wandb offline` to turn off syncing.
-wandb: Resuming run mac.carbsweep.5-4
-wandb: ⭐️ View project at https://wandb.ai/metta-research/metta
-wandb: 🧹 View sweep at https://wandb.ai/metta-research/metta/sweeps/qa3y7v8j
-wandb: 🚀 View run at https://wandb.ai/metta-research/metta/runs/gd4m6u6c
-wandb: - 0.667 MB of 0.667 MB uploadedwandb: \ 0.667 MB of 0.667 MB uploadedwandb: | 0.708 MB of 0.708 MB uploadedwandb:                                                                                
-wandb: 🚀 View run mac.carbsweep.5-4 at: https://wandb.ai/metta-research/metta/runs/gd4m6u6c
-wandb: ⭐️ View project at: https://wandb.ai/metta-research/metta
-wandb: Synced 4 W&B file(s), 0 media file(s), 1 artifact file(s) and 0 other file(s)
-wandb: WARNING Ignored wandb.init() arg project when running a sweep.
-wandb: WARNING Ignored wandb.init() arg entity when running a sweep.
-wandb: WARNING Ignored wandb.init() arg id when running a sweep.
-wandb: - Waiting for wandb.init()...wandb: \ Waiting for wandb.init()...wandb: wandb version 0.18.1 is available!  To upgrade, please run:
-wandb:  $ pip install wandb --upgrade
-wandb: Tracking run with wandb version 0.17.7
-wandb: Run data is saved locally in /Users/daveey/code/metta/wandb/run-20240923_113552-gd4m6u6c
-wandb: Run `wandb offline` to turn off syncing.
-wandb: Resuming run mac.carbsweep.5
-wandb: ⭐️ View project at https://wandb.ai/metta-research/metta
-wandb: 🧹 View sweep at https://wandb.ai/metta-research/metta/sweeps/qa3y7v8j
-wandb: 🚀 View run at https://wandb.ai/metta-research/metta/runs/gd4m6u6c
-/Users/daveey/code/metta/deps/carbs/carbs/carbs.py:838: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
-  state = torch.load(f)
-wandb: - 0.007 MB of 0.007 MB uploadedwandb: \ 0.007 MB of 0.007 MB uploadedwandb: | 0.041 MB of 0.041 MB uploadedwandb:                                                                                
-wandb: 🚀 View run mac.carbsweep.5 at: https://wandb.ai/metta-research/metta/runs/gd4m6u6c
-wandb: ⭐️ View project at: https://wandb.ai/metta-research/metta
-wandb: Synced 4 W&B file(s), 0 media file(s), 1 artifact file(s) and 1 other file(s)
-wandb: Agent Starting Run: wemyn25s with config:
-wandb: 	agent.observation_encoder.normalize_features: 0.10576538581315742
-wandb: 	env.normalize_rewards: 0.29235749181684767
-wandb: 	train.batch_size: 969
-wandb: 	train.bptt_horizon: 7
-wandb: 	train.clip_coef: 0.5193525316356885
-wandb: 	train.ent_coef: 0.0013185212566453586
-wandb: 	train.forward_pass_minibatch_target_size: 589
-wandb: 	train.gae_lambda: 0.5177921429565214
-wandb: 	train.gamma: 0.7199331571570531
-wandb: 	train.learning_rate: 3.252150314635788e-05
-wandb: 	train.max_grad_norm: 0.14602819624283647
-wandb: 	train.minibatch_size: 677
-wandb: 	train.total_timesteps: 30959502.42098912
-wandb: 	train.update_epochs: 5.918871464270146
-wandb: 	train.vf_clip_coef: 0.02316386260309733
-wandb: 	train.vf_coef: 0.5951468431410942
-wandb: WARNING Ignored wandb.init() arg project when running a sweep.
-wandb: WARNING Ignored wandb.init() arg entity when running a sweep.
-wandb: WARNING Ignored wandb.init() arg id when running a sweep.
-wandb: - Waiting for wandb.init()...wandb: \ Waiting for wandb.init()...wandb: wandb version 0.18.1 is available!  To upgrade, please run:
-wandb:  $ pip install wandb --upgrade
-wandb: Tracking run with wandb version 0.17.7
-wandb: Run data is saved locally in /Users/daveey/code/metta/wandb/run-20240923_113610-wemyn25s
-wandb: Run `wandb offline` to turn off syncing.
-wandb: Syncing run mac.carbsweep.5
-wandb: ⭐️ View project at https://wandb.ai/metta-research/metta
-wandb: 🧹 View sweep at https://wandb.ai/metta-research/metta/sweeps/qa3y7v8j
-wandb: 🚀 View run at https://wandb.ai/metta-research/metta/runs/wemyn25s

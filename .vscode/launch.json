@@ -40,7 +40,6 @@
                 // "env=mettagrid/a20_b4_40x40",
                 "env.game.max_steps=100",
                 "env.sampling=0.1",
-                "env.flatten_actions=true",
 
                 // "env.kinship.team_size=5",
                 // "env.kinship.team_reward=0.8",
@@ -68,7 +67,6 @@
                 // "env.kinship.team_reward=0.8",
                 "wandb.enabled=True",
                 "wandb.track=False",
-                "env.flatten_actions=true",
 
             ],
         },
@@ -83,11 +81,10 @@
                 "env/mettagrid@env=a20_b4_40x40",
                 "wandb.enabled=True",
                 // "evaluator.policy.uri=wandb://run/b.simple.train.nas.t100.a10.ie.50.er",
-                "evaluator.policy.uri=wandb://run/p2.train.norm.feat",
+                "evaluator.policy.uri=wandb://run/p2.plu.1",
                 // "evaluator.policy.uri=wandb://run/b.simple.train.nas.a10.ie.250.er",
                 // "env.game.actions.attack.enabled=false",
                 // "env.game.actions.shield.enabled=false",
-                "env.flatten_actions=true",
                 "agent=simple",
                 "env.game.max_steps=10000",
                 "env.game.num_agents=20",
