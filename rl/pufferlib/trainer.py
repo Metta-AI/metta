@@ -60,7 +60,7 @@ class PufferTrainer:
                 "Action names do not match between policy and environment: "
                 f"{policy_record.metadata['action_names']} != {self.vecenv.driver_env.action_names()}")
 
-        self.initial_pr = policy_record
+        self._initial_pr = policy_record
         self.last_pr = policy_record
         self.policy = policy_record.policy()
         self.policy_record = policy_record
@@ -345,8 +345,8 @@ class PufferTrainer:
         name = self.policy_store.make_model_name(self.epoch)
 
         generation = 0
-        if self.initial_pr:
-            generation = self.initial_pr.metadata.get("generation", 0) + 1
+        if self._initial_pr:
+            generation = self._initial_pr.metadata.get("generation", 0) + 1
 
         self.last_pr = self.policy_store.save(
             name,
@@ -358,9 +358,11 @@ class PufferTrainer:
                 "run": self.cfg.run,
                 "action_names": self.vecenv.driver_env.action_names(),
                 "generation": generation,
-                "initial_uri": self.initial_pr.uri
+                "initial_uri": self._initial_pr.uri
             }
         )
+        # this is hacky, but otherwise the initial_pr points
+        # at the same policy as the last_pr
         return self.last_pr
 
     def _save_policy_to_wandb(self):
@@ -400,6 +402,12 @@ class PufferTrainer:
 
     def close(self):
         self.vecenv.close()
+
+    def initial_pr_uri(self):
+        return self._initial_pr.uri
+
+    def last_pr_uri(self):
+        return self.last_pr.uri
 
     def _make_experience_buffer(self):
         obs_shape = self.vecenv.single_observation_space.shape
