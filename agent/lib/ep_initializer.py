@@ -87,10 +87,12 @@ class HiddenLayerModule(nn.Module):
             # Copy back into fc2.weight
             W.copy_(W_ortho)
 
-            print(f"W_ortho row 0: {W_ortho[0, :]}")
-            print(f"W row 0: {W[0, :]}")
-            print(f"W_ortho row 2: {W_ortho[2, :]}")
-            print(f"W row 2: {W[2, :]}")
+            print(f"W_ortho row 0: {W_ortho[0, :6]}")
+            print(f"W row 0: {W[0, :6]}")
+            print(f"W_ortho row 1: {W_ortho[1, :6]}")
+            print(f"W row 1: {W[1, :6]}")
+            print(f"W_ortho row 2: {W_ortho[2, :6]}")
+            print(f"W row 2: {W[2, :6]}")
 
     def forward(self, x):
         x = self.fc1(x)

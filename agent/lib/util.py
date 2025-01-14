@@ -11,7 +11,7 @@ adjust epi to allow for various vectors and magnitudes
 get launch to read from simple.matters.yaml
 '''
 
-def initialize_weights(layer, method='xavier'):
+def initialize_weights(layer, method='xavier', epi_row_specs=None, init_nonlinearity=None, nonlinearity=None):
     if method == 'xavier':
         init.xavier_uniform_(layer.weight.data)
     elif method == 'normal':
@@ -20,6 +20,8 @@ def initialize_weights(layer, method='xavier'):
         init.kaiming_uniform_(layer.weight.data, nonlinearity='relu')
     elif method == 'orthogonal':
         init.orthogonal_(layer.weight.data)
+    elif method == 'epi':
+        epi_initialize_rows(layer, epi_row_specs, init_nonlinearity)
     else:
         raise ValueError(f"Unknown initialization method: {method}")
 
@@ -32,6 +34,9 @@ def make_nn_stack(
     # bias_initialization=None,
     layer_norm=False,
     use_skip=False,
+    epi_init=False,
+    epi_row_specs=None,
+    init_nonlinearity=None,
 ):
     """Create a stack of fully connected layers with nonlinearity"""
     sizes = [input_size] + hidden_sizes + [output_size]
@@ -48,6 +53,9 @@ def make_nn_stack(
 
         if layer_norm and i < len(sizes) - 1:
             layers.append(nn.LayerNorm(sizes[i]))
+
+    if epi_init:
+        initialize_weights(layers[-1], method='epi', epi_row_specs=epi_row_specs, init_nonlinearity=init_nonlinearity)
 
     if use_skip:
         return SkipConnectionStack(layers)
@@ -73,91 +81,31 @@ import math
 import torch
 import torch.nn as nn
 
-def epi_initialize_rows(layer: nn.Linear, row_specs=None):
-    nn.init.xavier_uniform_(layer.weight, gain=nn.init.calculate_gain('tanh'))
+def epi_initialize_rows(layer: nn.Linear, epi_row_specs=None, init_nonlinearity=None):
+    nn.init.xavier_uniform_(layer.weight, gain=nn.init.calculate_gain(init_nonlinearity))
     if layer.bias is not None:
         nn.init.zeros_(layer.bias)
 
     out_features, in_features = layer.weight.shape
     a = math.sqrt(6.0 / (in_features + out_features))
-    a = 1.0 # delete this
     print(f"Xavier bound: {a}")
 
     with torch.no_grad():
-        for row_idx, mag in row_specs.items():
+        for row_idx, mag in epi_row_specs.items():
             layer.weight[row_idx, :].fill_(mag * a)
 
         for row_idx in range(out_features):
-            if row_idx not in row_specs:
+            if row_idx not in epi_row_specs:
                 layer.weight[row_idx, :].uniform_(-a, a)
 
         # orthogonalize
         W_t = layer.weight.data.t()
         Q, R = torch.linalg.qr(W_t, mode='reduced')
-        W_ortho = torch.mm(R.t(), Q.t())
-        print(f"W_ortho row 0: {W_ortho[0, :]}")
-        print(f"layer.weight row 0: {layer.weight[0, :]}")
-        print(f"W_ortho row 2: {W_ortho[2, :]}")
-        print(f"pre copy layer.weight row 2: {layer.weight[2, :]}")
+        W_ortho = torch.mm(R.t(), Q.t())        # print(f"pre copy layer.weight row 2: {layer.weight[2, :6]}")
         layer.weight.detach().copy_(W_ortho)
-        print(f"post copy layer.weight row 0: {layer.weight[0, :]}")
-        layer.weight.detach().copy_(W_ortho)
-
-# def epi_initialize(layer: nn.Linear, row_specs=None):
-#     """
-#     Initializes `layer.weight` (shape: [out_features, in_features]) so that:
-#       1. Compute the Xavier (Glorot) bound via:
-#            a = sqrt(6.0 / (fan_in + fan_out))
-#       2. For each (row_index -> magnitude) in `row_specs`, fill that row
-#          with (magnitude * a).
-#       3. Fill all other rows uniformly in [-a, a].
-#       4. Orthogonalize the result by QR factorization on W^T => W = R^T Q^T.
-
-#     Args:
-#         layer (nn.Linear): The linear layer whose weights we are initializing.
-#         row_specs (dict, optional): A dictionary of {row_index: magnitude}, where
-#                                     magnitude ∈ [-1, 1]. Defaults to None.
-#         a (float, optional): If provided, use this as the bound. Otherwise,
-#                              compute via Xavier initialization. Defaults to None.
-
-#     Note:
-#         Perfect orthogonality might be compromised by locking certain rows, but
-#         we at least try to preserve as much orthogonality as possible.
-#     """
-#     if row_specs is None:
-#         row_specs = {}  # by default, no pinned rows
-
-#     out_features, in_features = layer.weight.shape
-
-#     # Compute the Xavier (Glorot) bound
-#     a = math.sqrt(6.0 / (in_features + out_features))
-
-#     # Validate user-specified rows
-#     for row_idx, mag in row_specs.items():
-#         if row_idx < 0 or row_idx >= out_features:
-#             raise ValueError(f"Row index {row_idx} is out of range [0, {out_features-1}].")
-#         if not (-1.0 <= mag <= 1.0):
-#             raise ValueError(f"Row {row_idx} magnitude must be in [-1, 1], got {mag}.")
-
-#     with torch.no_grad():
-#         W = layer.weight  # shape: [out_features, in_features]
-
-#         # 1) Fill pinned rows
-#         for row_idx, mag in row_specs.items():
-#             W[row_idx, :].fill_(mag * a)
-
-#         # 2) Fill other rows in [-a, a]
-#         for row_idx in range(out_features):
-#             if row_idx not in row_specs:
-#                 W[row_idx, :].uniform_(-a, a)
-
-#         # 3) Orthogonalize (QR factorization)
-#         W_t = W.data.t()             # shape: [in_features, out_features]
-#         Q, R = torch.qr(W_t)         # Q: [in_features, in_features], R: [in_features, out_features]
-#         W_ortho = torch.mm(R.t(), Q.t())  # shape: [out_features, in_features]
-
-#         # 4) Copy back
-#         W.copy_(W_ortho)
+        print(f"post copy layer.weight row 0: {layer.weight[0, :6]}")
+        print(f"post copy layer.weight row 1: {layer.weight[1, :6]}")
+        print(f"post copy layer.weight row 2: {layer.weight[2, :6]}")
 
 def stable_hash(s, mod=10000):
     """Generate a stable hash for a string."""
@@ -187,13 +135,10 @@ def embed_string(s, embedding_dim=128):
     return embedding
 
 def test_epi_init():
-    # Build a small sequential net:
-    # Input: 128 -> Hidden: 512 -> Output: 20
-    # Use tanh nonlinearity, and custom initialization as specified.
     model = nn.Sequential(
-        nn.Linear(128, 512),
-        nn.Tanh(),
-        nn.Linear(512, 20),
+        nn.Linear(128, 1028),
+        nn.ReLU(),
+        nn.Linear(1028, 20),
     )
 
     # 1) Orthogonal init for the first layer
@@ -210,7 +155,13 @@ def test_epi_init():
 
     # Print the outputs
     print("Network outputs:")
+    torch.set_printoptions(sci_mode=False)
     print(y)
+
+    random_inputs = torch.randn(10, 128)
+    for idx, input_vector in enumerate(random_inputs):
+        output = model(input_vector)
+        print(f"Output for input vector {idx + 1}:\n{output}\n")
 
 if __name__ == "__main__":
     test_epi_init()
