@@ -1,100 +1,99 @@
-########################################################################################
-###########   a    ##########################         ##########################    a ##
-######                 ######################     g                   a######        ###
-#######   c     #    g     ###############              #################    c     #####
-#########         ###        ###########                 ################       ########
-############        ###         ########       c         ###########   g     ###########
-################      ##           #####                  ########         #############
-#########                          ###    c        a     ######        #################
-##########      #######              #       AAAAAA        ###       ######      #######
-#######   a     #########       g            AAAAAA                    ########        #
-######            ##########                 AAAAAA                      #########    ##
-###        #          ########               AAAAAA          #####      #######        #
-##   c   #####            ######             AAAAAA       #########       ####     c   #
-#        ####        a       #####            g          ##########                    #
-## g     ###   c              ###                         ###########    g    g        #
-###     c  ###        g    ###                               ########                  #
-######      ####         ####       a        g               #########      ###     c  #
-#######         #########      g                              #########    ######      #
-##########           c               ###              g      ##########      ####      #
-##########     g                    #####                   ###########   a   ####     #
-################      ##    c      #######                 #############      ####     #
-##                  ###         ###########        c      ############  c        #     #
-###  g             ###   g    ###############            #############    a        g   #
-##          a   ####       ####################       #########################        #
-######  c   ###             #################                                          #
-###########            c                         a    ###########################      #
-##########         ##########################         ##########################       #
-###########       ###########################        ##########################        #
-###########   a                                       #################             a ##
-######                 ######################     g                   a###           ###
-#######   c     #    g     ###############              #################    c     #####
-#########                    ###########                 ################       ########
-############                    ########       c         ###########   g     ###########
-################      ##           #####                  ########         #############
-#########                          ###    c        a     ######        #################
-##########      #######              #       AAAAAA        ###       ######      #######
-#######   a     #########       g            AAAAAA                    ###   a         #
-######            ##########                 AAAAAA                      ###          ##
-###        #          ########               AAAAAA          #####      #######        #
-##   c   #####            ######             AAAAAA       #########       ####     c   #
-#        ####        a       #####            g          ##########                    #
-## g     ###   c              ###                         ###########    g    g        #
-###     c  ###        g    ###                               ########                  #
-######      ####         ####       a        g               #########      ###     c  #
-#######         #########      g                              #########    ######      #
-##########           c               ###              g      ##########      ####      #
-##########     g                    #####                   ###########   a   ####     #
-################      ##    c      #######                 #############      ####     #
-##                  ###         ###########        c      ############  c        #     #
-###  g             ###   g      #############            #############    a        g   #
-##          a   ####             ##############       #########################        #
-######  c   ###                    #########                                           #
-###########        #   c                         a    ##################################
-#####################                         ##########################################
-#####################  a   c                               g   c   #####################
-#######     c                                g     c    A   c   ########################
-######   g       ######                         c     g       ##########################
-#####         c   #################                 #################       c   g  #####
-####   a   g       ###############   c       g       #############   a       g       c #
-###           c       #############                   ###########                   g  #
-##   c   #######   g   ###########   c                 #########   g                 c #
-##   g   ###########   ###########                                                     #
-#   a   #############   #######   g                    ######       #######   g        #
-#     #################   ######                                                       #
-#    ###################   #####          #######       ######       ###        ########
-#   #####################   ####                                      ##################
-#  #######################   ###  ############                 c       #################
-# #########################   ## ################                   g   ################
-# ##########################                                      g   c   ##############
-# ##########################   #######                                 a   #############
-# #####################                                                   ##############
-# ######################                                            g   c   ############
-# ##################   g           g                                        ############
-# ################                                                  c   g   ############
-# ###############                                                   a       ############
-# ###########   g        c              g                                   ############
-# #######       c  a                                            c   g       ############
-# ##   a                                            a               c       ############
-#               a                                                       c   ############
-#   g                  #                                                g   ############
-#   c                ######################   g    c                          ##########
-#                   ####################                                    g   ########
-#   g              ####################                    c                    ########
-##                ###################                 ###############   g   c   ########
-###              ###################               ##################       a   ########
-#######   a      ##################                 ################       g   #########
-########         #################                    a   g                    #########
-##########       ################                                 c         c   ########
-###########   g   ###############     AAAAAAAAAAA     ##############   g       #########
-############      ##############                        ###########       c   ##########
-#############       ###########                          ########   g       ############
-##############   a    ########                 #####      #######           ############
-###############                                             #####           ############
-################   g                                     c   ###   g   c   #############
-#################                                      g       a       #################
-#c                                                                    ##################
-#     ################                                     g   a       #################
-#                    a##                              a        g        ################
-########################################################################################
-
+WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW
+WWWWWWWWWWW   a    WWWWWWWWWWWWWWWWWWWWWWWWWW         WWWWWWWWWWWWWWWWWWWWWWWWWW    a WW
+WWWWWW                 WWWWWWWWWWWWWWWWWWWWWW     g                   aWWWWWW        WWW
+WWWWWWW   c     W    g     WWWWWWWWWWWWWWW              WWWWWWWWWWWWWWWWW    c     WWWWW
+WWWWWWWWW         WWW        WWWWWWWWWWW                 WWWWWWWWWWWWWWWW       WWWWWWWW
+WWWWWWWWWWWW        WWW         WWWWWWWW       c         WWWWWWWWWWW   g     WWWWWWWWWWW
+WWWWWWWWWWWWWWWW      WW           WWWWW                  WWWWWWWW         WWWWWWWWWWWWW
+WWWWWWWWW                          WWW    c        a     WWWWWW        WWWWWWWWWWWWWWWWW
+WWWWWWWWWW      WWWWWWW              W       AAAAAA        WWW       WWWWWW      WWWWWWW
+WWWWWWW   a     WWWWWWWWW       g            AAAAAA                    WWWWWWWW        W
+WWWWWW            WWWWWWWWWW                 AAAAAA                      WWWWWWWWW    WW
+WWW        W          WWWWWWWW               AAAAAA          WWWWW      WWWWWWW        W
+WW   c   WWWWW            WWWWWW             AAAAAA       WWWWWWWWW       WWWW     c   W
+W        WWWW        a       WWWWW            g          WWWWWWWWWW                    W
+WW g     WWW   c              WWW                         WWWWWWWWWWW    g    g        W
+WWW     c  WWW        g    WWW                               WWWWWWWW                  W
+WWWWWW      WWWW         WWWW       a        g               WWWWWWWWW      WWW     c  W
+WWWWWWW         WWWWWWWWW      g                              WWWWWWWWW    WWWWWW      W
+WWWWWWWWWW           c               WWW              g      WWWWWWWWWW      WWWW      W
+WWWWWWWWWW     g                    WWWWW                   WWWWWWWWWWW   a   WWWW     W
+WWWWWWWWWWWWWWWW      WW    c      WWWWWWW                 WWWWWWWWWWWWW      WWWW     W
+WW                  WWW         WWWWWWWWWWW        c      WWWWWWWWWWWW  c        W     W
+WWW  g             WWW   g    WWWWWWWWWWWWWWW            WWWWWWWWWWWWW    a        g   W
+WW          a   WWWW       WWWWWWWWWWWWWWWWWWWW       WWWWWWWWWWWWWWWWWWWWWWWWW        W
+WWWWWW  c   WWW             WWWWWWWWWWWWWWWWW                                          W
+WWWWWWWWWWW            c                         a    WWWWWWWWWWWWWWWWWWWWWWWWWWW      W
+WWWWWWWWWW         WWWWWWWWWWWWWWWWWWWWWWWWWW         WWWWWWWWWWWWWWWWWWWWWWWWWW       W
+WWWWWWWWWWW       WWWWWWWWWWWWWWWWWWWWWWWWWWW        WWWWWWWWWWWWWWWWWWWWWWWWWW        W
+WWWWWWWWWWW   a                                       WWWWWWWWWWWWWWWWW             a WW
+WWWWWW                 WWWWWWWWWWWWWWWWWWWWWW     g                   aWWW           WWW
+WWWWWWW   c     W    g     WWWWWWWWWWWWWWW              WWWWWWWWWWWWWWWWW    c     WWWWW
+WWWWWWWWW                    WWWWWWWWWWW                 WWWWWWWWWWWWWWWW       WWWWWWWW
+WWWWWWWWWWWW                    WWWWWWWW       c         WWWWWWWWWWW   g     WWWWWWWWWWW
+WWWWWWWWWWWWWWWW      WW           WWWWW                  WWWWWWWW         WWWWWWWWWWWWW
+WWWWWWWWW                          WWW    c        a     WWWWWW        WWWWWWWWWWWWWWWWW
+WWWWWWWWWW      WWWWWWW              W       AAAAAA        WWW       WWWWWW      WWWWWWW
+WWWWWWW   a     WWWWWWWWW       g            AAAAAA                    WWW   a         W
+WWWWWW            WWWWWWWWWW                 AAAAAA                      WWW          WW
+WWW        W          WWWWWWWW               AAAAAA          WWWWW      WWWWWWW        W
+WW   c   WWWWW            WWWWWW             AAAAAA       WWWWWWWWW       WWWW     c   W
+W        WWWW        a       WWWWW            g          WWWWWWWWWW                    W
+WW g     WWW   c              WWW                         WWWWWWWWWWW    g    g        W
+WWW     c  WWW        g    WWW                               WWWWWWWW                  W
+WWWWWW      WWWW         WWWW       a        g               WWWWWWWWW      WWW     c  W
+WWWWWWW         WWWWWWWWW      g                              WWWWWWWWW    WWWWWW      W
+WWWWWWWWWW           c               WWW              g      WWWWWWWWWW      WWWW      W
+WWWWWWWWWW     g                    WWWWW                   WWWWWWWWWWW   a   WWWW     W
+WWWWWWWWWWWWWWWW      WW    c      WWWWWWW                 WWWWWWWWWWWWW      WWWW     W
+WW                  WWW         WWWWWWWWWWW        c      WWWWWWWWWWWW  c        W     W
+WWW  g             WWW   g      WWWWWWWWWWWWW            WWWWWWWWWWWWW    a        g   W
+WW          a   WWWW             WWWWWWWWWWWWWW       WWWWWWWWWWWWWWWWWWWWWWWWW        W
+WWWWWW  c   WWW                    WWWWWWWWW                                           W
+WWWWWWWWWWW        W   c                         a    WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW
+WWWWWWWWWWWWWWWWWWWWW                         WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW
+WWWWWWWWWWWWWWWWWWWWW  a   c                               g   c   WWWWWWWWWWWWWWWWWWWWW
+WWWWWWW     c                                g     c    A   c   WWWWWWWWWWWWWWWWWWWWWWWW
+WWWWWW   g       WWWWWW                         c     g       WWWWWWWWWWWWWWWWWWWWWWWWWW
+WWWWW         c   WWWWWWWWWWWWWWWWW                 WWWWWWWWWWWWWWWWW       c   g  WWWWW
+WWWW   a   g       WWWWWWWWWWWWWWW   c       g       WWWWWWWWWWWWW   a       g       c W
+WWW           c       WWWWWWWWWWWWW                   WWWWWWWWWWW                   g  W
+WW   c   WWWWWWW   g   WWWWWWWWWWW   c                 WWWWWWWWW   g                 c W
+WW   g   WWWWWWWWWWW   WWWWWWWWWWW                                                     W
+W   a   WWWWWWWWWWWWW   WWWWWWW   g                    WWWWWW       WWWWWWW   g        W
+W     WWWWWWWWWWWWWWWWW   WWWWWW                                                       W
+W    WWWWWWWWWWWWWWWWWWW   WWWWW          WWWWWWW       WWWWWW       WWW        WWWWWWWW
+W   WWWWWWWWWWWWWWWWWWWWW   WWWW                                      WWWWWWWWWWWWWWWWWW
+W  WWWWWWWWWWWWWWWWWWWWWWW   WWW  WWWWWWWWWWWW                 c       WWWWWWWWWWWWWWWWW
+W WWWWWWWWWWWWWWWWWWWWWWWWW   WW WWWWWWWWWWWWWWWW                   g   WWWWWWWWWWWWWWWW
+W WWWWWWWWWWWWWWWWWWWWWWWWWW                                      g   c   WWWWWWWWWWWWWW
+W WWWWWWWWWWWWWWWWWWWWWWWWWW   WWWWWWW                                 a   WWWWWWWWWWWWW
+W WWWWWWWWWWWWWWWWWWWWW                                                   WWWWWWWWWWWWWW
+W WWWWWWWWWWWWWWWWWWWWWW                                            g   c   WWWWWWWWWWWW
+W WWWWWWWWWWWWWWWWWW   g           g                                        WWWWWWWWWWWW
+W WWWWWWWWWWWWWWWW                                                  c   g   WWWWWWWWWWWW
+W WWWWWWWWWWWWWWW                                                   a       WWWWWWWWWWWW
+W WWWWWWWWWWW   g        c              g                                   WWWWWWWWWWWW
+W WWWWWWW       c  a                                            c   g       WWWWWWWWWWWW
+W WW   a                                            a               c       WWWWWWWWWWWW
+W               a                                                       c   WWWWWWWWWWWW
+W   g                  W                                                g   WWWWWWWWWWWW
+W   c                WWWWWWWWWWWWWWWWWWWWWW   g    c                          WWWWWWWWWW
+W                   WWWWWWWWWWWWWWWWWWWW                                    g   WWWWWWWW
+W   g              WWWWWWWWWWWWWWWWWWWW                    c                    WWWWWWWW
+WW                WWWWWWWWWWWWWWWWWWW                 WWWWWWWWWWWWWWW   g   c   WWWWWWWW
+WWW              WWWWWWWWWWWWWWWWWWW               WWWWWWWWWWWWWWWWWW       a   WWWWWWWW
+WWWWWWW   a      WWWWWWWWWWWWWWWWWW                 WWWWWWWWWWWWWWWW       g   WWWWWWWWW
+WWWWWWWW         WWWWWWWWWWWWWWWWW                    a   g                    WWWWWWWWW
+WWWWWWWWWW       WWWWWWWWWWWWWWWW                                 c         c   WWWWWWWW
+WWWWWWWWWWW   g   WWWWWWWWWWWWWWW     AAAAAAAAAAA     WWWWWWWWWWWWWW   g       WWWWWWWWW
+WWWWWWWWWWWW      WWWWWWWWWWWWWW                        WWWWWWWWWWW       c   WWWWWWWWWW
+WWWWWWWWWWWWW       WWWWWWWWWWW                          WWWWWWWW   g       WWWWWWWWWWWW
+WWWWWWWWWWWWWW   a    WWWWWWWW                 WWWWW      WWWWWWW           WWWWWWWWWWWW
+WWWWWWWWWWWWWWW                                             WWWWW           WWWWWWWWWWWW
+WWWWWWWWWWWWWWWW   g                                     c   WWW   g   c   WWWWWWWWWWWWW
+WWWWWWWWWWWWWWWWW                                      g       a       WWWWWWWWWWWWWWWWW
+Wc                                                                    WWWWWWWWWWWWWWWWWW
+W     WWWWWWWWWWWWWWWW                                     g   a       WWWWWWWWWWWWWWWWW
+W                    aWW                              a        g        WWWWWWWWWWWWWWWW
+WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW
