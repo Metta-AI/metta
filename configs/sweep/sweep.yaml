@@ -1,6 +1,8 @@
 
 
 metric: action.use.altar
+test: raw # glicko, elo, raw
+
 rollout_count: 100000
 num_random_samples: 10
 resume: true
