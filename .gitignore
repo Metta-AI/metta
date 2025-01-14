@@ -6,7 +6,6 @@ replays
 *.egg-info
 /build/
 /build_debug/
-/third_party/puffergrid/build/
 .DS_Store
 .task
 outputs
