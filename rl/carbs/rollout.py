@@ -79,7 +79,7 @@ class CarbsSweepRollout:
 
         train_start_time = time.time()
         trainer = hydra.utils.instantiate(train_cfg.trainer, train_cfg, wandb_run, policy_store)
-        initial_pr = trainer.initial_pr
+        initial_pr = policy_store.policy(trainer.initial_pr_uri())
 
         sweep_stats.update({
             "score.metric": self.cfg.sweep.metric,
@@ -101,7 +101,7 @@ class CarbsSweepRollout:
 
         eval_start_time = time.time()
 
-        final_pr = trainer.last_pr
+        final_pr = policy_store.policy(trainer.last_pr_uri())
 
         policy_store.add_to_wandb_run(wandb_run.name, final_pr)
         logger.info(f"Final policy saved to {final_pr.uri}")
