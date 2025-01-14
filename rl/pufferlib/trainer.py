@@ -115,11 +115,10 @@ class PufferTrainer:
         logger.info(f"Training complete. Total time: {self.train_time:.2f} seconds")
 
     def _evaluate_policy(self):      
-        if self.cfg.evaluator.baselines.uri:
-            baseline_records = self.policy_store.policies(self.cfg.evaluator.baselines)
-        else:
-            self.cfg.evaluator.baselines.uri = f"wandb://run/{self.cfg.run}"
-            baseline_records = self.policy_store.policies(self.cfg.evaluator.baselines)
+        if not self.cfg.evaluator.baselines.uri:
+            self.cfg.evaluator.baselines.uri = f"file://{self.cfg.trainer.checkpoint_dir}"
+        
+        baseline_records = self.policy_store.policies(self.cfg.evaluator.baselines)
         
         evaluator = hydra.utils.instantiate(self.cfg.evaluator, self.cfg, self.last_pr, baseline_records)
         stats = evaluator.evaluate()
