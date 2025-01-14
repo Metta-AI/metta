@@ -1,3 +1,5 @@
+# @package agent
+
 _target_: agent.metta_agent.MettaAgent
 
 observation_encoder:
@@ -6,8 +8,6 @@ observation_encoder:
   obs_key: grid_obs
   normalize_features: true
   auto_normalize: false
-  track_last_action: ${env.track_last_action}
-  kinship: ${env.game.kinship}
 
 fc:
   layers: 1
@@ -18,8 +18,8 @@ decoder:
 
 core:
   rnn_type: gru
-  rnn_num_layers: 1
-  rnn_size: 128
+  rnn_num_layers: 2
+  rnn_size: 512
 
 policy_selector:
   uri: null
@@ -29,9 +29,12 @@ policy_selector:
   generation: null
 
 critic:
-  hidden_sizes: [] # Set to [] for no hidden layer
+  hidden_sizes: [1024] #set to [] for no hidden layer
+  nonlinearity: nn.ReLU()
+  initialization: xavier
 
 actor:
-  hidden_sizes: []
-  nonlinearity: nn.ReLU()
-  initialization: he
+  hidden_sizes: [512]
+  nonlinearity: nn.ELU()
+  initialization: xavier
+
