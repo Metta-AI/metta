@@ -3,8 +3,8 @@ from libc.stdio cimport printf
 from libcpp.string cimport string
 from libcpp.map cimport map
 
-from puffergrid.grid_object cimport TypeId, GridObjectId
-from puffergrid.action cimport ActionHandler, ActionArg
+from mettagrid.grid_object cimport TypeId, GridObjectId
+from mettagrid.action cimport ActionHandler, ActionArg
 from mettagrid.objects cimport Agent
 
 cdef struct StatNames:
