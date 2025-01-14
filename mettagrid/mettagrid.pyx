@@ -8,9 +8,9 @@ import gymnasium as gym
 from omegaconf import OmegaConf
 from types import SimpleNamespace
 
-from puffergrid.grid_env cimport GridEnv
-from puffergrid.grid_object cimport GridObject
-from puffergrid.observation_encoder cimport ObsType
+from mettagrid.grid_env cimport GridEnv
+from mettagrid.grid_object cimport GridObject
+from mettagrid.observation_encoder cimport ObsType
 
 from mettagrid.objects cimport ObjectLayers, Agent, ResetHandler, Wall, Generator, Converter, Altar
 from mettagrid.observation_encoder cimport MettaObservationEncoder, MettaCompactObservationEncoder

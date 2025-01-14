@@ -30,7 +30,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._grid_env = self._c_env
         self._num_agents = self._c_env.num_agents()
 
-        # self._grid_env = PufferGridEnv(self._c_env)
         env = self._grid_env
 
         self._env = env

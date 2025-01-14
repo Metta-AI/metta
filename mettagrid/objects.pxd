@@ -5,11 +5,11 @@
 from libcpp.vector cimport vector
 from libcpp.map cimport map
 from libcpp.string cimport string
-from puffergrid.grid_env import StatsTracker
+from mettagrid.grid_env import StatsTracker
 from libc.stdio cimport printf
-from puffergrid.observation_encoder cimport ObservationEncoder, ObsType
-from puffergrid.grid_object cimport GridObject, TypeId, GridCoord, GridLocation, GridObjectId
-from puffergrid.event cimport EventHandler, EventArg
+from mettagrid.observation_encoder cimport ObservationEncoder, ObsType
+from mettagrid.grid_object cimport GridObject, TypeId, GridCoord, GridLocation, GridObjectId
+from mettagrid.event cimport EventHandler, EventArg
 
 cdef enum GridLayer:
     Agent_Layer = 0
@@ -214,4 +214,3 @@ cdef class ResetHandler(EventHandler):
 
 cdef enum Events:
     Reset = 0
-
