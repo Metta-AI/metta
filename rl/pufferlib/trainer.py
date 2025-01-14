@@ -102,10 +102,10 @@ class PufferTrainer:
             self._process_stats()
             if self.epoch % self.trainer_cfg.checkpoint_interval == 0:
                 self._checkpoint_trainer()
+            if self.epoch % self.trainer_cfg.evaluate_interval == 0 and self.trainer_cfg.evaluate:
+                self._evaluate_policy()
             if self.epoch % self.trainer_cfg.wandb_checkpoint_interval == 0:
                 self._save_policy_to_wandb()
-            if self.epoch % self.trainer_cfg.evaluate_interval == 0:
-                self._evaluate_policy()
 
             self._on_train_step()
 
@@ -114,11 +114,12 @@ class PufferTrainer:
         self._save_policy_to_wandb()
         logger.info(f"Training complete. Total time: {self.train_time:.2f} seconds")
 
-    def _evaluate_policy(self):
-        if self.cfg.evaluator.baselines.uri is None:
-            return
-
+    def _evaluate_policy(self):      
+        if not self.cfg.evaluator.baselines.uri:
+            self.cfg.evaluator.baselines.uri = f"file://{self.cfg.trainer.checkpoint_dir}"
+        
         baseline_records = self.policy_store.policies(self.cfg.evaluator.baselines)
+        
         evaluator = hydra.utils.instantiate(self.cfg.evaluator, self.cfg, self.last_pr, baseline_records)
         stats = evaluator.evaluate()
         evaluator.close()
@@ -129,7 +130,7 @@ class PufferTrainer:
 
         results, formatted_results = get_test_results(
             Glicko2Test(stats, self.cfg.evaluator.stat_categories['altar']),
-            self.cfg.evaluator.baselines.glicko_scores_path)
+            scores_path = self.cfg.trainer.glicko_scores_path)      
 
         rating = results.get(self.last_pr.name, {}).get("rating", None)
 
