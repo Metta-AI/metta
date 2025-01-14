@@ -13,11 +13,19 @@ def build_ext(srcs, module_name=None):
     return Extension(
         module_name,
         srcs,
-        # include_dirs=["third_party/puffergrid"],
         define_macros=[('NPY_NO_DEPRECATED_API', 'NPY_1_7_API_VERSION')],
     )
 
 ext_modules = [
+
+    build_ext(["mettagrid/action.pyx"]),
+    build_ext(["mettagrid/event.pyx"]),
+    build_ext(["mettagrid/grid.cpp"]),
+    build_ext(["mettagrid/grid_env.pyx"]),
+    build_ext(["mettagrid/grid_object.pyx"]),
+    build_ext(["mettagrid/base_encoder.pyx"]),
+    build_ext(["mettagrid/stats_tracker.pyx"]),
+
     build_ext(["mettagrid/objects.pyx"]),
     build_ext(["mettagrid/observation_encoder.pyx"]),
     build_ext(["mettagrid/actions/actions.pyx"]),
