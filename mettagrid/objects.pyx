@@ -3,7 +3,7 @@
 from libc.stdio cimport printf
 from libcpp.string cimport string
 from libcpp.vector cimport vector
-from puffergrid.grid_object cimport GridObject, GridObjectId
+from mettagrid.grid_object cimport GridObject, GridObjectId
 
 cdef vector[string] ObjectTypeNames = <vector[string]>[
     "agent",
