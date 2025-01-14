@@ -23,15 +23,6 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
-    - name: Install PufferGrid
-      run: |
-        cd ..
-        git clone https://github.com/Metta-AI/puffergrid.git
-        cd puffergrid
-        git pull
-        python setup.py build_ext --inplace
-        pip install -e .
-
     - name: Install PufferLib
       run: |
         cd ..
