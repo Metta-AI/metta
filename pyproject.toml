@@ -11,7 +11,7 @@ license = "MIT"
 readme = "README.md"
 homepage = "https://daveey.github.io"
 repository = "https://github.com/Metta-AI/mettagrid"
-keywords = ["puffergrid", "gridworld", "minigrid", "rl", "reinforcement-learning", "environment", "gym"]
+keywords = ["gridworld", "minigrid", "rl", "reinforcement-learning", "environment", "gym"]
 include = [
     "**/*.py",
     "**/*.pyx",
