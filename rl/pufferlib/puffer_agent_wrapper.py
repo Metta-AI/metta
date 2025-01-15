@@ -25,25 +25,37 @@ class Recurrent(pufferlib.models.LSTMWrapper):
         # are the weights initialized with orthogonalization?
 
 class PufferAgentWrapper(nn.Module):
-    def __init__(self, agent: MettaAgent, actor_hidden_sizes: List[int], env: PettingZooPufferEnv):
+    def __init__(self, agent: MettaAgent, actor_hidden_sizes: List[int], cfg: OmegaConf, env: PettingZooPufferEnv):
         super().__init__()
         if isinstance(env.single_action_space, pufferlib.spaces.Discrete):
             self.atn_type = make_nn_stack(
                 input_size=agent.decoder_out_size(),
                 hidden_sizes=actor_hidden_sizes,
-                output_size=env.single_action_space.n
+                output_size=env.single_action_space.n,
+                nonlinearity=cfg.nonlinearity,
+                initialization=cfg.initialization,
+                epi_init=cfg.epi_init,
+                epi_row_specs=cfg.epi_row_specs,
             )
             self.atn_param = None
         elif len(env.single_action_space.nvec) == 2:
             self.atn_type = make_nn_stack(
                 input_size=agent.decoder_out_size(),
                 output_size=env.single_action_space.nvec[0],
-                hidden_sizes=actor_hidden_sizes
+                hidden_sizes=actor_hidden_sizes,
+                nonlinearity=cfg.nonlinearity,
+                initialization=cfg.initialization,
+                epi_init=cfg.epi_init,
+                epi_row_specs=cfg.epi_row_specs,
             )
             self.atn_param = make_nn_stack(
                 input_size=agent.decoder_out_size(),
                 output_size=env.single_action_space.nvec[1],
-                hidden_sizes=actor_hidden_sizes
+                hidden_sizes=actor_hidden_sizes,
+                nonlinearity=cfg.nonlinearity,
+                initialization=cfg.initialization,
+                epi_init=cfg.epi_init,
+                epi_row_specs=cfg.epi_row_specs,
             )
         else:
             raise ValueError(f"Unsupported action space: {env.single_action_space}")
@@ -88,7 +100,12 @@ def make_policy(env: PufferEnv, cfg: OmegaConf):
         env.grid_features,
         env.global_features,
         _recursive_=False)
-    puffer_agent = PufferAgentWrapper(agent, list(cfg.agent.actor.hidden_sizes), env)
+    puffer_agent = PufferAgentWrapper(
+        agent,
+        list(cfg.agent.actor.hidden_sizes),
+        OmegaConf.to_container(cfg.agent.actor),
+        env
+    )
 
     if cfg.agent.core.rnn_num_layers > 0:
         puffer_agent = Recurrent(

@@ -11,7 +11,7 @@ adjust epi to allow for various vectors and magnitudes
 get launch to read from simple.matters.yaml
 '''
 
-def initialize_weights(layer, method='xavier', epi_row_specs=None, init_nonlinearity=None, nonlinearity=None):
+def initialize_weights(layer, method='xavier', epi_row_specs=None, nonlinearity=None):
     if method == 'xavier':
         init.xavier_uniform_(layer.weight.data)
     elif method == 'normal':
@@ -21,9 +21,24 @@ def initialize_weights(layer, method='xavier', epi_row_specs=None, init_nonlinea
     elif method == 'orthogonal':
         init.orthogonal_(layer.weight.data)
     elif method == 'epi':
-        epi_initialize_rows(layer, epi_row_specs, init_nonlinearity)
+        epi_initialize_rows(layer, epi_row_specs, nonlinearity)
     else:
         raise ValueError(f"Unknown initialization method: {method}")
+    
+def append_nonlinearity(layers, nonlinearity):
+    if nonlinearity is not None:
+        if nonlinearity == 'tanh':
+            layers.append(nn.Tanh())
+        elif nonlinearity == 'relu':
+            layers.append(nn.ReLU())
+        elif nonlinearity == 'elu':
+            layers.append(nn.ELU())
+        elif nonlinearity == 'sigmoid':
+            layers.append(nn.Sigmoid())
+        elif nonlinearity == 'softmax':
+            layers.append(nn.Softmax(dim=1))
+        else:
+            raise ValueError(f"Unknown nonlinearity: {nonlinearity}")
 
 def make_nn_stack(
     input_size,
@@ -36,7 +51,6 @@ def make_nn_stack(
     use_skip=False,
     epi_init=False,
     epi_row_specs=None,
-    init_nonlinearity=None,
 ):
     """Create a stack of fully connected layers with nonlinearity"""
     sizes = [input_size] + hidden_sizes + [output_size]
@@ -49,13 +63,14 @@ def make_nn_stack(
         #     layers[-1].bias.data = bias_initialization(layers[-1].bias.data)
 
         if i < len(sizes) - 1:
-            layers.append(nonlinearity)
+            # layers.append(nonlinearity)
+            append_nonlinearity(layers, nonlinearity)
 
         if layer_norm and i < len(sizes) - 1:
             layers.append(nn.LayerNorm(sizes[i]))
 
     if epi_init:
-        initialize_weights(layers[-1], method='epi', epi_row_specs=epi_row_specs, init_nonlinearity=init_nonlinearity)
+        initialize_weights(layers[-1], method='epi', epi_row_specs=epi_row_specs, nonlinearity=nonlinearity)
 
     if use_skip:
         return SkipConnectionStack(layers)
@@ -81,8 +96,8 @@ import math
 import torch
 import torch.nn as nn
 
-def epi_initialize_rows(layer: nn.Linear, epi_row_specs=None, init_nonlinearity=None):
-    nn.init.xavier_uniform_(layer.weight, gain=nn.init.calculate_gain(init_nonlinearity))
+def epi_initialize_rows(layer: nn.Linear, epi_row_specs=None, nonlinearity='tanh'):
+    nn.init.xavier_uniform_(layer.weight, gain=nn.init.calculate_gain(nonlinearity))
     if layer.bias is not None:
         nn.init.zeros_(layer.bias)
 
@@ -145,7 +160,10 @@ def test_epi_init():
     initialize_weights(model[0], method='orthogonal')
 
     # 2) epi_initialize for the second layer
-    epi_initialize_rows(model[2], row_specs={0: 0.9, 2: -0.8})
+    epi_initialize_rows(model[2], 
+                        {1: 0.9, 7: 0.2, 8: -0.8, 9: -0.8, 10: -0.8, 11: -0.8, 12: -0.8, 13: -0.8, 14: -0.8, 15: -0.8, 16: -0.8, 17: -0.8}, 
+                        init_nonlinearity='tanh'
+    )
 
     # Create random inputs
     x = torch.randn(10, 128)
