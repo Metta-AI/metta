@@ -104,6 +104,8 @@ class PufferTrainer:
                 self._checkpoint_trainer()
             if self.epoch % self.trainer_cfg.evaluate_interval == 0 and self.trainer_cfg.evaluate:
                 self._evaluate_policy()
+            if self.epoch % self.trainer_cfg.evaluate_interval == 0 and self.trainer_cfg.evaluate:
+                self._evaluate_policy()
             if self.epoch % self.trainer_cfg.wandb_checkpoint_interval == 0:
                 self._save_policy_to_wandb()
 
