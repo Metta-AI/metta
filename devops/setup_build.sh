@@ -9,13 +9,6 @@ python setup.py build_ext --inplace
 pip install -e .
 cd ..
 
-git clone https://github.com/Metta-AI/puffergrid.git
-cd puffergrid
-git pull
-python setup.py build_ext --inplace
-pip install -e .
-cd ..
-
 git clone https://github.com/Metta-AI/pufferlib.git
 cd pufferlib
 git fetch
