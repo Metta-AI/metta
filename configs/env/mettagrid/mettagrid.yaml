@@ -116,4 +116,4 @@ game:
     team_size: 1
     team_reward: 0
 
-track_last_action: false
+track_last_action: true
