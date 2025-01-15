@@ -39,9 +39,3 @@ cd wandb_carbs
 git pull
 pip install -e .
 cd ..
-
-git clone https://github.com/Metta-AI/sample-factory.git
-cd sample-factory
-git pull
-pip install -e .
-cd ..
