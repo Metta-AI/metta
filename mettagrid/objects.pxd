@@ -83,6 +83,7 @@ cdef cppclass Agent(MettaObject):
         this.inventory.resize(InventoryItem.InventoryCount)
         this.max_items = cfg[b"max_inventory"]
         this.energy_reward = float(cfg[b"energy_reward"]) / 1000.0
+        this.shield = False
 
     inline void update_inventory(InventoryItem item, short amount):
         this.inventory[<InventoryItem>item] += amount
