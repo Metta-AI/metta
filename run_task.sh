@@ -26,11 +26,11 @@ fi
 for ((i = start; i <= end; i++)); do
     python -m devops.aws.launch_task \
     --cmd=train \
-    --run=b.alex.matters.0000100.$i \
+    --run=b.alex.matters.0000101.$i \
     --git_branch=alex-epi-init \
     --agent=simple_matters_2 \
     --env.game.actions.attack.cost=251 \
     --env/mettagrid@env=alex_a20_train \
-    --"agent.actor.epi_init=true"
+    --agent.actor.epi_init=true
 
 done

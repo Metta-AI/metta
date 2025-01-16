@@ -102,7 +102,7 @@ def make_policy(env: PufferEnv, cfg: OmegaConf):
     puffer_agent = PufferAgentWrapper(agent,
         cfg.agent,
         env)
-
+    print(puffer_agent.atn_type[2].weight[1][:10])
     if cfg.agent.core.rnn_num_layers > 0:
         puffer_agent = Recurrent(
             env, puffer_agent, input_size=cfg.agent.fc.output_dim,
@@ -115,4 +115,5 @@ def make_policy(env: PufferEnv, cfg: OmegaConf):
 
     puffer_agent._action_names = env.action_names()
     puffer_agent._grid_features = env._grid_env.grid_features()
+    print(puffer_agent.policy.policy.atn_type[2].weight[1][:10])
     return puffer_agent.to(cfg.device)
