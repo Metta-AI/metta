@@ -6,7 +6,8 @@ logger = logging.getLogger("sweep")
 
 def sweep_id_from_name(project: str, name: str) -> str:
     api = wandb.Api()
-    sweeps = api.project(project).sweeps()
+    project = api.project(project)
+    sweeps = project.sweeps()
     for sweep in sweeps:
         if sweep.name == name:
             return sweep.id

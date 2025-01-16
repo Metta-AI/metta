@@ -79,7 +79,12 @@ class CarbsSweepRollout:
 
         train_start_time = time.time()
         trainer = hydra.utils.instantiate(train_cfg.trainer, train_cfg, wandb_run, policy_store)
-        initial_pr = policy_store.policy(trainer.initial_pr_uri())
+        if not train_cfg.trainer.baseline_policy_uri:
+            initial_pr = policy_store.policy(trainer.initial_pr_uri())
+        else:
+            baseline_pr = {'uri': train_cfg.trainer.baseline_policy_uri, 'type':'top', 'range': 1, 'metric': 'epoch', 'filters': {}}
+            baseline_cfg= OmegaConf.create(baseline_pr)
+            initial_pr = policy_store.policy(baseline_cfg)
 
         sweep_stats.update({
             "score.metric": self.cfg.sweep.metric,

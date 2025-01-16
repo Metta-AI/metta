@@ -1,6 +1,6 @@
 
 
-metric: episode.reward.mean #action.use.altar #is this what i want? i guess, or episode reward 
+metric: action.use.altar #is this what i want? i guess, or episode reward 
 test: raw # glicko, elo, raw
 
 rollout_count: 100000
@@ -37,6 +37,7 @@ parameters:
   #     max: 1
 
   trainer:
+    baseline_policy_uri: null
     # learning_rate:
     #   space: log
     #   min: 1e-5
