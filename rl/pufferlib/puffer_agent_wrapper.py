@@ -96,7 +96,11 @@ def make_policy(env: PufferEnv, cfg: OmegaConf):
         env.grid_features,
         env.global_features,
         _recursive_=False)
-    puffer_agent = PufferAgentWrapper(agent, list(cfg.agent.actor.hidden_sizes), env)
+    if cfg.agent.actor.hidden_sizes is None:
+        actor_hidden_sizes = []
+    else:
+        actor_hidden_sizes = [cfg.agent.actor.hidden_sizes]
+    puffer_agent = PufferAgentWrapper(agent, actor_hidden_sizes, env)
 
     if cfg.agent.core.rnn_num_layers > 0:
         puffer_agent = Recurrent(

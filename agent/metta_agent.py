@@ -39,6 +39,11 @@ class MettaAgent(nn.Module, MettaAgentInterface):
             cfg.decoder,
             cfg.core.rnn_size)
 
+        critic_hidden_sizes = cfg.critic.hidden_sizes
+        if critic_hidden_sizes is None:
+            critic_hidden_sizes = []
+        else:
+            critic_hidden_sizes = [critic_hidden_sizes]
         self._critic_linear = make_nn_stack(
             self.decoder_out_size(),
             1,

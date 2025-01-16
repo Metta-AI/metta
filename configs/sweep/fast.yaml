@@ -62,9 +62,34 @@ parameters:
 
     core:
       rnn_num_layers:
+        space: linear
+        is_int: true
         min: 1
-        max: 2
+        max: 4
       rnn_size:
-        search_center: 32
+        space: pow2
         min: 32
-        max: 64
+        max: 4096
+
+    critic:
+      hidden_sizes:
+        space: pow2
+        is_int: true
+        min: 128
+        max: 16384
+      
+    actor:
+      hidden_sizes:
+        space: pow2
+        is_int: true
+        min: 64
+        max: 8192
+        
+    # core:
+    #   rnn_num_layers:
+    #     min: 1
+    #     max: 2
+    #   rnn_size:
+    #     search_center: 32
+    #     min: 32
+    #     max: 64
