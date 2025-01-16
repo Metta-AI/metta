@@ -1,0 +1,43 @@
+# @package agent
+
+_target_: agent.metta_agent.MettaAgent
+
+observation_encoder:
+  _target_: agent.simple_encoder.SimpleConvAgent
+  cnn_channels: 64
+  obs_key: grid_obs
+  normalize_features: true
+  auto_normalize: false
+  track_last_action: ${env.track_last_action}
+  kinship: ${env.game.kinship}
+
+fc:
+  layers: 1
+  output_dim: 128
+
+decoder:
+  _target_: agent.decoder.Decoder
+
+core:
+  rnn_type: gru
+  rnn_num_layers: 1
+  rnn_size: 128
+
+policy_selector:
+  uri: null
+  type: top
+  range: 0
+  metric: final.score
+  generation: null
+
+critic:
+  hidden_sizes: [] #set to [] for no hidden layer
+  nonlinearity: relu
+  initialization: xavier
+
+actor:
+  hidden_sizes: []
+  nonlinearity: tanh
+  initialization: xavier
+  epi_init: false
+  epi_row_specs: {1: 0.9, 2: 0.5, 3: 0.7, 4: 0.7, 5: 0.7, 6: 0.7, 7: 0.8, 8: -0.8, 9: -0.8, 10: -0.8, 11: -0.8, 12: -0.8, 13: -0.8, 14: -0.8, 15: -0.8, 16: -0.8, 17: -0.9}

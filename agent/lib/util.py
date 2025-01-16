@@ -20,6 +20,8 @@ def initialize_weights(layer, method='xavier', epi_row_specs=None, nonlinearity=
         init.kaiming_uniform_(layer.weight.data, nonlinearity='relu')
     elif method == 'orthogonal':
         init.orthogonal_(layer.weight.data)
+    elif method == 'elu':
+        init.kaiming_uniform_(layer.weight.data, nonlinearity='elu')
     elif method == 'epi':
         epi_initialize_rows(layer, epi_row_specs, nonlinearity)
     else:
