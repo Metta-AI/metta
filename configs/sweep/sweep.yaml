@@ -120,7 +120,7 @@ parameters:
   #       min: 0
   #       max: 1
 
-  # agent:
+  agent:
   #   observation_encoders:
   #     grid_obs:
   #       label_dim:
@@ -153,13 +153,27 @@ parameters:
     #       min: 32
     #       max: 512
 
-  #   core:
-  #     rnn_num_layers:
-  #       space: linear
-  #       is_int: true
-  #       min: 1
-  #       max: 4
-  #     rnn_size:
-  #       space: pow2
-  #       min: 32
-  #       max: 512
+    core:
+      rnn_num_layers:
+        space: linear
+        is_int: true
+        min: 1
+        max: 4
+      rnn_size:
+        space: pow2
+        min: 32
+        max: 4096
+
+    critic:
+      hidden_sizes:
+        space: pow2
+        is_int: true
+        min: 128
+        max: 16384
+      
+    actor:
+      hidden_sizes:
+        space: pow2
+        is_int: true
+        min: 64
+        max: 8192
