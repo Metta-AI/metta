@@ -9,12 +9,8 @@ python setup.py build_ext --inplace
 pip install -e .
 cd ..
 
-git clone https://github.com/Metta-AI/pufferlib.git
+git clone -b metta --depth 1 https://github.com/Metta-AI/pufferlib.git
 cd pufferlib
-git fetch
-git stash
-git checkout metta
-git pull
 python setup.py build_ext --inplace
 pip install -e .
 cd ..
