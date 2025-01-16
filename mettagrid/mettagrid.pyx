@@ -39,7 +39,6 @@ cdef class MettaGrid(GridEnv):
             obs_encoder = MettaCompactObservationEncoder()
 
         actions = []
-        print(f"shield enabled: {cfg.actions.shield.enabled}")
         if cfg.actions.noop.enabled:
             actions.append(Noop(cfg.actions.noop))
         if cfg.actions.move.enabled:
