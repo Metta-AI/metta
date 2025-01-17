@@ -194,6 +194,15 @@ class PufferTrainer:
                     for k, v in pufferlib.utils.unroll_nested_dict(i):
                         infos[k].append(v)
 
+                # Count the frequency of each action
+                action_counts = np.bincount(actions, minlength=20)
+
+                # Check if the agent step is a multiple of 16384
+                if self.agent_step % 256 == 0: #16384
+                    print(f"Action frequency histogram at step {self.agent_step}:")
+                    for action_value, count in enumerate(action_counts):
+                        print(f"Action {action_value}: {count}")
+
             with profile.env:
                 self.vecenv.send(actions)
 
