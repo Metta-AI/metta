@@ -3,7 +3,7 @@ import hydra
 import numpy as np
 import pufferlib
 import sys
-# import pufferlib.cleanrl
+import pufferlib.cleanrl
 sys.modules['pufferlib.frameworks.cleanrl'] = pufferlib.cleanrl
 import pufferlib.models
 import pufferlib.pytorch
