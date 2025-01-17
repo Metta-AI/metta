@@ -295,6 +295,14 @@ class PufferTrainer:
                     entropy_loss = entropy.mean()
                     loss = pg_loss - self.trainer_cfg.ent_coef * entropy_loss + v_loss * self.trainer_cfg.vf_coef
 
+                    # L2 regularization
+                    if self.trainer_cfg.l2_coeff > 0:
+                        reg_loss = 0
+                        for param in self.policy.parameters():
+                            reg_loss += torch.sum(param.pow(2))
+                        reg_loss *= self.trainer_cfg.l2_coeff
+                        loss += reg_loss
+
                 with profile.learn:
                     self.optimizer.zero_grad()
                     loss.backward()
@@ -310,6 +318,7 @@ class PufferTrainer:
                     self.losses.old_approx_kl += old_approx_kl.item() / total_minibatches
                     self.losses.approx_kl += approx_kl.item() / total_minibatches
                     self.losses.clipfrac += clipfrac.item() / total_minibatches
+                    self.losses.l2_loss += reg_loss.item() / total_minibatches
 
             if self.trainer_cfg.target_kl is not None:
                 if approx_kl > self.trainer_cfg.target_kl:
@@ -431,6 +440,7 @@ class PufferTrainer:
             approx_kl=0,
             clipfrac=0,
             explained_variance=0,
+            l2_loss=0,
         )
 
     def _make_vecenv(self):
