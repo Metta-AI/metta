@@ -169,11 +169,11 @@ parameters:
         space: pow2
         is_int: true
         min: 128
-        max: 16384
+        max: 8192
       
     actor:
       hidden_sizes:
         space: pow2
         is_int: true
         min: 64
-        max: 8192
+        max: 4096
