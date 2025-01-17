@@ -54,6 +54,9 @@ def make_nn_stack(
     epi_init=False,
     epi_row_specs=None,
 ):
+    if epi_init:
+        nonlinearity = 'relu' # so we don't accept negative values into the last layer
+        
     """Create a stack of fully connected layers with nonlinearity"""
     sizes = [input_size] + hidden_sizes + [output_size]
     layers = []
