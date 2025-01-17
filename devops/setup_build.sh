@@ -16,6 +16,7 @@ git fetch
 git checkout metta
 python setup.py build_ext --inplace
 pip install -e .
+git stash
 cd ..
 
 git clone https://github.com/Metta-AI/mettagrid.git

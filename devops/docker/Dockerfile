@@ -1,4 +1,4 @@
-FROM daveey/metta-base:latest
+FROM mettaai/metta-base:latest
 
 RUN pip install boto3 chex hydra-core matplotlib pettingzoo
 RUN pip install rich scipy tabulate torchrl
@@ -16,7 +16,6 @@ WORKDIR /workspace/metta
 
 RUN pip install -r requirements.txt
 RUN ./devops/setup_build.sh
-RUN cd deps/pufferlib && git stash
 
 # Download the latest baseline model
 #RUN python -m sample_factory.huggingface.load_from_hub -r metta-ai/baseline -d /workspace/metta-baseline
