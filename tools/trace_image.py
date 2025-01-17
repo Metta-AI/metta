@@ -39,11 +39,9 @@ def nice_actions(action):
         return "use"
     elif action[0] == 4:
         return "attack_" + str(action[1] // 3) + "_" + str(action[1] % 3)
-    elif action[0] == 6:
+    elif action[0] == 5:
         return "shield"
-    elif action[0] == 7:
-        return "gift"
-    elif action[0] == 8:
+    elif action[0] == 6:
         return "swap"
     else:
         return "unknown"
@@ -134,6 +132,10 @@ def trace(cfg: OmegaConf, policy_record: PolicyRecord):
 
         obs, rewards, dones, trunc, infos = vecenv.step(actions.cpu().numpy())
         total_rewards += rewards
+
+        for i in range(len(env.action_success)):
+            agents[i]["action_success"] = env.action_success[i]
+
         if any(dones) or any(trunc):
             break
 
@@ -159,13 +161,9 @@ def trace(cfg: OmegaConf, policy_record: PolicyRecord):
         # Draw the actions:
         for step in range(len(steps)):
             agent = steps[step][id]
-            change = True
-            if step > 0:
-                change = steps[step][id] != steps[step-1][id]
+
             x = 40 + step * 2
             y = 10 + 60 * id + 29
-
-
 
             paint.color = pixie.Color(1, 1, 1, 0.05)
             yo = 20 * agent["energy"]/256
@@ -173,11 +171,12 @@ def trace(cfg: OmegaConf, policy_record: PolicyRecord):
 
             if agent["shield"]:
                 paint.color = SHIELD_COLOR
-                ctx.fill_rect(x, y - 16, 2, 16*2+2)
+                ctx.fill_rect(x, y - 16, 2, 1)
+                ctx.fill_rect(x, y + 16 + 2, 2, 1)
 
             if agent["frozen"]:
                 pass
-            elif not change:
+            elif not agent["action_success"]:
                 paint.color = CONCRETE
                 ctx.fill_rect(x, y, 2, 2)
             elif agent["action_name"] == "noop":
@@ -211,7 +210,7 @@ def trace(cfg: OmegaConf, policy_record: PolicyRecord):
 
             if agent["reward"] > 0:
                 paint.color = AMETHYST
-                ctx.fill_rect(x, y - 16, 2, 6)
+                ctx.fill_rect(x-1, y - 16, 1, 16*2+2)
 
     #output.close()
     image.write_file("output.png")
