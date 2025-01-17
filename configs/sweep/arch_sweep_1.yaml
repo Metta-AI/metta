@@ -162,18 +162,18 @@ parameters:
       rnn_size:
         space: pow2
         min: 32
-        max: 4096
+        max: 512
 
     critic:
       hidden_sizes:
         space: pow2
         is_int: true
         min: 128
-        max: 8192
+        max: 2048
       
     actor:
       hidden_sizes:
         space: pow2
         is_int: true
         min: 64
-        max: 4096
+        max: 1024
