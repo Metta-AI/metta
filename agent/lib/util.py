@@ -153,9 +153,9 @@ def embed_string(s, embedding_dim=128):
 
 def test_epi_init():
     model = nn.Sequential(
-        nn.Linear(128, 1028),
+        nn.Linear(512, 512),
         nn.ReLU(),
-        nn.Linear(1028, 20),
+        nn.Linear(512, 20),
     )
 
     # 1) Orthogonal init for the first layer
@@ -164,11 +164,11 @@ def test_epi_init():
     # 2) epi_initialize for the second layer
     epi_initialize_rows(model[2], 
                         {1: 0.9, 7: 0.2, 8: -0.8, 9: -0.8, 10: -0.8, 11: -0.8, 12: -0.8, 13: -0.8, 14: -0.8, 15: -0.8, 16: -0.8, 17: -0.8}, 
-                        init_nonlinearity='tanh'
+                        nonlinearity='tanh'
     )
 
     # Create random inputs
-    x = torch.randn(10, 128)
+    x = torch.randn(10, 512)
 
     # Forward pass
     y = model(x)
@@ -178,10 +178,95 @@ def test_epi_init():
     torch.set_printoptions(sci_mode=False)
     print(y)
 
-    random_inputs = torch.randn(10, 128)
+    random_inputs = torch.randn(10, 512)
     for idx, input_vector in enumerate(random_inputs):
         output = model(input_vector)
         print(f"Output for input vector {idx + 1}:\n{output}\n")
 
+def create_and_train_fixed_output_network(input_size=512, hidden_size=512, output_size=20, target_vector=None):
+    """
+    Creates and trains a neural network to output values close to a target vector.
+    
+    Args:
+        input_size (int): Size of input layer
+        hidden_size (int): Size of hidden layer
+        output_size (int): Size of output layer
+        target_vector (list or torch.Tensor): Target vector of size output_size with values in [-1, 1]
+    
+    Returns:
+        nn.Sequential: Trained neural network
+    """
+    if target_vector is None:
+        raise ValueError("target_vector must be provided")
+    
+    # Convert list to tensor if needed
+    if isinstance(target_vector, list):
+        target_vector = torch.tensor(target_vector, dtype=torch.float32)
+    
+    if len(target_vector) != output_size:
+        raise ValueError(f"target_vector must have length {output_size}")
+        
+    # Create the network
+    network = nn.Sequential(
+        nn.Linear(input_size, hidden_size),
+        nn.Tanh(),
+        nn.Linear(hidden_size, output_size)
+    )
+    
+    # Initialize weights with xavier
+    for layer in network:
+        if isinstance(layer, nn.Linear):
+            init.xavier_uniform_(layer.weight)
+            init.zeros_(layer.bias)
+    
+    # Training parameters
+    optimizer = torch.optim.Adam(network.parameters(), lr=0.001)
+    criterion = nn.MSELoss()
+    
+    # Convert target vector to appropriate shape
+    target = target_vector.view(1, -1)
+    
+    # Training loop
+    network.train()
+    for epoch in range(10000):  # You can adjust number of epochs
+        optimizer.zero_grad()
+        
+        # Generate random input
+        input_data = torch.randn(1, input_size)
+        
+        # Forward pass
+        output = network(input_data)
+        
+        # Compute loss
+        loss = criterion(output, target)
+        
+        # Backward pass and optimize
+        loss.backward()
+        optimizer.step()
+        
+        if (epoch + 1) % 100 == 0:
+            print(f'Epoch [{epoch+1}/1000], Loss: {loss.item():.4f}')
+    
+    network.eval()
+    return network
+
+def test_fixed_output_network():
+    # Example usage
+    output_size = 20
+    target = torch.tensor([0, 0.9, 0.5] + [0.7] * 4 + [0.8] + [-1] * 12)
+    print("Target vector:", target)
+    # Create and train network
+    network = create_and_train_fixed_output_network(target_vector=target)
+    
+    # Test with random input 10 times
+    with torch.no_grad():
+        for i in range(10):
+            test_input = torch.randn(1, 512)
+            output = network(test_input)
+            print(f"\nTest {i+1}:")
+            print("Network output:", output.squeeze())
+            print("Mean squared error:", torch.mean((output.squeeze() - target) ** 2).item())
+
 if __name__ == "__main__":
     test_epi_init()
+    test_fixed_output_network()
