@@ -16,6 +16,7 @@ WORKDIR /workspace/metta
 
 RUN pip install -r requirements.txt
 RUN ./devops/setup_build.sh
+RUN cd deps/pufferlib && git stash
 
 # Download the latest baseline model
 #RUN python -m sample_factory.huggingface.load_from_hub -r metta-ai/baseline -d /workspace/metta-baseline

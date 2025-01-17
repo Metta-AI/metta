@@ -1,4 +1,4 @@
-FROM pufferai/puffertank:1.0
+FROM pufferai/puffertank:2.0
 # FROM pytorch/pytorch:2.2.1-cuda12.1-cudnn8-devel
 
 WORKDIR /workspace
