@@ -296,7 +296,7 @@ class PufferTrainer:
                     loss = pg_loss - self.trainer_cfg.ent_coef * entropy_loss + v_loss * self.trainer_cfg.vf_coef
 
                     # L2 regularization
-                    if self.trainer_cfg.l2_renorm and self.trainer_cfg.l2_coeff > 0:
+                    if self.trainer_cfg.l2_coeff > 0:
                         reg_loss = 0
                         for param in self.policy.parameters():
                             reg_loss += torch.sum(param.pow(2))
@@ -318,7 +318,8 @@ class PufferTrainer:
                     self.losses.old_approx_kl += old_approx_kl.item() / total_minibatches
                     self.losses.approx_kl += approx_kl.item() / total_minibatches
                     self.losses.clipfrac += clipfrac.item() / total_minibatches
-                    self.losses.l2_loss += reg_loss.item() / total_minibatches
+                    if self.trainer_cfg.l2_coeff > 0:
+                        self.losses.l2_loss += reg_loss.item() / total_minibatches
 
             if self.trainer_cfg.target_kl is not None:
                 if approx_kl > self.trainer_cfg.target_kl:
