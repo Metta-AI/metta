@@ -10,7 +10,7 @@
             "request": "launch",
             "module": "tools.train",
             "args": [
-                "run=daphne.trainer.0",
+                "run=sasmith.local.20250117.3",
                 // "trainer.initial_policy.uri=wandb://run/p2.simple.train.rich.norm.auto.3",
                 // "env=mettagrid/a20_b4_40x40",
                 "env.game.max_steps=100",
