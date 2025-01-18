@@ -8,7 +8,6 @@ __pycache__
 /build_debug/
 /build/
 /checkpoints/
-/third_party/puffergrid/build/
 /wandb
 cython_debug
 deps
