@@ -15,7 +15,7 @@ RUN git clone --recursive https://github.com/Metta-AI/metta.git metta
 WORKDIR /workspace/metta
 
 RUN pip install -r requirements.txt
-RUN ./devops/setup_build.sh
+RUN ./devops/setup_build.sh >> /workspace/metta/setup_build.log
 
 # Download the latest baseline model
 #RUN python -m sample_factory.huggingface.load_from_hub -r metta-ai/baseline -d /workspace/metta-baseline
