@@ -34,6 +34,7 @@ class PufferAgentWrapper(nn.Module):
                 output_size=env.single_action_space.n,
                 target_vector=target_vector
             )
+
             # self.atn_type = make_nn_stack(
             #     input_size=agent.decoder_out_size(),
             #     hidden_sizes=list(cfg.actor.hidden_sizes),
