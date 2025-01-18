@@ -39,6 +39,9 @@ class SimpleConvAgent(nn.Module):
 
         self._obs_norm = None
         if cfg.normalize_features:
+            # ##ObservationDefinition
+            # Here we need to defined the maxima for each feature, so we can normalize.
+            # This means that this needs to be updated if we change what's observable grid objects.
             obs_norms = [
                 1, # 'agent',
                 1, # 'agent:hp',
@@ -57,9 +60,9 @@ class SimpleConvAgent(nn.Module):
                 1, # 'generator:ready',
                 1, # 'converter',
                 30, # 'converter:hp',
-                5, # 'converter:input_resource',
-                5, # 'converter:output_resource',
-                100, # 'converter:output_energy',
+                # 5, # 'converter:input_resource',
+                # 5, # 'converter:output_resource',
+                # 100, # 'converter:output_energy',
                 1, # 'converter:ready',
                 1, # 'altar',
                 30, # 'altar:hp',
