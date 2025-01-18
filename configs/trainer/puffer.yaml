@@ -22,6 +22,7 @@ norm_adv: true
 clip_vloss: true
 target_kl: null
 anneal_lr: false
+l2_renorm: true
 
 zero_copy: true
 verbose: true
