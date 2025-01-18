@@ -7,6 +7,38 @@ from torch import nn
 
 from agent.feature_encoder import FeatureListNormalizer
 
+# ##ObservationNormalization
+# These are approximate maximum values for each feature. Ideally they would be defined closer to their source,
+# but here we are. If you add / remove a feature, you should add / remove the corresponding normalization.
+OBS_NORMALIZATIONS = {
+    'agent': 1,
+    'agent:hp': 1,
+    'agent:frozen': 1,
+    'agent:energy': 255,
+    'agent:orientation': 1,
+    'agent:shield': 1,
+    'agent:inv:r1': 5,
+    'agent:inv:r2': 5,
+    'agent:inv:r3': 5,
+    'wall': 1,
+    'wall:hp': 10,
+    'generator': 1,
+    'generator:hp': 30,
+    'generator:r1': 30,
+    'generator:ready': 1,
+    'converter': 1,
+    'converter:hp': 30,
+    'converter:input_resource': 5,
+    'converter:output_resource': 5,
+    'converter:output_energy': 100,
+    'converter:ready': 1,
+    'altar': 1,
+    'altar:hp': 30,
+    'altar:ready': 1,
+    'last_action': 10,
+    'last_action_argument': 10,
+    'agent:kinship': 10,
+}
 
 class SimpleConvAgent(nn.Module):
 
@@ -39,41 +71,8 @@ class SimpleConvAgent(nn.Module):
 
         self._obs_norm = None
         if cfg.normalize_features:
-            obs_norms = [
-                1, # 'agent',
-                1, # 'agent:hp',
-                1, # 'agent:frozen',
-                255, # 'agent:energy',
-                1, # 'agent:orientation',
-                1, # 'agent:shield',
-                5, # 'agent:inv:r1',
-                5, # 'agent:inv:r2',
-                5, # 'agent:inv:r3',
-                1, # 'wall',
-                10, # 'wall:hp',
-                1, # 'generator',
-                30, # 'generator:hp',
-                30, # 'generator:r1',
-                1, # 'generator:ready',
-                1, # 'converter',
-                30, # 'converter:hp',
-                5, # 'converter:input_resource',
-                5, # 'converter:output_resource',
-                100, # 'converter:output_energy',
-                1, # 'converter:ready',
-                1, # 'altar',
-                30, # 'altar:hp',
-                1, # 'altar:ready'
-            ]
-            if cfg.track_last_action:
-                obs_norms.extend([
-                    10, # 'last_action'
-                    10, # 'last_action_argument'
-                ])
-            if cfg.kinship.enabled and cfg.kinship.observed:
-                obs_norms.extend([
-                    10, # 'agent:kinship'
-                ])
+            # #ObservationNormalization
+            obs_norms = [OBS_NORMALIZATIONS[k] for k in grid_features]
             self._obs_norm = torch.tensor(obs_norms, dtype=torch.float32)
             self._obs_norm = self._obs_norm.view(1, self._num_objects, 1, 1)
 
