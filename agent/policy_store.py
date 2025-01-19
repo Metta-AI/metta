@@ -133,6 +133,10 @@ class PolicyStore:
         pr._policy_store = None
         torch.save(pr, path)
         pr._policy_store = self
+        # Don't cache the policy that we just saved,
+        # since it might be updated later. We always
+        # load the policy from the file when needed.
+        pr._policy = None
         self._cached_prs[path] = pr
         return pr
 
@@ -225,9 +229,9 @@ class PolicyStore:
             return self._load_from_file(uri)
 
     def _load_from_file(self, path: str, metadata_only: bool = False) -> PolicyRecord:
-        # if path in self._cached_prs:
-        #     if metadata_only or self._cached_prs[path]._policy is not None:
-        #         return self._cached_prs[path]
+        if path in self._cached_prs:
+            if metadata_only or self._cached_prs[path]._policy is not None:
+                return self._cached_prs[path]
 
         logger.info(f"Loading policy from {path}")
         assert path.endswith('.pt'), f"Policy file {path} does not have a .pt extension"
