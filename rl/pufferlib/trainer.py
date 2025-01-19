@@ -239,7 +239,7 @@ class PufferTrainer:
 
         # Step 1: move action_costs to a torch tensor on the correct device
         action_costs_tensor = torch.as_tensor(
-            self.trainer_cfg.action_costs, 
+            self.trainer_cfg.bhvr_costs, 
             device=self.device,
             dtype=torch.float
         )
