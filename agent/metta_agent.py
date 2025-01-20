@@ -43,10 +43,11 @@ class MettaAgent(nn.Module, MettaAgentInterface):
             self.decoder_out_size(), 
             1, 
             list(cfg.critic.hidden_sizes), 
-            nonlinearity=nn.ReLU()
+            nonlinearity=cfg.critic.nonlinearity,
+            initialization=cfg.critic.initialization
         )
 
-        self.apply(self.initialize_weights)
+        # self.apply(self.initialize_weights)
 
     def decoder_out_size(self):
         return self._decoder.get_out_size()

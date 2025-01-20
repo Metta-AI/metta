@@ -194,6 +194,15 @@ class PufferTrainer:
                     for k, v in pufferlib.utils.unroll_nested_dict(i):
                         infos[k].append(v)
 
+                # Count the frequency of each action
+                action_counts = np.bincount(actions, minlength=20)
+
+                # Check if the agent step is a multiple of 16384
+                if self.agent_step % 256 == 0: #16384
+                    print(f"Action frequency histogram at step {self.agent_step}:")
+                    for action_value, count in enumerate(action_counts):
+                        print(f"Action {action_value}: {count}")
+
             with profile.env:
                 self.vecenv.send(actions)
 
@@ -227,6 +236,13 @@ class PufferTrainer:
             advantages_np = fast_gae.compute_gae(dones_np, values_np, #generalized advantage estimation
                 rewards_np, self.trainer_cfg.gamma, self.trainer_cfg.gae_lambda)
             experience.flatten_batch(advantages_np)
+
+        # Step 1: move action_costs to a torch tensor on the correct device
+        action_costs_tensor = torch.as_tensor(
+            self.trainer_cfg.bhvr_costs, 
+            device=self.device,
+            dtype=torch.float
+        )
 
         # Optimizing the policy and value network
         total_minibatches = experience.num_minibatches * self.trainer_cfg.update_epochs
@@ -293,7 +309,17 @@ class PufferTrainer:
                         v_loss = 0.5 * ((newvalue - ret) ** 2).mean()
 
                     entropy_loss = entropy.mean()
-                    loss = pg_loss - self.trainer_cfg.ent_coef * entropy_loss + v_loss * self.trainer_cfg.vf_coef
+
+                    # Auxiliary action cost loss
+                    cost_loss = action_costs_tensor[atn.long()].mean()
+
+                    # Combine all losses with penalty
+                    loss = (
+                        pg_loss
+                        - self.trainer_cfg.ent_coef * entropy_loss
+                        + self.trainer_cfg.vf_coef * v_loss
+                        + self.trainer_cfg.bhvr_cost_coeff * cost_loss
+                    )
 
                 with profile.learn:
                     self.optimizer.zero_grad()
@@ -310,6 +336,7 @@ class PufferTrainer:
                     self.losses.old_approx_kl += old_approx_kl.item() / total_minibatches
                     self.losses.approx_kl += approx_kl.item() / total_minibatches
                     self.losses.clipfrac += clipfrac.item() / total_minibatches
+                    self.losses.action_cost += cost_loss.item() / total_minibatches
 
             if self.trainer_cfg.target_kl is not None:
                 if approx_kl > self.trainer_cfg.target_kl:
@@ -431,6 +458,7 @@ class PufferTrainer:
             approx_kl=0,
             clipfrac=0,
             explained_variance=0,
+            action_cost=0,
         )
 
     def _make_vecenv(self):

@@ -10,3 +10,5 @@ critic:
 
 actor:
   hidden_sizes: [512]
+  nonlinearity: nn.ReLU()
+  initialization: he
