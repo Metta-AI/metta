@@ -23,7 +23,7 @@ def create_maze(width, height, start_pos=(1,1), end_pos=None, seed=None, branchi
         assert end_pos[0] % 2 == 1 and end_pos[1] % 2 == 1, "End position must have odd coordinates"
         assert 0 < end_pos[0] < width and 0 < end_pos[1] < height, "End position must be within maze bounds"
     assert 0 < start_pos[0] < width and 0 < start_pos[1] < height, "Start position must be within maze bounds"
-    
+
     if seed is not None:
         random.seed(seed)
 
@@ -76,7 +76,7 @@ def create_maze(width, height, start_pos=(1,1), end_pos=None, seed=None, branchi
             else:
                 # With high complexity, choose random directions more often
                 next_direction = random.choice(unvisited_neighbors)
-            
+
             if next_direction == NORTH:
                 next_x, next_y = x, y - 2
                 maze[(x, y - 1)] = EMPTY
@@ -119,52 +119,173 @@ def create_maze(width, height, start_pos=(1,1), end_pos=None, seed=None, branchi
 
     return maze
 
+def create_multiroom_maze(num_rooms_horizontal=2, num_rooms_vertical=2, min_room_size=11, max_room_size=19, branching=0.5, seed=None):
+    """
+    Generate a multi-room maze where each room is a separate maze connected by doorways.
+    """
+    if seed is not None:
+        random.seed(seed)
+        
+    assert min_room_size % 2 == 1, "Minimum room size must be odd"
+    assert max_room_size % 2 == 1, "Maximum room size must be odd"
+    
+    # Generate room sizes
+    room_sizes = []
+    for y in range(num_rooms_vertical):
+        row_sizes = []
+        for x in range(num_rooms_horizontal):
+            width = random.randrange(min_room_size, max_room_size + 1, 2)
+            height = random.randrange(min_room_size, max_room_size + 1, 2)
+            row_sizes.append((width, height))
+        room_sizes.append(row_sizes)
+    
+    # Calculate total grid size
+    # First calculate maximum height for each row
+    row_heights = [max(room[1] for room in row) for row in room_sizes]
+    total_height = sum(row_heights) + num_rooms_vertical + 1
+    
+    # Calculate maximum width for each column
+    column_widths = []
+    for col in range(num_rooms_horizontal):
+        max_width = max(row[col][0] for row in room_sizes)
+        column_widths.append(max_width)
+    total_width = sum(column_widths) + num_rooms_horizontal + 1
+    
+    # Initialize the complete grid
+    grid = {}
+    for x in range(total_width):
+        for y in range(total_height):
+            grid[(x, y)] = 'W'  # Start with all walls
+            
+    def add_room_to_grid(room_maze, start_x, start_y, width, height):
+        """Add a room's maze to the main grid at the specified position"""
+        for x in range(width):
+            for y in range(height):
+                grid[(start_x + x, start_y + y)] = room_maze[(x, y)]
+    
+    def add_door(x, y, direction):
+        """Add a door between rooms"""
+        grid[(x, y)] = ' '
+    
+    # Generate and place each room
+    current_y = 1
+    num_agents = 0
+
+    for row_idx, row in enumerate(room_sizes):
+        current_x = 1
+        max_height_in_row = row_heights[row_idx]
+        
+        for col_idx, (width, height) in enumerate(row):
+            # Generate maze for this room
+            start_pos = (1, 1)
+            end_pos = (width-2, height-2)
+            room_maze = create_maze(width, height, start_pos, end_pos, branching=branching)
+            
+            # Add room to grid
+            add_room_to_grid(room_maze, current_x, current_y, width, height)
+            num_agents += 1
+
+            
+            # Add horizontal door if not last column
+            if col_idx < num_rooms_horizontal - 1:
+                door_y = current_y + height // 2
+                add_door(current_x + width, door_y, 'horizontal')
+            
+            # Add vertical door if not last row
+            if row_idx < num_rooms_vertical - 1:
+                door_x = current_x + width // 2
+                add_door(door_x, current_y + height, 'vertical')
+            
+            current_x += column_widths[col_idx] + 1
+        
+        current_y += max_height_in_row + 1
+    
+    # # Place start (A) in first room
+    # for y in range(2, min_room_size):
+    #     for x in range(2, min_room_size):
+    #         if grid[(x, y)] == ' ':
+    #             grid[(x, y)] = 'A'
+    #             break
+    #     else:
+    #         continue
+    #     break
+    
+    # # Place end (a) in last room
+    # for y in range(total_height-2, total_height-min_room_size, -1):
+    #     for x in range(total_width-2, total_width-min_room_size, -1):
+    #         if grid[(x, y)] == ' ':
+    #             grid[(x, y)] = 'a'
+    #             break
+    #     else:
+    #         continue
+    #     break
+
+    
+    
+    return grid, total_width, total_height, num_agents
+
+def print_grid(grid, width, height):
+    """Print the grid"""
+    for y in range(height):
+        for x in range(width):
+            print(grid[(x, y)], end='')
+        print()
+
+def save_grid(grid, width, height, filename):
+    """Save grid to file"""
+    with open(filename, 'w') as f:
+        for y in range(height):
+            for x in range(width):
+                f.write(grid[(x, y)])
+            f.write('\n')
+
 if __name__ == "__main__":
+    # Create a multi-room maze
 
     import argparse
+    import os
+    import random
 
-    parser = argparse.ArgumentParser(description='Generate a maze with optional parameters')
-    parser.add_argument('--width', type=int, help='Width of maze (odd number >= 11)')
-    parser.add_argument('--height', type=int, help='Height of maze (odd number >= 11)') 
-    parser.add_argument('--start_x', type=int, help='Starting X position (odd number)')
-    parser.add_argument('--start_y', type=int, help='Starting Y position (odd number)')
-    parser.add_argument('--end_x', type=int, help='Ending X position (odd number)')
-    parser.add_argument('--end_y', type=int, help='Ending Y position (odd number)')
-    parser.add_argument('--branching', type=float, help='Maze branching complexity between 0 and 1')
+    parser = argparse.ArgumentParser(description='Generate a multi-room maze map')
+    parser.add_argument('--num_rooms_h', type=int,
+                        help='Number of rooms horizontally')
+    parser.add_argument('--num_rooms_v', type=int, 
+                        help='Number of rooms vertically')
+    parser.add_argument('--min_room_size', type=int,
+                        help='Minimum room size')
+    parser.add_argument('--max_room_size', type=int,
+                        help='Maximum room size') 
+    parser.add_argument('--branching', type=float,
+                        help='Branching factor for maze generation (0-1) (default: 0.7)')
+    parser.add_argument('--seed', type=int, default=random.randint(0,10000),
+                        help='Random seed (default: random)')
+    parser.add_argument('--output', type=str,
+                        help='Output file path (default: auto-generated in configs/env/mettagrid/maps/mazes/)')
+
     args = parser.parse_args()
 
-    # Set width and height, ensuring they are odd numbers >= 11
-    WIDTH = args.width if args.width else random.randrange(11, 25, 2)
-    HEIGHT = args.height if args.height else random.randrange(11, 25, 2)
-
-    # Set start position
-    if args.start_x and args.start_y:
-        START_POS = (args.start_x, args.start_y)
-    else:
-        START_POS = (1,1)
-
-    # Set end position
-    if args.end_x and args.end_y:
-        END_POS = (args.end_x, args.end_y)
-    else:
-        END_POS = (WIDTH-2, HEIGHT-2)
-
-    # Set branching
-    BRANCHING = args.branching if args.branching is not None else 0.5
+    NUM_ROOMS_HORIZONTAL = args.num_rooms_h if args.num_rooms_h else random.randint(1,4)
+    NUM_ROOMS_VERTICAL = args.num_rooms_v if args.num_rooms_v else random.randint(1,4)
+    # Ensure MIN_ROOM_SIZE is odd
+    MIN_ROOM_SIZE = args.min_room_size if args.min_room_size else random.choice(range(5, 15, 2))
+    MAX_ROOM_SIZE = args.max_room_size if args.max_room_size else MIN_ROOM_SIZE * 2 + 1
+    BRANCHING = args.branching if args.branching else 0.7
+    grid, width, height, num_agents = create_multiroom_maze(
+        num_rooms_horizontal=NUM_ROOMS_HORIZONTAL,
+        num_rooms_vertical=NUM_ROOMS_VERTICAL,
+        min_room_size=MIN_ROOM_SIZE,
+        max_room_size=MAX_ROOM_SIZE,
+        branching=BRANCHING,
+        seed=42
+    )
     
-    print(f"width: {WIDTH}, height: {HEIGHT}, start pos: {START_POS}, end pos: {END_POS}, branching: {BRANCHING}")
-
-    # Try different complexity values (0.0 to 1.0)
-    maze = create_maze(WIDTH, HEIGHT, start_pos=START_POS, end_pos=END_POS, 
-                      seed=42, branching=BRANCHING)  # Higher complexity = more complex maze
-
-    maze_str = ""
-    for x in range(WIDTH):
-        for y in range(HEIGHT):
-            maze_str += maze[(x,y)]
-        maze_str += "\n"
-        
+    # Print the maze
+    print(f"Generated {width}x{height} multi-room maze:")
+    print_grid(grid, width, height)
+    
+    # Save to file
     os.makedirs("configs/env/mettagrid/maps/mazes", exist_ok=True)
+    filename = f"configs/env/mettagrid/maps/mazes/multiroom_maze_{width}x{height}_numagents_{num_agents}.map"
+    save_grid(grid, width, height, filename)
 
-    with open(f"configs/env/mettagrid/maps/mazes/maze_{WIDTH}X{HEIGHT}.map", "w") as f:
-        f.write(maze_str)
+    print(f"Number of agents: {num_agents}")
