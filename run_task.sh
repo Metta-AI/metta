@@ -24,13 +24,14 @@ fi
 
 # Run the command n times with the iterator appended to the run name
 for ((i = start; i <= end; i++)); do
-    python -m devops.aws.launch_task \
+python -m devops.aws.launch_task \
     --cmd=train \
-    --run=b.alex.matters.0000101.$i \
+    --run=b.alex.1111000.$i \
     --git_branch=alex-epi-init \
-    --agent=simple_matters_2 \
-    --env.game.actions.attack.cost=251 \
-    --env/mettagrid@env=alex_a20_train \
-    --agent.actor.epi_init=true
+    trainer.num_workers=6 \
+    env/mettagrid@env=alex_a20_train \
+    agent=simple_matters_1 \
+    agent.actor.epi_init=false \
+    trainer.bhvr_cost_coeff=0
 
 done
