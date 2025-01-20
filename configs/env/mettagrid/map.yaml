@@ -4,7 +4,7 @@ defaults:
 game:
   num_agents: 1
   map:
-    uri: configs/env/mettagrid/maps/mazes/maze_39x39.map
+    uri: configs/env/mettagrid/maps/cylinders/cylinder_21x20.map
   objects:
     altar:
       cooldown: 255
