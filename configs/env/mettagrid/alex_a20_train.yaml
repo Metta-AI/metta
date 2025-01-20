@@ -5,8 +5,8 @@ game:
   num_agents: 20
   map:
     room:
-      width: [20, 100, 40] # [20, 100, 40] has often been 15
-      height: [20, 100, 40] # [20, 100, 40] has often been 15 
+      width: [20, 15, 15] # [20, 100, 40] 
+      height: [20, 20, 15] # [20, 100, 40] 
       border: 1
       objects:
         agent: ${....num_agents}
