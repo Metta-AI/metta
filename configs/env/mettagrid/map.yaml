@@ -2,9 +2,9 @@ defaults:
   - mettagrid
 
 game:
-  num_agents: 7
+  num_agents: 3
   map:
-    uri: configs/env/mettagrid/maps/mazes/multiroom_maze_35x27_numagents_6.map
+    uri: configs/env/mettagrid/maps/cylinders/multiroom_cylinder_69x24_agents_3.map
   objects:
     altar:
       cooldown: 255

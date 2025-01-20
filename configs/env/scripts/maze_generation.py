@@ -121,7 +121,7 @@ def create_maze(width, height, start_pos=(1,1), end_pos=None, seed=None, branchi
 
 def create_multiroom_maze(num_rooms_horizontal=2, num_rooms_vertical=2, min_room_size=11, max_room_size=19, branching=0.5, seed=None):
     """
-    Generate a multi-room maze where each room is a separate maze connected by doorways.
+    Generate a multi-room maze where each room is a separate maze.
     """
     if seed is not None:
         random.seed(seed)
@@ -163,10 +163,6 @@ def create_multiroom_maze(num_rooms_horizontal=2, num_rooms_vertical=2, min_room
             for y in range(height):
                 grid[(start_x + x, start_y + y)] = room_maze[(x, y)]
     
-    def add_door(x, y, direction):
-        """Add a door between rooms"""
-        grid[(x, y)] = ' '
-    
     # Generate and place each room
     current_y = 1
     num_agents = 0
@@ -185,17 +181,6 @@ def create_multiroom_maze(num_rooms_horizontal=2, num_rooms_vertical=2, min_room
             add_room_to_grid(room_maze, current_x, current_y, width, height)
             num_agents += 1
 
-            
-            # Add horizontal door if not last column
-            if col_idx < num_rooms_horizontal - 1:
-                door_y = current_y + height // 2
-                add_door(current_x + width, door_y, 'horizontal')
-            
-            # Add vertical door if not last row
-            if row_idx < num_rooms_vertical - 1:
-                door_x = current_x + width // 2
-                add_door(door_x, current_y + height, 'vertical')
-            
             current_x += column_widths[col_idx] + 1
         
         current_y += max_height_in_row + 1
