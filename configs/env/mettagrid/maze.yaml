@@ -1,0 +1,13 @@
+defaults:
+  - mettagrid
+
+game:
+  num_agents: 1
+  map:
+    uri: configs/env/mettagrid/maps/mazes/maze_39x39.map
+  objects:
+    altar:
+      cooldown: 255
+    agent:
+      initial_energy: 255
+  
