@@ -1,35 +1,12 @@
-# @package agent
-
-_target_: agent.metta_agent.MettaAgent
-
-observation_encoder:
-  _target_: agent.simple_encoder.SimpleConvAgent
-  cnn_channels: 64
-  obs_key: grid_obs
-  normalize_features: true
-  auto_normalize: false
-
-fc:
-  layers: 1
-  output_dim: 128
-
-decoder:
-  _target_: agent.decoder.Decoder
+defaults:
+  - simple
 
 core:
-  rnn_type: gru
   rnn_num_layers: 2
   rnn_size: 512
 
-policy_selector:
-  uri: null
-  type: top
-  range: 0
-  metric: final.score
-  generation: null
-
 critic:
   hidden_sizes: [1024] #set to [] for no hidden layer
-  
+
 actor:
   hidden_sizes: [512]

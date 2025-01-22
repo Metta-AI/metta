@@ -10,19 +10,19 @@
             "request": "launch",
             "module": "tools.train",
             "args": [
-                "run=daphne.trainer.0",
+                "run=daveey.trainer.1",
                 // "trainer.initial_policy.uri=wandb://run/p2.simple.train.rich.norm.auto.3",
                 // "env=mettagrid/a20_b4_40x40",
                 "env.game.max_steps=100",
                 "env.sampling=0.1",
                 "trainer.evaluate_interval=2",
-                "evaluator.baselines.uri=file://train_dir/mac.trainer.7/checkpoints/",
+                // "evaluator.baselines.uri=file://train_dir/mac.trainer.7/checkpoints/",
                 // "env.compact_obs=true",
                 // "env.kinship.team_size=5",
                 // "env.kinship.team_reward=0.8",
 
                 // "env.game.actions.attack.enabled=false",
-                "agent=simple",
+                "agent=simple.medium",
                 "wandb.enabled=True",
                 "wandb.track=True",
                 "trainer.wandb_checkpoint_interval=1"

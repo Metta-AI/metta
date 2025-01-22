@@ -1,5 +1,3 @@
-# @package agent
-
 _target_: agent.metta_agent.MettaAgent
 
 observation_encoder:
@@ -32,7 +30,7 @@ policy_selector:
 
 critic:
   hidden_sizes: [] # Set to [] for no hidden layer
-  
+
 actor:
   hidden_sizes: [] # Set to [] for no hidden layer
 

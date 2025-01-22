@@ -10,6 +10,7 @@ The PolicyStore is used by the training system to manage opponent policies and c
 """
 
 from omegaconf import OmegaConf
+from omegaconf.listconfig import ListConfig
 import wandb
 from rl.pufferlib.puffer_agent_wrapper import make_policy
 import torch
@@ -60,11 +61,10 @@ class PolicyStore:
         assert len(prs) == 1, f"Expected 1 policy, got {len(prs)}"
         return prs[0]
 
-    def policies(self, policy_selector_cfg: OmegaConf) -> List[PolicyRecord]:
-        prs = []
+    def _policy_records(self, uri, selector_type, n, metric):
         version = None
-        if policy_selector_cfg.uri.startswith("wandb://"):
-            wandb_uri = policy_selector_cfg.uri[len("wandb://"):]
+        if uri.startswith("wandb://"):
+            wandb_uri = uri[len("wandb://"):]
             if ":" in wandb_uri:
                 wandb_uri, version = wandb_uri.split(":")
             if wandb_uri.startswith("run/"):
@@ -76,25 +76,16 @@ class PolicyStore:
             else:
                 prs = self._prs_from_wandb_artifact(wandb_uri, version)
 
-        elif policy_selector_cfg.uri.startswith("file://"):
-            prs = self._prs_from_path(policy_selector_cfg.uri[len("file://"):])
+        elif uri.startswith("file://"):
+            prs = self._prs_from_path(uri[len("file://"):])
         else:
-            prs = self._prs_from_path(policy_selector_cfg.uri)
+            prs = self._prs_from_path(uri)
 
-        for k,v in policy_selector_cfg.filters.items():
-            prs = [pr for pr in prs if pr.metadata.get(k, None) == v]
-
-        if len(prs) == 0:
-            logger.warning("No policies found matching criteria")
-            return []
-
-        # Apply selection method
-        if policy_selector_cfg.type == "rand":
+        if selector_type == "rand":
             return [random.choice(prs)]
 
-        if policy_selector_cfg.type == "top":
-            metric = policy_selector_cfg.metric
-            n = policy_selector_cfg.range
+        elif selector_type == "top":
+            metric = metric
 
             top = sorted(prs, key=lambda x: x.metadata.get(metric, 0))[-n:]
             if len(top) < n:
@@ -107,8 +98,25 @@ class PolicyStore:
                 logger.info(f"{pr.name:<40} | {pr.metadata.get(metric, 0):<20.4f}")
 
             return top[-n:]
+        else:
+            raise ValueError(f"Invalid selector type {selector_type}")
 
-        raise ValueError(f"Invalid selector type {policy_selector_cfg.type}")
+
+    def policies(self, policy_selector_cfg: OmegaConf) -> List[PolicyRecord]:
+        prs = []
+        if isinstance(policy_selector_cfg.uri, ListConfig):
+            for uri in policy_selector_cfg.uri:
+                prs += self._policy_records(uri, policy_selector_cfg.type, policy_selector_cfg.range, policy_selector_cfg.metric)
+        else:
+            prs = self._policy_records(policy_selector_cfg.uri, policy_selector_cfg.type, policy_selector_cfg.range, policy_selector_cfg.metric)
+                
+        for k,v in policy_selector_cfg.filters.items():
+            prs = [pr for pr in prs if pr.metadata.get(k, None) == v]
+
+        if len(prs) == 0:
+            logger.warning("No policies found matching criteria")
+
+        return prs
 
     def make_model_name(self, epoch: int):
         return f"model_{epoch:04d}.pt"
@@ -133,6 +141,10 @@ class PolicyStore:
         pr._policy_store = None
         torch.save(pr, path)
         pr._policy_store = self
+        # Don't cache the policy that we just saved,
+        # since it might be updated later. We always
+        # load the policy from the file when needed.
+        pr._policy = None
         self._cached_prs[path] = pr
         return pr
 
@@ -225,9 +237,9 @@ class PolicyStore:
             return self._load_from_file(uri)
 
     def _load_from_file(self, path: str, metadata_only: bool = False) -> PolicyRecord:
-        # if path in self._cached_prs:
-        #     if metadata_only or self._cached_prs[path]._policy is not None:
-        #         return self._cached_prs[path]
+        if path in self._cached_prs:
+            if metadata_only or self._cached_prs[path]._policy is not None:
+                return self._cached_prs[path]
 
         logger.info(f"Loading policy from {path}")
         assert path.endswith('.pt'), f"Policy file {path} does not have a .pt extension"
@@ -261,5 +273,3 @@ class PolicyStore:
         )
         pr.metadata.update(artifact.metadata)
         return pr
-
-

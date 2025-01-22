@@ -88,13 +88,13 @@ class PufferTrainer:
         self.train_start = time.time()
         logger.info("Starting training")
 
-        print(f"wandb checkpoint interval: {self.trainer_cfg.wandb_checkpoint_interval}")
-        print(f"trainercheckpoint interval: {self.trainer_cfg.checkpoint_interval}")
-        print(f"evaluate interval: {self.trainer_cfg.evaluate_interval}")
-
         # it doesn't make sense to evaluate more often than checkpointing since we need a saved policy to evaluate
         if self.trainer_cfg.evaluate_interval < self.trainer_cfg.checkpoint_interval:
             self.trainer_cfg.evaluate_interval = self.trainer_cfg.checkpoint_interval
+
+        print(f"wandb checkpoint interval: {self.trainer_cfg.wandb_checkpoint_interval}")
+        print(f"trainercheckpoint interval: {self.trainer_cfg.checkpoint_interval}")
+        print(f"evaluate interval: {self.trainer_cfg.evaluate_interval}")
 
         while self.agent_step < self.trainer_cfg.total_timesteps:
             self._evaluate()
@@ -114,12 +114,12 @@ class PufferTrainer:
         self._save_policy_to_wandb()
         logger.info(f"Training complete. Total time: {self.train_time:.2f} seconds")
 
-    def _evaluate_policy(self):      
+    def _evaluate_policy(self):
         if not self.cfg.evaluator.baselines.uri:
             self.cfg.evaluator.baselines.uri = f"file://{self.cfg.trainer.checkpoint_dir}"
-        
+
         baseline_records = self.policy_store.policies(self.cfg.evaluator.baselines)
-        
+
         evaluator = hydra.utils.instantiate(self.cfg.evaluator, self.cfg, self.last_pr, baseline_records)
         stats = evaluator.evaluate()
         evaluator.close()
@@ -130,7 +130,7 @@ class PufferTrainer:
 
         results, formatted_results = get_test_results(
             Glicko2Test(stats, self.cfg.evaluator.stat_categories['altar']),
-            scores_path = self.cfg.trainer.glicko_scores_path)      
+            scores_path = self.cfg.trainer.glicko_scores_path)
 
         rating = results.get(self.last_pr.name, {}).get("rating", None)
 
