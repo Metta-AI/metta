@@ -1,8 +1,8 @@
 __pycache__
 .DS_Store
 .task
-.vscode/PythonImportHelper-v2-Completion.json
-.vscode/launch.json
+/.vscode/PythonImportHelper-v2-Completion.json
+/.vscode/launch.json
 *.egg-info
 *.pyc
 *.so
