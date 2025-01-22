@@ -13,3 +13,10 @@ glicko_scores_path: ${run_dir}/eval/glicko2
 
 evaluate: true
 evaluate_interval: 10
+
+srank: true
+srank_interval: 10
+srank_network: _agent._critic_linear
+srank_layer: 0
+# srank_network: atn_type
+# srank_layer: 0

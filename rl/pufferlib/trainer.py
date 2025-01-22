@@ -15,6 +15,7 @@ from agent.policy_store import PolicyStore
 from fast_gae import fast_gae
 from omegaconf import OmegaConf
 from util.stats_library import Glicko2Test, get_test_results
+from agent.lib.effective_rank import compute_effective_rank
 
 from rl.pufferlib.experience import Experience
 from rl.pufferlib.profile import Profile
@@ -102,6 +103,8 @@ class PufferTrainer:
             self._process_stats()
             if self.epoch % self.trainer_cfg.checkpoint_interval == 0:
                 self._checkpoint_trainer()
+            if self.epoch % self.trainer_cfg.srank_interval == 0 and self.trainer_cfg.srank:
+                self._compute_srank()
             if self.epoch % self.trainer_cfg.evaluate_interval == 0 and self.trainer_cfg.evaluate:
                 self._evaluate_policy()
             if self.epoch % self.trainer_cfg.wandb_checkpoint_interval == 0:
@@ -142,6 +145,27 @@ class PufferTrainer:
             })
 
         logger.info(f"Glicko2 scores: \n{formatted_results}")
+
+    def _compute_srank(self):
+
+        try:
+            network = self.policy.policy.policy
+            keys = self.trainer_cfg.srank_network.split('.')
+            for key in keys:
+                network = network._modules[key]
+        except Exception as e:
+            raise KeyError(f"Error accessing network module {keys}. Available keys: {network._modules.keys()}")
+
+        layer = network[self.trainer_cfg.srank_layer].weight.data
+        
+        srank = compute_effective_rank(layer)
+        self.wandb_run.log({
+            "srank": srank,
+            "train/agent_step": self.agent_step,
+            "train/epoch": self.epoch,
+        })
+
+        logger.info(f"Effective rank: {srank}")
 
     def _on_train_step(self):
         pass
