@@ -6,6 +6,7 @@ from pufferlib.pytorch import layer_init
 from torch import nn
 
 from agent.feature_encoder import FeatureListNormalizer
+from agent.lib.util import make_nn_stack
 
 # ##ObservationNormalization
 # These are approximate maximum values for each feature. Ideally they would be defined closer to their source,
@@ -52,22 +53,23 @@ class SimpleConvAgent(nn.Module):
         self._obs_key = cfg.obs_key
         self._num_objects = obs_space[self._obs_key].shape[0]
         self._cnn_channels = cfg.cnn_channels
-        self._output_dim = cfg.fc.output_dim
+        self._output_dim = fc_cfg.output_dim
+        self._hidden_sizes = fc_cfg.hidden_sizes
 
-        layers = [
+        if self._hidden_sizes is None:
+            self._hidden_sizes = [] 
+        else:
+            self._hidden_sizes = [self._hidden_sizes]
+        
+        self.network = nn.Sequential(
             layer_init(nn.Conv2d(self._num_objects, self._cnn_channels, 5, stride=3)),
             nn.ReLU(),
             layer_init(nn.Conv2d(self._cnn_channels, self._cnn_channels, 3, stride=1)),
             nn.ReLU(),
             nn.Flatten(),
-            layer_init(nn.Linear(self._cnn_channels, self._output_dim)),
-            nn.ReLU()
-        ]
-        for _ in range(cfg.fc.layers - 1):
-            layers.append(layer_init(nn.Linear(self._output_dim, self._output_dim)))
-            layers.append(nn.ReLU())
-
-        self.network = nn.Sequential(*layers)
+            make_nn_stack(self._cnn_channels, self._output_dim, self._hidden_sizes),
+            nn.ReLU(),
+        )
 
         self._normalizer = None
         if cfg.auto_normalize:
