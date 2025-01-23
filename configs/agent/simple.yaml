@@ -10,8 +10,10 @@ observation_encoder:
   kinship: ${env.game.kinship}
 
 fc:
-  layers: 1
+  layers: 2
   output_dim: 128
+  # l2_norm_scale: [0.1, 0, 1]
+
 
 decoder:
   _target_: agent.decoder.Decoder
@@ -29,9 +31,15 @@ policy_selector:
   generation: null
 
 critic:
+  path: ._actor._critic_linear
   hidden_sizes: [] # Set to [] for no hidden layer
+  l2_scale: [1, 0]
 
 actor:
+  path: _atn_type
   hidden_sizes: [] # Set to [] for no hidden layer
+  l2_norm_scale: [0, 0, 1] # must be the same num of layers. include 0 for nonlinear layers.
+  clipping_scale: [0, 0, 0.1] # must be the same num of layers. include 0 for nonlinear layers.
+  l2_init_scale: [0, 0, 0] # must be the same num of layers. include 0 for nonlinear layers.
 
 

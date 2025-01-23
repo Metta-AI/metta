@@ -79,6 +79,9 @@ class PufferTrainer:
         if checkpoint.agent_step > 0:
             self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
 
+        # perhaps this can be stored in the checkpoint in case of starting from a checkpoint?
+        self.regularize_list = self.get_reg_list()
+
         if self.cfg.wandb.track and wandb_run:
             wandb_run.define_metric("train/agent_step")
             for k in ["0verview", "env", "losses", "performance", "train"]:
@@ -295,13 +298,18 @@ class PufferTrainer:
                     entropy_loss = entropy.mean()
                     loss = pg_loss - self.trainer_cfg.ent_coef * entropy_loss + v_loss * self.trainer_cfg.vf_coef
 
-                    # L2 regularization
-                    if self.trainer_cfg.l2_coeff > 0:
-                        reg_loss = 0
-                        for param in self.policy.parameters():
-                            reg_loss += torch.sum(param.pow(2))
-                        reg_loss *= self.trainer_cfg.l2_coeff
-                        loss += reg_loss
+                    # L2 norm regularization
+                    if self.trainer_cfg.l2_norm_coef > 0:
+                        l2_loss = self.regularize("l2_norm")
+                        loss += l2_loss * self.trainer_cfg.l2_norm_coef
+                    # clipping regularization
+                    if self.trainer_cfg.clipping_coef > 0:
+                        clipping_loss = self.regularize("clipping")
+                        loss += clipping_loss * self.trainer_cfg.clipping_coef
+                    # l2 init regularization
+                    if self.trainer_cfg.l2_init_coef > 0:
+                        l2_init_loss = self.regularize("l2_init")
+                        loss += l2_init_loss * self.trainer_cfg.l2_init_coef
 
                 with profile.learn:
                     self.optimizer.zero_grad()
@@ -318,8 +326,8 @@ class PufferTrainer:
                     self.losses.old_approx_kl += old_approx_kl.item() / total_minibatches
                     self.losses.approx_kl += approx_kl.item() / total_minibatches
                     self.losses.clipfrac += clipfrac.item() / total_minibatches
-                    if self.trainer_cfg.l2_coeff > 0:
-                        self.losses.l2_loss += reg_loss.item() / total_minibatches
+                    if self.trainer_cfg.l2_norm_coef > 0:
+                        self.losses.l2_loss += l2_loss.item() / total_minibatches
 
             if self.trainer_cfg.target_kl is not None:
                 if approx_kl > self.trainer_cfg.target_kl:
@@ -458,7 +466,82 @@ class PufferTrainer:
             zero_copy=self.trainer_cfg.zero_copy)
 
         self.vecenv.async_reset(self.cfg.seed)
+        
+    def get_reg_list(self):
+        '''
+        Returns a list of dictionaries with the paths of the layers to be regularized and the scales of the regularization.
+        eg [{'path': 'agent.0.linear.weight', 'l2_norm_scale': [1, 0, 0.01], 'clipping_scale': [1.1, 0, 0.2], 'l2_init_scale': [1, 0, 0.9]}]
+        '''
+        types = ["l2_norm_scale", "clipping_scale", "l2_init_scale"]
+        reg_list = []
+        for key, value in self.cfg.agent.items():
+            if hasattr(value, 'path'):
+                reg_list.append({"path": value.path})
+                for type in types:
+                    scale = getattr(value, type, None)
+                    if scale is not None:
+                        reg_list[-1][type] = list(scale)
+                        if type == "l2_clipping _scale":
+                            reg_list[-1]["xavier_bounds"] = self._get_xavier_bounds(value.path, scale)
+        return reg_list
+    
+    def _get_xavier_bounds(self, path, scale):
+        keys = path.split('.')
+        network = self._get_network(self.policy.policy.policy, keys)
+        xavier_bounds = []
+        for index in range(len(scale)):
+            layer = network[index]
+            fan_in, fan_out = layer.weight.shape
+            xavier_bounds.append(np.sqrt(6 / (fan_in + fan_out)))
+        return xavier_bounds
+    
+    def regularize(self, type):
+        reg_loss = 0
+        layer_scaling = f"{type}_scale"
+        for reg in self.regularize_list:
+            keys = reg["path"].split('.')
+            network = self._get_network(self.policy.policy.policy, keys)
+            for index, scale in enumerate(reg[layer_scaling]):
+                layer = network[index]
+                if type == "l2_norm":
+                    reg_loss += self._l2_regularization(layer, scale)
+                elif type == "clipping":
+                    if reg["xavier_bounds"][index] is not None:
+                        scale = scale * reg["xavier_bounds"][index]
+                    reg_loss += self._clipping(layer, scale)
+                elif type == "l2_init":
+                    reg_loss += self._l2_init(layer, scale)
+        return reg_loss
 
+    def _get_network(self, network, keys):
+        for key in keys:
+            try:
+                layer = network._modules[key].weight.data
+            except KeyError:
+                raise KeyError(f"Key '{key}' not found in the module hierarchy.")
+        return layer
+
+    def _l2_regularization(self, layer, scale):
+        l2_loss = 0
+        for param in layer.parameters():
+            l2_loss += scale * torch.sum(param.pow(2))
+        return l2_loss
+    
+    def _clipping(self, layer, scale):
+        kappa = scale*self.trainer_cfg.clipping_coef
+        for param in layer.parameters():
+            param.data = torch.clamp(
+                param.data,
+                min=-kappa,
+                max=kappa
+            )
+        return 0
+    
+    def _l2_init(self, layer, scale):
+        #this doesn't work yet. Also, network initial values need to be saved. 
+        for param in layer.parameters():
+            param.data = torch.randn_like(param.data) * scale
+        return 0
 
 class AbortingTrainer(PufferTrainer):
     def __init__(self, *args, **kwargs):
