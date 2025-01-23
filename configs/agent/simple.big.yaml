@@ -3,10 +3,9 @@ defaults:
 
 observation_encoder:
   cnn_channels: 128
-
-fc:
-  layers: 3
-  output_dim: 128
+  fc:
+    layers: 3
+    output_dim: 128
 
 core:
   rnn_num_layers: 2
