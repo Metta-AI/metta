@@ -88,6 +88,7 @@ game:
       enabled: true
 
   map:
+    uri: null
     layout:
       rooms_x: 1
       rooms_y: 1
