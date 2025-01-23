@@ -91,9 +91,6 @@ game:
       cost: 0
 
   map:
-
-  #
-
     # _target_: env.griddly.mettagrid.level_builder.MettaGridLevelBuilder
     uri: null
     layout:
@@ -103,7 +100,6 @@ game:
     border: 0
 
     room:
-
       # _target_: env.griddly.mettagrid.level_builder.MettaGridRoomBuilder
       width: 25
       height: 25
