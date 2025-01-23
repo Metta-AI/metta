@@ -1,7 +1,0 @@
-defaults:
-  - mettagrid
-
-game:
-  num_agents: 1
-  map:
-    uri: configs/env/mettagrid/maps/triangle.map

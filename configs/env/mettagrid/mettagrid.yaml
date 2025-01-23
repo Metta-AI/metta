@@ -93,12 +93,13 @@ game:
   map:
     # _target_: env.griddly.mettagrid.level_builder.MettaGridLevelBuilder
     uri: null
+    rooms: null
+
     layout:
       rooms_x: 1
       rooms_y: 1
 
     border: 0
-
     room:
       # _target_: env.griddly.mettagrid.level_builder.MettaGridRoomBuilder
       width: 25
