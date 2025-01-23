@@ -3,8 +3,8 @@ from libc.stdio cimport printf
 
 from omegaconf import OmegaConf
 
-from puffergrid.grid_object cimport GridObjectId
-from puffergrid.action cimport ActionHandler, ActionArg
+from mettagrid.grid_object cimport GridObjectId
+from mettagrid.action cimport ActionHandler, ActionArg
 from mettagrid.objects cimport Agent, ObjectTypeNames
 
 cdef extern from "<string>" namespace "std":
@@ -62,7 +62,3 @@ cdef class MettaActionHandler(ActionHandler):
         Agent * actor,
         ActionArg arg):
         return False
-
-
-
-
