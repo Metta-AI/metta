@@ -21,13 +21,12 @@ import mettagrid.actions.use
 import mettagrid.config.game_builder
 import mettagrid.config.sample_config
 
-import puffergrid
-import puffergrid.action
-import puffergrid.event
-import puffergrid.grid_env
-import puffergrid.grid_object
-import puffergrid.observation_encoder
-import puffergrid.stats_tracker
+import mettagrid.action
+import mettagrid.event
+import mettagrid.grid_env
+import mettagrid.grid_object
+import mettagrid.observation_encoder
+import mettagrid.stats_tracker
 
 # Make sure all dependencies are installed:
 import hydra

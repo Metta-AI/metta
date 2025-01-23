@@ -63,6 +63,10 @@ The `Generator` object produces resources that agents can harvest. Agents can ga
 
 The `Wall` object acts as an impassable barrier in the environment, restricting agent movement.
 
+### Cooldown
+
+The `cooldown` property determines how long before objects can be used again.
+
 ## Actions
 
 ### Move / Rotate
@@ -73,19 +77,28 @@ The `rotate` action enables agents to change their orientation within the gridwo
 
 ### Attack
 
-The `attack` action allows agents to attack other agents or objects within their attack range. Successful attacks temporarily freeze the target and may allow the attacker to steal resources.
+The `attack` action allows agents to attack other agents or objects within their attack range. Successful attacks freeze the target for `freeze_duration` timesteps and allow the attacker to steal resources. Further, the attacked agent's energy is set to `0`. Attacks have a cost and inflict a damage value. The agent selects from one of nine coordinates within its attack range.
 
 ### Shield (Toggle)
 
-The `shield` action turns on a shield. When the shield is active, the agent is protected from attacks by other agents. The shield consumes energy while active. Attack damage is subtracted from the agent's energy, rather than freezing the agent.
+The `shield` action turns on a shield. When the shield is active, the agent is protected from attacks by other agents. The shield consumes energy defined by `upkeep.shield` while active. Attack damage is subtracted from the agent's energy, rather than freezing the agent.
 
 ### Transfer
 
-The `transfer` action enables agents to share resources with other agents. Agents can choose to transfer specific resources to another agent in an adjacent cell.
+The `transfer` action enables agents to share resources with other agents. Agents can choose to transfer specific resources to another agent in an adjacent cell. It is currently not implemented.
 
 ### Use
 
 The `use` action allows agents to interact with objects such as altars, converters, and generators. The specific effects of the `use` action depend on the target object and can include converting resources to energy, powering the altar for rewards, or harvesting resources from generators.
+
+### Gift
+The `gift` action allows agents to share resources with other agents. It is currently not implemented.
+
+### Swap
+The `swap` action allows agents to swap positions with other agents. It is currently not implemented.
+
+### Tracking the Agent's Last Action
+The `track_last_action` property adds the agent's last action to the observation space. It is currently not implemented.
 
 ## Configuration
 
