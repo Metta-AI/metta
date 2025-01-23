@@ -46,23 +46,28 @@ class SimpleConvAgent(nn.Module):
                  obs_space,
                  grid_features: List[str],
                  global_features: List[str],
-                 fc_cfg: OmegaConf, **cfg):
+                 **cfg):
         super().__init__()
         cfg = OmegaConf.create(cfg)
         self._obs_key = cfg.obs_key
         self._num_objects = obs_space[self._obs_key].shape[0]
         self._cnn_channels = cfg.cnn_channels
-        self._output_dim = fc_cfg.output_dim
+        self._output_dim = cfg.fc.output_dim
 
-        self.network = nn.Sequential(
+        layers = [
             layer_init(nn.Conv2d(self._num_objects, self._cnn_channels, 5, stride=3)),
             nn.ReLU(),
             layer_init(nn.Conv2d(self._cnn_channels, self._cnn_channels, 3, stride=1)),
             nn.ReLU(),
             nn.Flatten(),
             layer_init(nn.Linear(self._cnn_channels, self._output_dim)),
-            nn.ReLU(),
-        )
+            nn.ReLU()
+        ]
+        for _ in range(cfg.fc.layers - 1):
+            layers.append(layer_init(nn.Linear(self._output_dim, self._output_dim)))
+            layers.append(nn.ReLU())
+
+        self.network = nn.Sequential(*layers)
 
         self._normalizer = None
         if cfg.auto_normalize:

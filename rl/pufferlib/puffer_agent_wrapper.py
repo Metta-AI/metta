@@ -91,7 +91,7 @@ def make_policy(env: PufferEnv, cfg: OmegaConf):
 
     if cfg.agent.core.rnn_num_layers > 0:
         puffer_agent = Recurrent(
-            env, puffer_agent, input_size=cfg.agent.fc.output_dim,
+            env, puffer_agent, input_size=cfg.agent.observation_encoder.fc.output_dim,
             hidden_size=cfg.agent.core.rnn_size,
             num_layers=cfg.agent.core.rnn_num_layers
         )

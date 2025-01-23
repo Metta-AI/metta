@@ -30,7 +30,7 @@ class SampleFactoryAgentWrapper(ActorCritic):
 
         }))
         self.agent = agent
-        self._core = ModelCoreRNN(agent.cfg.core, agent.cfg.fc.output_dim)
+        self._core = ModelCoreRNN(agent.cfg.core, agent.cfg.observation_encoder.fc.output_dim)
 
         self._action_parameterization = self.get_action_parameterization()
         self._last_action_distribution = None

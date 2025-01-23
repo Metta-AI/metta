@@ -9,9 +9,9 @@ observation_encoder:
   track_last_action: ${env.track_last_action}
   kinship: ${env.game.kinship}
 
-fc:
-  layers: 1
-  output_dim: 128
+  fc:
+    layers: 1
+    output_dim: 128
 
 decoder:
   _target_: agent.decoder.Decoder
