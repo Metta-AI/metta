@@ -10,7 +10,7 @@
             "request": "launch",
             "module": "tools.train",
             "args": [
-                "run=daveey.trainer.1",
+                "run=${env:USER}.train.${input:runSuffix}",
                 // "trainer.initial_policy.uri=wandb://run/p2.simple.train.rich.norm.auto.3",
                 // "env=mettagrid/a20_b4_40x40",
                 "env.game.max_steps=100",
@@ -34,7 +34,7 @@
             "request": "launch",
             "module": "tools.train",
             "args": [
-                "run=mac.sf.trainer.0",
+                "run=${env:USER}.mac.sf.train.${input:runSuffix}",
                 "trainer=samplefactory",
                 // "trainer.initial_policy.uri=wandb://run/mac.trainer.4",
                 // "env=mettagrid/a20_b4_40x40",
@@ -56,7 +56,7 @@
             "request": "launch",
             "module": "tools.sweep",
             "args": [
-                "run=mac.sweep.21",
+                "run=${env:USER}.mac.sweep.${input:runSuffix}",
                 "sweep=fast",
                 "sweep.metric=action.use",
                 "agent=small",
@@ -76,7 +76,7 @@
             "request": "launch",
             "module": "tools.play",
             "args": [
-                "run=mac.play.4",
+                "run=${env:USER}.mac.play.${input:runSuffix}",
                 "env/mettagrid@env=a20_b4_40x40",
                 "wandb.enabled=True",
                 // "evaluator.policy.uri=wandb://run/b.simple.train.nas.t100.a10.ie.50.er",
@@ -106,7 +106,7 @@
             "request": "launch",
             "module": "tools.eval",
             "args": [
-                "run=mac.eval.4",
+                "run=${env:USER}.mac.eval.${input:runSuffix}",
                 "wandb.enabled=True",
                 // "env=mettagrid/behaviors/resources/competition/10x10_2a",
                 "evaluator.policy.uri=wandb://run/p2.train.norm.feat",
@@ -163,5 +163,12 @@
             "args": [
             ],
         },
+    ],
+    "inputs": [
+        {
+            "id": "runSuffix",
+            "type": "promptString",
+            "description": "Enter a run suffix (e.g. 20250123, slow.1). The full name will be user.fixed_description.suffix."
+        }
     ]
 }
