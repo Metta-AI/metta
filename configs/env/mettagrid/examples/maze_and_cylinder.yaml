@@ -12,16 +12,16 @@ game:
         end_pos: [23, 23]
         branching: 0.7
       - _target_: deps.mettagrid.mettagrid.config.maze_builder.MazeRoom
-        width: 25
-        height: 25
+        width: 24
+        height: 24
         start_pos: [1, 1]
         end_pos: [23, 23]
         branching: 0.1
       - _target_: deps.mettagrid.mettagrid.config.maze_builder.MazeRoom
-        width: 25
-        height: 25
+        width: 20
+        height: 20
         start_pos: [1, 1]
-        end_pos: [23, 23]
+        end_pos: [19, 19]
         branching: 0.5
       - _target_: deps.mettagrid.mettagrid.config.maze_builder.MazeRoom
         width: 25
