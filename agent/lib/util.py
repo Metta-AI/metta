@@ -3,6 +3,24 @@ from torch import nn
 import numpy as np
 import torch
 
+class MettaLayer(nn.Module):
+    def __init__(self, layer, clip=None, l2_norm_scale=0.0):
+        super(MettaLayer, self).__init__()
+        self.layer = layer
+        self.clip = clip
+        self.l2_norm_scale = l2_norm_scale
+
+    def forward(self, x):
+        return self.layer(x)
+
+    def clip_weights(self):
+        if self.clip is not None:
+            self.layer.weight.data.clamp_(self.clip, -self.clip)
+
+    def l2_regularization(self):
+        l2_norm = self.l2_norm_scale * (torch.sum(self.layer.weight ** 2) + (torch.sum(self.layer.bias ** 2) if self.layer.bias is not None else 0))
+        return l2_norm
+
 def make_nn_stack(
     input_size,
     output_size,
@@ -10,18 +28,26 @@ def make_nn_stack(
     nonlinearity=nn.ELU(),
     layer_norm=False,
     use_skip=False,
+    global_clipping_value=None,
+    clip_scales=None,  # List of scaling factors of global clipping value for each layer
+    l2_norm_scales=None     # List of L2 coefficients for each layer
 ):
-    """Create a stack of fully connected layers with nonlinearity"""
+    """Create a stack of fully connected layers with nonlinearity, clipping, and L2 regularization."""
     sizes = [input_size] + hidden_sizes + [output_size]
     layers = []
+
     for i in range(1, len(sizes)):
-        layers.append(nn.Linear(sizes[i - 1], sizes[i]))
+        layer = nn.Linear(sizes[i - 1], sizes[i])
+        clip = global_clipping_value * clip_scales[i - 1] if clip_scales and i - 1 < len(clip_scales) and global_clipping_value is not None else None
+        l2_norm_scale = l2_norm_scales[i - 1] if l2_norm_scales and i - 1 < len(l2_norm_scales) else 0.0
+
+        metta_layer = MettaLayer(layer, clip, l2_norm_scale)
+        layers.append(metta_layer)
 
         if i < len(sizes) - 1:
             layers.append(nonlinearity)
-
-        if layer_norm and i < len(sizes) - 1:
-            layers.append(nn.LayerNorm(sizes[i]))
+            if layer_norm:
+                layers.append(nn.LayerNorm(sizes[i]))
 
     if use_skip:
         return SkipConnectionStack(layers)

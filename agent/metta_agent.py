@@ -38,12 +38,23 @@ class MettaAgent(nn.Module, MettaAgentInterface):
         self._decoder = hydra.utils.instantiate(
             cfg.decoder,
             cfg.core.rnn_size)
+        
+        clip_scales = getattr(cfg.agent.critic, 'clip_scales', None)
+        if clip_scales is not None and not isinstance(clip_scales, list):
+            clip_scales = list(clip_scales)
+        
+        l2_norm_scales = getattr(cfg.agent.critic, 'l2_norm_scales', None)
+        if l2_norm_scales is not None and not isinstance(l2_norm_scales, list):
+            l2_norm_scales = list(l2_norm_scales)
 
         self._critic_linear = make_nn_stack(
             self.decoder_out_size(),
             1,
             list(cfg.critic.hidden_sizes),
-            nonlinearity=nn.ReLU()
+            nonlinearity=nn.ReLU(),
+            global_clipping_value=cfg.trainer.clipping_value, # this doesn't work
+            clip_scales=clip_scales,
+            l2_norm_scales=l2_norm_scales
         )
 
         self.apply(self.initialize_weights)

@@ -24,26 +24,43 @@ class Recurrent(pufferlib.models.LSTMWrapper):
         super().__init__(env, policy, input_size, hidden_size, num_layers)
 
 class PufferAgentWrapper(nn.Module):
-    def __init__(self, agent: MettaAgent, actor_hidden_sizes: List[int], env: PettingZooPufferEnv):
+    def __init__(self, agent: MettaAgent, cfg: OmegaConf, env: PettingZooPufferEnv):
         super().__init__()
         self.hidden_size = agent.decoder_out_size()
         if isinstance(env.single_action_space, pufferlib.spaces.Discrete):
+            clip_scales = getattr(cfg.agent.actor, 'clip_scales', None)
+            if clip_scales is not None and not isinstance(clip_scales, list):
+                clip_scales = list(clip_scales)
+            
+            l2_norm_scales = getattr(cfg.agent.actor, 'l2_norm_scales', None)
+            if l2_norm_scales is not None and not isinstance(l2_norm_scales, list):
+                l2_norm_scales = list(l2_norm_scales)
+
             self.atn_type = make_nn_stack(
                 input_size=agent.decoder_out_size(),
-                hidden_sizes=actor_hidden_sizes,
-                output_size=env.single_action_space.n
+                hidden_sizes=list(cfg.agent.actor.hidden_sizes),
+                output_size=env.single_action_space.n,
+                global_clipping_value=cfg.trainer.clipping_value,
+                clip_scales=clip_scales,
+                l2_norm_scales=l2_norm_scales
             )
             self.atn_param = None
         elif len(env.single_action_space.nvec) == 2:
             self.atn_type = make_nn_stack(
                 input_size=agent.decoder_out_size(),
                 output_size=env.single_action_space.nvec[0],
-                hidden_sizes=actor_hidden_sizes
+                hidden_sizes=cfg.actor.hidden_sizes,
+                global_clipping_value=cfg.train.clipping_value,
+                clip_scales=cfg.actor.clip_scales,
+                l2_norm_scales=cfg.actor.l2_norm_scales 
             )
             self.atn_param = make_nn_stack(
                 input_size=agent.decoder_out_size(),
                 output_size=env.single_action_space.nvec[1],
-                hidden_sizes=actor_hidden_sizes
+                hidden_sizes=cfg.actor.hidden_sizes,
+                global_clipping_value=cfg.train.clipping_value,
+                clip_scales=cfg.actor.clip_scales,
+                l2_norm_scales=cfg.actor.l2_norm_scales
             )
         else:
             raise ValueError(f"Unsupported action space: {env.single_action_space}")
@@ -96,7 +113,7 @@ def make_policy(env: PufferEnv, cfg: OmegaConf):
         env.grid_features,
         env.global_features,
         _recursive_=False)
-    puffer_agent = PufferAgentWrapper(agent, list(cfg.agent.actor.hidden_sizes), env)
+    puffer_agent = PufferAgentWrapper(agent, cfg, env)
 
     if cfg.agent.core.rnn_num_layers > 0:
         puffer_agent = Recurrent(

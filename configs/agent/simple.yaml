@@ -29,9 +29,10 @@ policy_selector:
   generation: null
 
 critic:
-  hidden_sizes: [] # Set to [] for no hidden layer
+  hidden_sizes: [512] # Set to [] for no hidden layer
+  l2_norm_scales: [1, 0] # don't include nonlinear layers. deactivate with 0
 
 actor:
-  hidden_sizes: [] # Set to [] for no hidden layer
-
+  hidden_sizes: [512] # Set to [] for no hidden layer
+  clip_scales: [0, 0.9] # don't include nonlinear layers. deactivate with 0
 
