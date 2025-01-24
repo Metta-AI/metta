@@ -1,0 +1,16 @@
+# @package __global__
+
+run: ${user.name}.local.eval.1
+
+defaults:
+  - /user/sandbox
+
+evaluator:
+  policy:
+    uri: wandb://run/p2.train.norm.feat
+  baselines:
+    uri: wandb://run/p2.train.norm.feat
+    range: 5
+  num_envs: 10
+  num_episodes: 20
+  max_time_s: 6000
