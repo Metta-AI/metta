@@ -1,0 +1,10 @@
+# @package __global__
+
+# Relatively common settings for sandbox runs, to reduce clutter in other configs.
+
+env:
+  game:
+    max_steps: 100
+
+wandb:
+  enabled: true
