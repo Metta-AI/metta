@@ -29,17 +29,14 @@ game:
         start_pos: [1, 1]
         end_pos: [23, 23]
         branching: 0.3
-      - _target_: deps.mettagrid.mettagrid.config.cylinder_builder.CylinderRoom
+      - _target_: deps.mettagrid.mettagrid.config.maze_builder.MazeRoom
         width: 25
         height: 25
-        num_agents: 2
-        cylinder_params:
-          length: 10
-          orientation: horizontal
-          both_ends: true
+        start_pos: [1, 1]
+        end_pos: [23, 23]
+        branching: 0.1
   objects:
     altar:
       cooldown: 255
     agent:
       initial_energy: 255
-
