@@ -4,11 +4,11 @@ import numpy as np
 import torch
 
 class MettaLayer(nn.Module):
-    def __init__(self, layer, clip=None, l2_norm_scale=0.0):
+    def __init__(self, layer, clip=None, l2_norm_scale=None):
         super(MettaLayer, self).__init__()
         self.layer = layer
         self.clip = clip
-        self.l2_norm_scale = l2_norm_scale
+        self.l2_norm_scale = 0.0 if l2_norm_scale is None else l2_norm_scale
 
     def forward(self, x):
         return self.layer(x)
@@ -18,7 +18,7 @@ class MettaLayer(nn.Module):
             self.layer.weight.data.clamp_(self.clip, -self.clip)
 
     def l2_regularization(self):
-        l2_norm = self.l2_norm_scale * (torch.sum(self.layer.weight ** 2) + (torch.sum(self.layer.bias ** 2) if self.layer.bias is not None else 0))
+        l2_norm = self.l2_norm_scale * (torch.sum(self.layer.weight ** 2) if self.l2_norm_scale else 0)
         return l2_norm
 
 def make_nn_stack(

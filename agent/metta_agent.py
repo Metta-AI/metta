@@ -23,6 +23,7 @@ class MettaAgent(nn.Module, MettaAgentInterface):
         action_space: ActionSpace,
         grid_features: List[str],
         global_features: List[str],
+        # trainer_cfg: OmegaConf,
         **cfg
     ):
         super().__init__()
@@ -30,7 +31,7 @@ class MettaAgent(nn.Module, MettaAgentInterface):
         self.cfg = cfg
         self.observation_space = obs_space
         self.action_space = action_space
-
+        # self.trainer_cfg = trainer_cfg
         self._encoder = hydra.utils.instantiate(
             cfg.observation_encoder,
             obs_space, grid_features, global_features)
@@ -39,11 +40,11 @@ class MettaAgent(nn.Module, MettaAgentInterface):
             cfg.decoder,
             cfg.core.rnn_size)
         
-        clip_scales = getattr(cfg.agent.critic, 'clip_scales', None)
+        clip_scales = getattr(cfg.critic, 'clip_scales', None)
         if clip_scales is not None and not isinstance(clip_scales, list):
             clip_scales = list(clip_scales)
         
-        l2_norm_scales = getattr(cfg.agent.critic, 'l2_norm_scales', None)
+        l2_norm_scales = getattr(cfg.critic, 'l2_norm_scales', None)
         if l2_norm_scales is not None and not isinstance(l2_norm_scales, list):
             l2_norm_scales = list(l2_norm_scales)
 
@@ -52,7 +53,8 @@ class MettaAgent(nn.Module, MettaAgentInterface):
             1,
             list(cfg.critic.hidden_sizes),
             nonlinearity=nn.ReLU(),
-            global_clipping_value=cfg.trainer.clipping_value, # this doesn't work
+            global_clipping_value=1,
+            # global_clipping_value=trainer_cfg.clipping_value, 
             clip_scales=clip_scales,
             l2_norm_scales=l2_norm_scales
         )

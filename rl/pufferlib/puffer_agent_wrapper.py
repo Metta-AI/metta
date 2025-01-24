@@ -126,7 +126,8 @@ def make_policy(env: PufferEnv, cfg: OmegaConf):
         env.single_action_space,
         env.grid_features,
         env.global_features,
-        _recursive_=False)
+        # trainer_cfg=cfg.trainer,
+        _recursive_=False),
     puffer_agent = PufferAgentWrapper(agent, cfg, env)
 
     if cfg.agent.core.rnn_num_layers > 0:
