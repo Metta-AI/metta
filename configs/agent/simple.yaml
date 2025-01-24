@@ -8,6 +8,7 @@ observation_encoder:
   auto_normalize: false
   track_last_action: ${env.track_last_action}
   kinship: ${env.game.kinship}
+  # path: _agent._encoder
 
 fc:
   layers: 2
@@ -31,15 +32,15 @@ policy_selector:
   generation: null
 
 critic:
-  path: ._actor._critic_linear
-  hidden_sizes: [] # Set to [] for no hidden layer
-  l2_scale: [1, 0]
+  path: _agent._critic_linear
+  hidden_sizes: [512] # Set to [] for no hidden layer
+  l2_norm_scale: [1, 0]
 
 actor:
-  path: _atn_type
-  hidden_sizes: [] # Set to [] for no hidden layer
+  path: atn_type
+  hidden_sizes: [512] # Set to [] for no hidden layer
   l2_norm_scale: [0, 0, 1] # must be the same num of layers. include 0 for nonlinear layers.
-  clipping_scale: [0, 0, 0.1] # must be the same num of layers. include 0 for nonlinear layers.
-  l2_init_scale: [0, 0, 0] # must be the same num of layers. include 0 for nonlinear layers.
+  clipping_scale: [0, 0, 0.5] # must be the same num of layers. include 0 for nonlinear layers.
+  # l2_init_scale: [0, 0, 0] # must be the same num of layers. include 0 for nonlinear layers.
 
 

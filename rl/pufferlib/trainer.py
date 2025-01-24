@@ -298,14 +298,13 @@ class PufferTrainer:
                     entropy_loss = entropy.mean()
                     loss = pg_loss - self.trainer_cfg.ent_coef * entropy_loss + v_loss * self.trainer_cfg.vf_coef
 
-                    # L2 norm regularization
-                    if self.trainer_cfg.l2_norm_coef > 0:
-                        l2_loss = self.regularize("l2_norm")
-                        loss += l2_loss * self.trainer_cfg.l2_norm_coef
                     # clipping regularization
                     if self.trainer_cfg.clipping_coef > 0:
-                        clipping_loss = self.regularize("clipping")
-                        loss += clipping_loss * self.trainer_cfg.clipping_coef
+                        _ = self.regularize("clipping")
+                    # L2 norm regularization
+                    if self.trainer_cfg.l2_norm_coef > 0:
+                        l2_norm_loss = self.regularize("l2_norm")
+                        loss += l2_norm_loss * self.trainer_cfg.l2_norm_coef
                     # l2 init regularization
                     if self.trainer_cfg.l2_init_coef > 0:
                         l2_init_loss = self.regularize("l2_init")
@@ -327,7 +326,9 @@ class PufferTrainer:
                     self.losses.approx_kl += approx_kl.item() / total_minibatches
                     self.losses.clipfrac += clipfrac.item() / total_minibatches
                     if self.trainer_cfg.l2_norm_coef > 0:
-                        self.losses.l2_loss += l2_loss.item() / total_minibatches
+                        self.losses.l2_norm_loss += l2_norm_loss.item() / total_minibatches
+                    if self.trainer_cfg.l2_init_coef > 0:
+                        self.losses.l2_init_loss += l2_init_loss.item() / total_minibatches
 
             if self.trainer_cfg.target_kl is not None:
                 if approx_kl > self.trainer_cfg.target_kl:
@@ -449,7 +450,8 @@ class PufferTrainer:
             approx_kl=0,
             clipfrac=0,
             explained_variance=0,
-            l2_loss=0,
+            l2_norm_loss=0,
+            l2_init_loss=0,
         )
 
     def _make_vecenv(self):
@@ -481,34 +483,47 @@ class PufferTrainer:
                     scale = getattr(value, type, None)
                     if scale is not None:
                         reg_list[-1][type] = list(scale)
-                        if type == "l2_clipping _scale":
-                            reg_list[-1]["xavier_bounds"] = self._get_xavier_bounds(value.path, scale)
+                        if type == "clipping_scale":
+                            reg_list[-1]["weight_init_bounds"] = self._get_weight_init_bounds(value.path, scale)
         return reg_list
     
-    def _get_xavier_bounds(self, path, scale):
+    def _get_weight_init_bounds(self, path, scale, type="he"):
         keys = path.split('.')
         network = self._get_network(self.policy.policy.policy, keys)
-        xavier_bounds = []
+        weight_init_bounds = []
         for index in range(len(scale)):
             layer = network[index]
-            fan_in, fan_out = layer.weight.shape
-            xavier_bounds.append(np.sqrt(6 / (fan_in + fan_out)))
-        return xavier_bounds
+            if hasattr(layer, 'weight') and hasattr(layer.weight, 'shape'):
+                fan_out, fan_in = layer.weight.shape
+                if type == "xavier":
+                    weight_init_bound = np.sqrt(6 / (fan_in + fan_out))
+                elif type == "he":
+                    weight_init_bound = np.sqrt(2 / fan_in)
+            else:
+                weight_init_bound = 0 # setting the xavier_bound to 0 for non-linear layers to maintain index consistency
+            weight_init_bounds.append(weight_init_bound)
+
+        return weight_init_bounds
     
     def regularize(self, type):
         reg_loss = 0
-        layer_scaling = f"{type}_scale"
+        layer_scaling = f"{type}_scale" # scaling in cfg files should maintain the type + 'scale' convention
         for reg in self.regularize_list:
+            if layer_scaling not in reg:
+                continue
             keys = reg["path"].split('.')
             network = self._get_network(self.policy.policy.policy, keys)
             for index, scale in enumerate(reg[layer_scaling]):
                 layer = network[index]
+                if scale == 0 or not (hasattr(layer, 'weight')):
+                    continue
                 if type == "l2_norm":
                     reg_loss += self._l2_regularization(layer, scale)
                 elif type == "clipping":
-                    if reg["xavier_bounds"][index] is not None:
-                        scale = scale * reg["xavier_bounds"][index]
-                    reg_loss += self._clipping(layer, scale)
+                    if reg["weight_init_bounds"][index] is not None:
+                        scale = scale * reg["weight_init_bounds"][index]
+                        clip = scale * self.trainer_cfg.clipping_coef
+                        self._clip_weights(layer, clip)
                 elif type == "l2_init":
                     reg_loss += self._l2_init(layer, scale)
         return reg_loss
@@ -516,26 +531,22 @@ class PufferTrainer:
     def _get_network(self, network, keys):
         for key in keys:
             try:
-                layer = network._modules[key].weight.data
+                network = network._modules[key]
             except KeyError:
                 raise KeyError(f"Key '{key}' not found in the module hierarchy.")
-        return layer
+        return network
 
     def _l2_regularization(self, layer, scale):
-        l2_loss = 0
-        for param in layer.parameters():
-            l2_loss += scale * torch.sum(param.pow(2))
-        return l2_loss
+        l2_norm_loss = 0
+        l2_norm_loss += scale * torch.sum(layer.weight.pow(2)) # note: this isn't normalized by the number of parameters
+        return l2_norm_loss
     
-    def _clipping(self, layer, scale):
-        kappa = scale*self.trainer_cfg.clipping_coef
-        for param in layer.parameters():
-            param.data = torch.clamp(
-                param.data,
-                min=-kappa,
-                max=kappa
-            )
-        return 0
+    def _clip_weights(self, layer, clip):
+        layer.weight.data = torch.clamp(
+            layer.weight.data,
+            min=-clip,
+            max=clip
+        )
     
     def _l2_init(self, layer, scale):
         #this doesn't work yet. Also, network initial values need to be saved. 
