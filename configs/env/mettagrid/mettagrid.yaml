@@ -90,7 +90,7 @@ game:
       enabled: true
       cost: 0
 
-  map:
+  map_builder:
     # _target_: env.griddly.mettagrid.level_builder.MettaGridLevelBuilder
     uri: null
     rooms: null
