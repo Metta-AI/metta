@@ -1,0 +1,59 @@
+defaults:
+  - mettagrid
+
+game:
+  max_steps: 1000
+  num_agents: 6
+  map:
+    rooms:
+      - _target_: deps.mettagrid.mettagrid.config.maze_builder.MazeRoom
+        width: 25
+        height: 25
+        start_pos: [1, 1]
+        end_pos: [23, 23]
+        branching: 0.9
+      - _target_: deps.mettagrid.mettagrid.config.maze_builder.MazeRoom
+        width: 25
+        height: 25
+        start_pos: [1, 1]  # Note: Use array syntax instead of tuple
+        end_pos: [23, 23]
+        branching: 0.7
+      - _target_: deps.mettagrid.mettagrid.config.maze_builder.MazeRoom
+        width: 25
+        height: 25
+        start_pos: [1, 1]
+        end_pos: [23, 23]
+        branching: 0.1
+      - _target_: deps.mettagrid.mettagrid.config.maze_builder.MazeRoom
+        width: 25
+        height: 25
+        start_pos: [1, 1]
+        end_pos: [23, 23]
+        branching: 0.5
+      - _target_: deps.mettagrid.mettagrid.config.maze_builder.MazeRoom
+        width: 25
+        height: 25
+        start_pos: [1, 1]
+        end_pos: [23, 23]
+        branching: 0.3
+      - _target_: deps.mettagrid.mettagrid.config.maze_builder.MazeRoom
+        width: 25
+        height: 25
+        start_pos: [1, 1]
+        end_pos: [23, 23]
+        branching: 0.1
+
+  objects:
+    altar:
+      cooldown: 250
+      use_cost: 250
+    agent:
+      initial_energy: 250
+
+  actions:
+    attack:
+      cost: 255
+      # enabled: false
+    shield:
+      cost: 255
+      # enabled: false
