@@ -64,6 +64,20 @@ class PufferAgentWrapper(nn.Module):
             )
         else:
             raise ValueError(f"Unsupported action space: {env.single_action_space}")
+        
+        def update_metta_layer_clipping_scales(self, global_clipping_value, clip_scales):
+            for i, layer in enumerate(self.atn_type):
+                layer.clip = global_clipping_value * clip_scales[i] if i < len(clip_scales) else None
+            if self.atn_param is not None:
+                for i, layer in enumerate(self.atn_param):
+                    layer.clip = global_clipping_value * clip_scales[i] if i < len(clip_scales) else None
+
+        def update_metta_layer_l2_norm_scales(self, l2_norm_scales):
+            for i, layer in enumerate(self.atn_type):
+                layer.l2_norm_scale = l2_norm_scales[i] if i < len(l2_norm_scales) else 0.0
+            if self.atn_param is not None:
+                for i, layer in enumerate(self.atn_param):
+                    layer.l2_norm_scale = l2_norm_scales[i] if i < len(l2_norm_scales) else 0.0
 
         self._agent = agent
         print(self)
