@@ -2,7 +2,7 @@ defaults:
   - mettagrid
 
 game:
-  num_agents: 6
+  num_agents: 4
   map:
     rooms: 
       - _target_: deps.mettagrid.mettagrid.config.maze_builder.MazeRoom
@@ -10,33 +10,25 @@ game:
         height: 25
         start_pos: [1, 1]  # Note: Use array syntax instead of tuple
         end_pos: [23, 23]
-        branching: 0.7
+        branching: 0.6
+      - _target_: deps.mettagrid.mettagrid.config.maze_builder.MazeRoom
+        width: 24
+        height: 24
+        start_pos: [1, 1]
+        end_pos: [23, 23]
+        branching: 0.6
+      - _target_: deps.mettagrid.mettagrid.config.maze_builder.MazeRoom
+        width: 20
+        height: 20
+        start_pos: [1, 1]
+        end_pos: [23, 23]
+        branching: 0.6
       - _target_: deps.mettagrid.mettagrid.config.maze_builder.MazeRoom
         width: 25
         height: 25
         start_pos: [1, 1]
         end_pos: [23, 23]
-        branching: 0.1
-      - _target_: deps.mettagrid.mettagrid.config.maze_builder.MazeRoom
-        width: 25
-        height: 25
-        start_pos: [1, 1]
-        end_pos: [23, 23]
-        branching: 0.5
-      - _target_: deps.mettagrid.mettagrid.config.maze_builder.MazeRoom
-        width: 25
-        height: 25
-        start_pos: [1, 1]
-        end_pos: [23, 23]
-        branching: 0.3
-      - _target_: deps.mettagrid.mettagrid.config.cylinder_builder.CylinderRoom
-        width: 25
-        height: 25
-        num_agents: 2
-        cylinder_params:
-          length: 10
-          orientation: horizontal
-          both_ends: true
+        branching: 0.6
   objects:
     altar:
       cooldown: 255

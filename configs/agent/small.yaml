@@ -49,9 +49,9 @@ observation_encoder:
   #   output_dim: 8
   #   layers: 2
 
-fc:
-  layers: 1
-  output_dim: 128
+  fc:
+    layers: 1
+    output_dim: 128
 
 decoder:
   _target_: agent.decoder.Decoder

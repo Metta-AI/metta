@@ -2,7 +2,7 @@ num_envs: 128
 num_episodes: 128
 max_time_s: 60
 policy_agents_pct: 0.5
-
+custom_metrics: null
 policy:
   uri: null
   type: top

@@ -1,0 +1,25 @@
+evaluators:
+  - env: multi_room_cylinder
+    evaluator:
+      policy:
+        uri: "wandb://run/uniform_sampling_v2_01_ms2000"
+        type: "top"
+        range: 1
+        metric: "epoch"
+      custom_metrics:
+        - name: "time_to_generator"
+          type: "time_to_reach"
+          target: "generator"
+  - env: multi_room_maze
+    evaluator:
+      policy:
+        uri: "wandb://run/uniform_sampling_v2_01_ms2000"
+        type: "top"
+        range: 1
+        metric: "epoch"
+        filters: {}
+      custom_metrics:
+        - name: "time_to_heart"
+          type: "time_to_reach"
+          target: "heart_altar"
+vectorization: multiprocessing

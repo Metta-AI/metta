@@ -75,7 +75,6 @@
             "type": "debugpy",
             "request": "launch",
             "module": "tools.play",
-          //  "preLaunchTask": "build_cython_extensions",
             "args": [
                 "run=mac.play.4",
                 "env/mettagrid@env=a20_b4_40x40",

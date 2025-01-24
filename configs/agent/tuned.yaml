@@ -8,9 +8,9 @@ observation_encoders:
     layers: 2
   global_vars:
     feature_names: []
-fc:
-  layers: 1
-  output_dim: 256
+  fc:
+    layers: 1
+    output_dim: 256
 decoder:
   _target_: agent.decoder.Decoder
 core:
