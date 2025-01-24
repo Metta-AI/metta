@@ -1,0 +1,24 @@
+# @package __global__
+
+run: ${user.name}.local.train.1
+
+defaults:
+  - /user/sandbox
+# These control what other config files we load. This is useful for, e.g., loading a specific map. Specific configuration values can still be overridden below.
+#   - override /agent: simple.medium
+#     For env, we want to load the file from the env/mettagrid directory, but we want to load the config into the env section.
+#   - override /env/mettagrid@env: a20_b4_40x40
+
+# Here we can override any config values.
+# agent:
+#   key: value
+
+env:
+  sampling: 0.1
+
+trainer:
+  evaluate_interval: 2
+
+wandb:
+  track: true
+  checkpoint_interval: 1
