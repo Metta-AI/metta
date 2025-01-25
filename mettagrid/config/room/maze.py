@@ -1,7 +1,8 @@
-import numpy as np
 import random
 
-from mettagrid.config.room.room import Room, OBJECTS
+import numpy as np
+
+from mettagrid.config.room.room import OBJECTS, Room
 
 class Maze(Room):
     EMPTY, WALL = OBJECTS.Empty.symbol, OBJECTS.Wall.symbol
@@ -69,6 +70,7 @@ class Maze(Room):
                 else:
                     next_direction = self._rng.choice(unvisited_neighbors)
 
+                next_x, next_y = x, y
                 if next_direction == self.NORTH:
                     next_x, next_y = x, y - 2
                     maze[y - 1, x] = self.EMPTY
