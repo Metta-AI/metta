@@ -42,28 +42,19 @@ class PufferAgentWrapper(nn.Module):
             self.atn_type = make_nn_stack(
                 input_size=agent.decoder_out_size(),
                 hidden_sizes=list(cfg.agent.actor.hidden_sizes),
-                output_size=env.single_action_space.n,
-                global_clipping_value=cfg.trainer.clipping_value,
-                clip_scales=clip_scales,
-                l2_norm_scales=l2_norm_scales
+                output_size=env.single_action_space.n
             )
             self.atn_param = None
         elif len(env.single_action_space.nvec) == 2:
             self.atn_type = make_nn_stack(
                 input_size=agent.decoder_out_size(),
                 output_size=env.single_action_space.nvec[0],
-                hidden_sizes=cfg.actor.hidden_sizes,
-                global_clipping_value=cfg.train.clipping_value,
-                clip_scales=cfg.actor.clip_scales,
-                l2_norm_scales=cfg.actor.l2_norm_scales 
+                hidden_sizes=cfg.actor.hidden_sizes
             )
             self.atn_param = make_nn_stack(
                 input_size=agent.decoder_out_size(),
                 output_size=env.single_action_space.nvec[1],
-                hidden_sizes=cfg.actor.hidden_sizes,
-                global_clipping_value=cfg.train.clipping_value,
-                clip_scales=cfg.actor.clip_scales,
-                l2_norm_scales=cfg.actor.l2_norm_scales
+                hidden_sizes=cfg.actor.hidden_sizes
             )
         else:
             raise ValueError(f"Unsupported action space: {env.single_action_space}")

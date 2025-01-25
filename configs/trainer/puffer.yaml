@@ -18,7 +18,6 @@ max_grad_norm: 0.5
 vf_clip_coef: 0.1
 vf_coef: 0.5
 l2_norm_coef: 0.00002
-clipping_value: 3
 
 norm_adv: true
 clip_vloss: true

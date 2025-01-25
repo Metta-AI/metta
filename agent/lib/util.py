@@ -8,23 +8,18 @@ class WeightTransformer():
         self._clip_scales = []
         self._l2_norm_scales = []
         self._layers = []
-        self._global_clipping_value = cfg.trainer.clipping_value
         self.cfg = cfg
+        self._global_clipping_value = cfg.clipping_value
+
+    def _get_scale(self, network_cfg, attr_name, layer_idx):
+        scales = getattr(network_cfg, attr_name, None)
+        if scales is not None and layer_idx - 1 < len(scales):
+            return list(scales)[layer_idx - 1]
+        return None
 
     def add_layer(self, layer, key, layer_idx):
-        cfg = self.cfg.get(key)
-
-        cfg_clip_scales = getattr(cfg, 'clip_scales', None)
-        if cfg_clip_scales is not None and not isinstance(cfg_clip_scales, list):
-            clip_scale = list(cfg_clip_scales)[layer_idx - 1]
-        else:
-            clip_scale = self._global_clipping_value
-
-        cfg_l2_norm_scales = getattr(cfg, 'l2_norm_scales', None)
-        if cfg_l2_norm_scales is not None and not isinstance(cfg_l2_norm_scales, list):
-            l2_norm_scale = list(cfg_l2_norm_scales)[layer_idx - 1]
-        else:
-            l2_norm_scale = 0.0
+        clip_scale = self._get_scale(self.cfg.get(key), 'clip_scales', layer_idx)
+        l2_norm_scale = self._get_scale(self.cfg.get(key), 'l2_norm_scales', layer_idx)
 
         self._clip_scales.append(clip_scale)
         self._l2_norm_scales.append(l2_norm_scale)
@@ -57,6 +52,7 @@ def make_nn_stack(
 
     for i in range(1, len(sizes)):
         layer = nn.Linear(sizes[i - 1], sizes[i])
+        layers.append(layer)
        
         if transform_weights is not None:
             transform_weights(layer, i)

@@ -46,19 +46,18 @@ class MettaAgent(nn.Module, MettaAgentInterface):
             self.decoder_out_size(),
             1,
             list(cfg.critic.hidden_sizes),
-            nonlinearity=nn.ReLU(),
-            weight_transformer=self.weight_transformer,
-            key="critic"
+            nonlinearity=getattr(nn, cfg.critic.nonlinearity)(),
+            transform_weights=self.weight_transformer.key('critic')
         )
 
-        self._actor_linear = make_nn_stack(
-            self.decoder_out_size(),
-            self.action_space.n,
-            list(cfg.actor.hidden_sizes),
-            nonlinearity=nn.ReLU(),
-            global_clipping_value=1,
-            transform_weights=self.weight_transformer.key("actor"),
-        )
+        # self._actor_linear = make_nn_stack(
+        #     self.decoder_out_size(),
+        #     self.action_space.n,
+        #     list(cfg.actor.hidden_sizes),
+        #     nonlinearity=getattr(nn, cfg.actor.nonlinearity)(),
+        #     global_clipping_value=1,
+        #     transform_weights=self.weight_transformer.key('actor')
+        # )
 
         self.apply(self.initialize_weights)
 
