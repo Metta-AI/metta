@@ -1,13 +1,14 @@
+import copy
 from typing import Any, Dict
 
+import gymnasium as gym
+import hydra
 import numpy as np
 import pufferlib
 from omegaconf import OmegaConf
 
-from mettagrid.config.game_builder import MettaGridGameBuilder
-from mettagrid.config.sample_config import sample_config
-from mettagrid.mettagrid_c import MettaGrid # pylint: disable=E0611
-import gymnasium as gym
+from mettagrid.mettagrid_c import MettaGrid  # pylint: disable=E0611
+
 
 class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     def __init__(self, render_mode: str, buf=None, **cfg):
@@ -21,12 +22,10 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         super().__init__(buf)
 
     def make_env(self):
-        scfg = sample_config(self._cfg, self._cfg.sampling)
-        assert isinstance(scfg, Dict)
-        self._env_cfg = OmegaConf.create(scfg)
-        self._game_builder = MettaGridGameBuilder(**self._env_cfg.game) # type: ignore
-        level = self._game_builder.level()
-        self._c_env = MettaGrid(self._env_cfg, level)
+        self._env_cfg = copy.deepcopy(self._cfg)
+        OmegaConf.resolve(self._env_cfg)
+        self._map_builder = hydra.utils.instantiate(self._env_cfg.game.map_builder)
+        self._c_env = MettaGrid(self._env_cfg, self._map_builder.build())
         self._grid_env = self._c_env
         self._num_agents = self._c_env.num_agents()
 
@@ -95,7 +94,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     @property
     def _max_steps(self):
-        return self._game_builder.max_steps
+        return self._env_cfg.game.max_steps
 
     @property
     def single_observation_space(self):
