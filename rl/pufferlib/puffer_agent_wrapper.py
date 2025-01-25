@@ -24,9 +24,8 @@ class Recurrent(pufferlib.models.LSTMWrapper):
         super().__init__(env, policy, input_size, hidden_size, num_layers)
 
 class PufferAgentWrapper(nn.Module):
-    def __init__(self, agent: MettaAgent, cfg: OmegaConf, env: PettingZooPufferEnv, weight_transformer: WeightTransformer):
+    def __init__(self, agent: MettaAgent, cfg: OmegaConf, env: PettingZooPufferEnv):
         super().__init__()
-        self.weight_transformer = weight_transformer  # Use the passed instance
         # move this into the agent
         if isinstance(env.single_action_space, pufferlib.spaces.Discrete):
             self.atn_type = make_nn_stack(
