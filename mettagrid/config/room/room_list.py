@@ -13,7 +13,7 @@ class RoomList(Room):
         super().__init__(border_width=border_width, border_object=border_object)
         self._room_configs = rooms
         self._layout = layout
-        assert self._layout in ["grid", "vertical", "horizontal"]
+        assert self._layout in ["grid", "column", "row"]
 
     def _build(self):
         rooms = []
@@ -33,14 +33,14 @@ class RoomList(Room):
         if self._layout == "grid":
             grid_rows = int(np.ceil(np.sqrt(n_rooms)))
             grid_cols = int(np.ceil(n_rooms / grid_rows))
-        elif self._layout == "vertical":
+        elif self._layout == "column":
             grid_rows = n_rooms
-        elif self._layout == "horizontal":
+        elif self._layout == "row":
             grid_cols = n_rooms
 
         # Create empty grid to hold all rooms
         level = np.full((grid_rows * max_height, grid_cols * max_width),
-                        OBJECTS.Wall.symbol, dtype="U6")
+                        OBJECTS.Empty.symbol, dtype="U6")
 
         # Place rooms into grid
         for i in range(n_rooms):

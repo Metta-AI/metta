@@ -1,10 +1,12 @@
 from typing import Set, Tuple
+
 import numpy as np
 from omegaconf import DictConfig
 
-from mettagrid.config.room_builder import RoomBuilder, SYMBOLS
+from mettagrid.config.room.room import OBJECTS, GameObject, Room
 
-class CylinderRoomBuilder(RoomBuilder):
+
+class CylinderRoom(Room):
     def __init__(
         self,
         width: int,
@@ -13,7 +15,7 @@ class CylinderRoomBuilder(RoomBuilder):
         num_agents: int = 1,
         seed = None,
         border_width: int = 0,
-        border_object: str = SYMBOLS["wall"],
+        border_object: GameObject = OBJECTS.Wall,
     ):
         super().__init__(border_width=border_width, border_object=border_object)
         self._width = width
@@ -27,7 +29,7 @@ class CylinderRoomBuilder(RoomBuilder):
         assert cylinder_params['orientation'] in ['horizontal', 'vertical'], "Invalid orientation"
 
         # Initialize grid
-        self._grid = np.full((self._height, self._width), SYMBOLS["empty"], dtype=str)
+        self._grid = np.full((self._height, self._width), OBJECTS.Empty.symbol, dtype=str)
         self._cylinder_positions = set()
 
     def _build(self) -> np.ndarray:
@@ -50,19 +52,19 @@ class CylinderRoomBuilder(RoomBuilder):
         # Create parallel walls
         for x in range(start_x, start_x + wall_length):
             if not self._cylinder_params['both_ends'] or (x != start_x and x != start_x + wall_length - 1):
-                self._grid[center_y - 1, x] = SYMBOLS["wall"]  # Top wall
-                self._grid[center_y + 1, x] = SYMBOLS["wall"]  # Bottom wall
+                self._grid[center_y - 1, x] = OBJECTS.Wall.symbol  # Top wall
+                self._grid[center_y + 1, x] = OBJECTS.Wall.symbol  # Bottom wall
                 self._cylinder_positions.update({(x, center_y - 1), (x, center_y + 1)})
 
         # Place generator
         generator_x = start_x + (wall_length // 2)
-        self._grid[center_y, generator_x] = SYMBOLS["generator"]
+        self._grid[center_y, generator_x] = OBJECTS.Generator.symbol
         self._cylinder_positions.add((generator_x, center_y))
 
         # Place agents
         agent_start_x = start_x + (wall_length - self._num_agents) // 2
         for i in range(self._num_agents):
-            self._grid[center_y - 2, agent_start_x + i] = SYMBOLS["agent"]
+            self._grid[center_y - 2, agent_start_x + i] = OBJECTS.Agent.symbol
             self._cylinder_positions.add((agent_start_x + i, center_y - 2))
 
     def place_vertical_cylinder(self) -> None:
@@ -74,19 +76,19 @@ class CylinderRoomBuilder(RoomBuilder):
         # Create parallel walls
         for y in range(start_y, start_y + wall_length):
             if not self._cylinder_params['both_ends'] or (y != start_y and y != start_y + wall_length - 1):
-                self._grid[y, center_x - 1] = SYMBOLS["wall"]  # Left wall
-                self._grid[y, center_x + 1] = SYMBOLS["wall"]  # Right wall
+                self._grid[y, center_x - 1] = OBJECTS.Wall.symbol  # Left wall
+                self._grid[y, center_x + 1] = OBJECTS.Wall.symbol  # Right wall
                 self._cylinder_positions.update({(center_x - 1, y), (center_x + 1, y)})
 
         # Place generator
         generator_y = start_y + (wall_length // 2)
-        self._grid[generator_y, center_x] = SYMBOLS["generator"]
+        self._grid[generator_y, center_x] = OBJECTS.Generator.symbol
         self._cylinder_positions.add((center_x, generator_y))
 
         # Place agents
         agent_start_y = start_y + (wall_length - self._num_agents) // 2
         for i in range(self._num_agents):
-            self._grid[agent_start_y + i, center_x - 2] = SYMBOLS["agent"]
+            self._grid[agent_start_y + i, center_x - 2] = OBJECTS.Agent.symbol
             self._cylinder_positions.add((center_x - 2, agent_start_y + i))
 
     def _get_valid_positions(self) -> Set[Tuple[int, int]]:
@@ -111,5 +113,5 @@ class CylinderRoomBuilder(RoomBuilder):
         if left_positions and right_positions:
             altar_pos = self._rng.choice(left_positions)
             converter_pos = self._rng.choice(right_positions)
-            self._grid[altar_pos[1], altar_pos[0]] = SYMBOLS["altar"]
-            self._grid[converter_pos[1], converter_pos[0]] = SYMBOLS["converter"]
+            self._grid[altar_pos[1], altar_pos[0]] = OBJECTS.Altar.symbol
+            self._grid[converter_pos[1], converter_pos[0]] = OBJECTS.Converter.symbol
