@@ -3,7 +3,6 @@ import torch
 import numpy as np
 from mettagrid.renderer.raylib.raylib_renderer import MettaGridRaylibRenderer
 from rl.pufferlib.vecenv import make_vecenv
-from mettagrid.config.sample_config import sample_config
 from agent.policy_store import PolicyRecord
 
 def play(cfg: OmegaConf, policy_record: PolicyRecord):

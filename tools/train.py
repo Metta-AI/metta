@@ -1,17 +1,12 @@
-import os
-import signal  # Aggressively exit on ctrl+c
 import logging
+import os
 
 import hydra
-from omegaconf import OmegaConf
-from rich import traceback
-from rich.logging import RichHandler
-
-from rl.wandb.wandb_context import WandbContext
-from util.seeding import seed_everything
 from agent.policy_store import PolicyStore
-
-signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
+from mettagrid.config.config import setup_metta_environment
+from omegaconf import OmegaConf
+from rich.logging import RichHandler
+from rl.wandb.wandb_context import WandbContext
 
 # Configure rich colored logging
 logging.basicConfig(
@@ -25,13 +20,8 @@ logger = logging.getLogger("train")
 
 @hydra.main(version_base=None, config_path="../configs", config_name="config")
 def main(cfg):
+    setup_metta_environment(cfg)
 
-    traceback.install(show_locals=False)
-
-    logger.info(OmegaConf.to_yaml(cfg))
-
-    seed_everything(cfg.seed, cfg.torch_deterministic)
-    os.makedirs(cfg.run_dir, exist_ok=True)
     with open(os.path.join(cfg.run_dir, "config.yaml"), "w") as f:
         OmegaConf.save(cfg, f)
 

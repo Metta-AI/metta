@@ -34,7 +34,9 @@ echo "Cloning mettagrid in to $(pwd)"
 git clone https://github.com/Metta-AI/mettagrid.git
 cd mettagrid
 echo "Fetching mettagrid in to $(pwd)"
-git pull
+git fetch
+echo "Checking out main in to $(pwd)"
+git checkout main
 echo "Installing mettagrid in to $(pwd)"
 pip install -r requirements.txt
 echo "Building mettagrid in to $(pwd)"
