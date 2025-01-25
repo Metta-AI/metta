@@ -87,26 +87,18 @@ game:
       cost: 0
       enabled: true
 
-  map:
-    uri: null
-    rooms: null
-    layout:
-      rooms_x: 1
-      rooms_y: 1
+  map_builder:
+    _target_: mettagrid.config.room.random.Random
+    width: 25
+    height: 25
+    border_width: 0
 
-    border: 0
-
-    room:
-      width: 25
-      height: 25
-      border: 1
-      num_agents: 5
-      objects:
-        agent: 5
-        altar: 1
-        converter: 3
-        generator: 15
-        wall: 10
+    objects:
+      agent: 5
+      altar: 1
+      converter: 3
+      generator: 15
+      wall: 40
 
   kinship:
     enabled: false

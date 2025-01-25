@@ -1,11 +1,19 @@
 import numpy as np
-from omegaconf import ListConfig
-from mettagrid.config.room_builder import RoomBuilder, SYMBOLS
+from typing import List
 
-class RoomListBuilder(RoomBuilder):
-    def __init__(self, rooms: ListConfig, border_width: int = 0, border_object: str = "wall"):
+from mettagrid.config.room.room import Room, GameObject, OBJECTS
+
+class RoomList(Room):
+    def __init__(
+        self,
+        rooms: List[Room],
+        layout: str = "grid",
+        border_width: int = 0,
+        border_object: GameObject = OBJECTS.Wall):
         super().__init__(border_width=border_width, border_object=border_object)
         self._room_configs = rooms
+        self._layout = layout
+        assert self._layout in ["grid", "vertical", "horizontal"]
 
     def _build(self):
         rooms = []
@@ -21,12 +29,18 @@ class RoomListBuilder(RoomBuilder):
         # Determine grid dimensions based on number of rooms
         n_rooms = len(rooms)
 
-        grid_rows = int(np.ceil(np.sqrt(n_rooms)))
-        grid_cols = int(np.ceil(n_rooms / grid_rows))
+        grid_cols, grid_rows = 1, 1
+        if self._layout == "grid":
+            grid_rows = int(np.ceil(np.sqrt(n_rooms)))
+            grid_cols = int(np.ceil(n_rooms / grid_rows))
+        elif self._layout == "vertical":
+            grid_rows = n_rooms
+        elif self._layout == "horizontal":
+            grid_cols = n_rooms
 
         # Create empty grid to hold all rooms
         level = np.full((grid_rows * max_height, grid_cols * max_width),
-                      SYMBOLS["wall"], dtype="U6")
+                        OBJECTS.Wall.symbol, dtype="U6")
 
         # Place rooms into grid
         for i in range(n_rooms):

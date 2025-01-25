@@ -1,9 +1,10 @@
 from typing import Optional
 import numpy as np
 from omegaconf import DictConfig
-from mettagrid.config.room_builder import RoomBuilder, SYMBOLS
 
-class RandomRoomBuilder(RoomBuilder):
+from mettagrid.config.room.room import Room, OBJECTS, GameObject
+
+class Random(Room):
     def __init__(
         self,
         width: int,
@@ -11,7 +12,7 @@ class RandomRoomBuilder(RoomBuilder):
         objects: DictConfig,
         seed: Optional[int] = None,
         border_width: int = 0,
-        border_object: str = "wall",
+        border_object: GameObject = OBJECTS.Wall
     ):
         super().__init__(border_width=border_width, border_object=border_object)
         self._rng = np.random.default_rng(seed)
@@ -33,10 +34,10 @@ class RandomRoomBuilder(RoomBuilder):
 
         # Add all objects in the proper amounts to a single large array.
         for obj_name, count in self._objects.items():
-            symbols.extend([SYMBOLS[str(obj_name)]] * count)
+            symbols.extend([OBJECTS.named(obj_name).symbol] * count)
 
         assert(len(symbols) <= area), f"Too many objects in room: {len(symbols)} > {area}"
-        symbols.extend([SYMBOLS["empty"]] * (area - len(symbols)))
+        symbols.extend([OBJECTS.Empty] * (area - len(symbols)))
 
         # Shuffle and reshape the array into a room.
         symbols = np.array(symbols).astype("U8")
