@@ -24,19 +24,9 @@ class Recurrent(pufferlib.models.LSTMWrapper):
         super().__init__(env, policy, input_size, hidden_size, num_layers)
 
 class PufferAgentWrapper(nn.Module):
-    def __init__(self, agent: MettaAgent, cfg: OmegaConf, env: PettingZooPufferEnv):
+    def __init__(self, agent: MettaAgent, cfg: OmegaConf, env: PettingZooPufferEnv, weight_transformer: WeightTransformer):
         super().__init__()
-
-        self.hidden_size = agent.decoder_out_size()
-        #move this logic into the nn_stack
-        clip_scales = getattr(cfg.agent.actor, 'clip_scales', None)
-        if clip_scales is not None and not isinstance(clip_scales, list):
-            clip_scales = list(clip_scales)
-        
-        l2_norm_scales = getattr(cfg.agent.actor, 'l2_norm_scales', None)
-        if l2_norm_scales is not None and not isinstance(l2_norm_scales, list):
-            l2_norm_scales = list(l2_norm_scales)
-
+        self.weight_transformer = weight_transformer  # Use the passed instance
         # move this into the agent
         if isinstance(env.single_action_space, pufferlib.spaces.Discrete):
             self.atn_type = make_nn_stack(
@@ -58,20 +48,6 @@ class PufferAgentWrapper(nn.Module):
             )
         else:
             raise ValueError(f"Unsupported action space: {env.single_action_space}")
-        
-        # def update_metta_layer_clipping_scales(self, global_clipping_value, clip_scales):
-        #     for i, layer in enumerate(self.atn_type):
-        #         layer.clip = global_clipping_value * clip_scales[i] if i < len(clip_scales) else None
-        #     if self.atn_param is not None:
-        #         for i, layer in enumerate(self.atn_param):
-        #             layer.clip = global_clipping_value * clip_scales[i] if i < len(clip_scales) else None
-
-        # def update_metta_layer_l2_norm_scales(self, l2_norm_scales):
-        #     for i, layer in enumerate(self.atn_type):
-        #         layer.l2_norm_scale = l2_norm_scales[i] if i < len(l2_norm_scales) else 0.0
-        #     if self.atn_param is not None:
-        #         for i, layer in enumerate(self.atn_param):
-        #             layer.l2_norm_scale = l2_norm_scales[i] if i < len(l2_norm_scales) else 0.0
 
         self._agent = agent
         print(self)

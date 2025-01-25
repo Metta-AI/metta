@@ -17,16 +17,16 @@ class WeightTransformer():
             return list(scales)[layer_idx - 1]
         return None
 
-    def add_layer(self, layer, key, layer_idx):
+    def add_layer(self, layer, key, layer_idx, s_bound):
         clip_scale = self._get_scale(self.cfg.get(key), 'clip_scales', layer_idx)
         l2_norm_scale = self._get_scale(self.cfg.get(key), 'l2_norm_scales', layer_idx)
 
-        self._clip_scales.append(clip_scale)
+        self._clip_scales.append(clip_scale * s_bound * self._global_clipping_value if clip_scale is not None else None)
         self._l2_norm_scales.append(l2_norm_scale)
         self._layers.append(layer)
 
     def key(self, key):
-        return lambda layer, idx: self.add_layer(layer, key, idx)
+        return lambda layer, idx, s_bound: self.add_layer(layer, key, idx, s_bound)
     
     def clip_weights(self):
         for layer, clip in zip(self._layers, self._clip_scales):
@@ -34,8 +34,11 @@ class WeightTransformer():
                 layer.weight.data.clamp_(clip, -clip)
 
     def get_l2_norm_loss(self):
-        l2_norm = self.l2_norm_scale * (torch.sum(self.layer.weight ** 2) if self.l2_norm_scale else 0)
-        return l2_norm
+        l2_norm_loss = 0
+        for layer, l2_norm_scale in zip(self._layers, self._l2_norm_scales):
+            l2_norm = l2_norm_scale * (torch.sum(layer.weight ** 2) if l2_norm_scale else 0)
+            l2_norm_loss += l2_norm
+        return l2_norm_loss
 
 def make_nn_stack(
     input_size,
@@ -45,6 +48,7 @@ def make_nn_stack(
     layer_norm=False,
     use_skip=False,
     transform_weights=None,
+    initialization='He'
 ):
     """Create a stack of fully connected layers with nonlinearity, clipping, and L2 regularization."""
     sizes = [input_size] + hidden_sizes + [output_size]
@@ -53,9 +57,15 @@ def make_nn_stack(
     for i in range(1, len(sizes)):
         layer = nn.Linear(sizes[i - 1], sizes[i])
         layers.append(layer)
+
+        if initialization == 'Xavier':
+            s_bound = np.sqrt(6 / (sizes[i - 1] + sizes[i]))
+            nn.init.xavier_uniform_(layer.weight)
+        elif initialization == 'He':
+            s_bound = np.sqrt(2 / sizes[i - 1])
        
         if transform_weights is not None:
-            transform_weights(layer, i)
+            transform_weights(layer, i, s_bound)
 
         if i < len(sizes) - 1:
             layers.append(nonlinearity)

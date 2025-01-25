@@ -23,7 +23,6 @@ class MettaAgent(nn.Module, MettaAgentInterface):
         action_space: ActionSpace,
         grid_features: List[str],
         global_features: List[str],
-        # trainer_cfg: OmegaConf,
         **cfg
     ):
         super().__init__()
@@ -31,7 +30,6 @@ class MettaAgent(nn.Module, MettaAgentInterface):
         self.cfg = cfg
         self.observation_space = obs_space
         self.action_space = action_space
-        # self.trainer_cfg = trainer_cfg
         self._encoder = hydra.utils.instantiate(
             cfg.observation_encoder,
             obs_space, grid_features, global_features)
@@ -74,6 +72,7 @@ class MettaAgent(nn.Module, MettaAgentInterface):
     def aux_loss(self, normalized_obs_dict, rnn_states):
         raise NotImplementedError()
 
+    #move this to make_nn_stack?
     def initialize_weights(self, layer):
         gain = 1.0
 
