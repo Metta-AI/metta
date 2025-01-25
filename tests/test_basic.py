@@ -18,9 +18,6 @@ import mettagrid.actions.shield
 import mettagrid.actions.swap
 import mettagrid.actions.use
 
-import mettagrid.config.game_builder
-import mettagrid.config.sample_config
-
 import mettagrid.action
 import mettagrid.event
 import mettagrid.grid_env
