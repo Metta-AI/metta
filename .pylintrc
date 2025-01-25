@@ -2,3 +2,4 @@ disable=C0116:missing-function-docstring
 disable=missing-module-docstring
 disable=missing-class-docstring
 disable=missing-function-docstring
+disable=R0913:too-many-arguments
