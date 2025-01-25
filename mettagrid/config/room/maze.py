@@ -1,14 +1,14 @@
 import numpy as np
 import random
 
-from mettagrid.config.room_builder import RoomBuilder, SYMBOLS
+from mettagrid.config.room.room import Room, OBJECTS
 
-class MazeRoomBuilder(RoomBuilder):
-    EMPTY, WALL = SYMBOLS["empty"], SYMBOLS["wall"]
-    START, END = SYMBOLS["agent"], SYMBOLS["altar"]
+class Maze(Room):
+    EMPTY, WALL = OBJECTS.Empty.symbol, OBJECTS.Wall.symbol
+    START, END = OBJECTS.Agent.symbol, OBJECTS.Altar.symbol
     NORTH, SOUTH, EAST, WEST = 'n', 's', 'e', 'w'
 
-    def __init__(self, width, height, start_pos, end_pos, branching, seed=None, border_width=0, border_object=SYMBOLS["wall"]):
+    def __init__(self, width, height, start_pos, end_pos, branching, seed=None, border_width=0, border_object=OBJECTS.Wall):
         super().__init__(border_width=border_width, border_object=border_object)
         self._width = width
         self._height = height
