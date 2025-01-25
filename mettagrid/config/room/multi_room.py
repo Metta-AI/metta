@@ -1,9 +1,5 @@
-from omegaconf import OmegaConf, ListConfig
-
-from mettagrid.config.room.room import OBJECTS, GameObject
+from mettagrid.config.room.room import OBJECTS, GameObject, Room
 from mettagrid.config.room.room_list import RoomList
-from mettagrid.config.room.room import Room
-
 class MultiRoom(RoomList):
     def __init__(
         self,
