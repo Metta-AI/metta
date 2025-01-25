@@ -142,16 +142,17 @@ parameters:
   #         is_int: true
   #         min: 0
   #         max: 1
-    fc:
-      hidden_sizes:
-        space: pow2
-        is_int: true
-        min: 128
-        max: 1024
-      output_dim:
-        space: pow2
-        min: 32
-        max: 512
+    observation_encoder:
+      fc:
+        hidden_sizes:
+          space: pow2
+          is_int: true
+          min: 128
+          max: 1024
+        output_dim:
+          space: pow2
+          min: 32
+          max: 512
 
     core:
       rnn_num_layers:

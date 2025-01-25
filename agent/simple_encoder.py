@@ -53,8 +53,8 @@ class SimpleConvAgent(nn.Module):
         self._obs_key = cfg.obs_key
         self._num_objects = obs_space[self._obs_key].shape[0]
         self._cnn_channels = cfg.cnn_channels
-        self._output_dim = fc_cfg.output_dim
-        self._hidden_sizes = fc_cfg.hidden_sizes
+        self._output_dim = cfg.fc.output_dim
+        self._hidden_sizes = cfg.fc.hidden_sizes
 
         if self._hidden_sizes is None:
             self._hidden_sizes = [] 
