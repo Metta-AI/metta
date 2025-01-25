@@ -14,7 +14,7 @@ from tensordict import TensorDict
 from torch import Tensor, nn
 import torch
 from agent.agent_interface import MettaAgentInterface
-from agent.lib.util import make_nn_stack
+from agent.lib.util import make_nn_stack, WeightTransformer
 
 class MettaAgent(nn.Module, MettaAgentInterface):
     def __init__(
@@ -40,23 +40,24 @@ class MettaAgent(nn.Module, MettaAgentInterface):
             cfg.decoder,
             cfg.core.rnn_size)
         
-        clip_scales = getattr(cfg.critic, 'clip_scales', None)
-        if clip_scales is not None and not isinstance(clip_scales, list):
-            clip_scales = list(clip_scales)
-        
-        l2_norm_scales = getattr(cfg.critic, 'l2_norm_scales', None)
-        if l2_norm_scales is not None and not isinstance(l2_norm_scales, list):
-            l2_norm_scales = list(l2_norm_scales)
+        self.weight_transformer = WeightTransformer(cfg)
 
         self._critic_linear = make_nn_stack(
             self.decoder_out_size(),
             1,
             list(cfg.critic.hidden_sizes),
             nonlinearity=nn.ReLU(),
+            weight_transformer=self.weight_transformer,
+            key="critic"
+        )
+
+        self._actor_linear = make_nn_stack(
+            self.decoder_out_size(),
+            self.action_space.n,
+            list(cfg.actor.hidden_sizes),
+            nonlinearity=nn.ReLU(),
             global_clipping_value=1,
-            # global_clipping_value=trainer_cfg.clipping_value, 
-            clip_scales=clip_scales,
-            l2_norm_scales=l2_norm_scales
+            transform_weights=self.weight_transformer.key("actor"),
         )
 
         self.apply(self.initialize_weights)

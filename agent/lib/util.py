@@ -3,21 +3,42 @@ from torch import nn
 import numpy as np
 import torch
 
-class MettaLayer(nn.Module):
-    def __init__(self, layer, clip=None, l2_norm_scale=None):
-        super(MettaLayer, self).__init__()
-        self.layer = layer
-        self.clip = clip
-        self.l2_norm_scale = 0.0 if l2_norm_scale is None else l2_norm_scale
+class WeightTransformer():
+    def __init__(self, cfg):
+        self._clip_scales = []
+        self._l2_norm_scales = []
+        self._layers = []
+        self._global_clipping_value = cfg.trainer.clipping_value
+        self.cfg = cfg
 
-    def forward(self, x):
-        return self.layer(x)
+    def add_layer(self, layer, key, layer_idx):
+        cfg = self.cfg.get(key)
 
+        cfg_clip_scales = getattr(cfg, 'clip_scales', None)
+        if cfg_clip_scales is not None and not isinstance(cfg_clip_scales, list):
+            clip_scale = list(cfg_clip_scales)[layer_idx - 1]
+        else:
+            clip_scale = self._global_clipping_value
+
+        cfg_l2_norm_scales = getattr(cfg, 'l2_norm_scales', None)
+        if cfg_l2_norm_scales is not None and not isinstance(cfg_l2_norm_scales, list):
+            l2_norm_scale = list(cfg_l2_norm_scales)[layer_idx - 1]
+        else:
+            l2_norm_scale = 0.0
+
+        self._clip_scales.append(clip_scale)
+        self._l2_norm_scales.append(l2_norm_scale)
+        self._layers.append(layer)
+
+    def key(self, key):
+        return lambda layer, idx: self.add_layer(layer, key, idx)
+    
     def clip_weights(self):
-        if self.clip is not None:
-            self.layer.weight.data.clamp_(self.clip, -self.clip)
+        for layer, clip in zip(self._layers, self._clip_scales):
+            if clip is not None:
+                layer.weight.data.clamp_(clip, -clip)
 
-    def l2_regularization(self):
+    def get_l2_norm_loss(self):
         l2_norm = self.l2_norm_scale * (torch.sum(self.layer.weight ** 2) if self.l2_norm_scale else 0)
         return l2_norm
 
@@ -28,9 +49,7 @@ def make_nn_stack(
     nonlinearity=nn.ELU(),
     layer_norm=False,
     use_skip=False,
-    global_clipping_value=None,
-    clip_scales=None,  # List of scaling factors of global clipping value for each layer
-    l2_norm_scales=None     # List of L2 coefficients for each layer
+    transform_weights=None,
 ):
     """Create a stack of fully connected layers with nonlinearity, clipping, and L2 regularization."""
     sizes = [input_size] + hidden_sizes + [output_size]
@@ -38,11 +57,9 @@ def make_nn_stack(
 
     for i in range(1, len(sizes)):
         layer = nn.Linear(sizes[i - 1], sizes[i])
-        clip = global_clipping_value * clip_scales[i - 1] if clip_scales and i - 1 < len(clip_scales) and global_clipping_value is not None else None
-        l2_norm_scale = l2_norm_scales[i - 1] if l2_norm_scales and i - 1 < len(l2_norm_scales) else 0.0
-
-        metta_layer = MettaLayer(layer, clip, l2_norm_scale)
-        layers.append(metta_layer)
+       
+        if transform_weights is not None:
+            transform_weights(layer, i)
 
         if i < len(sizes) - 1:
             layers.append(nonlinearity)

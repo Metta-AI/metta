@@ -303,6 +303,8 @@ class PufferTrainer:
                     entropy_loss = entropy.mean()
                     loss = pg_loss - self.trainer_cfg.ent_coef * entropy_loss + v_loss * self.trainer_cfg.vf_coef
 
+                    self.apply_metta_layer_methods_to_policy()
+
                 with profile.learn:
                     self.optimizer.zero_grad()
                     loss.backward()
@@ -458,6 +460,25 @@ class PufferTrainer:
             self.cfg.seed = np.random.randint(0, 1000000)
         self.vecenv.async_reset(self.cfg.seed)
 
+    def apply_metta_layer_methods_to_policy(self):
+        # Iterate over all attributes of self.policy
+        for attr_name in dir(self.policy.policy):
+            attr = getattr(self.policy.policy, attr_name)
+            
+            # Check if the attribute is a list or a single object
+            if isinstance(attr, list):
+                for layer in attr:
+                    # Check if the object has the methods we need
+                    if hasattr(layer, 'clip_weights') and hasattr(layer, 'get_l2_norm_loss'):
+                        layer.clip_weights()
+                        l2_loss = layer.get_l2_norm_loss()
+                        print(f"L2 Norm Loss for {attr_name} layer: {l2_loss}")
+            else:
+                # Check if the object has the methods we need
+                if hasattr(attr, 'clip_weights') and hasattr(attr, 'get_l2_norm_loss'):
+                    attr.clip_weights()
+                    l2_loss = attr.get_l2_norm_loss()
+                    print(f"L2 Norm Loss for {attr_name}: {l2_loss}")
 
 class AbortingTrainer(PufferTrainer):
     def __init__(self, *args, **kwargs):
