@@ -4,7 +4,6 @@ defaults:
 
 game:
   num_agents: 20
-  sampling: 0
 
   map_builder:
     _target_: mettagrid.config.room.room_scene.RoomScene
@@ -25,10 +24,10 @@ game:
 
         objects:
           agent: 5
-          altar: ${uniform:1,5,1}
-          converter: ${uniform:1,15,5}
-          generator: ${uniform:1,50,15}
-          wall: ${uniform:10,100,40}
+          altar: ${uniform:1,3,1}
+          converter: ${uniform:1,10,3}
+          generator: ${uniform:1,30,3}
+          wall: ${uniform:0,90,40}
 
       wild:
         _target_: mettagrid.config.room.random.Random
