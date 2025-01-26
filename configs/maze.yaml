@@ -3,16 +3,15 @@ defaults:
 
 game:
   num_agents: 6
-  max_steps: 1000
-  sampling: 0
+  max_steps: 250
 
   map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom
     num_rooms: ${..num_agents}
     room:
       _target_: mettagrid.config.room.maze.Maze
-      width: ${uniform:10,40,21}
-      height: ${uniform:10,40,21}
+      width: ${make_odd:${uniform:10,40,21}}
+      height: ${make_odd:${uniform:10,40,21}}
       start_pos: [1, 1]
       end_pos:
         - ${sub:${..width},2}
@@ -25,8 +24,12 @@ game:
       use_cost: 250
     agent:
       initial_energy: 250
+      max_energy: 250
+      upkeep.time: 0
 
   actions:
+    move:
+      cost: 0
     attack:
       cost: 255
       # enabled: false
