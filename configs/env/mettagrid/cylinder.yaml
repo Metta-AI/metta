@@ -1,0 +1,40 @@
+defaults:
+  - mettagrid
+
+game:
+  num_agents: 6
+  max_steps: 250
+
+  map_builder:
+
+    _target_: mettagrid.config.room.multi_room.MultiRoom
+    num_rooms: ${..num_agents}
+    room:
+      _target_: mettagrid.config.room.cylinder_room_builder.CylinderRoom
+      border_width: 1
+      width: ${make_odd:${uniform:10,40,21}}
+      height: ${make_odd:${uniform:10,40,21}}
+      cylinder_params:
+        length: ${uniform:10,40,21}
+        orientation: 'horizontal'
+        both_ends: true
+      
+
+  objects:
+    altar:
+      cooldown: 250
+      use_cost: 250
+    agent:
+      initial_energy: 250
+      max_energy: 250
+      upkeep.time: 0
+
+  actions:
+    move:
+      cost: 0
+    attack:
+      cost: 255
+      # enabled: false
+    shield:
+      cost: 255
+      # enabled: false
