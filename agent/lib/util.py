@@ -7,26 +7,51 @@ class WeightTransformer():
     def __init__(self, cfg):
         self._clip_scales = []
         self._l2_norm_scales = []
+        self._effective_rank = []
         self._layers = []
         self.cfg = cfg
-        self._global_clipping_value = cfg.clipping_value
+        self._global_clipping_coeff = cfg.clipping_coeff
 
-    def _get_scale(self, network_cfg, attr_name, layer_idx):
-        scales = getattr(network_cfg, attr_name, None)
-        if scales is not None and layer_idx - 1 < len(scales):
-            return list(scales)[layer_idx - 1]
-        return None
+    def add_layer(self, layer, key, layer_idx):
+        layer_attributes = self._get_layer_attributes(self.cfg.get(key), layer_idx)
 
-    def add_layer(self, layer, key, layer_idx, s_bound):
-        clip_scale = self._get_scale(self.cfg.get(key), 'clip_scales', layer_idx)
-        l2_norm_scale = self._get_scale(self.cfg.get(key), 'l2_norm_scales', layer_idx)
+        s_bound = self._initialize(layer, layer_attributes['initialization'])
 
-        self._clip_scales.append(clip_scale * s_bound * self._global_clipping_value if clip_scale is not None else None)
-        self._l2_norm_scales.append(l2_norm_scale)
+        self._clip_scales.append(layer_attributes['clip_scales'] * s_bound * self._global_clipping_coeff if layer_attributes['clip_scales'] is not None else None)
+        self._l2_norm_scales.append(layer_attributes['l2_norm_scales'])
+        self._effective_rank.append(layer_attributes['effective_rank'])
+
+        layer.name = f"{key}_{layer_idx}"
+
         self._layers.append(layer)
 
     def key(self, key):
         return lambda layer, idx, s_bound: self.add_layer(layer, key, idx, s_bound)
+
+    def _get_layer_attributes(self, network_cfg, layer_idx):
+        attributes = ['clip_scales', 'l2_norm_scales', 'effective_rank', 'initialization']
+        layer_attributes = [getattr(network_cfg, attr, None) for attr in attributes]
+
+        for attribute in layer_attributes:
+            if attribute is None:  
+                return None
+            elif isinstance(attribute, list): #check if omegaconf list
+                if attribute[layer_idx - 1] != 0:
+                    return attribute[layer_idx - 1]
+                else:
+                    return None
+            else:
+                return attribute
+            
+    def _initialize(self, layer, initialization):
+        fan_in, fan_out = layer.weight.size(1), layer.weight.size(0)
+        if initialization is None:
+            s_bound = np.sqrt(2 / fan_in)
+            nn.init.kaiming_uniform_(layer.weight)
+        elif initialization == 'Xavier':
+            s_bound = np.sqrt(6 / (fan_in + fan_out))
+            nn.init.xavier_uniform_(layer.weight)
+        return s_bound
     
     def clip_weights(self):
         for layer, clip in zip(self._layers, self._clip_scales):
@@ -39,6 +64,34 @@ class WeightTransformer():
             l2_norm = l2_norm_scale * (torch.sum(layer.weight ** 2) if l2_norm_scale else 0)
             l2_norm_loss += l2_norm
         return l2_norm_loss
+    
+    def get_effective_ranks(self):
+        effective_ranks = []
+        for layer, effective_rank in zip(self._layers, self._effective_rank):
+            if effective_rank:
+                rank = self._compute_effective_rank(layer.weight.data)
+                effective_ranks.append({'name': layer.name, 'effective_rank': rank})
+        return effective_ranks
+    
+    def _compute_effective_rank(matrix: torch.Tensor, delta: float = 0.01):
+        """
+        Computes the effective rank of a matrix based on the given delta value.
+        Effective rank formula:
+        srank_\delta(\Phi) = min{k: sum_{i=1}^k σ_i / sum_{j=1}^d σ_j ≥ 1 - δ}
+        See the paper titled 'Implicit Under-Parameterization Inhibits Data-Efficient Deep Reinforcement Learning' by A. Kumar et al.
+        """
+        # Singular value decomposition. We only need the singular value matrix.
+        _, S, _ = torch.linalg.svd(matrix)
+        
+        # Calculate the cumulative sum of singular values
+        total_sum = S.sum()
+        cumulative_sum = torch.cumsum(S, dim=0)
+        
+        # Find the smallest k that satisfies the effective rank condition
+        threshold = (1 - delta) * total_sum
+        effective_rank = torch.where(cumulative_sum >= threshold)[0][0].item() + 1  # Add 1 for 1-based indexing
+        
+        return effective_rank
 
 def make_nn_stack(
     input_size,
@@ -48,7 +101,6 @@ def make_nn_stack(
     layer_norm=False,
     use_skip=False,
     transform_weights=None,
-    initialization='He'
 ):
     """Create a stack of fully connected layers with nonlinearity, clipping, and L2 regularization."""
     sizes = [input_size] + hidden_sizes + [output_size]
@@ -57,15 +109,9 @@ def make_nn_stack(
     for i in range(1, len(sizes)):
         layer = nn.Linear(sizes[i - 1], sizes[i])
         layers.append(layer)
-
-        if initialization == 'Xavier':
-            s_bound = np.sqrt(6 / (sizes[i - 1] + sizes[i]))
-            nn.init.xavier_uniform_(layer.weight)
-        elif initialization == 'He':
-            s_bound = np.sqrt(2 / sizes[i - 1])
        
         if transform_weights is not None:
-            transform_weights(layer, i, s_bound)
+            transform_weights(layer, i)
 
         if i < len(sizes) - 1:
             layers.append(nonlinearity)
