@@ -44,10 +44,15 @@ def div(a, b):
 def sub(a, b):
     return a - b
 
+def make_odd(a):
+    return max(3, a // 2 * 2 + 1)
+
 def setup_omega_conf():
     OmegaConf.register_new_resolver("div", div)
     OmegaConf.register_new_resolver("uniform", uniform)
     OmegaConf.register_new_resolver("sub", sub)
+    OmegaConf.register_new_resolver("make_odd", make_odd)
+
 def setup_metta_environment(cfg):
     setup_omega_conf()
     print(OmegaConf.to_yaml(cfg))

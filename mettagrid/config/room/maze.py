@@ -20,8 +20,8 @@ class Maze(Room):
 
         # Validate inputs
         assert 0 <= self._branching <= 1, "Branching parameter must be between 0 and 1"
-        assert self._width % 2 == 1 and self._width >= 3, "Width must be odd and >= 3"
-        assert self._height % 2 == 1 and self._height >= 3, "Height must be odd and >= 3"
+        assert self._width % 2 == 1 and self._width >= 3, "Width must be odd and >= 3. Got {}".format(self._width)
+        assert self._height % 2 == 1 and self._height >= 3, "Height must be odd and >= 3. Got {}".format(self._height)
         assert self._start_pos[0] % 2 == 1 and self._start_pos[1] % 2 == 1, "Start position must have odd coordinates"
         if self._end_pos:
             assert self._end_pos[0] % 2 == 1 and self._end_pos[1] % 2 == 1, "End position must have odd coordinates"
