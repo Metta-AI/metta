@@ -26,9 +26,9 @@ game:
     agent:
       initial_energy: ${uniform:0, 250, 250}
       max_energy: ${uniform:0, 250, 250}
-      max_inventory: ${uniform:0, 10, 5}
+      max_inventory: ${uniform:0, 20, 10}
       freeze_duration: ${uniform:0, 200, 10}
-      energy_reward: 0.0
+      energy_reward: 1
       hp: 10
       mortal: False
       upkeep.time: ${uniform:0, 3, 0}
@@ -43,7 +43,7 @@ game:
     converter:
       hp: 30
       cooldown: ${uniform:1, 20, 5}
-      energy_output.r1: ${uniform:10, 250, 100}
+      energy_output.r1: ${uniform:10, 250, 50}
       energy_output.r2: ${uniform:10, 100, 10}
       energy_output.r3: ${uniform:1, 10, 1}
 
