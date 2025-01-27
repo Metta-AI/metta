@@ -1,0 +1,75 @@
+_target_: agent.metta_agent.MettaAgent
+
+layers:
+  name: input
+    type: input
+    # shape: [24, 11, 11]
+
+  name: conv1
+    type: conv2d
+    in_channels: 24
+    out_channels: 32
+    kernel_size: 5
+    stride: 3
+    activation: relu
+
+  name: conv2
+    type: conv2d
+    in_channels: 32
+    out_channels: 64
+    kernel_size: 3
+    stride: 1
+    activation: relu
+
+  name: fc1
+    type: linear
+    # in_features automatically inferred?
+    out_features: 128
+    activation: relu
+
+  name: lstm1
+    type: lstm
+    input_size: 128
+    hidden_size: 512
+    num_layers: 2
+    out_features: 256
+
+  # Actor branch
+  name: actor_hidden
+    type: linear
+    in_features: 256
+    out_features: 1024
+    activation: relu
+
+  name: actor_output
+    type: linear
+    in_features: 1024
+    out_features: 20
+
+  # Critic branch
+  name: critic_hidden
+    type: linear
+    in_features: 256
+    out_features: 512
+    activation: relu
+
+  name: critic_output
+    type: linear
+    in_features: 512
+    out_features: 1
+
+connections:
+  # Flow from input
+  ["input", "conv1"]
+  ["conv1", "conv2"]
+  ["conv2", "fc1"]
+  ["fc1", "lstm1"]
+
+  # LSTM output branches
+  ["lstm1", "actor_hidden"]
+  ["actor_hidden", "actor_output"]
+  ["lstm1", "critic_hidden"]
+  ["critic_hidden", "critic_output"]
+
+  # Skip connection from LSTM output to actor output
+  ["lstm1", "actor_output"]
