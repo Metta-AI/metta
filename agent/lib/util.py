@@ -102,7 +102,6 @@ def make_nn_stack(
     use_skip=False,
     transform_weights=None,
 ):
-    """Create a stack of fully connected layers with nonlinearity, clipping, and L2 regularization."""
     sizes = [input_size] + hidden_sizes + [output_size]
     layers = []
 

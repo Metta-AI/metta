@@ -45,7 +45,7 @@ class MettaAgent(nn.Module, MettaAgentInterface):
             1,
             list(cfg.critic.hidden_sizes),
             nonlinearity=getattr(nn, cfg.critic.nonlinearity)(),
-            transform_weights=self.weight_transformer.key('critic')
+            transform_weights=self.weight_transformer.key('critic'),
         )
 
         # self._actor_linear = make_nn_stack(
