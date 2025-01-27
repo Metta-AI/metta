@@ -23,6 +23,7 @@ class MettaAgent(nn.Module, MettaAgentInterface):
         action_space: ActionSpace,
         grid_features: List[str],
         global_features: List[str],
+        weight_transformer: WeightTransformer,
         **cfg
     ):
         super().__init__()
@@ -30,6 +31,7 @@ class MettaAgent(nn.Module, MettaAgentInterface):
         self.cfg = cfg
         self.observation_space = obs_space
         self.action_space = action_space
+        self.weight_transformer = weight_transformer
         self._encoder = hydra.utils.instantiate(
             cfg.observation_encoder,
             obs_space, grid_features, global_features)
@@ -38,13 +40,11 @@ class MettaAgent(nn.Module, MettaAgentInterface):
             cfg.decoder,
             cfg.core.rnn_size)
         
-        self.weight_transformer = WeightTransformer(cfg)
-
         self._critic_linear = make_nn_stack(
             self.decoder_out_size(),
             1,
             list(cfg.critic.hidden_sizes),
-            nonlinearity=getattr(nn, cfg.critic.nonlinearity)(),
+            nonlinearity=getattr(nn, cfg.get('critic.nonlinearity', 'ReLU'), nn.ReLU)(),
             transform_weights=self.weight_transformer.key('critic'),
         )
 
@@ -76,11 +76,11 @@ class MettaAgent(nn.Module, MettaAgentInterface):
     def initialize_weights(self, layer):
         gain = 1.0
 
-        if hasattr(layer, "bias") and isinstance(layer.bias, torch.nn.parameter.Parameter):
-            layer.bias.data.fill_(0)
-
-        if type(layer) is nn.Conv2d or type(layer) is nn.Linear:
+        if type(layer) is nn.Conv2d:
             nn.init.orthogonal_(layer.weight.data, gain=gain)
+
+            if hasattr(layer, "bias") and isinstance(layer.bias, torch.nn.parameter.Parameter):
+                layer.bias.data.fill_(0)
         else:
             # LSTMs and GRUs initialize themselves
             # should we use orthogonal/xavier for LSTM cells as well?

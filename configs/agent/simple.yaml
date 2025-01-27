@@ -31,8 +31,8 @@ policy_selector:
 critic:
   hidden_sizes: [256, 256] # Set to [] for no hidden layer. 
   l2_norm_scales: [1, 2, 3] # don't include nonlinear layers. you can deactivate other layers with 0
-  nonlinearity: tanh # use the name of the nn function
-  initialization: Xavier
+  # nonlinearity: Tanh # use the name of the nn function
+  # initialization: Xavier
   effective_rank: [False, True, False]
 
 actor:

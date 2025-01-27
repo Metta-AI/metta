@@ -14,7 +14,7 @@ from pufferlib.environment import PufferEnv
 from tensordict import TensorDict
 from torch import nn
 from typing import List
-from agent.lib.util import make_nn_stack
+from agent.lib.util import make_nn_stack, WeightTransformer
 
 from agent.metta_agent import MettaAgent
 
@@ -26,6 +26,7 @@ class Recurrent(pufferlib.models.LSTMWrapper):
 class PufferAgentWrapper(nn.Module):
     def __init__(self, agent: MettaAgent, cfg: OmegaConf, env: PettingZooPufferEnv):
         super().__init__()
+        self.weight_transformer = agent.weight_transformer
         # move this into the agent
         if isinstance(env.single_action_space, pufferlib.spaces.Discrete):
             self.atn_type = make_nn_stack(
@@ -89,6 +90,8 @@ def make_policy(env: PufferEnv, cfg: OmegaConf):
             shape=[ 0 ],
             dtype=np.int32)
     })
+    weight_transformer = WeightTransformer(cfg)
+
     agent = hydra.utils.instantiate(
         cfg.agent,
         obs_space,
@@ -96,6 +99,7 @@ def make_policy(env: PufferEnv, cfg: OmegaConf):
         env.grid_features,
         env.global_features,
         cfg=cfg,
+        weight_transformer=weight_transformer,
         _recursive_=False)
     puffer_agent = PufferAgentWrapper(agent, cfg, env)
 

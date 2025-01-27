@@ -142,7 +142,16 @@ class PufferTrainer:
                 "train/epoch": self.epoch,
             })
 
+        effective_ranks = self.policy.policy.policy.weight_transformer.get_effective_ranks()
+        for rank in effective_ranks:
+            self.wandb_run.log({
+                f"eval/effective_rank/{rank['name']}": rank['effective_rank'],
+                "train/agent_step": self.agent_step,
+                "train/epoch": self.epoch,
+            })
+
         logger.info(f"Glicko2 scores: \n{formatted_results}")
+        logger.info(f"Effective ranks: \n{effective_ranks}")
 
     def _on_train_step(self):
         pass
@@ -305,8 +314,9 @@ class PufferTrainer:
 
                     # self.weight_transformer.clip_weights() #design decision whether this goes after calculating L2 loss or before
                     # l2_norm_loss = self.weight_transformer.get_l2_norm_loss()
-                    self.policy.policy.policy._agent.weight_transformer.clip_weights()
-                    l2_norm_loss = self.policy.policy.policy._agent.weight_transformer.get_l2_norm_loss()
+                    #change the address to weight_transformer
+                    self.policy.policy.policy.weight_transformer.clip_weights()
+                    l2_norm_loss = self.policy.policy.policy.weight_transformer.get_l2_norm_loss()
                     loss += l2_norm_loss * self.trainer_cfg.l2_norm_coef
 
                 with profile.learn:

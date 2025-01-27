@@ -2,22 +2,24 @@ import hashlib
 from torch import nn
 import numpy as np
 import torch
+import omegaconf
 
 class WeightTransformer():
     def __init__(self, cfg):
         self._clip_scales = []
         self._l2_norm_scales = []
         self._effective_rank = []
+        self.rank_matrix = None
         self._layers = []
         self.cfg = cfg
-        self._global_clipping_coeff = cfg.clipping_coeff
+        self._global_clipping_coeff = cfg.agent.clipping_coeff
 
     def add_layer(self, layer, key, layer_idx):
-        layer_attributes = self._get_layer_attributes(self.cfg.get(key), layer_idx)
+        layer_attributes = self._get_layer_attributes(self.cfg.agent.get(key), layer_idx)
 
-        s_bound = self._initialize(layer, layer_attributes['initialization'])
+        largest_weight = self._initialize(layer, layer_attributes)
 
-        self._clip_scales.append(layer_attributes['clip_scales'] * s_bound * self._global_clipping_coeff if layer_attributes['clip_scales'] is not None else None)
+        self._clip_scales.append(layer_attributes['clip_scales'] * largest_weight * self._global_clipping_coeff if layer_attributes['clip_scales'] is not None else None)
         self._l2_norm_scales.append(layer_attributes['l2_norm_scales'])
         self._effective_rank.append(layer_attributes['effective_rank'])
 
@@ -26,32 +28,42 @@ class WeightTransformer():
         self._layers.append(layer)
 
     def key(self, key):
-        return lambda layer, idx, s_bound: self.add_layer(layer, key, idx, s_bound)
+        return lambda layer, idx: self.add_layer(layer, key, idx)
 
     def _get_layer_attributes(self, network_cfg, layer_idx):
-        attributes = ['clip_scales', 'l2_norm_scales', 'effective_rank', 'initialization']
-        layer_attributes = [getattr(network_cfg, attr, None) for attr in attributes]
+        attributes = ['clip_scales', 'l2_norm_scales', 'effective_rank', 'initialization', 'nonlinearity']
+        layer_attributes = {}
 
-        for attribute in layer_attributes:
-            if attribute is None:  
-                return None
-            elif isinstance(attribute, list): #check if omegaconf list
-                if attribute[layer_idx - 1] != 0:
-                    return attribute[layer_idx - 1]
-                else:
-                    return None
+        for attr in attributes:
+            attribute = getattr(network_cfg, attr, None)
+            if isinstance(attribute, omegaconf.listconfig.ListConfig):
+                attribute = list(attribute)  # Check if omegaconf list
+                layer_attributes[attr] = attribute[layer_idx - 1] if layer_idx - 1 < len(attribute) else None
             else:
-                return attribute
-            
-    def _initialize(self, layer, initialization):
+                layer_attributes[attr] = attribute
+
+        return layer_attributes
+    
+    def _initialize(self, layer, layer_attributes):
         fan_in, fan_out = layer.weight.size(1), layer.weight.size(0)
-        if initialization is None:
-            s_bound = np.sqrt(2 / fan_in)
-            nn.init.kaiming_uniform_(layer.weight)
-        elif initialization == 'Xavier':
-            s_bound = np.sqrt(6 / (fan_in + fan_out))
+        if layer_attributes['initialization'] is None or layer_attributes['initialization'] == 'Orthogonal':
+            if layer_attributes['nonlinearity'] is None:
+                gain = 1
+            elif layer_attributes['nonlinearity'] == 'Tanh':
+                gain = np.sqrt(2)
+            nn.init.orthogonal_(layer.weight, gain=gain)
+            largest_weight = layer.weight.max().item()
+        elif layer_attributes['initialization'] == 'Xavier':
+            largest_weight = np.sqrt(6 / (fan_in + fan_out))
             nn.init.xavier_uniform_(layer.weight)
-        return s_bound
+        elif layer_attributes['initialization'] == 'Normal':
+            largest_weight = np.sqrt(2 / fan_in)
+            nn.init.normal_(layer.weight, mean=0, std=largest_weight)
+
+        if hasattr(layer, "bias") and isinstance(layer.bias, torch.nn.parameter.Parameter):
+            layer.bias.data.fill_(0)
+
+        return largest_weight
     
     def clip_weights(self):
         for layer, clip in zip(self._layers, self._clip_scales):
@@ -65,15 +77,16 @@ class WeightTransformer():
             l2_norm_loss += l2_norm
         return l2_norm_loss
     
-    def get_effective_ranks(self):
+    def get_effective_ranks(self, delta: float = 0.01):
         effective_ranks = []
         for layer, effective_rank in zip(self._layers, self._effective_rank):
             if effective_rank:
-                rank = self._compute_effective_rank(layer.weight.data)
-                effective_ranks.append({'name': layer.name, 'effective_rank': rank})
+                self.rank_matrix = layer.weight.data.detach()
+                effective_rank = self._compute_effective_rank(delta)
+                effective_ranks.append({'name': layer.name, 'effective_rank': effective_rank})
         return effective_ranks
     
-    def _compute_effective_rank(matrix: torch.Tensor, delta: float = 0.01):
+    def _compute_effective_rank(self, delta: float = 0.01):
         """
         Computes the effective rank of a matrix based on the given delta value.
         Effective rank formula:
@@ -81,7 +94,7 @@ class WeightTransformer():
         See the paper titled 'Implicit Under-Parameterization Inhibits Data-Efficient Deep Reinforcement Learning' by A. Kumar et al.
         """
         # Singular value decomposition. We only need the singular value matrix.
-        _, S, _ = torch.linalg.svd(matrix)
+        _, S, _ = torch.linalg.svd(self.rank_matrix)
         
         # Calculate the cumulative sum of singular values
         total_sum = S.sum()
