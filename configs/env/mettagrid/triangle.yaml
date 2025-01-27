@@ -10,7 +10,7 @@ game:
     _target_: mettagrid.config.room.multi_room.MultiRoom
     num_rooms: 5
     room:
-      _target_: mettagrid.config.room.ascii_room.AsciiRoom
+      _target_: mettagrid.config.room.ascii.Ascii
       border_width: 1
       uri: "configs/env/mettagrid/maps/triangle.map"
       
