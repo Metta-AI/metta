@@ -40,8 +40,11 @@ cdef class Use(MettaActionHandler):
         usable.ready = 0
         self.env._event_manager.schedule_event(Events.Reset, usable.cooldown, usable.id, 0)
 
+        #self.stats.target[target._type_id] gives name of object
         self.env._stats.agent_incr(actor_id, self._stats.target[target._type_id].c_str())
         self.env._stats.agent_add(actor_id, self._stats.target_energy[target._type_id].c_str(), usable.use_cost + self.action_cost)
+        self.stats.agent_set_once(actor_id, self._stats.target[target._type_id].c_str(), self.env._steps))
+        #TODO implement agent set once just like agent add (stats_tracker.pyx)
 
         if target._type_id == ObjectType.AltarT:
             self.env._rewards[actor_id] += 1
