@@ -35,4 +35,12 @@ else
     echo "AWS_PROFILE already in .bashrc"
 fi
 
+# 6. Add profile to .zshrc if it's not already there
+if ! grep -q "export AWS_PROFILE=stem" ~/.zshrc; then
+    echo "export AWS_PROFILE=stem" >> ~/.zshrc
+    echo "Added AWS_PROFILE to .zshrc"
+else
+    echo "AWS_PROFILE already in .zshrc"
+fi
+
 echo "Setup complete! Please restart your terminal or run 'source ~/.bashrc' to apply changes."

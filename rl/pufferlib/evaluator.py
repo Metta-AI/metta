@@ -113,9 +113,9 @@ class PufferEvaluator():
                 # Parallelize across opponents
                 policy = self._policy_pr.policy() # policy to evaluate
                 if hasattr(policy, 'lstm'):
-                    policy_actions, _, _, _, policy_rnn_state = policy(my_obs, policy_rnn_state) 
+                    policy_actions, _, _, _, policy_rnn_state, _, _ = policy(my_obs, policy_rnn_state) 
                 else:
-                    policy_actions, _, _, _ = policy(my_obs)
+                    policy_actions, _, _, _, _, _ = policy(my_obs)
 
                 # Iterate opponent policies
                 for i in range(len(self._baseline_prs)): # all baseline policies
@@ -124,9 +124,9 @@ class PufferEvaluator():
 
                     baseline = self._baseline_prs[i].policy()
                     if hasattr(baseline, 'lstm'):
-                        baseline_action, _, _, _, baselines_rnn_state[i] = baseline(baseline_obs, baseline_rnn_state)
+                        baseline_action, _, _, _, baselines_rnn_state[i], _, _ = baseline(baseline_obs, baseline_rnn_state)
                     else:
-                        baseline_action, _, _, _ = baseline(baseline_obs)
+                        baseline_action, _, _, _, _, _ = baseline(baseline_obs)
 
                     baseline_actions.append(baseline_action)
 
