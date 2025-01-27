@@ -26,7 +26,7 @@ import pufferlib.pytorch
 
 class Experience:
     '''Flat tensor storage and array views for faster indexing'''
-    def __init__(self, batch_size, bptt_horizon, minibatch_size, obs_shape, obs_dtype, atn_shape, atn_dtype,
+    def __init__(self, batch_size, bptt_horizon, minibatch_size, hidden_size, obs_shape, obs_dtype, atn_shape, atn_dtype,
                  cpu_offload=False, device='cuda', lstm=None, lstm_total_agents=0):
         if minibatch_size is None:
             minibatch_size = batch_size
@@ -42,6 +42,7 @@ class Experience:
         self.dones=torch.zeros(batch_size, pin_memory=pin)
         self.truncateds=torch.zeros(batch_size, pin_memory=pin)
         self.values=torch.zeros(batch_size, pin_memory=pin)
+        self.e3b_inv = 1*torch.eye(hidden_size).repeat(lstm_total_agents, 1, 1).to(device)
 
         #self.obs_np = np.asarray(self.obs)
         self.actions_np = np.asarray(self.actions)
