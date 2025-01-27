@@ -2,11 +2,9 @@ from typing import Set, Tuple
 
 import numpy as np
 from omegaconf import DictConfig
-
 from mettagrid.config.room.room import OBJECTS, GameObject, Room
 
-
-class CylinderRoom(Room):
+class Cylinder(Room):
     def __init__(
         self,
         width: int,
