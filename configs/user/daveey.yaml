@@ -23,8 +23,8 @@ trainer:
 evaluator:
   policy:
     uri: ${...policy_uri}
-  baselines:
-    uri: ${...baseline_uri}
+  # baselines:
+  #   uri: ${...baseline_uri}
 
 wandb:
   enabled: true
@@ -35,4 +35,4 @@ sweep:
   metric: action.use
 
 cmd: ???
-run: ${oc.env:USER}.local.${cmd}.1
+run: ${oc.env:USER}.local.${cmd}.2
