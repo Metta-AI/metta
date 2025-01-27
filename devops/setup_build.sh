@@ -16,12 +16,14 @@ cd ..
 echo "Cloning pufferlib in to $(pwd)"
 git clone https://github.com/Metta-AI/pufferlib.git
 cd pufferlib
-echo "Stashing pufferlib in to $(pwd)"
-git stash
 echo "Fetching pufferlib in to $(pwd)"
 git fetch
 echo "Checking out metta in to $(pwd)"
 git checkout metta
+# Install numpy first to ensure headers are available
+pip install numpy
+# Set CFLAGS to include numpy headers
+export CFLAGS="$CFLAGS $(python -c 'import numpy as np; print(f"-I{np.get_include()}")')"
 echo "Building pufferlib in to $(pwd)"
 python setup.py build_ext --inplace
 echo "Installing pufferlib in to $(pwd)"
