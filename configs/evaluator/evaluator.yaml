@@ -15,7 +15,7 @@ baselines:
   glicko_scores_path: null
   uri: null
   type: top
-  range: 5
+  range: 1
   metric: epoch
   filters: {}
 
