@@ -1,0 +1,48 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Train Metta",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "tools.train",
+            "args": [
+                "+user=${env:USER}",
+                "cmd=train",
+            ],
+        },
+        {
+            "name": "Run Sweep",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "tools.sweep",
+            "args": [
+                "+user=${env:USER}",
+                "cmd=sweep",
+            ],
+        },
+        {
+            "name": "Play Metta",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "tools.play",
+            "args": [
+                "+user=${env:USER}",
+                "cmd=play",
+            ],
+        },
+        {
+            "name": "Evaluate",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "tools.eval",
+            "args": [
+                "+user=${env:USER}",
+                "cmd=eval",
+            ],
+        },
+    ]
+}
