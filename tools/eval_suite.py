@@ -37,7 +37,7 @@ def main(cfg):
 
             evaluator = hydra.utils.instantiate(merged_cfg.evaluator, merged_cfg, policy, baselines)
             
-            evaluator = EvalSuite(merged_cfg, policy, baselines)
+            evaluator = EvalSuite(merged_cfg, policy, baselines) #Evaluator -> runs evaluation and calculaes stats
 
 
             result = evaluator.evaluate()
@@ -49,6 +49,8 @@ def main(cfg):
                 logger.info(f"{metric_name}: {value}")
                 if wandb_run:
                     wandb_run.log({f"{result['env']}/{metric_name}": value})
+                    
+        #log stats for the entire suite
 
 if __name__ == "__main__":
     main()

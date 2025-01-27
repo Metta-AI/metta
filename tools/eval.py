@@ -27,6 +27,8 @@ def main(cfg):
         baselines = []
         if cfg.evaluator.baselines.uri:
             baselines = policy_store.policies(cfg.evaluator.baselines)
+
+        #evaluation that encapsulates all of this, evaluator + stats
         evaluator = hydra.utils.instantiate(cfg.evaluator, cfg, policy, baselines)
         stats = evaluator.evaluate()
         evaluator.close()

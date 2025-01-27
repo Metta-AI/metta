@@ -1,25 +1,16 @@
-evaluators:
+policy_uri: "wandb://run/uniform_sampling_v2_01_ms2000" 
+baseline_uri: "wandb://run/uniform_sampling_v2_01_ms2000" 
+
+#rather than a list of evals in the config, have a EvalList class, and here specify the arguments for the EvalList
+#class called Eval, subclass called EvalList, compose them here
+
+evals:
   - env: multi_room_cylinder
-    evaluator:
-      policy:
-        uri: "wandb://run/uniform_sampling_v2_01_ms2000"
-        type: "top"
-        range: 1
-        metric: "epoch"
-      custom_metrics:
-        - name: "time_to_generator"
-          type: "time_to_reach"
-          target: "generator"
+    metrics_to_log:
+      - name: "time_to_generator"
+        
   - env: multi_room_maze
-    evaluator:
-      policy:
-        uri: "wandb://run/uniform_sampling_v2_01_ms2000"
-        type: "top"
-        range: 1
-        metric: "epoch"
-        filters: {}
-      custom_metrics:
-        - name: "time_to_heart"
-          type: "time_to_reach"
-          target: "heart_altar"
-vectorization: multiprocessing
+    metrics_to_log:
+      - name: "time_to_heart_altar"
+
+#for mulit agent policies also going to want npcs (per eval)
