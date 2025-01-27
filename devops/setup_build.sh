@@ -20,6 +20,7 @@ echo "Fetching pufferlib in to $(pwd)"
 git fetch
 echo "Checking out metta in to $(pwd)"
 git checkout metta
+git pull
 echo "Installing pufferlib in to $(pwd)"
 pip install -e .
 echo "Stashing pufferlib in to $(pwd)"
