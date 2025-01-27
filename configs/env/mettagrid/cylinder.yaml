@@ -10,12 +10,12 @@ game:
     _target_: mettagrid.config.room.multi_room.MultiRoom
     num_rooms: ${..num_agents}
     room:
-      _target_: mettagrid.config.room.cylinder_room_builder.CylinderRoom
+      _target_: mettagrid.config.room.cylinder.Cylinder
       border_width: 1
       width: ${make_odd:${uniform:10,40,21}}
       height: ${make_odd:${uniform:10,40,21}}
       cylinder_params:
-        length: ${uniform:10,40,21}
+        length: ${uniform:3,5,10}
         orientation: 'horizontal'
         both_ends: true
       
