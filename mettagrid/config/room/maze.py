@@ -4,6 +4,10 @@ import numpy as np
 
 from mettagrid.config.room.room import OBJECTS, Room
 
+def make_odd(x):
+    if x % 2 == 0:
+        x += 1
+
 class Maze(Room):
     EMPTY, WALL = OBJECTS.Empty.symbol, OBJECTS.Wall.symbol
     START, END = OBJECTS.Agent.symbol, OBJECTS.Altar.symbol
@@ -20,9 +24,11 @@ class Maze(Room):
 
         # Validate inputs
         assert 0 <= self._branching <= 1, "Branching parameter must be between 0 and 1"
-        assert self._width % 2 == 1 and self._width >= 3, "Width must be odd and >= 3. Got {}".format(self._width)
-        assert self._height % 2 == 1 and self._height >= 3, "Height must be odd and >= 3. Got {}".format(self._height)
-        assert self._start_pos[0] % 2 == 1 and self._start_pos[1] % 2 == 1, "Start position must have odd coordinates"
+        make_odd(self._width)
+        make_odd(self._height)
+        make_odd(self._start_pos[0])
+        make_odd(self._start_pos[1])
+
         if self._end_pos:
             assert self._end_pos[0] % 2 == 1 and self._end_pos[1] % 2 == 1, "End position must have odd coordinates"
             assert 0 < self._end_pos[0] < self._width and 0 < self._end_pos[1] < self._height, "End position must be within maze bounds"
