@@ -1,5 +1,4 @@
 from typing import Set, Tuple
-
 import numpy as np
 from omegaconf import DictConfig
 from mettagrid.config.room.room import OBJECTS, GameObject, Room
