@@ -16,5 +16,5 @@ game:
       height: ${uniform:10,40,21}
       cylinder_params:
         length: ${uniform:3,5,10}
-        orientation: 'horizontal'
-        both_ends: true
+        horizontal: true | false
+        both_ends: true | false
