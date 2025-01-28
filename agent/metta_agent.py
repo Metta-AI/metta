@@ -39,6 +39,12 @@ class MettaAgent(nn.Module, MettaAgentInterface):
             cfg.decoder,
             cfg.core.rnn_size)
 
+        self._actor = hydra.utils.instantiate(
+            cfg.actor,
+            input_size=cfg.core.rnn_size,
+            output_size=action_space.n,
+            _recursive_=False)
+
         self._critic_linear = make_nn_stack(
             self.decoder_out_size(),
             1,

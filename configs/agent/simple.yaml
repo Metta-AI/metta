@@ -1,5 +1,13 @@
 _target_: agent.metta_agent.MettaAgent
 
+policy_selector:
+  uri: null
+  type: top
+  range: 0
+  metric: final.score
+  generation: null
+
+
 observation_encoder:
   _target_: agent.simple_encoder.SimpleConvAgent
   cnn_channels: 64
@@ -13,25 +21,45 @@ observation_encoder:
     layers: 1
     output_dim: 128
 
-decoder:
-  _target_: agent.decoder.Decoder
-
 core:
   rnn_type: gru
   rnn_num_layers: 1
   rnn_size: 128
 
-policy_selector:
-  uri: null
-  type: top
-  range: 0
-  metric: final.score
-  generation: null
+decoder:
+  _target_: agent.components.Decoder
 
-critic:
-  hidden_sizes: [] # Set to [] for no hidden layer
 
 actor:
-  hidden_sizes: [] # Set to [] for no hidden layer
+  - _target_: agent.components.Stack
+    skip: true
+    nonlinearity: nn.ReLU
+
+    layers:
+      - _target_: agent.components.LinearLayer
+        output_size: 128
+        l2_norm_scale: 0
+        l2_init_scale: 0
+        clip_scale: 0
+      - _target_: agent.components.LinearLayer
+        output_size: 128
+        l2_norm_scale: 0
+        l2_init_scale: 0
+        clip_scale: 0
+      - _target_: agent.components.LinearLayer
+        output_size: ???
+        l2_norm_scale: 0
+        l2_init_scale: 0
+        clip_scale: 0
+
+critic:
+  - _target_: agent.components.MultiStack
+    template:
+      _target_: agent.components.LinearLayer
+      output_size: 128
+      l2_norm_scale: 0
+      l2_init_scale: 0
+      clip_scale: 0
+    repeat: 3
 
 
