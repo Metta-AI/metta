@@ -1,10 +1,4 @@
-# suite/suite_config.yaml
-
-# We can define default merges so that everything merges the base evaluator_config.
-# Then each environment item in `evals` can override environment or other fields.
-
 defaults:
-  # The base evaluator config:
   - ../evaluator/evaluator.yaml
 
 policy_uri: "wandb://run/b.daveey.train.sb.6"
