@@ -41,6 +41,7 @@ class PufferTrainer:
         self.recent_stats = defaultdict(list)
         self.wandb_run = wandb_run
         self.policy_store = policy_store
+        self.use_e3b = self.trainer_cfg.use_e3b
 
         self._make_vecenv()
 
@@ -154,6 +155,7 @@ class PufferTrainer:
             policy = self.policy
             infos = defaultdict(list)
             lstm_h, lstm_c = experience.lstm_h, experience.lstm_c
+            e3b_inv = experience.e3b_inv
 
         while not experience.full:
             with profile.env:
@@ -171,14 +173,20 @@ class PufferTrainer:
             with profile.eval_forward, torch.no_grad():
                 # TODO: In place-update should be faster. Leaking 7% speed max
                 # Also should be using a cuda tensor to index
+                e3b = e3b_inv[env_id] if self.use_e3b else None
+
                 if lstm_h is not None:
                     h = lstm_h[:, env_id]
                     c = lstm_c[:, env_id]
-                    actions, logprob, _, value, (h, c) = policy(o_device, (h, c))
+                    actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward = policy(o_device, (h, c), e3b=e3b)
                     lstm_h[:, env_id] = h
                     lstm_c[:, env_id] = c
                 else:
-                    actions, logprob, _, value = policy(o_device)
+                    actions, logprob, _, value, next_e3b, intrinsic_reward = policy(o_device, e3b=e3b)
+
+                if self.use_e3b:
+                    e3b_inv[env_id] = next_e3b
+                    r += intrinsic_reward.cpu()
 
                 if self.device == 'cuda':
                     torch.cuda.synchronize()
@@ -244,11 +252,11 @@ class PufferTrainer:
 
                 with profile.train_forward:
                     if experience.lstm_h is not None:
-                        _, newlogprob, entropy, newvalue, lstm_state = self.policy(
+                        _, newlogprob, entropy, newvalue, lstm_state, _, _ = self.policy(
                             obs, state=lstm_state, action=atn)
                         lstm_state = (lstm_state[0].detach(), lstm_state[1].detach())
                     else:
-                        _, newlogprob, entropy, newvalue = self.policy(
+                        _, newlogprob, entropy, newvalue, _, _ = self.policy(
                             obs.reshape(-1, *self.vecenv.single_observation_space.shape),
                             action=atn,
                         )
@@ -419,7 +427,7 @@ class PufferTrainer:
 
         lstm = self.policy.lstm if hasattr(self.policy, 'lstm') else None
         self.experience = Experience(self.trainer_cfg.batch_size, self.trainer_cfg.bptt_horizon,
-            self.trainer_cfg.minibatch_size, obs_shape, obs_dtype, atn_shape, atn_dtype,
+            self.trainer_cfg.minibatch_size, self.policy.hidden_size, obs_shape, obs_dtype, atn_shape, atn_dtype,
             self.trainer_cfg.cpu_offload, self.device, lstm, total_agents)
 
     def _make_losses(self):
@@ -446,6 +454,8 @@ class PufferTrainer:
             num_workers=self.trainer_cfg.num_workers,
             zero_copy=self.trainer_cfg.zero_copy)
 
+        if self.cfg.seed is None:
+            self.cfg.seed = np.random.randint(0, 1000000)
         self.vecenv.async_reset(self.cfg.seed)
 
 

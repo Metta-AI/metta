@@ -8,6 +8,7 @@ game:
   map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom
     num_rooms: ${..num_agents}
+    border_width: 2
     room:
       _target_: mettagrid.config.room.maze.Maze
       width: ${uniform:10,40,21}
