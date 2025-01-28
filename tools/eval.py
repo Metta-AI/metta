@@ -9,6 +9,7 @@ from util.stats_library import (
     EloTest,
     Glicko2Test,
     MannWhitneyUTest,
+    StatisticalTest,
     get_test_results
 )
 
@@ -28,12 +29,16 @@ class Eval:
         """
         Logs the various metrics using the stats gathered.
         """
+        _, mean_altar_use = get_test_results(MannWhitneyUTest(stats, self.cfg.evaluator.stat_categories['action.use.altar'], mode = 'mean')
+            )
+        logger.info("\n" + mean_altar_use)
+
         if "time_to_targets" in self.metrics:
-            # Mann-Whitney on time-to-target category
             _, time_to_targets = get_test_results(
-                MannWhitneyUTest(stats, self.cfg.evaluator.stat_categories['time_to'])
+                MannWhitneyUTest(stats, self.cfg.evaluator.stat_categories['time_to'], mode = 'mean')
             )
             logger.info("\n" + time_to_targets)
+
 
         if "mann_whitney_u" in self.metrics:
             # Generic Mann-Whitney on "all" stats

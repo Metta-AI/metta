@@ -11,10 +11,11 @@ from collections import defaultdict
 
 
 class StatisticalTest:
-    def __init__(self, data, categories: List[str]):
+    def __init__(self, data, categories: List[str], mode = 'sum'):
         self.categories = categories
         self.prior_scores = {}
         self.stats = {}
+        self.mode = mode
 
         self.policy_names = []
         for episode in data:
@@ -27,11 +28,8 @@ class StatisticalTest:
         for stat_name in self.categories:
             self.stats[stat_name] = { policy_name: [None] * len(data) for policy_name in self.policy_names }
 
-        if "first_use" in stat_name:
-            self.extract_stats_per_policy_per_episode(data, mode = 'mean')
-        else:
-            self.extract_stats_per_policy_per_episode(data, mode = 'sum')
-    
+        self.extract_stats_per_policy_per_episode(data, self.mode)
+
     def extract_stats_per_policy_per_episode(self, data, mode = 'sum'):
         """
         data: A list of episodes, where each episode is a list of agents (dict).
@@ -83,6 +81,9 @@ class StatisticalTest:
         return self
 
 class MannWhitneyUTest(StatisticalTest):
+    def __init__(self, data, categories: List[str], mode = 'sum'):
+        super().__init__(data, categories, mode)
+
     def evaluate(self) -> Dict[str, Any]:
         results = {}
         for stat_name in self.categories:
