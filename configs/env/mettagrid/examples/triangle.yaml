@@ -6,18 +6,14 @@ game:
   max_steps: 250
 
   map_builder:
+
     _target_: mettagrid.config.room.multi_room.MultiRoom
-    num_rooms: ${..num_agents}
-    border_width: 2
+    num_rooms: 5
     room:
-      _target_: mettagrid.config.room.maze.Maze
-      width: ${uniform:10,40,21}
-      height: ${uniform:10,40,21}
-      start_pos: [1, 1]
-      end_pos:
-        - ${sub:${..width},2}
-        - ${sub:${..height},2}
-      branching: ${uniform:0.1,0.95,0.7}
+      _target_: mettagrid.config.room.ascii.Ascii
+      border_width: 1
+      uri: "configs/env/mettagrid/maps/triangle.map"
+      
 
   objects:
     altar:
