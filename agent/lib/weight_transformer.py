@@ -63,6 +63,10 @@ class WeightTransformer():
         elif layer_attributes['initialization'] == 'Normal':
             largest_weight = np.sqrt(2 / fan_in)
             nn.init.normal_(layer.weight, mean=0, std=largest_weight)
+        elif layer_attributes['initialization'] == 'Max_0_01':
+            #set to uniform with largest weight = 0.01
+            largest_weight = 0.01
+            nn.init.uniform_(layer.weight, a=-largest_weight, b=largest_weight)
 
         if hasattr(layer, "bias") and isinstance(layer.bias, torch.nn.parameter.Parameter):
             layer.bias.data.fill_(0)
