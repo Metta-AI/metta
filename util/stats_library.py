@@ -6,6 +6,8 @@ import numpy as np
 from scipy.stats import mannwhitneyu
 from tabulate import tabulate
 from termcolor import colored
+from collections import defaultdict
+
 
 
 class StatisticalTest:
@@ -25,22 +27,50 @@ class StatisticalTest:
         for stat_name in self.categories:
             self.stats[stat_name] = { policy_name: [None] * len(data) for policy_name in self.policy_names }
 
-        # Extract stats per policy per episode
-        for idx, episode in enumerate(data):
-            # Keep track of which policies participated in this episode
-            policies_in_episode = set()
+        if "first_use" in stat_name:
+            self.extract_stats_per_policy_per_episode(data, mode = 'mean')
+        else:
+            self.extract_stats_per_policy_per_episode(data, mode = 'sum')
+    
+    def extract_stats_per_policy_per_episode(self, data, mode = 'sum'):
+        """
+        data: A list of episodes, where each episode is a list of agents (dict).
+            Example: data[episode_idx][agent_idx] = {
+                'policy_name': ...,
+                'stat1': ...,
+                'stat2': ...,
+                ...
+            }
+
+        mode: 'sum' or 'mean' -- how to aggregate stats per policy/episode.
+        """
+
+        for episode_idx, episode in enumerate(data):
+            # For each episode, we accumulate sums and counts locally
+            policy_sums = defaultdict(lambda: defaultdict(float))
+            policy_counts = defaultdict(lambda: defaultdict(int))
+
+            # 1) Collect sums and counts
             for agent in episode:
-                policy = agent.get('policy_name', "unknown")
-                if policy is None:
-                    continue
-                policies_in_episode.add(policy)
-                # Loop through each stat and set this policy's stat for the episode
+                policy = agent.get('policy_name') or "unknown"
+
                 for stat_name in self.categories:
                     stat_value = agent.get(stat_name, 0)
-                    if self.stats[stat_name][policy][idx] is None:
-                        self.stats[stat_name][policy][idx] = stat_value
-                    else:
-                        self.stats[stat_name][policy][idx] += stat_value
+                    policy_sums[policy][stat_name] += stat_value
+                    policy_counts[policy][stat_name] += 1
+
+            # 2) Store either sum or average back in self.stats
+            for policy, stat_dict in policy_sums.items():
+                for stat_name, total_val in stat_dict.items():
+                    if mode == 'sum':
+                        self.stats[stat_name][policy][episode_idx] = total_val
+                    elif mode == 'mean':
+                        count = policy_counts[policy][stat_name]
+                        if count > 0:
+                            self.stats[stat_name][policy][episode_idx] = total_val / count
+                        else:
+                            self.stats[stat_name][policy][episode_idx] = 0.0
+    
 
     def evaluate(self) -> Dict[str, Any]:
         raise NotImplementedError

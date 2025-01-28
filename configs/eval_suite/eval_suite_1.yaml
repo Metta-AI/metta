@@ -1,16 +1,22 @@
-policy_uri: "wandb://run/uniform_sampling_v2_01_ms2000" 
-baseline_uri: "wandb://run/uniform_sampling_v2_01_ms2000" 
+# suite/suite_config.yaml
 
-#rather than a list of evals in the config, have a EvalList class, and here specify the arguments for the EvalList
-#class called Eval, subclass called EvalList, compose them here
+# We can define default merges so that everything merges the base evaluator_config.
+# Then each environment item in `evals` can override environment or other fields.
+
+defaults:
+  # The base evaluator config:
+  - ../evaluator/evaluator.yaml
+
+policy_uri: "wandb://run/b.daveey.train.sb.6"
+baseline_uri: "wandb://run/b.daveey.train.sb.6"
 
 evals:
-  - env: multi_room_cylinder
+  - env: env/mettagrid/cylinder
     metrics_to_log:
-      - name: "time_to_generator"
-        
-  - env: multi_room_maze
-    metrics_to_log:
-      - name: "time_to_heart_altar"
+      - time_to_targets
+      - elo
 
-#for mulit agent policies also going to want npcs (per eval)
+  - env: env/mettagrid/maze
+    metrics_to_log:
+      - time_to_targets
+      - elo
