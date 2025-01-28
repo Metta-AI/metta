@@ -30,8 +30,8 @@ policy_selector:
 
 critic:
   hidden_sizes: [1024] # Set to [] for no hidden layer. This is the only mandatory field.
-  l2_norm_scales: [1, 1] # don't include nonlinear layers. you can deactivate other layers with 0
-  l2_init_scales: [1, 1] # don't include nonlinear layers. you can deactivate other layers with 0
+  l2_norm_scales: [0, 0] # don't include nonlinear layers. you can deactivate other layers with 0
+  l2_init_scales: [0, 0] # don't include nonlinear layers. you can deactivate other layers with 0
   clip_scales: [0, 0] # don't include nonlinear layers. you can deactivate other layers with 0
   nonlinearity: ReLU # use the name of the nn function
   initialization: Orthogonal
