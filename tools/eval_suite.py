@@ -13,7 +13,8 @@ class EvalSuite:
     def __init__(self, cfg):
         self.cfg = cfg
         self.cfg["evaluator"]["policy"]["uri"] = cfg.eval_suite.policy_uri
-        self.cfg["evaluator"]["baselines"]["uri"] = cfg.eval_suite.baseline_uri
+        #this should be a list of uris
+        self.cfg["evaluator"]["baselines"]["uri"] = cfg.eval_suite.baseline_uri 
         self.evals = cfg.eval_suite.evals
     
     def run_all(self):
@@ -30,7 +31,7 @@ class EvalSuite:
             current_cfg["env"] = env_cfg.env["mettagrid"]
 
             # 5) Instantiate your evaluator class (Eval), then run
-            driver = Eval(current_cfg, metrics = eval.metrics_to_log)
+            driver = Eval(current_cfg, metrics = eval.metrics_to_log, env_name = env_name)
             driver.run_eval()
 
             logger.info("=== Eval Suite Complete ===")

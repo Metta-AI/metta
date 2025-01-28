@@ -2,7 +2,7 @@ defaults:
   - ../evaluator/evaluator.yaml
 
 policy_uri: "wandb://run/b.daveey.train.sb.6"
-baseline_uri: "wandb://run/b.daveey.train.sb.6"
+baseline_uri: ["wandb://run/b.daveey.train.sb.6", "wandb://run/b.daveey.train.sm.6"]
 
 evals:
   - env: env/mettagrid/cylinder
