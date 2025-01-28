@@ -26,12 +26,10 @@ fi
 for ((i = start; i <= end; i++)); do
 python -m devops.aws.launch_task \
     --cmd=train \
-    --run=b.alex.1111000.$i \
-    --git_branch=alex-epi-init \
-    trainer.num_workers=6 \
-    env/mettagrid@env=alex_a20_train \
-    agent=simple_matters_1 \
-    agent.actor.epi_init=false \
-    trainer.bhvr_cost_coeff=0
+    --run=b.alex.tanh.$i \
+    --git_branch=alex-regularize-2 \
+    env.game.objects.agent.energy_reward=1 \
+    agent.actor.nonlinearity=Tanh \
+    agent.critic.nonlinearity=Tanh
 
 done

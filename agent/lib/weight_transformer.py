@@ -7,11 +7,13 @@ class WeightTransformer():
     def __init__(self, cfg):
         self._clip_scales = []
         self._l2_norm_scales = []
+        self._l2_init_scales = []
         self._effective_rank = []
         self.rank_matrix = None
         self._layers = []
         self.cfg = cfg
         self._global_clipping_coeff = cfg.agent.clipping_coeff
+        self._initial_weights = []  # Store initial weights for each layer
 
     def add_layer(self, layer, key, layer_idx):
         layer_attributes = self._get_layer_attributes(self.cfg.agent.get(key), layer_idx)
@@ -20,17 +22,19 @@ class WeightTransformer():
 
         self._clip_scales.append(layer_attributes['clip_scales'] * largest_weight * self._global_clipping_coeff if layer_attributes['clip_scales'] is not None else None)
         self._l2_norm_scales.append(layer_attributes['l2_norm_scales'])
+        self._l2_init_scales.append(layer_attributes['l2_init_scales'])
         self._effective_rank.append(layer_attributes['effective_rank'])
 
         layer.name = f"{key}_{layer_idx}"
 
         self._layers.append(layer)
+        self._store_initial_weights(layer)
 
     def key(self, key):
         return lambda layer, idx: self.add_layer(layer, key, idx)
 
     def _get_layer_attributes(self, network_cfg, layer_idx):
-        attributes = ['clip_scales', 'l2_norm_scales', 'effective_rank', 'initialization', 'nonlinearity']
+        attributes = ['clip_scales', 'l2_norm_scales', 'l2_init_scales', 'effective_rank', 'initialization', 'nonlinearity']
         layer_attributes = {}
 
         for attr in attributes:
@@ -73,7 +77,7 @@ class WeightTransformer():
     def get_l2_norm_loss(self):
         l2_norm_loss = 0
         for layer, l2_norm_scale in zip(self._layers, self._l2_norm_scales):
-            l2_norm = (l2_norm_scale * (torch.sum(layer.weight ** 2)) if l2_norm_scale or l2_norm_scale != 0 else 0)
+            l2_norm = (l2_norm_scale * (torch.sum(layer.weight ** 2)) if l2_norm_scale and l2_norm_scale != 0 else 0)
             l2_norm_loss += l2_norm
         return l2_norm_loss
     
@@ -105,3 +109,14 @@ class WeightTransformer():
         effective_rank = torch.where(cumulative_sum >= threshold)[0][0].item() + 1  # Add 1 for 1-based indexing
         
         return effective_rank 
+
+    def _store_initial_weights(self, layer):
+        self._initial_weights.append(layer.weight.data.detach().clone())
+
+    def get_l2_init_loss(self):
+        l2_norm_distance = 0
+        for layer, initial_weight, l2_init_scale in zip(self._layers, self._initial_weights, self._l2_init_scales):
+            if l2_init_scale and l2_init_scale != 0:
+                weight_diff = layer.weight.data - initial_weight.to(layer.weight.device)
+                l2_norm_distance += l2_init_scale * torch.sum(weight_diff ** 2)
+        return l2_norm_distance 
