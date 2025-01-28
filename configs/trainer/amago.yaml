@@ -1,0 +1,31 @@
+
+_target_: rl.amago.trainer.AmagoTrainer
+
+defaults:
+  - trainer
+
+traj_encoder: 'transformer'
+memory_size: 256
+memory_layers: 3
+
+agent_type: 'agent'
+max_seq_len: 128
+
+val_timesteps_per_epoch: 10
+
+dset_max_size: 40_000
+batch_size: 3
+
+epochs: 1000
+training_timesteps_per_epoch: 1000
+train_batches_per_epoch: 1000
+
+start_learning_at_epoch: 0
+
+val_interval: 10
+ckpt_interval: 50
+
+mixed_precision: 'bf16'
+env_mode: 'already_vectorized'
+
+cnn_type: 'nature'

@@ -59,3 +59,13 @@ git pull
 echo "Installing wandb_carbs in to $(pwd)"
 pip install -e .
 cd ..
+
+# flash attention requires conda install -c conda-forge cudatoolkit-dev
+
+git clone https://github.com/UT-Austin-RPL/amago.git
+cd amago
+echo "Fetching amago in to $(pwd)"
+git pull
+echo "Installing amago in to $(pwd)"
+pip install -e .[flash]
+cd ..

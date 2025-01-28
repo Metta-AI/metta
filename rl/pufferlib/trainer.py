@@ -73,8 +73,13 @@ class PufferTrainer:
 
         self.agent_step = checkpoint.agent_step
         self.epoch = checkpoint.epoch
-        self.optimizer = torch.optim.Adam(self.policy.parameters(),
-            lr=self.trainer_cfg.learning_rate, eps=1e-5)
+        self.optimizer = torch.optim.AdamW(
+            self.policy.parameters(),
+            lr=self.trainer_cfg.learning_rate,
+            weight_decay=0.00001,
+            eps=1e-5,
+            fused=True
+        )
 
         if checkpoint.agent_step > 0:
             self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
