@@ -75,10 +75,10 @@ class WeightTransformer():
                 layer.weight.data.clamp_(clip, -clip)
 
     def get_l2_norm_loss(self):
-        l2_norm_loss = 0
+        l2_norm_loss = torch.tensor(0.0, device=self._layers[0].weight.device)
         for layer, l2_norm_scale in zip(self._layers, self._l2_norm_scales):
-            l2_norm = (l2_norm_scale * (torch.sum(layer.weight ** 2)) if l2_norm_scale and l2_norm_scale != 0 else 0)
-            l2_norm_loss += l2_norm
+            if l2_norm_scale and l2_norm_scale != 0:
+                l2_norm_loss += l2_norm_scale * (torch.sum(layer.weight ** 2))
         return l2_norm_loss
     
     def get_effective_ranks(self, delta: float = 0.01):
@@ -114,9 +114,10 @@ class WeightTransformer():
         self._initial_weights.append(layer.weight.data.detach().clone())
 
     def get_l2_init_loss(self):
-        l2_norm_distance = 0
+        l2_norm_distance = torch.tensor(0.0, device=self._layers[0].weight.device)
         for layer, initial_weight, l2_init_scale in zip(self._layers, self._initial_weights, self._l2_init_scales):
             if l2_init_scale and l2_init_scale != 0:
                 weight_diff = layer.weight.data - initial_weight.to(layer.weight.device)
                 l2_norm_distance += l2_init_scale * torch.sum(weight_diff ** 2)
+
         return l2_norm_distance 

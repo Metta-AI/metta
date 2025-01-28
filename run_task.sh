@@ -26,7 +26,7 @@ fi
 for ((i = start; i <= end; i++)); do
 python -m devops.aws.launch_task \
     --cmd=train \
-    --run=b.alex.tanh.$i \
+    --run=b.alex.nonlin.tanh.$i \
     --git_branch=alex-regularize-2 \
     env.game.objects.agent.energy_reward=1 \
     agent.actor.nonlinearity=Tanh \
