@@ -26,13 +26,8 @@ jobs:
     - name: Install PufferLib
       run: |
         cd ..
-        git clone https://github.com/Metta-AI/pufferlib.git
+        git clone --depth=1 --branch=metta https://github.com/Metta-AI/pufferlib.git
         cd pufferlib
-        git fetch
-        git stash
-        git checkout metta
-        git pull
-        python setup.py build_ext --inplace
         pip install -e .
 
     - name: Run setup.py build_ext
