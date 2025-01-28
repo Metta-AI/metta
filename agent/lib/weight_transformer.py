@@ -67,13 +67,13 @@ class WeightTransformer():
     
     def clip_weights(self):
         for layer, clip in zip(self._layers, self._clip_scales):
-            if clip is not None:
+            if clip is not None and clip != 0:
                 layer.weight.data.clamp_(clip, -clip)
 
     def get_l2_norm_loss(self):
         l2_norm_loss = 0
         for layer, l2_norm_scale in zip(self._layers, self._l2_norm_scales):
-            l2_norm = (l2_norm_scale * (torch.sum(layer.weight ** 2)) if l2_norm_scale else 0)
+            l2_norm = (l2_norm_scale * (torch.sum(layer.weight ** 2)) if l2_norm_scale or l2_norm_scale != 0 else 0)
             l2_norm_loss += l2_norm
         return l2_norm_loss
     

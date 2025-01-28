@@ -29,16 +29,17 @@ policy_selector:
   generation: null
 
 critic:
-  hidden_sizes: [512, 512] # Set to [] for no hidden layer. 
-  l2_norm_scales: [1, 1, 1] # don't include nonlinear layers. you can deactivate other layers with 0
-  nonlinearity: Tanh # use the name of the nn function
-  effective_rank: [False, True, False]
+  hidden_sizes: [1024] # Set to [] for no hidden layer. 
+  l2_norm_scales: [1, 1] # don't include nonlinear layers. you can deactivate other layers with 0
+  nonlinearity: ReLU # use the name of the nn function
+  effective_rank: [True, False]
 
 actor:
-  hidden_sizes: [256, 256] # Set to [] for no hidden layer
-  clip_scales: [1, 2, 3] # don't include nonlinear layers. you can deactivate other layers with 0
+  hidden_sizes: [512] # Set to [] for no hidden layer
+  clip_scales: [1, 1] # don't include nonlinear layers. you can deactivate other layers with 0
   nonlinearity: ReLU # use the name of the nn function
   initialization: Orthogonal
-  
+  effective_rank: [True, False]
+
 clipping_coeff: 3
 
