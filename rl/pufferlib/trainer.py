@@ -312,10 +312,7 @@ class PufferTrainer:
                     entropy_loss = entropy.mean()
                     loss = pg_loss - self.trainer_cfg.ent_coef * entropy_loss + v_loss * self.trainer_cfg.vf_coef
 
-                    # self.weight_transformer.clip_weights() #design decision whether this goes after calculating L2 loss or before
-                    # l2_norm_loss = self.weight_transformer.get_l2_norm_loss()
-                    #change the address to weight_transformer
-                    self.policy.policy.policy.weight_transformer.clip_weights()
+                    self.policy.policy.policy.weight_transformer.clip_weights() #design decision whether this goes after calculating L2 loss or before
                     l2_norm_loss = self.policy.policy.policy.weight_transformer.get_l2_norm_loss()
                     loss += l2_norm_loss * self.trainer_cfg.l2_norm_coef
 

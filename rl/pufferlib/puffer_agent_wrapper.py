@@ -13,9 +13,7 @@ from pufferlib.emulation import PettingZooPufferEnv
 from pufferlib.environment import PufferEnv
 from tensordict import TensorDict
 from torch import nn
-from typing import List
-from agent.lib.util import make_nn_stack, WeightTransformer
-
+from agent.lib.weight_transformer import WeightTransformer
 from agent.metta_agent import MettaAgent
 
 
@@ -27,28 +25,7 @@ class PufferAgentWrapper(nn.Module):
     def __init__(self, agent: MettaAgent, cfg: OmegaConf, env: PettingZooPufferEnv):
         super().__init__()
         self.weight_transformer = agent.weight_transformer
-        # move this into the agent
-        if isinstance(env.single_action_space, pufferlib.spaces.Discrete):
-            self.atn_type = make_nn_stack(
-                input_size=agent.decoder_out_size(),
-                hidden_sizes=list(cfg.agent.actor.hidden_sizes),
-                output_size=env.single_action_space.n
-            )
-            self.atn_param = None
-        elif len(env.single_action_space.nvec) == 2:
-            self.atn_type = make_nn_stack(
-                input_size=agent.decoder_out_size(),
-                output_size=env.single_action_space.nvec[0],
-                hidden_sizes=cfg.actor.hidden_sizes
-            )
-            self.atn_param = make_nn_stack(
-                input_size=agent.decoder_out_size(),
-                output_size=env.single_action_space.nvec[1],
-                hidden_sizes=cfg.actor.hidden_sizes
-            )
-        else:
-            raise ValueError(f"Unsupported action space: {env.single_action_space}")
-
+        self.atn_type, self.atn_param = agent.get_action_networks()
         self._agent = agent
         print(self)
 

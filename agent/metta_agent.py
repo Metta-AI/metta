@@ -9,12 +9,14 @@ from sample_factory.model.core import ModelCoreRNN
 from sample_factory.utils.typing import ActionSpace, ObsSpace
 from torch import Tensor
 from sample_factory.algo.utils.action_distributions import sample_actions_log_probs
+import pufferlib.spaces
 
 from tensordict import TensorDict
 from torch import Tensor, nn
 import torch
 from agent.agent_interface import MettaAgentInterface
-from agent.lib.util import make_nn_stack, WeightTransformer
+from agent.lib.util import make_nn_stack
+from agent.lib.weight_transformer import WeightTransformer
 
 class MettaAgent(nn.Module, MettaAgentInterface):
     def __init__(
@@ -48,14 +50,32 @@ class MettaAgent(nn.Module, MettaAgentInterface):
             transform_weights=self.weight_transformer.key('critic'),
         )
 
-        # self._actor_linear = make_nn_stack(
-        #     self.decoder_out_size(),
-        #     self.action_space.n,
-        #     list(cfg.actor.hidden_sizes),
-        #     nonlinearity=getattr(nn, cfg.actor.nonlinearity)(),
-        #     global_clipping_value=1,
-        #     transform_weights=self.weight_transformer.key('actor')
-        # )
+        if isinstance(action_space, pufferlib.spaces.Discrete):
+            self.atn_type = make_nn_stack(
+                input_size=self.decoder_out_size(),
+                hidden_sizes=list(cfg.actor.hidden_sizes),
+                output_size=action_space.n,
+                nonlinearity=getattr(nn, cfg.get('actor.nonlinearity', 'ReLU'), nn.ReLU)(),
+                transform_weights=self.weight_transformer.key('actor')
+            )
+            self.atn_param = None
+        elif hasattr(action_space, 'nvec') and len(action_space.nvec) == 2:
+            self.atn_type = make_nn_stack(
+                input_size=self.decoder_out_size(),
+                output_size=action_space.nvec[0],
+                hidden_sizes=list(cfg.actor.hidden_sizes),
+                nonlinearity=getattr(nn, cfg.get('actor.nonlinearity', 'ReLU'), nn.ReLU)(),
+                transform_weights=self.weight_transformer.key('actor')
+            )
+            self.atn_param = make_nn_stack(
+                input_size=self.decoder_out_size(),
+                output_size=action_space.nvec[1],
+                hidden_sizes=list(cfg.actor.hidden_sizes),
+                nonlinearity=getattr(nn, cfg.get('actor.nonlinearity', 'ReLU'), nn.ReLU)(),
+                transform_weights=self.weight_transformer.key('actor')
+            )
+        else:
+            raise ValueError(f"Unsupported action space: {action_space}")
 
         self.apply(self.initialize_weights)
 
@@ -87,3 +107,6 @@ class MettaAgent(nn.Module, MettaAgentInterface):
             # I never noticed much difference between different initialization schemes, and here it seems safer to
             # go with default initialization,
             pass
+
+    def get_action_networks(self):
+        return self.atn_type, self.atn_param
