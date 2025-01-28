@@ -315,7 +315,7 @@ class PufferTrainer:
                     self.policy.policy.policy.weight_transformer.clip_weights() #design decision whether this goes after calculating L2 loss or before
                     
                     l2_norm_loss = self.policy.policy.policy.weight_transformer.get_l2_norm_loss()
-                        loss += l2_norm_loss * self.trainer_cfg.l2_norm_coef
+                    loss += l2_norm_loss * self.trainer_cfg.l2_norm_coef
                     
                     l2_init_loss = self.policy.policy.policy.weight_transformer.get_l2_init_loss()
                     loss += l2_init_loss * self.trainer_cfg.l2_init_coef
