@@ -15,6 +15,8 @@ from torch import Tensor, nn
 import torch
 from agent.agent_interface import MettaAgentInterface
 from agent.lib.util import make_nn_stack
+# from agent.components import Composer, Layer
+import omegaconf
 
 class MettaAgent(nn.Module, MettaAgentInterface):
     def __init__(
@@ -39,12 +41,22 @@ class MettaAgent(nn.Module, MettaAgentInterface):
             cfg.decoder,
             cfg.core.rnn_size)
 
-        self._critic_linear = make_nn_stack(
-            self.decoder_out_size(),
-            1,
-            list(cfg.critic.hidden_sizes),
-            nonlinearity=nn.ReLU()
-        )
+        # self._critic_linear = make_nn_stack(
+        #     self.decoder_out_size(),
+        #     1,
+        #     list(cfg.critic.hidden_sizes),
+        #     nonlinearity=nn.ReLU()
+        # )
+
+        # self._critic = hydra.utils.instantiate(
+        #     cfg.critic,
+        #     input=self.decoder_out_size(),
+        #     output=1,
+        #     _recursive_=False)
+
+        self._critic = Composer(
+            self,
+            cfg.critic)
 
         self.apply(self.initialize_weights)
 
@@ -75,3 +87,94 @@ class MettaAgent(nn.Module, MettaAgentInterface):
             # I never noticed much difference between different initialization schemes, and here it seems safer to
             # go with default initialization,
             pass
+
+class Layer(nn.Module):
+    def __init__(self, layer_cfg):
+        super().__init__()
+        self.layer_type = layer_cfg.layer_type if 'layer_type' in layer_cfg else 'Linear'
+        if self.layer_type in ['ReLU', 'Sigmoid', 'Tanh', 'LeakyReLU', 'Softmax', 'ELU', 'GELU', 'SELU', 'Softplus', 'Softsign']:
+            self.layer = getattr(nn, self.layer_type)()
+            self.layer.name = layer_cfg.name
+            return
+        self.input = layer_cfg.input
+        self.output = layer_cfg.output
+        self.layer = getattr(nn, self.layer_type)(layer_cfg.input, layer_cfg.output)
+        self.layer.name = layer_cfg.name
+
+        
+        # self.layer.initialize_weights()
+        # self.layer.normalize_weights()
+        # self.layer.clip_weights()
+        # self.layer.get_losses()
+
+    def forward(self, x):
+        return self.layer(x)
+
+    def get_out_size(self):
+        return self.output
+
+    def get_in_size(self):
+        return self.input
+    
+    def is_nonlinear_layer(self):
+
+
+class Composer(nn.Module):
+    def __init__(self, MettaAgent: MettaAgent, net_cfg):
+    # def __init__(self, layers: ListConfig, input, output, MettaAgent: MettaAgent):
+        super().__init__()
+        self.MettaAgent = MettaAgent
+        self.input = self.get_size(net_cfg.input, "input")
+        self.output = self.get_size(net_cfg.output, "output")
+        self.input_layers = list(net_cfg.layers)
+
+        self.input_layers[0].input = self.input
+        self.input_layers[-1].output = self.output
+        # check if the other layers have input and output keys.
+        # if not, set the input size to the output size of the previous layer and the output size to the same layer's input size
+        for i in range(len(self.input_layers)):
+            if 'input' not in self.input_layers[i]:
+                self.input_layers[i].input = self.input_layers[i - 1].output
+            if 'output' not in self.input_layers[i]:
+                self.input_layers[i].output = self.input_layers[i].input
+
+        # make the layers
+        self.layers = nn.ModuleList()
+        for layer in self.input_layers:
+            layer = Layer(layer)
+            self.layers.append(layer)
+
+        # self.layers = nn.ModuleList([
+        #     hydra.utils.instantiate(layer)
+        #     for layer in layers
+        # ])
+
+    def get_size(self, value, type):
+        if isinstance(value, int):
+            return value
+        elif isinstance(value, str):
+            attr = getattr(self.MettaAgent, value, None)
+            # below, we want the out size of another net as our input size
+            return attr.get_in_size() if type == "output" else attr.get_out_size()
+        elif isinstance(value, omegaconf.listconfig.ListConfig):
+            size = 0
+            for layer in value:
+                size += self.get_size(layer, type)
+            return size
+        else:
+            raise ValueError(f"Invalid value type: {type(value)}")
+        
+    # need to figure out how to route the correct input in
+    # maybe do this in MettaAgent?
+
+
+    def forward(self, x):
+        for layer in self.layers:
+            x = layer(x)
+        return x
+    
+    def get_out_size(self):
+        return self.layers[-1].output_size
+    
+    def get_in_size(self):
+        return self.layers[0].input_size
