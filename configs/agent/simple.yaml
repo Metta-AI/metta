@@ -28,10 +28,51 @@ policy_selector:
   metric: final.score
   generation: null
 
+# critic:
+#   hidden_sizes: [] # Set to [] for no hidden layer
+
 critic:
-  hidden_sizes: [] # Set to [] for no hidden layer
+  _target_: agent.components.Composer
+  # access any layer of another net
+  # access combos of layers
+  input: '_decoder' # mandatory
+  output: 1 # mandatory
+  layers:
+    - name: critic_1
+      output: 512
+      clip_scale: 0.1
+
+    - name: critic_2
+      type: nn.ReLU
+
+    - name: critic_3
+      type: nn.Dropout
+      dropout_prob: 0.2
+
+    - name: critic_4
+      type: nn.Linear
 
 actor:
   hidden_sizes: [] # Set to [] for no hidden layer
+
+
+  # critic:
+  # _target_: agent.components.Composer
+  # # access any layer of another net
+  # # access combos of layers
+  # input: '_decoder' # mandatory
+  # output: 1 # mandatory
+  # layers:
+  #   - _target_: agent.components.Layer
+  #     name: critic_1
+  #     output: 512
+  #     clip_scale: 0.1
+
+  #   - _target_: agent.components.Layer
+  #     name: critic_2
+  #     type: nn.ReLU
+
+  #   - _target_: agent.components.Layer
+  #     name: critic_3
 
 
