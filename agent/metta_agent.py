@@ -15,6 +15,8 @@ from torch import Tensor, nn
 import torch
 from agent.agent_interface import MettaAgentInterface
 from agent.lib.util import make_nn_stack
+import pufferlib.spaces
+
 
 class MettaAgent(nn.Module, MettaAgentInterface):
     def __init__(
@@ -39,18 +41,24 @@ class MettaAgent(nn.Module, MettaAgentInterface):
             cfg.decoder,
             cfg.core.rnn_size)
 
-        self._actor = hydra.utils.instantiate(
-            cfg.actor,
-            input_size=cfg.core.rnn_size,
-            output_size=action_space.n,
-            _recursive_=False)
+        # self._actor = hydra.utils.instantiate(
+        #     cfg.actor,
+        #     input=cfg.core.rnn_size,
+        #     output=action_space.n,
+        #     _recursive_=False)
 
-        self._critic_linear = make_nn_stack(
-            self.decoder_out_size(),
-            1,
-            list(cfg.critic.hidden_sizes),
-            nonlinearity=nn.ReLU()
-        )
+        # self._critic_linear = make_nn_stack(
+        #     self.decoder_out_size(),
+        #     1,
+        #     list(cfg.critic.hidden_sizes),
+        #     nonlinearity=nn.ReLU()
+        # )
+
+        self._critic = hydra.utils.instantiate(
+            cfg.critic,
+            input=self.decoder_out_size(),
+            output=1,
+            _recursive_=False)
 
         self.apply(self.initialize_weights)
 

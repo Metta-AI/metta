@@ -6,6 +6,48 @@ import hydra
 from copy import deepcopy
 from omegaconf import OmegaConf
 
+class Layer(nn.Module):
+    def __init__(self, name: str, input_size: int, output_size: int = None, layer_type: nn.Module = nn.Linear):
+        super().__init__()
+        self.input_size = input_size
+        self.output_size = output_size if output_size is not None else input_size # useful for non-linear layers
+        self.layer_type = layer_type
+        self.layer = layer_type(input_size, output_size)
+        self.layer.name = name
+        self.layer.initialize_weights()
+        self.layer.normalize_weights()
+        self.layer.clip_weights()
+        self.layer.get_losses()
+
+    def forward(self, x):
+        return self.layer(x)
+
+    def get_out_size(self):
+        return self.output_size
+
+    def get_in_size(self):
+        return self.input_size
+
+class Composer(nn.Module):
+    def __init__(self, layers: ListConfig):
+        super().__init__()
+        #get list configs
+        self.layers = nn.ModuleList([
+            hydra.utils.instantiate(layer)
+            for layer in layers
+        ])
+
+    def forward(self, x):
+        for layer in self.layers:
+            x = layer(x)
+        return x
+    
+    def get_out_size(self):
+        return self.layers[-1].output_size
+    
+    def get_in_size(self):
+        return self.layers[0].input_size
+
 class Decoder(MlpDecoder):
     def __init__(self, input_size: int):
         super().__init__(
@@ -73,7 +115,36 @@ class Stack(nn.Module):
         for layer in self.layers:
             x = layer(x)
         return x
-
+    
+    def get_out_size(self):
+        return self.layers[-1].output_size
+    
+    def get_in_size(self):
+        return self.layers[0].input_size
+    
+    #create skip connection
+    def create_skip_connection(self, x):
+        return x + self.forward(x)
+    
+    def get_skip_connection_size(self):
+        return self.get_in_size()
+    
+    #create residual connection
+    def create_residual_connection(self, x):
+        return x + self.forward(x)
+    
+    def get_residual_connection_size(self):
+        return self.get_in_size()
+    
+    #create residual connection with skip connection
+    def create_residual_connection_with_skip(self, x):
+        return self.create_skip_connection(x) + self.create_residual_connection(x)
+    
+    def get_residual_connection_with_skip_size(self):
+        return self.get_in_size()
+    
+    
+    
 class MultiStack(Stack):
     def __init__(self,
                 template: OmegaConf,

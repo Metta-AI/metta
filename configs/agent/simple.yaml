@@ -29,37 +29,56 @@ core:
 decoder:
   _target_: agent.components.Decoder
 
+critic:
+  _target_: agent.components.Composer
+  # name: critic
+  # input: ${core.rnn_size} this should be the layer name and range instead
+  layers:
+    - _target_: agent.components.Layer
+      name: critic_1
+      output: 512
+
+    - _target_: agent.components.Layer
+      name: critic_2
+      layer_type: nn.ReLU
+
+    - _target_: agent.components.Layer
+      name: critic_3
+      output: 1
 
 actor:
-  - _target_: agent.components.Stack
-    skip: true
-    nonlinearity: nn.ReLU
+  hidden_sizes: [128]
 
-    layers:
-      - _target_: agent.components.LinearLayer
-        output_size: 128
-        l2_norm_scale: 0
-        l2_init_scale: 0
-        clip_scale: 0
-      - _target_: agent.components.LinearLayer
-        output_size: 128
-        l2_norm_scale: 0
-        l2_init_scale: 0
-        clip_scale: 0
-      - _target_: agent.components.LinearLayer
-        output_size: ???
-        l2_norm_scale: 0
-        l2_init_scale: 0
-        clip_scale: 0
+# actor:
+#   - _target_: agent.components.Stack
+#     skip: true
+#     nonlinearity: nn.ReLU
 
-critic:
-  - _target_: agent.components.MultiStack
-    template:
-      _target_: agent.components.LinearLayer
-      output_size: 128
-      l2_norm_scale: 0
-      l2_init_scale: 0
-      clip_scale: 0
-    repeat: 3
+#     layers:
+#       - _target_: agent.components.LinearLayer
+#         output_size: 128
+#         l2_norm_scale: 0
+#         l2_init_scale: 0
+#         clip_scale: 0
+#       - _target_: agent.components.LinearLayer
+#         output_size: 128
+#         l2_norm_scale: 0
+#         l2_init_scale: 0
+#         clip_scale: 0
+#       - _target_: agent.components.LinearLayer
+#         output_size: ???
+#         l2_norm_scale: 0
+#         l2_init_scale: 0
+#         clip_scale: 0
+
+# critic:
+#   - _target_: agent.components.MultiStack
+#     template:
+#       _target_: agent.components.LinearLayer
+#       output_size: 128
+#       l2_norm_scale: 0
+#       l2_init_scale: 0
+#       clip_scale: 0
+#     repeat: 3
 
 
