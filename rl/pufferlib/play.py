@@ -28,11 +28,11 @@ def play(cfg: OmegaConf, policy_record: PolicyRecord):
 
             # Parallelize across opponents
             if hasattr(policy, 'lstm'):
-                actions, _, _, _, policy_rnn_state = policy(obs, policy_rnn_state)
+                actions, _, _, _, policy_rnn_state, _, _ = policy(obs, policy_rnn_state)
                 if actions.dim() == 0:  # scalar tensor like tensor(2)
                     actions = torch.tensor([actions.item()])
             else:
-                actions, _, _, _ = policy(obs) #if we are not using an RNN, then we don't need the rnn state
+                actions, _, _, _, _, _ = policy(obs) #if we are not using an RNN, then we don't need the rnn state
 
         renderer.update(
             env._c_env.unflatten_actions(actions.cpu().numpy()),
