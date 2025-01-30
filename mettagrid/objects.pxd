@@ -121,6 +121,7 @@ cdef cppclass Agent(MettaObject):
     inline vector[string] feature_names():
         return [
             "agent",
+            "agent:species",
             "agent:" + this.species + ":hp",
             "agent:" + this.species + ":frozen",
             "agent:" + this.species + ":energy",
