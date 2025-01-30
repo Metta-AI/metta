@@ -3,7 +3,7 @@
 seed: null
 
 defaults:
-  - override /env/mettagrid@env: simple
+  - override /env/mettagrid@env: bases
   - override /agent: simple.medium
   - override /sweep: fast
 
@@ -15,7 +15,7 @@ baseline_uri: wandb://run/b.daveey.sm.train.er.new.0
 
 env:
   game:
-    max_steps: 100
+    max_steps: 1000
 
 trainer:
   evaluate_interval: 2
