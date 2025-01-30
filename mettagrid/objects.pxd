@@ -163,6 +163,7 @@ cdef cppclass Generator(Usable):
         obs[2] = this.r1
         obs[3] = this.ready and this.r1 > 0
 
+
     @staticmethod
     inline vector[string] feature_names():
         return ["generator", "generator:hp", "generator:r1", "generator:ready"]
