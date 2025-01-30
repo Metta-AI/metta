@@ -22,19 +22,24 @@ game:
   tile_size: 16
   no_energy_steps: 500
 
-  species:
-    - name: "prey"
-      prob: 0.8
-    - name: "predator"
-      prob: 0.2
-
   objects:
 
     agent:
+      species:
+        - name: "prey"
+          prob: 0.8
+          props:
+            attack_damage: ${uniform:1, 10, 2}
+        - name: "predator"
+          prob: 0.2
+          props:
+            attack_damage: ${uniform:1, 100, 50}
+
       initial_energy: ${uniform:0, 250, 250}
       max_energy: ${uniform:0, 250, 250}
       max_inventory: ${uniform:0, 10, 5}
       freeze_duration: ${uniform:0, 200, 10}
+      attack_damage: ${uniform:1, 100, 10}
       energy_reward: 0.0
       hp: 10
       mortal: False
@@ -92,7 +97,6 @@ game:
     attack:
       enabled: true
       cost: ${uniform:1, 100, 10}
-      damage: ${uniform:1, 100, 10}
     gift:
       enabled: false
       cost: 0

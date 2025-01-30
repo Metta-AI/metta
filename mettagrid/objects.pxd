@@ -61,6 +61,7 @@ cdef vector[string] InventoryItemNames # defined in objects.pyx
 cdef cppclass Agent(MettaObject):
     unsigned char species
     unsigned char frozen
+    unsigned char attack_damage
     unsigned char freeze_duration
     unsigned char energy
     unsigned char orientation
@@ -70,12 +71,15 @@ cdef cppclass Agent(MettaObject):
     unsigned char max_items
     unsigned char max_energy
     float energy_reward
+    string species_name
 
-    inline Agent(GridCoord r, GridCoord c, unsigned char species, ObjectConfig cfg):
+    inline Agent(GridCoord r, GridCoord c, unsigned char species, string species_name, ObjectConfig cfg):
         GridObject.init(ObjectType.AgentT, GridLocation(r, c, GridLayer.Agent_Layer))
         MettaObject.init_mo(cfg)
         this.species = species
+        this.species_name = species_name
         this.frozen = 0
+        this.attack_damage = cfg[b"attack_damage"]
         this.freeze_duration = cfg[b"freeze_duration"]
         this.max_energy = cfg[b"max_energy"]
         this.energy = 0
