@@ -71,15 +71,15 @@ class PufferAgentWrapper(nn.Module):
         else:
             action = [self.atn_type(flat_hidden), self.atn_param(flat_hidden)]
 
-        intrinsic_reward = None
+        b = None
         if e3b is not None:
             phi = flat_hidden.detach()        
-            intrinsic_reward = (phi.unsqueeze(1) @ e3b @ phi.unsqueeze(2))
-            e3b = 0.95*e3b - (phi.unsqueeze(2) @ phi.unsqueeze(1))/(1 + intrinsic_reward)
-            intrinsic_reward = intrinsic_reward.squeeze()
-            intrinsic_reward = 0.1*torch.clamp(intrinsic_reward, -1, 1)
+            u = phi.unsqueeze(1) @ e3b
+            b = u @ phi.unsqueeze(2)
+            e3b = 0.99*e3b - (u.mT @ u) / (1 + b)
+            b = b.squeeze()
 
-        return action, value, e3b, intrinsic_reward
+        return action, value, e3b, b
 
 def make_policy(env: PufferEnv, cfg: OmegaConf):
     obs_space = gym.spaces.Dict({
