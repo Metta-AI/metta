@@ -43,7 +43,9 @@ class AgentRenderer(ObjectRenderer):
         # orientation: 0 = Up, 1 = Down, 2 = Left, 3 = Right
         # sprites: 0 = Right, 1 = Up, 2 = Down, 3 = Left
         orientation_offset = [1, 2, 3, 0][obj["agent:orientation"]]
-        return (4 * ((obj["agent_id"] // 12) % 4) + orientation_offset, 2 * (obj["agent_id"] % 12))
+
+        # return (4 * ((obj["agent_id"] // 12) % 4) + orientation_offset, 2 * (obj["agent_id"] % 12))
+        return (orientation_offset, 2 * (obj["agent:species"] % 12))
 
     def render(self, obj, render_tile_size):
         super().render(obj, render_tile_size)

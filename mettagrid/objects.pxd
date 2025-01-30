@@ -59,6 +59,7 @@ cdef vector[string] InventoryItemNames # defined in objects.pyx
 
 
 cdef cppclass Agent(MettaObject):
+    unsigned char species
     unsigned char frozen
     unsigned char freeze_duration
     unsigned char energy
