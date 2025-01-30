@@ -120,15 +120,10 @@ cdef cppclass Agent(MettaObject):
     @staticmethod
     inline vector[string] feature_names():
         return [
-            "agent",
-            "agent:species",
-            "agent:" + this.species + ":hp",
-            "agent:" + this.species + ":frozen",
-            "agent:" + this.species + ":energy",
-            "agent:" + this.species + ":orientation",
-            "agent:" + this.species + ":shield"
+            "agent", "agent:species", "agent:hp", "agent:frozen", "agent:energy", "agent:orientation",
+            "agent:shield"
         ] + [
-            "agent:" + this.species + ":inv:" + n for n in InventoryItemNames]
+            "agent:inv:" + n for n in InventoryItemNames]
 
 cdef cppclass Wall(MettaObject):
     inline Wall(GridCoord r, GridCoord c, ObjectConfig cfg):
@@ -161,6 +156,7 @@ cdef cppclass Generator(Usable):
         obs[1] = this.hp
         obs[2] = this.r1
         obs[3] = this.ready and this.r1 > 0
+
 
     @staticmethod
     inline vector[string] feature_names():
