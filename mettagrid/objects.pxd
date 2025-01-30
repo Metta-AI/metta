@@ -70,7 +70,7 @@ cdef cppclass Agent(MettaObject):
     unsigned char max_energy
     float energy_reward
 
-    inline Agent(GridCoord r, GridCoord c, ObjectConfig cfg):
+    inline Agent(GridCoord r, GridCoord c, unsigned char species, ObjectConfig cfg):
         GridObject.init(ObjectType.AgentT, GridLocation(r, c, GridLayer.Agent_Layer))
         MettaObject.init_mo(cfg)
         this.frozen = 0
@@ -84,7 +84,7 @@ cdef cppclass Agent(MettaObject):
         this.max_items = cfg[b"max_inventory"]
         this.energy_reward = float(cfg[b"energy_reward"]) / 1000.0
         this.shield = False
-        this.species = 0
+        this.species = species
 
     inline void update_inventory(InventoryItem item, short amount):
         this.inventory[<InventoryItem>item] += amount
@@ -105,11 +105,12 @@ cdef cppclass Agent(MettaObject):
 
     inline void obs(ObsType[:] obs):
         obs[0] = 1
-        obs[1] = this.hp
-        obs[2] = this.frozen
-        obs[3] = this.energy
-        obs[4] = this.orientation
-        obs[5] = this.shield
+        obs[1] = this.species
+        obs[2] = this.hp
+        obs[3] = this.frozen
+        obs[4] = this.energy
+        obs[5] = this.orientation
+        obs[6] = this.shield
 
         cdef unsigned short idx = 6
         cdef unsigned short i
