@@ -70,6 +70,13 @@ class MettaAgent(nn.Module, MettaAgentInterface):
         td["state"] = self._decoder(td["core_output"])
         td["values"] = self._critic_linear(td["state"]).squeeze()
 
+    def decode_state_2(self, td: TensorDict):
+        td["encoded_obs"] = self._encoder(td["obs"])
+        #what's the diff between core_output and encoded_obs given that decoder is identity?
+        td["state"] = self._decoder(td["core_output"], td["encoded_obs"])
+        td["values"] = self._critic_linear(td["state"]).squeeze()
+
+
     def aux_loss(self, normalized_obs_dict, rnn_states):
         raise NotImplementedError()
 
@@ -96,10 +103,15 @@ class Layer(nn.Module):
             self.layer = getattr(nn, self.layer_type)()
             self.layer.name = layer_cfg.name
             return
+        if self.layer_type == 'Dropout':
+            self.layer = getattr(nn, self.layer_type)(layer_cfg.dropout_prob)
+            self.layer.name = layer_cfg.name
+            return
         self.input = layer_cfg.input
         self.output = layer_cfg.output
         self.layer = getattr(nn, self.layer_type)(layer_cfg.input, layer_cfg.output)
-        self.layer.name = layer_cfg.name
+        self.name = layer_cfg.name
+        self.input_source = layer_cfg.input_source
 
         
         # self.layer.initialize_weights()
@@ -110,52 +122,63 @@ class Layer(nn.Module):
     def forward(self, x):
         return self.layer(x)
 
+    # we don't need this if it can just be a property, right?
     def get_out_size(self):
         return self.output
-
-    def get_in_size(self):
-        return self.input
     
-    def is_nonlinear_layer(self):
-
 
 class Composer(nn.Module):
     def __init__(self, MettaAgent: MettaAgent, net_cfg):
     # def __init__(self, layers: ListConfig, input, output, MettaAgent: MettaAgent):
         super().__init__()
         self.MettaAgent = MettaAgent
-        self.input = self.get_size(net_cfg.input, "input")
-        self.output = self.get_size(net_cfg.output, "output")
+        # self.input = self.get_size(net_cfg.input, "input")
+        # self.output = self.get_size(net_cfg.output, "output")
         self.input_layers = list(net_cfg.layers)
 
-        self.input_layers[0].input = self.input
-        self.input_layers[-1].output = self.output
+        # self.input_layers[0].input = self.input
+        # self.input_layers[-1].output = self.output
         # check if the other layers have input and output keys.
         # if not, set the input size to the output size of the previous layer and the output size to the same layer's input size
+        self.layers = []
         for i in range(len(self.input_layers)):
             if 'input' not in self.input_layers[i]:
                 self.input_layers[i].input = self.input_layers[i - 1].output
+                self.input_layers[i].input_source = self.input_layers[i - 1].name
+            else:
+                self.input_layers[i].input_source = self.input_layers[i].input
+                self.input_layers[i].input = self.get_size(self.input_layers[i].input, "input")
+
             if 'output' not in self.input_layers[i]:
+                # default to output equals its input size
                 self.input_layers[i].output = self.input_layers[i].input
 
-        # make the layers
-        self.layers = nn.ModuleList()
-        for layer in self.input_layers:
-            layer = Layer(layer)
+            layer = Layer(self.input_layers[i])
             self.layers.append(layer)
 
-        # self.layers = nn.ModuleList([
-        #     hydra.utils.instantiate(layer)
-        #     for layer in layers
-        # ])
+        self.layers = nn.ModuleList(self.layers)
+        print(self.layers)
 
     def get_size(self, value, type):
         if isinstance(value, int):
             return value
         elif isinstance(value, str):
-            attr = getattr(self.MettaAgent, value, None)
+            keys = value.split('.')
+            if len(keys) > 1:
+                # this should eventually walk the tree to get the layer within the net
+                attr = getattr(self.MettaAgent, keys[-1], None)
+                return attr.get_out_size()
+            else:
+                # find the self.layers index of the layer with the name value
+                for i in range(len(self.layers)):
+                    if self.layers[i].name == value:
+                        return self.layers[i].get_out_size()
+                raise ValueError(f"Layer with name {value} not found")
+
+
             # below, we want the out size of another net as our input size
-            return attr.get_in_size() if type == "output" else attr.get_out_size()
+            attr = getattr(self.MettaAgent, value, None)
+            return attr.get_out_size()
         elif isinstance(value, omegaconf.listconfig.ListConfig):
             size = 0
             for layer in value:
