@@ -25,7 +25,7 @@ class AmagoTrainer:
             # "amago.nets.traj_encoders.TformerTrajEncoder.attention_type": amago.nets.transformer.FlashAttention,
         }
 
-        prototype_env = hydra.utils.instantiate(cfg.env, render_mode=None)
+        prototype_env = hydra.utils.instantiate(cfg.env, render_mode=None, _recursive_=False)
         grid_features = prototype_env.grid_features
         num_agents = prototype_env.num_agents
         
@@ -56,7 +56,7 @@ class AmagoTrainer:
         gin.finalize()
 
         make_train_env = lambda: AMAGOEnv(
-            SingleAgentSpaceWrapper(hydra.utils.instantiate(cfg.env, render_mode=None)),
+            SingleAgentSpaceWrapper(hydra.utils.instantiate(cfg.env, render_mode=None, _recursive_=False)),
             batched_envs=num_agents,
             env_name='Metta',
         )
