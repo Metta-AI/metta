@@ -26,6 +26,7 @@ class Recurrent(pufferlib.models.LSTMWrapper):
 class PufferAgentWrapper(nn.Module):
     def __init__(self, agent: MettaAgent, actor_hidden_sizes: List[int], env: PettingZooPufferEnv):
         super().__init__()
+        self.hidden_size = agent.decoder_out_size()
         if isinstance(env.single_action_space, pufferlib.spaces.Discrete):
             self.atn_type = make_nn_stack(
                 input_size=agent.decoder_out_size(),
@@ -50,9 +51,9 @@ class PufferAgentWrapper(nn.Module):
         self._agent = agent
         print(self)
 
-    def forward(self, obs):
+    def forward(self, obs, e3b=None):
         x, _ = self.encode_observations(obs)
-        return self.decode_actions(x, None)
+        return self.decode_actions(x, None, e3b=e3b)
 
     def encode_observations(self, flat_obs):
         obs = {
@@ -63,14 +64,22 @@ class PufferAgentWrapper(nn.Module):
         self._agent.encode_observations(td)
         return td["encoded_obs"], None
 
-    def decode_actions(self, flat_hidden, lookup, concat=None):
+    def decode_actions(self, flat_hidden, lookup, concat=None, e3b=None):
+        value = self._agent._critic_linear(flat_hidden)
         if self.atn_param is None:
             action = self.atn_type(flat_hidden)
         else:
             action = [self.atn_type(flat_hidden), self.atn_param(flat_hidden)]
 
-        value = self._agent._critic_linear(flat_hidden)
-        return action, value
+        intrinsic_reward = None
+        if e3b is not None:
+            phi = flat_hidden.detach()        
+            intrinsic_reward = (phi.unsqueeze(1) @ e3b @ phi.unsqueeze(2))
+            e3b = 0.95*e3b - (phi.unsqueeze(2) @ phi.unsqueeze(1))/(1 + intrinsic_reward)
+            intrinsic_reward = intrinsic_reward.squeeze()
+            intrinsic_reward = 0.1*torch.clamp(intrinsic_reward, -1, 1)
+
+        return action, value, e3b, intrinsic_reward
 
 def make_policy(env: PufferEnv, cfg: OmegaConf):
     obs_space = gym.spaces.Dict({
@@ -91,7 +100,7 @@ def make_policy(env: PufferEnv, cfg: OmegaConf):
 
     if cfg.agent.core.rnn_num_layers > 0:
         puffer_agent = Recurrent(
-            env, puffer_agent, input_size=cfg.agent.fc.output_dim,
+            env, puffer_agent, input_size=cfg.agent.observation_encoder.fc.output_dim,
             hidden_size=cfg.agent.core.rnn_size,
             num_layers=cfg.agent.core.rnn_num_layers
         )

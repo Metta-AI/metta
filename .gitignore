@@ -1,7 +1,6 @@
 __pycache__
 .DS_Store
 .task
-.vscode/PythonImportHelper-v2-Completion.json
 *.egg-info
 *.pyc
 *.so
@@ -19,3 +18,4 @@ metta-research
 gpu_names_cache.json
 stderr.log
 sweep_id
+.vscode/PythonImportHelper-v2-Completion.json

@@ -16,14 +16,11 @@ cd ..
 echo "Cloning pufferlib in to $(pwd)"
 git clone https://github.com/Metta-AI/pufferlib.git
 cd pufferlib
-echo "Stashing pufferlib in to $(pwd)"
-git stash
 echo "Fetching pufferlib in to $(pwd)"
 git fetch
 echo "Checking out metta in to $(pwd)"
 git checkout metta
-echo "Building pufferlib in to $(pwd)"
-python setup.py build_ext --inplace
+git pull
 echo "Installing pufferlib in to $(pwd)"
 pip install -e .
 echo "Stashing pufferlib in to $(pwd)"
@@ -34,7 +31,9 @@ echo "Cloning mettagrid in to $(pwd)"
 git clone https://github.com/Metta-AI/mettagrid.git
 cd mettagrid
 echo "Fetching mettagrid in to $(pwd)"
-git pull
+git fetch
+echo "Checking out main in to $(pwd)"
+git checkout main
 echo "Installing mettagrid in to $(pwd)"
 pip install -r requirements.txt
 echo "Building mettagrid in to $(pwd)"
