@@ -41,7 +41,9 @@ cdef class Use(MettaActionHandler):
         self.env._event_manager.schedule_event(Events.Reset, usable.cooldown, usable.id, 0)
 
         self.env._stats.agent_incr(actor_id, self._stats.target[target._type_id].c_str())
+        self.env._stats.agent_incr(actor_id, "." + actor.species + "." + self._stats.target[target._type_id].c_str())
         self.env._stats.agent_add(actor_id, self._stats.target_energy[target._type_id].c_str(), usable.use_cost + self.action_cost)
+        self.env._stats.agent_add(actor_id, "." + actor.species + "." + self._stats.target_energy[target._type_id].c_str(), usable.use_cost + self.action_cost)
 
         if target._type_id == ObjectType.AltarT:
             self.env._rewards[actor_id] += 1
@@ -52,6 +54,7 @@ cdef class Use(MettaActionHandler):
             generator.r1 -= 1
             actor.update_inventory(InventoryItem.r1, 1)
             self.env._stats.agent_incr(actor_id, "r1.gained")
+            self.env._stats.agent_incr(actor_id, "." + actor.species + ".r1.gained")
             self.env._stats.game_incr("r1.harvested")
 
         cdef Converter *converter
@@ -60,12 +63,15 @@ cdef class Use(MettaActionHandler):
             converter = <Converter*>target
             actor.update_inventory(converter.input_resource, -1)
             self.env._stats.agent_incr(actor_id, InventoryItemNames[converter.input_resource] + ".used")
+            self.env._stats.agent_incr(actor_id, "." + actor.species + "." + InventoryItemNames[converter.input_resource] + ".used")
 
             actor.update_inventory(converter.output_resource, 1)
             self.env._stats.agent_incr(actor_id, InventoryItemNames[converter.output_resource] + ".gained")
+            self.env._stats.agent_incr(actor_id, "." + actor.species + "." + InventoryItemNames[converter.output_resource] + ".gained")
 
             energy_gain = actor.update_energy(converter.output_energy, &self.env._rewards[actor_id])
 
             self.env._stats.agent_add(actor_id, "energy.gained", energy_gain)
+            self.env._stats.agent_add(actor_id, "." + actor.species + ".energy.gained", energy_gain)
 
         return True
