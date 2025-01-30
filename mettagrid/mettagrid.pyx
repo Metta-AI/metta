@@ -72,6 +72,7 @@ cdef class MettaGrid(GridEnv):
         )
 
         cdef Agent *agent
+        cdef unsigned char species
         for r in range(map.shape[0]):
             for c in range(map.shape[1]):
                 if map[r,c] == "W":
@@ -88,8 +89,8 @@ cdef class MettaGrid(GridEnv):
                     self._stats.game_incr("objects.altar")
                 elif map[r,c][0] == "A":
                     species = np.random.choice(
-                        range(len(cfg.objects.agent.species_probs)),
-                        p=cfg.objects.agent.species_probs)
+                        range(len(cfg.species)),
+                        p=[s["prob"] for s in cfg.species])
                     agent = new Agent(r, c, species, cfg.objects.agent)
                     self._grid.add_object(agent)
                     self.add_agent(agent)
