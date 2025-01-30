@@ -34,15 +34,15 @@ cdef class MettaActionHandler(ActionHandler):
         if actor.shield:
             actor.update_energy(-actor.shield_upkeep, &self.env._rewards[actor_id])
             self.env._stats.agent_add(actor_id, "shield_upkeep", actor.shield_upkeep)
-            self.env._stats.agent_add(actor_id, "." + cfg.game.species[actor.species] + ".shield_upkeep", actor.shield_upkeep)
+            self.env._stats.agent_add(actor_id, "." + actor.species_name + ".shield_upkeep", actor.shield_upkeep)
             self.env._stats.agent_incr(actor_id, "status.shield.ticks")
-            self.env._stats.agent_incr(actor_id, "." + cfg.game.species[actor.species] + ".status.shield.ticks")
+            self.env._stats.agent_incr(actor_id, "." + actor.species_name + ".status.shield.ticks")
             if actor.energy == 0:
                 actor.shield = False
 
         if actor.frozen > 0:
             self.env._stats.agent_incr(actor_id, "status.frozen.ticks")
-            self.env._stats.agent_incr(actor_id, "." + cfg.game.species[actor.species] + ".status.frozen.ticks")
+            self.env._stats.agent_incr(actor_id, "." + actor.species_name + ".status.frozen.ticks")
             actor.frozen -= 1
             return False
 
@@ -51,7 +51,7 @@ cdef class MettaActionHandler(ActionHandler):
 
         actor.update_energy(-self.action_cost, &self.env._rewards[actor_id])
         self.env._stats.agent_add(actor_id, self._stats.action_energy.c_str(), self.action_cost)
-        self.env._stats.agent_add(actor_id, "." + cfg.game.species[actor.species] + "." + self._stats.action_energy.c_str(), self.action_cost)
+        self.env._stats.agent_add(actor_id, "." + actor.species_name + "." + self._stats.action_energy.c_str(), self.action_cost)
 
         cdef bint result = self._handle_action(actor_id, actor, arg)
 
