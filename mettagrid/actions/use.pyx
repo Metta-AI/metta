@@ -58,20 +58,8 @@ cdef class Use(MettaActionHandler):
             self.env._stats.game_incr("r1.harvested")
 
         cdef Converter *converter
-        cdef unsigned int energy_gain = 0
         if target._type_id == ObjectType.ConverterT:
             converter = <Converter*>target
-            actor.update_inventory(converter.input_resource, -1)
-            self.env._stats.agent_incr(actor_id, InventoryItemNames[converter.input_resource] + ".used")
-            self.env._stats.agent_incr(actor_id, "." + cfg.game.species[actor.species] + "." + InventoryItemNames[converter.input_resource] + ".used")
-
-            actor.update_inventory(converter.output_resource, 1)
-            self.env._stats.agent_incr(actor_id, InventoryItemNames[converter.output_resource] + ".gained")
-            self.env._stats.agent_incr(actor_id, "." + cfg.game.species[actor.species] + "." + InventoryItemNames[converter.output_resource] + ".gained")
-
-            energy_gain = actor.update_energy(converter.output_energy, &self.env._rewards[actor_id])
-
-            self.env._stats.agent_add(actor_id, "energy.gained", energy_gain)
-            self.env._stats.agent_add(actor_id, "." + cfg.game.species[actor.species] + ".energy.gained", energy_gain)
+            target.use(actor, actor_id, &self.env._stats, &self.env._rewards[actor_id])
 
         return True
