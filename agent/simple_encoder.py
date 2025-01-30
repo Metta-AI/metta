@@ -98,6 +98,3 @@ class SimpleConvAgent(nn.Module):
     
     def get_out_size(self):
         return self._output_dim
-    
-    def get_in_size(self):
-        return self._num_objects
