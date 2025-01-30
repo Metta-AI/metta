@@ -44,19 +44,19 @@ cdef class Attack(MettaActionHandler):
             if agent_target.shield:
                 shield_damage = -agent_target.update_energy(-self.damage, NULL)
                 self.env._stats.agent_add(actor_id, "shield_damage", shield_damage)
-                self.env._stats.agent_add(actor_id, "." + actor.species + ".shield_damage", shield_damage)
+                self.env._stats.agent_add(actor_id, "." + cfg.game.species[actor.species] + ".shield_damage", shield_damage)
             if shield_damage < self.damage:
                 agent_target.shield = False
                 agent_target.frozen = agent_target.freeze_duration
                 agent_target.update_energy(-agent_target.energy, NULL)
                 self.env._stats.agent_incr(actor_id, "attack.frozen")
-                self.env._stats.agent_incr(actor_id, "." + actor.species + ".attack.frozen")
+                self.env._stats.agent_incr(actor_id, "." + cfg.game.species[actor.species] + ".attack.frozen")
                 for item in range(InventoryItem.InventoryCount):
                     actor.update_inventory(item, agent_target.inventory[item])
                     self.env._stats.agent_add(actor_id, InventoryItemNames[item] + ".stolen", agent_target.inventory[item])
-                    self.env._stats.agent_add(actor_id, "." + actor.species + "." + InventoryItemNames[item] + ".stolen", agent_target.inventory[item])
+                    self.env._stats.agent_add(actor_id, "." + cfg.game.species[actor.species] + "." + InventoryItemNames[item] + ".stolen", agent_target.inventory[item])
                     self.env._stats.agent_add(actor_id, InventoryItemNames[item] + ".gained", agent_target.inventory[item])
-                    self.env._stats.agent_add(actor_id, "." + actor.species + "." + InventoryItemNames[item] + ".gained", agent_target.inventory[item])
+                    self.env._stats.agent_add(actor_id, "." + cfg.game.species[actor.species] + "." + InventoryItemNames[item] + ".gained", agent_target.inventory[item])
                     agent_target.inventory[item] = 0
 
             return True
