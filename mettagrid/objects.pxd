@@ -169,32 +169,61 @@ cdef cppclass Generator(Usable):
         return ["generator", "generator:hp", "generator:r1", "generator:ready"]
 
 cdef cppclass Converter(Usable):
-    InventoryItem input_resource
-    InventoryItem output_resource
-    short output_energy
+    short prey_r1_output_energy;
+    short predator_r1_output_energy;
+    short predator_r2_output_energy;
 
     inline Converter(GridCoord r, GridCoord c, ObjectConfig cfg):
         GridObject.init(ObjectType.ConverterT, GridLocation(r, c, GridLayer.Object_Layer))
         MettaObject.init_mo(cfg)
         Usable.init_usable(cfg)
-        this.input_resource = InventoryItem.r1
-        this.output_resource = InventoryItem.r2
-        this.output_energy = cfg[b"energy_output.r1"]
+        this.prey_r1_output_energy = cfg[b"energy_output.r1.prey"]
+        this.predator_r1_output_energy = cfg[b"energy_output.r1.predator"]
+        this.predator_r2_output_energy = cfg[b"energy_output.r2.predator"]
 
     inline bint usable(const Agent *actor):
-        return Usable.usable(actor) and actor.inventory[this.input_resource] > 0
+        return Usable.usable(actor) and (
+            actor.inventory[InventoryItem.r1] > 0 or
+            actor.species == 1 and actor.inventory[InventoryItem.r2] > 0
+        )
+
+    inline void use(Agent *actor, unsigned int actor_id, StatsTracker *stats, float *rewards):
+        cdef unsigned int energy_gain = 0
+        cdef InventoryItem consumed_resource = InventoryItem.r1
+        cdef InventoryItem produced_resource = InventoryItem.r2
+        cdef unsigned int potential_energy_gain = this.prey_r1_output_energy
+        if actor.species == 1:
+            if actor.inventory[InventoryItem.r2] > 0:
+                # eat meat if you can
+                consumed_resource = InventoryItem.r2
+                produced_resource = InventoryItem.r3
+                potential_energy_gain = this.predator_r2_output_energy
+            else:
+                potential_energy_gain = this.predator_r1_output_energy
+        
+        actor.update_inventory(consumed_resource, -1)
+        stats[0].agent_incr(actor_id, InventoryItemNames[consumed_resource] + ".used")
+        stats[0].agent_incr(actor_id, "." + actor.species_name + "." + InventoryItemNames[consumed_resource] + ".used")
+
+        actor.update_inventory(produced_resource, 1)
+        stats[0].agent_incr(actor_id, InventoryItemNames[produced_resource] + ".gained")
+        stats[0].agent_incr(actor_id, "." + actor.species_name + "." + InventoryItemNames[produced_resource] + ".gained")
+
+        energy_gain = actor.update_energy(potential_energy_gain, rewards)
+        stats[0].agent_add(actor_id, "energy.gained", energy_gain)
+        stats[0].agent_add(actor_id, "." + actor.species_name + ".energy.gained", energy_gain)
 
     inline obs(ObsType[:] obs):
         obs[0] = 1
-        obs[1] = hp
-        obs[2] = input_resource
-        obs[3] = output_resource
-        obs[4] = output_energy
-        obs[5] = ready
+        obs[1] = this.hp
+        obs[2] = this.ready
+        obs[3] = this.prey_r1_output_energy
+        obs[4] = this.predator_r1_output_energy
+        obs[5] = this.predator_r2_output_energy
 
     @staticmethod
     inline vector[string] feature_names():
-        return ["converter", "converter:hp", "converter:input_resource", "converter:output_resource", "converter:output_energy", "converter:ready"]
+        return ["converter", "converter:hp", "converter:ready", "converter:prey_r1_output_energy", "converter:predator_r1_output_energy", "converter:predator_r2_output_energy"]
 
 cdef cppclass Altar(Usable):
     inline Altar(GridCoord r, GridCoord c, ObjectConfig cfg):

@@ -50,9 +50,13 @@ game:
     converter:
       hp: 30
       cooldown: ${uniform:1, 20, 5}
-      energy_output.r1: ${uniform:10, 250, 100}
-      energy_output.r2: ${uniform:10, 100, 10}
-      energy_output.r3: ${uniform:1, 10, 1}
+      # This is Dave's fault. Or Cython's. Or mine.
+      energy_output.r1.prey: ${uniform:10, 250, 100}
+      energy_output.r2.prey: 0
+      energy_output.r3.prey: 0
+      energy_output.r1.predator: ${uniform:10, 100, 50}
+      energy_output.r2.predator: ${uniform:10, 250, 10}
+      energy_output.r3.predator: 0
 
     generator:
       hp: 30
