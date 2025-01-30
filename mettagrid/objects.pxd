@@ -149,14 +149,14 @@ cdef cppclass Generator(Usable):
         this.r1 = cfg[b"initial_resources"]
 
     inline bint usable(const Agent *actor):
-        return Usable.usable(actor) and this.r1 > 0
+        # Only prey (0) can use generators.
+        return Usable.usable(actor) and this.r1 > 0 and actor.species == 0
 
     inline void obs(ObsType[:] obs):
         obs[0] = 1
         obs[1] = this.hp
         obs[2] = this.r1
         obs[3] = this.ready and this.r1 > 0
-
 
     @staticmethod
     inline vector[string] feature_names():
