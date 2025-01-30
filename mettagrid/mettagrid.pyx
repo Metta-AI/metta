@@ -87,7 +87,10 @@ cdef class MettaGrid(GridEnv):
                     self._grid.add_object(new Altar(r, c, cfg.objects.altar))
                     self._stats.game_incr("objects.altar")
                 elif map[r,c][0] == "A":
-                    agent = new Agent(r, c, cfg.objects.agent)
+                    species = np.random.choice(
+                        range(len(cfg.objects.agent.species_probs)),
+                        p=cfg.objects.agent.species_probs)
+                    agent = new Agent(r, c, species, cfg.objects.agent)
                     self._grid.add_object(agent)
                     self.add_agent(agent)
                     self._stats.game_incr("objects.agent")
