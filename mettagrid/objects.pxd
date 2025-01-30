@@ -74,6 +74,7 @@ cdef cppclass Agent(MettaObject):
     inline Agent(GridCoord r, GridCoord c, unsigned char species, ObjectConfig cfg):
         GridObject.init(ObjectType.AgentT, GridLocation(r, c, GridLayer.Agent_Layer))
         MettaObject.init_mo(cfg)
+        this.species = species
         this.frozen = 0
         this.freeze_duration = cfg[b"freeze_duration"]
         this.max_energy = cfg[b"max_energy"]
@@ -85,7 +86,6 @@ cdef cppclass Agent(MettaObject):
         this.max_items = cfg[b"max_inventory"]
         this.energy_reward = float(cfg[b"energy_reward"]) / 1000.0
         this.shield = False
-        this.species = species
 
     inline void update_inventory(InventoryItem item, short amount):
         this.inventory[<InventoryItem>item] += amount
@@ -121,7 +121,12 @@ cdef cppclass Agent(MettaObject):
     @staticmethod
     inline vector[string] feature_names():
         return [
-            "agent", "agent:species", "agent:hp", "agent:frozen", "agent:energy", "agent:orientation",
+            "agent",
+            "agent:species",
+            "agent:hp",
+            "agent:frozen",
+            "agent:energy",
+            "agent:orientation",
             "agent:shield"
         ] + [
             "agent:inv:" + n for n in InventoryItemNames]
