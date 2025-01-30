@@ -1,6 +1,6 @@
 
 from libc.stdio cimport printf
-
+from libcpp.string cimport string
 
 import numpy as np
 cimport numpy as cnp
@@ -72,7 +72,8 @@ cdef class MettaGrid(GridEnv):
         )
 
         cdef Agent *agent
-        cdef unsigned char species
+        cdef unsigned char species_id
+        cdef string species_name
         for r in range(map.shape[0]):
             for c in range(map.shape[1]):
                 if map[r,c] == "W":
@@ -88,10 +89,15 @@ cdef class MettaGrid(GridEnv):
                     self._grid.add_object(new Altar(r, c, cfg.objects.altar))
                     self._stats.game_incr("objects.altar")
                 elif map[r,c][0] == "A":
-                    species = np.random.choice(
-                        range(len(cfg.species)),
-                        p=[s["prob"] for s in cfg.species])
-                    agent = new Agent(r, c, species, cfg.objects.agent)
+                    species_id = np.random.choice(
+                        range(len(cfg.objects.agent.species)),
+                        p=[s["prob"] for s in cfg.objects.agent.species])
+                    species_name = cfg.objects.agent.species[species_id].name
+                    agent_cfg = OmegaConf.to_container(OmegaConf.merge(
+                        cfg.objects.agent,
+                        cfg.objects.agent.species[species_id].props))
+                    del agent_cfg["species"]
+                    agent = new Agent(r, c, species_id, species_name, agent_cfg)
                     self._grid.add_object(agent)
                     self.add_agent(agent)
                     self._stats.game_incr("objects.agent")

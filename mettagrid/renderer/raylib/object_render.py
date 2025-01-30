@@ -1,6 +1,7 @@
 # disable pylint for raylib
 # pylint: disable=no-member
 # type: ignore
+import __future__
 import os
 
 import pyray as ray
@@ -45,7 +46,13 @@ class AgentRenderer(ObjectRenderer):
         orientation_offset = [1, 2, 3, 0][obj["agent:orientation"]]
 
         # return (4 * ((obj["agent_id"] // 12) % 4) + orientation_offset, 2 * (obj["agent_id"] % 12))
-        return (orientation_offset, 2 * (obj["agent:species"] % 12))
+        if obj["agent:species"] == 0:
+            idx = 12
+        elif obj["agent:species"] == 1:
+            idx = 6
+        else:
+            idx = 2 * (obj["agent:species"] % 12)
+        return (orientation_offset, idx)
 
     def render(self, obj, render_tile_size):
         super().render(obj, render_tile_size)
