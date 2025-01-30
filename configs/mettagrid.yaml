@@ -22,7 +22,14 @@ game:
   tile_size: 16
   no_energy_steps: 500
 
+  species:
+    - name: "prey"
+      prob: 0.8
+    - name: "predator"
+      prob: 0.2
+
   objects:
+
     agent:
       initial_energy: ${uniform:0, 250, 250}
       max_energy: ${uniform:0, 250, 250}
@@ -34,7 +41,6 @@ game:
       upkeep.time: ${uniform:0, 3, 0}
       upkeep.shield: ${uniform:0, 3, 1}
       use_cost: 0
-      species_probs: [0.2, 0.8]
 
     altar:
       hp: 30
