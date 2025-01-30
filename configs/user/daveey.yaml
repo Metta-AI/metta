@@ -3,7 +3,7 @@
 seed: null
 
 defaults:
-  - override /env/mettagrid@env: bases
+  - override /env/mettagrid@env: simple
   - override /agent: simple.medium
   - override /sweep: fast
 
@@ -35,4 +35,4 @@ sweep:
   metric: action.use
 
 cmd: ???
-run: ${oc.env:USER}.local.${cmd}.2
+run: ${oc.env:USER}.local.${cmd}.3

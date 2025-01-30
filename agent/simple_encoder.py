@@ -12,6 +12,7 @@ from agent.feature_encoder import FeatureListNormalizer
 # but here we are. If you add / remove a feature, you should add / remove the corresponding normalization.
 OBS_NORMALIZATIONS = {
     'agent': 1,
+    'agent:species': 10,
     'agent:hp': 1,
     'agent:frozen': 1,
     'agent:energy': 255,
