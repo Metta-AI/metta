@@ -41,7 +41,6 @@ game:
       upkeep.time: ${uniform:0, 3, 0}
       upkeep.shield: ${uniform:0, 3, 1}
       use_cost: 0
-      species_probs: [0.2, 0.8]
 
     altar:
       hp: 30
