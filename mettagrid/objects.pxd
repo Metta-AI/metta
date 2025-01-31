@@ -208,11 +208,11 @@ cdef cppclass Converter(Usable):
 
         actor.update_inventory(consumed_resource, -1)
         stats.agent_incr(actor_id, InventoryItemNames[consumed_resource] + ".used")
-        stats.agent_incr(actor_id, "." + actor.species_name + "." + InventoryItemNames[consumed_resource] + ".used")
+        stats.agent_incr(actor_id, actor.species_name + "." + InventoryItemNames[consumed_resource] + ".used")
 
         actor.update_inventory(produced_resource, 1)
         stats.agent_incr(actor_id, InventoryItemNames[produced_resource] + ".gained")
-        stats.agent_incr(actor_id, "." + actor.species_name + "." + InventoryItemNames[produced_resource] + ".gained")
+        stats.agent_incr(actor_id, actor.species_name + "." + InventoryItemNames[produced_resource] + ".gained")
 
         energy_gain = actor.update_energy(potential_energy_gain, rewards)
         stats.agent_add(actor_id, "energy.gained", energy_gain)
