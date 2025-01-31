@@ -10,6 +10,7 @@ ctypedef struct Action:
 cdef class ActionHandler:
     cdef GridEnv env
     cdef string _action_name
+    cdef unsigned char _priority
 
     cdef void init(self, GridEnv env)
 
