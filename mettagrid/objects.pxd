@@ -5,7 +5,7 @@
 from libcpp.vector cimport vector
 from libcpp.map cimport map
 from libcpp.string cimport string
-from mettagrid.grid_env import StatsTracker
+from mettagrid.grid_env cimport StatsTracker
 from libc.stdio cimport printf
 from mettagrid.observation_encoder cimport ObservationEncoder, ObsType
 from mettagrid.grid_object cimport GridObject, TypeId, GridCoord, GridLocation, GridObjectId
@@ -191,7 +191,7 @@ cdef cppclass Converter(Usable):
             actor.species == 1 and actor.inventory[InventoryItem.r2] > 0
         )
 
-    inline void use(Agent *actor, unsigned int actor_id, StatsTracker *stats, float *rewards):
+    inline void use(Agent *actor, unsigned int actor_id, StatsTracker stats, float *rewards):
         cdef unsigned int energy_gain = 0
         cdef InventoryItem consumed_resource = InventoryItem.r1
         cdef InventoryItem produced_resource = InventoryItem.r2
@@ -204,18 +204,18 @@ cdef cppclass Converter(Usable):
                 potential_energy_gain = this.predator_r2_output_energy
             else:
                 potential_energy_gain = this.predator_r1_output_energy
-        
+
         actor.update_inventory(consumed_resource, -1)
-        stats[0].agent_incr(actor_id, InventoryItemNames[consumed_resource] + ".used")
-        stats[0].agent_incr(actor_id, "." + actor.species_name + "." + InventoryItemNames[consumed_resource] + ".used")
+        stats.agent_incr(actor_id, InventoryItemNames[consumed_resource] + ".used")
+        stats.agent_incr(actor_id, "." + actor.species_name + "." + InventoryItemNames[consumed_resource] + ".used")
 
         actor.update_inventory(produced_resource, 1)
-        stats[0].agent_incr(actor_id, InventoryItemNames[produced_resource] + ".gained")
-        stats[0].agent_incr(actor_id, "." + actor.species_name + "." + InventoryItemNames[produced_resource] + ".gained")
+        stats.agent_incr(actor_id, InventoryItemNames[produced_resource] + ".gained")
+        stats.agent_incr(actor_id, "." + actor.species_name + "." + InventoryItemNames[produced_resource] + ".gained")
 
         energy_gain = actor.update_energy(potential_energy_gain, rewards)
-        stats[0].agent_add(actor_id, "energy.gained", energy_gain)
-        stats[0].agent_add(actor_id, "." + actor.species_name + ".energy.gained", energy_gain)
+        stats.agent_add(actor_id, "energy.gained", energy_gain)
+        stats.agent_add(actor_id, "." + actor.species_name + ".energy.gained", energy_gain)
 
     inline obs(ObsType[:] obs):
         obs[0] = 1
