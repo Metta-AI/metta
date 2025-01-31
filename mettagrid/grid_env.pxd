@@ -25,6 +25,7 @@ cdef class GridEnv:
         list[ActionHandler] _action_handlers
         vector[unsigned char] _max_action_args
         unsigned char _max_action_arg
+        unsigned char _max_action_priority
 
         bint _use_flat_actions
         vector[Action] _flat_actions
