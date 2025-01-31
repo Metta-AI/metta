@@ -53,39 +53,69 @@ critic:
 actor:
   hidden_sizes: [] # Set to [] for no hidden layer
 
+# =============================== NEW CONFIG ===============================
+
+
+interface:
+  input:
+    obs: observation_encoder_1
+    core_output: _core_
+
+  output:
+    encoded_obs: observation_encoder_1
+    value: critic_3
+    action_param: actor_2
+
 components:
-  - name: observation_encoder_1
-    input: obs
+  observation_encoder_10:
+    _target_: agent.simple_encoder.SimpleConvAgent
+    cnn_channels: 64
+    obs_key: grid_obs
+    normalize_features: true
+    auto_normalize: false
+    track_last_action: ${env.track_last_action}
+    kinship: ${env.game.kinship}
 
-  - name: observation_encoder_2
-
-  - name: _encoded_obs_
-    input: observation_encoder_2
-    output: 128
-
-  - name: _recurrent_
+  - name: _core_
+    _target_: agent.nn.LSTM
+    input: observation_encoder_1
+    num_layers: 1
     output: 128
 
   - name: critic_1
-    input: recurrent
+    _target_: agent.nn.Linear
+    input: _core_
     output: 512
 
   - name: critic_2
+    _target_: agent.nn.Linear
     input: critic_1
     output: 128
 
   - name: critic_3
+    _target_: agent.nn.Linear
     input: [actor_2, critic_2]
     output: 128
 
-  - name: _value_
-    output: 1
+  # - name: _value_
+  #   _target_: agent.nn.Linear
+  #   input: critic_3
+  #   output: 1
 
   - name: actor_1
-    input: recurrent
+    _target_: agent.nn.Linear
+    input: _core_
     output: 512
 
   - name: actor_2
+    _target_: agent.nn.Linear
+    input: actor_1
+    output: 512
+
+  - name: _value_
+    _target_: agent.nn.Linear
+    input: actor_2
+    output: 1
 
 ## test this but comment out critic_3
 #   - name: actor_2
@@ -98,7 +128,6 @@ components:
 
 production_components:
   - name: obs_encoder
-  # -- I need to wrap this --
     _target_: agent.simple_encoder.SimpleConvAgent
     cnn_channels: 64
     obs_key: grid_obs
