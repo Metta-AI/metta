@@ -11,6 +11,7 @@ from mettagrid.actions.actions cimport MettaActionHandler
 cdef class Attack(MettaActionHandler):
     def __init__(self, cfg: OmegaConf):
         MettaActionHandler.__init__(self, cfg, "attack")
+        self._priority = 1
 
     cdef unsigned char max_arg(self):
         return 9

@@ -42,6 +42,7 @@ cdef class GridEnv:
 
         self._use_flat_actions = use_flat_actions
         self._action_handlers = action_handlers
+        self._max_action_priority = 0
         self._max_action_arg = 0
         self._max_action_args.resize(len(action_handlers))
         for i, handler in enumerate(action_handlers):
@@ -49,6 +50,7 @@ cdef class GridEnv:
             max_arg = (<ActionHandler>handler).max_arg()
             self._max_action_args[i] = max_arg
             self._max_action_arg = max(self._max_action_arg, max_arg)
+            self._max_action_priority = max(self._max_action_priority, (<ActionHandler>handler)._priority)
             if use_flat_actions:
                 for arg in range(max_arg+1):
                     self._flat_actions.push_back(Action(i, arg))
@@ -140,16 +142,19 @@ cdef class GridEnv:
         self._current_timestep += 1
         self._event_manager.process_events(self._current_timestep)
 
-        for idx in range(self._agents.size()):
-            action = actions[idx][0]
-            if action >= len(self._action_handlers):
-                continue
-            arg = actions[idx][1]
-            agent = self._agents[idx]
-            handler = <ActionHandler>self._action_handlers[action]
-            if arg > self._max_action_args[action]:
-                continue
-            handler.handle_action(idx, agent.id, arg)
+        for p in range(self._max_action_priority + 1):
+            for idx in range(self._agents.size()):
+                action = actions[idx][0]
+                if action >= len(self._action_handlers):
+                    continue
+                arg = actions[idx][1]
+                agent = self._agents[idx]
+                handler = <ActionHandler>self._action_handlers[action]
+                if handler._priority != self._max_action_priority - p:
+                    continue
+                if arg > self._max_action_args[action]:
+                    continue
+                handler.handle_action(idx, agent.id, arg)
         self._compute_observations(actions)
 
         for i in range(self._episode_rewards.shape[0]):
