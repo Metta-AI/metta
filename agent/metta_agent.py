@@ -33,17 +33,17 @@ class MettaAgent(nn.Module, MettaAgentInterface):
         self.observation_space = obs_space
         self.action_space = action_space
 
-        # what were grid and global features used for???
+        # apply grid and global features
 
-        obs = _MettaHelperComponent('_obs_', self.observation_space)
+        obs = _MettaHelperComponent('_obs_', 'obs', self.observation_space)
         self.components = [obs]
         component_cfgs = list(cfg.components)
 
         for component_cfg in component_cfgs:
             if component_cfg._target_:
                 component = hydra.utils.instantiate(component_cfg)
-            if component_cfg.name == '_recurrent_':
-                component = _MettaHelperComponent('_recurrent_',cfg.core.rnn_size) # need to move core.rnn_size to cfg
+            if component_cfg.name == '_core_':
+                component = _MettaHelperComponent('_core_', 'core_output', cfg.core.rnn_size) # need to move core.rnn_size to cfg
             else:
                 component = MettaComponent(component_cfg, self.components)
                 # do we need to pass self to MettaComponent?
@@ -59,6 +59,8 @@ class MettaAgent(nn.Module, MettaAgentInterface):
         self.obs_encoder = MettaNet(self.components, '_encoded_obs_')
         self.atn_param = MettaNet(self.components, '_atn_param_')
         self.critic = MettaNet(self.components, '_value_')
+
+    #def weight helper functions
 
 
 

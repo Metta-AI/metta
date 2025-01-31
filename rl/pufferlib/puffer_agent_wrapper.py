@@ -62,9 +62,9 @@ class PufferAgentWrapper(nn.Module):
         }
         td = TensorDict({"obs": obs})
         self._agent.obs_encoder(td)
-        return td["encoded_obs"], None
+        return td["encoded_obs"], td
 
-    def decode_actions(self, x, flat_hidden, lookup, concat=None, e3b=None):
+    def decode_actions(self, x, flat_hidden, td, concat=None, e3b=None):
         flat_obs = x
         obs = {
             "grid_obs": flat_obs.float(),   

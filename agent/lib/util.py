@@ -101,20 +101,22 @@ class MettaNet(nn.Module):
         return td
 
 class _MettaHelperComponent(nn.Module):
-    def __init__(self, name, output_size):
+    def __init__(self, name, output_name, output_size):
         super().__init__()
         self.name = name
+        self.output_name = output_name
         self.output_size = output_size
         self.input_source = None
-
+    
     def get_input_source_size(self):
         pass
     
     def initialize_layer(self):
         pass
     #should this have nn.Identity instead?
-    def forward(self, x):
-        return x
+    def forward(self, td: TensorDict):
+        x = td[self.input_name]
+        return td
     
     def get_out_size(self):
         return self.output_size
