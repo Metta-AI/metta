@@ -53,6 +53,65 @@ critic:
 actor:
   hidden_sizes: [] # Set to [] for no hidden layer
 
+components:
+  - name: observation_encoder_1
+    input: obs
+
+  - name: observation_encoder_2
+
+  - name: _encoded_obs_
+    input: observation_encoder_2
+    output: 128
+
+  - name: _recurrent_
+    output: 128
+
+  - name: critic_1
+    input: recurrent
+    output: 512
+
+  - name: critic_2
+    input: critic_1
+    output: 128
+
+  - name: critic_3
+    input: [actor_2, critic_2]
+    output: 128
+
+  - name: _value_
+    output: 1
+
+  - name: actor_1
+    input: recurrent
+    output: 512
+
+  - name: actor_2
+
+## test this but comment out critic_3
+#   - name: actor_2
+#     input: [actor_1, critic_1]
+#     output: 128
+
+  - name: _atn_param_
+    output: 20
+
+
+production_components:
+  - name: obs_encoder
+  # -- I need to wrap this --
+    _target_: agent.simple_encoder.SimpleConvAgent
+    cnn_channels: 64
+    obs_key: grid_obs
+    normalize_features: true
+    auto_normalize: false
+    track_last_action: ${env.track_last_action}
+    kinship: ${env.game.kinship}
+
+  - name: custom_module_1
+    _target_: agent.components.CustomModule
+    input: _decoder
+    output: 512
+
 
   # critic:
   # _target_: agent.components.Composer

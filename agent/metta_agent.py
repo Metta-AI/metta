@@ -14,7 +14,7 @@ from tensordict import TensorDict
 from torch import Tensor, nn
 import torch
 from agent.agent_interface import MettaAgentInterface
-from agent.lib.util import make_nn_stack
+from agent.lib.util import MettaComponent, MettaNet, _MettaHelperComponent
 # from agent.components import Composer, Layer
 import omegaconf
 
@@ -33,67 +33,43 @@ class MettaAgent(nn.Module, MettaAgentInterface):
         self.observation_space = obs_space
         self.action_space = action_space
 
-        self._encoder = hydra.utils.instantiate(
-            cfg.observation_encoder,
-            obs_space, grid_features, global_features)
+        # what were grid and global features used for???
 
-        self._decoder = hydra.utils.instantiate(
-            cfg.decoder,
-            cfg.core.rnn_size)
+        obs = _MettaHelperComponent('_obs_', self.observation_space)
+        self.components = [obs]
+        component_cfgs = list(cfg.components)
 
-        # self._critic_linear = make_nn_stack(
-        #     self.decoder_out_size(),
-        #     1,
-        #     list(cfg.critic.hidden_sizes),
-        #     nonlinearity=nn.ReLU()
-        # )
+        for component_cfg in component_cfgs:
+            if component_cfg._target_:
+                component = hydra.utils.instantiate(component_cfg)
+            if component_cfg.name == '_recurrent_':
+                component = _MettaHelperComponent('_recurrent_',cfg.core.rnn_size) # need to move core.rnn_size to cfg
+            else:
+                component = MettaComponent(component_cfg, self.components)
+                # do we need to pass self to MettaComponent?
+            self.components.append(component)
 
-        # self._critic = hydra.utils.instantiate(
-        #     cfg.critic,
-        #     input=self.decoder_out_size(),
-        #     output=1,
-        #     _recursive_=False)
+        for component in self.components:
+            # check if custom components and Obs and Recurrent need these.
+            component.get_input_source_size()
+            component.initialize_layer()
 
-        self._critic = Composer(
-            self,
-            cfg.critic)
+        self.components = nn.ModuleList(self.components) # does this constrict custom components?
 
-        self.apply(self.initialize_weights)
-
-    def decoder_out_size(self):
-        return self._decoder.get_out_size()
-
-    def encode_observations(self, td: TensorDict):
-        td["encoded_obs"] = self._encoder(td["obs"])
-
-    def decode_state(self, td: TensorDict):
-        td["state"] = self._decoder(td["core_output"])
-        td["values"] = self._critic_linear(td["state"]).squeeze()
-
-    def decode_state_2(self, td: TensorDict):
-        td["encoded_obs"] = self._encoder(td["obs"])
-        #what's the diff between core_output and encoded_obs given that decoder is identity?
-        td["state"] = self._decoder(td["core_output"], td["encoded_obs"])
-        td["values"] = self._critic_linear(td["state"]).squeeze()
+        self.obs_encoder = MettaNet(self.components, '_encoded_obs_')
+        self.atn_param = MettaNet(self.components, '_atn_param_')
+        self.critic = MettaNet(self.components, '_value_')
 
 
-    def aux_loss(self, normalized_obs_dict, rnn_states):
-        raise NotImplementedError()
 
-    def initialize_weights(self, layer):
-        gain = 1.0
 
-        if hasattr(layer, "bias") and isinstance(layer.bias, torch.nn.parameter.Parameter):
-            layer.bias.data.fill_(0)
 
-        if type(layer) is nn.Conv2d or type(layer) is nn.Linear:
-            nn.init.orthogonal_(layer.weight.data, gain=gain)
-        else:
-            # LSTMs and GRUs initialize themselves
-            # should we use orthogonal/xavier for LSTM cells as well?
-            # I never noticed much difference between different initialization schemes, and here it seems safer to
-            # go with default initialization,
-            pass
+
+
+
+
+
+
 
 class Layer(nn.Module):
     def __init__(self, layer_cfg):
@@ -113,11 +89,6 @@ class Layer(nn.Module):
         self.name = layer_cfg.name
         self.input_source = layer_cfg.input_source
 
-        
-        # self.layer.initialize_weights()
-        # self.layer.normalize_weights()
-        # self.layer.clip_weights()
-        # self.layer.get_losses()
 
     def forward(self, x):
         return self.layer(x)

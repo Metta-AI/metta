@@ -61,15 +61,20 @@ class PufferAgentWrapper(nn.Module):
             "global_vars": torch.zeros(flat_obs.shape[0], dtype=torch.float32).to(flat_obs.device)
         }
         td = TensorDict({"obs": obs})
-        self._agent.encode_observations(td)
+        self._agent.obs_encoder(td)
         return td["encoded_obs"], None
 
-    def decode_actions(self, flat_hidden, lookup, concat=None, e3b=None):
-        value = self._agent._critic_linear(flat_hidden)
-        if self.atn_param is None:
-            action = self.atn_type(flat_hidden)
-        else:
-            action = [self.atn_type(flat_hidden), self.atn_param(flat_hidden)]
+    def decode_actions(self, x, flat_hidden, lookup, concat=None, e3b=None):
+        flat_obs = x
+        obs = {
+            "grid_obs": flat_obs.float(),   
+            "global_vars": torch.zeros(flat_obs.shape[0], dtype=torch.float32).to(flat_obs.device)
+        }
+        td = TensorDict({"obs": obs})
+        td["core_output"] = flat_hidden
+
+        value = self._agent.critic(td)
+        action = self._agent.atn_param(td)
 
         b = None
         if e3b is not None:
