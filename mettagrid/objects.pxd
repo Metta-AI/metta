@@ -216,7 +216,7 @@ cdef cppclass Converter(Usable):
 
         energy_gain = actor.update_energy(potential_energy_gain, rewards)
         stats.agent_add(actor_id, "energy.gained", energy_gain)
-        stats.agent_add(actor_id, "." + actor.species_name + ".energy.gained", energy_gain)
+        stats.agent_add(actor_id, actor.species_name + ".energy.gained", energy_gain)
 
     inline obs(ObsType[:] obs):
         obs[0] = 1
