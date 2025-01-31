@@ -59,8 +59,8 @@ game:
       energy_output.r1.prey: ${uniform:10, 250, 100}
       energy_output.r2.prey: 0
       energy_output.r3.prey: 0
-      energy_output.r1.predator: ${uniform:10, 100, 50}
-      energy_output.r2.predator: ${uniform:10, 250, 10}
+      energy_output.r1.predator: ${uniform:10, 100, 25}
+      energy_output.r2.predator: ${uniform:10, 250, 100}
       energy_output.r3.predator: 0
 
     generator:
