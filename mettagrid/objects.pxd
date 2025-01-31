@@ -116,8 +116,8 @@ cdef cppclass Agent(MettaObject):
         obs[4] = this.energy
         obs[5] = this.orientation
         obs[6] = this.shield
+        cdef unsigned short idx = 7
 
-        cdef unsigned short idx = 6
         cdef unsigned short i
         for i in range(InventoryItem.InventoryCount):
             obs[idx + i] = this.inventory[i]
@@ -159,7 +159,7 @@ cdef cppclass Generator(Usable):
 
     inline bint usable(const Agent *actor):
         # Only prey (0) can use generators.
-        return Usable.usable(actor) and this.r1 > 0 and actor.species == 0
+        return Usable.usable(actor) and this.r1 > 0
 
     inline void obs(ObsType[:] obs):
         obs[0] = 1
@@ -204,6 +204,7 @@ cdef cppclass Converter(Usable):
                 potential_energy_gain = this.predator_r2_output_energy
             else:
                 potential_energy_gain = this.predator_r1_output_energy
+                produced_resource = InventoryItem.r3
 
         actor.update_inventory(consumed_resource, -1)
         stats.agent_incr(actor_id, InventoryItemNames[consumed_resource] + ".used")
