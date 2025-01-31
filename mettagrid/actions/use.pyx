@@ -60,6 +60,6 @@ cdef class Use(MettaActionHandler):
         cdef Converter *converter
         if target._type_id == ObjectType.ConverterT:
             converter = <Converter*>target
-            target.use(actor, actor_id, &self.env._stats, &self.env._rewards[actor_id])
+            converter.use(actor, actor_id, self.env._stats, &self.env._rewards[actor_id])
 
         return True
