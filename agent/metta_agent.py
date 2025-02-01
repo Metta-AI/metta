@@ -32,21 +32,14 @@ class MettaAgent(nn.Module, MettaAgentInterface):
         self.cfg = cfg
         self.observation_space = obs_space
         self.action_space = action_space
+        self.grid_features = grid_features
+        self.global_features = global_features
 
-        # apply grid and global features
+        self.components = []
+        component_cfgs = {cfg.components}
 
-        obs = _MettaHelperComponent('_obs_', 'obs', self.observation_space)
-        self.components = [obs]
-        component_cfgs = list(cfg.components)
-
-        for component_cfg in component_cfgs:
-            if component_cfg._target_:
-                component = hydra.utils.instantiate(component_cfg)
-            if component_cfg.name == '_core_':
-                component = _MettaHelperComponent('_core_', 'core_output', cfg.core.rnn_size) # need to move core.rnn_size to cfg
-            else:
-                component = MettaComponent(component_cfg, self.components)
-                # do we need to pass self to MettaComponent?
+        for component_cfg in component_cfgs.keys():
+            component = hydra.utils.instantiate(component_cfgs[component_cfg], MettaAgent=self)
             self.components.append(component)
 
         for component in self.components:
@@ -54,15 +47,55 @@ class MettaAgent(nn.Module, MettaAgentInterface):
             component.get_input_source_size()
             component.initialize_layer()
 
-        self.components = nn.ModuleList(self.components) # does this constrict custom components?
-
         self.obs_encoder = MettaNet(self.components, '_encoded_obs_')
         self.atn_param = MettaNet(self.components, '_atn_param_')
         self.critic = MettaNet(self.components, '_value_')
 
     #def weight helper functions
 
+class MettaLayer(nn.Module):
+    def __init__(self, MettaAgent, **cfg):
+        cfg = OmegaConf.create(cfg)
+        super().__init__()
+        self.MettaAgent = MettaAgent
+        self.name = cfg.name
+        self.input_source = cfg.input_source
+        self.output_size = cfg.output
+        self.layer_type = 'Linear' if not cfg.layer_type else cfg.layer_type
+        self.nonlinearity = 'ReLU' if not cfg.nonlinearity else cfg.nonlinearity
 
+    def set_input_source_size(self):
+        self.input_size = self.MettaAgent.components[self.input_source].get_out_size()
+
+    def initialize_layer(self):
+        self.layer = getattr(nn, self.layer_type)(self.input_size, self.output_size)
+
+
+    def forward(self, td: TensorDict):
+        x = self.MettaAgent.components[self.input_source](td)
+        x = self.layer(x)
+        if self.nonlinearity:
+            x = getattr(nn, self.nonlinearity)(x)
+        td[self.name] = x
+        return td
+
+
+class SuperLayer(nn.Module):
+    def __init__(self, cfg):
+        super().__init__()
+        self.name = cfg.name
+        # deal with list of inputs
+        self.input_source = cfg.input_source
+        self.output_size = cfg.output
+    
+    def get_out_size(self):
+        return self.output_size
+
+class MettaLinear(SuperLayer):
+    def __init__(self, **cfg):
+        cfg = OmegaConf.create(cfg)
+        super().__init__(cfg)
+        self.layer = nn.Linear(cfg.input, cfg.output)
 
 
 

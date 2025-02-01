@@ -8,6 +8,8 @@ observation_encoder:
   auto_normalize: false
   track_last_action: ${env.track_last_action}
   kinship: ${env.game.kinship}
+  input_source: null
+  output_size: null
 
   fc:
     layers: 1
@@ -67,7 +69,15 @@ interface:
     action_param: actor_2
 
 components:
-  observation_encoder_10:
+
+  obs:
+    _target_: agent.components.MettaLayer
+    input_source: null
+    output_size: null
+    layer_type: Identity
+    nonlinearity: None
+
+  observation_encoder_1:
     _target_: agent.simple_encoder.SimpleConvAgent
     cnn_channels: 64
     obs_key: grid_obs
@@ -76,43 +86,45 @@ components:
     track_last_action: ${env.track_last_action}
     kinship: ${env.game.kinship}
 
-  - name: _core_
+  _core_:
     _target_: agent.nn.LSTM
     input: observation_encoder_1
+    layer_type: Identity
     num_layers: 1
     output: 128
 
-  - name: critic_1
-    _target_: agent.nn.Linear
-    input: _core_
-    output: 512
+  critic_1:
+    _target_: agent.components.MettaLayer
+    input_source: _core_
+    output_size: 512
+    layer_type: Linear
 
-  - name: critic_2
+  critic_2:
     _target_: agent.nn.Linear
     input: critic_1
     output: 128
 
-  - name: critic_3
+  critic_3:
     _target_: agent.nn.Linear
     input: [actor_2, critic_2]
     output: 128
 
-  # - name: _value_
+  # value:
   #   _target_: agent.nn.Linear
   #   input: critic_3
   #   output: 1
 
-  - name: actor_1
+  actor_1:
     _target_: agent.nn.Linear
     input: _core_
     output: 512
 
-  - name: actor_2
+  actor_2:
     _target_: agent.nn.Linear
     input: actor_1
     output: 512
 
-  - name: _value_
+  value:
     _target_: agent.nn.Linear
     input: actor_2
     output: 1

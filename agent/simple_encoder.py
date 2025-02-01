@@ -10,14 +10,16 @@ from agent.feature_encoder import FeatureListNormalizer
 class SimpleConvAgent(nn.Module):
 
     def __init__(self,
-                 obs_space,
-                 grid_features: list[str],
-                 global_features: list[str],
+                 MettaAgent,
+                #  obs_space,
+                #  grid_features: List[str],
+                #  global_features: List[str],
                  **cfg):
         super().__init__()
         cfg = OmegaConf.create(cfg)
+        self.MettaAgent = MettaAgent
         self._obs_key = cfg.obs_key
-        self._num_objects = obs_space[self._obs_key].shape[0]
+        self._num_objects = MettaAgent.observation_space[self._obs_key].shape[0]
         self._cnn_channels = cfg.cnn_channels
         self._output_dim = cfg.fc.output_dim
 
@@ -39,12 +41,14 @@ class SimpleConvAgent(nn.Module):
         self._normalizer = None
         if cfg.auto_normalize:
             self._normalizer = FeatureListNormalizer(
-                grid_features, obs_space[self._obs_key].shape[1:])
+                MettaAgent.grid_features, MettaAgent.observation_space[self._obs_key].shape[1:])
 
         self.object_normalizer = None
         if cfg.normalize_features:
-            self.object_normalizer = ObservationNormalizer(grid_features)
-
+            # #ObservationNormalization
+            obs_norms = [OBS_NORMALIZATIONS[k] for k in MettaAgent.grid_features]
+            self._obs_norm = torch.tensor(obs_norms, dtype=torch.float32)
+            self._obs_norm = self._obs_norm.view(1, self._num_objects, 1, 1)
 
     def forward(self, obs_dict):
         obs = obs_dict[self._obs_key]
