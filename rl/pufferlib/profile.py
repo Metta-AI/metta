@@ -20,6 +20,9 @@ import pufferlib
 import pufferlib.pytorch
 import pufferlib.utils
 
+def _fmt_perf(time: float, uptime: float) -> float:
+    return 100 * (time / uptime if uptime > 0 else 0)
+
 class Profile:
     SPS: ... = 0
     uptime: ... = 0
@@ -46,14 +49,14 @@ class Profile:
         yield 'SPS', self.SPS
         yield 'uptime', self.uptime
         yield 'remaining', self.remaining
-        yield 'eval_time', self.eval_time
-        yield 'env_time', self.env_time
-        yield 'eval_forward_time', self.eval_forward_time
-        yield 'eval_misc_time', self.eval_misc_time
-        yield 'train_time', self.train_time
-        yield 'train_forward_time', self.train_forward_time
-        yield 'learn_time', self.learn_time
-        yield 'train_misc_time', self.train_misc_time
+        yield 'eval_time', _fmt_perf(self.eval_time, self.uptime)
+        yield 'env_time', _fmt_perf(self.env_time, self.uptime)
+        yield 'eval_forward_time', _fmt_perf(self.eval_forward_time, self.uptime)
+        yield 'eval_misc_time', _fmt_perf(self.eval_misc_time, self.uptime)
+        yield 'train_time', _fmt_perf(self.train_time, self.uptime)
+        yield 'train_forward_time', _fmt_perf(self.train_forward_time, self.uptime)
+        yield 'learn_time', _fmt_perf(self.learn_time, self.uptime)
+        yield 'train_misc_time', _fmt_perf(self.train_misc_time, self.uptime)
 
     @property
     def epoch_time(self):
