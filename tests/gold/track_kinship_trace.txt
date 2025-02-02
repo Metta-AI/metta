@@ -1,413 +1,410 @@
 ================================================================================
 Kinship:
 ================================================================================
-#########################
-#               1       #
-#                      ##
-#             1         #
-#              #    g   #
-#                       #
-#                 1     #
-#   2 c  g     a       ##
-#                       #
-#    gg     2     c 2   #
-#       g   #           #
-#    #  3  g  g #   3   #
-#       #a   #     3   g#
-#                #    4 #
-#    4           #    a #
-#            4      a 5 #
-#           g  a 5   5  #
-#         g     6       #
-#6          a           #
-#         g    6 g      #
-#           7      g    #
-#         g             #
-#   a   a g           aa#
-#          7  c         #
-#########################
-Agent id=27 agent_id=0 x=16 y=1 energy=250 shield=0 inventory=0
-Agent id=33 agent_id=1 x=14 y=3 energy=250 shield=0 inventory=0
-Agent id=42 agent_id=2 x=18 y=6 energy=250 shield=0 inventory=0
-Agent id=45 agent_id=3 x=4 y=7 energy=250 shield=0 inventory=0
-Agent id=56 agent_id=4 x=12 y=9 energy=250 shield=0 inventory=0
-Agent id=58 agent_id=5 x=20 y=9 energy=250 shield=0 inventory=0
-Agent id=66 agent_id=6 x=8 y=11 energy=250 shield=0 inventory=0
-Agent id=70 agent_id=7 x=20 y=11 energy=250 shield=0 inventory=0
-Agent id=76 agent_id=8 x=19 y=12 energy=250 shield=0 inventory=0
-Agent id=81 agent_id=9 x=22 y=13 energy=250 shield=0 inventory=0
-Agent id=84 agent_id=10 x=5 y=14 energy=250 shield=0 inventory=0
-Agent id=89 agent_id=11 x=13 y=15 energy=250 shield=0 inventory=0
-Agent id=91 agent_id=12 x=22 y=15 energy=250 shield=0 inventory=0
-Agent id=96 agent_id=13 x=17 y=16 energy=250 shield=0 inventory=0
-Agent id=97 agent_id=14 x=21 y=16 energy=250 shield=0 inventory=0
-Agent id=101 agent_id=15 x=16 y=17 energy=250 shield=0 inventory=0
-Agent id=104 agent_id=16 x=1 y=18 energy=250 shield=0 inventory=0
-Agent id=109 agent_id=17 x=15 y=19 energy=250 shield=0 inventory=0
-Agent id=113 agent_id=18 x=12 y=20 energy=250 shield=0 inventory=0
-Agent id=127 agent_id=19 x=11 y=23 energy=250 shield=0 inventory=0
+c               #    #   
+                  #     #
+ a       g           a  a
+      1g   #         c   
+              #     # # #
+   #          1         g
+              #   g     1
+   22             a     #
+     23       #        g 
+     3                   
+      a ##3    #        #
+       g  #      4 #     
+ ##     #        4   g ##
+a         #   g         a
+     #        a  # #     
+       #    4  #      #  
+  g            #       5 
+       #   5  ##         
+        g   5  g         
+       6                 
+   6         #   #       
+             g          a
+ #         6           c 
+#      a g             7 
+g        #7    g         
+Agent id=10 agent_id=0 x=6 y=3 energy=250 shield=0 inventory=0
+Agent id=19 agent_id=1 x=14 y=5 energy=250 shield=0 inventory=0
+Agent id=23 agent_id=2 x=24 y=6 energy=250 shield=0 inventory=0
+Agent id=24 agent_id=3 x=3 y=7 energy=250 shield=0 inventory=0
+Agent id=25 agent_id=4 x=4 y=7 energy=250 shield=0 inventory=0
+Agent id=28 agent_id=5 x=5 y=8 energy=250 shield=0 inventory=0
+Agent id=29 agent_id=6 x=6 y=8 energy=250 shield=0 inventory=0
+Agent id=32 agent_id=7 x=5 y=9 energy=250 shield=0 inventory=0
+Agent id=36 agent_id=8 x=10 y=10 energy=250 shield=0 inventory=0
+Agent id=41 agent_id=9 x=17 y=11 energy=250 shield=0 inventory=0
+Agent id=46 agent_id=10 x=17 y=12 energy=250 shield=0 inventory=0
+Agent id=59 agent_id=11 x=12 y=15 energy=250 shield=0 inventory=0
+Agent id=64 agent_id=12 x=23 y=16 energy=250 shield=0 inventory=0
+Agent id=66 agent_id=13 x=11 y=17 energy=250 shield=0 inventory=0
+Agent id=70 agent_id=14 x=12 y=18 energy=250 shield=0 inventory=0
+Agent id=72 agent_id=15 x=7 y=19 energy=250 shield=0 inventory=0
+Agent id=73 agent_id=16 x=3 y=20 energy=250 shield=0 inventory=0
+Agent id=79 agent_id=17 x=11 y=22 energy=250 shield=0 inventory=0
+Agent id=84 agent_id=18 x=23 y=23 energy=250 shield=0 inventory=0
+Agent id=87 agent_id=19 x=10 y=24 energy=250 shield=0 inventory=0
 ================================================================================
 Observations:
 ================================================================================
 Agent: 0
-Feature agent:kinship 24
+Feature agent:kinship 25
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   1   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   0   0   1   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
 Agent: 1
-Feature agent:kinship 24
+Feature agent:kinship 25
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   1   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   0   0   0   0   1   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
 Agent: 2
-Feature agent:kinship 24
+Feature agent:kinship 25
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   1   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   0   0   2   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   0   0   3   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
 Agent: 3
-Feature agent:kinship 24
+Feature agent:kinship 25
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   2   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   0   0   0   0   3   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
 Agent: 4
-Feature agent:kinship 24
+Feature agent:kinship 25
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   2   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
 Agent: 5
-Feature agent:kinship 24
+Feature agent:kinship 25
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   2   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   3   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   0   0   4   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
 Agent: 6
-Feature agent:kinship 24
+Feature agent:kinship 25
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   3   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   0   0   0   0   0   4
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
 Agent: 7
-Feature agent:kinship 24
+Feature agent:kinship 25
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   3   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   0   0   4   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   0   0   5   0   0   0
-   0   0   0   0   0   0   5   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
 Agent: 8
-Feature agent:kinship 24
+Feature agent:kinship 25
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   3   0   0   0   0   0
-   0   0   0   0   0   0   0   0   4   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   0   0   0   5   0   0
-   0   0   0   0   0   0   0   5   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
 Agent: 9
-Feature agent:kinship 24
+Feature agent:kinship 25
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   4   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   5   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
 Agent: 10
-Feature agent:kinship 24
+Feature agent:kinship 25
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   4   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
 Agent: 11
-Feature agent:kinship 24
+Feature agent:kinship 25
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   4   0   0   0   0   0
-   0   0   0   0   0   0   0   0   0   5   0
-   0   0   0   0   0   0   0   0   6   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   0   0   6   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
 Agent: 12
-Feature agent:kinship 24
+Feature agent:kinship 25
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   5   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
 Agent: 13
-Feature agent:kinship 24
+Feature agent:kinship 25
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   5   0   0   0   5   0
+   0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
 Agent: 14
-Feature agent:kinship 24
+Feature agent:kinship 25
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   5   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
 Agent: 15
-Feature agent:kinship 24
+Feature agent:kinship 25
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   6   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
 Agent: 16
-Feature agent:kinship 24
+Feature agent:kinship 25
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   6   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
 Agent: 17
-Feature agent:kinship 24
+Feature agent:kinship 25
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   6   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
 Agent: 18
-Feature agent:kinship 24
+Feature agent:kinship 25
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   7   0   0   0   0   0
+   0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
 Agent: 19
-Feature agent:kinship 24
+Feature agent:kinship 25
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-   0   0   0   0   0   7   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
    0   0   0   0   0   0   0   0   0   0   0
-grid_features: ['agent', 'agent:hp', 'agent:frozen', 'agent:energy', 'agent:orientation', 'agent:shield', 'agent:inv:r1', 'agent:inv:r2', 'agent:inv:r3', 'wall', 'wall:hp', 'generator', 'generator:hp', 'generator:r1', 'generator:ready', 'converter', 'converter:hp', 'converter:input_resource', 'converter:output_resource', 'converter:output_energy', 'converter:ready', 'altar', 'altar:hp', 'altar:ready', 'agent:kinship']
+   0   0   0   0   0   0   0   0   0   0   0
+grid_features: ['agent', 'agent:species', 'agent:hp', 'agent:frozen', 'agent:energy', 'agent:orientation', 'agent:shield', 'agent:inv:r1', 'agent:inv:r2', 'agent:inv:r3', 'wall', 'wall:hp', 'generator', 'generator:hp', 'generator:r1', 'generator:ready', 'converter', 'converter:hp', 'converter:ready', 'converter:prey_r1_output_energy', 'converter:predator_r1_output_energy', 'converter:predator_r2_output_energy', 'altar', 'altar:hp', 'altar:ready', 'agent:kinship']
 rewards: [0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.]
 terminated: [False False False False False False False False False False False False
  False False False False False False False False]
 truncated: [False False False False False False False False False False False False
  False False False False False False False False]
 infos: {}
-obs.shape: (20, 25, 11, 11)
+obs.shape: (20, 26, 11, 11)
 ================================================================================
 Kinship reward sharing
 ================================================================================
-#########################
-#               1       #
-#                      ##
-#             1         #
-#              #    g   #
-#                       #
-#                 1     #
-#   2 c  g     a       ##
-#                       #
-#    gg     2     c 2   #
-#       g   #           #
-#    #  3  g  g #   3   #
-#       #a   #     3   g#
-#                #    4 #
-#    4           #    a #
-#            4      a 5 #
-#           g  a 5   5  #
-#         g     6       #
-#6          a           #
-#         g    6 g      #
-#           7      g    #
-#         g             #
-#   a   a g           aa#
-#          7  c         #
-#########################
-Agent id=91 agent_id=12 x=22 y=15 energy=250 shield=0 inventory=0 team=5
+c               #    #   
+                  #     #
+ a       g           a  a
+      1g   #         c   
+              #     # # #
+   #          1         g
+              #   g     1
+   22             a     #
+     23       #        g 
+     3                   
+      a ##3    #        #
+       g  #      4 #     
+ ##     #        4   g ##
+a         #   g         a
+     #        a  # #     
+       #    4  #      #  
+  g            #       5 
+       #   5  ##         
+        g   5  g         
+       6                 
+   6         #   #       
+             g          a
+ #         6           c 
+#      a g             7 
+g        #7    g         
+Agent id=64 agent_id=12 x=23 y=16 energy=250 shield=0 inventory=0 team=5
 rewards: [0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.]
-#########################
-#               1       #
-#                      ##
-#             1         #
-#              #    g   #
-#                       #
-#                 1     #
-#   2 c  g     a       ##
-#                       #
-#    gg     2     c 2   #
-#       g   #           #
-#    #  3  g  g #   3   #
-#       #a   #     3   g#
-#                #    4 #
-#    4           #    a #
-#            4      a5  #
-#           g  a 5   5  #
-#         g     6       #
-#6          a           #
-#         g    6 g      #
-#           7      g    #
-#         g             #
-#   a   a g           aa#
-#          7  c         #
-#########################
-Agent id=91 agent_id=12 x=21 y=15 energy=250 shield=0 inventory=0 team=5
+c               #    #   
+                  #     #
+ a       g           a  a
+      1g   #         c   
+              #     # # #
+   #          1         g
+              #   g     1
+   22             a     #
+     23       #        g 
+     3                   
+      a ##3    #        #
+       g  #      4 #     
+ ##     #        4   g ##
+a         #   g         a
+     #        a  # #     
+       #    4  #      #  
+  g            #      5  
+       #   5  ##         
+        g   5  g         
+       6                 
+   6         #   #       
+             g          a
+ #         6           c 
+#      a g             7 
+g        #7    g         
+Agent id=64 agent_id=12 x=22 y=16 energy=250 shield=0 inventory=0 team=5
 rewards: [0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.]
-#########################
-#               1       #
-#                      ##
-#             1         #
-#              #    g   #
-#                       #
-#                 1     #
-#   2 c  g     a       ##
-#                       #
-#    gg     2     c 2   #
-#       g   #           #
-#    #  3  g  g #   3   #
-#       #a   #     3   g#
-#                #    4 #
-#    4           #    a #
-#            4      a5  #
-#           g  a 5   5  #
-#         g     6       #
-#6          a           #
-#         g    6 g      #
-#           7      g    #
-#         g             #
-#   a   a g           aa#
-#          7  c         #
-#########################
-Agent id=91 agent_id=12 x=21 y=15 energy=150 shield=0 inventory=0 team=5
-rewards: [0.         0.         0.         0.         0.         0.
- 0.         0.         0.         0.         0.         0.
- 0.33333334 0.33333334 0.33333334 0.         0.         0.
- 0.         0.        ]
+c               #    #   
+                  #     #
+ a       g           a  a
+      1g   #         c   
+              #     # # #
+   #          1         g
+              #   g     1
+   22             a     #
+     23       #        g 
+     3                   
+      a ##3    #        #
+       g  #      4 #     
+ ##     #        4   g ##
+a         #   g         a
+     #        a  # #     
+       #    4  #      #  
+  g            #      5  
+       #   5  ##         
+        g   5  g         
+       6                 
+   6         #   #       
+             g          a
+ #         6           c 
+#      a g             7 
+g        #7    g         
+Agent id=64 agent_id=12 x=22 y=16 energy=250 shield=0 inventory=0 team=5
+rewards: [0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.]
 ================================================================================
 # No Kinship:
 ================================================================================
-grid_features: ['agent', 'agent:hp', 'agent:frozen', 'agent:energy', 'agent:orientation', 'agent:shield', 'agent:inv:r1', 'agent:inv:r2', 'agent:inv:r3', 'wall', 'wall:hp', 'generator', 'generator:hp', 'generator:r1', 'generator:ready', 'converter', 'converter:hp', 'converter:input_resource', 'converter:output_resource', 'converter:output_energy', 'converter:ready', 'altar', 'altar:hp', 'altar:ready']
+grid_features: ['agent', 'agent:species', 'agent:hp', 'agent:frozen', 'agent:energy', 'agent:orientation', 'agent:shield', 'agent:inv:r1', 'agent:inv:r2', 'agent:inv:r3', 'wall', 'wall:hp', 'generator', 'generator:hp', 'generator:r1', 'generator:ready', 'converter', 'converter:hp', 'converter:ready', 'converter:prey_r1_output_energy', 'converter:predator_r1_output_energy', 'converter:predator_r2_output_energy', 'altar', 'altar:hp', 'altar:ready']
 Agent: 0
 Agent: 1
 Agent: 2

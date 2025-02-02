@@ -22,19 +22,10 @@ game:
   tile_size: 16
   no_energy_steps: 500
 
-  objects:
 
+  agents:
     agent:
-      species:
-        - name: "prey"
-          prob: 0.8
-          props:
-            attack_damage: ${uniform:1, 10, 2}
-        - name: "predator"
-          prob: 0.2
-          props:
-            attack_damage: ${uniform:1, 100, 50}
-
+      species: 0
       initial_energy: ${uniform:0, 250, 250}
       max_energy: ${uniform:0, 250, 250}
       max_inventory: ${uniform:0, 10, 5}
@@ -47,6 +38,15 @@ game:
       upkeep.shield: ${uniform:0, 3, 1}
       use_cost: 0
 
+    prey:
+      species: 1
+      attack_damage: ${uniform:1, 10, 2}
+
+    predator:
+      species: 2
+      attack_damage: ${uniform:1, 100, 50}
+
+  objects:
     altar:
       hp: 30
       cooldown: ${uniform:1, 10, 2}
