@@ -2,7 +2,7 @@ from typing import Dict
 
 from omegaconf import ListConfig
 
-from mettagrid.config.room.room import GameObject, OBJECTS, Room
+from mettagrid.config.room.room import GameObject, Room
 from mettagrid.config.room.room_list import RoomList
 
 
@@ -12,7 +12,7 @@ class RoomScene(RoomList):
         rooms: Dict[str, Room],
         layout: ListConfig,
         border_width: int = 0,
-        border_object: GameObject = OBJECTS.Wall,
+        border_object: str = "wall",
         stack_layout: str = "row"):
 
         next_stack_layout = "row"

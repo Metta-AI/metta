@@ -73,11 +73,11 @@ cdef cppclass Agent(MettaObject):
     float energy_reward
     string species_name
 
-    inline Agent(GridCoord r, GridCoord c, unsigned char species, string species_name, ObjectConfig cfg):
+    inline Agent(GridCoord r, GridCoord c, species_name, ObjectConfig cfg):
         GridObject.init(ObjectType.AgentT, GridLocation(r, c, GridLayer.Agent_Layer))
         MettaObject.init_mo(cfg)
-        this.species = species
         this.species_name = species_name
+        this.species = cfg[b"species"]
         this.frozen = 0
         this.attack_damage = cfg[b"attack_damage"]
         this.freeze_duration = cfg[b"freeze_duration"]
@@ -188,7 +188,8 @@ cdef cppclass Converter(Usable):
     inline bint usable(const Agent *actor):
         return Usable.usable(actor) and (
             actor.inventory[InventoryItem.r1] > 0 or
-            actor.species == 1 and actor.inventory[InventoryItem.r2] > 0
+            (actor.inventory[InventoryItem.r2] > 0 and
+            actor.species_name == b"predator")
         )
 
     inline void use(Agent *actor, unsigned int actor_id, StatsTracker stats, float *rewards):
@@ -196,7 +197,7 @@ cdef cppclass Converter(Usable):
         cdef InventoryItem consumed_resource = InventoryItem.r1
         cdef InventoryItem produced_resource = InventoryItem.r2
         cdef unsigned int potential_energy_gain = this.prey_r1_output_energy
-        if actor.species == 1:
+        if actor.species_name == b"predator":
             if actor.inventory[InventoryItem.r2] > 0:
                 # eat meat if you can
                 consumed_resource = InventoryItem.r2

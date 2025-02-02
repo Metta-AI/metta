@@ -1,4 +1,3 @@
-
 from libc.stdio cimport printf
 from libcpp.string cimport string
 
@@ -72,35 +71,28 @@ cdef class MettaGrid(GridEnv):
         )
 
         cdef Agent *agent
-        cdef unsigned char species_id
         cdef string species_name
         for r in range(map.shape[0]):
             for c in range(map.shape[1]):
-                if map[r,c] == "W":
+                if map[r,c] == "wall":
                     self._grid.add_object(new Wall(r, c, cfg.objects.wall))
                     self._stats.game_incr("objects.wall")
-                elif map[r,c] == "g":
+                elif map[r,c] == "generator":
                     self._grid.add_object(new Generator(r, c, cfg.objects.generator))
                     self._stats.game_incr("objects.generator")
-                elif map[r,c] == "c":
+                elif map[r,c] == "converter":
                     self._grid.add_object(new Converter(r, c, cfg.objects.converter))
                     self._stats.game_incr("objects.converter")
-                elif map[r,c] == "a":
+                elif map[r,c] == "altar":
                     self._grid.add_object(new Altar(r, c, cfg.objects.altar))
                     self._stats.game_incr("objects.altar")
-                elif map[r,c][0] == "A":
-                    species_id = np.random.choice(
-                        range(len(cfg.objects.agent.species)),
-                        p=[s["prob"] for s in cfg.objects.agent.species])
-                    species_name = cfg.objects.agent.species[species_id].name
+                elif map[r,c].startswith("agent."):
+                    species_name = map[r,c].split(".")[1]
                     agent_cfg = OmegaConf.to_container(OmegaConf.merge(
-                        cfg.objects.agent,
-                        cfg.objects.agent.species[species_id].props))
-                    del agent_cfg["species"]
-                    agent = new Agent(r, c, species_id, species_name, agent_cfg)
+                        cfg.agents.agent, cfg.agents[species_name]))
+                    agent = new Agent(r, c, species_name, agent_cfg)
                     self._grid.add_object(agent)
                     self.add_agent(agent)
-                    self._stats.game_incr("objects.agent")
 
         # Assign team to agents for kinship rewards sharing.
         if cfg.kinship.enabled:
