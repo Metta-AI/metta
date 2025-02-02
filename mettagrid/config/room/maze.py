@@ -2,14 +2,14 @@ import random
 
 import numpy as np
 
-from mettagrid.config.room.room import OBJECTS, Room
+from mettagrid.config.room.room import Room
 
 class Maze(Room):
-    EMPTY, WALL = OBJECTS.Empty.symbol, OBJECTS.Wall.symbol
-    START, END = OBJECTS.Agent.symbol, OBJECTS.Altar.symbol
+    EMPTY, WALL = "empty", "wall"
+    START, END = "agent", "altar"
     NORTH, SOUTH, EAST, WEST = 'n', 's', 'e', 'w'
 
-    def __init__(self, width, height, start_pos, end_pos, branching, seed=None, border_width=0, border_object=OBJECTS.Wall):
+    def __init__(self, width, height, start_pos, end_pos, branching, seed=None, border_width=0, border_object="wall"):
         super().__init__(border_width=border_width, border_object=border_object)
         self._width = width
         self._height = height
@@ -35,7 +35,7 @@ class Maze(Room):
         """
 
         # Initialize numpy array directly
-        maze = np.full((self._height, self._width), self.WALL, dtype=str)
+        maze = np.full((self._height, self._width), self.WALL, dtype='<U50')
 
         def should_branch():
             return self._rng.random() < self._branching

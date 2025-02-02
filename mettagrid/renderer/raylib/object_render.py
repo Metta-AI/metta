@@ -5,7 +5,7 @@ import __future__
 import os
 
 import pyray as ray
-from omegaconf import OmegaConf
+from omegaconf import OmegaConf, DictConfig
 from raylib import colors, rl
 
 
@@ -36,9 +36,18 @@ class ObjectRenderer:
 class AgentRenderer(ObjectRenderer):
     def __init__(self, cfg: OmegaConf):
         super().__init__("monsters.png", 16)
-        self.cfg = cfg
+        default_cfg = cfg.agent
+        self._cfgs = DictConfig({
+            **{
+                c.species: OmegaConf.merge(default_cfg, c)
+                for c in cfg.values()
+            }
+        })
         self.obs_width = 11  # Assuming these values, adjust if necessary
         self.obs_height = 11
+
+    def cfg(self, obj):
+        return self._cfgs[obj["agent:species"]]
 
     def _sprite_sheet_idx(self, obj):
         # orientation: 0 = Up, 1 = Down, 2 = Left, 3 = Right
@@ -47,8 +56,10 @@ class AgentRenderer(ObjectRenderer):
 
         # return (4 * ((obj["agent_id"] // 12) % 4) + orientation_offset, 2 * (obj["agent_id"] % 12))
         if obj["agent:species"] == 0:
-            idx = 12
+            idx = 0
         elif obj["agent:species"] == 1:
+            idx = 12
+        elif obj["agent:species"] == 2:
             idx = 6
         else:
             idx = 2 * (obj["agent:species"] % 12)
@@ -67,7 +78,7 @@ class AgentRenderer(ObjectRenderer):
         y = obj["r"] * render_tile_size - 8  # 8 pixels above the agent
         width = render_tile_size
         height = 3  # 3 pixels tall
-        max_energy = self.cfg.max_energy
+        max_energy = self.cfg(obj).max_energy
 
         energy = min(max(obj["agent:energy"], 0), max_energy)
         blue_width = int(width * energy / max_energy)
@@ -100,7 +111,7 @@ class AgentRenderer(ObjectRenderer):
 
             # Calculate alpha based on frozen value
             base_alpha = 102  # 40% of 255
-            alpha = int(base_alpha * (frozen / self.cfg.freeze_duration))
+            alpha = int(base_alpha * (frozen / self.cfg(obj).freeze_duration))
 
             # Create a semi-transparent gray color
             frozen_color = ray.Color(128, 128, 128, alpha)
