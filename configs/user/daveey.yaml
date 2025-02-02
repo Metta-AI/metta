@@ -3,7 +3,7 @@
 seed: null
 
 defaults:
-  - override /env/mettagrid@env: split
+  - override /env/mettagrid@env: school
   - override /agent: simple.medium
   - override /sweep: fast
 
@@ -15,6 +15,7 @@ policy_uri: wandb://run/v.daveey.train.spec.2
 baseline_uri: wandb://run/b.daveey.sm.train.er.new.0
 
 env:
+  # sampling: 0.7
   game:
     max_steps: 1000
 
