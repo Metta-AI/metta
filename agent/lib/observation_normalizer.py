@@ -7,6 +7,7 @@ from torch import nn
 # but here we are. If you add / remove a feature, you should add / remove the corresponding normalization.
 OBS_NORMALIZATIONS = {
     'agent': 1,
+    'agent:species': 10,
     'agent:hp': 1,
     'agent:frozen': 1,
     'agent:energy': 255,
@@ -40,7 +41,7 @@ class ObservationNormalizer(nn.Module):
         super().__init__()
 
         num_objects = len(grid_features)
-        
+
         obs_norm = torch.tensor([OBS_NORMALIZATIONS[k] for k in grid_features], dtype=torch.float32)
         obs_norm = obs_norm.view(1, num_objects, 1, 1)
 
