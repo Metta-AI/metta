@@ -10,7 +10,7 @@ def make_odd(x):
 
 class Maze(Room):
     EMPTY, WALL = "empty", "wall"
-    START, END = "agent.mazer", "altar"
+    START, END = "agent.agent", "altar"
     NORTH, SOUTH, EAST, WEST = 'n', 's', 'e', 'w'
 
     def __init__(self, width, height, start_pos, end_pos, branching, seed=None, border_width=0, border_object="wall"):
