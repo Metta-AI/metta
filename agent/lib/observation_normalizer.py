@@ -7,7 +7,7 @@ from torch import nn
 # but here we are. If you add / remove a feature, you should add / remove the corresponding normalization.
 OBS_NORMALIZATIONS = {
     'agent': 1,
-    'agent:species': 10,
+    'agent:group': 10,
     'agent:hp': 1,
     'agent:frozen': 1,
     'agent:energy': 255,
@@ -24,9 +24,6 @@ OBS_NORMALIZATIONS = {
     'generator:ready': 1,
     'converter': 1,
     'converter:hp': 30,
-    'converter:input_resource': 5,
-    'converter:output_resource': 5,
-    'converter:output_energy': 100,
     'converter:ready': 1,
     'altar': 1,
     'altar:hp': 30,

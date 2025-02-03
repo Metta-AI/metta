@@ -5,6 +5,27 @@ game:
   num_agents: 12
   max_steps: 100
 
+  groups:
+    prey:
+      id: 1
+      sprite: 12
+      props:
+        attack_damage: ${uniform:1, 10, 2}
+
+    predator:
+      id: 2
+      sprite: 6
+      props:
+        attack_damage: ${uniform:1, 100, 50}
+
+    mazer:
+      id: 0
+      sprite: 10
+      props:
+        attack_damage: 0
+        initial_energy: 250
+        upkeep.time: 0
+
   map_builder:
     _target_: mettagrid.config.room.room_list.RoomList
     border_width: 2
