@@ -16,11 +16,11 @@ cdef class MettaActionHandler(ActionHandler):
 
         self._stats.action = "action." + action_name
         self._stats.action_energy = "action." + action_name + ".energy"
-
+        
         for t, n in enumerate(ObjectTypeNames):
             self._stats.target[t] = self._stats.action + "." + n
             self._stats.target_energy[t] = self._stats.action_energy + "." + n
-
+           
         self.action_cost = cfg.cost
 
     cdef bint handle_action(
