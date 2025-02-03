@@ -10,7 +10,7 @@ from libc.stdio cimport printf
 from mettagrid.observation_encoder cimport ObservationEncoder, ObsType
 from mettagrid.grid_object cimport GridObject, TypeId, GridCoord, GridLocation, GridObjectId
 from mettagrid.event cimport EventHandler, EventArg
-
+from libc.string cimport strcat, strcpy
 cdef enum GridLayer:
     Agent_Layer = 0
     Object_Layer = 1
@@ -201,6 +201,7 @@ cdef cppclass Converter(Usable):
         cdef unsigned int energy_gain = 0
         cdef InventoryItem consumed_resource = InventoryItem.r1
         cdef InventoryItem produced_resource = InventoryItem.r2
+        cdef char stat_name[256]
         cdef unsigned int potential_energy_gain = this.prey_r1_output_energy
         if actor.group_name == b"predator":
             if actor.inventory[InventoryItem.r2] > 0:
@@ -214,7 +215,11 @@ cdef cppclass Converter(Usable):
 
         actor.update_inventory(consumed_resource, -1)
         stats.agent_incr(actor_id, InventoryItemNames[consumed_resource] + ".used")
-        stats.agent_incr(actor_id, actor.group_name + "." + InventoryItemNames[consumed_resource] + ".used")
+        strcpy(stat_name, actor.group_name.c_str())
+        strcat(stat_name, ".")
+        strcat(stat_name, InventoryItemNames[consumed_resource].c_str())
+        strcat(stat_name, ".used")
+        stats.agent_incr(actor_id, stat_name)
 
         actor.update_inventory(produced_resource, 1)
         stats.agent_incr(actor_id, InventoryItemNames[produced_resource] + ".gained")
