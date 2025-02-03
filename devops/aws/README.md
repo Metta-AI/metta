@@ -20,8 +20,7 @@ aws s3 ls metta-ai
 ```bash
 python -m devops.aws.launch_task \
     --cmd=train \
-    --run=b.$USER.run_name \
-    env.game.objects.agent.energy_reward=1
+    --run=b.$USER.run_name
 ```
 
 ## Stopping Jobs

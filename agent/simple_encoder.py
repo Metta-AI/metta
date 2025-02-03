@@ -40,11 +40,11 @@ class SimpleConvAgent(nn.Module):
         if cfg.auto_normalize:
             self._normalizer = FeatureListNormalizer(
                 grid_features, obs_space[self._obs_key].shape[1:])
-            
+
         self.object_normalizer = None
         if cfg.normalize_features:
             self.object_normalizer = ObservationNormalizer(grid_features)
-            
+
 
     def forward(self, obs_dict):
         obs = obs_dict[self._obs_key]
