@@ -29,13 +29,13 @@ class Eval:
         """
         Logs the various metrics using the stats gathered.
         """
-        _, mean_altar_use = get_test_results(MannWhitneyUTest(stats, self.cfg.evaluator.stat_categories['action.use.altar'], mode = 'mean', env_name = self.env_name)
+        _, mean_altar_use = get_test_results(MannWhitneyUTest(stats, self.cfg.evaluator.stat_categories['action.use.altar'], mode = 'mean', label = self.env_name)
             )
         logger.info("\n" + mean_altar_use)
 
         if "time_to_targets" in self.metrics:
             _, time_to_targets = get_test_results(
-                MannWhitneyUTest(stats, self.cfg.evaluator.stat_categories['time_to'], mode = 'mean', env_name = self.env_name)
+                MannWhitneyUTest(stats, self.cfg.evaluator.stat_categories['time_to'], mode = 'mean', label = self.env_name)
             )
             logger.info("\n" + time_to_targets)
 

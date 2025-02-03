@@ -1,7 +1,7 @@
 defaults:
   - ../evaluator/evaluator.yaml
 
-policy_uri: "wandb://run/b.daveey.train.sb.6"
+policy_uri: "wandb://run/v.daveey.train.spec.2"
 baseline_uri: ["wandb://run/b.daveey.train.sb.6", "wandb://run/b.daveey.train.sm.6"]
 
 evals:

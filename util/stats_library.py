@@ -11,12 +11,12 @@ from collections import defaultdict
 
 
 class StatisticalTest:
-    def __init__(self, data, categories: List[str], mode = 'sum', env_name: str = None):
+    def __init__(self, data, categories: List[str], mode = 'sum', label: str = None):
         self.categories = categories
         self.prior_scores = {}
         self.stats = {}
         self.mode = mode
-        self.env_name = env_name
+        self.label = label
 
         self.policy_names = []
         for episode in data:
@@ -82,8 +82,8 @@ class StatisticalTest:
         return self
 
 class MannWhitneyUTest(StatisticalTest):
-    def __init__(self, data, categories: List[str], mode = 'sum', env_name: str = None):
-        super().__init__(data, categories, mode, env_name)
+    def __init__(self, data, categories: List[str], mode = 'sum', label: str = None):
+        super().__init__(data, categories, mode, label)
 
     def evaluate(self) -> Dict[str, Any]:
         results = {}
@@ -228,7 +228,7 @@ class MannWhitneyUTest(StatisticalTest):
             data_rows.append(lower_data_row)
 
         # Headers
-        headers = [self.env_name if self.env_name else '']
+        headers = [self.label if self.label else '']
         for policy_name in self.policy_names:
             header = f"{policy_name}\n(mean ± std)\n(p-val, effect size)"
             headers.append(header)
@@ -621,7 +621,7 @@ def update_scores(historical_scores, new_scores):
             historical_scores[policy] = scores
     return historical_scores
 
-def get_test_results(test: StatisticalTest, scores_path: str = None, env_name: str = None):
+def get_test_results(test: StatisticalTest, scores_path: str = None):
     # SINGLE CHECK FOR EMPTY POLICY LIST:
     if not test.policy_names:
         print("No policies found. Skipping test altogether.")

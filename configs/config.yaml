@@ -16,7 +16,7 @@ defaults:
   - evaluator: puffer
   - sweep: sweep
   - hardware: macbook
-  - eval_suite: eval_suite_1
+  - eval_suite: null
 
 wandb:
   enabled: False
