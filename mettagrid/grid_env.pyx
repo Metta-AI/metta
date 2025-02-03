@@ -39,6 +39,13 @@ cdef class GridEnv:
         self._grid = new Grid(map_width, map_height, layer_for_type_id)
         self._obs_encoder = observation_encoder
         self._obs_encoder.init(self._obs_width, self._obs_height)
+        self._grid_features = observation_encoder.feature_names()
+
+        if self._track_last_action:
+            self._last_action_obs_idx = self._grid_features.size()
+            self._grid_features.push_back(b"last_action")
+            self._last_action_arg_obs_idx = self._grid_features.size()
+            self._grid_features.push_back(b"last_action_argument")
 
         self._use_flat_actions = use_flat_actions
         self._action_handlers = action_handlers
@@ -64,7 +71,7 @@ cdef class GridEnv:
             np.zeros(
                 (
                     max_agents,
-                    len(self.grid_features()),
+                    self._grid_features.size(),
                     self._obs_height,
                     self._obs_width
                 ),
@@ -125,8 +132,8 @@ cdef class GridEnv:
 
         if self._track_last_action:
             for idx in range(self._agents.size()):
-                self._observations[idx][24][self._middle_y][self._middle_x] = actions[idx][0]
-                self._observations[idx][25][self._middle_y][self._middle_x] = actions[idx][1]
+                self._observations[idx][22][self._middle_y][self._middle_x] = actions[idx][0]
+                self._observations[idx][23][self._middle_y][self._middle_x] = actions[idx][1]
 
     cdef void _step(self, int[:,:] actions):
         cdef:
@@ -227,11 +234,7 @@ cdef class GridEnv:
         return self._grid.height
 
     cpdef list[str] grid_features(self):
-        cdef list[str] features = self._obs_encoder.feature_names()
-        if self._track_last_action:
-            features.append("last_action")
-            features.append("last_action_argument")
-        return features
+        return self._grid_features
 
     cpdef unsigned int num_agents(self):
         return self._agents.size()
@@ -302,7 +305,7 @@ cdef class GridEnv:
         return gym.spaces.Box(
             0,
             255,
-            shape=(len(self.grid_features()), self._obs_height, self._obs_width),
+            shape=(self._grid_features.size(), self._obs_height, self._obs_width),
             dtype=obs_np_type
         )
 
