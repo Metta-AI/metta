@@ -5,6 +5,7 @@ report_stats_interval: 100
 normalize_rewards: false
 flatten_actions: true
 compact_obs: false
+track_last_action: false
 
 sampling: 0
 
@@ -102,4 +103,3 @@ game:
   kinship:
     enabled: false
 
-track_last_action: false

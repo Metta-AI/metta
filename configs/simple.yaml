@@ -1,19 +1,26 @@
-prey:
-  observation: 1
-  sprite: 12
-  props:
-    attack_damage: ${uniform:1, 10, 2}
 
-predator:
-  observation: 2
-  sprite: 6
-  props:
-    attack_damage: ${uniform:1, 100, 50}
+defaults:
+  - mettagrid
 
-mazer:
-  observation: 0
-  sprite: 10
-  props:
-    attack_damage: 0
-    initial_energy: 250
-    upkeep.time: 0
+game:
+  num_agents: 20
+
+  map_builder:
+    _target_: mettagrid.config.room.multi_room.MultiRoom
+    num_rooms: ${div:${..num_agents},5}
+    border_width: 6
+
+    room:
+      _target_: mettagrid.config.room.random.Random
+      width: ${uniform:10,100,25}
+      height: ${uniform:10,100,25}
+      border_width: 0
+
+      agents: 5
+      objects:
+        altar: ${uniform:1,5,1}
+        converter: ${uniform:1,15,5}
+        generator: ${uniform:1,50,15}
+        wall: ${uniform:10,100,40}
+
+
