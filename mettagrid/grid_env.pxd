@@ -23,6 +23,7 @@ cdef class GridEnv:
         unsigned int _max_timestep
 
         list[ActionHandler] _action_handlers
+        int _num_action_handlers
         vector[unsigned char] _max_action_args
         unsigned char _max_action_arg
         unsigned char _max_action_priority
