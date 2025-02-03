@@ -1,51 +1,51 @@
 ================================================================================
 Kinship:
 ================================================================================
-          #        # #   
-     c#                  
- 1#       ## g     #     
-                   1     
-      1                  
-a  a 2  a        # #   # 
-       #a #       g    2 
- #    #  2  a         3  
-      # #                
-g3   g               a  c
-    3    #   # g         
-  # ##          #     g  
-#      4         #       
-  #                  #   
-  a #            g   g   
-#  g    a          c #   
-    #   4         #  45  
-         # #  #          
-            gg g        5
-    #    g              a
- 5       6   6#6         
-  #                      
-   g         a g        7
-         7         #     
-        #                
-Agent id=6 agent_id=0 x=1 y=2 energy=250 shield=0 inventory=0
-Agent id=12 agent_id=1 x=19 y=3 energy=250 shield=0 inventory=0
-Agent id=13 agent_id=2 x=6 y=4 energy=250 shield=0 inventory=0
-Agent id=16 agent_id=3 x=5 y=5 energy=250 shield=0 inventory=0
-Agent id=25 agent_id=4 x=23 y=6 energy=250 shield=0 inventory=0
-Agent id=28 agent_id=5 x=9 y=7 energy=250 shield=0 inventory=0
-Agent id=30 agent_id=6 x=22 y=7 energy=250 shield=0 inventory=0
-Agent id=34 agent_id=7 x=1 y=9 energy=250 shield=0 inventory=0
-Agent id=38 agent_id=8 x=4 y=10 energy=250 shield=0 inventory=0
-Agent id=48 agent_id=9 x=7 y=12 energy=250 shield=0 inventory=0
-Agent id=62 agent_id=10 x=8 y=16 energy=250 shield=0 inventory=0
-Agent id=64 agent_id=11 x=21 y=16 energy=250 shield=0 inventory=0
-Agent id=65 agent_id=12 x=22 y=16 energy=250 shield=0 inventory=0
-Agent id=72 agent_id=13 x=24 y=18 energy=250 shield=0 inventory=0
-Agent id=76 agent_id=14 x=1 y=20 energy=250 shield=0 inventory=0
-Agent id=77 agent_id=15 x=9 y=20 energy=250 shield=0 inventory=0
-Agent id=78 agent_id=16 x=13 y=20 energy=250 shield=0 inventory=0
-Agent id=80 agent_id=17 x=15 y=20 energy=250 shield=0 inventory=0
-Agent id=85 agent_id=18 x=24 y=22 energy=250 shield=0 inventory=0
-Agent id=86 agent_id=19 x=9 y=23 energy=250 shield=0 inventory=0
+      #          #     1 
+      c          1       
+           #  a          
+        g  1#      a     
+ ## #    # g          #  
+ 2g #  g                 
+g     g2      #  2       
+  a          a         c 
+   3   #3         a  c  #
+       #    # 3 g        
+  ##    #    #          #
+              #    #     
+               a    #  g 
+         4               
+                 g      #
+ #g   4  #    a   4#5   5
+#      #           #     
+   g #                   
+       5         #     6 
+      #  g               
+    g 6 a           # g  
+6    #  g                
+          #  #   #      #
+  a       #   7   a      
+    7                    
+Agent id=3 agent_id=0 x=23 y=0 energy=250 shield=0 inventory=0
+Agent id=5 agent_id=1 x=17 y=1 energy=250 shield=0 inventory=0
+Agent id=9 agent_id=2 x=11 y=3 energy=250 shield=0 inventory=0
+Agent id=18 agent_id=3 x=1 y=5 energy=250 shield=0 inventory=0
+Agent id=24 agent_id=4 x=7 y=6 energy=250 shield=0 inventory=0
+Agent id=26 agent_id=5 x=17 y=6 energy=250 shield=0 inventory=0
+Agent id=30 agent_id=6 x=3 y=8 energy=250 shield=0 inventory=0
+Agent id=32 agent_id=7 x=8 y=8 energy=250 shield=0 inventory=0
+Agent id=38 agent_id=8 x=14 y=9 energy=250 shield=0 inventory=0
+Agent id=50 agent_id=9 x=9 y=13 energy=250 shield=0 inventory=0
+Agent id=55 agent_id=10 x=6 y=15 energy=250 shield=0 inventory=0
+Agent id=58 agent_id=11 x=18 y=15 energy=250 shield=0 inventory=0
+Agent id=60 agent_id=12 x=20 y=15 energy=250 shield=0 inventory=0
+Agent id=61 agent_id=13 x=24 y=15 energy=250 shield=0 inventory=0
+Agent id=67 agent_id=14 x=7 y=18 energy=250 shield=0 inventory=0
+Agent id=69 agent_id=15 x=23 y=18 energy=250 shield=0 inventory=0
+Agent id=73 agent_id=16 x=6 y=20 energy=250 shield=0 inventory=0
+Agent id=77 agent_id=17 x=0 y=21 energy=250 shield=0 inventory=0
+Agent id=86 agent_id=18 x=14 y=23 energy=250 shield=0 inventory=0
+Agent id=88 agent_id=19 x=4 y=24 energy=250 shield=0 inventory=0
 ================================================================================
 Observations:
 ================================================================================
@@ -80,86 +80,86 @@ obs.shape: (20, 22, 11, 11)
 ================================================================================
 Kinship reward sharing
 ================================================================================
-          #        # #   
-     c#                  
- 1#       ## g     #     
-                   1     
-      1                  
-a  a 2  a        # #   # 
-       #a #       g    2 
- #    #  2  a         3  
-      # #                
-g3   g               a  c
-    3    #   # g         
-  # ##          #     g  
-#      4         #       
-  #                  #   
-  a #            g   g   
-#  g    a          c #   
-    #   4         #  45  
-         # #  #          
-            gg g        5
-    #    g              a
- 5       6   6#6         
-  #                      
-   g         a g        7
-         7         #     
-        #                
-Agent id=65 agent_id=12 x=22 y=16 energy=250 shield=0 inventory=0 team=5
+      #          #     1 
+      c          1       
+           #  a          
+        g  1#      a     
+ ## #    # g          #  
+ 2g #  g                 
+g     g2      #  2       
+  a          a         c 
+   3   #3         a  c  #
+       #    # 3 g        
+  ##    #    #          #
+              #    #     
+               a    #  g 
+         4               
+                 g      #
+ #g   4  #    a   4#5   5
+#      #           #     
+   g #                   
+       5         #     6 
+      #  g               
+    g 6 a           # g  
+6    #  g                
+          #  #   #      #
+  a       #   7   a      
+    7                    
+Agent id=60 agent_id=12 x=20 y=15 energy=250 shield=0 inventory=0 team=5
 rewards: [0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.]
-          #        # #   
-     c#                  
- 1#       ## g     #     
-                   1     
-      1                  
-a  a 2  a        # #   # 
-       #a #       g    2 
- #    #  2  a         3  
-      # #                
-g3   g               a  c
-    3    #   # g         
-  # ##          #     g  
-#      4         #       
-  #                  #   
-  a #            g   g   
-#  g    a          c #   
-    #   4         #  45  
-         # #  #          
-            gg g        5
-    #    g              a
- 5       6   6#6         
-  #                      
-   g         a g        7
-         7         #     
-        #                
-Agent id=65 agent_id=12 x=22 y=16 energy=250 shield=0 inventory=0 team=5
+      #          #     1 
+      c          1       
+           #  a          
+        g  1#      a     
+ ## #    # g          #  
+ 2g #  g                 
+g     g2      #  2       
+  a          a         c 
+   3   #3         a  c  #
+       #    # 3 g        
+  ##    #    #          #
+              #    #     
+               a    #  g 
+         4               
+                 g      #
+ #g   4  #    a   4#5   5
+#      #           #     
+   g #                   
+       5         #     6 
+      #  g               
+    g 6 a           # g  
+6    #  g                
+          #  #   #      #
+  a       #   7   a      
+    7                    
+Agent id=60 agent_id=12 x=20 y=15 energy=250 shield=0 inventory=0 team=5
 rewards: [0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.]
-          #        # #   
-     c#                  
- 1#       ## g     #     
-                   1     
-      1                  
-a  a 2  a        # #   # 
-       #a #       g    2 
- #    #  2  a         3  
-      # #                
-g3   g               a  c
-    3    #   # g         
-  # ##          #     g  
-#      4         #       
-  #                  #   
-  a #            g   g   
-#  g    a          c #   
-    #   4         #  45  
-         # #  #          
-            gg g        5
-    #    g              a
- 5       6   6#6         
-  #                      
-   g         a g        7
-         7         #     
-        #                
-Agent id=65 agent_id=12 x=22 y=16 energy=250 shield=0 inventory=0 team=5
+      #          #     1 
+      c          1       
+           #  a          
+        g  1#      a     
+ ## #    # g          #  
+ 2g #  g                 
+g     g2      #  2       
+  a          a         c 
+   3   #3         a  c  #
+       #    # 3 g        
+  ##    #    #          #
+              #    #     
+               a    #  g 
+         4               
+                 g      #
+ #g   4  #    a   4#5   5
+#      #           #     
+   g #                   
+       5         #     6 
+      #  g               
+    g 6 a           # g  
+6    #  g                
+          #  #   #      #
+  a       #   7   a      
+    7                    
+Agent id=60 agent_id=12 x=20 y=15 energy=250 shield=0 inventory=0 team=5
 rewards: [0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.]
 ================================================================================
 # No Kinship:
