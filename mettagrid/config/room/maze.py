@@ -6,7 +6,7 @@ from mettagrid.config.room.room import Room
 
 class Maze(Room):
     EMPTY, WALL = "empty", "wall"
-    START, END = "agent", "altar"
+    START, END = "agent.mazer", "altar"
     NORTH, SOUTH, EAST, WEST = 'n', 's', 'e', 'w'
 
     def __init__(self, width, height, start_pos, end_pos, branching, seed=None, border_width=0, border_object="wall"):
