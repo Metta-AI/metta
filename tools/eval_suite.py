@@ -21,14 +21,14 @@ class EvalSuite:
         for eval in self.evals:
             current_cfg = self.cfg.copy()
 
-            env_name = eval["env"]  # e.g. 'env/mettagrid/cylinder'
+            env_name = eval.env  # e.g. 'env/mettagrid/cylinder'
 
             logger.info(f"\n--- Running evaluation for environment: {env_name} ---")
 
             env_cfg = compose(config_name=env_name)
 
             # 2) Merge environment config into a fresh copy of the suite config
-            current_cfg["env"] = env_cfg.env["mettagrid"]
+            current_cfg.env = env_cfg.env.mettagrid
 
             # 5) Instantiate your evaluator class (Eval), then run
             driver = Eval(current_cfg, metrics = eval.metrics_to_log, env_name = env_name)
