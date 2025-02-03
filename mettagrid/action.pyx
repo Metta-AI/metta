@@ -5,6 +5,7 @@ from mettagrid.action cimport ActionArg
 cdef class ActionHandler:
     def __init__(self, string action_name):
         self._action_name = action_name
+        self._priority = 0
 
     cdef void init(self, GridEnv env):
         self.env = env

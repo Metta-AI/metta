@@ -14,9 +14,8 @@ def main(cfg):
     cfg.game.kinship.observed = True
     cfg.game.kinship.team_size = 3
     cfg.game.kinship.team_reward = 1.0
-    cfg.game.map.room.num_agents = 20
-    cfg.game.map.room.objects.agent = 20
-    cfg.game.map.room.objects.altar = 10
+    cfg.game.map_builder.agents = 20
+    cfg.game.map_builder.objects.altar = 10
     cfg.game.num_agents = 20
     env = mettagrid.mettagrid_env.MettaGridEnv(render_mode=None, **cfg)
     env.reset()
@@ -37,7 +36,7 @@ def main(cfg):
 
     output += f"grid_features: {env.grid_features}\n"
 
-    assert "agent:kinship" in env.grid_features
+    assert "agent:group" in env.grid_features
 
     output += f"rewards: {rewards}\n"
     output += f"terminated: {terminated}\n"

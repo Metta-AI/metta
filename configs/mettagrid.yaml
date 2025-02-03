@@ -5,6 +5,7 @@ report_stats_interval: 100
 normalize_rewards: false
 flatten_actions: true
 compact_obs: false
+track_last_action: false
 
 sampling: 0
 
@@ -22,19 +23,26 @@ game:
   tile_size: 16
   no_energy_steps: 500
 
-  objects:
-    agent:
-      initial_energy: ${uniform:0, 250, 250}
-      max_energy: ${uniform:0, 250, 250}
-      max_inventory: ${uniform:0, 10, 5}
-      freeze_duration: ${uniform:0, 200, 10}
-      energy_reward: 0.0
-      hp: 10
-      mortal: False
-      upkeep.time: ${uniform:0, 3, 0}
-      upkeep.shield: ${uniform:0, 3, 1}
-      use_cost: 0
+  agent:
+    initial_energy: ${uniform:0, 250, 250}
+    max_energy: ${uniform:0, 250, 250}
+    max_inventory: ${uniform:0, 10, 5}
+    freeze_duration: ${uniform:0, 200, 10}
+    attack_damage: ${uniform:1, 100, 10}
+    energy_reward: 1
+    hp: 10
+    mortal: False
+    upkeep.time: ${uniform:0, 3, 0}
+    upkeep.shield: ${uniform:0, 3, 1}
+    use_cost: 0
 
+  groups:
+    agent:
+      id: 0
+      sprite: 0
+      props: {}
+
+  objects:
     altar:
       hp: 30
       cooldown: ${uniform:1, 10, 2}
@@ -43,9 +51,13 @@ game:
     converter:
       hp: 30
       cooldown: ${uniform:1, 20, 5}
-      energy_output.r1: ${uniform:10, 250, 100}
-      energy_output.r2: ${uniform:10, 100, 10}
-      energy_output.r3: ${uniform:1, 10, 1}
+      # This is Dave's fault. Or Cython's. Or mine.
+      energy_output.r1.prey: ${uniform:10, 250, 100}
+      energy_output.r2.prey: 0
+      energy_output.r3.prey: 0
+      energy_output.r1.predator: ${uniform:10, 100, 25}
+      energy_output.r2.predator: ${uniform:10, 250, 100}
+      energy_output.r3.predator: 0
 
     generator:
       hp: 30
@@ -81,7 +93,6 @@ game:
     attack:
       enabled: true
       cost: ${uniform:1, 100, 10}
-      damage: ${uniform:1, 100, 10}
     gift:
       enabled: false
       cost: 0
@@ -91,8 +102,4 @@ game:
 
   kinship:
     enabled: false
-    observed: false
-    team_size: 1
-    team_reward: 0
 
-track_last_action: false

@@ -5,12 +5,12 @@
 from libcpp.vector cimport vector
 from libcpp.map cimport map
 from libcpp.string cimport string
-from mettagrid.grid_env import StatsTracker
+from mettagrid.grid_env cimport StatsTracker
 from libc.stdio cimport printf
 from mettagrid.observation_encoder cimport ObservationEncoder, ObsType
 from mettagrid.grid_object cimport GridObject, TypeId, GridCoord, GridLocation, GridObjectId
 from mettagrid.event cimport EventHandler, EventArg
-
+from libc.string cimport strcat, strcpy
 cdef enum GridLayer:
     Agent_Layer = 0
     Object_Layer = 1
@@ -59,7 +59,9 @@ cdef vector[string] InventoryItemNames # defined in objects.pyx
 
 
 cdef cppclass Agent(MettaObject):
+    unsigned char group
     unsigned char frozen
+    unsigned char attack_damage
     unsigned char freeze_duration
     unsigned char energy
     unsigned char orientation
@@ -69,11 +71,20 @@ cdef cppclass Agent(MettaObject):
     unsigned char max_items
     unsigned char max_energy
     float energy_reward
+    string group_name
 
-    inline Agent(GridCoord r, GridCoord c, ObjectConfig cfg):
+    inline Agent(
+        GridCoord r, GridCoord c,
+        string group_name,
+        unsigned char group_id,
+        ObjectConfig cfg):
         GridObject.init(ObjectType.AgentT, GridLocation(r, c, GridLayer.Agent_Layer))
         MettaObject.init_mo(cfg)
+
+        this.group_name = group_name
+        this.group = group_id
         this.frozen = 0
+        this.attack_damage = cfg[b"attack_damage"]
         this.freeze_duration = cfg[b"freeze_duration"]
         this.max_energy = cfg[b"max_energy"]
         this.energy = 0
@@ -104,13 +115,14 @@ cdef cppclass Agent(MettaObject):
 
     inline void obs(ObsType[:] obs):
         obs[0] = 1
-        obs[1] = this.hp
-        obs[2] = this.frozen
-        obs[3] = this.energy
-        obs[4] = this.orientation
-        obs[5] = this.shield
+        obs[1] = this.group
+        obs[2] = this.hp
+        obs[3] = this.frozen
+        obs[4] = this.energy
+        obs[5] = this.orientation
+        obs[6] = this.shield
+        cdef unsigned short idx = 7
 
-        cdef unsigned short idx = 6
         cdef unsigned short i
         for i in range(InventoryItem.InventoryCount):
             obs[idx + i] = this.inventory[i]
@@ -118,7 +130,12 @@ cdef cppclass Agent(MettaObject):
     @staticmethod
     inline vector[string] feature_names():
         return [
-            "agent", "agent:hp", "agent:frozen", "agent:energy", "agent:orientation",
+            "agent",
+            "agent:group",
+            "agent:hp",
+            "agent:frozen",
+            "agent:energy",
+            "agent:orientation",
             "agent:shield"
         ] + [
             "agent:inv:" + n for n in InventoryItemNames]
@@ -146,6 +163,7 @@ cdef cppclass Generator(Usable):
         this.r1 = cfg[b"initial_resources"]
 
     inline bint usable(const Agent *actor):
+        # Only prey (0) can use generators.
         return Usable.usable(actor) and this.r1 > 0
 
     inline void obs(ObsType[:] obs):
@@ -160,32 +178,65 @@ cdef cppclass Generator(Usable):
         return ["generator", "generator:hp", "generator:r1", "generator:ready"]
 
 cdef cppclass Converter(Usable):
-    InventoryItem input_resource
-    InventoryItem output_resource
-    short output_energy
+    short prey_r1_output_energy;
+    short predator_r1_output_energy;
+    short predator_r2_output_energy;
 
     inline Converter(GridCoord r, GridCoord c, ObjectConfig cfg):
         GridObject.init(ObjectType.ConverterT, GridLocation(r, c, GridLayer.Object_Layer))
         MettaObject.init_mo(cfg)
         Usable.init_usable(cfg)
-        this.input_resource = InventoryItem.r1
-        this.output_resource = InventoryItem.r2
-        this.output_energy = cfg[b"energy_output.r1"]
+        this.prey_r1_output_energy = cfg[b"energy_output.r1.prey"]
+        this.predator_r1_output_energy = cfg[b"energy_output.r1.predator"]
+        this.predator_r2_output_energy = cfg[b"energy_output.r2.predator"]
 
     inline bint usable(const Agent *actor):
-        return Usable.usable(actor) and actor.inventory[this.input_resource] > 0
+        return Usable.usable(actor) and (
+            actor.inventory[InventoryItem.r1] > 0 or
+            (actor.inventory[InventoryItem.r2] > 0 and
+            actor.group_name == b"predator")
+        )
+
+    inline void use(Agent *actor, unsigned int actor_id, StatsTracker stats, float *rewards):
+        cdef unsigned int energy_gain = 0
+        cdef InventoryItem consumed_resource = InventoryItem.r1
+        cdef InventoryItem produced_resource = InventoryItem.r2
+        cdef char stat_name[256]
+        cdef unsigned int potential_energy_gain = this.prey_r1_output_energy
+        if actor.group_name == b"predator":
+            if actor.inventory[InventoryItem.r2] > 0:
+                # eat meat if you can
+                consumed_resource = InventoryItem.r2
+                produced_resource = InventoryItem.r3
+                potential_energy_gain = this.predator_r2_output_energy
+            else:
+                potential_energy_gain = this.predator_r1_output_energy
+                produced_resource = InventoryItem.r3
+
+        actor.update_inventory(consumed_resource, -1)
+        stats.agent_incr(actor_id, InventoryItemNames[consumed_resource] + ".used")
+        strcpy(stat_name, actor.group_name.c_str())
+        strcat(stat_name, ".")
+        strcat(stat_name, InventoryItemNames[consumed_resource].c_str())
+        strcat(stat_name, ".used")
+        stats.agent_incr(actor_id, stat_name)
+
+        actor.update_inventory(produced_resource, 1)
+        stats.agent_incr(actor_id, InventoryItemNames[produced_resource] + ".gained")
+        stats.agent_incr(actor_id, actor.group_name + "." + InventoryItemNames[produced_resource] + ".gained")
+
+        energy_gain = actor.update_energy(potential_energy_gain, rewards)
+        stats.agent_add(actor_id, "energy.gained", energy_gain)
+        stats.agent_add(actor_id, actor.group_name + ".energy.gained", energy_gain)
 
     inline obs(ObsType[:] obs):
         obs[0] = 1
-        obs[1] = hp
-        obs[2] = input_resource
-        obs[3] = output_resource
-        obs[4] = output_energy
-        obs[5] = ready
+        obs[1] = this.hp
+        obs[2] = this.ready
 
     @staticmethod
     inline vector[string] feature_names():
-        return ["converter", "converter:hp", "converter:input_resource", "converter:output_resource", "converter:output_energy", "converter:ready"]
+        return ["converter", "converter:hp", "converter:ready"]
 
 cdef cppclass Altar(Usable):
     inline Altar(GridCoord r, GridCoord c, ObjectConfig cfg):

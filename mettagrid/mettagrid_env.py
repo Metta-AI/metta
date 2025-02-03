@@ -25,7 +25,12 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._env_cfg = copy.deepcopy(self._cfg)
         OmegaConf.resolve(self._env_cfg)
         self._map_builder = hydra.utils.instantiate(self._env_cfg.game.map_builder)
-        self._c_env = MettaGrid(self._env_cfg, self._map_builder.build())
+        env_map = self._map_builder.build()
+        map_agents = np.count_nonzero(np.char.startswith(env_map, "agent"))
+        assert self._env_cfg.game.num_agents == map_agents, \
+            f"Number of agents {self._env_cfg.game.num_agents} does not match number of agents in map {map_agents}"
+
+        self._c_env = MettaGrid(self._env_cfg, env_map)
         self._grid_env = self._c_env
         self._num_agents = self._c_env.num_agents()
 

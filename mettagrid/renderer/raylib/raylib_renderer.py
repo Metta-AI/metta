@@ -48,7 +48,7 @@ class MettaGridRaylibRenderer:
         self._setup_action_handling()
 
         self.sprite_renderers = [
-            AgentRenderer(cfg.objects.agent),
+            AgentRenderer(cfg),
             WallRenderer(),
             GeneratorRenderer(),
             ConverterRenderer(),
