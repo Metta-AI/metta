@@ -36,7 +36,7 @@ def main(cfg):
 
     output += f"grid_features: {env.grid_features}\n"
 
-    assert "agent:kinship" in env.grid_features
+    assert "agent:group" in env.grid_features
 
     output += f"rewards: {rewards}\n"
     output += f"terminated: {terminated}\n"

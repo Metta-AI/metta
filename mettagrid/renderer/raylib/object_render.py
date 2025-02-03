@@ -36,18 +36,22 @@ class ObjectRenderer:
 class AgentRenderer(ObjectRenderer):
     def __init__(self, cfg: OmegaConf):
         super().__init__("monsters.png", 16)
-        default_cfg = cfg.agent
         self._cfgs = DictConfig({
             **{
-                c.species: OmegaConf.merge(default_cfg, c)
-                for c in cfg.values()
+                c.id: OmegaConf.merge(cfg.agent, c.props)
+                for c in cfg.groups.values()
             }
         })
+        self.sprites = {
+            c.id: c.sprite
+            for c in cfg.groups.values()
+        }
+
         self.obs_width = 11  # Assuming these values, adjust if necessary
         self.obs_height = 11
 
     def cfg(self, obj):
-        return self._cfgs[obj["agent:species"]]
+        return self._cfgs[obj["agent:group"]]
 
     def _sprite_sheet_idx(self, obj):
         # orientation: 0 = Up, 1 = Down, 2 = Left, 3 = Right
@@ -55,14 +59,7 @@ class AgentRenderer(ObjectRenderer):
         orientation_offset = [1, 2, 3, 0][obj["agent:orientation"]]
 
         # return (4 * ((obj["agent_id"] // 12) % 4) + orientation_offset, 2 * (obj["agent_id"] % 12))
-        if obj["agent:species"] == 0:
-            idx = 0
-        elif obj["agent:species"] == 1:
-            idx = 12
-        elif obj["agent:species"] == 2:
-            idx = 6
-        else:
-            idx = 2 * (obj["agent:species"] % 12)
+        idx = self.sprites[obj["agent:group"]]
         return (orientation_offset, idx)
 
     def render(self, obj, render_tile_size):

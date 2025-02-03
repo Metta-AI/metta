@@ -59,7 +59,7 @@ cdef vector[string] InventoryItemNames # defined in objects.pyx
 
 
 cdef cppclass Agent(MettaObject):
-    unsigned char species
+    unsigned char group
     unsigned char frozen
     unsigned char attack_damage
     unsigned char freeze_duration
@@ -71,13 +71,18 @@ cdef cppclass Agent(MettaObject):
     unsigned char max_items
     unsigned char max_energy
     float energy_reward
-    string species_name
+    string group_name
 
-    inline Agent(GridCoord r, GridCoord c, species_name, ObjectConfig cfg):
+    inline Agent(
+        GridCoord r, GridCoord c,
+        string group_name,
+        unsigned char group_id,
+        ObjectConfig cfg):
         GridObject.init(ObjectType.AgentT, GridLocation(r, c, GridLayer.Agent_Layer))
         MettaObject.init_mo(cfg)
-        this.species_name = species_name
-        this.species = cfg[b"species"]
+
+        this.group_name = group_name
+        this.group = group_id
         this.frozen = 0
         this.attack_damage = cfg[b"attack_damage"]
         this.freeze_duration = cfg[b"freeze_duration"]
@@ -110,7 +115,7 @@ cdef cppclass Agent(MettaObject):
 
     inline void obs(ObsType[:] obs):
         obs[0] = 1
-        obs[1] = this.species
+        obs[1] = this.group
         obs[2] = this.hp
         obs[3] = this.frozen
         obs[4] = this.energy
@@ -126,7 +131,7 @@ cdef cppclass Agent(MettaObject):
     inline vector[string] feature_names():
         return [
             "agent",
-            "agent:species",
+            "agent:group",
             "agent:hp",
             "agent:frozen",
             "agent:energy",
@@ -189,7 +194,7 @@ cdef cppclass Converter(Usable):
         return Usable.usable(actor) and (
             actor.inventory[InventoryItem.r1] > 0 or
             (actor.inventory[InventoryItem.r2] > 0 and
-            actor.species_name == b"predator")
+            actor.group_name == b"predator")
         )
 
     inline void use(Agent *actor, unsigned int actor_id, StatsTracker stats, float *rewards):
@@ -197,7 +202,7 @@ cdef cppclass Converter(Usable):
         cdef InventoryItem consumed_resource = InventoryItem.r1
         cdef InventoryItem produced_resource = InventoryItem.r2
         cdef unsigned int potential_energy_gain = this.prey_r1_output_energy
-        if actor.species_name == b"predator":
+        if actor.group_name == b"predator":
             if actor.inventory[InventoryItem.r2] > 0:
                 # eat meat if you can
                 consumed_resource = InventoryItem.r2
@@ -209,27 +214,24 @@ cdef cppclass Converter(Usable):
 
         actor.update_inventory(consumed_resource, -1)
         stats.agent_incr(actor_id, InventoryItemNames[consumed_resource] + ".used")
-        stats.agent_incr(actor_id, actor.species_name + "." + InventoryItemNames[consumed_resource] + ".used")
+        stats.agent_incr(actor_id, actor.group_name + "." + InventoryItemNames[consumed_resource] + ".used")
 
         actor.update_inventory(produced_resource, 1)
         stats.agent_incr(actor_id, InventoryItemNames[produced_resource] + ".gained")
-        stats.agent_incr(actor_id, actor.species_name + "." + InventoryItemNames[produced_resource] + ".gained")
+        stats.agent_incr(actor_id, actor.group_name + "." + InventoryItemNames[produced_resource] + ".gained")
 
         energy_gain = actor.update_energy(potential_energy_gain, rewards)
         stats.agent_add(actor_id, "energy.gained", energy_gain)
-        stats.agent_add(actor_id, actor.species_name + ".energy.gained", energy_gain)
+        stats.agent_add(actor_id, actor.group_name + ".energy.gained", energy_gain)
 
     inline obs(ObsType[:] obs):
         obs[0] = 1
         obs[1] = this.hp
         obs[2] = this.ready
-        obs[3] = this.prey_r1_output_energy
-        obs[4] = this.predator_r1_output_energy
-        obs[5] = this.predator_r2_output_energy
 
     @staticmethod
     inline vector[string] feature_names():
-        return ["converter", "converter:hp", "converter:ready", "converter:prey_r1_output_energy", "converter:predator_r1_output_energy", "converter:predator_r2_output_energy"]
+        return ["converter", "converter:hp", "converter:ready"]
 
 cdef cppclass Altar(Usable):
     inline Altar(GridCoord r, GridCoord c, ObjectConfig cfg):

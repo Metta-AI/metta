@@ -71,7 +71,7 @@ def main(cfg):
     (obs, rewards, terminated, truncated, infos) = mettaGridEnv.step([[0,0]]*5)
     assert mettaGridEnv._c_env.current_timestep() == 1
     print("obs: ", obs)
-    assert obs.shape == (5, 25, 11, 11)
+    assert obs.shape == (5, 22, 11, 11)
     print("rewards: ", rewards)
     assert rewards.shape == (5,)
     print("terminated: ", terminated)
@@ -94,7 +94,7 @@ def main(cfg):
     print("mettaGridEnv._max_steps: ", mettaGridEnv._max_steps)
     assert mettaGridEnv._max_steps == 5000
     print("mettaGridEnv.single_observation_space: ", mettaGridEnv.single_observation_space)
-    assert mettaGridEnv.single_observation_space.shape == (25, 11, 11)
+    assert mettaGridEnv.single_observation_space.shape == (22, 11, 11)
     print("mettaGridEnv.single_action_space: ", mettaGridEnv.single_action_space)
     assert mettaGridEnv.single_action_space.nvec.tolist() == [8, 9]
     print("mettaGridEnv.action_names(): ", mettaGridEnv.action_names())

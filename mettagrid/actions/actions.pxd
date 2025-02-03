@@ -13,7 +13,7 @@ cdef struct StatNames:
     string action_energy
     map[TypeId, string] target
     map[TypeId, string] target_energy
-    vector[string] species
+    vector[string] group
 
 cdef class MettaActionHandler(ActionHandler):
     cdef StatNames _stats

@@ -41,9 +41,9 @@ cdef class Use(MettaActionHandler):
         self.env._event_manager.schedule_event(Events.Reset, usable.cooldown, usable.id, 0)
 
         self.env._stats.agent_incr(actor_id, self._stats.target[target._type_id].c_str())
-        self.env._stats.agent_incr(actor_id, actor.species_name + "." + self._stats.target[target._type_id].c_str())
+        self.env._stats.agent_incr(actor_id, actor.group_name + "." + self._stats.target[target._type_id].c_str())
         self.env._stats.agent_add(actor_id, self._stats.target_energy[target._type_id].c_str(), usable.use_cost + self.action_cost)
-        self.env._stats.agent_add(actor_id, actor.species_name + "." + self._stats.target_energy[target._type_id].c_str(), usable.use_cost + self.action_cost)
+        self.env._stats.agent_add(actor_id, actor.group_name + "." + self._stats.target_energy[target._type_id].c_str(), usable.use_cost + self.action_cost)
 
         if target._type_id == ObjectType.AltarT:
             self.env._rewards[actor_id] += 1
@@ -54,7 +54,7 @@ cdef class Use(MettaActionHandler):
             generator.r1 -= 1
             actor.update_inventory(InventoryItem.r1, 1)
             self.env._stats.agent_incr(actor_id, "r1.gained")
-            self.env._stats.agent_incr(actor_id, "." + actor.species_name + ".r1.gained")
+            self.env._stats.agent_incr(actor_id, "." + actor.group_name + ".r1.gained")
             self.env._stats.game_incr("r1.harvested")
 
         cdef Converter *converter
