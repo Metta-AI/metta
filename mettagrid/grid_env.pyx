@@ -149,10 +149,11 @@ cdef class GridEnv:
         self._current_timestep += 1
         self._event_manager.process_events(self._current_timestep)
 
+        cdef unsigned char p
         for p in range(self._max_action_priority + 1):
             for idx in range(self._agents.size()):
                 action = actions[idx][0]
-                if action >= len(self._action_handlers):
+                if action >= self._action_handlers.size():
                     continue
                 arg = actions[idx][1]
                 agent = self._agents[idx]
