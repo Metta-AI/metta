@@ -20,19 +20,25 @@ game:
   num_agents: 5
   no_energy_steps: 500
 
-  objects:
+  groups:
     agent:
-      initial_energy: 250
-      max_energy: 250
-      max_inventory: 5
-      freeze_duration: 10
-      energy_reward: 0
-      hp: 1
-      mortal: False
-      upkeep.time: 0
-      upkeep.shield: 1
-      use_cost: 0
+      id: 0
+      sprite: 0
+      props: {}
 
+  agent:
+    initial_energy: 250
+    max_energy: 250
+    max_inventory: 5
+    freeze_duration: 10
+    energy_reward: 0
+    hp: 1
+    mortal: False
+    upkeep.time: 0
+    upkeep.shield: 1
+    use_cost: 0
+
+  objects:
     altar:
       hp: 30
       cooldown: 2
@@ -92,9 +98,9 @@ game:
     width: 25
     height: 25
     border_width: 0
+    agents: 5
 
     objects:
-      agent: 5
       altar: 1
       converter: 3
       generator: 15

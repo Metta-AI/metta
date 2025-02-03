@@ -1,4 +1,4 @@
-from mettagrid.config.room.room import OBJECTS, GameObject, Room
+from mettagrid.config.room.room import Room
 from mettagrid.config.room.room_list import RoomList
 class MultiRoom(RoomList):
     def __init__(
@@ -7,7 +7,7 @@ class MultiRoom(RoomList):
         num_rooms: int,
         layout: str = "grid",
         border_width: int = 0,
-        border_object: GameObject = OBJECTS.Wall):
+        border_object: str = "wall"):
         room_cfgs = [room] * num_rooms
         super().__init__(
             room_cfgs,

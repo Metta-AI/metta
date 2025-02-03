@@ -23,8 +23,10 @@ cdef class GridEnv:
         unsigned int _max_timestep
 
         list[ActionHandler] _action_handlers
+        int _num_action_handlers
         vector[unsigned char] _max_action_args
         unsigned char _max_action_arg
+        unsigned char _max_action_priority
 
         bint _use_flat_actions
         vector[Action] _flat_actions
@@ -51,9 +53,11 @@ cdef class GridEnv:
 
         StatsTracker _stats
 
-        list[string] _grid_features
+        vector[string] _grid_features
 
         bint _track_last_action
+        unsigned char _last_action_obs_idx
+        unsigned char _last_action_arg_obs_idx
 
     cdef void add_agent(self, GridObject* agent)
 
