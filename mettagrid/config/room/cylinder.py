@@ -12,16 +12,16 @@ class CylinderRoom(Room):
         width: int,
         height: int,
         cylinder_params: DictConfig,
-        num_agents: int = 1,
+        agents: int | DictConfig = 1,
         seed = None,
         border_width: int = 0,
-        border_object: str = "wall"
+        border_object: str = "wall",
     ):
         super().__init__(border_width=border_width, border_object=border_object)
         self._width = width
         self._height = height
         self._cylinder_params = cylinder_params
-        self._num_agents = num_agents
+        self._agents = agents
         self._rng = np.random.default_rng(seed)
 
         # Validate inputs
@@ -62,9 +62,9 @@ class CylinderRoom(Room):
         self._cylinder_positions.add((generator_x, center_y))
 
         # Place agents
-        agent_start_x = start_x + (wall_length - self._num_agents) // 2
-        for i in range(self._num_agents):
-            self._grid[center_y - 2, agent_start_x + i] = "agent"
+        agent_start_x = start_x + (wall_length - self._agents) // 2
+        for i in range(self._agents):
+            self._grid[center_y - 2, agent_start_x + i] = "agent.agent"
             self._cylinder_positions.add((agent_start_x + i, center_y - 2))
 
     def place_vertical_cylinder(self) -> None:
@@ -86,9 +86,9 @@ class CylinderRoom(Room):
         self._cylinder_positions.add((center_x, generator_y))
 
         # Place agents
-        agent_start_y = start_y + (wall_length - self._num_agents) // 2
-        for i in range(self._num_agents):
-            self._grid[agent_start_y + i, center_x - 2] = "agent"
+        agent_start_y = start_y + (wall_length - self._agents) // 2
+        for i in range(self._agents):
+            self._grid[agent_start_y + i, center_x - 2] = "agent.agent"
             self._cylinder_positions.add((center_x - 2, agent_start_y + i))
 
     def _get_valid_positions(self) -> Set[Tuple[int, int]]:
