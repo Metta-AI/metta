@@ -49,6 +49,7 @@ cdef class GridEnv:
 
         self._use_flat_actions = use_flat_actions
         self._action_handlers = action_handlers
+        self._num_action_handlers = len(action_handlers)
         self._max_action_priority = 0
         self._max_action_arg = 0
         self._max_action_args.resize(len(action_handlers))
@@ -153,7 +154,7 @@ cdef class GridEnv:
         for p in range(self._max_action_priority + 1):
             for idx in range(self._agents.size()):
                 action = actions[idx][0]
-                if action >= self._action_handlers.size():
+                if action >= self._num_action_handlers:
                     continue
                 arg = actions[idx][1]
                 agent = self._agents[idx]
