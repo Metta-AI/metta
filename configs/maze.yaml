@@ -5,6 +5,16 @@ game:
   num_agents: 6
   max_steps: 250
 
+  groups:
+    mazer:
+      id: 0
+      sprite: 10
+      props:
+        attack_damage: 0
+        initial_energy: 250
+        max_energy: 250
+        upkeep.time: 0
+
   map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom
     num_rooms: ${..num_agents}
@@ -18,12 +28,6 @@ game:
         - ${sub:${..width},2}
         - ${sub:${..height},2}
       branching: ${uniform:0.1,0.95,0.7}
-
-  agents:
-    default:
-      initial_energy: 250
-      max_energy: 250
-      upkeep.time: 0
 
   objects:
     altar:
