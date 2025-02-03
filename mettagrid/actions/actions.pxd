@@ -10,8 +10,11 @@ from mettagrid.objects cimport Agent
 cdef struct StatNames:
     string action
     string action_energy
+    string first_use
+    
     map[TypeId, string] target
     map[TypeId, string] target_energy
+    map[TypeId, string] target_first_use
 
 cdef class MettaActionHandler(ActionHandler):
     cdef StatNames _stats
