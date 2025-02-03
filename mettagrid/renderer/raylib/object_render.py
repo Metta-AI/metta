@@ -1,10 +1,11 @@
 # disable pylint for raylib
 # pylint: disable=no-member
 # type: ignore
+import __future__
 import os
 
 import pyray as ray
-from omegaconf import OmegaConf
+from omegaconf import OmegaConf, DictConfig
 from raylib import colors, rl
 
 
@@ -35,15 +36,31 @@ class ObjectRenderer:
 class AgentRenderer(ObjectRenderer):
     def __init__(self, cfg: OmegaConf):
         super().__init__("monsters.png", 16)
-        self.cfg = cfg
+        self._cfgs = DictConfig({
+            **{
+                c.id: OmegaConf.merge(cfg.agent, c.props)
+                for c in cfg.groups.values()
+            }
+        })
+        self.sprites = {
+            c.id: c.sprite
+            for c in cfg.groups.values()
+        }
+
         self.obs_width = 11  # Assuming these values, adjust if necessary
         self.obs_height = 11
+
+    def cfg(self, obj):
+        return self._cfgs[obj["agent:group"]]
 
     def _sprite_sheet_idx(self, obj):
         # orientation: 0 = Up, 1 = Down, 2 = Left, 3 = Right
         # sprites: 0 = Right, 1 = Up, 2 = Down, 3 = Left
         orientation_offset = [1, 2, 3, 0][obj["agent:orientation"]]
-        return (4 * ((obj["agent_id"] // 12) % 4) + orientation_offset, 2 * (obj["agent_id"] % 12))
+
+        # return (4 * ((obj["agent_id"] // 12) % 4) + orientation_offset, 2 * (obj["agent_id"] % 12))
+        idx = self.sprites[obj["agent:group"]]
+        return (orientation_offset, idx)
 
     def render(self, obj, render_tile_size):
         super().render(obj, render_tile_size)
@@ -58,7 +75,7 @@ class AgentRenderer(ObjectRenderer):
         y = obj["r"] * render_tile_size - 8  # 8 pixels above the agent
         width = render_tile_size
         height = 3  # 3 pixels tall
-        max_energy = self.cfg.max_energy
+        max_energy = self.cfg(obj).max_energy
 
         energy = min(max(obj["agent:energy"], 0), max_energy)
         blue_width = int(width * energy / max_energy)
@@ -91,7 +108,7 @@ class AgentRenderer(ObjectRenderer):
 
             # Calculate alpha based on frozen value
             base_alpha = 102  # 40% of 255
-            alpha = int(base_alpha * (frozen / self.cfg.freeze_duration))
+            alpha = int(base_alpha * (frozen / self.cfg(obj).freeze_duration))
 
             # Create a semi-transparent gray color
             frozen_color = ray.Color(128, 128, 128, alpha)

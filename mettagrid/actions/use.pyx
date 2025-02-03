@@ -1,5 +1,6 @@
 
 from libc.stdio cimport printf
+from libc.string cimport strcat, strcpy
 
 from omegaconf import OmegaConf
 
@@ -27,6 +28,7 @@ cdef class Use(MettaActionHandler):
         Agent * actor,
         ActionArg arg):
 
+        cdef char stat_name[256]
         cdef GridLocation target_loc = self.env._grid.relative_location(
             actor.location,
             <Orientation>actor.orientation
@@ -46,8 +48,15 @@ cdef class Use(MettaActionHandler):
         self.env._event_manager.schedule_event(Events.Reset, usable.cooldown, usable.id, 0)
 
         self.env._stats.agent_incr(actor_id, self._stats.target[target._type_id].c_str())
-        self.env._stats.agent_add(actor_id, self._stats.target_energy[target._type_id].c_str(), usable.use_cost + self.action_cost)
+        strcpy(stat_name, actor.group_name.c_str())
+        strcat(stat_name, ".")
+        strcat(stat_name, self._stats.target[target._type_id].c_str())
+        self.env._stats.agent_incr(actor_id, stat_name)
         self.env._stats.agent_set_once(actor_id, self._stats.target_first_use[target._type_id].c_str(), self.env._current_timestep)
+        strcpy(stat_name, actor.group_name.c_str())
+        strcat(stat_name, ".")
+        strcat(stat_name, self._stats.target_energy[target._type_id].c_str())
+        self.env._stats.agent_add(actor_id, stat_name, usable.use_cost + self.action_cost)
 
         if target._type_id == ObjectType.AltarT:
             self.env._rewards[actor_id] += 1
@@ -58,20 +67,14 @@ cdef class Use(MettaActionHandler):
             generator.r1 -= 1
             actor.update_inventory(InventoryItem.r1, 1)
             self.env._stats.agent_incr(actor_id, "r1.gained")
+            strcpy(stat_name, actor.group_name.c_str())
+            strcat(stat_name, ".r1.gained")
+            self.env._stats.agent_incr(actor_id, stat_name)
             self.env._stats.game_incr("r1.harvested")
 
         cdef Converter *converter
-        cdef unsigned int energy_gain = 0
         if target._type_id == ObjectType.ConverterT:
             converter = <Converter*>target
-            actor.update_inventory(converter.input_resource, -1)
-            self.env._stats.agent_incr(actor_id, InventoryItemNames[converter.input_resource] + ".used")
-
-            actor.update_inventory(converter.output_resource, 1)
-            self.env._stats.agent_incr(actor_id, InventoryItemNames[converter.output_resource] + ".gained")
-
-            energy_gain = actor.update_energy(converter.output_energy, &self.env._rewards[actor_id])
-
-            self.env._stats.agent_add(actor_id, "energy.gained", energy_gain)
+            converter.use(actor, actor_id, self.env._stats, &self.env._rewards[actor_id])
 
         return True
