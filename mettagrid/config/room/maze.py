@@ -28,8 +28,8 @@ class Maze(Room):
 
     def __init__(self, width, height, start_pos, end_pos, branching, seed=None, border_width=0, border_object="wall"):
         super().__init__(border_width=border_width, border_object=border_object)
-        self._width = width      # container width (can be even or odd)
-        self._height = height    # container height (can be even or odd)
+        self._width = width     
+        self._height = height    
         self._start_pos = start_pos
         self._end_pos = end_pos
         self._branching = branching
@@ -39,7 +39,6 @@ class Maze(Room):
         assert 0 <= self._branching <= 1, "Branching parameter must be between 0 and 1"
 
         # Compute an effective maze size that is odd.
-
         self.eff_width = self._width if self._width % 2 == 1 else self._width - 1
         self.eff_height = self._height if self._height % 2 == 1 else self._height - 1
 
