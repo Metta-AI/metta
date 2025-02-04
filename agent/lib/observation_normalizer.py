@@ -1,6 +1,6 @@
 import torch
 from torch import nn
-from metta.agent.metta_agent import MettaAgent
+# from agent.metta_agent import MettaAgent
 
 
 # ##ObservationNormalization
@@ -35,9 +35,9 @@ OBS_NORMALIZATIONS = {
 }
 
 class ObservationNormalizer(nn.Module):
-    def __init__(self, MettaAgent, grid_features: list[str]):
+    def __init__(self, grid_features: list[str]):
         super().__init__()
-        self.MettaAgent = MettaAgent
+        # self.MettaAgent = MettaAgent
         self.name = 'obs_normalizer'
         self.input_source = 'obs'
         self.output_size = None
@@ -52,15 +52,15 @@ class ObservationNormalizer(nn.Module):
     def forward(self, obs):
         return obs / self.obs_norm
     
-    def set_input_source_size(self):
-        self.input_size = self.MettaAgent.components[self.input_source].get_out_size()
-        if self.output_size is None:
-            self.output_size = self.input_size
+    # def set_input_source_size(self):
+    #     self.input_size = self.MettaAgent.components[self.input_source].get_out_size()
+    #     if self.output_size is None:
+    #         self.output_size = self.input_size
 
-    def get_out_size(self):
-        return self.output_size
+    # def get_out_size(self):
+    #     return self.output_size
 
-    def initialize_layer(self):
-        pass
+    # def initialize_layer(self):
+    #     pass
 
 

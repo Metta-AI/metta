@@ -24,9 +24,16 @@ interface:
     value: critic_3
     action_param: actor_2
 
+#delete me
+obs_helper: 
+  _target_: agent.metta_agent.MettaLayer
+  input_source: _obs_
+  layer_type: Identity
+
 components:
 
   obs_helper: 
+    _target_: agent.metta_agent.MettaLayer
     input_source: _obs_
     layer_type: Identity
 
@@ -37,7 +44,7 @@ components:
     ###
 
   obs_encoder_1:
-    _target_: agent.MettaLayer
+    _target_: agent.metta_agent.MettaLayer
     # input_source: obs_normalizer
     input_source: obs_helper
     output_size: 64 # number of channels
@@ -46,7 +53,7 @@ components:
     stride: 3
 
   obs_encoder_2:
-    _target_: agent.MettaLayer
+    _target_: agent.metta_agent.MettaLayer
     input_source: obs_encoder_1
     output_size: 64 # number of channels
     layer_type: Conv2d
@@ -54,17 +61,17 @@ components:
     stride: 1
 
   obs_flattener:
-    _target_: agent.MettaLayer
+    _target_: agent.metta_agent.MettaLayer
     input_source: obs_encoder_2
     layer_type: Flatten
 
   _encoded_obs_:
-    _target_: agent.MettaLayer
+    _target_: agent.metta_agent.MettaLayer
     input_source: obs_flattener
     output_size: 128
 
   core_helper:
-    _target_: agent.MettaLayer
+    _target_: agent.metta_agent.MettaLayer
     rnn_type: gru
     rnn_num_layers: 1
     rnn_size: 128
@@ -73,18 +80,18 @@ components:
     layer_type: Identity
 
   critic_1:
-    _target_: agent.MettaLayer
+    _target_: agent.metta_agent.MettaLayer
     input_source: core_helper
     output_size: 512
     layer_type: Linear
 
   critic_2:
-    _target_: agent.MettaLayer
+    _target_: agent.metta_agent.MettaLayer
     input_source: critic_1
     output_size: 128
 
   critic_3:
-    _target_: agent.MettaLayer
+    _target_: agent.metta_agent.MettaLayer
     input_source: [actor_2, critic_2]
     output_size: 128
 
@@ -94,17 +101,17 @@ components:
   #   output: 1
 
   actor_1:
-    _target_: agent.MettaLayer
+    _target_: agent.metta_agent.MettaLayer
     input_source: core_helper
     output_size: 512
 
   actor_2:
-    _target_: agent.MettaLayer
+    _target_: agent.metta_agent.MettaLayer
     input_source: actor_1
     output_size: 512
 
   _value_:
-    _target_: agent.MettaLayer
+    _target_: agent.metta_agent.MettaLayer
     input_source: actor_2
     output_size: 1
 
@@ -114,6 +121,6 @@ components:
 #     output: 128
 
   _atn_param_:
-    _target_: agent.MettaLayer
+    _target_: agent.metta_agent.MettaLayer
     input_source: actor_2
     output_size: 20

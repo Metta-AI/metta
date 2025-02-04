@@ -24,29 +24,29 @@ class Recurrent(pufferlib.models.LSTMWrapper):
         super().__init__(env, policy, input_size, hidden_size, num_layers)
 
 class PufferAgentWrapper(nn.Module):
-    def __init__(self, agent: MettaAgent, actor_hidden_sizes: List[int], env: PettingZooPufferEnv):
+    def __init__(self, agent: MettaAgent, env: PettingZooPufferEnv):
         super().__init__()
-        self.hidden_size = agent.decoder_out_size()
-        if isinstance(env.single_action_space, pufferlib.spaces.Discrete):
-            self.atn_type = make_nn_stack(
-                input_size=agent.decoder_out_size(),
-                hidden_sizes=actor_hidden_sizes,
-                output_size=env.single_action_space.n
-            )
-            self.atn_param = None
-        elif len(env.single_action_space.nvec) == 2:
-            self.atn_type = make_nn_stack(
-                input_size=agent.decoder_out_size(),
-                output_size=env.single_action_space.nvec[0],
-                hidden_sizes=actor_hidden_sizes
-            )
-            self.atn_param = make_nn_stack(
-                input_size=agent.decoder_out_size(),
-                output_size=env.single_action_space.nvec[1],
-                hidden_sizes=actor_hidden_sizes
-            )
-        else:
-            raise ValueError(f"Unsupported action space: {env.single_action_space}")
+        # self.hidden_size = agent.decoder_out_size()
+        # if isinstance(env.single_action_space, pufferlib.spaces.Discrete):
+        #     self.atn_type = make_nn_stack(
+        #         input_size=agent.decoder_out_size(),
+        #         hidden_sizes=actor_hidden_sizes,
+        #         output_size=env.single_action_space.n
+        #     )
+        #     self.atn_param = None
+        # elif len(env.single_action_space.nvec) == 2:
+        #     self.atn_type = make_nn_stack(
+        #         input_size=agent.decoder_out_size(),
+        #         output_size=env.single_action_space.nvec[0],
+        #         hidden_sizes=actor_hidden_sizes
+        #     )
+        #     self.atn_param = make_nn_stack(
+        #         input_size=agent.decoder_out_size(),
+        #         output_size=env.single_action_space.nvec[1],
+        #         hidden_sizes=actor_hidden_sizes
+        #     )
+        # else:
+        #     raise ValueError(f"Unsupported action space: {env.single_action_space}")
 
         self._agent = agent
         print(self)
@@ -64,8 +64,8 @@ class PufferAgentWrapper(nn.Module):
         self._agent.obs_encoder(td)
         return td["encoded_obs"], td
 
-    def decode_actions(self, x, flat_hidden, td, concat=None, e3b=None):
-        flat_obs = x
+    def decode_actions(self, flat_hidden, lookup, concat=None, e3b=None):
+        flat_obs = lookup
         obs = {
             "grid_obs": flat_obs.float(),   
             "global_vars": torch.zeros(flat_obs.shape[0], dtype=torch.float32).to(flat_obs.device)
@@ -101,13 +101,13 @@ def make_policy(env: PufferEnv, cfg: OmegaConf):
         env.grid_features,
         env.global_features,
         _recursive_=False)
-    puffer_agent = PufferAgentWrapper(agent, list(cfg.agent.actor.hidden_sizes), env)
+    puffer_agent = PufferAgentWrapper(agent, env)
 
-    if cfg.agent.core.rnn_num_layers > 0:
+    if cfg.agent.components.core_helper.rnn_num_layers > 0:
         puffer_agent = Recurrent(
-            env, puffer_agent, input_size=cfg.agent.observation_encoder.fc.output_dim,
-            hidden_size=cfg.agent.core.rnn_size,
-            num_layers=cfg.agent.core.rnn_num_layers
+            env, puffer_agent, input_size=cfg.agent.components._encoded_obs_.output_size,
+            hidden_size=cfg.agent.components.core_helper.rnn_size,
+            num_layers=cfg.agent.components.core_helper.rnn_num_layers
         )
         puffer_agent = pufferlib.cleanrl.RecurrentPolicy(puffer_agent)
     else:
