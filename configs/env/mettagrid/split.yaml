@@ -22,8 +22,8 @@ game:
         height: ${uniform:10,100,25}
         border_width: 0
 
+        agents: ${....num_agents}
         objects:
-          agent: ${.....num_agents}
           altar: ${uniform:1,5,3}
           wall: ${uniform:0,90,40}
 
