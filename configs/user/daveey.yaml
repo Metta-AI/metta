@@ -3,7 +3,7 @@
 seed: null
 
 defaults:
-  - override /env/mettagrid@env: teams
+  - override /env/mettagrid@env: simple
   - override /agent: simple.medium
   - override /sweep: fast
 
@@ -11,9 +11,9 @@ defaults:
 # baselines: wandb://run/b.daveey.train.maze.sm.11x11.0
 
 # policy_uri: wandb://run/b.daveey.sm.train.er.new.0
-policy_uri: wandb://run/b.daveey.train.s0.simple.0:v7
+policy_uri: wandb://run/b.daveey.train.simple.s20m
 # policy_uri: ${trained_policy_uri}
-baseline_uri: wandb://run/b.daveey.train.s0.simple.0:v7
+baseline_uri: wandb://run/b.daveey.train.simple.s15m:v8
 
 env:
   # sampling: 0.7
@@ -22,23 +22,15 @@ env:
 
     map_builder:
       border_width: 0
-      room:
-        agents:
-          team_1: 3
-          team_2: 3
-
-    groups:
-      agent:
-        group_reward_pct: 0.5
-
-    kinship:
-      enabled: true
-
 
 trainer:
   evaluate_interval: 2
 
 evaluator:
+  num_envs: 50
+  num_episodes: 50
+  max_time_s: 600
+
   policy:
     uri: ${...policy_uri}
   baselines:
