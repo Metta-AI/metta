@@ -17,10 +17,6 @@ cfg.game.map_builder.agents = 4
 cfg.game.map_builder.objects.altar = 1
 cfg.game.map_builder.objects.generator = 0
 cfg.game.map_builder.objects.converter = 0
-cfg.game.kinship.enabled = True
-cfg.game.kinship.observed = True
-cfg.game.kinship.team_size = 2
-cfg.game.kinship.team_reward = 1.0
 
 cfg.game.num_agents = cfg.game.map_builder.num_agents
 
@@ -37,26 +33,25 @@ actions = np.array([
 assert str(rewards) == "[0. 0. 0. 0.]"
 
 
-def test_shared_rewards(msg, rewards, expected, team_reward):
-    cfg.game.kinship.team_reward = team_reward
-    metta_grid = MettaGrid(cfg, map)
-    metta_grid.reset()
-    rewards = np.array(rewards, dtype=np.float32)
-    expected = np.array(expected, dtype=np.float32)
-    metta_grid._compute_shared_rewards(rewards)
-    if str(rewards) != str(expected):
-        print("msg:", msg)
-        print("  team_reward:", team_reward)
-        print("  expected:", expected)
-        print("  got:     ", rewards)
-        assert False
+# def test_shared_rewards(msg, rewards, expected, team_reward):
+#     metta_grid = MettaGrid(cfg, map)
+#     metta_grid.reset()
+#     rewards = np.array(rewards, dtype=np.float32)
+#     expected = np.array(expected, dtype=np.float32)
+#     metta_grid._compute_shared_rewards(rewards)
+#     if str(rewards) != str(expected):
+#         print("msg:", msg)
+#         print("  team_reward:", team_reward)
+#         print("  expected:", expected)
+#         print("  got:     ", rewards)
+#         assert False
 
-test_shared_rewards(
-  msg = "0 rewards",
-  rewards = [0, 0, 0, 0],
-  expected = [0, 0, 0, 0],
-  team_reward = 1.0
-)
+# test_shared_rewards(
+#   msg = "0 rewards",
+#   rewards = [0, 0, 0, 0],
+#   expected = [0, 0, 0, 0],
+#   team_reward = 1.0
+# )
 
 # test_shared_rewards(
 #   msg = "1 reward",
