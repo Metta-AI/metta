@@ -3,7 +3,7 @@
 seed: null
 
 defaults:
-  - override /env/mettagrid@env: bases
+  - override /env/mettagrid@env: teams
   - override /agent: simple.medium
   - override /sweep: fast
 
@@ -19,6 +19,21 @@ env:
   # sampling: 0.7
   game:
     max_steps: 1000
+
+    map_builder:
+      border_width: 0
+      room:
+        agents:
+          team_1: 3
+          team_2: 3
+
+    groups:
+      agent:
+        group_reward_pct: 0.5
+
+    kinship:
+      enabled: true
+
 
 trainer:
   evaluate_interval: 2
