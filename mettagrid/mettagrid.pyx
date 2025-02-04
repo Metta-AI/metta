@@ -1,6 +1,7 @@
 from libc.stdio cimport printf
 from libcpp.string cimport string
 from libcpp.vector cimport vector
+from libcpp.map cimport map
 
 import numpy as np
 cimport numpy as cnp
@@ -26,10 +27,10 @@ from mettagrid.actions.swap import Swap
 cdef class MettaGrid(GridEnv):
     cdef:
         object _cfg
-        int _num_teams
-        list _agents_to_team
-        list _team_to_agents
-        unsigned char _kinship_obs_idx
+        map[unsigned int, float] _group_reward_pct
+        map[unsigned int, unsigned int] _group_sizes
+        cnp.ndarray _group_rewards_np
+        double[:] _group_rewards
 
     def __init__(self, env_cfg: OmegaConf, map: np.ndarray):
         cfg = OmegaConf.create(env_cfg.game)
@@ -72,8 +73,18 @@ cdef class MettaGrid(GridEnv):
             track_last_action=env_cfg.track_last_action
         )
 
+        self._group_rewards_np = np.zeros(len(cfg.groups))
+        self._group_rewards = self._group_rewards_np
+        self._group_sizes = {
+            g.id: 0 for g in cfg.groups.values()
+        }
+        self._group_reward_pct = {
+            g.id: g.get("group_reward_pct", 0) for g in cfg.groups.values()
+        }
+
         cdef Agent *agent
         cdef string group_name
+        cdef unsigned char group_id
         for r in range(map.shape[0]):
             for c in range(map.shape[1]):
                 if map[r,c] == "wall":
@@ -92,37 +103,12 @@ cdef class MettaGrid(GridEnv):
                     group_name = map[r,c].split(".")[1]
                     agent_cfg = OmegaConf.to_container(OmegaConf.merge(
                         cfg.agent, cfg.groups[group_name].props))
+                    group_id = cfg.groups[group_name].id
                     agent = new Agent(
-                        r, c, group_name,
-                        cfg.groups[group_name].id, agent_cfg)
-
+                        r, c, group_name, group_id, agent_cfg)
                     self._grid.add_object(agent)
                     self.add_agent(agent)
-
-        # Assign team to agents for kinship rewards sharing.
-        if cfg.kinship.enabled:
-            self._initialize_reward_sharing()
-
-    cdef void _initialize_reward_sharing(self):
-        """ Assigns teams to agents for kinship rewards sharing. """
-        team = 1
-        in_team = 0
-        # Shuffle agent indices to randomize team assignment.
-        indices = np.arange(0, self._agents.size())
-        np.random.shuffle(indices)
-        self._agents_to_team = []
-        for id in indices:
-            self._agents_to_team.append(team)
-            in_team += 1
-            if in_team == self._cfg.kinship.team_size:
-                in_team = 0
-                team += 1
-        self._num_teams = team + 1
-        # Create a backward mapping from team to agents.
-        self._team_to_agents = [[] for i in range(self._num_teams)]
-        for id in range(self._agents.size()):
-            team = self._agents_to_team[id]
-            self._team_to_agents[team].append(id)
+                    self._group_sizes[group_id] += 1
 
     cpdef list[str] grid_features(self):
         return self._grid_features
@@ -130,7 +116,7 @@ cdef class MettaGrid(GridEnv):
     def render(self):
         grid = self.render_ascii(["A", "#", "g", "c", "a"])
         for r in grid:
-            print("".join(r))
+                print("".join(r))
 
     cpdef grid_objects(self):
         cdef GridObject *obj
@@ -156,29 +142,33 @@ cdef class MettaGrid(GridEnv):
         for agent_idx in range(self._agents.size()):
             agent_object = objects[self._agents[agent_idx].id]
             agent_object["agent_id"] = agent_idx
-            if self._cfg.kinship.enabled:
-                agent_object["team"] = self._agents_to_team[agent_idx]
 
         return objects
-
-    def _compute_shared_rewards(self, cnp.ndarray rewards):
-        """ Compute shared rewards for agents in the same team. """
-        team_rewards = np.zeros(self._num_teams + 1)
-        for agent_idx in range(self._agents.size()):
-            team = self._agents_to_team[agent_idx]
-            team_rewards[team] += self._cfg.kinship.team_reward * rewards[agent_idx]
-            rewards[agent_idx] -= self._cfg.kinship.team_reward * rewards[agent_idx]
-        team_idxs = team_rewards.nonzero()[0]
-        for team in team_idxs:
-            team_agents = self._team_to_agents[team]
-            team_reward = team_rewards[team] / len(team_agents)
-            rewards[team_agents] += team_reward
 
     cpdef tuple[cnp.ndarray, cnp.ndarray, cnp.ndarray, cnp.ndarray, dict] step(self, cnp.ndarray actions):
         (obs, rewards, terms, truncs, infos) = super(MettaGrid, self).step(actions)
 
-        if self._cfg.kinship.enabled:
-            if self._cfg.kinship.team_reward > 0 and np.any(rewards > 0):
-                self._compute_shared_rewards(rewards)
+        self._group_rewards[:] = 0
+        cdef Agent *agent
+        cdef unsigned int group_id
+        cdef float group_reward
+        cdef bint share_rewards = False
+
+        for agent_idx in range(self._agents.size()):
+            if rewards[agent_idx] > 0:
+                agent = <Agent*>self._agents[agent_idx]
+                group_id = agent.group
+                group_reward = rewards[agent_idx] * self._group_reward_pct[group_id]
+                if group_reward > 0:
+                    share_rewards = True
+                    rewards[agent_idx] -= group_reward
+                    self._group_rewards[group_id] += group_reward
+
+        if share_rewards:
+            for agent_idx in range(self._agents.size()):
+                agent = <Agent*>self._agents[agent_idx]
+                group_id = agent.group
+                group_reward = self._group_rewards[group_id] / self._group_sizes[group_id]
+                rewards[agent_idx] += group_reward
 
         return (obs, rewards, terms, truncs, infos)
