@@ -10,10 +10,6 @@ def main(cfg):
 
     output += header("Kinship:")
     np.random.seed(123)
-    cfg.game.kinship.enabled = True
-    cfg.game.kinship.observed = True
-    cfg.game.kinship.team_size = 3
-    cfg.game.kinship.team_reward = 1.0
     cfg.game.map_builder.agents = 20
     cfg.game.map_builder.objects.altar = 10
     cfg.game.num_agents = 20
@@ -69,8 +65,6 @@ def main(cfg):
 
     output += header("# No Kinship:")
 
-    cfg.game.kinship.enabled = False
-    cfg.game.kinship.observed = False
     env = mettagrid.mettagrid_env.MettaGridEnv(render_mode=None, **cfg)
     output += f"grid_features: {env.grid_features}\n"
 
