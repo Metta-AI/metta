@@ -12,8 +12,8 @@ game:
     room:
       _target_: mettagrid.config.room.cylinder.Cylinder
       border_width: 1
-      width: ${uniform:10,40,25}
-      height: ${uniform:10,40,25}
+      width: ${uniform:10,40,21}
+      height: ${uniform:10,40,21}
       cylinder_params:
         length: ${uniform:3,5,10}
         horizontal: true | false
