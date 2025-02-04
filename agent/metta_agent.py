@@ -63,9 +63,12 @@ class MettaAgent(nn.Module, MettaAgentInterface):
             component.set_input_source_size()
             component.initialize_layer()
 
-        self.obs_encoder = MettaNet(self.components, '_encoded_obs_')
-        self.atn_param = MettaNet(self.components, '_atn_param_')
-        self.critic = MettaNet(self.components, '_value_')
+        # change to call layer directly
+
+
+        # self.obs_encoder = MettaNet(self.components, '_encoded_obs_')
+        # self.atn_param = MettaNet(self.components, '_atn_param_')
+        # self.critic = MettaNet(self.components, '_value_')
 
     #def weight helper functions
 
@@ -96,6 +99,7 @@ class MettaLayer(nn.Module):
         if self.output_size is None:
             self.output_size = self.input_size
 
+# do this in set_input_source_size
     def initialize_layer(self):
         if self.layer_type == 'Linear':
             self.layer = getattr(nn, self.layer_type)(self.input_size, self.output_size)
@@ -115,57 +119,61 @@ class MettaLayer(nn.Module):
         # add resnet, etc.
 
     def forward(self, td: TensorDict):
-        # Check if the output is already computed to avoid redundant compute
         if self.name in td:
-            return td
+            return td[self.name]
 
-        if isinstance(self.input_source, omegaconf.listconfig.ListConfig):
-            self.input_source = list(self.input_source)
-            #concatenate the inputs
-            x = torch.cat([self.MettaAgent.components[src](td) for src in self.input_source], dim=-1)
+        if self.input_source == '_obs_':
+            x = td["obs"]
+        elif self.input_source == '_core_':
+            x = td["core_output"]
         else:
-            x = self.MettaAgent.components[self.input_source](td)
-        x = self.layer(x)
+# need to think about cat vs add vs subtract
+            if isinstance(self.input_source, list):
+                inputs = [self.MettaAgent.components[src].forward(td) for src in self.input_source]
+                x = torch.cat(inputs, dim=-1)  # or another appropriate merge function
+            else:
+                x = self.MettaAgent.components[self.input_source].forward(td)
 
+        x = self.layer(x)
         if self.nonlinearity:
             x = getattr(nn, self.nonlinearity)(x)
+
         td[self.name] = x
-        return td
+        return x
 
-class MettaNet(nn.Module):
-    def __init__(self, components, output_name):
-        super().__init__()
-        self.components = components  # list of components
-        self.output_name = output_name
+# class MettaNet(nn.Module):
+#     def __init__(self, components, output_name):
+#         super().__init__()
+#         self.components = components  
+#         self.output_name = output_name
         
-    def compute_component(self, name, td: dict):
-        if name in td:
-            return td[name]
-        if name == '_obs_':
-            return td["obs"]
-        if name in ('_core_'):
-            return td["core_output"]
-        comp = self.components[name]
-        # For multi-input case, ensure we have a list
-        input_sources = comp.input_source if isinstance(comp.input_source, list) else [comp.input_source]
-        inputs = []
-        for src in input_sources:
-            if src == '_obs_':
-                inputs.append(td["obs"])
-            elif src in ('_core_'):
-                inputs.append(td["core_output"])
-            else:
-                inputs.append(self.compute_component(src, td))
-        # Merge inputs accordingly (here we use concatenation)
-        x = inputs[0] if len(inputs) == 1 else torch.cat(inputs, dim=-1)
-        # Here we assume that comp.layer and comp.nonlinearity have been set up by initialize_layer()
-        out = comp.layer(x)
-        if comp.nonlinearity is not None:
-            out = getattr(nn, comp.nonlinearity)(out)
-        td[comp.name] = out
-        return out
+#     def compute_component(self, name, td: dict):
+#         if name in td:
+#             return td[name]
+#         if name == '_obs_':
+#             return td["obs"]
+#         if name in ('_core_'):
+#             return td["core_output"]
+#         comp = self.components[name]
 
-    def forward(self, td: dict):
-        # Recursively compute the output for self.output_name
-        output = self.compute_component(self.output_name, td)
-        return output
+#         input_sources = comp.input_source if isinstance(comp.input_source, list) else [comp.input_source]
+#         inputs = []
+#         for src in input_sources:
+#             if src == '_obs_':
+#                 inputs.append(td["obs"])
+#             elif src in ('_core_'):
+#                 inputs.append(td["core_output"])
+#             else:
+#                 inputs.append(self.compute_component(src, td))
+
+#         x = inputs[0] if len(inputs) == 1 else torch.cat(inputs, dim=-1)
+
+#         out = comp.layer(x)
+#         if comp.nonlinearity is not None:
+#             out = getattr(nn, comp.nonlinearity)(out)
+#         td[comp.name] = out
+#         return out
+
+#     def forward(self, td: dict):
+#         output = self.compute_component(self.output_name, td)
+#         return output

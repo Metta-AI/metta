@@ -61,8 +61,9 @@ class PufferAgentWrapper(nn.Module):
             "global_vars": torch.zeros(flat_obs.shape[0], dtype=torch.float32).to(flat_obs.device)
         }
         td = TensorDict({"obs": obs})
-        self._agent.obs_encoder(td)
-        return td["encoded_obs"], td
+        # self._agent.obs_encoder(td)
+        td["encoded_obs"] = self._agent.components["_encoded_obs_"](td)
+        return td["_encoded_obs_"], td
 
     def decode_actions(self, flat_hidden, lookup, concat=None, e3b=None):
         flat_obs = lookup
@@ -73,8 +74,10 @@ class PufferAgentWrapper(nn.Module):
         td = TensorDict({"obs": obs})
         td["core_output"] = flat_hidden
 
-        value = self._agent.critic(td)
-        action = self._agent.atn_param(td)
+        # value = self._agent.critic(td)
+        # action = self._agent.atn_param(td)
+        td["_value_"] = self._agent.components["_value_"](td)
+        td["_action_param_"] = self._agent.components["_action_param_"](td)
 
         b = None
         if e3b is not None:
@@ -84,7 +87,7 @@ class PufferAgentWrapper(nn.Module):
             e3b = 0.99*e3b - (u.mT @ u) / (1 + b)
             b = b.squeeze()
 
-        return action, value, e3b, b
+        return td["_atn_param_"], td["_value_"], e3b, b
 
 def make_policy(env: PufferEnv, cfg: OmegaConf):
     obs_space = gym.spaces.Dict({

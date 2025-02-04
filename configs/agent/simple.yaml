@@ -120,7 +120,7 @@ components:
 #     input: [actor_1, critic_1]
 #     output: 128
 
-  _atn_param_:
+  _action_param_:
     _target_: agent.metta_agent.MettaLayer
     input_source: actor_2
     output_size: 20
