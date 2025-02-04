@@ -106,10 +106,4 @@ game:
       generator: 15
       wall: 40
 
-  kinship:
-    enabled: false
-    observed: false
-    team_size: 1
-    team_reward: 0
-
 track_last_action: false
