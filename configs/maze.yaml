@@ -21,9 +21,9 @@ game:
     border_width: 2
     room:
       _target_: mettagrid.config.room.maze.Maze
-      width: ${uniform:10,40,21}
-      height: ${uniform:10,40,21}
-      start_pos: [1, 1]
+      width: ${uniform:10,40,20}
+      height: ${uniform:10,40,20}
+      start_pos: [1, 0]
       end_pos:
         - ${sub:${..width},2}
         - ${sub:${..height},2}
