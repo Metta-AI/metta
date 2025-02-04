@@ -12,7 +12,7 @@ cdef struct StatNames:
     string action
     string action_energy
     string first_use
-    
+
     map[TypeId, string] target
     map[TypeId, string] target_energy
     map[TypeId, string] target_first_use

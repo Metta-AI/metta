@@ -37,7 +37,7 @@ cdef class Use(MettaActionHandler):
         cdef MettaObject *target = <MettaObject*>self.env._grid.object_at(target_loc)
         if target == NULL:
             return False
- 
+
         if not target.usable(actor):
             return False
 
