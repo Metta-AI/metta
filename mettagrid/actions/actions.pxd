@@ -2,6 +2,7 @@
 from libc.stdio cimport printf
 from libcpp.string cimport string
 from libcpp.map cimport map
+from libcpp.vector cimport vector
 
 from mettagrid.grid_object cimport TypeId, GridObjectId
 from mettagrid.action cimport ActionHandler, ActionArg
@@ -15,6 +16,7 @@ cdef struct StatNames:
     map[TypeId, string] target
     map[TypeId, string] target_energy
     map[TypeId, string] target_first_use
+    vector[string] group
 
 cdef class MettaActionHandler(ActionHandler):
     cdef StatNames _stats
