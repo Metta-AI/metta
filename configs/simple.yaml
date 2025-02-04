@@ -3,11 +3,11 @@ defaults:
   - mettagrid
 
 game:
-  num_agents: 20
+  num_agents: 24
 
   map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom
-    num_rooms: ${div:${..num_agents},5}
+    num_rooms: ${div:${..num_agents},6}
     border_width: 6
 
     room:
@@ -16,7 +16,7 @@ game:
       height: ${uniform:10,100,25}
       border_width: 0
 
-      agents: 5
+      agents: 6
 
       objects:
         altar: ${uniform:1,5,1}
