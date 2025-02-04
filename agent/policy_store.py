@@ -48,11 +48,14 @@ class PolicyRecord:
         return self._local_path
 
 class PolicyStore:
-    def __init__(self, cfg: OmegaConf, wandb_run: wandb_run.Run):
+    def __init__(self, cfg: OmegaConf, wandb_run: wandb_run.Run, log: bool = True):
         self._cfg = cfg
         self._device = cfg.device
         self._wandb_run = wandb_run
         self._cached_prs = {}
+
+        if not log:
+            logger.setLevel(logging.WARNING)
 
     def policy(self, policy_selector_cfg: OmegaConf) -> PolicyRecord:
         if isinstance(policy_selector_cfg, str):
@@ -109,7 +112,7 @@ class PolicyStore:
                 prs += self._policy_records(uri, policy_selector_cfg.type, policy_selector_cfg.range, policy_selector_cfg.metric)
         else:
             prs = self._policy_records(policy_selector_cfg.uri, policy_selector_cfg.type, policy_selector_cfg.range, policy_selector_cfg.metric)
-                
+
         for k,v in policy_selector_cfg.filters.items():
             prs = [pr for pr in prs if pr.metadata.get(k, None) == v]
 

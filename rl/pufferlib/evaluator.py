@@ -14,8 +14,12 @@ class PufferEvaluator():
         cfg: OmegaConf,
         policy_record: PolicyRecord,
         baseline_records: List[PolicyRecord],
+        log: bool = True,
         **kwargs
     ) -> None:
+
+        if not log:
+            logger.setLevel(logging.WARNING)
 
         self._cfg = cfg
         self._device = cfg.device
@@ -24,9 +28,9 @@ class PufferEvaluator():
         self._min_episodes = cfg.evaluator.num_episodes
         self._max_time_s = cfg.evaluator.max_time_s
         # the one that plays all the matches
-        self._policy_pr = policy_record 
+        self._policy_pr = policy_record
         # list of baselines that distribute over the matches
-        self._baseline_prs = baseline_records 
+        self._baseline_prs = baseline_records
 
         self._policy_agent_pct = cfg.evaluator.policy_agents_pct
         if len(self._baseline_prs) == 0:
@@ -41,7 +45,7 @@ class PufferEvaluator():
 
         logger.info(f'Tournament: Policy Agents: {self._policy_agents_per_env}, ' +
               f'Baseline Agents: {self._baseline_agents_per_env}')
-        
+
         self._vecenv = make_vecenv(self._cfg, num_envs=self._num_envs)
 
         # each index is an agent, and we reshape it into a matrix of num_envs x agents_per_env
@@ -108,12 +112,12 @@ class PufferEvaluator():
             with torch.no_grad():
                 obs = torch.as_tensor(obs).to(device=self._device)
                 # observavtions that correspond to policy agent
-                my_obs = obs[self._policy_idxs]  
+                my_obs = obs[self._policy_idxs]
 
                 # Parallelize across opponents
                 policy = self._policy_pr.policy() # policy to evaluate
                 if hasattr(policy, 'lstm'):
-                    policy_actions, _, _, _, policy_rnn_state, _, _ = policy(my_obs, policy_rnn_state) 
+                    policy_actions, _, _, _, policy_rnn_state, _, _ = policy(my_obs, policy_rnn_state)
                 else:
                     policy_actions, _, _, _, _, _ = policy(my_obs)
 

@@ -25,10 +25,13 @@ class Eval:
         self.cfg = cfg
         self.metrics = metrics
         self.env_name = env_name
+
     def log_metrics(self, stats):
         """
         Logs the various metrics using the stats gathered.
         """
+        logger.setLevel(logging.INFO)
+
         _, mean_altar_use = get_test_results(MannWhitneyUTest(stats, self.cfg.evaluator.stat_categories['action.use.altar'], mode = 'mean', label = self.env_name)
             )
         logger.info("\n" + mean_altar_use)
@@ -63,16 +66,19 @@ class Eval:
             )
             logger.info("\n" + fr)
 
-    def run_eval(self):
+    def run_eval(self, log = True):
         """
         Main logic of the script: sets up environment, runs evaluation, logs metrics.
         """
         # 1) Initialize environment
 
+        if not log:
+            logger.setLevel(logging.WARNING)
+
         # 2) Start WandB context (if configured)
         with WandbContext(self.cfg) as wandb_run:
             # 3) Get policies
-            policy_store = PolicyStore(self.cfg, wandb_run)
+            policy_store = PolicyStore(self.cfg, wandb_run, log=log)
             policy = policy_store.policy(self.cfg.evaluator.policy)
 
             # Possibly load baseline policies
@@ -81,12 +87,14 @@ class Eval:
                 baselines = policy_store.policies(self.cfg.evaluator.baselines)
 
             # 4) Instantiate evaluator & evaluate
-            evaluator = hydra.utils.instantiate(self.cfg.evaluator, self.cfg, policy, baselines)
+            evaluator = hydra.utils.instantiate(self.cfg.evaluator, self.cfg, policy, baselines, log=log)
             stats = evaluator.evaluate()
             evaluator.close()
 
-            # 5) Log results
-            self.log_metrics(stats)
+            if log:
+                self.log_metrics(stats)
+
+            return stats
 
 
 @hydra.main(version_base=None, config_path="../configs", config_name="config")

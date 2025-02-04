@@ -9,8 +9,16 @@ evals:
     metrics_to_log:
       - time_to_targets
       - elo
+    npc_policy_uri: null
 
   - env: env/mettagrid/maze
     metrics_to_log:
       - time_to_targets
       - elo
+    npc_policy_uri: null
+
+  - env: env/mettagrid/simple
+    metrics_to_log:
+      - elo
+      - gleicko
+    npc_policy_uri: "wandb://run/v.daveey.species.sm.0"
