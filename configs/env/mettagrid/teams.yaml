@@ -1,0 +1,10 @@
+defaults:
+  - simple
+
+game:
+  map_builder:
+    border_width: 0
+    room:
+      agents:
+        team_1: 3
+        team_2: 3
