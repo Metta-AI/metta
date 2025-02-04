@@ -6,18 +6,6 @@ game:
   max_steps: 100
 
   groups:
-    prey:
-      id: 1
-      sprite: 12
-      props:
-        attack_damage: ${uniform:1, 10, 2}
-
-    predator:
-      id: 2
-      sprite: 6
-      props:
-        attack_damage: ${uniform:1, 100, 50}
-
     mazer:
       id: 0
       sprite: 10
