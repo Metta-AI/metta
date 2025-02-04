@@ -28,8 +28,8 @@ class Maze(Room):
 
     def __init__(self, width, height, start_pos, end_pos, branching, seed=None, border_width=0, border_object="wall"):
         super().__init__(border_width=border_width, border_object=border_object)
-        self._width = width     
-        self._height = height    
+        self._width = width
+        self._height = height
         self._start_pos = start_pos
         self._end_pos = end_pos
         self._branching = branching
