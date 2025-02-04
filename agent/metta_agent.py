@@ -14,7 +14,9 @@ from tensordict import TensorDict
 from torch import Tensor, nn
 import torch
 from agent.agent_interface import MettaAgentInterface
-from agent.lib.util import MettaComponent, MettaNet, _MettaHelperComponent
+# from agent.lib.util import MettaComponent, MettaNet, _MettaHelperComponent
+from agent.lib.observation_normalizer import ObservationNormalizer
+from agent.feature_encoder import FeatureListNormalizer
 # from agent.components import Composer, Layer
 import omegaconf
 
@@ -33,7 +35,19 @@ class MettaAgent(nn.Module, MettaAgentInterface):
         self.observation_space = obs_space
         self.action_space = action_space
         self.grid_features = grid_features
-        self.global_features = global_features
+        # self.global_features = global_features
+        self._obs_key = cfg.observations.obs_key
+
+        self.num_objects = obs_space[self._obs_key].shape[0]
+
+        # self.obs_cfg = cfg.obs
+        # cfg.obs.name = 'obs'
+        # cfg.obs.input_source = 'obs'
+        # cfg.obs.output_size = self._num_objects
+
+        # self.obs = MettaLayer(self, MettaAgent=self, cfg=cfg.obs)
+        # self.normalizer = FeatureListNormalizer(grid_features, obs_space[self._obs_key].shape[1:])
+        self.object_normalizer = ObservationNormalizer(self, grid_features)
 
         self.components = []
         component_cfgs = {cfg.components}
@@ -60,150 +74,80 @@ class MettaLayer(nn.Module):
         self.MettaAgent = MettaAgent
         self.name = cfg.name
         self.input_source = cfg.input_source
-        self.output_size = cfg.output
+        self.output_size = cfg.output_size if 'output_size' in cfg else None
         self.layer_type = 'Linear' if not cfg.layer_type else cfg.layer_type
         self.nonlinearity = 'ReLU' if not cfg.nonlinearity else cfg.nonlinearity
 
     def set_input_source_size(self):
-        self.input_size = self.MettaAgent.components[self.input_source].get_out_size()
+        if self.input_source == '_ obs_':
+            self.input_size = self.MettaAgent.num_objects
+        elif self.input_source == '_core_':
+            self.input_size = self.output_size
+        else:
+            self.input_size = self.MettaAgent.components[self.input_source].get_out_size()
+
+        if self.output_size is None:
+            self.output_size = self.input_size
 
     def initialize_layer(self):
-        self.layer = getattr(nn, self.layer_type)(self.input_size, self.output_size)
-
+        if self.layer_type == 'Linear':
+            self.layer = getattr(nn, self.layer_type)(self.input_size, self.output_size)
+        elif self.layer_type == 'Conv2d':
+            # input size is the number of objects
+            # output size is the number of channels
+            self.layer = getattr(nn, self.layer_type)(self.input_size, self.output_size, self.cfg.kernel_size, self.cfg.stride)
+        elif self.layer_type == 'Dropout':
+            self.layer = getattr(nn, self.layer_type)(self.cfg.dropout_prob)
+        elif self.layer_type == 'Identity':
+            self.nonlinearity = None
+            self.layer = nn.Identity()
 
     def forward(self, td: TensorDict):
+        # Check if the output is already computed to avoid redundant compute
+        if self.name in td:
+            return td
+
         x = self.MettaAgent.components[self.input_source](td)
         x = self.layer(x)
+
         if self.nonlinearity:
             x = getattr(nn, self.nonlinearity)(x)
         td[self.name] = x
         return td
 
-
-class SuperLayer(nn.Module):
-    def __init__(self, cfg):
+class MettaNet(nn.Module):
+    def __init__(self, components, output_name):
         super().__init__()
-        self.name = cfg.name
-        # deal with list of inputs
-        self.input_source = cfg.input_source
-        self.output_size = cfg.output
-    
-    def get_out_size(self):
-        return self.output_size
-
-class MettaLinear(SuperLayer):
-    def __init__(self, **cfg):
-        cfg = OmegaConf.create(cfg)
-        super().__init__(cfg)
-        self.layer = nn.Linear(cfg.input, cfg.output)
-
-
-
-
-
-
-
-
-
-
-class Layer(nn.Module):
-    def __init__(self, layer_cfg):
-        super().__init__()
-        self.layer_type = layer_cfg.layer_type if 'layer_type' in layer_cfg else 'Linear'
-        if self.layer_type in ['ReLU', 'Sigmoid', 'Tanh', 'LeakyReLU', 'Softmax', 'ELU', 'GELU', 'SELU', 'Softplus', 'Softsign']:
-            self.layer = getattr(nn, self.layer_type)()
-            self.layer.name = layer_cfg.name
-            return
-        if self.layer_type == 'Dropout':
-            self.layer = getattr(nn, self.layer_type)(layer_cfg.dropout_prob)
-            self.layer.name = layer_cfg.name
-            return
-        self.input = layer_cfg.input
-        self.output = layer_cfg.output
-        self.layer = getattr(nn, self.layer_type)(layer_cfg.input, layer_cfg.output)
-        self.name = layer_cfg.name
-        self.input_source = layer_cfg.input_source
-
-
-    def forward(self, x):
-        return self.layer(x)
-
-    # we don't need this if it can just be a property, right?
-    def get_out_size(self):
-        return self.output
-    
-
-class Composer(nn.Module):
-    def __init__(self, MettaAgent: MettaAgent, net_cfg):
-    # def __init__(self, layers: ListConfig, input, output, MettaAgent: MettaAgent):
-        super().__init__()
-        self.MettaAgent = MettaAgent
-        # self.input = self.get_size(net_cfg.input, "input")
-        # self.output = self.get_size(net_cfg.output, "output")
-        self.input_layers = list(net_cfg.layers)
-
-        # self.input_layers[0].input = self.input
-        # self.input_layers[-1].output = self.output
-        # check if the other layers have input and output keys.
-        # if not, set the input size to the output size of the previous layer and the output size to the same layer's input size
-        self.layers = []
-        for i in range(len(self.input_layers)):
-            if 'input' not in self.input_layers[i]:
-                self.input_layers[i].input = self.input_layers[i - 1].output
-                self.input_layers[i].input_source = self.input_layers[i - 1].name
-            else:
-                self.input_layers[i].input_source = self.input_layers[i].input
-                self.input_layers[i].input = self.get_size(self.input_layers[i].input, "input")
-
-            if 'output' not in self.input_layers[i]:
-                # default to output equals its input size
-                self.input_layers[i].output = self.input_layers[i].input
-
-            layer = Layer(self.input_layers[i])
-            self.layers.append(layer)
-
-        self.layers = nn.ModuleList(self.layers)
-        print(self.layers)
-
-    def get_size(self, value, type):
-        if isinstance(value, int):
-            return value
-        elif isinstance(value, str):
-            keys = value.split('.')
-            if len(keys) > 1:
-                # this should eventually walk the tree to get the layer within the net
-                attr = getattr(self.MettaAgent, keys[-1], None)
-                return attr.get_out_size()
-            else:
-                # find the self.layers index of the layer with the name value
-                for i in range(len(self.layers)):
-                    if self.layers[i].name == value:
-                        return self.layers[i].get_out_size()
-                raise ValueError(f"Layer with name {value} not found")
-
-
-            # below, we want the out size of another net as our input size
-            attr = getattr(self.MettaAgent, value, None)
-            return attr.get_out_size()
-        elif isinstance(value, omegaconf.listconfig.ListConfig):
-            size = 0
-            for layer in value:
-                size += self.get_size(layer, type)
-            return size
-        else:
-            raise ValueError(f"Invalid value type: {type(value)}")
+        self.components = components
+        self.output_name = output_name
         
-    # need to figure out how to route the correct input in
-    # maybe do this in MettaAgent?
+        for comp in self.components:
+            if comp.name == self.output_name:
+                current = comp
+                break
+        
+        chain = []
+        while True:
+            chain.append(current)
+            if current.input_source is None or current.input_source == '_obs_' or current.input_source == '_core_':
+                break
+            
+            higher_comp = None
+            for c in self.components:
+                if c.name == current.input_source:
+                    higher_comp = c
+                    break
+            
+            current = higher_comp
+        chain.reverse()
+        self._forward_path = nn.ModuleList(chain)
 
-
-    def forward(self, x):
-        for layer in self.layers:
-            x = layer(x)
-        return x
-    
-    def get_out_size(self):
-        return self.layers[-1].output_size
-    
-    def get_in_size(self):
-        return self.layers[0].input_size
+    def forward(self, td: TensorDict):
+        for comp in self._forward_path:
+            if comp.name == '_obs_':
+                td = comp(td["_obs_"])
+            elif comp.name == '_core_':
+                td = comp(td["_core_"])
+            else:
+                td = comp(td)
+        return td

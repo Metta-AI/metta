@@ -1,62 +1,18 @@
 _target_: agent.metta_agent.MettaAgent
 
-observation_encoder:
-  _target_: agent.simple_encoder.SimpleConvAgent
-  cnn_channels: 64
-  obs_key: grid_obs
-  normalize_features: true
-  auto_normalize: false
-  track_last_action: ${env.track_last_action}
-  kinship: ${env.game.kinship}
-  input_source: null
-  output_size: null
-
-  fc:
-    layers: 1
-    output_dim: 128
-
-decoder:
-  _target_: agent.decoder.Decoder
-
-core:
-  rnn_type: gru
-  rnn_num_layers: 1
-  rnn_size: 128
-
 policy_selector:
   uri: null
   type: top
   range: 0
   metric: final.score
   generation: null
-
-# critic:
-#   hidden_sizes: [] # Set to [] for no hidden layer
-
-critic:
-  _target_: agent.components.Composer
-
-  layers:
-    - name: critic_1
-      input: agent._decoder
-      output: 512
-      clip_scale: 0.1
-
-    - name: critic_2
-      layer_type: Dropout
-      dropout_prob: 0.2
-
-    - name: critic_3
-      output: 128
-
-    - name: critic_4
-      output: 1
-
-actor:
-  hidden_sizes: [] # Set to [] for no hidden layer
-
-# =============================== NEW CONFIG ===============================
-
+  
+observations:
+  obs_key: grid_obs
+  normalize_features: true
+  auto_normalize: false
+  track_last_action: ${env.track_last_action}
+  kinship: ${env.game.kinship}
 
 interface:
   input:
@@ -70,44 +26,67 @@ interface:
 
 components:
 
-  obs:
-    _target_: agent.components.MettaLayer
-    input_source: null
-    output_size: null
+  obs_helper: 
+    input_source: _obs_
     layer_type: Identity
-    nonlinearity: None
 
-  observation_encoder_1:
-    _target_: agent.simple_encoder.SimpleConvAgent
-    cnn_channels: 64
-    obs_key: grid_obs
-    normalize_features: true
-    auto_normalize: false
-    track_last_action: ${env.track_last_action}
-    kinship: ${env.game.kinship}
+  # obs_normalizer:
+    ###
 
-  _core_:
-    _target_: agent.nn.LSTM
-    input: observation_encoder_1
+  # feature_normalizer:
+    ###
+
+  obs_encoder_1:
+    _target_: agent.MettaLayer
+    # input_source: obs_normalizer
+    input_source: obs_helper
+    output_size: 64 # number of channels
+    layer_type: Conv2d
+    kernel_size: 5
+    stride: 3
+
+  obs_encoder_2:
+    _target_: agent.MettaLayer
+    input_source: obs_encoder_1
+    output_size: 64 # number of channels
+    layer_type: Conv2d
+    kernel_size: 3
+    stride: 1
+
+  obs_flattener:
+    _target_: agent.MettaLayer
+    input_source: obs_encoder_2
+    layer_type: Flatten
+
+  _encoded_obs_:
+    _target_: agent.MettaLayer
+    input_source: obs_flattener
+    output_size: 128
+
+  core_helper:
+    _target_: agent.MettaLayer
+    rnn_type: gru
+    rnn_num_layers: 1
+    rnn_size: 128
+    input_source: _core_
+    output_size: 128
     layer_type: Identity
-    num_layers: 1
-    output: 128
 
   critic_1:
-    _target_: agent.components.MettaLayer
-    input_source: _core_
+    _target_: agent.MettaLayer
+    input_source: core_helper
     output_size: 512
     layer_type: Linear
 
   critic_2:
-    _target_: agent.nn.Linear
-    input: critic_1
-    output: 128
+    _target_: agent.MettaLayer
+    input_source: critic_1
+    output_size: 128
 
   critic_3:
-    _target_: agent.nn.Linear
-    input: [actor_2, critic_2]
-    output: 128
+    _target_: agent.MettaLayer
+    input_source: [actor_2, critic_2]
+    output_size: 128
 
   # value:
   #   _target_: agent.nn.Linear
@@ -115,101 +94,26 @@ components:
   #   output: 1
 
   actor_1:
-    _target_: agent.nn.Linear
-    input: _core_
-    output: 512
+    _target_: agent.MettaLayer
+    input_source: core_helper
+    output_size: 512
 
   actor_2:
-    _target_: agent.nn.Linear
-    input: actor_1
-    output: 512
+    _target_: agent.MettaLayer
+    input_source: actor_1
+    output_size: 512
 
-  value:
-    _target_: agent.nn.Linear
-    input: actor_2
-    output: 1
+  _value_:
+    _target_: agent.MettaLayer
+    input_source: actor_2
+    output_size: 1
 
-## test this but comment out critic_3
+# # test this but comment out critic_3
 #   - name: actor_2
 #     input: [actor_1, critic_1]
 #     output: 128
 
-  - name: _atn_param_
-    output: 20
-
-
-production_components:
-  - name: obs_encoder
-    _target_: agent.simple_encoder.SimpleConvAgent
-    cnn_channels: 64
-    obs_key: grid_obs
-    normalize_features: true
-    auto_normalize: false
-    track_last_action: ${env.track_last_action}
-    kinship: ${env.game.kinship}
-
-  - name: custom_module_1
-    _target_: agent.components.CustomModule
-    input: _decoder
-    output: 512
-
-
-  # critic:
-  # _target_: agent.components.Composer
-  # # access any layer of another net
-  # # access combos of layers
-  # input: '_decoder' # mandatory
-  # output: 1 # mandatory
-  # layers:
-  #   - _target_: agent.components.Layer
-  #     name: critic_1
-  #     output: 512
-  #     clip_scale: 0.1
-
-  #   - _target_: agent.components.Layer
-  #     name: critic_2
-  #     type: nn.ReLU
-
-  #   - _target_: agent.components.Layer
-  #     name: critic_3
-
-
-actor_simple_example:
-
-  layers:
-    - name: actor_1
-      input: _decoder
-      output: 512
-
-    - name: atn_param
-
-# ===============================
-
-actor_complex_example:
-
-  layers:
-    - name: actor_1
-      input: _decoder
-      output: 512
-      clip_scale: 0.1
-      nonlinearity: Tanh
-
-    - name: actor_2
-      layer_type: Dropout
-      dropout_prob: 0.2
-    # this branches out!
-    - name: actor_3
-      input: actor_2
-      output: 128
-
-    - name: atn_type
-      input: [actor_3, _encoder_out] # skip connection
-      nonlinearity: None # need to specify output of this net :(
-
-    - name: actor_4
-      input: actor_2
-      output: 256
-
-    - name: atn_param
-      input: actor_4
-      nonlinearity: Softmax # we do our own nonlinearity if we choose
+  _atn_param_:
+    _target_: agent.MettaLayer
+    input_source: actor_2
+    output_size: 20
