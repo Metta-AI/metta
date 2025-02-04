@@ -5,19 +5,6 @@ defaults:
 game:
   num_agents: 20
 
-  groups:
-    prey:
-      id: 1
-      sprite: 12
-      props:
-        attack_damage: ${uniform:1, 10, 2}
-
-    predator:
-      id: 2
-      sprite: 6
-      props:
-        attack_damage: ${uniform:1, 100, 50}
-
   map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom
     num_rooms: ${div:${..num_agents},5}
