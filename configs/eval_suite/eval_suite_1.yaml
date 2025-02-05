@@ -1,8 +1,8 @@
 defaults:
   - ../evaluator/evaluator.yaml
 
-policy_uri: "wandb://run/v.daveey.species.sm.0"
-baseline_uri: ["wandb://run/v.daveey.species.sm.0", "wandb://run/v.daveey.species.sm.0"]
+policy_uri: "wandb://run/v.daveey.train.sm.teams.100"
+baseline_uri: ["wandb://run/v.daveey.train.sm.teams.75", "wandb://run/v.daveey.train.sm.teams.25"]
 
 evals:
   - env: env/mettagrid/cylinder
@@ -21,4 +21,9 @@ evals:
     metrics_to_log:
       - elo
       - gleicko
-    npc_policy_uri: "wandb://run/v.daveey.species.sm.0"
+    npc_policy_uri: "wandb://run/v.daveey.train.sm.teams.50"
+  - env: env/mettagrid/simple
+    metrics_to_log:
+      - elo
+      - gleicko
+    npc_policy_uri: "wandb://run/v.daveey.train.sm.teams.75"
