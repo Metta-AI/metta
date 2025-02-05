@@ -24,14 +24,11 @@ interface:
     value: critic_3
     action_param: actor_2
 
-#delete me
-obs_helper: 
-  _target_: agent.metta_agent.MettaLayer
-  input_source: _obs_
-  layer_type: Identity
-
 components:
+#necessary sources: _obs_, _core_
+#necessary outputs: _encoded_obs_, _action_param_, _value_
 
+# do we want _target_ agent.metta_agent.MettaLayer to be in the python instead?
   obs_helper: 
     _target_: agent.metta_agent.MettaLayer
     input_source: _obs_
@@ -45,7 +42,6 @@ components:
 
   obs_encoder_1:
     _target_: agent.metta_agent.MettaLayer
-    # input_source: obs_normalizer
     input_source: obs_helper
     output_size: 64 # number of channels
     layer_type: Conv2d
@@ -64,6 +60,11 @@ components:
     _target_: agent.metta_agent.MettaLayer
     input_source: obs_encoder_2
     layer_type: Flatten
+
+  obs_linear:
+    _target_: agent.metta_agent.MettaLayer
+    input_source: obs_flattener
+    output_size: 128
 
   _encoded_obs_:
     _target_: agent.metta_agent.MettaLayer
@@ -95,10 +96,10 @@ components:
     input_source: [actor_2, critic_2]
     output_size: 128
 
-  # value:
-  #   _target_: agent.nn.Linear
-  #   input: critic_3
-  #   output: 1
+  _value_:
+    _target_: agent.metta_agent.MettaLayer
+    input_source: critic_3
+    output_size: 1
 
   actor_1:
     _target_: agent.metta_agent.MettaLayer
@@ -109,11 +110,6 @@ components:
     _target_: agent.metta_agent.MettaLayer
     input_source: actor_1
     output_size: 512
-
-  _value_:
-    _target_: agent.metta_agent.MettaLayer
-    input_source: actor_2
-    output_size: 1
 
 # # test this but comment out critic_3
 #   - name: actor_2

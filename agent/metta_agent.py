@@ -37,9 +37,9 @@ class MettaAgent(nn.Module, MettaAgentInterface):
         self.action_space = action_space
         self.grid_features = grid_features
         # self.global_features = global_features
-        self._obs_key = cfg.observations.obs_key
+        self.obs_key = cfg.observations.obs_key
 
-        self.num_objects = obs_space[self._obs_key].shape[0]
+        self.num_objects = obs_space[self.obs_key].shape[0]
 
         # self.obs_cfg = cfg.obs
         # cfg.obs.name = 'obs'
@@ -58,17 +58,9 @@ class MettaAgent(nn.Module, MettaAgentInterface):
             component = hydra.utils.instantiate(component_cfgs[component_cfg], MettaAgent=self)
             self.components[component_cfg] = component
 
-        for component in self.components.values():
-            # check if custom components and Obs and Recurrent need these.
-            component.set_input_source_size()
-            component.initialize_layer()
-
-        # change to call layer directly
-
-
-        # self.obs_encoder = MettaNet(self.components, '_encoded_obs_')
-        # self.atn_param = MettaNet(self.components, '_atn_param_')
-        # self.critic = MettaNet(self.components, '_value_')
+        self.components['_encoded_obs_'].set_input_size_and_initialize_layer()
+        self.components['_action_param_'].set_input_size_and_initialize_layer()
+        self.components['_value_'].set_input_size_and_initialize_layer()
 
     #def weight helper functions
 
@@ -84,7 +76,7 @@ class MettaLayer(nn.Module):
         self.layer_type = cfg.get('layer_type', 'Linear')
         self.nonlinearity = cfg.get('nonlinearity', 'ReLU')
 
-    def set_input_source_size(self):
+    def set_input_size_and_initialize_layer(self):
         if self.input_source == '_obs_':
             self.input_size = self.MettaAgent.num_objects
         elif self.input_source == '_core_':
@@ -92,28 +84,42 @@ class MettaLayer(nn.Module):
         else:
             if isinstance(self.input_source, omegaconf.listconfig.ListConfig):
                 self.input_source = list(self.input_source)
+                for src in self.input_source:
+                    self.MettaAgent.components[src].set_input_size_and_initialize_layer()
+
                 self.input_size = sum(self.MettaAgent.components[src].output_size for src in self.input_source)
             else:
+                self.MettaAgent.components[self.input_source].set_input_size_and_initialize_layer()
                 self.input_size = self.MettaAgent.components[self.input_source].output_size
 
         if self.output_size is None:
             self.output_size = self.input_size
 
-# do this in set_input_source_size
-    def initialize_layer(self):
+        # --- initialize your layer ---
+        # can this be simpler?
         if self.layer_type == 'Linear':
             self.layer = getattr(nn, self.layer_type)(self.input_size, self.output_size)
+            if self.nonlinearity:
+                self.layer = nn.Sequential(self.layer, getattr(nn, self.nonlinearity)())
         elif self.layer_type == 'Conv2d':
             # input size is the number of objects
             # output size is the number of channels
             self.layer = getattr(nn, self.layer_type)(self.input_size, self.output_size, self.cfg.kernel_size, self.cfg.stride)
+            if self.nonlinearity:
+                self.layer = nn.Sequential(self.layer, getattr(nn, self.nonlinearity)())
         elif self.layer_type == 'Dropout':
             self.layer = getattr(nn, self.layer_type)(self.cfg.dropout_prob)
+            #delete nonlinearity here
+            self.nonlinearity = None
+        elif self.layer_type == 'BatchNorm2d':
+            self.layer = getattr(nn, self.layer_type)(self.input_size)
+            self.nonlinearity = None
         elif self.layer_type == 'Identity':
             self.nonlinearity = None
             self.layer = nn.Identity()
         elif self.layer_type == 'Flatten':
             self.layer = nn.Flatten()
+            self.nonlinearity = None
         else:
             raise ValueError(f"Layer type {self.layer_type} not supported")
         # add resnet, etc.
@@ -123,23 +129,81 @@ class MettaLayer(nn.Module):
             return td[self.name]
 
         if self.input_source == '_obs_':
-            x = td["obs"]
+            td[self.name] = td["obs"][self.MettaAgent.obs_key]
         elif self.input_source == '_core_':
-            x = td["core_output"]
+            td[self.name] = td["core_output"]
         else:
 # need to think about cat vs add vs subtract
             if isinstance(self.input_source, list):
-                inputs = [self.MettaAgent.components[src].forward(td) for src in self.input_source]
-                x = torch.cat(inputs, dim=-1)  # or another appropriate merge function
+                for src in self.input_source:
+                   self.MettaAgent.components[src].forward(td) 
             else:
-                x = self.MettaAgent.components[self.input_source].forward(td)
+                self.MettaAgent.components[self.input_source].forward(td)
 
+            # delete this after testing
+            print(f"layer name: {self.name}")
+            
+            if not isinstance(self.input_source, list):
+                print(f"input td[self.input_source].shape: {td[self.input_source].shape}") 
+            else:
+                for src in self.input_source:
+                    print(f"input td[{src}].shape: {td[src].shape}")
+ 
+
+            if isinstance(self.input_source, list):
+                inputs = [td[src] for src in self.input_source]
+                x = torch.cat(inputs, dim=-1)
+                td[self.name] = self.layer(x)
+            else:
+                td[self.name] = self.layer(td[self.input_source])
+
+        return td
+
+class MettaLayerBase(nn.Module):
+    def __init__(self, MettaAgent, **cfg):
+        super().__init__()
+        self.MettaAgent = MettaAgent
+        self.cfg = cfg
+        #required attributes
+        self.name = None
+        self.input_source = None
+        self.output_size = None
+
+    def set_input_size_and_initialize_layer(self):
+        '''
+        Recursively set the input size for the component above your layer.
+        This is necessary unless you are a top layer, in which case, you can skip this.
+        self.MettaAgent.components[self.input_source].set_input_source_size()
+        
+        Set your input size to be the output size of the layer above you or otherwise ensure that this is the case.
+        self.input_size = self.MettaAgent.components[self.input_source].output_size
+
+        With your own input and output sizes set, initialize your layer, if necessary.
+        self.layer = ...
+
+        '''
+        raise NotImplementedError(f"The method set_input_source_size() is not implemented yet for object {self.__class__.__name__}.")
+
+    def forward(self, td: TensorDict):
+        '''
+        First, ensure we're not recomputing in case your layer is already computed.
+        if self.name in td:
+            return td[self.name]
+
+        First, recursively compute the input to the layer above this layer.
+        Skip this if you are a top layer.
+        x = self.MettaAgent.components[self.input_source].forward(td)
+
+        Compute this layer's output.
         x = self.layer(x)
-        if self.nonlinearity:
-            x = getattr(nn, self.nonlinearity)(x)
 
+        Write your layer's name on your output so the next layer can find it.
         td[self.name] = x
-        return x
+
+        Pass the full td back.
+        return td
+        '''
+        raise NotImplementedError(f"The method forward() is not implemented yet for object {self.__class__.__name__}.")
 
 # class MettaNet(nn.Module):
 #     def __init__(self, components, output_name):

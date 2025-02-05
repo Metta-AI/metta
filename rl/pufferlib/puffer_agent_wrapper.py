@@ -62,22 +62,14 @@ class PufferAgentWrapper(nn.Module):
         }
         td = TensorDict({"obs": obs})
         # self._agent.obs_encoder(td)
-        td["encoded_obs"] = self._agent.components["_encoded_obs_"](td)
+        self._agent.components["_encoded_obs_"](td)
         return td["_encoded_obs_"], td
 
     def decode_actions(self, flat_hidden, lookup, concat=None, e3b=None):
-        flat_obs = lookup
-        obs = {
-            "grid_obs": flat_obs.float(),   
-            "global_vars": torch.zeros(flat_obs.shape[0], dtype=torch.float32).to(flat_obs.device)
-        }
-        td = TensorDict({"obs": obs})
+        td = lookup
         td["core_output"] = flat_hidden
-
-        # value = self._agent.critic(td)
-        # action = self._agent.atn_param(td)
-        td["_value_"] = self._agent.components["_value_"](td)
-        td["_action_param_"] = self._agent.components["_action_param_"](td)
+        self._agent.components["_value_"](td)
+        self._agent.components["_action_param_"](td)
 
         b = None
         if e3b is not None:
@@ -86,8 +78,8 @@ class PufferAgentWrapper(nn.Module):
             b = u @ phi.unsqueeze(2)
             e3b = 0.99*e3b - (u.mT @ u) / (1 + b)
             b = b.squeeze()
-
-        return td["_atn_param_"], td["_value_"], e3b, b
+        
+        return td["_action_param_"], td["_value_"].squeeze(), e3b, b
 
 def make_policy(env: PufferEnv, cfg: OmegaConf):
     obs_space = gym.spaces.Dict({
@@ -104,7 +96,9 @@ def make_policy(env: PufferEnv, cfg: OmegaConf):
         env.grid_features,
         env.global_features,
         _recursive_=False)
+    agent.to(cfg.device)
     puffer_agent = PufferAgentWrapper(agent, env)
+    puffer_agent.to(cfg.device)
 
     if cfg.agent.components.core_helper.rnn_num_layers > 0:
         puffer_agent = Recurrent(
