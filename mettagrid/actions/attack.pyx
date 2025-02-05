@@ -36,8 +36,17 @@ cdef class Attack(MettaActionHandler):
             actor.location,
             <Orientation>actor.orientation,
             distance, offset)
+        
+        return self._handle_target(actor_id, actor, target_loc)
+
+    cdef bint _handle_target(
+        self,
+        unsigned int actor_id,
+        Agent * actor,
+        GridLocation target_loc):
 
         target_loc.layer = GridLayer.Agent_Layer
+        # Because we're looking on the agent layer, we can cast to Agent.
         cdef Agent * agent_target = <Agent *>self.env._grid.object_at(target_loc)
         cdef char stat_name[256]
 

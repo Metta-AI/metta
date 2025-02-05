@@ -26,6 +26,8 @@ cdef class Swap(MettaActionHandler):
             actor.location,
         <Orientation>actor.orientation
         )
+        # xcxc we should ensure this is an agent. We're not just looking on the agent layer.
+        # Maybe the assertion that the target is frozen is enough?
         cdef Agent *target = <Agent*>self.env._grid.object_at(target_loc)
         if target == NULL:
             return False
