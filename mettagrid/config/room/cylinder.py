@@ -30,7 +30,7 @@ class Cylinder(Room):
         self._cylinder_positions = set()
 
     def _build(self) -> np.ndarray:
-        if self._cylinder_params['horizontal']:
+        if self._cylinder_params.horizontal:
             self.place_horizontal_cylinder()
         else:
             self.place_vertical_cylinder()
