@@ -3,7 +3,7 @@
 seed: null
 
 defaults:
-  - override /env/mettagrid@env: simple
+  - override /env/mettagrid@env: school
   - override /agent: simple.medium
   - override /sweep: fast
 
