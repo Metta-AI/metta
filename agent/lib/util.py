@@ -1,4 +1,3 @@
-
 import hashlib
 from torch import nn
 import numpy as np
@@ -23,8 +22,6 @@ def make_nn_stack(
 
         if layer_norm and i < len(sizes) - 1:
             layers.append(nn.LayerNorm(sizes[i]))
-
-    layers.append(nonlinearity)
 
     if use_skip:
         return SkipConnectionStack(layers)
@@ -74,3 +71,13 @@ def embed_string(s, embedding_dim=128):
 
     return embedding
 
+def name_to_activation(activation: str):
+    match activation:
+        case 'relu':
+            return nn.ReLU()
+        case 'leaky_relu':
+            return nn.LeakyReLU()
+        case 'tanh':
+            return nn.Tanh()
+        case _:
+            raise ValueError(f"Unknown activation: {activation}")

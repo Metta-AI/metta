@@ -1,4 +1,4 @@
-FROM daveey/metta-base:latest
+FROM mettaai/metta-base:latest
 
 RUN pip install boto3 chex hydra-core matplotlib pettingzoo
 RUN pip install rich scipy tabulate torchrl
@@ -15,8 +15,30 @@ RUN git clone --recursive https://github.com/Metta-AI/metta.git metta
 WORKDIR /workspace/metta
 
 RUN pip install -r requirements.txt
-RUN ./devops/setup_build.sh
 
-# Download the latest baseline model
-#RUN python -m sample_factory.huggingface.load_from_hub -r metta-ai/baseline -d /workspace/metta-baseline
-#RUN ln -s /workspace/metta-baseline/baseline/checkpoint_p0/$(ls /workspace/metta-baseline/baseline/checkpoint_p0 | tail -n1) /workspace/metta-baseline/latest
+WORKDIR /workspace/metta/deps/
+RUN git clone --depth=1 https://github.com/Metta-AI/fast_gae.git
+RUN git clone --depth=1 --branch=metta https://github.com/Metta-AI/pufferlib.git
+RUN git clone --depth=1 https://github.com/Metta-AI/mettagrid.git
+RUN git clone --depth=1 https://github.com/kywch/carbs.git
+RUN git clone --depth=1 https://github.com/Metta-AI/wandb_carbs.git
+
+WORKDIR /workspace/metta/deps/fast_gae
+RUN python setup.py build_ext --inplace
+RUN pip install -e .
+
+WORKDIR /workspace/metta/deps/pufferlib
+RUN pip install -e .
+
+WORKDIR /workspace/metta/deps/mettagrid
+RUN python setup.py build_ext --inplace
+RUN pip install -e .
+
+WORKDIR /workspace/metta/deps/carbs
+RUN python setup.py build_ext --inplace
+RUN pip install -e .
+
+WORKDIR /workspace/metta/deps/wandb_carbs
+RUN pip install -e .
+
+WORKDIR /workspace/metta/

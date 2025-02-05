@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import subprocess
+import os
 import json
 import time
 import shlex
@@ -98,11 +99,13 @@ def show_command(args):
           f" CPU:{get_str(instance, 'cpu_util')}%"
           f" GPU:{get_str(instance, 'gpu_util')}%"
           f" [{get_str(instance, 'status_msg')}]"
+          f" root@{instance['ssh_host']}:{instance['ssh_port']}"
         )
 
 def wait_for_ready(label):
     """ Wait for a machine with the given label to become ready. """
     instance = label_to_instance(label)
+    # Wait for the instance to become ready.
     while instance['actual_status'] != 'running':
         print(
           f"Waiting for instance {label} to become ready... "
@@ -110,6 +113,20 @@ def wait_for_ready(label):
         )
         time.sleep(5)
         instance = label_to_instance(label)
+
+def wait_for_ssh(label):
+    # Wait for the SSH key on the server to be ready.
+    instance = label_to_instance(label)
+    ssh_host = instance['ssh_host']
+    ssh_port = instance['ssh_port']
+    cmd = f"ssh -o StrictHostKeyChecking=no -p {ssh_port} root@{ssh_host} 'echo 1'"
+    while True:
+      try:
+        subprocess.run(cmd, shell=True, check=True)
+        break
+      except Exception as e:
+        print(f"Waiting for instance {label} to become ready... {e}")
+        time.sleep(5)
 
 def ssh_command(args):
     """ SSH into a machine with the given label. """
@@ -152,16 +169,31 @@ def setup_command(args):
     instance = label_to_instance(args.label)
     ssh_host = instance['ssh_host']
     ssh_port = instance['ssh_port']
+
+    # Add local SSH key.
+    ssh_keys = [
+        "id_rsa.pub",
+        "id_ed25519.pub",
+    ]
+    for key in ssh_keys:
+        key_path = os.path.expanduser(f"~/.ssh/{key}")
+        if os.path.exists(key_path):
+          print(f"Adding ssh key {key_path}")
+          ssh_key = open(key_path).read()
+          cmd_attach = f"vastai attach ssh {instance['id']} '" + ssh_key + "'"
+          subprocess.run(cmd_attach, shell=True, check=True)
+
+    wait_for_ssh(args.label)
+
     cmd_setup = [
       "cd /workspace/metta",
       "git config --global --add safe.directory /workspace/metta"
     ]
-    if args.clean or args.branch:
+    if args.clean or args.branch != 'main':
       cmd_setup.append("git reset --hard")
       cmd_setup.append("git clean -fdx")
-      if args.branch:
-        cmd_setup.append(f"git fetch origin {args.branch}")
-        cmd_setup.append(f"git checkout {args.branch}")
+      cmd_setup.append(f"git fetch origin {args.branch}")
+      cmd_setup.append(f"git checkout {args.branch}")
       cmd_setup.append("git pull")
     cmd_setup.extend([
       "pip install -r requirements.txt",

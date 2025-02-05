@@ -14,6 +14,8 @@ from tensordict import TensorDict
 from torch import Tensor, nn
 import torch
 from agent.agent_interface import MettaAgentInterface
+from agent.lib.util import make_nn_stack
+
 class MettaAgent(nn.Module, MettaAgentInterface):
     def __init__(
         self,
@@ -31,13 +33,18 @@ class MettaAgent(nn.Module, MettaAgentInterface):
 
         self._encoder = hydra.utils.instantiate(
             cfg.observation_encoder,
-            obs_space, grid_features, global_features, cfg.fc)
+            obs_space, grid_features, global_features)
 
         self._decoder = hydra.utils.instantiate(
             cfg.decoder,
             cfg.core.rnn_size)
 
-        self._critic_linear = nn.Linear(self.decoder_out_size(), 1)
+        self._critic_linear = make_nn_stack(
+            self.decoder_out_size(),
+            1,
+            list(cfg.critic.hidden_sizes),
+            nonlinearity=nn.ReLU()
+        )
 
         self.apply(self.initialize_weights)
 

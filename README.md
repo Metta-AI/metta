@@ -88,7 +88,6 @@ Create a Conda environment (or use venv)
 ```
 conda create -n metta python=3.11.7
 conda activate metta
-pip install -r requirements.txt
 ./devops/setup_build.sh
 ```
 
@@ -97,29 +96,16 @@ pip install -r requirements.txt
 ### Run the training
 
 ```
-python -m tools.run cmd=train experiment=my_experiment hardware=macbook
+python -m tools.train run=my_experiment hardware=macbook
 ```
 
-
-### (Optional) Setup HuggingFace Access
-
-1. Create a HuggingFace account
-2. Create a token in your account settings
-3. Run `huggingface-cli login` and paste the token
-
-# Running a Simulation
-
-### Download a baseline model
-To download the model files, install git-lfs first, then run the following commands:
+### Run the evaluation
 
 ```
-git lfs install
-./devops/load_model.sh baseline.v0.5.4
+python -m tools.eval run=my_experiment hardware=macbook
 ```
 
-### Render a video of the evaluation
-
+### Run the interactive simulation
 ```
-python -m tools.run cmd=evaluate experiment=baseline.v0.5.4
+python -m tools.play run=my_experiment hardware=macbook
 ```
-

@@ -9,4 +9,7 @@ initial_policy:
 
 checkpoint_dir: ${run_dir}/checkpoints
 
+glicko_scores_path: ${run_dir}/eval/glicko2
+
+evaluate: true
 evaluate_interval: 10

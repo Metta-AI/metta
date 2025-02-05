@@ -11,9 +11,6 @@
 			"path": "deps/mettagrid"
 		},
 		{
-			"path": "deps/puffergrid"
-		},
-		{
 			"path": "deps/pufferlib"
 		},
 		{
@@ -128,6 +125,4 @@
 			"deps": true,
 		},
 	},
-
-
 }

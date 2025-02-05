@@ -41,6 +41,7 @@ class PufferTrainer:
         self.recent_stats = defaultdict(list)
         self.wandb_run = wandb_run
         self.policy_store = policy_store
+        self.use_e3b = self.trainer_cfg.use_e3b
 
         self._make_vecenv()
 
@@ -60,7 +61,7 @@ class PufferTrainer:
                 "Action names do not match between policy and environment: "
                 f"{policy_record.metadata['action_names']} != {self.vecenv.driver_env.action_names()}")
 
-        self.initial_pr = policy_record
+        self._initial_pr = policy_record
         self.last_pr = policy_record
         self.policy = policy_record.policy()
         self.policy_record = policy_record
@@ -88,16 +89,24 @@ class PufferTrainer:
         self.train_start = time.time()
         logger.info("Starting training")
 
+        # it doesn't make sense to evaluate more often than checkpointing since we need a saved policy to evaluate
+        if self.trainer_cfg.evaluate_interval < self.trainer_cfg.checkpoint_interval:
+            self.trainer_cfg.evaluate_interval = self.trainer_cfg.checkpoint_interval
+
+        print(f"wandb checkpoint interval: {self.trainer_cfg.wandb_checkpoint_interval}")
+        print(f"trainercheckpoint interval: {self.trainer_cfg.checkpoint_interval}")
+        print(f"evaluate interval: {self.trainer_cfg.evaluate_interval}")
+
         while self.agent_step < self.trainer_cfg.total_timesteps:
             self._evaluate()
             self._train()
             self._process_stats()
             if self.epoch % self.trainer_cfg.checkpoint_interval == 0:
                 self._checkpoint_trainer()
+            if self.epoch % self.trainer_cfg.evaluate_interval == 0 and self.trainer_cfg.evaluate:
+                self._evaluate_policy()
             if self.epoch % self.trainer_cfg.wandb_checkpoint_interval == 0:
                 self._save_policy_to_wandb()
-            if self.epoch % self.trainer_cfg.evaluate_interval == 0:
-                self._evaluate_policy()
 
             self._on_train_step()
 
@@ -107,10 +116,11 @@ class PufferTrainer:
         logger.info(f"Training complete. Total time: {self.train_time:.2f} seconds")
 
     def _evaluate_policy(self):
-        if self.cfg.evaluator.baselines.uri is None:
-            return
+        if not self.cfg.evaluator.baselines.uri:
+            self.cfg.evaluator.baselines.uri = f"file://{self.cfg.trainer.checkpoint_dir}"
 
         baseline_records = self.policy_store.policies(self.cfg.evaluator.baselines)
+
         evaluator = hydra.utils.instantiate(self.cfg.evaluator, self.cfg, self.last_pr, baseline_records)
         stats = evaluator.evaluate()
         evaluator.close()
@@ -121,13 +131,16 @@ class PufferTrainer:
 
         results, formatted_results = get_test_results(
             Glicko2Test(stats, self.cfg.evaluator.stat_categories['altar']),
-            self.cfg.evaluator.baselines.glicko_scores_path)
+            scores_path = self.cfg.trainer.glicko_scores_path)
 
-        self.wandb_run.log({
-            "eval/glicko2": results.get(self.last_pr.name, 0)["rating"],
-            "train/agent_step": self.agent_step,
-            "train/epoch": self.epoch,
-        })
+        rating = results.get(self.last_pr.name, {}).get("rating", None)
+
+        if rating is not None:
+            self.wandb_run.log({
+                "eval/glicko2": rating,
+                "train/agent_step": self.agent_step,
+                "train/epoch": self.epoch,
+            })
 
         logger.info(f"Glicko2 scores: \n{formatted_results}")
 
@@ -142,6 +155,7 @@ class PufferTrainer:
             policy = self.policy
             infos = defaultdict(list)
             lstm_h, lstm_c = experience.lstm_h, experience.lstm_c
+            e3b_inv = experience.e3b_inv
 
         while not experience.full:
             with profile.env:
@@ -159,14 +173,20 @@ class PufferTrainer:
             with profile.eval_forward, torch.no_grad():
                 # TODO: In place-update should be faster. Leaking 7% speed max
                 # Also should be using a cuda tensor to index
+                e3b = e3b_inv[env_id] if self.use_e3b else None
+
                 if lstm_h is not None:
                     h = lstm_h[:, env_id]
                     c = lstm_c[:, env_id]
-                    actions, logprob, _, value, (h, c) = policy(o_device, (h, c))
+                    actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward = policy(o_device, (h, c), e3b=e3b)
                     lstm_h[:, env_id] = h
                     lstm_c[:, env_id] = c
                 else:
-                    actions, logprob, _, value = policy(o_device)
+                    actions, logprob, _, value, next_e3b, intrinsic_reward = policy(o_device, e3b=e3b)
+
+                if self.use_e3b:
+                    e3b_inv[env_id] = next_e3b
+                    r += intrinsic_reward.cpu()
 
                 if self.device == 'cuda':
                     torch.cuda.synchronize()
@@ -232,11 +252,11 @@ class PufferTrainer:
 
                 with profile.train_forward:
                     if experience.lstm_h is not None:
-                        _, newlogprob, entropy, newvalue, lstm_state = self.policy(
+                        _, newlogprob, entropy, newvalue, lstm_state, _, _ = self.policy(
                             obs, state=lstm_state, action=atn)
                         lstm_state = (lstm_state[0].detach(), lstm_state[1].detach())
                     else:
-                        _, newlogprob, entropy, newvalue = self.policy(
+                        _, newlogprob, entropy, newvalue, _, _ = self.policy(
                             obs.reshape(-1, *self.vecenv.single_observation_space.shape),
                             action=atn,
                         )
@@ -334,8 +354,8 @@ class PufferTrainer:
         name = self.policy_store.make_model_name(self.epoch)
 
         generation = 0
-        if self.initial_pr:
-            generation = self.initial_pr.metadata.get("generation", 0) + 1
+        if self._initial_pr:
+            generation = self._initial_pr.metadata.get("generation", 0) + 1
 
         self.last_pr = self.policy_store.save(
             name,
@@ -347,9 +367,11 @@ class PufferTrainer:
                 "run": self.cfg.run,
                 "action_names": self.vecenv.driver_env.action_names(),
                 "generation": generation,
-                "initial_uri": self.initial_pr.uri
+                "initial_uri": self._initial_pr.uri
             }
         )
+        # this is hacky, but otherwise the initial_pr points
+        # at the same policy as the last_pr
         return self.last_pr
 
     def _save_policy_to_wandb(self):
@@ -390,6 +412,12 @@ class PufferTrainer:
     def close(self):
         self.vecenv.close()
 
+    def initial_pr_uri(self):
+        return self._initial_pr.uri
+
+    def last_pr_uri(self):
+        return self.last_pr.uri
+
     def _make_experience_buffer(self):
         obs_shape = self.vecenv.single_observation_space.shape
         obs_dtype = self.vecenv.single_observation_space.dtype
@@ -399,7 +427,7 @@ class PufferTrainer:
 
         lstm = self.policy.lstm if hasattr(self.policy, 'lstm') else None
         self.experience = Experience(self.trainer_cfg.batch_size, self.trainer_cfg.bptt_horizon,
-            self.trainer_cfg.minibatch_size, obs_shape, obs_dtype, atn_shape, atn_dtype,
+            self.trainer_cfg.minibatch_size, self.policy.hidden_size, obs_shape, obs_dtype, atn_shape, atn_dtype,
             self.trainer_cfg.cpu_offload, self.device, lstm, total_agents)
 
     def _make_losses(self):
@@ -426,6 +454,8 @@ class PufferTrainer:
             num_workers=self.trainer_cfg.num_workers,
             zero_copy=self.trainer_cfg.zero_copy)
 
+        if self.cfg.seed is None:
+            self.cfg.seed = np.random.randint(0, 1000000)
         self.vecenv.async_reset(self.cfg.seed)
 
 
