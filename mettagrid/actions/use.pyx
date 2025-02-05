@@ -14,6 +14,11 @@ cdef class Use(MettaActionHandler):
     def __init__(self, cfg: OmegaConf):
         MettaActionHandler.__init__(self, cfg, "use")
 
+        self._stats.first_use = b"action.use.first_use"
+
+        for t, n in enumerate(ObjectTypeNames):
+            self._stats.target_first_use[t] = self._stats.first_use + "." + n
+
     cdef unsigned char max_arg(self):
         return 0
 
@@ -47,7 +52,7 @@ cdef class Use(MettaActionHandler):
         strcat(stat_name, ".")
         strcat(stat_name, self._stats.target[target._type_id].c_str())
         self.env._stats.agent_incr(actor_id, stat_name)
-        self.env._stats.agent_add(actor_id, self._stats.target_energy[target._type_id].c_str(), usable.use_cost + self.action_cost)
+        self.env._stats.agent_set_once(actor_id, self._stats.target_first_use[target._type_id].c_str(), self.env._current_timestep)
         strcpy(stat_name, actor.group_name.c_str())
         strcat(stat_name, ".")
         strcat(stat_name, self._stats.target_energy[target._type_id].c_str())

@@ -13,7 +13,7 @@ SYMBOLS = {
     " ": "empty",
 }
 
-class AsciiRoom(Room):
+class Ascii(Room):
     def __init__(self, uri: str, border_width: int = 0, border_object: str = "wall"):
         super().__init__(border_width=border_width, border_object=border_object)
         with open(uri, "r", encoding="utf-8") as f:
