@@ -24,6 +24,12 @@ cdef class StatsTracker:
         cdef string key = string(key_str)
         self._agent_stats[agent_idx][key] += value
 
+    cdef void agent_set_once(
+        self, unsigned int agent_idx, const char * key_str, int value):
+        cdef string key = string(key_str)
+        if self._agent_stats[agent_idx].find(key) == self._agent_stats[agent_idx].end():
+            self._agent_stats[agent_idx][key] = value
+
     cpdef to_pydict(self):
         agent_stat_names = set()
         new_agent_stats = []

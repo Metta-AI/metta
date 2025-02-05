@@ -15,6 +15,10 @@ cdef class StatsTracker:
 
     cdef void agent_add(
         self, unsigned int agent_idx, const char * key_str, int value)
+
+    cdef void agent_set_once(
+        self, unsigned int agent_idx, const char * key_str, int value)
+
     cdef void game_add(self, const char * key_str, int value)
 
     cpdef to_pydict(self)
