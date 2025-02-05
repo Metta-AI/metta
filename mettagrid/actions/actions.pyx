@@ -2,9 +2,7 @@
 from libc.stdio cimport printf
 from libcpp.string cimport string
 from libc.string cimport strcat, strcpy
-
 from omegaconf import OmegaConf
-
 from mettagrid.grid_object cimport GridObjectId
 from mettagrid.action cimport ActionHandler, ActionArg
 from mettagrid.objects cimport Agent, ObjectTypeNames
@@ -33,6 +31,7 @@ cdef class MettaActionHandler(ActionHandler):
 
         cdef Agent *actor = <Agent*>self.env._grid.object(actor_object_id)
         cdef char stat_name[256]
+
         if actor.shield:
             actor.update_energy(-actor.shield_upkeep, &self.env._rewards[actor_id])
             self.env._stats.agent_add(actor_id, "shield_upkeep", actor.shield_upkeep)

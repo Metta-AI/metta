@@ -1,12 +1,10 @@
 from typing import Set, Tuple
-
 import numpy as np
 from omegaconf import DictConfig
 
 from mettagrid.config.room.room import Room
 
-
-class CylinderRoom(Room):
+class Cylinder(Room):
     def __init__(
         self,
         width: int,
@@ -26,14 +24,13 @@ class CylinderRoom(Room):
 
         # Validate inputs
         assert 3 <= cylinder_params['length'], "Cylinder length must be at least 3"
-        assert cylinder_params['orientation'] in ['horizontal', 'vertical'], "Invalid orientation"
 
         # Initialize grid
         self._grid = np.full((self._height, self._width), "empty", dtype='<U50')
         self._cylinder_positions = set()
 
     def _build(self) -> np.ndarray:
-        if self._cylinder_params['orientation'] == 'horizontal':
+        if self._cylinder_params.horizontal:
             self.place_horizontal_cylinder()
         else:
             self.place_vertical_cylinder()
@@ -102,7 +99,7 @@ class CylinderRoom(Room):
 
     def _place_elements(self, valid_positions: Set[Tuple[int, int]]) -> None:
         """Place altar and converter in valid positions."""
-        if self._cylinder_params['orientation'] == 'horizontal':
+        if self._cylinder_params['horizontal']:
             top_positions = [(x, y) for x, y in valid_positions if y < self._height//2]
             left_positions = [pos for pos in top_positions if pos[0] < self._width//2]
             right_positions = [pos for pos in top_positions if pos[0] >= self._width//2]
