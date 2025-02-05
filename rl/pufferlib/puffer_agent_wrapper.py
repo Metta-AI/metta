@@ -13,8 +13,6 @@ from pufferlib.emulation import PettingZooPufferEnv
 from pufferlib.environment import PufferEnv
 from tensordict import TensorDict
 from torch import nn
-from typing import List
-from agent.lib.util import make_nn_stack
 
 from agent.metta_agent import MettaAgent
 
@@ -26,28 +24,6 @@ class Recurrent(pufferlib.models.LSTMWrapper):
 class PufferAgentWrapper(nn.Module):
     def __init__(self, agent: MettaAgent, env: PettingZooPufferEnv):
         super().__init__()
-        # self.hidden_size = agent.decoder_out_size()
-        # if isinstance(env.single_action_space, pufferlib.spaces.Discrete):
-        #     self.atn_type = make_nn_stack(
-        #         input_size=agent.decoder_out_size(),
-        #         hidden_sizes=actor_hidden_sizes,
-        #         output_size=env.single_action_space.n
-        #     )
-        #     self.atn_param = None
-        # elif len(env.single_action_space.nvec) == 2:
-        #     self.atn_type = make_nn_stack(
-        #         input_size=agent.decoder_out_size(),
-        #         output_size=env.single_action_space.nvec[0],
-        #         hidden_sizes=actor_hidden_sizes
-        #     )
-        #     self.atn_param = make_nn_stack(
-        #         input_size=agent.decoder_out_size(),
-        #         output_size=env.single_action_space.nvec[1],
-        #         hidden_sizes=actor_hidden_sizes
-        #     )
-        # else:
-        #     raise ValueError(f"Unsupported action space: {env.single_action_space}")
-
         self._agent = agent
         print(self)
 
@@ -61,15 +37,13 @@ class PufferAgentWrapper(nn.Module):
             "global_vars": torch.zeros(flat_obs.shape[0], dtype=torch.float32).to(flat_obs.device)
         }
         td = TensorDict({"obs": obs})
-        # self._agent.obs_encoder(td)
         self._agent.components["_encoded_obs_"](td)
         return td["_encoded_obs_"], td
 
     def decode_actions(self, flat_hidden, lookup, concat=None, e3b=None):
-        td = lookup
-        td["core_output"] = flat_hidden
-        self._agent.components["_value_"](td)
-        self._agent.components["_action_param_"](td)
+        lookup["core_output"] = flat_hidden
+        self._agent.components["_value_"](lookup)
+        self._agent.components["_action_param_"](lookup)
 
         b = None
         if e3b is not None:
@@ -79,7 +53,7 @@ class PufferAgentWrapper(nn.Module):
             e3b = 0.99*e3b - (u.mT @ u) / (1 + b)
             b = b.squeeze()
         
-        return td["_action_param_"], td["_value_"].squeeze(), e3b, b
+        return lookup["_action_param_"], lookup["_value_"].squeeze(), e3b, b
 
 def make_policy(env: PufferEnv, cfg: OmegaConf):
     obs_space = gym.spaces.Dict({
@@ -96,7 +70,9 @@ def make_policy(env: PufferEnv, cfg: OmegaConf):
         env.grid_features,
         env.global_features,
         _recursive_=False)
-    agent.to(cfg.device)
+    
+    # agent.to(cfg.device)
+    
     puffer_agent = PufferAgentWrapper(agent, env)
     puffer_agent.to(cfg.device)
 

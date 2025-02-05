@@ -30,7 +30,7 @@ components:
 
 # do we want _target_ agent.metta_agent.MettaLayer to be in the python instead?
   obs_helper: 
-    _target_: agent.metta_agent.MettaLayer
+    _target_: agent.lib.metta_layer.MettaLayer
     input_source: _obs_
     layer_type: Identity
 
@@ -41,7 +41,7 @@ components:
     ###
 
   obs_encoder_1:
-    _target_: agent.metta_agent.MettaLayer
+    _target_: agent.lib.metta_layer.MettaLayer
     input_source: obs_helper
     output_size: 64 # number of channels
     layer_type: Conv2d
@@ -49,7 +49,7 @@ components:
     stride: 3
 
   obs_encoder_2:
-    _target_: agent.metta_agent.MettaLayer
+    _target_: agent.lib.metta_layer.MettaLayer
     input_source: obs_encoder_1
     output_size: 64 # number of channels
     layer_type: Conv2d
@@ -57,22 +57,22 @@ components:
     stride: 1
 
   obs_flattener:
-    _target_: agent.metta_agent.MettaLayer
+    _target_: agent.lib.metta_layer.MettaLayer
     input_source: obs_encoder_2
     layer_type: Flatten
 
   obs_linear:
-    _target_: agent.metta_agent.MettaLayer
+    _target_: agent.lib.metta_layer.MettaLayer
     input_source: obs_flattener
     output_size: 128
 
   _encoded_obs_:
-    _target_: agent.metta_agent.MettaLayer
+    _target_: agent.lib.metta_layer.MettaLayer
     input_source: obs_flattener
     output_size: 128
 
   core_helper:
-    _target_: agent.metta_agent.MettaLayer
+    _target_: agent.lib.metta_layer.MettaLayer
     rnn_type: gru
     rnn_num_layers: 1
     rnn_size: 128
@@ -81,33 +81,33 @@ components:
     layer_type: Identity
 
   critic_1:
-    _target_: agent.metta_agent.MettaLayer
+    _target_: agent.lib.metta_layer.MettaLayer
     input_source: core_helper
     output_size: 512
     layer_type: Linear
 
   critic_2:
-    _target_: agent.metta_agent.MettaLayer
+    _target_: agent.lib.metta_layer.MettaLayer
     input_source: critic_1
     output_size: 128
 
   critic_3:
-    _target_: agent.metta_agent.MettaLayer
+    _target_: agent.lib.metta_layer.MettaLayer
     input_source: [actor_2, critic_2]
     output_size: 128
 
   _value_:
-    _target_: agent.metta_agent.MettaLayer
+    _target_: agent.lib.metta_layer.MettaLayer
     input_source: critic_3
     output_size: 1
 
   actor_1:
-    _target_: agent.metta_agent.MettaLayer
+    _target_: agent.lib.metta_layer.MettaLayer
     input_source: core_helper
     output_size: 512
 
   actor_2:
-    _target_: agent.metta_agent.MettaLayer
+    _target_: agent.lib.metta_layer.MettaLayer
     input_source: actor_1
     output_size: 512
 
@@ -117,6 +117,6 @@ components:
 #     output: 128
 
   _action_param_:
-    _target_: agent.metta_agent.MettaLayer
+    _target_: agent.lib.metta_layer.MettaLayer
     input_source: actor_2
     output_size: 20
