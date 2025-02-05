@@ -21,7 +21,7 @@ def set_position(x, upper_bound):
     return x
 
 
-class Maze(Room):
+class MazeDFS(Room):
     EMPTY, WALL = "empty", "wall"
     START, END = "agent.agent", "altar"
     NORTH, SOUTH, EAST, WEST = 'n', 's', 'e', 'w'
@@ -133,4 +133,158 @@ class Maze(Room):
         # Copy the effective maze into the top-left corner of the container.
         self.final_maze[:self._height, :self._width] = maze
 
+        return self.final_maze
+
+
+class MazePrim(Room):
+    EMPTY, WALL = "empty", "wall"
+    START, END = "agent.agent", "altar"
+    # Directions defined as moves of 2 cells (to jump over a wall)
+    DIRECTIONS = [(2, 0), (-2, 0), (0, 2), (0, -2)]
+
+    def __init__(self, width, height, start_pos, end_pos, branching=0.0, seed=None, border_width=0, border_object="wall"):
+        """
+        branching parameter is kept for API compatibility; it isn't used in Prim's algorithm.
+        """
+        super().__init__(border_width=border_width, border_object=border_object)
+        self._rng = random.Random(seed)
+        # The final container retains the provided dimensions.
+        self.final_maze = np.full((height, width), self.WALL, dtype='<U50')
+        # Compute an effective maze size that is odd.
+        self._width = width if width % 2 == 1 else width - 1
+        self._height = height if height % 2 == 1 else height - 1
+
+        # Adjust the start and end positions to be odd and within the effective maze dimensions.
+        self._start_pos = (set_position(start_pos[0], self._width), set_position(start_pos[1], self._height))
+        self._end_pos = (set_position(end_pos[0], self._width), set_position(end_pos[1], self._height))
+
+    def _build(self) -> np.ndarray:
+        """
+        Generate a maze using a version of Prim's algorithm:
+          - We start at the (adjusted) start position.
+          - The algorithm carves passages by maintaining a list of walls.
+          - Once finished, the start and end markers are applied.
+          - The effective maze is copied into the final container.
+        """
+        maze = np.full((self._height, self._width), self.WALL, dtype='<U50')
+
+        # Start at the given start position.
+        sx, sy = self._start_pos
+        maze[sy, sx] = self.EMPTY
+
+        walls = []
+        # Add neighboring walls from the start cell.
+        for dx, dy in MazePrim.DIRECTIONS:
+            wx, wy = sx + dx // 2, sy + dy // 2
+            nx, ny = sx + dx, sy + dy
+            if 0 <= nx < self._width and 0 <= ny < self._height:
+                walls.append((wx, wy, nx, ny))
+
+        # Process the wall list.
+        while walls:
+            idx = self._rng.randrange(len(walls))
+            wx, wy, nx, ny = walls.pop(idx)
+            if maze[ny, nx] == self.WALL:
+                # Carve through the wall.
+                maze[wy, wx] = self.EMPTY
+                maze[ny, nx] = self.EMPTY
+                # Add the neighboring walls of the newly carved cell.
+                for dx, dy in MazePrim.DIRECTIONS:
+                    nwx, nwy = nx + dx // 2, ny + dy // 2
+                    nnx, nny = nx + dx, ny + dy
+                    if 0 <= nnx < self._width and 0 <= nny < self._height:
+                        if maze[nny, nnx] == self.WALL:
+                            walls.append((nwx, nwy, nnx, nny))
+
+        # Place the start and end markers.
+        maze[self._start_pos[1], self._start_pos[0]] = self.START
+        maze[self._end_pos[1], self._end_pos[0]] = self.END
+
+        # Copy the effective maze into the full container.
+        self.final_maze[:self._height, :self._width] = maze
+
+        return self.final_maze
+
+class MazeKruskal(Room):
+    EMPTY, WALL = "empty", "wall"
+    START, END = "agent.agent", "altar"
+
+    def __init__(self, width, height, start_pos, end_pos, branching=0.0, seed=None, border_width=0, border_object="wall"):
+        """
+        branching parameter is kept for API compatibility; it isn't used in Kruskal's algorithm.
+        """
+        super().__init__(border_width=border_width, border_object=border_object)
+        self._rng = random.Random(seed)
+        # The final container retains the provided dimensions.
+        self.final_maze = np.full((height, width), self.WALL, dtype='<U50')
+        # Compute an effective maze size that is odd.
+        self._width = width if width % 2 == 1 else width - 1
+        self._height = height if height % 2 == 1 else height - 1
+
+        # Adjust start and end positions to be odd and within effective bounds.
+        self._start_pos = (set_position(start_pos[0], self._width), set_position(start_pos[1], self._height))
+        self._end_pos = (set_position(end_pos[0], self._width), set_position(end_pos[1], self._height))
+
+    def _build(self) -> np.ndarray:
+        """
+        Generate a maze using Randomized Kruskal's algorithm.
+          - Each cell (located at odd indices) is initialized as a passage.
+          - Walls between adjacent cells are considered in random order.
+          - If the wall separates two different sets (cells not yet connected),
+            the wall is removed and the sets are merged.
+          - The start and end markers are then applied.
+          - The effective maze is copied into the final container.
+        """
+        # Initialize the maze: passages (cells) at odd indices and walls everywhere else.
+        maze = np.full((self._height, self._width), self.WALL, dtype='<U50')
+        cells = [(x, y) for y in range(1, self._height, 2) for x in range(1, self._width, 2)]
+        for (x, y) in cells:
+            maze[y, x] = self.EMPTY
+
+        # Initialize disjoint-set (union-find) for each cell.
+        parent = {}
+        def find(cell):
+            if parent[cell] != cell:
+                parent[cell] = find(parent[cell])
+            return parent[cell]
+
+        def union(cell1, cell2):
+            root1 = find(cell1)
+            root2 = find(cell2)
+            parent[root2] = root1
+
+        # Each cell is its own set.
+        for cell in cells:
+            parent[cell] = cell
+
+        # List all walls between adjacent cells.
+        # Only consider rightward and downward walls to avoid duplicates.
+        walls = []
+        for (x, y) in cells:
+            for dx, dy in [(2, 0), (0, 2)]:
+                nx, ny = x + dx, y + dy
+                if nx < self._width and ny < self._height:
+                    # The wall is between (x, y) and (nx, ny).
+                    wx, wy = (x + nx) // 2, (y + ny) // 2
+                    walls.append(((x, y), (nx, ny), (wx, wy)))
+
+        # Shuffle the walls.
+        self._rng.shuffle(walls)
+
+        # Process each wall in random order.
+        for cell1, cell2, wall in walls:
+            if find(cell1) != find(cell2):
+                # Remove the wall.
+                wx, wy = wall
+                maze[wy, wx] = self.EMPTY
+                union(cell1, cell2)
+
+        # Place the start and end markers.
+        sx, sy = self._start_pos
+        ex, ey = self._end_pos
+        maze[sy, sx] = self.START
+        maze[ey, ex] = self.END
+
+        # Copy the effective maze into the final container.
+        self.final_maze[:self._height, :self._width] = maze
         return self.final_maze
