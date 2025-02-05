@@ -20,7 +20,7 @@ game:
     num_rooms: ${..num_agents}
     border_width: 2
     room:
-      _target_: mettagrid.config.room.maze.Maze
+      _target_: mettagrid.config.room.maze.MazeKruskal
       width: ${uniform:10,40,20}
       height: ${uniform:10,40,20}
       start_pos: [1, 0]
