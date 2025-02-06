@@ -135,7 +135,9 @@ game:
     swap:
       enabled: true
       cost: 0
-
+    change_color:
+      enabled: true
+      cost: 0
 
   reward_sharing:
     groups:
