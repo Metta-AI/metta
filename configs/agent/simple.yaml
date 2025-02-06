@@ -13,6 +13,8 @@ observations:
   auto_normalize: false
   track_last_action: ${env.track_last_action}
   kinship: ${env.game.kinship}
+  
+clip_multiplier: 3.0
 
 interface:
   input:
@@ -43,28 +45,39 @@ components:
   obs_encoder_1:
     _target_: agent.lib.metta_layer.MettaLayer
     input_source: obs_helper
-    output_size: 64 # number of channels
+    output_size: 64
     layer_type: Conv2d
-    kernel_size: 5
-    stride: 3
+    nn_params:
+      kernel_size: 5
+      stride: 3
 
   obs_encoder_2:
     _target_: agent.lib.metta_layer.MettaLayer
     input_source: obs_encoder_1
-    output_size: 64 # number of channels
+    output_size: 64
     layer_type: Conv2d
-    kernel_size: 3
-    stride: 1
+    nn_params:
+      kernel_size: 3
+      stride: 1
 
   obs_flattener:
     _target_: agent.lib.metta_layer.MettaLayer
     input_source: obs_encoder_2
     layer_type: Flatten
 
-  obs_linear:
+  obs_dropout:
     _target_: agent.lib.metta_layer.MettaLayer
     input_source: obs_flattener
+    layer_type: Dropout
+    nn_params:
+      p: 0.5
+
+  obs_linear:
+    _target_: agent.lib.metta_layer.MettaLayer
+    input_source: obs_dropout
     output_size: 128
+    nn_params:
+      bias: false
 
   _encoded_obs_:
     _target_: agent.lib.metta_layer.MettaLayer
@@ -120,3 +133,66 @@ components:
     _target_: agent.lib.metta_layer.MettaLayer
     input_source: actor_2
     output_size: 20
+
+
+# The following configuration defines the structure of the neural network layers
+# used in the MettaAgent. Each layer is represented as a dictionary with the following keys:
+# - _target_: The class of the layer to be instantiated.
+# - input_source: The source of the input for this layer. It can be a single layer or a list of layers.
+# - output_size: The size of the output for this layer.
+# - layer_type: The type of the layer (e.g., Linear, Identity, etc.).
+#
+# The layers are connected in a hierarchical manner, where the output of one layer
+# can be used as the input for another layer. This allows for the creation of complex
+# neural network architectures.
+#
+# Example:
+#   critic_1:
+#     _target_: agent.lib.metta_layer.MettaLayer
+#     input_source: core_helper
+#     output_size: 512
+#     layer_type: Linear
+#
+# Under layer_params, add arguments for your nn class.
+# Use the same name as the argument in the nn class.
+# eg for Linear, you can add bias=False
+#
+# In this example, the critic_1 layer takes its input from the core_helper layer,
+# has an output size of 512, and is of type Linear.
+
+# testing below
+  cnn_test:
+    _target_: agent.lib.metta_layer.MettaLayer
+    input_source: obs_helper
+    output_size: 64
+    layer_type: Conv2d
+    nn_params:
+      kernel_size: 5
+      stride: 3
+
+  Linear_test:
+    _target_: agent.lib.metta_layer.MettaLayer
+    input_source: obs_helper
+    output_size: 64
+    layer_type: Linear
+    nn_params:
+      bias: false
+
+  dropout_test:
+    _target_: agent.lib.metta_layer.MettaLayer
+    input_source: obs_helper
+    layer_type: Dropout
+    nn_params:
+      dropout_prob: 0.5
+
+  batchnorm_test:
+    _target_: agent.lib.metta_layer.MettaLayer
+    input_source: obs_helper
+    layer_type: BatchNorm2d
+    nn_params:
+      num_features: 64
+
+  identity_test:
+    _target_: agent.lib.metta_layer.MettaLayer
+    input_source: obs_helper
+    layer_type: Identity

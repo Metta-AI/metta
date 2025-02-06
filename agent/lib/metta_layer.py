@@ -5,7 +5,7 @@ from omegaconf import OmegaConf
 from tensordict import TensorDict
 from torch import nn
 import torch
-
+import numpy as np
 class MettaLayer(nn.Module):
     def __init__(self, MettaAgent, **cfg):
         cfg = OmegaConf.create(cfg)
@@ -15,8 +15,7 @@ class MettaLayer(nn.Module):
         self.name = cfg.name
         self.input_source = cfg.input_source
         self.output_size = cfg.get('output_size', None)
-        self.layer_type = cfg.get('layer_type', 'Linear')
-        self.nonlinearity = cfg.get('nonlinearity', 'ReLU')
+        self.clip_multiplier = cfg.get('clip_multiplier', None)
         # can change the above to default to None and then handle it in the parameter_layer_helper
 
     def set_input_size_and_initialize_layer(self):
@@ -38,29 +37,55 @@ class MettaLayer(nn.Module):
         if self.output_size is None:
             self.output_size = self.input_size
 
-        # --- initialize your layer ---
-        # can this be simpler?
-        if self.layer_type == 'Linear':
-            self.layer = getattr(nn, self.layer_type)(self.input_size, self.output_size)
-        elif self.layer_type == 'Conv2d':
-            # input size is the number of objects
-            # output size is the number of channels
-            self.layer = getattr(nn, self.layer_type)(self.input_size, self.output_size, self.cfg.kernel_size, self.cfg.stride)
-        elif self.layer_type == 'Dropout':
-            self.layer = getattr(nn, self.layer_type)(self.cfg.dropout_prob)
-        elif self.layer_type == 'BatchNorm2d':
-            self.layer = getattr(nn, self.layer_type)(self.input_size)
-        elif self.layer_type == 'Identity':
-            self.layer = nn.Identity()
-        elif self.layer_type == 'Flatten':
-            self.layer = nn.Flatten()
+        self.instantiate_layer_from_cfg()
+
+        # Layer initialization mapping
+        # layer_params = {
+        #     'Linear': (self.input_size, self.output_size),
+        #     'Conv2d': (self.input_size, self.output_size, self.cfg.kernel_size, self.cfg.stride),
+        #     'Dropout': (self.cfg.dropout_prob,),
+        #     'BatchNorm2d': (self.input_size,),
+        #     'Identity': (),
+        #     'Flatten': ()
+        # }
+
+        # self.layer_type = self.cfg.get('layer_type', 'Linear')
+        
+        # if self.layer_type not in layer_params:
+        #     raise ValueError(f"Layer type {self.layer_type} not supported")
+
+        # self.layer = getattr(nn, self.layer_type)(*layer_params[self.layer_type])
+        
+        # if self.layer_type in ['Linear', 'Conv2d']:
+        #     self.parameter_layer_helper()
+        #     self.initialize_layer()
+
+    def instantiate_layer_from_cfg(self):
+        '''
+        nn_params_dict key names should be the same as the argument names of the torch nn class.
+        We add nonlinear layers to Linear and Conv classes. Specify nonlinearity = None in the cfg to change this.
+        You can also add a nonlinear layer as a standalone by supplying it as the layer_type in the cfg.
+        '''
+        nn_params_dict = self.cfg.get('nn_params', {})
+
+        # manually handle the few cases that require special signature mappings of sizes from other layers
+        layer_signature_map = {
+            'Linear': (self.input_size, self.output_size),
+            'Conv': (self.input_size, self.output_size),
+            'BatchNorm': (self.input_size,),
+        }
+
+        base_layer_type = next((key for key in layer_signature_map if self.layer_type.startswith(key)), None)
+
+        if base_layer_type:
+            base_params = layer_signature_map[base_layer_type]
+            self.layer = getattr(nn, self.layer_type)(*base_params, **nn_params_dict)
         else:
-            raise ValueError(f"Layer type {self.layer_type} not supported")
-        # add resnet, etc.
+            self.layer = getattr(nn, self.layer_type)(**nn_params_dict)
 
-        # need to offer the ability to append a nonlinear layer for these layers other than Linear and Conv2d
-
-        #add initialization
+        if any(substring in self.layer_type for substring in ['Linear', 'Conv']):
+            self.parameter_layer_helper()
+            self.initialize_layer()
 
     def forward(self, td: TensorDict):
         if self.name in td:
@@ -88,38 +113,114 @@ class MettaLayer(nn.Module):
         return td
     
     def parameter_layer_helper(self):
-        attributes = ['clip_scale', 'l2_norm_scale', 'l2_init_scale', 'effective_rank', 'initialization', 'nonlinearity']
+        attributes = ['clip_scale', 'l2_norm_scale', 'l2_init_scale', 'effective_rank', 'initialization']
         for attr in attributes:
             if attr in self.cfg:
                 setattr(self, attr, self.cfg[attr])
             else:
                 setattr(self, attr, None)
 
-        if self.nonlinearity:
+        largest_weight = self.initialize_layer()
+
+        if self.clip_scale:
+            self.clip_value = self.MettaAgent.clip_multiplier * self.largest_weight * self.clip_scale
+
+        if self.l2_init_scale:
+            self.initial_weights = self.layer.weight.data.clone()
+
+# is this redundant with attributes above?
+        self.nonlinearity = self.cfg.get('nonlinearity', 'ReLU')
+        self.weights_data = self.layer.weight.data
+        if self.nonlinearity is not None:
             self.layer = nn.Sequential(self.layer, getattr(nn, self.nonlinearity)())
+            self.weights_data = self.layer[0].weight.data
+
+
+    def initialize_layer(self):
+        '''
+        Assumed that this is run before appending a nonlinear layer.
+        '''
+        fan_in, fan_out = self.layer.weight.shape
+
+        if self.initialization is None or self.initialization == 'Orthogonal':
+            if self.nonlinearity == 'Tanh':
+                gain = np.sqrt(2)
+            else:
+                gain = 1
+            nn.init.orthogonal_(self.layer.weight, gain=gain)
+            largest_weight = self.layer.weight.max().item()
+        elif self.initialization == 'Xavier':
+            largest_weight = np.sqrt(6 / (fan_in + fan_out))
+            nn.init.xavier_uniform_(self.layer.weight)
+        elif self.initialization == 'Normal':
+            largest_weight = np.sqrt(2 / fan_in)
+            nn.init.normal_(self.layer.weight, mean=0, std=largest_weight)
+        elif self.initialization == 'Max_0_01':
+            #set to uniform with largest weight = 0.01
+            largest_weight = 0.01
+            nn.init.uniform_(self.layer.weight, a=-largest_weight, b=largest_weight)
+
+        if hasattr(self.layer, "bias") and isinstance(self.layer.bias, torch.nn.parameter.Parameter):
+            self.layer.bias.data.fill_(0)
+
+        return largest_weight
 
     def clip_weights(self):
-        # need to feed global clip value
         if self.clip_scale:
-            self.layer.weight.data = self.layer.weight.data.clamp(-self.clip_scale, self.clip_scale)
+            with torch.no_grad():
+                self.weights_data = self.weights_data.clamp(-self.clip_value, self.clip_value)
 
-    def l2_norm_weights(self):
+    def get_l2_reg_loss(self) -> torch.Tensor:
+        '''
+        Also known as Weight Decay Loss or L2 Ridge Regularization
+        '''
+        l2_reg_loss = torch.tensor(0.0, device=self.weights_data.device)
         if self.l2_norm_scale:
-            self.layer.weight.data = self.layer.weight.data / self.l2_norm_scale
+            l2_reg_loss = (torch.sum(self.weights_data ** 2))*self.l2_norm_scale
+        return l2_reg_loss
 
-    def l2_init_weights(self):
+    def get_l2_init_loss(self) -> torch.Tensor:
+        '''
+        Also known as Delta Regularization Loss
+        '''
+        l2_init_loss = torch.tensor(0.0, device=self.weights_data.device)
         if self.l2_init_scale:
-            self.layer.weight.data = self.layer.weight.data / self.l2_init_scale
+            l2_init_loss = torch.sum((self.weights_data - self.initial_weights) ** 2) * self.l2_init_scale
+        return l2_init_loss
+    
+    def update_l2_init_weight_copy(self, alpha: float = 0.9):
+        '''
+        Potentially useful to prevent catastrophic forgetting.
+        Update the initial weights copy with a weighted average of the previous and current weights.
+        '''
+        self.initial_weights = (self.initial_weights * alpha + self.weights_data * (1 - alpha)).clone()
+    
+    def get_effective_rank(self, delta: float = 0.01):
+        """
+        Computes the effective rank of a matrix based on the given delta value.
+        Effective rank formula:
+        srank_\delta(\Phi) = min{k: sum_{i=1}^k σ_i / sum_{j=1}^d σ_j ≥ 1 - δ}
+        See the paper titled 'Implicit Under-Parameterization Inhibits Data-Efficient Deep Reinforcement Learning' by A. Kumar et al.
+        """
+        # Singular value decomposition. We only need the singular value matrix.
+        _, S, _ = torch.linalg.svd(self.weights_data.detach())
+        
+        # Calculate the cumulative sum of singular values
+        total_sum = S.sum()
+        cumulative_sum = torch.cumsum(S, dim=0)
+        
+        # Find the smallest k that satisfies the effective rank condition
+        threshold = (1 - delta) * total_sum
+        effective_rank = torch.where(cumulative_sum >= threshold)[0][0].item() + 1  # Add 1 for 1-based indexing
+        
+        return {'name': self.name, 'effective_rank': effective_rank}
 
-    def effective_rank(self):
-        if self.effective_rank:
-            self.layer.weight.data = self.layer.weight.data / self.effective_rank
 
-    def initialization(self):
-        if self.initialization:
-            self.layer.weight.data = self.layer.weight.data / self.initialization
 
 class MettaLayerBase(nn.Module):
+    '''
+    This is the base class for custom layers that are not MettaLayers.
+    '''
     def __init__(self, MettaAgent, **cfg):
         super().__init__()
         self.MettaAgent = MettaAgent

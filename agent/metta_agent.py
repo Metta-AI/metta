@@ -9,6 +9,7 @@ from torch import nn
 from agent.agent_interface import MettaAgentInterface
 from agent.lib.observation_normalizer import ObservationNormalizer
 from agent.feature_encoder import FeatureListNormalizer
+import torch
 
 
 class MettaAgent(nn.Module, MettaAgentInterface):
@@ -52,4 +53,34 @@ class MettaAgent(nn.Module, MettaAgentInterface):
         self.components['_value_'].set_input_size_and_initialize_layer()
 
     #def weight helper functions
+    def clip_weights(self):
+        for component in self.components.values():
+            if hasattr(component, 'clip_weights'):
+                component.clip_weights()
 
+    def get_l2_reg_loss(self) -> torch.Tensor:
+        l2_reg_loss = torch.tensor(0.0, device=self.weights.device)
+        for component in self.components.values():
+            if hasattr(component, 'get_l2_reg_loss'):
+                l2_reg_loss += component.get_l2_reg_loss()
+        return l2_reg_loss
+    
+    def get_l2_init_loss(self) -> torch.Tensor:
+        l2_init_loss = torch.tensor(0.0, device=self.weights.device)
+        for component in self.components.values():
+            if hasattr(component, 'get_l2_init_loss'):
+                l2_init_loss += component.get_l2_init_loss()
+        return l2_init_loss
+
+    def update_l2_init_weight_copy(self):
+        for component in self.components.values():
+            if hasattr(component, 'update_l2_init_weight_copy'):
+                component.update_l2_init_weight_copy()
+
+    def get_effective_rank(self) -> torch.Tensor:
+        effective_rank = torch.tensor(0.0, device=self.weights.device)
+        for component in self.components.values():
+            if hasattr(component, 'get_effective_rank'):
+                effective_rank += component.get_effective_rank()
+        return effective_rank
+    
