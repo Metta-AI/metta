@@ -208,7 +208,7 @@ class MettaGridRaylibRenderer:
                 if "agent_id" in obj:
                     agent_id = obj["agent_id"]
                     action_txt = ", ".join([
-                        f"{self.action_names[action[0]]}({action[0]})"
+                        f"{self.action_names[action[0]]}({action[1]})"
                         for action in self.action_history[agent_id]])
                     rl.DrawTextEx(
                         self.font, action_txt.encode(), (sidebar_x + 10, y),
@@ -443,10 +443,8 @@ class MettaGridRaylibRenderer:
             # use
             rl.KEY_U: (self.action_ids["use"], 0),
             # color manipulation
-            rl.KEY_RIGHT_BRACKET: (self.action_ids["change_color"], 0),  # Increment color
-            rl.KEY_LEFT_BRACKET: (self.action_ids["change_color"], 1),   # Decrement color
-            rl.KEY_RIGHT_BRACE: (self.action_ids["change_color"], 2),    # Double color
-            rl.KEY_LEFT_BRACE: (self.action_ids["change_color"], 3),     # Half color
+            rl.KEY_RIGHT_BRACKET: (self.action_ids["change_color"], 0), # Increment color
+            rl.KEY_LEFT_BRACKET: (self.action_ids["change_color"], 1),  # Decrement color
             # attack
             rl.KEY_KP_1: (self.action_ids["attack"], 1),  # KEY_1
             rl.KEY_KP_2: (self.action_ids["attack"], 2),  # KEY_2
