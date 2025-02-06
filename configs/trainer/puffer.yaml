@@ -1,5 +1,5 @@
 
-_target_: rl.pufferlib.trainer.Trainer
+_target_: rl.pufferlib.trainer.PufferTrainer
 
 defaults:
   - trainer
