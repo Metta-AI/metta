@@ -27,10 +27,11 @@ class MettaAgent(nn.Module, MettaAgentInterface):
         self.observation_space = obs_space
         self.action_space = action_space
         self.grid_features = grid_features
-        # self.global_features = global_features
+        self.global_features = global_features
         self.obs_key = cfg.observations.obs_key
 
         self.num_objects = obs_space[self.obs_key].shape[0]
+
 
         # self.obs_cfg = cfg.obs
         # cfg.obs.name = 'obs'
@@ -53,6 +54,13 @@ class MettaAgent(nn.Module, MettaAgentInterface):
         self.components['_value_'].set_input_size_and_initialize_layer()
 
     #def weight helper functions
+    def clip_weights(self):
+        for component in self.components.values():
+            clip_value = getattr(component, 'clip_value', None)
+            if clip_value is not None:
+                with torch.no_grad():
+                    component.weights_data = component.weights_data.clamp(-clip_value, clip_value)
+
     def clip_weights(self):
         for component in self.components.values():
             if hasattr(component, 'clip_weights'):

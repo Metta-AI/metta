@@ -219,7 +219,7 @@ class MettaLayer(nn.Module):
 
 class MettaLayerBase(nn.Module):
     '''
-    This is the base class for custom layers that are not MettaLayers.
+    This is the base class and instructions for custom layers in the stead of MettaLayers.
     '''
     def __init__(self, MettaAgent, **cfg):
         super().__init__()
@@ -251,15 +251,22 @@ class MettaLayerBase(nn.Module):
         if self.name in td:
             return td[self.name]
 
-        First, recursively compute the input to the layer above this layer.
+        First, recursively compute the input to the layers above this layer.
         Skip this if you are a top layer.
-        x = self.MettaAgent.components[self.input_source].forward(td)
+        if isinstance(self.input_source, list):
+            for src in self.input_source:
+                self.MettaAgent.components[src].forward(td) 
+        else:
+            self.MettaAgent.components[self.input_source].forward(td)
 
-        Compute this layer's output.
-        x = self.layer(x)
-
+        Compute this layer's output (assuming you have a .layer attribute).
         Write your layer's name on your output so the next layer can find it.
-        td[self.name] = x
+        if isinstance(self.input_source, list):
+            inputs = [td[src] for src in self.input_source]
+            x = torch.cat(inputs, dim=-1)
+            td[self.name] = self.layer(x)
+        else:
+            td[self.name] = self.layer(td[self.input_source])
 
         Pass the full td back.
         return td

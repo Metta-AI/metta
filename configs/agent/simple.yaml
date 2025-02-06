@@ -36,15 +36,16 @@ components:
     input_source: _obs_
     layer_type: Identity
 
-  # obs_normalizer:
-    ###
+  obs_normalizer:
+    _target_: agent.lib.observation_normalizer.ObservationNormalizer
+    input_source: obs_helper
 
   # feature_normalizer:
     ###
 
   obs_encoder_1:
     _target_: agent.lib.metta_layer.MettaLayer
-    input_source: obs_helper
+    input_source: obs_normalizer
     output_size: 64
     layer_type: Conv2d
     nn_params:
