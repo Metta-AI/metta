@@ -5,6 +5,8 @@ from omegaconf import DictConfig
 from mettagrid.config.config import setup_metta_environment
 from agent.policy_store import PolicyStore
 from rl.wandb.wandb_context import WandbContext
+import os
+import wandb
 from util.stats_library import (
     EloTest,
     Glicko2Test,
@@ -78,10 +80,20 @@ def main(cfg: DictConfig):
             cfg.eval,
             policy_store,
             cfg.env,
+            cfg.run_dir,
             _recursive_=False
         )
         stats = eval.evaluate()
-        # log_metrics(stats)
+
+        # Optionally log the JSON file as an artifact:
+        if cfg.eval.log_eval_artifact:
+            run_dir = cfg.run_dir
+            artifact_name = cfg.eval.get("eval_artifact_name", "eval_db")
+            json_path = os.path.join(run_dir, "eval_stats.json")
+            artifact = wandb.Artifact(name=artifact_name, type="eval_db")
+            artifact.add_file(json_path)
+            wandb_run.log_artifact(artifact)
+            logger.info(f"Logged artifact {artifact_name} to wandb")
 
         return stats
 

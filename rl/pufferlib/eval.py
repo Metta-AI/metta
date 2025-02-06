@@ -6,6 +6,8 @@ import torch
 from agent.policy_store import PolicyStore
 from omegaconf import DictConfig, OmegaConf
 import hydra
+import os
+import json
 
 from rl.pufferlib.vecenv import make_vecenv
 
@@ -16,6 +18,7 @@ class Eval():
         self,
         policy_store: PolicyStore,
         env_defaults: DictConfig,
+        run_dir: str,
 
         env: str,
         policy_uri: str,
@@ -28,6 +31,8 @@ class Eval():
         max_time_s: int = 60,
         vectorization: str = "serial",
 
+        **kwargs,
+
     ) -> None:
         env_cfg = hydra.compose(config_name=env)
         self._env_cfg = OmegaConf.merge(env_defaults, env_cfg)
@@ -38,6 +43,7 @@ class Eval():
         self._policy_store = policy_store
 
         self._device = device
+        self.run_dir = run_dir
 
         self._num_envs = num_envs
         self._min_episodes = num_episodes
@@ -175,6 +181,14 @@ class Eval():
 
         logger.info(f"Total episodes: {self._completed_episodes}")
         logger.info(f"Evaluation time: {time.time() - start}")
+
+        # Write game_stats to JSON file
+        run_dir = self.run_dir
+        json_path = os.path.join(run_dir, "eval_stats.json")
+        with open(json_path, "w") as f:
+            json.dump(game_stats, f, indent=4)
+        logger.info(f"Saved eval stats to {json_path}")
+
         return game_stats
 
     def close(self):
