@@ -19,7 +19,7 @@ if ! command -v tailscale &> /dev/null; then
     curl -fsSL https://tailscale.com/install.sh | sh
 fi
 
-cat "cd /home/metta/metta/devops/mettabox && bash docker.sh test" >> /home/metta/.bashrc
+echo "cd /home/metta/metta/devops/mettabox && bash docker.sh test" >> /home/metta/.bashrc
 
 # Docker
 if ! command -v docker &> /dev/null; then
@@ -41,10 +41,19 @@ fi
 apt-get update -y
 apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
-# NVIDIA drivers
-apt-get install -y ubuntu-drivers
-sudo ubuntu-drivers install
-echo "Installation complete. Please reboot your system."
+# NVIDIA drivers - more specific installation
+ubuntu-version=$(lsb_release -rs)
+if nvidia-smi &>/dev/null; then
+    echo "NVIDIA drivers already installed, skipping driver installation"
+else
+    # Get the recommended driver without installing
+    recommended_driver=$(ubuntu-drivers devices | grep "recommended" | awk '{print $3}')
+    if [ -n "$recommended_driver" ]; then
+        apt-get install -y "$recommended_driver"
+    else
+        echo "No recommended NVIDIA driver found"
+    fi
+fi
 
 # Nvidia container (have to use Debian 11 bullseye for now)
 curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg \

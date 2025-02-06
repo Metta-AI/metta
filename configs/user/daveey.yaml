@@ -3,7 +3,7 @@
 seed: null
 
 defaults:
-  - override /env/mettagrid@env: school
+  - override /env/mettagrid@env: bases
   - override /agent: simple.medium
   - override /sweep: fast
 
@@ -11,9 +11,9 @@ defaults:
 # baselines: wandb://run/b.daveey.train.maze.sm.11x11.0
 
 # policy_uri: wandb://run/b.daveey.sm.train.er.new.0
-policy_uri: wandb://run/b.daveey.train.simple.s20m
+policy_uri: wandb://run/mb.daveey.sm
 # policy_uri: ${trained_policy_uri}
-baseline_uri: wandb://run/b.daveey.train.simple.s15m:v8
+baseline_uri: wandb://run/b.daveey.train.simple.s15m
 
 env:
   # sampling: 0.7
