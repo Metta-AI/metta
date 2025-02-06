@@ -8,8 +8,16 @@ def make_env_func(cfg: OmegaConf, buf=None, render_mode='rgb_array'):
     env = hydra.utils.instantiate(cfg, buf=buf, render_mode=render_mode, _recursive_=False)
     return env
 
-def make_vecenv(cfg: OmegaConf, num_envs=1, batch_size=None, num_workers=1, render_mode=None, **kwargs):
-    vec = cfg.vectorization
+def make_vecenv(
+    env_cfg: OmegaConf,
+    vectorization: str,
+    num_envs=1,
+    batch_size=None,
+    num_workers=1,
+    render_mode=None,
+    **kwargs
+):
+    vec = vectorization
     if vec == 'serial' or num_workers == 1:
         vec = pufferlib.vector.Serial
     elif vec == 'multiprocessing':
@@ -20,7 +28,7 @@ def make_vecenv(cfg: OmegaConf, num_envs=1, batch_size=None, num_workers=1, rend
         raise ValueError('Invalid --vector (serial/multiprocessing/ray).')
 
     vecenv_args = dict(
-        env_kwargs=dict(cfg = dict(**cfg.env), render_mode=render_mode),
+        env_kwargs=dict(cfg = dict(**env_cfg), render_mode=render_mode),
         num_envs=num_envs,
         num_workers=num_workers,
         batch_size=batch_size or num_envs,

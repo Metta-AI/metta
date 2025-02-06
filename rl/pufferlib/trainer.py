@@ -448,7 +448,8 @@ class PufferTrainer:
         self.batch_size = (self.target_batch_size // self.trainer_cfg.num_workers) * self.trainer_cfg.num_workers
 
         self.vecenv = make_vecenv(
-            self.cfg,
+            self.cfg.env,
+            self.cfg.vectorization,
             num_envs = self.batch_size * self.trainer_cfg.async_factor,
             batch_size = self.batch_size,
             num_workers=self.trainer_cfg.num_workers,
