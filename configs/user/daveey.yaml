@@ -11,8 +11,8 @@ defaults:
 # baselines: wandb://run/b.daveey.train.maze.sm.11x11.0
 
 # policy_uri: wandb://run/b.daveey.sm.train.er.new.0
-policy_uri: wandb://run/m0.daveey.s
-# policy_uri: ${trained_policy_uri}
+# policy_uri: wandb://run/m0.daveey.s
+policy_uri: ${trained_policy_uri}
 baseline_uri: wandb://run/mb.daveey.sm
 
 env:
