@@ -442,6 +442,11 @@ class MettaGridRaylibRenderer:
             rl.KEY_Q: (self.action_ids["move"], 1),
             # use
             rl.KEY_U: (self.action_ids["use"], 0),
+            # color manipulation
+            rl.KEY_RIGHT_BRACKET: (self.action_ids["change_color"], 0),  # Increment color
+            rl.KEY_LEFT_BRACKET: (self.action_ids["change_color"], 1),   # Decrement color
+            rl.KEY_RIGHT_BRACE: (self.action_ids["change_color"], 2),    # Double color
+            rl.KEY_LEFT_BRACE: (self.action_ids["change_color"], 3),     # Half color
             # attack
             rl.KEY_KP_1: (self.action_ids["attack"], 1),  # KEY_1
             rl.KEY_KP_2: (self.action_ids["attack"], 2),  # KEY_2
