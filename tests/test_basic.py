@@ -71,6 +71,9 @@ def main(cfg):
     (obs, rewards, terminated, truncated, infos) = mettaGridEnv.step([[0,0]]*5)
     assert mettaGridEnv._c_env.current_timestep() == 1
     print("obs: ", obs)
+    # We have 5 agents, 22 channels, 11x11 grid
+    # This is fragile, and will need to be updated if the observation space changes.
+    # If you're updating this, please consider changing it to make it more robust.
     assert obs.shape == (5, 22, 11, 11)
     print("rewards: ", rewards)
     assert rewards.shape == (5,)
@@ -94,9 +97,16 @@ def main(cfg):
     print("mettaGridEnv._max_steps: ", mettaGridEnv._max_steps)
     assert mettaGridEnv._max_steps == 5000
     print("mettaGridEnv.single_observation_space: ", mettaGridEnv.single_observation_space)
+    # Here's our 22 channels, 11x11 grid again!
     assert mettaGridEnv.single_observation_space.shape == (22, 11, 11)
     print("mettaGridEnv.single_action_space: ", mettaGridEnv.single_action_space)
-    assert mettaGridEnv.single_action_space.nvec.tolist() == [8, 9]
+    [num_actions, max_arg] = mettaGridEnv.single_action_space.nvec.tolist()
+    # We don't want to hard-code the number of actions to expect (we might add more), so
+    # we do some loose testing of "is this a reasonable number of actions?"
+    assert 5 <= num_actions <= 20, f"num_actions: {num_actions}"
+    # Same this for max_arg. No reason the it's "reasonable range" should be the same as num_actions,
+    # but it happens to be.
+    assert 5 <= max_arg <= 20, f"max_arg: {max_arg}"
     print("mettaGridEnv.action_names(): ", mettaGridEnv.action_names())
     print("mettaGridEnv.grid_features: ", mettaGridEnv.grid_features)
     print("mettaGridEnv.global_features: ", mettaGridEnv.global_features)
