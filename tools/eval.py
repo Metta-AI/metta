@@ -16,55 +16,55 @@ from util.stats_library import (
 logger = logging.getLogger("eval.py")
 
 
-class Eval:
+# class Eval:
 
-    def __init__(self, cfg: DictConfig, metrics = ["mann_whitney_u", "elo", "glicko2", "time_to_targets"], env_name = None):
-        """
-        Store config for later use.
-        """
-        self.cfg = cfg
-        self.metrics = metrics
-        self.env_name = env_name
+#     def __init__(self, cfg: DictConfig, metrics = ["mann_whitney_u", "elo", "glicko2", "time_to_targets"], env_name = None):
+#         """
+#         Store config for later use.
+#         """
+#         self.cfg = cfg
+#         self.metrics = metrics
+#         self.env_name = env_name
 
-    def log_metrics(self, stats):
-        """
-        Logs the various metrics using the stats gathered.
-        """
-        logger.setLevel(logging.INFO)
+#     def log_metrics(self, stats):
+#         """
+#         Logs the various metrics using the stats gathered.
+#         """
+#         logger.setLevel(logging.INFO)
 
-        _, mean_altar_use = get_test_results(MannWhitneyUTest(stats, self.cfg.evaluator.stat_categories['action.use.altar'], mode = 'mean', label = self.env_name)
-            )
-        logger.info("\n" + mean_altar_use)
+#         _, mean_altar_use = get_test_results(MannWhitneyUTest(stats, self.cfg.evaluator.stat_categories['action.use.altar'], mode = 'mean', label = self.env_name)
+#             )
+#         logger.info("\n" + mean_altar_use)
 
-        if "time_to_targets" in self.metrics:
-            _, time_to_targets = get_test_results(
-                MannWhitneyUTest(stats, self.cfg.evaluator.stat_categories['time_to'], mode = 'mean', label = self.env_name)
-            )
-            logger.info("\n" + time_to_targets)
+#         if "time_to_targets" in self.metrics:
+#             _, time_to_targets = get_test_results(
+#                 MannWhitneyUTest(stats, self.cfg.evaluator.stat_categories['time_to'], mode = 'mean', label = self.env_name)
+#             )
+#             logger.info("\n" + time_to_targets)
 
 
-        if "mann_whitney_u" in self.metrics:
-            # Generic Mann-Whitney on "all" stats
-            _, fr = get_test_results(
-                MannWhitneyUTest(stats, self.cfg.evaluator.stat_categories['all'])
-            )
-            logger.info("\n" + fr)
+#         if "mann_whitney_u" in self.metrics:
+#             # Generic Mann-Whitney on "all" stats
+#             _, fr = get_test_results(
+#                 MannWhitneyUTest(stats, self.cfg.evaluator.stat_categories['all'])
+#             )
+#             logger.info("\n" + fr)
 
-        if "elo" in self.metrics:
-            # Elo test on "altar" category
-            _, fr = get_test_results(
-                EloTest(stats, self.cfg.evaluator.stat_categories['altar']),
-                self.cfg.evaluator.baselines.elo_scores_path
-            )
-            logger.info("\n" + fr)
+#         if "elo" in self.metrics:
+#             # Elo test on "altar" category
+#             _, fr = get_test_results(
+#                 EloTest(stats, self.cfg.evaluator.stat_categories['altar']),
+#                 self.cfg.evaluator.baselines.elo_scores_path
+#             )
+#             logger.info("\n" + fr)
 
-        if "glicko2" in self.metrics:
-            # Glicko2 test on "altar" category
-            _, fr = get_test_results(
-                Glicko2Test(stats, self.cfg.evaluator.stat_categories['altar']),
-                self.cfg.evaluator.baselines.glicko_scores_path
-            )
-            logger.info("\n" + fr)
+#         if "glicko2" in self.metrics:
+#             # Glicko2 test on "altar" category
+#             _, fr = get_test_results(
+#                 Glicko2Test(stats, self.cfg.evaluator.stat_categories['altar']),
+#                 self.cfg.evaluator.baselines.glicko_scores_path
+#             )
+#             logger.info("\n" + fr)
 
 
 @hydra.main(version_base=None, config_path="../configs", config_name="config")

@@ -3,9 +3,9 @@ defaults:
 
 env: env/mettagrid/simple
 
-metrics_to_log:
-  - time_to_targets
-  - elo
+# metrics_to_log:
+#   - time_to_targets
+#   - elo
 
 
 policy_agents_pct: 0.5

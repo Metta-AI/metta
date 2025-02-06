@@ -116,33 +116,32 @@ class PufferTrainer:
         logger.info(f"Training complete. Total time: {self.train_time:.2f} seconds")
 
     def _evaluate_policy(self):
-        if not self.cfg.evaluator.baselines.uri:
-            self.cfg.evaluator.baselines.uri = f"file://{self.cfg.trainer.checkpoint_dir}"
 
-        baseline_records = self.policy_store.policies(self.cfg.evaluator.baselines)
+        eval = hydra.utils.instantiate(self.cfg.eval, self.policy_store, self.cfg.env, _recursive_ = False)
 
-        evaluator = hydra.utils.instantiate(self.cfg.evaluator, self.cfg, self.last_pr, baseline_records)
-        stats = evaluator.evaluate()
-        evaluator.close()
+        stats = eval.evaluate()
+        eval.close()
 
         if stats is None:
             logger.warning("Evaluate Policy: No stats to evaluate")
             return
 
-        results, formatted_results = get_test_results(
-            Glicko2Test(stats, self.cfg.evaluator.stat_categories['altar']),
-            scores_path = self.cfg.trainer.glicko_scores_path)
+        #TODO now we want to log the Glicko2 scores, need to implement this in the new eval
 
-        rating = results.get(self.last_pr.name, {}).get("rating", None)
+        # results, formatted_results = get_test_results(
+        #     Glicko2Test(stats, self.cfg.evaluator.stat_categories['altar']),
+        #     scores_path = self.cfg.trainer.glicko_scores_path)
 
-        if rating is not None:
-            self.wandb_run.log({
-                "eval/glicko2": rating,
-                "train/agent_step": self.agent_step,
-                "train/epoch": self.epoch,
-            })
+        # rating = results.get(self.last_pr.name, {}).get("rating", None)
 
-        logger.info(f"Glicko2 scores: \n{formatted_results}")
+        # if rating is not None:
+        #     self.wandb_run.log({
+        #         "eval/glicko2": rating,
+        #         "train/agent_step": self.agent_step,
+        #         "train/epoch": self.epoch,
+        #     })
+
+        # logger.info(f"Glicko2 scores: \n{formatted_results}")
 
     def _on_train_step(self):
         pass

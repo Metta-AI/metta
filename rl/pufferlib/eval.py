@@ -52,7 +52,10 @@ class Eval():
             "filters": {}
         })
 
+        # load candidate policy
         self._policy_pr = self._policy_store.policy(policy_selector_cfg)
+
+        # load npc policy
         self._npc_pr = None
         if self._npc_policy_uri is not None:
             policy_selector_cfg.uri = self._npc_policy_uri
@@ -194,6 +197,7 @@ class EvalSuite:
                     eval_cfg,
                     policy_store,
                     env_defaults,
+                    env_defaults.name,
                     _recursive_=False
                 )
             )
