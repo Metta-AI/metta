@@ -14,7 +14,6 @@ from mettagrid.actions.attack cimport Attack
 cdef class AttackNearest(Attack):
     def __init__(self, cfg: OmegaConf):
         Attack.__init__(self, cfg, "attack_nearest")
-        self._priority = 1
 
     cdef unsigned char max_arg(self):
         return 0
