@@ -16,29 +16,20 @@ observations:
   
 clip_multiplier: 3.0
 
-interface:
-  input:
-    obs: observation_encoder_1
-    core_output: _core_
-
-  output:
-    encoded_obs: observation_encoder_1
-    value: critic_3
-    action_param: actor_2
-
 components:
 #necessary sources: _obs_, _core_
+# define this further
 #necessary outputs: _encoded_obs_, _action_param_, _value_
 
 # do we want _target_ agent.metta_agent.MettaLayer to be in the python instead?
-  obs_helper: 
+  _obs_: 
     _target_: agent.lib.metta_layer.MettaLayer
-    input_source: _obs_
+    input_source: null
     layer_type: Identity
 
   obs_normalizer:
     _target_: agent.lib.observation_normalizer.ObservationNormalizer
-    input_source: obs_helper
+    input_source: _obs_
 
   # feature_normalizer:
     ###
@@ -53,13 +44,15 @@ components:
       stride: 3
 
   obs_encoder_2:
-    _target_: agent.lib.metta_layer.MettaLayer
+    _target_: agent.lib.metta_layer.Conv2d
+    kernel_size: 3
+    stride: 1
     input_source: obs_encoder_1
     output_size: 64
-    layer_type: Conv2d
-    nn_params:
-      kernel_size: 3
-      stride: 1
+    # layer_type: Conv2d
+    # nn_params:
+    #   kernel_size: 3
+    #   stride: 1
 
   obs_flattener:
     _target_: agent.lib.metta_layer.MettaLayer
@@ -85,12 +78,10 @@ components:
     input_source: obs_flattener
     output_size: 128
 
-  core_helper:
+  _core_:
     _target_: agent.lib.metta_layer.MettaLayer
-    rnn_type: gru
     rnn_num_layers: 1
-    rnn_size: 128
-    input_source: _core_
+    input_source: null
     output_size: 128
     layer_type: Identity
 

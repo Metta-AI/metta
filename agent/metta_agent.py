@@ -24,23 +24,13 @@ class MettaAgent(nn.Module, MettaAgentInterface):
         super().__init__()
         cfg = OmegaConf.create(cfg)
         self.cfg = cfg
-        self.observation_space = obs_space
+        # self.observation_space = obs_space
         self.action_space = action_space
         self.grid_features = grid_features
-        self.global_features = global_features
-        self.obs_key = cfg.observations.obs_key
+        # self.global_features = global_features
+        # self.obs_key = cfg.observations.obs_key
+        self.num_objects = obs_space[self.cfg.observations.obs_key].shape[0]
 
-        self.num_objects = obs_space[self.obs_key].shape[0]
-
-
-        # self.obs_cfg = cfg.obs
-        # cfg.obs.name = 'obs'
-        # cfg.obs.input_source = 'obs'
-        # cfg.obs.output_size = self._num_objects
-
-        # self.obs = MettaLayer(self, MettaAgent=self, cfg=cfg.obs)
-        # self.normalizer = FeatureListNormalizer(grid_features, obs_space[self._obs_key].shape[1:])
-        # self.object_normalizer = ObservationNormalizer(self, grid_features)
 
         self.components = {}
         component_cfgs = OmegaConf.to_container(cfg.components, resolve=True)
@@ -49,11 +39,13 @@ class MettaAgent(nn.Module, MettaAgentInterface):
             component = hydra.utils.instantiate(component_cfgs[component_cfg], MettaAgent=self)
             self.components[component_cfg] = component
 
+        self.components['_obs_'].output_size = self.num_objects
+
         self.components['_encoded_obs_'].set_input_size_and_initialize_layer()
         self.components['_action_param_'].set_input_size_and_initialize_layer()
         self.components['_value_'].set_input_size_and_initialize_layer()
 
-    #def weight helper functions
+# --- weight helper functions ---
     def clip_weights(self):
         for component in self.components.values():
             clip_value = getattr(component, 'clip_value', None)

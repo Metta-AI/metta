@@ -13,16 +13,15 @@ class MettaLayer(nn.Module):
         self.MettaAgent = MettaAgent
         self.cfg = cfg
         self.name = cfg.name
-        self.input_source = cfg.input_source
+        self.input_source = cfg.get('input_source', None)
         self.output_size = cfg.get('output_size', None)
         self.clip_multiplier = cfg.get('clip_multiplier', None)
         # can change the above to default to None and then handle it in the parameter_layer_helper
 
     def set_input_size_and_initialize_layer(self):
-        if self.input_source == '_obs_':
-            self.input_size = self.MettaAgent.num_objects
-        elif self.input_source == '_core_':
-            self.input_size = self.output_size
+        if self.input_source is None:
+            if self.output_size is None:
+                raise ValueError(f"Output size is not set for layer {self.name}")
         else:
             if isinstance(self.input_source, omegaconf.listconfig.ListConfig):
                 self.input_source = list(self.input_source)
@@ -37,30 +36,9 @@ class MettaLayer(nn.Module):
         if self.output_size is None:
             self.output_size = self.input_size
 
-        self.instantiate_layer_from_cfg()
+        self._instantiate_layer_from_cfg()
 
-        # Layer initialization mapping
-        # layer_params = {
-        #     'Linear': (self.input_size, self.output_size),
-        #     'Conv2d': (self.input_size, self.output_size, self.cfg.kernel_size, self.cfg.stride),
-        #     'Dropout': (self.cfg.dropout_prob,),
-        #     'BatchNorm2d': (self.input_size,),
-        #     'Identity': (),
-        #     'Flatten': ()
-        # }
-
-        # self.layer_type = self.cfg.get('layer_type', 'Linear')
-        
-        # if self.layer_type not in layer_params:
-        #     raise ValueError(f"Layer type {self.layer_type} not supported")
-
-        # self.layer = getattr(nn, self.layer_type)(*layer_params[self.layer_type])
-        
-        # if self.layer_type in ['Linear', 'Conv2d']:
-        #     self.parameter_layer_helper()
-        #     self.initialize_layer()
-
-    def instantiate_layer_from_cfg(self):
+    def _instantiate_layer_from_cfg(self):
         '''
         nn_params_dict key names should be the same as the argument names of the torch nn class.
         We add nonlinear layers to Linear and Conv classes. Specify nonlinearity = None in the cfg to change this.
@@ -84,19 +62,14 @@ class MettaLayer(nn.Module):
             self.layer = getattr(nn, self.layer_type)(**nn_params_dict)
 
         if any(substring in self.layer_type for substring in ['Linear', 'Conv']):
-            self.parameter_layer_helper()
-            self.initialize_layer()
+            self._parameter_layer_helper()
+            self._initialize_weights()
 
     def forward(self, td: TensorDict):
         if self.name in td:
             return td[self.name]
 
-        if self.input_source == '_obs_':
-            td[self.name] = td["obs"][self.MettaAgent.obs_key]
-        elif self.input_source == '_core_':
-            td[self.name] = td["core_output"]
-        else:
-# need to think about cat vs add vs subtract
+        if self.input_source is not None:
             if isinstance(self.input_source, list):
                 for src in self.input_source:
                    self.MettaAgent.components[src].forward(td) 
@@ -112,7 +85,9 @@ class MettaLayer(nn.Module):
 
         return td
     
-    def parameter_layer_helper(self):
+    # --- weight helper functions ---
+
+    def _parameter_layer_helper(self):
         attributes = ['clip_scale', 'l2_norm_scale', 'l2_init_scale', 'effective_rank', 'initialization']
         for attr in attributes:
             if attr in self.cfg:
@@ -136,7 +111,7 @@ class MettaLayer(nn.Module):
             self.weights_data = self.layer[0].weight.data
 
 
-    def initialize_layer(self):
+    def _initialize_weights(self):
         '''
         Assumed that this is run before appending a nonlinear layer.
         '''
@@ -272,3 +247,39 @@ class MettaLayerBase(nn.Module):
         return td
         '''
         raise NotImplementedError(f"The method forward() is not implemented yet for object {self.__class__.__name__}.")
+    
+
+class LayerBase(nn.Module):
+  def regularize(self):
+    pass
+  def clip_weights(self):
+    pass
+  def get_l2_reg_loss(self):
+    pass
+  def get_l2_init_loss(self):
+    pass
+
+class RegularizedLayer(LayerBase):
+    pass
+
+
+class Conv2d(RegularizedLayer, ClippedLayer):
+    def __init__(self, **cfg):
+        ClippedLayer.__init__(self, **cfg)
+        RegularizedLayer.__init__(self, **cfg)
+        super().__init__(**cfg)
+        self.layer = nn.Conv2d(
+            self.input_size,
+            self.output_size,
+            kernel_size=cfg.get('kernel_size', 3),
+            stride=cfg.get('stride', 1),    
+        )
+
+
+class Dropout(LayerBase):
+    def __init__(self, **cfg):
+        super().__init__(**cfg)
+        self.layer = nn.Dropout(p=cfg.get('p', 0.5))
+
+    def forward(self, td: TensorDict):
+        return super().forward(td)

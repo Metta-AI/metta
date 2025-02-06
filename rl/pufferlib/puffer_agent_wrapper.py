@@ -32,16 +32,17 @@ class PufferAgentWrapper(nn.Module):
         return self.decode_actions(x, None, e3b=e3b)
 
     def encode_observations(self, flat_obs):
-        obs = {
-            "grid_obs": flat_obs.float(),
-            "global_vars": torch.zeros(flat_obs.shape[0], dtype=torch.float32).to(flat_obs.device)
-        }
-        td = TensorDict({"obs": obs})
+        # obs = {
+        #     "grid_obs": flat_obs.float(),
+        #     "global_vars": torch.zeros(flat_obs.shape[0], dtype=torch.float32).to(flat_obs.device)
+        # }
+        # td = TensorDict({"_obs_": obs})
+        td = TensorDict({"_obs_": flat_obs.float()})
         self._agent.components["_encoded_obs_"](td)
         return td["_encoded_obs_"], td
 
     def decode_actions(self, flat_hidden, lookup, concat=None, e3b=None):
-        lookup["core_output"] = flat_hidden
+        lookup["_core_"] = flat_hidden
         self._agent.components["_value_"](lookup)
         self._agent.components["_action_param_"](lookup)
 
@@ -78,9 +79,9 @@ def make_policy(env: PufferEnv, cfg: OmegaConf):
 
     if cfg.agent.components.core_helper.rnn_num_layers > 0:
         puffer_agent = Recurrent(
-            env, puffer_agent, input_size=cfg.agent.components._encoded_obs_.output_size,
-            hidden_size=cfg.agent.components.core_helper.rnn_size,
-            num_layers=cfg.agent.components.core_helper.rnn_num_layers
+            env, puffer_agent, input_size=cfg.agent.components._obs_.output_size,
+            hidden_size=cfg.agent.components._core_.output_size,
+            num_layers=cfg.agent.components._core_.rnn_num_layers
         )
         puffer_agent = pufferlib.cleanrl.RecurrentPolicy(puffer_agent)
     else:
