@@ -66,42 +66,24 @@ class Eval:
             )
             logger.info("\n" + fr)
 
-    def run_eval(self, log = True):
-        """
-        Main logic of the script: sets up environment, runs evaluation, logs metrics.
-        """
-        # 1) Initialize environment
-
-        if not log:
-            logger.setLevel(logging.WARNING)
-
-        # 2) Start WandB context (if configured)
-        with WandbContext(self.cfg) as wandb_run:
-            # 3) Get policies
-            policy_store = PolicyStore(self.cfg, wandb_run, log=log)
-            policy = policy_store.policy(self.cfg.evaluator.policy)
-
-            # Possibly load baseline policies
-            baselines = []
-            if self.cfg.evaluator.baselines.uri:
-                baselines = policy_store.policies(self.cfg.evaluator.baselines)
-
-            # 4) Instantiate evaluator & evaluate
-            evaluator = hydra.utils.instantiate(self.cfg.evaluator, self.cfg, policy, baselines, log=log)
-            stats = evaluator.evaluate()
-            evaluator.close()
-
-            if log:
-                self.log_metrics(stats)
-
-            return stats
-
 
 @hydra.main(version_base=None, config_path="../configs", config_name="config")
 def main(cfg: DictConfig):
-    driver = Eval(cfg)
     setup_metta_environment(cfg)
-    driver.run_eval()
+
+    with WandbContext(cfg) as wandb_run:
+        policy_store = PolicyStore(cfg, wandb_run)
+
+        eval = hydra.utils.instantiate(
+            cfg.eval,
+            policy_store,
+            cfg.env,
+            _recursive_=False
+        )
+        stats = eval.evaluate()
+        # log_metrics(stats)
+
+        return stats
 
 
 if __name__ == "__main__":

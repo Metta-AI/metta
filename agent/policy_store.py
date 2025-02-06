@@ -48,14 +48,11 @@ class PolicyRecord:
         return self._local_path
 
 class PolicyStore:
-    def __init__(self, cfg: OmegaConf, wandb_run: wandb_run.Run, log: bool = True):
+    def __init__(self, cfg: OmegaConf, wandb_run: wandb_run.Run):
         self._cfg = cfg
         self._device = cfg.device
         self._wandb_run = wandb_run
         self._cached_prs = {}
-
-        if not log:
-            logger.setLevel(logging.WARNING)
 
     def policy(self, policy_selector_cfg: OmegaConf) -> PolicyRecord:
         if isinstance(policy_selector_cfg, str):

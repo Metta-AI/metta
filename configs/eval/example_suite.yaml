@@ -1,0 +1,29 @@
+_target_: rl.pufferlib.eval.EvalSuite
+
+defaults:
+  - eval
+
+policy_uri: wandb://run/b.daveey.train.simple.s20m
+
+evals:
+  simple_small_map:
+    _target_: rl.pufferlib.eval.Eval
+    env: env/mettagrid/simple
+    npc_policy_uri: wandb://run/b.daveey.train.simple.s15m
+    policy_agents_pct: 0.5
+
+    summary_metrics:
+      - action.use.altar
+      - glicko2
+
+  eval_2:
+    _target_: rl.pufferlib.eval.Eval
+    env: env/mettagrid/simple
+    policy_agents_pct: 0.5
+    npc_policy_uri: wandb://run/b.daveey.train.simple.s15m
+
+    summary_metrics:
+      - time_to_targets
+      - elo
+
+
