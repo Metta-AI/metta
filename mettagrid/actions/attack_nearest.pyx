@@ -30,11 +30,12 @@ cdef class AttackNearest(Attack):
         cdef GridLocation target_loc;
         cdef Agent * agent_target;
         
-        # xcxc see if this is efficient
+        # Scan the space to find the nearest agent. Prefer the middle (offset 0) before the edges (offset -1, 1).
         for distance in range(1, 4):
-            # distance is clear, and attacking the middle before the edges seems right.
-            # preferring to attack left over right is arbitrary.
-            for offset in [0, -1, 1]:
+            for offset in range(3):
+                if offset == 2:
+                    # Sort of a mod 3 operation.
+                    offset = -1
                 target_loc = self.env._grid.relative_location(
                     actor.location,
                     <Orientation>actor.orientation,
