@@ -36,7 +36,7 @@ cdef class Attack(MettaActionHandler):
             actor.location,
             <Orientation>actor.orientation,
             distance, offset)
-        
+
         return self._handle_target(actor_id, actor, target_loc)
 
     cdef bint _handle_target(
@@ -71,6 +71,7 @@ cdef class Attack(MettaActionHandler):
                 strcpy(stat_name, actor.group_name.c_str())
                 strcat(stat_name, ".attack.frozen")
                 self.env._stats.agent_incr(actor_id, stat_name)
+                self.env._rewards[actor_id] += agent_target.freeze_reward
                 for item in range(InventoryItem.InventoryCount):
                     actor.update_inventory(item, agent_target.inventory[item], &self.env._rewards[actor_id])
                     strcpy(stat_name, actor.group_name.c_str())
