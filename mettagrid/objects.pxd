@@ -71,6 +71,8 @@ cdef cppclass Agent(MettaObject):
     unsigned char max_items
     unsigned char max_energy
     float energy_reward
+    float resource_reward
+    float freeze_reward
     string group_name
     unsigned char color
 
@@ -95,11 +97,16 @@ cdef cppclass Agent(MettaObject):
         this.inventory.resize(InventoryItem.InventoryCount)
         this.max_items = cfg[b"max_inventory"]
         this.energy_reward = float(cfg[b"energy_reward"]) / 1000.0
+        this.resource_reward = float(cfg[b"resource_reward"]) / 1000.0
+        this.freeze_reward = float(cfg[b"freeze_reward"]) / 1000.0
         this.shield = False
         this.color = 0
 
-    inline void update_inventory(InventoryItem item, short amount):
+    inline void update_inventory(InventoryItem item, short amount, float *reward):
         this.inventory[<InventoryItem>item] += amount
+        if reward is not NULL:
+            reward[0] += amount * this.resource_reward
+
         if this.inventory[<InventoryItem>item] > this.max_items:
             this.inventory[<InventoryItem>item] = this.max_items
 
@@ -217,7 +224,7 @@ cdef cppclass Converter(Usable):
                 potential_energy_gain = this.predator_r1_output_energy
                 produced_resource = InventoryItem.r3
 
-        actor.update_inventory(consumed_resource, -1)
+        actor.update_inventory(consumed_resource, -1, NULL)
         stats.agent_incr(actor_id, InventoryItemNames[consumed_resource] + ".used")
         strcpy(stat_name, actor.group_name.c_str())
         strcat(stat_name, ".")
@@ -225,13 +232,21 @@ cdef cppclass Converter(Usable):
         strcat(stat_name, ".used")
         stats.agent_incr(actor_id, stat_name)
 
-        actor.update_inventory(produced_resource, 1)
+        actor.update_inventory(produced_resource, 1, NULL)
         stats.agent_incr(actor_id, InventoryItemNames[produced_resource] + ".gained")
-        stats.agent_incr(actor_id, actor.group_name + "." + InventoryItemNames[produced_resource] + ".gained")
+        strcpy(stat_name, actor.group_name.c_str())
+        strcat(stat_name, ".")
+        strcat(stat_name, InventoryItemNames[produced_resource].c_str())
+        strcat(stat_name, ".gained")
+        stats.agent_incr(actor_id, stat_name)
+
 
         energy_gain = actor.update_energy(potential_energy_gain, rewards)
         stats.agent_add(actor_id, "energy.gained", energy_gain)
-        stats.agent_add(actor_id, actor.group_name + ".energy.gained", energy_gain)
+        strcpy(stat_name, actor.group_name.c_str())
+        strcat(stat_name, ".")
+        strcat(stat_name, "energy.gained")
+        stats.agent_add(actor_id, stat_name, energy_gain)
 
     inline obs(ObsType[:] obs):
         obs[0] = 1
