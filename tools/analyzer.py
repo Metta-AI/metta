@@ -5,7 +5,7 @@ from omegaconf import DictConfig, OmegaConf
 from typing import List, Optional, Dict, Any
 from rl.wandb.wanduckdb import WandbDuckDB
 from util.stats_library import MannWhitneyUTest, EloTest, Glicko2Test, get_test_results
-
+from rl.wandb.wandb_context import WandbContext
 # Aggressively exit on Ctrl+C
 signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
 
@@ -22,6 +22,7 @@ class Analyzer:
             OmegaConf.save(cfg, f)
 
         print(f"Connecting to W&B project: {cfg.wandb.project}")
+        #with WandbContext(cfg) as wandb_run
         self.wandb_db = WandbDuckDB(
             self.cfg.wandb.entity,
             self.cfg.wandb.project,

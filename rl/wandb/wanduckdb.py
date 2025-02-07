@@ -2,12 +2,14 @@ import os
 import json
 import duckdb
 import wandb
+from wandb.sdk import wandb_run
 import pandas as pd
 from typing import Optional, Dict, Any, List
 from omegaconf import OmegaConf
 
 class WandbDuckDB:
-    def __init__(self, entity: str, project: str, artifact_name: str, alias: Optional[str] = None, table_name: str = "artifact_table"):
+    #TODO add wandb_run
+    def __init__(self, entity: str, project: str,artifact_name: str, alias: Optional[str] = None, table_name: str = "artifact_table"):
         """
         Initialize the instance by downloading the wandb artifact(s) and loading their JSON data into DuckDB.
 
@@ -23,6 +25,9 @@ class WandbDuckDB:
         self.artifact_name = artifact_name
         self.alias = alias
         self.table_name = table_name
+       # self._wandb_run = wandb_run
+
+       #TODO: instead of making the connection here use wandb_run from WandbContext
 
         # Initialize the wandb API
         self.api = wandb.Api()
