@@ -19,6 +19,7 @@ from mettagrid.actions.move import Move
 from mettagrid.actions.rotate import Rotate
 from mettagrid.actions.use import Use
 from mettagrid.actions.attack import Attack
+from mettagrid.actions.attack_nearest import AttackNearest
 from mettagrid.actions.shield import Shield
 from mettagrid.actions.gift import Gift
 from mettagrid.actions.noop import Noop
@@ -52,6 +53,7 @@ cdef class MettaGrid(GridEnv):
             actions.append(Use(cfg.actions.use))
         if cfg.actions.attack.enabled:
             actions.append(Attack(cfg.actions.attack))
+            actions.append(AttackNearest(cfg.actions.attack))
         if cfg.actions.shield.enabled:
             actions.append(Shield(cfg.actions.shield))
         if cfg.actions.gift.enabled:
