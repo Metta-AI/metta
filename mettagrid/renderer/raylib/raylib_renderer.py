@@ -309,9 +309,12 @@ class MettaGridRaylibRenderer:
         * `D` face right
 
         * Key `1` to `9` attacks with that type of an attack.
+        * `Z` attack nearest agent
         * `U` use
         * `O` toggle shield
         * `P` swap
+        * `[` increment color
+        * `]` decrement color
 
         * `~` toggle mind control - the agent will ignore the AI and just sit
             there allowing the player to move it around without the AI making
@@ -465,6 +468,8 @@ class MettaGridRaylibRenderer:
             rl.KEY_SEVEN: (self.action_ids["attack"], 7), # KEY_7
             rl.KEY_EIGHT: (self.action_ids["attack"], 8), # KEY_8
             rl.KEY_NINE: (self.action_ids["attack"], 9),  # KEY_9
+
+            rl.KEY_Z: (self.action_ids["attack_nearest"], 0),
 
             # toggle shield
             rl.KEY_O: (self.action_ids["shield"], 0),
