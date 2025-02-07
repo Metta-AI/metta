@@ -1,4 +1,3 @@
-import json
 import logging
 import os
 import time
@@ -14,8 +13,8 @@ import wandb
 from agent.policy_store import PolicyStore
 from fast_gae import fast_gae
 from omegaconf import OmegaConf
-from util.stats_library import Glicko2Test, get_test_results
 
+from rl.eval_stats_logger import EvalStatsLogger
 from rl.pufferlib.experience import Experience
 from rl.pufferlib.profile import Profile
 from rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
@@ -42,6 +41,7 @@ class PufferTrainer:
         self.wandb_run = wandb_run
         self.policy_store = policy_store
         self.use_e3b = self.trainer_cfg.use_e3b
+        self.eval_stats_logger = EvalStatsLogger(cfg, wandb_run)
 
         self._make_vecenv()
 
@@ -118,20 +118,11 @@ class PufferTrainer:
     def _evaluate_policy(self):
 
         eval = hydra.utils.instantiate(self.cfg.eval, self.policy_store, self.cfg.env, _recursive_ = False)
-
         stats = eval.evaluate()
-        eval.close()
+        self.eval_stats_logger.log(stats, file_name=self.last_pr.name, artifact_name=self.cfg.eval.eval_artifact_name)
 
-        if stats is None:
-            logger.warning("Evaluate Policy: No stats to evaluate")
-            return
-
-        #TODO now we want to log the Glicko2 scores, need to implement this in the new eval
-
-        # results, formatted_results = get_test_results(
-        #     Glicko2Test(stats, self.cfg.evaluator.stat_categories['altar']),
-        #     scores_path = self.cfg.trainer.glicko_scores_path)
-
+        # xcxc
+        # self.eval_stats_analyzer.analyze()
         # rating = results.get(self.last_pr.name, {}).get("rating", None)
 
         # if rating is not None:

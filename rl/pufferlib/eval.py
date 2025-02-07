@@ -18,7 +18,6 @@ class Eval():
         self,
         policy_store: PolicyStore,
         env_defaults: DictConfig,
-        run_dir: str,
 
         env: str,
         policy_uri: str,
@@ -43,7 +42,6 @@ class Eval():
         self._policy_store = policy_store
 
         self._device = device
-        self.run_dir = run_dir
 
         self._num_envs = num_envs
         self._min_episodes = num_episodes
@@ -181,11 +179,8 @@ class Eval():
 
         logger.info(f"Total episodes: {self._completed_episodes}")
         logger.info(f"Evaluation time: {time.time() - start}")
-        self.close()
-        return game_stats
-
-    def close(self):
         self._vecenv.close()
+        return game_stats
 
 class EvalSuite:
     def __init__(
