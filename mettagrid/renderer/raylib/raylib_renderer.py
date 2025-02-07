@@ -19,7 +19,7 @@ from mettagrid.renderer.raylib.object_render import (
     GeneratorRenderer,
     WallRenderer,
 )
-
+from mettagrid.renderer.raylib.font_renderer import FontRenderer
 
 class MettaGridRaylibRenderer:
     def __init__(self, env: MettaGridEnv, cfg: OmegaConf):
@@ -36,14 +36,17 @@ class MettaGridRaylibRenderer:
         self.tile_size = 24
         self._update_layout()
 
+        self.ffi = FFI()
+
         # Initialize window with default size
         rl.InitWindow(self.window_width, self.window_height, "MettaGrid".encode())
         rl.SetWindowState(rl.FLAG_WINDOW_RESIZABLE)  # Make the window resizable
-
-        # Load custom font
+        
         font_path = "deps/mettagrid/mettagrid/renderer/assets/Inter-Regular.ttf"
         assert os.path.exists(font_path), f"Font {font_path} does not exist"
-        self.font = rl.LoadFont(font_path.encode())
+
+        # Load custom font
+        self.font_renderer = FontRenderer(self.ffi, font_path)
 
         self._setup_action_handling()
 
@@ -62,8 +65,6 @@ class MettaGridRaylibRenderer:
         camera.rotation = 0.0
         camera.zoom = 1.0
         self.camera = camera
-
-        self.ffi = FFI()
 
         self.game_objects = {}
         self.actions = torch.zeros((self.num_agents, 2), dtype=torch.int64)
@@ -173,11 +174,6 @@ class MettaGridRaylibRenderer:
             if self.selected_object_id is not None and "agent_id" in self.game_objects[self.selected_object_id]:
                 self.selected_agent_idx = self.game_objects[self.selected_object_id]["agent_id"]
 
-    def _draw_text_right_aligned(self, text, x, y, font_size, color=colors.WHITE):
-        """Draw text right aligned at (x, y), useful for displaying numbers."""
-        text_width = rl.MeasureTextEx(self.font, text, font_size, 1).x
-        rl.DrawTextEx(self.font, text, (x - text_width, y), font_size, 1, color)
-
     def render_sidebar(self):
         font_size = 14
         sidebar_x = rl.GetScreenWidth() - self.sidebar_width
@@ -191,8 +187,10 @@ class MettaGridRaylibRenderer:
             nonlocal y
             if obj_id and obj_id in self.game_objects:
                 obj = self.game_objects[obj_id]
-                rl.DrawTextEx(self.font, f"{title}:".encode(),
-                              (sidebar_x + 10, y), font_size + 2, 1, color)
+                # rl.DrawTextEx(self.font, f"{title}:".encode(),
+                #               (sidebar_x + 10, y), font_size, 1, color)
+                self.font_renderer.render_text(f"{title}:", sidebar_x + 10, y, font_size, color)
+                
                 y += line_height * 2
 
                 for key, value in obj.items():
@@ -201,8 +199,7 @@ class MettaGridRaylibRenderer:
                     text = f"{key}: {value}"
                     if len(text) > 25:
                         text = text[:22] + "..."
-                    rl.DrawTextEx(self.font, text.encode(),
-                                  (sidebar_x + 10, y), font_size, 1, colors.WHITE)
+                    self.font_renderer.render_text(text, sidebar_x + 10, y, font_size)
                     y += line_height
 
                 if "agent_id" in obj:
@@ -210,9 +207,7 @@ class MettaGridRaylibRenderer:
                     action_txt = ", ".join([
                         f"{self.action_names[action[0]]}({action[0]})"
                         for action in self.action_history[agent_id]])
-                    rl.DrawTextEx(
-                        self.font, action_txt.encode(), (sidebar_x + 10, y),
-                        font_size, 1, colors.WHITE)
+                    self.font_renderer.render_text(action_txt, sidebar_x + 10, y, font_size)
                     y += line_height
 
                 y += line_height
@@ -230,8 +225,8 @@ class MettaGridRaylibRenderer:
             # draw a 11x11 grid of text on the sidebar
             for r in range(obs.shape[0]):
                 for c in range(obs.shape[1]):
-                    text = f"{obs[r][c]}".encode()
-                    self._draw_text_right_aligned(
+                    text = f"{obs[r][c]}"
+                    self.font_renderer.render_text_right_aligned(
                         text,
                         sidebar_x + 10 + (c + 1) * font_size * 3,
                         y + r * font_size,
@@ -240,8 +235,7 @@ class MettaGridRaylibRenderer:
 
         # Display current timestep at the bottom of the sidebar
         timestep_text = f"Timestep: {self.current_timestep}"
-        rl.DrawTextEx(self.font, timestep_text.encode(),
-                      (sidebar_x + 10, sidebar_height - 30), font_size, 1, colors.WHITE)
+        self.font_renderer.render_text(timestep_text, sidebar_x + 10, sidebar_height - 30, font_size)
         feature_name = "disabled"
 
         # Clamp the observation index to be between -1 and the number of features minus 1
@@ -249,8 +243,7 @@ class MettaGridRaylibRenderer:
         feature_name = self.env.grid_features()[self.obs_idx]
 
         obs_txt = f"Press ? for help. Obs: {feature_name} (-/=)"
-        rl.DrawTextEx(self.font, obs_txt.encode(),
-                      (sidebar_x + 10, sidebar_height - 60), font_size, 1, colors.WHITE)
+        self.font_renderer.render_text(obs_txt, sidebar_x + 10, sidebar_height - 60, font_size)
 
     def draw_selection(self, obj):
         x, y = obj["c"] * self.tile_size, obj["r"] * self.tile_size
@@ -318,7 +311,7 @@ class MettaGridRaylibRenderer:
             decisions.
         """
         # Figure out how big to make the box to fit the text.
-        size = rl.MeasureTextEx(self.font, help_text.encode(), font_size, 1)
+        size = self.font_renderer.measure_text(help_text, font_size)
         size_x = int(size.x + 30)
         size_y = int(size.y + 30)
         # Position the box in the middle of the screen.
@@ -326,13 +319,11 @@ class MettaGridRaylibRenderer:
         pos_y = (rl.GetScreenHeight() - size_y) // 2
         # Draw a semi-transparent black rectangle behind the text.
         rl.DrawRectangle(pos_x, pos_y, size_x, size_y, (0, 0, 0, 200))
-        rl.DrawTextEx(
-            self.font,
-            help_text.encode(),
-            (pos_x + 15, pos_y + 15),
-            font_size,
-            1,
-            colors.WHITE
+        self.font_renderer.render_text(
+            help_text,
+            pos_x + 15,
+            pos_y + 15,
+            font_size
         )
 
     def handle_keyboard_input(self):
@@ -397,7 +388,7 @@ class MettaGridRaylibRenderer:
 
     def __del__(self):
         # Unload the font when the object is destroyed
-        rl.UnloadFont(self.font)
+        self.font_renderer.unload()
 
     def _selected_agent(self, objects):
         if self.selected_object_id is None:
