@@ -16,6 +16,7 @@ defaults:
   - trainer: puffer
   - sweep: sweep
   - hardware: macbook
+  - analyzer: analyzer
 
 wandb:
   enabled: False

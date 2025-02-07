@@ -182,13 +182,6 @@ class Eval():
         logger.info(f"Total episodes: {self._completed_episodes}")
         logger.info(f"Evaluation time: {time.time() - start}")
 
-        # Write game_stats to JSON file
-        run_dir = self.run_dir
-        json_path = os.path.join(run_dir, "eval_stats.json")
-        with open(json_path, "w") as f:
-            json.dump(game_stats, f, indent=4)
-        logger.info(f"Saved eval stats to {json_path}")
-
         return game_stats
 
     def close(self):

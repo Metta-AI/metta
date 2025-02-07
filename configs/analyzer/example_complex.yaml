@@ -1,0 +1,81 @@
+wandb:
+  entity: metta-research
+  project: metta
+  artifact_name: daphne_eval
+  table_name: eval_stats
+
+output_dir: ${hydra:runtime.output_dir}
+
+analysis:
+  metric_patterns:
+    - pattern: "action.use.first_use"
+      filters:
+        '"agent.energy.gained"': "> 300"  # SQL comparison
+        '"env.game.num_agents"': "= 24"
+
+    - pattern: "action.move"
+      filters:
+        policy_name:
+          - "b.daveey.train.sm.teams.75:v0"
+        '"action.use"': ">= 10"
+        '"episode_index"': "< 100"
+
+  per_episode_metrics:
+    - metric: "agent.action.use.altar"
+      filters:
+        policy_name:
+          - "b.daveey.train.sm.teams.100:v0"
+        '"action.use.altar"': "> 0"
+        '"env.game.num_agents"': "IN (16, 24, 32)"
+        '"run_id"': "BETWEEN 1 AND 10"
+
+  metrics:
+    - metric: "agent.action.use.altar"
+      filters:
+        policy_name:
+          - "b.daveey.train.sm.teams.100:v0"
+          - "b.daveey.train.sm.teams.75:v0"
+        '"env.game.max_steps"': "<= 1000"
+        '"action.use"': "!= 0"
+        '"episode_index"': "IS NOT NULL"
+
+  statistical_tests:
+    - type: mann_whitney
+      metrics:
+        - "agent.action.use.altar"
+      mode: sum
+      label: "Altar Usage Test"
+      filters:
+        policy_name:
+          - "b.daveey.train.sm.teams.100:v0"
+          - "b.daveey.train.sm.teams.75:v0"
+        '"agent.energy.gained"': ">= 200"
+        '"action.use.altar"': "BETWEEN 0 AND 10"
+        '"run_id"': "IN (1, 2, 3, 4, 5)"
+
+    - type: elo
+      metrics:
+        - "agent.action.use.altar"
+      mode: sum
+      scores_path: "scores/altar_elo_scores.json"
+      filters:
+        policy_name:
+          - "b.daveey.train.sm.teams.100:v0"
+          - "b.daveey.train.sm.teams.75:v0"
+        '"env.game.num_agents"': "= 24"
+        '"agent.energy.gained"': "> 0"
+
+    - type: glicko2
+      metrics:
+        - "agent.action.use.altar"
+      scores_path: "scores/altar_glicko_scores.json"
+      filters:
+        policy_name:
+          - "b.daveey.train.sm.teams.100:v0"
+          - "b.daveey.train.sm.teams.75:v0"
+        '"action.use"': "> 10"
+        '"episode_index"': "< 500"
+
+  queries:
+    policy_names: "SELECT DISTINCT policy_name FROM eval_stats"
+    high_energy_games: 'SELECT * FROM eval_stats WHERE "agent.energy.gained" > 300'

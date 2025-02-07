@@ -1,0 +1,50 @@
+wandb:
+  entity: metta-research
+  project: metta
+  artifact_name: daphne_eval
+  table_name: eval_stats
+
+output_dir: ${hydra:runtime.output_dir}
+
+analysis:
+  metric_patterns:
+    - pattern: "action.use.first_use"
+
+  per_episode_metrics:
+    - metric: "agent.action.use.altar"
+
+  metrics:
+    - metric: "agent.action.use.altar"
+
+  statistical_tests:
+    - type: mann_whitney
+      metrics:
+        - "agent.action.use.altar"
+      mode: sum
+      label: "Altar Usage Test"
+      filters:
+        policy_name:
+          - "b.daveey.train.sm.teams.100:v0"
+          - "b.daveey.train.sm.teams.75:v0"
+
+    - type: elo
+      metrics:
+        - "agent.action.use.altar"
+      mode: sum
+      scores_path: "scores/altar_elo_scores.json"
+      filters:
+        policy_name:
+          - "b.daveey.train.sm.teams.100:v0"
+          - "b.daveey.train.sm.teams.75:v0"
+
+
+    - type: glicko2
+      metrics:
+        - "agent.action.use.altar"
+      scores_path: "scores/altar_glicko_scores.json"
+      filters:
+        policy_name:
+          - "b.daveey.train.sm.teams.100:v0"
+          - "b.daveey.train.sm.teams.75:v0"
+
+  queries: null

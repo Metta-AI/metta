@@ -7,15 +7,14 @@ defaults:
   - override /env/mettagrid@env: simple
   - override /agent: simple.medium
   - override /sweep: fast
-
+  - override /analyzer: analyzer
 
 # policy: wandb://run/b.daveey.train.maze.sm.dr.warm.0
 # baselines: wandb://run/b.daveey.train.maze.sm.11x11.0
 
 # policy_uri: wandb://run/b.daveey.sm.train.er.new.0
-policy_uri: wandb://run/b.daveey.train.simple.s20m
-# policy_uri: ${trained_policy_uri}
-baseline_uri: wandb://run/b.daveey.train.simple.s15m:v8
+npc_policy_uri: wandb://run/b.daveey.train.sm.teams.100
+policy_uri: wandb://run/b.daveey.train.sm.teams.75
 
 env:
   # sampling: 0.7
@@ -34,7 +33,9 @@ eval:
   max_time_s: 600
 
   policy_uri: ${..policy_uri}
-  npc_policy_uri: ${..baseline_uri}
+  npc_policy_uri: ${..npc_policy_uri}
+  log_eval_artifact: true
+  eval_artifact_name: daphne_eval
 
 wandb:
   enabled: true
