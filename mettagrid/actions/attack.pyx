@@ -63,7 +63,7 @@ cdef class Attack(MettaActionHandler):
                 strcat(stat_name, ".attack.frozen")
                 self.env._stats.agent_incr(actor_id, stat_name)
                 for item in range(InventoryItem.InventoryCount):
-                    actor.update_inventory(item, agent_target.inventory[item])
+                    actor.update_inventory(item, agent_target.inventory[item], &self.env._rewards[actor_id])
                     strcpy(stat_name, actor.group_name.c_str())
                     strcat(stat_name, ".")
                     strcat(stat_name, InventoryItemNames[item].c_str())
