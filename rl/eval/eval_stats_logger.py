@@ -42,6 +42,8 @@ class EvalStatsLogger:
         if artifact_name is not None:
             artifact = wandb.Artifact(name=artifact_name, type=artifact_name)
             artifact.add_file(json_path)
+            artifact.save()
+            artifact.wait()
             self.wandb_run.log_artifact(artifact)
             logger.info(f"Logged artifact {artifact_name} to wandb")
 

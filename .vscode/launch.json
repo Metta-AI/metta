@@ -48,16 +48,15 @@
                 "cmd=eval",
             ],
         },
-
         {
             "name": "Analyze",
             "type": "debugpy",
             "request": "launch",
-            "module": "tools.analyzer",
+            "module": "tools.analyze",
             "args": [
                 "+user=${env:USER}",
                 "hardware=macbook",
-                "cmd=analyzer",
+                "cmd=analyze",
             ],
         }
     ]

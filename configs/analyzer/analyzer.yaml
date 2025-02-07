@@ -1,7 +1,8 @@
-artifact_name: daphne_eval
-table_name: eval_stats
+_target_: rl.eval_stats_analyzer.EvalStatsAnalyzer
 
-output_dir: ${run_dir}
+eval_stats_uri: ???
+
+table_name: eval_stats
 
 analysis:
   metric_patterns:

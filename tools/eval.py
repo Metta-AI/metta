@@ -6,17 +6,6 @@ from mettagrid.config.config import setup_metta_environment
 from agent.policy_store import PolicyStore
 from rl.eval_stats_logger import EvalStatsLogger
 from rl.wandb.wandb_context import WandbContext
-import os
-import wandb
-import json
-from datetime import datetime
-from util.stats_library import (
-    EloTest,
-    Glicko2Test,
-    MannWhitneyUTest,
-    StatisticalTest,
-    get_test_results
-)
 
 logger = logging.getLogger("eval.py")
 
@@ -31,8 +20,7 @@ def main(cfg: DictConfig):
             cfg.eval,
             policy_store,
             cfg.env,
-            cfg.run_dir,
-            _recursive_=False
+            cfg_recursive_=False
         )
         stats = eval.evaluate()
         stats_logger = EvalStatsLogger(cfg, wandb_run)
