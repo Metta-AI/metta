@@ -30,6 +30,7 @@ ext_modules = [
     build_ext(["mettagrid/observation_encoder.pyx"]),
     build_ext(["mettagrid/actions/actions.pyx"]),
     build_ext(["mettagrid/actions/attack.pyx"]),
+    build_ext(["mettagrid/actions/attack_nearest.pyx"]),
     build_ext(["mettagrid/actions/gift.pyx"]),
     build_ext(["mettagrid/actions/change_color.pyx"]),
     build_ext(["mettagrid/actions/move.pyx"]),
