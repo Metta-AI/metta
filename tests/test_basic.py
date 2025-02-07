@@ -71,10 +71,14 @@ def main(cfg):
     (obs, rewards, terminated, truncated, infos) = mettaGridEnv.step([[0,0]]*5)
     assert mettaGridEnv._c_env.current_timestep() == 1
     print("obs: ", obs)
-    # We have 5 agents, 22 channels, 11x11 grid
-    # This is fragile, and will need to be updated if the observation space changes.
-    # If you're updating this, please consider changing it to make it more robust.
-    assert obs.shape == (5, 22, 11, 11)
+    # We have 5 agents, ~22 channels, 11x11 grid
+    # We expect the number of channels to be updated more regularly, so we give that a range.
+    # Feel free to make this less fragile if you're updating this.
+    [num_agents, num_channels, grid_width, grid_height] = obs.shape
+    assert num_agents == 5
+    assert grid_width == 11
+    assert grid_height == 11
+    assert 20 <= num_channels <= 30
     print("rewards: ", rewards)
     assert rewards.shape == (5,)
     print("terminated: ", terminated)
@@ -97,8 +101,7 @@ def main(cfg):
     print("mettaGridEnv._max_steps: ", mettaGridEnv._max_steps)
     assert mettaGridEnv._max_steps == 5000
     print("mettaGridEnv.single_observation_space: ", mettaGridEnv.single_observation_space)
-    # Here's our 22 channels, 11x11 grid again!
-    assert mettaGridEnv.single_observation_space.shape == (22, 11, 11)
+    assert mettaGridEnv.single_observation_space.shape == (num_channels, grid_width, grid_height)
     print("mettaGridEnv.single_action_space: ", mettaGridEnv.single_action_space)
     [num_actions, max_arg] = mettaGridEnv.single_action_space.nvec.tolist()
     # We don't want to hard-code the number of actions to expect (we might add more), so

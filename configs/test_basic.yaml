@@ -92,6 +92,9 @@ game:
     swap:
       cost: 0
       enabled: true
+    change_color:
+      cost: 0
+      enabled: true
 
   map_builder:
     _target_: mettagrid.config.room.random.Random
