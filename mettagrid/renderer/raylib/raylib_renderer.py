@@ -4,7 +4,7 @@
 import os
 import sys
 from collections import defaultdict, deque
-
+import math
 import pyray as ray
 import torch
 from cffi import FFI
@@ -259,35 +259,65 @@ class MettaGridRaylibRenderer:
 
     def draw_attacks(self):
         for agent_id, action in enumerate(self.actions):
-            if action[0] != self.action_ids["attack"]:
-                continue
-            if action[0] == self.action_ids["noop"]:
-                continue
             agent = self.agents[agent_id]
             if agent["agent:frozen"]:
                 continue
             if agent["agent:energy"] < self.cfg.actions.attack.cost:
                 continue
+            if action[0] == self.action_ids["attack_nearest"]:
+                # draw a cone from the agent in the direction it's facing.
+                # make it 3 grid squares long and 3 grid squares wide.
+                # make it red but transparent.
+                # Get base coordinates for agent position
+                base_x = agent["c"] * self.tile_size + self.tile_size // 2
+                base_y = agent["r"] * self.tile_size + self.tile_size // 2
 
-            distance = 1 + (action[1] - 1) // 3
-            offset = -((action[1] - 1) % 3 - 1)
-            target_loc = self._relative_location(
-                agent["r"], agent["c"], agent["agent:orientation"], distance, offset)
+                # Calculate points based on orientation
+                if agent["agent:orientation"] == 0:  # Facing up
+                    points = [
+                        ray.Vector2(base_x, base_y),
+                        ray.Vector2(base_x - self.tile_size * 1.5, base_y - self.tile_size * 3),
+                        ray.Vector2(base_x + self.tile_size * 1.5, base_y - self.tile_size * 3)
+                    ]
+                elif agent["agent:orientation"] == 1:  # Facing down
+                    points = [
+                        ray.Vector2(base_x, base_y),
+                        ray.Vector2(base_x - self.tile_size * 1.5, base_y + self.tile_size * 3),
+                        ray.Vector2(base_x + self.tile_size * 1.5, base_y + self.tile_size * 3)
+                    ]
+                elif agent["agent:orientation"] == 2:  # Facing left
+                    points = [
+                        ray.Vector2(base_x, base_y),
+                        ray.Vector2(base_x - self.tile_size * 3, base_y - self.tile_size * 1.5),
+                        ray.Vector2(base_x - self.tile_size * 3, base_y + self.tile_size * 1.5)
+                    ]
+                else:  # Facing right
+                    points = [
+                        ray.Vector2(base_x, base_y),
+                        ray.Vector2(base_x + self.tile_size * 3, base_y - self.tile_size * 1.5),
+                        ray.Vector2(base_x + self.tile_size * 3, base_y + self.tile_size * 1.5)
+                    ]
+                ray.draw_triangle(points[0], points[1], points[2], ray.Color(255, 0, 0, 128))
+            if action[0] == self.action_ids["attack"]:
+                distance = 1 + (action[1] - 1) // 3
+                offset = -((action[1] - 1) % 3 - 1)
+                target_loc = self._relative_location(
+                    agent["r"], agent["c"], agent["agent:orientation"], distance, offset)
 
-            # Draw red rectangle around target
-            ray.draw_circle_lines(
-                target_loc[1] * self.tile_size + self.tile_size // 2,
-                target_loc[0] * self.tile_size + self.tile_size // 2,
-                self.tile_size * 0.2,
-                ray.RED
-            )
+                # Draw red rectangle around target
+                ray.draw_circle_lines(
+                    target_loc[1] * self.tile_size + self.tile_size // 2,
+                    target_loc[0] * self.tile_size + self.tile_size // 2,
+                    self.tile_size * 0.2,
+                    ray.RED
+                )
 
-            # Draw red line from attacker to target
-            start_x = agent["c"] * self.tile_size + self.tile_size // 2
-            start_y = agent["r"] * self.tile_size + self.tile_size // 2
-            end_x = target_loc[1] * self.tile_size + self.tile_size // 2
-            end_y = target_loc[0] * self.tile_size + self.tile_size // 2
-            ray.draw_line(int(start_x), int(start_y), int(end_x), int(end_y), ray.RED)
+                # Draw red line from attacker to target
+                start_x = agent["c"] * self.tile_size + self.tile_size // 2
+                start_y = agent["r"] * self.tile_size + self.tile_size // 2
+                end_x = target_loc[1] * self.tile_size + self.tile_size // 2
+                end_y = target_loc[0] * self.tile_size + self.tile_size // 2
+                ray.draw_line(int(start_x), int(start_y), int(end_x), int(end_y), ray.RED)
 
     def _draw_help_overlay(self):
         """ Draws a help overlay on the screen with the available keys and their actions. """
