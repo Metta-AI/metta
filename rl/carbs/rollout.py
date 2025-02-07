@@ -58,6 +58,7 @@ class CarbsSweepRollout:
         start_time = time.time()
         train_cfg = OmegaConf.create(OmegaConf.to_container(self.cfg))
         train_cfg.sweep = {}
+        eval_metric = 0
 
         policy_store = PolicyStore(train_cfg, wandb_run)
 
@@ -111,7 +112,6 @@ class CarbsSweepRollout:
 
         eval = hydra.utils.instantiate(eval_cfg.eval, policy_store, eval_cfg.env, _recursive_ = False)
         stats = eval.evaluate()
-        eval.close()
         eval_time = time.time() - eval_start_time
         self._log_file("eval_stats.yaml", stats)
 
@@ -182,8 +182,8 @@ class CarbsSweepRollout:
         # )
 
         total_time = time.time() - start_time
-        # logger.info(f"Carbs Observation: {eval_metric}, {total_time}")
-        # self.carbs.record_observation(eval_metric, total_time)
+        logger.info(f"Carbs Observation: {eval_metric}, {total_time}")
+        self.carbs.record_observation(eval_metric, total_time)
         wandb_run.summary.update({"run_time": total_time})
 
     def _log_file(self, name: str, data):

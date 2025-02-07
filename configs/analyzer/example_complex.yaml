@@ -1,8 +1,5 @@
-wandb:
-  entity: metta-research
-  project: metta
-  artifact_name: daphne_eval
-  table_name: eval_stats
+defaults:
+  - analyzer
 
 output_dir: ${hydra:runtime.output_dir}
 

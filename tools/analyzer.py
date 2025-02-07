@@ -23,10 +23,10 @@ class Analyzer:
 
         print(f"Connecting to W&B project: {cfg.wandb.project}")
         self.wandb_db = WandbDuckDB(
-            self.analyzer_cfg.wandb.entity,
-            self.analyzer_cfg.wandb.project,
-            self.analyzer_cfg.wandb.artifact_name,
-            table_name=self.analyzer_cfg.wandb.table_name
+            self.cfg.wandb.entity,
+            self.cfg.wandb.project,
+            self.analyzer_cfg.artifact_name,
+            table_name=self.analyzer_cfg.table_name
         )
 
     @staticmethod

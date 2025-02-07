@@ -181,7 +181,7 @@ class Eval():
 
         logger.info(f"Total episodes: {self._completed_episodes}")
         logger.info(f"Evaluation time: {time.time() - start}")
-
+        self.close()
         return game_stats
 
     def close(self):
