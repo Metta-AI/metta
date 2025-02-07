@@ -3,7 +3,7 @@
 seed: null
 
 defaults:
-  - override /env/mettagrid@env: species
+  - override /env/mettagrid@env: bases
   - override /agent: simple.medium
   - override /sweep: fast
 
@@ -11,25 +11,25 @@ defaults:
 # baselines: wandb://run/b.daveey.train.maze.sm.11x11.0
 
 # policy_uri: wandb://run/b.daveey.sm.train.er.new.0
-# policy_uri: wandb://run/m0.daveey.s.color
-policy_uri: ${trained_policy_uri}
-baseline_uri: wandb://run/mb.daveey.sm
+policy_uri: wandb://run/m0.daveey.sm.species
+# policy_uri: ${trained_policy_uri}
+baseline_uri: wandb://run/mb.daveey.sm.nr
 
 env:
   # sampling: 0.7
   game:
-    num_agents: 5
+    # num_agents: 6
     max_steps: 1000
 
     map_builder:
-      border_width: 0
+      border_width: 6
 
 trainer:
   evaluate_interval: 2
 
 evaluator:
-  num_envs: 50
-  num_episodes: 50
+  num_envs: 5
+  num_episodes: 5
   max_time_s: 600
 
   policy:
