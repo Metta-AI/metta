@@ -104,7 +104,7 @@ cdef cppclass Agent(MettaObject):
 
     inline void update_inventory(InventoryItem item, short amount, float *reward):
         this.inventory[<InventoryItem>item] += amount
-        if reward is not NULL:
+        if reward is not NULL and amount > 0:
             reward[0] += amount * this.resource_reward
 
         if this.inventory[<InventoryItem>item] > this.max_items:
@@ -117,7 +117,7 @@ cdef cppclass Agent(MettaObject):
             amount = min(this.max_energy - this.energy, amount)
 
         this.energy += amount
-        if reward is not NULL:
+        if reward is not NULL and amount > 0:
             reward[0] += amount * this.energy_reward
 
         return amount
