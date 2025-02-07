@@ -32,7 +32,9 @@ stat_categories:
   all:
     - action.rotate.energy
     - action.attack
+    - action.attack_nearest
     - action.attack.energy
+    - action.attack_nearest.energy
     - action.move.energy
     - action.gift.energy
     - r3.stolen
@@ -41,6 +43,7 @@ stat_categories:
     - action.use.altar
     - r1.stolen
     - action.attack.agent
+    - action.attack_nearest.agent
     - shield_damage
     - damage.altar
     - status.shield.ticks
@@ -74,6 +77,7 @@ stat_categories:
     - r2.stolen
     - r3.stolen
     - destroyed.wall
+    - action.attack_nearest
 
   shield:
     - shield_damage
