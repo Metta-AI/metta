@@ -19,11 +19,11 @@ baseline_uri: wandb://run/mb.daveey.sm
 env:
   # sampling: 0.7
   game:
-    num_agents: 5
+    # num_agents: 6
     max_steps: 1000
 
     map_builder:
-      border_width: 0
+      border_width: 6
 
 trainer:
   evaluate_interval: 2
