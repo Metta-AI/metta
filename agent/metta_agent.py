@@ -45,14 +45,6 @@ class MettaAgent(nn.Module, MettaAgentInterface):
         self.components['_action_param_'].set_input_size_and_initialize_layer()
         self.components['_value_'].set_input_size_and_initialize_layer()
 
-# --- weight helper functions ---
-    def clip_weights(self):
-        for component in self.components.values():
-            clip_value = getattr(component, 'clip_value', None)
-            if clip_value is not None:
-                with torch.no_grad():
-                    component.weights_data = component.weights_data.clamp(-clip_value, clip_value)
-
     def clip_weights(self):
         for component in self.components.values():
             if hasattr(component, 'clip_weights'):
@@ -78,9 +70,9 @@ class MettaAgent(nn.Module, MettaAgentInterface):
                 component.update_l2_init_weight_copy()
 
     def get_effective_rank(self) -> torch.Tensor:
-        effective_rank = torch.tensor(0.0, device=self.weights.device)
+        effective_ranks = []
         for component in self.components.values():
             if hasattr(component, 'get_effective_rank'):
-                effective_rank += component.get_effective_rank()
-        return effective_rank
+                effective_ranks.append(component.get_effective_rank())
+        return effective_ranks
     

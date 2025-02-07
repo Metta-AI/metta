@@ -34,29 +34,72 @@ components:
   # feature_normalizer:
     ###
 
-  obs_encoder_1:
+  channel_selector_0-11:
+    _target_: agent.lib.merge_layer.MergeLayer
+    sources:
+      - source: obs_normalizer
+        slice: [0, 12]    # Use channels 0 to 11
+        dim: 1            # Channel dimension
+    merge_op: concat       # With a single dictionary entry, concat simply returns the sliced part.
+    output_size: 12
+
+  channel_selector_12-23:
+    _target_: agent.lib.merge_layer.MergeLayer
+    sources:
+      - source: obs_normalizer
+        slice: [12, 24]   # Use channels 12 to 23
+        dim: 1
+    merge_op: concat
+    output_size: 12
+
+  cnn1_channels_0-11:
     _target_: agent.lib.metta_layer.MettaLayer
-    input_source: obs_normalizer
+    input_source: channel_selector_0-11
     output_size: 64
     layer_type: Conv2d
     nn_params:
       kernel_size: 5
       stride: 3
 
-  obs_encoder_2:
-    _target_: agent.lib.metta_layer.Conv2d
-    kernel_size: 3
-    stride: 1
-    input_source: obs_encoder_1
+  cnn1_channels_12-23:
+    _target_: agent.lib.metta_layer.MettaLayer
+    input_source: channel_selector_12-23
     output_size: 64
-    # layer_type: Conv2d
-    # nn_params:
-    #   kernel_size: 3
-    #   stride: 1
+    layer_type: Conv2d
+    nn_params:
+      kernel_size: 5
+      stride: 3
+
+  cnn2_channels_0-11:
+    _target_: agent.lib.metta_layer.Conv2d
+    input_source: cnn1_channels_0-11
+    output_size: 64
+    nn_params:
+      kernel_size: 3
+      stride: 1
+
+  cnn2_channels_12-23:
+    _target_: agent.lib.metta_layer.Conv2d
+    input_source: cnn1_channels_12-23
+    output_size: 64
+    nn_params:
+      kernel_size: 3
+      stride: 1
+
+  cnn_merger:
+    _target_: agent.lib.merge_layer.MergeLayer
+    sources:
+      - source: cnn2_channels_0-11
+        slice: [0, 64]
+        dim: 1
+      - source: cnn2_channels_12-23
+        slice: [0, 64]
+        dim: 1
+    merge_op: concat
 
   obs_flattener:
     _target_: agent.lib.metta_layer.MettaLayer
-    input_source: obs_encoder_2
+    input_source: cnn_merger
     layer_type: Flatten
 
   obs_dropout:
