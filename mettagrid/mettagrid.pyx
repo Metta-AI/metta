@@ -24,6 +24,7 @@ from mettagrid.actions.shield import Shield
 from mettagrid.actions.gift import Gift
 from mettagrid.actions.noop import Noop
 from mettagrid.actions.swap import Swap
+from mettagrid.actions.change_color import ChangeColorAction
 
 cdef class MettaGrid(GridEnv):
     cdef:
@@ -59,6 +60,8 @@ cdef class MettaGrid(GridEnv):
             actions.append(Gift(cfg.actions.gift))
         if cfg.actions.swap.enabled:
             actions.append(Swap(cfg.actions.swap))
+        if cfg.actions.change_color.enabled:
+            actions.append(ChangeColorAction(cfg.actions.change_color))
 
         GridEnv.__init__(
             self,
