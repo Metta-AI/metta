@@ -14,6 +14,7 @@ def build_ext(srcs, module_name=None):
         module_name,
         srcs,
         define_macros=[('NPY_NO_DEPRECATED_API', 'NPY_1_7_API_VERSION')],
+        extra_compile_args=['-std=c++11'] # Add C++11 flag to fix defaulted function definition error
     )
 
 ext_modules = [
