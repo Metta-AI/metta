@@ -4,7 +4,7 @@ import hydra
 from omegaconf import DictConfig
 from mettagrid.config.config import setup_metta_environment
 from agent.policy_store import PolicyStore
-from rl.eval_stats_logger import EvalStatsLogger
+from rl.eval.eval_stats_logger import EvalStatsLogger
 from rl.wandb.wandb_context import WandbContext
 
 logger = logging.getLogger("eval.py")

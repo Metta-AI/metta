@@ -7,7 +7,7 @@ defaults:
   - override /env/mettagrid@env: simple
   - override /agent: simple.medium
   - override /sweep: fast
-  - override /analyzer: analyzer
+  - override /analyzer: artifact_analyzer
 
 # policy: wandb://run/b.daveey.train.maze.sm.dr.warm.0
 # baselines: wandb://run/b.daveey.train.maze.sm.11x11.0
