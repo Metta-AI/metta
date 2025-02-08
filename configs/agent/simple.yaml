@@ -14,58 +14,51 @@ observations:
   track_last_action: ${env.track_last_action}
   kinship: ${env.game.kinship}
   
-clip_multiplier: 3.0
+clip_range: 3.0
 
 components:
 #necessary sources: _obs_, _core_
 # define this further
 #necessary outputs: _encoded_obs_, _action_param_, _value_
-
-# do we want _target_ agent.metta_agent.MettaLayer to be in the python instead?
   _obs_: 
-    _target_: agent.lib.metta_layer.MettaLayer
+    _target_: agent.lib.metta_layer.Identity
     input_source: null
-    layer_type: Identity
 
-  obs_normalizer:
-    _target_: agent.lib.observation_normalizer.ObservationNormalizer
-    input_source: _obs_
+  # obs_normalizer:
+  #   _target_: agent.lib.observation_normalizer.ObservationNormalizer
+  #   input_source: _obs_
 
   # feature_normalizer:
     ###
 
   channel_selector_0-11:
-    _target_: agent.lib.merge_layer.MergeLayer
+    _target_: agent.lib.metta_layer.ConcatMergeLayer
     sources:
-      - source: obs_normalizer
+      - source_name: _obs_
         slice: [0, 12]    # Use channels 0 to 11
         dim: 1            # Channel dimension
-    merge_op: concat       # With a single dictionary entry, concat simply returns the sliced part.
     output_size: 12
 
   channel_selector_12-23:
-    _target_: agent.lib.merge_layer.MergeLayer
+    _target_: agent.lib.metta_layer.ConcatMergeLayer
     sources:
-      - source: obs_normalizer
+      - source_name: _obs_
         slice: [12, 24]   # Use channels 12 to 23
         dim: 1
-    merge_op: concat
     output_size: 12
 
   cnn1_channels_0-11:
-    _target_: agent.lib.metta_layer.MettaLayer
+    _target_: agent.lib.metta_layer.Conv2d
     input_source: channel_selector_0-11
     output_size: 64
-    layer_type: Conv2d
     nn_params:
       kernel_size: 5
       stride: 3
 
   cnn1_channels_12-23:
-    _target_: agent.lib.metta_layer.MettaLayer
+    _target_: agent.lib.metta_layer.Conv2d
     input_source: channel_selector_12-23
     output_size: 64
-    layer_type: Conv2d
     nn_params:
       kernel_size: 5
       stride: 3
@@ -87,85 +80,68 @@ components:
       stride: 1
 
   cnn_merger:
-    _target_: agent.lib.merge_layer.MergeLayer
+    _target_: agent.lib.metta_layer.ConcatMergeLayer
     sources:
-      - source: cnn2_channels_0-11
+      - source_name: cnn2_channels_0-11
         slice: [0, 64]
         dim: 1
-      - source: cnn2_channels_12-23
+      - source_name: cnn2_channels_12-23
         slice: [0, 64]
         dim: 1
-    merge_op: concat
 
   obs_flattener:
-    _target_: agent.lib.metta_layer.MettaLayer
+    _target_: agent.lib.metta_layer.Flatten
     input_source: cnn_merger
-    layer_type: Flatten
 
   obs_dropout:
-    _target_: agent.lib.metta_layer.MettaLayer
+    _target_: agent.lib.metta_layer.Dropout
     input_source: obs_flattener
-    layer_type: Dropout
     nn_params:
       p: 0.5
 
-  obs_linear:
-    _target_: agent.lib.metta_layer.MettaLayer
+  _encoded_obs_::
+    _target_: agent.lib.metta_layer.Linear
     input_source: obs_dropout
-    output_size: 128
-    nn_params:
-      bias: false
-
-  _encoded_obs_:
-    _target_: agent.lib.metta_layer.MettaLayer
-    input_source: obs_flattener
     output_size: 128
 
   _core_:
-    _target_: agent.lib.metta_layer.MettaLayer
+    _target_: agent.lib.metta_layer.Identity
     rnn_num_layers: 1
     input_source: null
     output_size: 128
-    layer_type: Identity
 
   critic_1:
-    _target_: agent.lib.metta_layer.MettaLayer
+    _target_: agent.lib.metta_layer.Linear
     input_source: core_helper
     output_size: 512
-    layer_type: Linear
 
   critic_2:
-    _target_: agent.lib.metta_layer.MettaLayer
+    _target_: agent.lib.metta_layer.Linear
     input_source: critic_1
     output_size: 128
 
   critic_3:
-    _target_: agent.lib.metta_layer.MettaLayer
-    input_source: [actor_2, critic_2]
+    _target_: agent.lib.metta_layer.Linear
+    input_source: critic_2
     output_size: 128
 
   _value_:
-    _target_: agent.lib.metta_layer.MettaLayer
+    _target_: agent.lib.metta_layer.Linear
     input_source: critic_3
     output_size: 1
 
   actor_1:
-    _target_: agent.lib.metta_layer.MettaLayer
+    _target_: agent.lib.metta_layer.Linear
     input_source: core_helper
     output_size: 512
 
   actor_2:
-    _target_: agent.lib.metta_layer.MettaLayer
+    _target_: agent.lib.metta_layer.Linear
     input_source: actor_1
     output_size: 512
 
-# # test this but comment out critic_3
-#   - name: actor_2
-#     input: [actor_1, critic_1]
-#     output: 128
-
   _action_param_:
-    _target_: agent.lib.metta_layer.MettaLayer
+    _target_: agent.lib.metta_layer.Linear
     input_source: actor_2
     output_size: 20
 
@@ -194,40 +170,3 @@ components:
 #
 # In this example, the critic_1 layer takes its input from the core_helper layer,
 # has an output size of 512, and is of type Linear.
-
-# testing below
-  cnn_test:
-    _target_: agent.lib.metta_layer.MettaLayer
-    input_source: obs_helper
-    output_size: 64
-    layer_type: Conv2d
-    nn_params:
-      kernel_size: 5
-      stride: 3
-
-  Linear_test:
-    _target_: agent.lib.metta_layer.MettaLayer
-    input_source: obs_helper
-    output_size: 64
-    layer_type: Linear
-    nn_params:
-      bias: false
-
-  dropout_test:
-    _target_: agent.lib.metta_layer.MettaLayer
-    input_source: obs_helper
-    layer_type: Dropout
-    nn_params:
-      dropout_prob: 0.5
-
-  batchnorm_test:
-    _target_: agent.lib.metta_layer.MettaLayer
-    input_source: obs_helper
-    layer_type: BatchNorm2d
-    nn_params:
-      num_features: 64
-
-  identity_test:
-    _target_: agent.lib.metta_layer.MettaLayer
-    input_source: obs_helper
-    layer_type: Identity

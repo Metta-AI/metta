@@ -30,13 +30,14 @@ class MettaAgent(nn.Module, MettaAgentInterface):
         # self.global_features = global_features
         # self.obs_key = cfg.observations.obs_key
         self.num_objects = obs_space[self.cfg.observations.obs_key].shape[0]
+        self.clip_range = cfg.clip_range
 
 
         self.components = {}
         component_cfgs = OmegaConf.to_container(cfg.components, resolve=True)
         for component_cfg in component_cfgs.keys():
             component_cfgs[component_cfg]['name'] = component_cfg
-            component = hydra.utils.instantiate(component_cfgs[component_cfg], MettaAgent=self)
+            component = hydra.utils.instantiate(component_cfgs[component_cfg], metta_agent=self)
             self.components[component_cfg] = component
 
         self.components['_obs_'].output_size = self.num_objects
@@ -47,9 +48,8 @@ class MettaAgent(nn.Module, MettaAgentInterface):
 
     def clip_weights(self):
         for component in self.components.values():
-            if hasattr(component, 'clip_weights'):
-                component.clip_weights()
-
+            component.clip_weights()
+# ditch the check attribute
     def get_l2_reg_loss(self) -> torch.Tensor:
         l2_reg_loss = torch.tensor(0.0, device=self.weights.device)
         for component in self.components.values():
@@ -75,4 +75,3 @@ class MettaAgent(nn.Module, MettaAgentInterface):
             if hasattr(component, 'get_effective_rank'):
                 effective_ranks.append(component.get_effective_rank())
         return effective_ranks
-    

@@ -8,10 +8,10 @@ import torch
 import numpy as np
 
 class LayerBase(nn.Module):
-    def __init__(self, MettaAgent, **cfg):
+    def __init__(self, metta_agent, **cfg):
         cfg = OmegaConf.create(cfg)
         super().__init__()
-        self.MettaAgent = MettaAgent
+        self.metta_agent = metta_agent
         self.cfg = cfg
         self.name = cfg.name
         self.input_source = cfg.get('input_source', None)
@@ -24,8 +24,8 @@ class LayerBase(nn.Module):
             if self.output_size is None:
                 raise ValueError(f"Output size is not set for layer {self.name}")
         else:
-            self.MettaAgent.components[self.input_source].set_input_size_and_initialize_layer()
-            self.input_size = self.MettaAgent.components[self.input_source].output_size
+            self.metta_agent.components[self.input_source].set_input_size_and_initialize_layer()
+            self.input_size = self.metta_agent.components[self.input_source].output_size
 
         if self.output_size is None:
             self.output_size = self.input_size
@@ -40,7 +40,7 @@ class LayerBase(nn.Module):
             return td[self.name]
 
         if self.input_source is not None:
-            self.MettaAgent.components[self.input_source].forward(td)
+            self.metta_agent.components[self.input_source].forward(td)
 
         td[self.name] = self.layer(td[self.input_source])
 
@@ -58,27 +58,30 @@ class LayerBase(nn.Module):
         pass
     
 class ParameterizedLayer(LayerBase):
-    def __init__(self, MettaAgent, **cfg):
-        super().__init__(MettaAgent, **cfg)
-        self.cfg = cfg
+    def __init__(self, metta_agent, **cfg): 
+        cfg = OmegaConf.create(cfg)
+        # this should be only for the layer that calls this
+        for key, value in cfg.items():
+            setattr(self, key, value)
+        self.global_clip_multiplier = metta_agent.clip_range
+        super().__init__(metta_agent, **cfg)
 
     def _parameter_layer_helper(self):
-        attributes = ['clip_scale', 'l2_norm_scale', 'l2_init_scale', 'effective_rank', 'initialization']
-        for attr in attributes:
-            if attr in self.cfg:
-                setattr(self, attr, self.cfg[attr])
-            else:
-                setattr(self, attr, None)
+        # attributes = ['clip_scale', 'l2_norm_scale', 'l2_init_scale', 'effective_rank', 'initialization']
+        # for attr in attributes:
+        #     if attr in self.cfg:
+        #         setattr(self, attr, self.cfg[attr])
+        #     else:
+        #         setattr(self, attr, None)
 
         self.largest_weight = self.initialize_layer()
 
         if self.clip_scale:
-            self.clip_value = self.MettaAgent.clip_multiplier * self.largest_weight * self.clip_scale
+            self.clip_value = self.metta_agent.clip_multiplier * self.largest_weight * self.clip_scale
 
         if self.l2_init_scale:
             self.initial_weights = self.layer.weight.data.clone()
 
-# is this redundant with attributes above?
         self.nonlinearity = self.cfg.get('nonlinearity', 'ReLU')
         self.weights_data = self.layer.weight.data
         if self.nonlinearity is not None:
@@ -171,9 +174,9 @@ class MettaLayerBase(nn.Module):
     '''
     This is the base class and instructions for custom layers in the stead of MettaLayers.
     '''
-    def __init__(self, MettaAgent, **cfg):
+    def __init__(self, metta_agent, **cfg):
         super().__init__()
-        self.MettaAgent = MettaAgent
+        self.metta_agent = metta_agent
         self.cfg = cfg
         #required attributes
         self.name = None
@@ -184,10 +187,10 @@ class MettaLayerBase(nn.Module):
         '''
         Recursively set the input size for the component above your layer.
         This is necessary unless you are a top layer, in which case, you can skip this.
-        self.MettaAgent.components[self.input_source].set_input_source_size()
+        self.metta_agent.components[self.input_source].set_input_source_size()
         
         Set your input size to be the output size of the layer above you or otherwise ensure that this is the case.
-        self.input_size = self.MettaAgent.components[self.input_source].output_size
+        self.input_size = self.metta_agent.components[self.input_source].output_size
 
         With your own input and output sizes set, initialize your layer, if necessary.
         self.layer = ...
@@ -205,9 +208,9 @@ class MettaLayerBase(nn.Module):
         Skip this if you are a top layer.
         if isinstance(self.input_source, list):
             for src in self.input_source:
-                self.MettaAgent.components[src].forward(td) 
+                self.metta_agent.components[src].forward(td) 
         else:
-            self.MettaAgent.components[self.input_source].forward(td)
+            self.metta_agent.components[self.input_source].forward(td)
 
         Compute this layer's output (assuming you have a .layer attribute).
         Write your layer's name on your output so the next layer can find it.
@@ -225,9 +228,9 @@ class MettaLayerBase(nn.Module):
     
 
 class Linear(ParameterizedLayer):
-    def __init__(self, MettaAgent, **cfg):
+    def __init__(self, metta_agent, **cfg):
         self.cfg = cfg
-        super().__init__(MettaAgent, **cfg)
+        super().__init__(metta_agent, **cfg)
 
     def _initialize_layer(self):
         self.layer = nn.Linear(
@@ -239,9 +242,9 @@ class Linear(ParameterizedLayer):
         self._initialize_weights()
 
 class Conv1d(ParameterizedLayer):
-    def __init__(self, MettaAgent, **cfg):
+    def __init__(self, metta_agent, **cfg):
         self.cfg = cfg
-        super().__init__(MettaAgent, **cfg)
+        super().__init__(metta_agent, **cfg)
 
     def _initialize_layer(self):
         self.layer = nn.Conv1d(
@@ -253,9 +256,9 @@ class Conv1d(ParameterizedLayer):
         self._initialize_weights()
 
 class Conv2d(ParameterizedLayer):
-    def __init__(self, MettaAgent, **cfg):
+    def __init__(self, metta_agent, **cfg):
         self.cfg = cfg
-        super().__init__(MettaAgent, **cfg)
+        super().__init__(metta_agent, **cfg)
 
     def _initialize_layer(self):
         self.layer = nn.Conv2d(
@@ -267,9 +270,9 @@ class Conv2d(ParameterizedLayer):
         self._initialize_weights()
 
 class MaxPool1d(LayerBase):
-    def __init__(self, MettaAgent, **cfg):
+    def __init__(self, metta_agent, **cfg):
         self.cfg = cfg
-        super().__init__(MettaAgent, **cfg)
+        super().__init__(metta_agent, **cfg)
 
     def _initialize_layer(self):
         self.layer = nn.MaxPool1d(
@@ -278,9 +281,9 @@ class MaxPool1d(LayerBase):
         )
 
 class MaxPool2d(LayerBase):
-    def __init__(self, MettaAgent, **cfg):
+    def __init__(self, metta_agent, **cfg):
         self.cfg = cfg
-        super().__init__(MettaAgent, **cfg)
+        super().__init__(metta_agent, **cfg)
 
     def _initialize_layer(self):
         self.layer = nn.MaxPool2d(
@@ -289,9 +292,9 @@ class MaxPool2d(LayerBase):
         )
 
 class AdaptiveAvgPool1d(LayerBase):
-    def __init__(self, MettaAgent, **cfg):
+    def __init__(self, metta_agent, **cfg):
         self.cfg = cfg
-        super().__init__(MettaAgent, **cfg)
+        super().__init__(metta_agent, **cfg)
 
     def _initialize_layer(self):
         self.layer = nn.AdaptiveAvgPool1d(
@@ -300,9 +303,9 @@ class AdaptiveAvgPool1d(LayerBase):
         )
 
 class AdaptiveAvgPool2d(LayerBase):
-    def __init__(self, MettaAgent, **cfg):
+    def __init__(self, metta_agent, **cfg):
         self.cfg = cfg
-        super().__init__(MettaAgent, **cfg)
+        super().__init__(metta_agent, **cfg)
 
     def _initialize_layer(self):
         self.layer = nn.AdaptiveAvgPool2d(
@@ -311,9 +314,9 @@ class AdaptiveAvgPool2d(LayerBase):
         )
 
 class AdaptiveMaxPool1d(LayerBase):
-    def __init__(self, MettaAgent, **cfg):
+    def __init__(self, metta_agent, **cfg):
         self.cfg = cfg
-        super().__init__(MettaAgent, **cfg)
+        super().__init__(metta_agent, **cfg)
 
     def _initialize_layer(self):
         self.layer = nn.AdaptiveMaxPool1d(
@@ -322,9 +325,9 @@ class AdaptiveMaxPool1d(LayerBase):
         )
 
 class AdaptiveMaxPool2d(LayerBase):
-    def __init__(self, MettaAgent, **cfg):
+    def __init__(self, metta_agent, **cfg):
         self.cfg = cfg
-        super().__init__(MettaAgent, **cfg)
+        super().__init__(metta_agent, **cfg)
 
     def _initialize_layer(self):
         self.layer = nn.AdaptiveMaxPool2d(
@@ -333,9 +336,9 @@ class AdaptiveMaxPool2d(LayerBase):
         )
         
 class AvgPool1d(LayerBase):
-    def __init__(self, MettaAgent, **cfg):
+    def __init__(self, metta_agent, **cfg):
         self.cfg = cfg
-        super().__init__(MettaAgent, **cfg)
+        super().__init__(metta_agent, **cfg)
 
     def _initialize_layer(self):
         self.layer = nn.AvgPool1d(
@@ -344,9 +347,9 @@ class AvgPool1d(LayerBase):
         )
 
 class AvgPool2d(LayerBase):
-    def __init__(self, MettaAgent, **cfg):
+    def __init__(self, metta_agent, **cfg):
         self.cfg = cfg
-        super().__init__(MettaAgent, **cfg)
+        super().__init__(metta_agent, **cfg)
 
     def _initialize_layer(self):
         self.layer = nn.AvgPool2d(
@@ -355,9 +358,9 @@ class AvgPool2d(LayerBase):
         )
 
 class Dropout(LayerBase):
-    def __init__(self, MettaAgent, **cfg):
+    def __init__(self, metta_agent, **cfg):
         self.cfg = cfg
-        super().__init__(MettaAgent, **cfg)
+        super().__init__(metta_agent, **cfg)
         
     def _initialize_layer(self):
         self.layer = nn.Dropout(
@@ -365,9 +368,9 @@ class Dropout(LayerBase):
         )
     
 class Dropout2d(LayerBase):
-    def __init__(self, MettaAgent, **cfg):
+    def __init__(self, metta_agent, **cfg):
         self.cfg = cfg
-        super().__init__(MettaAgent, **cfg)
+        super().__init__(metta_agent, **cfg)
         
     def _initialize_layer(self):
         self.layer = nn.Dropout2d(
@@ -375,9 +378,9 @@ class Dropout2d(LayerBase):
         )
     
 class AlphaDropout(LayerBase):
-    def __init__(self, MettaAgent, **cfg):
+    def __init__(self, metta_agent, **cfg):
         self.cfg = cfg
-        super().__init__(MettaAgent, **cfg)
+        super().__init__(metta_agent, **cfg)
         
     def _initialize_layer(self):
         self.layer = nn.AlphaDropout(
@@ -385,9 +388,9 @@ class AlphaDropout(LayerBase):
         )
 
 class BatchNorm1d(LayerBase):
-    def __init__(self, MettaAgent, **cfg):
+    def __init__(self, metta_agent, **cfg):
         self.cfg = cfg
-        super().__init__(MettaAgent, **cfg)
+        super().__init__(metta_agent, **cfg)
         
     def _initialize_layer(self):
         self.layer = nn.BatchNorm1d(
@@ -396,9 +399,9 @@ class BatchNorm1d(LayerBase):
         )
 
 class BatchNorm2d(LayerBase):
-    def __init__(self, MettaAgent, **cfg):
+    def __init__(self, metta_agent, **cfg):
         self.cfg = cfg
-        super().__init__(MettaAgent, **cfg)
+        super().__init__(metta_agent, **cfg)
         
     def _initialize_layer(self):
             self.layer = nn.BatchNorm2d(
@@ -407,109 +410,72 @@ class BatchNorm2d(LayerBase):
         )
 
 class Flatten(LayerBase):
-    def __init__(self, MettaAgent, **cfg):
+    def __init__(self, metta_agent, **cfg):
         self.cfg = cfg
-        super().__init__(MettaAgent, **cfg)
+        super().__init__(metta_agent, **cfg)
         
     def _initialize_layer(self):
         self.layer = nn.Flatten()
+
+class Identity(LayerBase):
+    def __init__(self, metta_agent, **cfg):
+        self.cfg = cfg
+        super().__init__(metta_agent, **cfg)
+        
+    def _initialize_layer(self):
+        self.layer = nn.Identity()
         
 
-class MergeLayer(MettaLayerBase):
-    """
-    A layer solely dedicated to merging multiple input sources.
-
-    YAML configuration should provide:
-      - sources: A list of dictionaries. Each dictionary must include a 'source' key, and can
-                 optionally include 'slice' (a two-element list/tuple [start, end]) and 'dim' (the 
-                 dimension along which to slice/merge). If 'slice' is missing, the entire tensor 
-                 from that source is used. If 'dim' is missing, a default (e.g., -1) is assumed.
-    
-      - merge_op: The merge operation to perform. Supported operations are:
-                   "concat", "add", "subtract", or "mean".
-                   
-      - output_size: (optional) if not provided, for "concat" it is the sum of the individual source sizes,
-                     and for the other operations it is assumed all sources have identical sizes.
-    """
-
-    def __init__(self, MettaAgent, **cfg):
-        super().__init__(MettaAgent, **cfg)
-        # Expect 'sources' to be a list of dictionaries.
-        self.sources_cfg = self.cfg.get('sources')
-        if self.sources_cfg is None:
-            raise ValueError("MergeLayer requires a 'sources' configuration key.")
-        if not isinstance(self.sources_cfg, list):
-            raise ValueError("The 'sources' configuration must be a list of dictionaries.")
-
-        self.merge_op = self.cfg.get('merge_op', 'concat')
-        # You can define a default merge dimension (e.g., -1) to assume if not provided.
+class MergeLayerBase(MettaLayerBase):
+    def __init__(self, metta_agent, **cfg):
+        super().__init__(metta_agent, **cfg)
+        cfg = omegaconf.OmegaConf.create(cfg)
+        self.sources_list = list(cfg.sources)
+        # self.sources_cfg = self.cfg.get('sources')
+        # if self.sources_cfg is None:
+        #     raise ValueError("MergeLayer requires a 'sources' configuration key.")
+        # if not isinstance(self.sources_cfg, omegaconf.listconfig.ListConfig):
+        #     raise ValueError("The 'sources' configuration must be a list of dictionaries.")
         self.default_dim = -1
 
     def set_input_size_and_initialize_layer(self):
-        """
-        For 'concat': the input_size is the sum of the processed sizes (sliced size if provided) from each source.
-        For 'add', 'subtract', or 'mean': all processed sizes must be identical.
-        """
         sizes = []
         dims = []
-        for idx, src_cfg in enumerate(self.sources_cfg):
-            if not isinstance(src_cfg, dict):
-                raise ValueError(
-                    f"Each source configuration must be a dictionary. "
-                    f"Invalid format at index {idx}: {src_cfg}"
-                )
+        for idx, src_cfg in enumerate(self.sources_list):
+            # if not isinstance(src_cfg, dict):
+            #     raise ValueError(
+            #         f"Each source configuration must be a dictionary. "
+            #         f"Invalid format at index {idx}: {src_cfg}"
+            #     )
             
-            source_name = src_cfg.get("source")
-            if source_name is None:
-                raise ValueError(f"Source name must be provided in configuration at index {idx}.")
+            source_name = src_cfg.source_name
             
-            # Initialize the source layer recursively.
-            self.MettaAgent.components[source_name].set_input_size_and_initialize_layer()
-            src_layer = self.MettaAgent.components[source_name]
-            full_size = src_layer.output_size
+            self.metta_agent.components[source_name].set_input_size_and_initialize_layer()
+            full_source_size = self.metta_agent.components[source_name].output_size
 
-            # Determine the "processed_size": if a 'slice' is provided, use it; otherwise, use full_size.
-            if "slice" in src_cfg:
-                slice_range = src_cfg["slice"]
+            if src_cfg.get('slice') is not None:
+                slice_range = src_cfg.slice
                 if not (isinstance(slice_range, (list, tuple)) and len(slice_range) == 2):
                     raise ValueError(f"'slice' must be a two-element list/tuple for source {source_name}.")
                 processed_size = slice_range[1] - slice_range[0]
             else:
-                processed_size = full_size
+                processed_size = full_source_size
 
             sizes.append(processed_size)
             dims.append(src_cfg.get("dim", self.default_dim))
-        
-        if self.merge_op == "concat":
-            # Ensure all sources use the same merging dimension.
-            if not all(d == dims[0] for d in dims):
-                raise ValueError(f"For 'concat', all sources must have the same 'dim'. Got dims: {dims}")
-            self.merge_dim = dims[0]
-            self.input_size = sum(sizes)
-        elif self.merge_op in ("add", "subtract", "mean"):
-            # For element-wise operations, all processed sizes must match.
-            if not all(s == sizes[0] for s in sizes):
-                raise ValueError(f"For merge_op '{self.merge_op}', all source sizes must match. Got sizes: {sizes}")
-            self.input_size = sizes[0]
-        else:
-            raise ValueError(f"Merge operation '{self.merge_op}' is not supported.")
-        
-        # Allow explicit override of output_size; default to input_size if not provided.
-        self.output_size = self.cfg.get('output_size', self.input_size)
+
+        self._set_input_size_and_initialize_layer(sizes, dims)
+
+    def _set_input_size_and_initialize_layer(self, sizes, dims):
+        raise NotImplementedError("Subclasses should implement this method.")
 
     def forward(self, td: TensorDict):
-        """
-        Compute forward pass by recursively processing each source, applying any slicing,
-        and merging according to the specified merge operation.
-        """
         outputs = []
         for src_cfg in self.sources_cfg:
             source_name = src_cfg.get("source")
-            # Compute the output of the source layer.
-            self.MettaAgent.components[source_name].forward(td)
+            self.metta_agent.components[source_name].forward(td)
             src_tensor = td[source_name]
 
-            # Apply slicing if the 'slice' key exists; otherwise, use the full tensor.
             if "slice" in src_cfg:
                 start, end = src_cfg["slice"]
                 slice_dim = src_cfg.get("dim", self.default_dim)
@@ -517,24 +483,64 @@ class MergeLayer(MettaLayerBase):
                 src_tensor = torch.narrow(src_tensor, dim=slice_dim, start=start, length=length)
             outputs.append(src_tensor)
         
-        # Merge outputs based on the desired operation.
-        if self.merge_op == "concat":
-            merged = torch.cat(outputs, dim=self.merge_dim)
-        elif self.merge_op == "add":
-            merged = outputs[0]
-            for tensor in outputs[1:]:
-                merged = merged + tensor
-        elif self.merge_op == "subtract":
-            if len(outputs) != 2:
-                raise ValueError("Subtract merge_op requires exactly two sources.")
-            merged = outputs[0] - outputs[1]
-        elif self.merge_op == "mean":
-            merged = outputs[0]
-            for tensor in outputs[1:]:
-                merged = merged + tensor
-            merged = merged / len(outputs)
-        else:
-            raise ValueError(f"Merge operation '{self.merge_op}' is not supported.")
-        
+        return self._merge(outputs, td)
+
+    def _merge(self, outputs, td):
+        raise NotImplementedError("Subclasses should implement this method.")
+
+
+class ConcatMergeLayer(MergeLayerBase):
+    def _set_input_size_and_initialize_layer(self, sizes, dims):
+        if not all(d == dims[0] for d in dims):
+            raise ValueError(f"For 'concat', all sources must have the same 'dim'. Got dims: {dims}")
+        self.merge_dim = dims[0]
+        #this should calculate it's own output size
+        self.output_size = sum(sizes)
+
+    def _merge(self, outputs, td):
+        merged = torch.cat(outputs, dim=self.merge_dim)
+        td[self.name] = merged
+        return td
+
+
+class AddMergeLayer(MergeLayerBase):
+    def _set_input_size_and_initialize_layer(self, sizes, dims):
+        if not all(s == sizes[0] for s in sizes):
+            raise ValueError(f"For 'add', all source sizes must match. Got sizes: {sizes}")
+        self.output_size = sizes[0]
+
+    def _merge(self, outputs, td):
+        merged = outputs[0]
+        for tensor in outputs[1:]:
+            merged = merged + tensor
+        td[self.name] = merged
+        return td
+
+
+class SubtractMergeLayer(MergeLayerBase):
+    def _set_input_size_and_initialize_layer(self, sizes, dims):
+        if not all(s == sizes[0] for s in sizes):
+            raise ValueError(f"For 'subtract', all source sizes must match. Got sizes: {sizes}")
+        self.output_size = sizes[0]
+
+    def _merge(self, outputs, td):
+        if len(outputs) != 2:
+            raise ValueError("Subtract merge_op requires exactly two sources.")
+        merged = outputs[0] - outputs[1]
+        td[self.name] = merged
+        return td
+
+
+class MeanMergeLayer(MergeLayerBase):
+    def _set_input_size_and_initialize_layer(self, sizes, dims):
+        if not all(s == sizes[0] for s in sizes):
+            raise ValueError(f"For 'mean', all source sizes must match. Got sizes: {sizes}")
+        self.output_size = sizes[0]
+
+    def _merge(self, outputs, td):
+        merged = outputs[0]
+        for tensor in outputs[1:]:
+            merged = merged + tensor
+        merged = merged / len(outputs)
         td[self.name] = merged
         return td
