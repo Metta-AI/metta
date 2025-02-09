@@ -13,9 +13,7 @@ from pufferlib.emulation import PettingZooPufferEnv
 from pufferlib.environment import PufferEnv
 from tensordict import TensorDict
 from torch import nn
-from typing import List
-from agent.lib.util import make_nn_stack
-
+from agent.lib.weight_transformer import WeightTransformer
 from agent.metta_agent import MettaAgent
 
 
@@ -24,30 +22,10 @@ class Recurrent(pufferlib.models.LSTMWrapper):
         super().__init__(env, policy, input_size, hidden_size, num_layers)
 
 class PufferAgentWrapper(nn.Module):
-    def __init__(self, agent: MettaAgent, actor_hidden_sizes: List[int], env: PettingZooPufferEnv):
+    def __init__(self, agent: MettaAgent, cfg: OmegaConf, env: PettingZooPufferEnv):
         super().__init__()
-        self.hidden_size = agent.decoder_out_size()
-        if isinstance(env.single_action_space, pufferlib.spaces.Discrete):
-            self.atn_type = make_nn_stack(
-                input_size=agent.decoder_out_size(),
-                hidden_sizes=actor_hidden_sizes,
-                output_size=env.single_action_space.n
-            )
-            self.atn_param = None
-        elif len(env.single_action_space.nvec) == 2:
-            self.atn_type = make_nn_stack(
-                input_size=agent.decoder_out_size(),
-                output_size=env.single_action_space.nvec[0],
-                hidden_sizes=actor_hidden_sizes
-            )
-            self.atn_param = make_nn_stack(
-                input_size=agent.decoder_out_size(),
-                output_size=env.single_action_space.nvec[1],
-                hidden_sizes=actor_hidden_sizes
-            )
-        else:
-            raise ValueError(f"Unsupported action space: {env.single_action_space}")
-
+        self.weight_transformer = agent.weight_transformer
+        self.atn_type, self.atn_param = agent.get_action_networks()
         self._agent = agent
         print(self)
 
@@ -89,14 +67,18 @@ def make_policy(env: PufferEnv, cfg: OmegaConf):
             shape=[ 0 ],
             dtype=np.int32)
     })
+    weight_transformer = WeightTransformer(cfg)
+
     agent = hydra.utils.instantiate(
         cfg.agent,
         obs_space,
         env.single_action_space,
         env.grid_features,
         env.global_features,
+        cfg=cfg,
+        weight_transformer=weight_transformer,
         _recursive_=False)
-    puffer_agent = PufferAgentWrapper(agent, list(cfg.agent.actor.hidden_sizes), env)
+    puffer_agent = PufferAgentWrapper(agent, cfg, env)
 
     if cfg.agent.core.rnn_num_layers > 0:
         puffer_agent = Recurrent(

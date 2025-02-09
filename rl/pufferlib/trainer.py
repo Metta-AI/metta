@@ -142,7 +142,16 @@ class PufferTrainer:
                 "train/epoch": self.epoch,
             })
 
+        effective_ranks = self.policy.policy.policy.weight_transformer.get_effective_ranks()
+        for rank in effective_ranks:
+            self.wandb_run.log({
+                f"eval/effective_rank/{rank['name']}": rank['effective_rank'],
+                "train/agent_step": self.agent_step,
+                "train/epoch": self.epoch,
+            })
+
         logger.info(f"Glicko2 scores: \n{formatted_results}")
+        logger.info(f"Effective ranks: \n{effective_ranks}")
 
     def _on_train_step(self):
         pass
@@ -303,6 +312,14 @@ class PufferTrainer:
                     entropy_loss = entropy.mean()
                     loss = pg_loss - self.trainer_cfg.ent_coef * entropy_loss + v_loss * self.trainer_cfg.vf_coef
 
+                    self.policy.policy.policy.weight_transformer.clip_weights() #design decision whether this goes after calculating L2 loss or before
+                    
+                    l2_norm_loss = self.policy.policy.policy.weight_transformer.get_l2_norm_loss()
+                    loss += l2_norm_loss * self.trainer_cfg.l2_norm_coef
+                    
+                    l2_init_loss = self.policy.policy.policy.weight_transformer.get_l2_init_loss()
+                    loss += l2_init_loss * self.trainer_cfg.l2_init_coef
+
                 with profile.learn:
                     self.optimizer.zero_grad()
                     loss.backward()
@@ -318,6 +335,8 @@ class PufferTrainer:
                     self.losses.old_approx_kl += old_approx_kl.item() / total_minibatches
                     self.losses.approx_kl += approx_kl.item() / total_minibatches
                     self.losses.clipfrac += clipfrac.item() / total_minibatches
+                    self.losses.l2_norm_loss += l2_norm_loss.item() / total_minibatches
+                    self.losses.l2_init_loss += l2_init_loss.item() / total_minibatches
 
             if self.trainer_cfg.target_kl is not None:
                 if approx_kl > self.trainer_cfg.target_kl:
@@ -439,6 +458,8 @@ class PufferTrainer:
             approx_kl=0,
             clipfrac=0,
             explained_variance=0,
+            l2_norm_loss=0,
+            l2_init_loss=0,
         )
 
     def _make_vecenv(self):
@@ -457,7 +478,6 @@ class PufferTrainer:
         if self.cfg.seed is None:
             self.cfg.seed = np.random.randint(0, 1000000)
         self.vecenv.async_reset(self.cfg.seed)
-
 
 class AbortingTrainer(PufferTrainer):
     def __init__(self, *args, **kwargs):

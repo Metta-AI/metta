@@ -10,18 +10,22 @@ def make_nn_stack(
     nonlinearity=nn.ELU(),
     layer_norm=False,
     use_skip=False,
+    transform_weights=None,
 ):
-    """Create a stack of fully connected layers with nonlinearity"""
     sizes = [input_size] + hidden_sizes + [output_size]
     layers = []
+
     for i in range(1, len(sizes)):
-        layers.append(nn.Linear(sizes[i - 1], sizes[i]))
+        layer = nn.Linear(sizes[i - 1], sizes[i])
+        layers.append(layer)
+       
+        if transform_weights is not None:
+            transform_weights(layer, i)
 
         if i < len(sizes) - 1:
             layers.append(nonlinearity)
-
-        if layer_norm and i < len(sizes) - 1:
-            layers.append(nn.LayerNorm(sizes[i]))
+            if layer_norm:
+                layers.append(nn.LayerNorm(sizes[i]))
 
     if use_skip:
         return SkipConnectionStack(layers)
