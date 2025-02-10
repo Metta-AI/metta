@@ -10,7 +10,7 @@ import numpy as np
 from rl.pufferlib.vecenv import make_vecenv
 from agent.policy_store import PolicyRecord
 from rl.wandb.wandb_context import WandbContext
-from util.seeding import seed_everything
+from mettagrid.config.config import seed_everything
 from agent.policy_store import PolicyStore
 import pixie
 
