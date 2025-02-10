@@ -111,6 +111,8 @@ class EvalStatsAnalyzer:
         # Wrap metrics in quotes to handle dot notation in SQL
         metrics = [f'"{metric}"' for metric in metrics]
 
+        filters = filters or {}
+
         data = []
         for episode_idx in episodes:
             filters['episode_index'] = episode_idx
