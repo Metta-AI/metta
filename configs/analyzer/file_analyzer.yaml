@@ -1,11 +1,7 @@
-_target_: rl.eval.eval_stats_analyzer.EvalStatsAnalyzer
+defaults:
+  - analyzer
 
-artifact_name: null
-version: null
-
-file_path: null
-
-table_name: eval_data
+file_path: ./train_dir/daphne.local.eval.6/eval_stats/policy.json
 
 analysis:
   metric_patterns:

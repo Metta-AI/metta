@@ -8,52 +8,21 @@ from typing import Optional, Dict, Any, List
 from omegaconf import OmegaConf
 
 class EvalStatsDB:
-    #TODO add wandb_run
-    def __init__(self):
-        """
-        Initialize the instance by downloading the wandb artifact(s) and loading their JSON data into DuckDB.
-
-        Args:
-            entity (str): Your wandb username or team name.
-            project (str): The name of your wandb project.
-            artifact_name (str): The name of the artifact.
-            alias (str, optional): The alias of the artifact (e.g., "latest"). If None, all versions will be loaded.
-            table_name (str, optional): The name to assign the DuckDB table. Defaults to "artifact_table".
-        """
-        self.entity = entity
-        self.project = project
-        self.artifact_name = artifact_name
-        self.alias = alias
+    def __init__(self, table_name: str = "eval_data"):
         self.table_name = table_name
-       # self._wandb_run = wandb_run
 
-       #TODO: instead of making the connection here use wandb_run from WandbContext
+    def load_df(self):
+        pass
 
-        # Initialize the wandb API
-        self.api = wandb.Api()
+    def load_and_register(self):
+        df = self.load_df()
+        self.con.register(self.table_name, df)
 
-        # Create a DuckDB in-memory connection
-        self.con = duckdb.connect(database=':memory:')
-
-        # Load the JSON data into DuckDB.
-        if self.alias is not None:
-            self._load_single_version_json_to_duckdb()
-        else:
-            self._load_all_versions_json_to_duckdb()
-
-    def _flatten_json(self, data: Any) -> List[dict]:
+    def restructure_data(self, data) -> List[dict]:
         """
-        Flatten nested JSON data structured as a list of episodes, where each episode is a list of agent records.
-
         Each record is augmented with:
           - 'episode_index': the index of the episode.
           - 'agent_index': the index of the record within the episode.
-
-        Args:
-            data (list): The JSON data loaded from the file.
-
-        Returns:
-            list: A flat list of records with additional index columns.
         """
         if isinstance(data, list) and data and isinstance(data[0], list):
             flattened = []
@@ -69,77 +38,10 @@ class EvalStatsDB:
             return flattened
         return data
 
-    def _load_single_version_json_to_duckdb(self):
-        """
-        Load JSON data from a single artifact version (specified by alias) into DuckDB.
-        """
-        artifact_identifier = f"{self.entity}/{self.project}/{self.artifact_name}:{self.alias}"
-        print(f"Downloading artifact: {artifact_identifier}")
-        artifact = self.api.artifact(artifact_identifier)
-        artifact_dir = artifact.download()
-        json_path = os.path.join(artifact_dir, "eval_stats.json")
-        if not os.path.exists(json_path):
-            raise FileNotFoundError(f"JSON file not found at expected path: {json_path}")
-        try:
-            with open(json_path, "r") as f:
-                data = json.load(f)
-            flattened_data = self._flatten_json(data)
-            print(f"Flattened data contains {len(flattened_data)} records.")
-            df = pd.DataFrame(flattened_data)
-            print(f"DataFrame shape after flattening: {df.shape}")
-            self.con.register(self.table_name, df)
-            print(f"Created table '{self.table_name}' from artifact version '{self.alias}'.")
-        except Exception as e:
-            raise RuntimeError(f"Failed to load JSON into DuckDB: {e}")
-
-    def _load_all_versions_json_to_duckdb(self):
-        """
-        Load JSON data from all artifact versions into a single DuckDB table.
-        Each record is augmented with 'artifact_version' indicating its source.
-        """
-        artifact_identifier = f"{self.entity}/{self.project}/{self.artifact_name}"
-        print(f"Downloading all versions of artifact: {artifact_identifier}")
-        artifact_versions = self.api.artifacts(
-            type_name=self.artifact_name,
-            name=f"{self.entity}/{self.project}/{self.artifact_name}"
-        )
-        print(f"Found {len(artifact_versions)} versions of artifact {artifact_identifier}")
-        all_records = []
-        version_count = 0
-        for artifact in artifact_versions:
-            version_count += 1
-            artifact_dir = artifact.download()
-            print(f"Artifact directory: {artifact_dir}")
-            json_path = os.path.join(artifact_dir, f"{self.artifact_name}.json")
-            if not os.path.exists(json_path):
-                print(f"Warning: JSON file not found in {artifact_dir}; skipping this version.")
-                continue
-            try:
-                with open(json_path, "r") as f:
-                    data = json.load(f)
-                flattened_data = self._flatten_json(data)
-                version_info = artifact.id
-                for record in flattened_data:
-                    record["artifact_version"] = version_info
-                all_records.extend(flattened_data)
-            except Exception as e:
-                print(f"Warning: Failed to load version {artifact.id}: {e}")
-        if not all_records:
-            raise RuntimeError("No records loaded from any artifact version.")
-        df = pd.DataFrame(all_records)
-        print(f"Combined DataFrame shape after loading {version_count} versions: {df.shape}")
-        self.con.register(self.table_name, df)
-        print(f"Created table '{self.table_name}' from all artifact versions.")
 
     def get_metrics_by_pattern(self, pattern: str) -> List[str]:
         """
         Retrieve all metric fields that contain the given pattern.
-
-        Args:
-            pattern (str): Substring to filter metric field names.
-
-        Returns:
-            list: List of matching metric field names.
         """
         schema_query = f"PRAGMA table_info({self.table_name});"
         schema_df = self.query(schema_query)
@@ -150,12 +52,6 @@ class EvalStatsDB:
     def query(self, sql_query: str) -> pd.DataFrame:
         """
         Execute a SQL query on the loaded artifact table and return the results as a Pandas DataFrame.
-
-        Args:
-            sql_query (str): The SQL query string.
-
-        Returns:
-            pd.DataFrame: The query result.
         """
         try:
             result = self.con.execute(sql_query).fetchdf()
@@ -241,12 +137,24 @@ class EvalStatsDB:
         return combined_df
 
 class EvalStatsDbFile(EvalStatsDB):
-    def __init__(self, file_path: str):
+    def __init__(self, file_path: str, table_name: str = "eval_data"):
+        super().__init__(table_name)
         self.file_path = file_path
-        self.con = duckdb.connect(database=file_path)
+        self.con = duckdb.connect(database=':memory:')
+
+        self.load_and_register()
+
+    def load_df(self):
+        print(f"Loading file: {self.file_path}")
+        with open(self.file_path, "r") as f:
+            data = json.load(f)
+        data = self.restructure_data(data)
+
+        df = pd.DataFrame(data)
+        return df
 
 class EvalStatsDbWandb(EvalStatsDB):
-    def __init__(self, artifact_name: str, version: Optional[str] = None):
+    def __init__(self, entity: str, project: str, artifact_name: str, version = None, table_name: str = "eval_data"):
         """
         Initialize the instance by downloading the wandb artifact(s) and loading their JSON data into DuckDB.
 
@@ -257,23 +165,49 @@ class EvalStatsDbWandb(EvalStatsDB):
             alias (str, optional): The alias of the artifact (e.g., "latest"). If None, all versions will be loaded.
             table_name (str, optional): The name to assign the DuckDB table. Defaults to "artifact_table".
         """
+        super().__init__(table_name)
         self.entity = entity
         self.project = project
         self.artifact_name = artifact_name
-        self.alias = alias
-        self.table_name = table_name
-       # self._wandb_run = wandb_run
-
-       #TODO: instead of making the connection here use wandb_run from WandbContext
-
-        # Initialize the wandb API
+        self.version = version
         self.api = wandb.Api()
-
-        # Create a DuckDB in-memory connection
         self.con = duckdb.connect(database=':memory:')
 
-        # Load the JSON data into DuckDB.
-        if self.alias is not None:
-            self._load_single_version_json_to_duckdb()
-        else:
-            self._load_all_versions_json_to_duckdb()
+        self.artifact_identifier = f"{self.entity}/{self.project}/{self.artifact_name}"
+
+        self.load_and_register()
+
+    def get_versions(self):
+        if self.version is not None:
+            if isinstance(self.version, str):
+                return [self.api.artifact(f"{self.artifact_identifier}:{self.version}")]
+            elif isinstance(self.version, list):
+                return [self.api.artifact(f"{self.artifact_identifier}:{v}") for v in self.version]
+            else:
+                raise ValueError("Version must be a string or a list of strings")
+
+        return self.api.artifacts(
+            type_name=self.artifact_name,
+            name=self.artifact_identifier
+        )
+
+    def load_df(self):
+        versions = self.get_versions()
+        all_records = []
+        for artifact in versions:
+            artifact_dir = artifact.download()
+            json_path = os.path.join(artifact_dir, f"policy.json")
+            if not os.path.exists(json_path):
+                raise FileNotFoundError(f"JSON file not found at expected path: {json_path}")
+            try:
+                with open(json_path, "r") as f:
+                    data = json.load(f)
+                data = self.restructure_data(data)
+                version_info = artifact.id
+                for record in data:
+                    record["artifact_version"] = version_info
+                all_records.extend(data)
+            except Exception as e:
+                print(f"Warning: Failed to load version {artifact.id}: {e}")
+        df = pd.DataFrame(all_records)
+        return df

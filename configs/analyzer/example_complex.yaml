@@ -1,7 +1,6 @@
 defaults:
   - analyzer
 
-output_dir: ${hydra:runtime.output_dir}
 
 analysis:
   metric_patterns:

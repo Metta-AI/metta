@@ -4,6 +4,7 @@ from datetime import datetime
 import wandb
 from util.datastruct import flatten_dict
 import logging
+from typing import List
 logger = logging.getLogger("eval.py")
 
 class EvalStatsLogger:
@@ -12,6 +13,7 @@ class EvalStatsLogger:
         self.wandb_run = wandb_run
         self.log_dir = os.path.join(cfg.run_dir, "eval_stats")
         os.makedirs(self.log_dir, exist_ok=True)
+
 
     def log(self, eval_stats, file_name: str, artifact_name: str = None):
         # Build additional fields that you want to inject into each record.
@@ -23,7 +25,6 @@ class EvalStatsLogger:
         additional_fields['timestamp'] = datetime.now().isoformat()
 
         # Convert the environment configuration to a dictionary and flatten it.
-        #env_dict = OmegaConf.to_container(cfg.env, resolve=True)
         flattened_env = flatten_dict(self.cfg.env.game, parent_key = "env.game")
         additional_fields.update(flattened_env)
 
@@ -48,4 +49,3 @@ class EvalStatsLogger:
             logger.info(f"Logged artifact {artifact_name} to wandb")
 
         return eval_stats
-

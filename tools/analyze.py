@@ -5,7 +5,7 @@ import hydra
 from omegaconf import DictConfig
 from rl.wandb.wandb_context import WandbContext
 from mettagrid.config.config import setup_metta_environment
-from rl.wandb.wanduckdb import WandbDuckDB
+from rl.eval.eval_stats_db import EvalStatsDbWandb, EvalStatsDbFile
 logger = logging.getLogger("analyze.py")
 
 # Aggressively exit on Ctrl+C
@@ -16,14 +16,24 @@ signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
 def main(cfg: DictConfig) -> None:
     setup_metta_environment(cfg)
 
-    with WandbContext(cfg) as wandb_run:
-        eval_stats_db = WandbDuckDB(
-            wandb_run.entity,
-            wandb_run.project,
-            cfg.analyzer.eval_stats_uri,
-            table_name=cfg.analyzer.table_name
-        )
-        analyzer = hydra.utils.instantiate(cfg.analyzer, eval_stats_db)
+    if cfg.analyzer.file_path:
+        logger.info(f"Analyzing file: {cfg.analyzer.file_path}")
+        eval_stats_db_from_file = EvalStatsDbFile(cfg.analyzer.file_path)
+        analyzer = hydra.utils.instantiate(cfg.analyzer, eval_stats_db_from_file)
+        analyzer.run_all()
+
+    elif cfg.analyzer.artifact_name:
+        logger.info(f"Analyzing artifact: {cfg.analyzer.artifact_name}")
+        with WandbContext(cfg) as wandb_run:
+            eval_stats_db_from_artifact = EvalStatsDbWandb(
+                wandb_run.entity,
+                wandb_run.project,
+                cfg.analyzer.artifact_name,
+                cfg.analyzer.version,
+                cfg.analyzer.table_name
+            )
+
+        analyzer = hydra.utils.instantiate(cfg.analyzer, eval_stats_db_from_artifact)
         analyzer.run_all()
 
 
