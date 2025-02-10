@@ -26,7 +26,6 @@ analysis:
     - type: elo
       metrics:
         - "agent.action.use.altar"
-      mode: sum
       scores_path: "scores/altar_elo_scores.json"
 
     - type: glicko2

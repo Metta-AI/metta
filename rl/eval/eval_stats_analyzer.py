@@ -133,8 +133,6 @@ class EvalStatsAnalyzer:
         for test_config in self.analysis.statistical_tests:
             test_type = test_config.type
             metrics = test_config.metrics
-            mode = test_config.get('mode', 'sum')
-            label = test_config.get('label', None)
             scores_path = test_config.get('scores_path', None)
             filters = self.get_filters(test_config)
             print(f"\nRunning {test_type} test for metrics: {metrics} using filters {filters}")
@@ -142,9 +140,9 @@ class EvalStatsAnalyzer:
             data = self.prepare_data_for_statistical_tests(metrics, filters)
 
             if test_type == "mann_whitney":
-                test = MannWhitneyUTest(data, metrics, mode, label)
+                test = MannWhitneyUTest(data, metrics)
             elif test_type == "elo":
-                test = EloTest(data, metrics, mode, label)
+                test = EloTest(data, metrics)
             elif test_type == "glicko2":
                 test = Glicko2Test(data, metrics)
             else:

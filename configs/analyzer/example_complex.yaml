@@ -41,7 +41,6 @@ analysis:
     - type: mann_whitney
       metrics:
         - "agent.action.use.altar"
-      mode: sum
       label: "Altar Usage Test"
       filters:
         policy_name:
@@ -54,7 +53,6 @@ analysis:
     - type: elo
       metrics:
         - "agent.action.use.altar"
-      mode: sum
       scores_path: "scores/altar_elo_scores.json"
       filters:
         policy_name:
