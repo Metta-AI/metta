@@ -72,15 +72,13 @@ def make_policy(env: PufferEnv, cfg: OmegaConf):
         env.global_features,
         _recursive_=False)
     
-    # agent.to(cfg.device)
-    
     puffer_agent = PufferAgentWrapper(agent, env)
     puffer_agent.to(cfg.device)
 
-    if cfg.agent.components.core_helper.rnn_num_layers > 0:
+    if cfg.agent.components._core_.rnn_num_layers > 0:
         puffer_agent = Recurrent(
-            env, puffer_agent, input_size=cfg.agent.components._obs_.output_size,
-            hidden_size=cfg.agent.components._core_.output_size,
+            env, puffer_agent, input_size=puffer_agent._agent.components['_encoded_obs_'].output_size,
+            hidden_size=puffer_agent._agent.components['_core_'].output_size,
             num_layers=cfg.agent.components._core_.rnn_num_layers
         )
         puffer_agent = pufferlib.cleanrl.RecurrentPolicy(puffer_agent)

@@ -26,7 +26,7 @@ components:
 
   # obs_normalizer:
   #   _target_: agent.lib.observation_normalizer.ObservationNormalizer
-  #   input_source: _obs_
+    # input_source: _obs_
 
   # feature_normalizer:
     ###
@@ -51,6 +51,7 @@ components:
     _target_: agent.lib.metta_layer.Conv2d
     input_source: channel_selector_0-11
     output_size: 64
+    clip_scale: 0
     nn_params:
       kernel_size: 5
       stride: 3
@@ -99,7 +100,7 @@ components:
     nn_params:
       p: 0.5
 
-  _encoded_obs_::
+  _encoded_obs_:
     _target_: agent.lib.metta_layer.Linear
     input_source: obs_dropout
     output_size: 128
@@ -112,7 +113,7 @@ components:
 
   critic_1:
     _target_: agent.lib.metta_layer.Linear
-    input_source: core_helper
+    input_source: _core_
     output_size: 512
 
   critic_2:
@@ -132,7 +133,7 @@ components:
 
   actor_1:
     _target_: agent.lib.metta_layer.Linear
-    input_source: core_helper
+    input_source: _core_
     output_size: 512
 
   actor_2:
@@ -160,7 +161,7 @@ components:
 # Example:
 #   critic_1:
 #     _target_: agent.lib.metta_layer.MettaLayer
-#     input_source: core_helper
+#     input_source: _core_
 #     output_size: 512
 #     layer_type: Linear
 #
@@ -168,5 +169,5 @@ components:
 # Use the same name as the argument in the nn class.
 # eg for Linear, you can add bias=False
 #
-# In this example, the critic_1 layer takes its input from the core_helper layer,
+# In this example, the critic_1 layer takes its input from the _core_ layer,
 # has an output size of 512, and is of type Linear.

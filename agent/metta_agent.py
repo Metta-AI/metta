@@ -42,9 +42,9 @@ class MettaAgent(nn.Module, MettaAgentInterface):
 
         self.components['_obs_'].output_size = self.num_objects
 
-        self.components['_encoded_obs_'].set_input_size_and_initialize_layer()
-        self.components['_action_param_'].set_input_size_and_initialize_layer()
-        self.components['_value_'].set_input_size_and_initialize_layer()
+        self.components['_encoded_obs_'].setup_layer()
+        self.components['_action_param_'].setup_layer()
+        self.components['_value_'].setup_layer()
 
     def clip_weights(self):
         for component in self.components.values():
