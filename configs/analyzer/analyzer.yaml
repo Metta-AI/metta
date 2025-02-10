@@ -7,6 +7,8 @@ file_path: null
 
 table_name: eval_data
 
+policy_uri: null
+
 analysis:
 
   filters: null #global filters
@@ -20,11 +22,6 @@ analysis:
     - metric: "agent.action.use.altar"
 
   statistical_tests:
-    - type: mann_whitney
-      metrics:
-        - "agent.action.use.altar"
-      mode: sum
-      scores_path: "scores/altar_mann_whitney_scores.json"
 
     - type: elo
       metrics:
