@@ -3,6 +3,15 @@ defaults:
 
 
 analysis:
+
+  filters: #global filters
+    policy_name:
+      - "b.daveey.train.sm.teams.100:v0"
+      - "b.daveey.train.sm.teams.75:v0"
+    '"env.game.max_steps"': "<= 1000"
+    '"action.use"': "!= 0"
+    '"episode_index"': "IS NOT NULL"
+
   metric_patterns:
     - pattern: "action.use.first_use"
       filters:
@@ -27,13 +36,6 @@ analysis:
 
   metrics:
     - metric: "agent.action.use.altar"
-      filters:
-        policy_name:
-          - "b.daveey.train.sm.teams.100:v0"
-          - "b.daveey.train.sm.teams.75:v0"
-        '"env.game.max_steps"': "<= 1000"
-        '"action.use"': "!= 0"
-        '"episode_index"': "IS NOT NULL"
 
   statistical_tests:
     - type: mann_whitney

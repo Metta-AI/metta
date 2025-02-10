@@ -10,11 +10,13 @@ import pufferlib
 import pufferlib.utils
 import torch
 import wandb
-from agent.policy_store import PolicyStore
+from agent.policy_store import PolicyStore, PolicyRecord
 from fast_gae import fast_gae
 from omegaconf import OmegaConf
+from pathlib import Path
 
-from rl.eval_stats_logger import EvalStatsLogger
+from rl.eval.eval_stats_logger import EvalStatsLogger
+from rl.eval.eval_stats_analyzer import EvalStatsAnalyzer
 from rl.pufferlib.experience import Experience
 from rl.pufferlib.profile import Profile
 from rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
@@ -42,7 +44,6 @@ class PufferTrainer:
         self.policy_store = policy_store
         self.use_e3b = self.trainer_cfg.use_e3b
         self.eval_stats_logger = EvalStatsLogger(cfg, wandb_run)
-
         self._make_vecenv()
 
         os.makedirs(cfg.trainer.checkpoint_dir, exist_ok=True)
@@ -117,22 +118,12 @@ class PufferTrainer:
 
     def _evaluate_policy(self):
 
+        self.cfg.eval.policy_uri = self.last_pr.uri
         eval = hydra.utils.instantiate(self.cfg.eval, self.policy_store, self.cfg.env, _recursive_ = False)
         stats = eval.evaluate()
-        self.eval_stats_logger.log(stats, file_name=self.last_pr.name, artifact_name=self.cfg.eval.eval_artifact_name)
+        self.eval_stats_logger.log(stats, file_name=Path(self.last_pr.uri).name, artifact_name=self.cfg.eval.eval_artifact_name)
 
-        # xcxc
-        # self.eval_stats_analyzer.analyze()
-        # rating = results.get(self.last_pr.name, {}).get("rating", None)
-
-        # if rating is not None:
-        #     self.wandb_run.log({
-        #         "eval/glicko2": rating,
-        #         "train/agent_step": self.agent_step,
-        #         "train/epoch": self.epoch,
-        #     })
-
-        # logger.info(f"Glicko2 scores: \n{formatted_results}")
+       #TODO: add analysis here
 
     def _on_train_step(self):
         pass
