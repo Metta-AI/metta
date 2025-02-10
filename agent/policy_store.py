@@ -109,7 +109,7 @@ class PolicyStore:
                 prs += self._policy_records(uri, policy_selector_cfg.type, policy_selector_cfg.range, policy_selector_cfg.metric)
         else:
             prs = self._policy_records(policy_selector_cfg.uri, policy_selector_cfg.type, policy_selector_cfg.range, policy_selector_cfg.metric)
-
+                
         for k,v in policy_selector_cfg.filters.items():
             prs = [pr for pr in prs if pr.metadata.get(k, None) == v]
 
