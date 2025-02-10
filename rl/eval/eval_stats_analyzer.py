@@ -20,21 +20,13 @@ class EvalStatsAnalyzer:
         self.table_name = table_name
         self.global_filters = analysis.get('filters', None)
 
-        # Apply global filters to stats_db if they exist
-        if self.global_filters is not None:
-            self.filter_stats_db()
 
-    def filter_stats_db(self):
-        """
-        Apply global filters to stats_db if they exist
-        """
-        where_clause = self.stats_db._build_where_clause(self.global_filters)
-        filtered_query = f"""
-            SELECT * FROM {self.table_name}
-            {where_clause}
-        """
-        filtered_df = self.stats_db.query(filtered_query)
-        self.stats_db = filtered_df
+    def get_filters(self, item):
+        filters = item.get('filters', None)
+        if self.global_filters:
+            filters = {**self.global_filters, **filters} if filters else self.global_filters
+        return filters
+
 
     @staticmethod
     def convert_filters_to_sql(filters: Dict[str, Any]) -> Dict[str, Any]:
@@ -63,7 +55,7 @@ class EvalStatsAnalyzer:
         we analyze all metrics that match this pattern """
         for pattern_config in self.analysis.metric_patterns:
             matched_metrics = self.stats_db.get_metrics_by_pattern(pattern_config.pattern)
-            filters = pattern_config.get('filters', None)
+            filters = self.get_filters(pattern_config)
             if matched_metrics:
                 logger.info(f"Analyzing metrics matching '{pattern_config.pattern}':\n")
                 result = self.stats_db.average_metrics_by_policy(matched_metrics, filters)
@@ -76,7 +68,7 @@ class EvalStatsAnalyzer:
         we analyze the metric per episode per policy
         """
         for metric_config in self.analysis.per_episode_metrics:
-            filters = metric_config.get('filters', None)
+            filters = self.get_filters(metric_config)
             result = self.stats_db.metric_per_episode_per_policy(metric_config.metric, filters)
             result_table = tabulate(result, headers=["episode_index"] + list(result.keys()), tablefmt="grid")
             logger.info(f"Per-episode results for {metric_config.metric} with filters {filters}:\n{result_table}")
@@ -91,13 +83,13 @@ class EvalStatsAnalyzer:
         # if no filters, we display all metrics together
         if not any(metric_config.get('filters', None) for metric_config in self.analysis.metrics):
             metrics_list = [metric_config.metric for metric_config in self.analysis.metrics]
-            result = self.stats_db.average_metrics_by_policy(metrics_list, filters)
+            result = self.stats_db.average_metrics_by_policy(metrics_list, self.global_filters)
             result_table = tabulate(result, headers=["policy_name"] + list(result.keys()), tablefmt="grid")
             logger.info(f"Average metrics by policy for metrics: {metrics_list}\n{result_table}")
         # if filters, we display each metric separately
         else:
             for metric_config in self.analysis.metrics:
-                filters = metric_config.get('filters', None)
+                filters = self.get_filters(metric_config)
                 result = self.stats_db.average_metrics_by_policy([metric_config.metric], filters)
                 result_table = tabulate(result, headers=["policy_name"] + list(result.keys()), tablefmt="grid")
 
@@ -119,15 +111,10 @@ class EvalStatsAnalyzer:
         # Wrap metrics in quotes to handle dot notation in SQL
         metrics = [f'"{metric}"' for metric in metrics]
 
-        # Convert filters to SQL format
-        sql_filters = self.convert_filters_to_sql(filters) if filters else {}
-
         data = []
         for episode_idx in episodes:
-            conditions = [f"episode_index = {episode_idx}"]
-            for field, value in sql_filters.items():
-                conditions.append(f"{field} {value}")
-            where_clause = "WHERE " + " AND ".join(conditions)
+            filters['episode_index'] = episode_idx
+            where_clause = self.stats_db._build_where_clause(filters)
             episode_query = f"""
                 SELECT policy_name, {', '.join(metrics)}
                 FROM {self.table_name}
@@ -147,7 +134,7 @@ class EvalStatsAnalyzer:
             mode = test_config.get('mode', 'sum')
             label = test_config.get('label', None)
             scores_path = test_config.get('scores_path', None)
-            filters = test_config.get('filters', None)
+            filters = self.get_filters(test_config)
             print(f"\nRunning {test_type} test for metrics: {metrics} using filters {filters}")
 
             data = self.prepare_data_for_statistical_tests(metrics, filters)

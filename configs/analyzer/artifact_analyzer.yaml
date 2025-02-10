@@ -4,6 +4,12 @@ defaults:
 artifact_name: daphne_eval
 
 analysis:
+  filters:
+    policy_name:
+      - "b.daveey.train.sm.teams.100:v0"
+      - "b.daveey.train.sm.teams.75:v0"
+    '"action.use"': ">= 10"
+
   metric_patterns:
     - pattern: "action.use.first_use"
 

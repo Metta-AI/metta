@@ -7,7 +7,7 @@ defaults:
   - override /env/mettagrid@env: simple
   - override /agent: simple.medium
   - override /sweep: fast
-  - override /analyzer: file_analyzer
+  - override /analyzer: artifact_analyzer
 
 policy_uri: ${trained_policy_uri}
 npc_policy_uri: ${trained_policy_uri}

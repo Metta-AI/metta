@@ -70,6 +70,8 @@ class EvalStatsDB:
 
         for field, value in filters.items():
             # If field names contain dots, wrap them in quotes.
+            if OmegaConf.is_config(value):
+                value = OmegaConf.to_container(value, resolve=True)
             if '.' in field and not field.startswith('"'):
                 field = f'"{field}"'
             if isinstance(value, (list, tuple)):
