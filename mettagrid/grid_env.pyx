@@ -81,7 +81,9 @@ cdef class GridEnv:
             np.zeros(max_agents, dtype=np.int8),
             np.zeros(max_agents, dtype=np.float32)
         )
-    
+
+        self._action_success = vector[bint](max_agents)
+
     def __dealloc__(self):
         del self._grid
 
@@ -166,7 +168,7 @@ cdef class GridEnv:
                     continue
                 if arg > self._max_action_args[action]:
                     continue
-                handler.handle_action(idx, agent.id, arg)
+                self._action_success[idx] = handler.handle_action(idx, agent.id, arg)
         self._compute_observations(actions)
 
         for i in range(self._episode_rewards.shape[0]):
@@ -323,3 +325,6 @@ cdef class GridEnv:
         for action in actions:
             new_actions.append(flat_actions_dict[(action[0], action[1])])
         return np.array(new_actions, dtype=np.uint32)
+
+    def action_success(self):
+        return self._action_success
