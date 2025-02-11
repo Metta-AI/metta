@@ -136,11 +136,12 @@ class PufferTrainer:
         rating = results.get(self.last_pr.name, {}).get("rating", None)
 
         if rating is not None:
-            self.wandb_run.log({
-                "eval/glicko2": rating,
-                "train/agent_step": self.agent_step,
-                "train/epoch": self.epoch,
-            })
+            if self.wandb_run and self.cfg.wandb.track:
+                self.wandb_run.log({
+                    "eval/glicko2": rating,
+                    "train/agent_step": self.agent_step,
+                    "train/epoch": self.epoch,
+                })
 
         logger.info(f"Glicko2 scores: \n{formatted_results}")
 
