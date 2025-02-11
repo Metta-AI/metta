@@ -11,4 +11,4 @@ num_envs: 128
 num_episodes: 128
 max_time_s: 60
 
-eval_artifact_name: null
+eval_artifact_name: null  #if not null, will log to wandb

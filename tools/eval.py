@@ -6,6 +6,7 @@ from mettagrid.config.config import setup_metta_environment
 from agent.policy_store import PolicyStore
 from rl.eval.eval_stats_logger import EvalStatsLogger
 from rl.wandb.wandb_context import WandbContext
+from pathlib import Path
 
 logger = logging.getLogger("eval.py")
 
@@ -24,10 +25,8 @@ def main(cfg: DictConfig):
         )
         stats = eval.evaluate()
         stats_logger = EvalStatsLogger(cfg, wandb_run)
-        stats_logger.log(stats, file_name="policy", artifact_name=cfg.eval.eval_artifact_name)
 
-
-
+        stats_logger.log(stats, file_name=Path(cfg.eval.policy_uri).name, artifact_name=cfg.eval.eval_artifact_name)
 
 if __name__ == "__main__":
     main()

@@ -19,8 +19,8 @@ def main(cfg):
 
     with WandbContext(cfg) as wandb_run:
         policy_store = PolicyStore(cfg, wandb_run)
-        policy = policy_store.policy(cfg.evaluator.policy)
-        play(cfg, policy)
+
+        play(cfg, policy_store)
 
 
 if __name__ == "__main__":

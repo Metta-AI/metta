@@ -7,9 +7,13 @@ file_path: null
 
 table_name: eval_data
 
+policy_uri: null
+
 analysis:
-  metric_patterns:
-    - pattern: "action.use.first_use"
+
+  filters: null #global filters
+
+  metric_patterns: null
 
   per_episode_metrics:
     - metric: "agent.action.use.altar"
@@ -18,34 +22,15 @@ analysis:
     - metric: "agent.action.use.altar"
 
   statistical_tests:
-    - type: mann_whitney
-      metrics:
-        - "agent.action.use.altar"
-      mode: sum
-      label: "Altar Usage Test"
-      filters:
-        policy_name:
-          - "b.daveey.train.sm.teams.100:v0"
-          - "b.daveey.train.sm.teams.75:v0"
 
     - type: elo
       metrics:
         - "agent.action.use.altar"
-      mode: sum
       scores_path: "scores/altar_elo_scores.json"
-      filters:
-        policy_name:
-          - "b.daveey.train.sm.teams.100:v0"
-          - "b.daveey.train.sm.teams.75:v0"
-
 
     - type: glicko2
       metrics:
         - "agent.action.use.altar"
       scores_path: "scores/altar_glicko_scores.json"
-      filters:
-        policy_name:
-          - "b.daveey.train.sm.teams.100:v0"
-          - "b.daveey.train.sm.teams.75:v0"
 
   queries: null

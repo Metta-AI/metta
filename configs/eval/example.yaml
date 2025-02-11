@@ -3,11 +3,6 @@ defaults:
 
 env: env/mettagrid/simple
 
-# metrics_to_log:
-#   - time_to_targets
-#   - elo
-
-
 policy_agents_pct: 0.5
 npc_policy_uri: wandb://run/b.daveey.train.sm.teams.100
 policy_uri: wandb://run/b.daveey.train.sm.teams.75

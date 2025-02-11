@@ -38,7 +38,6 @@ class EvalStatsDB:
             return flattened
         return data
 
-
     def get_metrics_by_pattern(self, pattern: str) -> List[str]:
         """
         Retrieve all metric fields that contain the given pattern.
@@ -71,6 +70,8 @@ class EvalStatsDB:
 
         for field, value in filters.items():
             # If field names contain dots, wrap them in quotes.
+            if OmegaConf.is_config(value):
+                value = OmegaConf.to_container(value, resolve=True)
             if '.' in field and not field.startswith('"'):
                 field = f'"{field}"'
             if isinstance(value, (list, tuple)):
@@ -137,6 +138,9 @@ class EvalStatsDB:
         return combined_df
 
 class EvalStatsDbFile(EvalStatsDB):
+    """
+    Database for loading eval stats from a file.
+    """
     def __init__(self, file_path: str, table_name: str = "eval_data"):
         super().__init__(table_name)
         self.file_path = file_path
@@ -154,17 +158,10 @@ class EvalStatsDbFile(EvalStatsDB):
         return df
 
 class EvalStatsDbWandb(EvalStatsDB):
+    """
+    Database for loading eval stats from wandb.
+    """
     def __init__(self, entity: str, project: str, artifact_name: str, version = None, table_name: str = "eval_data"):
-        """
-        Initialize the instance by downloading the wandb artifact(s) and loading their JSON data into DuckDB.
-
-        Args:
-            entity (str): Your wandb username or team name.
-            project (str): The name of your wandb project.
-            artifact_name (str): The name of the artifact.
-            alias (str, optional): The alias of the artifact (e.g., "latest"). If None, all versions will be loaded.
-            table_name (str, optional): The name to assign the DuckDB table. Defaults to "artifact_table".
-        """
         super().__init__(table_name)
         self.entity = entity
         self.project = project
@@ -173,7 +170,7 @@ class EvalStatsDbWandb(EvalStatsDB):
         self.api = wandb.Api()
         self.con = duckdb.connect(database=':memory:')
 
-        self.artifact_identifier = f"{self.entity}/{self.project}/{self.artifact_name}"
+        self.artifact_identifier = os.path.join(self.entity, self.project, self.artifact_name)
 
         self.load_and_register()
 
@@ -186,19 +183,21 @@ class EvalStatsDbWandb(EvalStatsDB):
             else:
                 raise ValueError("Version must be a string or a list of strings")
 
+        # Return all versions of the artifact
         return self.api.artifacts(
             type_name=self.artifact_name,
             name=self.artifact_identifier
         )
 
     def load_df(self):
-        versions = self.get_versions()
+        artifact_versions = self.get_versions()
         all_records = []
-        for artifact in versions:
+        for artifact in artifact_versions:
             artifact_dir = artifact.download()
-            json_path = os.path.join(artifact_dir, f"policy.json")
-            if not os.path.exists(json_path):
-                raise FileNotFoundError(f"JSON file not found at expected path: {json_path}")
+            json_files = [f for f in os.listdir(artifact_dir) if f.endswith('.json')]
+            if len(json_files) != 1:
+                raise FileNotFoundError(f"Expected exactly one JSON file in {artifact_dir}, found {len(json_files)}")
+            json_path = os.path.join(artifact_dir, json_files[0])
             try:
                 with open(json_path, "r") as f:
                     data = json.load(f)

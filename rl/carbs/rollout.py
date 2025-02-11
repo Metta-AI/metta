@@ -1,17 +1,20 @@
 import os
 import time
 import logging
-
+import json
 import wandb
 import yaml
 import hydra
 from omegaconf import OmegaConf, DictConfig
 from rich.console import Console
+
 from rl.carbs.metta_carbs import MettaCarbs
 from rl.wandb.sweep import generate_run_id_for_sweep
 from agent.policy_store import PolicyStore
 from util.stats_library import EloTest, Glicko2Test, MannWhitneyUTest, get_test_results
-import json
+from rl.eval.eval_stats_logger import EvalStatsLogger
+from pathlib import Path
+
 logger = logging.getLogger("sweep_rollout")
 
 
@@ -41,6 +44,8 @@ class CarbsSweepRollout:
         logger.info("Generated CARBS suggestion: ")
         logger.info(yaml.dump(self.suggestion, default_flow_style=False))
         self._log_file("carbs_suggestion.yaml", self.suggestion)
+        self.eval_stats_logger = EvalStatsLogger(cfg, wandb_run)
+
 
     def run(self):
         try:
@@ -67,7 +72,7 @@ class CarbsSweepRollout:
         train_cfg.wandb.group = self.cfg.run
 
         eval_cfg = OmegaConf.create(OmegaConf.to_container(self.cfg))
-        eval_cfg.evaluator.update(self.cfg.sweep.evaluator)
+        eval_cfg.eval.update(self.cfg.sweep.evaluator)
 
         self._apply_carbs_suggestion(train_cfg, self.suggestion)
 
@@ -110,12 +115,16 @@ class CarbsSweepRollout:
         logger.info(f"Evaluating policy {final_pr.name} against {initial_pr.name}")
         self._log_file("eval_config.yaml", eval_cfg)
 
+        eval_cfg.eval.policy_uri = final_pr.uri
         eval = hydra.utils.instantiate(eval_cfg.eval, policy_store, eval_cfg.env, _recursive_ = False)
         stats = eval.evaluate()
         eval_time = time.time() - eval_start_time
-        self._log_file("eval_stats.yaml", stats)
+        #self._log_file("eval_stats.yaml", stats)
+        self.eval_stats_logger.log(stats, file_name=Path(final_pr.uri).name, artifact_name=self.cfg.eval.eval_artifact_name)
 
-        #TODO: update with new eval version of logging. maybe we want to add back in stats categories?
+
+
+        #TODO: add analysis here
 
         # test_results = {t: {} for t in ["raw", "glicko", "elo"]}
 

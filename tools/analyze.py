@@ -20,7 +20,7 @@ def main(cfg: DictConfig) -> None:
         logger.info(f"Analyzing file: {cfg.analyzer.file_path}")
         eval_stats_db_from_file = EvalStatsDbFile(cfg.analyzer.file_path)
         analyzer = hydra.utils.instantiate(cfg.analyzer, eval_stats_db_from_file)
-        analyzer.run_all()
+        analyzer.run()
 
     elif cfg.analyzer.artifact_name:
         logger.info(f"Analyzing artifact: {cfg.analyzer.artifact_name}")
@@ -34,7 +34,7 @@ def main(cfg: DictConfig) -> None:
             )
 
         analyzer = hydra.utils.instantiate(cfg.analyzer, eval_stats_db_from_artifact)
-        analyzer.run_all()
+        analyzer.run()
 
 
 if __name__ == "__main__":

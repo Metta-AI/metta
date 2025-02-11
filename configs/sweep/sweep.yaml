@@ -7,7 +7,7 @@ rollout_count: 100000
 num_random_samples: 10
 resume: true
 
-evaluator:
+eval:
   num_envs: 100
   num_episodes: 100
   max_time_s: 600
