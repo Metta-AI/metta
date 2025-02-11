@@ -122,7 +122,7 @@ class ParameterizedLayer(LayerBase):
         Also known as Weight Decay Loss or L2 Ridge Regularization
         '''
         l2_reg_loss = torch.tensor(0.0, device=self.weight_layer.weight.data.device)
-        if self.l2_norm_scale != 0:
+        if self.l2_norm_scale != 0 and self.l2_norm_scale is not None:
             l2_reg_loss = (torch.sum(self.weight_layer.weight.data ** 2))*self.l2_norm_scale
         return l2_reg_loss
 
@@ -131,7 +131,7 @@ class ParameterizedLayer(LayerBase):
         Also known as Delta Regularization Loss
         '''
         l2_init_loss = torch.tensor(0.0, device=self.weight_layer.weight.data.device)
-        if self.l2_init_scale != 0:
+        if self.l2_init_scale != 0 and self.l2_init_scale is not None:
             l2_init_loss = torch.sum((self.weight_layer.weight.data - self.initial_weights) ** 2) * self.l2_init_scale
         return l2_init_loss
     

@@ -2,7 +2,7 @@ import torch
 from torch import nn
 import omegaconf
 from tensordict import TensorDict
-
+from agent.lib.metta_layer import LayerBase
 # ##ObservationNormalization
 # These are approximate maximum values for each feature. Ideally they would be defined closer to their source,
 # but here we are. If you add / remove a feature, you should add / remove the corresponding normalization.
@@ -35,14 +35,13 @@ OBS_NORMALIZATIONS = {
     'agent:kinship': 10,
 }
 
-class ObservationNormalizer(nn.Module):
+class ObservationNormalizer(LayerBase):
     def __init__(self, metta_agent, **cfg):
-        super().__init__()
+        super().__init__(metta_agent, **cfg)
         cfg = omegaconf.OmegaConf.create(cfg)
         self.metta_agent = metta_agent
         self.metta_agent_components = metta_agent.components
-        self.name = cfg.name
-        self.input_source = cfg.input_source
+
         num_objects = len(self.metta_agent.grid_features)
         grid_features = self.metta_agent.grid_features
 
@@ -50,13 +49,6 @@ class ObservationNormalizer(nn.Module):
         obs_norm = obs_norm.view(1, num_objects, 1, 1)
 
         self.register_buffer('obs_norm', obs_norm)
-
-    def setup_layer(self):
-        self.metta_agent_components[self.input_source].setup_layer()
-        self.input_size = self.metta_agent_components[self.input_source].output_size
-
-        if self.output_size is None:
-            self.output_size = self.input_size
 
     def forward(self, td: TensorDict):
         if self.name in td:

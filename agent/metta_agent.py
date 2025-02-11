@@ -25,13 +25,15 @@ class MettaAgent(nn.Module, MettaAgentInterface):
         cfg = OmegaConf.create(cfg)
         self.cfg = cfg
         self.clip_range = cfg.clip_range
-        # self.observation_space = obs_space
         self.action_space = action_space
         self.grid_features = grid_features
-        # self.global_features = global_features
         self.obs_key = cfg.observations.obs_key
         self.obs_input_shape = obs_space[self.obs_key].shape[1:]
         self.num_objects = obs_space[self.obs_key].shape[0]
+
+        # are these needed?
+        # self.observation_space = obs_space
+        # self.global_features = global_features
         
 
         self.components = {}
@@ -52,16 +54,16 @@ class MettaAgent(nn.Module, MettaAgentInterface):
             component.clip_weights()
 
     def get_l2_reg_loss(self) -> torch.Tensor:
-        l2_reg_loss = torch.tensor(0.0, device=self.weights.device)
+        l2_reg_loss = 0
         for component in self.components.values():
-            l2_reg_loss += component.get_l2_reg_loss()
-        return l2_reg_loss
+            l2_reg_loss += component.get_l2_reg_loss() or 0
+        return torch.tensor(l2_reg_loss)
     
     def get_l2_init_loss(self) -> torch.Tensor:
-        l2_init_loss = torch.tensor(0.0, device=self.weights.device)
+        l2_init_loss = 0
         for component in self.components.values():
-            l2_init_loss += component.get_l2_init_loss()
-        return l2_init_loss
+            l2_init_loss += component.get_l2_init_loss() or 0
+        return torch.tensor(l2_init_loss)
 
     def update_l2_init_weight_copy(self):
         for component in self.components.values():

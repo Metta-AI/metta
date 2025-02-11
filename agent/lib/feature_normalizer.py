@@ -2,15 +2,18 @@ from sample_factory.algo.utils.running_mean_std import RunningMeanStdInPlace
 from torch import nn
 import torch
 from tensordict import TensorDict
+import omegaconf
 
 class FeatureListNormalizer(nn.Module):
     def __init__(self, metta_agent, **cfg):
         super().__init__()
+        cfg = omegaconf.OmegaConf.create(cfg)
         self.metta_agent = metta_agent
         self.cfg = cfg
         self.metta_agent_components = self.metta_agent.components
         self.name = self.cfg.name
         self.input_source = self.cfg.input_source
+        self.output_size = None
         self._feature_names = self.metta_agent.grid_features
         self.input_shape = self.metta_agent.obs_input_shape
         self._norms_dict = nn.ModuleDict({

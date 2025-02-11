@@ -1,15 +1,17 @@
 import omegaconf
 import torch
 from tensordict import TensorDict
+from agent.lib.metta_layer import LayerBase
 
-
-class MergeLayerBase():
+class MergeLayerBase(LayerBase):
     def __init__(self, metta_agent, **cfg):
+        super().__init__(metta_agent, **cfg)
         cfg = omegaconf.OmegaConf.create(cfg)
         self.sources_list = list(cfg.sources)
         self.default_dim = -1
         self.name = cfg.name
         self.metta_agent = metta_agent
+
     def setup_layer(self):
         sizes = []
         dims = []

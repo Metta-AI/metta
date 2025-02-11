@@ -12,7 +12,7 @@ observations:
   normalize_features: true
   auto_normalize: false
   track_last_action: ${env.track_last_action}
-  kinship: ${env.game.kinship}
+  # kinship: ${env.game.kinship}
   
 clip_range: 3.0
 
@@ -30,23 +30,23 @@ components:
     _target_: agent.lib.observation_normalizer.ObservationNormalizer
     input_source: _obs_
 
-  feature_list_normalizer:
-    _target_: agent.lib.feature_normalizer.FeatureListNormalizer
-    input_source: obs_normalizer
+  # feature_list_normalizer:
+  #   _target_: agent.lib.feature_normalizer.FeatureListNormalizer
+  #   input_source: obs_normalizer
 
   channel_selector_0-11:
     _target_: agent.lib.merge_layer.ConcatMergeLayer
     sources:
-      - source_name: feature_list_normalizer
+      - source_name: obs_normalizer
         slice: [0, 12]    # Use channels 0 to 11
         dim: 1            # Channel dimension
     output_size: 12
 
-  channel_selector_12-23:
+  channel_selector_12-22:
     _target_: agent.lib.merge_layer.ConcatMergeLayer
     sources:
-      - source_name: feature_list_normalizer
-        slice: [12, 24]   # Use channels 12 to 23
+      - source_name: obs_normalizer
+        slice: [12, 22]   # Use channels 12 to 23
         dim: 1
     output_size: 12
 
@@ -59,9 +59,9 @@ components:
       kernel_size: 5
       stride: 3
 
-  cnn1_channels_12-23:
+  cnn1_channels_12-22:
     _target_: agent.lib.nn_layer_library.Conv2d
-    input_source: channel_selector_12-23
+    input_source: channel_selector_12-22
     output_size: 64
     nn_params:
       kernel_size: 5
@@ -75,9 +75,9 @@ components:
       kernel_size: 3
       stride: 1
 
-  cnn2_channels_12-23:
+  cnn2_channels_12-22:
     _target_: agent.lib.nn_layer_library.Conv2d
-    input_source: cnn1_channels_12-23
+    input_source: cnn1_channels_12-22
     output_size: 64
     nn_params:
       kernel_size: 3
@@ -89,7 +89,7 @@ components:
       - source_name: cnn2_channels_0-11
         slice: [0, 64]
         dim: 1
-      - source_name: cnn2_channels_12-23
+      - source_name: cnn2_channels_12-22
         slice: [0, 64]
         dim: 1
 
