@@ -10,7 +10,7 @@ import numpy as np
 from rl.pufferlib.vecenv import make_vecenv
 from agent.policy_store import PolicyRecord
 from rl.wandb.wandb_context import WandbContext
-from mettagrid.config.config import seed_everything
+from mettagrid.config.config import setup_metta_environment
 from agent.policy_store import PolicyStore
 import pixie
 
@@ -46,8 +46,10 @@ def nice_actions(action):
     else:
         return "unknown"
 
+
 WHITE = pixie.Color(1, 1, 1, 1)
 BLACK = pixie.Color(0, 0, 0, 1)
+
 # Using flat UI colors:
 TURQUOISE = pixie.Color(0x1a/255, 0xbc/255, 0x9c/255, 1)
 GREEN_SEA = pixie.Color(0x16/255, 0xa0/255, 0x85/255, 1)
@@ -93,7 +95,6 @@ def trace(cfg: OmegaConf, policy_record: PolicyRecord):
     num_agents = vecenv.num_agents
     num_steps = 500
 
-    #output = open("output_1.jsonl", "w")
     image = pixie.Image(52 + num_steps*2 + 50, 10 + 60 * num_agents + 10)
     image.fill(pixie.Color(44/255, 62/255, 80/255, 1))
     ctx = image.new_context()
@@ -101,11 +102,10 @@ def trace(cfg: OmegaConf, policy_record: PolicyRecord):
     steps = []
 
     while True:
-        #output.write(json.dumps({"step": env._c_env.current_timestep()}) + "\n")
 
         with torch.no_grad():
             obs = torch.as_tensor(obs).to(device=device)
-            actions, _, _, _, policy_rnn_state = policy(obs, policy_rnn_state)
+            actions, _, _, _, policy_rnn_state, _, _ = policy(obs, policy_rnn_state)
 
         actions_array = env._c_env.unflatten_actions(actions.cpu().numpy())
         agents = []
@@ -212,19 +212,14 @@ def trace(cfg: OmegaConf, policy_record: PolicyRecord):
                 paint.color = AMETHYST
                 ctx.fill_rect(x-1, y - 16, 1, 16*2+2)
 
-    #output.close()
-    image.write_file("output.png")
+    image.write_file(f"outputs/{policy_record.name}.trace.png")
 
 
 @hydra.main(version_base=None, config_path="../configs", config_name="config")
 def main(cfg):
 
-    traceback.install(show_locals=False)
+    setup_metta_environment(cfg)
 
-    print(OmegaConf.to_yaml(cfg))
-
-    seed_everything(cfg.seed, cfg.torch_deterministic)
-    os.makedirs(cfg.run_dir, exist_ok=True)
     with open(os.path.join(cfg.run_dir, "config.yaml"), "w") as f:
         OmegaConf.save(cfg, f)
 
