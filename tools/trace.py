@@ -23,28 +23,6 @@ def nice_orientation(orientation):
     return ["north", "south", "west", "east"][orientation]
 
 
-def old_nice_actions(action):
-    """ Convert a un-flattened action into a human-readable string """
-    if action[0] == 0:
-        return "noop"
-    elif action[0] == 1:
-        if action[1] == 0:
-            return "move_back"
-        elif action[1] == 1:
-            return "move_forward"
-    elif action[0] == 2:
-        return "rotate_" + nice_orientation(action[1])
-    elif action[0] == 3:
-        return "use"
-    elif action[0] == 4:
-        return "attack_" + str(action[1] // 3) + "_" + str(action[1] % 3)
-    elif action[0] == 5:
-        return "shield"
-    elif action[0] == 6:
-        return "swap"
-    else:
-        return "unknown"
-
 def nice_actions(env, action):
     """ Convert a un-flattened action into a human-readable string """
     name = env.action_names()[action[0]]
