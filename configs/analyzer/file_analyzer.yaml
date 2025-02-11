@@ -1,4 +1,0 @@
-defaults:
-  - analyzer
-
-file_path: ./train_dir/daphne.local.eval.6/eval_stats/policy.json

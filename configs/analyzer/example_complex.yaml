@@ -1,9 +1,7 @@
 defaults:
   - analyzer
 
-
 analysis:
-
   filters: #global filters
     policy_name:
       - "b.daveey.train.sm.teams.100:v0"
@@ -12,21 +10,11 @@ analysis:
     '"action.use"': "!= 0"
     '"episode_index"': "IS NOT NULL"
 
-  metric_patterns:
-    - pattern: "action.use.first_use"
-      filters:
-        '"agent.energy.gained"': "> 300"  # SQL comparison
-        '"env.game.num_agents"': "= 24"
-
-    - pattern: "action.move"
-      filters:
-        policy_name:
-          - "b.daveey.train.sm.teams.75:v0"
-        '"action.use"': ">= 10"
-        '"episode_index"': "< 100"
-
-  per_episode_metrics:
+  metrics:
     - metric: "agent.action.use.altar"
+
+    - metric: "agent.action.use.altar"
+      group_by_episode: true
       filters:
         policy_name:
           - "b.daveey.train.sm.teams.100:v0"
@@ -34,8 +22,17 @@ analysis:
         '"env.game.num_agents"': "IN (16, 24, 32)"
         '"run_id"': "BETWEEN 1 AND 10"
 
-  metrics:
-    - metric: "agent.action.use.altar"
+    - metric: "action.use.first_use.*"
+      filters:
+        '"agent.energy.gained"': "> 300"  # SQL comparison
+        '"env.game.num_agents"': "= 24"
+
+    - metric: "action.move.*"
+      filters:
+        policy_name:
+          - "b.daveey.train.sm.teams.75:v0"
+        '"action.use"': ">= 10"
+        '"episode_index"': "< 100"
 
   statistical_tests:
     - type: mann_whitney
@@ -71,7 +68,3 @@ analysis:
           - "b.daveey.train.sm.teams.75:v0"
         '"action.use"': "> 10"
         '"episode_index"': "< 500"
-
-  queries:
-    policy_names: "SELECT DISTINCT policy_name FROM eval_stats"
-    high_energy_games: 'SELECT * FROM eval_stats WHERE "agent.energy.gained" > 300'

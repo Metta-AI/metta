@@ -13,15 +13,12 @@ class EvalStatsAnalyzer:
         self,
         stats_db: EvalStatsDB,
         analysis: DictConfig,
-        table_name: str,
         **kwargs):
         self.analysis = analysis
         self.stats_db = stats_db
-        self.table_name = table_name
         self.global_filters = analysis.get('filters', None)
 
-
-    def get_filters(self, item):
+    def _filters(self, item):
         filters = item.get('filters', None)
         if self.global_filters:
             filters = {**self.global_filters, **filters} if filters else self.global_filters
@@ -55,7 +52,7 @@ class EvalStatsAnalyzer:
         we analyze all metrics that match this pattern """
         for pattern_config in self.analysis.metric_patterns:
             matched_metrics = self.stats_db.get_metrics_by_pattern(pattern_config.pattern)
-            filters = self.get_filters(pattern_config)
+            filters = self._filters(pattern_config)
             if matched_metrics:
                 logger.info(f"Analyzing metrics matching '{pattern_config.pattern}':\n")
                 result = self.stats_db.average_metrics_by_policy(matched_metrics, filters)
@@ -68,7 +65,7 @@ class EvalStatsAnalyzer:
         we analyze the metric per episode per policy
         """
         for metric_config in self.analysis.per_episode_metrics:
-            filters = self.get_filters(metric_config)
+            filters = self._filters(metric_config)
             result = self.stats_db.metric_per_episode_per_policy(metric_config.metric, filters)
             result_table = tabulate(result, headers=["episode_index"] + list(result.keys()), tablefmt="grid")
             logger.info(f"Per-episode results for {metric_config.metric} with filters {filters}:\n{result_table}")
@@ -89,17 +86,11 @@ class EvalStatsAnalyzer:
         # if filters, we display each metric separately
         else:
             for metric_config in self.analysis.metrics:
-                filters = self.get_filters(metric_config)
+                filters = self._filters(metric_config)
                 result = self.stats_db.average_metrics_by_policy([metric_config.metric], filters)
                 result_table = tabulate(result, headers=["policy_name"] + list(result.keys()), tablefmt="grid")
 
                 logger.info(f"Average metrics by policy for metric {metric_config.metric} with filters {filters}:\n{result_table}")
-
-    def run_custom_queries(self):
-        for query_name, query in self.analysis.queries.items():
-            print(f"\nExecuting query: {query_name}\n")
-            result = self.stats_db.query(query)
-            print(result)
 
     def prepare_data_for_statistical_tests(self, metrics: List[str], filters: Optional[Dict[str, Any]] = None) -> List[List[dict]]:
         """
@@ -134,7 +125,7 @@ class EvalStatsAnalyzer:
             test_type = test_config.type
             metrics = test_config.metrics
             scores_path = test_config.get('scores_path', None)
-            filters = self.get_filters(test_config)
+            filters = self._filters(test_config)
             print(f"\nRunning {test_type} test for metrics: {metrics} using filters {filters}")
 
             data = self.prepare_data_for_statistical_tests(metrics, filters)
@@ -161,7 +152,5 @@ class EvalStatsAnalyzer:
             self.run_per_episode_analysis()
         if self.analysis.metrics:
             self.run_explicit_metrics_analysis()
-        if self.analysis.queries:
-            self.run_custom_queries()
         if self.analysis.statistical_tests:
             self.run_statistical_tests()

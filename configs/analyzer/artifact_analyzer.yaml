@@ -1,4 +1,0 @@
-defaults:
-  - analyzer
-
-artifact_name: daphne_eval

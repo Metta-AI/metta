@@ -1,48 +1,37 @@
+import datetime
 import os
 import json
 import duckdb
 import wandb
-from wandb.sdk import wandb_run
 import pandas as pd
 from typing import Optional, Dict, Any, List
 from omegaconf import OmegaConf
-
 class EvalStatsDB:
-    def __init__(self, table_name: str = "eval_data"):
-        self.table_name = table_name
+    def __init__(self, data: pd.DataFrame):
+        self._db = duckdb.connect(database=':memory:')
+        self._db.register(self.TABLE_NAME, data)
+        self._table_name = "eval_data"
 
-    def load_df(self):
-        pass
-
-    def load_and_register(self):
-        df = self.load_df()
-        self.con.register(self.table_name, df)
-
-    def restructure_data(self, data) -> List[dict]:
+    def _prepare_data(self, data) -> List[dict]:
         """
         Each record is augmented with:
           - 'episode_index': the index of the episode.
           - 'agent_index': the index of the record within the episode.
+          # xcxc: document with an example
         """
-        if isinstance(data, list) and data and isinstance(data[0], list):
-            flattened = []
-            for episode_index, episode in enumerate(data):
-                if isinstance(episode, list):
-                    for agent_index, record in enumerate(episode):
-                        if isinstance(record, dict):
-                            record["episode_index"] = episode_index
-                            record["agent_index"] = agent_index
-                        flattened.append(record)
-                else:
-                    flattened.append(episode)
-            return flattened
-        return data
+        flattened = []
+        for episode_index, episode in enumerate(data):
+            for agent_index, record in enumerate(episode):
+                record["episode_index"] = episode_index
+                record["agent_index"] = agent_index
+                flattened.append(record)
+        return flattened
 
     def get_metrics_by_pattern(self, pattern: str) -> List[str]:
         """
         Retrieve all metric fields that contain the given pattern.
         """
-        schema_query = f"PRAGMA table_info({self.table_name});"
+        schema_query = f"PRAGMA table_info({self.TABLE_NAME});"
         schema_df = self.query(schema_query)
         all_columns = schema_df['name'].tolist()
         metric_fields = [col for col in all_columns if pattern in col]
@@ -53,7 +42,7 @@ class EvalStatsDB:
         Execute a SQL query on the loaded artifact table and return the results as a Pandas DataFrame.
         """
         try:
-            result = self.con.execute(sql_query).fetchdf()
+            result = self._db.execute(sql_query).fetchdf()
             return result
         except Exception as e:
             raise RuntimeError(f"SQL query failed: {sql_query}\nError: {e}")
@@ -104,7 +93,7 @@ class EvalStatsDB:
                 episode_index,
                 policy_name,
                 SUM(CAST("{metric_field}" AS DOUBLE)) AS total_metric
-            FROM {self.table_name}
+            FROM {self.TABLE_NAME}
             {where_clause}
             GROUP BY episode_index, policy_name
             ORDER BY episode_index, policy_name;
@@ -137,60 +126,44 @@ class EvalStatsDB:
         combined_df = pd.concat(result_dfs, axis=1)
         return combined_df
 
+
+    @staticmethod
+    def from_uri(uri: str, run: wandb.Run):
+        # xcxc
+        if uri.startswith("wandb://"):
+            return EvalStatsDbWandb.from_uri(uri)
+        elif uri.startswith("file://"):
+            return EvalStatsDbFile.from_uri(uri)
+        else:
+            raise ValueError(f"Unsupported URI: {uri}")
+
 class EvalStatsDbFile(EvalStatsDB):
     """
     Database for loading eval stats from a file.
     """
-    def __init__(self, file_path: str, table_name: str = "eval_data"):
-        super().__init__(table_name)
+    def __init__(self, file_path: str):
         self.file_path = file_path
-        self.con = duckdb.connect(database=':memory:')
-
-        self.load_and_register()
-
-    def load_df(self):
         print(f"Loading file: {self.file_path}")
         with open(self.file_path, "r") as f:
             data = json.load(f)
-        data = self.restructure_data(data)
-
-        df = pd.DataFrame(data)
-        return df
+        data = self._prepare_data(data)
+        super().__init__(pd.DataFrame(data))
 
 class EvalStatsDbWandb(EvalStatsDB):
     """
     Database for loading eval stats from wandb.
+    xcxc: (artifact_name: str, run: wandb.Run)
     """
-    def __init__(self, entity: str, project: str, artifact_name: str, version = None, table_name: str = "eval_data"):
-        super().__init__(table_name)
-        self.entity = entity
-        self.project = project
+    def __init__(self, artifact_name: str, run: wandb.Run, start_time: Optional[datetime.datetime] = None, end_time: Optional[datetime.datetime] = None):
         self.artifact_name = artifact_name
-        self.version = version
+        self.run = run
         self.api = wandb.Api()
-        self.con = duckdb.connect(database=':memory:')
-
         self.artifact_identifier = os.path.join(self.entity, self.project, self.artifact_name)
 
-        self.load_and_register()
-
-    def get_versions(self):
-        if self.version is not None:
-            if isinstance(self.version, str):
-                return [self.api.artifact(f"{self.artifact_identifier}:{self.version}")]
-            elif isinstance(self.version, list):
-                return [self.api.artifact(f"{self.artifact_identifier}:{v}") for v in self.version]
-            else:
-                raise ValueError("Version must be a string or a list of strings")
-
-        # Return all versions of the artifact
-        return self.api.artifacts(
+        artifact_versions = self.api.artifacts(
             type_name=self.artifact_name,
             name=self.artifact_identifier
         )
-
-    def load_df(self):
-        artifact_versions = self.get_versions()
         all_records = []
         for artifact in artifact_versions:
             artifact_dir = artifact.download()
@@ -201,7 +174,7 @@ class EvalStatsDbWandb(EvalStatsDB):
             try:
                 with open(json_path, "r") as f:
                     data = json.load(f)
-                data = self.restructure_data(data)
+                data = self._prepare_data(data)
                 version_info = artifact.id
                 for record in data:
                     record["artifact_version"] = version_info
@@ -209,4 +182,4 @@ class EvalStatsDbWandb(EvalStatsDB):
             except Exception as e:
                 print(f"Warning: Failed to load version {artifact.id}: {e}")
         df = pd.DataFrame(all_records)
-        return df
+        super().__init__(df)

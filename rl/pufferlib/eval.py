@@ -194,17 +194,17 @@ class EvalSuite:
         self._evals = []
         for eval_name, eval_cfg in evals.items():
             eval_cfg = OmegaConf.merge(kwargs, eval_cfg)
-            eval = Eval(policy_store, env_defaults, **eval_cfg)
-            self._evals.append(eval)
-            # self._evals.append(
-            #     hydra.utils.instantiate(
-            #         eval_cfg,
-            #         policy_store,
-            #         env_defaults,
-            #         env_defaults.name,
-            #         _recursive_=False
-            #     )
-            # )
+            # eval = Eval(policy_store, env_defaults, **eval_cfg)
+            # self._evals.append(eval)
+            self._evals.append(
+                hydra.utils.instantiate(
+                    eval_cfg,
+                    policy_store,
+                    env_defaults,
+                    env_defaults.name,
+                    _recursive_=False
+                )
+            )
 
     def evaluate(self):
         return {
