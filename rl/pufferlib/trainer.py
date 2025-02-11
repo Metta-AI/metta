@@ -103,12 +103,12 @@ class PufferTrainer:
             self._process_stats()
             if self.epoch % self.trainer_cfg.checkpoint_interval == 0:
                 self._checkpoint_trainer()
-            if self.epoch % self.trainer_cfg.evaluate_interval == 0 and self.trainer_cfg.evaluate:
+            if self.epoch % self.trainer_cfg.evaluate_interval == 0 and self.trainer_cfg.evaluate_interval != 0:
                 self._evaluate_policy()
             if self.epoch % self.trainer_cfg.wandb_checkpoint_interval == 0:
                 self._save_policy_to_wandb()
-            if self.epoch % self.cfg.agent.effective_rank_interval == 0:
-                self._get_effective_rank()
+            if self.epoch % self.cfg.agent.effective_rank_interval == 0 and self.cfg.agent.effective_rank_interval != 0:
+                self._effective_rank()
 
             self._on_train_step()
 
@@ -146,9 +146,8 @@ class PufferTrainer:
 
         logger.info(f"Glicko2 scores: \n{formatted_results}")
 
-    def _get_effective_rank(self):
-        # effective_rank = self.policy.get_effective_rank()
-        effective_rank = self.policy.policy.policy._agent.get_effective_rank()
+    def _effective_rank(self):
+        effective_rank = self.policy.policy.policy._agent.effective_rank()
         for rank in effective_rank:
             self.wandb_run.log({
                 f"train/effective_rank/{rank['name']}": rank['effective_rank'],
@@ -316,11 +315,11 @@ class PufferTrainer:
 
                     l2_reg_loss = torch.tensor(0.0, device=self.device)
                     if self.trainer_cfg.l2_reg_loss_coef > 0:
-                        l2_reg_loss = self.trainer_cfg.l2_reg_loss_coef * self.policy.policy.policy._agent.get_l2_reg_loss().to(self.device)
+                        l2_reg_loss = self.trainer_cfg.l2_reg_loss_coef * self.policy.policy.policy._agent.l2_reg_loss().to(self.device)
                     
                     l2_init_loss = torch.tensor(0.0, device=self.device)
                     if self.trainer_cfg.l2_init_loss_coef > 0:
-                        l2_init_loss = self.trainer_cfg.l2_init_loss_coef * self.policy.policy.policy._agent.get_l2_init_loss().to(self.device)
+                        l2_init_loss = self.trainer_cfg.l2_init_loss_coef * self.policy.policy.policy._agent.l2_init_loss().to(self.device)
 
                     loss = pg_loss - self.trainer_cfg.ent_coef * entropy_loss + v_loss * self.trainer_cfg.vf_coef + l2_reg_loss + l2_init_loss
 

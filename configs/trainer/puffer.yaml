@@ -30,6 +30,7 @@ verbose: true
 
 checkpoint_interval: 60
 wandb_checkpoint_interval: 300
+evaluate_interval: 10
 
 batch_size: 262144
 minibatch_size: 4096

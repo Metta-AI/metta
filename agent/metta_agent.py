@@ -53,24 +53,24 @@ class MettaAgent(nn.Module, MettaAgentInterface):
         for component in self.components.values():
             component.clip_weights()
 
-    def get_l2_reg_loss(self) -> torch.Tensor:
+    def l2_reg_loss(self) -> torch.Tensor:
         l2_reg_loss = 0
         for component in self.components.values():
-            l2_reg_loss += component.get_l2_reg_loss() or 0
+            l2_reg_loss += component.l2_reg_loss() or 0
         return torch.tensor(l2_reg_loss)
     
-    def get_l2_init_loss(self) -> torch.Tensor:
+    def l2_init_loss(self) -> torch.Tensor:
         l2_init_loss = 0
         for component in self.components.values():
-            l2_init_loss += component.get_l2_init_loss() or 0
+            l2_init_loss += component.l2_init_loss() or 0
         return torch.tensor(l2_init_loss)
 
     def update_l2_init_weight_copy(self):
         for component in self.components.values():
             component.update_l2_init_weight_copy()
 
-    def get_effective_rank(self) -> List[dict]:
+    def effective_rank(self, delta: float = 0.01) -> List[dict]:
         effective_ranks = []
         for component in self.components.values():
-            effective_ranks.append(component.get_effective_rank())
+            effective_ranks.append(component.effective_rank(delta))
         return effective_ranks

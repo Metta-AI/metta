@@ -123,6 +123,7 @@ components:
     _target_: agent.lib.nn_layer_library.Linear
     input_source: critic_1
     output_size: 128
+    nonlinearity: Tanh
 
   critic_3:
     _target_: agent.lib.nn_layer_library.Linear

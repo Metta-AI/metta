@@ -119,7 +119,7 @@ class ParameterizedLayer(LayerBase):
             with torch.no_grad():
                 self.weight_layer.weight.data = self.weight_layer.weight.data.clamp(-self.clip_value, self.clip_value)
 
-    def get_l2_reg_loss(self) -> torch.Tensor:
+    def l2_reg_loss(self) -> torch.Tensor:
         '''
         Also known as Weight Decay Loss or L2 Ridge Regularization
         '''
@@ -128,7 +128,7 @@ class ParameterizedLayer(LayerBase):
             l2_reg_loss = (torch.sum(self.weight_layer.weight.data ** 2))*self.l2_norm_scale
         return l2_reg_loss
 
-    def get_l2_init_loss(self) -> torch.Tensor:
+    def l2_init_loss(self) -> torch.Tensor:
         '''
         Also known as Delta Regularization Loss
         '''
@@ -145,7 +145,7 @@ class ParameterizedLayer(LayerBase):
         if self.initial_weights is not None:
             self.initial_weights = (self.initial_weights * alpha + self.weight_layer.weight.data * (1 - alpha)).clone()
     
-    def get_effective_rank(self, delta: float = 0.01) -> dict:
+    def effective_rank(self, delta: float = 0.01) -> dict:
         """
         Computes the effective rank of a matrix based on the given delta value.
         Effective rank formula:
