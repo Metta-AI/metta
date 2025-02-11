@@ -20,7 +20,6 @@ signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
 
 def nice_orientation(orientation):
     """ Convert an orientation into a human-readable string """
-    """ Convert an orientation into a human-readable string """
     return ["north", "south", "west", "east"][orientation]
 
 
