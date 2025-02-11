@@ -4,6 +4,7 @@ from datetime import datetime
 import wandb
 from util.datastruct import flatten_dict
 import logging
+from pathlib import Path
 from typing import List
 logger = logging.getLogger("eval.py")
 
@@ -48,6 +49,11 @@ class EvalStatsLogger:
         logger.info(f"Logged artifact {artifact_name} to wandb")
 
     def log(self, eval_stats, file_name: str, artifact_name: str = None):
+
+        if isinstance(eval_stats, dict):
+            for eval_name, stats in eval_stats.items():
+                self.log(stats, file_name=f"{file_name}_{eval_name}", artifact_name=artifact_name)
+            return
 
         eval_stats = self.add_additional_fields(eval_stats)
 
