@@ -3,18 +3,27 @@ import torch
 import numpy as np
 from mettagrid.renderer.raylib.raylib_renderer import MettaGridRaylibRenderer
 from rl.pufferlib.vecenv import make_vecenv
-from agent.policy_store import PolicyRecord
+from agent.policy_store import PolicyStore
 
-def play(cfg: OmegaConf, policy_record: PolicyRecord):
+def play(cfg: OmegaConf, policy_store: PolicyStore):
     device = cfg.device
     vecenv = make_vecenv(cfg.env, cfg.vectorization, num_envs=1, render_mode="human")
 
     obs, _ = vecenv.reset()
     env = vecenv.envs[0]
-    policy = policy_record.policy()
+    policy_selector_cfg = OmegaConf.create({
+            "uri": cfg.policy_uri,
+            "type": "top",
+            "range": 1,
+            "metric": "elo",
+            "filters": {}
+        })
+
+    policy_record = policy_store.policy(policy_selector_cfg)
 
     assert policy_record.metadata["action_names"] == env._c_env.action_names(), \
         f"Action names do not match: {policy_record.metadata['action_names']} != {env._c_env.action_names()}"
+    policy = policy_record.policy()
 
     renderer = MettaGridRaylibRenderer(env._c_env, env._env_cfg.game)
     policy_rnn_state = None
