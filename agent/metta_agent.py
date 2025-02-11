@@ -24,14 +24,15 @@ class MettaAgent(nn.Module, MettaAgentInterface):
         super().__init__()
         cfg = OmegaConf.create(cfg)
         self.cfg = cfg
+        self.clip_range = cfg.clip_range
         # self.observation_space = obs_space
         self.action_space = action_space
         self.grid_features = grid_features
         # self.global_features = global_features
-        # self.obs_key = cfg.observations.obs_key
-        self.num_objects = obs_space[self.cfg.observations.obs_key].shape[0]
-        self.clip_range = cfg.clip_range
-
+        self.obs_key = cfg.observations.obs_key
+        self.obs_input_shape = obs_space[self.obs_key].shape[1:]
+        self.num_objects = obs_space[self.obs_key].shape[0]
+        
 
         self.components = {}
         component_cfgs = OmegaConf.to_container(cfg.components, resolve=True)
@@ -49,29 +50,25 @@ class MettaAgent(nn.Module, MettaAgentInterface):
     def clip_weights(self):
         for component in self.components.values():
             component.clip_weights()
-# ditch the check attribute
+
     def get_l2_reg_loss(self) -> torch.Tensor:
         l2_reg_loss = torch.tensor(0.0, device=self.weights.device)
         for component in self.components.values():
-            if hasattr(component, 'get_l2_reg_loss'):
-                l2_reg_loss += component.get_l2_reg_loss()
+            l2_reg_loss += component.get_l2_reg_loss()
         return l2_reg_loss
     
     def get_l2_init_loss(self) -> torch.Tensor:
         l2_init_loss = torch.tensor(0.0, device=self.weights.device)
         for component in self.components.values():
-            if hasattr(component, 'get_l2_init_loss'):
-                l2_init_loss += component.get_l2_init_loss()
+            l2_init_loss += component.get_l2_init_loss()
         return l2_init_loss
 
     def update_l2_init_weight_copy(self):
         for component in self.components.values():
-            if hasattr(component, 'update_l2_init_weight_copy'):
-                component.update_l2_init_weight_copy()
+            component.update_l2_init_weight_copy()
 
-    def get_effective_rank(self) -> torch.Tensor:
+    def get_effective_rank(self) -> List[dict]:
         effective_ranks = []
         for component in self.components.values():
-            if hasattr(component, 'get_effective_rank'):
-                effective_ranks.append(component.get_effective_rank())
+            effective_ranks.append(component.get_effective_rank())
         return effective_ranks

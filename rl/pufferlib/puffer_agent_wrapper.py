@@ -25,7 +25,6 @@ class PufferAgentWrapper(nn.Module):
     def __init__(self, agent: MettaAgent, env: PettingZooPufferEnv):
         super().__init__()
         self._agent = agent
-        print(self)
 
     def forward(self, obs, e3b=None):
         x, _ = self.encode_observations(obs)

@@ -51,8 +51,8 @@ class ObservationNormalizer(nn.Module):
 
         self.register_buffer('obs_norm', obs_norm)
 
-    def set_input_size_and_initialize_layer(self):
-        self.metta_agent_components[self.input_source].set_input_size_and_initialize_layer()
+    def setup_layer(self):
+        self.metta_agent_components[self.input_source].setup_layer()
         self.input_size = self.metta_agent_components[self.input_source].output_size
 
         if self.output_size is None:

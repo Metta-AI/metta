@@ -43,6 +43,8 @@ class PufferTrainer:
         self.policy_store = policy_store
         self.use_e3b = self.trainer_cfg.use_e3b
 
+        
+
         self._make_vecenv()
 
         os.makedirs(cfg.trainer.checkpoint_dir, exist_ok=True)
@@ -107,6 +109,8 @@ class PufferTrainer:
                 self._evaluate_policy()
             if self.epoch % self.trainer_cfg.wandb_checkpoint_interval == 0:
                 self._save_policy_to_wandb()
+            if self.epoch % self.cfg.agent.effective_rank_interval == 0:
+                self._get_effective_rank()
 
             self._on_train_step()
 
@@ -143,6 +147,15 @@ class PufferTrainer:
             })
 
         logger.info(f"Glicko2 scores: \n{formatted_results}")
+
+    def _get_effective_rank(self):
+        effective_rank = self.policy.get_effective_rank()
+        for rank in effective_rank:
+            self.wandb_run.log({
+                f"train/effective_rank/{rank['name']}": rank['effective_rank'],
+                "train/agent_step": self.agent_step,
+                "train/epoch": self.epoch,
+            })
 
     def _on_train_step(self):
         pass
@@ -301,13 +314,26 @@ class PufferTrainer:
                         v_loss = 0.5 * ((newvalue - ret) ** 2).mean()
 
                     entropy_loss = entropy.mean()
-                    loss = pg_loss - self.trainer_cfg.ent_coef * entropy_loss + v_loss * self.trainer_cfg.vf_coef
+
+                    l2_reg_loss = 0
+                    if self.trainer_cfg.l2_reg_loss_coef < 0:
+                        l2_reg_loss = self.trainer_cfg.l2_reg_loss_coef * self.policy.get_l2_reg_loss()
+                    
+                    l2_init_loss = 0
+                    if self.trainer_cfg.l2_init_loss_coef < 0:
+                        l2_init_loss = self.trainer_cfg.l2_init_loss_coef * self.policy.get_l2_init_loss()
+
+                    loss = pg_loss - self.trainer_cfg.ent_coef * entropy_loss + v_loss * self.trainer_cfg.vf_coef + l2_reg_loss + l2_init_loss
 
                 with profile.learn:
                     self.optimizer.zero_grad()
                     loss.backward()
                     torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.trainer_cfg.max_grad_norm)
                     self.optimizer.step()
+
+                    if self.cfg.agent.clip_weights > 0:
+                        self.policy.clip_weights()
+
                     if self.device == 'cuda':
                         torch.cuda.synchronize()
 
@@ -318,6 +344,8 @@ class PufferTrainer:
                     self.losses.old_approx_kl += old_approx_kl.item() / total_minibatches
                     self.losses.approx_kl += approx_kl.item() / total_minibatches
                     self.losses.clipfrac += clipfrac.item() / total_minibatches
+                    self.losses.l2_reg_loss += l2_reg_loss.item() / total_minibatches
+                    self.losses.l2_init_loss += l2_init_loss.item() / total_minibatches
 
             if self.trainer_cfg.target_kl is not None:
                 if approx_kl > self.trainer_cfg.target_kl:
@@ -439,6 +467,8 @@ class PufferTrainer:
             approx_kl=0,
             clipfrac=0,
             explained_variance=0,
+            l2_reg_loss=0,
+            l2_init_loss=0,
         )
 
     def _make_vecenv(self):
