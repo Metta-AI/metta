@@ -22,9 +22,8 @@ components:
 #necessary sources: _obs_, _core_
 # define this further
 #necessary outputs: _encoded_obs_, _action_param_, _value_
-
   _obs_: 
-    _target_: agent.lib.obs_shaper.ObsShaper
+    _target_: agent.lib.nn_layer_library.Identity
     input_source: null
 
   obs_normalizer:
@@ -110,12 +109,11 @@ components:
     output_size: 128
 
   _core_:
-    _target_: agent.lib.nn_layer_library.LSTM
-    input_source: _encoded_obs_
+    _target_: agent.lib.nn_layer_library.Identity
+    rnn_num_layers: 1
+    input_source: null
     output_size: 128
-    nn_params:
-      num_layers: 1
-      
+
   critic_1:
     _target_: agent.lib.nn_layer_library.Linear
     input_source: _core_
@@ -151,3 +149,29 @@ components:
     _target_: agent.lib.nn_layer_library.Linear
     input_source: actor_2
     output_size: 20
+
+
+# The following configuration defines the structure of the neural network layers
+# used in the MettaAgent. Each layer is represented as a dictionary with the following keys:
+# - _target_: The class of the layer to be instantiated.
+# - input_source: The source of the input for this layer. It can be a single layer or a list of layers.
+# - output_size: The size of the output for this layer.
+# - layer_type: The type of the layer (e.g., Linear, Identity, etc.).
+#
+# The layers are connected in a hierarchical manner, where the output of one layer
+# can be used as the input for another layer. This allows for the creation of complex
+# neural network architectures.
+#
+# Example:
+#   critic_1:
+#     _target_: agent.lib.metta_layer.MettaLayer
+#     input_source: _core_
+#     output_size: 512
+#     layer_type: Linear
+#
+# Under layer_params, add arguments for your nn class.
+# Use the same name as the argument in the nn class.
+# eg for Linear, you can add bias=False
+#
+# In this example, the critic_1 layer takes its input from the _core_ layer,
+# has an output size of 512, and is of type Linear.

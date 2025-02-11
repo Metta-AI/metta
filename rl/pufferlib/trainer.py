@@ -192,6 +192,8 @@ class PufferTrainer:
                     actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward = policy(o_device, (h, c), e3b=e3b)
                     lstm_h[:, env_id] = h
                     lstm_c[:, env_id] = c
+                
+                # the below can be deleted if no LSTM
                 else:
                     actions, logprob, _, value, next_e3b, intrinsic_reward = policy(o_device, e3b=e3b)
 
@@ -266,6 +268,8 @@ class PufferTrainer:
                         _, newlogprob, entropy, newvalue, lstm_state, _, _ = self.policy(
                             obs, state=lstm_state, action=atn)
                         lstm_state = (lstm_state[0].detach(), lstm_state[1].detach())
+
+                    # the below can be deleted if no LSTM
                     else:
                         _, newlogprob, entropy, newvalue, _, _ = self.policy(
                             obs.reshape(-1, *self.vecenv.single_observation_space.shape),

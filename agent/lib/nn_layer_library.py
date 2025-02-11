@@ -1,5 +1,25 @@
 import torch.nn as nn
 from .metta_layer import ParameterizedLayer, LayerBase
+from .LSTM import MettaLSTM
+
+class LSTM(MettaLSTM):
+    def __init__(self, metta_agent, **cfg):
+        super().__init__(metta_agent, **cfg)
+
+    def _initialize_layer(self):
+        self.layer = nn.LSTM(
+            self.input_size,
+            self.output_size,
+            **self.cfg.get('nn_params', {})
+        )
+        # TODO: understand how ParameterizedLayer can work with LSTM
+        # self._parameter_layer_helper()
+        # self._initialize_weights()
+        for name, param in self.layer.named_parameters():
+            if "bias" in name:
+                nn.init.constant_(param, 1) # Joseph originally had this as 0 
+            elif "weight" in name:
+                nn.init.orthogonal_(param, 1.0) # torch's default is uniform
 
 class Linear(ParameterizedLayer):
     def __init__(self, metta_agent, **cfg):
