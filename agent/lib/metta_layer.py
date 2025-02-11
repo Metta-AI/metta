@@ -89,23 +89,25 @@ class ParameterizedLayer(LayerBase):
         fan_in = self.input_size
         fan_out = self.output_size
 
-        if self.initialization == 'Orthogonal':
+        if self.initialization.lower() == 'orthogonal':
             if self.nonlinearity == 'Tanh':
                 gain = np.sqrt(2)
             else:
                 gain = 1
             nn.init.orthogonal_(self.weight_layer.weight, gain=gain)
             largest_weight = self.weight_layer.weight.max().item()
-        elif self.initialization == 'Xavier':
+        elif self.initialization.lower() == 'xavier':
             largest_weight = np.sqrt(6 / (fan_in + fan_out))
             nn.init.xavier_uniform_(self.weight_layer.weight)
-        elif self.initialization == 'Normal':
+        elif self.initialization.lower() == 'normal':
             largest_weight = np.sqrt(2 / fan_in)
             nn.init.normal_(self.weight_layer.weight, mean=0, std=largest_weight)
-        elif self.initialization == 'Max_0_01':
+        elif self.initialization.lower() == 'max_0_01':
             #set to uniform with largest weight = 0.01
             largest_weight = 0.01
             nn.init.uniform_(self.weight_layer.weight, a=-largest_weight, b=largest_weight)
+        else:
+            raise ValueError(f"Invalid initialization method: {self.initialization}")
 
         if hasattr(self.weight_layer, "bias") and isinstance(self.weight_layer.bias, torch.nn.parameter.Parameter):
             self.weight_layer.bias.data.fill_(0)
