@@ -23,7 +23,7 @@ def nice_orientation(orientation):
     return ["north", "south", "west", "east"][orientation]
 
 
-def nice_actions(action):
+def old_nice_actions(action):
     """ Convert a un-flattened action into a human-readable string """
     if action[0] == 0:
         return "noop"
@@ -45,6 +45,20 @@ def nice_actions(action):
     else:
         return "unknown"
 
+def nice_actions(env, action):
+    """ Convert a un-flattened action into a human-readable string """
+    name = env.action_names()[action[0]]
+    if name == "move":
+        if action[1] == 0:
+            return name + "_back"
+        elif action[1] == 1:
+            return name + "_forward"
+    elif name == "rotate":
+        return "rotate_" + nice_orientation(action[1])
+    elif name == "attack":
+        return "attack_" + str(action[1] // 3) + "_" + str(action[1] % 3)
+    else:
+        return name
 
 WHITE = pixie.Color(1, 1, 1, 1)
 BLACK = pixie.Color(0, 0, 0, 1)
@@ -113,10 +127,11 @@ def trace(cfg: OmegaConf, policy_record: PolicyRecord):
                 if "agent_id" in grid_object and grid_object["agent_id"] == id:
                     agent = grid_object
                     break
+
             agents.append({
                 "agent": id,
                 "action": action.tolist(),
-                "action_name": nice_actions(action),
+                "action_name": nice_actions(env, action),
                 "reward": rewards[id].item(),
                 "total_reward": total_rewards[id].item(),
                 "position": [agent["c"], agent["r"]],
