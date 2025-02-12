@@ -3,14 +3,13 @@ import os
 import time
 from collections import defaultdict
 from copy import deepcopy
-
 import hydra
 import numpy as np
 import pufferlib
 import pufferlib.utils
 import torch
 import wandb
-from agent.policy_store import PolicyStore, PolicyRecord
+from agent.policy_store import PolicyStore
 from fast_gae import fast_gae
 from omegaconf import OmegaConf
 from pathlib import Path

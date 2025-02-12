@@ -25,7 +25,6 @@ def main(cfg: DictConfig):
         )
         stats = eval.evaluate()
         stats_logger = EvalStatsLogger(cfg, wandb_run)
-
         stats_logger.log(stats, file_name=Path(cfg.eval.policy_uri).name, artifact_name=cfg.eval.eval_artifact_name)
 
 if __name__ == "__main__":
