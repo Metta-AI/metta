@@ -27,3 +27,4 @@ wandb==0.18.3
 wandb-core==0.17.0b11
 websockets>=14.1
 sample-factory==2.1.1
+pixie-python==4.3.0
