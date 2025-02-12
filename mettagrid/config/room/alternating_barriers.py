@@ -53,10 +53,8 @@ class AlternatingBarrierMaze(Room):
             assert len(barrier_heights) == num_barriers, "Barrier heights must match the number of barriers."
             self._barrier_heights = [min(h, max_barrier_height) for h in barrier_heights]
 
-        # Initialize grid with "empty" cells.
-        self._grid = np.full((height, width), "empty", dtype='<U50')
-
     def _build(self) -> np.ndarray:
+        grid = np.full((self._height, self._width), "empty", dtype='<U50')
         # Define interior boundaries.
         bw = self._border_width
         interior_x_start, interior_x_end = bw, self._width - bw
@@ -112,7 +110,7 @@ class AlternatingBarrierMaze(Room):
             "converter": "converter",
         }
         for key, value in placements.items():
-            self._grid[bottom_y, x_positions[key]] = value
+            grid[bottom_y, x_positions[key]] = value
 
         # --- Draw Barriers ---
         for i, key in enumerate(barrier_keys):
@@ -120,17 +118,17 @@ class AlternatingBarrierMaze(Room):
             barrier_height = self._barrier_heights[i]
             if i % 2 == 0:
                 # Even-indexed barrier: attach at the top.
-                self._grid[interior_y_start: interior_y_start + barrier_height,
+                grid[interior_y_start: interior_y_start + barrier_height,
                            barrier_x: barrier_x + self._barrier_width] = self._border_object
             else:
                 # Odd-indexed barrier: attach at the bottom.
-                self._grid[interior_y_end - barrier_height: interior_y_end,
+                grid[interior_y_end - barrier_height: interior_y_end,
                            barrier_x: barrier_x + self._barrier_width] = self._border_object
 
         # --- Draw Outer Border using slicing ---
-        self._grid[:interior_y_start, :] = self._border_object  # Top border.
-        self._grid[interior_y_end:, :] = self._border_object     # Bottom border.
-        self._grid[:, :interior_x_start] = self._border_object   # Left border.
-        self._grid[:, interior_x_end:] = self._border_object     # Right border.
+        grid[:interior_y_start, :] = self._border_object  # Top border.
+        grid[interior_y_end:, :] = self._border_object     # Bottom border.
+        grid[:, :interior_x_start] = self._border_object   # Left border.
+        grid[:, interior_x_end:] = self._border_object     # Right border.
 
-        return self._grid
+        return grid
