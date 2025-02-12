@@ -36,9 +36,8 @@ class Cylinder(Room):
             self.place_vertical_cylinder()
 
         valid_positions = self._get_valid_positions()
-        self._place_elements(valid_positions)
+        return self._place_elements(valid_positions)
 
-        return self._grid
 
     def place_horizontal_cylinder(self) -> None:
         """Place a horizontal cylinder with generator and agents."""
@@ -99,6 +98,7 @@ class Cylinder(Room):
 
     def _place_elements(self, valid_positions: Set[Tuple[int, int]]) -> None:
         """Place altar and converter in valid positions."""
+        new_grid = self._grid.copy()
         if self._cylinder_params['horizontal']:
             top_positions = [(x, y) for x, y in valid_positions if y < self._height//2]
             left_positions = [pos for pos in top_positions if pos[0] < self._width//2]
@@ -110,5 +110,6 @@ class Cylinder(Room):
         if left_positions and right_positions:
             altar_pos = self._rng.choice(left_positions)
             converter_pos = self._rng.choice(right_positions)
-            self._grid[altar_pos[1], altar_pos[0]] = "altar"
-            self._grid[converter_pos[1], converter_pos[0]] = "converter"
+            new_grid[altar_pos[1], altar_pos[0]] = "altar"
+            new_grid[converter_pos[1], converter_pos[0]] = "converter"
+        return new_grid
