@@ -4,9 +4,8 @@ from datetime import datetime
 import wandb
 from util.datastruct import flatten_dict
 import logging
-from pathlib import Path
-from typing import List
-logger = logging.getLogger("eval.py")
+
+logger = logging.getLogger("eval_stats_logger.py")
 
 class EvalStatsLogger:
     def __init__(self, cfg, wandb_run):

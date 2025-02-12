@@ -1,15 +1,15 @@
-import datetime
 import os
 import json
 import duckdb
 import wandb
 import pandas as pd
 from typing import Optional, Dict, Any, List
-from omegaconf import OmegaConf
-import numpy as np
-from scipy import stats
+import logging
 
 from rl.eval.queries import all_fields, total_metric
+
+
+logger = logging.getLogger("eval_stats_db.py")
 
 class EvalStatsDB:
     def __init__(self, data: pd.DataFrame):
@@ -78,7 +78,7 @@ class EvalStatsDbFile(EvalStatsDB):
             files = [os.path.join(policies, f) for f in os.listdir(policies) if f.endswith('.json')]
         else:
             files = [policies]
-        print(f"Loading data from files: {files}")
+        logger.info(f"Loading data from files: {files}")
 
         all_records = []
         for file in files:
@@ -117,6 +117,6 @@ class EvalStatsDbWandb(EvalStatsDB):
                     record["artifact_version"] = version_info
                 all_records.extend(data)
             except Exception as e:
-                print(f"Warning: Failed to load version {artifact.id}: {e}")
+                logger.info(f"Warning: Failed to load version {artifact.id}: {e}")
         df = pd.DataFrame(all_records)
         super().__init__(df)
