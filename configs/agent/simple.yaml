@@ -31,10 +31,6 @@ components:
     _target_: agent.lib.observation_normalizer.ObservationNormalizer
     input_source: _obs_
 
-  # feature_list_normalizer:
-  #   _target_: agent.lib.feature_normalizer.FeatureListNormalizer
-  #   input_source: obs_normalizer
-
   channel_selector_0-11:
     _target_: agent.lib.merge_layer.ConcatMergeLayer
     sources:
@@ -118,7 +114,8 @@ components:
       
   critic_1:
     _target_: agent.lib.nn_layer_library.Linear
-    input_source: _core_
+    # input_source: _core_
+    input_source: _encoded_obs_
     output_size: 512
 
   critic_2:
@@ -139,7 +136,8 @@ components:
 
   actor_1:
     _target_: agent.lib.nn_layer_library.Linear
-    input_source: _core_
+    # input_source: _core_
+    input_source: _encoded_obs_
     output_size: 512
 
   actor_2:
@@ -151,3 +149,23 @@ components:
     _target_: agent.lib.nn_layer_library.Linear
     input_source: actor_2
     output_size: 20
+
+
+  # _core_:
+  #   _target_: agent.lib.nn_layer_library.Identity
+  #   input_source: null
+  #   output_size: 128
+
+  # _obs_: 
+  #   _target_: agent.lib.obs_shaper.ObsShaper
+  #   input_source: null
+
+  # _value_:
+  #   _target_: agent.lib.nn_layer_library.Linear
+  #   input_source: _obs_
+  #   output_size: 1
+
+  # _action_param_:
+  #   _target_: agent.lib.nn_layer_library.Linear
+  #   input_source: _obs_
+  #   output_size: 20

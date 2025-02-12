@@ -35,7 +35,7 @@ def make_policy(env: PufferEnv, cfg: OmegaConf):
     # agent._action_names = env.action_names()
     # agent._grid_features = env._grid_env.grid_features()
     
-    agent.to(cfg.device)
+    # agent.to(cfg.device)
     return agent
 
 
@@ -68,7 +68,7 @@ class MettaAgent(nn.Module):
         
 
         self.components = {}
-        # self.components = nn.ModuleDict()
+        
         component_cfgs = OmegaConf.to_container(cfg.components, resolve=True)
         for component_cfg in component_cfgs.keys():
             component_cfgs[component_cfg]['name'] = component_cfg
@@ -77,6 +77,7 @@ class MettaAgent(nn.Module):
 
         self.components['_action_param_'].setup_layer()
         self.components['_value_'].setup_layer()
+        self.components = nn.ModuleDict(self.components)
         print("Agent setup complete.")
 
     @property
