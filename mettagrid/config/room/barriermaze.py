@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Union
 import numpy as np
 from omegaconf import DictConfig
 from mettagrid.config.room.room import Room
@@ -23,8 +23,11 @@ class BarrierMaze(Room):
         self,
         width: int,
         height: int,
-        barrier_heights: List[int],
+        min_barrier_height: int = 1,
+        max_barrier_height: int = None,
+        barrier_heights: List[int] = None,
         barrier_width: int = 1,
+        num_barriers: int = 3,
         agents: int | DictConfig = 1,
         seed: int | None = None,
         border_width: int = 1,
@@ -33,12 +36,29 @@ class BarrierMaze(Room):
         super().__init__(border_width=border_width, border_object=border_object)
         self._width = width
         self._height = height
-        self._barrier_heights = barrier_heights
         self._barrier_width = barrier_width
         self._agents = agents
         self._rng = np.random.default_rng(seed)
         self._border_width = border_width
         self._border_object = border_object
+
+        # Handle barrier heights
+        if max_barrier_height is None:
+            max_barrier_height = height - (2 * border_width) - 1
+
+        if barrier_heights is None:
+            # Generate random barrier heights if not provided
+            self._barrier_heights = [
+                self._rng.integers(min_barrier_height, max_barrier_height + 1)
+                for _ in range(num_barriers)
+            ]
+        else:
+            self._barrier_heights = barrier_heights[:num_barriers]  # Use only num_barriers heights
+            # If barrier_heights is shorter than num_barriers, generate random heights for the rest
+            while len(self._barrier_heights) < num_barriers:
+                self._barrier_heights.append(
+                    self._rng.integers(min_barrier_height, max_barrier_height + 1)
+                )
 
         # Initialize the grid with "empty" cells.
         self._grid = np.full((self._height, self._width), "empty", dtype='<U50')
@@ -51,7 +71,7 @@ class BarrierMaze(Room):
         interior_y_end = self._height - self._border_width
 
         interior_width = interior_x_end - interior_x_start
-        # (We don’t need interior_height here except to compute the bottom row.)
+        # (We don't need interior_height here except to compute the bottom row.)
         bottom_y = interior_y_end - 1  # The bottom row of the interior.
 
         # Define the blocks along the bottom row in order:
