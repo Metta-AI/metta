@@ -39,7 +39,7 @@ class EvalStatsAnalyzer:
             self.log_significance(significance, metric, filters)
 
     @staticmethod
-    def _calculate_significance(metrics_df: pd.DataFrame, metric_name: str) -> pd.DataFrame:
+    def _significance_test(metrics_df: pd.DataFrame, metric_name: str) -> pd.DataFrame:
         """
         Calculates pairwise significance tests between policies for a given metric.
         Uses Mann-Whitney U test (non-parametric) since we can't assume normal distribution.
@@ -63,9 +63,8 @@ class EvalStatsAnalyzer:
                     values2,
                     alternative='two-sided'
                 )
-                n1 = len(values1)
-                n2 = len(values2)
-                r = 1 - (2 * u_statistic) / (n1 * n2)
+
+                r = 1 - (2 * u_statistic) / (len(values1) * len(values2))
 
                 if r > 0 and p_value < 0.05:
                     interpretation = "pos. effect"
@@ -110,7 +109,7 @@ class EvalStatsAnalyzer:
 
             # Only calculate significance if there are at least 2 policies
             if df_per_episode.shape[1] > 1:
-                significance_results += self._calculate_significance(df_per_episode, metric)
+                significance_results += self._significance_test(df_per_episode, metric)
 
         metrics_df = pd.concat(result_dfs, axis=1)
 
