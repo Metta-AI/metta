@@ -1,0 +1,17 @@
+defaults:
+  - mettagrid
+
+game:
+  num_agents: 1
+  max_steps: 1000
+
+  map_builder:
+    _target_: mettagrid.config.room.room_within_room.RoomWithinRoom
+    width: 60          # Overall grid width
+    height: 30         # Overall grid height
+    border_width: 1    # Thickness for outer walls
+    border_object: "wall"
+    inner_size_min: 10 # Minimum inner room dimension (both width and height)
+    inner_size_max: 20 # Maximum inner room dimension (both width and height)
+    inner_room_gap_min: 2   # Minimum door gap size in the inner room wall
+    inner_room_gap_max: 6   # Maximum door gap size in the inner room wall

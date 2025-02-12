@@ -3,7 +3,7 @@ defaults:
 
 sampling: 1
 game:
-  num_agents: 14    
+  num_agents: 18    # Updated for 9 room types with 2 rooms each
   max_steps: 250
 
   map_builder:
@@ -101,3 +101,29 @@ game:
           num_generators: ${uniform:1,3,2}
           num_convertors: ${uniform:2,4,3}
           num_heart_altars: ${uniform:2,4,3}
+
+      - _target_: mettagrid.config.room.multi_room.MultiRoom
+        num_rooms: 2
+        room:
+          _target_: mettagrid.config.room.barriermaze.BarrierMaze
+          width: ${uniform:15,25,21}
+          height: ${uniform:15,25,21}
+          barrier_width: 1
+          min_barrier_height: 3
+          max_barrier_height: ${uniform:5,15,7}
+          num_barriers: 3
+          border_width: 1
+          border_object: "wall"
+
+      - _target_: mettagrid.config.room.multi_room.MultiRoom
+        num_rooms: 2
+        room:
+          _target_: mettagrid.config.room.room_within_room.RoomWithinRoom
+          width: ${uniform:25,35,30}
+          height: ${uniform:25,35,30}
+          border_width: 1
+          border_object: "wall"
+          inner_size_min: ${uniform:8,12,10}
+          inner_size_max: ${uniform:15,20,18}
+          inner_room_gap_min: 2
+          inner_room_gap_max: ${uniform:4,8,6}
