@@ -71,3 +71,13 @@ def embed_string(s, embedding_dim=128):
 
     return embedding
 
+def name_to_activation(activation: str):
+    match activation:
+        case 'relu':
+            return nn.ReLU()
+        case 'leaky_relu':
+            return nn.LeakyReLU()
+        case 'tanh':
+            return nn.Tanh()
+        case _:
+            raise ValueError(f"Unknown activation: {activation}")
