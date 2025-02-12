@@ -11,7 +11,6 @@ from rich.console import Console
 from rl.carbs.metta_carbs import MettaCarbs
 from rl.wandb.sweep import generate_run_id_for_sweep
 from agent.policy_store import PolicyStore
-from util.stats_library import MannWhitneyUTest, get_test_results
 from rl.eval.eval_stats_logger import EvalStatsLogger
 from rl.eval.eval_stats_db import EvalStatsDB
 from pathlib import Path
