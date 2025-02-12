@@ -13,7 +13,7 @@ class MettaLSTM(LayerBase):
         super().__init__(metta_agent, **cfg)
         self.cfg = omegaconf.OmegaConf.create(cfg)
         self.metta_agent = metta_agent
-        self.obs_shape = self.metta_agent.action_space.shape
+        self.obs_shape = self.metta_agent.obs_shape
 
     def forward(self, td: TensorDict):
         if self.name in td:
@@ -39,16 +39,19 @@ class MettaLSTM(LayerBase):
         else:
             raise ValueError('Invalid input tensor shape', x.shape)
 
+
+
         if state is not None:
             assert state[0].shape[1] == state[1].shape[1] == B
+        
+        
         assert hidden.shape == (B*TT, self.input_size)
-        # --- do we need? ---
-
         hidden = hidden.reshape(B, TT, self.input_size)
-        hidden = hidden.transpose(0, 1)
 
+        hidden = hidden.transpose(0, 1)
         hidden, state = self.layer(hidden, state)
         hidden = hidden.transpose(0, 1)
+
         hidden = hidden.reshape(B*TT, self.hidden_size)
 
         td[self.name] = hidden

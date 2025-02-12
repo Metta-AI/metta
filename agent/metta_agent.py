@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List
+from typing import List, Tuple
 
 import hydra
 from omegaconf import OmegaConf
@@ -25,10 +25,11 @@ def make_policy(env: PufferEnv, cfg: OmegaConf):
     })
     agent = hydra.utils.instantiate(
         cfg.agent,
-        obs_space,
-        env.single_action_space,
-        env.grid_features,
-        env.global_features,
+        obs_shape=env.single_observation_space.shape,
+        obs_space=obs_space,
+        action_space=env.single_action_space,
+        grid_features=env.grid_features,
+        global_features=env.global_features,
         _recursive_=False)
     
     # delete the below?
@@ -42,6 +43,7 @@ def make_policy(env: PufferEnv, cfg: OmegaConf):
 class MettaAgent(nn.Module):
     def __init__(
         self,
+        obs_shape: Tuple[int, ...],
         obs_space: ObsSpace,
         action_space: ActionSpace,
         grid_features: List[str],
@@ -51,6 +53,7 @@ class MettaAgent(nn.Module):
         super().__init__()
         cfg = OmegaConf.create(cfg)
         self.cfg = cfg
+        self.obs_shape = obs_shape
         self.clip_range = cfg.clip_range
         self.action_space = action_space
         self.grid_features = grid_features

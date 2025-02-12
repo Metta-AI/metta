@@ -8,7 +8,7 @@ class LSTM(MettaLSTM):
 
     def _initialize_layer(self):
         self.layer = nn.LSTM(
-            self.input_size,
+            self.input_size,    
             self.output_size,
             **self.cfg.get('nn_params', {})
         )

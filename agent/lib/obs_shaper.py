@@ -9,7 +9,7 @@ class ObsShaper(LayerBase):
         
         self.cfg = omegaconf.OmegaConf.create(cfg)
         self.metta_agent = metta_agent
-        self.obs_shape = self.metta_agent.action_space.shape
+        self.obs_shape = self.metta_agent.obs_shape
         self.output_size = self.metta_agent.num_objects
 
     def forward(self, td: TensorDict):

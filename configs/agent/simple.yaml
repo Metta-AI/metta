@@ -114,8 +114,7 @@ components:
       
   critic_1:
     _target_: agent.lib.nn_layer_library.Linear
-    # input_source: _core_
-    input_source: _encoded_obs_
+    input_source: _core_
     output_size: 512
 
   critic_2:
@@ -136,8 +135,7 @@ components:
 
   actor_1:
     _target_: agent.lib.nn_layer_library.Linear
-    # input_source: _core_
-    input_source: _encoded_obs_
+    input_source: _core_
     output_size: 512
 
   actor_2:
