@@ -224,7 +224,6 @@ cdef cppclass Converter(Usable):
         cdef unsigned int energy_gain = 0
         cdef InventoryItem consumed_resource = InventoryItem.r1
         cdef InventoryItem produced_resource = InventoryItem.r2
-        cdef char stat_name[256]
         cdef unsigned int potential_energy_gain = this.prey_r1_output_energy
         if actor.group_name == b"predator":
             if actor.inventory[InventoryItem.r2] > 0:
