@@ -77,6 +77,10 @@ class MettaAgent(nn.Module):
         self.components['_action_param_'].setup_layer()
         self.components['_value_'].setup_layer()
 
+    @property
+    def lstm(self):
+        return self.components["_core_"].layer
+
     def get_value(self, x, state=None):
         td = TensorDict({"x": x, "state": state})
         self.components["_value_"](td)
