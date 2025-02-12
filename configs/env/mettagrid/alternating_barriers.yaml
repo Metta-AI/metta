@@ -14,9 +14,9 @@ game:
 
   map_builder:
     _target_: mettagrid.config.room.alternating_barriers.AlternatingBarrierMaze
-    width: 24            # Overall grid width (including border)
-    height: 14           # Overall grid height (including border)
-    barrier_width: 1     # Barrier thickness (in columns)
-    barrier_heights: [5, 7, 9]  # List of barrier heights (one per barrier)
-    border_width: 1      # Thickness of the outer border walls
+    width: ${uniform:20,25,21}
+    height: ${uniform:20,25,21}
+    num_barriers: ${uniform:3,5,3}
+    barrier_width: 1
+    border_width: 1
     border_object: "wall"

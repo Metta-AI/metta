@@ -42,8 +42,6 @@ game:
           height: ${uniform:20,25,21}
           num_barriers: ${uniform:3,5,3}
           barrier_width: 1
-          min_barrier_height: 3
-          max_barrier_height: ${uniform:5,15,7}
           border_width: 1
           border_object: "wall"
 
