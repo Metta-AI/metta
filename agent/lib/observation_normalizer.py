@@ -13,6 +13,7 @@ OBS_NORMALIZATIONS = {
     'agent:energy': 255,
     'agent:orientation': 1,
     'agent:shield': 1,
+    'agent:color': 255,
     'agent:inv:r1': 5,
     'agent:inv:r2': 5,
     'agent:inv:r3': 5,

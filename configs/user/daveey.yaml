@@ -3,7 +3,7 @@
 seed: null
 
 defaults:
-  - override /env/mettagrid@env: school
+  - override /env/mettagrid@env: bases
   - override /agent: simple.medium
   - override /sweep: fast
 
@@ -11,24 +11,25 @@ defaults:
 # baselines: wandb://run/b.daveey.train.maze.sm.11x11.0
 
 # policy_uri: wandb://run/b.daveey.sm.train.er.new.0
-policy_uri: wandb://run/b.daveey.train.simple.s20m
+policy_uri: wandb://run/m0.daveey.sm.species
 # policy_uri: ${trained_policy_uri}
-baseline_uri: wandb://run/b.daveey.train.simple.s15m:v8
+baseline_uri: wandb://run/mb.daveey.sm.nr
 
 env:
   # sampling: 0.7
   game:
+    # num_agents: 6
     max_steps: 1000
 
     map_builder:
-      border_width: 0
+      border_width: 6
 
 trainer:
   evaluate_interval: 2
 
 evaluator:
-  num_envs: 50
-  num_episodes: 50
+  num_envs: 5
+  num_episodes: 5
   max_time_s: 600
 
   policy:
@@ -45,6 +46,6 @@ sweep:
   metric: action.use
 
 cmd: ???
-run_id: 6
+run_id: 8
 run: ${oc.env:USER}.local.${cmd}.${run_id}
 trained_policy_uri: ./train_dir/${oc.env:USER}.local.train.${run_id}/checkpoints
