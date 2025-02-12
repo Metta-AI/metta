@@ -11,7 +11,7 @@ from rich.console import Console
 from rl.carbs.metta_carbs import MettaCarbs
 from rl.wandb.sweep import generate_run_id_for_sweep
 from agent.policy_store import PolicyStore
-from util.stats_library import EloTest, Glicko2Test, MannWhitneyUTest, get_test_results
+from util.stats_library import MannWhitneyUTest, get_test_results
 from rl.eval.eval_stats_logger import EvalStatsLogger
 from pathlib import Path
 
@@ -122,67 +122,49 @@ class CarbsSweepRollout:
         #self._log_file("eval_stats.yaml", stats)
         self.eval_stats_logger.log(stats, file_name=Path(final_pr.uri).name, artifact_name=self.cfg.eval.eval_artifact_name)
 
+        test_results = {t: {} for t in ["raw"]}
 
+        categories = list(set(["agent.action.use.altar"] + [self.cfg.sweep.test]))
 
-        #TODO: add analysis here
+        r, fr = get_test_results(MannWhitneyUTest(stats, categories))
+        logger.info("\n" + fr)
+        self._log_file("all_stats.yaml", r)
+        test_results["raw"]["initial"] = r[eval_cfg.sweep.metric]["policy_stats"][initial_pr.name]["mean"]
+        test_results["raw"]["final"] = r[eval_cfg.sweep.metric]["policy_stats"][final_pr.name]["mean"]
 
-        # test_results = {t: {} for t in ["raw", "glicko", "elo"]}
+        eval_metric = test_results[self.cfg.sweep.test]["final"]
 
-        # r, fr = get_test_results(MannWhitneyUTest(stats, eval_cfg.evaluator.stat_categories['all']))
-        # logger.info("\n" + fr)
-        # self._log_file("all_stats.yaml", r)
-        # test_results["raw"]["initial"] = r[eval_cfg.sweep.metric]["policy_stats"][initial_pr.name]["mean"]
-        # test_results["raw"]["final"] = r[eval_cfg.sweep.metric]["policy_stats"][final_pr.name]["mean"]
+        stats_update = {
+            "time.eval": eval_time,
+            "time.total": train_time + eval_time,
+        }
 
-        # r, fr = get_test_results(
-        #     Glicko2Test(stats, eval_cfg.evaluator.stat_categories[eval_cfg.sweep.metric]),
-        #     eval_cfg.evaluator.baselines.glicko_scores_path)
-        # logger.info("\n" + fr)
-        # self._log_file("sweep_glicko.yaml", r)
-        # test_results["glicko"]["initial"] = r[initial_pr.name]["rating"]
-        # test_results["glicko"]["final"] = r[final_pr.name]["rating"]
+        # Add initial/final stats
+        for stage in ["initial", "final"]:
+            stats_update[f"{stage}.uri"] = initial_pr.uri if stage == "initial" else final_pr.uri
+            stats_update[f"{stage}.score"] = test_results[self.cfg.sweep.test][stage]
+            for metric in ["raw"]:
+                stats_update[f"{stage}.{metric}"] = test_results[metric][stage]
 
-        # r, fr = get_test_results(
-        #     EloTest(stats, eval_cfg.evaluator.stat_categories[eval_cfg.sweep.metric]),
-        #     eval_cfg.evaluator.baselines.elo_scores_path)
-        # logger.info("\n" + fr)
-        # self._log_file("sweep_elo.yaml", r)
-        # test_results["elo"]["initial"] = r[initial_pr.name]["score"]
-        # test_results["elo"]["final"] = r[final_pr.name]["score"]
+        # Add delta stats
+        for metric in ["raw", "score"]:
+            test_type = self.cfg.sweep.test if metric == "score" else metric
+            stats_update[f"delta.{metric}"] = test_results[test_type]["final"] - test_results[test_type]["initial"]
 
-        # eval_metric = test_results[self.cfg.sweep.test]["final"]
+        sweep_stats.update(stats_update)
 
-        # stats_update = {
-        #     "time.eval": eval_time,
-        #     "time.total": train_time + eval_time,
-        # }
+        for stat in ["train.agent_step", "train.epoch", "time.train", "time.eval", "time.total"]:
+            sweep_stats["lineage." + stat] = sweep_stats[stat] + initial_pr.metadata.get("lineage." + stat, 0)
 
-        # # Add initial/final stats
-        # for stage in ["initial", "final"]:
-        #     stats_update[f"{stage}.uri"] = initial_pr.uri if stage == "initial" else final_pr.uri
-        #     stats_update[f"{stage}.score"] = test_results[self.cfg.sweep.test][stage]
-        #     for metric in ["elo", "glicko", "raw"]:
-        #         stats_update[f"{stage}.{metric}"] = test_results[metric][stage]
+        wandb_run.summary.update(sweep_stats)
+        logger.info(
+            "Sweep Stats: \n" +
+            json.dumps({ k: str(v) for k, v in sweep_stats.items() }, indent=4))
 
-        # # Add delta stats
-        # for metric in ["elo", "glicko", "raw", "score"]:
-        #     test_type = self.cfg.sweep.test if metric == "score" else metric
-        #     stats_update[f"delta.{metric}"] = test_results[test_type]["final"] - test_results[test_type]["initial"]
-
-        # sweep_stats.update(stats_update)
-
-        # for stat in ["train.agent_step", "train.epoch", "time.train", "time.eval", "time.total"]:
-        #     sweep_stats["lineage." + stat] = sweep_stats[stat] + initial_pr.metadata.get("lineage." + stat, 0)
-
-        # wandb_run.summary.update(sweep_stats)
-        # logger.info(
-        #     "Sweep Stats: \n" +
-        #     json.dumps({ k: str(v) for k, v in sweep_stats.items() }, indent=4))
-
-        # final_pr.metadata.update({
-        #     **sweep_stats,
-        #     "training_run": train_cfg.run,
-        # })
+        final_pr.metadata.update({
+            **sweep_stats,
+            "training_run": train_cfg.run,
+        })
 
         policy_store.add_to_wandb_sweep(self.cfg.run, final_pr)
 
