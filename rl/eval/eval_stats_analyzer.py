@@ -39,12 +39,10 @@ class EvalStatsAnalyzer:
             self.log_significance(significance, metric, filters)
 
     @staticmethod
-    def _significance_test(metrics_df: pd.DataFrame, metric_name: str) -> pd.DataFrame:
+    def _significance_test(metrics_df: pd.DataFrame, metric_name: str) -> List[List[str]]:
         """
         Calculates pairwise significance tests between policies for a given metric.
         Uses Mann-Whitney U test (non-parametric) since we can't assume normal distribution.
-
-        Returns a DataFrame with p-values for each policy pair comparison.
         """
         policies = metrics_df.keys()
         n_policies = len(policies)
