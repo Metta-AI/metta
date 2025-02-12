@@ -61,7 +61,9 @@ class Eval():
 
         # load npc policy
         self._npc_pr = None
-        if self._npc_policy_uri is not None:
+        if self._npc_policy_uri is None:
+            self._policy_agents_pct = 1.0
+        else:
             policy_selector_cfg.uri = self._npc_policy_uri
             self._npc_pr = self._policy_store.policy(policy_selector_cfg)
 
@@ -69,11 +71,6 @@ class Eval():
         self._policy_agents_per_env = max(1, int(self._agents_per_env * self._policy_agents_pct))
         self._npc_agents_per_env = self._agents_per_env - self._policy_agents_per_env
         self._total_agents = self._num_envs * self._agents_per_env
-
-        if self._npc_agents_per_env > 0 and self._npc_policy_uri is None:
-            raise ValueError(
-                "Eval requires NPCs but no NPC policy URI provided",
-                self._npc_agents_per_env, self._npc_policy_uri)
 
         logger.info(f'Tournament: Policy Agents: {self._policy_agents_per_env}, ' +
               f'Npc Agents: {self._npc_agents_per_env}')
@@ -97,7 +94,9 @@ class Eval():
         self._agent_stats = [{} for a in range(self._total_agents)]
 
         # Extract policy names
-        logger.info(f"Policy name: {self._policy_pr.name}, NPC name: {self._npc_pr.name}")
+        logger.info(f"Policy name: {self._policy_pr.name}")
+        if self._npc_pr is not None:
+            logger.info(f"NPC name: {self._npc_pr.name}")
 
         # Create mapping from agent index to policy name
         self._agent_idx_to_policy_name = {}

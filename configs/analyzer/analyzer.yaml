@@ -8,9 +8,6 @@ analysis:
 
   metric_patterns: null
 
-  per_episode_metrics:
-    - metric: "agent.action.use.altar"
-
   metrics:
     - metric: "agent.action.use.altar"
 

@@ -60,7 +60,7 @@ class EvalStatsDB:
         return pivot_df
 
     @staticmethod
-    def from_uri(uri: str, wandb_run):
+    def from_uri(uri: str, wandb_run = None):
         if uri.startswith("wandb://"):
             artifact_name = uri.split("/")[-1]
             return EvalStatsDbWandb(artifact_name, wandb_run)
@@ -73,13 +73,21 @@ class EvalStatsDbFile(EvalStatsDB):
     """
     Database for loading eval stats from a file.
     """
-    def __init__(self, file_path: str):
-        self.file_path = file_path
-        print(f"Loading file: {self.file_path}")
-        with open(self.file_path, "r") as f:
-            data = json.load(f)
-        data = self._prepare_data(data)
-        super().__init__(pd.DataFrame(data))
+    def __init__(self, policies: str):
+        if os.path.isdir(policies):
+            files = [os.path.join(policies, f) for f in os.listdir(policies) if f.endswith('.json')]
+        else:
+            files = [policies]
+        print(f"Loading data from files: {files}")
+
+        all_records = []
+        for file in files:
+            with open(file, "r") as f:
+                data = json.load(f)
+            data = self._prepare_data(data)
+            all_records.extend(data)
+
+        super().__init__(pd.DataFrame(all_records))
 
 class EvalStatsDbWandb(EvalStatsDB):
     """

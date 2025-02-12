@@ -16,7 +16,7 @@ from omegaconf import OmegaConf
 from pathlib import Path
 
 from rl.eval.eval_stats_logger import EvalStatsLogger
-from rl.eval.eval_stats_analyzer import EvalStatsAnalyzer
+from rl.eval.eval_stats_db import EvalStatsDB
 from rl.pufferlib.experience import Experience
 from rl.pufferlib.profile import Profile
 from rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
@@ -121,9 +121,12 @@ class PufferTrainer:
         self.cfg.eval.policy_uri = self.last_pr.uri
         eval = hydra.utils.instantiate(self.cfg.eval, self.policy_store, self.cfg.env, _recursive_ = False)
         stats = eval.evaluate()
-        self.eval_stats_logger.log(stats, file_name=Path(self.last_pr.uri).name, artifact_name=self.cfg.eval.eval_artifact_name)
+        file_name = Path(self.last_pr.uri).name
+        self.eval_stats_logger.log(stats, file_name=file_name, artifact_name=self.cfg.eval.eval_artifact_name)
 
-       #TODO: add analysis here
+        eval_stats_db = EvalStatsDB.from_uri(f"file://{self.eval_stats_logger.log_dir}")
+        analyzer = hydra.utils.instantiate(self.cfg.analyzer, eval_stats_db)
+        analyzer.analyze()
 
     def _on_train_step(self):
         pass

@@ -7,14 +7,18 @@ defaults:
   - override /env/mettagrid@env: simple
   - override /agent: simple.medium
   - override /sweep: fast
-  - override /analyzer: example
+  - override /analyzer: analyzer
 
 analyzer:
   #db_uri: file://./train_dir/daphne.local.eval.6/eval_stats/b.daveey.train.sm.teams.75.json  #file
   db_uri: wandb://artifacts/daphne_eval
 
+  analysis:
+    metrics:
+    - metric: "agent.action.use.altar"
+
 policy_uri: ${trained_policy_uri}
-npc_policy_uri: ${trained_policy_uri}
+npc_policy_uri: null
 
 env:
   # sampling: 0.7
@@ -44,9 +48,9 @@ wandb:
 evaluate_interval: 1
 
 sweep:
-  metric: action.use
+  metric: agent.action.use.altar
 
 cmd: ???
-run_id: 6
+run_id: 10
 run: ${oc.env:USER}.local.${cmd}.${run_id}
 trained_policy_uri: ./train_dir/${oc.env:USER}.local.train.${run_id}/checkpoints

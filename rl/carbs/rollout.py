@@ -13,6 +13,7 @@ from rl.wandb.sweep import generate_run_id_for_sweep
 from agent.policy_store import PolicyStore
 from util.stats_library import MannWhitneyUTest, get_test_results
 from rl.eval.eval_stats_logger import EvalStatsLogger
+from rl.eval.eval_stats_db import EvalStatsDB
 from pathlib import Path
 
 logger = logging.getLogger("sweep_rollout")
@@ -45,7 +46,6 @@ class CarbsSweepRollout:
         logger.info(yaml.dump(self.suggestion, default_flow_style=False))
         self._log_file("carbs_suggestion.yaml", self.suggestion)
         self.eval_stats_logger = EvalStatsLogger(cfg, wandb_run)
-
 
     def run(self):
         try:
@@ -116,40 +116,27 @@ class CarbsSweepRollout:
         self._log_file("eval_config.yaml", eval_cfg)
 
         eval_cfg.eval.policy_uri = final_pr.uri
+
         eval = hydra.utils.instantiate(eval_cfg.eval, policy_store, eval_cfg.env, _recursive_ = False)
         stats = eval.evaluate()
         eval_time = time.time() - eval_start_time
-        #self._log_file("eval_stats.yaml", stats)
-        self.eval_stats_logger.log(stats, file_name=Path(final_pr.uri).name, artifact_name=self.cfg.eval.eval_artifact_name)
 
-        test_results = {t: {} for t in ["raw"]}
+        file_name = Path(final_pr.uri).name
+        self.eval_stats_logger.log(stats, file_name=file_name, artifact_name=eval_cfg.eval.eval_artifact_name)
 
-        categories = list(set(["agent.action.use.altar"] + [self.cfg.sweep.test]))
+        eval_stats_db = EvalStatsDB.from_uri(f"file://{self.eval_stats_logger.log_dir}")
+        analyzer = hydra.utils.instantiate(self.cfg.analyzer, eval_stats_db)
+        results, _ = analyzer.analyze()
 
-        r, fr = get_test_results(MannWhitneyUTest(stats, categories))
-        logger.info("\n" + fr)
-        self._log_file("all_stats.yaml", r)
-        test_results["raw"]["initial"] = r[eval_cfg.sweep.metric]["policy_stats"][initial_pr.name]["mean"]
-        test_results["raw"]["final"] = r[eval_cfg.sweep.metric]["policy_stats"][final_pr.name]["mean"]
-
-        eval_metric = test_results[self.cfg.sweep.test]["final"]
+        metric_idx = next(i for i, m in enumerate(analyzer.analysis.metrics) if m.metric == self.cfg.sweep.metric)
+        score = results[metric_idx].loc[final_pr.name][f"{self.cfg.sweep.metric}_mean"]
 
         stats_update = {
             "time.eval": eval_time,
             "time.total": train_time + eval_time,
+            "uri": final_pr.uri,
+            "score": score,
         }
-
-        # Add initial/final stats
-        for stage in ["initial", "final"]:
-            stats_update[f"{stage}.uri"] = initial_pr.uri if stage == "initial" else final_pr.uri
-            stats_update[f"{stage}.score"] = test_results[self.cfg.sweep.test][stage]
-            for metric in ["raw"]:
-                stats_update[f"{stage}.{metric}"] = test_results[metric][stage]
-
-        # Add delta stats
-        for metric in ["raw", "score"]:
-            test_type = self.cfg.sweep.test if metric == "score" else metric
-            stats_update[f"delta.{metric}"] = test_results[test_type]["final"] - test_results[test_type]["initial"]
 
         sweep_stats.update(stats_update)
 
@@ -167,10 +154,6 @@ class CarbsSweepRollout:
         })
 
         policy_store.add_to_wandb_sweep(self.cfg.run, final_pr)
-
-        # final_model_artifact.link(
-        #     self.sweep_id, [self.run_id]
-        # )
 
         total_time = time.time() - start_time
         logger.info(f"Carbs Observation: {eval_metric}, {total_time}")

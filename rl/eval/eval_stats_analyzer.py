@@ -93,6 +93,9 @@ class EvalStatsAnalyzer:
         result_dfs = []
         significance_results = []
         for metric in metric_fields:
+            if not metric in self.stats_db.available_metrics:
+                logger.info(f"Metric {metric} not found in stats_db")
+                continue
             df_per_episode = self.stats_db._metric(metric, filters)
             if not group_by_episode:
                 mean_series = df_per_episode.mean(axis=0)
@@ -109,7 +112,7 @@ class EvalStatsAnalyzer:
             if df_per_episode.shape[1] > 1:
                 significance_results += self._significance_test(df_per_episode, metric)
 
-        metrics_df = pd.concat(result_dfs, axis=1)
+        metrics_df = pd.concat(result_dfs, axis=1) if len(result_dfs) > 0 else None
 
         return metrics_df, significance_results
 
@@ -123,14 +126,21 @@ class EvalStatsAnalyzer:
             else:
                 metric_configs[cfg] = [metric]
 
+        results = []
+        significances = []
+
         filters = None
         for cfg, metrics in metric_configs.items():
             filters = self._filters(cfg)
             group_by_episode = cfg.get('group_by_episode', False)
             result, significance = self._analyze_metrics(metrics, filters, group_by_episode)
 
-            if len(result) == 0:
+            if result is None:
                 logger.info(f"No data found for {metrics} with filters {filters}" + "\n")
                 continue
 
             self.log_result(result, metrics, filters, significance)
+            results.append(result)
+            significances.append(significance)
+
+        return results, significances

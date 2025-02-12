@@ -12,8 +12,8 @@ class EvalStatsLogger:
     def __init__(self, cfg, wandb_run):
         self._cfg = cfg
         self._wandb_run = wandb_run
-        self._log_dir = os.path.join(cfg.run_dir, "eval_stats")
-        os.makedirs(self._log_dir, exist_ok=True)
+        self.log_dir = os.path.join(cfg.run_dir, "eval_stats")
+        os.makedirs(self.log_dir, exist_ok=True)
 
     def _add_additional_fields(self, eval_stats):
         additional_fields = {}
@@ -34,7 +34,7 @@ class EvalStatsLogger:
         return eval_stats
 
     def _log_to_file(self, eval_stats, file_name: str):
-        json_path = os.path.join(self._log_dir, f"{file_name}.json")
+        json_path = os.path.join(self.log_dir, f"{file_name}.json")
         with open(json_path, "w") as f:
             json.dump(eval_stats, f, indent=4)
         logger.info(f"Saved eval stats to {json_path}")
@@ -51,6 +51,7 @@ class EvalStatsLogger:
     def log(self, eval_stats, file_name: str, artifact_name: str = None):
 
         if isinstance(eval_stats, dict):
+            logger.info(f"Evaluation suite: logging {len(eval_stats)} evaluations")
             for eval_name, stats in eval_stats.items():
                 self.log(stats, file_name=f"{file_name}_{eval_name}", artifact_name=artifact_name)
             return
