@@ -49,3 +49,15 @@ def play(cfg: OmegaConf, policy_record: PolicyRecord):
         if any(dones) or any(truncated):
             print(f"Total rewards: {total_rewards}")
             break
+
+    import pandas as pd
+    agent_df = pd.DataFrame([infos[0]["agent"]]).T.reset_index()
+    agent_df.columns = ['stat', 'value']
+    agent_df = agent_df.sort_values('stat')
+    game_df = pd.DataFrame([infos[0]["game"]]).T.reset_index()
+    game_df.columns = ['stat', 'value']
+    game_df = game_df.sort_values('stat')
+    print("\nAgent stats:")
+    print(agent_df.to_string(index=False))
+    print("\nGame stats:")
+    print(game_df.to_string(index=False))
