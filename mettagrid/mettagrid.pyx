@@ -19,10 +19,12 @@ from mettagrid.actions.move import Move
 from mettagrid.actions.rotate import Rotate
 from mettagrid.actions.use import Use
 from mettagrid.actions.attack import Attack
+from mettagrid.actions.attack_nearest import AttackNearest
 from mettagrid.actions.shield import Shield
 from mettagrid.actions.gift import Gift
 from mettagrid.actions.noop import Noop
 from mettagrid.actions.swap import Swap
+from mettagrid.actions.change_color import ChangeColorAction
 
 cdef class MettaGrid(GridEnv):
     cdef:
@@ -51,12 +53,15 @@ cdef class MettaGrid(GridEnv):
             actions.append(Use(cfg.actions.use))
         if cfg.actions.attack.enabled:
             actions.append(Attack(cfg.actions.attack))
+            actions.append(AttackNearest(cfg.actions.attack))
         if cfg.actions.shield.enabled:
             actions.append(Shield(cfg.actions.shield))
         if cfg.actions.gift.enabled:
             actions.append(Gift(cfg.actions.gift))
         if cfg.actions.swap.enabled:
             actions.append(Swap(cfg.actions.swap))
+        if cfg.actions.change_color.enabled:
+            actions.append(ChangeColorAction(cfg.actions.change_color))
 
         GridEnv.__init__(
             self,

@@ -30,6 +30,8 @@ game:
     freeze_duration: ${uniform:0, 200, 10}
     attack_damage: ${uniform:1, 100, 10}
     energy_reward: 1
+    resource_reward: 1
+    freeze_reward: 1
     hp: 10
     mortal: False
     upkeep.time: ${uniform:0, 3, 0}
@@ -135,7 +137,9 @@ game:
     swap:
       enabled: true
       cost: 0
-
+    change_color:
+      enabled: true
+      cost: 0
 
   reward_sharing:
     groups:
