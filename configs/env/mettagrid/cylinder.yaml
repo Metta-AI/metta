@@ -1,8 +1,9 @@
 defaults:
   - mettagrid
 
+sampling: 1
 game:
-  num_agents: 6
+  num_agents: 3
   max_steps: 250
 
   map_builder:

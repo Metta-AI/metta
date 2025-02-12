@@ -1,0 +1,103 @@
+defaults:
+  - mettagrid
+
+sampling: 1
+game:
+  num_agents: 14    
+  max_steps: 250
+
+  map_builder:
+    _target_: mettagrid.config.room.room_list.RoomList
+    # List of room configurations
+    rooms:
+      - _target_: mettagrid.config.room.multi_room.MultiRoom
+        num_rooms: 2
+        room:
+          _target_: mettagrid.config.room.cylinder.Cylinder
+          border_width: ${uniform:1,2,1}
+          width: ${uniform:15,20,21}
+          height: ${uniform:15,20,21}
+          cylinder_params:
+            length: ${uniform:3,10,5}
+            horizontal: true | false
+            both_ends: true | false
+
+      - _target_: mettagrid.config.room.multi_room.MultiRoom
+        num_rooms: 2
+        room:
+          _target_: mettagrid.config.room.radial_maze.RadialMaze
+          border_width: ${uniform:1,2,1}
+          width: ${uniform:18,22,21}
+          height: ${uniform:18,22,21}
+          radial_params:
+            num_arms: ${uniform:4,8,6}
+            arm_length: ${uniform:7,10,7}
+            center_radius: ${uniform:2,4,3}
+
+      - _target_: mettagrid.config.room.multi_room.MultiRoom
+        num_rooms: 2
+        room:
+          _target_: mettagrid.config.room.alternating_barriers.AlternatingBarrierMaze
+          width: ${uniform:20,25,21}
+          height: ${uniform:20,25,21}
+          num_barriers: ${uniform:3,5,3}
+          barrier_width: 1
+          min_barrier_height: 3
+          max_barrier_height: ${uniform:5,15,7}
+          border_width: 1
+          border_object: "wall"
+
+      - _target_: mettagrid.config.room.multi_room.MultiRoom
+        num_rooms: 2
+        room:
+          _target_: mettagrid.config.room.explore_exploit.ExploreExploit
+          width: ${uniform:20,28, 21}
+          height: ${uniform:10,18,21}
+          border_width: ${uniform:1,2,1}
+          border_object: "wall"
+          explore_exploit_params:
+            obstruction_gap_prob: ${uniform:0.1,0.3,0.2}
+            sparse_min_distance: ${uniform:6,10,8}
+
+      - _target_: mettagrid.config.room.multi_room.MultiRoom
+        num_rooms: 2
+        room:
+          _target_: mettagrid.config.room.multi_chamber_room.MultiChamberRoom
+          width: ${uniform:15,20,21}
+          height: ${uniform:15,20,21}
+          border_width: ${uniform:1,2,1}
+          border_object: "wall"
+          multi_chamber_params:
+            barrier_rows:
+              - 5
+              - 10
+              - 14
+            gap_width: ${uniform:3,5,4}
+            chambers:
+              top: "agent.agent"
+              second: "generator"
+              third: "converter"
+              bottom: "altar"
+
+      - _target_: mettagrid.config.room.multi_room.MultiRoom
+        num_rooms: 2
+        room:
+          _target_: mettagrid.config.room.labyrinth.LabyrinthMaze
+          width: 32
+          height: 32
+          corridor_width: ${uniform:2,3,3}
+          border_width: ${uniform:1,2,1}
+          border_object: "wall"
+
+      - _target_: mettagrid.config.room.multi_room.MultiRoom
+        num_rooms: 2
+        room:
+          _target_: mettagrid.config.room.vertical_corridor_maze.VerticalCorridorMaze
+          width: ${uniform:18,24,21}
+          height: ${uniform:18,24,21}
+          border_width: ${uniform:1,2,1}
+          corridor_width: ${uniform:2,3,2}
+          arm_length: ${uniform:8,8,5}
+          num_generators: ${uniform:1,3,2}
+          num_convertors: ${uniform:2,4,3}
+          num_heart_altars: ${uniform:2,4,3}

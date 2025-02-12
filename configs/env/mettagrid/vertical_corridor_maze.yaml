@@ -1,0 +1,18 @@
+defaults:
+  - mettagrid
+
+game:
+  num_agents: 1
+  max_steps: 1000
+
+  map_builder:
+    _target_: mettagrid.config.room.vertical_corridor_maze.VerticalCorridorMaze
+    width: 20                # Overall grid width
+    height: 20               # Overall grid height
+    border_width: 1          # Outer border thickness (walls remain intact)
+    corridor_width: 2        # Thickness of the vertical corridor (and arms)
+    arm_length: 3           # How far each horizontal arm extends
+    num_generators: 2        # Number of arms that will end with a generator
+    num_convertors: 3        # Number of arms that will end with a convertor
+    num_heart_altars: 3      # Number of arms that will end with a heart altar
+    seed: 42

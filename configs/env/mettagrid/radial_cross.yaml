@@ -1,0 +1,14 @@
+defaults:
+  - mettagrid
+
+game:
+  num_agents: 1
+  max_steps: 1000
+
+  map_builder:
+    _target_: mettagrid.config.room.radial_cross.RadialCross
+    width: 30         # Overall maze width (including border)
+    height: 30        # Overall maze height (including border)
+    arm_width: 5      # Width of each arm of the cross
+    border_width: 1   # Thickness of the outer border
+    border_object: "wall"

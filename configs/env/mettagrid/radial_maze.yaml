@@ -1,0 +1,19 @@
+defaults:
+  - mettagrid
+
+game:
+  num_agents: 6
+  max_steps: 250
+
+  map_builder:
+    _target_: mettagrid.config.room.multi_room.MultiRoom
+    num_rooms: ${..num_agents}
+    room:
+      _target_: mettagrid.config.room.radial_maze.RadialMaze
+      border_width: 1
+      width: ${uniform:10,40,21}
+      height: ${uniform:10,40,21}
+      radial_params:
+        arms: ${uniform:4,12,8}       # Random arms between 4 and 12; default is 8.
+        arm_length: ${uniform:3,8,5}    # Random arm length between 3 and 8; default is 5.
+        arm_width: 4                  # Set the corridor width to 4 blocks.

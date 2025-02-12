@@ -1,0 +1,17 @@
+defaults:
+  - mettagrid
+
+game:
+  num_agents: 1
+  max_steps: 1000
+
+  map_builder:
+    _target_: mettagrid.config.room.sealed_cylinder.SealedCylinder
+    width: 60          # Overall grid width
+    height: 30         # Overall grid height
+    border_width: 1    # Thickness for drawing cylinder walls
+    border_object: "wall"
+    cylinder_params:
+      length: 15         # Horizontal length of each cylinder
+      cylinder_width: 10 # Vertical size (height) of each cylinder
+      sealed_end: "left" # Which end is sealed (door will be on the opposite side)

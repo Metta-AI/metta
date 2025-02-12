@@ -1,0 +1,21 @@
+defaults:
+  - mettagrid
+
+game:
+  num_agents: 1        # One agent (placed in the top chamber)
+  max_steps: 250
+
+  map_builder:
+    _target_: mettagrid.config.room.multi_chamber_room.MultiChamberRoom
+    width: 30          # Overall grid width
+    height: 30         # Overall grid height (enough for 4 chambers and 3 barriers)
+    border_width: 1    # Thickness of outer border walls
+    border_object: "wall"
+    multi_chamber_params:
+      barrier_rows: [8, 16, 24]  # Rows where horizontal barriers are drawn
+      gap_width: 4                # Width of each gap (gaps will be randomized)
+      chambers:
+        top: "agent.agent"       # Top chamber: Agent
+        second: "generator"      # Second chamber: Generator
+        third: "converter"       # Third chamber: Converter
+        bottom: "altar"          # Bottom chamber: Heart Altar

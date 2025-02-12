@@ -1,0 +1,22 @@
+defaults:
+  - mettagrid
+
+env:
+  track_last_action: false
+
+agent:
+  observation_encoder:
+    track_last_action: ${env.track_last_action}
+
+game:
+  num_agents: 1
+  max_steps: 250
+
+  map_builder:
+    _target_: mettagrid.config.room.alternating_barriers.AlternatingBarrierMaze
+    width: 24            # Overall grid width (including border)
+    height: 14           # Overall grid height (including border)
+    barrier_width: 1     # Barrier thickness (in columns)
+    barrier_heights: [5, 7, 9]  # List of barrier heights (one per barrier)
+    border_width: 1      # Thickness of the outer border walls
+    border_object: "wall"

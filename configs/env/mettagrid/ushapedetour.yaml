@@ -1,0 +1,15 @@
+defaults:
+  - mettagrid
+
+game:
+  num_agents: 1
+  max_steps: 250
+
+  map_builder:
+    _target_: mettagrid.config.room.ushapedetour.UShapedetour
+    width: 20         # overall maze width
+    height: 20        # overall maze height
+    detour_params:
+      barrier_row: 12        # row (y-coordinate) for the barrier
+      barrier_thickness: 1   # how many rows thick the barrier is
+      barrier_gap_width: 2   # width (in cells) of the gap in the barrier
