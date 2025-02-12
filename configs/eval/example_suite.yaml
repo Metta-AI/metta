@@ -7,13 +7,11 @@ policy_uri: wandb://run/b.daveey.train.simple.s20m
 
 evals:
   simple_small_map:
-    _target_: rl.pufferlib.eval.Eval
     env: env/mettagrid/simple
     npc_policy_uri: wandb://run/b.daveey.train.simple.s15m
     policy_agents_pct: 0.5
 
   eval_2:
-    _target_: rl.pufferlib.eval.Eval
     env: env/mettagrid/simple
     policy_agents_pct: 0.5
     npc_policy_uri: wandb://run/b.daveey.train.simple.s15m
