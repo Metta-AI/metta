@@ -1,6 +1,7 @@
 from agent.lib.metta_layer import LayerBase
 import omegaconf
 from tensordict import TensorDict
+from torch import nn
 
 class ObsShaper(LayerBase):
     def __init__(self, metta_agent, **cfg):
@@ -37,5 +38,7 @@ class ObsShaper(LayerBase):
             assert state[0].shape[1] == state[1].shape[1] == B
 
         x = x.reshape(B*TT, *space_shape)
-        
+
         td[self.name] = x.float()
+
+        return td

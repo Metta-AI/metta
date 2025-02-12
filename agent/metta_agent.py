@@ -68,6 +68,7 @@ class MettaAgent(nn.Module):
         
 
         self.components = {}
+        # self.components = nn.ModuleDict()
         component_cfgs = OmegaConf.to_container(cfg.components, resolve=True)
         for component_cfg in component_cfgs.keys():
             component_cfgs[component_cfg]['name'] = component_cfg
@@ -76,6 +77,7 @@ class MettaAgent(nn.Module):
 
         self.components['_action_param_'].setup_layer()
         self.components['_value_'].setup_layer()
+        print("Agent setup complete.")
 
     @property
     def lstm(self):

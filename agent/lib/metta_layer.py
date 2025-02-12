@@ -15,6 +15,8 @@ class LayerBase(nn.Module):
         self.output_size = cfg.get('output_size', None)
 
     def setup_layer(self):
+        # delete this
+        print(f"input source: {self.input_source}")
         if self.input_source is None:
             if self.output_size is None:
                 raise ValueError(f"Neither input source nor output size is set for layer {self.name}")

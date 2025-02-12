@@ -15,8 +15,10 @@ class MergeLayerBase(LayerBase):
     def setup_layer(self):
         sizes = []
         dims = []
-        for idx, src_cfg in enumerate(self.sources_list):            
+        for idx, src_cfg in enumerate(self.sources_list):       
             source_name = src_cfg.source_name
+            # delete this
+            print(f"input source: {source_name}")     
             
             self.metta_agent.components[source_name].setup_layer()
             full_source_size = self.metta_agent.components[source_name].output_size
