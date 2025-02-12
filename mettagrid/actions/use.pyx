@@ -65,7 +65,7 @@ cdef class Use(MettaActionHandler):
         if target._type_id == ObjectType.GeneratorT:
             generator = <Generator*>target
             generator.r1 -= 1
-            actor.update_inventory(InventoryItem.r1, 1)
+            actor.update_inventory(InventoryItem.r1, 1, &self.env._rewards[actor_id])
             self.env._stats.agent_incr(actor_id, "r1.gained")
             strcpy(stat_name, actor.group_name.c_str())
             strcat(stat_name, ".r1.gained")

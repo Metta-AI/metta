@@ -14,6 +14,7 @@ def build_ext(srcs, module_name=None):
         module_name,
         srcs,
         define_macros=[('NPY_NO_DEPRECATED_API', 'NPY_1_7_API_VERSION')],
+        extra_compile_args=['-std=c++11'] # Add C++11 flag to fix defaulted function definition error
     )
 
 ext_modules = [
@@ -30,7 +31,9 @@ ext_modules = [
     build_ext(["mettagrid/observation_encoder.pyx"]),
     build_ext(["mettagrid/actions/actions.pyx"]),
     build_ext(["mettagrid/actions/attack.pyx"]),
+    build_ext(["mettagrid/actions/attack_nearest.pyx"]),
     build_ext(["mettagrid/actions/gift.pyx"]),
+    build_ext(["mettagrid/actions/change_color.pyx"]),
     build_ext(["mettagrid/actions/move.pyx"]),
     build_ext(["mettagrid/actions/noop.pyx"]),
     build_ext(["mettagrid/actions/rotate.pyx"]),
