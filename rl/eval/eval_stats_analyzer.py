@@ -1,10 +1,11 @@
 import logging
 from omegaconf import DictConfig, OmegaConf
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional
 from rl.eval.eval_stats_db import EvalStatsDB
 from tabulate import tabulate
 import fnmatch
 import pandas as pd
+from scipy import stats
 from termcolor import colored
 logger = logging.getLogger("eval_stats_analyzer")
 
@@ -37,6 +38,84 @@ class EvalStatsAnalyzer:
         if len(significance) > 0:
             self.log_significance(significance, metric, filters)
 
+    @staticmethod
+    def _calculate_significance(metrics_df: pd.DataFrame, metric_name: str) -> pd.DataFrame:
+        """
+        Calculates pairwise significance tests between policies for a given metric.
+        Uses Mann-Whitney U test (non-parametric) since we can't assume normal distribution.
+
+        Returns a DataFrame with p-values for each policy pair comparison.
+        """
+        policies = metrics_df.keys()
+        n_policies = len(policies)
+        comparisons = []
+
+        # Calculate pairwise significance
+        for i in range(n_policies):
+            for j in range(i + 1, n_policies):
+                policy1, policy2 = policies[i], policies[j]
+                values1 = metrics_df[policy1]
+                values2 = metrics_df[policy2]
+
+                # Perform Mann-Whitney U test
+                u_statistic, p_value = stats.mannwhitneyu(
+                    values1,
+                    values2,
+                    alternative='two-sided'
+                )
+                n1 = len(values1)
+                n2 = len(values2)
+                r = 1 - (2 * u_statistic) / (n1 * n2)
+
+                if r > 0 and p_value < 0.05:
+                    interpretation = "pos. effect"
+                    p_value_str = colored(f"{p_value:.2f}", 'green')
+                    effect_size_str = colored(f"{r:.2f}", 'green')
+                elif r < 0 and p_value < 0.05:
+                    interpretation = "neg. effect"
+                    p_value_str = colored(f"{p_value:.2f}", 'red')
+                    effect_size_str = colored(f"{r:.2f}", 'red')
+                else:
+                    interpretation = "no effect"
+                    p_value_str = f"{p_value:.2f}" if p_value is not None else "N/A"
+                    effect_size_str = f"{r:.2f}" if r is not None else "N/A"
+
+                comparisons.append([
+                    policy1[:5] + '...' + policy1[-20:] if len(policy1) > 25 else policy1,
+                    policy2[:5] + '...' + policy2[-20:] if len(policy2) > 25 else policy2,
+                    p_value_str,
+                    effect_size_str,
+                    interpretation,
+                    metric_name
+                ])
+
+        return comparisons
+
+
+    def _analyze_metrics(self, metric_fields: List[str], filters: Optional[Dict[str, Any]] = None, group_by_episode: bool = False) -> pd.DataFrame:
+        result_dfs = []
+        significance_results = []
+        for metric in metric_fields:
+            df_per_episode = self.stats_db._metric(metric, filters)
+            if not group_by_episode:
+                mean_series = df_per_episode.mean(axis=0)
+                std_series = df_per_episode.std(axis=0)
+                metric_df = pd.DataFrame({
+                    f'{metric}_mean': mean_series,
+                    f'{metric}_std': std_series
+                })
+                result_dfs.append(metric_df)
+            else:
+                result_dfs.append(df_per_episode)
+
+            # Only calculate significance if there are at least 2 policies
+            if df_per_episode.shape[1] > 1:
+                significance_results += self._calculate_significance(df_per_episode, metric)
+
+        metrics_df = pd.concat(result_dfs, axis=1)
+
+        return metrics_df, significance_results
+
     def analyze(self):
         metric_configs = {}
         for cfg in self.analysis.metrics:
@@ -51,7 +130,7 @@ class EvalStatsAnalyzer:
         for cfg, metrics in metric_configs.items():
             filters = self._filters(cfg)
             group_by_episode = cfg.get('group_by_episode', False)
-            result, significance = self.stats_db.analyze_policies(metrics, filters, group_by_episode)
+            result, significance = self._analyze_metrics(metrics, filters, group_by_episode)
 
             if len(result) == 0:
                 logger.info(f"No data found for {metrics} with filters {filters}" + "\n")

@@ -10,7 +10,6 @@ import numpy as np
 from scipy import stats
 
 from rl.eval.queries import all_fields, total_metric
-import rl.eval.stats as stats
 
 class EvalStatsDB:
     def __init__(self, data: pd.DataFrame):
@@ -59,30 +58,6 @@ class EvalStatsDB:
         long_df = self._query(total_metric(metric_field, filters))
         pivot_df = long_df.pivot(index='episode_index', columns='policy_name', values='total_metric').fillna(0)
         return pivot_df
-
-    def analyze_policies(self, metric_fields: List[str], filters: Optional[Dict[str, Any]] = None, group_by_episode: bool = False) -> pd.DataFrame:
-        result_dfs = []
-        significance_results = []
-        for metric in metric_fields:
-            df_per_episode = self._metric(metric, filters)
-            if not group_by_episode:
-                mean_series = df_per_episode.mean(axis=0)
-                std_series = df_per_episode.std(axis=0)
-                metric_df = pd.DataFrame({
-                    f'{metric}_mean': mean_series,
-                    f'{metric}_std': std_series
-                })
-                result_dfs.append(metric_df)
-            else:
-                result_dfs.append(df_per_episode)
-
-            # Only calculate significance if there are at least 2 policies
-            if df_per_episode.shape[1] > 1:
-                significance_results += stats.calculate_significance_tests(df_per_episode, metric)
-
-        combined_df = pd.concat(result_dfs, axis=1)
-
-        return combined_df, significance_results
 
     @staticmethod
     def from_uri(uri: str, wandb_run):
