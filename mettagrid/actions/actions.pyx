@@ -29,7 +29,6 @@ cdef class MettaActionHandler(ActionHandler):
         ActionArg arg):
 
         cdef Agent *actor = <Agent*>self.env._grid.object(actor_object_id)
-        cdef char stat_name[256]
 
         if actor.shield:
             actor.update_energy(-actor.shield_upkeep, &self.env._rewards[actor_id])

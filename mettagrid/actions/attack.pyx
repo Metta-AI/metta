@@ -47,7 +47,6 @@ cdef class Attack(MettaActionHandler):
         target_loc.layer = GridLayer.Agent_Layer
         # Because we're looking on the agent layer, we can cast to Agent.
         cdef Agent * agent_target = <Agent *>self.env._grid.object_at(target_loc)
-        cdef char stat_name[256]
 
         cdef unsigned short shield_damage = 0
         if agent_target:
