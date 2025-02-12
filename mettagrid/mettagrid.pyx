@@ -94,16 +94,16 @@ cdef class MettaGrid(GridEnv):
             for c in range(map.shape[1]):
                 if map[r,c] == "wall":
                     self._grid.add_object(new Wall(r, c, cfg.objects.wall))
-                    self._stats.game_incr("objects.wall")
+                    self._stats.incr(b"objects.wall")
                 elif map[r,c] == "generator":
                     self._grid.add_object(new Generator(r, c, cfg.objects.generator))
-                    self._stats.game_incr("objects.generator")
+                    self._stats.incr(b"objects.generator")
                 elif map[r,c] == "converter":
                     self._grid.add_object(new Converter(r, c, cfg.objects.converter))
-                    self._stats.game_incr("objects.converter")
+                    self._stats.incr(b"objects.converter")
                 elif map[r,c] == "altar":
                     self._grid.add_object(new Altar(r, c, cfg.objects.altar))
-                    self._stats.game_incr("objects.altar")
+                    self._stats.incr(b"objects.altar")
                 elif map[r,c].startswith("agent."):
                     group_name = map[r,c].split(".")[1]
                     agent_cfg = OmegaConf.to_container(OmegaConf.merge(
@@ -112,9 +112,9 @@ cdef class MettaGrid(GridEnv):
                     agent = new Agent(
                         r, c, group_name, group_id, agent_cfg)
                     self._grid.add_object(agent)
+                    agent.agent_id = self._agents.size()
                     self.add_agent(agent)
                     self._group_sizes[group_id] += 1
-
     cpdef list[str] grid_features(self):
         return self._grid_features
 
@@ -177,3 +177,9 @@ cdef class MettaGrid(GridEnv):
                 rewards[agent_idx] += group_reward
 
         return (obs, rewards, terms, truncs, infos)
+
+    cpdef dict get_episode_stats(self):
+        return {
+            "game": self._stats.stats(),
+            "agent": [ (<Agent*>agent).stats.stats() for agent in self._agents ]
+        }

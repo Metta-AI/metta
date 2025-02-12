@@ -1,6 +1,5 @@
 
 from libc.stdio cimport printf
-from libc.string cimport strcat, strcpy
 
 from omegaconf import OmegaConf
 
@@ -52,61 +51,37 @@ cdef class Attack(MettaActionHandler):
 
         cdef unsigned short shield_damage = 0
         if agent_target:
-            self.env._stats.agent_incr(actor_id, self._stats.target[agent_target._type_id].c_str())
-            strcpy(stat_name, actor.group_name.c_str())
-            strcat(stat_name, ".")
-            strcat(stat_name, self._stats.target[agent_target._type_id].c_str())
-            self.env._stats.agent_incr(actor_id, stat_name)
+            actor.stats.incr(self._stats.target[agent_target._type_id])
+            actor.stats.incr(self._stats.target[agent_target._type_id], actor.group_name)
             if agent_target.shield:
                 shield_damage = -agent_target.update_energy(-actor.attack_damage, NULL)
-                self.env._stats.agent_add(actor_id, "shield_damage", shield_damage)
+                actor.stats.add(b"shield_damage", shield_damage)
             if shield_damage < actor.attack_damage:
                 agent_target.shield = False
                 agent_target.frozen = agent_target.freeze_duration
                 agent_target.update_energy(-agent_target.energy, NULL)
-                self.env._stats.agent_incr(actor_id, "attack.frozen")
-                strcpy(stat_name, actor.group_name.c_str())
-                strcat(stat_name, ".attack.frozen")
-                self.env._stats.agent_incr(actor_id, stat_name)
-                strcpy(stat_name, actor.group_name.c_str())
-                strcat(stat_name, ".attack.frozen")
-                self.env._stats.agent_incr(actor_id, stat_name)
-                self.env._rewards[actor_id] += agent_target.freeze_reward
+                actor.stats.incr(b"attack.frozen", actor.group_name)
+
+                self.env._rewards[actor.agent_id] += agent_target.freeze_reward
+                self.env._rewards[agent_target.agent_id] -= agent_target.freeze_reward
+
                 for item in range(InventoryItem.InventoryCount):
-                    actor.update_inventory(item, agent_target.inventory[item], &self.env._rewards[actor_id])
-                    strcpy(stat_name, actor.group_name.c_str())
-                    strcat(stat_name, ".")
-                    strcat(stat_name, InventoryItemNames[item].c_str())
-                    strcat(stat_name, ".stolen")
-                    self.env._stats.agent_add(actor_id, stat_name, agent_target.inventory[item])
-                    strcpy(stat_name, actor.group_name.c_str())
-                    strcat(stat_name, ".")
-                    strcat(stat_name, InventoryItemNames[item].c_str())
-                    strcat(stat_name, ".gained")
-                    self.env._stats.agent_add(actor_id, stat_name, agent_target.inventory[item])
-                    agent_target.inventory[item] = 0
+                    actor.update_inventory(item, agent_target.inventory[item], &self.env._rewards[actor.agent_id])
+                    agent_target.update_inventory(item, -agent_target.inventory[item], &self.env._rewards[agent_target.agent_id])
+                    actor.stats.add(InventoryItemNames[item], b"stolen", actor.group_name, agent_target.inventory[item])
 
             return True
 
         target_loc.layer = GridLayer.Object_Layer
         cdef MettaObject * object_target = <MettaObject *>self.env._grid.object_at(target_loc)
         if object_target:
-            self.env._stats.agent_incr(actor_id, self._stats.target[object_target._type_id].c_str())
-            strcpy(stat_name, actor.group_name.c_str())
-            strcat(stat_name, ".")
-            strcat(stat_name, self._stats.target[object_target._type_id].c_str())
-            self.env._stats.agent_incr(actor_id, stat_name)
+            actor.stats.incr(self._stats.target[object_target._type_id])
+            actor.stats.incr(self._stats.target[object_target._type_id], actor.group_name)
             object_target.hp -= 1
-            strcpy(stat_name, actor.group_name.c_str())
-            strcat(stat_name, ".damage.")
-            strcat(stat_name, ObjectTypeNames[object_target._type_id].c_str())
-            self.env._stats.agent_incr(actor_id, stat_name)
+            actor.stats.incr(b"damage", ObjectTypeNames[object_target._type_id])
             if object_target.hp <= 0:
                 self.env._grid.remove_object(object_target)
-                strcpy(stat_name, actor.group_name.c_str())
-                strcat(stat_name, ".destroyed.")
-                strcat(stat_name, ObjectTypeNames[object_target._type_id].c_str())
-                self.env._stats.agent_incr(actor_id, stat_name)
+                actor.stats.incr(b"destroyed", ObjectTypeNames[object_target._type_id])
             return True
 
         return False
