@@ -60,6 +60,6 @@ class EvalStatsLogger:
         json_path = self._log_to_file(eval_stats, file_name)
 
         if artifact_name is not None:
-            self.log_to_wandb(artifact_name, json_path)
+            self._log_to_wandb(artifact_name, json_path)
 
         return eval_stats

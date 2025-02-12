@@ -6,18 +6,39 @@ import wandb
 import pandas as pd
 from typing import Optional, Dict, Any, List
 from omegaconf import OmegaConf
+import numpy as np
+from scipy import stats
+
+from rl.eval.queries import all_fields, total_metric
+import rl.eval.stats as stats
+
 class EvalStatsDB:
     def __init__(self, data: pd.DataFrame):
         self._db = duckdb.connect(database=':memory:')
-        self._db.register(self.TABLE_NAME, data)
         self._table_name = "eval_data"
+        self._db.register(self._table_name, data)
+        self.available_metrics = self._query(all_fields())
 
-    def _prepare_data(self, data) -> List[dict]:
+    @staticmethod
+    def _prepare_data(data) -> List[dict]:
         """
         Each record is augmented with:
           - 'episode_index': the index of the episode.
           - 'agent_index': the index of the record within the episode.
-          # xcxc: document with an example
+
+          data: list (per episode) of lists of dicts (per agent)
+          eg [
+                [{'action.use ': 1.0, 'r2.gained': 100}, {'action.use ': 3.0, 'r2.gained': 200}]
+             ...
+                [{'action.use ': 1.0, 'r2.gained': 100}, {'action.use ': 3.0, 'r2.gained': 200}]
+             ]
+
+          flattened: list of dicts, where each dict is a record from a single episode.
+          eg [
+            {'episode_index': 0, 'agent_index': 0, 'action.use ': 1.0, 'r2.gained': 100}
+            ...
+            {'episode_index': n, 'agent_index': n, 'action.use ': 1.0, 'r2.gained': 100}
+          ]
         """
         flattened = []
         for episode_index, episode in enumerate(data):
@@ -27,113 +48,49 @@ class EvalStatsDB:
                 flattened.append(record)
         return flattened
 
-    def get_metrics_by_pattern(self, pattern: str) -> List[str]:
-        """
-        Retrieve all metric fields that contain the given pattern.
-        """
-        schema_query = f"PRAGMA table_info({self.TABLE_NAME});"
-        schema_df = self.query(schema_query)
-        all_columns = schema_df['name'].tolist()
-        metric_fields = [col for col in all_columns if pattern in col]
-        return metric_fields
-
-    def query(self, sql_query: str) -> pd.DataFrame:
-        """
-        Execute a SQL query on the loaded artifact table and return the results as a Pandas DataFrame.
-        """
+    def _query(self, sql_query: str) -> pd.DataFrame:
         try:
             result = self._db.execute(sql_query).fetchdf()
             return result
         except Exception as e:
             raise RuntimeError(f"SQL query failed: {sql_query}\nError: {e}")
 
-    def _build_where_clause(self, filters: Dict[str, Any]) -> str:
-        """Build WHERE clause from a filters dictionary."""
-        if not filters:
-            return ""
-        conditions = []
-
-        # Convert OmegaConf objects to plain Python types if necessary.
-        if OmegaConf.is_config(filters):
-            filters = OmegaConf.to_container(filters, resolve=True)
-
-        for field, value in filters.items():
-            # If field names contain dots, wrap them in quotes.
-            if OmegaConf.is_config(value):
-                value = OmegaConf.to_container(value, resolve=True)
-            if '.' in field and not field.startswith('"'):
-                field = f'"{field}"'
-            if isinstance(value, (list, tuple)):
-                formatted_values = [f"'{v}'" if isinstance(v, str) else str(v) for v in value]
-                conditions.append(f"{field} IN ({', '.join(formatted_values)})")
-            elif isinstance(value, str):
-                value = value.strip()
-                if value.startswith(('>', '<', '=', '!=', '>=', '<=', 'IN', 'BETWEEN', 'IS')):
-                    conditions.append(f"{field} {value}")
-                else:
-                    conditions.append(f"{field} = '{value}'")
-            else:
-                conditions.append(f"{field} = {value}")
-        return f"WHERE {' AND '.join(conditions)}" if conditions else ""
-
-    def metric_per_episode_per_policy(self, metric_field: str, filters: Optional[Dict[str, Any]] = None) -> pd.DataFrame:
-        """
-        Calculate and pivot a specified metric over episodes and policies with optional filtering.
-
-        Args:
-            metric_field (str): The metric field to aggregate.
-            filters (dict, optional): Filtering conditions.
-
-        Returns:
-            pd.DataFrame: Pivot table with episodes as rows and policies as columns.
-        """
-        where_clause = self._build_where_clause(filters or {})
-        query = f"""
-            SELECT
-                episode_index,
-                policy_name,
-                SUM(CAST("{metric_field}" AS DOUBLE)) AS total_metric
-            FROM {self.TABLE_NAME}
-            {where_clause}
-            GROUP BY episode_index, policy_name
-            ORDER BY episode_index, policy_name;
-        """
-        long_df = self.query(query)
+    def _metric(self, metric_field: str, filters: Optional[Dict[str, Any]] = None) -> pd.DataFrame:
+        long_df = self._query(total_metric(metric_field, filters))
         pivot_df = long_df.pivot(index='episode_index', columns='policy_name', values='total_metric').fillna(0)
         return pivot_df
 
-    def average_metrics_by_policy(self, metric_fields: List[str], filters: Optional[Dict[str, Any]] = None) -> pd.DataFrame:
-        """
-        Calculate average metrics by policy with optional filtering.
-
-        Args:
-            metric_fields (list): List of metric field names.
-            filters (dict, optional): Filtering conditions.
-
-        Returns:
-            pd.DataFrame: Combined DataFrame with mean and standard deviation for each metric.
-        """
+    def analyze_policies(self, metric_fields: List[str], filters: Optional[Dict[str, Any]] = None, group_by_episode: bool = False) -> pd.DataFrame:
         result_dfs = []
+        significance_results = []
         for metric in metric_fields:
-            pivot_df = self.metric_per_episode_per_policy(metric, filters)
-            mean_series = pivot_df.mean(axis=0)
-            std_series = pivot_df.std(axis=0)
-            metric_df = pd.DataFrame({
-                f'{metric}_mean': mean_series,
-                f'{metric}_std': std_series
-            })
-            result_dfs.append(metric_df)
-        combined_df = pd.concat(result_dfs, axis=1)
-        return combined_df
+            df_per_episode = self._metric(metric, filters)
+            if not group_by_episode:
+                mean_series = df_per_episode.mean(axis=0)
+                std_series = df_per_episode.std(axis=0)
+                metric_df = pd.DataFrame({
+                    f'{metric}_mean': mean_series,
+                    f'{metric}_std': std_series
+                })
+                result_dfs.append(metric_df)
+            else:
+                result_dfs.append(df_per_episode)
 
+            # Only calculate significance if there are at least 2 policies
+            if df_per_episode.shape[1] > 1:
+                significance_results += stats.calculate_significance_tests(df_per_episode, metric)
+
+        combined_df = pd.concat(result_dfs, axis=1)
+
+        return combined_df, significance_results
 
     @staticmethod
-    def from_uri(uri: str, run: wandb.Run):
-        # xcxc
+    def from_uri(uri: str, wandb_run):
         if uri.startswith("wandb://"):
-            return EvalStatsDbWandb.from_uri(uri)
+            artifact_name = uri.split("/")[-1]
+            return EvalStatsDbWandb(artifact_name, wandb_run)
         elif uri.startswith("file://"):
-            return EvalStatsDbFile.from_uri(uri)
+            return EvalStatsDbFile(uri.split("file://")[-1])
         else:
             raise ValueError(f"Unsupported URI: {uri}")
 
@@ -152,16 +109,13 @@ class EvalStatsDbFile(EvalStatsDB):
 class EvalStatsDbWandb(EvalStatsDB):
     """
     Database for loading eval stats from wandb.
-    xcxc: (artifact_name: str, run: wandb.Run)
     """
-    def __init__(self, artifact_name: str, run: wandb.Run, start_time: Optional[datetime.datetime] = None, end_time: Optional[datetime.datetime] = None):
-        self.artifact_name = artifact_name
-        self.run = run
+    def __init__(self, artifact_name: str, wandb_run):
         self.api = wandb.Api()
-        self.artifact_identifier = os.path.join(self.entity, self.project, self.artifact_name)
+        self.artifact_identifier = os.path.join(wandb_run.entity, wandb_run.project, artifact_name)
 
         artifact_versions = self.api.artifacts(
-            type_name=self.artifact_name,
+            type_name=artifact_name,
             name=self.artifact_identifier
         )
         all_records = []

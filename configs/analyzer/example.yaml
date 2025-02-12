@@ -1,0 +1,20 @@
+defaults:
+  - analyzer
+
+db_uri: ??
+
+analysis:
+
+  metrics:
+    - metric: "agent.action.use.altar"
+
+    - metric: "agent.action.use.altar"
+      group_by_episode: true
+      filters:
+        policy_name:
+          - "b.daveey.train.sm.teams.100:v0"
+        '"action.use.altar"': "> 0"
+        '"env.game.num_agents"': "IN (16, 24, 32)"
+        '"run_id"': "BETWEEN 1 AND 10"
+
+    - metric: "action.use.first_use.*"

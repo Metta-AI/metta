@@ -14,16 +14,4 @@ analysis:
   metrics:
     - metric: "agent.action.use.altar"
 
-  statistical_tests:
-
-    - type: elo
-      metrics:
-        - "agent.action.use.altar"
-      scores_path: "scores/altar_elo_scores.json"
-
-    - type: glicko2
-      metrics:
-        - "agent.action.use.altar"
-      scores_path: "scores/altar_glicko_scores.json"
-
   queries: null

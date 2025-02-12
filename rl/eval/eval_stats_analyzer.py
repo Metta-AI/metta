@@ -1,11 +1,11 @@
 import logging
 from omegaconf import DictConfig, OmegaConf
-from typing import List, Optional, Dict, Any
-from util.stats_library import MannWhitneyUTest, EloTest, Glicko2Test, get_test_results
+from typing import Dict, Any
 from rl.eval.eval_stats_db import EvalStatsDB
 from tabulate import tabulate
-
-
+import fnmatch
+import pandas as pd
+from termcolor import colored
 logger = logging.getLogger("eval_stats_analyzer")
 
 class EvalStatsAnalyzer:
@@ -24,133 +24,37 @@ class EvalStatsAnalyzer:
             filters = {**self.global_filters, **filters} if filters else self.global_filters
         return filters
 
-
     @staticmethod
-    def convert_filters_to_sql(filters: Dict[str, Any]) -> Dict[str, Any]:
-        sql_filters = {}
-        # Convert OmegaConf objects to plain dict/list if necessary
-        if OmegaConf.is_config(filters):
-            filters = OmegaConf.to_container(filters, resolve=True)
+    def log_significance(comparison_data, metrics, filters):
+        comparison_df = pd.DataFrame(comparison_data, columns=['Policy 1', 'Policy 2', 'p-value', 'effect size', 'interpretation', 'metric'])
+        logger.info(f"\nSignificance test results for {metrics}:\n" + f"with filters {filters}" +
+                   tabulate(comparison_df, headers='keys', tablefmt='grid'))
 
-        for key, value in filters.items():
-            if isinstance(value, (list, tuple)):
-                formatted_values = [f"'{v}'" if isinstance(v, str) else str(v) for v in value]
-                sql_filters[key] = f"IN ({', '.join(formatted_values)})"
-            elif isinstance(value, str):
-                value = value.strip()
-                if value.startswith(('>', '<', '=', '!=', '>=', '<=', 'IN', 'BETWEEN', 'IS')):
-                    sql_filters[key] = value
-                else:
-                    sql_filters[key] = f"= '{value}'"
+
+    def log_result(self, result, metric, filters, significance):
+        result_table = tabulate(result, headers=["policy_name"] + list(result.keys()), tablefmt="grid", maxcolwidths=25)
+        logger.info(f"Results for {metric} with filters {filters}:\n{result_table}")
+        if len(significance) > 0:
+            self.log_significance(significance, metric, filters)
+
+    def analyze(self):
+        metric_configs = {}
+        for cfg in self.analysis.metrics:
+            metric = cfg.metric
+            if '*' in metric or '?' in metric:
+                # Use fnmatch.filter to match against the available metrics
+                metric_configs[cfg] = fnmatch.filter(self.stats_db.available_metrics, metric)
             else:
-                sql_filters[key] = f"= {value}"
-        return sql_filters
+                metric_configs[cfg] = [metric]
 
-    def run_metric_patterns_analysis(self):
-        """
-        If we passed in metric patterns, i.e. action.use,
-        we analyze all metrics that match this pattern """
-        for pattern_config in self.analysis.metric_patterns:
-            matched_metrics = self.stats_db.get_metrics_by_pattern(pattern_config.pattern)
-            filters = self._filters(pattern_config)
-            if matched_metrics:
-                logger.info(f"Analyzing metrics matching '{pattern_config.pattern}':\n")
-                result = self.stats_db.average_metrics_by_policy(matched_metrics, filters)
-                result_table = tabulate(result, headers=["policy_name"] + list(result.keys()), tablefmt="grid")
-                logger.info(result_table)
-
-    def run_per_episode_analysis(self):
-        """
-        If we passed in per_episode_metrics,
-        we analyze the metric per episode per policy
-        """
-        for metric_config in self.analysis.per_episode_metrics:
-            filters = self._filters(metric_config)
-            result = self.stats_db.metric_per_episode_per_policy(metric_config.metric, filters)
-            result_table = tabulate(result, headers=["episode_index"] + list(result.keys()), tablefmt="grid")
-            logger.info(f"Per-episode results for {metric_config.metric} with filters {filters}:\n{result_table}")
-
-    def run_explicit_metrics_analysis(self):
-        """
-        If we passed in metrics, i.e. agent.action.use.altar,
-        we analyze the metric per policy, averaging over episodes.
-        """
-        metrics_list = []
         filters = None
-        # if no filters, we display all metrics together
-        if not any(metric_config.get('filters', None) for metric_config in self.analysis.metrics):
-            metrics_list = [metric_config.metric for metric_config in self.analysis.metrics]
-            result = self.stats_db.average_metrics_by_policy(metrics_list, self.global_filters)
-            result_table = tabulate(result, headers=["policy_name"] + list(result.keys()), tablefmt="grid")
-            logger.info(f"Average metrics by policy for metrics: {metrics_list}\n{result_table}")
-        # if filters, we display each metric separately
-        else:
-            for metric_config in self.analysis.metrics:
-                filters = self._filters(metric_config)
-                result = self.stats_db.average_metrics_by_policy([metric_config.metric], filters)
-                result_table = tabulate(result, headers=["policy_name"] + list(result.keys()), tablefmt="grid")
+        for cfg, metrics in metric_configs.items():
+            filters = self._filters(cfg)
+            group_by_episode = cfg.get('group_by_episode', False)
+            result, significance = self.stats_db.analyze_policies(metrics, filters, group_by_episode)
 
-                logger.info(f"Average metrics by policy for metric {metric_config.metric} with filters {filters}:\n{result_table}")
-
-    def prepare_data_for_statistical_tests(self, metrics: List[str], filters: Optional[Dict[str, Any]] = None) -> List[List[dict]]:
-        """
-        Convert WandB data into the format expected by statistical tests, applying optional filtering.
-        """
-        query = f"SELECT DISTINCT episode_index FROM {self.table_name} ORDER BY episode_index"
-        episodes = self.stats_db.query(query)['episode_index'].tolist()
-
-        # Wrap metrics in quotes to handle dot notation in SQL
-        metrics = [f'"{metric}"' for metric in metrics]
-
-        filters = filters or {}
-
-        data = []
-        for episode_idx in episodes:
-            filters['episode_index'] = episode_idx
-            where_clause = self.stats_db._build_where_clause(filters)
-            episode_query = f"""
-                SELECT policy_name, {', '.join(metrics)}
-                FROM {self.table_name}
-                {where_clause}
-            """
-            episode_data = self.stats_db.query(episode_query).to_dict('records')
-            if episode_data:
-                data.append(episode_data)
-        if not data:
-            logger.warning("No data found for the specified metrics and filters")
-        return data
-
-    def run_statistical_tests(self):
-        for test_config in self.analysis.statistical_tests:
-            test_type = test_config.type
-            metrics = test_config.metrics
-            scores_path = test_config.get('scores_path', None)
-            filters = self._filters(test_config)
-            print(f"\nRunning {test_type} test for metrics: {metrics} using filters {filters}")
-
-            data = self.prepare_data_for_statistical_tests(metrics, filters)
-
-            if test_type == "mann_whitney":
-                test = MannWhitneyUTest(data, metrics)
-            elif test_type == "elo":
-                test = EloTest(data, metrics)
-            elif test_type == "glicko2":
-                test = Glicko2Test(data, metrics)
-            else:
-                print(f"Unknown test type: {test_type}")
+            if len(result) == 0:
+                logger.info(f"No data found for {metrics} with filters {filters}" + "\n")
                 continue
 
-            results, formatted_results = get_test_results(test, scores_path)
-            print(f"\n{test_type} test results:")
-            print(formatted_results)
-
-
-    def run(self):
-        if self.analysis.metric_patterns:
-            self.run_metric_patterns_analysis()
-        if self.analysis.per_episode_metrics:
-            self.run_per_episode_analysis()
-        if self.analysis.metrics:
-            self.run_explicit_metrics_analysis()
-        if self.analysis.statistical_tests:
-            self.run_statistical_tests()
+            self.log_result(result, metrics, filters, significance)

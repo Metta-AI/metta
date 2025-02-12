@@ -7,7 +7,11 @@ defaults:
   - override /env/mettagrid@env: simple
   - override /agent: simple.medium
   - override /sweep: fast
-  - override /analyzer: artifact_analyzer
+  - override /analyzer: example
+
+analyzer:
+  #db_uri: file://./train_dir/daphne.local.eval.6/eval_stats/b.daveey.train.sm.teams.75.json  #file
+  db_uri: wandb://artifacts/daphne_eval
 
 policy_uri: ${trained_policy_uri}
 npc_policy_uri: ${trained_policy_uri}
