@@ -11,8 +11,8 @@ from mettagrid.objects cimport Generator, Converter, InventoryItem, ObjectTypeNa
 from mettagrid.actions.actions cimport MettaActionHandler
 
 cdef class Attack(MettaActionHandler):
-    def __init__(self, cfg: OmegaConf):
-        MettaActionHandler.__init__(self, cfg, "attack")
+    def __init__(self, cfg: OmegaConf, action_name: str="attack"):
+        MettaActionHandler.__init__(self, cfg, action_name)
         self._priority = 1
 
     cdef unsigned char max_arg(self):
@@ -37,7 +37,16 @@ cdef class Attack(MettaActionHandler):
             <Orientation>actor.orientation,
             distance, offset)
 
+        return self._handle_target(actor_id, actor, target_loc)
+
+    cdef bint _handle_target(
+        self,
+        unsigned int actor_id,
+        Agent * actor,
+        GridLocation target_loc):
+
         target_loc.layer = GridLayer.Agent_Layer
+        # Because we're looking on the agent layer, we can cast to Agent.
         cdef Agent * agent_target = <Agent *>self.env._grid.object_at(target_loc)
         cdef char stat_name[256]
 
@@ -62,8 +71,9 @@ cdef class Attack(MettaActionHandler):
                 strcpy(stat_name, actor.group_name.c_str())
                 strcat(stat_name, ".attack.frozen")
                 self.env._stats.agent_incr(actor_id, stat_name)
+                self.env._rewards[actor_id] += agent_target.freeze_reward
                 for item in range(InventoryItem.InventoryCount):
-                    actor.update_inventory(item, agent_target.inventory[item])
+                    actor.update_inventory(item, agent_target.inventory[item], &self.env._rewards[actor_id])
                     strcpy(stat_name, actor.group_name.c_str())
                     strcat(stat_name, ".")
                     strcat(stat_name, InventoryItemNames[item].c_str())
