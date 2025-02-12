@@ -23,7 +23,6 @@ import mettagrid.event
 import mettagrid.grid_env
 import mettagrid.grid_object
 import mettagrid.observation_encoder
-import mettagrid.stats_tracker
 
 # Make sure all dependencies are installed:
 import hydra
