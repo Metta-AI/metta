@@ -62,7 +62,6 @@ class CarbsSweepRollout:
         start_time = time.time()
         train_cfg = OmegaConf.create(OmegaConf.to_container(self.cfg))
         train_cfg.sweep = {}
-        eval_metric = 0
 
         policy_store = PolicyStore(train_cfg, wandb_run)
 
@@ -128,13 +127,13 @@ class CarbsSweepRollout:
         results, _ = analyzer.analyze()
 
         metric_idx = next(i for i, m in enumerate(analyzer.analysis.metrics) if m.metric == self.cfg.sweep.metric)
-        score = results[metric_idx].loc[final_pr.name][f"{self.cfg.sweep.metric}_mean"]
+        eval_metric = results[metric_idx].loc[final_pr.name][f"{self.cfg.sweep.metric}_mean"]
 
         stats_update = {
             "time.eval": eval_time,
             "time.total": train_time + eval_time,
             "uri": final_pr.uri,
-            "score": score,
+            "score": eval_metric,
         }
 
         sweep_stats.update(stats_update)
