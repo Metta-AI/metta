@@ -3,7 +3,7 @@
 seed: null
 
 defaults:
-  - override /env/mettagrid@env: simple
+  - override /env/mettagrid@env: teams
   - override /agent: simple.medium
   - override /sweep: fast
 
@@ -19,7 +19,7 @@ env:
   # sampling: 0.7
   game:
     # num_agents: 6
-    max_steps: 1000
+    max_steps: 20
 
     map_builder:
       border_width: 6
