@@ -123,5 +123,13 @@ def main(cfg):
     print("mettaGridEnv._c_env.num_agents(): ", mettaGridEnv._c_env.num_agents())
     assert mettaGridEnv._c_env.num_agents() == 5
 
+    # Test action success:
+    print("mettaGridEnv.action_success: ", mettaGridEnv.action_success)
+    assert mettaGridEnv.action_success.shape == (5,)
+    assert np.array_equal(mettaGridEnv.action_success, [True, True, True, True, True])
+    (obs, rewards, terminated, truncated, infos) = mettaGridEnv.step([[3, 0], [0, 0], [3, 0], [0, 0], [3, 0]])
+    print("mettaGridEnv.action_success: ", mettaGridEnv.action_success)
+    assert np.array_equal(mettaGridEnv.action_success, [False, True, False, True, False])
+
 if __name__ == "__main__":
     main()
