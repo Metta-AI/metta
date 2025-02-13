@@ -8,7 +8,7 @@ class LayerBase(nn.Module):
     def __init__(self, metta_agent, **cfg):
         cfg = OmegaConf.create(cfg)
         super().__init__()
-        # self.metta_agent = weakref.ref(metta_agent)
+        # self.metta_agent = weakref.ref(metta_agent) # this failed due to some hashing error
         object.__setattr__(self, 'metta_agent', metta_agent)
         self.cfg = cfg
         self.name = cfg.name
@@ -16,8 +16,6 @@ class LayerBase(nn.Module):
         self.output_size = cfg.get('output_size', None)
 
     def setup_layer(self):
-        # delete this
-        print(f"input source: {self.input_source}")
         if self.input_source is None:
             if self.output_size is None:
                 raise ValueError(f"Neither input source nor output size is set for layer {self.name}")
@@ -58,11 +56,8 @@ class LayerBase(nn.Module):
 class ParameterizedLayer(LayerBase):
     def __init__(self, metta_agent, **cfg): 
         cfg = OmegaConf.create(cfg)
-        # this should be only for the layer that calls this
-            # for key, value in cfg.items():
-            #     setattr(self, key, value)
         self.clip_scale = self.cfg.get('clip_scale', None)
-        self.effective_rank = self.cfg.get('effective_rank', None)
+        self.effective_rank_bool = self.cfg.get('effective_rank', None)
         self.l2_norm_scale = self.cfg.get('l2_norm_scale', None)
         self.l2_init_scale = self.cfg.get('l2_init_scale', None)
         self.nonlinearity = self.cfg.get('nonlinearity', 'ReLU')
@@ -155,6 +150,8 @@ class ParameterizedLayer(LayerBase):
         srank_\delta(\Phi) = min{k: sum_{i=1}^k σ_i / sum_{j=1}^d σ_j ≥ 1 - δ}
         See the paper titled 'Implicit Under-Parameterization Inhibits Data-Efficient Deep Reinforcement Learning' by A. Kumar et al.
         """
+        if self.weight_layer.weight.data.dim() != 2 or self.effective_rank_bool is None or self.effective_rank_bool == False:
+            return None
         # Singular value decomposition. We only need the singular value matrix.
         _, S, _ = torch.linalg.svd(self.weight_layer.weight.data.detach())
         

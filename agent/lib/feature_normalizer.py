@@ -8,7 +8,7 @@ class FeatureListNormalizer(nn.Module):
     def __init__(self, metta_agent, **cfg):
         super().__init__()
         cfg = omegaconf.OmegaConf.create(cfg)
-        self.metta_agent = metta_agent
+        object.__setattr__(self, 'metta_agent', metta_agent)
         self.cfg = cfg
         self.metta_agent_components = self.metta_agent.components
         self.name = self.cfg.name

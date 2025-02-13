@@ -39,8 +39,7 @@ class ObservationNormalizer(LayerBase):
     def __init__(self, metta_agent, **cfg):
         super().__init__(metta_agent, **cfg)
         cfg = omegaconf.OmegaConf.create(cfg)
-        self.metta_agent = metta_agent
-        self.metta_agent_components = metta_agent.components
+        object.__setattr__(self, 'metta_agent', metta_agent)
 
         num_objects = len(self.metta_agent.grid_features)
         grid_features = self.metta_agent.grid_features
@@ -54,7 +53,9 @@ class ObservationNormalizer(LayerBase):
         if self.name in td:
             return td[self.name]
 
-        self.metta_agent_components[self.input_source].forward(td)
+        if self.input_source is not None:
+            self.metta_agent.components[self.input_source].forward(td)
+
 
         td[self.name] = td[self.input_source] / self.obs_norm
 
