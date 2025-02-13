@@ -37,6 +37,8 @@ def uniform(min_val, max_val, center, *, _root_):
         # Return integer if the original values were integers
         return int(round(val)) if isinstance(center, int) else val
 
+def choose(a, b):
+    return random.choice([a, b])
 
 def div(a, b):
     return a // b
@@ -52,7 +54,7 @@ def setup_omega_conf():
     OmegaConf.register_new_resolver("uniform", uniform, replace=True)
     OmegaConf.register_new_resolver("sub", sub, replace=True)
     OmegaConf.register_new_resolver("make_odd", make_odd, replace=True)
-
+    OmegaConf.register_new_resolver("choose", choose, replace=True)
 def setup_metta_environment(cfg):
     setup_omega_conf()
     print(OmegaConf.to_yaml(cfg))
