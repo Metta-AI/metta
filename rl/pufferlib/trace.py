@@ -35,8 +35,6 @@ def nice_actions(env, action):
     else:
         return name
 
-WHITE = pixie.Color(1, 1, 1, 1)
-BLACK = pixie.Color(0, 0, 0, 1)
 
 # Using flat UI colors:
 TURQUOISE = pixie.Color(0x1a/255, 0xbc/255, 0x9c/255, 1)
@@ -59,7 +57,11 @@ CLOUDS = pixie.Color(0xec/255, 0xf0/255, 0xf1/255, 1)
 SILVER = pixie.Color(0xbd/255, 0xc3/255, 0xc7/255, 1)
 CONCRETE = pixie.Color(0x95/255, 0xa5/255, 0xa6/255, 1)
 ASBESTOS = pixie.Color(0x7f/255, 0x8c/255, 0x8d/255, 1)
+WHITE = pixie.Color(1, 1, 1, 1)
+BLACK = pixie.Color(0, 0, 0, 1)
 
+
+# Action Colors:
 BG_COLOR = MIDNIGHT_BLUE
 NOOP_COLOR = SILVER
 MOVE_COLOR = EMERALD
@@ -69,6 +71,7 @@ ATTACK_COLOR = ALIZARIN
 SHIELD_COLOR = PETER_RIVER
 GIFT_COLOR = PUMPKIN
 SWAP_COLOR = POMEGRANATE
+
 
 def trace_image(cfg: OmegaConf, policy_record: PolicyRecord, output_path: str):
     """ Trace a policy and generate a jsonl file """
