@@ -21,6 +21,7 @@ from rl.pufferlib.experience import Experience
 from rl.pufferlib.profile import Profile
 from rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
 from rl.pufferlib.vecenv import make_vecenv
+from rl.pufferlib.trace import trace_image
 
 torch.set_float32_matmul_precision('high')
 
@@ -405,7 +406,7 @@ class PufferTrainer:
                 if k in self.stats:
                     overview[v] = self.stats[k]
 
-            self.wandb_run.log({
+            data = {
                 **{f'0verview/{k}': v for k, v in overview.items()},
                 **{f'env/{k}': v for k, v in self.stats.items()},
                 **{f'losses/{k}': v for k, v in self.losses.items()},
@@ -414,7 +415,15 @@ class PufferTrainer:
                 'train/epoch': self.epoch,
                 'train/learning_rate': self.optimizer.param_groups[0]["lr"],
                 'train/average_reward': self.average_reward if self.trainer_cfg.average_reward else None,
-            })
+            }
+
+            if self.epoch % 10 == 0:
+                image_path =
+                    self.cfg.run_dir + "/traces/" + str(self.epoch) + ".png"
+                trace_image(self.cfg, self.last_pr, image_path)
+                data["traces/actions"] = wandb.Image(image_path)
+
+            self.wandb_run.log(data)
 
         if len(self.stats) > 0:
             self.recent_stats = deepcopy(self.stats)
