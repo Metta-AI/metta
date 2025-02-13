@@ -37,17 +37,6 @@ game:
       - _target_: mettagrid.config.room.multi_room.MultiRoom
         num_rooms: 2
         room:
-          _target_: mettagrid.config.room.alternating_barriers.AlternatingBarrierMaze
-          width: ${uniform:20,25,21}
-          height: ${uniform:20,25,21}
-          num_barriers: ${uniform:3,5,3}
-          barrier_width: 1
-          border_width: 1
-          border_object: "wall"
-
-      - _target_: mettagrid.config.room.multi_room.MultiRoom
-        num_rooms: 2
-        room:
           _target_: mettagrid.config.room.explore_exploit.ExploreExploit
           width: ${uniform:20,28, 21}
           height: ${uniform:10,18,21}
@@ -107,11 +96,10 @@ game:
           width: ${uniform:15,25,21}
           height: ${uniform:15,25,21}
           barrier_width: 1
-          min_barrier_height: 3
-          max_barrier_height: ${uniform:5,15,7}
-          num_barriers: 3
+          num_barriers: ${uniform:3,5,3}
           border_width: 1
           border_object: "wall"
+          alternating: ${choose:true,false}
 
       - _target_: mettagrid.config.room.multi_room.MultiRoom
         num_rooms: 2

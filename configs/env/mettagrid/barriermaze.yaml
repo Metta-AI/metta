@@ -15,11 +15,10 @@ game:
 
   map_builder:
     _target_: mettagrid.config.room.barriermaze.BarrierMaze
-    width: 15              # overall room width (including border)
-    height: 13             # overall room height (including border)
-    barrier_width: 1       # barrier thickness (in columns)
-    min_barrier_height: 3  # minimum height for barriers
-    max_barrier_height: 9  # maximum height for barriers
-    num_barriers: 3        # number of barriers to generate
-    border_width: 1        # thickness of the border walls around the environment
-    border_object: "wall"  # what to fill the border with
+    width: ${uniform:15,25,21}
+    height: ${uniform:15,25,21}
+    barrier_width: 1
+    num_barriers: ${uniform:3,5,3}
+    border_width: 1
+    border_object: "wall"
+    alternating: ${choose:true,false}

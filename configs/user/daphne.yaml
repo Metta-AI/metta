@@ -3,7 +3,7 @@
 seed: null
 
 defaults:
-  - override /env/mettagrid@env: alternating_barriers
+  - override /env/mettagrid@env: barriermaze
   - override /agent: simple
   - override /sweep: fast
 sampling: 1
