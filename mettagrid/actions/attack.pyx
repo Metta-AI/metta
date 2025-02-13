@@ -52,6 +52,8 @@ cdef class Attack(MettaActionHandler):
         if agent_target:
             actor.stats.incr(self._stats.target[agent_target._type_id])
             actor.stats.incr(self._stats.target[agent_target._type_id], actor.group_name)
+            actor.stats.incr(self._stats.target[agent_target._type_id], actor.group_name, agent_target.group_name)
+
             if agent_target.shield:
                 shield_damage = -agent_target.update_energy(-actor.attack_damage, NULL)
                 actor.stats.add(b"shield_damage", shield_damage)
@@ -59,7 +61,11 @@ cdef class Attack(MettaActionHandler):
                 agent_target.shield = False
                 agent_target.frozen = agent_target.freeze_duration
                 agent_target.update_energy(-agent_target.energy, NULL)
-                actor.stats.incr(b"attack.frozen", actor.group_name)
+
+                actor.stats.incr(b"attack.win", actor.group_name)
+                actor.stats.incr(b"attack.win", actor.group_name, agent_target.group_name)
+                actor.stats.incr(b"attack.loss", agent_target.group_name)
+                actor.stats.incr(b"attack.loss", agent_target.group_name, actor.group_name)
 
                 self.env._rewards[actor.agent_id] += agent_target.freeze_reward
                 self.env._rewards[agent_target.agent_id] -= agent_target.freeze_reward
