@@ -1,6 +1,7 @@
 # Generate a graphical trace of multiple runs.
 
 import os
+import subprocess
 import hydra
 import json
 from omegaconf import OmegaConf
@@ -12,6 +13,8 @@ from agent.policy_store import PolicyRecord
 from rl.wandb.wandb_context import WandbContext
 from mettagrid.config.config import setup_metta_environment
 from agent.policy_store import PolicyStore
+from rl.pufferlib.trace import trace_image
+
 import pixie
 
 import signal  # Aggressively exit on ctrl+c
@@ -218,8 +221,9 @@ def main(cfg):
     with WandbContext(cfg) as wandb_run:
         policy_store = PolicyStore(cfg, wandb_run)
         policy = policy_store.policy(cfg.evaluator.policy)
-        trace(cfg, policy)
-
+        trace_image(cfg, policy, "outputs/output.png")
+        # Open image in Finder
+        subprocess.run(["open", "outputs/output.png"])
 
 if __name__ == "__main__":
     main()
