@@ -1,5 +1,6 @@
 from typing import Set, Tuple
 import numpy as np
+import random
 from omegaconf import DictConfig
 
 from mettagrid.config.room.room import Room
@@ -11,7 +12,6 @@ class Cylinder(Room):
         height: int,
         cylinder_params: DictConfig,
         agents: int | DictConfig = 1,
-        seed = None,
         border_width: int = 0,
         border_object: str = "wall",
     ):
@@ -20,16 +20,14 @@ class Cylinder(Room):
         self._height = height
         self._cylinder_params = cylinder_params
         self._agents = agents
-        self._rng = np.random.default_rng(seed)
-
         # Validate inputs
         assert 3 <= cylinder_params['length'], "Cylinder length must be at least 3"
 
+    def _build(self) -> np.ndarray:
         # Initialize grid
         self._grid = np.full((self._height, self._width), "empty", dtype='<U50')
         self._cylinder_positions = set()
 
-    def _build(self) -> np.ndarray:
         if self._cylinder_params.horizontal:
             self.place_horizontal_cylinder()
         else:
@@ -108,8 +106,8 @@ class Cylinder(Room):
             right_positions = [pos for pos in valid_positions if pos[0] >= self._width//2]
 
         if left_positions and right_positions:
-            altar_pos = self._rng.choice(left_positions)
-            converter_pos = self._rng.choice(right_positions)
+            altar_pos = random.choice(left_positions)
+            converter_pos = random.choice(right_positions)
             new_grid[altar_pos[1], altar_pos[0]] = "altar"
             new_grid[converter_pos[1], converter_pos[0]] = "converter"
         return new_grid
