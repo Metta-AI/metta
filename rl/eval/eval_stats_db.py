@@ -87,21 +87,12 @@ class EvalStatsDbFile(EvalStatsDB):
     """
     Database for loading eval stats from a file.
     """
-    def __init__(self, policies: str):
-        if os.path.isdir(policies):
-            files = [os.path.join(policies, f) for f in os.listdir(policies) if f.endswith('.json')]
-        else:
-            files = [policies]
-        logger.info(f"Loading data from files: {files}")
+    def __init__(self, json_path: str):
+        with open(json_path, "r") as f:
+            data = json.load(f)
+        data = self._prepare_data(data)
 
-        all_records = []
-        for file in files:
-            with open(file, "r") as f:
-                data = json.load(f)
-            data = self._prepare_data(data)
-            all_records.extend(data)
-
-        super().__init__(pd.DataFrame(all_records))
+        super().__init__(pd.DataFrame(data))
 
 class EvalStatsDbWandb(EvalStatsDB):
     """
