@@ -65,6 +65,8 @@ class MettaAgent(nn.Module):
         # delete the below?
         self.e3b = torch.eye(self.hidden_size)
 
+        self.count = 0
+
         # are these needed?
         # self.observation_space = obs_space
         # self.global_features = global_features
@@ -93,6 +95,15 @@ class MettaAgent(nn.Module):
         return None, td["_value_"], None
 
     def get_action_and_value(self, x, state=None, action=None, e3b=None):
+        self.count += 1
+        print(f"get_action_and_value: count: {self.count}")
+
+        print(f"get_action_and_value: x shape: {x.shape}")
+        if state is not None:
+            print(f"get_action_and_value: state type: {type(state)}")
+        else:
+            print("get_action_and_value: state is None")
+
 
         td = TensorDict({"x": x, "state": state})
 
@@ -146,5 +157,7 @@ class MettaAgent(nn.Module):
     def effective_rank(self, delta: float = 0.01) -> List[dict]:
         effective_ranks = []
         for component in self.components.values():
-            effective_ranks.append(component.effective_rank(delta))
+            rank = component.effective_rank(delta)
+            if rank is not None:
+                effective_ranks.append(rank)
         return effective_ranks

@@ -46,13 +46,13 @@ class LayerBase(nn.Module):
         
     def clip_weights(self):
         pass
-    def get_l2_reg_loss(self):
+    def l2_reg_loss(self):
         pass
-    def get_l2_init_loss(self):
+    def l2_init_loss(self):
         pass
     def update_l2_init_weight_copy(self):
         pass
-    def get_effective_rank(self):
+    def effective_rank(self, delta: float = 0.01) -> dict:
         pass
     
 class ParameterizedLayer(LayerBase):

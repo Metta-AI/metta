@@ -13,7 +13,13 @@ class ObsShaper(LayerBase):
         self.obs_shape = self.metta_agent.obs_shape
         self.output_size = self.metta_agent.num_objects
 
+        self.count = 0
+
     def forward(self, td: TensorDict):
+
+        self.count += 1
+        print(f"Obs Shaper: count: {self.count}")
+
         if self.name in td:
             return td[self.name]
         
@@ -22,6 +28,17 @@ class ObsShaper(LayerBase):
 
         state = td['state']
         x = td['x']
+
+        if state is not None:
+            print(f"Obs Shaper: x and state type before obs shaper: {type(x)}, {type(state)}")
+            if isinstance(state, tuple):
+                print(f"Obs Shaper: x and state shape before obs shaper: {x.shape}, {state[0].shape}")
+        else:
+            print("Obs Shaper: state is None")
+            print(f"Obs Shaper: x shape before obs shaper: {x.shape}")
+
+
+
 
         x_shape, space_shape = x.shape, self.obs_shape
         x_n, space_n = len(x_shape), len(space_shape)
@@ -39,6 +56,8 @@ class ObsShaper(LayerBase):
             assert state[0].shape[1] == state[1].shape[1] == B
 
         x = x.reshape(B*TT, *space_shape)
+
+        print(f"Obs Shaper: x shape after reshape: {x.shape}")
 
         # td[self.name] = x.detach().float()
         td[self.name] = x.float()

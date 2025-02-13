@@ -147,7 +147,7 @@ class PufferTrainer:
         logger.info(f"Glicko2 scores: \n{formatted_results}")
 
     def _effective_rank(self):
-        effective_rank = self.policy.policy.policy._agent.effective_rank()
+        effective_rank = self.policy.effective_rank()
         for rank in effective_rank:
             self.wandb_run.log({
                 f"train/effective_rank/{rank['name']}": rank['effective_rank'],
@@ -319,11 +319,11 @@ class PufferTrainer:
 
                     l2_reg_loss = torch.tensor(0.0, device=self.device)
                     if self.trainer_cfg.l2_reg_loss_coef > 0:
-                        l2_reg_loss = self.trainer_cfg.l2_reg_loss_coef * self.policy.policy.policy._agent.l2_reg_loss().to(self.device)
+                        l2_reg_loss = self.trainer_cfg.l2_reg_loss_coef * self.policy.l2_reg_loss().to(self.device)
                     
                     l2_init_loss = torch.tensor(0.0, device=self.device)
                     if self.trainer_cfg.l2_init_loss_coef > 0:
-                        l2_init_loss = self.trainer_cfg.l2_init_loss_coef * self.policy.policy.policy._agent.l2_init_loss().to(self.device)
+                        l2_init_loss = self.trainer_cfg.l2_init_loss_coef * self.policy.l2_init_loss().to(self.device)
 
                     loss = pg_loss - self.trainer_cfg.ent_coef * entropy_loss + v_loss * self.trainer_cfg.vf_coef + l2_reg_loss + l2_init_loss
 
@@ -335,7 +335,7 @@ class PufferTrainer:
 
                     if self.cfg.agent.clip_range > 0:
                         # self.policy.clip_weights()
-                        self.policy.policy.policy._agent.clip_weights()
+                        self.policy.clip_weights()
 
                     if self.device == 'cuda':
                         torch.cuda.synchronize()
