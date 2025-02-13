@@ -8,7 +8,8 @@ class ObsShaper(LayerBase):
         super().__init__(metta_agent, **cfg)
         
         self.cfg = omegaconf.OmegaConf.create(cfg)
-        self.metta_agent = metta_agent
+        # self.metta_agent = metta_agent
+        object.__setattr__(self, 'metta_agent', metta_agent)
         self.obs_shape = self.metta_agent.obs_shape
         self.output_size = self.metta_agent.num_objects
 
@@ -39,6 +40,6 @@ class ObsShaper(LayerBase):
 
         x = x.reshape(B*TT, *space_shape)
 
+        # td[self.name] = x.detach().float()
         td[self.name] = x.float()
-
         return td

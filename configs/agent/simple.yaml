@@ -23,140 +23,142 @@ components:
 # define this further
 #necessary outputs: _encoded_obs_, _action_param_, _value_
 
-  _obs_: 
-    _target_: agent.lib.obs_shaper.ObsShaper
-    input_source: null
+  # _obs_: 
+  #   _target_: agent.lib.obs_shaper.ObsShaper
+  #   input_source: null
 
-  obs_normalizer:
-    _target_: agent.lib.observation_normalizer.ObservationNormalizer
-    input_source: _obs_
+  # obs_normalizer:
+  #   _target_: agent.lib.observation_normalizer.ObservationNormalizer
+  #   input_source: _obs_
 
-  channel_selector_0-11:
-    _target_: agent.lib.merge_layer.ConcatMergeLayer
-    sources:
-      - source_name: obs_normalizer
-        slice: [0, 12]    # Use channels 0 to 11
-        dim: 1            # Channel dimension
-    output_size: 12
+  # channel_selector_0-11:
+  #   _target_: agent.lib.merge_layer.ConcatMergeLayer
+  #   sources:
+  #     - source_name: obs_normalizer
+  #       slice: [0, 12]    # Use channels 0 to 11
+  #       dim: 1            # Channel dimension
+  #   output_size: 12
 
-  channel_selector_12-22:
-    _target_: agent.lib.merge_layer.ConcatMergeLayer
-    sources:
-      - source_name: obs_normalizer
-        slice: [12, 22]   # Use channels 12 to 23
-        dim: 1
-    output_size: 12
+  # channel_selector_12-22:
+  #   _target_: agent.lib.merge_layer.ConcatMergeLayer
+  #   sources:
+  #     - source_name: obs_normalizer
+  #       slice: [12, 22]   # Use channels 12 to 23
+  #       dim: 1
+  #   output_size: 12
 
-  cnn1_channels_0-11:
-    _target_: agent.lib.nn_layer_library.Conv2d
-    input_source: channel_selector_0-11
-    output_size: 64
-    clip_scale: 0
-    nn_params:
-      kernel_size: 5
-      stride: 3
+  # cnn1_channels_0-11:
+  #   _target_: agent.lib.nn_layer_library.Conv2d
+  #   input_source: channel_selector_0-11
+  #   output_size: 64
+  #   clip_scale: 0
+  #   nn_params:
+  #     kernel_size: 5
+  #     stride: 3
 
-  cnn1_channels_12-22:
-    _target_: agent.lib.nn_layer_library.Conv2d
-    input_source: channel_selector_12-22
-    output_size: 64
-    nn_params:
-      kernel_size: 5
-      stride: 3
+  # cnn1_channels_12-22:
+  #   _target_: agent.lib.nn_layer_library.Conv2d
+  #   input_source: channel_selector_12-22
+  #   output_size: 64
+  #   nn_params:
+  #     kernel_size: 5
+  #     stride: 3
 
-  cnn2_channels_0-11:
-    _target_: agent.lib.nn_layer_library.Conv2d
-    input_source: cnn1_channels_0-11
-    output_size: 64
-    nn_params:
-      kernel_size: 3
-      stride: 1
+  # cnn2_channels_0-11:
+  #   _target_: agent.lib.nn_layer_library.Conv2d
+  #   input_source: cnn1_channels_0-11
+  #   output_size: 64
+  #   nn_params:
+  #     kernel_size: 3
+  #     stride: 1
 
-  cnn2_channels_12-22:
-    _target_: agent.lib.nn_layer_library.Conv2d
-    input_source: cnn1_channels_12-22
-    output_size: 64
-    nn_params:
-      kernel_size: 3
-      stride: 1
+  # cnn2_channels_12-22:
+  #   _target_: agent.lib.nn_layer_library.Conv2d
+  #   input_source: cnn1_channels_12-22
+  #   output_size: 64
+  #   nn_params:
+  #     kernel_size: 3
+  #     stride: 1
 
-  cnn_merger:
-    _target_: agent.lib.merge_layer.ConcatMergeLayer
-    sources:
-      - source_name: cnn2_channels_0-11
-        slice: [0, 64]
-        dim: 1
-      - source_name: cnn2_channels_12-22
-        slice: [0, 64]
-        dim: 1
+  # cnn_merger:
+  #   _target_: agent.lib.merge_layer.ConcatMergeLayer
+  #   sources:
+  #     - source_name: cnn2_channels_0-11
+  #       slice: [0, 64]
+  #       dim: 1
+  #     - source_name: cnn2_channels_12-22
+  #       slice: [0, 64]
+  #       dim: 1
 
-  obs_flattener:
-    _target_: agent.lib.nn_layer_library.Flatten
-    input_source: cnn_merger
+  # obs_flattener:
+  #   _target_: agent.lib.nn_layer_library.Flatten
+  #   input_source: cnn_merger
 
-  obs_dropout:
-    _target_: agent.lib.nn_layer_library.Dropout
-    input_source: obs_flattener
-    nn_params:
-      p: 0.5
+  # obs_dropout:
+  #   _target_: agent.lib.nn_layer_library.Dropout
+  #   input_source: obs_flattener
+  #   nn_params:
+  #     p: 0.5
 
-  _encoded_obs_:
-    _target_: agent.lib.nn_layer_library.Linear
-    input_source: obs_dropout
-    output_size: 128
+  # _encoded_obs_:
+  #   _target_: agent.lib.nn_layer_library.Linear
+  #   input_source: obs_dropout
+  #   output_size: 128
 
-  _core_:
-    _target_: agent.lib.nn_layer_library.LSTM
-    input_source: _encoded_obs_
-    output_size: 128
-    nn_params:
-      num_layers: 1
+  # _core_:
+  #   _target_: agent.lib.nn_layer_library.LSTM
+  #   input_source: _encoded_obs_
+  #   output_size: 128
+  #   nn_params:
+  #     num_layers: 1
       
-  critic_1:
-    _target_: agent.lib.nn_layer_library.Linear
-    input_source: _core_
-    output_size: 512
+  # critic_1:
+  #   _target_: agent.lib.nn_layer_library.Linear
+  #   input_source: _core_
+  #   output_size: 512
 
-  critic_2:
-    _target_: agent.lib.nn_layer_library.Linear
-    input_source: critic_1
-    output_size: 128
-    nonlinearity: Tanh
+  # critic_2:
+  #   _target_: agent.lib.nn_layer_library.Linear
+  #   input_source: critic_1
+  #   output_size: 128
+  #   nonlinearity: Tanh
 
-  critic_3:
-    _target_: agent.lib.nn_layer_library.Linear
-    input_source: critic_2
-    output_size: 128
+  # critic_3:
+  #   _target_: agent.lib.nn_layer_library.Linear
+  #   input_source: critic_2
+  #   output_size: 128
 
-  _value_:
-    _target_: agent.lib.nn_layer_library.Linear
-    input_source: critic_3
-    output_size: 1
+  # _value_:
+  #   _target_: agent.lib.nn_layer_library.Linear
+  #   input_source: critic_3
+  #   output_size: 1
 
-  actor_1:
-    _target_: agent.lib.nn_layer_library.Linear
-    input_source: _core_
-    output_size: 512
+  # actor_1:
+  #   _target_: agent.lib.nn_layer_library.Linear
+  #   input_source: _core_
+  #   output_size: 512
 
-  actor_2:
-    _target_: agent.lib.nn_layer_library.Linear
-    input_source: actor_1
-    output_size: 512
+  # actor_2:
+  #   _target_: agent.lib.nn_layer_library.Linear
+  #   input_source: actor_1
+  #   output_size: 512
 
-  _action_param_:
-    _target_: agent.lib.nn_layer_library.Linear
-    input_source: actor_2
-    output_size: 20
+  # _action_param_:
+  #   _target_: agent.lib.nn_layer_library.Linear
+  #   input_source: actor_2
+  #   output_size: 20
 
 
+#---- Test Rig 1 ----
   # _core_:
   #   _target_: agent.lib.nn_layer_library.Identity
   #   input_source: null
   #   output_size: 128
 
-  # _obs_: 
-  #   _target_: agent.lib.obs_shaper.ObsShaper
+  # _obs_:
+  #   _target_: agent.lib.nn_layer_library.Identity
   #   input_source: null
+  #   output_size: 128
 
   # _value_:
   #   _target_: agent.lib.nn_layer_library.Linear
@@ -167,3 +169,49 @@ components:
   #   _target_: agent.lib.nn_layer_library.Linear
   #   input_source: _obs_
   #   output_size: 20
+
+#---- Test Rig 2 ----
+  _obs_: 
+    _target_: agent.lib.obs_shaper.ObsShaper
+    input_source: null
+
+  cnn_1:
+    _target_: agent.lib.nn_layer_library.Conv2d
+    input_source: _obs_
+    output_size: 64
+    nn_params:
+      kernel_size: 5
+      stride: 3
+
+  cnn_2:
+    _target_: agent.lib.nn_layer_library.Conv2d
+    input_source: cnn_1
+    output_size: 64
+    nn_params:
+      kernel_size: 3
+      stride: 1
+
+  flatten:
+    _target_: agent.lib.nn_layer_library.Flatten
+    input_source: cnn_2
+
+  _encoded_obs_:
+    _target_: agent.lib.nn_layer_library.Linear
+    input_source: flatten
+    output_size: 128
+
+  _core_:
+    _target_: agent.lib.nn_layer_library.LSTM
+    input_source: _encoded_obs_
+    output_size: 128
+
+
+  _value_:
+    _target_: agent.lib.nn_layer_library.Linear
+    input_source: _core_
+    output_size: 1
+
+  _action_param_:
+    _target_: agent.lib.nn_layer_library.Linear
+    input_source: _core_
+    output_size: 20

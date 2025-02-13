@@ -13,9 +13,12 @@ class MettaLSTM(LayerBase):
         See the Default policy for an example.'''
         super().__init__(metta_agent, **cfg)
         self.cfg = omegaconf.OmegaConf.create(cfg)
-        self.metta_agent = metta_agent
+        # self.metta_agent = metta_agent
+        object.__setattr__(self, 'metta_agent', metta_agent)
         self.obs_shape = self.metta_agent.obs_shape
         self.hidden_size = self.metta_agent.hidden_size
+        #delete this
+        self.count = 0
 
     def forward(self, td: TensorDict):
         if self.name in td:
@@ -24,9 +27,23 @@ class MettaLSTM(LayerBase):
         if self.input_source is not None:
             self.metta_agent.components[self.input_source].forward(td)
 
+        #delete this
+        self.count += 1
+        print(f"count: {self.count}")
+
         x = td['x']
         hidden = td["_encoded_obs_"]
         state = td["state"]
+
+        print(f"hidden shape before LSTM: {hidden.shape}")
+        if state is not None:
+            print(f"Not none, state type before conversion and LSTM: {type(state)}")
+        else:
+            print("state is None")
+
+        if state is not None:
+            state = state.detach()
+            state = tuple(state)
 
         # --- do we need? ---
         x_shape, space_shape = x.shape, self.obs_shape
@@ -52,28 +69,37 @@ class MettaLSTM(LayerBase):
 
         hidden = hidden.transpose(0, 1)
 
-        #--- It's unclear why our state is not given as a tuple.
-        # Split the state tensor into two along the first dimension
-        if state is not None:
-            state_1, state_2 = torch.split(state, 1, dim=0)
+        # #--- It's unclear why our state is not given as a tuple.
+        # # Split the state tensor into two along the first dimension
+        # if state is not None:
+        #     state_1, state_2 = torch.split(state, 1, dim=0)
             
-            # Remove the first dimension and add a new dimension at the end
-            state_1 = state_1.squeeze(0)
-            state_2 = state_2.squeeze(0)
+        #     # Remove the first dimension and add a new dimension at the end
+        #     state_1 = state_1.squeeze(0)
+        #     state_2 = state_2.squeeze(0)
             
-            # Adjust the size of each state tensor to [1, 48, 129]
-            # state_1 = torch.cat((state_1, torch.zeros(1, 48, 1)), dim=-1)
-            # state_2 = torch.cat((state_2, torch.zeros(1, 48, 1)), dim=-1)
-            state_1 = state_1[:, :, :128]  # Ensure the size is [1, 48, 128]
-            state_2 = state_2[:, :, :128]  # Ensure the size is [1, 48, 128]
-            # Combine into a tuple
-            state = (state_1, state_2)
+        #     # Adjust the size of each state tensor to [1, 48, 129]
+        #     # state_1 = torch.cat((state_1, torch.zeros(1, 48, 1)), dim=-1)
+        #     # state_2 = torch.cat((state_2, torch.zeros(1, 48, 1)), dim=-1)
+        #     state_1 = state_1[:, :, :128]  # Ensure the size is [1, 48, 128]
+        #     state_2 = state_2[:, :, :128]  # Ensure the size is [1, 48, 128]
+        #     # Combine into a tuple
+        #     state = (state_1, state_2)
         #---
+        
+        if state is not None:
+            print(f"state type after conv, before LSTM: {type(state)}")
+            if isinstance(state, tuple):
+                print(f"state shape after conv, before LSTM: {state[0].shape}")
 
         hidden, state = self.layer(hidden, state)
         hidden = hidden.transpose(0, 1)
 
         hidden = hidden.reshape(B*TT, self.hidden_size)
+        print(f"hidden shape after LSTM: {hidden.shape}")
+        print(f"state type after LSTM: {type(state)}")
+        if self.count == 22:
+            breakpoint()
 
         td[self.name] = hidden
         td["state"] = state

@@ -3,12 +3,13 @@ from tensordict import TensorDict
 from torch import nn
 import torch
 import numpy as np
-
+import weakref
 class LayerBase(nn.Module):
     def __init__(self, metta_agent, **cfg):
         cfg = OmegaConf.create(cfg)
         super().__init__()
-        self.metta_agent = metta_agent
+        # self.metta_agent = weakref.ref(metta_agent)
+        object.__setattr__(self, 'metta_agent', metta_agent)
         self.cfg = cfg
         self.name = cfg.name
         self.input_source = cfg.get('input_source', None)
