@@ -19,7 +19,7 @@ env:
   # sampling: 0.7
   game:
     # num_agents: 6
-    max_steps: 20
+    max_steps: 200
 
     map_builder:
       border_width: 6
