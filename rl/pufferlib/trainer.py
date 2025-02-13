@@ -417,9 +417,8 @@ class PufferTrainer:
                 'train/average_reward': self.average_reward if self.trainer_cfg.average_reward else None,
             }
 
-            if self.epoch % 10 == 0:
-                image_path =
-                    self.cfg.run_dir + "/traces/" + str(self.epoch) + ".png"
+            if self.cfg.wandb.trace and self.epoch % self.cfg.wandb.trace_interval == 0:
+                image_path = f"{self.cfg.run_dir}/traces/{self.epoch}.png"
                 trace_image(self.cfg, self.last_pr, image_path)
                 data["traces/actions"] = wandb.Image(image_path)
 
