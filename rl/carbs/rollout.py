@@ -119,10 +119,9 @@ class CarbsSweepRollout:
         stats = eval.evaluate()
         eval_time = time.time() - eval_start_time
 
-        file_name = Path(final_pr.uri).name
-        self.eval_stats_logger.log(stats, file_name=file_name, artifact_name=eval_cfg.eval.eval_artifact_name)
+        self.eval_stats_logger.log(stats)
 
-        eval_stats_db = EvalStatsDB.from_uri(f"file://{self.eval_stats_logger.log_dir}")
+        eval_stats_db = EvalStatsDB.from_uri(eval_cfg.eval_db_uri, wandb_run)
         analyzer = hydra.utils.instantiate(self.cfg.analyzer, eval_stats_db)
         results, _ = analyzer.analyze()
 
