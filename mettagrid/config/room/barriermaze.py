@@ -1,82 +1,73 @@
-from typing import List, Union
+from typing import List
+import random
 import numpy as np
 from omegaconf import DictConfig
 from mettagrid.config.room.room import Room
 
 class BarrierMaze(Room):
     """
-    An environment with a wall border and three vertical barriers along the bottom row of the interior.
-    
-    The interior (area inside the border) bottom row is partitioned into seven blocks (from left to right):
+    An environment with a wall border and three vertical barriers along the interior's bottom row.
+
+    The interior's bottom row is divided into seven blocks (from left to right):
       1. Agent start ("agent.agent")
-      2. Barrier 1 (vertical wall extending upward for a configurable height)
+      2. Barrier 1 (vertical wall)
       3. Generator ("generator")
       4. Barrier 2 (vertical wall)
       5. Converter ("converter")
       6. Barrier 3 (vertical wall)
       7. Altar ("altar")
-    
-    Any extra horizontal space is evenly distributed as gaps between blocks so that the agent appears at
-    the left edge and the altar at the right edge of the interior.
+
+    Extra horizontal space is evenly distributed as gaps between blocks.
+
+    If 'alternating' is True, the barriers are placed alternatingly:
+      - Even-indexed barriers attach to the top of the interior.
+      - Odd-indexed barriers attach to the bottom of the interior.
+    Otherwise, all barriers extend upward from the bottom row.
     """
     def __init__(
         self,
         width: int,
         height: int,
-        min_barrier_height: int = 1,
-        max_barrier_height: int = None,
         barrier_heights: List[int] = None,
         barrier_width: int = 1,
         num_barriers: int = 3,
         agents: int | DictConfig = 1,
-        seed: int | None = None,
         border_width: int = 1,
         border_object: str = "wall",
+        alternating: bool = False,
     ):
         super().__init__(border_width=border_width, border_object=border_object)
         self._width = width
         self._height = height
         self._barrier_width = barrier_width
         self._agents = agents
-        self._rng = np.random.default_rng(seed)
         self._border_width = border_width
         self._border_object = border_object
+        self._alternating = alternating
 
-        # Handle barrier heights
-        if max_barrier_height is None:
-            max_barrier_height = height - (2 * border_width) - 1
+        max_barrier_height = height - (2 * border_width) - 2
 
         if barrier_heights is None:
-            # Generate random barrier heights if not provided
+            # Generate random barrier heights if not provided.
             self._barrier_heights = [
-                self._rng.integers(min_barrier_height, max_barrier_height + 1)
+                random.randint(3, max_barrier_height + 1)
                 for _ in range(num_barriers)
             ]
         else:
-            self._barrier_heights = barrier_heights[:num_barriers]  # Use only num_barriers heights
-            # If barrier_heights is shorter than num_barriers, generate random heights for the rest
-            while len(self._barrier_heights) < num_barriers:
-                self._barrier_heights.append(
-                    self._rng.integers(min_barrier_height, max_barrier_height + 1)
-                )
-
-        # Initialize the grid with "empty" cells.
-        self._grid = np.full((self._height, self._width), "empty", dtype='<U50')
+            assert len(barrier_heights) == num_barriers, "Barrier heights must match the number of barriers."
+            self._barrier_heights = [min(h, max_barrier_height) for h in barrier_heights]
 
     def _build(self) -> np.ndarray:
-        # Define the interior boundaries (area inside the border).
-        interior_x_start = self._border_width
-        interior_x_end = self._width - self._border_width
-        interior_y_start = self._border_width
-        interior_y_end = self._height - self._border_width
+        # Initialize grid with "empty" cells.
+        grid = np.full((self._height, self._width), "empty", dtype='<U50')
 
+        bw = self._border_width
+        interior_x_start, interior_x_end = bw, self._width - bw
+        interior_y_start, interior_y_end = bw, self._height - bw
+        bottom_y = interior_y_end - 1
         interior_width = interior_x_end - interior_x_start
-        # (We don't need interior_height here except to compute the bottom row.)
-        bottom_y = interior_y_end - 1  # The bottom row of the interior.
 
-        # Define the blocks along the bottom row in order:
-        # ("name", width). Non-barrier items are 1 cell wide;
-        # barriers use the configured barrier_width.
+        # Define the seven blocks (name, width)
         blocks = [
             ("agent", 1),
             ("barrier1", self._barrier_width),
@@ -90,67 +81,48 @@ class BarrierMaze(Room):
         total_gap = interior_width - total_block_width
         assert total_gap >= 0, "Interior width is too small for the required arrangement."
 
-        # Distribute the gap space evenly between the blocks.
+        # Evenly distribute extra space between blocks.
         num_gaps = len(blocks) - 1
-        base_gap = total_gap // num_gaps if num_gaps > 0 else 0
-        remainder = total_gap % num_gaps if num_gaps > 0 else 0
+        base_gap, extra = divmod(total_gap, num_gaps) if num_gaps > 0 else (0, 0)
 
-        # Compute the starting x-coordinate (within the interior) for each block.
         x_positions = {}
-        current_x = interior_x_start
-        # Place the first block: agent.
-        block_name, block_width = blocks[0]
-        x_positions[block_name] = current_x
-        current_x += block_width
+        x = interior_x_start
+        for i, (name, width) in enumerate(blocks):
+            x_positions[name] = x
+            x += width
+            if i < len(blocks) - 1:
+                x += base_gap + (1 if i < extra else 0)
 
-        for i in range(1, len(blocks)):
-            gap = base_gap + (1 if i <= remainder else 0)
-            current_x += gap
-            block_name, block_width = blocks[i]
-            x_positions[block_name] = current_x
-            current_x += block_width
+        # Place floor items on the interior's bottom row.
+        grid[bottom_y, x_positions["agent"]] = "agent.agent"
+        grid[bottom_y, x_positions["generator"]] = "generator"
+        grid[bottom_y, x_positions["converter"]] = "converter"
+        grid[bottom_y, x_positions["altar"]] = "altar"
 
-        # Place the floor items (agent, generator, converter, altar) on the interior's bottom row.
-        self._grid[bottom_y, x_positions["agent"]] = "agent.agent"
-        self._grid[bottom_y, x_positions["generator"]] = "generator"
-        self._grid[bottom_y, x_positions["converter"]] = "converter"
-        self._grid[bottom_y, x_positions["altar"]] = "altar"
+        # Draw each barrier.
+        for idx, barrier_name in enumerate(["barrier1", "barrier2", "barrier3"]):
+            h = self._barrier_heights[idx]
+            x_start = x_positions[barrier_name]
+            if self._alternating:
+                if idx % 2 == 0:
+                    # Even-indexed: attach at the top.
+                    top_y = interior_y_start
+                    bottom_barrier_y = interior_y_start + h - 1
+                else:
+                    # Odd-indexed: attach at the bottom.
+                    bottom_barrier_y = interior_y_end - 1
+                    top_y = bottom_barrier_y - h + 1
+            else:
+                # Default: extend upward from the bottom row.
+                top_y = bottom_y - h + 1
+                bottom_barrier_y = bottom_y
 
-        # Draw each barrier as a vertical wall that extends upward from the bottom row.
-        # The wall for each barrier will extend for the configured height.
-        # Barrier 1:
-        b1_height = self._barrier_heights[0]
-        top_y_b1 = bottom_y - b1_height + 1
-        for x in range(x_positions["barrier1"], x_positions["barrier1"] + self._barrier_width):
-            for y in range(top_y_b1, bottom_y + 1):
-                self._grid[y, x] = self._border_object  # using "wall" as the barrier symbol
+            grid[top_y:bottom_barrier_y + 1, x_start:x_start + self._barrier_width] = self._border_object
 
-        # Barrier 2:
-        b2_height = self._barrier_heights[1]
-        top_y_b2 = bottom_y - b2_height + 1
-        for x in range(x_positions["barrier2"], x_positions["barrier2"] + self._barrier_width):
-            for y in range(top_y_b2, bottom_y + 1):
-                self._grid[y, x] = self._border_object
+        # Draw outer border using slicing.
+        grid[:interior_y_start, :] = self._border_object   # Top border.
+        grid[interior_y_end:, :] = self._border_object      # Bottom border.
+        grid[:, :interior_x_start] = self._border_object    # Left border.
+        grid[:, interior_x_end:] = self._border_object      # Right border.
 
-        # Barrier 3:
-        b3_height = self._barrier_heights[2]
-        top_y_b3 = bottom_y - b3_height + 1
-        for x in range(x_positions["barrier3"], x_positions["barrier3"] + self._barrier_width):
-            for y in range(top_y_b3, bottom_y + 1):
-                self._grid[y, x] = self._border_object
-
-        # Finally, add the outer border around the entire environment.
-        # Top border:
-        for y in range(0, interior_y_start):
-            self._grid[y, :] = self._border_object
-        # Bottom border:
-        for y in range(interior_y_end, self._height):
-            self._grid[y, :] = self._border_object
-        # Left border:
-        for x in range(0, interior_x_start):
-            self._grid[:, x] = self._border_object
-        # Right border:
-        for x in range(interior_x_end, self._width):
-            self._grid[:, x] = self._border_object
-
-        return self._grid
+        return grid
