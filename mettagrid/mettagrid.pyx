@@ -160,22 +160,20 @@ cdef class MettaGrid(GridEnv):
         cdef bint share_rewards = False
 
         for agent_idx in range(self._agents.size()):
-            if rewards[agent_idx] > 0:
+            if rewards[agent_idx] != 0:
+                share_rewards = True
                 agent = <Agent*>self._agents[agent_idx]
                 group_id = agent.group
                 group_reward = rewards[agent_idx] * self._group_reward_pct[group_id]
-                if group_reward > 0:
-                    share_rewards = True
-                    rewards[agent_idx] -= group_reward
-                    self._group_rewards[group_id] += group_reward
+                rewards[agent_idx] -= group_reward
+                self._group_rewards[group_id] += group_reward / self._group_sizes[group_id]
 
         if share_rewards:
             for agent_idx in range(self._agents.size()):
                 agent = <Agent*>self._agents[agent_idx]
                 group_id = agent.group
-                group_reward = self._group_rewards[group_id] / self._group_sizes[group_id]
+                group_reward = self._group_rewards[group_id]
                 rewards[agent_idx] += group_reward
-
         return (obs, rewards, terms, truncs, infos)
 
     cpdef dict get_episode_stats(self):
