@@ -8,7 +8,7 @@ private:
     std::map<std::string, int> _stats;
 
 public:
-    StatsTracker();
+    StatsTracker() = default;
 
     inline std::map<std::string, int> stats() {
         return _stats;
