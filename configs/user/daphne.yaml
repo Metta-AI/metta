@@ -6,7 +6,6 @@ defaults:
   - override /env/mettagrid@env: barriermaze
   - override /agent: simple
   - override /sweep: fast
-sampling: 1
 # policy: wandb://run/b.daveey.train.maze.sm.dr.warm.0
 # baselines: wandb://run/b.daveey.train.maze.sm.11x11.0
 
@@ -14,6 +13,8 @@ policy_uri: wandb://run/v.daveey.species.sm.0
 baseline_uri: wandb://run/v.daveey.species.sm.0
 
 env:
+  sampling: 1
+
   game:
     max_steps: 1000
 

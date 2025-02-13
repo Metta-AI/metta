@@ -7,15 +7,30 @@ env:
 agent:
   observation_encoder:
     track_last_action: ${env.track_last_action}
+sampling: 1
 
 game:
-  num_agents: 1
+  num_agents: 4
   max_steps: 250
-
   map_builder:
-    _target_: mettagrid.config.room.labyrinth.LabyrinthMaze
-    width: 41           # Desired overall maze width (should be of the form: cell_cols*(corridor_width+1)+1)
-    height: 41          # Desired overall maze height (same form as above)
-    corridor_width: 3   # Width of the corridors (passages); default is 3.
-    border_width: 1     # Outer border thickness (will remain walls)
+    _target_: mettagrid.config.room.room_list.RoomList
+    rooms:
+      - _target_: mettagrid.config.room.labyrinth.LabyrinthMaze
+        width: ${uniform:20,25,21}
+        height: ${uniform:20,25,21}
+        corridor_width: ${uniform:1,4,3}
+      - _target_: mettagrid.config.room.labyrinth.LabyrinthMaze
+        width: ${uniform:20,25,21}
+        height: ${uniform:20,25,21}
+        corridor_width: ${uniform:1,4,3}
+      - _target_: mettagrid.config.room.labyrinth.LabyrinthMaze
+        width: ${uniform:20,25,21}
+        height: ${uniform:20,25,21}
+        corridor_width: ${uniform:1,4,3}
+      - _target_: mettagrid.config.room.labyrinth.LabyrinthMaze
+        width: ${uniform:20,25,21}
+        height: ${uniform:20,25,21}
+        corridor_width: ${uniform:1,4,3}
+    layout: "grid"
+    border_width: 1
     border_object: "wall"
