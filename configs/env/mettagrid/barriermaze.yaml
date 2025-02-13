@@ -10,15 +10,46 @@ agent:
     track_last_action: ${env.track_last_action}
 
 game:
-  num_agents: 1
+  num_agents: 4
   max_steps: 250
 
   map_builder:
-    _target_: mettagrid.config.room.barriermaze.BarrierMaze
-    width: ${uniform:15,25,21}
-    height: ${uniform:15,25,21}
-    barrier_width: 1
-    num_barriers: ${uniform:3,5,3}
+    _target_: mettagrid.config.room.room_list.RoomList
     border_width: 1
-    border_object: "wall"
-    alternating: ${choose:true,false}
+
+    rooms:
+      - _target_: mettagrid.config.room.barriermaze.BarrierMaze
+        width: ${uniform:15,25,21}
+        height: ${uniform:15,25,21}
+        barrier_width: 1
+        num_barriers: ${uniform:3,5,3}
+        border_width: 1
+        border_object: "wall"
+        alternating: ${choose:true,false}
+
+      - _target_: mettagrid.config.room.barriermaze.BarrierMaze
+        width: ${uniform:15,25,21}
+        height: ${uniform:15,25,21}
+        barrier_width: 1
+        num_barriers: ${uniform:3,5,3}
+        border_width: 1
+        border_object: "wall"
+        alternating: ${choose:true,false}
+
+      - _target_: mettagrid.config.room.barriermaze.BarrierMaze
+        width: ${uniform:15,25,21}
+        height: ${uniform:15,25,21}
+        barrier_width: 1
+        num_barriers: ${uniform:3,5,3}
+        border_width: 1
+        border_object: "wall"
+        alternating: ${choose:true,false}
+
+      - _target_: mettagrid.config.room.barriermaze.BarrierMaze
+        width: ${uniform:15,25,21}
+        height: ${uniform:15,25,21}
+        barrier_width: 1
+        num_barriers: ${uniform:3,5,3}
+        border_width: 1
+        border_object: "wall"
+        alternating: ${choose:true,false}

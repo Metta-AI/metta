@@ -19,8 +19,8 @@ game:
           height: ${uniform:15,20,21}
           cylinder_params:
             length: ${uniform:3,10,5}
-            horizontal: true | false
-            both_ends: true | false
+            horizontal: ${choose:true,false}
+            both_ends: ${choose:true,false}
 
       - _target_: mettagrid.config.room.multi_room.MultiRoom
         num_rooms: 2

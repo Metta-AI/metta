@@ -3,19 +3,44 @@ defaults:
 
 sampling: 1
 game:
-  num_agents: 3
+  num_agents: 4
   max_steps: 250
 
   map_builder:
-
-    _target_: mettagrid.config.room.multi_room.MultiRoom
-    num_rooms: ${..num_agents}
-    room:
-      _target_: mettagrid.config.room.cylinder.Cylinder
-      border_width: 1
-      width: ${uniform:10,40,21}
-      height: ${uniform:10,40,21}
-      cylinder_params:
-        length: ${uniform:3,5,10}
-        horizontal: true | false
-        both_ends: true | false
+    _target_: mettagrid.config.room.room_list.RoomList
+    rooms:
+      - _target_: mettagrid.config.room.cylinder.Cylinder
+        border_width: ${uniform:1,2,1}
+        width: ${uniform:15,20,21}
+        height: ${uniform:15,20,21}
+        cylinder_params:
+          length: ${uniform:3,10,5}
+          horizontal: ${choose:true,false}
+          both_ends: ${choose:true,false}
+      - _target_: mettagrid.config.room.cylinder.Cylinder
+        border_width: ${uniform:1,2,1}
+        width: ${uniform:15,20,21}
+        height: ${uniform:15,20,21}
+        cylinder_params:
+          length: ${uniform:3,10,5}
+          horizontal: ${choose:true,false}
+          both_ends: ${choose:true,false}
+      - _target_: mettagrid.config.room.cylinder.Cylinder
+        border_width: ${uniform:1,2,1}
+        width: ${uniform:15,20,21}
+        height: ${uniform:15,20,21}
+        cylinder_params:
+          length: ${uniform:3,10,5}
+          horizontal: ${choose:true,false}
+          both_ends: ${choose:true,false}
+      - _target_: mettagrid.config.room.cylinder.Cylinder
+        border_width: ${uniform:1,2,1}
+        width: ${uniform:15,20,21}
+        height: ${uniform:15,20,21}
+        cylinder_params:
+          length: ${uniform:3,10,5}
+          horizontal: ${choose:true,false}
+          both_ends: ${choose:true,false}
+    layout: "grid"
+    border_width: 1
+    border_object: "wall"
