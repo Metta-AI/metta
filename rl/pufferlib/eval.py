@@ -6,8 +6,6 @@ import torch
 from agent.policy_store import PolicyStore
 from omegaconf import DictConfig, OmegaConf
 import hydra
-import os
-import json
 
 from rl.pufferlib.vecenv import make_vecenv
 
@@ -46,7 +44,6 @@ class Eval():
         self._num_envs = num_envs
         self._min_episodes = num_episodes
         self._max_time_s = max_time_s
-
 
         policy_selector_cfg = OmegaConf.create({
             "uri": self._policy_uri,
@@ -192,7 +189,7 @@ class EvalSuite:
         self._evals_cfgs = evals
         self._evals = []
         for eval_name, eval_cfg in evals.items():
-            eval_cfg = OmegaConf.merge(kwargs, eval_cfg)
+            eval_cfg = OmegaConf.merge(eval_cfg, kwargs)
             eval = Eval(policy_store, env_defaults, **eval_cfg)
             self._evals.append(eval)
 

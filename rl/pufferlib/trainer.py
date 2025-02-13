@@ -120,10 +120,11 @@ class PufferTrainer:
         self.cfg.eval.policy_uri = self.last_pr.uri
         eval = hydra.utils.instantiate(self.cfg.eval, self.policy_store, self.cfg.env, _recursive_ = False)
         stats = eval.evaluate()
-        file_name = Path(self.last_pr.uri).name
-        self.eval_stats_logger.log(stats, file_name=file_name, artifact_name=self.cfg.eval.eval_artifact_name)
 
-        eval_stats_db = EvalStatsDB.from_uri(f"file://{self.eval_stats_logger.log_dir}")
+        #Here, we were only ever logging from the file that was just saved (always saving to file, whose name is the same as the latest policy)
+        self.eval_stats_logger.log(stats)
+
+        eval_stats_db = EvalStatsDB.from_uri(self.cfg.eval.eval_db_uri, self.wandb_run)
         analyzer = hydra.utils.instantiate(self.cfg.analyzer, eval_stats_db)
         analyzer.analyze()
 

@@ -3,21 +3,22 @@
 seed: null
 
 defaults:
-  - /eval: example_suite
+  - /eval: example
   - override /env/mettagrid@env: simple
   - override /agent: simple.medium
   - override /sweep: fast
   - override /analyzer: analyzer
 
 analyzer:
-  #db_uri: file://./train_dir/daphne.local.eval.6/eval_stats/b.daveey.train.sm.teams.75.json  #file
-  db_uri: wandb://artifacts/daphne_eval
-
   analysis:
     metrics:
-    - metric: "agent.action.use.altar"
+    - metric: "action.use.altar.*"
 
-policy_uri: ${trained_policy_uri}
+#policy_uri: ${trained_policy_uri}
+policy_uri: wandb://run/mb.daveey.sm.nr
+#eval_db_uri: wandb://artifacts/daphne_eval
+eval_db_uri: file://daphne/daphne_eval_stats
+
 npc_policy_uri: null
 
 env:
@@ -38,8 +39,8 @@ eval:
 
   policy_uri: ${..policy_uri}
   npc_policy_uri: ${..npc_policy_uri}
-  log_eval_artifact: true
-  eval_artifact_name: daphne_eval #if not null, will log to wandb
+  #eval_db_uri: wandb://artifacts/daphne_eval
+  eval_db_uri: ${..eval_db_uri}
 
 wandb:
   enabled: true
@@ -48,9 +49,9 @@ wandb:
 evaluate_interval: 1
 
 sweep:
-  metric: agent.action.use.altar
+  metric: agent.action.use.*
 
 cmd: ???
-run_id: 10
+run_id: 12
 run: ${oc.env:USER}.local.${cmd}.${run_id}
 trained_policy_uri: ./train_dir/${oc.env:USER}.local.train.${run_id}/checkpoints

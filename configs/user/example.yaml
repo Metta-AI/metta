@@ -6,12 +6,16 @@ defaults:
   - override /env/mettagrid@env: simple
   - override /agent: simple.medium
   - override /sweep: fast
+  - override /eval: example
+  - override /analyzer: analyzer
+
 
 # policy: wandb://run/b.daveey.train.maze.sm.dr.warm.0
 # baselines: wandb://run/b.daveey.train.maze.sm.11x11.0
 
 policy_uri: wandb://run/b.daveey.sm.train.er.new.0
-baseline_uri: wandb://run/b.daveey.sm.train.er.new.0
+npc_policy_uri: null
+eval_db_uri: wandb://artifacts/daphne_eval
 
 env:
   game:
@@ -20,11 +24,11 @@ env:
 trainer:
   evaluate_interval: 2
 
-evaluator:
-  policy:
-    uri: ${...policy_uri}
-  baselines:
-    uri: ${...baseline_uri}
+eval:
+  policy_uri: ${..policy_uri}
+  npc_policy_uri: ${..npc_policy_uri}
+  #eval_db_uri: wandb://artifacts/daphne_eval
+  eval_db_uri: ${..eval_db_uri}
 
 wandb:
   enabled: true
@@ -32,7 +36,8 @@ wandb:
   checkpoint_interval: 1
 
 sweep:
-  metric: action.use
+  metric: agent.action.use.*
+
 
 cmd: ???
 run: ${oc.env:USER}.local.${cmd}.2

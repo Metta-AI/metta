@@ -6,12 +6,22 @@ defaults:
 policy_uri: wandb://run/b.daveey.train.simple.s20m
 
 evals:
-  simple_small_map:
-    env: env/mettagrid/simple
-    npc_policy_uri: wandb://run/b.daveey.train.simple.s15m
+  cylinder:
+    env: env/mettagrid/cylinder
+    npc_policy_uri: wandb://run/mb.daveey.sm.nr
     policy_agents_pct: 0.5
 
-  eval_2:
+  simple:
     env: env/mettagrid/simple
     policy_agents_pct: 0.5
-    npc_policy_uri: wandb://run/b.daveey.train.simple.s15m
+    npc_policy_uri: wandb://run/mb.daveey.sm.nr
+
+  school:
+    env: env/mettagrid/school
+    npc_policy_uri: wandb://run/mb.daveey.sm.nr
+    policy_agents_pct: 0.5
+
+  teams:
+    env: env/mettagrid/teams
+    npc_policy_uri: wandb://run/mb.daveey.sm.nr
+    policy_agents_pct: 0.5

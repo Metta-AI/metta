@@ -1,14 +1,12 @@
 _target_: rl.eval.eval_stats_analyzer.EvalStatsAnalyzer
 
-db_uri: ???
-
 analysis:
 
-  filters: null #global filters
+  filters: [] #global filters
 
   metric_patterns: null
 
   metrics:
-    - metric: "agent.action.use.altar"
+    - metric: "action.use.altar.agent"
 
   queries: null

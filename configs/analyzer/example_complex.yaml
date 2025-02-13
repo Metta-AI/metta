@@ -11,9 +11,9 @@ analysis:
     '"episode_index"': "IS NOT NULL"
 
   metrics:
-    - metric: "agent.action.use.altar"
+    - metric: "action.use.altar.agent"
 
-    - metric: "agent.action.use.altar"
+    - metric: "action.use.altar.agent"
       group_by_episode: true
       filters:
         policy_name:
