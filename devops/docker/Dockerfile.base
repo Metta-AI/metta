@@ -26,4 +26,9 @@ RUN echo "defscrollback 10000" >> /root/.screenrc && \
 
 # fix bash history
 RUN echo "unset HISTIGNORE" >> ~/.bashrc
+
+# install tmux
+RUN apt-get install -y tmux
 RUN touch /root/.no_auto_tmux
+COPY devops/mettabox/tmux.conf /root/.tmux.conf
+
