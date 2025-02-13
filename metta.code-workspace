@@ -126,14 +126,10 @@
 			"deps": true,
 		},
 		"terminal.integrated.profiles.osx": {
-			"WANDB_API_KEY": "${command:workbench.action.tasks.runTask}Get WANDB Key",
 			"metta-0": {
-				"path": "ssh",
+				"path": "bash",
 				"args": [
-					"-i",
-					"${env:HOME}/.ssh/id_ed25519",
-					"-t",
-					"metta@metta0",
+					"-c",
 					"WANDB_KEY=$(cat ~/.netrc | awk '/machine api.wandb.ai/{getline; getline; print $2}') && ssh -i ~/.ssh/id_ed25519 -t metta@metta1 'export WANDB_API_KEY=\"'\"$WANDB_KEY\"'\" SSH_USER=\"'\"$USER\"'\"; bash'"
 				],
 				"overrideName": true,
@@ -149,37 +145,28 @@
 				"name": "metta-1",
 			},
 			"metta-2": {
-				"path": "ssh",
+				"path": "bash",
 				"args": [
-					"-i",
-					"${env:HOME}/.ssh/id_ed25519",
-					"-t",
-					"metta@metta2",
-					"WANDB_KEY=$(cat ~/.netrc | awk '/machine api.wandb.ai/{getline; getline; print $2}') && ssh -i ~/.ssh/id_ed25519 -t metta@metta1 'export WANDB_API_KEY=\"'\"$WANDB_KEY\"'\" SSH_USER=\"'\"$USER\"'\"; bash'"
+					"-c",
+					"WANDB_KEY=$(cat ~/.netrc | awk '/machine api.wandb.ai/{getline; getline; print $2}') && ssh -i ~/.ssh/id_ed25519 -t metta@metta2 'export WANDB_API_KEY=\"'\"$WANDB_KEY\"'\" SSH_USER=\"'\"$USER\"'\"; bash'"
 				],
 				"overrideName": true,
 				"name": "metta-2",
 			},
 			"metta-3": {
-				"path": "ssh",
+				"path": "bash",
 				"args": [
-					"-i",
-					"${env:HOME}/.ssh/id_ed25519",
-					"-t",
-					"metta@metta3",
-					"WANDB_KEY=$(cat ~/.netrc | awk '/machine api.wandb.ai/{getline; getline; print $2}') && ssh -i ~/.ssh/id_ed25519 -t metta@metta1 'export WANDB_API_KEY=\"'\"$WANDB_KEY\"'\" SSH_USER=\"'\"$USER\"'\"; bash'"
+					"-c",
+					"WANDB_KEY=$(cat ~/.netrc | awk '/machine api.wandb.ai/{getline; getline; print $2}') && ssh -i ~/.ssh/id_ed25519 -t metta@metta3 'export WANDB_API_KEY=\"'\"$WANDB_KEY\"'\" SSH_USER=\"'\"$USER\"'\"; bash'"
 				],
 				"overrideName": true,
 				"name": "metta-3",
 			},
 			"metta-4": {
-				"path": "ssh",
+				"path": "bash",
 				"args": [
-					"-i",
-					"${env:HOME}/.ssh/id_ed25519",
-					"-t",
-					"metta@metta4",
-					"WANDB_KEY=$(cat ~/.netrc | awk '/machine api.wandb.ai/{getline; getline; print $2}') && ssh -i ~/.ssh/id_ed25519 -t metta@metta1 'export WANDB_API_KEY=\"'\"$WANDB_KEY\"'\" SSH_USER=\"'\"$USER\"'\"; bash'"
+					"-c",
+					"WANDB_KEY=$(cat ~/.netrc | awk '/machine api.wandb.ai/{getline; getline; print $2}') && ssh -i ~/.ssh/id_ed25519 -t metta@metta4 'export WANDB_API_KEY=\"'\"$WANDB_KEY\"'\" SSH_USER=\"'\"$USER\"'\"; bash'"
 				],
 				"overrideName": true,
 				"name": "metta-4",
