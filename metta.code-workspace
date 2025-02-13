@@ -130,7 +130,7 @@
 				"path": "bash",
 				"args": [
 					"-c",
-					"WANDB_KEY=$(cat ~/.netrc | awk '/machine api.wandb.ai/{getline; getline; print $2}') && ssh -i ~/.ssh/id_ed25519 -t metta@metta1 'export WANDB_API_KEY=\"'\"$WANDB_KEY\"'\" SSH_USER=\"'\"$USER\"'\"; bash'"
+					"WANDB_KEY=$(cat ~/.netrc | awk '/machine api.wandb.ai/{getline; getline; print $2}') && ssh -i ~/.ssh/id_ed25519 -t metta@metta0 'export WANDB_API_KEY=\"'\"$WANDB_KEY\"'\" SSH_USER=\"'\"$USER\"'\"; bash'"
 				],
 				"overrideName": true,
 				"name": "metta-0",
