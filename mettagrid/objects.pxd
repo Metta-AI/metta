@@ -112,13 +112,13 @@ cdef cppclass Agent(MettaObject):
 
         if this.inventory[<InventoryItem>item] > this.max_items:
             this.inventory[<InventoryItem>item] = this.max_items
+        if this.inventory[<InventoryItem>item] < 0:
+            this.inventory[<InventoryItem>item] = 0
 
         if amount > 0:
             this.stats.add(InventoryItemNames[item], b"gained", amount)
-            this.stats.add(InventoryItemNames[item], b"gained", this.group_name, amount)
         else:
             this.stats.add(InventoryItemNames[item], b"lost", -amount)
-            this.stats.add(InventoryItemNames[item], b"lost", this.group_name, -amount)
 
     inline void obs(ObsType[:] obs):
         obs[0] = 1
