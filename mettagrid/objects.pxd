@@ -36,41 +36,45 @@ cdef cppclass Usable(MettaObject):
         this.ready = 1
 
     inline bint usable(const Agent *actor):
-        return this.ready and this.use_cost <= actor.energy
+        return this.ready
+
+    inline void use(Agent *actor, unsigned int actor_id, float *rewards):
+        pass
 
 cdef enum ObjectType:
     AgentT = 0
     WallT = 1
-    GeneratorT = 2
-    ConverterT = 3
+    MineT = 2
+    GeneratorT = 3
     AltarT = 4
-    Count = 5
+    ArmoryT = 5
+    LaseryT = 6
+    LabT = 7
+    FactoryT = 8
+    TempleT = 9
+    Count = 10
 
 cdef vector[string] ObjectTypeNames # defined in objects.pyx
 
 cdef enum InventoryItem:
-    r1 = 0,
-    r2 = 1,
-    r3 = 2,
-    InventoryCount = 3
+    ore = 0,
+    battery = 1,
+    heart = 2,
+    armor = 3,
+    laser = 4,
+    blueprint = 5,
+    InventoryCount = 6
 
 cdef vector[string] InventoryItemNames # defined in objects.pyx
-
 
 cdef cppclass Agent(MettaObject):
     unsigned char group
     unsigned char frozen
-    unsigned char attack_damage
     unsigned char freeze_duration
-    unsigned char energy
     unsigned char orientation
-    unsigned char shield
-    unsigned char shield_upkeep
     vector[unsigned char] inventory
     unsigned char max_items
-    unsigned char max_energy
-    float energy_reward
-    float resource_reward
+    vector[float] resource_rewards
     float freeze_reward
     string group_name
     unsigned char color
@@ -88,25 +92,23 @@ cdef cppclass Agent(MettaObject):
         this.group_name = group_name
         this.group = group_id
         this.frozen = 0
-        this.attack_damage = cfg[b"attack_damage"]
         this.freeze_duration = cfg[b"freeze_duration"]
-        this.max_energy = cfg[b"max_energy"]
-        this.energy = 0
-        this.update_energy(cfg[b"initial_energy"], NULL)
-        this.shield_upkeep = cfg[b"upkeep.shield"]
         this.orientation = 0
         this.inventory.resize(InventoryItem.InventoryCount)
         this.max_items = cfg[b"max_inventory"]
-        this.energy_reward = float(cfg[b"energy_reward"]) / 1000.0
-        this.resource_reward = float(cfg[b"resource_reward"]) / 1000.0
+        this.resource_rewards.resize(InventoryItem.InventoryCount)
+        this.resource_rewards[InventoryItem.ore] = 0
+        this.resource_rewards[InventoryItem.battery] = 0.01
+        this.resource_rewards[InventoryItem.heart] = 1
+        this.resource_rewards[InventoryItem.armor] = 0
+        this.resource_rewards[InventoryItem.laser] = 0
+        this.resource_rewards[InventoryItem.blueprint] = 0
         this.freeze_reward = float(cfg[b"freeze_reward"]) / 1000.0
-        this.shield = False
         this.color = 0
 
     inline void update_inventory(InventoryItem item, short amount, float *reward):
         this.inventory[<InventoryItem>item] += amount
-        if reward is not NULL and amount > 0:
-            reward[0] += amount * this.resource_reward
+        reward[0] += amount * this.resource_rewards[<InventoryItem>item]
 
         if this.inventory[<InventoryItem>item] > this.max_items:
             this.inventory[<InventoryItem>item] = this.max_items
@@ -118,32 +120,14 @@ cdef cppclass Agent(MettaObject):
             this.stats.add(InventoryItemNames[item], b"lost", -amount)
             this.stats.add(InventoryItemNames[item], b"lost", this.group_name, -amount)
 
-
-    inline short update_energy(short amount, float *reward):
-        if amount < 0:
-            amount = max(-this.energy, amount)
-        else:
-            amount = min(this.max_energy - this.energy, amount)
-
-        this.energy += amount
-        if reward is not NULL and amount > 0:
-            reward[0] += amount * this.energy_reward
-
-        this.stats.add(b"energy.gained", amount)
-        this.stats.add(b"energy.gained", this.group_name, amount)
-
-        return amount
-
     inline void obs(ObsType[:] obs):
         obs[0] = 1
         obs[1] = this.group
         obs[2] = this.hp
         obs[3] = this.frozen
-        obs[4] = this.energy
-        obs[5] = this.orientation
-        obs[6] = this.shield
-        obs[7] = this.color
-        cdef unsigned short idx = 8
+        obs[4] = this.orientation
+        obs[5] = this.color
+        cdef unsigned short idx = 6
 
         cdef unsigned short i
         for i in range(InventoryItem.InventoryCount):
@@ -156,9 +140,7 @@ cdef cppclass Agent(MettaObject):
             "agent:group",
             "agent:hp",
             "agent:frozen",
-            "agent:energy",
             "agent:orientation",
-            "agent:shield",
             "agent:color"
         ] + [
             "agent:inv:" + n for n in InventoryItemNames]
@@ -176,92 +158,79 @@ cdef cppclass Wall(MettaObject):
     inline vector[string] feature_names():
         return ["wall", "wall:hp"]
 
-cdef cppclass Generator(Usable):
-    unsigned int r1
+cdef cppclass Mine(Usable):
 
-    inline Generator(GridCoord r, GridCoord c, ObjectConfig cfg):
-        GridObject.init(ObjectType.GeneratorT, GridLocation(r, c, GridLayer.Object_Layer))
+    inline Mine(GridCoord r, GridCoord c, ObjectConfig cfg):
+        GridObject.init(ObjectType.MineT, GridLocation(r, c, GridLayer.Object_Layer))
         MettaObject.init_mo(cfg)
         Usable.init_usable(cfg)
-        this.r1 = cfg[b"initial_resources"]
 
     inline bint usable(const Agent *actor):
-        # Only prey (0) can use generators.
-        return Usable.usable(actor) and this.r1 > 0
-
-    inline void obs(ObsType[:] obs):
-        obs[0] = 1
-        obs[1] = this.hp
-        obs[2] = this.r1
-        obs[3] = this.ready and this.r1 > 0
-
-
-    @staticmethod
-    inline vector[string] feature_names():
-        return ["generator", "generator:hp", "generator:r1", "generator:ready"]
-
-cdef cppclass Converter(Usable):
-    short prey_r1_output_energy;
-    short predator_r1_output_energy;
-    short predator_r2_output_energy;
-
-    inline Converter(GridCoord r, GridCoord c, ObjectConfig cfg):
-        GridObject.init(ObjectType.ConverterT, GridLocation(r, c, GridLayer.Object_Layer))
-        MettaObject.init_mo(cfg)
-        Usable.init_usable(cfg)
-        this.prey_r1_output_energy = cfg[b"energy_output.r1.prey"]
-        this.predator_r1_output_energy = cfg[b"energy_output.r1.predator"]
-        this.predator_r2_output_energy = cfg[b"energy_output.r2.predator"]
-
-    inline bint usable(const Agent *actor):
-        return Usable.usable(actor) and (
-            actor.inventory[InventoryItem.r1] > 0 or
-            (actor.inventory[InventoryItem.r2] > 0 and
-            actor.group_name == b"predator")
-        )
+        return Usable.usable(actor)
 
     inline void use(Agent *actor, unsigned int actor_id, float *rewards):
-        cdef unsigned int energy_gain = 0
-        cdef InventoryItem consumed_resource = InventoryItem.r1
-        cdef InventoryItem produced_resource = InventoryItem.r2
-        cdef unsigned int potential_energy_gain = this.prey_r1_output_energy
-        if actor.group_name == b"predator":
-            if actor.inventory[InventoryItem.r2] > 0:
-                # eat meat if you can
-                consumed_resource = InventoryItem.r2
-                produced_resource = InventoryItem.r3
-                potential_energy_gain = this.predator_r2_output_energy
-            else:
-                potential_energy_gain = this.predator_r1_output_energy
-                produced_resource = InventoryItem.r3
+        actor.update_inventory(InventoryItem.ore, 1, rewards)
+        actor.stats.incr(InventoryItemNames[InventoryItem.ore], b"created")
 
-        actor.update_inventory(consumed_resource, -1, NULL)
-        actor.stats.incr(InventoryItemNames[consumed_resource], b"used")
-        actor.stats.incr(InventoryItemNames[consumed_resource], actor.group_name, b"used")
-
-        actor.update_inventory(produced_resource, 1, NULL)
-        actor.stats.incr(InventoryItemNames[produced_resource], b"gained")
-        actor.stats.incr(InventoryItemNames[produced_resource], actor.group_name, b"gained")
-
-        energy_gain = actor.update_energy(potential_energy_gain, rewards)
-        actor.stats.add(b"energy.gained", energy_gain)
-        actor.stats.add(b"energy.gained", actor.group_name, energy_gain)
-
-
-    inline obs(ObsType[:] obs):
+    inline void obs(ObsType[:] obs):
         obs[0] = 1
         obs[1] = this.hp
         obs[2] = this.ready
 
     @staticmethod
     inline vector[string] feature_names():
-        return ["converter", "converter:hp", "converter:ready"]
+        return ["mine", "mine:hp", "mine:ready"]
+
+
+cdef cppclass Generator(Usable):
+    inline Generator(GridCoord r, GridCoord c, ObjectConfig cfg):
+        GridObject.init(ObjectType.GeneratorT, GridLocation(r, c, GridLayer.Object_Layer))
+        MettaObject.init_mo(cfg)
+        Usable.init_usable(cfg)
+
+    inline bint usable(const Agent *actor):
+        return Usable.usable(actor) and actor.inventory[InventoryItem.ore] > 0
+
+    inline void use(Agent *actor, unsigned int actor_id, float *rewards):
+        actor.update_inventory(InventoryItem.ore, -1, rewards)
+        actor.update_inventory(InventoryItem.battery, 1, rewards)
+
+        actor.stats.incr(InventoryItemNames[InventoryItem.ore], b"used")
+        actor.stats.incr(
+            InventoryItemNames[InventoryItem.ore],
+            b"converted",
+            InventoryItemNames[InventoryItem.battery])
+
+        actor.stats.incr(InventoryItemNames[InventoryItem.battery], b"created")
+
+    inline void obs(ObsType[:] obs):
+        obs[0] = 1
+        obs[1] = this.hp
+        obs[2] = this.ready
+
+    @staticmethod
+    inline vector[string] feature_names():
+        return ["generator", "generator:hp", "generator:ready"]
 
 cdef cppclass Altar(Usable):
     inline Altar(GridCoord r, GridCoord c, ObjectConfig cfg):
         GridObject.init(ObjectType.AltarT, GridLocation(r, c, GridLayer.Object_Layer))
         MettaObject.init_mo(cfg)
         Usable.init_usable(cfg)
+
+    inline bint usable(const Agent *actor):
+        return Usable.usable(actor) and actor.inventory[InventoryItem.battery] > 2
+
+    inline void use(Agent *actor, unsigned int actor_id, float *rewards):
+        actor.update_inventory(InventoryItem.battery, -3, rewards)
+        actor.update_inventory(InventoryItem.heart, 1, rewards)
+
+        actor.stats.add(InventoryItemNames[InventoryItem.battery], b"used", 3)
+        actor.stats.incr(InventoryItemNames[InventoryItem.heart], b"created")
+        actor.stats.add(
+            InventoryItemNames[InventoryItem.battery],
+            b"converted",
+            InventoryItemNames[InventoryItem.heart], 3)
 
     inline void obs(ObsType[:] obs):
         obs[0] = 1
@@ -272,7 +241,162 @@ cdef cppclass Altar(Usable):
     inline vector[string] feature_names():
         return ["altar", "altar:hp", "altar:ready"]
 
-cdef map[TypeId, GridLayer] ObjectLayers
+cdef cppclass Armory(Usable):
+    inline Armory(GridCoord r, GridCoord c, ObjectConfig cfg):
+        GridObject.init(ObjectType.ArmoryT, GridLocation(r, c, GridLayer.Object_Layer))
+        MettaObject.init_mo(cfg)
+        Usable.init_usable(cfg)
+
+    inline bint usable(const Agent *actor):
+        return Usable.usable(actor) and actor.inventory[InventoryItem.ore] > 2
+
+    inline void use(Agent *actor, unsigned int actor_id, float *rewards):
+        actor.update_inventory(InventoryItem.ore, -3, rewards)
+        actor.update_inventory(InventoryItem.armor, 1, rewards)
+
+        actor.stats.add(InventoryItemNames[InventoryItem.ore], b"used", 3)
+        actor.stats.incr(InventoryItemNames[InventoryItem.armor], b"created")
+
+        actor.stats.add(
+            InventoryItemNames[InventoryItem.ore],
+            b"converted",
+            InventoryItemNames[InventoryItem.armor], 3)
+
+    inline void obs(ObsType[:] obs):
+        obs[0] = 1
+        obs[1] = this.hp
+        obs[2] = this.ready
+
+    @staticmethod
+    inline vector[string] feature_names():
+        return ["armory", "armory:hp", "armory:ready"]
+
+cdef cppclass Lasery(Usable):
+    inline Lasery(GridCoord r, GridCoord c, ObjectConfig cfg):
+        GridObject.init(ObjectType.LaseryT, GridLocation(r, c, GridLayer.Object_Layer))
+        MettaObject.init_mo(cfg)
+        Usable.init_usable(cfg)
+
+    inline bint usable(const Agent *actor):
+        return Usable.usable(actor) and actor.inventory[InventoryItem.ore] > 0 and actor.inventory[InventoryItem.battery] > 1
+
+    inline void use(Agent *actor, unsigned int actor_id, float *rewards):
+        actor.update_inventory(InventoryItem.ore, -1, rewards)
+        actor.update_inventory(InventoryItem.battery, -2, rewards)
+        actor.update_inventory(InventoryItem.laser, 1, rewards)
+
+        actor.stats.add(InventoryItemNames[InventoryItem.ore], b"used", 1)
+        actor.stats.add(InventoryItemNames[InventoryItem.battery], b"used", 2)
+        actor.stats.incr(InventoryItemNames[InventoryItem.laser], b"created")
+        actor.stats.add(
+            InventoryItemNames[InventoryItem.ore],
+            b"converted",
+            InventoryItemNames[InventoryItem.laser], 1)
+        actor.stats.add(
+            InventoryItemNames[InventoryItem.battery],
+            b"converted",
+            InventoryItemNames[InventoryItem.laser], 2)
+
+    inline void obs(ObsType[:] obs):
+        obs[0] = 1
+        obs[1] = this.hp
+        obs[2] = this.ready
+
+    @staticmethod
+    inline vector[string] feature_names():
+            return ["lasery", "lasery:hp", "lasery:ready"]
+
+cdef cppclass Lab(Usable):
+    inline Lab(GridCoord r, GridCoord c, ObjectConfig cfg):
+        GridObject.init(ObjectType.LabT, GridLocation(r, c, GridLayer.Object_Layer))
+        MettaObject.init_mo(cfg)
+        Usable.init_usable(cfg)
+
+    inline bint usable(const Agent *actor):
+        return Usable.usable(actor) and actor.inventory[InventoryItem.battery] > 2 and actor.inventory[InventoryItem.ore] > 2
+
+    inline void use(Agent *actor, unsigned int actor_id, float *rewards):
+        actor.update_inventory(InventoryItem.battery, -3, rewards)
+        actor.update_inventory(InventoryItem.ore, -3, rewards)
+        actor.update_inventory(InventoryItem.blueprint, 1, rewards)
+
+        actor.stats.add(InventoryItemNames[InventoryItem.battery], b"used", 3)
+        actor.stats.add(InventoryItemNames[InventoryItem.ore], b"used", 3)
+        actor.stats.incr(InventoryItemNames[InventoryItem.blueprint], b"created")
+
+        actor.stats.add(
+            InventoryItemNames[InventoryItem.battery],
+            b"converted",
+            InventoryItemNames[InventoryItem.blueprint], 3)
+        actor.stats.add(
+            InventoryItemNames[InventoryItem.ore],
+            b"converted",
+            InventoryItemNames[InventoryItem.blueprint], 3)
+
+    inline void obs(ObsType[:] obs):
+        obs[0] = 1
+        obs[1] = this.hp
+        obs[2] = this.ready
+
+    @staticmethod
+    inline vector[string] feature_names():
+        return ["lab", "lab:hp", "lab:ready"]
+
+cdef cppclass Factory(Usable):
+    inline Factory(GridCoord r, GridCoord c, ObjectConfig cfg):
+        GridObject.init(ObjectType.FactoryT, GridLocation(r, c, GridLayer.Object_Layer))
+        MettaObject.init_mo(cfg)
+        Usable.init_usable(cfg)
+
+    inline bint usable(const Agent *actor):
+        return Usable.usable(actor) and actor.inventory[InventoryItem.blueprint] > 0 and actor.inventory[InventoryItem.ore] > 4 and actor.inventory[InventoryItem.battery] > 4
+
+    inline void use(Agent *actor, unsigned int actor_id, float *rewards):
+        actor.update_inventory(InventoryItem.blueprint, -1, rewards)
+        actor.update_inventory(InventoryItem.ore, -5, rewards)
+        actor.update_inventory(InventoryItem.battery, -5, rewards)
+        actor.update_inventory(InventoryItem.armor, 5, rewards)
+        actor.update_inventory(InventoryItem.laser, 5, rewards)
+
+        actor.stats.add(InventoryItemNames[InventoryItem.blueprint], b"used", 1)
+        actor.stats.add(InventoryItemNames[InventoryItem.armor], b"created", 5)
+        actor.stats.add(InventoryItemNames[InventoryItem.laser], b"created", 5)
+
+    inline void obs(ObsType[:] obs):
+        obs[0] = 1
+        obs[1] = this.hp
+        obs[2] = this.ready
+
+    @staticmethod
+    inline vector[string] feature_names():
+        return ["factory", "factory:hp", "factory:ready"]
+
+cdef cppclass Temple(Usable):
+    inline Temple(GridCoord r, GridCoord c, ObjectConfig cfg):
+        GridObject.init(ObjectType.TempleT, GridLocation(r, c, GridLayer.Object_Layer))
+        MettaObject.init_mo(cfg)
+        Usable.init_usable(cfg)
+
+    inline bint usable(const Agent *actor):
+        return Usable.usable(actor) and actor.inventory[InventoryItem.heart] > 0 and actor.inventory[InventoryItem.blueprint] > 0
+
+    inline void use(Agent *actor, unsigned int actor_id, float *rewards):
+        actor.update_inventory(InventoryItem.heart, -1, rewards)
+        actor.update_inventory(InventoryItem.blueprint, -1, rewards)
+        actor.update_inventory(InventoryItem.heart, 5, rewards)
+
+        actor.stats.add(InventoryItemNames[InventoryItem.heart], b"used", 1)
+        actor.stats.add(InventoryItemNames[InventoryItem.blueprint], b"used", 1)
+        actor.stats.add(InventoryItemNames[InventoryItem.heart], b"created", 5)
+
+    inline void obs(ObsType[:] obs):
+        obs[0] = 1
+        obs[1] = this.hp
+        obs[2] = this.ready
+
+    @staticmethod
+    inline vector[string] feature_names():
+        return ["temple", "temple:hp", "temple:ready"]
 
 cdef class ResetHandler(EventHandler):
     cdef inline void handle_event(self, GridObjectId obj_id, EventArg arg):
@@ -285,3 +409,5 @@ cdef class ResetHandler(EventHandler):
 
 cdef enum Events:
     Reset = 0
+
+cdef map[TypeId, GridLayer] ObjectLayers

@@ -67,7 +67,6 @@ class AgentRenderer(ObjectRenderer):
         self.draw_energy_bar(obj, render_tile_size)
         # self.draw_hp_bar(obj, render_tile_size)
         self.draw_frozen_effect(obj, render_tile_size)
-        self.draw_shield_effect(obj, render_tile_size)
         self.draw_observation_area(obj, render_tile_size)
 
     def draw_energy_bar(self, obj, render_tile_size):
@@ -75,15 +74,9 @@ class AgentRenderer(ObjectRenderer):
         y = obj["r"] * render_tile_size - 8  # 8 pixels above the agent
         width = render_tile_size
         height = 3  # 3 pixels tall
-        max_energy = self.cfg(obj).max_energy
-
-        energy = min(max(obj["agent:energy"], 0), max_energy)
-        blue_width = int(width * energy / max_energy)
 
         # Draw red background
         rl.DrawRectangle(x, y, width, height, colors.RED)
-        # Draw blue foreground based on energy
-        rl.DrawRectangle(x, y, blue_width, height, colors.BLUE)
 
     def draw_hp_bar(self, obj, render_tile_size):
         x = obj["c"] * render_tile_size
@@ -115,15 +108,6 @@ class AgentRenderer(ObjectRenderer):
 
             # Draw the semi-transparent circle
             ray.draw_circle(x, y, radius, frozen_color)
-
-    def draw_shield_effect(self, obj, render_tile_size):
-        if obj.get("agent:shield", False):
-            x = obj["c"] * render_tile_size + render_tile_size // 2
-            y = obj["r"] * render_tile_size + render_tile_size // 2
-            radius = render_tile_size // 2 + 2  # Slightly larger than the agent
-
-            # Draw a blue circle
-            ray.draw_circle_lines(x, y, radius, ray.BLUE)
 
     def draw_observation_area(self, obj, render_tile_size):
         x = obj["c"] * render_tile_size

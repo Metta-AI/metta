@@ -1,28 +1,39 @@
 # distutils: language=c++
 
-from libc.stdio cimport printf
 from libcpp.string cimport string
 from libcpp.vector cimport vector
-from mettagrid.grid_object cimport GridObject, GridObjectId
 
 cdef vector[string] ObjectTypeNames = <vector[string]>[
     "agent",
     "wall",
+    "mine",
     "generator",
-    "converter",
-    "altar"
+    "altar",
+    "armory",
+    "lasery",
+    "lab",
+    "factory",
+    "temple"
 ]
 
 cdef vector[string] InventoryItemNames = <vector[string]>[
-    "r1",
-    "r2",
-    "r3"
+    "ore",
+    "battery",
+    "heart",
+    "armor",
+    "laser",
+    "blueprint"
 ]
 
 ObjectLayers = {
     ObjectType.AgentT: GridLayer.Agent_Layer,
     ObjectType.WallT: GridLayer.Object_Layer,
+    ObjectType.MineT: GridLayer.Object_Layer,
     ObjectType.GeneratorT: GridLayer.Object_Layer,
-    ObjectType.ConverterT: GridLayer.Object_Layer,
     ObjectType.AltarT: GridLayer.Object_Layer,
+    ObjectType.ArmoryT: GridLayer.Object_Layer,
+    ObjectType.LaseryT: GridLayer.Object_Layer,
+    ObjectType.LabT: GridLayer.Object_Layer,
+    ObjectType.FactoryT: GridLayer.Object_Layer,
+    ObjectType.TempleT: GridLayer.Object_Layer,
 }
