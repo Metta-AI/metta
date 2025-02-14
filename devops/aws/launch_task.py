@@ -53,11 +53,6 @@ def container_config(args, task_args, job_name):
     if not wandb_key:
         raise ValueError('WANDB_API_KEY not found in .netrc file')
 
-    # Get the hugging face key from the cache file
-    hugging_face_key_file = os.path.expanduser("~/.cache/huggingface/token")
-    with open(hugging_face_key_file, 'r') as file:
-        hugging_face_key = file.read().strip()
-
     setup_cmds = [
         'git pull',
         'pip install -r requirements.txt',
@@ -104,16 +99,20 @@ def container_config(args, task_args, job_name):
                 'value': 'true'
             },
             {
-                'name': 'TRANSFORMERS_TOKEN',
-                'value': hugging_face_key
-            },
-            {
                 'name': 'COLOR_LOGGING',
                 'value': 'false'
             },
             {
                 'name': 'WANDB_HOST',
                 'value': job_name
+            },
+            {
+                'name': 'METTA_HOST',
+                'value': job_name
+            },
+            {
+                'name': 'METTA_USER',
+                'value': os.environ.get('USER', 'unknown')
             }
         ],
         'vcpus': machine_profiles[args.instance_type]['vcpus'],
