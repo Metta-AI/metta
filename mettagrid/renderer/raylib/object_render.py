@@ -64,19 +64,8 @@ class AgentRenderer(ObjectRenderer):
 
     def render(self, obj, render_tile_size):
         super().render(obj, render_tile_size)
-        self.draw_energy_bar(obj, render_tile_size)
-        # self.draw_hp_bar(obj, render_tile_size)
         self.draw_frozen_effect(obj, render_tile_size)
         self.draw_observation_area(obj, render_tile_size)
-
-    def draw_energy_bar(self, obj, render_tile_size):
-        x = obj["c"] * render_tile_size
-        y = obj["r"] * render_tile_size - 8  # 8 pixels above the agent
-        width = render_tile_size
-        height = 3  # 3 pixels tall
-
-        # Draw red background
-        rl.DrawRectangle(x, y, width, height, colors.RED)
 
     def draw_hp_bar(self, obj, render_tile_size):
         x = obj["c"] * render_tile_size
@@ -145,9 +134,9 @@ class GeneratorRenderer(ObjectRenderer):
 
     def _sprite_sheet_idx(self, obj):
         if obj["generator:ready"]:
-            return (12, 0)
+            return (1, 2)
         else:
-            return (13, 0)
+            return (0, 2)
 
 
 class AltarRenderer(ObjectRenderer):
@@ -167,9 +156,9 @@ class ArmoryRenderer(ObjectRenderer):
 
     def _sprite_sheet_idx(self, obj):
         if obj["armory:ready"]:
-            return (11, 2)
+            return (6, 3)
         else:
-            return (12, 2)
+            return (1, 3)
 
 class LaseryRenderer(ObjectRenderer):
     def __init__(self):
@@ -177,9 +166,9 @@ class LaseryRenderer(ObjectRenderer):
 
     def _sprite_sheet_idx(self, obj):
         if obj["lasery:ready"]:
-            return (12, 0)
+            return (6, 5)
         else:
-            return (13, 0)
+            return (2, 5)
 
 class LabRenderer(ObjectRenderer):
     def __init__(self):
@@ -187,9 +176,9 @@ class LabRenderer(ObjectRenderer):
 
     def _sprite_sheet_idx(self, obj):
         if obj["lab:ready"]:
-            return (12, 0)
+            return (5, 1)
         else:
-            return (13, 0)
+            return (4, 1)
 
 class FactoryRenderer(ObjectRenderer):
     def __init__(self):
@@ -207,7 +196,7 @@ class TempleRenderer(ObjectRenderer):
 
     def _sprite_sheet_idx(self, obj):
         if obj["temple:ready"]:
-            return (11, 2)
+            return (6, 2)
         else:
-            return (12, 2)
+            return (7, 2)
 
