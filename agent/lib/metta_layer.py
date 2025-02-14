@@ -27,40 +27,57 @@ class LayerBase(nn.Module):
     performed (due to some other run up the DAG) and return. After this check,
     it should check if its input source is not None and recursively call the
     forward method of the layer above it.'''
-    def __init__(self, metta_agent, **cfg):
-        cfg = OmegaConf.create(cfg)
+    def __init__(self, name, input_source=None, output_size=None, **cfg):
         super().__init__()
-        object.__setattr__(self, 'metta_agent', metta_agent)
         self.cfg = cfg
-        self.name = cfg.name
-        self.input_source = cfg.get('input_source', None)
-        self.output_size = cfg.get('output_size', None)
+        self.name = name
+        self.input_source = input_source
+        self.output_size = output_size
+        self.layer = None
+        self._ready = False
 
-    def setup_layer(self):
-        if self.input_source is None:
-            if self.output_size is None:
-                raise ValueError(f"Neither input source nor output size is set for layer {self.name}")
+    @property
+    def ready(self):
+        return self._ready
+
+    def setup(self, input_source_component=None):
+        if self._ready:
+            return
+
+        if input_source_component is None:
+            self.input_source_component = None
+            self.input_size = None
+            if self.output_size is None: # output size must be set for a top level component
+                raise ValueError(f"Either input source or output size must be set for layer {self.name}")
         else:
-            self.metta_agent.components[self.input_source].setup_layer()
-            self.input_size = self.metta_agent.components[self.input_source].output_size
+            self.input_source_component = input_source_component
+            self.input_size = self.input_source_component.output_size
 
         if self.output_size is None:
             self.output_size = self.input_size
 
-        self._initialize_layer()
+        self._initialize()
+        self._ready = True
 
-    def _initialize_layer(self):
+    def _initialize(self, **cfg):
+        self.layer = self._make_layer(**self.cfg)
+
+    def _make_layer(self):
         pass
 
     def forward(self, td: TensorDict):
         if self.name in td:
             return td[self.name]
 
-        if self.input_source is not None:
-            self.metta_agent.components[self.input_source].forward(td)
+        if self.input_source_component is not None:
+            self.input_source_component.forward(td)
 
+        self._forward(td)
+
+        return td
+    
+    def _forward(self, td: TensorDict):
         td[self.name] = self.layer(td[self.input_source])
-
         return td
         
     def clip_weights(self):
@@ -74,23 +91,29 @@ class LayerBase(nn.Module):
     def effective_rank(self, delta: float = 0.01) -> dict:
         pass
     
-class ParameterizedLayer(LayerBase):
+class ParamLayer(LayerBase):
     '''This provides a few useful methods for layers that have parameters (weights).
     Superclasses should have input_size, output_size, and layer already set.'''
-    def __init__(self, metta_agent, **cfg): 
-        cfg = OmegaConf.create(cfg)
-        self.clip_scale = self.cfg.get('clip_scale', 1)
-        self.effective_rank_bool = self.cfg.get('effective_rank', None)
-        self.l2_norm_scale = self.cfg.get('l2_norm_scale', None)
-        self.l2_init_scale = self.cfg.get('l2_init_scale', None)
-        self.nonlinearity = self.cfg.get('nonlinearity', 'nn.ReLU')
-        self.initialization = self.cfg.get('initialization', 'Orthogonal')
-        self.global_clip_range = metta_agent.clip_range
-        super().__init__(metta_agent, **cfg)
+    def __init__(self, agent_attributes, clip_scale=1, effective_rank=None, l2_norm_scale=None, l2_init_scale=None, nonlinearity='nn.ReLU', initialization='Orthogonal', **cfg): 
+        # self.clip_scale = self.cfg.get('clip_scale', 1)
+        # self.effective_rank_bool = self.cfg.get('effective_rank', None)
+        # self.l2_norm_scale = self.cfg.get('l2_norm_scale', None)
+        # self.l2_init_scale = self.cfg.get('l2_init_scale', None)
+        # self.nonlinearity = self.cfg.get('nonlinearity', 'nn.ReLU')
+        # self.initialization = self.cfg.get('initialization', 'Orthogonal')
+        self.clip_scale = clip_scale
+        self.effective_rank_bool = effective_rank
+        self.l2_norm_scale = l2_norm_scale
+        self.l2_init_scale = l2_init_scale
+        self.nonlinearity = nonlinearity
+        self.initialization = initialization
+        self.global_clip_range = agent_attributes.clip_range
+        super().__init__(**cfg)
 
-    def _parameter_layer_helper(self):
-        self.weight_layer = self.layer
-        self.largest_weight = self._initialize_weights()
+    def _initialize(self):
+        self.weight_layer = self._make_layer(**self.cfg)
+
+        self._initialize_weights()
 
         if self.clip_scale is not None and self.clip_scale > 0:
             self.clip_value = self.global_clip_range * self.largest_weight * self.clip_scale
@@ -98,7 +121,7 @@ class ParameterizedLayer(LayerBase):
             self.clip_value = None
 
         if self.l2_init_scale != 0:
-            self.initial_weights = self.layer.weight.data.clone()
+            self.initial_weights = self.weight_layer.weight.data.clone()
         else:
             self.initial_weights = None
 
@@ -107,10 +130,12 @@ class ParameterizedLayer(LayerBase):
             try:
                 module_name, class_name = self.nonlinearity.split('.')
                 nonlinearity_class = getattr(globals()[module_name], class_name)
-                self.layer = nn.Sequential(self.layer, nonlinearity_class())
+                self.layer = nn.Sequential(self.weight_layer, nonlinearity_class())
                 self.weight_layer = self.layer[0]
             except (AttributeError, KeyError, ValueError) as e:
                 raise ValueError(f"Unsupported nonlinearity: {self.nonlinearity}") from e
+        else:
+            self.layer = self.weight_layer
 
     def _initialize_weights(self):
         fan_in = self.input_size
@@ -139,7 +164,7 @@ class ParameterizedLayer(LayerBase):
         if hasattr(self.weight_layer, "bias") and isinstance(self.weight_layer.bias, torch.nn.parameter.Parameter):
             self.weight_layer.bias.data.fill_(0)
 
-        return largest_weight
+        self.largest_weight = largest_weight
 
     def clip_weights(self):
         if self.clip_value is not None:
@@ -167,7 +192,7 @@ class ParameterizedLayer(LayerBase):
         if self.initial_weights is not None:
             self.initial_weights = (self.initial_weights * alpha + self.weight_layer.weight.data * (1 - alpha)).clone()
     
-    def effective_rank(self, delta: float = 0.01) -> dict:
+    def compute_effective_rank(self, delta: float = 0.01) -> dict:
         '''Computes the effective rank of a matrix based on the given delta value.
         Effective rank formula:
         srank_\delta(\Phi) = min{k: sum_{i=1}^k σ_i / sum_{j=1}^d σ_j ≥ 1 - δ}

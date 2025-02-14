@@ -12,8 +12,12 @@ class MergeLayerBase(LayerBase):
         self.sources_list = list(cfg.sources)
         self.default_dim = -1
         self.name = cfg.name
+        self.ready = False
 
-    def setup_layer(self):
+    def setup(self):
+        if self.ready:
+            return
+
         sizes = []
         dims = []
         for _, src_cfg in enumerate(self.sources_list):       
@@ -36,6 +40,7 @@ class MergeLayerBase(LayerBase):
             dims.append(src_cfg.get("dim", self.default_dim))
 
         self._setup_merge_layer(sizes, dims)
+        self.ready = True
         
     def _setup_merge_layer(self, sizes, dims):
         raise NotImplementedError("Subclasses should implement this method.")

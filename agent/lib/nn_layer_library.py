@@ -1,222 +1,192 @@
 import torch.nn as nn
 
-from .metta_layer import ParameterizedLayer, LayerBase
-from .LSTM import MettaLSTM
+from .metta_layer import ParamLayer, LayerBase
 
-class LSTM(MettaLSTM):
-    def __init__(self, metta_agent, **cfg):
-        super().__init__(metta_agent, **cfg)
+class Linear(ParamLayer):
+    def __init__(self, agent_attributes, **cfg):
+        super().__init__(agent_attributes, **cfg)
 
-    def _initialize_layer(self):
-        self.layer = nn.LSTM(
-            self.input_size,    
-            self.output_size,
-            **self.cfg.get('nn_params', {})
-        )
-        # TODO: understand how ParameterizedLayer can work with LSTM
-        # self._parameter_layer_helper()
-        # self._initialize_weights()
-        for name, param in self.layer.named_parameters():
-            if "bias" in name:
-                nn.init.constant_(param, 1) # Joseph originally had this as 0 
-            elif "weight" in name:
-                nn.init.orthogonal_(param, 1.0) # torch's default is uniform
-
-class Linear(ParameterizedLayer):
-    def __init__(self, metta_agent, **cfg):
-        self.cfg = cfg
-        super().__init__(metta_agent, **cfg)
-
-    def _initialize_layer(self):
-        self.layer = nn.Linear(
+    def _make_layer(self, nn_params={}, **cfg):
+        return nn.Linear(
             self.input_size,
             self.output_size,
-            **self.cfg.get('nn_params', {})
+            **nn_params
         )
-        self._parameter_layer_helper()
-        self._initialize_weights()
 
-class Conv1d(ParameterizedLayer):
-    def __init__(self, metta_agent, **cfg):
+class Conv1d(ParamLayer):
+    def __init__(self, agent_attributes, **cfg):
         self.cfg = cfg
-        super().__init__(metta_agent, **cfg)
+        super().__init__(agent_attributes, **cfg)
 
-    def _initialize_layer(self):
-        self.layer = nn.Conv1d(
+    def _make_layer(self, nn_params={}, **cfg):
+        return nn.Conv1d(
             self.input_size,
             self.output_size,
-            **self.cfg.get('nn_params', {})
+            **nn_params
         )
-        self._parameter_layer_helper()
-        self._initialize_weights()
 
-class Conv2d(ParameterizedLayer):
-    def __init__(self, metta_agent, **cfg):
-        self.cfg = cfg
-        super().__init__(metta_agent, **cfg)
+class Conv2d(ParamLayer):
+    def __init__(self, agent_attributes, **cfg):
+        super().__init__(agent_attributes, **cfg)
 
-    def _initialize_layer(self):
-        self.layer = nn.Conv2d(
+    def _make_layer(self, nn_params={}, **cfg):
+        return nn.Conv2d(
             self.input_size,
             self.output_size,
-            **self.cfg.get('nn_params', {})
+            **nn_params
         )
-        self._parameter_layer_helper()
-        self._initialize_weights()
 
 class MaxPool1d(LayerBase):
-    def __init__(self, metta_agent, **cfg):
+    def __init__(self, agent_attributes, **cfg):
         self.cfg = cfg
-        super().__init__(metta_agent, **cfg)
+        super().__init__(**cfg)
 
-    def _initialize_layer(self):
-        self.layer = nn.MaxPool1d(
+    def _make_layer(self, nn_params={}, **cfg):
+        return nn.MaxPool1d(
             self.input_size,
-            **self.cfg.get('nn_params', {})
+            **nn_params
         )
 
 class MaxPool2d(LayerBase):
-    def __init__(self, metta_agent, **cfg):
+    def __init__(self, agent_attributes, **cfg):
         self.cfg = cfg
-        super().__init__(metta_agent, **cfg)
+        super().__init__(**cfg)
 
-    def _initialize_layer(self):
-        self.layer = nn.MaxPool2d(
+    def _make_layer(self, nn_params={}, **cfg):
+        return nn.MaxPool2d(
             self.input_size,
-            **self.cfg.get('nn_params', {})
+            **nn_params
         )
 
 class AdaptiveAvgPool1d(LayerBase):
-    def __init__(self, metta_agent, **cfg):
+    def __init__(self, agent_attributes, **cfg):
         self.cfg = cfg
-        super().__init__(metta_agent, **cfg)
+        super().__init__(**cfg)
 
-    def _initialize_layer(self):
-        self.layer = nn.AdaptiveAvgPool1d(
+    def _make_layer(self, nn_params={}, **cfg):
+        return nn.AdaptiveAvgPool1d(
             self.input_size,
-            **self.cfg.get('nn_params', {})
+            **nn_params
         )
 
 class AdaptiveAvgPool2d(LayerBase):
-    def __init__(self, metta_agent, **cfg):
+    def __init__(self, agent_attributes, **cfg):
         self.cfg = cfg
-        super().__init__(metta_agent, **cfg)
+        super().__init__(**cfg)
 
-    def _initialize_layer(self):
-        self.layer = nn.AdaptiveAvgPool2d(
+    def _make_layer(self, nn_params={}, **cfg):
+        return nn.AdaptiveAvgPool2d(
             self.input_size,
-            **self.cfg.get('nn_params', {})
+            **nn_params
         )
 
 class AdaptiveMaxPool1d(LayerBase):
-    def __init__(self, metta_agent, **cfg):
+    def __init__(self, agent_attributes, **cfg):
         self.cfg = cfg
-        super().__init__(metta_agent, **cfg)
+        super().__init__(**cfg)
 
-    def _initialize_layer(self):
-        self.layer = nn.AdaptiveMaxPool1d(
+    def _make_layer(self, nn_params={}, **cfg):
+        return nn.AdaptiveMaxPool1d(
             self.input_size,
-            **self.cfg.get('nn_params', {})
+            **nn_params
         )
 
 class AdaptiveMaxPool2d(LayerBase):
-    def __init__(self, metta_agent, **cfg):
+    def __init__(self, agent_attributes, **cfg):
         self.cfg = cfg
-        super().__init__(metta_agent, **cfg)
+        super().__init__(**cfg)
 
-    def _initialize_layer(self):
-        self.layer = nn.AdaptiveMaxPool2d(
+    def _make_layer(self, nn_params={}, **cfg):
+        return nn.AdaptiveMaxPool2d(
             self.input_size,
-            **self.cfg.get('nn_params', {})
+            **nn_params
         )
         
 class AvgPool1d(LayerBase):
-    def __init__(self, metta_agent, **cfg):
+    def __init__(self, agent_attributes, **cfg):
         self.cfg = cfg
-        super().__init__(metta_agent, **cfg)
+        super().__init__(**cfg)
 
-    def _initialize_layer(self):
-        self.layer = nn.AvgPool1d(
+    def _make_layer(self, nn_params={}, **cfg):
+        return nn.AvgPool1d(
             self.input_size,
-            **self.cfg.get('nn_params', {})
+            **nn_params
         )
 
 class AvgPool2d(LayerBase):
-    def __init__(self, metta_agent, **cfg):
+    def __init__(self, agent_attributes, **cfg):
         self.cfg = cfg
-        super().__init__(metta_agent, **cfg)
+        super().__init__(**cfg)
 
-    def _initialize_layer(self):
-        self.layer = nn.AvgPool2d(
+    def _make_layer(self, nn_params={}, **cfg):
+        return nn.AvgPool2d(
             self.input_size,
-            **self.cfg.get('nn_params', {})
+            **nn_params
         )
 
 class Dropout(LayerBase):
-    def __init__(self, metta_agent, **cfg):
+    def __init__(self, agent_attributes, **cfg):
         self.cfg = cfg
-        super().__init__(metta_agent, **cfg)
+        super().__init__(**cfg)
         
-    def _initialize_layer(self):
-        self.layer = nn.Dropout(
-            **self.cfg.get('nn_params', {'p': 0.5})
+    def _make_layer(self, nn_params={'p': 0.5}, **cfg):
+        return nn.Dropout(
+            **nn_params
         )
     
 class Dropout2d(LayerBase):
-    def __init__(self, metta_agent, **cfg):
+    def __init__(self, agent_attributes, **cfg):
         self.cfg = cfg
-        super().__init__(metta_agent, **cfg)
+        super().__init__(**cfg)
         
-    def _initialize_layer(self):
-        self.layer = nn.Dropout2d(
-            **self.cfg.get('nn_params', {'p': 0.5})
+    def _make_layer(self, nn_params={'p': 0.5}, **cfg):
+        return nn.Dropout2d(
+            **nn_params
         )
     
 class AlphaDropout(LayerBase):
-    def __init__(self, metta_agent, **cfg):
+    def __init__(self, agent_attributes, **cfg):
         self.cfg = cfg
-        super().__init__(metta_agent, **cfg)
+        super().__init__(**cfg)
         
-    def _initialize_layer(self):
-        self.layer = nn.AlphaDropout(
-            **self.cfg.get('nn_params', {'p': 0.5})
+    def _make_layer(self, nn_params={'p': 0.5}, **cfg):
+        return nn.AlphaDropout(
+            **nn_params
         )
 
 class BatchNorm1d(LayerBase):
-    def __init__(self, metta_agent, **cfg):
+    def __init__(self, agent_attributes, **cfg):
         self.cfg = cfg
-        super().__init__(metta_agent, **cfg)
+        super().__init__(**cfg)
         
-    def _initialize_layer(self):
-        self.layer = nn.BatchNorm1d(
+    def _make_layer(self, nn_params={}, **cfg):
+        return nn.BatchNorm1d(
             self.input_size,
-            **self.cfg.get('nn_params', {})
+            **nn_params
         )
 
 class BatchNorm2d(LayerBase):
-    def __init__(self, metta_agent, **cfg):
+    def __init__(self, agent_attributes, **cfg):
         self.cfg = cfg
-        super().__init__(metta_agent, **cfg)
+        super().__init__(**cfg)
         
-    def _initialize_layer(self):
-            self.layer = nn.BatchNorm2d(
+    def _make_layer(self, nn_params={}, **cfg):
+        return nn.BatchNorm2d(
             self.input_size,
-            **self.cfg.get('nn_params', {})
+            **nn_params
         )
 
 class Flatten(LayerBase):
-    def __init__(self, metta_agent, **cfg):
-        self.cfg = cfg
-        super().__init__(metta_agent, **cfg)
+    def __init__(self, agent_attributes, **cfg):
+        super().__init__(**cfg)
         
-    def _initialize_layer(self):
-        self.layer = nn.Flatten()
+    def _make_layer(self): # does this need **cfg?
+        return nn.Flatten()
 
 class Identity(LayerBase):
-    def __init__(self, metta_agent, **cfg):
-        self.cfg = cfg
-        super().__init__(metta_agent, **cfg)
+    def __init__(self, agent_attributes, **cfg):
+        super().__init__(**cfg)
         
-    def _initialize_layer(self):
-        self.layer = nn.Identity()
+    def _make_layer(self): # does this need **cfg?
+        return nn.Identity()
         

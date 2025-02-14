@@ -58,7 +58,7 @@ components:
     output_size: 128
 
   _core_:
-    _target_: agent.lib.nn_layer_library.LSTM
+    _target_: agent.lib.lstm.LSTM
     input_source: encoded_obs
     output_size: 128
     nn_params:

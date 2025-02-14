@@ -1,28 +1,37 @@
 from tensordict import TensorDict
 import omegaconf
+import torch.nn as nn
 
 from agent.lib.metta_layer import LayerBase
 
-class MettaLSTM(LayerBase):
-    def __init__(self, metta_agent, **cfg):
+class LSTM(LayerBase):
+    def __init__(self, agent_attributes, **cfg):
         '''Taken from models.py.
         Wraps your policy with an LSTM without letting you shoot yourself in the
         foot with bad transpose and shape operations. This saves much pain.'''
 
-        super().__init__(metta_agent, **cfg)
-        self.cfg = omegaconf.OmegaConf.create(cfg)
-        object.__setattr__(self, 'metta_agent', metta_agent)
-        self.obs_shape = self.metta_agent.obs_shape
-        self.hidden_size = self.metta_agent.hidden_size
+        super().__init__(**cfg)
+        self.obs_shape = agent_attributes.obs_shape
+        self.hidden_size = self.output_size
 
+# what about num layers??
 
-    def forward(self, td: TensorDict):
-        if self.name in td:
-            return td[self.name]
+    def _make_layer(self, nn_params={}, **cfg):
+        layer = nn.LSTM(
+            self.input_size,
+            self.hidden_size,
+            **nn_params
+        )
+    
+        for name, param in layer.named_parameters():
+            if "bias" in name:
+                nn.init.constant_(param, 1) # Joseph originally had this as 0 
+            elif "weight" in name:
+                nn.init.orthogonal_(param, 1.0) # torch's default is uniform
 
-        if self.input_source is not None:
-            self.metta_agent.components[self.input_source].forward(td)
+        return layer
 
+    def _forward(self, td: TensorDict):
         x = td['x']
         hidden = td[self.input_source]
         state = td["state"]

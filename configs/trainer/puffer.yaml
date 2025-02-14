@@ -17,8 +17,8 @@ learning_rate: 0.0006
 max_grad_norm: 0.5
 vf_clip_coef: 0.1
 vf_coef: 0.5
-l2_reg_loss_coef: 0.0002
-l2_init_loss_coef: 0.00002
+l2_reg_loss_coef: 0
+l2_init_loss_coef: 0
 
 norm_adv: true
 clip_vloss: true

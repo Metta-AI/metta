@@ -106,7 +106,7 @@ class PufferTrainer:
             if self.trainer_cfg.evaluate_interval != 0 and self.epoch % self.trainer_cfg.evaluate_interval == 0:
                 self._evaluate_policy()
             if self.cfg.agent.effective_rank_interval != 0 and self.epoch % self.cfg.agent.effective_rank_interval == 0:
-                self._effective_rank()
+                self._compute_effective_rank()
             if self.epoch % self.trainer_cfg.wandb_checkpoint_interval == 0:
                 self._save_policy_to_wandb()
             if self.cfg.agent.l2_init_weight_update_interval != 0 and self.epoch % self.cfg.agent.l2_init_weight_update_interval == 0:
@@ -148,7 +148,7 @@ class PufferTrainer:
 
         logger.info(f"Glicko2 scores: \n{formatted_results}")
 
-    def _effective_rank(self):
+    def _compute_effective_rank(self):
         effective_rank = self.policy.effective_rank()
         for rank in effective_rank:
             self.wandb_run.log({

@@ -36,27 +36,17 @@ OBS_NORMALIZATIONS = {
 }
 
 class ObservationNormalizer(LayerBase):
-    def __init__(self, metta_agent, **cfg):
-        super().__init__(metta_agent, **cfg)
-        cfg = omegaconf.OmegaConf.create(cfg)
-        object.__setattr__(self, 'metta_agent', metta_agent)
+    def __init__(self, agent_attributes, **cfg):
+        super().__init__(**cfg)
 
-        num_objects = len(self.metta_agent.grid_features)
-        grid_features = self.metta_agent.grid_features
+        num_objects = len(agent_attributes.grid_features)
+        grid_features = agent_attributes.grid_features
 
         obs_norm = torch.tensor([OBS_NORMALIZATIONS[k] for k in grid_features], dtype=torch.float32)
         obs_norm = obs_norm.view(1, num_objects, 1, 1)
 
         self.register_buffer('obs_norm', obs_norm)
 
-    def forward(self, td: TensorDict):
-        if self.name in td:
-            return td[self.name]
-
-        if self.input_source is not None:
-            self.metta_agent.components[self.input_source].forward(td)
-
-
+    def _forward(self, td: TensorDict):
         td[self.name] = td[self.input_source] / self.obs_norm
-
         return td

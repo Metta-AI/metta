@@ -4,7 +4,10 @@ import torch
 from tensordict import TensorDict
 import omegaconf
 
-class FeatureListNormalizer(nn.Module):
+from agent.lib.metta_layer import LayerBase
+
+# this is not currently working
+class FeatureListNormalizer(LayerBase):
     def __init__(self, metta_agent, **cfg):
         super().__init__()
         cfg = omegaconf.OmegaConf.create(cfg)
@@ -23,13 +26,6 @@ class FeatureListNormalizer(nn.Module):
             },
         })
         self._normalizers = [self._norms_dict[k] for k in self._feature_names]
-
-    def setup_layer(self):
-        self.metta_agent_components[self.input_source].setup_layer()
-        self.input_size = self.metta_agent_components[self.input_source].output_size
-
-        if self.output_size is None:
-            self.output_size = self.input_size
 
     def forward(self, td: TensorDict):
         if self.name in td:

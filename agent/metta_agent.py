@@ -30,10 +30,6 @@ def make_policy(env: PufferEnv, cfg: OmegaConf):
         global_features=env.global_features,
         _recursive_=False)
     
-    # delete the below?
-    # agent._action_names = env.action_names()
-    # agent._grid_features = env._grid_env.grid_features()
-    
     agent.to(cfg.device)
     return agent
 
@@ -45,19 +41,29 @@ class MettaAgent(nn.Module):
         obs_space: ObsSpace,
         action_space: ActionSpace,
         grid_features: List[str],
-        global_features: List[str],
         **cfg
     ):
         super().__init__()
         cfg = OmegaConf.create(cfg)
         self.cfg = cfg
-        self.obs_shape = obs_shape
-        self.clip_range = cfg.clip_range
-        self.action_space = action_space
-        self.grid_features = grid_features
-        self.obs_key = cfg.observations.obs_key
-        self.obs_input_shape = obs_space[self.obs_key].shape[1:]
-        self.num_objects = obs_space[self.obs_key].shape[0]
+        # self.obs_shape = obs_shape
+        # self.clip_range = cfg.clip_range
+        # self.action_space = action_space
+        # self.grid_features = grid_features
+        # self.obs_key = cfg.observations.obs_key
+        # self.obs_input_shape = obs_space[self.obs_key].shape[1:]
+        # self.num_objects = obs_space[self.obs_key].shape[0]
+
+        self.agent_attributes = {
+            'obs_shape': obs_shape,
+            'clip_range': cfg.clip_range,
+            'action_space': action_space,
+            'grid_features': grid_features,
+            'obs_key': cfg.observations.obs_key,
+            'obs_input_shape': obs_space[cfg.observations.obs_key].shape[1:],
+            'num_objects': obs_space[cfg.observations.obs_key].shape[0]
+        }
+        
         self.hidden_size = cfg.components._core_.output_size # trainer/Experience uses this for e3b
         # self.observation_space = obs_space # for use with FeatureSetEncoder
         # self.global_features = global_features # for use with FeatureSetEncoder
@@ -66,12 +72,27 @@ class MettaAgent(nn.Module):
         component_cfgs = OmegaConf.to_container(cfg.components, resolve=True)
         for component_cfg in component_cfgs.keys():
             component_cfgs[component_cfg]['name'] = component_cfg
-            component = hydra.utils.instantiate(component_cfgs[component_cfg], metta_agent=self)
+            component = hydra.utils.instantiate(component_cfgs[component_cfg], agent_attributes = self.agent_attributes)
             self.components[component_cfg] = component
 
-        self.components['_action_param_'].setup_layer()
-        self.components['_value_'].setup_layer()
+        component = self.components['_value_']
+        self._setup_components(component)
+        component = self.components['_action_param_']
+        self._setup_components(component)
+
+        for name, component in self.components.items():
+            if not getattr(component, 'ready', False):
+                raise RuntimeError(f"Component {name} in MettaAgent was never setup. It might not be accessible by other components.")
+            
         print("Agent setup complete.")
+
+    def _setup_components(self, component):
+        if component.input_source is not None:
+            self._setup_components(self.components[component.input_source])
+        if component.input_source is not None:
+            component.setup(self.components[component.input_source]) 
+        else:
+            component.setup()
 
     @property
     def lstm(self):
@@ -130,11 +151,11 @@ class MettaAgent(nn.Module):
 
     def clip_weights(self):
         '''Weight clipping is on by default although setting clip_range or clip_scale to 0, or a large positive value effectively turns it off. Adjust it by setting clip_scale in your layer config to a multiple of the global loss value or 0 to turn it off.'''
-        if self.clip_range > 0:
+        if self.agent_attributes['clip_range'] > 0:
             for component in self.components.values():
                 component.clip_weights()
 
-    def effective_rank(self, delta: float = 0.01) -> List[dict]:
+    def compute_effective_rank(self, delta: float = 0.01) -> List[dict]:
         '''Effective rank computation is off by default. Set effective_rank to True in the config to turn it on for a given layer.'''
         effective_ranks = []
         for component in self.components.values():
