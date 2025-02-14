@@ -49,31 +49,34 @@ cdef class Attack(MettaActionHandler):
         cdef Agent * agent_target = <Agent *>self.env._grid.object_at(target_loc)
 
         cdef unsigned short shield_damage = 0
+        cdef bint was_frozen = False
         if agent_target:
             actor.stats.incr(self._stats.target[agent_target._type_id])
             actor.stats.incr(self._stats.target[agent_target._type_id], actor.group_name)
             actor.stats.incr(self._stats.target[agent_target._type_id], actor.group_name, agent_target.group_name)
+            was_frozen = agent_target.frozen > 0
 
             if agent_target.shield:
                 shield_damage = -agent_target.update_energy(-actor.attack_damage, NULL)
                 actor.stats.add(b"shield_damage", shield_damage)
+
             if shield_damage < actor.attack_damage:
                 agent_target.shield = False
                 agent_target.frozen = agent_target.freeze_duration
-                agent_target.update_energy(-agent_target.energy, NULL)
 
-                actor.stats.incr(b"attack.win", actor.group_name)
-                actor.stats.incr(b"attack.win", actor.group_name, agent_target.group_name)
-                actor.stats.incr(b"attack.loss", agent_target.group_name)
-                actor.stats.incr(b"attack.loss", agent_target.group_name, actor.group_name)
+                if not was_frozen:
+                    agent_target.update_energy(-agent_target.energy, NULL)
+                    actor.stats.incr(b"attack.win", actor.group_name)
+                    actor.stats.incr(b"attack.win", actor.group_name, agent_target.group_name)
+                    actor.stats.incr(b"attack.loss", agent_target.group_name)
+                    actor.stats.incr(b"attack.loss", agent_target.group_name, actor.group_name)
+                    self.env._rewards[actor.agent_id] += agent_target.freeze_reward
+                    self.env._rewards[agent_target.agent_id] -= agent_target.freeze_reward
 
-                self.env._rewards[actor.agent_id] += agent_target.freeze_reward
-                self.env._rewards[agent_target.agent_id] -= agent_target.freeze_reward
-
-                for item in range(InventoryItem.InventoryCount):
-                    actor.update_inventory(item, agent_target.inventory[item], &self.env._rewards[actor.agent_id])
-                    agent_target.update_inventory(item, -agent_target.inventory[item], &self.env._rewards[agent_target.agent_id])
-                    actor.stats.add(InventoryItemNames[item], b"stolen", actor.group_name, agent_target.inventory[item])
+                    for item in range(InventoryItem.InventoryCount):
+                        actor.update_inventory(item, agent_target.inventory[item], &self.env._rewards[actor.agent_id])
+                        agent_target.update_inventory(item, -agent_target.inventory[item], &self.env._rewards[agent_target.agent_id])
+                        actor.stats.add(InventoryItemNames[item], b"stolen", actor.group_name, agent_target.inventory[item])
 
             return True
 
