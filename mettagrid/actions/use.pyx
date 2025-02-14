@@ -48,9 +48,6 @@ cdef class Use(MettaActionHandler):
         actor.stats.incr(self._stats.target[target._type_id], actor.group_name)
         actor.stats.set_once(self._stats.target_first_use[target._type_id], self.env._current_timestep)
 
-        actor.stats.add(self._stats.target_energy[target._type_id], usable.use_cost + self.action_cost)
-        actor.stats.add(self._stats.target_energy[target._type_id], actor.group_name, usable.use_cost + self.action_cost)
-
         usable.use(actor, actor_id, &self.env._rewards[actor_id])
 
         return True
