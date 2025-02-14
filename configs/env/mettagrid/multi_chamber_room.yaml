@@ -1,0 +1,78 @@
+defaults:
+  - mettagrid
+
+game:
+  num_agents: 4        # One agent (placed in the top chamber)
+  max_steps: 250
+
+
+  map_builder:
+    _target_: mettagrid.config.room.room_list.RoomList
+    rooms:
+      - _target_: mettagrid.config.room.multi_chamber_room.MultiChamberRoom
+        width: ${uniform:25,35,30}
+        height: ${uniform:25,35,30}
+        border_width: 1
+        border_object: "wall"
+        multi_chamber_params:
+          barrier_rows:
+            - ${uniform:7,9,8}
+            - ${uniform:15,17,16}
+            - ${uniform:23,25,24}
+          gap_width: ${uniform:3,6,4}
+          chambers:
+            top: "agent.agent"
+            second: "generator"
+            third: "converter"
+            bottom: "altar"
+      - _target_: mettagrid.config.room.multi_chamber_room.MultiChamberRoom
+        width: ${uniform:25,35,30}
+        height: ${uniform:25,35,30}
+        border_width: 1
+        border_object: "wall"
+        multi_chamber_params:
+          barrier_rows:
+            - ${uniform:7,9,8}
+            - ${uniform:15,17,16}
+            - ${uniform:23,25,24}
+          gap_width: ${uniform:3,6,4}
+          chambers:
+            top: "agent.agent"
+            second: "generator"
+            third: "converter"
+            bottom: "altar"
+      - _target_: mettagrid.config.room.multi_chamber_room.MultiChamberRoom
+        width: ${uniform:25,35,30}
+        height: ${uniform:25,35,30}
+        border_width: 1
+        border_object: "wall"
+        multi_chamber_params:
+          barrier_rows:
+            - ${uniform:7,9,8}
+            - ${uniform:15,17,16}
+            - ${uniform:23,25,24}
+          gap_width: ${uniform:3,6,4}
+          chambers:
+            top: "agent.agent"
+            second: "generator"
+            third: "converter"
+            bottom: "altar"
+      - _target_: mettagrid.config.room.multi_chamber_room.MultiChamberRoom
+        width: ${uniform:25,35,30}
+        height: ${uniform:25,35,30}
+        border_width: 1
+        border_object: "wall"
+        multi_chamber_params:
+          barrier_rows:
+            - ${uniform:7,9,8}
+            - ${uniform:15,17,16}
+            - ${uniform:23,25,24}
+          gap_width: ${uniform:3,6,4}
+          chambers:
+            top: "agent.agent"
+            second: "generator"
+            third: "converter"
+            bottom: "altar"
+    layout: "grid"
+    border_width: 1
+    border_object: "wall"

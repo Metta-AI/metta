@@ -70,7 +70,7 @@ class CarbsSweepRollout:
         train_cfg.wandb.group = self.cfg.run
 
         eval_cfg = OmegaConf.create(OmegaConf.to_container(self.cfg))
-        eval_cfg.eval.update(self.cfg.sweep.evaluator)
+        eval_cfg.eval.update(self.cfg.sweep.eval)
 
         self._apply_carbs_suggestion(train_cfg, self.suggestion)
 
