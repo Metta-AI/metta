@@ -15,8 +15,13 @@ from mettagrid.mettagrid_env import MettaGridEnv
 from mettagrid.renderer.raylib.object_render import (
     AgentRenderer,
     AltarRenderer,
-    ConverterRenderer,
+    ArmoryRenderer,
+    FactoryRenderer,
     GeneratorRenderer,
+    LaseryRenderer,
+    LabRenderer,
+    MineRenderer,
+    TempleRenderer,
     WallRenderer,
 )
 from mettagrid.renderer.raylib.font_renderer import FontRenderer
@@ -53,9 +58,14 @@ class MettaGridRaylibRenderer:
         self.sprite_renderers = [
             AgentRenderer(cfg),
             WallRenderer(),
+            MineRenderer(),
             GeneratorRenderer(),
-            ConverterRenderer(),
             AltarRenderer(),
+            ArmoryRenderer(),
+            LaseryRenderer(),
+            LabRenderer(),
+            FactoryRenderer(),
+            TempleRenderer(),
         ]
         rl.SetTargetFPS(10)
         self.colors = colors

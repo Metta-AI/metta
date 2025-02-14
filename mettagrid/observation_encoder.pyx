@@ -21,6 +21,7 @@ cdef class MettaObservationEncoder(ObservationEncoder):
 
         self._type_feature_names[ObjectType.AgentT] = Agent.feature_names()
         self._type_feature_names[ObjectType.WallT] = Wall.feature_names()
+        self._type_feature_names[ObjectType.MineT] = Mine.feature_names()
         self._type_feature_names[ObjectType.GeneratorT] = Generator.feature_names()
         self._type_feature_names[ObjectType.AltarT] = Altar.feature_names()
         self._type_feature_names[ObjectType.ArmoryT] = Armory.feature_names()
