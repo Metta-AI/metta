@@ -273,8 +273,6 @@ class MettaGridRaylibRenderer:
 
             if agent["agent:frozen"]:
                 continue
-            if agent["agent:energy"] < self.cfg.actions.attack.cost:
-                continue
             if action[0] == self.action_ids["attack_nearest"]:
                 # draw a cone from the agent in the direction it's facing.
                 # make it 3 grid squares long and 3 grid squares wide.
