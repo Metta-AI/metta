@@ -11,7 +11,7 @@ defaults:
 
 policy_uri: wandb://run/b.daveey.sm.train.er.new.0
 npc_policy_uri: null
-eval_db_uri: wandb://artifacts/daphne_eval
+eval_db_uri: file://artifacts/daphne_eval_testing
 
 env:
   game:
@@ -23,7 +23,6 @@ trainer:
 eval:
   policy_uri: ${..policy_uri}
   npc_policy_uri: ${..npc_policy_uri}
-  #eval_db_uri: wandb://artifacts/daphne_eval
   eval_db_uri: ${..eval_db_uri}
 
 analyzer:
