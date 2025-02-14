@@ -14,11 +14,6 @@ cdef class Use(MettaActionHandler):
     def __init__(self, cfg: OmegaConf):
         MettaActionHandler.__init__(self, cfg, "use")
 
-        self._stats.first_use = b"action.use.first_use"
-
-        for t, n in enumerate(ObjectTypeNames):
-            self._stats.target_first_use[t] = self._stats.first_use + "." + n
-
     cdef unsigned char max_arg(self):
         return 0
 

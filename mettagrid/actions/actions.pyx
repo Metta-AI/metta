@@ -16,10 +16,12 @@ cdef class MettaActionHandler(ActionHandler):
 
         self._stats.action = "action." + action_name
         self._stats.action_energy = "action." + action_name + ".energy"
-
+        self._stats.first_use = "action." + action_name + ".first_use"
+        
         for t, n in enumerate(ObjectTypeNames):
             self._stats.target[t] = self._stats.action + "." + n
             self._stats.target_energy[t] = self._stats.action_energy + "." + n
+            self._stats.target_first_use[t] = self._stats.first_use + "." + n
 
         self.action_cost = cfg.cost
 
@@ -67,6 +69,7 @@ cdef class MettaActionHandler(ActionHandler):
 
         if result:
             self.env._stats.agent_incr(actor_id, self._stats.action.c_str())
+            self.env._stats.agent_set_once(actor_id, self._stats.first_use.c_str(), self.env._current_timestep)
 
         return result
 
