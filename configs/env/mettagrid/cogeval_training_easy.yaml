@@ -3,7 +3,7 @@ defaults:
 
 sampling: 1
 game:
-  num_agents: 6    # Updated for 9 room types with 2 rooms each
+  num_agents: 8    # Updated for 9 room types with 2 rooms each
 
   map_builder:
     _target_: mettagrid.config.room.room_scene.RoomScene
@@ -12,7 +12,8 @@ game:
     layout: [
       [ "cylinder", "cylinder"],
       [ "room_within_room", "room_within_room"],
-      [  "radial", "radial"],
+      [  "radial", "radial"], 
+      ["explore_exploit", "explore_exploit"]
     ]
     # List of room configurations
     rooms:
@@ -21,7 +22,7 @@ game:
         width: ${uniform:15,20,21}
         height: ${uniform:15,20,21}
         cylinder_params:
-          length: ${uniform:3,10,5}
+          length: ${uniform:1,4,5}
           horizontal: ${choose:true,false}
           both_ends: ${choose:true,false}
       radial:
@@ -37,7 +38,7 @@ game:
         width: ${uniform:20,28, 21}
         height: ${uniform:10,18,21}
         explore_exploit_params:
-          obstruction_gap_prob: ${uniform:0.1,0.3,0.2}
+          obstruction_gap_prob: ${uniform:0.3,0.6,0.2}
           sparse_min_distance: ${uniform:6,10,8}
       labyrinth:
         _target_: mettagrid.config.room.labyrinth.LabyrinthMaze
@@ -80,16 +81,9 @@ game:
         - ${sub:${..height},2}
         branching: ${uniform:0.1,0.8,0.7}
 
+# COMMENT OUT IF PLAYING ON PREVIOUSLY TRAINED POLICIES
+
   actions:
-    noop:
-      enabled: true
-      cost: 0
-    move:
-      enabled: true
-      cost: 0
-    rotate:
-      enabled: true
-      cost: 0
     jump:
       enabled: false
       cost: 3
@@ -98,9 +92,6 @@ game:
       cost: 1
     transfer:
       enabled: false
-      cost: 0
-    use:
-      enabled: true
       cost: 0
     attack:
       enabled: false
