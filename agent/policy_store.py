@@ -21,10 +21,6 @@ from typing import List
 import random
 from wandb.sdk import wandb_run
 from torch import nn
-from torch.serialization import add_safe_globals
-
-# Add numpy scalar to safe globals for weights_only loading
-add_safe_globals(['numpy.core.multiarray.scalar'])
 
 logger = logging.getLogger("policy_store")
 
@@ -252,7 +248,7 @@ class PolicyStore:
             pr = torch.load(
                 path,
                 map_location=self._device,
-                weights_only=True,
+                weights_only=False,
             )
             pr._policy_store = self
             pr._local_path = path
