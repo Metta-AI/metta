@@ -18,8 +18,6 @@ cdef class MettaActionHandler(ActionHandler):
         for t, n in enumerate(ObjectTypeNames):
             self._stats.target[t] = self._stats.action + "." + n
 
-        self.action_cost = cfg.cost
-
     cdef bint handle_action(
         self,
         unsigned int actor_id,
