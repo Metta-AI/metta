@@ -19,7 +19,7 @@ class Replay():
 
     @staticmethod
     def load(filename):
-        data = torch.load(filename)
+        data = torch.load(filename, weights_only=False)
         r = Replay(filename)
         r.data = data
         return r
