@@ -9,7 +9,6 @@ from mettagrid.grid_object cimport GridObject, GridObjectId
 from mettagrid.event cimport EventManager, EventHandler
 from mettagrid.grid cimport Grid
 from libcpp.vector cimport vector
-from mettagrid.stats_tracker cimport StatsTracker
 import gymnasium as gym
 
 obs_np_type = np.uint8
@@ -64,7 +63,6 @@ cdef class GridEnv:
                     self._flat_actions.push_back(Action(i, arg))
 
         self._event_manager = EventManager(self, event_handlers)
-        self._stats = StatsTracker(max_agents)
 
         self._track_last_action = track_last_action
 
@@ -81,6 +79,7 @@ cdef class GridEnv:
             np.zeros(max_agents, dtype=np.int8),
             np.zeros(max_agents, dtype=np.float32)
         )
+
 
         self._action_success = vector[bint](max_agents)
 
@@ -274,8 +273,10 @@ cdef class GridEnv:
     cpdef get_episode_rewards(self):
         return self._episode_rewards_np
 
-    cpdef get_episode_stats(self):
-        return self._stats.to_pydict()
+    cpdef dict get_episode_stats(self):
+        return {
+            "game": self._stats.stats(),
+        }
 
     cpdef tuple get_buffers(self):
         return (self._observations_np, self._terminals_np, self._truncations_np, self._rewards_np)
