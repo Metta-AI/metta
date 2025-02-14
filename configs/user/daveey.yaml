@@ -3,7 +3,7 @@
 seed: null
 
 defaults:
-  - override /env/mettagrid@env: teams
+  - override /env/mettagrid@env: simple
   - override /agent: simple.medium
   - override /sweep: fast
 
@@ -18,7 +18,8 @@ baseline_uri: wandb://run/mb.daveey.sm.nr
 env:
   # sampling: 0.7
   game:
-    # num_agents: 6
+    num_agents: 6
+    group_reward_pct: 0.9
     max_steps: 200
 
     map_builder:
@@ -48,6 +49,6 @@ sweep:
   metric: action.use
 
 cmd: ???
-run_id: 8
+run_id: 9
 run: ${oc.env:USER}.local.${cmd}.${run_id}
 trained_policy_uri: ./train_dir/${oc.env:USER}.local.train.${run_id}/checkpoints
