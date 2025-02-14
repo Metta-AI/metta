@@ -28,7 +28,6 @@ game:
   objects:
     altar:
       cooldown: 250
-      use_cost: 250
 
   actions:
     move:

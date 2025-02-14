@@ -26,12 +26,10 @@ cdef cppclass MettaObject(GridObject):
         return False
 
 cdef cppclass Usable(MettaObject):
-    unsigned int use_cost
     unsigned int cooldown
     unsigned char ready
 
     inline void init_usable(ObjectConfig cfg):
-        this.use_cost = cfg[b"use_cost"]
         this.cooldown = cfg[b"cooldown"]
         this.ready = 1
 

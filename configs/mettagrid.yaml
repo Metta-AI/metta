@@ -30,7 +30,6 @@ game:
     freeze_reward: 1
     hp: 10
     mortal: False
-    use_cost: 0
 
   groups:
     agent:
@@ -76,42 +75,34 @@ game:
     altar:
       hp: 30
       cooldown: ${uniform:1, 10, 2}
-      use_cost: ${uniform:20, 100, 100}
 
     mine:
       hp: 30
       cooldown: ${uniform:0, 100, 20}
-      use_cost: 0
 
     generator:
       hp: 30
       cooldown: ${uniform:0, 100, 20}
-      use_cost: 0
 
     armory:
       hp: 30
       cooldown: ${uniform:0, 100, 20}
-      use_cost: 0
 
     lasery:
       hp: 30
       cooldown: ${uniform:0, 100, 20}
-      use_cost: 0
 
     lab:
       hp: 30
       cooldown: ${uniform:0, 100, 20}
-      use_cost: 0
 
     factory:
       hp: 30
       cooldown: ${uniform:0, 100, 20}
-      use_cost: 0
 
     temple:
       hp: 30
       cooldown: ${uniform:0, 100, 20}
-      use_cost: 0
 
     wall:
       hp: ${uniform:1, 20, 10}
