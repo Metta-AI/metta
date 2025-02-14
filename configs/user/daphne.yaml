@@ -12,12 +12,12 @@ defaults:
 analyzer:
   analysis:
     metrics:
-    - metric: "action.use.altar.*"
+    - metric: "action.use.altar.agent"
 
 #policy_uri: ${trained_policy_uri}
 policy_uri: wandb://run/mb.daveey.sm.nr
-#eval_db_uri: wandb://artifacts/daphne_eval
-eval_db_uri: file://daphne/daphne_eval_stats
+eval_db_uri: wandb://artifacts/daphne_eval_testing
+#eval_db_uri: file://daphne/daphne_eval_stats
 
 npc_policy_uri: null
 
@@ -39,8 +39,7 @@ eval:
 
   policy_uri: ${..policy_uri}
   npc_policy_uri: ${..npc_policy_uri}
-  #eval_db_uri: wandb://artifacts/daphne_eval
-  eval_db_uri: ${..eval_db_uri}
+  eval_db_uri: ${..eval_db_uri} #file://daphne/sweep_stats
 
 wandb:
   enabled: true
@@ -49,7 +48,7 @@ wandb:
 evaluate_interval: 1
 
 sweep:
-  metric: agent.action.use.*
+  metric: "action.use.altar.agent"
 
 cmd: ???
 run_id: 12

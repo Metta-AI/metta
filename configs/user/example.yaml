@@ -9,10 +9,6 @@ defaults:
   - override /eval: example
   - override /analyzer: analyzer
 
-
-# policy: wandb://run/b.daveey.train.maze.sm.dr.warm.0
-# baselines: wandb://run/b.daveey.train.maze.sm.11x11.0
-
 policy_uri: wandb://run/b.daveey.sm.train.er.new.0
 npc_policy_uri: null
 eval_db_uri: wandb://artifacts/daphne_eval
@@ -30,14 +26,18 @@ eval:
   #eval_db_uri: wandb://artifacts/daphne_eval
   eval_db_uri: ${..eval_db_uri}
 
+analyzer:
+  analysis:
+    metrics:
+    - metric: "action.use.altar.agent"
+
+sweep:
+  metric: "action.use.altar.agent"
+
 wandb:
   enabled: true
   track: true
   checkpoint_interval: 1
-
-sweep:
-  metric: agent.action.use.*
-
 
 cmd: ???
 run: ${oc.env:USER}.local.${cmd}.2

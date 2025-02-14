@@ -102,26 +102,24 @@ class EvalStatsDbWandb(EvalStatsDB):
         self.api = wandb.Api()
         self.artifact_identifier = os.path.join(wandb_run.entity, wandb_run.project, artifact_name)
 
-        artifact_versions = self.api.artifacts(
-            type_name=artifact_name,
-            name=self.artifact_identifier
-        )
+        cache_dir = os.path.join(wandb.env.get_cache_dir(), "artifacts", self.artifact_identifier)
+        if os.path.exists(cache_dir):
+            artifact_dirs = [os.path.join(cache_dir, a) for a in os.listdir(cache_dir) if os.path.isdir(os.path.join(cache_dir, a))]
+            logger.info(f"Found {len(artifact_dirs)} cached artifacts in {cache_dir}")
+        else:
+            artifact_versions = self.api.artifacts(type_name=artifact_name,name=self.artifact_identifier)
+            artifact_dirs = [a.download(root=os.path.join(cache_dir, f"v{v}")) for v, a in enumerate(artifact_versions)]
+            logger.info(f"Downloaded {len(artifact_dirs)} artifacts from wandb to {cache_dir}")
         all_records = []
-        for artifact in artifact_versions:
-            artifact_dir = artifact.download()
+        for artifact_dir in artifact_dirs:
             json_files = [f for f in os.listdir(artifact_dir) if f.endswith('.json')]
             if len(json_files) != 1:
                 raise FileNotFoundError(f"Expected exactly one JSON file in {artifact_dir}, found {len(json_files)}")
             json_path = os.path.join(artifact_dir, json_files[0])
-            try:
-                with open(json_path, "r") as f:
-                    data = json.load(f)
-                data = self._prepare_data(data)
-                version_info = artifact.id
-                for record in data:
-                    record["artifact_version"] = version_info
-                all_records.extend(data)
-            except Exception as e:
-                logger.info(f"Warning: Failed to load version {artifact.id}: {e}")
+            with open(json_path, "r") as f:
+                data = json.load(f)
+            data = self._prepare_data(data)
+            all_records.extend(data)
+
         df = pd.DataFrame(all_records)
         super().__init__(df)
