@@ -3,14 +3,14 @@
 seed: null
 
 defaults:
-  - override /env/mettagrid@env: barriermaze
+  - override /env/mettagrid@env: cogeval_training
   - override /agent: simple
   - override /sweep: fast
 # policy: wandb://run/b.daveey.train.maze.sm.dr.warm.0
 # baselines: wandb://run/b.daveey.train.maze.sm.11x11.0
 
-policy_uri: wandb://run/v.daveey.species.sm.0
-baseline_uri: wandb://run/v.daveey.species.sm.0
+policy_uri: ${trained_policy_uri}
+baseline_uri: wandb://run/mb.daveey.sm.nr
 
 env:
   sampling: 1
@@ -36,4 +36,6 @@ sweep:
   metric: action.use
 
 cmd: ???
-run: ${oc.env:USER}.local.${cmd}.2
+run_id: 8
+run: ${oc.env:USER}.local.${cmd}.${run_id}
+trained_policy_uri: ./train_dir/${oc.env:USER}.local.train.${run_id}/checkpoints

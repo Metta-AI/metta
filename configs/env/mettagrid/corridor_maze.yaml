@@ -1,0 +1,46 @@
+defaults:
+  - mettagrid
+
+game:
+  num_agents: 4
+  max_steps: 1000
+
+  map_builder:
+    _target_: mettagrid.config.room.multi_room.RoomList
+    rooms:
+      - _target_: mettagrid.config.room.corridor_maze.CorridorMaze
+        width: ${uniform:18,24,21}
+        height: ${uniform:18,24,21}
+        corridor_width: ${uniform:2,3,2}
+        arm_length: ${uniform:8,8,5}
+        num_generators: ${uniform:1,3,2}
+        num_convertors: ${uniform:2,4,3}
+        num_heart_altars: ${uniform:2,4,3}
+        rotate: ${choose:true,false}
+      - _target_: mettagrid.config.room.corridor_maze.CorridorMaze
+        width: ${uniform:18,24,21}
+        height: ${uniform:18,24,21}
+        corridor_width: ${uniform:2,3,2}
+        arm_length: ${uniform:8,8,5}
+        num_generators: ${uniform:1,3,2}
+        num_convertors: ${uniform:2,4,3}
+        num_heart_altars: ${uniform:2,4,3}
+        rotate: ${choose:true,false}
+      - _target_: mettagrid.config.room.corridor_maze.CorridorMaze
+        width: ${uniform:18,24,21}
+        height: ${uniform:18,24,21}
+        corridor_width: ${uniform:2,3,2}
+        arm_length: ${uniform:8,8,5}
+        num_generators: ${uniform:1,3,2}
+        num_convertors: ${uniform:2,4,3}
+        num_heart_altars: ${uniform:2,4,3}
+        rotate: ${choose:true,false}
+      - _target_: mettagrid.config.room.corridor_maze.CorridorMaze
+        width: ${uniform:18,24,21}
+        height: ${uniform:18,24,21}
+        corridor_width: ${uniform:2,3,2}
+        arm_length: ${uniform:8,8,5}
+        num_generators: ${uniform:1,3,2}
+        num_convertors: ${uniform:2,4,3}
+        num_heart_altars: ${uniform:2,4,3}
+        rotate: ${choose:true,false}

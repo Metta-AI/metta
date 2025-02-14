@@ -31,6 +31,3 @@ game:
         width: ${uniform:20,25,21}
         height: ${uniform:20,25,21}
         corridor_width: ${uniform:1,4,3}
-    layout: "grid"
-    border_width: 1
-    border_object: "wall"

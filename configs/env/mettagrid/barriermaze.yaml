@@ -21,39 +21,31 @@ game:
       - _target_: mettagrid.config.room.barriermaze.BarrierMaze
         width: ${uniform:15,25,21}
         height: ${uniform:15,25,21}
-        barrier_width: 1
+        barrier_width: ${uniform:1,3,2}
         num_barriers: ${uniform:3,5,3}
-        border_width: 1
-        border_object: "wall"
         barrier_placement_mode: ${choose:"same","alternating","doorways"}
         barrier_orientation: ${choose:"vertical","horizontal"}
 
       - _target_: mettagrid.config.room.barriermaze.BarrierMaze
         width: ${uniform:15,25,21}
         height: ${uniform:15,25,21}
-        barrier_width: 1
+        barrier_width: ${uniform:1,3,2}
         num_barriers: ${uniform:3,5,3}
-        border_width: 1
-        border_object: "wall"
         barrier_placement_mode: ${choose:"same","alternating","doorways"}
         barrier_orientation: ${choose:"vertical","horizontal"}
 
       - _target_: mettagrid.config.room.barriermaze.BarrierMaze
         width: ${uniform:15,25,21}
         height: ${uniform:15,25,21}
-        barrier_width: 1
+        barrier_width: ${uniform:1,3,2}
         num_barriers: ${uniform:3,5,3}
-        border_width: 1
-        border_object: "wall"
         barrier_placement_mode: ${choose:"same","alternating","doorways"}
         barrier_orientation: ${choose:"vertical","horizontal"}
 
       - _target_: mettagrid.config.room.barriermaze.BarrierMaze
         width: ${uniform:15,25,21}
         height: ${uniform:15,25,21}
-        barrier_width: 1
+        barrier_width: ${uniform:1,3,2}
         num_barriers: ${uniform:3,5,3}
-        border_width: 1
-        border_object: "wall"
         barrier_placement_mode: ${choose:"same","alternating","doorways"}
         barrier_orientation: ${choose:"vertical","horizontal"}
