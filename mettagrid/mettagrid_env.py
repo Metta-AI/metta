@@ -50,7 +50,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             self.rewards)
 
         # obs, infos = self._env.reset(**kwargs)
-        # self._compute_max_energy()
         # return obs, infos
         obs, infos = self._c_env.reset()
         self.should_reset = False
@@ -93,9 +92,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                 infos["agent"][n] = infos["agent"].get(n, 0) + v
         for n, v in infos["agent"].items():
             infos["agent"][n] = v / self._num_agents
-
-    def _compute_max_energy(self):
-        pass
 
     @property
     def _max_steps(self):

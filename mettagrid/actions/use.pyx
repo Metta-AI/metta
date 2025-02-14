@@ -4,9 +4,9 @@ from libc.stdio cimport printf
 from omegaconf import OmegaConf
 
 from mettagrid.grid_object cimport GridLocation, GridObjectId, Orientation, GridObject
-from mettagrid.action cimport ActionHandler, ActionArg
+from mettagrid.action cimport ActionArg
 from mettagrid.objects cimport MettaObject, ObjectType, Usable, Altar, Agent, Events, GridLayer
-from mettagrid.objects cimport Generator, Converter, InventoryItem, ObjectTypeNames, InventoryItemNames
+from mettagrid.objects cimport Generator, InventoryItem, ObjectTypeNames, InventoryItemNames
 from mettagrid.actions.actions cimport MettaActionHandler
 
 cdef class Use(MettaActionHandler):
@@ -40,7 +40,6 @@ cdef class Use(MettaActionHandler):
             return False
 
         cdef Usable *usable = <Usable*> target
-        actor.update_energy(-usable.use_cost, &self.env._rewards[actor_id])
 
         usable.ready = 0
         self.env._event_manager.schedule_event(Events.Reset, usable.cooldown, usable.id, 0)
@@ -52,20 +51,6 @@ cdef class Use(MettaActionHandler):
         actor.stats.add(self._stats.target_energy[target._type_id], usable.use_cost + self.action_cost)
         actor.stats.add(self._stats.target_energy[target._type_id], actor.group_name, usable.use_cost + self.action_cost)
 
-
-        if target._type_id == ObjectType.AltarT:
-            self.env._rewards[actor_id] += 1
-
-        cdef Generator *generator
-        if target._type_id == ObjectType.GeneratorT:
-            generator = <Generator*>target
-            generator.r1 -= 1
-            actor.update_inventory(InventoryItem.r1, 1, &self.env._rewards[actor_id])
-            self.env._stats.incr(b"r1.harvested")
-
-        cdef Converter *converter
-        if target._type_id == ObjectType.ConverterT:
-            converter = <Converter*>target
-            converter.use(actor, actor_id, &self.env._rewards[actor_id])
+        usable.use(actor, actor_id, &self.env._rewards[actor_id])
 
         return True
