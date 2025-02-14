@@ -103,7 +103,7 @@ game:
       enabled: true
       cost: 0
     attack:
-      enabled: true
+      enabled: false
       cost: ${uniform:1, 100, 10}
     gift:
       enabled: false
