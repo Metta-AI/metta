@@ -45,14 +45,6 @@ class MettaAgent(nn.Module):
     ):
         super().__init__()
         cfg = OmegaConf.create(cfg)
-        self.cfg = cfg
-        # self.obs_shape = obs_shape
-        # self.clip_range = cfg.clip_range
-        # self.action_space = action_space
-        # self.grid_features = grid_features
-        # self.obs_key = cfg.observations.obs_key
-        # self.obs_input_shape = obs_space[self.obs_key].shape[1:]
-        # self.num_objects = obs_space[self.obs_key].shape[0]
 
         self.agent_attributes = {
             'obs_shape': obs_shape,

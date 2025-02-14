@@ -68,7 +68,7 @@ class LayerBase(nn.Module):
 
     def forward(self, td: TensorDict):
         if self.name in td:
-            return td[self.name]
+            return td
 
         if self.input_source_component is not None:
             self.input_source_component.forward(td)
@@ -123,8 +123,10 @@ class ParamLayer(LayerBase):
         if self.nonlinearity is not None:
             # expecting a string of the form 'nn.Tanh'
             try:
-                module_name, class_name = self.nonlinearity.split('.')
-                nonlinearity_class = getattr(globals()[module_name], class_name)
+                _, class_name = self.nonlinearity.split('.')
+                if class_name not in dir(nn):
+                    raise ValueError(f"Unsupported nonlinearity: {self.nonlinearity}")
+                nonlinearity_class = getattr(nn, class_name)
                 self.layer = nn.Sequential(self.weight_layer, nonlinearity_class())
                 self.weight_layer = self.layer[0]
             except (AttributeError, KeyError, ValueError) as e:

@@ -149,7 +149,7 @@ class PufferTrainer:
         logger.info(f"Glicko2 scores: \n{formatted_results}")
 
     def _compute_effective_rank(self):
-        effective_rank = self.policy.effective_rank()
+        effective_rank = self.policy.compute_effective_rank()
         for rank in effective_rank:
             self.wandb_run.log({
                 f"train/effective_rank/{rank['name']}": rank['effective_rank'],
