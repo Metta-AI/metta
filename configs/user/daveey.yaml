@@ -23,6 +23,8 @@ env:
 
     map_builder:
       border_width: 6
+      room:
+        border_width: 2
 
 trainer:
   evaluate_interval: 2
