@@ -82,27 +82,27 @@ game:
 
     generator:
       hp: 30
-      cooldown: ${uniform:0, 100, 20}
+      cooldown: ${uniform:0, 10, 5}
 
     armory:
       hp: 30
-      cooldown: ${uniform:0, 100, 20}
+      cooldown: ${uniform:0, 10, 5}
 
     lasery:
       hp: 30
-      cooldown: ${uniform:0, 100, 20}
+      cooldown: ${uniform:0, 10, 5}
 
     lab:
       hp: 30
-      cooldown: ${uniform:0, 100, 20}
+      cooldown: ${uniform:0, 10, 5}
 
     factory:
       hp: 30
-      cooldown: ${uniform:0, 100, 20}
+      cooldown: ${uniform:0, 10, 5}
 
     temple:
       hp: 30
-      cooldown: ${uniform:0, 100, 20}
+      cooldown: ${uniform:0, 10, 5}
 
     wall:
       hp: ${uniform:1, 20, 10}
