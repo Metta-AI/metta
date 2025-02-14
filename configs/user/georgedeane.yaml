@@ -3,7 +3,7 @@
 seed: null
 
 defaults:
-  - override /env/mettagrid@env: goingtoschool6
+  - override /env/mettagrid@env: cogeval_training_easy
   - override /agent: simple
   - override /sweep: fast
 sampling: 1

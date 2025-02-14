@@ -22,7 +22,7 @@ game:
         width: ${uniform:15,20,21}
         height: ${uniform:15,20,21}
         cylinder_params:
-          length: ${uniform:1,4,5}
+          length: ${uniform:3,4,5}
           horizontal: ${choose:true,false}
           both_ends: ${choose:true,false}
       radial:
