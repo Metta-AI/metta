@@ -54,6 +54,12 @@ cdef class Attack(MettaActionHandler):
             actor.stats.incr(self._stats.target[agent_target._type_id])
             actor.stats.incr(self._stats.target[agent_target._type_id], actor.group_name)
             actor.stats.incr(self._stats.target[agent_target._type_id], actor.group_name, agent_target.group_name)
+
+            if agent_target.group_name == actor.group_name:
+                actor.stats.incr(b"attack.own_team", actor.group_name)
+            else:
+                actor.stats.incr(b"attack.other_team", actor.group_name)
+
             was_frozen = agent_target.frozen > 0
 
             if agent_target.shield:
@@ -70,6 +76,12 @@ cdef class Attack(MettaActionHandler):
                     actor.stats.incr(b"attack.win", actor.group_name, agent_target.group_name)
                     actor.stats.incr(b"attack.loss", agent_target.group_name)
                     actor.stats.incr(b"attack.loss", agent_target.group_name, actor.group_name)
+
+                    if agent_target.group_name == actor.group_name:
+                        actor.stats.incr(b"attack.win.own_team", actor.group_name)
+                    else:
+                        actor.stats.incr(b"attack.win.other_team", actor.group_name)
+
                     self.env._rewards[actor.agent_id] += agent_target.freeze_reward
                     self.env._rewards[agent_target.agent_id] -= agent_target.freeze_reward
 
