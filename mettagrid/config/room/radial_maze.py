@@ -26,6 +26,8 @@ class RadialMaze(Room):
 
         cx, cy = self._width // 2, self._height // 2
         specials = {0: "generator", 1: "converter", 2: "altar"}
+        special_endpoints = {}
+
         for arm in range(self._arms):
             angle = 2 * math.pi * arm / self._arms
             ex = cx + int(round(self._arm_length * math.cos(angle)))
@@ -39,7 +41,21 @@ class RadialMaze(Room):
                         if 0 <= nx < self._width and 0 <= ny < self._height:
                             grid[ny, nx] = "empty"
                             path_positions.add((nx, ny))
-            if arm in specials and 0 <= ex < self._width and 0 <= ey < self._height:
-                grid[ey, ex] = specials[arm]
+            if arm in specials:
+                # Choose the last in-bound point from the arm's path.
+                special_point = None
+                for p in reversed(points):
+                    px, py = p
+                    if 0 <= px < self._width and 0 <= py < self._height:
+                        special_point = p
+                        break
+                if special_point is not None:
+                    special_endpoints[arm] = special_point
+
+        for arm, label in specials.items():
+            if arm in special_endpoints:
+                ex, ey = special_endpoints[arm]
+                grid[ey, ex] = label
+
         grid[cy, cx] = "agent.agent"
         return grid
