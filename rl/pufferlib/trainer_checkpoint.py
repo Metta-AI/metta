@@ -43,4 +43,4 @@ class TrainerCheckpoint:
 
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=FutureWarning)
-            return TrainerCheckpoint(**torch.load(trainer_path))
+            return TrainerCheckpoint(**torch.load(trainer_path, weights_only=False))
