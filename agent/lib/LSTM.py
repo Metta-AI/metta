@@ -16,11 +16,11 @@ class LSTM(LayerBase):
 
 # what about num layers??
 
-    def _make_layer(self, nn_params={}, **cfg):
+    def _make_layer(self):
         layer = nn.LSTM(
             self.input_size,
             self.hidden_size,
-            **nn_params
+            **self.nn_params
         )
     
         for name, param in layer.named_parameters():

@@ -27,12 +27,13 @@ class LayerBase(nn.Module):
     performed (due to some other run up the DAG) and return. After this check,
     it should check if its input source is not None and recursively call the
     forward method of the layer above it.'''
-    def __init__(self, name, input_source=None, output_size=None, **cfg):
+    def __init__(self, name, input_source=None, output_size=None, nn_params={}, **cfg):
         super().__init__()
         self.cfg = cfg
         self.name = name
         self.input_source = input_source
         self.output_size = output_size
+        self.nn_params = nn_params
         self.layer = None
         self._ready = False
 
@@ -59,8 +60,8 @@ class LayerBase(nn.Module):
         self._initialize()
         self._ready = True
 
-    def _initialize(self, **cfg):
-        self.layer = self._make_layer(**self.cfg)
+    def _initialize(self):
+        self.layer = self._make_layer()
 
     def _make_layer(self):
         pass
@@ -95,12 +96,6 @@ class ParamLayer(LayerBase):
     '''This provides a few useful methods for layers that have parameters (weights).
     Superclasses should have input_size, output_size, and layer already set.'''
     def __init__(self, agent_attributes, clip_scale=1, effective_rank=None, l2_norm_scale=None, l2_init_scale=None, nonlinearity='nn.ReLU', initialization='Orthogonal', **cfg): 
-        # self.clip_scale = self.cfg.get('clip_scale', 1)
-        # self.effective_rank_bool = self.cfg.get('effective_rank', None)
-        # self.l2_norm_scale = self.cfg.get('l2_norm_scale', None)
-        # self.l2_init_scale = self.cfg.get('l2_init_scale', None)
-        # self.nonlinearity = self.cfg.get('nonlinearity', 'nn.ReLU')
-        # self.initialization = self.cfg.get('initialization', 'Orthogonal')
         self.clip_scale = clip_scale
         self.effective_rank_bool = effective_rank
         self.l2_norm_scale = l2_norm_scale
@@ -111,7 +106,7 @@ class ParamLayer(LayerBase):
         super().__init__(**cfg)
 
     def _initialize(self):
-        self.weight_layer = self._make_layer(**self.cfg)
+        self.weight_layer = self._make_layer()
 
         self._initialize_weights()
 
