@@ -5,12 +5,11 @@ from libcpp.string cimport string
 from libcpp.vector cimport vector
 from mettagrid.action cimport ActionHandler, Action
 from mettagrid.event cimport EventManager
-from mettagrid.stats_tracker cimport StatsTracker
 from mettagrid.grid_object cimport GridObjectId, GridObject
 from mettagrid.grid cimport Grid
 from mettagrid.event cimport EventManager
 from mettagrid.base_encoder cimport ObservationEncoder, ObsType
-
+from mettagrid.stats_tracker cimport StatsTracker
 from libc.stdio cimport printf
 
 ctypedef unsigned int ActionType
@@ -32,6 +31,7 @@ cdef class GridEnv:
         vector[Action] _flat_actions
 
         ObservationEncoder _obs_encoder
+        StatsTracker _stats
 
         unsigned short _obs_width
         unsigned short _obs_height
@@ -51,13 +51,12 @@ cdef class GridEnv:
         cnp.ndarray _episode_rewards_np
         float[:] _episode_rewards
 
-        StatsTracker _stats
-
         vector[string] _grid_features
 
         bint _track_last_action
         unsigned char _last_action_obs_idx
         unsigned char _last_action_arg_obs_idx
+        vector[bint] _action_success
 
     cdef void add_agent(self, GridObject* agent)
 
@@ -113,7 +112,7 @@ cdef class GridEnv:
         unsigned short obs_height,
         ObsType[:,:,:] observation)
 
-    cpdef get_episode_stats(self)
+    cpdef dict get_episode_stats(self)
     cpdef get_episode_rewards(self)
 
     cpdef tuple get_buffers(self)

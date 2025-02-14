@@ -1,7 +1,6 @@
 
 from libc.stdio cimport printf
 from libcpp.string cimport string
-from libc.string cimport strcat, strcpy
 from omegaconf import OmegaConf
 from mettagrid.grid_object cimport GridObjectId
 from mettagrid.action cimport ActionHandler, ActionArg
@@ -32,26 +31,22 @@ cdef class MettaActionHandler(ActionHandler):
         ActionArg arg):
 
         cdef Agent *actor = <Agent*>self.env._grid.object(actor_object_id)
-        cdef char stat_name[256]
 
         if actor.shield:
             actor.update_energy(-actor.shield_upkeep, &self.env._rewards[actor_id])
-            self.env._stats.agent_add(actor_id, "shield_upkeep", actor.shield_upkeep)
-            strcpy(stat_name, actor.group_name.c_str())
-            strcat(stat_name, ".shield_upkeep")
-            self.env._stats.agent_add(actor_id, stat_name, actor.shield_upkeep)
-            self.env._stats.agent_incr(actor_id, "status.shield.ticks")
-            strcpy(stat_name, actor.group_name.c_str())
-            strcat(stat_name, ".status.shield.ticks")
-            self.env._stats.agent_incr(actor_id, stat_name)
+            actor.stats.add(b"shield_upkeep", actor.shield_upkeep)
+
+            actor.stats.incr(b"shield_upkeep", actor.group_name)
+
+            actor.stats.incr(b"status.shield.ticks")
+            actor.stats.incr(b"status.shield.ticks", actor.group_name)
+
             if actor.energy == 0:
                 actor.shield = False
 
         if actor.frozen > 0:
-            self.env._stats.agent_incr(actor_id, "status.frozen.ticks")
-            strcpy(stat_name, actor.group_name.c_str())
-            strcat(stat_name, ".status.frozen.ticks")
-            self.env._stats.agent_incr(actor_id, stat_name)
+            actor.stats.incr(b"status.frozen.ticks")
+            actor.stats.incr(b"status.frozen.ticks", actor.group_name)
             actor.frozen -= 1
             return False
 
@@ -59,17 +54,12 @@ cdef class MettaActionHandler(ActionHandler):
             return False
 
         actor.update_energy(-self.action_cost, &self.env._rewards[actor_id])
-        self.env._stats.agent_add(actor_id, self._stats.action_energy.c_str(), self.action_cost)
-        strcpy(stat_name, actor.group_name.c_str())
-        strcat(stat_name, ".")
-        strcat(stat_name, self._stats.action_energy.c_str())
-        self.env._stats.agent_add(actor_id, stat_name, self.action_cost)
-
         cdef bint result = self._handle_action(actor_id, actor, arg)
 
         if result:
-            self.env._stats.agent_incr(actor_id, self._stats.action.c_str())
-            self.env._stats.agent_set_once(actor_id, self._stats.first_use.c_str(), self.env._current_timestep)
+            actor.stats.incr(self._stats.action)
+            actor.stats.incr(self._stats.action, actor.group_name)
+            actor.stats.agent_set_once(self._stats.first_use, self.env._current_timestep)
 
         return result
 

@@ -5,12 +5,11 @@
 from libcpp.vector cimport vector
 from libcpp.map cimport map
 from libcpp.string cimport string
-from mettagrid.grid_env cimport StatsTracker
 from libc.stdio cimport printf
+from mettagrid.stats_tracker cimport StatsTracker
 from mettagrid.observation_encoder cimport ObservationEncoder, ObsType
 from mettagrid.grid_object cimport GridObject, TypeId, GridCoord, GridLocation, GridObjectId
 from mettagrid.event cimport EventHandler, EventArg
-from libc.string cimport strcat, strcpy
 cdef enum GridLayer:
     Agent_Layer = 0
     Object_Layer = 1
@@ -75,6 +74,8 @@ cdef cppclass Agent(MettaObject):
     float freeze_reward
     string group_name
     unsigned char color
+    unsigned char agent_id
+    StatsTracker stats
 
     inline Agent(
         GridCoord r, GridCoord c,
@@ -110,6 +111,14 @@ cdef cppclass Agent(MettaObject):
         if this.inventory[<InventoryItem>item] > this.max_items:
             this.inventory[<InventoryItem>item] = this.max_items
 
+        if amount > 0:
+            this.stats.add(InventoryItemNames[item], b"gained", amount)
+            this.stats.add(InventoryItemNames[item], b"gained", this.group_name, amount)
+        else:
+            this.stats.add(InventoryItemNames[item], b"lost", -amount)
+            this.stats.add(InventoryItemNames[item], b"lost", this.group_name, -amount)
+
+
     inline short update_energy(short amount, float *reward):
         if amount < 0:
             amount = max(-this.energy, amount)
@@ -119,6 +128,9 @@ cdef cppclass Agent(MettaObject):
         this.energy += amount
         if reward is not NULL and amount > 0:
             reward[0] += amount * this.energy_reward
+
+        this.stats.add(b"energy.gained", amount)
+        this.stats.add(b"energy.gained", this.group_name, amount)
 
         return amount
 
@@ -208,11 +220,10 @@ cdef cppclass Converter(Usable):
             actor.group_name == b"predator")
         )
 
-    inline void use(Agent *actor, unsigned int actor_id, StatsTracker stats, float *rewards):
+    inline void use(Agent *actor, unsigned int actor_id, float *rewards):
         cdef unsigned int energy_gain = 0
         cdef InventoryItem consumed_resource = InventoryItem.r1
         cdef InventoryItem produced_resource = InventoryItem.r2
-        cdef char stat_name[256]
         cdef unsigned int potential_energy_gain = this.prey_r1_output_energy
         if actor.group_name == b"predator":
             if actor.inventory[InventoryItem.r2] > 0:
@@ -225,28 +236,17 @@ cdef cppclass Converter(Usable):
                 produced_resource = InventoryItem.r3
 
         actor.update_inventory(consumed_resource, -1, NULL)
-        stats.agent_incr(actor_id, InventoryItemNames[consumed_resource] + ".used")
-        strcpy(stat_name, actor.group_name.c_str())
-        strcat(stat_name, ".")
-        strcat(stat_name, InventoryItemNames[consumed_resource].c_str())
-        strcat(stat_name, ".used")
-        stats.agent_incr(actor_id, stat_name)
+        actor.stats.incr(InventoryItemNames[consumed_resource], b"used")
+        actor.stats.incr(InventoryItemNames[consumed_resource], actor.group_name, b"used")
 
         actor.update_inventory(produced_resource, 1, NULL)
-        stats.agent_incr(actor_id, InventoryItemNames[produced_resource] + ".gained")
-        strcpy(stat_name, actor.group_name.c_str())
-        strcat(stat_name, ".")
-        strcat(stat_name, InventoryItemNames[produced_resource].c_str())
-        strcat(stat_name, ".gained")
-        stats.agent_incr(actor_id, stat_name)
-
+        actor.stats.incr(InventoryItemNames[produced_resource], b"gained")
+        actor.stats.incr(InventoryItemNames[produced_resource], actor.group_name, b"gained")
 
         energy_gain = actor.update_energy(potential_energy_gain, rewards)
-        stats.agent_add(actor_id, "energy.gained", energy_gain)
-        strcpy(stat_name, actor.group_name.c_str())
-        strcat(stat_name, ".")
-        strcat(stat_name, "energy.gained")
-        stats.agent_add(actor_id, stat_name, energy_gain)
+        actor.stats.add(b"energy.gained", energy_gain)
+        actor.stats.add(b"energy.gained", actor.group_name, energy_gain)
+
 
     inline obs(ObsType[:] obs):
         obs[0] = 1
@@ -281,7 +281,7 @@ cdef class ResetHandler(EventHandler):
             return
 
         usable.ready = True
-        self.env._stats.game_incr("resets." + ObjectTypeNames[usable._type_id])
+        self.env._stats.incr(b"resets", ObjectTypeNames[usable._type_id])
 
 cdef enum Events:
     Reset = 0
