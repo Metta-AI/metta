@@ -13,16 +13,12 @@ game:
       _target_: mettagrid.config.room.ascii.Ascii
       border_width: 1
       uri: "configs/env/mettagrid/maps/triangle.map"
-      
+
 
   objects:
     altar:
       cooldown: 250
       use_cost: 250
-    agent:
-      initial_energy: 250
-      max_energy: 250
-      upkeep.time: 0
 
   actions:
     move:
