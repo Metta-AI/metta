@@ -59,7 +59,7 @@ cdef class MettaActionHandler(ActionHandler):
         if result:
             actor.stats.incr(self._stats.action)
             actor.stats.incr(self._stats.action, actor.group_name)
-            actor.stats.agent_set_once(self._stats.first_use, self.env._current_timestep)
+            actor.stats.set_once(self._stats.first_use, self.env._current_timestep)
 
         return result
 
