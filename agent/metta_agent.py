@@ -59,10 +59,9 @@ class MettaAgent(nn.Module):
         self.obs_input_shape = obs_space[self.obs_key].shape[1:]
         self.num_objects = obs_space[self.obs_key].shape[0]
         self.hidden_size = cfg.components._core_.output_size # trainer/Experience uses this for e3b
+        # self.observation_space = obs_space # for use with FeatureSetEncoder
+        # self.global_features = global_features # for use with FeatureSetEncoder
 
-        # are these needed?
-        # self.observation_space = obs_space
-        # self.global_features = global_features
         self.components = nn.ModuleDict()
         component_cfgs = OmegaConf.to_container(cfg.components, resolve=True)
         for component_cfg in component_cfgs.keys():
