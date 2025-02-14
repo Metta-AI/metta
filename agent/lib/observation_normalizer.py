@@ -1,7 +1,7 @@
 import torch
-from torch import nn
 import omegaconf
 from tensordict import TensorDict
+
 from agent.lib.metta_layer import LayerBase
 # ##ObservationNormalization
 # These are approximate maximum values for each feature. Ideally they would be defined closer to their source,

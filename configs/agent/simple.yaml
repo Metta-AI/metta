@@ -1,3 +1,4 @@
+# see reference_design.yaml for explanation of components
 _target_: agent.metta_agent.MettaAgent
 
 policy_selector:
@@ -9,17 +10,15 @@ policy_selector:
   
 observations:
   obs_key: grid_obs
-  normalize_features: true
-  auto_normalize: false
   track_last_action: ${env.track_last_action}
-  # kinship: ${env.game.kinship}
   
 clip_range: 3.0
 effective_rank_interval: 10
+l2_init_weight_update_interval: 0
 
 components:
-#necessary sources: _obs_, _core_
-#necessary outputs: _encoded_obs_, _action_param_, _value_
+#necessary source layers: _obs_, _core_
+#necessary output layers: _action_param_, _value_
   _obs_: 
     _target_: agent.lib.obs_shaper.ObsShaper
     input_source: null
@@ -53,14 +52,14 @@ components:
     input_source: obs_flattener
     output_size: 128
 
-  _encoded_obs_:
+  encoded_obs:
     _target_: agent.lib.nn_layer_library.Linear
     input_source: fc1
     output_size: 128
 
   _core_:
     _target_: agent.lib.nn_layer_library.LSTM
-    input_source: _encoded_obs_
+    input_source: encoded_obs
     output_size: 128
     nn_params:
       num_layers: 1
@@ -69,12 +68,13 @@ components:
     _target_: agent.lib.nn_layer_library.Linear
     input_source: _core_
     output_size: 1024
+    nonlinearity: nn.Tanh
 
   _value_:
     _target_: agent.lib.nn_layer_library.Linear
     input_source: critic_1
     output_size: 1
-    nonlinearity: None
+    nonlinearity: null
 
   actor_1:
     _target_: agent.lib.nn_layer_library.Linear
@@ -85,4 +85,4 @@ components:
     _target_: agent.lib.nn_layer_library.Linear
     input_source: actor_1
     output_size: 20
-    nonlinearity: None
+    nonlinearity: null

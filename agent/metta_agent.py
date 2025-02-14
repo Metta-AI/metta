@@ -1,19 +1,17 @@
-from __future__ import annotations
-
 from typing import List, Tuple
 
+import numpy as np
+import torch
+from torch import nn
+from tensordict import TensorDict
+import gymnasium as gym
 import hydra
 from omegaconf import OmegaConf
-from sample_factory.utils.typing import ActionSpace, ObsSpace
-from torch import nn
-import torch
-from tensordict import TensorDict
-#we could include sameple_logits in this file
-from pufferlib.cleanrl import sample_logits
 
-import gymnasium as gym
-import numpy as np
+from sample_factory.utils.typing import ActionSpace, ObsSpace
+from pufferlib.cleanrl import sample_logits
 from pufferlib.environment import PufferEnv
+
 
 def make_policy(env: PufferEnv, cfg: OmegaConf):
     obs_space = gym.spaces.Dict({
@@ -61,17 +59,11 @@ class MettaAgent(nn.Module):
         self.obs_input_shape = obs_space[self.obs_key].shape[1:]
         self.num_objects = obs_space[self.obs_key].shape[0]
         self.hidden_size = cfg.components._core_.output_size # trainer/Experience uses this for e3b
-        
-        # delete the below?
-        self.e3b = torch.eye(self.hidden_size)
 
         # are these needed?
         # self.observation_space = obs_space
         # self.global_features = global_features
-        
-
         self.components = nn.ModuleDict()
-        
         component_cfgs = OmegaConf.to_container(cfg.components, resolve=True)
         for component_cfg in component_cfgs.keys():
             component_cfgs[component_cfg]['name'] = component_cfg
@@ -80,7 +72,6 @@ class MettaAgent(nn.Module):
 
         self.components['_action_param_'].setup_layer()
         self.components['_value_'].setup_layer()
-        # self.components = nn.ModuleDict(self.components)
         print("Agent setup complete.")
 
     @property
@@ -104,8 +95,6 @@ class MettaAgent(nn.Module):
 
         e3b, intrinsic_reward = self._e3b_update(td["_core_"].detach(), e3b)
 
-        # what is action?
-        # check if self.is_continuous means continuous action space, set to False below
         action, logprob, entropy = sample_logits(logits, action, False)
         return action, logprob, entropy, value, state, e3b, intrinsic_reward
     
@@ -121,28 +110,33 @@ class MettaAgent(nn.Module):
             intrinsic_reward = intrinsic_reward.squeeze()
         return e3b, intrinsic_reward
 
-
-    def clip_weights(self):
-        for component in self.components.values():
-            component.clip_weights()
-
     def l2_reg_loss(self) -> torch.Tensor:
+        '''L2 regularization loss is on by default although setting l2_norm_coeff to 0 effectively turns it off. Adjust it by setting l2_norm_scale in your layer config to a multiple of the global loss value or 0 to turn it off.'''
         l2_reg_loss = 0
         for component in self.components.values():
             l2_reg_loss += component.l2_reg_loss() or 0
         return torch.tensor(l2_reg_loss)
     
     def l2_init_loss(self) -> torch.Tensor:
+        '''L2 initialization loss is on by default although setting l2_init_coeff to 0 effectively turns it off. Adjust it by setting l2_init_scale in your layer config to a multiple of the global loss value or 0 to turn it off.'''
         l2_init_loss = 0
         for component in self.components.values():
             l2_init_loss += component.l2_init_loss() or 0
         return torch.tensor(l2_init_loss)
 
     def update_l2_init_weight_copy(self):
+        '''Update interval set by l2_init_weight_update_interval. 0 means no updating.'''
         for component in self.components.values():
             component.update_l2_init_weight_copy()
 
+    def clip_weights(self):
+        '''Weight clipping is on by default although setting clip_range or clip_scale to 0, or a large positive value effectively turns it off. Adjust it by setting clip_scale in your layer config to a multiple of the global loss value or 0 to turn it off.'''
+        if self.clip_range > 0:
+            for component in self.components.values():
+                component.clip_weights()
+
     def effective_rank(self, delta: float = 0.01) -> List[dict]:
+        '''Effective rank computation is off by default. Set effective_rank to True in the config to turn it on for a given layer.'''
         effective_ranks = []
         for component in self.components.values():
             rank = component.effective_rank(delta)

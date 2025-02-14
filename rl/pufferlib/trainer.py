@@ -103,12 +103,14 @@ class PufferTrainer:
             self._process_stats()
             if self.epoch % self.trainer_cfg.checkpoint_interval == 0:
                 self._checkpoint_trainer()
-            if self.epoch % self.trainer_cfg.evaluate_interval == 0 and self.trainer_cfg.evaluate_interval != 0:
+            if self.trainer_cfg.evaluate_interval != 0 and self.epoch % self.trainer_cfg.evaluate_interval == 0:
                 self._evaluate_policy()
+            if self.cfg.agent.effective_rank_interval != 0 and self.epoch % self.cfg.agent.effective_rank_interval == 0:
+                self._effective_rank()
             if self.epoch % self.trainer_cfg.wandb_checkpoint_interval == 0:
                 self._save_policy_to_wandb()
-            if self.epoch % self.cfg.agent.effective_rank_interval == 0 and self.cfg.agent.effective_rank_interval != 0:
-                self._effective_rank()
+            if self.cfg.agent.l2_init_weight_update_interval != 0 and self.epoch % self.cfg.agent.l2_init_weight_update_interval == 0:
+                self._update_l2_init_weight_copy()
 
             self._on_train_step()
 
@@ -154,6 +156,9 @@ class PufferTrainer:
                 "train/agent_step": self.agent_step,
                 "train/epoch": self.epoch,
             })
+
+    def _update_l2_init_weight_copy(self):
+        self.policy.update_l2_init_weight_copy()
 
     def _on_train_step(self):
         pass
@@ -334,7 +339,6 @@ class PufferTrainer:
                     self.optimizer.step()
 
                     if self.cfg.agent.clip_range > 0:
-                        # self.policy.clip_weights()
                         self.policy.clip_weights()
 
                     if self.device == 'cuda':

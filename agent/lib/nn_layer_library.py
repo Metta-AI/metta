@@ -1,4 +1,5 @@
 import torch.nn as nn
+
 from .metta_layer import ParameterizedLayer, LayerBase
 from .LSTM import MettaLSTM
 
