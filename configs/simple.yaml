@@ -19,8 +19,8 @@ game:
       agents: 6
 
       objects:
-        mine: ${uniform:1,5,3}
-        generator: ${uniform:1,5,3}
+        mine: ${uniform:1,10,7}
+        generator: ${uniform:1,10,5}
         altar: ${uniform:1,5,1}
         armory: ${uniform:1,5,1}
         lasery: ${uniform:1,5,1}
