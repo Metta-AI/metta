@@ -79,3 +79,38 @@ game:
         - ${sub:${..width},2}
         - ${sub:${..height},2}
         branching: ${uniform:0.1,0.8,0.7}
+
+  actions:
+    noop:
+      enabled: true
+      cost: 0
+    move:
+      enabled: true
+      cost: 0
+    rotate:
+      enabled: true
+      cost: 0
+    jump:
+      enabled: false
+      cost: 3
+    shield:
+      enabled: false
+      cost: 1
+    transfer:
+      enabled: false
+      cost: 0
+    use:
+      enabled: true
+      cost: 0
+    attack:
+      enabled: true
+      cost: ${uniform:1, 100, 10}
+    gift:
+      enabled: false
+      cost: 0
+    swap:
+      enabled: false
+      cost: 0
+    change_color:
+      enabled: false
+      cost: 0
