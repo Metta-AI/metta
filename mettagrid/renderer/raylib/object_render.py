@@ -129,25 +129,27 @@ class WallRenderer(ObjectRenderer):
     def __init__(self):
         super().__init__("wall.png")
 
+class MineRenderer(ObjectRenderer):
+    def __init__(self):
+        super().__init__("items.png", 16)
+
+    def _sprite_sheet_idx(self, obj):
+        if obj["mine:ready"]:
+            return (14, 2)
+        else:
+            return (13, 2)
+
 class GeneratorRenderer(ObjectRenderer):
     def __init__(self):
         super().__init__("items.png", 16)
 
     def _sprite_sheet_idx(self, obj):
         if obj["generator:ready"]:
-            return (14, 2)
-        else:
-            return (13, 2)
-
-class ConverterRenderer(ObjectRenderer):
-    def __init__(self):
-        super().__init__("items.png", 16)
-
-    def _sprite_sheet_idx(self, obj):
-        if obj["converter:ready"]:
             return (12, 0)
         else:
             return (13, 0)
+
+
 class AltarRenderer(ObjectRenderer):
     def __init__(self):
         super().__init__("items.png", 16)
@@ -157,3 +159,55 @@ class AltarRenderer(ObjectRenderer):
             return (11, 2)
         else:
             return (12, 2)
+
+
+class ArmoryRenderer(ObjectRenderer):
+    def __init__(self):
+        super().__init__("items.png", 16)
+
+    def _sprite_sheet_idx(self, obj):
+        if obj["armory:ready"]:
+            return (11, 2)
+        else:
+            return (12, 2)
+
+class LaseryRenderer(ObjectRenderer):
+    def __init__(self):
+        super().__init__("items.png", 16)
+
+    def _sprite_sheet_idx(self, obj):
+        if obj["lasery:ready"]:
+            return (12, 0)
+        else:
+            return (13, 0)
+
+class LabRenderer(ObjectRenderer):
+    def __init__(self):
+        super().__init__("items.png", 16)
+
+    def _sprite_sheet_idx(self, obj):
+        if obj["lab:ready"]:
+            return (12, 0)
+        else:
+            return (13, 0)
+
+class FactoryRenderer(ObjectRenderer):
+    def __init__(self):
+        super().__init__("items.png", 16)
+
+    def _sprite_sheet_idx(self, obj):
+        if obj["factory:ready"]:
+            return (12, 0)
+        else:
+            return (13, 0)
+
+class TempleRenderer(ObjectRenderer):
+    def __init__(self):
+        super().__init__("items.png", 16)
+
+    def _sprite_sheet_idx(self, obj):
+        if obj["temple:ready"]:
+            return (11, 2)
+        else:
+            return (12, 2)
+
