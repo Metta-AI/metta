@@ -84,9 +84,6 @@ cdef class Attack(MettaActionHandler):
                     else:
                         actor.stats.incr(b"attack.win.other_team", actor.group_name)
 
-                    self.env._rewards[actor.agent_id] += agent_target.freeze_reward
-                    self.env._rewards[agent_target.agent_id] -= agent_target.freeze_reward
-
                     for item in range(InventoryItem.InventoryCount):
                         actor.update_inventory(item, agent_target.inventory[item], &self.env._rewards[actor.agent_id])
                         agent_target.update_inventory(item, -agent_target.inventory[item], &self.env._rewards[agent_target.agent_id])

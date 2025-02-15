@@ -168,6 +168,7 @@ cdef class GridEnv:
                 if arg > self._max_action_args[action]:
                     continue
                 self._action_success[idx] = handler.handle_action(idx, agent.id, arg)
+
         self._compute_observations(actions)
 
         for i in range(self._episode_rewards.shape[0]):

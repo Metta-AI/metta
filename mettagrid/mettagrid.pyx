@@ -23,7 +23,7 @@ from mettagrid.actions.attack_nearest import AttackNearest
 from mettagrid.actions.noop import Noop
 from mettagrid.actions.swap import Swap
 from mettagrid.actions.change_color import ChangeColorAction
-
+from mettagrid.objects cimport InventoryItemNames
 cdef class MettaGrid(GridEnv):
     cdef:
         object _cfg
@@ -123,9 +123,13 @@ cdef class MettaGrid(GridEnv):
                     group_name = map[r,c].split(".")[1]
                     agent_cfg = OmegaConf.to_container(OmegaConf.merge(
                         cfg.agent, cfg.groups[group_name].props))
+                    rewards = agent_cfg.get("rewards", {})
+                    del agent_cfg["rewards"]
+                    for inv_item in InventoryItemNames:
+                        rewards[inv_item] = rewards.get(inv_item, 0)
                     group_id = cfg.groups[group_name].id
                     agent = new Agent(
-                        r, c, group_name, group_id, agent_cfg)
+                        r, c, group_name, group_id, agent_cfg, rewards)
                     self._grid.add_object(agent)
                     agent.agent_id = self._agents.size()
                     self.add_agent(agent)
