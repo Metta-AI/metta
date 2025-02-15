@@ -49,7 +49,7 @@ class Eval():
             "uri": self._policy_uri,
             "type": "top",
             "range": 1,
-            "metric": "elo",
+            "metric": "epoch",
             "filters": {}
         })
 
