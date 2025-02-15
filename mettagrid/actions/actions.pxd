@@ -9,8 +9,9 @@ from mettagrid.action cimport ActionHandler, ActionArg
 from mettagrid.objects cimport Agent
 
 cdef struct StatNames:
-    string action
+    string success
     string first_use
+    string failure
 
     map[TypeId, string] target
     map[TypeId, string] target_first_use

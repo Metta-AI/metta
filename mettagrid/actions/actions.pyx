@@ -13,10 +13,11 @@ cdef class MettaActionHandler(ActionHandler):
     def __init__(self, cfg: OmegaConf, action_name: str):
         ActionHandler.__init__(self, action_name)
 
-        self._stats.action = "action." + action_name
+        self._stats.success = "action." + action_name
+        self._stats.failure = "action." + action_name + ".failed"
 
         for t, n in enumerate(ObjectTypeNames):
-            self._stats.target[t] = self._stats.action + "." + n
+            self._stats.target[t] = self._stats.success + "." + n
 
     cdef bint handle_action(
         self,
@@ -35,8 +36,11 @@ cdef class MettaActionHandler(ActionHandler):
         cdef bint result = self._handle_action(actor_id, actor, arg)
 
         if result:
-            actor.stats.incr(self._stats.action)
-            actor.stats.incr(self._stats.action, actor.group_name)
+            actor.stats.incr(self._stats.success)
+        else:
+            actor.stats.incr(self._stats.failure)
+            actor.stats.incr(b"action.failure_penalty")
+            self.env._rewards[actor_id] -= actor.action_failure_penalty
 
         return result
 

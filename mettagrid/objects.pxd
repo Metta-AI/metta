@@ -73,7 +73,7 @@ cdef cppclass Agent(MettaObject):
     vector[unsigned char] inventory
     unsigned char max_items
     vector[float] resource_rewards
-    float freeze_reward
+    float action_failure_penalty
     string group_name
     unsigned char color
     unsigned char agent_id
@@ -83,7 +83,8 @@ cdef cppclass Agent(MettaObject):
         GridCoord r, GridCoord c,
         string group_name,
         unsigned char group_id,
-        ObjectConfig cfg):
+        ObjectConfig cfg,
+        map[string, float] rewards):
         GridObject.init(ObjectType.AgentT, GridLocation(r, c, GridLayer.Agent_Layer))
         MettaObject.init_mo(cfg)
 
@@ -95,13 +96,9 @@ cdef cppclass Agent(MettaObject):
         this.inventory.resize(InventoryItem.InventoryCount)
         this.max_items = cfg[b"max_inventory"]
         this.resource_rewards.resize(InventoryItem.InventoryCount)
-        this.resource_rewards[InventoryItem.ore] = 0
-        this.resource_rewards[InventoryItem.battery] = 0.01
-        this.resource_rewards[InventoryItem.heart] = 1
-        this.resource_rewards[InventoryItem.armor] = 0
-        this.resource_rewards[InventoryItem.laser] = 0
-        this.resource_rewards[InventoryItem.blueprint] = 0
-        this.freeze_reward = float(cfg[b"freeze_reward"]) / 1000.0
+        for i in range(InventoryItem.InventoryCount):
+            this.resource_rewards[i] = rewards[InventoryItemNames[i]]
+        this.action_failure_penalty = rewards[b"action_failure_penalty"]
         this.color = 0
 
     inline void update_inventory(InventoryItem item, short amount, float *reward):
