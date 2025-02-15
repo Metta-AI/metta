@@ -51,11 +51,14 @@ test() {
             -e WAYLAND_DISPLAY \
             -e XDG_RUNTIME_DIR \
             -e PULSE_SERVER \
+            -e METTA_HOST=$(hostname) \
+            -e METTA_USER=$SSH_USER \
+            -e WANDB_API_KEY=$WANDB_API_KEY \
             -p 8000:8000 \
-            ${username}/${image}:${tag} bash
+            ${username}/${image}:${tag} bash -c "tmux"
     fi
     # Attach to the running container
-    docker exec -it ${name} bash
+    docker exec -it -e METTA_HOST=$(hostname) -e METTA_USER=$SSH_USER -e WANDB_API_KEY=$WANDB_API_KEY ${name} bash -c "tmux attach || tmux"
 }
 
 # Function for pushing Docker image

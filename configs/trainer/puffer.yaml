@@ -5,6 +5,7 @@ defaults:
   - trainer
 
 resume: true
+use_rnd: true
 use_e3b: false
 
 total_timesteps: 50_000_000_000
@@ -45,5 +46,3 @@ stats:
   overview:
     episode/reward.mean: episode_reward
   step: train/agent_step
-
-

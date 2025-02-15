@@ -45,6 +45,7 @@ wandb:
   enabled: true
   track: true
   checkpoint_interval: 1
+<<<<<<< HEAD
 evaluate_interval: 1
 
 sweep:
@@ -52,5 +53,13 @@ sweep:
 
 cmd: ???
 run_id: 12
+=======
+
+sweep:
+  metric: action.use
+
+cmd: ???
+run_id: 8
+>>>>>>> 57b79f41076cc51e4829da703bfb821731e2860a
 run: ${oc.env:USER}.local.${cmd}.${run_id}
 trained_policy_uri: ./train_dir/${oc.env:USER}.local.train.${run_id}/checkpoints

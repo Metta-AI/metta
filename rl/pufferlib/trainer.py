@@ -20,7 +20,7 @@ from rl.pufferlib.experience import Experience
 from rl.pufferlib.profile import Profile
 from rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
 from rl.pufferlib.vecenv import make_vecenv
-
+from rl.RND import RNDModule
 torch.set_float32_matmul_precision('high')
 
 logger = logging.getLogger("trainer")
@@ -42,6 +42,7 @@ class PufferTrainer:
         self.wandb_run = wandb_run
         self.policy_store = policy_store
         self.use_e3b = self.trainer_cfg.use_e3b
+        self.use_rnd = self.trainer_cfg.use_rnd
         self.eval_stats_logger = EvalStatsLogger(cfg, wandb_run)
         self._make_vecenv()
 
@@ -85,6 +86,27 @@ class PufferTrainer:
             for k in ["0verview", "env", "losses", "performance", "train"]:
                 wandb_run.define_metric(f"{k}/*", step_metric="train/agent_step")
 
+        # Set up intrinsic reward: either use E3B (as before) or RND.
+        self.use_rnd = self.trainer_cfg.get("use_rnd", False)
+        if self.use_rnd:
+            # Initialize RND with the environment’s observation shape.
+            self.rnd_module = RNDModule(self.vecenv.single_observation_space.shape)
+            rnd_lr = self.trainer_cfg.get("rnd_learning_rate", 1e-4)
+            self.rnd_optimizer = torch.optim.Adam(self.rnd_module.predictor.parameters(), lr=rnd_lr)
+
+        self.losses = self._make_losses()
+
+    def _make_losses(self):
+        return pufferlib.namespace(
+            policy_loss=0,
+            value_loss=0,
+            entropy=0,
+            old_approx_kl=0,
+            approx_kl=0,
+            clipfrac=0,
+            explained_variance=0,
+            rnd_loss=0,   # added for RND updates
+        )
     def train(self):
         self.train_start = time.time()
         logger.info("Starting training")
@@ -169,6 +191,11 @@ class PufferTrainer:
                 if self.use_e3b:
                     e3b_inv[env_id] = next_e3b
                     r += intrinsic_reward.cpu()
+
+                if self.use_rnd:
+                    rnd_reward = self.rnd_module.get_intrinsic_reward(o_device)
+                    # Add the intrinsic reward (ensure type compatibility)
+                    r += rnd_reward.cpu()
 
                 if self.device == 'cuda':
                     torch.cuda.synchronize()
@@ -300,6 +327,14 @@ class PufferTrainer:
                     self.losses.old_approx_kl += old_approx_kl.item() / total_minibatches
                     self.losses.approx_kl += approx_kl.item() / total_minibatches
                     self.losses.clipfrac += clipfrac.item() / total_minibatches
+
+            if self.use_rnd:
+                rnd_loss_total = 0.0
+                for mb in range(experience.num_minibatches):
+                    obs_mb = experience.b_obs[mb].to(self.device)
+                    loss = self.rnd_module.update(obs_mb, self.rnd_optimizer)
+                    rnd_loss_total += loss
+                self.losses.rnd_loss = rnd_loss_total / experience.num_minibatches
 
             if self.trainer_cfg.target_kl is not None:
                 if approx_kl > self.trainer_cfg.target_kl:

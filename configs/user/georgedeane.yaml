@@ -1,0 +1,38 @@
+# @package __global__
+
+seed: null
+
+defaults:
+  - override /env/mettagrid@env: cogeval_training_easy
+  - override /agent: simple
+  - override /sweep: fast
+sampling: 1
+# policy: wandb://run/b.daveey.train.maze.sm.dr.warm.0
+# baselines: wandb://run/b.daveey.train.maze.sm.11x11.0
+
+policy_uri: wandb://run/v.daveey.species.sm.0
+baseline_uri: wandb://run/v.daveey.species.sm.0
+
+env:
+  game:
+    max_steps: 1000
+
+trainer:
+  evaluate_interval: 2
+
+evaluator:
+  policy:
+    uri: ${...policy_uri}
+  baselines:
+    uri: ${...baseline_uri}
+
+wandb:
+  enabled: true
+  track: true
+  checkpoint_interval: 1
+
+sweep:
+  metric: action.use
+
+cmd: ???
+run: ${oc.env:USER}.local.${cmd}.2
