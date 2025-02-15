@@ -65,19 +65,10 @@ class EvalStatsLogger:
         logger.info(f"Logged artifact {artifact_name} to wandb")
 
     def log(self, eval_stats):
-
         if isinstance(eval_stats, dict):
-            logger.info(f"Evaluation suite: logging {len(eval_stats)} evaluations")
-            all_stats = []
+            eval_stats = [stat for stats in eval_stats.values() for stat in stats]
 
-            for eval_name, stats in eval_stats.items():
-                all_stats.extend(stats)
-
-            self.log(all_stats)
-
-            return all_stats
-
-        eval_stats = self._add_additional_fields(eval_stats)
+        self._add_additional_fields(eval_stats)
 
         self._log_to_file(eval_stats)
 

@@ -103,13 +103,12 @@ class EvalStatsDbWandb(EvalStatsDB):
         self.artifact_identifier = os.path.join(wandb_run.entity, wandb_run.project, artifact_name)
 
         cache_dir = os.path.join(wandb.env.get_cache_dir(), "artifacts", self.artifact_identifier)
-        if os.path.exists(cache_dir):
-            artifact_dirs = [os.path.join(cache_dir, a) for a in os.listdir(cache_dir) if os.path.isdir(os.path.join(cache_dir, a))]
-            logger.info(f"Found {len(artifact_dirs)} cached artifacts in {cache_dir}")
-        else:
-            artifact_versions = self.api.artifacts(type_name=artifact_name,name=self.artifact_identifier)
-            artifact_dirs = [a.download(root=os.path.join(cache_dir, f"v{v}")) for v, a in enumerate(artifact_versions)]
-            logger.info(f"Downloaded {len(artifact_dirs)} artifacts from wandb to {cache_dir}")
+        artifact_versions = self.api.artifacts(type_name=artifact_name,name=self.artifact_identifier)
+        artifact_dirs = [os.path.join(cache_dir, f"v{v}") for v in range(len(artifact_versions))]
+        for dir, artifact in zip(artifact_dirs, artifact_versions):
+            if not os.path.exists(dir):
+                artifact.download(root=dir)
+        logger.info(f"Loaded {len(artifact_dirs)} artifacts")
         all_records = []
         for artifact_dir in artifact_dirs:
             json_files = [f for f in os.listdir(artifact_dir) if f.endswith('.json')]
