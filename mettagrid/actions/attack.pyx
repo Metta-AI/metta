@@ -3,10 +3,11 @@ from libc.stdio cimport printf
 
 from omegaconf import OmegaConf
 
-from mettagrid.grid_object cimport GridLocation, GridObjectId, Orientation, GridObject
-from mettagrid.action cimport ActionHandler, ActionArg
-from mettagrid.objects cimport MettaObject, ObjectType, Usable, Altar, Agent, Events, GridLayer
-from mettagrid.objects cimport Generator, Converter, InventoryItem, ObjectTypeNames, InventoryItemNames
+from mettagrid.grid_object cimport GridLocation, Orientation
+from mettagrid.action cimport ActionArg
+from mettagrid.objects.metta_object cimport MettaObject
+from mettagrid.objects.agent cimport Agent
+from mettagrid.objects.constants cimport GridLayer, ObjectTypeNames, InventoryItem, InventoryItemNames
 from mettagrid.actions.actions cimport MettaActionHandler
 
 cdef class Attack(MettaActionHandler):

@@ -1,11 +1,13 @@
-
-# distutils: language=c++
-
 from libc.stdio cimport printf
 from libcpp.string cimport string
 from libcpp.vector cimport vector
-from mettagrid.grid_object cimport GridObject, GridObjectId
-from mettagrid.objects cimport ObjectType, Agent, Wall, Generator, Converter, Altar
+from mettagrid.grid_object cimport GridObject
+from mettagrid.objects.constants cimport ObjectType, InventoryItem
+from mettagrid.objects.wall cimport Wall
+from mettagrid.objects.generator cimport Generator
+from mettagrid.objects.altar cimport Altar
+from mettagrid.objects.agent cimport Agent
+from mettagrid.objects.converter cimport Converter
 from mettagrid.observation_encoder cimport ObservationEncoder, ObsType
 import numpy as np
 import gymnasium as gym
@@ -35,13 +37,27 @@ cdef class MettaObservationEncoder(ObservationEncoder):
 
     cdef _encode(self, GridObject *obj, ObsType[:] obs, unsigned int offset):
         if obj._type_id == ObjectType.AgentT:
-            (<Agent*>obj).obs(obs[offset:])
+            # We inline the agent observations since it's a pain to use memoryviews in cpp
+            obs[offset] = 1
+            obs[offset + 1] = (<Agent*>obj).group
+            obs[offset + 2] = (<Agent*>obj).hp
+            obs[offset + 3] = (<Agent*>obj).frozen
+            obs[offset + 4] = (<Agent*>obj).energy
+            obs[offset + 5] = (<Agent*>obj).orientation
+            obs[offset + 6] = (<Agent*>obj).shield
+            obs[offset + 7] = (<Agent*>obj).color
+            # #InlineInventoryCount
+            for i in range(3):
+                obs[<int>(offset + 8 + i)] = (<Agent*>obj).inventory[i]
         elif obj._type_id == ObjectType.WallT:
             (<Wall*>obj).obs(obs[offset:])
         elif obj._type_id == ObjectType.GeneratorT:
             (<Generator*>obj).obs(obs[offset:])
         elif obj._type_id == ObjectType.ConverterT:
-            (<Converter*>obj).obs(obs[offset:])
+            obs[offset] = 1
+            obs[offset + 1] = (<Converter*>obj).prey_r1_output_energy
+            obs[offset + 2] = (<Converter*>obj).predator_r1_output_energy
+            obs[offset + 3] = (<Converter*>obj).predator_r2_output_energy
         elif obj._type_id == ObjectType.AltarT:
             (<Altar*>obj).obs(obs[offset:])
         else:

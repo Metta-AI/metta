@@ -4,7 +4,8 @@ from libcpp.string cimport string
 from omegaconf import OmegaConf
 from mettagrid.grid_object cimport GridObjectId
 from mettagrid.action cimport ActionHandler, ActionArg
-from mettagrid.objects cimport Agent, ObjectTypeNames
+from mettagrid.objects.agent cimport Agent
+from mettagrid.objects.constants cimport ObjectTypeNames
 
 cdef extern from "<string>" namespace "std":
     string to_string(int val)

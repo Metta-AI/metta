@@ -13,7 +13,13 @@ from mettagrid.grid_env cimport GridEnv
 from mettagrid.grid_object cimport GridObject
 from mettagrid.observation_encoder cimport ObsType
 
-from mettagrid.objects cimport ObjectLayers, Agent, ResetHandler, Wall, Generator, Converter, Altar
+from mettagrid.objects.agent cimport Agent
+from mettagrid.objects.constants cimport ObjectLayers
+from mettagrid.objects.reset_handler cimport ResetHandler
+from mettagrid.objects.converter cimport Converter
+from mettagrid.objects.wall cimport Wall
+from mettagrid.objects.generator cimport Generator
+from mettagrid.objects.altar cimport Altar
 from mettagrid.observation_encoder cimport MettaObservationEncoder, MettaCompactObservationEncoder
 from mettagrid.actions.move import Move
 from mettagrid.actions.rotate import Rotate
