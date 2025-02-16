@@ -45,13 +45,13 @@ class LayerBase(nn.Module):
         if self._ready:
             return
 
-        if input_source_component is None:
-            self.input_source_component = None
+        self.input_source_component = input_source_component
+        
+        if self.input_source_component is None:
             self.input_size = None
             if self.output_size is None: # output size must be set for a top level component
                 raise ValueError(f"Either input source or output size must be set for layer {self.name}")
         else:
-            self.input_source_component = input_source_component
             self.input_size = self.input_source_component.output_size
 
         if self.output_size is None:
