@@ -39,7 +39,7 @@ cdef class MettaActionHandler(ActionHandler):
             actor.stats.incr(self._stats.success)
         else:
             actor.stats.incr(self._stats.failure)
-            actor.stats.add(b"action.failure_penalty", actor.action_failure_penalty)
+            actor.stats.incr(b"action.failure_penalty")
             self.env._rewards[actor_id] -= actor.action_failure_penalty
 
         return result
