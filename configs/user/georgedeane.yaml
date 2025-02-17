@@ -4,14 +4,14 @@ seed: null
 
 defaults:
   - override /env/mettagrid@env: cogeval_training_easy
-  - override /agent: simple
+  - override /agent: simple.medium
   - override /sweep: fast
 sampling: 1
 # policy: wandb://run/b.daveey.train.maze.sm.dr.warm.0
 # baselines: wandb://run/b.daveey.train.maze.sm.11x11.0
 
-policy_uri: wandb://run/v.daveey.species.sm.0
-baseline_uri: wandb://run/v.daveey.species.sm.0
+policy_uri: wandb://run/cogeval-easy-simple-med2
+baseline_uri: wandb://run/cogeval_sweep2.r.1
 
 env:
   game:
