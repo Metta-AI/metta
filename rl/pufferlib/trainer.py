@@ -21,7 +21,7 @@ from rl.pufferlib.experience import Experience
 from rl.pufferlib.profile import Profile
 from rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
 from rl.pufferlib.vecenv import make_vecenv
-from rl.pufferlib.trace import trace_image
+from rl.pufferlib.trace import save_trace_image
 
 torch.set_float32_matmul_precision('high')
 
@@ -114,6 +114,9 @@ class PufferTrainer:
                 self._evaluate_policy()
             if self.epoch % self.trainer_cfg.wandb_checkpoint_interval == 0:
                 self._save_policy_to_wandb()
+            if (self.trainer_cfg.trace_interval != 0 and
+                self.epoch % self.trainer_cfg.trace_interval == 0):
+                self._save_trace_to_wandb()
 
             self._on_train_step()
 
@@ -390,6 +393,12 @@ class PufferTrainer:
             pr = self._checkpoint_policy()
             self.policy_store.add_to_wandb_run(self.wandb_run.name, pr)
 
+    def _save_trace_to_wandb(self):
+        image_path = f"{self.cfg.run_dir}/traces/trace.{self.epoch}.png"
+        os.makedirs(os.path.dirname(image_path), exist_ok=True)
+        save_trace_image(self.cfg, self.last_pr, image_path)
+        wandb.log({"traces/actions": wandb.Image(image_path)})
+
     def _process_stats(self):
         for k in list(self.stats.keys()):
             v = self.stats[k]
@@ -406,7 +415,7 @@ class PufferTrainer:
                 if k in self.stats:
                     overview[v] = self.stats[k]
 
-            data = {
+            self.wandb_run.log({
                 **{f'0verview/{k}': v for k, v in overview.items()},
                 **{f'env/{k}': v for k, v in self.stats.items()},
                 **{f'losses/{k}': v for k, v in self.losses.items()},
@@ -415,14 +424,7 @@ class PufferTrainer:
                 'train/epoch': self.epoch,
                 'train/learning_rate': self.optimizer.param_groups[0]["lr"],
                 'train/average_reward': self.average_reward if self.trainer_cfg.average_reward else None,
-            }
-
-            if self.cfg.wandb.trace and self.epoch % self.cfg.wandb.trace_interval == 0:
-                image_path = f"{self.cfg.run_dir}/traces/{self.epoch}.png"
-                trace_image(self.cfg, self.last_pr, image_path)
-                data["traces/actions"] = wandb.Image(image_path)
-
-            self.wandb_run.log(data)
+            })
 
         if len(self.stats) > 0:
             self.recent_stats = deepcopy(self.stats)

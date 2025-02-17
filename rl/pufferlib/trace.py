@@ -73,7 +73,11 @@ GIFT_COLOR = PUMPKIN
 SWAP_COLOR = POMEGRANATE
 
 
-def trace_image(cfg: OmegaConf, policy_record: PolicyRecord, output_path: str):
+def save_trace_image(
+    cfg: OmegaConf,
+    policy_record: PolicyRecord,
+    output_path: str
+):
     """ Trace a policy and generate a jsonl file """
     device = cfg.device
     vecenv = make_vecenv(cfg, num_envs=1, render_mode="human")

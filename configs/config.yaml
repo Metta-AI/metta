@@ -21,8 +21,6 @@ dashboard: false
 wandb:
   enabled: False
   track: False
-  trace: False
-  trace_interval: 10
   project: metta
   entity: metta-research
   group: metta
