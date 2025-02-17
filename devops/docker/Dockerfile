@@ -17,11 +17,11 @@ WORKDIR /workspace/metta
 RUN pip install -r requirements.txt
 
 WORKDIR /workspace/metta/deps/
-RUN git clone --depth=1 https://github.com/Metta-AI/fast_gae.git
+RUN git clone https://github.com/Metta-AI/fast_gae.git
 RUN git clone --depth=1 --branch=metta https://github.com/Metta-AI/pufferlib.git
-RUN git clone --depth=1 https://github.com/Metta-AI/mettagrid.git
-RUN git clone --depth=1 https://github.com/kywch/carbs.git
-RUN git clone --depth=1 https://github.com/Metta-AI/wandb_carbs.git
+RUN git clone https://github.com/Metta-AI/mettagrid.git
+RUN git clone https://github.com/kywch/carbs.git
+RUN git clone https://github.com/Metta-AI/wandb_carbs.git
 
 WORKDIR /workspace/metta/deps/fast_gae
 RUN python setup.py build_ext --inplace
