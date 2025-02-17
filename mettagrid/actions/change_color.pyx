@@ -13,12 +13,9 @@ cdef class ChangeColorAction(MettaActionHandler):
         MettaActionHandler.__init__(self, cfg, "change_color")
 
     cdef unsigned char max_arg(self):
-        return 4
+        return 3
 
     cdef bint _handle_action(self, unsigned int actor_id, Agent* actor, ActionArg arg):
-        if arg > 3:
-            return False
-
         if arg == 0:  # Increment
             if actor.color < 255:
                 actor.color += 1
