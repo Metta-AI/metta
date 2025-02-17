@@ -29,7 +29,7 @@ game:
     hp: 10
     mortal: False
     rewards:
-      action_failure_penalty: 0.0001
+      action_failure_penalty: 0.00001
       ore: 0.005
       battery: 0.01
       heart: 1
