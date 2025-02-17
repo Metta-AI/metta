@@ -3,7 +3,7 @@
 seed: null
 
 defaults:
-  - override /env/mettagrid@env: cylinder
+  - override /env/mettagrid@env: cogeval_training_hard
   - override /agent: simple.medium
   - override /sweep: fast
 # policy: wandb://run/b.daveey.train.maze.sm.dr.warm.0
