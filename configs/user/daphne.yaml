@@ -3,13 +3,13 @@
 seed: null
 
 defaults:
-  - override /env/mettagrid@env: cogeval_training
-  - override /agent: simple
+  - override /env/mettagrid@env: cylinder
+  - override /agent: simple.medium
   - override /sweep: fast
 # policy: wandb://run/b.daveey.train.maze.sm.dr.warm.0
 # baselines: wandb://run/b.daveey.train.maze.sm.11x11.0
 
-policy_uri: ${trained_policy_uri}
+policy_uri: wandb://run/cogeval_training_mini_med
 baseline_uri: wandb://run/mb.daveey.sm.nr
 
 env:
@@ -17,13 +17,35 @@ env:
 
   game:
     max_steps: 1000
-
+    actions:
+      jump:
+        enabled: false
+        cost: 3
+      shield:
+        enabled: false
+        cost: 1
+      transfer:
+        enabled: false
+        cost: 0
+      attack:
+        enabled: false
+        cost: ${uniform:1, 100, 10}
+      gift:
+        enabled: false
+        cost: 0
+      swap:
+        enabled: false
+        cost: 0
+      change_color:
+        enabled: false
+        cost: 0
 trainer:
   evaluate_interval: 2
 
 evaluator:
   policy:
     uri: ${...policy_uri}
+
   baselines:
     uri: ${...baseline_uri}
 
