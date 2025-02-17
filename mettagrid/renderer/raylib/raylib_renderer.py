@@ -102,8 +102,8 @@ class MettaGridRaylibRenderer:
             if "agent_id" in obj:
                 agent_id = obj["agent_id"]
                 self.agents[agent_id] = obj
-                obj["last_reward"] = rewards[agent_id]
-                obj["total_reward"] = total_rewards[agent_id]
+                obj["last_reward"] = rewards[agent_id].item()
+                obj["total_reward"] = total_rewards[agent_id].item()
         if self.selected_agent_idx is not None and self.mind_control:
             self.actions[self.selected_agent_idx][0] = self.action_ids["noop"]
             self.actions[self.selected_agent_idx][1] = 0
@@ -206,7 +206,10 @@ class MettaGridRaylibRenderer:
                 for key, value in obj.items():
                     if ":" in key:
                         key = ":".join(key.split(":")[1:])
-                    text = f"{key}: {value}"
+                    if isinstance(value, float):
+                        text = f"{key}: {value:.2e}"
+                    else:
+                        text = f"{key}: {value}"
                     if len(text) > 25:
                         text = text[:22] + "..."
                     self.font_renderer.render_text(text, sidebar_x + 10, y, font_size)
