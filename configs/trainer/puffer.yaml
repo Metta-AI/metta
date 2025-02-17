@@ -1,4 +1,3 @@
-
 _target_: rl.pufferlib.trainer.PufferTrainer
 
 defaults:
@@ -17,6 +16,10 @@ learning_rate: 0.0006
 max_grad_norm: 0.5
 vf_clip_coef: 0.1
 vf_coef: 0.5
+
+# Average reward settings
+average_reward: false  # Set to true to use average reward optimization
+average_reward_alpha: 0.01  # Smoothing factor for 100k step average (ln(2)/100000)
 
 norm_adv: true
 clip_vloss: true
