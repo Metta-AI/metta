@@ -29,7 +29,6 @@ cdef class AttackNearest(Attack):
         if actor.inventory[InventoryItem.laser] == 0:
             return False
 
-        printf("Attacking with laser: %d\n", actor.inventory[InventoryItem.laser])
         actor.update_inventory(InventoryItem.laser, -1, &self.env._rewards[actor_id])
 
         # Scan the space to find the nearest agent. Prefer the middle (offset 0) before the edges (offset -1, 1).
