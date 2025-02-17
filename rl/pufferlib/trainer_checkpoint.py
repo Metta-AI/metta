@@ -26,6 +26,7 @@ class TrainerCheckpoint:
             'agent_step': self.agent_step,
             'epoch': self.epoch,
             'policy_path': self.policy_path,
+            **self.extra_args
         }
         state_path = os.path.join(run_dir, 'trainer_state.pt')
         torch.save(state, state_path + '.tmp')
