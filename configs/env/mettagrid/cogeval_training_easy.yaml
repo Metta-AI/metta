@@ -83,25 +83,25 @@ game:
 
 # COMMENT OUT IF PLAYING ON PREVIOUSLY TRAINED POLICIES
 
-  # actions:
-  #   jump:
-  #     enabled: false
-  #     cost: 3
-  #   shield:
-  #     enabled: false
-  #     cost: 1
-  #   transfer:
-  #     enabled: false
-  #     cost: 0
-  #   attack:
-  #     enabled: false
-  #     cost: ${uniform:1, 100, 10}
-  #   gift:
-  #     enabled: false
-  #     cost: 0
-  #   swap:
-  #     enabled: false
-  #     cost: 0
-  #   change_color:
-  #     enabled: false
-  #     cost: 0
+  actions:
+    jump:
+      enabled: false
+      cost: 3
+    shield:
+      enabled: false
+      cost: 1
+    transfer:
+      enabled: false
+      cost: 0
+    attack:
+      enabled: false
+      cost: ${uniform:1, 100, 10}
+    gift:
+      enabled: false
+      cost: 0
+    swap:
+      enabled: false
+      cost: 0
+    change_color:
+      enabled: false
+      cost: 0
