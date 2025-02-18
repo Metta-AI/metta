@@ -116,10 +116,14 @@ class MettaAgent(nn.Module):
         print(f"x device in metta_agent: {x.device}")
         print(f"state[0] device in metta_agent: {state[0].device if state is not None else None}")
 
-        # x = x.cpu() if x.is_cuda else x
-        # state = tuple(s.cpu() if s.is_cuda else s for s in state) if state is not None else state
 
-        td = TensorDict({"x": x, "state": state})
+        td = TensorDict({"x": x})
+
+        #convert state from a tuple to a tensor
+        td["state"] = None
+        if state is not None:
+            state = torch.cat(state, dim=0)
+            td["state"] = state.to(x.device)
 
         self.components["_value_"](td)
         self.components["_action_param_"](td)
@@ -127,6 +131,10 @@ class MettaAgent(nn.Module):
         logits = td["_action_param_"]
         value = td["_value_"]
         state = td["state"] 
+
+        # convert state back to tuple to pass back to trainer
+        if state is not None:
+            state = (state[:2], state[2:])
 
         e3b, intrinsic_reward = self._e3b_update(td["_core_"].detach(), e3b)
 

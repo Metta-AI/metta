@@ -1,5 +1,5 @@
 from tensordict import TensorDict
-import omegaconf
+import torch
 import torch.nn as nn
 
 from agent.lib.metta_layer import LayerBase
@@ -38,7 +38,7 @@ class LSTM(LayerBase):
 
         # for some reason, td seems to convert state from a tuple to a tensor
         if state is not None:
-            state = tuple(state)
+            state = (state[:2], state[2:])
 
         x_shape, space_shape = x.shape, self.obs_shape
         x_n, space_n = len(x_shape), len(space_shape)
@@ -66,6 +66,7 @@ class LSTM(LayerBase):
 
         if state is not None:
             state = tuple(s.detach() for s in state)
+            state = torch.cat(state, dim=0)
 
         td[self.name] = hidden
         td["state"] = state
