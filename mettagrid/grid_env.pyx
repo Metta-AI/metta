@@ -148,9 +148,6 @@ cdef class GridEnv:
             GridObject *agent
             ActionHandler handler
 
-        for action in actions:
-            print(action[0], action[1])
-
         self._rewards[:] = 0
         self._observations[:, :, :, :] = 0
 
@@ -165,6 +162,7 @@ cdef class GridEnv:
                     continue
                 arg = actions[idx][1]
                 agent = self._agents[idx]
+                print(action, arg, self._num_action_handlers)
                 handler = <ActionHandler>self._action_handlers[action]
                 if handler._priority != self._max_action_priority - p:
                     continue
