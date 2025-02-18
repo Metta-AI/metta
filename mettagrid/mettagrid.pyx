@@ -179,7 +179,7 @@ cdef class MettaGrid(GridEnv):
         cdef bint share_rewards = False
 
         for agent_idx in range(self._agents.size()):
-            print(actions[agent_idx][0], actions[agent_idx][1])
+            print(actions[agent_idx])
 
             if rewards[agent_idx] != 0:
                 share_rewards = True
