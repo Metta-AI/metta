@@ -2,7 +2,7 @@ import os
 import json
 from datetime import datetime
 import wandb
-from util.datastruct import flatten_dict
+from util.datastruct import flatten_config
 import logging
 from pathlib import Path
 
@@ -37,7 +37,7 @@ class EvalStatsLogger:
         additional_fields['timestamp'] = datetime.now().isoformat()
 
         # Convert the environment configuration to a dictionary and flatten it.
-        flattened_env = flatten_dict(self._cfg.env.game, parent_key = "env.game")
+        flattened_env = flatten_config(self._cfg.env.game, parent_key = "env.game")
         additional_fields.update(flattened_env)
 
         for episode in eval_stats:
