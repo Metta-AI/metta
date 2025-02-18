@@ -11,6 +11,7 @@
             "module": "tools.train",
             "args": [
                 "+user=${env:USER}",
+                "hardware=macbook",
                 "cmd=train",
             ],
         },
@@ -21,6 +22,7 @@
             "module": "tools.sweep",
             "args": [
                 "+user=${env:USER}",
+                "hardware=macbook",
                 "cmd=sweep",
             ],
         },
@@ -31,6 +33,7 @@
             "module": "tools.play",
             "args": [
                 "+user=${env:USER}",
+                "hardware=macbook",
                 "cmd=play",
             ],
         },
@@ -41,8 +44,20 @@
             "module": "tools.eval",
             "args": [
                 "+user=${env:USER}",
+                "hardware=macbook",
                 "cmd=eval",
             ],
         },
+        {
+            "name": "Analyze",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "tools.analyze",
+            "args": [
+                "+user=${env:USER}",
+                "hardware=macbook",
+                "cmd=analyze",
+            ],
+        }
     ]
 }

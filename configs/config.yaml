@@ -7,15 +7,17 @@ vectorization: multiprocessing
 dashboard: false
 
 seed: 1
+device: cpu
 torch_deterministic: true
 
 defaults:
   - agent: simple
   - env/mettagrid@env: simple
   - trainer: puffer
-  - evaluator: puffer
   - sweep: sweep
   - hardware: macbook
+  - eval: eval
+  - analyzer: analyzer
 
 wandb:
   enabled: False
@@ -24,4 +26,3 @@ wandb:
   entity: metta-research
   group: metta
   name: ${run}
-
