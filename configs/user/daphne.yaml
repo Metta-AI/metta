@@ -9,10 +9,6 @@ defaults:
   - override /sweep: fast
   - override /analyzer: analyzer
 
-analyzer:
-  analysis:
-    metrics:
-    - metric: "action.use.altar.agent"
 
 #policy_uri: ${trained_policy_uri}
 policy_uri: wandb://run/mb.daveey.sm.nr
@@ -20,6 +16,12 @@ eval_db_uri: wandb://artifacts/daphne_eval_testing
 #eval_db_uri: file://daphne/daphne_eval_stats
 
 npc_policy_uri: null
+
+analyzer:
+  policy_uri: ${..policy_uri}
+  analysis:
+    metrics:
+    - metric: "action.use.altar.agent"
 
 env:
   # sampling: 0.7

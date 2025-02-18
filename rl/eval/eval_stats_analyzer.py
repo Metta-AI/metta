@@ -98,6 +98,11 @@ class EvalStatsAnalyzer:
             significances.append(significance)
 
         if self.candidate_policy_uri is not None:
+            uri = self.candidate_policy_uri.replace("wandb://run/", "")
+            matching_indices = [i for i in results[0].index if uri in i]
+            if matching_indices:
+                uri = matching_indices[0]
+
             fitness = self.policy_fitness(results)
             results.append(fitness)
 
@@ -105,4 +110,5 @@ class EvalStatsAnalyzer:
 
     def policy_fitness(self, metric_data):
         if self.analysis.baseline is None:
+            return metric_data.loc[self.candidate_policy_uri]
             average_metric = metric_data.mean(axis=1)
