@@ -85,9 +85,9 @@ cdef class Attack(MettaActionHandler):
                         actor.stats.incr(b"attack.win.other_team", actor.group_name)
 
                     for item in range(InventoryItem.InventoryCount):
+                        actor.stats.add(InventoryItemNames[item], b"stolen", actor.group_name, agent_target.inventory[item])
                         actor.update_inventory(item, agent_target.inventory[item], &self.env._rewards[actor.agent_id])
                         agent_target.update_inventory(item, -agent_target.inventory[item], &self.env._rewards[agent_target.agent_id])
-                        actor.stats.add(InventoryItemNames[item], b"stolen", actor.group_name, agent_target.inventory[item])
 
             return True
 
