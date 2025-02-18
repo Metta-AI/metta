@@ -155,6 +155,7 @@ cdef class GridEnv:
         self._event_manager.process_events(self._current_timestep)
 
         cdef unsigned char p
+        print("<act>")
         for p in range(self._max_action_priority + 1):
             for idx in range(self._agents.size()):
                 action = actions[idx][0]
@@ -169,7 +170,10 @@ cdef class GridEnv:
                     continue
                 self._action_success[idx] = handler.handle_action(idx, agent.id, arg)
 
+        print("</act>")
+        print("<obs>")
         self._compute_observations(actions)
+        print("</obs>")
 
         for i in range(self._episode_rewards.shape[0]):
             self._episode_rewards[i] += self._rewards[i]
