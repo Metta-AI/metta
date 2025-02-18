@@ -1,0 +1,27 @@
+_target_: rl.pufferlib.eval.EvalSuite
+
+defaults:
+  - eval
+
+policy_uri: wandb://run/b.daveey.train.simple.s20m
+
+evals:
+  cylinder:
+    env: env/mettagrid/cylinder
+    npc_policy_uri: wandb://run/mb.daveey.sm.nr
+    policy_agents_pct: 0.5
+
+  simple:
+    env: env/mettagrid/simple
+    policy_agents_pct: 0.5
+    npc_policy_uri: wandb://run/mb.daveey.sm.nr
+
+  school:
+    env: env/mettagrid/school
+    npc_policy_uri: wandb://run/mb.daveey.sm.nr
+    policy_agents_pct: 0.5
+
+  teams:
+    env: env/mettagrid/teams
+    npc_policy_uri: wandb://run/mb.daveey.sm.nr
+    policy_agents_pct: 0.5
