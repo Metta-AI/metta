@@ -13,9 +13,11 @@ class EvalStatsAnalyzer:
         self,
         stats_db: EvalStatsDB,
         analysis: DictConfig,
+        policy_uri: str,
         **kwargs):
         self.analysis = analysis
         self.stats_db = stats_db
+        self.candidate_policy_uri = policy_uri
         self.global_filters = analysis.get('filters', None)
 
     def _filters(self, item):
@@ -74,6 +76,7 @@ class EvalStatsAnalyzer:
         return metrics_df, significance_results
 
     def analyze(self):
+        p_fitness = None
         metric_configs = {}
         for cfg in self.analysis.metrics:
             metric_configs[cfg] = fnmatch.filter(self.stats_db.available_metrics, cfg.metric)
@@ -94,4 +97,12 @@ class EvalStatsAnalyzer:
             results.append(result)
             significances.append(significance)
 
+        if self.candidate_policy_uri is not None:
+            fitness = self.policy_fitness(results)
+            results.append(fitness)
+
         return results, significances
+
+    def policy_fitness(self, metric_data):
+        if self.analysis.baseline is None:
+            average_metric = metric_data.mean(axis=1)

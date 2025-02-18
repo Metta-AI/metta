@@ -1,5 +1,7 @@
 _target_: rl.eval.eval_stats_analyzer.EvalStatsAnalyzer
 
+policy_uri: null
+
 analysis:
 
   filters: [] #global filters
@@ -10,3 +12,8 @@ analysis:
     - metric: "action.use.altar.agent"
 
   queries: null
+
+  baseline:
+    filters:
+      policy_name: null #if null, use all policies
+      '"action.use.altar"' : "> 0"

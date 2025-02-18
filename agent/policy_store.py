@@ -56,7 +56,7 @@ class PolicyStore:
 
     def policy(self, policy_selector_cfg: OmegaConf) -> PolicyRecord:
         if isinstance(policy_selector_cfg, str):
-            return self._load_from_uri(policy_selector_cfg)
+            return self._policy_records(policy_selector_cfg, "rand", 1, None)[0]
         prs = self.policies(policy_selector_cfg)
         assert len(prs) == 1, f"Expected 1 policy, got {len(prs)}"
         return prs[0]
@@ -109,7 +109,7 @@ class PolicyStore:
                 prs += self._policy_records(uri, policy_selector_cfg.type, policy_selector_cfg.range, policy_selector_cfg.metric)
         else:
             prs = self._policy_records(policy_selector_cfg.uri, policy_selector_cfg.type, policy_selector_cfg.range, policy_selector_cfg.metric)
-                
+
         for k,v in policy_selector_cfg.filters.items():
             prs = [pr for pr in prs if pr.metadata.get(k, None) == v]
 
