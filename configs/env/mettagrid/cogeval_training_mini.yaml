@@ -107,3 +107,18 @@ game:
     change_color:
       enabled: false
       cost: 0
+
+  objects:
+    generator:
+      hp: 30
+      cooldown: 10
+      initial_resources: 5
+      use_cost: 0
+    altar:
+      hp: 30
+      cooldown: 10
+      use_cost: 0
+    converter:
+      hp: 30
+      cooldown: 10
+      use_cost: 0

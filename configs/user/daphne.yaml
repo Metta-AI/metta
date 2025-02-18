@@ -15,7 +15,7 @@ analyzer:
     - metric: "action.use.altar.agent"
 
 #policy_uri: ${trained_policy_uri}
-policy_uri: wandb://run/cogeval_training_mini_med
+policy_uri: wandb://run/cogeval_training_mini_pretrained_ent0.02
 eval_db_uri: wandb://artifacts/cog_eval_training_evals
 #eval_db_uri: file://daphne/daphne_eval_stats
 
@@ -28,6 +28,9 @@ env:
 
     map_builder:
       border_width: 0
+    actions:
+      attack:
+        enabled: false
 
 trainer:
   evaluate_interval: 2
