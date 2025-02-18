@@ -1,7 +1,7 @@
 from mettagrid.actions.actions cimport MettaActionHandler
 
 from mettagrid.grid_object cimport GridLocation
-from mettagrid.objects cimport Agent
+from mettagrid.objects.agent cimport Agent
 
 cdef class Attack(MettaActionHandler):
     cdef int damage

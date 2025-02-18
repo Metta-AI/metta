@@ -1,4 +1,5 @@
-#pragma once
+#ifndef STATS_TRACKER_HPP
+#define STATS_TRACKER_HPP
 
 #include <map>
 #include <string>
@@ -73,3 +74,5 @@ public:
         }
     }
 };
+
+#endif

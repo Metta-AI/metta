@@ -3,10 +3,11 @@ from libc.stdio cimport printf
 
 from omegaconf import OmegaConf
 
-from mettagrid.grid_object cimport GridLocation, GridObjectId, Orientation, GridObject
-from mettagrid.action cimport ActionHandler, ActionArg
-from mettagrid.objects cimport MettaObject, ObjectType, Usable, Altar, Agent, Events, GridLayer
-from mettagrid.objects cimport Generator, Converter, InventoryItem, ObjectTypeNames, InventoryItemNames
+from mettagrid.grid_object cimport GridLocation, Orientation
+from mettagrid.action cimport ActionArg
+from mettagrid.objects.metta_object cimport MettaObject
+from mettagrid.objects.agent cimport Agent
+from mettagrid.objects.constants cimport GridLayer, ObjectTypeNames, InventoryItem, InventoryItemNames
 from mettagrid.actions.actions cimport MettaActionHandler
 
 cdef class Attack(MettaActionHandler):
@@ -54,6 +55,12 @@ cdef class Attack(MettaActionHandler):
             actor.stats.incr(self._stats.target[agent_target._type_id])
             actor.stats.incr(self._stats.target[agent_target._type_id], actor.group_name)
             actor.stats.incr(self._stats.target[agent_target._type_id], actor.group_name, agent_target.group_name)
+
+            if agent_target.group_name == actor.group_name:
+                actor.stats.incr(b"attack.own_team", actor.group_name)
+            else:
+                actor.stats.incr(b"attack.other_team", actor.group_name)
+
             was_frozen = agent_target.frozen > 0
 
             if agent_target.shield:
@@ -70,6 +77,12 @@ cdef class Attack(MettaActionHandler):
                     actor.stats.incr(b"attack.win", actor.group_name, agent_target.group_name)
                     actor.stats.incr(b"attack.loss", agent_target.group_name)
                     actor.stats.incr(b"attack.loss", agent_target.group_name, actor.group_name)
+
+                    if agent_target.group_name == actor.group_name:
+                        actor.stats.incr(b"attack.win.own_team", actor.group_name)
+                    else:
+                        actor.stats.incr(b"attack.win.other_team", actor.group_name)
+
                     self.env._rewards[actor.agent_id] += agent_target.freeze_reward
                     self.env._rewards[agent_target.agent_id] -= agent_target.freeze_reward
 
