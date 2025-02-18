@@ -49,8 +49,6 @@ cdef class GridEnv:
         self._use_flat_actions = use_flat_actions
         self._action_handlers = action_handlers
         self._num_action_handlers = len(action_handlers)
-        for idx, handler in enumerate(action_handlers):
-            print(idx, handler.action_name())
         self._max_action_priority = 0
         self._max_action_arg = 0
         self._max_action_args.resize(len(action_handlers))
@@ -150,7 +148,7 @@ cdef class GridEnv:
             GridObject *agent
             ActionHandler handler
 
-        print("<step>")
+        print("actions", actions)
         self._rewards[:] = 0
         self._observations[:, :, :, :] = 0
 
@@ -158,7 +156,6 @@ cdef class GridEnv:
         self._event_manager.process_events(self._current_timestep)
 
         cdef unsigned char p
-        print("<act>")
         for p in range(self._max_action_priority + 1):
             for idx in range(self._agents.size()):
                 action = actions[idx][0]
@@ -173,17 +170,13 @@ cdef class GridEnv:
                     continue
                 self._action_success[idx] = handler.handle_action(idx, agent.id, arg)
 
-        print("</act>")
-        print("<obs>")
         self._compute_observations(actions)
-        print("</obs>")
 
         for i in range(self._episode_rewards.shape[0]):
             self._episode_rewards[i] += self._rewards[i]
 
         if self._max_timestep > 0 and self._current_timestep >= self._max_timestep:
             self._truncations[:] = 1
-        print("</step>")
 
     cdef cnp.ndarray _unflatten_actions(self, cnp.ndarray actions):
         if self._use_flat_actions:
