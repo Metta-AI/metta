@@ -28,7 +28,8 @@ l2_init_weight_update_interval: 0 # update the copy of initial weights every N e
 
 # Layers are nn.Modules. Linear and Conv modules get extra weight helper 
 # functions found in the ParameterizedLayer class. Note that these layers are also 
-# appended a nonlinear layer unless you specify nonlinearity: null.
+# appended a nonlinear layer unless you specify nonlinearity: null. Nonlinear layers
+# should be specified as nn.<nonlinearity> such as nn.Tanh.
 
 # There are also merge layers which allow you to merge multiple outputs into a single 
 # output to feed into a layer. You can merge in various ways such as concatenating 
@@ -50,7 +51,7 @@ components:
   channel_selector_0-11: # a merge layer that takes a slice of the input
     _target_: agent.lib.merge_layer.ConcatMergeLayer
     sources:
-      - source_name: _obs_
+      - source_name: obs_normalizer
         slice: [0, 12]    # Use channels 0 to 11
         dim: 1            # Channel dimension
     output_size: 12
@@ -58,7 +59,7 @@ components:
   channel_selector_12-22:
     _target_: agent.lib.merge_layer.ConcatMergeLayer
     sources:
-      - source_name: _obs_
+      - source_name: obs_normalizer
         slice: [12, 22]   # Use channels 12 to 23
         dim: 1
     output_size: 12
@@ -136,7 +137,7 @@ components:
     _target_: agent.lib.nn_layer_library.Linear
     input_source: _core_
     output_size: 512
-    nonlinearity: Tanh
+    nonlinearity: nn.Tanh
     effective_rank: true
     l2_norm_scale: 1.0
     l2_init_scale: 1.0

@@ -62,7 +62,7 @@ components:
     input_source: encoded_obs
     output_size: 128
     nn_params:
-      num_layers: 1
+      num_layers: 2
       
   critic_1:
     _target_: agent.lib.nn_layer_library.Linear

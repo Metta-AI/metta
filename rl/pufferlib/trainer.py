@@ -197,10 +197,6 @@ class PufferTrainer:
                     actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward = policy(o_device, (h, c), e3b=e3b)
                     lstm_h[:, env_id] = h
                     lstm_c[:, env_id] = c
-                
-                # the below can be deleted if no LSTM
-                else:
-                    actions, logprob, _, value, next_e3b, intrinsic_reward = policy(o_device, e3b=e3b)
 
                 if self.use_e3b:
                     e3b_inv[env_id] = next_e3b

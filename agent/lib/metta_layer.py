@@ -29,12 +29,11 @@ class LayerBase(nn.Module):
     forward method of the layer above it.'''
     def __init__(self, name, input_source=None, output_size=None, nn_params={}, **cfg):
         super().__init__()
-        self.cfg = cfg
         self.name = name
         self.input_source = input_source
         self.output_size = output_size
         self.nn_params = nn_params
-        self.layer = None
+        self.net = None
         self._ready = False
 
     @property
@@ -46,7 +45,7 @@ class LayerBase(nn.Module):
             return
 
         self.input_source_component = input_source_component
-        
+
         if self.input_source_component is None:
             self.input_size = None
             if self.output_size is None: # output size must be set for a top level component
@@ -61,9 +60,9 @@ class LayerBase(nn.Module):
         self._ready = True
 
     def _initialize(self):
-        self.layer = self._make_layer()
+        self.net = self._make_net()
 
-    def _make_layer(self):
+    def _make_net(self):
         pass
 
     def forward(self, td: TensorDict):
@@ -78,7 +77,7 @@ class LayerBase(nn.Module):
         return td
     
     def _forward(self, td: TensorDict):
-        td[self.name] = self.layer(td[self.input_source])
+        td[self.name] = self.net(td[self.input_source])
         return td
         
     def clip_weights(self):
@@ -93,20 +92,20 @@ class LayerBase(nn.Module):
         pass
     
 class ParamLayer(LayerBase):
-    '''This provides a few useful methods for layers that have parameters (weights).
-    Superclasses should have input_size, output_size, and layer already set.'''
-    def __init__(self, agent_attributes, clip_scale=1, effective_rank=None, l2_norm_scale=None, l2_init_scale=None, nonlinearity='nn.ReLU', initialization='Orthogonal', **cfg): 
+    '''This provides a few useful methods for components/nets that have parameters (weights).
+    Superclasses should have input_size and output_size already set.'''
+    def __init__(self, clip_scale=1, effective_rank=None, l2_norm_scale=None, l2_init_scale=None, nonlinearity='nn.ReLU', initialization='Orthogonal', clip_range=None, **cfg): 
         self.clip_scale = clip_scale
         self.effective_rank_bool = effective_rank
         self.l2_norm_scale = l2_norm_scale
         self.l2_init_scale = l2_init_scale
         self.nonlinearity = nonlinearity
         self.initialization = initialization
-        self.global_clip_range = agent_attributes.clip_range
+        self.global_clip_range = clip_range
         super().__init__(**cfg)
 
     def _initialize(self):
-        self.weight_layer = self._make_layer()
+        self.weight_net = self._make_net()
 
         self._initialize_weights()
 
@@ -116,7 +115,7 @@ class ParamLayer(LayerBase):
             self.clip_value = None
 
         if self.l2_init_scale != 0:
-            self.initial_weights = self.weight_layer.weight.data.clone()
+            self.initial_weights = self.weight_net.weight.data.clone()
         else:
             self.initial_weights = None
 
@@ -127,12 +126,12 @@ class ParamLayer(LayerBase):
                 if class_name not in dir(nn):
                     raise ValueError(f"Unsupported nonlinearity: {self.nonlinearity}")
                 nonlinearity_class = getattr(nn, class_name)
-                self.layer = nn.Sequential(self.weight_layer, nonlinearity_class())
-                self.weight_layer = self.layer[0]
+                self.net = nn.Sequential(self.weight_net, nonlinearity_class())
+                self.weight_net = self.net[0]
             except (AttributeError, KeyError, ValueError) as e:
                 raise ValueError(f"Unsupported nonlinearity: {self.nonlinearity}") from e
         else:
-            self.layer = self.weight_layer
+            self.net = self.weight_net
 
     def _initialize_weights(self):
         fan_in = self.input_size
@@ -143,43 +142,43 @@ class ParamLayer(LayerBase):
                 gain = np.sqrt(2)
             else:
                 gain = 1
-            nn.init.orthogonal_(self.weight_layer.weight, gain=gain)
-            largest_weight = self.weight_layer.weight.max().item()
+            nn.init.orthogonal_(self.weight_net.weight, gain=gain)
+            largest_weight = self.weight_net.weight.max().item()
         elif self.initialization.lower() == 'xavier':
             largest_weight = np.sqrt(6 / (fan_in + fan_out))
-            nn.init.xavier_uniform_(self.weight_layer.weight)
+            nn.init.xavier_uniform_(self.weight_net.weight)
         elif self.initialization.lower() == 'normal':
             largest_weight = np.sqrt(2 / fan_in)
-            nn.init.normal_(self.weight_layer.weight, mean=0, std=largest_weight)
+            nn.init.normal_(self.weight_net.weight, mean=0, std=largest_weight)
         elif self.initialization.lower() == 'max_0_01':
             #set to uniform with largest weight = 0.01
             largest_weight = 0.01
-            nn.init.uniform_(self.weight_layer.weight, a=-largest_weight, b=largest_weight)
+            nn.init.uniform_(self.weight_net.weight, a=-largest_weight, b=largest_weight)
         else:
             raise ValueError(f"Invalid initialization method: {self.initialization}")
 
-        if hasattr(self.weight_layer, "bias") and isinstance(self.weight_layer.bias, torch.nn.parameter.Parameter):
-            self.weight_layer.bias.data.fill_(0)
+        if hasattr(self.weight_net, "bias") and isinstance(self.weight_net.bias, torch.nn.parameter.Parameter):
+            self.weight_net.bias.data.fill_(0)
 
         self.largest_weight = largest_weight
 
     def clip_weights(self):
         if self.clip_value is not None:
             with torch.no_grad():
-                self.weight_layer.weight.data = self.weight_layer.weight.data.clamp(-self.clip_value, self.clip_value)
+                self.weight_net.weight.data = self.weight_net.weight.data.clamp(-self.clip_value, self.clip_value)
 
     def l2_reg_loss(self) -> torch.Tensor:
         '''Also known as Weight Decay Loss or L2 Ridge Regularization'''
-        l2_reg_loss = torch.tensor(0.0, device=self.weight_layer.weight.data.device)
+        l2_reg_loss = torch.tensor(0.0, device=self.weight_net.weight.data.device)
         if self.l2_norm_scale != 0 and self.l2_norm_scale is not None:
-            l2_reg_loss = (torch.sum(self.weight_layer.weight.data ** 2))*self.l2_norm_scale
+            l2_reg_loss = (torch.sum(self.weight_net.weight.data ** 2))*self.l2_norm_scale
         return l2_reg_loss
 
     def l2_init_loss(self) -> torch.Tensor:
         '''Also known as Delta Regularization Loss'''
-        l2_init_loss = torch.tensor(0.0, device=self.weight_layer.weight.data.device)
+        l2_init_loss = torch.tensor(0.0, device=self.weight_net.weight.data.device)
         if self.l2_init_scale != 0 and self.l2_init_scale is not None:
-            l2_init_loss = torch.sum((self.weight_layer.weight.data - self.initial_weights) ** 2) * self.l2_init_scale
+            l2_init_loss = torch.sum((self.weight_net.weight.data - self.initial_weights) ** 2) * self.l2_init_scale
         return l2_init_loss
     
     def update_l2_init_weight_copy(self, alpha: float = 0.9):
@@ -187,7 +186,7 @@ class ParamLayer(LayerBase):
         initial weights copy with a weighted average of the previous and 
         current weights.'''
         if self.initial_weights is not None:
-            self.initial_weights = (self.initial_weights * alpha + self.weight_layer.weight.data * (1 - alpha)).clone()
+            self.initial_weights = (self.initial_weights * alpha + self.weight_net.weight.data * (1 - alpha)).clone()
     
     def compute_effective_rank(self, delta: float = 0.01) -> dict:
         '''Computes the effective rank of a matrix based on the given delta value.
@@ -195,10 +194,10 @@ class ParamLayer(LayerBase):
         srank_\delta(\Phi) = min{k: sum_{i=1}^k σ_i / sum_{j=1}^d σ_j ≥ 1 - δ}
         See the paper titled 'Implicit Under-Parameterization Inhibits Data-Efficient 
         Deep Reinforcement Learning' by A. Kumar et al.'''
-        if self.weight_layer.weight.data.dim() != 2 or self.effective_rank_bool is None or self.effective_rank_bool == False:
+        if self.weight_net.weight.data.dim() != 2 or self.effective_rank_bool is None or self.effective_rank_bool == False:
             return None
         # Singular value decomposition. We only need the singular value matrix.
-        _, S, _ = torch.linalg.svd(self.weight_layer.weight.data.detach())
+        _, S, _ = torch.linalg.svd(self.weight_net.weight.data.detach())
         
         # Calculate the cumulative sum of singular values
         total_sum = S.sum()

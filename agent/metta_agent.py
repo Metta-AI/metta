@@ -29,7 +29,7 @@ def make_policy(env: PufferEnv, cfg: OmegaConf):
         grid_features=env.grid_features,
         global_features=env.global_features,
         _recursive_=False)
-    
+
     agent.to(cfg.device)
     return agent
 
@@ -46,17 +46,20 @@ class MettaAgent(nn.Module):
         super().__init__()
         cfg = OmegaConf.create(cfg)
 
-        self.agent_attributes = {
+        self.hidden_size = cfg.components._core_.output_size # trainer/Experience uses this for e3b
+        self.clip_range = cfg.clip_range
+
+        agent_attributes = {
             'obs_shape': obs_shape,
-            'clip_range': cfg.clip_range,
+            'clip_range': self.clip_range,
             'action_space': action_space,
             'grid_features': grid_features,
             'obs_key': cfg.observations.obs_key,
             'obs_input_shape': obs_space[cfg.observations.obs_key].shape[1:],
-            'num_objects': obs_space[cfg.observations.obs_key].shape[0]
+            'num_objects': obs_space[cfg.observations.obs_key].shape[0],
+            'hidden_size': self.hidden_size
         }
         
-        self.hidden_size = cfg.components._core_.output_size # trainer/Experience uses this for e3b
         # self.observation_space = obs_space # for use with FeatureSetEncoder
         # self.global_features = global_features # for use with FeatureSetEncoder
 
@@ -64,7 +67,7 @@ class MettaAgent(nn.Module):
         component_cfgs = OmegaConf.to_container(cfg.components, resolve=True)
         for component_cfg in component_cfgs.keys():
             component_cfgs[component_cfg]['name'] = component_cfg
-            component = hydra.utils.instantiate(component_cfgs[component_cfg], agent_attributes = self.agent_attributes)
+            component = hydra.utils.instantiate(component_cfgs[component_cfg], **agent_attributes)
             self.components[component_cfg] = component
 
         component = self.components['_value_']
@@ -80,15 +83,26 @@ class MettaAgent(nn.Module):
 
     def _setup_components(self, component):
         if component.input_source is not None:
-            self._setup_components(self.components[component.input_source])
+            if isinstance(component.input_source, str):
+                self._setup_components(self.components[component.input_source])
+            elif isinstance(component.input_source, list):
+                for input_source in component.input_source:
+                    self._setup_components(self.components[input_source])
+
         if component.input_source is not None:
-            component.setup(self.components[component.input_source]) 
+            if isinstance(component.input_source, str):
+                component.setup(self.components[component.input_source]) 
+            elif isinstance(component.input_source, list):
+                input_source_components = {}
+                for input_source in component.input_source:
+                    input_source_components[input_source] = self.components[input_source]
+                component.setup(input_source_components)
         else:
             component.setup()
 
     @property
     def lstm(self):
-        return self.components["_core_"].layer
+        return self.components["_core_"].net
 
     def get_value(self, x, state=None):
         td = TensorDict({"x": x, "state": state})
@@ -123,14 +137,14 @@ class MettaAgent(nn.Module):
         return e3b, intrinsic_reward
 
     def l2_reg_loss(self) -> torch.Tensor:
-        '''L2 regularization loss is on by default although setting l2_norm_coeff to 0 effectively turns it off. Adjust it by setting l2_norm_scale in your layer config to a multiple of the global loss value or 0 to turn it off.'''
+        '''L2 regularization loss is on by default although setting l2_norm_coeff to 0 effectively turns it off. Adjust it by setting l2_norm_scale in your component config to a multiple of the global loss value or 0 to turn it off.'''
         l2_reg_loss = 0
         for component in self.components.values():
             l2_reg_loss += component.l2_reg_loss() or 0
         return torch.tensor(l2_reg_loss)
     
     def l2_init_loss(self) -> torch.Tensor:
-        '''L2 initialization loss is on by default although setting l2_init_coeff to 0 effectively turns it off. Adjust it by setting l2_init_scale in your layer config to a multiple of the global loss value or 0 to turn it off.'''
+        '''L2 initialization loss is on by default although setting l2_init_coeff to 0 effectively turns it off. Adjust it by setting l2_init_scale in your component config to a multiple of the global loss value or 0 to turn it off.'''
         l2_init_loss = 0
         for component in self.components.values():
             l2_init_loss += component.l2_init_loss() or 0
@@ -142,13 +156,13 @@ class MettaAgent(nn.Module):
             component.update_l2_init_weight_copy()
 
     def clip_weights(self):
-        '''Weight clipping is on by default although setting clip_range or clip_scale to 0, or a large positive value effectively turns it off. Adjust it by setting clip_scale in your layer config to a multiple of the global loss value or 0 to turn it off.'''
-        if self.agent_attributes['clip_range'] > 0:
+        '''Weight clipping is on by default although setting clip_range or clip_scale to 0, or a large positive value effectively turns it off. Adjust it by setting clip_scale in your component config to a multiple of the global loss value or 0 to turn it off.'''
+        if self.clip_range > 0:
             for component in self.components.values():
                 component.clip_weights()
 
     def compute_effective_rank(self, delta: float = 0.01) -> List[dict]:
-        '''Effective rank computation is off by default. Set effective_rank to True in the config to turn it on for a given layer.'''
+        '''Effective rank computation is off by default. Set effective_rank to True in the config to turn it on for a given component.'''
         effective_ranks = []
         for component in self.components.values():
             rank = component.effective_rank(delta)

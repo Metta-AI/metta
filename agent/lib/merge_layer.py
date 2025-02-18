@@ -1,33 +1,39 @@
 import omegaconf
 import torch
 from tensordict import TensorDict
-
 from agent.lib.metta_layer import LayerBase
 
 class MergeLayerBase(LayerBase):
-    def __init__(self, metta_agent, **cfg):
-        super().__init__(metta_agent, **cfg)
-        cfg = omegaconf.OmegaConf.create(cfg)
-        object.__setattr__(self, 'metta_agent', metta_agent)
-        self.sources_list = list(cfg.sources)
+    def __init__(self, name, sources, **cfg):
+        super().__init__(name)
+        self.sources_list = list(sources)
         self.default_dim = -1
-        self.name = cfg.name
-        self.ready = False
+        self._ready = False
 
-    def setup(self):
-        if self.ready:
+        self.input_source = []
+
+        for src_cfg in self.sources_list:
+            self.input_source.append(src_cfg['source_name'])
+
+    @property
+    def ready(self):
+        return self._ready
+
+    def setup(self, input_source_components=None):
+        if self._ready:
             return
+
+        self.input_source_components = input_source_components
 
         sizes = []
         dims = []
         for _, src_cfg in enumerate(self.sources_list):       
-            source_name = src_cfg.source_name
+            source_name = src_cfg['source_name']
             
-            self.metta_agent.components[source_name].setup_layer()
-            full_source_size = self.metta_agent.components[source_name].output_size
+            full_source_size = self.input_source_components[source_name].output_size
 
             if src_cfg.get('slice') is not None:
-                slice_range = src_cfg.slice
+                slice_range = src_cfg['slice']
                 if isinstance(slice_range, omegaconf.listconfig.ListConfig):
                     slice_range = list(slice_range)
                 if not (isinstance(slice_range, (list, tuple)) and len(slice_range) == 2):
@@ -40,7 +46,7 @@ class MergeLayerBase(LayerBase):
             dims.append(src_cfg.get("dim", self.default_dim))
 
         self._setup_merge_layer(sizes, dims)
-        self.ready = True
+        self._ready = True
         
     def _setup_merge_layer(self, sizes, dims):
         raise NotImplementedError("Subclasses should implement this method.")
@@ -48,8 +54,8 @@ class MergeLayerBase(LayerBase):
     def forward(self, td: TensorDict):
         outputs = []
         for src_cfg in self.sources_list:
-            source_name = src_cfg.source_name
-            self.metta_agent.components[source_name].forward(td)
+            source_name = src_cfg['source_name']
+            self.input_source_components[source_name].forward(td)
             src_tensor = td[source_name]
 
             if "slice" in src_cfg:

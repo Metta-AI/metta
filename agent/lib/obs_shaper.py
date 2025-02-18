@@ -4,10 +4,10 @@ from tensordict import TensorDict
 from agent.lib.metta_layer import LayerBase
 
 class ObsShaper(LayerBase):
-    def __init__(self, agent_attributes, **cfg):
+    def __init__(self, obs_shape, num_objects, **cfg):
         super().__init__(**cfg)
-        self.obs_shape = agent_attributes.obs_shape
-        self.output_size = agent_attributes.num_objects
+        self.obs_shape = obs_shape
+        self.output_size = num_objects
 
     def _forward(self, td: TensorDict):
         x = td['x']

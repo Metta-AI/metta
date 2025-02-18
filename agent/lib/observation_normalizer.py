@@ -36,11 +36,10 @@ OBS_NORMALIZATIONS = {
 }
 
 class ObservationNormalizer(LayerBase):
-    def __init__(self, agent_attributes, **cfg):
+    def __init__(self, grid_features, **cfg):
         super().__init__(**cfg)
 
-        num_objects = len(agent_attributes.grid_features)
-        grid_features = agent_attributes.grid_features
+        num_objects = len(grid_features)
 
         obs_norm = torch.tensor([OBS_NORMALIZATIONS[k] for k in grid_features], dtype=torch.float32)
         obs_norm = obs_norm.view(1, num_objects, 1, 1)

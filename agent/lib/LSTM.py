@@ -5,31 +5,29 @@ import torch.nn as nn
 from agent.lib.metta_layer import LayerBase
 
 class LSTM(LayerBase):
-    def __init__(self, agent_attributes, **cfg):
+    def __init__(self, obs_shape, hidden_size, **cfg):
         '''Taken from models.py.
         Wraps your policy with an LSTM without letting you shoot yourself in the
         foot with bad transpose and shape operations. This saves much pain.'''
 
         super().__init__(**cfg)
-        self.obs_shape = agent_attributes.obs_shape
-        self.hidden_size = self.output_size
+        self.obs_shape = obs_shape
+        self.hidden_size = hidden_size
 
-# what about num layers??
-
-    def _make_layer(self):
-        layer = nn.LSTM(
+    def _make_net(self):
+        net = nn.LSTM(
             self.input_size,
             self.hidden_size,
             **self.nn_params
         )
     
-        for name, param in layer.named_parameters():
+        for name, param in net.named_parameters():
             if "bias" in name:
                 nn.init.constant_(param, 1) # Joseph originally had this as 0 
             elif "weight" in name:
                 nn.init.orthogonal_(param, 1.0) # torch's default is uniform
 
-        return layer
+        return net
 
     def _forward(self, td: TensorDict):
         x = td['x']
@@ -59,7 +57,7 @@ class LSTM(LayerBase):
         hidden = hidden.reshape(B, TT, self.input_size)
         hidden = hidden.transpose(0, 1)
 
-        hidden, state = self.layer(hidden, state)
+        hidden, state = self.net(hidden, state)
 
         hidden = hidden.transpose(0, 1)
         hidden = hidden.reshape(B*TT, self.hidden_size)
