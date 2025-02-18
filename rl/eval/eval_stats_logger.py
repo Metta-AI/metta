@@ -12,7 +12,9 @@ class EvalStatsLogger:
         self._wandb_run = wandb_run
 
         artifact_name = None
-        if cfg.eval.eval_db_uri.startswith("wandb://"):
+        if cfg.eval.eval_db_uri is None:
+            json_path = os.path.join(cfg.run_dir, "eval_stats")
+        elif cfg.eval.eval_db_uri.startswith("wandb://"):
             artifact_name = cfg.eval.eval_db_uri.split("/")[-1]
             json_path = os.path.join(cfg.run_dir, "eval_stats")
         elif cfg.eval.eval_db_uri.startswith("file://"):
