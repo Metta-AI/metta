@@ -31,6 +31,8 @@ def make_policy(env: PufferEnv, cfg: OmegaConf):
         _recursive_=False)
 
     agent.to(cfg.device)
+    # delete this comment after testing
+    print(f"agent device in make_policy: {agent.device}")
     return agent
 
 
@@ -114,8 +116,8 @@ class MettaAgent(nn.Module):
         print(f"x device in metta_agent: {x.device}")
         print(f"state[0] device in metta_agent: {state[0].device if state is not None else None}")
 
-        x = x.cpu() if x.is_cuda else x
-        state = tuple(s.cpu() if s.is_cuda else s for s in state) if state is not None else state
+        # x = x.cpu() if x.is_cuda else x
+        # state = tuple(s.cpu() if s.is_cuda else s for s in state) if state is not None else state
 
         td = TensorDict({"x": x, "state": state})
 
