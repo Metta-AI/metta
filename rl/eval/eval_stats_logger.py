@@ -4,6 +4,7 @@ from datetime import datetime
 import wandb
 from util.datastruct import flatten_config
 import logging
+
 logger = logging.getLogger("eval_stats_logger.py")
 
 class EvalStatsLogger:
@@ -49,13 +50,9 @@ class EvalStatsLogger:
     def _log_to_file(self, eval_stats):
         # If file exists, load and merge with existing data
         if os.path.exists(self._json_path):
-            try:
-                with open(self._json_path, "r") as f:
-                    existing_stats = json.load(f)
-                eval_stats.extend(existing_stats)
-            except Exception as e:
-                logger.error(f"Error loading existing stats: {e}")
-
+            with open(self._json_path, "r") as f:
+                existing_stats = json.load(f)
+            eval_stats.extend(existing_stats)
         with open(self._json_path, "w") as f:
             json.dump(eval_stats, f, indent=4)
         logger.info(f"Saved eval stats to {self._json_path}")
