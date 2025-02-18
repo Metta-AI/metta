@@ -3,61 +3,54 @@
 seed: null
 
 defaults:
-  - override /env/mettagrid@env: cogeval_training_hard
+  - override /eval: example
+  - override /env/mettagrid@env: cogeval_training_mini
   - override /agent: simple.medium
   - override /sweep: fast
-# policy: wandb://run/b.daveey.train.maze.sm.dr.warm.0
-# baselines: wandb://run/b.daveey.train.maze.sm.11x11.0
+  - override /analyzer: analyzer
 
+analyzer:
+  analysis:
+    metrics:
+    - metric: "action.use.altar.agent"
+
+#policy_uri: ${trained_policy_uri}
 policy_uri: wandb://run/cogeval_training_mini_med
-baseline_uri: wandb://run/mb.daveey.sm.nr
+eval_db_uri: wandb://artifacts/cog_eval_training_evals
+#eval_db_uri: file://daphne/daphne_eval_stats
+
+npc_policy_uri: null
 
 env:
-  sampling: 1
-
+  # sampling: 0.7
   game:
     max_steps: 1000
-    actions:
-      jump:
-        enabled: false
-        cost: 3
-      shield:
-        enabled: false
-        cost: 1
-      transfer:
-        enabled: false
-        cost: 0
-      attack:
-        enabled: false
-        cost: ${uniform:1, 100, 10}
-      gift:
-        enabled: false
-        cost: 0
-      swap:
-        enabled: false
-        cost: 0
-      change_color:
-        enabled: false
-        cost: 0
+
+    map_builder:
+      border_width: 0
+
 trainer:
   evaluate_interval: 2
 
-evaluator:
-  policy:
-    uri: ${...policy_uri}
+eval:
+  num_envs: 10
+  num_episodes: 10
+  max_time_s: 600
 
-  baselines:
-    uri: ${...baseline_uri}
+  policy_uri: ${..policy_uri}
+  npc_policy_uri: ${..npc_policy_uri}
+  eval_db_uri: ${..eval_db_uri} #file://daphne/sweep_stats
 
 wandb:
   enabled: true
   track: true
   checkpoint_interval: 1
+evaluate_interval: 1
 
 sweep:
-  metric: action.use
+  metric: "action.use.altar.agent"
 
 cmd: ???
-run_id: 8
+run_id: 12
 run: ${oc.env:USER}.local.${cmd}.${run_id}
 trained_policy_uri: ./train_dir/${oc.env:USER}.local.train.${run_id}/checkpoints

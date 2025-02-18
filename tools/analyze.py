@@ -1,33 +1,22 @@
+import os
+import signal
 import logging
-
 import hydra
 from omegaconf import DictConfig
-from mettagrid.config.config import setup_metta_environment
-from agent.policy_store import PolicyStore
-from rl.eval.eval_stats_logger import EvalStatsLogger
-from rl.eval.eval_stats_db import EvalStatsDB
 from rl.wandb.wandb_context import WandbContext
+from mettagrid.config.config import setup_metta_environment
+from rl.eval.eval_stats_db import EvalStatsDB
+logger = logging.getLogger("analyze.py")
 
-logger = logging.getLogger("eval.py")
+# Aggressively exit on Ctrl+C
+signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
 
 @hydra.main(version_base=None, config_path="../configs", config_name="config")
-def main(cfg: DictConfig):
+
+def main(cfg: DictConfig) -> None:
     setup_metta_environment(cfg)
 
     with WandbContext(cfg) as wandb_run:
-        policy_store = PolicyStore(cfg, wandb_run)
-
-        eval = hydra.utils.instantiate(
-            cfg.eval,
-            policy_store,
-            cfg.env,
-            cfg_recursive_=False
-        )
-        stats = eval.evaluate()
-        stats_logger = EvalStatsLogger(cfg, wandb_run)
-
-        stats_logger.log(stats)
-
         eval_stats_db = EvalStatsDB.from_uri(cfg.eval.eval_db_uri, wandb_run)
         analyzer = hydra.utils.instantiate(cfg.analyzer, eval_stats_db)
         analyzer.analyze()

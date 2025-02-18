@@ -1,0 +1,12 @@
+_target_: rl.eval.eval_stats_analyzer.EvalStatsAnalyzer
+
+analysis:
+
+  filters: [] #global filters
+
+  metric_patterns: null
+
+  metrics:
+    - metric: "action.use.altar.agent"
+
+  queries: null
