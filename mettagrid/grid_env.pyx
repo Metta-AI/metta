@@ -148,7 +148,9 @@ cdef class GridEnv:
             GridObject *agent
             ActionHandler handler
 
-        print("actions", actions)
+        for action in actions:
+            print(action[0], action[1])
+
         self._rewards[:] = 0
         self._observations[:, :, :, :] = 0
 
