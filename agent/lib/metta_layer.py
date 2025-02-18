@@ -3,6 +3,7 @@ from tensordict import TensorDict
 from torch import nn
 import torch
 import numpy as np
+import torch.nn.functional as F
 
 class LayerBase(nn.Module):
     '''The base class for layers that make up the metta agent. All layers are
@@ -120,13 +121,13 @@ class ParamLayer(LayerBase):
             self.initial_weights = None
 
         if self.nonlinearity is not None:
-            # expecting a string of the form 'nn.Tanh'
+            # expecting a string of the form 'nn.Tanh'. Using torch.nn.functional as F
             try:
                 _, class_name = self.nonlinearity.split('.')
-                if class_name not in dir(nn):
+                if class_name not in dir(F):
                     raise ValueError(f"Unsupported nonlinearity: {self.nonlinearity}")
-                nonlinearity_class = getattr(nn, class_name)
-                self.net = nn.Sequential(self.weight_net, nonlinearity_class())
+                nonlinearity_function = getattr(F, class_name.lower())
+                self.net = nn.Sequential(self.weight_net, nonlinearity_function)
                 self.weight_net = self.net[0]
             except (AttributeError, KeyError, ValueError) as e:
                 raise ValueError(f"Unsupported nonlinearity: {self.nonlinearity}") from e
