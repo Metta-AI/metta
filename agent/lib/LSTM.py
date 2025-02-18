@@ -4,6 +4,8 @@ import torch.nn as nn
 
 from agent.lib.metta_layer import LayerBase
 
+# file name test, delete this comment after testing
+
 class LSTM(LayerBase):
     def __init__(self, obs_shape, hidden_size, **cfg):
         '''Taken from models.py.
