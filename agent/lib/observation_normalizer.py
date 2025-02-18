@@ -47,5 +47,8 @@ class ObservationNormalizer(LayerBase):
         self.register_buffer('obs_norm', obs_norm)
 
     def _forward(self, td: TensorDict):
+        # delete this comment after testing
+        print(f"td[self.input_source] device in observation_normalizer: {td[self.input_source].device}")
+        print(f"self.obs_norm device in observation_normalizer: {self.obs_norm.device}")
         td[self.name] = td[self.input_source] / self.obs_norm
         return td

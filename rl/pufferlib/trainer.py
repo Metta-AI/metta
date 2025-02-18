@@ -198,6 +198,13 @@ class PufferTrainer:
                 if lstm_h is not None:
                     h = lstm_h[:, env_id]
                     c = lstm_c[:, env_id]
+
+                    # delete this comment after testing
+                    print(f"o_device device in trainer: {o_device.device}")
+                    print(f"h device in trainer: {h.device}")
+                    print(f"c device in trainer: {c.device}")
+                    print(f"state device in trainer: {(h, c).device}")
+
                     actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward = policy(o_device, (h, c), e3b=e3b)
                     lstm_h[:, env_id] = h
                     lstm_c[:, env_id] = c

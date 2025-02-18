@@ -25,6 +25,7 @@ class ObsShaper(LayerBase):
             raise ValueError('Invalid input tensor shape', x.shape)
 
         x = x.reshape(B*TT, *space_shape)
-
+        # delete this comment after testing
+        print(f"x device in obs_shaper: {x.device}")
         td[self.name] = x.float()
         return td
