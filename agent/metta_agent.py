@@ -112,7 +112,7 @@ class MettaAgent(nn.Module):
     def get_action_and_value(self, x, state=None, action=None, e3b=None):
         # delete this comment after testing
         print(f"x device in metta_agent: {x.device}")
-        print(f"state device in metta_agent: {state.device if state is not None else None}")
+        print(f"state[0] device in metta_agent: {state[0].device if state is not None else None}")
 
         x = x.cpu() if x.is_cuda else x
         state = tuple(s.cpu() if s.is_cuda else s for s in state) if state is not None else state
