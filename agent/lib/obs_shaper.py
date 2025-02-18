@@ -25,13 +25,10 @@ class ObsShaper(LayerBase):
             raise ValueError('Invalid input tensor shape', x.shape)
 
         x = x.reshape(B*TT, *space_shape)
-        # delete this comment after testing
-        print(f"x device in obs_shaper before cpu and float: {x.device}")
-        x = x.cpu() if x.is_cuda else x
-        x = x.float()
-        x = x.cuda() if x.is_cuda else x
 
-        # delete this comment after testing
-        print(f"x device in obs_shaper after cpu and float: {x.device}")
+        # x = x.cpu() if x.is_cuda else x
+        x = x.float()
+        # x = x.cuda() if x.is_cuda else x
+
         td[self.name] = x
         return td

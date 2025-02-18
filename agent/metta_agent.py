@@ -31,8 +31,6 @@ def make_policy(env: PufferEnv, cfg: OmegaConf):
         _recursive_=False)
 
     agent.to(cfg.device)
-    # delete this comment after testing
-    print(f"agent device in make_policy: {agent.device}")
     return agent
 
 
@@ -112,13 +110,7 @@ class MettaAgent(nn.Module):
         return None, td["_value_"], None
 
     def get_action_and_value(self, x, state=None, action=None, e3b=None):
-        # delete this comment after testing
-        print(f"x device in metta_agent: {x.device}")
-        print(f"state[0] device in metta_agent: {state[0].device if state is not None else None}")
-
-
         td = TensorDict({"x": x})
-
         #convert state from a tuple to a tensor
         td["state"] = None
         if state is not None:
