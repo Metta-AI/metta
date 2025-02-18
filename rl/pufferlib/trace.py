@@ -10,30 +10,10 @@ import numpy as np
 from rl.pufferlib.vecenv import make_vecenv
 from agent.policy_store import PolicyRecord
 from rl.wandb.wandb_context import WandbContext
+from rl.pufferlib.simulator import Simulator
 from mettagrid.config.config import setup_metta_environment
 from agent.policy_store import PolicyStore
 import pixie
-
-
-def nice_orientation(orientation):
-    """ Convert an orientation into a human-readable string """
-    return ["north", "south", "west", "east"][orientation]
-
-
-def nice_actions(env, action):
-    """ Convert a un-flattened action into a human-readable string """
-    name = env.action_names()[action[0]]
-    if name == "move":
-        if action[1] == 0:
-            return name + "_back"
-        elif action[1] == 1:
-            return name + "_forward"
-    elif name == "rotate":
-        return "rotate_" + nice_orientation(action[1])
-    elif name == "attack":
-        return "attack_" + str(action[1] // 3) + "_" + str(action[1] % 3)
-    else:
-        return name
 
 
 # Using flat UI colors:
@@ -79,67 +59,19 @@ def save_trace_image(
     output_path: str
 ):
     """ Trace a policy and generate a jsonl file """
-    device = cfg.device
-    vecenv = make_vecenv(cfg, num_envs=1, render_mode="human")
-    obs, _ = vecenv.reset()
-    env = vecenv.envs[0]
-    policy = policy_record.policy()
-    policy_rnn_state = None
-    rewards = np.zeros(vecenv.num_agents)
-    total_rewards = np.zeros(vecenv.num_agents)
-    num_agents = vecenv.num_agents
-    num_steps = 500
 
-    image = pixie.Image(52 + num_steps*2 + 50, 10 + 60 * num_agents + 10)
+    simulator = Simulator(cfg, policy_record)
+    steps = simulator.run()
+
+    image = pixie.Image(52 + simulator.num_steps*2 + 50, 10 + 60 * simulator.num_agents + 10)
     image.fill(pixie.Color(44/255, 62/255, 80/255, 1))
     ctx = image.new_context()
-
-    steps = []
-
-    while True:
-
-        with torch.no_grad():
-            obs = torch.as_tensor(obs).to(device=device)
-            actions, _, _, _, policy_rnn_state, _, _ = policy(obs, policy_rnn_state)
-
-        actions_array = env._c_env.unflatten_actions(actions.cpu().numpy())
-        agents = []
-        for id, action in enumerate(actions_array):
-            for grid_object in env.grid_objects.values():
-                if "agent_id" in grid_object and grid_object["agent_id"] == id:
-                    agent = grid_object
-                    break
-
-            agents.append({
-                "agent": id,
-                "action": action.tolist(),
-                "action_name": nice_actions(env, action),
-                "reward": rewards[id].item(),
-                "total_reward": total_rewards[id].item(),
-                "position": [agent["c"], agent["r"]],
-                "energy": agent["agent:energy"],
-                "hp": agent["agent:hp"],
-                "frozen": agent["agent:frozen"],
-                "orientation": nice_orientation(agent["agent:orientation"]),
-                "shield": agent["agent:shield"],
-                "inventory": agent["agent:inv:r1"]
-            })
-        steps.append(agents)
-
-        obs, rewards, dones, trunc, infos = vecenv.step(actions.cpu().numpy())
-        total_rewards += rewards
-
-        for i in range(len(env.action_success)):
-            agents[i]["action_success"] = env.action_success[i]
-
-        if any(dones) or any(trunc):
-            break
 
     font = pixie.read_font("deps/mettagrid/mettagrid/renderer/assets/Inter-Regular.ttf")
     font.size = 20
     font.paint.color = WHITE
 
-    for id in range(vecenv.num_agents):
+    for id in range(simulator.num_agents):
         # Draw the agent ID
         image.fill_text(
             font,
