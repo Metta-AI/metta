@@ -148,6 +148,7 @@ cdef class GridEnv:
             GridObject *agent
             ActionHandler handler
 
+        print("<step>")
         self._rewards[:] = 0
         self._observations[:, :, :, :] = 0
 
@@ -180,6 +181,7 @@ cdef class GridEnv:
 
         if self._max_timestep > 0 and self._current_timestep >= self._max_timestep:
             self._truncations[:] = 1
+        print("</step>")
 
     cdef cnp.ndarray _unflatten_actions(self, cnp.ndarray actions):
         if self._use_flat_actions:
