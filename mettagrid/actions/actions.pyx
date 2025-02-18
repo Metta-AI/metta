@@ -4,7 +4,8 @@ from libcpp.string cimport string
 from omegaconf import OmegaConf
 from mettagrid.grid_object cimport GridObjectId
 from mettagrid.action cimport ActionHandler, ActionArg
-from mettagrid.objects cimport Agent, ObjectTypeNames
+from mettagrid.objects.agent cimport Agent
+from mettagrid.objects.constants cimport ObjectTypeNames
 
 cdef extern from "<string>" namespace "std":
     string to_string(int val)
@@ -15,10 +16,12 @@ cdef class MettaActionHandler(ActionHandler):
 
         self._stats.action = "action." + action_name
         self._stats.action_energy = "action." + action_name + ".energy"
-
+        self._stats.first_use = "action." + action_name + ".first_use"
+        
         for t, n in enumerate(ObjectTypeNames):
             self._stats.target[t] = self._stats.action + "." + n
             self._stats.target_energy[t] = self._stats.action_energy + "." + n
+            self._stats.target_first_use[t] = self._stats.first_use + "." + n
 
         self.action_cost = cfg.cost
 
@@ -57,6 +60,7 @@ cdef class MettaActionHandler(ActionHandler):
         if result:
             actor.stats.incr(self._stats.action)
             actor.stats.incr(self._stats.action, actor.group_name)
+            actor.stats.set_once(self._stats.first_use, self.env._current_timestep)
 
         return result
 
