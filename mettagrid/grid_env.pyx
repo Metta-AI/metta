@@ -49,6 +49,8 @@ cdef class GridEnv:
         self._use_flat_actions = use_flat_actions
         self._action_handlers = action_handlers
         self._num_action_handlers = len(action_handlers)
+        for handler, idx in enumerate(action_handlers):
+            print(idx, handler.action_name())
         self._max_action_priority = 0
         self._max_action_arg = 0
         self._max_action_args.resize(len(action_handlers))
