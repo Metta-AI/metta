@@ -37,7 +37,12 @@ class Simulator:
         self.cfg = cfg
         self.policy_record = policy_record
         self.device = cfg.device
-        self.vecenv = make_vecenv(cfg, num_envs=1, render_mode="human")
+        self.vecenv = make_vecenv(
+          cfg,
+          cfg.vectorization,
+          num_envs=1,
+          render_mode="human"
+        )
         self.obs, _ = self.vecenv.reset()
         self.env = self.vecenv.envs[0]
         self.policy = self.policy_record.policy()
@@ -51,7 +56,10 @@ class Simulator:
         """ Step the simulator forward one timestep """
         with torch.no_grad():
             obs = torch.as_tensor(self.obs).to(device=self.device)
-            actions, _, _, _, self.policy_rnn_state, _, _ = self.policy(obs, self.policy_rnn_state)
+            actions, _, _, _, self.policy_rnn_state, _, _ = self.policy(
+              obs,
+              self.policy_rnn_state
+            )
 
         actions_array = self.env._c_env.unflatten_actions(actions.cpu().numpy())
         step_info = []
@@ -76,7 +84,8 @@ class Simulator:
                 "inventory": agent["agent:inv:r1"]
             })
 
-        self.obs, self.rewards, self.dones, self.trunc, self.infos = self.vecenv.step(actions.cpu().numpy())
+        (self.obs, self.rewards, self.dones, self.trunc, self.infos) = \
+          self.vecenv.step(actions.cpu().numpy())
         self.total_rewards += self.rewards
 
         for i in range(len(self.env.action_success)):
