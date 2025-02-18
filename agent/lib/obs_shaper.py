@@ -29,6 +29,8 @@ class ObsShaper(LayerBase):
         print(f"x device in obs_shaper before cpu and float: {x.device}")
         x = x.cpu() if x.is_cuda else x
         x = x.float()
+        x = x.cuda() if x.is_cuda else x
+
         # delete this comment after testing
         print(f"x device in obs_shaper after cpu and float: {x.device}")
         td[self.name] = x
