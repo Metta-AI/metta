@@ -222,8 +222,6 @@ def main(cfg):
         policy_store = PolicyStore(cfg, wandb_run)
         policy = policy_store.policy(cfg.evaluator.policy)
         image_path = f"{cfg.run_dir}/traces/trace.png"
-        # Make sure dir exists:
-        os.makedirs(os.path.dirname(image_path), exist_ok=True)
         save_trace_image(cfg, policy, image_path)
         # Open image in Finder
         subprocess.run(["open", image_path])

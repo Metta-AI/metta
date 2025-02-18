@@ -395,7 +395,6 @@ class PufferTrainer:
 
     def _save_trace_to_wandb(self):
         image_path = f"{self.cfg.run_dir}/traces/trace.{self.epoch}.png"
-        os.makedirs(os.path.dirname(image_path), exist_ok=True)
         save_trace_image(self.cfg, self.last_pr, image_path)
         wandb.log({"traces/actions": wandb.Image(image_path)})
 
