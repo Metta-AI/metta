@@ -110,6 +110,10 @@ class MettaAgent(nn.Module):
         return None, td["_value_"], None
 
     def get_action_and_value(self, x, state=None, action=None, e3b=None):
+
+        x = x.cpu() if x.is_cuda else x
+        state = tuple(s.cpu() if s.is_cuda else s for s in state) if state is not None else state
+
         td = TensorDict({"x": x, "state": state})
 
         self.components["_value_"](td)
