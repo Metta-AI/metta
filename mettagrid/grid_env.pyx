@@ -162,7 +162,6 @@ cdef class GridEnv:
                     continue
                 arg = actions[idx][1]
                 agent = self._agents[idx]
-                print(action, arg, self._num_action_handlers)
                 handler = <ActionHandler>self._action_handlers[action]
                 if handler._priority != self._max_action_priority - p:
                     continue
