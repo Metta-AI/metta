@@ -5,6 +5,7 @@ import numpy as np
 from tqdm import tqdm
 import pandas as pd
 from omegaconf import OmegaConf
+from mettagrid.config.config import setup_omega_conf
 
 global actions
 global env
@@ -28,24 +29,27 @@ def test_performance(env, actions, duration):
 
 actions = {}
 env = {}
-@hydra.main(version_base=None, config_path="../configs", config_name="a20_40x40")
+@hydra.main(version_base=None, config_path="../configs", config_name="simple")
 def main(cfg):
+    setup_omega_conf()
+
     # Run with c profile
     from cProfile import run
     global env
 
     print(OmegaConf.to_yaml(cfg))
 
-    cfg.env.game.max_steps = 999999999
-    env = hydra.utils.instantiate(cfg.env, render_mode="human")
+    cfg.game.max_steps = 999999999
+    env = hydra.utils.instantiate(cfg, render_mode="human", _recursive_=False)
     env.reset()
     global actions
-    num_agents = cfg.env.game.num_agents
-    actions = np.random.randint(0, env.action_space.shape, (1024, num_agents, 2), dtype=np.uint32)
+    num_agents = cfg.game.num_agents
+    actions = []
+    for a in range(1024):
+        actions.append(env.action_space.sample())
+    actions = np.array(actions)
 
-    env._c_env.render()
     test_performance(env, actions, 5)
-    # env._c_env.render()
     exit(0)
 
     run("test_performance(env, actions, 10)", 'stats.profile')
