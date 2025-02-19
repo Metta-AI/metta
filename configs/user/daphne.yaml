@@ -29,9 +29,6 @@ env:
 
     map_builder:
       border_width: 0
-    actions:
-      attack:
-        enabled: false
 
 trainer:
   evaluate_interval: 2

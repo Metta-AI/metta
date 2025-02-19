@@ -15,19 +15,19 @@ game:
   map_builder:
     _target_: mettagrid.config.room.room_list.RoomList
     rooms:
-      - _target_: mettagrid.config.room.labyrinth.LabyrinthMaze
+      - _target_: mettagrid.config.room.cognitive_evals.labyrinth.LabyrinthMaze
         width: ${uniform:20,25,21}
         height: ${uniform:20,25,21}
         corridor_width: ${uniform:1,4,3}
-      - _target_: mettagrid.config.room.labyrinth.LabyrinthMaze
+      - _target_: mettagrid.config.room.cognitive_evals.labyrinth.LabyrinthMaze
         width: ${uniform:20,25,21}
         height: ${uniform:20,25,21}
         corridor_width: ${uniform:1,4,3}
-      - _target_: mettagrid.config.room.labyrinth.LabyrinthMaze
+      - _target_: mettagrid.config.room.cognitive_evals.labyrinth.LabyrinthMaze
         width: ${uniform:20,25,21}
         height: ${uniform:20,25,21}
         corridor_width: ${uniform:1,4,3}
-      - _target_: mettagrid.config.room.labyrinth.LabyrinthMaze
+      - _target_: mettagrid.config.room.cognitive_evals.labyrinth.LabyrinthMaze
         width: ${uniform:20,25,21}
         height: ${uniform:20,25,21}
         corridor_width: ${uniform:1,4,3}
