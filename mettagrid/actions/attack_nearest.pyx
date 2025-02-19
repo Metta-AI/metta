@@ -6,9 +6,9 @@ from omegaconf import OmegaConf
 from mettagrid.grid_object cimport GridLocation, Orientation
 from mettagrid.action cimport ActionArg
 from mettagrid.objects.constants cimport GridLayer
-from mettagrid.objects.agent cimport Agent
+from mettagrid.objects.agent cimport Agent, InventoryItem
 from mettagrid.actions.attack cimport Attack
-from mettagrid.objects cimport InventoryItem
+
 cdef class AttackNearest(Attack):
     def __init__(self, cfg: OmegaConf):
         Attack.__init__(self, cfg, "attack_nearest")

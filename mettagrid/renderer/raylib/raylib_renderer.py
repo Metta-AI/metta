@@ -78,7 +78,7 @@ class MettaGridRaylibRenderer:
 
         self.game_objects = {}
         self.actions = torch.zeros((self.num_agents, 2), dtype=torch.int32)
-        self.observations = {}
+        self.observations = None
         self.current_timestep = 0
         self.agents = [None for _ in range(self.num_agents)]
         self.action_history = [deque(maxlen=10) for _ in range(self.num_agents)]
@@ -94,7 +94,7 @@ class MettaGridRaylibRenderer:
 
     def update(self, actions, observations, rewards, total_rewards, current_timestep):
         self.actions = actions
-        self.observations = observations
+        self.observations = observations.permute(0, 3, 1, 2)
         self.current_timestep = current_timestep
         self.game_objects = self.env.grid_objects()
         for obj_id, obj in self.game_objects.items():
