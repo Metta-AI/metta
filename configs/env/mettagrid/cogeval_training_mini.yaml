@@ -1,0 +1,124 @@
+defaults:
+  - mettagrid
+
+sampling: 1
+game:
+  num_agents: 18    # Updated for 9 room types with 2 rooms each
+
+  map_builder:
+    _target_: mettagrid.config.room.room_scene.RoomScene
+    border_width: 3
+
+    layout: [
+      [ "cylinder", "cylinder", "radial", "radial"],
+      [  "explore_exploit", "explore_exploit"],
+      ["cylinder", "cylinder", "radial", "radial"],
+      [  "explore_exploit", "explore_exploit"],
+      ["cylinder", "cylinder","radial", "radial"],
+      [  "explore_exploit", "explore_exploit"],
+    ]
+    # List of room configurations
+    rooms:
+      cylinder:
+        _target_: mettagrid.config.room.cylinder.Cylinder
+        width: ${uniform:8,12,21}
+        height: ${uniform:8,12,21}
+        cylinder_params:
+          length: ${uniform:3,4,5}
+          horizontal: ${choose:true,false}
+          both_ends: ${choose:true,false}
+      radial:
+        _target_: mettagrid.config.room.radial_maze.RadialMaze
+        width: ${uniform:8,12,21}
+        height: ${uniform:8,12,21}
+        radial_params:
+          num_arms: ${uniform:4,8,6}
+          arm_length: ${uniform:7,10,7}
+          center_radius: ${uniform:2,4,3}
+      explore_exploit:
+        _target_: mettagrid.config.room.explore_exploit.ExploreExploit
+        width: ${uniform:8,12,21}
+        height: ${uniform:8,12,21}
+        explore_exploit_params:
+          obstruction_gap_prob: ${uniform:0.3,0.6,0.2}
+          sparse_min_distance: ${uniform:6,10,8}
+      labyrinth:
+        _target_: mettagrid.config.room.labyrinth.LabyrinthMaze
+        width: ${uniform:25,35,21}
+        height: ${uniform:25,35,21}
+        corridor_width: ${uniform:1,4,3}
+      corridor:
+        _target_: mettagrid.config.room.corridor_maze.CorridorMaze
+        width: ${uniform:18,24,21}
+        height: ${uniform:18,24,21}
+        corridor_width: ${uniform:2,3,2}
+        arm_length: ${uniform:8,8,5}
+        num_generators: ${uniform:1,3,2}
+        num_convertors: ${uniform:2,4,3}
+        num_heart_altars: ${uniform:2,4,3}
+        rotate: ${choose:true,false}
+      barriermaze:
+        _target_: mettagrid.config.room.barriermaze.BarrierMaze
+        width: ${uniform:15,25,21}
+        height: ${uniform:15,25,21}
+        barrier_width: ${uniform:1,3,2}
+        num_barriers: ${uniform:3,5,3}
+        barrier_placement_mode: ${choose:"same","alternating","doorways"}
+        barrier_orientation: ${choose:"vertical","horizontal"}
+      room_within_room:
+        _target_: mettagrid.config.room.room_within_room.RoomWithinRoom
+        width: ${uniform:25,35,30}
+        height: ${uniform:25,35,30}
+        inner_size_min: ${uniform:8,12,10}
+        inner_size_max: ${uniform:15,20,18}
+        inner_room_gap_min: 2
+        inner_room_gap_max: ${uniform:4,8,6}
+      maze:
+        _target_: mettagrid.config.room.maze.MazeKruskal
+        width: ${uniform:10,35,20}
+        height: ${uniform:10,35,20}
+        start_pos: [1, 0]
+        end_pos:
+        - ${sub:${..width},2}
+        - ${sub:${..height},2}
+        branching: ${uniform:0.1,0.8,0.7}
+
+# COMMENT OUT IF PLAYING ON PREVIOUSLY TRAINED POLICIES
+
+  actions:
+    jump:
+      enabled: false
+      cost: 3
+    shield:
+      enabled: false
+      cost: 1
+    transfer:
+      enabled: false
+      cost: 0
+    attack:
+      enabled: true
+      cost: ${uniform:1, 100, 10}
+    gift:
+      enabled: false
+      cost: 0
+    swap:
+      enabled: false
+      cost: 0
+    change_color:
+      enabled: false
+      cost: 0
+
+  objects:
+    generator:
+      hp: 30
+      cooldown: 10
+      initial_resources: 5
+      use_cost: 0
+    altar:
+      hp: 30
+      cooldown: 10
+      use_cost: 0
+    converter:
+      hp: 30
+      cooldown: 10
+      use_cost: 0

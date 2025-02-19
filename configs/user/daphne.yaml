@@ -3,15 +3,15 @@
 seed: null
 
 defaults:
-  - override /eval: example_suite
-  - override /env/mettagrid@env: simple
+  - override /eval: example
+  - override /env/mettagrid@env: cogeval_training_mini
   - override /agent: simple.medium
   - override /sweep: fast
   - override /analyzer: analyzer
 
 
 #policy_uri: ${trained_policy_uri}
-policy_uri: wandb://run/mb.daveey.sm.nr
+policy_uri: wandb://run/cogevalminient0.02run
 eval_db_uri: wandb://artifacts/daphne_eval_testing
 #eval_db_uri: file://daphne/daphne_eval_stats
 
@@ -30,14 +30,17 @@ env:
 
     map_builder:
       border_width: 0
+    actions:
+      attack:
+        enabled: false
 
 trainer:
   evaluate_interval: 2
 
 eval:
-  num_envs: 10
-  num_episodes: 10
-  max_time_s: 600
+  num_envs: 2
+  num_episodes: 2
+  max_time_s: 300
 
   policy_uri: ${..policy_uri}
   npc_policy_uri: ${..npc_policy_uri}

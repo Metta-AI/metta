@@ -11,15 +11,7 @@ def play(cfg: OmegaConf, policy_store: PolicyStore):
 
     obs, _ = vecenv.reset()
     env = vecenv.envs[0]
-    policy_selector_cfg = OmegaConf.create({
-            "uri": cfg.policy_uri,
-            "type": "top",
-            "range": 1,
-            "metric": "elo",
-            "filters": {}
-        })
-
-    policy_record = policy_store.policy(policy_selector_cfg)
+    policy_record = policy_store.policy(cfg.policy_uri)
 
     assert policy_record.metadata["action_names"] == env._c_env.action_names(), \
         f"Action names do not match: {policy_record.metadata['action_names']} != {env._c_env.action_names()}"
@@ -44,14 +36,14 @@ def play(cfg: OmegaConf, policy_store: PolicyStore):
                 actions, _, _, _, _, _ = policy(obs) #if we are not using an RNN, then we don't need the rnn state
 
         renderer.update(
-            env._c_env.unflatten_actions(actions.cpu().numpy()),
+            actions.cpu().numpy(),
             obs,
             rewards,
             total_rewards,
             env._c_env.current_timestep(),
         )
         renderer.render_and_wait()
-        actions = env._c_env.flatten_actions(renderer.get_actions())
+        actions = renderer.get_actions()
 
         obs, rewards, dones, truncated, infos = vecenv.step(actions)
         total_rewards += rewards

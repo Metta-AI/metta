@@ -51,7 +51,7 @@ class EvalStatsAnalyzer:
 
 
     def log_result(self, result, metric, filters, significance):
-        result_table = tabulate(result, headers=["policy_and_eval"] + list(result.keys()), tablefmt="grid", maxcolwidths=25)
+        result_table = tabulate(result, headers=list(result.keys()), tablefmt="grid", maxcolwidths=25)
         logger.info(f"Results for {metric} with filters {filters}:\n{result_table}")
         if len(significance) > 0:
             self.log_significance(significance, metric, filters)
