@@ -11,10 +11,9 @@ defaults:
 # baselines: wandb://run/b.daveey.train.maze.sm.11x11.0
 
 # policy_uri: wandb://run/b.daveey.sm.train.er.new.0
-policy_uri: wandb://run/daveey.ar.cards.1
+# policy_uri: wandb://run/daveey.ar.cards.1
 # policy_uri: wandb://run/mb.daveey.sm.fighter
-# policy_uri: ${trained_policy_uri}
-baseline_uri: wandb://run/mb.daveey.sm.nr
+policy_uri: ${trained_policy_uri}
 
 # env:
   # sampling: 0.7
@@ -41,8 +40,6 @@ evaluator:
 
   policy:
     uri: ${...policy_uri}
-  baselines:
-    uri: ${...baseline_uri}
 
 wandb:
   enabled: true
@@ -53,6 +50,6 @@ sweep:
   metric: action.use
 
 cmd: ???
-run_id: 13
+run_id: 14
 run: ${oc.env:USER}.local.${cmd}.${run_id}
 trained_policy_uri: ./train_dir/${oc.env:USER}.local.train.${run_id}/checkpoints
