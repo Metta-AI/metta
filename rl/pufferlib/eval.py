@@ -3,7 +3,7 @@ import time
 
 import numpy as np
 import torch
-from agent.policy_store import PolicyStore
+from agent.policy_store import PolicyStore, PolicyRecord
 from omegaconf import DictConfig, OmegaConf
 import hydra
 
@@ -15,10 +15,10 @@ class Eval():
     def __init__(
         self,
         policy_store: PolicyStore,
+        policy_pr: PolicyRecord,
         env_defaults: DictConfig,
 
         env: str,
-        policy_uri: str,
         npc_policy_uri: str,
         device: str,
 
@@ -34,7 +34,6 @@ class Eval():
         env_cfg = hydra.compose(config_name=env)
         self._env_cfg = OmegaConf.merge(env_defaults, env_cfg)
 
-        self._policy_uri = policy_uri
         self._npc_policy_uri = npc_policy_uri
         self._policy_agents_pct = policy_agents_pct
         self._policy_store = policy_store
@@ -45,24 +44,15 @@ class Eval():
         self._min_episodes = num_episodes
         self._max_time_s = max_time_s
 
-        policy_selector_cfg = OmegaConf.create({
-            "uri": self._policy_uri,
-            "type": "top",
-            "range": 1,
-            "metric": "epoch",
-            "filters": {}
-        })
-
         # load candidate policy
-        self._policy_pr = self._policy_store.policy(policy_selector_cfg)
+        self._policy_pr = policy_pr
 
         # load npc policy
         self._npc_pr = None
         if self._npc_policy_uri is None:
             self._policy_agents_pct = 1.0
         else:
-            policy_selector_cfg.uri = self._npc_policy_uri
-            self._npc_pr = self._policy_store.policy(policy_selector_cfg)
+            self._npc_pr = self._policy_store.policy(self._npc_policy_uri)
 
         self._agents_per_env = self._env_cfg.game.num_agents
         self._policy_agents_per_env = max(1, int(self._agents_per_env * self._policy_agents_pct))
@@ -182,6 +172,7 @@ class EvalSuite:
     def __init__(
         self,
         policy_store: PolicyStore,
+        policy_pr: PolicyRecord,
         env_defaults: DictConfig,
         evals: DictConfig = None,
         **kwargs):
@@ -190,7 +181,7 @@ class EvalSuite:
         self._evals = []
         for eval_name, eval_cfg in evals.items():
             eval_cfg = OmegaConf.merge(eval_cfg, kwargs)
-            eval = Eval(policy_store, env_defaults, **eval_cfg)
+            eval = Eval(policy_store, policy_pr, env_defaults, **eval_cfg)
             self._evals.append(eval)
 
     def evaluate(self):

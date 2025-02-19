@@ -11,15 +11,7 @@ def play(cfg: OmegaConf, policy_store: PolicyStore):
 
     obs, _ = vecenv.reset()
     env = vecenv.envs[0]
-    policy_selector_cfg = OmegaConf.create({
-            "uri": cfg.policy_uri,
-            "type": "top",
-            "range": 1,
-            "metric": "elo",
-            "filters": {}
-        })
-
-    policy_record = policy_store.policy(policy_selector_cfg)
+    policy_record = policy_store.policy(cfg.policy_uri)
 
     assert policy_record.metadata["action_names"] == env._c_env.action_names(), \
         f"Action names do not match: {policy_record.metadata['action_names']} != {env._c_env.action_names()}"

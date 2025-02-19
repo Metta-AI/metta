@@ -10,11 +10,12 @@ def total_metric(metric_field: str, filters: Dict[str, Any]):
         SELECT
             episode_index,
             policy_name,
+            eval_name,
             SUM(CAST("{metric_field}" AS DOUBLE)) AS total_metric
         FROM eval_data
         {where_clause}
-        GROUP BY episode_index, policy_name
-        ORDER BY episode_index, policy_name;"""
+        GROUP BY episode_index, policy_name, eval_name
+        ORDER BY episode_index, policy_name, eval_name;"""
 
     return query
 
