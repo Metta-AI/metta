@@ -77,22 +77,7 @@ class LayerBase(nn.Module):
         return td
     
     def _forward(self, td: TensorDict):
-
-        output = self.net(td[self.input_source])
-
-        if self.name == "obs_flattener":
-            print(f"obs_flattener shape: {output.shape}")
-
-        if self.name == "fc1":
-            print(f"fc1 shape: {output.shape}")
-
-        if self.name == "encoded_obs":
-            print(f"encoded_obs shape: {output.shape}")
-
-        td[self.name] = output
-
-
-        # td[self.name] = self.net(td[self.input_source])
+        td[self.name] = self.net(td[self.input_source])
         return td
         
     def clip_weights(self):

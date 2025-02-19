@@ -15,6 +15,7 @@ class LSTM(LayerBase):
         super().__init__(**cfg)
         self.obs_shape = obs_shape
         self.hidden_size = hidden_size
+        self.num_layers = self.nn_params['num_layers']
 
     def _make_net(self):
         net = nn.LSTM(
@@ -36,11 +37,9 @@ class LSTM(LayerBase):
         hidden = td[self.input_source]
         state = td["state"]
 
-        print(f"hidden input shape: {hidden.shape}")
-
-        # for some reason, td seems to convert state from a tuple to a tensor
         if state is not None:
-            state = (state[:2], state[2:])
+            split_size = self.num_layers
+            state = (state[:split_size], state[split_size:])
 
         x_shape, space_shape = x.shape, self.obs_shape
         x_n, space_n = len(x_shape), len(space_shape)
@@ -61,9 +60,7 @@ class LSTM(LayerBase):
         hidden = hidden.reshape(B, TT, self.input_size)
         hidden = hidden.transpose(0, 1)
 
-        print(f"hidden shape before LSTM: {hidden.shape}")
         hidden, state = self.net(hidden, state)
-        print(f"hidden shape after LSTM: {hidden.shape}")
 
         hidden = hidden.transpose(0, 1)
         hidden = hidden.reshape(B*TT, self.hidden_size)

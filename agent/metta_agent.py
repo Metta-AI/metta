@@ -47,6 +47,7 @@ class MettaAgent(nn.Module):
         cfg = OmegaConf.create(cfg)
 
         self.hidden_size = cfg.components._core_.output_size # trainer/Experience uses this for e3b
+        self.core_num_layers = cfg.components._core_.nn_params.num_layers
         self.clip_range = cfg.clip_range
 
         agent_attributes = {
@@ -57,7 +58,8 @@ class MettaAgent(nn.Module):
             'obs_key': cfg.observations.obs_key,
             'obs_input_shape': obs_space[cfg.observations.obs_key].shape[1:],
             'num_objects': obs_space[cfg.observations.obs_key].shape[0],
-            'hidden_size': self.hidden_size
+            'hidden_size': self.hidden_size,
+            'core_num_layers': self.core_num_layers
         }
         
         # self.observation_space = obs_space # for use with FeatureSetEncoder
@@ -111,7 +113,7 @@ class MettaAgent(nn.Module):
 
     def get_action_and_value(self, x, state=None, action=None, e3b=None):
         td = TensorDict({"x": x})
-        #convert state from a tuple to a tensor
+        
         td["state"] = None
         if state is not None:
             state = torch.cat(state, dim=0)
@@ -124,9 +126,10 @@ class MettaAgent(nn.Module):
         value = td["_value_"]
         state = td["state"] 
 
-        # convert state back to tuple to pass back to trainer
+        # Convert state back to tuple to pass back to trainer
         if state is not None:
-            state = (state[:2], state[2:])
+            split_size = self.core_num_layers
+            state = (state[:split_size], state[split_size:])
 
         e3b, intrinsic_reward = self._e3b_update(td["_core_"].detach(), e3b)
 
