@@ -27,9 +27,6 @@ cdef class GridEnv:
         unsigned char _max_action_arg
         unsigned char _max_action_priority
 
-        bint _use_flat_actions
-        vector[Action] _flat_actions
-
         ObservationEncoder _obs_encoder
         StatsTracker _stats
 
@@ -70,8 +67,6 @@ cdef class GridEnv:
         unsigned short obs_width,
         unsigned short obs_height,
         ObsType[:,:,:] observation)
-
-    cdef cnp.ndarray _unflatten_actions(self, cnp.ndarray actions)
 
     ############################################
     # Python API
@@ -118,5 +113,3 @@ cdef class GridEnv:
     cpdef tuple get_buffers(self)
     cpdef cnp.ndarray render_ascii(self, list[char] type_to_char)
     cpdef cnp.ndarray grid_objects_types(self)
-    cpdef cnp.ndarray unflatten_actions(self, cnp.ndarray actions)
-    cpdef cnp.ndarray flatten_actions(self, cnp.ndarray actions)

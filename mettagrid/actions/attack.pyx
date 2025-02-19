@@ -5,10 +5,11 @@ from omegaconf import OmegaConf
 
 from mettagrid.grid_object cimport GridLocation, Orientation
 from mettagrid.action cimport ActionArg
-from mettagrid.objects.metta_object cimport MettaObject
-from mettagrid.objects.agent cimport Agent
-from mettagrid.objects.constants cimport GridLayer, ObjectTypeNames, InventoryItem, InventoryItemNames
 from mettagrid.actions.actions cimport MettaActionHandler
+from mettagrid.objects.agent cimport Agent
+from mettagrid.objects.constants cimport InventoryItem, ObjectTypeNames, InventoryItemNames
+from mettagrid.objects.metta_object cimport MettaObject
+from mettagrid.objects.constants cimport GridLayer
 
 cdef class Attack(MettaActionHandler):
     def __init__(self, cfg: OmegaConf, action_name: str="attack"):
@@ -26,6 +27,11 @@ cdef class Attack(MettaActionHandler):
 
         if arg > 9 or arg < 1:
             return False
+
+        if actor.inventory[InventoryItem.laser] == 0:
+            return False
+
+        actor.update_inventory(InventoryItem.laser, -1, &self.env._rewards[actor_id])
 
         cdef short distance = 0
         cdef short offset = 0
@@ -49,7 +55,6 @@ cdef class Attack(MettaActionHandler):
         # Because we're looking on the agent layer, we can cast to Agent.
         cdef Agent * agent_target = <Agent *>self.env._grid.object_at(target_loc)
 
-        cdef unsigned short shield_damage = 0
         cdef bint was_frozen = False
         if agent_target:
             actor.stats.incr(self._stats.target[agent_target._type_id])
@@ -63,16 +68,14 @@ cdef class Attack(MettaActionHandler):
 
             was_frozen = agent_target.frozen > 0
 
-            if agent_target.shield:
-                shield_damage = -agent_target.update_energy(-actor.attack_damage, NULL)
-                actor.stats.add(b"shield_damage", shield_damage)
-
-            if shield_damage < actor.attack_damage:
-                agent_target.shield = False
+            if agent_target.inventory[InventoryItem.armor] > 0:
+                agent_target.update_inventory(InventoryItem.armor, -1, &self.env._rewards[agent_target.agent_id])
+                actor.stats.incr(b"attack.blocked", agent_target.group_name)
+                actor.stats.incr(b"attack.blocked", agent_target.group_name, actor.group_name)
+            else:
                 agent_target.frozen = agent_target.freeze_duration
 
                 if not was_frozen:
-                    agent_target.update_energy(-agent_target.energy, NULL)
                     actor.stats.incr(b"attack.win", actor.group_name)
                     actor.stats.incr(b"attack.win", actor.group_name, agent_target.group_name)
                     actor.stats.incr(b"attack.loss", agent_target.group_name)
@@ -83,13 +86,10 @@ cdef class Attack(MettaActionHandler):
                     else:
                         actor.stats.incr(b"attack.win.other_team", actor.group_name)
 
-                    self.env._rewards[actor.agent_id] += agent_target.freeze_reward
-                    self.env._rewards[agent_target.agent_id] -= agent_target.freeze_reward
-
                     for item in range(InventoryItem.InventoryCount):
+                        actor.stats.add(InventoryItemNames[item], b"stolen", actor.group_name, agent_target.inventory[item])
                         actor.update_inventory(item, agent_target.inventory[item], &self.env._rewards[actor.agent_id])
                         agent_target.update_inventory(item, -agent_target.inventory[item], &self.env._rewards[agent_target.agent_id])
-                        actor.stats.add(InventoryItemNames[item], b"stolen", actor.group_name, agent_target.inventory[item])
 
             return True
 

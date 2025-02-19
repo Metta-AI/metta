@@ -9,11 +9,7 @@ game:
     mazer:
       id: 0
       sprite: 10
-      props:
-        attack_damage: 0
-        initial_energy: 250
-        max_energy: 250
-        upkeep.time: 0
+      props: {}
 
   map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom
@@ -32,7 +28,6 @@ game:
   objects:
     altar:
       cooldown: 250
-      use_cost: 250
 
   actions:
     move:

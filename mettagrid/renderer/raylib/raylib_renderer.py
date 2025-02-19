@@ -15,8 +15,13 @@ from mettagrid.mettagrid_env import MettaGridEnv
 from mettagrid.renderer.raylib.object_render import (
     AgentRenderer,
     AltarRenderer,
-    ConverterRenderer,
+    ArmoryRenderer,
+    FactoryRenderer,
     GeneratorRenderer,
+    LaseryRenderer,
+    LabRenderer,
+    MineRenderer,
+    TempleRenderer,
     WallRenderer,
 )
 from mettagrid.renderer.raylib.font_renderer import FontRenderer
@@ -53,9 +58,14 @@ class MettaGridRaylibRenderer:
         self.sprite_renderers = [
             AgentRenderer(cfg),
             WallRenderer(),
+            MineRenderer(),
             GeneratorRenderer(),
-            ConverterRenderer(),
             AltarRenderer(),
+            ArmoryRenderer(),
+            LaseryRenderer(),
+            LabRenderer(),
+            FactoryRenderer(),
+            TempleRenderer(),
         ]
         rl.SetTargetFPS(10)
         self.colors = colors
@@ -67,8 +77,8 @@ class MettaGridRaylibRenderer:
         self.camera = camera
 
         self.game_objects = {}
-        self.actions = torch.zeros((self.num_agents, 2), dtype=torch.int64)
-        self.observations = {}
+        self.actions = torch.zeros((self.num_agents, 2), dtype=torch.int32)
+        self.observations = None
         self.current_timestep = 0
         self.agents = [None for _ in range(self.num_agents)]
         self.action_history = [deque(maxlen=10) for _ in range(self.num_agents)]
@@ -84,7 +94,7 @@ class MettaGridRaylibRenderer:
 
     def update(self, actions, observations, rewards, total_rewards, current_timestep):
         self.actions = actions
-        self.observations = observations
+        self.observations = observations.permute(0, 3, 1, 2)
         self.current_timestep = current_timestep
         self.game_objects = self.env.grid_objects()
         for obj_id, obj in self.game_objects.items():
@@ -92,8 +102,8 @@ class MettaGridRaylibRenderer:
             if "agent_id" in obj:
                 agent_id = obj["agent_id"]
                 self.agents[agent_id] = obj
-                obj["last_reward"] = rewards[agent_id]
-                obj["total_reward"] = total_rewards[agent_id]
+                obj["last_reward"] = rewards[agent_id].item()
+                obj["total_reward"] = total_rewards[agent_id].item()
         if self.selected_agent_idx is not None and self.mind_control:
             self.actions[self.selected_agent_idx][0] = self.action_ids["noop"]
             self.actions[self.selected_agent_idx][1] = 0
@@ -196,7 +206,10 @@ class MettaGridRaylibRenderer:
                 for key, value in obj.items():
                     if ":" in key:
                         key = ":".join(key.split(":")[1:])
-                    text = f"{key}: {value}"
+                    if isinstance(value, float):
+                        text = f"{key}: {value:.2e}"
+                    else:
+                        text = f"{key}: {value}"
                     if len(text) > 25:
                         text = text[:22] + "..."
                     self.font_renderer.render_text(text, sidebar_x + 10, y, font_size)
@@ -262,8 +275,6 @@ class MettaGridRaylibRenderer:
                 ray.Color(255, 0, 255, 128)][agent["agent:group"] % 5]
 
             if agent["agent:frozen"]:
-                continue
-            if agent["agent:energy"] < self.cfg.actions.attack.cost:
                 continue
             if action[0] == self.action_ids["attack_nearest"]:
                 # draw a cone from the agent in the direction it's facing.
