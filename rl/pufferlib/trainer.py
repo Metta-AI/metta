@@ -104,15 +104,10 @@ class PufferTrainer:
             start_time = time.time()
 
             # Collecting experience
-            eval_pbar = tqdm(total=self.experience.batch_size, desc="Collecting Experience", leave=False)
-            self._evaluate(eval_pbar)
-            eval_pbar.close()
+            self._evaluate()
 
             # Training on collected experience
-            total_minibatches = self.experience.num_minibatches * self.trainer_cfg.update_epochs
-            train_pbar = tqdm(total=total_minibatches, desc="Training", leave=False)
-            self._train(train_pbar)
-            train_pbar.close()
+            self._train()
 
             self._process_stats()
             if self.epoch % self.trainer_cfg.checkpoint_interval == 0:
@@ -147,7 +142,7 @@ class PufferTrainer:
         pass
 
     @pufferlib.utils.profile
-    def _evaluate(self, pbar=None):
+    def _evaluate(self):
         experience, profile = self.experience, self.profile
 
         with profile.eval_misc:
@@ -164,8 +159,6 @@ class PufferTrainer:
             with profile.eval_misc:
                 num_steps = sum(mask)
                 self.agent_step += num_steps
-                if pbar:
-                    pbar.update(num_steps)
 
                 o = torch.as_tensor(o)
                 o_device = o.to(self.device)
@@ -224,7 +217,7 @@ class PufferTrainer:
         return self.stats, infos
 
     @pufferlib.utils.profile
-    def _train(self, pbar=None):
+    def _train(self):
         experience, profile = self.experience, self.profile
         self.losses = self._make_losses()
 
@@ -340,9 +333,6 @@ class PufferTrainer:
                     self.losses.old_approx_kl += old_approx_kl.item() / total_minibatches
                     self.losses.approx_kl += approx_kl.item() / total_minibatches
                     self.losses.clipfrac += clipfrac.item() / total_minibatches
-
-                if pbar:
-                    pbar.update(1)
 
             if self.trainer_cfg.target_kl is not None:
                 if approx_kl > self.trainer_cfg.target_kl:
