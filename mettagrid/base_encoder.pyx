@@ -1,9 +1,10 @@
-from libcpp.vector cimport vector
 from libcpp.string cimport string
-from mettagrid.grid_object cimport GridObject
+from libcpp.vector cimport vector
 
 import numpy as np
 import gymnasium as gym
+
+from mettagrid.grid_object cimport GridObject
 
 
 cdef class ObservationEncoder:
