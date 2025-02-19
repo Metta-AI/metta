@@ -13,6 +13,7 @@ from agent.policy_store import PolicyStore
 from fast_gae import fast_gae
 from omegaconf import OmegaConf
 from pathlib import Path
+from tqdm import tqdm
 
 from rl.eval.eval_stats_logger import EvalStatsLogger
 from rl.eval.eval_stats_db import EvalStatsDB
@@ -98,14 +99,20 @@ class PufferTrainer:
         if self.trainer_cfg.evaluate_interval < self.trainer_cfg.checkpoint_interval:
             self.trainer_cfg.evaluate_interval = self.trainer_cfg.checkpoint_interval
 
-
         while self.agent_step < self.trainer_cfg.total_timesteps:
-            print("Training: ", self.agent_step, self.epoch)
+            logger.info(f"Training: {self.agent_step}, {self.epoch}")
 
-            print("Collecting Experience")
-            self._evaluate()
-            print("Training")
-            self._train()
+            # Collecting experience
+            eval_pbar = tqdm(total=self.experience.batch_size, desc="Collecting Experience", leave=False)
+            self._evaluate(eval_pbar)
+            eval_pbar.close()
+
+            # Training on collected experience
+            total_minibatches = self.experience.num_minibatches * self.trainer_cfg.update_epochs
+            train_pbar = tqdm(total=total_minibatches, desc="Training", leave=False)
+            self._train(train_pbar)
+            train_pbar.close()
+
             print("Processing stats")
             self._process_stats()
             if self.epoch % self.trainer_cfg.checkpoint_interval == 0:
@@ -126,7 +133,6 @@ class PufferTrainer:
         logger.info(f"Training complete. Total time: {self.train_time:.2f} seconds")
 
     def _evaluate_policy(self):
-
         self.cfg.eval.policy_uri = self.last_pr.uri
         eval = hydra.utils.instantiate(self.cfg.eval, self.policy_store, self.cfg.env, _recursive_ = False)
         stats = eval.evaluate()
@@ -140,7 +146,7 @@ class PufferTrainer:
         pass
 
     @pufferlib.utils.profile
-    def _evaluate(self):
+    def _evaluate(self, pbar=None):
         experience, profile = self.experience, self.profile
 
         with profile.eval_misc:
@@ -197,6 +203,9 @@ class PufferTrainer:
             with profile.env:
                 self.vecenv.send(actions)
 
+        if pbar:
+            pbar.update(self.experience.batch_size)
+
         with profile.eval_misc:
             for k, v in infos.items():
                 if isinstance(v, np.ndarray):
@@ -214,7 +223,7 @@ class PufferTrainer:
         return self.stats, infos
 
     @pufferlib.utils.profile
-    def _train(self):
+    def _train(self, pbar=None):
         experience, profile = self.experience, self.profile
         self.losses = self._make_losses()
 
@@ -330,6 +339,9 @@ class PufferTrainer:
                     self.losses.old_approx_kl += old_approx_kl.item() / total_minibatches
                     self.losses.approx_kl += approx_kl.item() / total_minibatches
                     self.losses.clipfrac += clipfrac.item() / total_minibatches
+
+                if pbar:
+                    pbar.update(1)
 
             if self.trainer_cfg.target_kl is not None:
                 if approx_kl > self.trainer_cfg.target_kl:
