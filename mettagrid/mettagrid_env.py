@@ -56,7 +56,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         return obs, infos
 
     def step(self, actions):
-        self.actions[:] = np.array(actions).astype(np.int32)
+        self.actions[:] = np.array(actions).astype(np.uint32)
         self._c_env.step(self.actions)
 
         if self._cfg.normalize_rewards:
