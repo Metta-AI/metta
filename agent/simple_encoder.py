@@ -17,7 +17,7 @@ class SimpleConvAgent(nn.Module):
         super().__init__()
         cfg = OmegaConf.create(cfg)
         self._obs_key = cfg.obs_key
-        self._num_objects = obs_space[self._obs_key].shape[2]
+        self._num_objects = obs_space[self._obs_key].shape[0]
         self._cnn_channels = cfg.cnn_channels
         self._output_dim = cfg.fc.output_dim
 
@@ -48,7 +48,7 @@ class SimpleConvAgent(nn.Module):
 
     def forward(self, obs_dict):
         obs = obs_dict[self._obs_key]
-        obs = obs.transpose(1, 3).transpose(2, 3)
+        # obs = obs.permute(0, 3, 1, 2)
 
         if self.object_normalizer is not None:
             obs = self.object_normalizer(obs)
