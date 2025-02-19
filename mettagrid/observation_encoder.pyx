@@ -46,9 +46,6 @@ cdef class MettaObservationEncoder(ObservationEncoder):
             features.extend(self._type_feature_names[type_id])
         self._feature_names = features
 
-        print(self._type_feature_names)
-        print(self._offsets)
-
     cdef encode(self, GridObject *obj, ObsType[:] obs):
         self._encode(obj, obs, self._offsets[obj._type_id])
 
