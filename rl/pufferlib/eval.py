@@ -133,16 +133,13 @@ class Eval():
                         npc_action, _, _, _, _, _ = npc_policy(npc_obs)
 
             actions = policy_actions
-            if self._npc_pr is not None:
+            if self._npc_agents_per_env > 0:
                 actions = torch.cat([
                     policy_actions.view(self._num_envs, self._policy_agents_per_env, -1),
                     npc_action.view(self._num_envs, self._npc_agents_per_env, -1),
                 ], dim=1)
 
-            if self._env_cfg.flatten_actions:
-                actions = actions.view(-1)
-            else:
-                actions = actions.view(self._num_envs*self._agents_per_env, -1)
+            actions = actions.view(self._num_envs*self._agents_per_env, -1)
 
             obs, rewards, dones, truncated, infos = self._vecenv.step(actions.cpu().numpy())
 

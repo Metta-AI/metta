@@ -36,14 +36,14 @@ def play(cfg: OmegaConf, policy_store: PolicyStore):
                 actions, _, _, _, _, _ = policy(obs) #if we are not using an RNN, then we don't need the rnn state
 
         renderer.update(
-            env._c_env.unflatten_actions(actions.cpu().numpy()),
+            actions.cpu().numpy(),
             obs,
             rewards,
             total_rewards,
             env._c_env.current_timestep(),
         )
         renderer.render_and_wait()
-        actions = env._c_env.flatten_actions(renderer.get_actions())
+        actions = renderer.get_actions()
 
         obs, rewards, dones, truncated, infos = vecenv.step(actions)
         total_rewards += rewards
