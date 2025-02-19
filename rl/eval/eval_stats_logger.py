@@ -70,10 +70,11 @@ class EvalStatsLogger:
 
         # If we are running eval suite, we need to add additional fields for each eval
         if isinstance(eval_stats, dict):
-            eval_stats = []
+            eval_suite_stats = []
             for eval_name, stats in eval_stats.items():
                 self._add_additional_fields(stats, eval_name = eval_name)
-                eval_stats.extend(stats)
+                eval_suite_stats.extend(stats)
+            eval_stats = eval_suite_stats
         else:
             self._add_additional_fields(eval_stats)
 
