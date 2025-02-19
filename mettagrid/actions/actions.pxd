@@ -9,18 +9,16 @@ from mettagrid.action cimport ActionHandler, ActionArg
 from mettagrid.objects.agent cimport Agent
 
 cdef struct StatNames:
-    string action
-    string action_energy
+    string success
     string first_use
+    string failure
 
     map[TypeId, string] target
-    map[TypeId, string] target_energy
     map[TypeId, string] target_first_use
     vector[string] group
 
 cdef class MettaActionHandler(ActionHandler):
     cdef StatNames _stats
-    cdef int action_cost
 
     cdef bint handle_action(
         self,

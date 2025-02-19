@@ -3,15 +3,22 @@ from libc.stdio cimport printf
 
 from omegaconf import OmegaConf
 
-from mettagrid.grid_object cimport GridLocation, Orientation
+from mettagrid.grid_object cimport GridLocation, GridObjectId, Orientation, GridObject
 from mettagrid.action cimport ActionArg
-from mettagrid.objects.agent cimport Agent
-from mettagrid.objects.metta_object cimport MettaObject
-from mettagrid.objects.constants cimport ObjectType, Events, GridLayer, ObjectTypeNames, InventoryItem
-from mettagrid.objects.usable cimport Usable
-from mettagrid.objects.generator cimport Generator
-from mettagrid.objects.converter cimport Converter
 from mettagrid.actions.actions cimport MettaActionHandler
+from mettagrid.objects.agent cimport Agent
+from mettagrid.objects.constants cimport GridLayer
+from mettagrid.objects.metta_object cimport MettaObject
+from mettagrid.objects.usable cimport Usable
+from mettagrid.objects.constants cimport Events, ObjectType
+from mettagrid.objects.altar cimport Altar
+from mettagrid.objects.factory cimport Factory
+from mettagrid.objects.mine cimport Mine
+from mettagrid.objects.generator cimport Generator
+from mettagrid.objects.armory cimport Armory
+from mettagrid.objects.lasery cimport Lasery
+from mettagrid.objects.lab cimport Lab
+from mettagrid.objects.temple cimport Temple
 
 cdef class Use(MettaActionHandler):
     def __init__(self, cfg: OmegaConf):
@@ -40,7 +47,6 @@ cdef class Use(MettaActionHandler):
         if not usable.usable(actor):
             return False
 
-        actor.update_energy(-usable.use_cost, &self.env._rewards[actor_id])
 
         usable.ready = 0
         self.env._event_manager.schedule_event(Events.Reset, usable.cooldown, usable.id, 0)
@@ -49,23 +55,5 @@ cdef class Use(MettaActionHandler):
         actor.stats.incr(self._stats.target[target._type_id], actor.group_name)
         actor.stats.set_once(self._stats.target_first_use[target._type_id], self.env._current_timestep)
 
-        actor.stats.add(self._stats.target_energy[target._type_id], usable.use_cost + self.action_cost)
-        actor.stats.add(self._stats.target_energy[target._type_id], actor.group_name, usable.use_cost + self.action_cost)
-
-
-        if target._type_id == ObjectType.AltarT:
-            self.env._rewards[actor_id] += 1
-
-        cdef Generator *generator
-        if target._type_id == ObjectType.GeneratorT:
-            generator = <Generator*>target
-            generator.r1 -= 1
-            actor.update_inventory(InventoryItem.r1, 1, &self.env._rewards[actor_id])
-            self.env._stats.incr(b"r1.harvested")
-
-        cdef Converter *converter
-        if target._type_id == ObjectType.ConverterT:
-            converter = <Converter*>target
-            converter.use(actor, actor_id, &self.env._rewards[actor_id])
-
+        usable.use(actor, &self.env._rewards[actor_id])
         return True
