@@ -130,7 +130,7 @@ components:
     input_source: encoded_obs
     output_size: 128
     nn_params:
-      num_layers: 1
+      num_layers: 2
   
   # using our second Linear layer as an example of all available parameters
   critic_1:

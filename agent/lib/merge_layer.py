@@ -25,8 +25,8 @@ class MergeLayerBase(LayerBase):
 
         self.input_source_components = input_source_components
 
-        sizes = []
-        dims = []
+        self.sizes = []
+        self.dims = []
         for _, src_cfg in enumerate(self.sources_list):       
             source_name = src_cfg['source_name']
             
@@ -42,13 +42,13 @@ class MergeLayerBase(LayerBase):
             else:
                 processed_size = full_source_size
 
-            sizes.append(processed_size)
-            dims.append(src_cfg.get("dim", self.default_dim))
+            self.sizes.append(processed_size)
+            self.dims.append(src_cfg.get("dim", self.default_dim))
 
-        self._setup_merge_layer(sizes, dims)
+        self._setup_merge_layer()
         self._ready = True
         
-    def _setup_merge_layer(self, sizes, dims):
+    def _setup_merge_layer(self):
         raise NotImplementedError("Subclasses should implement this method.")
 
     def forward(self, td: TensorDict):
@@ -72,11 +72,11 @@ class MergeLayerBase(LayerBase):
 
 
 class ConcatMergeLayer(MergeLayerBase):
-    def _setup_merge_layer(self, sizes, dims):
-        if not all(d == dims[0] for d in dims):
-            raise ValueError(f"For 'concat', all sources must have the same 'dim'. Got dims: {dims}")
-        self.merge_dim = dims[0]
-        self.output_size = sum(sizes)
+    def _setup_merge_layer(self):
+        if not all(d == self.dims[0] for d in self.dims):
+            raise ValueError(f"For 'concat', all sources must have the same 'dim'. Got dims: {self.dims}")
+        self.merge_dim = self.dims[0]
+        self.output_size = sum(self.sizes)
 
     def _merge(self, outputs, td):
         merged = torch.cat(outputs, dim=self.merge_dim)
@@ -85,10 +85,10 @@ class ConcatMergeLayer(MergeLayerBase):
 
 
 class AddMergeLayer(MergeLayerBase):
-    def _setup_merge_layer(self, sizes, dims):
-        if not all(s == sizes[0] for s in sizes):
-            raise ValueError(f"For 'add', all source sizes must match. Got sizes: {sizes}")
-        self.output_size = sizes[0]
+    def _setup_merge_layer(self):
+        if not all(s == self.sizes[0] for s in self.sizes):
+            raise ValueError(f"For 'add', all source sizes must match. Got sizes: {self.sizes}")
+        self.output_size = self.sizes[0]
 
     def _merge(self, outputs, td):
         merged = outputs[0]
@@ -99,10 +99,10 @@ class AddMergeLayer(MergeLayerBase):
 
 
 class SubtractMergeLayer(MergeLayerBase):
-    def _setup_merge_layer(self, sizes, dims):
-        if not all(s == sizes[0] for s in sizes):
-            raise ValueError(f"For 'subtract', all source sizes must match. Got sizes: {sizes}")
-        self.output_size = sizes[0]
+    def _setup_merge_layer(self):
+        if not all(s == self.sizes[0] for s in self.sizes):
+            raise ValueError(f"For 'subtract', all source sizes must match. Got sizes: {self.sizes}")
+        self.output_size = self.sizes[0]
 
     def _merge(self, outputs, td):
         if len(outputs) != 2:
@@ -113,10 +113,10 @@ class SubtractMergeLayer(MergeLayerBase):
 
 
 class MeanMergeLayer(MergeLayerBase):
-    def _setup_merge_layer(self, sizes, dims):
-        if not all(s == sizes[0] for s in sizes):
-            raise ValueError(f"For 'mean', all source sizes must match. Got sizes: {sizes}")
-        self.output_size = sizes[0]
+    def _setup_merge_layer(self):
+        if not all(s == self.sizes[0] for s in self.sizes):
+            raise ValueError(f"For 'mean', all source sizes must match. Got sizes: {self.sizes}")
+        self.output_size = self.sizes[0]
 
     def _merge(self, outputs, td):
         merged = outputs[0]

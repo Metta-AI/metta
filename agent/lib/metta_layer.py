@@ -48,7 +48,7 @@ class LayerBase(nn.Module):
 
         if self.input_source_component is None:
             self.input_size = None
-            if self.output_size is None: # output size must be set for a top level component
+            if self.output_size is None:
                 raise ValueError(f"Either input source or output size must be set for layer {self.name}")
         else:
             self.input_size = self.input_source_component.output_size
@@ -77,7 +77,22 @@ class LayerBase(nn.Module):
         return td
     
     def _forward(self, td: TensorDict):
-        td[self.name] = self.net(td[self.input_source])
+
+        output = self.net(td[self.input_source])
+
+        if self.name == "obs_flattener":
+            print(f"obs_flattener shape: {output.shape}")
+
+        if self.name == "fc1":
+            print(f"fc1 shape: {output.shape}")
+
+        if self.name == "encoded_obs":
+            print(f"encoded_obs shape: {output.shape}")
+
+        td[self.name] = output
+
+
+        # td[self.name] = self.net(td[self.input_source])
         return td
         
     def clip_weights(self):
@@ -114,11 +129,11 @@ class ParamLayer(LayerBase):
         else:
             self.clip_value = None
 
+        self.initial_weights = None
         if self.l2_init_scale != 0:
             self.initial_weights = self.weight_net.weight.data.clone()
-        else:
-            self.initial_weights = None
 
+        self.net = self.weight_net
         if self.nonlinearity is not None:
             # expecting a string of the form 'nn.ReLU'
             try:
@@ -130,8 +145,6 @@ class ParamLayer(LayerBase):
                 self.weight_net = self.net[0]
             except (AttributeError, KeyError, ValueError) as e:
                 raise ValueError(f"Unsupported nonlinearity: {self.nonlinearity}") from e
-        else:
-            self.net = self.weight_net
 
     def _initialize_weights(self):
         fan_in = self.input_size

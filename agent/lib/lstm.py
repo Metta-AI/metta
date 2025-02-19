@@ -36,6 +36,8 @@ class LSTM(LayerBase):
         hidden = td[self.input_source]
         state = td["state"]
 
+        print(f"hidden input shape: {hidden.shape}")
+
         # for some reason, td seems to convert state from a tuple to a tensor
         if state is not None:
             state = (state[:2], state[2:])
@@ -59,7 +61,9 @@ class LSTM(LayerBase):
         hidden = hidden.reshape(B, TT, self.input_size)
         hidden = hidden.transpose(0, 1)
 
+        print(f"hidden shape before LSTM: {hidden.shape}")
         hidden, state = self.net(hidden, state)
+        print(f"hidden shape after LSTM: {hidden.shape}")
 
         hidden = hidden.transpose(0, 1)
         hidden = hidden.reshape(B*TT, self.hidden_size)
