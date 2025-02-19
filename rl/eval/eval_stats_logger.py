@@ -30,7 +30,7 @@ class EvalStatsLogger:
         os.makedirs(os.path.dirname(self._json_path), exist_ok=True)
         self.artifact_name = artifact_name
 
-    def _add_additional_fields(self, eval_stats, eval_name):
+    def _add_additional_fields(self, eval_stats, eval_name = None):
         additional_fields = {}
         additional_fields['run_id'] = self._cfg.get("run_id", self._wandb_run.id)
         additional_fields['eval_name'] = self._cfg.eval.get("name", eval_name)
