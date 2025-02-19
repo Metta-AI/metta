@@ -98,7 +98,7 @@ def trace(cfg: OmegaConf, policy_record: PolicyRecord):
             obs = torch.as_tensor(obs).to(device=device)
             actions, _, _, _, policy_rnn_state, _, _ = policy(obs, policy_rnn_state)
 
-        actions_array = env._c_env.unflatten_actions(actions.cpu().numpy())
+        actions_array = actions.cpu().numpy()
         agents = []
         for id, action in enumerate(actions_array):
             for grid_object in env.grid_objects.values():
