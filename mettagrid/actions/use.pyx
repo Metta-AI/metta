@@ -5,9 +5,20 @@ from omegaconf import OmegaConf
 
 from mettagrid.grid_object cimport GridLocation, GridObjectId, Orientation, GridObject
 from mettagrid.action cimport ActionArg
-from mettagrid.objects cimport MettaObject, ObjectType, Usable, Altar, Agent, Events, GridLayer
-from mettagrid.objects cimport Generator, InventoryItem, ObjectTypeNames, InventoryItemNames
 from mettagrid.actions.actions cimport MettaActionHandler
+from mettagrid.objects.agent cimport Agent
+from mettagrid.objects.constants cimport GridLayer
+from mettagrid.objects.metta_object cimport MettaObject
+from mettagrid.objects.usable cimport Usable
+from mettagrid.objects.constants cimport Events, ObjectType
+from mettagrid.objects.altar cimport Altar
+from mettagrid.objects.factory cimport Factory
+from mettagrid.objects.mine cimport Mine
+from mettagrid.objects.generator cimport Generator
+from mettagrid.objects.armory cimport Armory
+from mettagrid.objects.lasery cimport Lasery
+from mettagrid.objects.lab cimport Lab
+from mettagrid.objects.temple cimport Temple
 
 cdef class Use(MettaActionHandler):
     def __init__(self, cfg: OmegaConf):
@@ -44,6 +55,5 @@ cdef class Use(MettaActionHandler):
         actor.stats.incr(self._stats.target[target._type_id], actor.group_name)
         actor.stats.set_once(self._stats.target_first_use[target._type_id], self.env._current_timestep)
 
-        usable.use(actor, actor_id, &self.env._rewards[actor_id])
-
+        usable.use(actor, &self.env._rewards[actor_id])
         return True

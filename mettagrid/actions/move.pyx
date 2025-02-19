@@ -4,8 +4,9 @@ from omegaconf import OmegaConf
 
 from mettagrid.grid_object cimport GridLocation, GridObjectId, GridObject, Orientation
 from mettagrid.action cimport ActionHandler, ActionArg
-from mettagrid.objects cimport MettaObject, ObjectType, Usable, Altar, Agent, Events, GridLayer
 from mettagrid.actions.actions cimport MettaActionHandler
+from mettagrid.objects.agent cimport Agent
+from mettagrid.grid_object cimport GridLocation, Orientation
 
 cdef class Move(MettaActionHandler):
     def __init__(self, cfg: OmegaConf):

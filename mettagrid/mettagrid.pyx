@@ -13,8 +13,22 @@ from mettagrid.grid_env cimport GridEnv
 from mettagrid.grid_object cimport GridObject
 from mettagrid.observation_encoder cimport ObsType
 
-from mettagrid.objects cimport ObjectLayers, Mine, Agent, ResetHandler, Wall, Generator, Altar, Lab, Factory, Temple, Armory, Lasery, Usable
+from mettagrid.objects.mine cimport Mine
+from mettagrid.objects.agent cimport Agent
+from mettagrid.objects.reset_handler cimport ResetHandler
+from mettagrid.objects.wall cimport Wall
+from mettagrid.objects.generator cimport Generator
+from mettagrid.objects.altar cimport Altar
+from mettagrid.objects.lab cimport Lab
+from mettagrid.objects.factory cimport Factory
+from mettagrid.objects.temple cimport Temple
+from mettagrid.objects.armory cimport Armory
+from mettagrid.objects.lasery cimport Lasery
+from mettagrid.objects.usable cimport Usable
+from mettagrid.objects.constants cimport ObjectLayers, InventoryItemNames
+
 from mettagrid.observation_encoder cimport MettaObservationEncoder, MettaCompactObservationEncoder
+
 from mettagrid.actions.move import Move
 from mettagrid.actions.rotate import Rotate
 from mettagrid.actions.use import Use
@@ -23,7 +37,9 @@ from mettagrid.actions.attack_nearest import AttackNearest
 from mettagrid.actions.noop import Noop
 from mettagrid.actions.swap import Swap
 from mettagrid.actions.change_color import ChangeColorAction
-from mettagrid.objects cimport InventoryItemNames
+
+from mettagrid.objects.usable cimport Usable
+
 cdef class MettaGrid(GridEnv):
     cdef:
         object _cfg

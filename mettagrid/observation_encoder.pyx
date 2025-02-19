@@ -1,11 +1,25 @@
+import numpy as np
+import gymnasium as gym
+
 from libc.stdio cimport printf
 from libcpp.string cimport string
 from libcpp.vector cimport vector
 from mettagrid.grid_object cimport GridObject, GridObjectId
-from mettagrid.objects cimport ObjectType, Agent, Wall, Generator, Altar, Armory, Lasery, Lab, Factory, Temple, Mine
 from mettagrid.observation_encoder cimport ObservationEncoder, ObsType
-import numpy as np
-import gymnasium as gym
+
+from mettagrid.objects.constants cimport ObjectType
+from mettagrid.objects.mine cimport Mine
+from mettagrid.objects.agent cimport Agent
+from mettagrid.objects.reset_handler cimport ResetHandler
+from mettagrid.objects.wall cimport Wall
+from mettagrid.objects.generator cimport Generator
+from mettagrid.objects.altar cimport Altar
+from mettagrid.objects.lab cimport Lab
+from mettagrid.objects.factory cimport Factory
+from mettagrid.objects.temple cimport Temple
+from mettagrid.objects.armory cimport Armory
+from mettagrid.objects.lasery cimport Lasery
+from mettagrid.objects.usable cimport Usable
 
 cdef class MettaObservationEncoder(ObservationEncoder):
     cpdef obs_np_type(self):
@@ -32,30 +46,33 @@ cdef class MettaObservationEncoder(ObservationEncoder):
             features.extend(self._type_feature_names[type_id])
         self._feature_names = features
 
+        print(self._type_feature_names)
+        print(self._offsets)
+
     cdef encode(self, GridObject *obj, ObsType[:] obs):
         self._encode(obj, obs, self._offsets[obj._type_id])
 
     cdef _encode(self, GridObject *obj, ObsType[:] obs, unsigned int offset):
         if obj._type_id == ObjectType.AgentT:
-            (<Agent*>obj).obs(obs[offset:])
+            (<Agent*>obj).obs(&obs[offset])
         elif obj._type_id == ObjectType.MineT:
-            (<Mine*>obj).obs(obs[offset:])
+            (<Mine*>obj).obs(&obs[offset])
         elif obj._type_id == ObjectType.WallT:
-            (<Wall*>obj).obs(obs[offset:])
+            (<Wall*>obj).obs(&obs[offset])
         elif obj._type_id == ObjectType.GeneratorT:
-            (<Generator*>obj).obs(obs[offset:])
+            (<Generator*>obj).obs(&obs[offset])
         elif obj._type_id == ObjectType.AltarT:
-            (<Altar*>obj).obs(obs[offset:])
+            (<Altar*>obj).obs(&obs[offset])
         elif obj._type_id == ObjectType.ArmoryT:
-            (<Armory*>obj).obs(obs[offset:])
+            (<Armory*>obj).obs(&obs[offset])
         elif obj._type_id == ObjectType.LaseryT:
-            (<Lasery*>obj).obs(obs[offset:])
+            (<Lasery*>obj).obs(&obs[offset])
         elif obj._type_id == ObjectType.LabT:
-            (<Lab*>obj).obs(obs[offset:])
+            (<Lab*>obj).obs(&obs[offset])
         elif obj._type_id == ObjectType.FactoryT:
-            (<Factory*>obj).obs(obs[offset:])
+            (<Factory*>obj).obs(&obs[offset])
         elif obj._type_id == ObjectType.TempleT:
-            (<Temple*>obj).obs(obs[offset:])
+            (<Temple*>obj).obs(&obs[offset])
         else:
             printf("Encoding object of unknown type: %d\n", obj._type_id)
 

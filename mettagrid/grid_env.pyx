@@ -115,7 +115,7 @@ cdef class GridEnv:
 
                     obs_r = object_loc.r + obs_height_r - observer_r
                     obs_c = object_loc.c + obs_width_r - observer_c
-                    agent_ob = observation[:, obs_r, obs_c]
+                    agent_ob = observation[obs_r, obs_c, :]
                     self._obs_encoder.encode(obj, agent_ob)
 
     cdef void _compute_observations(self, int[:,:] actions):
@@ -295,7 +295,7 @@ cdef class GridEnv:
         return gym.spaces.Box(
             0,
             255,
-            shape=(self._grid_features.size(), self._obs_height, self._obs_width),
+            shape=(self._obs_height, self._obs_width, self._grid_features.size()),
             dtype=obs_np_type
         )
 

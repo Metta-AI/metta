@@ -4,9 +4,9 @@ from libc.stdio cimport printf
 from omegaconf import OmegaConf
 
 from mettagrid.action cimport ActionHandler, ActionArg
-from mettagrid.objects cimport MettaObject, ObjectType, Usable, Altar, Agent, Events, GridLayer
 from mettagrid.actions.actions cimport MettaActionHandler
-
+from mettagrid.objects.agent cimport Agent
+from mettagrid.grid_object cimport GridLocation, Orientation
 
 cdef class Rotate(MettaActionHandler):
     def __init__(self, cfg: OmegaConf):
