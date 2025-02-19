@@ -1,15 +1,18 @@
-
 from libc.stdio cimport printf
 
 from omegaconf import OmegaConf
 
-from mettagrid.grid_object cimport GridLocation, Orientation
 from mettagrid.action cimport ActionArg
 from mettagrid.actions.actions cimport MettaActionHandler
+from mettagrid.grid_object cimport GridLocation, Orientation
 from mettagrid.objects.agent cimport Agent
-from mettagrid.objects.constants cimport InventoryItem, ObjectTypeNames, InventoryItemNames
+from mettagrid.objects.constants cimport (
+    GridLayer,
+    InventoryItem,
+    InventoryItemNames,
+    ObjectTypeNames
+)
 from mettagrid.objects.metta_object cimport MettaObject
-from mettagrid.objects.constants cimport GridLayer
 
 cdef class Attack(MettaActionHandler):
     def __init__(self, cfg: OmegaConf, action_name: str="attack"):

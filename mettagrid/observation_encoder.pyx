@@ -4,22 +4,24 @@ import gymnasium as gym
 from libc.stdio cimport printf
 from libcpp.string cimport string
 from libcpp.vector cimport vector
+
 from mettagrid.grid_object cimport GridObject, GridObjectId
 from mettagrid.observation_encoder cimport ObservationEncoder, ObsType
 
 from mettagrid.objects.constants cimport ObjectType
-from mettagrid.objects.mine cimport Mine
+
 from mettagrid.objects.agent cimport Agent
-from mettagrid.objects.reset_handler cimport ResetHandler
-from mettagrid.objects.wall cimport Wall
-from mettagrid.objects.generator cimport Generator
 from mettagrid.objects.altar cimport Altar
-from mettagrid.objects.lab cimport Lab
-from mettagrid.objects.factory cimport Factory
-from mettagrid.objects.temple cimport Temple
 from mettagrid.objects.armory cimport Armory
+from mettagrid.objects.factory cimport Factory
+from mettagrid.objects.generator cimport Generator
+from mettagrid.objects.lab cimport Lab
 from mettagrid.objects.lasery cimport Lasery
+from mettagrid.objects.mine cimport Mine
+from mettagrid.objects.reset_handler cimport ResetHandler
+from mettagrid.objects.temple cimport Temple
 from mettagrid.objects.usable cimport Usable
+from mettagrid.objects.wall cimport Wall
 
 cdef class MettaObservationEncoder(ObservationEncoder):
     cpdef obs_np_type(self):

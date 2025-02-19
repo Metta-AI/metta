@@ -2,9 +2,14 @@ from libc.stdio cimport printf
 
 from omegaconf import OmegaConf
 
-from mettagrid.grid_object cimport GridLocation, GridObjectId, GridObject, Orientation
 from mettagrid.action cimport ActionHandler, ActionArg
 from mettagrid.actions.actions cimport MettaActionHandler
+from mettagrid.grid_object cimport (
+    GridLocation,
+    GridObject,
+    GridObjectId,
+    Orientation
+)
 from mettagrid.objects.agent cimport Agent
 
 cdef class Noop(MettaActionHandler):
