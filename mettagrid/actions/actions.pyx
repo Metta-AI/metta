@@ -14,16 +14,13 @@ cdef class MettaActionHandler(ActionHandler):
     def __init__(self, cfg: OmegaConf, action_name: str):
         ActionHandler.__init__(self, action_name)
 
-        self._stats.action = "action." + action_name
-        self._stats.action_energy = "action." + action_name + ".energy"
+        self._stats.success = "action." + action_name
+        self._stats.failure = "action." + action_name + ".failed"
         self._stats.first_use = "action." + action_name + ".first_use"
-        
-        for t, n in enumerate(ObjectTypeNames):
-            self._stats.target[t] = self._stats.action + "." + n
-            self._stats.target_energy[t] = self._stats.action_energy + "." + n
-            self._stats.target_first_use[t] = self._stats.first_use + "." + n
 
-        self.action_cost = cfg.cost
+        for t, n in enumerate(ObjectTypeNames):
+            self._stats.target[t] = self._stats.success + "." + n
+            self._stats.target_first_use[t] = self._stats.first_use + "." + n
 
     cdef bint handle_action(
         self,
@@ -33,33 +30,20 @@ cdef class MettaActionHandler(ActionHandler):
 
         cdef Agent *actor = <Agent*>self.env._grid.object(actor_object_id)
 
-        if actor.shield:
-            actor.update_energy(-actor.shield_upkeep, &self.env._rewards[actor_id])
-            actor.stats.add(b"shield_upkeep", actor.shield_upkeep)
-
-            actor.stats.incr(b"shield_upkeep", actor.group_name)
-
-            actor.stats.incr(b"status.shield.ticks")
-            actor.stats.incr(b"status.shield.ticks", actor.group_name)
-
-            if actor.energy == 0:
-                actor.shield = False
-
         if actor.frozen > 0:
             actor.stats.incr(b"status.frozen.ticks")
             actor.stats.incr(b"status.frozen.ticks", actor.group_name)
             actor.frozen -= 1
             return False
 
-        if actor.energy < self.action_cost:
-            return False
-
-        actor.update_energy(-self.action_cost, &self.env._rewards[actor_id])
         cdef bint result = self._handle_action(actor_id, actor, arg)
 
         if result:
-            actor.stats.incr(self._stats.action)
-            actor.stats.incr(self._stats.action, actor.group_name)
+            actor.stats.incr(self._stats.success)
+        else:
+            actor.stats.incr(self._stats.failure)
+            actor.stats.incr(b"action.failure_penalty")
+            self.env._rewards[actor_id] -= actor.action_failure_penalty
             actor.stats.set_once(self._stats.first_use, self.env._current_timestep)
 
         return result

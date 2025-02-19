@@ -9,4 +9,5 @@ cdef extern from "usable.hpp":
 
         void init_usable(ObjectConfig cfg)
         bint usable(const Agent *actor)
+        void use(Agent *actor, float *rewards)
         bint is_usable_type()
