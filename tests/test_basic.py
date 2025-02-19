@@ -14,7 +14,6 @@ import mettagrid.actions.gift
 import mettagrid.actions.move
 import mettagrid.actions.noop
 import mettagrid.actions.rotate
-import mettagrid.actions.shield
 import mettagrid.actions.swap
 import mettagrid.actions.use
 
@@ -73,11 +72,11 @@ def main(cfg):
     # We have 5 agents, ~22 channels, 11x11 grid
     # We expect the number of channels to be updated more regularly, so we give that a range.
     # Feel free to make this less fragile if you're updating this.
-    [num_agents, num_channels, grid_width, grid_height] = obs.shape
+    [num_agents, grid_width, grid_height, num_channels] = obs.shape
     assert num_agents == 5
     assert grid_width == 11
     assert grid_height == 11
-    assert 20 <= num_channels <= 30
+    assert 20 <= num_channels <= 50
     print("rewards: ", rewards)
     assert rewards.shape == (5,)
     print("terminated: ", terminated)
@@ -100,7 +99,7 @@ def main(cfg):
     print("mettaGridEnv._max_steps: ", mettaGridEnv._max_steps)
     assert mettaGridEnv._max_steps == 5000
     print("mettaGridEnv.single_observation_space: ", mettaGridEnv.single_observation_space)
-    assert mettaGridEnv.single_observation_space.shape == (num_channels, grid_width, grid_height)
+    assert mettaGridEnv.single_observation_space.shape == (grid_width, grid_height, num_channels)
     print("mettaGridEnv.single_action_space: ", mettaGridEnv.single_action_space)
     [num_actions, max_arg] = mettaGridEnv.single_action_space.nvec.tolist()
     # We don't want to hard-code the number of actions to expect (we might add more), so
