@@ -98,19 +98,24 @@ class PufferTrainer:
         if self.trainer_cfg.evaluate_interval < self.trainer_cfg.checkpoint_interval:
             self.trainer_cfg.evaluate_interval = self.trainer_cfg.checkpoint_interval
 
-        print(f"wandb checkpoint interval: {self.trainer_cfg.wandb_checkpoint_interval}")
-        print(f"trainercheckpoint interval: {self.trainer_cfg.checkpoint_interval}")
-        print(f"evaluate interval: {self.trainer_cfg.evaluate_interval}")
 
         while self.agent_step < self.trainer_cfg.total_timesteps:
+            print("Training: ", self.agent_step, self.epoch)
+
+            print("Collecting Experience")
             self._evaluate()
+            print("Training")
             self._train()
+            print("Processing stats")
             self._process_stats()
             if self.epoch % self.trainer_cfg.checkpoint_interval == 0:
+                print("Checkpoint trainer")
                 self._checkpoint_trainer()
             if self.epoch % self.trainer_cfg.evaluate_interval == 0 and self.trainer_cfg.evaluate:
+                print("Evaluate policy")
                 self._evaluate_policy()
             if self.epoch % self.trainer_cfg.wandb_checkpoint_interval == 0:
+                print("Save policy to wandb")
                 self._save_policy_to_wandb()
 
             self._on_train_step()
