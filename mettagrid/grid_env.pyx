@@ -177,15 +177,6 @@ cdef class GridEnv:
         if self._max_timestep > 0 and self._current_timestep >= self._max_timestep:
             self._truncations[:] = 1
 
-    cdef cnp.ndarray _unflatten_actions(self, cnp.ndarray actions):
-        if self._use_flat_actions:
-            new_actions = np.zeros((len(actions), 2), dtype=np.int32)
-            for idx, action in enumerate(actions):
-                new_actions[idx][0] = self._flat_actions[action].action
-                new_actions[idx][1] = self._flat_actions[action].arg
-            return new_actions
-        return actions
-
     ###############################
     # Python API
     ###############################
@@ -203,7 +194,6 @@ cdef class GridEnv:
         return (self._observations_np, {})
 
     cpdef tuple[cnp.ndarray, cnp.ndarray, cnp.ndarray, cnp.ndarray, dict] step(self, cnp.ndarray actions):
-        actions = self._unflatten_actions(actions)
         self._step(actions)
         return (self._observations_np, self._rewards_np, self._terminals_np, self._truncations_np, {})
 
@@ -298,9 +288,6 @@ cdef class GridEnv:
             grid[obj.location.r, obj.location.c] = obj._type_id + 1
         return grid
 
-    cpdef cnp.ndarray unflatten_actions(self, cnp.ndarray actions):
-        return self._unflatten_actions(actions)
-
     @property
     def action_space(self):
         if self._use_flat_actions:
@@ -317,16 +304,6 @@ cdef class GridEnv:
             shape=(self._grid_features.size(), self._obs_height, self._obs_width),
             dtype=obs_np_type
         )
-
-    cpdef cnp.ndarray flatten_actions(self, cnp.ndarray actions):
-        if not self._use_flat_actions:
-            return actions
-
-        new_actions = []
-        flat_actions_dict = { (action["action"], action["arg"]): idx for idx, action in enumerate(self._flat_actions) }
-        for action in actions:
-            new_actions.append(flat_actions_dict[(action[0], action[1])])
-        return np.array(new_actions, dtype=np.uint32)
 
     def action_success(self):
         return self._action_success
