@@ -1,24 +1,27 @@
-
 from libc.stdio cimport printf
 
 from omegaconf import OmegaConf
 
-from mettagrid.grid_object cimport GridLocation, GridObjectId, Orientation, GridObject
 from mettagrid.action cimport ActionArg
 from mettagrid.actions.actions cimport MettaActionHandler
+from mettagrid.grid_object cimport (
+    GridLocation,
+    GridObject,
+    GridObjectId,
+    Orientation
+)
 from mettagrid.objects.agent cimport Agent
-from mettagrid.objects.constants cimport GridLayer
-from mettagrid.objects.metta_object cimport MettaObject
-from mettagrid.objects.usable cimport Usable
-from mettagrid.objects.constants cimport Events, ObjectType
 from mettagrid.objects.altar cimport Altar
-from mettagrid.objects.factory cimport Factory
-from mettagrid.objects.mine cimport Mine
-from mettagrid.objects.generator cimport Generator
 from mettagrid.objects.armory cimport Armory
-from mettagrid.objects.lasery cimport Lasery
+from mettagrid.objects.constants cimport Events, GridLayer, ObjectType
+from mettagrid.objects.factory cimport Factory
+from mettagrid.objects.generator cimport Generator
 from mettagrid.objects.lab cimport Lab
+from mettagrid.objects.lasery cimport Lasery
+from mettagrid.objects.metta_object cimport MettaObject
+from mettagrid.objects.mine cimport Mine
 from mettagrid.objects.temple cimport Temple
+from mettagrid.objects.usable cimport Usable
 
 cdef class Use(MettaActionHandler):
     def __init__(self, cfg: OmegaConf):

@@ -1,8 +1,8 @@
 from libc.stdio cimport printf
 
-from mettagrid.grid_object cimport GridObjectId
 from mettagrid.event cimport Event, EventArg, EventHandler, EventId
 from mettagrid.grid_env cimport GridEnv
+from mettagrid.grid_object cimport GridObjectId
 
 cdef class EventManager:
     def __init__(self, GridEnv env, list[EventHandler] event_handlers):
