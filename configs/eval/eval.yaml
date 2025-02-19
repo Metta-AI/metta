@@ -11,4 +11,6 @@ num_envs: 128
 num_episodes: 128
 max_time_s: 60
 
+name: null
+
 eval_db_uri: null
