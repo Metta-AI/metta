@@ -48,7 +48,7 @@ class EvalStatsAnalyzer:
 
 
     def log_result(self, result, metric, filters, significance):
-        result_table = tabulate(result, headers=["policy_name"] + list(result.keys()), tablefmt="grid", maxcolwidths=25)
+        result_table = tabulate(result, headers=list(result.keys()), tablefmt="grid", maxcolwidths=25)
         logger.info(f"Results for {metric} with filters {filters}:\n{result_table}")
         if len(significance) > 0:
             self.log_significance(significance, metric, filters)
@@ -60,8 +60,6 @@ class EvalStatsAnalyzer:
             if not metric in self.stats_db.available_metrics:
                 logger.info(f"Metric {metric} not found in stats_db")
                 continue
-            df_per_episode = self.stats_db._metric(metric, filters, group_by_episode)
-
             df_per_episode, df_metric = self.stats_db._metric(metric, filters, group_by_episode)
             result_dfs.append(df_metric)
 

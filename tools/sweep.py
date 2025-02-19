@@ -38,7 +38,7 @@ def main(cfg):
     sweep_id = sweep_id_from_name(cfg.wandb.project, cfg.run)
     if not sweep_id:
         logger.debug(f"Sweep {cfg.run} not found, creating new sweep")
-        os.makedirs(os.path.join(cfg.run_dir, "runs"))
+        os.makedirs(os.path.join(cfg.run_dir, "runs"), exist_ok=True)
 
         sweep_id = create_sweep(
             cfg.run,
