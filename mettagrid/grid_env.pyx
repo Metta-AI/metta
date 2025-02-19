@@ -285,7 +285,7 @@ cdef class GridEnv:
 
     @property
     def action_space(self):
-        return gym.spaces.MultiDiscrete((len(self.action_names()), self._max_action_arg), dtype=np.uint32)
+        return gym.spaces.MultiDiscrete((len(self.action_names()), self._max_action_arg), dtype=np.int64)
 
     @property
     def observation_space(self):
