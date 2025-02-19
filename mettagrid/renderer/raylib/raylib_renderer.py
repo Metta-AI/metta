@@ -265,6 +265,14 @@ class MettaGridRaylibRenderer:
     def draw_attacks(self):
         for agent_id, action in enumerate(self.actions):
             agent = self.agents[agent_id]
+            attack_color = [
+                ray.Color(255, 0, 0, 128),
+                ray.Color(0, 255, 0, 128),
+                ray.Color(0, 0, 255, 128),
+                ray.Color(255, 255, 0, 128),
+                ray.Color(0, 255, 255, 128),
+                ray.Color(255, 0, 255, 128)][agent["agent:group"] % 5]
+
             if agent["agent:frozen"]:
                 continue
             if agent["agent:energy"] < self.cfg.actions.attack.cost:
@@ -302,7 +310,7 @@ class MettaGridRaylibRenderer:
                         ray.Vector2(base_x + self.tile_size * 3, base_y - self.tile_size * 1.5),
                         ray.Vector2(base_x + self.tile_size * 3, base_y + self.tile_size * 1.5)
                     ]
-                ray.draw_triangle(points[0], points[1], points[2], ray.Color(255, 0, 0, 128))
+                ray.draw_triangle(points[0], points[1], points[2], attack_color)
             if action[0] == self.action_ids["attack"]:
                 distance = 1 + (action[1] - 1) // 3
                 offset = -((action[1] - 1) % 3 - 1)
@@ -314,7 +322,7 @@ class MettaGridRaylibRenderer:
                     target_loc[1] * self.tile_size + self.tile_size // 2,
                     target_loc[0] * self.tile_size + self.tile_size // 2,
                     self.tile_size * 0.2,
-                    ray.RED
+                    attack_color
                 )
 
                 # Draw red line from attacker to target
@@ -322,7 +330,7 @@ class MettaGridRaylibRenderer:
                 start_y = agent["r"] * self.tile_size + self.tile_size // 2
                 end_x = target_loc[1] * self.tile_size + self.tile_size // 2
                 end_y = target_loc[0] * self.tile_size + self.tile_size // 2
-                ray.draw_line(int(start_x), int(start_y), int(end_x), int(end_y), ray.RED)
+                ray.draw_line(int(start_x), int(start_y), int(end_x), int(end_y), attack_color)
 
     def _draw_help_overlay(self):
         """ Draws a help overlay on the screen with the available keys and their actions. """
