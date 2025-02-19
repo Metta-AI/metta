@@ -4,7 +4,8 @@ policy_uri: null
 
 analysis:
 
-  filters: [] #global filters
+  # filters:
+  #   '"action.use.altar"' : "> 0"
 
   metric_patterns: null
 
@@ -13,7 +14,4 @@ analysis:
 
   queries: null
 
-  baseline:
-    filters:
-      policy_name: null #if null, use all policies
-      '"action.use.altar"' : "> 0"
+  baseline_policies: null

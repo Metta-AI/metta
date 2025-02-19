@@ -57,7 +57,15 @@ class EvalStatsDB:
 
     def _metric(self, metric_field: str, filters: Optional[Dict[str, Any]] = None, group_by_episode: bool = False) -> pd.DataFrame:
         long_df = self._query(total_metric(metric_field, filters))
-        df_per_episode = long_df.pivot(index='episode_index', columns='policy_name', values='total_metric').fillna(0)
+
+        # Average over unique policy names per eva
+
+        # Average over unique policy names per eval
+        long_df = long_df.groupby(['episode_index', 'eval_name'])['total_metric'].mean().reset_index()
+
+        long_df = long_df.groupby(['episode_index', 'policy_name'])['total_metric'].mean().reset_index()
+
+        df_per_episode = long_df.pivot(index='episode_index', columns=['policy_name', 'eval_name'], values='total_metric').fillna(0)
         metric_df = df_per_episode.copy()
         if not group_by_episode:
             mean_series = df_per_episode.mean(axis=0)

@@ -4,6 +4,7 @@ from typing import Dict, Any, List, Optional
 from rl.eval.eval_stats_db import EvalStatsDB
 from tabulate import tabulate
 import fnmatch
+import numpy as np
 import pandas as pd
 from rl.eval.stats import significance_test
 logger = logging.getLogger("eval_stats_analyzer")
@@ -50,7 +51,7 @@ class EvalStatsAnalyzer:
 
 
     def log_result(self, result, metric, filters, significance):
-        result_table = tabulate(result, headers=["policy_name"] + list(result.keys()), tablefmt="grid", maxcolwidths=25)
+        result_table = tabulate(result, headers=["policy_and_eval"] + list(result.keys()), tablefmt="grid", maxcolwidths=25)
         logger.info(f"Results for {metric} with filters {filters}:\n{result_table}")
         if len(significance) > 0:
             self.log_significance(significance, metric, filters)
@@ -62,8 +63,6 @@ class EvalStatsAnalyzer:
             if not metric in self.stats_db.available_metrics:
                 logger.info(f"Metric {metric} not found in stats_db")
                 continue
-            df_per_episode = self.stats_db._metric(metric, filters, group_by_episode)
-
             df_per_episode, df_metric = self.stats_db._metric(metric, filters, group_by_episode)
             result_dfs.append(df_metric)
 
@@ -76,7 +75,6 @@ class EvalStatsAnalyzer:
         return metrics_df, significance_results
 
     def analyze(self):
-        p_fitness = None
         metric_configs = {}
         for cfg in self.analysis.metrics:
             metric_configs[cfg] = fnmatch.filter(self.stats_db.available_metrics, cfg.metric)
@@ -98,17 +96,43 @@ class EvalStatsAnalyzer:
             significances.append(significance)
 
         if self.candidate_policy_uri is not None:
-            uri = self.candidate_policy_uri.replace("wandb://run/", "")
-            matching_indices = [i for i in results[0].index if uri in i]
-            if matching_indices:
-                uri = matching_indices[0]
+            policy_fitness = self.policy_fitness(results)
 
-            fitness = self.policy_fitness(results)
-            results.append(fitness)
+        if self.candidate_policy_uri is not None:
+            for metric, fitness in policy_fitness.items():
+                wandb.log({
+                    f"policy_fitness/{metric.name}": fitness[0],
+                    f"policy_fitness/{metric.name}_std": fitness[1]
+                })
 
-        return results, significances
+        return results, significances, policy_fitness
+
+    @staticmethod
+    def get_latest_policy(all_policies, uri):
+        if uri in all_policies:
+            return uri
+        policy_versions = [i for i in all_policies if uri in i]
+        policy_versions.sort(key=lambda x: int(x.split(':v')[-1]))
+        candidate_uri = policy_versions[-1]
+        return candidate_uri
 
     def policy_fitness(self, metric_data):
-        if self.analysis.baseline is None:
-            return metric_data.loc[self.candidate_policy_uri]
-            average_metric = metric_data.mean(axis=1)
+        policy_fitness = {}
+        uri = self.candidate_policy_uri.replace("wandb://run/", "")
+
+        all_policies = metric_data[0].index
+
+        # Get the latest version of the candidate policy
+        candidate_uri = self.get_latest_policy(all_policies, uri)
+
+        baseline_policies = list(set([self.get_latest_policy(all_policies, b) for b in self.analysis.baseline_policies or all_policies]))
+
+        for metric in metric_data:
+
+
+            candidate_metric_mean, candidate_metric_std = metric.loc[candidate_uri]
+            baseline_metric_mean, baseline_metric_std = np.mean([metric.loc[baseline_uri] for baseline_uri in baseline_policies],axis=0)
+
+            fitness = (candidate_metric_mean - baseline_metric_mean) / baseline_metric_std
+            policy_fitness[metric] = fitness
+        return policy_fitness
