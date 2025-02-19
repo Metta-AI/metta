@@ -1,16 +1,22 @@
 from libc.stdio cimport printf
-
-cimport numpy as cnp
-import numpy as np
-from mettagrid.action cimport ActionArg, ActionHandler
-from mettagrid.grid_object cimport Layer, GridLocation
-from mettagrid.observation_encoder cimport ObservationEncoder, ObsType
-from mettagrid.grid_object cimport GridObject, GridObjectId
-from mettagrid.event cimport EventManager, EventHandler
-from mettagrid.grid cimport Grid
 from libcpp.vector cimport vector
+
+import numpy as np
+cimport numpy as cnp
 import gymnasium as gym
 
+from mettagrid.action cimport ActionArg, ActionHandler
+from mettagrid.event cimport EventManager, EventHandler
+from mettagrid.grid cimport Grid
+from mettagrid.grid_object cimport (
+    GridObject,
+    GridObjectId,
+    Layer,
+    GridLocation
+)
+from mettagrid.observation_encoder cimport ObservationEncoder, ObsType
+
+# Constants
 obs_np_type = np.uint8
 
 cdef class GridEnv:
