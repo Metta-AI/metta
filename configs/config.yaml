@@ -9,6 +9,7 @@ dashboard: false
 seed: 1
 device: cpu
 torch_deterministic: true
+eval_db_uri: wandb://artifacts/eval_stats
 
 defaults:
   - agent: simple
@@ -16,7 +17,7 @@ defaults:
   - trainer: puffer
   - sweep: sweep
   - hardware: macbook
-  - eval: eval
+  - eval: eval_suite
   - analyzer: analyzer
 
 wandb:
