@@ -64,26 +64,8 @@ class AgentRenderer(ObjectRenderer):
 
     def render(self, obj, render_tile_size):
         super().render(obj, render_tile_size)
-        self.draw_energy_bar(obj, render_tile_size)
-        # self.draw_hp_bar(obj, render_tile_size)
         self.draw_frozen_effect(obj, render_tile_size)
-        self.draw_shield_effect(obj, render_tile_size)
         self.draw_observation_area(obj, render_tile_size)
-
-    def draw_energy_bar(self, obj, render_tile_size):
-        x = obj["c"] * render_tile_size
-        y = obj["r"] * render_tile_size - 8  # 8 pixels above the agent
-        width = render_tile_size
-        height = 3  # 3 pixels tall
-        max_energy = self.cfg(obj).max_energy
-
-        energy = min(max(obj["agent:energy"], 0), max_energy)
-        blue_width = int(width * energy / max_energy)
-
-        # Draw red background
-        rl.DrawRectangle(x, y, width, height, colors.RED)
-        # Draw blue foreground based on energy
-        rl.DrawRectangle(x, y, blue_width, height, colors.BLUE)
 
     def draw_hp_bar(self, obj, render_tile_size):
         x = obj["c"] * render_tile_size
@@ -116,15 +98,6 @@ class AgentRenderer(ObjectRenderer):
             # Draw the semi-transparent circle
             ray.draw_circle(x, y, radius, frozen_color)
 
-    def draw_shield_effect(self, obj, render_tile_size):
-        if obj.get("agent:shield", False):
-            x = obj["c"] * render_tile_size + render_tile_size // 2
-            y = obj["r"] * render_tile_size + render_tile_size // 2
-            radius = render_tile_size // 2 + 2  # Slightly larger than the agent
-
-            # Draw a blue circle
-            ray.draw_circle_lines(x, y, radius, ray.BLUE)
-
     def draw_observation_area(self, obj, render_tile_size):
         x = obj["c"] * render_tile_size
         y = obj["r"] * render_tile_size
@@ -145,25 +118,27 @@ class WallRenderer(ObjectRenderer):
     def __init__(self):
         super().__init__("wall.png")
 
+class MineRenderer(ObjectRenderer):
+    def __init__(self):
+        super().__init__("items.png", 16)
+
+    def _sprite_sheet_idx(self, obj):
+        if obj["mine:ready"]:
+            return (14, 2)
+        else:
+            return (13, 2)
+
 class GeneratorRenderer(ObjectRenderer):
     def __init__(self):
         super().__init__("items.png", 16)
 
     def _sprite_sheet_idx(self, obj):
         if obj["generator:ready"]:
-            return (14, 2)
+            return (1, 2)
         else:
-            return (13, 2)
+            return (0, 2)
 
-class ConverterRenderer(ObjectRenderer):
-    def __init__(self):
-        super().__init__("items.png", 16)
 
-    def _sprite_sheet_idx(self, obj):
-        if obj["converter:ready"]:
-            return (12, 0)
-        else:
-            return (13, 0)
 class AltarRenderer(ObjectRenderer):
     def __init__(self):
         super().__init__("items.png", 16)
@@ -173,3 +148,55 @@ class AltarRenderer(ObjectRenderer):
             return (11, 2)
         else:
             return (12, 2)
+
+
+class ArmoryRenderer(ObjectRenderer):
+    def __init__(self):
+        super().__init__("items.png", 16)
+
+    def _sprite_sheet_idx(self, obj):
+        if obj["armory:ready"]:
+            return (6, 3)
+        else:
+            return (1, 3)
+
+class LaseryRenderer(ObjectRenderer):
+    def __init__(self):
+        super().__init__("items.png", 16)
+
+    def _sprite_sheet_idx(self, obj):
+        if obj["lasery:ready"]:
+            return (6, 5)
+        else:
+            return (2, 5)
+
+class LabRenderer(ObjectRenderer):
+    def __init__(self):
+        super().__init__("items.png", 16)
+
+    def _sprite_sheet_idx(self, obj):
+        if obj["lab:ready"]:
+            return (5, 1)
+        else:
+            return (4, 1)
+
+class FactoryRenderer(ObjectRenderer):
+    def __init__(self):
+        super().__init__("items.png", 16)
+
+    def _sprite_sheet_idx(self, obj):
+        if obj["factory:ready"]:
+            return (12, 0)
+        else:
+            return (13, 0)
+
+class TempleRenderer(ObjectRenderer):
+    def __init__(self):
+        super().__init__("items.png", 16)
+
+    def _sprite_sheet_idx(self, obj):
+        if obj["temple:ready"]:
+            return (6, 2)
+        else:
+            return (7, 2)
+

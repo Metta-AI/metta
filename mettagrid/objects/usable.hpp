@@ -19,12 +19,14 @@ public:
     }
 
     virtual bool usable(const Agent *actor) {
-        return this->ready && this->use_cost <= actor->energy;
+        return this->ready;
     }
 
     virtual bool is_usable_type() {
         return true;
     }
+
+    virtual void use(Agent *actor, float *rewards) = 0;
 };
 
 #endif
