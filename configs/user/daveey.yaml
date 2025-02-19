@@ -30,7 +30,7 @@ eval_db_uri: wandb://artifacts/daveey_eval_testing
     #     border_width: 0
 
 trainer:
-  evaluate_interval: 2
+  evaluate_interval: 200
 
 analyzer:
   eval_stats_uri: ${run_dir}/eval_stats
