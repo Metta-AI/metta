@@ -4,7 +4,7 @@ defaults:
   - eval
 
 policy_uri: wandb://run/b.daveey.train.simple.s20m
-env: null
+env: null #the env is set in evals:
 
 evals:
   cylinder:
