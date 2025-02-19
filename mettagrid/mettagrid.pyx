@@ -68,7 +68,6 @@ cdef class MettaGrid(GridEnv):
             obs_encoder,
             actions,
             [ ResetHandler() ],
-            use_flat_actions=env_cfg.flatten_actions,
             track_last_action=env_cfg.track_last_action
         )
 
