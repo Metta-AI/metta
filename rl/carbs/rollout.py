@@ -114,8 +114,7 @@ class CarbsSweepRollout:
         self._log_file("eval_config.yaml", eval_cfg)
 
         eval_cfg.eval.policy_uri = final_pr.uri
-
-        eval = hydra.utils.instantiate(eval_cfg.eval, policy_store, eval_cfg.env, _recursive_ = False)
+        eval = hydra.utils.instantiate(eval_cfg.eval, policy_store, final_pr, eval_cfg.env, _recursive_ = False)
         stats = eval.evaluate()
         eval_time = time.time() - eval_start_time
 
