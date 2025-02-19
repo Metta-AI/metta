@@ -1,3 +1,6 @@
+# distutils: language=c++
+# cython: warn.undeclared=False
+
 from libcpp.map cimport map
 from libcpp.vector cimport vector
 from libcpp.string cimport string
@@ -14,21 +17,25 @@ cdef extern from "constants.hpp":
     cdef enum ObjectType:
         AgentT = 0
         WallT = 1
-        GeneratorT = 2
-        ConverterT = 3
+        MineT = 2
+        GeneratorT = 3
         AltarT = 4
-        Count = 5
-        Resource_Count = 2
+        ArmoryT = 5
+        LaseryT = 6
+        LabT = 7
+        FactoryT = 8
+        TempleT = 9
+        Count = 10
 
     cdef enum InventoryItem:
-        r1 = 0
-        r2 = 1
-        r3 = 2
-        # ##InlineInventoryCount
-        # We sometimes hard code this elsewhere, since cython seems to not trust this
-        # enum, and ends up generating a lot of code to access it.
-        InventoryCount = 3
+        ore = 0
+        battery = 1
+        heart = 2
+        armor = 3
+        laser = 4
+        blueprint = 5
+        InventoryCount = 6
 
     cdef vector[string] InventoryItemNames
-    cdef map[TypeId, GridLayer] ObjectLayers
     cdef vector[string] ObjectTypeNames
+    cdef map[TypeId, GridLayer] ObjectLayers

@@ -3,7 +3,6 @@ _target_: mettagrid.mettagrid_env.MettaGridEnv
 
 report_stats_interval: 100
 normalize_rewards: false
-flatten_actions: true
 compact_obs: false
 track_last_action: false
 
@@ -24,19 +23,15 @@ game:
   no_energy_steps: 500
 
   agent:
-    initial_energy: ${uniform:0, 250, 250}
-    max_energy: ${uniform:0, 250, 250}
-    max_inventory: ${uniform:0, 10, 5}
+    max_inventory: ${uniform:0, 100, 50}
     freeze_duration: ${uniform:0, 200, 10}
-    attack_damage: ${uniform:1, 100, 10}
-    energy_reward: 1
-    resource_reward: 1
-    freeze_reward: 1
     hp: 10
     mortal: False
-    upkeep.time: ${uniform:0, 3, 0}
-    upkeep.shield: ${uniform:0, 3, 1}
-    use_cost: 0
+    rewards:
+      action_failure_penalty: 0.00001
+      ore: 0.005
+      battery: 0.01
+      heart: 1
 
   groups:
     agent:
@@ -71,37 +66,45 @@ game:
     prey:
       id: 5
       sprite: 12
-      props:
-        attack_damage: ${uniform:1, 10, 2}
+      props: {}
 
     predator:
       id: 6
       sprite: 6
-      props:
-        attack_damage: ${uniform:1, 100, 50}
+      props: {}
 
   objects:
     altar:
       hp: 30
       cooldown: ${uniform:1, 10, 2}
-      use_cost: ${uniform:20, 100, 100}
 
-    converter:
+    mine:
       hp: 30
-      cooldown: ${uniform:1, 20, 5}
-      # This is Dave's fault. Or Cython's. Or mine.
-      energy_output.r1.prey: ${uniform:10, 250, 100}
-      energy_output.r2.prey: 0
-      energy_output.r3.prey: 0
-      energy_output.r1.predator: ${uniform:10, 100, 25}
-      energy_output.r2.predator: ${uniform:10, 250, 100}
-      energy_output.r3.predator: 0
+      cooldown: ${uniform:0, 100, 20}
 
     generator:
       hp: 30
-      cooldown: ${uniform:0, 100, 20}
-      initial_resources: ${uniform:1, 30, 5}
-      use_cost: 0
+      cooldown: ${uniform:0, 10, 5}
+
+    armory:
+      hp: 30
+      cooldown: ${uniform:0, 10, 5}
+
+    lasery:
+      hp: 30
+      cooldown: ${uniform:0, 10, 5}
+
+    lab:
+      hp: 30
+      cooldown: ${uniform:0, 10, 5}
+
+    factory:
+      hp: 30
+      cooldown: ${uniform:0, 10, 5}
+
+    temple:
+      hp: 30
+      cooldown: ${uniform:0, 10, 5}
 
     wall:
       hp: ${uniform:1, 20, 10}
@@ -119,9 +122,6 @@ game:
     jump:
       enabled: false
       cost: 3
-    shield:
-      enabled: true
-      cost: 1
     transfer:
       enabled: false
       cost: 0
@@ -130,7 +130,7 @@ game:
       cost: 0
     attack:
       enabled: true
-      cost: ${uniform:1, 100, 10}
+      cost: 0
     gift:
       enabled: false
       cost: 0

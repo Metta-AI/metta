@@ -2,10 +2,11 @@ from libc.stdio cimport printf
 
 from omegaconf import OmegaConf
 
-from mettagrid.grid_object cimport GridLocation, Orientation
-from mettagrid.action cimport ActionArg
-from mettagrid.objects.agent cimport Agent
+from mettagrid.grid_object cimport GridLocation, GridObjectId, GridObject, Orientation
+from mettagrid.action cimport ActionHandler, ActionArg
 from mettagrid.actions.actions cimport MettaActionHandler
+from mettagrid.objects.agent cimport Agent
+from mettagrid.grid_object cimport GridLocation, Orientation
 
 cdef class Move(MettaActionHandler):
     def __init__(self, cfg: OmegaConf):
