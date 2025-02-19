@@ -15,8 +15,8 @@ analyzer:
     - metric: "action.use.altar.agent"
 
 #policy_uri: ${trained_policy_uri}
-policy_uri: wandb://run/cogeval_training_mini_pretrained_ent0.02
-eval_db_uri: wandb://artifacts/cog_eval_training_evals
+policy_uri: wandb://run/cogevalminient0.02run
+eval_db_uri: wandb://artifacts/daphne_eval_testing
 #eval_db_uri: file://daphne/daphne_eval_stats
 
 npc_policy_uri: null
@@ -36,9 +36,9 @@ trainer:
   evaluate_interval: 2
 
 eval:
-  num_envs: 10
-  num_episodes: 10
-  max_time_s: 600
+  num_envs: 2
+  num_episodes: 2
+  max_time_s: 300
 
   policy_uri: ${..policy_uri}
   npc_policy_uri: ${..npc_policy_uri}
