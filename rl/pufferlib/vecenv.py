@@ -36,5 +36,7 @@ def make_vecenv(
         **kwargs
     )
 
+    print("Vecenv Args:", vecenv_args)
+
     vecenv = pufferlib.vector.make(make_env_func, **vecenv_args)
     return vecenv
