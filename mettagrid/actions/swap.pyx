@@ -6,6 +6,8 @@ from omegaconf import OmegaConf
 from mettagrid.grid_object cimport GridLocation, Orientation
 from mettagrid.action cimport ActionArg
 from mettagrid.objects.agent cimport Agent
+from mettagrid.grid_object cimport GridLocation, GridObjectId, Orientation, GridObject
+from mettagrid.action cimport ActionHandler, ActionArg
 from mettagrid.actions.actions cimport MettaActionHandler
 
 cdef class Swap(MettaActionHandler):
