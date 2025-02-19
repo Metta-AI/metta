@@ -16,10 +16,12 @@ def main(cfg: DictConfig):
 
     with WandbContext(cfg) as wandb_run:
         policy_store = PolicyStore(cfg, wandb_run)
+        policy_pr = policy_store.policy(cfg.eval.policy_uri)
 
         eval = hydra.utils.instantiate(
             cfg.eval,
             policy_store,
+            policy_pr,
             cfg.env,
             cfg_recursive_=False
         )

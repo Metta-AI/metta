@@ -3,7 +3,7 @@
 seed: null
 
 defaults:
-  - override /eval: example
+  - override /eval: eval_suite
   - override /env/mettagrid@env: simple
   - override /agent: simple.medium
   - override /sweep: fast
@@ -14,8 +14,7 @@ analyzer:
     metrics:
     - metric: "action.use.altar.agent"
 
-#policy_uri: ${trained_policy_uri}
-policy_uri: wandb://run/mb.daveey.sm.nr
+policy_uri: ${trained_policy_uri}
 eval_db_uri: wandb://artifacts/daphne_eval_testing
 #eval_db_uri: file://daphne/daphne_eval_stats
 
@@ -33,13 +32,13 @@ trainer:
   evaluate_interval: 2
 
 eval:
-  num_envs: 10
-  num_episodes: 10
-  max_time_s: 600
+  num_envs: 2
+  num_episodes: 2
+  max_time_s: 300
 
   policy_uri: ${..policy_uri}
   npc_policy_uri: ${..npc_policy_uri}
-  eval_db_uri: ${..eval_db_uri} #file://daphne/sweep_stats
+ # eval_db_uri: ${..eval_db_uri} #file://daphne/sweep_stats
 
 wandb:
   enabled: true
