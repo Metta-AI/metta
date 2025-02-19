@@ -4,7 +4,6 @@ from datetime import datetime
 import wandb
 from util.datastruct import flatten_config
 import logging
-from pathlib import Path
 
 logger = logging.getLogger("eval_stats_logger.py")
 
