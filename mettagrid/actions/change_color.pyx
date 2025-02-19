@@ -5,7 +5,7 @@ from omegaconf import OmegaConf
 
 from mettagrid.grid_object cimport GridObject
 from mettagrid.action cimport ActionHandler, ActionArg
-from mettagrid.objects cimport Agent
+from mettagrid.objects.agent cimport Agent
 from mettagrid.actions.actions cimport MettaActionHandler
 
 cdef class ChangeColorAction(MettaActionHandler):
