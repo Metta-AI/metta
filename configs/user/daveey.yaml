@@ -28,18 +28,20 @@ policy_uri: ${trained_policy_uri}
     #     border_width: 0
 
 trainer:
-  evaluate_interval: 2000
-  average_reward: true
-  # initial_policy:
-  #   uri: wandb://run/daveey.ar.cards.1
+  evaluate_interval: 2
 
-evaluator:
-  num_envs: 5
-  num_episodes: 5
+analyzer:
+  eval_stats_uri: ${run_dir}/eval_stats
+
+eval:
+  num_envs: 2
+  num_episodes: 10
   max_time_s: 600
 
-  policy:
-    uri: ${...policy_uri}
+  policy_uri: ${..policy_uri}
+  npc_policy_uri: ${..npc_policy_uri}
+
+  eval_artifact_name: eval_stats
 
 wandb:
   enabled: true
@@ -52,4 +54,5 @@ sweep:
 cmd: ???
 run_id: 14
 run: ${oc.env:USER}.local.${cmd}.${run_id}
-trained_policy_uri: ./train_dir/${oc.env:USER}.local.train.${run_id}/checkpoints
+run_dir: ./train_dir/${oc.env:USER}.local.train.${run_id}
+trained_policy_uri: ${run_dir}/checkpoints

@@ -1,17 +1,20 @@
 import os
 import time
 import logging
-
+import json
 import wandb
 import yaml
 import hydra
 from omegaconf import OmegaConf, DictConfig
 from rich.console import Console
+
 from rl.carbs.metta_carbs import MettaCarbs
 from rl.wandb.sweep import generate_run_id_for_sweep
 from agent.policy_store import PolicyStore
-from util.stats_library import EloTest, Glicko2Test, MannWhitneyUTest, get_test_results
-import json
+from rl.eval.eval_stats_logger import EvalStatsLogger
+from rl.eval.eval_stats_db import EvalStatsDB
+from pathlib import Path
+
 logger = logging.getLogger("sweep_rollout")
 
 
@@ -41,6 +44,7 @@ class CarbsSweepRollout:
         logger.info("Generated CARBS suggestion: ")
         logger.info(yaml.dump(self.suggestion, default_flow_style=False))
         self._log_file("carbs_suggestion.yaml", self.suggestion)
+        self.eval_stats_logger = EvalStatsLogger(cfg, wandb_run)
 
     def run(self):
         try:
@@ -66,7 +70,7 @@ class CarbsSweepRollout:
         train_cfg.wandb.group = self.cfg.run
 
         eval_cfg = OmegaConf.create(OmegaConf.to_container(self.cfg))
-        eval_cfg.evaluator.update(self.cfg.sweep.evaluator)
+        eval_cfg.eval.update(self.cfg.sweep.eval)
 
         self._apply_carbs_suggestion(train_cfg, self.suggestion)
 
@@ -106,57 +110,38 @@ class CarbsSweepRollout:
         policy_store.add_to_wandb_run(wandb_run.name, final_pr)
         logger.info(f"Final policy saved to {final_pr.uri}")
 
-        logger.info(f"Evaluating policy {final_pr.name} against {initial_pr.name}")
+        logger.info(f"Evaluating policy {final_pr.name}")
         self._log_file("eval_config.yaml", eval_cfg)
 
-        evaluator = hydra.utils.instantiate(eval_cfg.evaluator, eval_cfg, final_pr, [initial_pr])
-        stats = evaluator.evaluate()
-        evaluator.close()
+        eval_cfg.eval.policy_uri = final_pr.uri
+
+        eval = hydra.utils.instantiate(eval_cfg.eval, policy_store, eval_cfg.env, _recursive_ = False)
+        stats = eval.evaluate()
         eval_time = time.time() - eval_start_time
-        self._log_file("eval_stats.yaml", stats)
 
-        test_results = {t: {} for t in ["raw", "glicko", "elo"]}
+        self.eval_stats_logger.log(stats)
 
-        r, fr = get_test_results(MannWhitneyUTest(stats, eval_cfg.evaluator.stat_categories['all']))
-        logger.info("\n" + fr)
-        self._log_file("all_stats.yaml", r)
-        test_results["raw"]["initial"] = r[eval_cfg.sweep.metric]["policy_stats"][initial_pr.name]["mean"]
-        test_results["raw"]["final"] = r[eval_cfg.sweep.metric]["policy_stats"][final_pr.name]["mean"]
+        eval_stats_db = EvalStatsDB.from_uri(eval_cfg.eval.eval_db_uri, wandb_run)
 
-        r, fr = get_test_results(
-            Glicko2Test(stats, eval_cfg.evaluator.stat_categories[eval_cfg.sweep.metric]),
-            eval_cfg.evaluator.baselines.glicko_scores_path)
-        logger.info("\n" + fr)
-        self._log_file("sweep_glicko.yaml", r)
-        test_results["glicko"]["initial"] = r[initial_pr.name]["rating"]
-        test_results["glicko"]["final"] = r[final_pr.name]["rating"]
+        metric_idxs = [i for i, m in enumerate(eval_cfg.analyzer.analysis.metrics) if m.metric == eval_cfg.sweep.metric]
+        if len(metric_idxs) == 0:
+            raise ValueError(f"Metric {eval_cfg.sweep.metric} not found in analyzer metrics: {eval_cfg.analyzer.analysis.metrics}")
+        elif len(metric_idxs) > 1:
+            raise ValueError(f"Multiple metrics found for {eval_cfg.sweep.metric} in analyzer")
 
-        r, fr = get_test_results(
-            EloTest(stats, eval_cfg.evaluator.stat_categories[eval_cfg.sweep.metric]),
-            eval_cfg.evaluator.baselines.elo_scores_path)
-        logger.info("\n" + fr)
-        self._log_file("sweep_elo.yaml", r)
-        test_results["elo"]["initial"] = r[initial_pr.name]["score"]
-        test_results["elo"]["final"] = r[final_pr.name]["score"]
+        analyzer = hydra.utils.instantiate(eval_cfg.analyzer, eval_stats_db)
+        results, _ = analyzer.analyze()
 
-        eval_metric = test_results[self.cfg.sweep.test]["final"]
+        metric_idx = metric_idxs[0]
+
+        eval_metric = results[metric_idx].loc[final_pr.name][f"{eval_cfg.sweep.metric}_mean"]
 
         stats_update = {
             "time.eval": eval_time,
             "time.total": train_time + eval_time,
+            "uri": final_pr.uri,
+            "score": eval_metric,
         }
-
-        # Add initial/final stats
-        for stage in ["initial", "final"]:
-            stats_update[f"{stage}.uri"] = initial_pr.uri if stage == "initial" else final_pr.uri
-            stats_update[f"{stage}.score"] = test_results[self.cfg.sweep.test][stage]
-            for metric in ["elo", "glicko", "raw"]:
-                stats_update[f"{stage}.{metric}"] = test_results[metric][stage]
-
-        # Add delta stats
-        for metric in ["elo", "glicko", "raw", "score"]:
-            test_type = self.cfg.sweep.test if metric == "score" else metric
-            stats_update[f"delta.{metric}"] = test_results[test_type]["final"] - test_results[test_type]["initial"]
 
         sweep_stats.update(stats_update)
 
@@ -174,10 +159,6 @@ class CarbsSweepRollout:
         })
 
         policy_store.add_to_wandb_sweep(self.cfg.run, final_pr)
-
-        # final_model_artifact.link(
-        #     self.sweep_id, [self.run_id]
-        # )
 
         total_time = time.time() - start_time
         logger.info(f"Carbs Observation: {eval_metric}, {total_time}")

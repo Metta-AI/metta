@@ -1,10 +1,8 @@
-import json
 import logging
 import os
 import time
 from collections import defaultdict
 from copy import deepcopy
-
 import hydra
 import numpy as np
 import pufferlib
@@ -14,8 +12,10 @@ import wandb
 from agent.policy_store import PolicyStore
 from fast_gae import fast_gae
 from omegaconf import OmegaConf
-from util.stats_library import Glicko2Test, get_test_results
+from pathlib import Path
 
+from rl.eval.eval_stats_logger import EvalStatsLogger
+from rl.eval.eval_stats_db import EvalStatsDB
 from rl.pufferlib.experience import Experience
 from rl.pufferlib.profile import Profile
 from rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
@@ -42,6 +42,7 @@ class PufferTrainer:
         self.wandb_run = wandb_run
         self.policy_store = policy_store
         self.use_e3b = self.trainer_cfg.use_e3b
+        self.eval_stats_logger = EvalStatsLogger(cfg, wandb_run)
         self.average_reward = 0.0  # Initialize average reward estimate
 
         self._make_vecenv()
@@ -120,33 +121,15 @@ class PufferTrainer:
         logger.info(f"Training complete. Total time: {self.train_time:.2f} seconds")
 
     def _evaluate_policy(self):
-        if not self.cfg.evaluator.baselines.uri:
-            self.cfg.evaluator.baselines.uri = f"file://{self.cfg.trainer.checkpoint_dir}"
 
-        baseline_records = self.policy_store.policies(self.cfg.evaluator.baselines)
+        self.cfg.eval.policy_uri = self.last_pr.uri
+        eval = hydra.utils.instantiate(self.cfg.eval, self.policy_store, self.cfg.env, _recursive_ = False)
+        stats = eval.evaluate()
+        self.eval_stats_logger.log(stats)
 
-        evaluator = hydra.utils.instantiate(self.cfg.evaluator, self.cfg, self.last_pr, baseline_records)
-        stats = evaluator.evaluate()
-        evaluator.close()
-
-        if stats is None:
-            logger.warning("Evaluate Policy: No stats to evaluate")
-            return
-
-        results, formatted_results = get_test_results(
-            Glicko2Test(stats, self.cfg.evaluator.stat_categories['altar']),
-            scores_path = self.cfg.trainer.glicko_scores_path)
-
-        rating = results.get(self.last_pr.name, {}).get("rating", None)
-
-        if rating is not None:
-            self.wandb_run.log({
-                "eval/glicko2": rating,
-                "train/agent_step": self.agent_step,
-                "train/epoch": self.epoch,
-            })
-
-        logger.info(f"Glicko2 scores: \n{formatted_results}")
+        eval_stats_db = EvalStatsDB.from_uri(self.cfg.eval.eval_db_uri, self.wandb_run)
+        analyzer = hydra.utils.instantiate(self.cfg.analyzer, eval_stats_db)
+        analyzer.analyze()
 
     def _on_train_step(self):
         pass
@@ -474,7 +457,8 @@ class PufferTrainer:
         self.batch_size = (self.target_batch_size // self.trainer_cfg.num_workers) * self.trainer_cfg.num_workers
 
         self.vecenv = make_vecenv(
-            self.cfg,
+            self.cfg.env,
+            self.cfg.vectorization,
             num_envs = self.batch_size * self.trainer_cfg.async_factor,
             batch_size = self.batch_size,
             num_workers=self.trainer_cfg.num_workers,

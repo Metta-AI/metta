@@ -1,20 +1,15 @@
 # @package __global__
 
-  device: cpu
-  vectorization: serial
+device: cpu
+vectorization: serial
 
-  trainer:
-    num_workers: 1
-    update_epochs: 1
-    batch_size: 1024
-    minibatch_size: 1024
-    forward_pass_minibatch_target_size: 2
-    async_factor: 1
-    checkpoint_interval: 10
-    bptt_horizon: 8
-    num_steps: 32
-
-  # evaluator:
-  #   num_envs: 10
-  #   num_episodes: 10
-  #   max_time_s: 60
+trainer:
+  num_workers: 1
+  update_epochs: 1
+  batch_size: 1024
+  minibatch_size: 1024
+  forward_pass_minibatch_target_size: 2
+  async_factor: 1
+  checkpoint_interval: 10
+  bptt_horizon: 8
+  num_steps: 32
