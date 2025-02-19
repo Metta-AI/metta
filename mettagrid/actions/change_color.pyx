@@ -1,12 +1,13 @@
 # distutils: language=c++
 
 from libc.stdio cimport printf
+
 from omegaconf import OmegaConf
 
-from mettagrid.grid_object cimport GridObject
 from mettagrid.action cimport ActionHandler, ActionArg
-from mettagrid.objects.agent cimport Agent
 from mettagrid.actions.actions cimport MettaActionHandler
+from mettagrid.grid_object cimport GridObject
+from mettagrid.objects.agent cimport Agent
 
 cdef class ChangeColorAction(MettaActionHandler):
     def __init__(self, cfg: OmegaConf):

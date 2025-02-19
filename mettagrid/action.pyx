@@ -1,6 +1,6 @@
-from mettagrid.grid_object cimport GridObjectId
-from mettagrid.grid_env cimport GridEnv
 from mettagrid.action cimport ActionArg
+from mettagrid.grid_env cimport GridEnv
+from mettagrid.grid_object cimport GridObjectId
 
 cdef class ActionHandler:
     def __init__(self, string action_name):
