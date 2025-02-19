@@ -160,8 +160,12 @@ class PufferTrainer:
                 o, r, d, t, info, env_id, mask = self.vecenv.recv()
                 env_id = env_id.tolist()
 
+
             with profile.eval_misc:
-                self.agent_step += sum(mask)
+                num_steps = sum(mask)
+                self.agent_step += num_steps
+                if pbar:
+                    pbar.update(num_steps)
 
                 o = torch.as_tensor(o)
                 o_device = o.to(self.device)
@@ -202,9 +206,6 @@ class PufferTrainer:
 
             with profile.env:
                 self.vecenv.send(actions)
-
-        if pbar:
-            pbar.update(self.experience.batch_size)
 
         with profile.eval_misc:
             for k, v in infos.items():
