@@ -48,7 +48,7 @@ class SimpleConvAgent(nn.Module):
 
     def forward(self, obs_dict):
         obs = obs_dict[self._obs_key]
-        obs = obs.permute(0, 3, 1, 2)
+        obs = obs.transpose(1, 3).transpose(2, 3)
 
         if self.object_normalizer is not None:
             obs = self.object_normalizer(obs)
