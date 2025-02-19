@@ -193,10 +193,7 @@ class PolicyStore:
         ]
 
     def _prs_from_wandb_artifact(self, uri: str, version: str = None) -> List[PolicyRecord]:
-        try:
-            entity, project, artifact_type, name = uri.split("/")
-        except:
-            print(uri)
+        entity, project, artifact_type, name = uri.split("/")
         path = f"{entity}/{project}/{name}"
         if not wandb.Api().artifact_collection_exists(type=artifact_type, name=path):
             logger.warning(f"No artifact collection found at {uri}")

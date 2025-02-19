@@ -30,10 +30,10 @@ class EvalStatsLogger:
         os.makedirs(os.path.dirname(self._json_path), exist_ok=True)
         self.artifact_name = artifact_name
 
-    def _add_additional_fields(self, eval_stats, eval_name = None):
+    def _add_additional_fields(self, eval_stats, eval_name = "eval"):
         additional_fields = {}
         additional_fields['run_id'] = self._cfg.get("run_id", self._wandb_run.id)
-        additional_fields['eval_name'] = self._cfg.eval.get("name", eval_name)
+        additional_fields['eval_name'] = eval_name or self._cfg.eval.get("name", None)
         if self._cfg.eval.npc_policy_uri is not None:
             additional_fields['npc'] = self._cfg.eval.npc_policy_uri
         additional_fields['timestamp'] = datetime.now().isoformat()
@@ -69,6 +69,7 @@ class EvalStatsLogger:
     def log(self, eval_stats):
 
         # If we are running eval suite, we need to add additional fields for each eval
+        # since the eval_name is different
         if isinstance(eval_stats, dict):
             eval_suite_stats = []
             for eval_name, stats in eval_stats.items():

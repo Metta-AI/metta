@@ -58,17 +58,12 @@ class EvalStatsDB:
     def _metric(self, metric_field: str, filters: Optional[Dict[str, Any]] = None, group_by_episode: bool = False) -> pd.DataFrame:
         long_df = self._query(total_metric(metric_field, filters))
         # Average over unique policy_name while maintaining eval_name and episode_index
-        long_df = long_df.groupby(['episode_index', 'eval_name'])['total_metric'].mean().reset_index()
-        df_per_episode = long_df.pivot(index='episode_index', columns='policy_name', values='total_metric').fillna(0)
+        df_per_episode = long_df.pivot(index='episode_index', columns=['eval_name', 'policy_name'], values='total_metric').fillna(0)
         metric_df = df_per_episode.copy()
         if not group_by_episode:
-            mean_series = df_per_episode.mean(axis=0)
-            std_series = df_per_episode.std(axis=0)
-            metric_df = pd.DataFrame({
-                f'{metric_field}_mean': mean_series,
-                f'{metric_field}_std': std_series
-            })
-
+            stats_df = df_per_episode.agg(['mean', 'std'])
+            metric_df = stats_df.T.reset_index()
+            metric_df.columns = ['eval_name', 'policy_name', 'mean', 'std']
         return df_per_episode, metric_df
 
     @staticmethod
