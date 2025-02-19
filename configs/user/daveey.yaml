@@ -3,7 +3,7 @@
 seed: null
 
 defaults:
-  - override /env/mettagrid@env: teams
+  - override /env/mettagrid@env: simple
   - override /agent: simple.medium
   - override /sweep: fast
 
@@ -11,21 +11,23 @@ defaults:
 # baselines: wandb://run/b.daveey.train.maze.sm.11x11.0
 
 # policy_uri: wandb://run/b.daveey.sm.train.er.new.0
-policy_uri: wandb://run/daveey.cards.5
+# policy_uri: wandb://run/daveey.ar.cards.1
 # policy_uri: wandb://run/mb.daveey.sm.fighter
-# policy_uri: ${trained_policy_uri}
-baseline_uri: wandb://run/mb.daveey.sm.nr
+policy_uri: ${trained_policy_uri}
+npc_policy_uri: ${trained_policy_uri}
+eval_db_uri: wandb://artifacts/daveey_eval_testing
 
-env:
+# env:
   # sampling: 0.7
-  game:
+  # game:
     # num_agents: 6
-    max_steps: 200
+    # group_reward_pct: 0.9
+    # max_steps: 200
 
-    map_builder:
-      border_width: 6
-      room:
-        border_width: 2
+    # map_builder:
+    #   border_width: 1
+    #   room:
+    #     border_width: 0
 
 trainer:
   evaluate_interval: 2
@@ -34,14 +36,14 @@ analyzer:
   eval_stats_uri: ${run_dir}/eval_stats
 
 eval:
-  num_envs: 2
+  num_envs: 10
   num_episodes: 10
   max_time_s: 600
 
   policy_uri: ${..policy_uri}
   npc_policy_uri: ${..npc_policy_uri}
-
-  eval_artifact_name: eval_stats
+  eval_db_uri: ${..eval_db_uri} #file://daphne/sweep_stats
+  env: /env/mettagrid/simple
 
 wandb:
   enabled: true
@@ -52,7 +54,7 @@ sweep:
   metric: action.use
 
 cmd: ???
-run_id: 8
+run_id: 14
 run: ${oc.env:USER}.local.${cmd}.${run_id}
 run_dir: ./train_dir/${oc.env:USER}.local.train.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
