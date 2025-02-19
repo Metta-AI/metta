@@ -31,8 +31,8 @@ baseline_uri: wandb://run/mb.daveey.sm.nr
 trainer:
   evaluate_interval: 2000
   average_reward: true
-  initial_policy:
-    uri: wandb://run/daveey.ar.cards.1
+  # initial_policy:
+  #   uri: wandb://run/daveey.ar.cards.1
 
 evaluator:
   num_envs: 5
@@ -53,6 +53,6 @@ sweep:
   metric: action.use
 
 cmd: ???
-run_id: 10
+run_id: 13
 run: ${oc.env:USER}.local.${cmd}.${run_id}
 trained_policy_uri: ./train_dir/${oc.env:USER}.local.train.${run_id}/checkpoints
