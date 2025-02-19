@@ -25,7 +25,7 @@ class EvalStatsLogger:
                 raise ValueError(f"Invalid eval_db_uri: {cfg.eval.eval_db_uri}")
             json_path = cfg.eval.eval_db_uri
 
-        self._json_path = json_path if json_path.endswith('.json') else json_path + '.json'
+        self._json_path = json_path if json_path.endswith('.json') else  f"{json_path}_{self._cfg.policy_uri.replace('/', '_')}.json"
         os.makedirs(os.path.dirname(self._json_path), exist_ok=True)
         self.artifact_name = artifact_name
 

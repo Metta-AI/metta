@@ -4,13 +4,13 @@ seed: null
 
 defaults:
   - override /eval: eval_suite
-  - override /env/mettagrid@env: cogeval_training_mini
+  - override /env/mettagrid@env: cognitive_evals/cogeval_training_mini
   - override /agent: simple.medium
   - override /sweep: fast
   - override /analyzer: analyzer
 
 
-policy_uri: ${trained_policy_uri}
+policy_uri: wandb://run/mb.daveey.sm.nr
 eval_db_uri: wandb://artifacts/daphne_eval_testing
 #eval_db_uri: file://daphne/daphne_eval_stats
 

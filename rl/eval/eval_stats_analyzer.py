@@ -119,8 +119,7 @@ class EvalStatsAnalyzer:
     def policy_fitness(self, metric_data):
         policy_fitness = {}
         uri = self.candidate_policy_uri.replace("wandb://run/", "")
-
-        all_policies = metric_data[0].index
+        all_policies = metric_data[0]['policy_name'].unique()
 
         # Get the latest version of the candidate policy
         candidate_uri = self.get_latest_policy(all_policies, uri)

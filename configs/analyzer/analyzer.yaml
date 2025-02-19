@@ -4,8 +4,8 @@ policy_uri: null
 
 analysis:
 
-  # filters:
-  #   '"action.use.altar"' : "> 0"
+  filters:
+    '"action.use.altar"' : "> 0"
 
   metric_patterns: null
 

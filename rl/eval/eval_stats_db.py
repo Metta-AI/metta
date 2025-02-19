@@ -95,15 +95,17 @@ class EvalStatsDbWandb(EvalStatsDB):
     """
     Database for loading eval stats from wandb.
     """
-    def __init__(self, artifact_name: str, wandb_run):
+    def __init__(self, artifact_name: str, wandb_run, from_cache: bool = False):
         self.api = wandb.Api()
         self.artifact_identifier = os.path.join(wandb_run.entity, wandb_run.project, artifact_name)
 
         cache_dir = os.path.join(wandb.env.get_cache_dir(), "artifacts", self.artifact_identifier)
         artifact_versions = self.api.artifacts(type_name=artifact_name,name=self.artifact_identifier)
-        artifact_dirs = [os.path.join(cache_dir, f"v{v}") for v in range(len(artifact_versions))]
+        artifact_dirs = [os.path.join(cache_dir, v.name) for v in artifact_versions]
         for dir, artifact in zip(artifact_dirs, artifact_versions):
-            if not os.path.exists(dir):
+            if os.path.exists(dir) and from_cache:
+                logger.info(f"Loading from cache: {dir}")
+            else:
                 artifact.download(root=dir)
         logger.info(f"Loaded {len(artifact_dirs)} artifacts")
         all_records = []
