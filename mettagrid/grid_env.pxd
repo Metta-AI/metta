@@ -27,9 +27,6 @@ cdef class GridEnv:
         unsigned char _max_action_arg
         unsigned char _max_action_priority
 
-        bint _use_flat_actions
-        vector[Action] _flat_actions
-
         ObservationEncoder _obs_encoder
         StatsTracker _stats
 
