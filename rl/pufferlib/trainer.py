@@ -101,6 +101,7 @@ class PufferTrainer:
 
         while self.agent_step < self.trainer_cfg.total_timesteps:
             logger.info(f"Training: {self.agent_step}, {self.epoch}")
+            start_time = time.time()
 
             # Collecting experience
             eval_pbar = tqdm(total=self.experience.batch_size, desc="Collecting Experience", leave=False)
@@ -113,19 +114,19 @@ class PufferTrainer:
             self._train(train_pbar)
             train_pbar.close()
 
-            print("Processing stats")
             self._process_stats()
             if self.epoch % self.trainer_cfg.checkpoint_interval == 0:
-                print("Checkpoint trainer")
                 self._checkpoint_trainer()
             if self.epoch % self.trainer_cfg.evaluate_interval == 0 and self.trainer_cfg.evaluate:
-                print("Evaluate policy")
                 self._evaluate_policy()
             if self.epoch % self.trainer_cfg.wandb_checkpoint_interval == 0:
-                print("Save policy to wandb")
                 self._save_policy_to_wandb()
 
             self._on_train_step()
+            logger.info(
+                f"Training step {self.agent_step} completed in "\
+                f"{time.time() - start_time:.2f} seconds "\
+                f"({self.profile.SPS:.2f} SPS)")
 
         self.train_time = time.time() - self.train_start
         self._checkpoint_trainer()
@@ -159,7 +160,6 @@ class PufferTrainer:
             with profile.env:
                 o, r, d, t, info, env_id, mask = self.vecenv.recv()
                 env_id = env_id.tolist()
-
 
             with profile.eval_misc:
                 num_steps = sum(mask)
