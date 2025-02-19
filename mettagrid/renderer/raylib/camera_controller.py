@@ -14,17 +14,7 @@ class CameraController:
         self.zoom_lower_bound = 0.5
         self.zoom_upper_bound = 2.0
 
-        self.zoom = 1.0
-        self.camera_center_x = 0.0
-        self.camera_center_y = 0.0
-
-        self.viewport_width = 0.0
-        self.viewport_height = 0.0
-
     def update(self, delta_time: float, viewport_width: float, viewport_height: float):
-        self.viewport_width = viewport_width
-        self.viewport_height = viewport_height
-
         effective_speed = (self.speed * delta_time) / self.camera.zoom
 
         move_up = rl.IsKeyDown(rl.KEY_UP)
@@ -55,8 +45,8 @@ class CameraController:
         self.camera.target.x += (mouse_world_x - new_mouse_x)
         self.camera.target.y += (mouse_world_y - new_mouse_y)
 
-        self.camera.offset.x = self.viewport_width / 2.0
-        self.camera.offset.y = self.viewport_height / 2.0
+        self.camera.offset.x = viewport_width / 2.0
+        self.camera.offset.y = viewport_height / 2.0
 
 
     def get_world_mouse_position(self) -> tuple[float, float]:
