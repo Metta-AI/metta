@@ -1,9 +1,10 @@
-
 from libc.stdio cimport printf
 from libcpp.string cimport string
+
 from omegaconf import OmegaConf
-from mettagrid.grid_object cimport GridObjectId
+
 from mettagrid.action cimport ActionHandler, ActionArg
+from mettagrid.grid_object cimport GridObjectId
 from mettagrid.objects.agent cimport Agent
 from mettagrid.objects.constants cimport ObjectTypeNames
 

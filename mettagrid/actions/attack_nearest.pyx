@@ -1,13 +1,12 @@
-
 from libc.stdio cimport printf
 
 from omegaconf import OmegaConf
 
-from mettagrid.grid_object cimport GridLocation, Orientation
 from mettagrid.action cimport ActionArg
-from mettagrid.objects.constants cimport GridLayer
-from mettagrid.objects.agent cimport Agent, InventoryItem
 from mettagrid.actions.attack cimport Attack
+from mettagrid.grid_object cimport GridLocation, Orientation
+from mettagrid.objects.agent cimport Agent, InventoryItem
+from mettagrid.objects.constants cimport GridLayer
 
 cdef class AttackNearest(Attack):
     def __init__(self, cfg: OmegaConf):

@@ -1,18 +1,26 @@
-from libc.stdio cimport printf
-from libcpp.string cimport string
-from libcpp.vector cimport vector
-from libcpp.map cimport map
+from types import SimpleNamespace
 
 import numpy as np
 cimport numpy as cnp
 import gymnasium as gym
 from omegaconf import OmegaConf
-from types import SimpleNamespace
 
+# C/C++ imports
+from libc.stdio cimport printf
+from libcpp.string cimport string
+from libcpp.vector cimport vector
+from libcpp.map cimport map
+
+# Core mettagrid imports
 from mettagrid.grid_env cimport GridEnv
 from mettagrid.grid_object cimport GridObject
-from mettagrid.observation_encoder cimport ObsType
+from mettagrid.observation_encoder cimport (
+    ObsType,
+    MettaObservationEncoder,
+    MettaCompactObservationEncoder
+)
 
+# Object imports
 from mettagrid.objects.mine cimport Mine
 from mettagrid.objects.agent cimport Agent
 from mettagrid.objects.reset_handler cimport ResetHandler
@@ -27,8 +35,7 @@ from mettagrid.objects.lasery cimport Lasery
 from mettagrid.objects.usable cimport Usable
 from mettagrid.objects.constants cimport ObjectLayers, InventoryItemNames
 
-from mettagrid.observation_encoder cimport MettaObservationEncoder, MettaCompactObservationEncoder
-
+# Action imports
 from mettagrid.actions.move import Move
 from mettagrid.actions.rotate import Rotate
 from mettagrid.actions.use import Use
@@ -37,8 +44,6 @@ from mettagrid.actions.attack_nearest import AttackNearest
 from mettagrid.actions.noop import Noop
 from mettagrid.actions.swap import Swap
 from mettagrid.actions.change_color import ChangeColorAction
-
-from mettagrid.objects.usable cimport Usable
 
 cdef class MettaGrid(GridEnv):
     cdef:
