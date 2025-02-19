@@ -27,7 +27,6 @@ ext_modules = [
     build_ext(["mettagrid/base_encoder.pyx"]),
     build_ext(["mettagrid/stats_tracker.cpp"]),
 
-    build_ext(["mettagrid/objects.pyx"]),
     build_ext(["mettagrid/observation_encoder.pyx"]),
     build_ext(["mettagrid/actions/actions.pyx"]),
     build_ext(["mettagrid/actions/attack.pyx"]),
@@ -39,6 +38,15 @@ ext_modules = [
     build_ext(["mettagrid/actions/rotate.pyx"]),
     build_ext(["mettagrid/actions/swap.pyx"]),
     build_ext(["mettagrid/actions/use.pyx"]),
+    build_ext(["mettagrid/objects/altar.pyx"]),
+    build_ext(["mettagrid/objects/agent.pyx"]),
+    build_ext(["mettagrid/objects/constants.pyx"]),
+    build_ext(["mettagrid/objects/converter.pyx"]),
+    build_ext(["mettagrid/objects/generator.pyx"]),
+    build_ext(["mettagrid/objects/metta_object.pyx"]),
+    build_ext(["mettagrid/objects/reset_handler.pyx"]),
+    build_ext(["mettagrid/objects/usable.pyx"]),
+    build_ext(["mettagrid/objects/wall.pyx"]),
     build_ext(["mettagrid/mettagrid.pyx"], "mettagrid.mettagrid_c"),
 ]
 

@@ -6,7 +6,7 @@ from libcpp.vector cimport vector
 
 from mettagrid.grid_object cimport TypeId, GridObjectId
 from mettagrid.action cimport ActionHandler, ActionArg
-from mettagrid.objects cimport Agent
+from mettagrid.objects.agent cimport Agent
 
 cdef struct StatNames:
     string success

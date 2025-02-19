@@ -1,6 +1,3 @@
-
-# distutils: language=c++
-
 from libc.stdio cimport printf
 from libcpp.string cimport string
 from libcpp.vector cimport vector
