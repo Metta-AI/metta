@@ -1,0 +1,38 @@
+{
+    "b.daveey.train.sm.teams.100:v0": {
+        "score": 960.8322984614407,
+        "matches": 526
+    },
+    "b.daveey.train.sm.teams.75:v0": {
+        "score": 1087.6353979402525,
+        "matches": 526
+    },
+    "./train_dir/daphne.local.train.6/checkpoints/model_0080.pt": {
+        "score": 991.5588944756782,
+        "matches": 360
+    },
+    "./train_dir/daphne.local.sweep.6/runs/daphne.local.sweep.6.r.20/checkpoints/model_0010.pt": {
+        "score": 991.4873478474552,
+        "matches": 360
+    },
+    "./train_dir/daphne.local.sweep.6/runs/daphne.local.sweep.6.r.17/checkpoints/model_0022.pt": {
+        "score": 944.5574818425697,
+        "matches": 360
+    },
+    "./train_dir/daphne.local.sweep.6/runs/daphne.local.sweep.6.r.17/checkpoints/model_0020.pt": {
+        "score": 947.1383567551165,
+        "matches": 360
+    },
+    "./train_dir/daphne.local.sweep.6/runs/daphne.local.sweep.6.r.17/checkpoints/model_0010.pt": {
+        "score": 991.6324742026954,
+        "matches": 360
+    },
+    "./train_dir/daphne.local.train.6/checkpoints/model_0090.pt": {
+        "score": 983.3854707317832,
+        "matches": 360
+    },
+    "b.daveey.train.simple.s15m:v0": {
+        "score": 1050.8793619388946,
+        "matches": 80
+    }
+}
