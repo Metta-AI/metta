@@ -16,7 +16,7 @@ defaults:
   - trainer: puffer
   - sweep: sweep
   - hardware: macbook
-  - eval: eval
+  - eval: example_suite
   - analyzer: analyzer
 
 wandb:
