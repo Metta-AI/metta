@@ -14,6 +14,8 @@ defaults:
 # policy_uri: wandb://run/daveey.ar.cards.1
 # policy_uri: wandb://run/mb.daveey.sm.fighter
 policy_uri: ${trained_policy_uri}
+npc_policy_uri: ${trained_policy_uri}
+eval_db_uri: wandb://artifacts/daveey_eval_testing
 
 # env:
   # sampling: 0.7
@@ -34,14 +36,14 @@ analyzer:
   eval_stats_uri: ${run_dir}/eval_stats
 
 eval:
-  num_envs: 2
+  num_envs: 10
   num_episodes: 10
   max_time_s: 600
 
   policy_uri: ${..policy_uri}
   npc_policy_uri: ${..npc_policy_uri}
-
-  eval_artifact_name: eval_stats
+  eval_db_uri: ${..eval_db_uri} #file://daphne/sweep_stats
+  env: /env/mettagrid/simple
 
 wandb:
   enabled: true
