@@ -24,9 +24,9 @@ class PufferEvaluator():
         self._min_episodes = cfg.evaluator.num_episodes
         self._max_time_s = cfg.evaluator.max_time_s
         # the one that plays all the matches
-        self._policy_pr = policy_record 
+        self._policy_pr = policy_record
         # list of baselines that distribute over the matches
-        self._baseline_prs = baseline_records 
+        self._baseline_prs = baseline_records
 
         self._policy_agent_pct = cfg.evaluator.policy_agents_pct
         if len(self._baseline_prs) == 0:
@@ -41,7 +41,7 @@ class PufferEvaluator():
 
         logger.info(f'Tournament: Policy Agents: {self._policy_agents_per_env}, ' +
               f'Baseline Agents: {self._baseline_agents_per_env}')
-        
+
         self._vecenv = make_vecenv(self._cfg, num_envs=self._num_envs)
 
         # each index is an agent, and we reshape it into a matrix of num_envs x agents_per_env
@@ -108,12 +108,12 @@ class PufferEvaluator():
             with torch.no_grad():
                 obs = torch.as_tensor(obs).to(device=self._device)
                 # observavtions that correspond to policy agent
-                my_obs = obs[self._policy_idxs]  
+                my_obs = obs[self._policy_idxs]
 
                 # Parallelize across opponents
                 policy = self._policy_pr.policy() # policy to evaluate
                 if hasattr(policy, 'lstm'):
-                    policy_actions, _, _, _, policy_rnn_state, _, _ = policy(my_obs, policy_rnn_state) 
+                    policy_actions, _, _, _, policy_rnn_state, _, _ = policy(my_obs, policy_rnn_state)
                 else:
                     policy_actions, _, _, _, _, _ = policy(my_obs)
 
@@ -132,18 +132,12 @@ class PufferEvaluator():
 
 
             if len(self._baseline_prs) > 0:
-                dim = 0 if self._cfg.env.flatten_actions else 1
                 actions = torch.cat([
                     policy_actions.view(self._num_envs, self._policy_agents_per_env, -1),
-                    torch.cat(baseline_actions, dim=dim).view(self._num_envs, self._baseline_agents_per_env, -1),
+                    torch.cat(baseline_actions, dim=1).view(self._num_envs, self._baseline_agents_per_env, -1),
                 ], dim=1)
-            else:
-                actions = policy_actions
 
-            if self._cfg.env.flatten_actions:
-                actions = actions.view(-1)
-            else:
-                actions = actions.view(self._num_envs*self._agents_per_env, -1)
+            actions = actions.view(self._num_envs*self._agents_per_env, -1)
 
             obs, rewards, dones, truncated, infos = self._vecenv.step(actions.cpu().numpy())
 
