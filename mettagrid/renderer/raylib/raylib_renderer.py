@@ -77,7 +77,7 @@ class MettaGridRaylibRenderer:
         self.camera = camera
 
         self.game_objects = {}
-        self.actions = torch.zeros((self.num_agents, 2), dtype=torch.int64)
+        self.actions = torch.zeros((self.num_agents, 2), dtype=torch.int32)
         self.observations = {}
         self.current_timestep = 0
         self.agents = [None for _ in range(self.num_agents)]
