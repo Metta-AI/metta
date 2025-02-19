@@ -4,7 +4,7 @@ seed: null
 
 defaults:
   - override /eval: eval_suite
-  - override /env/mettagrid@env: simple
+  - override /env/mettagrid@env: cognitive_evals/cogeval_training_easy
   - override /agent: simple.medium
   - override /sweep: fast
   - override /analyzer: analyzer
