@@ -19,41 +19,61 @@ enum GridLayer {
 enum ObjectType {
     AgentT = 0,
     WallT = 1,
-    GeneratorT = 2,
-    ConverterT = 3,
+    MineT = 2,
+    GeneratorT = 3,
     AltarT = 4,
-    Count = 5,
-    Resource_Count = 2
+    ArmoryT = 5,
+    LaseryT = 6,
+    LabT = 7,
+    FactoryT = 8,
+    TempleT = 9,
+    Count = 10
 };
 
 enum InventoryItem {
-    r1 = 0,
-    r2 = 1,
-    r3 = 2,
-    InventoryCount = 3
+    ore = 0,
+    battery = 1,
+    heart = 2,
+    armor = 3,
+    laser = 4,
+    blueprint = 5,
+    InventoryCount = 6
 };
 
 // These should be const, but we run into type inference issues with cython
 std::vector<std::string> InventoryItemNames = {
-    "r1",
-    "r2", 
-    "r3"
+    "ore",
+    "battery",
+    "heart",
+    "armor",
+    "laser",
+    "blueprint"
 };
 
 std::vector<std::string> ObjectTypeNames = {
     "agent",
     "wall",
-    "generator", 
-    "converter",
-    "altar"
+    "mine",
+    "generator",
+    "altar",
+    "armory",
+    "lasery",
+    "lab",
+    "factory",
+    "temple"
 };
 
 std::map<TypeId, GridLayer> ObjectLayers = {
     {ObjectType::AgentT, GridLayer::Agent_Layer},
     {ObjectType::WallT, GridLayer::Object_Layer},
+    {ObjectType::MineT, GridLayer::Object_Layer},
     {ObjectType::GeneratorT, GridLayer::Object_Layer},
-    {ObjectType::ConverterT, GridLayer::Object_Layer}, 
-    {ObjectType::AltarT, GridLayer::Object_Layer}
+    {ObjectType::AltarT, GridLayer::Object_Layer},
+    {ObjectType::ArmoryT, GridLayer::Object_Layer},
+    {ObjectType::LaseryT, GridLayer::Object_Layer},
+    {ObjectType::LabT, GridLayer::Object_Layer},
+    {ObjectType::FactoryT, GridLayer::Object_Layer},
+    {ObjectType::TempleT, GridLayer::Object_Layer}
 };
 
 #endif

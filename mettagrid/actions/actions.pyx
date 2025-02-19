@@ -19,10 +19,8 @@ cdef class MettaActionHandler(ActionHandler):
         self._stats.first_use = "action." + action_name + ".first_use"
 
         for t, n in enumerate(ObjectTypeNames):
-            self._stats.target[t] = self._stats.action + "." + n
+            self._stats.target[t] = self._stats.success + "." + n
             self._stats.target_first_use[t] = self._stats.first_use + "." + n
-
-        self.action_cost = cfg.cost
 
     cdef bint handle_action(
         self,

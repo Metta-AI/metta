@@ -5,15 +5,11 @@ from mettagrid.observation_encoder cimport ObsType
 from mettagrid.objects.constants cimport GridLayer, ObjectType
 from mettagrid.objects.metta_object cimport MettaObject, ObjectConfig
 
-cdef cppclass Wall(MettaObject):
-    inline Wall(GridCoord r, GridCoord c, ObjectConfig cfg):
-        GridObject.init(ObjectType.WallT, GridLocation(r, c, GridLayer.Object_Layer))
-        MettaObject.init_mo(cfg)
+cdef extern from "wall.hpp":
+    cdef cppclass Wall(MettaObject):
+        Wall(GridCoord r, GridCoord c, ObjectConfig cfg)
 
-    inline void obs(ObsType[:] obs):
-        obs[0] = 1
-        obs[1] = hp
+        void obs(ObsType *obs)
 
-    @staticmethod
-    inline vector[string] feature_names():
-        return ["wall", "wall:hp"]
+        @staticmethod
+        vector[string] feature_names()
