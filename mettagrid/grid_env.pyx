@@ -26,7 +26,6 @@ cdef class GridEnv:
             ObservationEncoder observation_encoder,
             list[ActionHandler] action_handlers,
             list[EventHandler] event_handlers,
-            bint use_flat_actions=False,
             bint track_last_action=False
         ):
         self._obs_width = obs_width
@@ -46,7 +45,6 @@ cdef class GridEnv:
             self._last_action_arg_obs_idx = self._grid_features.size()
             self._grid_features.push_back(b"last_action_argument")
 
-        self._use_flat_actions = use_flat_actions
         self._action_handlers = action_handlers
         self._num_action_handlers = len(action_handlers)
         self._max_action_priority = 0
@@ -58,9 +56,6 @@ cdef class GridEnv:
             self._max_action_args[i] = max_arg
             self._max_action_arg = max(self._max_action_arg, max_arg)
             self._max_action_priority = max(self._max_action_priority, (<ActionHandler>handler)._priority)
-            if use_flat_actions:
-                for arg in range(max_arg+1):
-                    self._flat_actions.push_back(Action(i, arg))
 
         self._event_manager = EventManager(self, event_handlers)
 
@@ -290,9 +285,6 @@ cdef class GridEnv:
 
     @property
     def action_space(self):
-        if self._use_flat_actions:
-            return gym.spaces.Discrete(len(self._flat_actions))
-
         return gym.spaces.MultiDiscrete((len(self.action_names()), self._max_action_arg), dtype=np.uint32)
 
     @property
