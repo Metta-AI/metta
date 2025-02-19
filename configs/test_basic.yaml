@@ -32,6 +32,8 @@ game:
     hp: 1
     mortal: False
     use_cost: 0
+    rewards:
+      heart: 1
 
   objects:
     altar:
