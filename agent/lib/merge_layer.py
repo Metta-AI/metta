@@ -11,7 +11,6 @@ class MergeLayerBase(LayerBase):
         self._ready = False
 
         self.input_source = []
-
         for src_cfg in self.sources_list:
             self.input_source.append(src_cfg['source_name'])
 
@@ -32,6 +31,7 @@ class MergeLayerBase(LayerBase):
             
             full_source_size = self.input_source_components[source_name].output_size
 
+            processed_size = full_source_size
             if src_cfg.get('slice') is not None:
                 slice_range = src_cfg['slice']
                 if isinstance(slice_range, omegaconf.listconfig.ListConfig):
@@ -39,8 +39,6 @@ class MergeLayerBase(LayerBase):
                 if not (isinstance(slice_range, (list, tuple)) and len(slice_range) == 2):
                     raise ValueError(f"'slice' must be a two-element list/tuple for source {source_name}.")
                 processed_size = slice_range[1] - slice_range[0]
-            else:
-                processed_size = full_source_size
 
             self.sizes.append(processed_size)
             self.dims.append(src_cfg.get("dim", self.default_dim))

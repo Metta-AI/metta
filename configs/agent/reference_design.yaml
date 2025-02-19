@@ -15,26 +15,31 @@ clip_range: 3.0 # clip weights greater or less than this value * largest weight 
 effective_rank_interval: 10 # compute effective rank every N epochs and log to wandb
 l2_init_weight_update_interval: 0 # update the copy of initial weights every N epochs, scaled by to alpha
 
-# List each component of your agent below. Components can be found in the
-# agent/lib or you can write your own and must be specified under _target_:
-# Components must have their name as their top level attribute. input_source
-# is also necessary but can be set to null. output_size is not necessary only
-# if it is defined by the size of the input source. Do not enter an input_size
+# List each component of your agent below. Component code can be found in 
+# agent/lib, or you can write your own and reference it under _target_.
+#
+# Components must have their name as their top-level attribute. The input_source
+# is also necessary but can be set to null. The output_size is necessary unless
+# it is defined by the size of the input source. Do not enter an input_size
 # as it's defined by the input_source's output_size.
-# Necessary sources: _obs_, _core_ -> these interact with trainer in a special way.
-# Necessary outputs: _action_param_, _value_ -> you only need to give your outputs
-# these specific names and the appropriate output_size for the environment. They can
-# otherwise be any class that works with MettaAgent.
+# Necessary sources: _obs_, _core_ 
+# These interact with the trainer in a special way and use custom classes.
 
-# Layers are nn.Modules. Linear and Conv modules get extra weight helper 
-# functions found in the ParameterizedLayer class. Note that these layers are also 
-# appended a nonlinear layer unless you specify nonlinearity: null. Nonlinear layers
-# should be specified as nn.<nonlinearity> such as nn.Tanh.
+# Necessary outputs: _action_param_, _value_ 
+# You must have layers with these names, and their output sizes must correspond 
+# to your action and value space. They can otherwise be any class that works 
+# with MettaAgent.
 
-# There are also merge layers which allow you to merge multiple outputs into a single 
-# output to feed into a layer. You can merge in various ways such as concatenating 
-# (DenseNet), summing (resnet), taking the mean, etc. You can also take slices of a 
-# single output to feed into a layer.
+# Components are nn.Modules. Linear and Conv modules get extra weight helper 
+# functions found in the ParamLayer class. 
+# ***Note that these layers are also 
+# appended with a nonlinear layer unless you specify nonlinearity: null. 
+# Nonlinear layers should be specified as nn.<nonlinearity>, such as nn.Tanh.
+
+# There are also merge layers that allow you to merge multiple outputs into a 
+# single output to feed into a layer. You can merge in various ways, such as 
+# concatenating (DenseNet), summing (ResNet), taking the mean, etc. You can 
+# also take slices of a single output to feed into a layer.
 
 # Go through the components below to find additional examples.
 
@@ -155,6 +160,7 @@ components:
     _target_: agent.lib.nn_layer_library.Linear
     input_source: critic_2
     output_size: 128
+    effective_rank: true # need to turn effective rank on if you want it
 
   _value_:
     _target_: agent.lib.nn_layer_library.Linear

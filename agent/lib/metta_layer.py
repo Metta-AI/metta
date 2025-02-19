@@ -5,22 +5,24 @@ import torch
 import numpy as np
 
 class LayerBase(nn.Module):
-    '''The base class for layers that make up the metta agent. All layers are
-    required to have a name and an input source, although the input source can
-    be None (or null in your YAML). Output size is optional depending on your
-    layer.
+    '''The base class for components that make up the Metta agent. All components
+    are required to have a name and an input source, although the input source
+    can be None (or null in your YAML). Output size is optional depending on
+    your component.
 
-    All layers must have a setup_layer method, and it must recursively call
-    setup_layer on its own input_source. setup_layer assigns the output_size 
-    if it is not already set. Once it has been called on all layers, layers 
-    can initialize their parameters via _initialize_layer, if necessary.
+    All components must have a method called `setup` and it must accept
+    input_source_components. The setup assigns the output_size if it is not
+    already set. Once it has been called on all components, components can
+    initialize their parameters via `_initialize()`, if necessary. All
+    components must also have a property called `ready` that returns True if
+    the component has been setup.
 
-    The forward method should only take a tensordict as input and return only
-    the tensordict. The tensor dict is constructed anew each time the
-    metta_agent forward pass is run. The layer's forward should read from the
-    value at the key name of its input_source. After performing its computation
-    via self.layer or otherwise, it should store its output in the tensor dict
-    at the key with its own name.
+    The `_forward` method should only take a tensordict as input and return
+    only the tensordict. The tensor dict is constructed anew each time the
+    metta_agent forward pass is run. The component's `_forward` should read
+    from the value at the key name of its input_source. After performing its
+    computation via self.layer or otherwise, it should store its output in the
+    tensor dict at the key with its own name.
 
     Before doing this, it should first check if the tensordict already has a
     key with its own name, indicating that its computation has already been

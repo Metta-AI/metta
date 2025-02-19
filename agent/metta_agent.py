@@ -81,7 +81,8 @@ class MettaAgent(nn.Module):
             if not getattr(component, 'ready', False):
                 raise RuntimeError(f"Component {name} in MettaAgent was never setup. It might not be accessible by other components.")
             
-        print("Agent setup complete.")
+        self._total_params = sum(p.numel() for p in self.parameters())
+        print(f"Total number of parameters in MettaAgent: {self._total_params:,}. Setup complete.")
 
     def _setup_components(self, component):
         if component.input_source is not None:
@@ -105,6 +106,10 @@ class MettaAgent(nn.Module):
     @property
     def lstm(self):
         return self.components["_core_"].net
+    
+    @property
+    def total_params(self):
+        return self._total_params
 
     def get_value(self, x, state=None):
         td = TensorDict({"x": x, "state": state})
@@ -113,7 +118,7 @@ class MettaAgent(nn.Module):
 
     def get_action_and_value(self, x, state=None, action=None, e3b=None):
         td = TensorDict({"x": x})
-        
+
         td["state"] = None
         if state is not None:
             state = torch.cat(state, dim=0)
