@@ -9,7 +9,7 @@ dashboard: false
 seed: 1
 device: cpu
 torch_deterministic: true
-eval_db_uri: wandb://artifacts/eval_stats
+eval_db_uri: wandb://artifacts/cog_eval_stats
 
 defaults:
   - agent: simple

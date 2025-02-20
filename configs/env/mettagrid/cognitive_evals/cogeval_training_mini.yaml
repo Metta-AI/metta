@@ -4,6 +4,12 @@ defaults:
 sampling: 1
 game:
   num_agents: 18    # Updated for 9 room types with 2 rooms each
+  agent:
+    rewards:
+      action_failure_penalty: 0
+      ore: 0
+      battery: 0
+      heart: 1
 
   map_builder:
     _target_: mettagrid.config.room.room_scene.RoomScene
@@ -161,7 +167,7 @@ objects:
       hp: 30
       cooldown: 0
       # This is Dave's fault. Or Cython's. Or mine.
-   
+
 
     generator:
       hp: 30
