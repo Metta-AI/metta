@@ -7,7 +7,7 @@ vectorization: multiprocessing
 dashboard: false
 
 seed: 1
-device: cpu
+device: ???
 torch_deterministic: true
 eval_db_uri: wandb://artifacts/eval_stats
 
