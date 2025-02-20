@@ -1,18 +1,10 @@
 # Generate a graphical trace of multiple runs.
 
 import os
-import hydra
-import json
 from omegaconf import OmegaConf
-from rich import traceback
 import torch
-import numpy as np
-from rl.pufferlib.vecenv import make_vecenv
 from agent.policy_store import PolicyRecord
-from rl.wandb.wandb_context import WandbContext
 from rl.pufferlib.simulator import Simulator
-from mettagrid.config.config import setup_metta_environment
-from agent.policy_store import PolicyStore
 import pixie
 
 

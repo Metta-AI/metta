@@ -1,11 +1,7 @@
-import os
-import hydra
-import json
-from omegaconf import OmegaConf
 import torch
 import numpy as np
+from omegaconf import OmegaConf
 from rl.pufferlib.vecenv import make_vecenv
-from agent.policy_store import PolicyStore
 from agent.policy_store import PolicyRecord
 
 
