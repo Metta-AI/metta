@@ -139,6 +139,7 @@ class MettaAgent(nn.Module):
         e3b, intrinsic_reward = self._e3b_update(td["_core_"].detach(), e3b)
 
         action, logprob, entropy = sample_logits(logits, action, False)
+        action = action.squeeze()
         return action, logprob, entropy, value, state, e3b, intrinsic_reward
     
     def forward(self, x, state=None, action=None, e3b=None):
