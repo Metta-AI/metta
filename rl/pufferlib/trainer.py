@@ -371,7 +371,7 @@ class PufferTrainer:
                         l2_init_loss = self.trainer_cfg.l2_init_loss_coef * self.policy.l2_init_loss().to(self.device)
 
                     # loss = pg_loss - self.trainer_cfg.ent_coef * entropy_loss + v_loss * self.trainer_cfg.vf_coef + l2_reg_loss + l2_init_loss
-                    loss = pg_loss - self.trainer_cfg.epi_coef * kl_div + v_loss * self.trainer_cfg.vf_coef + l2_reg_loss + l2_init_loss
+                    loss = pg_loss - self.trainer_cfg.epi_coef * kl_div - self.trainer_cfg.ent_coef * entropy_loss + v_loss * self.trainer_cfg.vf_coef + l2_reg_loss + l2_init_loss
 
 
                 with profile.learn:
