@@ -11,7 +11,6 @@ from agent.policy_store import PolicyRecord
 
 def nice_orientation(orientation):
     """ Convert an orientation into a human-readable string """
-    # print("orientation:", orientation)
     return ["north", "south", "west", "east"][orientation % 4]
 
 

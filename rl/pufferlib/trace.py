@@ -88,9 +88,7 @@ def save_trace_image(
 
         # Draw the actions:
         for step in range(len(steps)):
-            #print("steps[step]:", steps[step])
             agent = steps[step][id]
-            print("agent:", agent)
 
             x = 40 + step * 2
             y = 10 + 60 * id + 29
