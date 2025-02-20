@@ -46,7 +46,7 @@ class PufferTrainer:
         self.average_reward = 0.0  # Initialize average reward estimatel
 
         target = np.array([0, 1, 0.1, 0.05, 0.5, 0.5, 0.5, 0.25, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
-        self.target_dist = torch.tensor(target/target.sum()).to(self.device)
+        self.target_dist = torch.tensor(target/target.sum(), dtype=torch.float32).to(self.device)
 
         self._make_vecenv()
 
