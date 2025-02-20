@@ -20,7 +20,7 @@ eval_db_uri: wandb://artifacts/daveey_eval_testing
 env:
   # sampling: 0.7
   game:
-    num_agents: 24
+    num_agents: 200
     # group_reward_pct: 0.9
     # max_steps: 200
 
