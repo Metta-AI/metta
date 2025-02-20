@@ -53,6 +53,24 @@ GIFT_COLOR = PUMPKIN
 SWAP_COLOR = POMEGRANATE
 
 
+def nice_orientation(orientation):
+    """ Convert an orientation into a human-readable string """
+    return ["north", "south", "west", "east"][orientation % 4]
+
+
+def nice_actions(env, action):
+    """ Convert a un-flattened action into a human-readable string """
+    name = env.action_names()[action[0]]
+    if name == "move":
+        return name + ("_back", "_forward")[action[1] % 2]
+    elif name == "rotate":
+        return "rotate_" + nice_orientation(action[1])
+    elif name == "attack":
+        return "attack_" + str(action[1] // 3) + "_" + str(action[1] % 3)
+    else:
+        return name
+
+
 def save_trace_image(
     cfg: OmegaConf,
     policy_record: PolicyRecord,
@@ -61,7 +79,37 @@ def save_trace_image(
     """ Trace a policy and generate a jsonl file """
 
     simulator = Simulator(cfg, policy_record)
-    steps = simulator.run()
+
+    steps = []
+    while not simulator.done():
+        actions = simulator.actions()
+
+        actions_array = actions.cpu().numpy()
+        step_info = []
+        for id, action in enumerate(actions_array):
+            for grid_object in simulator.grid_objects():
+                if "agent_id" in grid_object and grid_object["agent_id"] == id:
+                    agent = grid_object
+                    break
+
+            step_info.append({
+                "agent": id,
+                "action": action.tolist(),
+                "action_name": nice_actions(simulator.env, action),
+                "reward": simulator.rewards[id].item(),
+                "total_reward": simulator.total_rewards[id].item(),
+                "position": [agent["c"], agent["r"]],
+                "hp": agent["agent:hp"],
+                "frozen": agent["agent:frozen"],
+                "orientation": nice_orientation(agent["agent:orientation"]),
+            })
+
+        simulator.step(actions)
+
+        for i in range(len(simulator.env.action_success)):
+            step_info[i]["action_success"] = simulator.env.action_success[i]
+
+        steps.append(step_info)
 
     image = pixie.Image(52 + simulator.num_steps*2 + 50, 10 + 60 * simulator.num_agents + 10)
     image.fill(pixie.Color(44/255, 62/255, 80/255, 1))
@@ -92,15 +140,6 @@ def save_trace_image(
 
             x = 40 + step * 2
             y = 10 + 60 * id + 29
-
-            # paint.color = pixie.Color(1, 1, 1, 0.05)
-            # yo = 20 * agent["energy"]/256
-            # ctx.fill_rect(x, y - yo, 2, yo*2+2)
-
-            # if agent["shield"]:
-            #     paint.color = SHIELD_COLOR
-            #     ctx.fill_rect(x, y - 16, 2, 1)
-            #     ctx.fill_rect(x, y + 16 + 2, 2, 1)
 
             if agent["frozen"]:
                 pass
