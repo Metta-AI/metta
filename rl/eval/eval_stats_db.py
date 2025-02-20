@@ -5,6 +5,8 @@ import wandb
 import pandas as pd
 from typing import Optional, Dict, Any, List
 import logging
+import shutil
+import gzip
 
 from rl.eval.queries import all_fields, total_metric
 
@@ -107,6 +109,12 @@ class EvalStatsDbWandb(EvalStatsDB):
                 logger.info(f"Loading from cache: {dir}")
             else:
                 artifact.download(root=dir)
+                path = os.path.join(dir, os.listdir(dir)[0])
+                if path.endswith('.json.gz'):
+                    with gzip.open(path, "rb") as f_in:
+                        with open(path.replace('.gz', ''), "wb") as f_out:
+                            shutil.copyfileobj(f_in, f_out)
+
         logger.info(f"Loaded {len(artifact_dirs)} artifacts")
         all_records = []
         for artifact_dir in artifact_dirs:
