@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 run: ???
 data_dir: ./train_dir
 run_dir: ${data_dir}/${run}
@@ -11,6 +12,8 @@ device: cpu
 torch_deterministic: true
 eval_db_uri: wandb://artifacts/eval_stats
 
+=======
+>>>>>>> d3305575d9a86474c61f693fa42d155399a85b0f
 defaults:
   - agent: simple
   - env/mettagrid@env: simple
@@ -19,6 +22,17 @@ defaults:
   - hardware: macbook
   - eval: eval_suite
   - analyzer: analyzer
+
+seed: 1
+eval_db_uri: wandb://artifacts/eval_stats
+run: ???
+data_dir: ./train_dir
+run_dir: ${data_dir}/${run}
+sweep_id: null
+
+torch_deterministic: true
+vectorization: multiprocessing
+dashboard: false
 
 wandb:
   enabled: False

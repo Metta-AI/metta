@@ -63,7 +63,7 @@ class EvalStatsDB:
         if not group_by_episode:
             stats_df = df_per_episode.agg(['mean', 'std'])
             metric_df = stats_df.T.reset_index()
-            metric_df.columns = ['eval_name', 'policy_name', f'mean_{metric_field}', f'std_{metric_field}']
+            metric_df.columns = ['eval_name', 'policy_name', 'mean', 'std']
         return df_per_episode, metric_df
 
     @staticmethod
