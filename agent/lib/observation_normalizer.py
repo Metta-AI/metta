@@ -58,7 +58,7 @@ class ObservationNormalizer(nn.Module):
         num_objects = len(grid_features)
 
         obs_norm = torch.tensor([OBS_NORMALIZATIONS[k] for k in grid_features], dtype=torch.float32)
-        obs_norm = obs_norm.view(1, num_objects, 1, 1)
+        obs_norm = obs_norm.view(1, 1, 1, num_objects)
 
         self.register_buffer('obs_norm', obs_norm)
 
