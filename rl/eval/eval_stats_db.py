@@ -107,9 +107,11 @@ class EvalStatsDbWandb(EvalStatsDB):
         for dir, artifact in zip(artifact_dirs, artifact_versions):
             if not os.path.exists(dir):
                 artifact.download(root=dir)
-                with gzip.open(dir, "rb") as f_in:
-                    with open(dir.replace('.gz', ''), "wb") as f_out:
-                        shutil.copyfileobj(f_in, f_out)
+                path = os.path.join(dir, os.listdir(dir)[0])
+                if path.endswith('.json.gz'):
+                    with gzip.open(path, "rb") as f_in:
+                        with open(path.replace('.gz', ''), "wb") as f_out:
+                            shutil.copyfileobj(f_in, f_out)
 
         logger.info(f"Loaded {len(artifact_dirs)} artifacts")
         all_records = []
