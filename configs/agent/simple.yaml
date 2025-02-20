@@ -12,13 +12,13 @@ observations:
   obs_key: grid_obs
   track_last_action: ${env.track_last_action}
   
-clip_range: 3.0
+clip_range: 0 # set to 0 to disable clipping
 effective_rank_interval: 10
 l2_init_weight_update_interval: 0
 
 components:
 #necessary source layers: _obs_, _core_
-#necessary output layers: _action_param_, _value_
+#necessary output layers: _action_type_ and _value_ (and _action_param_ if MultiDiscrete)
   _obs_: 
     _target_: agent.lib.obs_shaper.ObsShaper
     input_source: null
@@ -81,8 +81,12 @@ components:
     input_source: _core_
     output_size: 512
 
-  _action_param_:
-    _target_: agent.lib.nn_layer_library.Linear
+  _action_type_:
+    _target_: agent.lib.action.ActionType
     input_source: actor_1
-    output_size: 20
+    nonlinearity: null
+
+  _action_param_:
+    _target_: agent.lib.action.ActionParam
+    input_source: actor_1
     nonlinearity: null

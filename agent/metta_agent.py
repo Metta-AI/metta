@@ -11,6 +11,7 @@ from omegaconf import OmegaConf
 from sample_factory.utils.typing import ActionSpace, ObsSpace
 from pufferlib.cleanrl import sample_logits
 from pufferlib.environment import PufferEnv
+import pufferlib
 
 
 def make_policy(env: PufferEnv, cfg: OmegaConf):
@@ -46,7 +47,7 @@ class MettaAgent(nn.Module):
         super().__init__()
         cfg = OmegaConf.create(cfg)
 
-        self.hidden_size = cfg.components._core_.output_size # trainer/Experience uses this for e3b
+        self.hidden_size = cfg.components._core_.output_size
         self.core_num_layers = cfg.components._core_.nn_params.num_layers
         self.clip_range = cfg.clip_range
 
@@ -61,6 +62,14 @@ class MettaAgent(nn.Module):
             'hidden_size': self.hidden_size,
             'core_num_layers': self.core_num_layers
         }
+
+        if isinstance(action_space, pufferlib.spaces.Discrete):
+            self._multi_discrete = False
+            agent_attributes['action_type_size'] = action_space.n
+        else:
+            self._multi_discrete = True
+            agent_attributes['action_type_size'] = action_space.nvec[0]
+            agent_attributes['action_param_size'] = action_space.nvec[1]
         
         # self.observation_space = obs_space # for use with FeatureSetEncoder
         # self.global_features = global_features # for use with FeatureSetEncoder
@@ -74,8 +83,11 @@ class MettaAgent(nn.Module):
 
         component = self.components['_value_']
         self._setup_components(component)
-        component = self.components['_action_param_']
+        component = self.components['_action_type_']
         self._setup_components(component)
+        if self._multi_discrete:
+            component = self.components['_action_param_']
+            self._setup_components(component)
 
         for name, component in self.components.items():
             if not getattr(component, 'ready', False):
@@ -125,9 +137,12 @@ class MettaAgent(nn.Module):
             td["state"] = state.to(x.device)
 
         self.components["_value_"](td)
-        self.components["_action_param_"](td)
+        self.components["_action_type_"](td)
+        logits = td["_action_type_"]
+        if self._multi_discrete:
+            self.components["_action_param_"](td)
+            logits = [logits, td["_action_param_"]]
 
-        logits = td["_action_param_"]
         value = td["_value_"]
         state = td["state"] 
 
@@ -139,7 +154,6 @@ class MettaAgent(nn.Module):
         e3b, intrinsic_reward = self._e3b_update(td["_core_"].detach(), e3b)
 
         action, logprob, entropy = sample_logits(logits, action, False)
-        action = action.squeeze()
         return action, logprob, entropy, value, state, e3b, intrinsic_reward
     
     def forward(self, x, state=None, action=None, e3b=None):

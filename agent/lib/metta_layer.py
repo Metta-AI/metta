@@ -111,10 +111,10 @@ class ParamLayer(LayerBase):
 
         self._initialize_weights()
 
-        if self.clip_scale is not None and self.clip_scale > 0:
+        if self.clip_scale > 0:
             self.clip_value = self.global_clip_range * self.largest_weight * self.clip_scale
         else:
-            self.clip_value = None
+            self.clip_value = 0 # disables clipping (not clip to 0)
 
         self.initial_weights = None
         if self.l2_init_scale != 0:
@@ -163,7 +163,7 @@ class ParamLayer(LayerBase):
         self.largest_weight = largest_weight
 
     def clip_weights(self):
-        if self.clip_value is not None:
+        if self.clip_value > 0:
             with torch.no_grad():
                 self.weight_net.weight.data = self.weight_net.weight.data.clamp(-self.clip_value, self.clip_value)
 
