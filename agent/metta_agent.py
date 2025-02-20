@@ -57,7 +57,7 @@ class MettaAgent(nn.Module):
             'grid_features': grid_features,
             'obs_key': cfg.observations.obs_key,
             'obs_input_shape': obs_space[cfg.observations.obs_key].shape[1:],
-            'num_objects': obs_space[cfg.observations.obs_key].shape[0],
+            'num_objects': obs_space[cfg.observations.obs_key].shape[2], # this is hardcoded for channel # at end of tuple
             'hidden_size': self.hidden_size,
             'core_num_layers': self.core_num_layers
         }

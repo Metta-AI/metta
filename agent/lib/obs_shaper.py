@@ -24,11 +24,11 @@ class ObsShaper(LayerBase):
         else:
             raise ValueError('Invalid input tensor shape', x.shape)
 
-        x = x.reshape(B*TT, *space_shape)
-
-        # x = x.cpu() if x.is_cuda else x
+        x = x.reshape(B * TT, *space_shape)
         x = x.float()
-        # x = x.cuda() if x.is_cuda else x
+
+        # conv expects [batch, channel, w, h]. Below is hardcoded for [batch, w, h, channel]
+        x = x.permute(0, 3, 1, 2)
 
         td[self.name] = x
         return td
