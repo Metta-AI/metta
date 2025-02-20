@@ -276,7 +276,7 @@ class MettaGridRaylibRenderer:
 
             if agent["agent:frozen"]:
                 continue
-            if action[0] == self.action_ids["attack_nearest"]:
+            if self.action_names[action[0]] == "attack_nearest":
                 # draw a cone from the agent in the direction it's facing.
                 # make it 3 grid squares long and 3 grid squares wide.
                 # make it red but transparent.
@@ -310,7 +310,7 @@ class MettaGridRaylibRenderer:
                         ray.Vector2(base_x + self.tile_size * 3, base_y + self.tile_size * 1.5)
                     ]
                 ray.draw_triangle(points[0], points[1], points[2], attack_color)
-            if action[0] == self.action_ids["attack"]:
+            if self.action_names[action[0]] == "attack":
                 distance = 1 + (action[1] - 1) // 3
                 offset = -((action[1] - 1) % 3 - 1)
                 target_loc = self._relative_location(
