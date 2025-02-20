@@ -59,7 +59,6 @@ class Simulator:
         while not self.done():
             actions = self.actions()
             self.step(actions)
-        return self.steps
 
     def grid_objects(self):
         """ Get the grid objects in the environment """
