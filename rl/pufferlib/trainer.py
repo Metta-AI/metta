@@ -25,6 +25,7 @@ from rl.pufferlib.vecenv import make_vecenv
 torch.set_float32_matmul_precision('high')
 
 logger = logging.getLogger("trainer")
+e3b = None
 
 class PufferTrainer:
     def __init__(self,
@@ -155,7 +156,7 @@ class PufferTrainer:
             policy = self.policy
             infos = defaultdict(list)
             lstm_h, lstm_c = experience.lstm_h, experience.lstm_c
-            e3b_inv = experience.e3b_inv
+            #e3b_inv = experience.e3b_inv
 
         while not experience.full:
             with profile.env:
@@ -176,7 +177,7 @@ class PufferTrainer:
             with profile.eval_forward, torch.no_grad():
                 # TODO: In place-update should be faster. Leaking 7% speed max
                 # Also should be using a cuda tensor to index
-                e3b = e3b_inv[env_id] if self.use_e3b else None
+               # e3b = e3b_inv[env_id] if self.use_e3b else None
 
                 if lstm_h is not None:
                     h = lstm_h[:, env_id]
