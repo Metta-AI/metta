@@ -11,17 +11,15 @@ from agent.policy_store import PolicyRecord
 
 def nice_orientation(orientation):
     """ Convert an orientation into a human-readable string """
-    return ["north", "south", "west", "east"][orientation]
+    # print("orientation:", orientation)
+    return ["north", "south", "west", "east"][orientation % 4]
 
 
 def nice_actions(env, action):
     """ Convert a un-flattened action into a human-readable string """
     name = env.action_names()[action[0]]
     if name == "move":
-        if action[1] == 0:
-            return name + "_back"
-        elif action[1] == 1:
-            return name + "_forward"
+        return name + ("_back", "_forward")[action[1] % 2]
     elif name == "rotate":
         return "rotate_" + nice_orientation(action[1])
     elif name == "attack":
@@ -38,7 +36,7 @@ class Simulator:
         self.policy_record = policy_record
         self.device = cfg.device
         self.vecenv = make_vecenv(
-          cfg,
+          cfg.env,
           cfg.vectorization,
           num_envs=1,
           render_mode="human"
@@ -61,7 +59,7 @@ class Simulator:
               self.policy_rnn_state
             )
 
-        actions_array = self.env._c_env.unflatten_actions(actions.cpu().numpy())
+        actions_array = actions.cpu().numpy()
         step_info = []
         for id, action in enumerate(actions_array):
             for grid_object in self.env.grid_objects.values():
@@ -76,12 +74,12 @@ class Simulator:
                 "reward": self.rewards[id].item(),
                 "total_reward": self.total_rewards[id].item(),
                 "position": [agent["c"], agent["r"]],
-                "energy": agent["agent:energy"],
+                # "energy": agent["agent:energy"],
                 "hp": agent["agent:hp"],
                 "frozen": agent["agent:frozen"],
                 "orientation": nice_orientation(agent["agent:orientation"]),
-                "shield": agent["agent:shield"],
-                "inventory": agent["agent:inv:r1"]
+                # "shield": agent["agent:shield"],
+                # "inventory": agent["agent:inv:r1"]
             })
 
         (self.obs, self.rewards, self.dones, self.trunc, self.infos) = \

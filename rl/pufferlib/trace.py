@@ -88,19 +88,21 @@ def save_trace_image(
 
         # Draw the actions:
         for step in range(len(steps)):
+            #print("steps[step]:", steps[step])
             agent = steps[step][id]
+            print("agent:", agent)
 
             x = 40 + step * 2
             y = 10 + 60 * id + 29
 
-            paint.color = pixie.Color(1, 1, 1, 0.05)
-            yo = 20 * agent["energy"]/256
-            ctx.fill_rect(x, y - yo, 2, yo*2+2)
+            # paint.color = pixie.Color(1, 1, 1, 0.05)
+            # yo = 20 * agent["energy"]/256
+            # ctx.fill_rect(x, y - yo, 2, yo*2+2)
 
-            if agent["shield"]:
-                paint.color = SHIELD_COLOR
-                ctx.fill_rect(x, y - 16, 2, 1)
-                ctx.fill_rect(x, y + 16 + 2, 2, 1)
+            # if agent["shield"]:
+            #     paint.color = SHIELD_COLOR
+            #     ctx.fill_rect(x, y - 16, 2, 1)
+            #     ctx.fill_rect(x, y + 16 + 2, 2, 1)
 
             if agent["frozen"]:
                 pass
