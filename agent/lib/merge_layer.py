@@ -26,9 +26,8 @@ class MergeLayerBase(LayerBase):
 
         self.sizes = []
         self.dims = []
-        for _, src_cfg in enumerate(self.sources_list):       
+        for src_cfg in self.sources_list:
             source_name = src_cfg['source_name']
-            
             full_source_size = self.input_source_components[source_name].output_size
 
             processed_size = full_source_size
@@ -38,7 +37,16 @@ class MergeLayerBase(LayerBase):
                     slice_range = list(slice_range)
                 if not (isinstance(slice_range, (list, tuple)) and len(slice_range) == 2):
                     raise ValueError(f"'slice' must be a two-element list/tuple for source {source_name}.")
-                processed_size = slice_range[1] - slice_range[0]
+                
+                start, end = slice_range
+                slice_dim = src_cfg.get("dim", self.default_dim)
+                length = end - start
+                src_cfg['_slice_params'] = {
+                    'start': start,
+                    'length': length,
+                    'dim': slice_dim
+                }
+                processed_size = length
 
             self.sizes.append(processed_size)
             self.dims.append(src_cfg.get("dim", self.default_dim))
@@ -56,11 +64,9 @@ class MergeLayerBase(LayerBase):
             self.input_source_components[source_name].forward(td)
             src_tensor = td[source_name]
 
-            if "slice" in src_cfg:
-                start, end = src_cfg["slice"]
-                slice_dim = src_cfg.get("dim", self.default_dim)
-                length = end - start
-                src_tensor = torch.narrow(src_tensor, dim=slice_dim, start=start, length=length)
+            if '_slice_params' in src_cfg:
+                params = src_cfg['_slice_params']
+                src_tensor = torch.narrow(src_tensor, dim=params['dim'], start=params['start'], length=params['length'])
             outputs.append(src_tensor)
         
         return self._merge(outputs, td)
