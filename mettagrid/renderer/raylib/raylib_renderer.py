@@ -25,6 +25,7 @@ from mettagrid.renderer.raylib.object_render import (
     WallRenderer,
 )
 from mettagrid.renderer.raylib.font_renderer import FontRenderer
+from mettagrid.renderer.raylib.camera_controller import CameraController
 
 class MettaGridRaylibRenderer:
     def __init__(self, env: MettaGridEnv, cfg: OmegaConf):
@@ -67,14 +68,15 @@ class MettaGridRaylibRenderer:
             FactoryRenderer(),
             TempleRenderer(),
         ]
-        rl.SetTargetFPS(10)
+        rl.SetTargetFPS(60)
         self.colors = colors
 
         camera = ray.Camera2D()
-        camera.target = ray.Vector2(0.0, 0.0)
+        camera.target = ray.Vector2(self.grid_width * self.tile_size / 2, self.grid_height * self.tile_size / 2)
         camera.rotation = 0.0
         camera.zoom = 1.0
         self.camera = camera
+        self.camera_controller = CameraController(self.camera)
 
         self.game_objects = {}
         self.actions = torch.zeros((self.num_agents, 2), dtype=torch.int32)
@@ -91,6 +93,9 @@ class MettaGridRaylibRenderer:
         self.hover_object_id = None
         self.paused = False
         self.obs_idx = -1
+
+        self.time_accumulator = 0.0
+        self.step_time = 1.0 / 10.0
 
     def update(self, actions, observations, rewards, total_rewards, current_timestep):
         self.actions = actions
@@ -115,9 +120,16 @@ class MettaGridRaylibRenderer:
 
     def render_and_wait(self):
         while True:
-            self.handle_keyboard_input()
-            self.handle_mouse_input()
-            self._render()
+            while self.time_accumulator < self.step_time:
+                delta_time = rl.GetFrameTime()
+                self.time_accumulator += delta_time
+
+                self.camera_controller.update(delta_time, float(rl.GetScreenWidth() - self.sidebar_width), float(rl.GetScreenHeight()))
+
+                self.handle_keyboard_input()
+                self.handle_mouse_input()
+                self._render()
+            self.time_accumulator -= self.step_time
 
             if self.user_action:
                 self.user_action = False
@@ -169,9 +181,10 @@ class MettaGridRaylibRenderer:
         rl.EndDrawing()
 
     def handle_mouse_input(self):
-        pos = ray.get_mouse_position()
-        grid_x = int(pos.x // self.tile_size)
-        grid_y = int(pos.y // self.tile_size)
+        mouse_x, mouse_y = self.camera_controller.get_world_mouse_position()
+
+        grid_x = mouse_x // self.tile_size
+        grid_y = mouse_y // self.tile_size
 
         self.hover_object_id = None
         for obj_id, obj in self.game_objects.items():
@@ -200,7 +213,6 @@ class MettaGridRaylibRenderer:
                 # rl.DrawTextEx(self.font, f"{title}:".encode(),
                 #               (sidebar_x + 10, y), font_size, 1, color)
                 self.font_renderer.render_text(f"{title}:", sidebar_x + 10, y, font_size, color)
-
                 y += line_height * 2
 
                 for key, value in obj.items():
@@ -431,12 +443,12 @@ class MettaGridRaylibRenderer:
 
     def draw_mouse(self):
         ts = self.tile_size
-        pos = ray.get_mouse_position()
-        mouse_x = int(pos.x // ts)
-        mouse_y = int(pos.y // ts)
+        mouse_x, mouse_y = self.camera_controller.get_world_mouse_position()
+        mouse_x = int((mouse_x // ts) * ts)
+        mouse_y = int((mouse_y // ts) * ts)
 
         # Draw border around the tile
-        ray.draw_rectangle_lines(mouse_x * ts, mouse_y * ts, ts, ts, ray.GRAY)
+        ray.draw_rectangle_lines(mouse_x, mouse_y, ts, ts, ray.GRAY)
 
     def __del__(self):
         # Unload the font when the object is destroyed
