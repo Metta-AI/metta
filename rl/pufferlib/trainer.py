@@ -100,9 +100,6 @@ class PufferTrainer:
             self.trainer_cfg.evaluate_interval = self.trainer_cfg.checkpoint_interval
 
         while self.agent_step < self.trainer_cfg.total_timesteps:
-            logger.info(f"Training: {self.agent_step}, {self.epoch}")
-            start_time = time.time()
-
             # Collecting experience
             self._evaluate()
 
