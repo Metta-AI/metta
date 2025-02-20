@@ -28,7 +28,7 @@ def play(cfg: OmegaConf, policy_record: PolicyRecord):
 
             # Parallelize across opponents
             if hasattr(policy, 'lstm'):
-                actions, _, _, _, policy_rnn_state, _, _ = policy(obs, policy_rnn_state)
+                actions, _, _, _, policy_rnn_state, _, _, _ = policy(obs, policy_rnn_state)
                 if actions.dim() == 0:  # scalar tensor like tensor(2)
                     actions = torch.tensor([actions.item()])
             else:

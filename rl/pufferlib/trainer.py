@@ -43,10 +43,12 @@ class PufferTrainer:
         self.wandb_run = wandb_run
         self.policy_store = policy_store
         self.use_e3b = self.trainer_cfg.use_e3b
-        self.average_reward = 0.0  # Initialize average reward estimatel
+        self.average_reward = 0.0  # Initialize average reward estimate
 
+        # epi
         target = np.array([0, 1, 0.1, 0.05, 0.5, 0.5, 0.5, 0.25, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
         self.target_dist = torch.tensor(target/target.sum(), dtype=torch.float32).to(self.device)
+
 
         self._make_vecenv()
 
@@ -77,6 +79,22 @@ class PufferTrainer:
 
         if self.trainer_cfg.compile:
             self.policy = torch.compile(self.policy, mode=self.trainer_cfg.compile_mode)
+
+        # kickstarting
+        # use WandbContext???
+        # can you still access attributes after compiling?
+        if self.cfg.agent.kickstarting:
+            self.ks_policies = []
+            for policy_cfg in self.trainer_cfg.kickstart_policies:
+                policy_record = policy_store.policy(policy_cfg.policy_path)
+            policy = policy_record.policy()
+            policy.value_coef = policy_cfg.value_coef
+            policy.action_coef = policy_cfg.action_coef
+            if self.trainer_cfg.compile:
+                policy = torch.compile(policy, mode=self.trainer_cfg.compile_mode)
+            self.ks_policies.append(policy)
+
+
 
         self._make_experience_buffer()
 
@@ -202,6 +220,7 @@ class PufferTrainer:
                 if lstm_h is not None:
                     h = lstm_h[:, env_id]
                     c = lstm_c[:, env_id]
+                    # epi logits
                     actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward, logits = policy(o_device, (h, c), e3b=e3b)
                     lstm_h[:, env_id] = h
                     lstm_c[:, env_id] = c
@@ -294,6 +313,7 @@ class PufferTrainer:
 
                 with profile.train_forward:
                     if experience.lstm_h is not None:
+                        # epi logits
                         _, newlogprob, entropy, newvalue, lstm_state, _, _, newlogits = self.policy(
                             obs, state=lstm_state, action=atn)
                         lstm_state = (lstm_state[0].detach(), lstm_state[1].detach())
@@ -304,6 +324,29 @@ class PufferTrainer:
                             obs.reshape(-1, *self.vecenv.single_observation_space.shape),
                             action=atn,
                         )
+
+                    # kickstarting
+                    # LSTM state?
+                    if self.cfg.agent.kickstarting:
+                        ks_logprobs = []
+                        ks_values = []
+                        ks_lstm_state = [None for _ in range(len(self.ks_policies))]
+                        for i, (policy, lstm_state) in enumerate(zip(self.ks_policies, ks_lstm_state)):
+                            _, ks_logprob, _, ks_value, lstm_state, _, _, _ = policy(obs, state=lstm_state, action=atn)
+                            ks_lstm_state[i] = (lstm_state[0].detach(), lstm_state[1].detach())
+                            ks_logprobs.append(ks_logprob)
+                            ks_values.append(ks_value)
+
+                    ks_value_loss = torch.tensor(0.0, device=self.device)
+                    for ks_value in ks_values:
+                        ks_value_loss += (ks_value - newvalue) ** 2
+
+                    ks_action_loss = torch.tensor(0.0, device=self.device)
+                    for ks_log_prob in ks_logprobs:
+                        teacher_probs = ks_log_prob.exp()
+                        # H(teacher, student) = -sum_a teacher_prob(a) * log(student_prob(a))
+                        ks_action_loss -= (teacher_probs * newlogprob).sum(dim=-1).mean()
+
 
                     if self.device == 'cuda':
                         torch.cuda.synchronize()
@@ -348,16 +391,14 @@ class PufferTrainer:
 
                     import torch.nn.functional as F
 
-                    # Suppose self.target_dist is defined on the CPU; move it to the correct device:
+                    # epi logits
                     target_dist = self.target_dist.to(obs.device)  # shape: [num_actions]
-
                     # Expand it to match the batch size. If logits is [B, A]:
                     # (Alternatively, you can do the log and softmax computation in one step.)
                     policy_probs = F.softmax(newlogits, dim=-1)             # shape: [B, A]
                     policy_log_probs = F.log_softmax(newlogits, dim=-1)       # shape: [B, A]
                     target_log_probs = torch.log(target_dist + 1e-8)       # shape: [A]
                     target_log_probs = target_log_probs.unsqueeze(0).expand_as(policy_log_probs)
-
                     # Compute the per-sample KL divergence and then average:
                     kl_div = (policy_probs * (policy_log_probs - target_log_probs)).sum(dim=-1).mean()
 
@@ -370,6 +411,7 @@ class PufferTrainer:
                     if self.trainer_cfg.l2_init_loss_coef > 0:
                         l2_init_loss = self.trainer_cfg.l2_init_loss_coef * self.policy.l2_init_loss().to(self.device)
 
+                    # epi logits
                     # loss = pg_loss - self.trainer_cfg.ent_coef * entropy_loss + v_loss * self.trainer_cfg.vf_coef + l2_reg_loss + l2_init_loss
                     loss = pg_loss - self.trainer_cfg.epi_coef * kl_div - self.trainer_cfg.ent_coef * entropy_loss + v_loss * self.trainer_cfg.vf_coef + l2_reg_loss + l2_init_loss
 

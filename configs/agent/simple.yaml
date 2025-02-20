@@ -7,7 +7,19 @@ policy_selector:
   range: 0
   metric: final.score
   generation: null
+
+kickstarting: true
+kickstart_policies:
+  - policy_path: wandb://run/simple.standard.2.18.24
+    value_coef: 1
+    action_coef: 1
+
+  - policy_path: wandb://run/simple.standard.2.18.24
+    value_coef: 0
+    action_coef: 0
   
+#./train_dir/simple.standard.2.18.24
+
 observations:
   obs_key: grid_obs
   track_last_action: ${env.track_last_action}
