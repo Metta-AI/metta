@@ -58,6 +58,16 @@
                 "hardware=macbook",
                 "cmd=analyze",
             ],
-        }
+        },
+        {
+            "name": "Trace",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "tools.trace",
+            "args": [
+                "+user=${env:USER}",
+                "cmd=trace",
+            ],
+        },
     ]
 }
