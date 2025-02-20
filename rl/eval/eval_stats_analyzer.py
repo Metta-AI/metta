@@ -6,6 +6,7 @@ from tabulate import tabulate
 import fnmatch
 import numpy as np
 import pandas as pd
+import wandb
 from rl.eval.stats import significance_test
 logger = logging.getLogger("eval_stats_analyzer")
 
@@ -49,7 +50,6 @@ class EvalStatsAnalyzer:
         logger.info(f"\nSignificance test results for {metrics}:\n" + f"with filters {filters}" +
                    tabulate(comparison_df, headers='keys', tablefmt='grid'))
 
-
     def log_result(self, result, metric, filters, significance):
         result_table = tabulate(result, headers=list(result.keys()), tablefmt="grid", maxcolwidths=25)
         logger.info(f"Results for {metric} with filters {filters}:\n{result_table}")
@@ -68,18 +68,17 @@ class EvalStatsAnalyzer:
 
             # Only calculate significance if there are at least 2 policies
             if df_per_episode.shape[1] > 1:
-                significance_results += significance_test(df_per_episode, metric)
+                significance_results.append(significance_test(df_per_episode, metric))
 
-        metrics_df = pd.concat(result_dfs, axis=1) if len(result_dfs) > 0 else None
 
-        return metrics_df, significance_results
+        return result_dfs, significance_results
 
     def analyze(self):
         metric_configs = {}
         for cfg in self.analysis.metrics:
             metric_configs[cfg] = fnmatch.filter(self.stats_db.available_metrics, cfg.metric)
-        results = []
-        significances = []
+        result_data = {}
+        policy_fitness_records = []
 
         filters = None
         for cfg, metrics in metric_configs.items():
@@ -91,21 +90,32 @@ class EvalStatsAnalyzer:
                 logger.info(f"No data found for {metrics} with filters {filters}" + "\n")
                 continue
 
-            self.log_result(result, metrics, filters, significance)
-            results.append(result)
-            significances.append(significance)
+            for i, m in enumerate(metrics):
 
-        if self.candidate_policy_uri is not None:
-            policy_fitness = self.policy_fitness(results)
+                policy_fitness = self.policy_fitness(result[i])
 
-        if self.candidate_policy_uri is not None:
-            for metric, fitness in policy_fitness.items():
-                wandb.log({
-                    f"policy_fitness/{metric.name}": fitness[0],
-                    f"policy_fitness/{metric.name}_std": fitness[1]
-                })
+                for eval, fitness in policy_fitness.items():
+                    policy_fitness_records.append({
+                        "metric": m,
+                        "eval": eval,
+                        "fitness": fitness,
+                    })
+                    wandb.log({
+                        f"policy_fitness/{m}/{eval}": fitness,
+                    })
+                self.log_result(result[i], m, filters, significance[i])
 
-        return results, significances, policy_fitness
+
+                result_data[m] = {
+                "data": result[i],
+                "significance": significance[i],
+                }
+        policy_fitness_df = pd.DataFrame(policy_fitness_records)
+        result_table = tabulate(policy_fitness_df, headers=[self.candidate_policy_uri] + list(policy_fitness_df.keys()), tablefmt="grid", maxcolwidths=25)
+        logger.info(f"Policy fitness results:\n{result_table}")
+
+
+        return result_data, policy_fitness
 
     @staticmethod
     def get_latest_policy(all_policies, uri):
@@ -119,19 +129,22 @@ class EvalStatsAnalyzer:
     def policy_fitness(self, metric_data):
         policy_fitness = {}
         uri = self.candidate_policy_uri.replace("wandb://run/", "")
-        all_policies = metric_data[0]['policy_name'].unique()
+        all_policies = metric_data['policy_name'].unique()
 
         # Get the latest version of the candidate policy
         candidate_uri = self.get_latest_policy(all_policies, uri)
 
         baseline_policies = list(set([self.get_latest_policy(all_policies, b) for b in self.analysis.baseline_policies or all_policies]))
 
-        for metric in metric_data:
+        metric_data = metric_data.set_index('policy_name')
+        eval, metric_mean, metric_std = metric_data.keys()
 
+        candidate_data = metric_data.loc[candidate_uri].set_index(eval)
+        baseline_data = metric_data.loc[baseline_policies].set_index(eval)
 
-            candidate_metric_mean, candidate_metric_std = metric.loc[candidate_uri]
-            baseline_metric_mean, baseline_metric_std = np.mean([metric.loc[baseline_uri] for baseline_uri in baseline_policies],axis=0)
+        evals = metric_data[eval].unique()
 
-            fitness = (candidate_metric_mean - baseline_metric_mean) / baseline_metric_std
-            policy_fitness[metric] = fitness
+        for eval in evals:
+            fitness = (candidate_data.loc[eval][metric_mean] - np.mean(baseline_data.loc[eval][metric_mean])) / np.std(baseline_data.loc[eval][metric_std])
+            policy_fitness[eval] = fitness
         return policy_fitness
