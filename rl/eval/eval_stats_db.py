@@ -5,6 +5,7 @@ import wandb
 import pandas as pd
 from typing import Optional, Dict, Any, List
 import logging
+import gzip
 
 from rl.eval.queries import all_fields, total_metric
 
@@ -105,15 +106,20 @@ class EvalStatsDbWandb(EvalStatsDB):
         for dir, artifact in zip(artifact_dirs, artifact_versions):
             if not os.path.exists(dir):
                 artifact.download(root=dir)
+
         logger.info(f"Loaded {len(artifact_dirs)} artifacts")
         all_records = []
         for artifact_dir in artifact_dirs:
-            json_files = [f for f in os.listdir(artifact_dir) if f.endswith('.json')]
-            if len(json_files) != 1:
-                raise FileNotFoundError(f"Expected exactly one JSON file in {artifact_dir}, found {len(json_files)}")
-            json_path = os.path.join(artifact_dir, json_files[0])
-            with open(json_path, "r") as f:
-                data = json.load(f)
+            files = [f for f in os.listdir(artifact_dir) if f.endswith('.json') or f.endswith('.json.gz')]
+            if len(files) != 1:
+                raise FileNotFoundError(f"Expected exactly one JSON file in {artifact_dir}, found {len(files)}")
+            file_path = os.path.join(artifact_dir, files[0])
+            if files[0].endswith('.gz'):
+                with gzip.open(file_path, "rt", encoding="utf-8") as f:
+                    data = json.load(f)
+            else:
+                with open(file_path, "r") as f:
+                    data = json.load(f)
             data = self._prepare_data(data)
             all_records.extend(data)
 

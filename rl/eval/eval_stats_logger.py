@@ -4,6 +4,7 @@ from datetime import datetime
 import wandb
 from util.datastruct import flatten_config
 import logging
+import gzip
 
 logger = logging.getLogger("eval_stats_logger.py")
 
@@ -57,9 +58,13 @@ class EvalStatsLogger:
             json.dump(eval_stats, f, indent=4)
         logger.info(f"Saved eval stats to {self._json_path}")
 
-    def _log_to_wandb(self, artifact_name: str):
+    def _log_to_wandb(self, artifact_name: str, eval_stats):
         artifact = wandb.Artifact(name=artifact_name, type=artifact_name)
-        artifact.add_file(self._json_path)
+        zip_file_path = self._json_path + ".gz"
+        with gzip.open(zip_file_path, 'wt', encoding='utf-8') as f:
+            json.dump(eval_stats, f)
+        artifact = wandb.Artifact(name=artifact_name, type=artifact_name)
+        artifact.add_file(zip_file_path)
         artifact.save()
         artifact.wait()
         self._wandb_run.log_artifact(artifact)
@@ -81,6 +86,6 @@ class EvalStatsLogger:
         self._log_to_file(eval_stats)
 
         if self.artifact_name is not None:
-            self._log_to_wandb(self.artifact_name)
+            self._log_to_wandb(self.artifact_name, eval_stats)
 
         return eval_stats
