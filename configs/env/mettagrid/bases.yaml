@@ -22,7 +22,7 @@ game:
         height: ${uniform:10,50,10}
         border_width: 0
 
-        agents: 6
+        agents: ${div:${....num_agents},4}
 
         objects:
           generator: ${uniform:1,10,2}
