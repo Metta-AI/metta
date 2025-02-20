@@ -1,0 +1,55 @@
+# @package __global__
+
+seed: null
+
+defaults:
+  - override /eval: eval_suite
+  - override /env/mettagrid@env: simple
+  - override /agent: simple.medium
+  - override /sweep: fast
+  - override /analyzer: analyzer
+
+analyzer:
+  analysis:
+    metrics:
+    - metric: "action.use.altar.agent"
+
+policy_uri: ${trained_policy_uri}
+eval_db_uri: wandb://artifacts/daphne_eval_testing
+#eval_db_uri: file://daphne/daphne_eval_stats
+
+npc_policy_uri: null
+
+env:
+  # sampling: 0.7
+  game:
+    max_steps: 1000
+
+    map_builder:
+      border_width: 0
+
+trainer:
+  evaluate_interval: 2
+
+eval:
+  num_envs: 2
+  num_episodes: 2
+  max_time_s: 300
+
+  policy_uri: ${..policy_uri}
+  npc_policy_uri: ${..npc_policy_uri}
+ # eval_db_uri: ${..eval_db_uri} #file://daphne/sweep_stats
+
+wandb:
+  enabled: true
+  track: true
+  checkpoint_interval: 1
+evaluate_interval: 1
+
+sweep:
+  metric: "action.use.altar.agent"
+
+cmd: ???
+run_id: 12
+run: ${oc.env:USER}.local.${cmd}.${run_id}
+trained_policy_uri: ./train_dir/${oc.env:USER}.local.train.${run_id}/checkpoints

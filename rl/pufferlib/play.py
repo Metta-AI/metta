@@ -3,18 +3,19 @@ import torch
 import numpy as np
 from mettagrid.renderer.raylib.raylib_renderer import MettaGridRaylibRenderer
 from rl.pufferlib.vecenv import make_vecenv
-from agent.policy_store import PolicyRecord
+from agent.policy_store import PolicyStore
 
-def play(cfg: OmegaConf, policy_record: PolicyRecord):
+def play(cfg: OmegaConf, policy_store: PolicyStore):
     device = cfg.device
-    vecenv = make_vecenv(cfg, num_envs=1, render_mode="human")
+    vecenv = make_vecenv(cfg.env, cfg.vectorization, num_envs=1, render_mode="human")
 
     obs, _ = vecenv.reset()
     env = vecenv.envs[0]
-    policy = policy_record.policy()
+    policy_record = policy_store.policy(cfg.policy_uri)
 
     assert policy_record.metadata["action_names"] == env._c_env.action_names(), \
         f"Action names do not match: {policy_record.metadata['action_names']} != {env._c_env.action_names()}"
+    policy = policy_record.policy()
 
     renderer = MettaGridRaylibRenderer(env._c_env, env._env_cfg.game)
     policy_rnn_state = None
@@ -35,14 +36,14 @@ def play(cfg: OmegaConf, policy_record: PolicyRecord):
                 actions, _, _, _, _, _ = policy(obs) #if we are not using an RNN, then we don't need the rnn state
 
         renderer.update(
-            env._c_env.unflatten_actions(actions.cpu().numpy()),
+            actions.cpu().numpy(),
             obs,
             rewards,
             total_rewards,
             env._c_env.current_timestep(),
         )
         renderer.render_and_wait()
-        actions = env._c_env.flatten_actions(renderer.get_actions())
+        actions = renderer.get_actions()
 
         obs, rewards, dones, truncated, infos = vecenv.step(actions)
         total_rewards += rewards
