@@ -121,7 +121,7 @@ game:
 
   actions:
     noop:
-      enabled: false
+      enabled: true
       cost: 0
     move:
       enabled: true
@@ -150,3 +150,21 @@ game:
     change_color:
       enabled: false
       cost: 0
+
+objects:
+    altar:
+      hp: 30
+      cooldown: 0
+      use_cost: 0
+
+    converter:
+      hp: 30
+      cooldown: 0
+      # This is Dave's fault. Or Cython's. Or mine.
+   
+
+    generator:
+      hp: 30
+      cooldown: 0
+      initial_resources: ${uniform:1, 30, 5}
+      use_cost: 0
