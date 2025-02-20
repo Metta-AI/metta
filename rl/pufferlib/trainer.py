@@ -98,8 +98,8 @@ class PufferTrainer:
         logger.info("Starting training")
 
         # it doesn't make sense to evaluate more often than checkpointing since we need a saved policy to evaluate
-        # if self.trainer_cfg.evaluate_interval < self.trainer_cfg.checkpoint_interval:
-        #     self.trainer_cfg.evaluate_interval = self.trainer_cfg.checkpoint_interval
+        if self.trainer_cfg.evaluate_interval < self.trainer_cfg.checkpoint_interval and self.trainer_cfg.evaluate_interval != 0:
+            self.trainer_cfg.evaluate_interval = self.trainer_cfg.checkpoint_interval
 
         print(f"wandb checkpoint interval: {self.trainer_cfg.wandb_checkpoint_interval}")
         print(f"trainercheckpoint interval: {self.trainer_cfg.checkpoint_interval}")
