@@ -76,23 +76,23 @@ game:
   objects:
     altar:
       hp: 30
-      cooldown: ${uniform:1, 10, 2}
+      cooldown: ${uniform:1, 20, 10}
 
     mine:
       hp: 30
-      cooldown: ${uniform:0, 100, 20}
+      cooldown: ${uniform:0, 100, 50}
 
     generator:
       hp: 30
-      cooldown: ${uniform:0, 10, 5}
+      cooldown: ${uniform:0, 50, 25}
 
     armory:
       hp: 30
-      cooldown: ${uniform:0, 10, 5}
+      cooldown: ${uniform:0, 20, 10}
 
     lasery:
       hp: 30
-      cooldown: ${uniform:0, 10, 5}
+      cooldown: ${uniform:0, 20, 10}
 
     lab:
       hp: 30
