@@ -14,8 +14,9 @@ import wandb
 from agent.policy_store import PolicyStore
 from fast_gae import fast_gae
 from omegaconf import OmegaConf
-from util.stats_library import Glicko2Test, get_test_results
+import torch.nn.functional as F
 
+from util.stats_library import Glicko2Test, get_test_results
 from rl.pufferlib.experience import Experience
 from rl.pufferlib.profile import Profile
 from rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
@@ -42,7 +43,10 @@ class PufferTrainer:
         self.wandb_run = wandb_run
         self.policy_store = policy_store
         self.use_e3b = self.trainer_cfg.use_e3b
-        self.average_reward = 0.0  # Initialize average reward estimate
+        self.average_reward = 0.0  # Initialize average reward estimatel
+
+        target = np.array([0, 1, 0.1, 0.05, 0.5, 0.5, 0.5, 0.25, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+        self.target_dist = torch.tensor(target/target.sum()).to(self.device)
 
         self._make_vecenv()
 
@@ -94,8 +98,8 @@ class PufferTrainer:
         logger.info("Starting training")
 
         # it doesn't make sense to evaluate more often than checkpointing since we need a saved policy to evaluate
-        if self.trainer_cfg.evaluate_interval < self.trainer_cfg.checkpoint_interval:
-            self.trainer_cfg.evaluate_interval = self.trainer_cfg.checkpoint_interval
+        # if self.trainer_cfg.evaluate_interval < self.trainer_cfg.checkpoint_interval:
+        #     self.trainer_cfg.evaluate_interval = self.trainer_cfg.checkpoint_interval
 
         print(f"wandb checkpoint interval: {self.trainer_cfg.wandb_checkpoint_interval}")
         print(f"trainercheckpoint interval: {self.trainer_cfg.checkpoint_interval}")
@@ -198,7 +202,7 @@ class PufferTrainer:
                 if lstm_h is not None:
                     h = lstm_h[:, env_id]
                     c = lstm_c[:, env_id]
-                    actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward = policy(o_device, (h, c), e3b=e3b)
+                    actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward, logits = policy(o_device, (h, c), e3b=e3b)
                     lstm_h[:, env_id] = h
                     lstm_c[:, env_id] = c
 
@@ -290,7 +294,7 @@ class PufferTrainer:
 
                 with profile.train_forward:
                     if experience.lstm_h is not None:
-                        _, newlogprob, entropy, newvalue, lstm_state, _, _ = self.policy(
+                        _, newlogprob, entropy, newvalue, lstm_state, _, _, newlogits = self.policy(
                             obs, state=lstm_state, action=atn)
                         lstm_state = (lstm_state[0].detach(), lstm_state[1].detach())
 
@@ -342,6 +346,22 @@ class PufferTrainer:
 
                     entropy_loss = entropy.mean()
 
+                    import torch.nn.functional as F
+
+                    # Suppose self.target_dist is defined on the CPU; move it to the correct device:
+                    target_dist = self.target_dist.to(obs.device)  # shape: [num_actions]
+
+                    # Expand it to match the batch size. If logits is [B, A]:
+                    # (Alternatively, you can do the log and softmax computation in one step.)
+                    policy_probs = F.softmax(newlogits, dim=-1)             # shape: [B, A]
+                    policy_log_probs = F.log_softmax(newlogits, dim=-1)       # shape: [B, A]
+                    target_log_probs = torch.log(target_dist + 1e-8)       # shape: [A]
+                    target_log_probs = target_log_probs.unsqueeze(0).expand_as(policy_log_probs)
+
+                    # Compute the per-sample KL divergence and then average:
+                    kl_div = (policy_probs * (policy_log_probs - target_log_probs)).sum(dim=-1).mean()
+
+
                     l2_reg_loss = torch.tensor(0.0, device=self.device)
                     if self.trainer_cfg.l2_reg_loss_coef > 0:
                         l2_reg_loss = self.trainer_cfg.l2_reg_loss_coef * self.policy.l2_reg_loss().to(self.device)
@@ -350,7 +370,9 @@ class PufferTrainer:
                     if self.trainer_cfg.l2_init_loss_coef > 0:
                         l2_init_loss = self.trainer_cfg.l2_init_loss_coef * self.policy.l2_init_loss().to(self.device)
 
-                    loss = pg_loss - self.trainer_cfg.ent_coef * entropy_loss + v_loss * self.trainer_cfg.vf_coef + l2_reg_loss + l2_init_loss
+                    # loss = pg_loss - self.trainer_cfg.ent_coef * entropy_loss + v_loss * self.trainer_cfg.vf_coef + l2_reg_loss + l2_init_loss
+                    loss = pg_loss - self.trainer_cfg.epi_coef * kl_div + v_loss * self.trainer_cfg.vf_coef + l2_reg_loss + l2_init_loss
+
 
                 with profile.learn:
                     self.optimizer.zero_grad()
