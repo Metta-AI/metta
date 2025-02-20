@@ -28,7 +28,18 @@ class ObsShaper(LayerBase):
         x = x.float()
 
         # conv expects [batch, channel, w, h]. Below is hardcoded for [batch, w, h, channel]
-        x = x.permute(0, 3, 1, 2)
+        if x.device.type == 'mps':
+            x = self._mps_permute(x)
+        else:
+            x = x.permute(0, 3, 1, 2)
 
         td[self.name] = x
         return td
+    
+    def _mps_permute(self, x):
+        '''For compatibility with MPS, it throws an error on .permute()'''
+        bs, h, w, c = x.shape
+        x = x.contiguous().view(bs, h * w, c)
+        x = x.transpose(1, 2)
+        x = x.contiguous().view(bs, c, h, w)
+        return x
