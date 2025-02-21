@@ -9,12 +9,12 @@ import pufferlib
 import pufferlib.utils
 import torch
 import wandb
-from agent.policy_store import PolicyStore
 from fast_gae import fast_gae
 from omegaconf import OmegaConf
 from pathlib import Path
 from tqdm import tqdm
 
+from agent.policy_store import PolicyStore
 from rl.eval.eval_stats_logger import EvalStatsLogger
 from rl.eval.eval_stats_db import EvalStatsDB
 from rl.pufferlib.experience import Experience
@@ -22,7 +22,7 @@ from rl.pufferlib.profile import Profile
 from rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
 from rl.pufferlib.vecenv import make_vecenv
 from rl.pufferlib.trace import save_trace_image
-
+from rl.pufferlib.kickstarter import Kickstarter
 torch.set_float32_matmul_precision('high')
 
 logger = logging.getLogger("trainer")
@@ -91,6 +91,8 @@ class PufferTrainer:
             wandb_run.define_metric("train/agent_step")
             for k in ["0verview", "env", "losses", "performance", "train"]:
                 wandb_run.define_metric(f"{k}/*", step_metric="train/agent_step")
+
+        self.kickstarter = Kickstarter(self)
 
     def train(self):
         self.train_start = time.time()
@@ -165,6 +167,12 @@ class PufferTrainer:
             lstm_h, lstm_c = experience.lstm_h, experience.lstm_c
             e3b_inv = experience.e3b_inv
 
+            #ks need to get each teacher's lstm
+            for teacher in self.kickstarter.teachers:
+
+                with profile.eval_misc:
+                    actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward = teacher(o_device, (h, c), e3b=e3b)
+
         while not experience.full:
             with profile.env:
                 o, r, d, t, info, env_id, mask = self.vecenv.recv()
@@ -190,6 +198,8 @@ class PufferTrainer:
                     actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward = policy(o_device, (h, c), e3b=e3b)
                     lstm_h[:, env_id] = h
                     lstm_c[:, env_id] = c
+
+                self.kickstarter.forward(o_device, env_id)
 
                 if self.use_e3b:
                     e3b_inv[env_id] = next_e3b
@@ -226,6 +236,7 @@ class PufferTrainer:
         # TODO: Better way to enable multiple collects
         experience.ptr = 0
         experience.step = 0
+        self.kickstarter.reset_experiences()
         return self.stats, infos
 
     @pufferlib.utils.profile
@@ -331,6 +342,8 @@ class PufferTrainer:
 
                     entropy_loss = entropy.mean()
 
+                    ks_action_loss, ks_value_loss = self.kickstarter.loss(mb, newlogprob, newvalue) # ks
+
                     l2_reg_loss = torch.tensor(0.0, device=self.device)
                     if self.trainer_cfg.l2_reg_loss_coef > 0:
                         l2_reg_loss = self.trainer_cfg.l2_reg_loss_coef * self.policy.l2_reg_loss().to(self.device)
@@ -339,7 +352,7 @@ class PufferTrainer:
                     if self.trainer_cfg.l2_init_loss_coef > 0:
                         l2_init_loss = self.trainer_cfg.l2_init_loss_coef * self.policy.l2_init_loss().to(self.device)
 
-                    loss = pg_loss - self.trainer_cfg.ent_coef * entropy_loss + v_loss * self.trainer_cfg.vf_coef + l2_reg_loss + l2_init_loss
+                    loss = pg_loss - self.trainer_cfg.ent_coef * entropy_loss + v_loss * self.trainer_cfg.vf_coef + l2_reg_loss + l2_init_loss + ks_action_loss + ks_value_loss
 
                 with profile.learn:
                     self.optimizer.zero_grad()
@@ -362,6 +375,8 @@ class PufferTrainer:
                     self.losses.clipfrac += clipfrac.item() / total_minibatches
                     self.losses.l2_reg_loss += l2_reg_loss.item() / total_minibatches
                     self.losses.l2_init_loss += l2_init_loss.item() / total_minibatches
+                    self.losses.ks_action_loss += ks_action_loss.item() / total_minibatches
+                    self.losses.ks_value_loss += ks_value_loss.item() / total_minibatches
 
             if self.trainer_cfg.target_kl is not None:
                 if approx_kl > self.trainer_cfg.target_kl:
@@ -492,6 +507,8 @@ class PufferTrainer:
             explained_variance=0,
             l2_reg_loss=0,
             l2_init_loss=0,
+            ks_action_loss=0,
+            ks_value_loss=0,
         )
 
     def _make_vecenv(self):
@@ -529,3 +546,5 @@ class AbortingTrainer(PufferTrainer):
         self.wandb_run.config.update({
             "trainer.total_timesteps": self.cfg.trainer.total_timesteps
         }, allow_val_change=True)
+
+

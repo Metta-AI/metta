@@ -52,4 +52,11 @@ stats:
     episode/reward.mean: episode_reward
   step: train/agent_step
 
-
+kickstart: true
+teachers:
+  - policy_uri: wandb://run/simple.standard.multi.discrete2.20.24.r.0
+    action_coef: 1
+    value_coef: 1
+  - policy_uri: wandb://run/simple.standard.multi.discrete2.20.24.r.1
+    action_coef: 1
+    value_coef: 1
