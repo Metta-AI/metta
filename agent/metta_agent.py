@@ -76,6 +76,8 @@ class MettaAgent(nn.Module):
         self._setup_components(component)
         component = self.components['_action_param_']
         self._setup_components(component)
+        component = self.components['_action_type_']
+        self._setup_components(component)
 
         for name, component in self.components.items():
             if not getattr(component, 'ready', False):
@@ -126,7 +128,8 @@ class MettaAgent(nn.Module):
 
         self.components["_value_"](td)
         self.components["_action_param_"](td)
-
+        self.components["_action_type_"](td)
+        
         logits = td["_action_param_"]
         value = td["_value_"]
         state = td["state"] 

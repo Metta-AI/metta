@@ -31,8 +31,8 @@ class LayerBase(nn.Module):
     forward method of the layer above it.'''
     def __init__(self, name, input_source=None, output_size=None, nn_params={}, **cfg):
         super().__init__()
-        self.name = name
-        self.input_source = input_source
+        self.name = name # must be set upfront
+        self.input_source = input_source # must be set upfront but can be null
         self.output_size = output_size
         self.nn_params = nn_params
         self.net = None
