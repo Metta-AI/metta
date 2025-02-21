@@ -21,6 +21,7 @@ from rl.pufferlib.experience import Experience
 from rl.pufferlib.profile import Profile
 from rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
 from rl.pufferlib.vecenv import make_vecenv
+from rl.pufferlib.trace import save_trace_image
 
 torch.set_float32_matmul_precision('high')
 
@@ -114,6 +115,9 @@ class PufferTrainer:
                 self._evaluate_policy()
             if self.epoch % self.trainer_cfg.wandb_checkpoint_interval == 0:
                 self._save_policy_to_wandb()
+            if (self.trainer_cfg.trace_interval != 0 and
+                self.epoch % self.trainer_cfg.trace_interval == 0):
+                self._save_trace_to_wandb()
 
             self._on_train_step()
 
@@ -390,6 +394,11 @@ class PufferTrainer:
         if self.wandb_run and self.cfg.wandb.track:
             pr = self._checkpoint_policy()
             self.policy_store.add_to_wandb_run(self.wandb_run.name, pr)
+
+    def _save_trace_to_wandb(self):
+        image_path = f"{self.cfg.run_dir}/traces/trace.{self.epoch}.png"
+        save_trace_image(self.cfg, self.last_pr, image_path)
+        wandb.log({"traces/actions": wandb.Image(image_path)})
 
     def _process_stats(self):
         for k in list(self.stats.keys()):

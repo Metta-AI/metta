@@ -3,7 +3,7 @@ defaults:
   - mettagrid
 
 game:
-  num_agents: 20
+  num_agents: 24
 
   map_builder:
     _target_: mettagrid.config.room.room_scene.RoomScene
@@ -18,39 +18,40 @@ game:
     rooms:
       base:
         _target_: mettagrid.config.room.random.Random
-        width: ${uniform:10,100,25}
-        height: ${uniform:10,100,25}
-        border_width: 1
+        width: ${uniform:10,50,10}
+        height: ${uniform:10,50,10}
+        border_width: 0
 
-        agents: 5
+        agents: ${div:${....num_agents},4}
 
         objects:
-          altar: ${uniform:1,3,1}
-          converter: ${uniform:1,10,3}
-          generator: ${uniform:1,30,3}
-          wall: ${uniform:0,90,40}
+          generator: ${uniform:1,10,2}
+          armory: ${uniform:1,5,1}
+          lasery: ${uniform:1,5,1}
+          lab: ${uniform:1,5,1}
+          factory: ${uniform:1,5,1}
+          temple: ${uniform:1,5,1}
+          wall: ${uniform:0,10,5}
 
       wild:
         _target_: mettagrid.config.room.random.Random
-        width: ${uniform:10,100,25}
-        height: ${uniform:10,100,25}
+        width: ${uniform:10,50,20}
+        height: ${uniform:10,50,20}
         border_width: 0
 
         objects:
+          mine: ${uniform:1,20,10}
           altar: ${uniform:1,5,1}
-          converter: ${uniform:1,15,5}
-          generator: ${uniform:1,50,15}
-          wall: ${uniform:10,100,40}
+          wall: ${uniform:0,20,5}
 
       center:
         _target_: mettagrid.config.room.random.Random
-        width: ${uniform:10,100,25}
-        height: ${uniform:10,100,25}
+        width: ${uniform:10,50,10}
+        height: ${uniform:10,50,10}
         border_width: 0
 
         objects:
-          altar: ${uniform:1,10,5}
-          converter: ${uniform:1,15,5}
-          generator: ${uniform:1,80,40}
-          wall: ${uniform:10,60,10}
+          altar: ${uniform:1,3,2}
+          wall: ${uniform:0,20,5}
+          generator: ${uniform:1,10,2}
 
