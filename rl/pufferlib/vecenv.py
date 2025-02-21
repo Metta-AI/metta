@@ -6,6 +6,7 @@ import hydra
 from mettagrid.config.config import setup_omega_conf
 
 def make_env_func(cfg: OmegaConf, buf=None, render_mode='rgb_array'):
+    setup_omega_conf()
     env = hydra.utils.instantiate(cfg, buf=buf, render_mode=render_mode, _recursive_=False)
     return env
 
@@ -18,7 +19,6 @@ def make_vecenv(
     render_mode=None,
     **kwargs
 ):
-    setup_omega_conf()
 
     vec = vectorization
     if vec == 'serial' or num_workers == 1:
