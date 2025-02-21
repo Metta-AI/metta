@@ -21,6 +21,7 @@ from rl.pufferlib.experience import Experience
 from rl.pufferlib.profile import Profile
 from rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
 from rl.pufferlib.vecenv import make_vecenv
+from rl.pufferlib.trace import save_trace_image
 
 torch.set_float32_matmul_precision('high')
 
@@ -101,19 +102,11 @@ class PufferTrainer:
             self.trainer_cfg.evaluate_interval = self.trainer_cfg.checkpoint_interval
 
         while self.agent_step < self.trainer_cfg.total_timesteps:
-            logger.info(f"Training: {self.agent_step}, {self.epoch}")
-            start_time = time.time()
-
             # Collecting experience
-            eval_pbar = tqdm(total=self.experience.batch_size, desc="Collecting Experience", leave=False)
-            self._evaluate(eval_pbar)
-            eval_pbar.close()
+            self._evaluate()
 
             # Training on collected experience
-            total_minibatches = self.experience.num_minibatches * self.trainer_cfg.update_epochs
-            train_pbar = tqdm(total=total_minibatches, desc="Training", leave=False)
-            self._train(train_pbar)
-            train_pbar.close()
+            self._train()
 
             self._process_stats()
             if self.epoch % self.trainer_cfg.checkpoint_interval == 0:
@@ -122,12 +115,11 @@ class PufferTrainer:
                 self._evaluate_policy()
             if self.epoch % self.trainer_cfg.wandb_checkpoint_interval == 0:
                 self._save_policy_to_wandb()
+            if (self.trainer_cfg.trace_interval != 0 and
+                self.epoch % self.trainer_cfg.trace_interval == 0):
+                self._save_trace_to_wandb()
 
             self._on_train_step()
-            logger.info(
-                f"Training step {self.agent_step} completed in "\
-                f"{time.time() - start_time:.2f} seconds "\
-                f"({self.profile.SPS:.2f} SPS)")
 
         self.train_time = time.time() - self.train_start
         self._checkpoint_trainer()
@@ -149,7 +141,7 @@ class PufferTrainer:
         pass
 
     @pufferlib.utils.profile
-    def _evaluate(self, pbar=None):
+    def _evaluate(self):
         experience, profile = self.experience, self.profile
 
         with profile.eval_misc:
@@ -166,8 +158,6 @@ class PufferTrainer:
             with profile.eval_misc:
                 num_steps = sum(mask)
                 self.agent_step += num_steps
-                if pbar:
-                    pbar.update(num_steps)
 
                 o = torch.as_tensor(o)
                 o_device = o.to(self.device)
@@ -226,7 +216,7 @@ class PufferTrainer:
         return self.stats, infos
 
     @pufferlib.utils.profile
-    def _train(self, pbar=None):
+    def _train(self):
         experience, profile = self.experience, self.profile
         self.losses = self._make_losses()
 
@@ -343,9 +333,6 @@ class PufferTrainer:
                     self.losses.approx_kl += approx_kl.item() / total_minibatches
                     self.losses.clipfrac += clipfrac.item() / total_minibatches
 
-                if pbar:
-                    pbar.update(1)
-
             if self.trainer_cfg.target_kl is not None:
                 if approx_kl > self.trainer_cfg.target_kl:
                     break
@@ -406,6 +393,11 @@ class PufferTrainer:
         if self.wandb_run and self.cfg.wandb.track:
             pr = self._checkpoint_policy()
             self.policy_store.add_to_wandb_run(self.wandb_run.name, pr)
+
+    def _save_trace_to_wandb(self):
+        image_path = f"{self.cfg.run_dir}/traces/trace.{self.epoch}.png"
+        save_trace_image(self.cfg, self.last_pr, image_path)
+        wandb.log({"traces/actions": wandb.Image(image_path)})
 
     def _process_stats(self):
         for k in list(self.stats.keys()):
