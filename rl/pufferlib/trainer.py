@@ -45,6 +45,7 @@ class PufferTrainer:
         self.use_e3b = self.trainer_cfg.use_e3b
         self.eval_stats_logger = EvalStatsLogger(cfg, wandb_run)
         self.average_reward = 0.0  # Initialize average reward estimate
+        self.policy_fitness = []
 
         self._make_vecenv()
 
@@ -128,9 +129,10 @@ class PufferTrainer:
         stats = eval.evaluate()
         self.eval_stats_logger.log(stats)
 
-        eval_stats_db = EvalStatsDB.from_uri(self.cfg.eval.eval_db_uri, self.wandb_run)
+        eval_stats_db = EvalStatsDB.from_uri(self.cfg.eval.eval_db_uri, self.cfg.run_dir, self.wandb_run)
         analyzer = hydra.utils.instantiate(self.cfg.analyzer, eval_stats_db)
-        analyzer.analyze()
+        _, policy_fitness_records = analyzer.analyze()
+        self.policy_fitness = policy_fitness_records
 
     def _on_train_step(self):
         pass
@@ -405,11 +407,18 @@ class PufferTrainer:
                 if k in self.stats:
                     overview[v] = self.stats[k]
 
+            policy_fitness_metrics = {
+                f'pfs/{r["eval"]}:{r["metric"]}': r["fitness"]
+                for r in self.policy_fitness
+            }
+            self.policy_fitness = []
+
             self.wandb_run.log({
                 **{f'0verview/{k}': v for k, v in overview.items()},
                 **{f'env/{k}': v for k, v in self.stats.items()},
                 **{f'losses/{k}': v for k, v in self.losses.items()},
                 **{f'performance/{k}': v for k, v in self.profile},
+                **policy_fitness_metrics,
                 'train/agent_step': self.agent_step,
                 'train/epoch': self.epoch,
                 'train/learning_rate': self.optimizer.param_groups[0]["lr"],

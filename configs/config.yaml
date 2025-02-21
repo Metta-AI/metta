@@ -1,19 +1,3 @@
-<<<<<<< HEAD
-run: ???
-data_dir: ./train_dir
-run_dir: ${data_dir}/${run}
-sweep_id: null
-
-vectorization: multiprocessing
-dashboard: false
-
-seed: 1
-device: cpu
-torch_deterministic: true
-eval_db_uri: wandb://artifacts/eval_stats
-
-=======
->>>>>>> d3305575d9a86474c61f693fa42d155399a85b0f
 defaults:
   - agent: simple
   - env/mettagrid@env: simple
@@ -24,7 +8,7 @@ defaults:
   - analyzer: analyzer
 
 seed: 1
-eval_db_uri: wandb://artifacts/eval_stats
+eval_db_uri: null
 run: ???
 data_dir: ./train_dir
 run_dir: ${data_dir}/${run}

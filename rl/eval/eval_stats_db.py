@@ -66,10 +66,13 @@ class EvalStatsDB:
             stats_df = df_per_episode.agg(['mean', 'std'])
             metric_df = stats_df.T.reset_index()
             metric_df.columns = ['eval_name', 'policy_name', 'mean', 'std']
-        return df_per_episode, metric_df
+        return metric_df
 
     @staticmethod
-    def from_uri(uri: str, wandb_run = None):
+    def from_uri(uri: str, run_dir: str, wandb_run = None):
+        # We want eval stats to be the same for train, analysis and eval for a particular run
+        save_dir = run_dir.replace("analyze", "train").replace("eval", "train")
+        uri = uri or os.path.join(save_dir, "eval_stats")
         if uri.startswith("wandb://"):
             artifact_name = uri.split("/")[-1]
             return EvalStatsDbWandb(artifact_name, wandb_run)
