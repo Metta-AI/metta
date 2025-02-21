@@ -19,10 +19,6 @@ vf_coef: 0.5
 l2_reg_loss_coef: 0
 l2_init_loss_coef: 0
 
-# Average reward settings
-average_reward: false  # Set to true to use average reward optimization
-average_reward_alpha: 0.01  # Smoothing factor for 100k step average (ln(2)/100000)
-
 norm_adv: true
 clip_vloss: true
 target_kl: null
@@ -53,3 +49,4 @@ stats:
   step: train/agent_step
 
 
+num_gpus: 1

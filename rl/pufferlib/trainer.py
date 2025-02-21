@@ -3,6 +3,8 @@ import os
 import time
 from collections import defaultdict
 from copy import deepcopy
+from pathlib import Path
+
 import hydra
 import numpy as np
 import pufferlib
@@ -12,16 +14,16 @@ import wandb
 from agent.policy_store import PolicyStore
 from fast_gae import fast_gae
 from omegaconf import OmegaConf
-from pathlib import Path
+from torch.nn.parallel import DistributedDataParallel
 from tqdm import tqdm
 
-from rl.eval.eval_stats_logger import EvalStatsLogger
 from rl.eval.eval_stats_db import EvalStatsDB
+from rl.eval.eval_stats_logger import EvalStatsLogger
 from rl.pufferlib.experience import Experience
 from rl.pufferlib.profile import Profile
+from rl.pufferlib.trace import save_trace_image
 from rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
 from rl.pufferlib.vecenv import make_vecenv
-from rl.pufferlib.trace import save_trace_image
 
 torch.set_float32_matmul_precision('high')
 
@@ -77,6 +79,9 @@ class PufferTrainer:
 
         if self.trainer_cfg.compile:
             self.policy = torch.compile(self.policy, mode=self.trainer_cfg.compile_mode)
+
+        if self.trainer_cfg.num_gpus > 1:
+            self.policy = DistributedDataParallel(self.policy, device_ids=[self.device])
 
         self._make_experience_buffer()
 
@@ -336,7 +341,7 @@ class PufferTrainer:
                     l2_reg_loss = torch.tensor(0.0, device=self.device)
                     if self.trainer_cfg.l2_reg_loss_coef > 0:
                         l2_reg_loss = self.trainer_cfg.l2_reg_loss_coef * self.policy.l2_reg_loss().to(self.device)
-                    
+
                     l2_init_loss = torch.tensor(0.0, device=self.device)
                     if self.trainer_cfg.l2_init_loss_coef > 0:
                         l2_init_loss = self.trainer_cfg.l2_init_loss_coef * self.policy.l2_init_loss().to(self.device)
