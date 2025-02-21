@@ -7,7 +7,6 @@
 #include "../stats_tracker.hpp"
 #include "constants.hpp"
 #include "metta_object.hpp"
-
 typedef unsigned char ObsType;
 
 class Agent : public MettaObject {
@@ -19,11 +18,13 @@ public:
     std::vector<unsigned char> inventory;
     unsigned char max_items;
     std::vector<float> resource_rewards;
+    std::vector<float> resource_reward_max;
     float action_failure_penalty;
     std::string group_name;
     unsigned char color;
     unsigned char agent_id;
     StatsTracker stats;
+    float cards_reward;
 
     Agent(
         GridCoord r, GridCoord c,
@@ -45,28 +46,52 @@ public:
         for (int i = 0; i < InventoryItem::InventoryCount; i++) {
             this->resource_rewards[i] = rewards[InventoryItemNames[i]];
         }
+        this->resource_reward_max.resize(InventoryItem::InventoryCount);
+        for (int i = 0; i < InventoryItem::InventoryCount; i++) {
+            this->resource_reward_max[i] = rewards[InventoryItemNames[i] + ".max"];
+        }
         this->action_failure_penalty = rewards["action_failure_penalty"];
         this->color = 0;
+        this->cards_reward = 0;
     }
 
     void update_inventory(InventoryItem item, short amount, float *reward) {
-        this->inventory[static_cast<int>(item)] += amount;
-        if (reward != nullptr) {
-            *reward += amount * this->resource_rewards[static_cast<int>(item)];
+        int current_amount = this->inventory[static_cast<int>(item)];
+        int new_amount = current_amount + amount;
+        if (new_amount > this->max_items) {
+            new_amount = this->max_items;
+        }
+        if (new_amount < 0) {
+            new_amount = 0;
         }
 
-        if (this->inventory[static_cast<int>(item)] > this->max_items) {
-            this->inventory[static_cast<int>(item)] = this->max_items;
-        }
-        if (this->inventory[static_cast<int>(item)] < 0) {
-            this->inventory[static_cast<int>(item)] = 0;
+        int delta = new_amount - current_amount;
+        this->inventory[static_cast<int>(item)] = new_amount;
+
+        if (delta > 0) {
+            this->stats.add(InventoryItemNames[item], "gained", delta);
+        } else if (delta < 0) {
+            this->stats.add(InventoryItemNames[item], "lost", -delta);
         }
 
-        if (amount > 0) {
-            this->stats.add(InventoryItemNames[item], "gained", amount);
-        } else {
-            this->stats.add(InventoryItemNames[item], "lost", -amount);
+        this->compute_resource_reward(item, reward);
+    }
+
+    inline void compute_resource_reward(InventoryItem item, float *reward) {
+        if (this->resource_rewards[static_cast<int>(item)] == 0) {
+            return;
         }
+
+        float new_reward = 0;
+        for (int i = 0; i < InventoryItem::InventoryCount; i++) {
+            float max_val = static_cast<float>(this->inventory[i]);
+            if (max_val > this->resource_reward_max[i]) {
+                max_val = this->resource_reward_max[i];
+            }
+            new_reward += this->resource_rewards[i] * max_val;
+        }
+        *reward += (new_reward - this->cards_reward);
+        this->cards_reward = new_reward;
     }
 
     inline void obs(ObsType* obs) const {
