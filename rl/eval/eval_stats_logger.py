@@ -85,6 +85,8 @@ class EvalStatsLogger:
         else:
             self._add_additional_fields(eval_stats)
 
+        self._log_to_file(eval_stats)
+
         if self.artifact_name is not None:
             self._log_to_wandb(self.artifact_name, eval_stats)
         else:
