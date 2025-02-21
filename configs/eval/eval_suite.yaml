@@ -6,22 +6,14 @@ defaults:
 env: null #the env is set in evals:
 
 evals:
-  cylinder:
-    env: env/mettagrid/cylinder
-    npc_policy_uri: wandb://run/mb.daveey.sm.nr
-    policy_agents_pct: 0.5
-
   simple:
     env: env/mettagrid/simple
-    policy_agents_pct: 0.5
-    npc_policy_uri: wandb://run/mb.daveey.sm.nr
+    policy_agents_pct: 1.0
 
   school:
     env: env/mettagrid/school
-    npc_policy_uri: wandb://run/mb.daveey.sm.nr
-    policy_agents_pct: 0.5
+    policy_agents_pct: 1.0
 
   teams:
     env: env/mettagrid/teams
-    npc_policy_uri: wandb://run/mb.daveey.sm.nr
-    policy_agents_pct: 0.5
+    policy_agents_pct: 1.0
