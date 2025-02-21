@@ -90,6 +90,7 @@ class EvalStatsDbFile(EvalStatsDB):
     Database for loading eval stats from a file.
     """
     def __init__(self, json_path: str):
+        logger.info(f"Loading eval stats from {json_path}")
         with open(json_path, "r") as f:
             data = json.load(f)
         data = self._prepare_data(data)

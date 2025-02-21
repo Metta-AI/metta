@@ -5,19 +5,17 @@ seed: null
 defaults:
   - override /eval: eval_suite
   - override /env/mettagrid@env: simple
-  - override /agent: simple.medium
+  - override /agent: simple
   - override /sweep: fast
   - override /analyzer: analyzer
 
 #policy_uri: wandb://run/cogeval_training_sweep_mini.r.9
 #policy_uri: ./train_dir/daphne.local.train.14_pfs/checkpoints/model_0050.pt
-policy_uri: ./train_dir/daphne.local.train.16_pfs/checkpoints
+#policy_uri: ${trained_policy_uri}
 
 npc_policy_uri: null
 
 analyzer:
-  policy_uri: ${..policy_uri}
-
   analysis:
     baseline_policies:
       - ./train_dir/daphne.local.train.16_pfs/checkpoints
@@ -35,9 +33,6 @@ eval:
   num_envs: 2
   num_episodes: 2
   max_time_s: 300
-
-  policy_uri: ${..policy_uri}
-  npc_policy_uri: ${..npc_policy_uri}
  # eval_db_uri: ${..eval_db_uri} #file://daphne/sweep_stats
 
 wandb:
@@ -50,6 +45,6 @@ sweep:
   metric: "action.use.altar.agent"
 
 cmd: ???
-run_id: 17
+run_id: 18
 run: ${oc.env:USER}.local.${cmd}.${run_id}
 trained_policy_uri: ./train_dir/${oc.env:USER}.local.train.${run_id}/checkpoints
