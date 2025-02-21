@@ -46,6 +46,7 @@ class PufferTrainer:
         self.use_e3b = self.trainer_cfg.use_e3b
         self.eval_stats_logger = EvalStatsLogger(cfg, wandb_run)
         self.average_reward = 0.0  # Initialize average reward estimate
+        self.policy_fitness = []
 
         self._make_vecenv()
 
@@ -97,7 +98,7 @@ class PufferTrainer:
         logger.info("Starting training")
 
         # it doesn't make sense to evaluate more often than checkpointing since we need a saved policy to evaluate
-        if self.trainer_cfg.evaluate_interval < self.trainer_cfg.checkpoint_interval:
+        if self.trainer_cfg.evaluate_interval != 0 and self.trainer_cfg.evaluate_interval < self.trainer_cfg.checkpoint_interval:
             self.trainer_cfg.evaluate_interval = self.trainer_cfg.checkpoint_interval
 
         while self.agent_step < self.trainer_cfg.total_timesteps:
@@ -110,10 +111,14 @@ class PufferTrainer:
             self._process_stats()
             if self.epoch % self.trainer_cfg.checkpoint_interval == 0:
                 self._checkpoint_trainer()
-            if self.epoch % self.trainer_cfg.evaluate_interval == 0 and self.trainer_cfg.evaluate:
+            if self.trainer_cfg.evaluate_interval != 0 and self.epoch % self.trainer_cfg.evaluate_interval == 0:
                 self._evaluate_policy()
+            if self.cfg.agent.effective_rank_interval != 0 and self.epoch % self.cfg.agent.effective_rank_interval == 0:
+                self._compute_effective_rank()
             if self.epoch % self.trainer_cfg.wandb_checkpoint_interval == 0:
                 self._save_policy_to_wandb()
+            if self.cfg.agent.l2_init_weight_update_interval != 0 and self.epoch % self.cfg.agent.l2_init_weight_update_interval == 0:
+                self._update_l2_init_weight_copy()
             if (self.trainer_cfg.trace_interval != 0 and
                 self.epoch % self.trainer_cfg.trace_interval == 0):
                 self._save_trace_to_wandb()
@@ -128,13 +133,28 @@ class PufferTrainer:
     def _evaluate_policy(self):
 
         self.cfg.eval.policy_uri = self.last_pr.uri
+        self.cfg.analyzer.policy_uri = self.last_pr.uri
+
         eval = hydra.utils.instantiate(self.cfg.eval, self.policy_store, self.last_pr, self.cfg.env, _recursive_ = False)
         stats = eval.evaluate()
         self.eval_stats_logger.log(stats)
 
-        eval_stats_db = EvalStatsDB.from_uri(self.cfg.eval.eval_db_uri, self.wandb_run)
+        eval_stats_db = EvalStatsDB.from_uri(self.cfg.eval.eval_db_uri, self.cfg.run_dir, self.wandb_run)
         analyzer = hydra.utils.instantiate(self.cfg.analyzer, eval_stats_db)
-        analyzer.analyze()
+        _, policy_fitness_records = analyzer.analyze()
+        self.policy_fitness = policy_fitness_records
+
+    def _compute_effective_rank(self):
+        effective_rank = self.policy.compute_effective_rank()
+        for rank in effective_rank:
+            self.wandb_run.log({
+                f"train/effective_rank/{rank['name']}": rank['effective_rank'],
+                "train/agent_step": self.agent_step,
+                "train/epoch": self.epoch,
+            })
+
+    def _update_l2_init_weight_copy(self):
+        self.policy.update_l2_init_weight_copy()
 
     def _on_train_step(self):
         pass
@@ -174,8 +194,6 @@ class PufferTrainer:
                     actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward = policy(o_device, (h, c), e3b=e3b)
                     lstm_h[:, env_id] = h
                     lstm_c[:, env_id] = c
-                else:
-                    actions, logprob, _, value, next_e3b, intrinsic_reward = policy(o_device, e3b=e3b)
 
                 if self.use_e3b:
                     e3b_inv[env_id] = next_e3b
@@ -268,6 +286,8 @@ class PufferTrainer:
                         _, newlogprob, entropy, newvalue, lstm_state, _, _ = self.policy(
                             obs, state=lstm_state, action=atn)
                         lstm_state = (lstm_state[0].detach(), lstm_state[1].detach())
+
+                    # the below can be deleted if no LSTM
                     else:
                         _, newlogprob, entropy, newvalue, _, _ = self.policy(
                             obs.reshape(-1, *self.vecenv.single_observation_space.shape),
@@ -314,13 +334,26 @@ class PufferTrainer:
                         v_loss = 0.5 * ((newvalue - ret) ** 2).mean()
 
                     entropy_loss = entropy.mean()
-                    loss = pg_loss - self.trainer_cfg.ent_coef * entropy_loss + v_loss * self.trainer_cfg.vf_coef
+
+                    l2_reg_loss = torch.tensor(0.0, device=self.device)
+                    if self.trainer_cfg.l2_reg_loss_coef > 0:
+                        l2_reg_loss = self.trainer_cfg.l2_reg_loss_coef * self.policy.l2_reg_loss().to(self.device)
+
+                    l2_init_loss = torch.tensor(0.0, device=self.device)
+                    if self.trainer_cfg.l2_init_loss_coef > 0:
+                        l2_init_loss = self.trainer_cfg.l2_init_loss_coef * self.policy.l2_init_loss().to(self.device)
+
+                    loss = pg_loss - self.trainer_cfg.ent_coef * entropy_loss + v_loss * self.trainer_cfg.vf_coef + l2_reg_loss + l2_init_loss
 
                 with profile.learn:
                     self.optimizer.zero_grad()
                     loss.backward()
                     torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.trainer_cfg.max_grad_norm)
                     self.optimizer.step()
+
+                    if self.cfg.agent.clip_range > 0:
+                        self.policy.clip_weights()
+
                     if self.device == 'cuda':
                         torch.cuda.synchronize()
 
@@ -331,6 +364,8 @@ class PufferTrainer:
                     self.losses.old_approx_kl += old_approx_kl.item() / total_minibatches
                     self.losses.approx_kl += approx_kl.item() / total_minibatches
                     self.losses.clipfrac += clipfrac.item() / total_minibatches
+                    self.losses.l2_reg_loss += l2_reg_loss.item() / total_minibatches
+                    self.losses.l2_init_loss += l2_init_loss.item() / total_minibatches
 
             if self.trainer_cfg.target_kl is not None:
                 if approx_kl > self.trainer_cfg.target_kl:
@@ -414,11 +449,18 @@ class PufferTrainer:
                 if k in self.stats:
                     overview[v] = self.stats[k]
 
+            policy_fitness_metrics = {
+                f'pfs/{r["eval"]}:{r["metric"]}': r["fitness"]
+                for r in self.policy_fitness
+            }
+            self.policy_fitness = []
+
             self.wandb_run.log({
                 **{f'0verview/{k}': v for k, v in overview.items()},
                 **{f'env/{k}': v for k, v in self.stats.items()},
                 **{f'losses/{k}': v for k, v in self.losses.items()},
                 **{f'performance/{k}': v for k, v in self.profile},
+                **policy_fitness_metrics,
                 'train/agent_step': self.agent_step,
                 'train/epoch': self.epoch,
                 'train/learning_rate': self.optimizer.param_groups[0]["lr"],
@@ -459,6 +501,8 @@ class PufferTrainer:
             approx_kl=0,
             clipfrac=0,
             explained_variance=0,
+            l2_reg_loss=0,
+            l2_init_loss=0,
         )
 
     def _make_vecenv(self):

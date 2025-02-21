@@ -12,7 +12,7 @@ The PolicyStore is used by the training system to manage opponent policies and c
 from omegaconf import OmegaConf
 from omegaconf.listconfig import ListConfig
 import wandb
-from rl.pufferlib.puffer_agent_wrapper import make_policy
+from agent.metta_agent import make_policy
 import torch
 import os
 import warnings
@@ -59,7 +59,7 @@ class PolicyStore:
         assert len(prs) == 1, f"Expected 1 policy, got {len(prs)}"
         return prs[0]
 
-    def _policy_records(self, uri, selector_type="top", n=1, metric="elo"):
+    def _policy_records(self, uri, selector_type="top", n=1, metric="epoch"):
         version = None
         if uri.startswith("wandb://"):
             wandb_uri = uri[len("wandb://"):]
@@ -238,8 +238,10 @@ class PolicyStore:
         if path in self._cached_prs:
             if metadata_only or self._cached_prs[path]._policy is not None:
                 return self._cached_prs[path]
-
+        if not path.endswith('.pt') and os.path.isdir(path):
+            path = os.path.join(path, os.listdir(path)[-1])
         logger.info(f"Loading policy from {path}")
+
         assert path.endswith('.pt'), f"Policy file {path} does not have a .pt extension"
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=FutureWarning)
@@ -261,9 +263,10 @@ class PolicyStore:
         logger.info(f"Loading policy from wandb artifact {qualified_name}")
 
         artifact = wandb.Api().artifact(qualified_name)
+
         artifact_path = os.path.join(self._cfg.data_dir, "artifacts", artifact.name)
 
-        if not os.path.exists(os.path.join(artifact_path, "model.pt")):
+        if not os.path.exists(artifact_path):
             artifact.download(root=artifact_path)
 
         logger.info(f"Downloaded artifact {artifact.name} to {artifact_path}")
