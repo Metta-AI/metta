@@ -23,10 +23,10 @@ import numpy as np
 import torch
 
 from omegaconf import OmegaConf
-from agent.lib.normalizer import FeatureListNormalizer
+from agent.lib.feature_normalizer import FeatureListNormalizer
 from .lib.util import make_nn_stack
 
-
+# this is not currently working
 class FeatureSetEncoder(nn.Module):
     def __init__(
             self,

@@ -1,7 +1,8 @@
 import torch
-from torch import nn
+import omegaconf
+from tensordict import TensorDict
 
-
+from agent.lib.metta_layer import LayerBase
 # ##ObservationNormalization
 # These are approximate maximum values for each feature. Ideally they would be defined closer to their source,
 # but here we are. If you add / remove a feature, you should add / remove the corresponding normalization.
@@ -51,9 +52,9 @@ OBS_NORMALIZATIONS = {
     'agent:kinship': 10,
 }
 
-class ObservationNormalizer(nn.Module):
-    def __init__(self, grid_features: list[str]):
-        super().__init__()
+class ObservationNormalizer(LayerBase):
+    def __init__(self, grid_features, **cfg):
+        super().__init__(**cfg)
 
         num_objects = len(grid_features)
 
@@ -62,5 +63,6 @@ class ObservationNormalizer(nn.Module):
 
         self.register_buffer('obs_norm', obs_norm)
 
-    def forward(self, obs):
-        return obs / self.obs_norm
+    def _forward(self, td: TensorDict):
+        td[self.name] = td[self.input_source] / self.obs_norm
+        return td

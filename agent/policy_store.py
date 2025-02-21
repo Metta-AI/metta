@@ -12,7 +12,7 @@ The PolicyStore is used by the training system to manage opponent policies and c
 from omegaconf import OmegaConf
 from omegaconf.listconfig import ListConfig
 import wandb
-from rl.pufferlib.puffer_agent_wrapper import make_policy
+from agent.metta_agent import make_policy
 import torch
 import os
 import warnings
