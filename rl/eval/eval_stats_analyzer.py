@@ -72,6 +72,9 @@ class EvalStatsAnalyzer:
         metric_configs = {}
         for cfg in self.analysis.metrics:
             metric_configs[cfg] = fnmatch.filter(self.stats_db.available_metrics, cfg.metric)
+        if all(len(metric_configs[cfg]) == 0 for cfg in metric_configs):
+            logger.info(f"No metrics to analyze yet for {self.candidate_policy_uri}")
+            return [], []
         result_dfs = []
         policy_fitness_records = []
 
