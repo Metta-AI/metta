@@ -40,6 +40,7 @@ def main(cfg):
 
 
 def train_ddp(device_id, cfg):
+    setup_metta_environment(cfg)
     print(f"Training on {device_id}/{cfg.trainer.num_gpus} GPUs")
     cfg.device = f'{cfg.device}:{device_id}'
     torch.distributed.init_process_group(backend='nccl', rank=device_id, world_size=cfg.trainer.num_gpus)
