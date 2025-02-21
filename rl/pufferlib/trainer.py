@@ -105,6 +105,8 @@ class PufferTrainer:
             for k in ["0verview", "env", "losses", "performance", "train"]:
                 wandb_run.define_metric(f"{k}/*", step_metric="train/agent_step")
 
+        print("Training on device:", self.device)
+
     def train(self):
         self.train_start = time.time()
         logger.info("Starting training")
