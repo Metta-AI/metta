@@ -1,15 +1,5 @@
 import logging
 import os
-import warnings
-
-# Suppress deprecation warnings
-warnings.filterwarnings('ignore', category=DeprecationWarning)
-
-# Set environment variables to run without display
-os.environ['GLFW_PLATFORM'] = 'osmesa'  # Use OSMesa as the GLFW backend
-os.environ['SDL_VIDEODRIVER'] = 'dummy'
-os.environ['MPLBACKEND'] = 'Agg'
-os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = '1'
 
 import hydra
 from agent.policy_store import PolicyStore
