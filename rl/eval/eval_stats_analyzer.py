@@ -93,7 +93,7 @@ class EvalStatsAnalyzer:
             return uri
         policy_versions = [i for i in all_policies if uri in i]
         if len(policy_versions) == 0:
-            raise ValueError(f"No policy found in DB for candidate policy: {uri}")
+            raise ValueError(f"No policy found in DB for candidate policy: {uri}, options are {all_policies}")
         if len(policy_versions) > 1 and 'wandb' in uri:
             policy_versions.sort(key=lambda x: int(x.split(':v')[-1]))
         candidate_uri = policy_versions[-1]
@@ -102,7 +102,13 @@ class EvalStatsAnalyzer:
 
     def policy_fitness(self, metric_data, metric_name):
         policy_fitness = []
-        uri = self.candidate_policy_uri.replace("wandb://run/", "")
+        if "wandb" in self.candidate_policy_uri:
+            uri = self.candidate_policy_uri.replace("wandb://run/", "")
+        elif "file" in self.candidate_policy_uri:
+            uri = self.candidate_policy_uri.replace("file://", "")
+        else:
+            uri = self.candidate_policy_uri
+
         all_policies = metric_data['policy_name'].unique()
 
         # Get the latest version of the candidate policy
