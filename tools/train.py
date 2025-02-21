@@ -32,7 +32,7 @@ def main(cfg):
 
     if cfg.trainer.num_gpus > 1:
         torch.multiprocessing.spawn(train_ddp,
-            args=(cfg),
+            args=(cfg,),
             nprocs=cfg.trainer.num_gpus,
             join=True,
         )
