@@ -40,9 +40,9 @@ class Cylinder(Room):
                 self._grid[center_y + 1, x] = "wall"
                 self._cylinder_positions.update({(x, center_y - 1), (x, center_y + 1)})
 
-        generator_x = start_x + wall_length // 2
-        self._grid[center_y, generator_x] = "generator"
-        self._cylinder_positions.add((generator_x, center_y))
+        mine_x = start_x + wall_length // 2
+        self._grid[center_y, mine_x] = "mine"
+        self._cylinder_positions.add((mine_x, center_y))
 
         agent_start_x = start_x + (wall_length - self._agents) // 2
         for i in range(self._agents):
@@ -60,9 +60,9 @@ class Cylinder(Room):
                 self._grid[y, center_x + 1] = "wall"
                 self._cylinder_positions.update({(center_x - 1, y), (center_x + 1, y)})
 
-        generator_y = start_y + wall_length // 2
-        self._grid[generator_y, center_x] = "generator"
-        self._cylinder_positions.add((center_x, generator_y))
+        mine_y = start_y + wall_length // 2
+        self._grid[mine_y, center_x] = "mine"
+        self._cylinder_positions.add((center_x, mine_y))
 
         agent_start_y = start_y + (wall_length - self._agents) // 2
         for i in range(self._agents):
@@ -80,7 +80,7 @@ class Cylinder(Room):
 
         if left_positions and right_positions:
             altar_pos = random.choice(left_positions)
-            converter_pos = random.choice(right_positions)
+            generator_pos = random.choice(right_positions)
             new_grid[altar_pos[1], altar_pos[0]] = "altar"
-            new_grid[converter_pos[1], converter_pos[0]] = "converter"
+            new_grid[generator_pos[1], generator_pos[0]] = "generator"
         return new_grid
