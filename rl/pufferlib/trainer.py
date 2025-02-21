@@ -81,9 +81,10 @@ class PufferTrainer:
             self.policy = torch.compile(self.policy, mode=self.trainer_cfg.compile_mode)
 
         if self.trainer_cfg.num_gpus > 1:
-            lstm = self.policy.lstm
+            orig_policy = self.policy
             self.policy = DistributedDataParallel(self.policy, device_ids=[self.device])
-            self.policy.lstm = lstm
+            self.policy.lstm = orig_policy.lstm
+            self.policy.hidden_size = orig_policy.hidden_size
 
         self._make_experience_buffer()
 
