@@ -29,17 +29,18 @@ def main(cfg):
     os.environ["MASTER_ADDR"] = "localhost"
     os.environ["MASTER_PORT"] = "29500"
 
-    if cfg.trainer.num_gpus > 1:
-        torch.multiprocessing.spawn(train_ddp,
-            args=(cfg,),
-            nprocs=cfg.trainer.num_gpus,
-            join=True,
-        )
-    else:
-        train(cfg)
+    with WandbContext(cfg) as wandb_run:
+        if cfg.trainer.num_gpus > 1:
+            torch.multiprocessing.spawn(train_ddp,
+                args=(wandb_run, cfg),
+                nprocs=cfg.trainer.num_gpus,
+                join=True,
+            )
+        else:
+            train(cfg)
 
 
-def train_ddp(device_id, cfg):
+def train_ddp(device_id, wandb_run, cfg):
     setup_metta_environment(cfg)
     print(f"Training on {device_id}/{cfg.trainer.num_gpus} GPUs")
     cfg.device = f'{cfg.device}:{device_id}'
@@ -47,14 +48,13 @@ def train_ddp(device_id, cfg):
     train(cfg)
     torch.distributed.destroy_process_group()
 
-def train(cfg):
+def train(wandb_run, cfg):
     setup_metta_environment(cfg)
+    policy_store = PolicyStore(cfg, wandb_run)
 
-    with WandbContext(cfg) as wandb_run:
-        policy_store = PolicyStore(cfg, wandb_run)
-        trainer = hydra.utils.instantiate(cfg.trainer, cfg, wandb_run, policy_store)
-        trainer.train()
-        trainer.close()
+    trainer = hydra.utils.instantiate(cfg.trainer, cfg, wandb_run, policy_store)
+    trainer.train()
+    trainer.close()
 
 if __name__ == "__main__":
     main()
