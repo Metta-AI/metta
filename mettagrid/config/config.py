@@ -20,6 +20,8 @@ def uniform(min_val, max_val, center, *, _root_):
     if sampling == 0:
         return center
     else:
+
+        center = (max_val + min_val) // 2
         # Calculate the available range on both sides of the center
         left_range = center - min_val
         right_range = max_val - center
@@ -37,6 +39,8 @@ def uniform(min_val, max_val, center, *, _root_):
         # Return integer if the original values were integers
         return int(round(val)) if isinstance(center, int) else val
 
+def choose(*args):
+    return random.choice(args)
 
 def div(a, b):
     return a // b
@@ -52,7 +56,7 @@ def setup_omega_conf():
     OmegaConf.register_new_resolver("uniform", uniform, replace=True)
     OmegaConf.register_new_resolver("sub", sub, replace=True)
     OmegaConf.register_new_resolver("make_odd", make_odd, replace=True)
-
+    OmegaConf.register_new_resolver("choose", choose, replace=True)
 def setup_metta_environment(cfg):
     setup_omega_conf()
     print(OmegaConf.to_yaml(cfg))
