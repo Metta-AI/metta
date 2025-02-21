@@ -6,7 +6,7 @@ from mettagrid.config.room.room import Room
 
 class CorridorMaze(Room):
     def __init__(self, width: int, height: int, border_width: int = 1, corridor_width: int = 2,
-                 arm_length: int = 10, num_generators: int = 0, num_convertors: int = 0,
+                 arm_length: int = 10, num_mines: int = 0, num_convertors: int = 0,
                  num_heart_altars: int = 0, seed=None, agents: int = 1, rotate: bool = False, **kwargs):
         """
         Maze with a vertical corridor and horizontal arms.
@@ -19,10 +19,10 @@ class CorridorMaze(Room):
         self.border_width = border_width
         self.corridor_width = corridor_width
         self.arm_length = arm_length
-        self.num_generators = num_generators
+        self.num_mines = num_mines
         self.num_convertors = num_convertors
         self.num_heart_altars = num_heart_altars
-        self.num_arms = num_generators + num_convertors + num_heart_altars
+        self.num_arms = num_mines + num_convertors + num_heart_altars
         self.seed = seed
         self.agents = agents
         self.rotate = rotate
@@ -44,9 +44,9 @@ class CorridorMaze(Room):
         directions = ["left" if i % 2 == 0 else "right" for i in range(self.num_arms)]
 
         # Build and shuffle the resource list.
-        resources = (["converter"] * self.num_convertors +
+        resources = (["generator"] * self.num_convertors +
                      ["altar"] * self.num_heart_altars +
-                     ["generator"] * self.num_generators)
+                     ["mine"] * self.num_mines)
         resources += ["empty"] * (self.num_arms - len(resources))
         self._rng.shuffle(resources)
 

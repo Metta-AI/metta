@@ -65,17 +65,17 @@ class RoomWithinRoom(Room):
             self._wall_positions.add((right, y))
 
         # Place inner room objects at the corners.
-        grid[top + bw, left + bw] = "converter"
+        grid[top + bw, left + bw] = "generator"
         grid[top + bw, right - bw] = "altar"
-        grid[bottom - bw, right - bw] = "generator"
+        grid[bottom - bw, right - bw] = "mine"
         grid[bottom - bw, left + bw] = "agent.agent"
 
         # Place outer room objects (top-left cluster).
         ox, oy = bw + 1, bw + 1
-        grid[oy, ox] = "converter"
+        grid[oy, ox] = "generator"
         if oy + 1 < oh - bw:
             grid[oy + 1, ox] = "altar"
         if ox + 1 < ow - bw:
-            grid[oy, ox + 1] = "generator"
+            grid[oy, ox + 1] = "mine"
 
         return grid

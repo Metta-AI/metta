@@ -11,9 +11,9 @@ class BarrierMaze(Room):
     Maze with an outer wall and three barriers separating seven blocks:
       1. Agent start ("agent.agent")
       2. Barrier 1
-      3. Generator ("generator")
+      3. mine ("mine")
       4. Barrier 2
-      5. Converter ("converter")
+      5. generator ("generator")
       6. Barrier 3
       7. Altar ("altar")
 
@@ -74,9 +74,9 @@ class BarrierMaze(Room):
         blocks = [
             ("agent", 1),
             ("barrier1", self._barrier_width),
-            ("generator", 1),
+            ("mine", 1),
             ("barrier2", self._barrier_width),
-            ("converter", 1),
+            ("generator", 1),
             ("barrier3", self._barrier_width),
             ("altar", 1),
         ]
@@ -85,8 +85,8 @@ class BarrierMaze(Room):
         # Place floor items on the bottom row.
         floor_y = interior_y_end - 1
         grid[floor_y, positions["agent"]] = "agent.agent"
+        grid[floor_y, positions["mine"]] = "mine"
         grid[floor_y, positions["generator"]] = "generator"
-        grid[floor_y, positions["converter"]] = "converter"
         grid[floor_y, positions["altar"]] = "altar"
 
         secondary_length = interior_y_end - interior_y_start

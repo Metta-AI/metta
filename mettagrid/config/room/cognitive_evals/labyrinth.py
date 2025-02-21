@@ -8,7 +8,7 @@ class LabyrinthMaze(Room):
     """
     Generates a labyrinth using recursive backtracking. Maze passages are corridor_width×corridor_width blocks
     separated by 1-cell walls. The grid dimensions are computed to exactly fit the maze cells.
-    Rewards (generator, altar, converter) are placed near the center and the agent at the entrance.
+    Rewards (mine, altar, generator) are placed near the center and the agent at the entrance.
     """
     def __init__(self, width: int, height: int, corridor_width: int = 3,
                  agents: int | DictConfig = 1, seed: Optional[int] = None,
@@ -75,9 +75,9 @@ class LabyrinthMaze(Room):
         margin = 2
         self._grid[max(0, center_y-margin):min(self._height, center_y+margin+1),
                    max(0, center_x-margin-1):min(self._width, center_x+margin+2)] = "empty"
-        self._grid[center_y, center_x-1] = "generator"
+        self._grid[center_y, center_x-1] = "mine"
         self._grid[center_y, center_x]   = "altar"
-        self._grid[center_y, center_x+1] = "converter"
+        self._grid[center_y, center_x+1] = "generator"
 
         # Place the agent at the entrance (maze cell (0,0)), centered in its block.
         agent_x, agent_y = self._cell_top_left(0, 0)
