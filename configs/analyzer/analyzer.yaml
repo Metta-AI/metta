@@ -9,7 +9,7 @@ analysis:
   metrics:
     - metric: "action.use.generator"
     - metric: "action.use.altar"
-    - metric: "action.use.converter"
+    - metric: "action.use.mine"
     - metric: "action.use.armory"
 
 
