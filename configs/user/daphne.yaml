@@ -11,15 +11,16 @@ defaults:
 
 #policy_uri: wandb://run/cogeval_training_sweep_mini.r.9
 #policy_uri: ./train_dir/daphne.local.train.14_pfs/checkpoints/model_0050.pt
-policy_uri: ${trained_policy_uri}
+policy_uri: ./train_dir/daphne.local.train.16_pfs/checkpoints
 
 npc_policy_uri: null
 
 analyzer:
   policy_uri: ${..policy_uri}
 
-  baseline_policies:
-    - ./train_dir/daphne.local.train.16_pfs/checkpoints
+  analysis:
+    baseline_policies:
+      - ./train_dir/daphne.local.train.16_pfs/checkpoints
 
   game:
     max_steps: 1000

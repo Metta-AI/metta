@@ -17,7 +17,7 @@ import torch
 import os
 import warnings
 import logging
-from typing import List
+from typing import List, Union
 import random
 from wandb.sdk import wandb_run
 from torch import nn
@@ -54,14 +54,12 @@ class PolicyStore:
         self._wandb_run = wandb_run
         self._cached_prs = {}
 
-    def policy(self, policy_selector_cfg: OmegaConf) -> PolicyRecord:
-        if isinstance(policy_selector_cfg, str):
-            return self._load_from_uri(policy_selector_cfg)
-        prs = self.policies(policy_selector_cfg)
+    def policy(self, policy: Union[str, OmegaConf]) -> PolicyRecord:
+        prs = self._policy_records(policy) if isinstance(policy, str) else self.policies(policy)
         assert len(prs) == 1, f"Expected 1 policy, got {len(prs)}"
         return prs[0]
 
-    def _policy_records(self, uri, selector_type, n, metric):
+    def _policy_records(self, uri, selector_type="top", n=1, metric="epoch"):
         version = None
         if uri.startswith("wandb://"):
             wandb_uri = uri[len("wandb://"):]
@@ -266,12 +264,15 @@ class PolicyStore:
 
         artifact = wandb.Api().artifact(qualified_name)
 
-        data_dir = artifact.download(
-            root=os.path.join(self._cfg.data_dir, "artifacts", artifact.name))
-        logger.info(f"Downloaded artifact {artifact.name} to {data_dir}")
+        artifact_path = os.path.join(self._cfg.data_dir, "artifacts", artifact.name)
+
+        if not os.path.exists(artifact_path):
+            artifact.download(root=artifact_path)
+
+        logger.info(f"Downloaded artifact {artifact.name} to {artifact_path}")
 
         pr = self._load_from_file(
-            os.path.join(data_dir, "model.pt")
+            os.path.join(artifact_path, "model.pt")
         )
         pr.metadata.update(artifact.metadata)
         return pr
