@@ -133,6 +133,8 @@ class PufferTrainer:
     def _evaluate_policy(self):
 
         self.cfg.eval.policy_uri = self.last_pr.uri
+        self.cfg.analyzer.policy_uri = self.last_pr.uri
+
         eval = hydra.utils.instantiate(self.cfg.eval, self.policy_store, self.last_pr, self.cfg.env, _recursive_ = False)
         stats = eval.evaluate()
         self.eval_stats_logger.log(stats)
@@ -336,7 +338,7 @@ class PufferTrainer:
                     l2_reg_loss = torch.tensor(0.0, device=self.device)
                     if self.trainer_cfg.l2_reg_loss_coef > 0:
                         l2_reg_loss = self.trainer_cfg.l2_reg_loss_coef * self.policy.l2_reg_loss().to(self.device)
-                    
+
                     l2_init_loss = torch.tensor(0.0, device=self.device)
                     if self.trainer_cfg.l2_init_loss_coef > 0:
                         l2_init_loss = self.trainer_cfg.l2_init_loss_coef * self.policy.l2_init_loss().to(self.device)
