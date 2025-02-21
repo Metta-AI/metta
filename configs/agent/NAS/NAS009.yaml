@@ -7,7 +7,19 @@ policy_selector:
   range: 0
   metric: final.score
   generation: null
+
+kickstarting: true
+kickstart_policies:
+  - policy_path: wandb://run/simple.standard.2.18.24
+    value_coef: 1
+    action_coef: 1
+
+  - policy_path: wandb://run/simple.standard.2.18.24
+    value_coef: 0
+    action_coef: 0
   
+#./train_dir/simple.standard.2.18.24
+
 observations:
   obs_key: grid_obs
   track_last_action: ${env.track_last_action}
@@ -63,16 +75,10 @@ components:
     output_size: 128
     nn_params:
       num_layers: 2
-
-  LSTM_encoded_obs_merger:
-    _target_: agent.lib.merge_layer.ConcatMergeLayer
-    sources:
-      - source_name: _core_
-      - source_name: _encoded_obs_
       
   critic_1:
     _target_: agent.lib.nn_layer_library.Linear
-    input_source: LSTM_encoded_obs_merger
+    input_source: _core_
     output_size: 1024
     nonlinearity: nn.Tanh
 
@@ -84,11 +90,21 @@ components:
 
   actor_1:
     _target_: agent.lib.nn_layer_library.Linear
-    input_source: LSTM_encoded_obs_merger
+    input_source: _core_
     output_size: 512
 
-  _action_param_:
-    _target_: agent.lib.nn_layer_library.Linear
+  _action_type_:
+    _target_: agent.lib.action.ActionType
     input_source: actor_1
-    output_size: 20
+    nonlinearity: null
+
+  actor1_action_type_merger:
+    _target_: agent.lib.merge_layer.ConcatMergeLayer
+    sources:
+      - source_name: actor_1
+      - source_name: _action_type_
+
+  _action_param_:
+    _target_: agent.lib.action.ActionParam
+    input_source: actor1_action_type_merger
     nonlinearity: null

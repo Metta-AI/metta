@@ -178,9 +178,12 @@ components:
     input_source: actor_1
     output_size: 512
 
-  _action_param_:
-    _target_: agent.lib.nn_layer_library.Linear
+  _action_type_:
+    _target_: agent.lib.action.ActionType
     input_source: actor_2
-    output_size: 20
-    nonlinearity: null # we don't want a nonlinearity here because we'll use a softmax on the action space
+    nonlinearity: null
 
+  _action_param_:
+    _target_: agent.lib.action.ActionParam
+    input_source: actor_2
+    nonlinearity: null

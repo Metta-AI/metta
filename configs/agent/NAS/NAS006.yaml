@@ -64,16 +64,17 @@ components:
     nn_params:
       num_layers: 2
 
-  LSTM_actor_merger:
+  LSTM_encoded_obs_merger:
     _target_: agent.lib.merge_layer.ConcatMergeLayer
     sources:
       - source_name: _core_
-      - source_name: _action_param_
+      - source_name: _encoded_obs_
       
   critic_1:
     _target_: agent.lib.nn_layer_library.Linear
-    input_source: LSTM_actor_merger
+    input_source: LSTM_encoded_obs_merger
     output_size: 1024
+    nonlinearity: nn.Tanh
 
   _value_:
     _target_: agent.lib.nn_layer_library.Linear
@@ -83,11 +84,15 @@ components:
 
   actor_1:
     _target_: agent.lib.nn_layer_library.Linear
-    input_source: _core_
+    input_source: LSTM_encoded_obs_merger
     output_size: 512
 
-  _action_param_:
-    _target_: agent.lib.nn_layer_library.Linear
+  _action_type_:
+    _target_: agent.lib.action.ActionType
     input_source: actor_1
-    output_size: 20
+    nonlinearity: null
+
+  _action_param_:
+    _target_: agent.lib.action.ActionParam
+    input_source: actor_1
     nonlinearity: null

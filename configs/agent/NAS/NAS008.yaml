@@ -39,9 +39,17 @@ components:
     _target_: agent.lib.observation_normalizer.ObservationNormalizer
     input_source: _obs_
 
+  last_24_channels:
+    _target_: agent.lib.merge_layer.ConcatMergeLayer
+    sources:
+      - source_name: obs_normalizer
+        slice: [14, 38]  
+        dim: 1          
+    output_size: 24
+
   cnn1:
     _target_: agent.lib.nn_layer_library.Conv2d
-    input_source: obs_normalizer
+    input_source: last_24_channels
     output_size: 64
     nn_params:
       kernel_size: 5
@@ -69,9 +77,55 @@ components:
     input_source: fc1
     output_size: 128
 
+# ------------------------------------------------------------
+    first_14_channels:
+    _target_: agent.lib.merge_layer.ConcatMergeLayer
+    sources:
+      - source_name: obs_normalizer
+        slice: [0, 14]  # extract the first 14 channels
+        dim: 1          # operates on the channel dimension
+    output_size: 14
+  
+  # Extract the center row (height = 11 → 1)
+  center_row:
+    _target_: agent.lib.merge_layer.ConcatMergeLayer
+    sources:
+      - source_name: first_14_channels
+        slice: [5, 6]   # extract the center row (row index 5)
+        dim: 2          # operates on the height dimension
+    output_size: 1
+
+  # Extract the center pixel from the center row (width = 11 → 1)
+  center_pixel:
+    _target_: agent.lib.merge_layer.ConcatMergeLayer
+    sources:
+      - source_name: center_row
+        slice: [5, 6]   # extract the center column (column index 5)
+        dim: 3          # operates on the width dimension
+    output_size: 1
+
+  # Flatten (batch, channels, 1, 1) -> (batch, channels)
+  center_pixel_flatten:
+    _target_: agent.lib.nn_layer_library.Flatten
+    input_source: center_pixel
+
+  # Process the center pixel vector (length = channels, usually 23) through a Linear layer
+  center_linear:
+    _target_: agent.lib.nn_layer_library.Linear
+    input_source: center_pixel_flatten
+    output_size: 128
+
+  self_info_encoded_obs_merger:
+    _target_: agent.lib.merge_layer.ConcatMergeLayer
+    sources:
+      - source_name: center_linear
+      - source_name: _encoded_obs_
+
+# ------------------------------------------------------------
+
   _core_:
     _target_: agent.lib.lstm.LSTM
-    input_source: encoded_obs
+    input_source: self_info_encoded_obs_merger
     output_size: 128
     nn_params:
       num_layers: 2
