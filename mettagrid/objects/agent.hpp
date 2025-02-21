@@ -24,7 +24,7 @@ public:
     unsigned char color;
     unsigned char agent_id;
     StatsTracker stats;
-    float cards_reward;
+    float current_resource_reward;
 
     Agent(
         GridCoord r, GridCoord c,
@@ -52,7 +52,7 @@ public:
         }
         this->action_failure_penalty = rewards["action_failure_penalty"];
         this->color = 0;
-        this->cards_reward = 0;
+        this->current_resource_reward = 0;
     }
 
     void update_inventory(InventoryItem item, short amount, float *reward) {
@@ -90,8 +90,8 @@ public:
             }
             new_reward += this->resource_rewards[i] * max_val;
         }
-        *reward += (new_reward - this->cards_reward);
-        this->cards_reward = new_reward;
+        *reward += (new_reward - this->current_resource_reward);
+        this->current_resource_reward = new_reward;
     }
 
     inline void obs(ObsType* obs) const {
