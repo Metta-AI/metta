@@ -25,7 +25,7 @@ class RadialMaze(Room):
         path_positions: Set[Tuple[int, int]] = set()
 
         cx, cy = self._width // 2, self._height // 2
-        specials = {0: "generator", 1: "converter", 2: "altar"}
+        specials = {0: "mine", 1: "generator", 2: "altar"}
         special_endpoints = {}
 
         for arm in range(self._arms):
