@@ -209,7 +209,7 @@ class PufferTrainer:
                     e3b_inv[env_id] = next_e3b
                     r += intrinsic_reward.cpu()
 
-                if self.device == 'cuda':
+                if self.device.startswith('cuda'):
                     torch.cuda.synchronize()
 
             with profile.eval_misc:
@@ -304,7 +304,7 @@ class PufferTrainer:
                             action=atn,
                         )
 
-                    if self.device == 'cuda':
+                    if self.device.startswith('cuda'):
                         torch.cuda.synchronize()
 
                 with profile.train_misc:
@@ -359,12 +359,14 @@ class PufferTrainer:
                     self.optimizer.zero_grad()
                     loss.backward()
                     torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.trainer_cfg.max_grad_norm)
+                    if self.trainer_cfg.num_gpus > 1:
+                        torch.distributed.barrier()
                     self.optimizer.step()
 
                     if self.cfg.agent.clip_range > 0:
                         self.policy.clip_weights()
 
-                    if self.device == 'cuda':
+                    if self.device.startswith('cuda'):
                         torch.cuda.synchronize()
 
                 with profile.train_misc:
