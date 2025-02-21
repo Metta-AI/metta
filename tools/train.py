@@ -22,7 +22,6 @@ logger = logging.getLogger("train")
 
 @hydra.main(version_base=None, config_path="../configs", config_name="config")
 def main(cfg):
-    setup_metta_environment(cfg)
 
     with open(os.path.join(cfg.run_dir, "config.yaml"), "w") as f:
         OmegaConf.save(cfg, f)
@@ -48,6 +47,8 @@ def train_ddp(device_id, cfg):
     torch.distributed.destroy_process_group()
 
 def train(cfg):
+    setup_metta_environment(cfg)
+
     with WandbContext(cfg) as wandb_run:
         policy_store = PolicyStore(cfg, wandb_run)
         trainer = hydra.utils.instantiate(cfg.trainer, cfg, wandb_run, policy_store)
