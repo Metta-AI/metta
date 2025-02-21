@@ -9,19 +9,19 @@ defaults:
   - override /sweep: fast
   - override /analyzer: analyzer
 
-analyzer:
-  analysis:
-    metrics:
-    - metric: "action.use.altar.agent"
-
-policy_uri: ${trained_policy_uri}
-eval_db_uri: wandb://artifacts/daphne_eval_testing
-#eval_db_uri: file://daphne/daphne_eval_stats
+#policy_uri: wandb://run/cogeval_training_sweep_mini.r.9
+#policy_uri: ./train_dir/daphne.local.train.14_pfs/checkpoints/model_0050.pt
+policy_uri: ./train_dir/daphne.local.train.16_pfs/checkpoints
 
 npc_policy_uri: null
 
-env:
-  # sampling: 0.7
+analyzer:
+  policy_uri: ${..policy_uri}
+
+  analysis:
+    baseline_policies:
+      - ./train_dir/daphne.local.train.16_pfs/checkpoints
+
   game:
     max_steps: 1000
 
@@ -50,6 +50,6 @@ sweep:
   metric: "action.use.altar.agent"
 
 cmd: ???
-run_id: 12
+run_id: 17
 run: ${oc.env:USER}.local.${cmd}.${run_id}
 trained_policy_uri: ./train_dir/${oc.env:USER}.local.train.${run_id}/checkpoints
