@@ -37,7 +37,7 @@ def main(cfg):
                 join=True,
             )
         else:
-            train(cfg)
+            train(wandb_run, cfg)
 
 
 def train_ddp(device_id, wandb_run, cfg):
@@ -45,7 +45,7 @@ def train_ddp(device_id, wandb_run, cfg):
     print(f"Training on {device_id}/{cfg.trainer.num_gpus} GPUs")
     cfg.device = f'{cfg.device}:{device_id}'
     torch.distributed.init_process_group(backend='nccl', rank=device_id, world_size=cfg.trainer.num_gpus)
-    train(cfg)
+    train(wandb_run, cfg)
     torch.distributed.destroy_process_group()
 
 def train(wandb_run, cfg):
