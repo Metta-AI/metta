@@ -4,6 +4,12 @@ defaults:
 sampling: 1
 game:
   num_agents: 18    # Updated for 9 room types with 2 rooms each
+  agent:
+    rewards:
+      action_failure_penalty: 0
+      ore: 0
+      battery: 0
+      heart: 1
 
   map_builder:
     _target_: mettagrid.config.room.room_scene.RoomScene
@@ -82,3 +88,89 @@ game:
         - ${sub:${..width},2}
         - ${sub:${..height},2}
         branching: ${uniform:0.1,0.8,0.7}
+
+  objects:
+    altar:
+      hp: 30
+      cooldown: 1
+
+    mine:
+      hp: 30
+      cooldown: 1
+
+    generator:
+      hp: 30
+      cooldown: 1
+
+    armory:
+      hp: 30
+      cooldown: 1
+
+    lasery:
+      hp: 30
+      cooldown: 1
+
+    lab:
+      hp: 30
+      cooldown: 1
+
+    factory:
+      hp: 30
+      cooldown: 1
+
+    temple:
+      hp: 30
+      cooldown: 1
+
+    wall:
+      hp: ${uniform:1, 20, 10}
+
+  actions:
+    noop:
+      enabled: true
+      cost: 0
+    move:
+      enabled: true
+      cost: 0
+    rotate:
+      enabled: true
+      cost: 0
+    jump:
+      enabled: false
+      cost: 3
+    transfer:
+      enabled: false
+      cost: 0
+    use:
+      enabled: true
+      cost: 0
+    attack:
+      enabled: false
+      cost: 0
+    gift:
+      enabled: false
+      cost: 0
+    swap:
+      enabled: false
+      cost: 0
+    change_color:
+      enabled: false
+      cost: 0
+
+objects:
+    altar:
+      hp: 30
+      cooldown: 0
+      use_cost: 0
+
+    converter:
+      hp: 30
+      cooldown: 0
+      # This is Dave's fault. Or Cython's. Or mine.
+
+
+    generator:
+      hp: 30
+      cooldown: 0
+      initial_resources: ${uniform:1, 30, 5}
+      use_cost: 0
