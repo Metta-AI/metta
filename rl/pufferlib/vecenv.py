@@ -3,6 +3,7 @@ import pufferlib
 import pufferlib.utils
 import pufferlib.vector
 import hydra
+from mettagrid.config.config import setup_omega_conf
 
 def make_env_func(cfg: OmegaConf, buf=None, render_mode='rgb_array'):
     env = hydra.utils.instantiate(cfg, buf=buf, render_mode=render_mode, _recursive_=False)
@@ -17,6 +18,8 @@ def make_vecenv(
     render_mode=None,
     **kwargs
 ):
+    setup_omega_conf()
+
     vec = vectorization
     if vec == 'serial' or num_workers == 1:
         vec = pufferlib.vector.Serial
