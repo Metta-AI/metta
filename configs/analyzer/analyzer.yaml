@@ -1,6 +1,6 @@
 _target_: rl.eval.eval_stats_analyzer.EvalStatsAnalyzer
 
-policy_uri: null
+policy_uri: ${policy_uri}
 
 analysis:
 
