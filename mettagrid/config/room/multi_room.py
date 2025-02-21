@@ -1,5 +1,6 @@
 from mettagrid.config.room.room import Room
 from mettagrid.config.room.room_list import RoomList
+
 class MultiRoom(RoomList):
     def __init__(
         self,
