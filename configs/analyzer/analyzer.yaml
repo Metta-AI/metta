@@ -1,12 +1,18 @@
 _target_: rl.eval.eval_stats_analyzer.EvalStatsAnalyzer
 
-analysis:
+policy_uri: null
 
-  filters: [] #global filters
+analysis:
 
   metric_patterns: null
 
   metrics:
-    - metric: "action.use.altar.agent"
+    - metric: "action.use.generator"
+    - metric: "action.use.altar"
+    - metric: "action.use.converter"
+    - metric: "action.use.armory"
+
 
   queries: null
+
+  baseline_policies: null #if left null will average over policies in stats DB
