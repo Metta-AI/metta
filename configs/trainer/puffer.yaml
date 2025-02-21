@@ -50,3 +50,4 @@ stats:
 
 
 num_gpus: 1
+sync_gpus: true

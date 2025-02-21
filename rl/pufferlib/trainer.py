@@ -361,7 +361,7 @@ class PufferTrainer:
                     self.optimizer.zero_grad()
                     loss.backward()
                     torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.trainer_cfg.max_grad_norm)
-                    if self.trainer_cfg.num_gpus > 1:
+                    if self.trainer_cfg.sync_gpus and self.trainer_cfg.num_gpus > 1:
                         torch.distributed.barrier()
                     self.optimizer.step()
 
