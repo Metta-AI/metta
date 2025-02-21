@@ -68,6 +68,8 @@ def setup_metta_environment(cfg):
 
     # Suppress deprecation warnings
     warnings.filterwarnings('ignore', category=DeprecationWarning)
+    warnings.filterwarnings('ignore', category=DeprecationWarning, module='pkg_resources')
+    warnings.filterwarnings('ignore', category=DeprecationWarning, module='pygame.pkgdata')
 
     setup_omega_conf()
     print(OmegaConf.to_yaml(cfg))
