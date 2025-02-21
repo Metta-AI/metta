@@ -6,6 +6,7 @@ import numpy as np
 import torch
 from omegaconf import OmegaConf
 from rich import traceback
+import warnings
 
 
 def seed_everything(seed, torch_deterministic):
@@ -59,6 +60,15 @@ def setup_omega_conf():
     OmegaConf.register_new_resolver("choose", choose, replace=True)
 
 def setup_metta_environment(cfg):
+    # Set environment variables to run without display
+    os.environ['GLFW_PLATFORM'] = 'osmesa'  # Use OSMesa as the GLFW backend
+    os.environ['SDL_VIDEODRIVER'] = 'dummy'
+    os.environ['MPLBACKEND'] = 'Agg'
+    os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = '1'
+
+    # Suppress deprecation warnings
+    warnings.filterwarnings('ignore', category=DeprecationWarning)
+
     setup_omega_conf()
     print(OmegaConf.to_yaml(cfg))
     traceback.install(show_locals=False)
