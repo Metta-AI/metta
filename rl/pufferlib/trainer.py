@@ -147,6 +147,8 @@ class PufferTrainer:
     def _evaluate_policy(self):
 
         self.cfg.eval.policy_uri = self.last_pr.uri
+        self.cfg.analyzer.policy_uri = self.last_pr.uri
+
         eval = hydra.utils.instantiate(self.cfg.eval, self.policy_store, self.last_pr, self.cfg.env, _recursive_ = False)
         stats = eval.evaluate()
         self.eval_stats_logger.log(stats)

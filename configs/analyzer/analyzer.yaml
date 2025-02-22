@@ -1,6 +1,6 @@
 _target_: rl.eval.eval_stats_analyzer.EvalStatsAnalyzer
 
-policy_uri: null
+policy_uri: ???
 
 analysis:
 
@@ -9,7 +9,7 @@ analysis:
   metrics:
     - metric: "action.use.generator"
     - metric: "action.use.altar"
-    - metric: "action.use.converter"
+    - metric: "action.use.mine"
     - metric: "action.use.armory"
 
 
