@@ -54,9 +54,9 @@ stats:
 
 kickstart: true
 teachers:
-  - policy_uri: wandb://run/simple.standard.multi.discrete2.20.24.r.0
+  - policy_uri: wandb://run/simple.standard.multi.discrete.2.20.24.r0
     action_coef: 1
     value_coef: 1
-  - policy_uri: wandb://run/simple.standard.multi.discrete2.20.24.r.1
+  - policy_uri: wandb://run/b.simple.standard.multi.discrete.2.20.24.r1
     action_coef: 1
     value_coef: 1
