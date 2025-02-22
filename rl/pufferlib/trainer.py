@@ -3,6 +3,8 @@ import os
 import time
 from collections import defaultdict
 from copy import deepcopy
+from pathlib import Path
+
 import hydra
 import numpy as np
 import pufferlib
@@ -12,16 +14,16 @@ import wandb
 from agent.policy_store import PolicyStore
 from fast_gae import fast_gae
 from omegaconf import OmegaConf
-from pathlib import Path
+from torch.nn.parallel import DistributedDataParallel
 from tqdm import tqdm
 
-from rl.eval.eval_stats_logger import EvalStatsLogger
 from rl.eval.eval_stats_db import EvalStatsDB
+from rl.eval.eval_stats_logger import EvalStatsLogger
 from rl.pufferlib.experience import Experience
 from rl.pufferlib.profile import Profile
+from rl.pufferlib.trace import save_trace_image
 from rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
 from rl.pufferlib.vecenv import make_vecenv
-from rl.pufferlib.trace import save_trace_image
 
 torch.set_float32_matmul_precision('high')
 
@@ -92,6 +94,8 @@ class PufferTrainer:
             wandb_run.define_metric("train/agent_step")
             for k in ["0verview", "env", "losses", "performance", "train"]:
                 wandb_run.define_metric(f"{k}/*", step_metric="train/agent_step")
+
+        print("Training on device:", self.device)
 
     def train(self):
         self.train_start = time.time()
