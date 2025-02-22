@@ -119,52 +119,52 @@ game:
     wall:
       hp: ${uniform:1, 20, 10}
 
-  actions:
-    noop:
-      enabled: true
-      cost: 0
-    move:
-      enabled: true
-      cost: 0
-    rotate:
-      enabled: true
-      cost: 0
-    jump:
-      enabled: false
-      cost: 3
-    transfer:
-      enabled: false
-      cost: 0
-    use:
-      enabled: true
-      cost: 0
-    attack:
-      enabled: false
-      cost: 0
-    gift:
-      enabled: false
-      cost: 0
-    swap:
-      enabled: false
-      cost: 0
-    change_color:
-      enabled: false
-      cost: 0
+#   actions:
+#     noop:
+#       enabled: true
+#       cost: 0
+#     move:
+#       enabled: true
+#       cost: 0
+#     rotate:
+#       enabled: true
+#       cost: 0
+#     jump:
+#       enabled: false
+#       cost: 3
+#     transfer:
+#       enabled: false
+#       cost: 0
+#     use:
+#       enabled: true
+#       cost: 0
+#     attack:
+#       enabled: false
+#       cost: 0
+#     gift:
+#       enabled: false
+#       cost: 0
+#     swap:
+#       enabled: false
+#       cost: 0
+#     change_color:
+#       enabled: false
+#       cost: 0
 
-objects:
-    altar:
-      hp: 30
-      cooldown: 0
-      use_cost: 0
+# objects:
+#     altar:
+#       hp: 30
+#       cooldown: 0
+#       use_cost: 0
 
-    converter:
-      hp: 30
-      cooldown: 0
-      # This is Dave's fault. Or Cython's. Or mine.
+#     converter:
+#       hp: 30
+#       cooldown: 0
+#       # This is Dave's fault. Or Cython's. Or mine.
 
 
-    generator:
-      hp: 30
-      cooldown: 0
-      initial_resources: ${uniform:1, 30, 5}
-      use_cost: 0
+#     generator:
+#       hp: 30
+#       cooldown: 0
+#       initial_resources: ${uniform:1, 30, 5}
+#       use_cost: 0
