@@ -80,6 +80,16 @@ class PufferTrainer:
         if self.trainer_cfg.compile:
             self.policy = torch.compile(self.policy, mode=self.trainer_cfg.compile_mode)
 
+        if self.trainer_cfg.num_gpus > 1:
+            orig_policy = self.policy
+            self.policy = DistributedDataParallel(self.policy, device_ids=[self.device])
+            self.policy.lstm = orig_policy.lstm
+            self.policy.hidden_size = orig_policy.hidden_size
+            self.policy.compute_effective_rank = orig_policy.compute_effective_rank
+            self.policy.update_l2_init_weight_copy = orig_policy.update_l2_init_weight_copy
+            self.policy.l2_reg_loss = orig_policy.l2_reg_loss
+            self.policy.l2_init_loss = orig_policy.l2_init_loss
+
         self._make_experience_buffer()
 
         self.agent_step = checkpoint.agent_step
@@ -203,7 +213,7 @@ class PufferTrainer:
                     e3b_inv[env_id] = next_e3b
                     r += intrinsic_reward.cpu()
 
-                if self.device == 'cuda':
+                if self.device.startswith('cuda'):
                     torch.cuda.synchronize()
 
             with profile.eval_misc:
@@ -298,7 +308,7 @@ class PufferTrainer:
                             action=atn,
                         )
 
-                    if self.device == 'cuda':
+                    if self.device.startswith('cuda'):
                         torch.cuda.synchronize()
 
                 with profile.train_misc:
@@ -353,12 +363,14 @@ class PufferTrainer:
                     self.optimizer.zero_grad()
                     loss.backward()
                     torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.trainer_cfg.max_grad_norm)
+                    if self.trainer_cfg.sync_gpus and self.trainer_cfg.num_gpus > 1:
+                        torch.distributed.barrier()
                     self.optimizer.step()
 
                     if self.cfg.agent.clip_range > 0:
                         self.policy.clip_weights()
 
-                    if self.device == 'cuda':
+                    if self.device.startswith('cuda'):
                         torch.cuda.synchronize()
 
                 with profile.train_misc:

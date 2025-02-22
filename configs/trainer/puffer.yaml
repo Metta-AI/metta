@@ -49,3 +49,5 @@ stats:
   step: train/agent_step
 
 
+num_gpus: 1
+sync_gpus: true
