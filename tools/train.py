@@ -48,8 +48,9 @@ def train_ddp(device_id, wandb_run, cfg):
         backend='nccl',
         rank=device_id,
         world_size=cfg.trainer.dist.num_gpus,
-        timeout=datetime.timedelta(seconds=cfg.trainer.dist.nccl.timeout),
+        # timeout=datetime.timedelta(seconds=cfg.trainer.dist.nccl.timeout),
     )
+    logger.info(f"train_ddp() on {device_id}")
     train(wandb_run, cfg)
     torch.distributed.destroy_process_group()
 
@@ -57,6 +58,7 @@ def train(wandb_run, cfg):
     setup_metta_environment(cfg)
     policy_store = PolicyStore(cfg, wandb_run)
 
+    logger.info(f"making trainer on {cfg.device}")
     trainer = hydra.utils.instantiate(cfg.trainer, cfg, wandb_run, policy_store)
     logger.info(f"train.start() on {trainer.device}")
     trainer.train()

@@ -111,7 +111,8 @@ class PufferTrainer:
             for k in ["0verview", "env", "losses", "performance", "train"]:
                 wandb_run.define_metric(f"{k}/*", step_metric="train/agent_step")
 
-        print("Created trainer on:", self.device)
+        print("Done creating trainer on:", self.device)
+
 
     # def _setup_distributed_training(self):
     #     """Setup distributed training."""
