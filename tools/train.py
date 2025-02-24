@@ -49,8 +49,6 @@ def train_ddp(device_id, wandb_run, cfg):
         rank=device_id,
         world_size=cfg.trainer.dist.num_gpus,
         timeout=cfg.trainer.dist.nccl.timeout,
-        blocking_wait=cfg.trainer.dist.nccl.blocking_wait,
-        async_error_handling=cfg.trainer.dist.nccl.async_error_handling
     )
     train(wandb_run, cfg)
     torch.distributed.destroy_process_group()
