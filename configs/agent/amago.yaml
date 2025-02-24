@@ -1,0 +1,5 @@
+
+d_model: 256
+d_ff: 1024
+memory_layers: 2
+num_heads: 8

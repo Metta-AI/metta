@@ -1,0 +1,11 @@
+_target_: rl.amago.trainer_v2.AmagoTrainer
+
+
+learning_rate: 0.0006
+weight_decay: 0.0
+
+gradient_accumulation_steps: 1
+
+max_seq_len: 128
+lr_warmup_steps: 0
+

@@ -6,19 +6,19 @@ defaults:
 
 traj_encoder: 'transformer'
 memory_size: 256
-memory_layers: 3
+memory_layers: 2
 
 agent_type: 'agent'
-max_seq_len: 128
+max_seq_len: 250
 
 val_timesteps_per_epoch: 10
 
 dset_max_size: 40_000
-batch_size: 3
+batch_size: 1
 
 epochs: 1000
-training_timesteps_per_epoch: 1000
-train_batches_per_epoch: 1000
+training_timesteps_per_epoch: 350
+train_batches_per_epoch: 800
 
 start_learning_at_epoch: 0
 
