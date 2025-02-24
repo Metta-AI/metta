@@ -374,6 +374,7 @@ class PufferTrainer:
                         torch.cuda.synchronize()
 
                 with profile.train_misc:
+                    # Accumulate losses
                     self.losses.policy_loss += pg_loss.item() / total_minibatches
                     self.losses.value_loss += v_loss.item() / total_minibatches
                     self.losses.entropy += entropy_loss.item() / total_minibatches
@@ -404,6 +405,12 @@ class PufferTrainer:
                 self.trainer_cfg.total_timesteps,
                 self._timers
             )
+
+        # Synchronize losses across processes if using distributed training
+        if self.trainer_cfg.num_gpus > 1:
+            for k in vars(self.losses):
+                if not k.startswith('_'):
+                    setattr(self.losses, k, self._dist_mean(getattr(self.losses, k)))
 
     def _checkpoint_trainer(self):
         pr = self._checkpoint_policy()
@@ -449,21 +456,49 @@ class PufferTrainer:
         save_trace_image(self.cfg, self.last_pr, image_path)
         wandb.log({"traces/actions": wandb.Image(image_path)})
 
+    def _dist_sum(self, value):
+        if not self.trainer_cfg.num_gpus > 1:
+            return value
+
+        tensor = torch.tensor(value, device=self.device)
+        torch.distributed.all_reduce(tensor, op=torch.distributed.ReduceOp.SUM)
+        return tensor.item()
+
+    def _dist_mean(self, value):
+        if not self.trainer_cfg.num_gpus > 1:
+            return value
+
+        return self._dist_sum(value) / torch.distributed.get_world_size()
+
     def _process_stats(self):
+        # Process raw stats first
         for k in list(self.stats.keys()):
             v = self.stats[k]
             try:
-                self.stats[k] = np.mean(v)
+                v = np.mean(v)
+                self.stats[k] = v
             except:
                 del self.stats[k]
 
-        if self.wandb_run and self.cfg.wandb.track:
-            overview = {
-                'SPS': self.profile.SPS,
-            }
+        # Synchronize and aggregate stats across processes
+        sps = self._dist_sum(self.profile.SPS)
+        agent_steps = int(self._dist_sum(self.agent_step))
+        epoch = int(self._dist_sum(self.epoch))
+        learning_rate = self.optimizer.param_groups[0]["lr"]
+        environment = {k: self._dist_mean(v) for k, v in self.stats.items()}
+        losses = {k: self._dist_mean(v) for k, v in vars(self.losses).items() if not k.startswith('_')}
+        performance = {k: self._dist_sum(v) for k, v in self.profile}
+
+        # Only log from rank 0 when using distributed training
+        should_log = self.wandb_run and self.cfg.wandb.track
+        if self.trainer_cfg.num_gpus > 1:
+            should_log = should_log and torch.distributed.get_rank() == 0
+
+        if should_log:
+            overview = {'SPS': sps}
             for k, v in self.trainer_cfg.stats.overview.items():
-                if k in self.stats:
-                    overview[v] = self.stats[k]
+                if k in environment:
+                    overview[v] = environment[k]
 
             policy_fitness_metrics = {
                 f'pfs/{r["eval"]}:{r["metric"]}': r["fitness"]
@@ -473,13 +508,13 @@ class PufferTrainer:
 
             self.wandb_run.log({
                 **{f'0verview/{k}': v for k, v in overview.items()},
-                **{f'env/{k}': v for k, v in self.stats.items()},
-                **{f'losses/{k}': v for k, v in self.losses.items()},
-                **{f'performance/{k}': v for k, v in self.profile},
+                **{f'env/{k}': v for k, v in environment.items()},
+                **{f'losses/{k}': v for k, v in losses.items()},
+                **{f'performance/{k}': v for k, v in performance.items()},
                 **policy_fitness_metrics,
-                'train/agent_step': self.agent_step,
-                'train/epoch': self.epoch,
-                'train/learning_rate': self.optimizer.param_groups[0]["lr"],
+                'train/agent_step': agent_steps,
+                'train/epoch': epoch,
+                'train/learning_rate': learning_rate,
                 'train/average_reward': self.average_reward if self.trainer_cfg.average_reward else None,
             })
 
