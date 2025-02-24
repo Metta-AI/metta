@@ -593,7 +593,7 @@ class PufferTrainer:
     def _make_vecenv(self):
         """Create a vectorized environment."""
         # Import worker_init to configure warnings in worker processes
-        import metta.rl.pufferlib.worker_init
+        import rl.pufferlib.worker_init
 
         # Create the vectorized environment
         self.target_batch_size = self.trainer_cfg.forward_pass_minibatch_target_size // self.cfg.env.game.num_agents
