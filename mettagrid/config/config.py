@@ -65,6 +65,7 @@ def setup_metta_environment(cfg):
     os.environ['SDL_VIDEODRIVER'] = 'dummy'
     os.environ['MPLBACKEND'] = 'Agg'
     os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = '1'
+    os.environ['DISPLAY'] = ''
 
     # Suppress deprecation warnings
     warnings.filterwarnings('ignore', category=DeprecationWarning)
