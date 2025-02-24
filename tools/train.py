@@ -57,7 +57,7 @@ def train_ddp(device_id, wandb_run, cfg):
         backend='nccl',
         rank=device_id,
         world_size=cfg.trainer.dist.num_gpus,
-        # timeout=datetime.timedelta(seconds=cfg.trainer.dist.nccl.timeout),
+        timeout=datetime.timedelta(seconds=cfg.trainer.dist.nccl.timeout),
     )
     logger.info(f"train_ddp() on {device_id}")
     try:
