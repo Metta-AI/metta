@@ -116,7 +116,7 @@ class PufferTrainer:
     def _setup_distributed_training(self):
         """Setup distributed training."""
         # Import worker_init to configure warnings in distributed processes
-        import metta.rl.pufferlib.worker_init
+        import rl.pufferlib.worker_init
 
         # Configure NCCL settings
         nccl_cfg = self.trainer_cfg.dist.nccl
