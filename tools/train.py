@@ -59,7 +59,7 @@ def train_ddp(device_id, wandb_run, cfg):
         world_size=cfg.trainer.dist.num_gpus,
         timeout=datetime.timedelta(seconds=cfg.trainer.dist.nccl.timeout),
     )
-    logger.info(f"train_ddp() on {device_id}")
+    print(f"train_ddp() on {device_id}")
     try:
         train(wandb_run, cfg)
     except Exception as e:
@@ -72,11 +72,11 @@ def train(wandb_run, cfg):
     setup_metta_environment(cfg)
     policy_store = PolicyStore(cfg, wandb_run)
 
-    logger.info(f"making trainer on {cfg.device}")
+    print(f"making trainer on {cfg.device}")
     print(f"making trainer on {cfg.device}")
     try:
         trainer = hydra.utils.instantiate(cfg.trainer, cfg, wandb_run, policy_store)
-        logger.info(f"train.start() on {trainer.device}")
+        print(f"train.start() on {trainer.device}")
         print(f"train.start() on {trainer.device}")
         trainer.train()
         trainer.close()
