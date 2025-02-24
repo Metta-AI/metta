@@ -1,3 +1,4 @@
+from distutils import dist
 import logging
 import os
 import time
@@ -436,12 +437,6 @@ class PufferTrainer:
                 self._timers
             )
 
-        # Synchronize losses across processes if using distributed training
-        if self.trainer_cfg.dist.num_gpus > 1:
-            for k in vars(self.losses):
-                if not k.startswith('_'):
-                    setattr(self.losses, k, self._dist_mean(getattr(self.losses, k)))
-
     def _checkpoint_trainer(self):
         pr = self._checkpoint_policy()
         self.checkpoint = TrainerCheckpoint(
@@ -487,44 +482,18 @@ class PufferTrainer:
         wandb.log({"traces/actions": wandb.Image(image_path)})
 
     def _dist_sum(self, value):
-        if not self.trainer_cfg.dist.num_gpus > 1:
+        if not dist.is_initialized():
             return value
 
-        try:
-            tensor = torch.tensor(value, device=self.device)
-            # Set NCCL timeout and enable error handling
-            prev_timeout = os.environ.get('NCCL_BLOCKING_WAIT', None)
-            prev_error_handling = os.environ.get('NCCL_ASYNC_ERROR_HANDLING', None)
-            os.environ['NCCL_BLOCKING_WAIT'] = '1'  # Enable blocking wait
-            os.environ['NCCL_ASYNC_ERROR_HANDLING'] = '1'  # Enable async error handling
-
-            try:
-                torch.distributed.all_reduce(tensor, op=torch.distributed.ReduceOp.SUM)
-            finally:
-                # Restore previous settings
-                if prev_timeout is not None:
-                    os.environ['NCCL_BLOCKING_WAIT'] = prev_timeout
-                else:
-                    del os.environ['NCCL_BLOCKING_WAIT']
-                if prev_error_handling is not None:
-                    os.environ['NCCL_ASYNC_ERROR_HANDLING'] = prev_error_handling
-                else:
-                    del os.environ['NCCL_ASYNC_ERROR_HANDLING']
-
-            return tensor.item()
-        except Exception as e:
-            logger.warning(f"Distributed operation failed: {str(e)}. Using local value.")
-            return value
+        tensor = torch.tensor(value, device=self.device)
+        dist.all_reduce(tensor, op=dist.ReduceOp.SUM)
+        return tensor.item()
 
     def _dist_mean(self, value):
-        if not self.trainer_cfg.dist.num_gpus > 1:
+        if not dist.is_initialized():
             return value
 
-        try:
-            return self._dist_sum(value) / torch.distributed.get_world_size()
-        except Exception as e:
-            logger.warning(f"Distributed operation failed: {str(e)}. Using local value.")
-            return value
+        return self._dist_sum(value) / dist.get_world_size()
 
     def _process_stats(self):
         # Process raw stats first
