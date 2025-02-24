@@ -10,7 +10,6 @@ import mettagrid.observation_encoder
 
 import mettagrid.actions.actions
 import mettagrid.actions.attack
-import mettagrid.actions.gift
 import mettagrid.actions.move
 import mettagrid.actions.noop
 import mettagrid.actions.rotate
