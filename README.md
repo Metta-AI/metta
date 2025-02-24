@@ -91,9 +91,6 @@ The `transfer` action enables agents to share resources with other agents. Agent
 
 The `use` action allows agents to interact with objects such as altars, converters, and generators. The specific effects of the `use` action depend on the target object and can include converting resources to energy, powering the altar for rewards, or harvesting resources from generators.
 
-### Gift
-The `gift` action allows agents to share resources with other agents. It is currently not implemented.
-
 ### Swap
 The `swap` action allows agents to swap positions with other agents. It is currently not implemented.
 
