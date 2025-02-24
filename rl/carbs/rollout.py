@@ -121,7 +121,7 @@ class CarbsSweepRollout:
 
         self.eval_stats_logger.log(stats)
 
-        eval_stats_db = EvalStatsDB.from_uri(eval_cfg.eval.eval_db_uri, self.run_dir, wandb_run)
+        eval_stats_db = EvalStatsDB.from_uri(eval_cfg.eval.eval_db_uri, train_cfg.run_dir, wandb_run)
 
         metric_idxs = [i for i, m in enumerate(eval_cfg.analyzer.analysis.metrics) if m.metric == eval_cfg.sweep.metric]
         if len(metric_idxs) == 0:
