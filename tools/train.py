@@ -1,6 +1,6 @@
 import logging
 import os
-
+import datetime
 import hydra
 from agent.policy_store import PolicyStore
 from mettagrid.config.config import setup_metta_environment
@@ -48,7 +48,7 @@ def train_ddp(device_id, wandb_run, cfg):
         backend='nccl',
         rank=device_id,
         world_size=cfg.trainer.dist.num_gpus,
-        timeout=cfg.trainer.dist.nccl.timeout,
+        timeout=datetime.timedelta(seconds=cfg.trainer.dist.nccl.timeout),
     )
     train(wandb_run, cfg)
     torch.distributed.destroy_process_group()
