@@ -36,11 +36,15 @@ def main(cfg):
             torch.multiprocessing.set_start_method('spawn', force=True)
             torch.multiprocessing.log_to_stderr = True
 
-            torch.multiprocessing.spawn(train_ddp,
-                args=(wandb_run, cfg),
-                nprocs=cfg.trainer.dist.num_gpus,
-                join=True,
-            )
+            try:
+                torch.multiprocessing.spawn(train_ddp,
+                    args=(wandb_run, cfg),
+                    nprocs=cfg.trainer.dist.num_gpus,
+                    join=True,
+                )
+            except Exception as e:
+                logger.error(f"Error in multiprocessing: {e}")
+                raise
         else:
             train(wandb_run, cfg)
 
@@ -56,8 +60,13 @@ def train_ddp(device_id, wandb_run, cfg):
         # timeout=datetime.timedelta(seconds=cfg.trainer.dist.nccl.timeout),
     )
     logger.info(f"train_ddp() on {device_id}")
-    train(wandb_run, cfg)
-    torch.distributed.destroy_process_group()
+    try:
+        train(wandb_run, cfg)
+    except Exception as e:
+        logger.error(f"Error in train_ddp: {e}")
+        raise
+    finally:
+        torch.distributed.destroy_process_group()
 
 def train(wandb_run, cfg):
     setup_metta_environment(cfg)
@@ -65,11 +74,12 @@ def train(wandb_run, cfg):
 
     logger.info(f"making trainer on {cfg.device}")
     print(f"making trainer on {cfg.device}")
-    trainer = hydra.utils.instantiate(cfg.trainer, cfg, wandb_run, policy_store)
-    logger.info(f"train.start() on {trainer.device}")
-    print(f"train.start() on {trainer.device}")
-    trainer.train()
-    trainer.close()
-
-if __name__ == "__main__":
-    main()
+    try:
+        trainer = hydra.utils.instantiate(cfg.trainer, cfg, wandb_run, policy_store)
+        logger.info(f"train.start() on {trainer.device}")
+        print(f"train.start() on {trainer.device}")
+        trainer.train()
+        trainer.close()
+    except Exception as e:
+        logger.error(f"Error in train: {e}")
+        raise
