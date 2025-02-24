@@ -34,3 +34,11 @@ parameters:
       space: log
       min: 1e-5
       max: 1e-1
+    batch_size:
+        space: pow2
+        min: 131072
+        max: 524288
+      minibatch_size:
+        space: pow2
+        min: 1024
+        max: 131072

@@ -162,9 +162,14 @@ class MettaAgent(nn.Module):
     def _e3b_update(self, phi, e3b):
         intrinsic_reward = None
         if e3b is not None:
-            u = phi.unsqueeze(1) @ e3b
-            intrinsic_reward = u @ phi.unsqueeze(2)
-            e3b = 0.99*e3b - (u.mT @ u) / (1 + intrinsic_reward)
+            # Calculate bonus (intrinsic reward)
+            u = e3b @ phi.unsqueeze(2)  # C⁻¹φ
+            intrinsic_reward = phi.unsqueeze(1) @ u  # φᵀC⁻¹φ
+
+            # Sherman-Morrison update
+            denominator = 1 + intrinsic_reward
+            e3b = e3b - (u @ phi.unsqueeze(1) @ e3b) / denominator
+
             intrinsic_reward = intrinsic_reward.squeeze()
         return e3b, intrinsic_reward
 
