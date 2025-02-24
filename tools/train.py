@@ -11,11 +11,12 @@ import torch.multiprocessing
 import torch.distributed
 
 # Configure rich colored logging
+FORMAT = "%(asctime)s %(processName)s %(message)s"
 logging.basicConfig(
     level="INFO",
-    format="%(message)s",
+    format=FORMAT,
     datefmt="[%X]",
-    handlers=[RichHandler(rich_tracebacks=True)]
+    handlers=[RichHandler(rich_tracebacks=True, show_time=False)]
 )
 
 logger = logging.getLogger("train")
@@ -31,6 +32,10 @@ def main(cfg):
 
     with WandbContext(cfg) as wandb_run:
         if cfg.trainer.dist.num_gpus > 1:
+            # Enable logging in subprocesses
+            torch.multiprocessing.set_start_method('spawn', force=True)
+            torch.multiprocessing.log_to_stderr = True
+
             torch.multiprocessing.spawn(train_ddp,
                 args=(wandb_run, cfg),
                 nprocs=cfg.trainer.dist.num_gpus,
