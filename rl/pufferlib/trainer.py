@@ -120,7 +120,7 @@ class PufferTrainer:
         # Basic settings
         os.environ['NCCL_TIMEOUT'] = str(nccl_cfg.timeout)
         os.environ['TORCH_NCCL_BLOCKING_WAIT'] = str(nccl_cfg.blocking_wait)
-        os.environ['NCCL_ASYNC_ERROR_HANDLING'] = str(nccl_cfg.async_error_handling)
+        os.environ['TORCH_NCCL_ASYNC_ERROR_HANDLING'] = str(nccl_cfg.async_error_handling)
 
         # Debug settings
         os.environ['NCCL_DEBUG'] = str(nccl_cfg.debug)
@@ -146,14 +146,22 @@ class PufferTrainer:
         if self.trainer_cfg.evaluate_interval != 0 and self.trainer_cfg.evaluate_interval < self.trainer_cfg.checkpoint_interval:
             self.trainer_cfg.evaluate_interval = self.trainer_cfg.checkpoint_interval
 
+        logger.info(f"Training on {self.device} GPUs")
         while self.agent_step < self.trainer_cfg.total_timesteps:
             # Collecting experience
+            logger.info(f"{self.device} Evaluating policy")
             self._evaluate()
 
             # Training on collected experience
+            logger.info(f"{self.device} Training on collected experience")
             self._train()
 
+            # Processing stats
+            logger.info(f"{self.device} Processing stats")
             self._process_stats()
+
+            # Checkpointing trainer
+            logger.info(f"{self.device} Checkpointing trainer")
             if self.epoch % self.trainer_cfg.checkpoint_interval == 0:
                 self._checkpoint_trainer()
             if self.trainer_cfg.evaluate_interval != 0 and self.epoch % self.trainer_cfg.evaluate_interval == 0:
@@ -167,6 +175,7 @@ class PufferTrainer:
             if (self.trainer_cfg.trace_interval != 0 and
                 self.epoch % self.trainer_cfg.trace_interval == 0):
                 self._save_trace_to_wandb()
+
 
             self._on_train_step()
 
@@ -394,8 +403,8 @@ class PufferTrainer:
                     self.optimizer.zero_grad()
                     loss.backward()
                     torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.trainer_cfg.max_grad_norm)
-                    if self.trainer_cfg.sync_gpus and self.trainer_cfg.dist.num_gpus > 1:
-                        torch.distributed.barrier()
+                    # if self.trainer_cfg.sync_gpus and self.trainer_cfg.dist.num_gpus > 1:
+                    #     torch.distributed.barrier()
                     self.optimizer.step()
 
                     if self.cfg.agent.clip_range > 0:
@@ -405,7 +414,6 @@ class PufferTrainer:
                         torch.cuda.synchronize()
 
                 with profile.train_misc:
-                    # Accumulate losses
                     self.losses.policy_loss += pg_loss.item() / total_minibatches
                     self.losses.value_loss += v_loss.item() / total_minibatches
                     self.losses.entropy += entropy_loss.item() / total_minibatches
