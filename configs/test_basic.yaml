@@ -83,9 +83,6 @@ game:
       cost: 5
       damage: 5
       enabled: true
-    gift:
-      cost: 0
-      enabled: true
     swap:
       cost: 0
       enabled: true

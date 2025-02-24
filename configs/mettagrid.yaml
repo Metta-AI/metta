@@ -135,9 +135,6 @@ game:
     attack:
       enabled: true
       cost: 0
-    gift:
-      enabled: false
-      cost: 0
     swap:
       enabled: true
       cost: 0
