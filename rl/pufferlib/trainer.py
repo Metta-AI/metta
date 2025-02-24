@@ -112,7 +112,7 @@ class PufferTrainer:
                 wandb_run.define_metric(f"{k}/*", step_metric="train/agent_step")
 
         print("Done creating trainer on:", self.device)
-
+        raise Exception("Stop here")
 
     # def _setup_distributed_training(self):
     #     """Setup distributed training."""
