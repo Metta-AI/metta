@@ -30,10 +30,10 @@ def main(cfg):
     os.environ["MASTER_PORT"] = "29500"
 
     with WandbContext(cfg) as wandb_run:
-        if cfg.trainer.num_gpus > 1:
+        if cfg.trainer.dist.num_gpus > 1:
             torch.multiprocessing.spawn(train_ddp,
                 args=(wandb_run, cfg),
-                nprocs=cfg.trainer.num_gpus,
+                nprocs=cfg.trainer.dist.num_gpus,
                 join=True,
             )
         else:
@@ -42,9 +42,9 @@ def main(cfg):
 
 def train_ddp(device_id, wandb_run, cfg):
     setup_metta_environment(cfg)
-    print(f"Training on {device_id}/{cfg.trainer.num_gpus} GPUs")
+    print(f"Training on {device_id}/{cfg.trainer.dist.num_gpus} GPUs")
     cfg.device = f'{cfg.device}:{device_id}'
-    torch.distributed.init_process_group(backend='nccl', rank=device_id, world_size=cfg.trainer.num_gpus)
+    torch.distributed.init_process_group(backend='nccl', rank=device_id, world_size=cfg.trainer.dist.num_gpus)
     train(wandb_run, cfg)
     torch.distributed.destroy_process_group()
 
