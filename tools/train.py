@@ -44,7 +44,14 @@ def train_ddp(device_id, wandb_run, cfg):
     setup_metta_environment(cfg)
     print(f"Training on {device_id}/{cfg.trainer.dist.num_gpus} GPUs")
     cfg.device = f'{cfg.device}:{device_id}'
-    torch.distributed.init_process_group(backend='nccl', rank=device_id, world_size=cfg.trainer.dist.num_gpus)
+    torch.distributed.init_process_group(
+        backend='nccl',
+        rank=device_id,
+        world_size=cfg.trainer.dist.num_gpus,
+        timeout=cfg.trainer.dist.nccl.timeout,
+        blocking_wait=cfg.trainer.dist.nccl.blocking_wait,
+        async_error_handling=cfg.trainer.dist.nccl.async_error_handling
+    )
     train(wandb_run, cfg)
     torch.distributed.destroy_process_group()
 
