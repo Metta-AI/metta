@@ -129,63 +129,13 @@ class PufferTrainer:
         os.environ['NCCL_DEBUG_FILE'] = debug_file
         os.makedirs(os.path.dirname(debug_file), exist_ok=True)
 
-        # Network settings
-        if nccl_cfg.socket_ifname:
-            os.environ['NCCL_SOCKET_IFNAME'] = nccl_cfg.socket_ifname
-        os.environ['NCCL_SOCKET_NTHREADS'] = str(nccl_cfg.socket_nthreads)
-        os.environ['NCCL_NSOCKS_PERTHREAD'] = str(nccl_cfg.nsocks_perthread)
-        os.environ['NCCL_MIN_NCHANNELS'] = str(nccl_cfg.min_nchannels)
-        os.environ['NCCL_MAX_NCHANNELS'] = str(nccl_cfg.max_nchannels)
-
-        # Transport settings
-        os.environ['NCCL_IB_DISABLE'] = str(nccl_cfg.ib_disable)
-        os.environ['NCCL_IB_GID_INDEX'] = str(nccl_cfg.ib_gid_index)
-        os.environ['NCCL_IB_TIMEOUT'] = str(nccl_cfg.ib_timeout)
-        os.environ['NCCL_IB_RETRY_CNT'] = str(nccl_cfg.ib_retry_cnt)
-        os.environ['NCCL_IB_SL'] = str(nccl_cfg.ib_sl)
-        os.environ['NCCL_IB_TC'] = str(nccl_cfg.ib_tc)
-        if nccl_cfg.ib_hca:
-            os.environ['NCCL_IB_HCA'] = nccl_cfg.ib_hca
-
-        # Performance settings
-        os.environ['NCCL_BUFFSIZE'] = str(nccl_cfg.buffsize)
-        os.environ['NCCL_CHECK_POINTERS'] = str(nccl_cfg.check_pointers)
-        os.environ['NCCL_CUDAGRAPH'] = str(nccl_cfg.cudagraph)
-        os.environ['NCCL_MAX_RINGS'] = str(nccl_cfg.max_rings)
-        os.environ['NCCL_NTHREADS'] = str(nccl_cfg.nthreads)
-        os.environ['NCCL_THREADS_THRESHOLD'] = str(nccl_cfg.threads_threshold)
-
-        # Error handling
-        os.environ['NCCL_MAX_RETRIES'] = str(nccl_cfg.max_retries)
-        os.environ['NCCL_RETRY_TIMEOUT'] = str(nccl_cfg.retry_timeout)
-        os.environ['NCCL_CHECKS'] = str(nccl_cfg.checks)
-        os.environ['NCCL_CHECKSUM'] = str(nccl_cfg.checksum)
-
-        # P2P settings
-        os.environ['NCCL_P2P_DISABLE'] = str(nccl_cfg.p2p_disable)
-        os.environ['NCCL_P2P_LEVEL'] = str(nccl_cfg.p2p_level)
-        os.environ['NCCL_NET_GDR_LEVEL'] = str(nccl_cfg.net_gdr_level)
-        os.environ['NCCL_GPU_DIRECT_RDMA'] = str(nccl_cfg.gpu_direct_rdma)
-
-        # System settings
-        if nccl_cfg.numa_node is not None:
-            os.environ['NCCL_NUMA_NODE'] = str(nccl_cfg.numa_node)
-        if nccl_cfg.cpu_affinity is not None:
-            os.environ['NCCL_CPU_AFFINITY'] = str(nccl_cfg.cpu_affinity)
-        os.environ['NCCL_CPU_ARCH'] = str(nccl_cfg.cpu_arch)
-        os.environ['NCCL_CACHE_FLUSH'] = str(nccl_cfg.cache_flush)
-        os.environ['NCCL_LAUNCH_MODE'] = str(nccl_cfg.launch_mode)
-
         # Log key settings
         logger.info("NCCL Configuration:")
         logger.info(f"  Timeout: {nccl_cfg.timeout}s")
         logger.info(f"  Debug Level: {nccl_cfg.debug}")
         logger.info(f"  Debug File: {debug_file}")
-        logger.info(f"  Network Interface: {nccl_cfg.socket_ifname or 'auto'}")
-        logger.info(f"  IB Transport: {'enabled' if not nccl_cfg.ib_disable else 'disabled'}")
-        logger.info(f"  P2P Transport: {'enabled' if not nccl_cfg.p2p_disable else 'disabled'}")
-        logger.info(f"  Max Retries: {nccl_cfg.max_retries}")
-        logger.info(f"  Retry Timeout: {nccl_cfg.retry_timeout}s")
+        logger.info(f"  Blocking Wait: {'enabled' if nccl_cfg.blocking_wait else 'disabled'}")
+        logger.info(f"  Async Error Handling: {'enabled' if nccl_cfg.async_error_handling else 'disabled'}")
 
     def train(self):
         self.train_start = time.time()

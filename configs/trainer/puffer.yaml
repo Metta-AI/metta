@@ -58,7 +58,7 @@ dist:
   nccl:
     # Basic settings
     timeout: 600  # Timeout in seconds (10 minutes)
-    blocking_wait: 1  # Enable blocking wait
+    blocking_wait: 0  # Enable blocking wait
     async_error_handling: 1  # Enable async error handling
 
     # Debug settings
@@ -67,45 +67,3 @@ dist:
     trace_buffer_size: 1048576  # Size of trace buffer for debugging (1MB)
     debug_file: nccl_debug.log  # Debug log file name (relative to run_dir)
 
-    # Network settings
-    socket_ifname: null  # Network interface to use (e.g. 'eth0', null for auto)
-    socket_nthreads: 4  # Number of threads for socket communication
-    nsocks_perthread: 2  # Number of sockets per thread
-    min_nchannels: 1  # Minimum number of channels
-    max_nchannels: 4  # Maximum number of channels
-
-    # Transport settings
-    ib_disable: 0  # Enable InfiniBand transport if available
-    ib_gid_index: 0  # GID index for InfiniBand
-    ib_timeout: 20  # InfiniBand timeout in seconds
-    ib_retry_cnt: 7  # InfiniBand retry count
-    ib_sl: 0  # InfiniBand service level
-    ib_tc: 0  # InfiniBand traffic class
-    ib_hca: null  # InfiniBand HCA to use (null for auto)
-
-    # Performance settings
-    buffsize: 2097152  # Buffer size in bytes (2MB)
-    check_pointers: 1  # Enable pointer checking
-    cudagraph: 0  # Enable CUDA graphs
-    max_rings: 4  # Maximum number of communication rings
-    nthreads: 4  # Number of threads for NCCL operations
-    threads_threshold: 1  # Threshold for using multiple threads
-
-    # Error handling
-    max_retries: 20  # Maximum number of retries
-    retry_timeout: 3  # Retry timeout in seconds
-    checks: 1  # Enable runtime checks
-    checksum: 1  # Enable checksums
-
-    # P2P settings
-    p2p_disable: 0  # Enable P2P communication
-    p2p_level: 5  # P2P level (0-5)
-    net_gdr_level: 5  # GDR level for network operations
-    gpu_direct_rdma: 1  # Enable GPU Direct RDMA
-
-    # System settings
-    numa_node: null  # NUMA node to use (null for auto)
-    cpu_affinity: null  # CPU affinity (null for auto)
-    cpu_arch: x86_64  # CPU architecture
-    cache_flush: 0  # Enable cache flushing
-    launch_mode: parallel  # Launch mode (parallel or sequential)
