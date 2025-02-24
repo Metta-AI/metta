@@ -1,22 +1,20 @@
-from distutils import dist
 import logging
 import os
 import time
 from collections import defaultdict
 from copy import deepcopy
-from pathlib import Path
 
 import hydra
 import numpy as np
 import pufferlib
 import pufferlib.utils
 import torch
+import torch.distributed as dist
 import wandb
 from agent.policy_store import PolicyStore
 from fast_gae import fast_gae
 from omegaconf import OmegaConf
 from torch.nn.parallel import DistributedDataParallel
-from tqdm import tqdm
 
 from rl.eval.eval_stats_db import EvalStatsDB
 from rl.eval.eval_stats_logger import EvalStatsLogger
@@ -146,7 +144,7 @@ class PufferTrainer:
         if self.trainer_cfg.evaluate_interval != 0 and self.trainer_cfg.evaluate_interval < self.trainer_cfg.checkpoint_interval:
             self.trainer_cfg.evaluate_interval = self.trainer_cfg.checkpoint_interval
 
-        logger.info(f"Training on {self.device} GPUs")
+        logger.info(f"Training on {self.device}")
         while self.agent_step < self.trainer_cfg.total_timesteps:
             # Collecting experience
             logger.info(f"{self.device} Evaluating policy")
