@@ -41,9 +41,9 @@ class PufferTrainer:
         self.trainer_cfg = cfg.trainer
         self.device = cfg.device
 
-        # Configure NCCL for distributed training
-        if self.trainer_cfg.dist.num_gpus > 1:
-            self._setup_distributed_training()
+        # # Configure NCCL for distributed training
+        # if self.trainer_cfg.dist.num_gpus > 1:
+        #     self._setup_distributed_training()
 
         self.profile = Profile()
         self.losses = self._make_losses()
@@ -113,21 +113,21 @@ class PufferTrainer:
 
         print("Created trainer on:", self.device)
 
-    def _setup_distributed_training(self):
-        """Setup distributed training."""
-        # Import worker_init to configure warnings in distributed processes
-        import rl.pufferlib.worker_init
+    # def _setup_distributed_training(self):
+    #     """Setup distributed training."""
+    #     # Import worker_init to configure warnings in distributed processes
+    #     import rl.pufferlib.worker_init
 
-        # Configure NCCL settings
-        nccl_cfg = self.trainer_cfg.dist.nccl
-        os.environ["NCCL_TIMEOUT"] = str(nccl_cfg.timeout)
+    #     # Configure NCCL settings
+    #     nccl_cfg = self.trainer_cfg.dist.nccl
+    #     os.environ["NCCL_TIMEOUT"] = str(nccl_cfg.timeout)
 
-        # Log key settings
-        logger.info("NCCL Configuration:")
-        logger.info(f"  Timeout: {nccl_cfg.timeout}s")
-        logger.info(f"  Debug Level: {nccl_cfg.debug}")
-        logger.info(f"  Blocking Wait: {'enabled' if nccl_cfg.blocking_wait else 'disabled'}")
-        logger.info(f"  Async Error Handling: {'enabled' if nccl_cfg.async_error_handling else 'disabled'}")
+    #     # Log key settings
+    #     logger.info("NCCL Configuration:")
+    #     logger.info(f"  Timeout: {nccl_cfg.timeout}s")
+    #     logger.info(f"  Debug Level: {nccl_cfg.debug}")
+    #     logger.info(f"  Blocking Wait: {'enabled' if nccl_cfg.blocking_wait else 'disabled'}")
+    #     logger.info(f"  Async Error Handling: {'enabled' if nccl_cfg.async_error_handling else 'disabled'}")
 
     def train(self):
         self.train_start = time.time()
