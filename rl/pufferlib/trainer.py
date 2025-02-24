@@ -1,8 +1,7 @@
-import os
-# Set warning filter before any imports
-os.environ["PYTHONWARNINGS"] = "ignore::DeprecationWarning:pkg_resources"
+from . import warnings_config
 
 import logging
+import os
 import time
 from collections import defaultdict
 from copy import deepcopy
