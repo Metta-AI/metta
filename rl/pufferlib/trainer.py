@@ -114,12 +114,13 @@ class PufferTrainer:
         print("Created trainer on:", self.device)
 
     def _setup_distributed_training(self):
-        """Configure NCCL settings for distributed training."""
-        # Configure warnings in distributed process
-        from .warnings_config import configure_warnings
-        configure_warnings()
+        """Setup distributed training."""
+        # Import worker_init to configure warnings in distributed processes
+        import metta.rl.pufferlib.worker_init
 
+        # Configure NCCL settings
         nccl_cfg = self.trainer_cfg.dist.nccl
+        os.environ["NCCL_TIMEOUT"] = str(nccl_cfg.timeout)
 
         # Log key settings
         logger.info("NCCL Configuration:")
@@ -590,15 +591,15 @@ class PufferTrainer:
         )
 
     def _make_vecenv(self):
+        """Create a vectorized environment."""
+        # Import worker_init to configure warnings in worker processes
+        import metta.rl.pufferlib.worker_init
+
+        # Create the vectorized environment
         self.target_batch_size = self.trainer_cfg.forward_pass_minibatch_target_size // self.cfg.env.game.num_agents
         if self.target_batch_size < 2: # pufferlib bug requires batch size >= 2
             self.target_batch_size = 2
         self.batch_size = (self.target_batch_size // self.trainer_cfg.num_workers) * self.trainer_cfg.num_workers
-
-        # Configure warnings in worker processes
-        def worker_init_fn(worker_id):
-            from .warnings_config import configure_warnings
-            configure_warnings()
 
         self.vecenv = make_vecenv(
             self.cfg.env,
@@ -606,8 +607,7 @@ class PufferTrainer:
             num_envs = self.batch_size * self.trainer_cfg.async_factor,
             batch_size = self.batch_size,
             num_workers=self.trainer_cfg.num_workers,
-            zero_copy=self.trainer_cfg.zero_copy,
-            worker_init_fn=worker_init_fn)
+            zero_copy=self.trainer_cfg.zero_copy)
 
         if self.cfg.seed is None:
             self.cfg.seed = np.random.randint(0, 1000000)
