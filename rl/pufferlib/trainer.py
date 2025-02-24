@@ -118,7 +118,7 @@ class PufferTrainer:
 
         # Basic settings
         os.environ['NCCL_TIMEOUT'] = str(nccl_cfg.timeout)
-        os.environ['NCCL_BLOCKING_WAIT'] = str(nccl_cfg.blocking_wait)
+        os.environ['TORCH_NCCL_BLOCKING_WAIT'] = str(nccl_cfg.blocking_wait)
         os.environ['NCCL_ASYNC_ERROR_HANDLING'] = str(nccl_cfg.async_error_handling)
 
         # Debug settings
