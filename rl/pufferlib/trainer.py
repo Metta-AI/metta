@@ -115,26 +115,16 @@ class PufferTrainer:
 
     def _setup_distributed_training(self):
         """Configure NCCL settings for distributed training."""
+        # Configure warnings in distributed process
+        from .warnings_config import configure_warnings
+        configure_warnings()
+
         nccl_cfg = self.trainer_cfg.dist.nccl
-
-        # # Basic settings
-        # os.environ['NCCL_TIMEOUT'] = str(nccl_cfg.timeout)
-        # os.environ['TORCH_NCCL_BLOCKING_WAIT'] = str(nccl_cfg.blocking_wait)
-        # os.environ['TORCH_NCCL_ASYNC_ERROR_HANDLING'] = str(nccl_cfg.async_error_handling)
-
-        # # Debug settings
-        # os.environ['NCCL_DEBUG'] = str(nccl_cfg.debug)
-        # os.environ['NCCL_DEBUG_SUBSYS'] = str(nccl_cfg.debug_subsys)
-        # os.environ['TORCH_NCCL_TRACE_BUFFER_SIZE'] = str(nccl_cfg.trace_buffer_size)
-        # debug_file = os.path.join(self.cfg.run_dir, nccl_cfg.debug_file)
-        # os.environ['NCCL_DEBUG_FILE'] = debug_file
-        # os.makedirs(os.path.dirname(debug_file), exist_ok=True)
 
         # Log key settings
         logger.info("NCCL Configuration:")
         logger.info(f"  Timeout: {nccl_cfg.timeout}s")
         logger.info(f"  Debug Level: {nccl_cfg.debug}")
-        # logger.info(f"  Debug File: {debug_file}")
         logger.info(f"  Blocking Wait: {'enabled' if nccl_cfg.blocking_wait else 'disabled'}")
         logger.info(f"  Async Error Handling: {'enabled' if nccl_cfg.async_error_handling else 'disabled'}")
 
@@ -605,13 +595,19 @@ class PufferTrainer:
             self.target_batch_size = 2
         self.batch_size = (self.target_batch_size // self.trainer_cfg.num_workers) * self.trainer_cfg.num_workers
 
+        # Configure warnings in worker processes
+        def worker_init_fn(worker_id):
+            from .warnings_config import configure_warnings
+            configure_warnings()
+
         self.vecenv = make_vecenv(
             self.cfg.env,
             self.cfg.vectorization,
             num_envs = self.batch_size * self.trainer_cfg.async_factor,
             batch_size = self.batch_size,
             num_workers=self.trainer_cfg.num_workers,
-            zero_copy=self.trainer_cfg.zero_copy)
+            zero_copy=self.trainer_cfg.zero_copy,
+            worker_init_fn=worker_init_fn)
 
         if self.cfg.seed is None:
             self.cfg.seed = np.random.randint(0, 1000000)
