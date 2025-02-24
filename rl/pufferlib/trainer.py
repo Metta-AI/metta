@@ -1,8 +1,12 @@
 import logging
 import os
 import time
+import warnings
 from collections import defaultdict
 from copy import deepcopy
+
+# Suppress pkg_resources deprecation warning
+warnings.filterwarnings('ignore', category=DeprecationWarning, module='pkg_resources')
 
 import hydra
 import numpy as np
