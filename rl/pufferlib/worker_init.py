@@ -19,4 +19,3 @@ os.environ["PYTHONWARNINGS"] = "ignore::DeprecationWarning:pkg_resources,ignore:
 # Force warnings to be ignored immediately
 if not sys.warnoptions:
     warnings.simplefilter("ignore", DeprecationWarning)
-    warnings.simplefilter("ignore", category=DeprecationWarning, module='pkg_resources')

@@ -20,7 +20,6 @@ def configure_warnings():
     # Force warnings to be ignored immediately
     if not sys.warnoptions:
         warnings.simplefilter("ignore", DeprecationWarning)
-        warnings.simplefilter("ignore", category=DeprecationWarning, module='pkg_resources')
 
 # Configure warnings in the main process
 configure_warnings()
