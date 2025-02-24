@@ -39,6 +39,11 @@ class PufferTrainer:
         self.cfg = cfg
         self.trainer_cfg = cfg.trainer
         self.device = cfg.device
+
+        # Configure NCCL for distributed training
+        if self.trainer_cfg.dist.num_gpus > 1:
+            self._setup_distributed_training()
+
         self.profile = Profile()
         self.losses = self._make_losses()
         self.stats = defaultdict(list)
@@ -80,7 +85,7 @@ class PufferTrainer:
         if self.trainer_cfg.compile:
             self.policy = torch.compile(self.policy, mode=self.trainer_cfg.compile_mode)
 
-        if self.trainer_cfg.num_gpus > 1:
+        if self.trainer_cfg.dist.num_gpus > 1:
             orig_policy = self.policy
             self.policy = DistributedDataParallel(self.policy, device_ids=[self.device])
             self.policy.lstm = orig_policy.lstm
@@ -106,6 +111,81 @@ class PufferTrainer:
                 wandb_run.define_metric(f"{k}/*", step_metric="train/agent_step")
 
         print("Training on device:", self.device)
+
+    def _setup_distributed_training(self):
+        """Configure NCCL settings for distributed training."""
+        nccl_cfg = self.trainer_cfg.dist.nccl
+
+        # Basic settings
+        os.environ['NCCL_TIMEOUT'] = str(nccl_cfg.timeout)
+        os.environ['NCCL_BLOCKING_WAIT'] = str(nccl_cfg.blocking_wait)
+        os.environ['NCCL_ASYNC_ERROR_HANDLING'] = str(nccl_cfg.async_error_handling)
+
+        # Debug settings
+        os.environ['NCCL_DEBUG'] = str(nccl_cfg.debug)
+        os.environ['NCCL_DEBUG_SUBSYS'] = str(nccl_cfg.debug_subsys)
+        os.environ['TORCH_NCCL_TRACE_BUFFER_SIZE'] = str(nccl_cfg.trace_buffer_size)
+        debug_file = os.path.join(self.cfg.run_dir, nccl_cfg.debug_file)
+        os.environ['NCCL_DEBUG_FILE'] = debug_file
+        os.makedirs(os.path.dirname(debug_file), exist_ok=True)
+
+        # Network settings
+        if nccl_cfg.socket_ifname:
+            os.environ['NCCL_SOCKET_IFNAME'] = nccl_cfg.socket_ifname
+        os.environ['NCCL_SOCKET_NTHREADS'] = str(nccl_cfg.socket_nthreads)
+        os.environ['NCCL_NSOCKS_PERTHREAD'] = str(nccl_cfg.nsocks_perthread)
+        os.environ['NCCL_MIN_NCHANNELS'] = str(nccl_cfg.min_nchannels)
+        os.environ['NCCL_MAX_NCHANNELS'] = str(nccl_cfg.max_nchannels)
+
+        # Transport settings
+        os.environ['NCCL_IB_DISABLE'] = str(nccl_cfg.ib_disable)
+        os.environ['NCCL_IB_GID_INDEX'] = str(nccl_cfg.ib_gid_index)
+        os.environ['NCCL_IB_TIMEOUT'] = str(nccl_cfg.ib_timeout)
+        os.environ['NCCL_IB_RETRY_CNT'] = str(nccl_cfg.ib_retry_cnt)
+        os.environ['NCCL_IB_SL'] = str(nccl_cfg.ib_sl)
+        os.environ['NCCL_IB_TC'] = str(nccl_cfg.ib_tc)
+        if nccl_cfg.ib_hca:
+            os.environ['NCCL_IB_HCA'] = nccl_cfg.ib_hca
+
+        # Performance settings
+        os.environ['NCCL_BUFFSIZE'] = str(nccl_cfg.buffsize)
+        os.environ['NCCL_CHECK_POINTERS'] = str(nccl_cfg.check_pointers)
+        os.environ['NCCL_CUDAGRAPH'] = str(nccl_cfg.cudagraph)
+        os.environ['NCCL_MAX_RINGS'] = str(nccl_cfg.max_rings)
+        os.environ['NCCL_NTHREADS'] = str(nccl_cfg.nthreads)
+        os.environ['NCCL_THREADS_THRESHOLD'] = str(nccl_cfg.threads_threshold)
+
+        # Error handling
+        os.environ['NCCL_MAX_RETRIES'] = str(nccl_cfg.max_retries)
+        os.environ['NCCL_RETRY_TIMEOUT'] = str(nccl_cfg.retry_timeout)
+        os.environ['NCCL_CHECKS'] = str(nccl_cfg.checks)
+        os.environ['NCCL_CHECKSUM'] = str(nccl_cfg.checksum)
+
+        # P2P settings
+        os.environ['NCCL_P2P_DISABLE'] = str(nccl_cfg.p2p_disable)
+        os.environ['NCCL_P2P_LEVEL'] = str(nccl_cfg.p2p_level)
+        os.environ['NCCL_NET_GDR_LEVEL'] = str(nccl_cfg.net_gdr_level)
+        os.environ['NCCL_GPU_DIRECT_RDMA'] = str(nccl_cfg.gpu_direct_rdma)
+
+        # System settings
+        if nccl_cfg.numa_node is not None:
+            os.environ['NCCL_NUMA_NODE'] = str(nccl_cfg.numa_node)
+        if nccl_cfg.cpu_affinity is not None:
+            os.environ['NCCL_CPU_AFFINITY'] = str(nccl_cfg.cpu_affinity)
+        os.environ['NCCL_CPU_ARCH'] = str(nccl_cfg.cpu_arch)
+        os.environ['NCCL_CACHE_FLUSH'] = str(nccl_cfg.cache_flush)
+        os.environ['NCCL_LAUNCH_MODE'] = str(nccl_cfg.launch_mode)
+
+        # Log key settings
+        logger.info("NCCL Configuration:")
+        logger.info(f"  Timeout: {nccl_cfg.timeout}s")
+        logger.info(f"  Debug Level: {nccl_cfg.debug}")
+        logger.info(f"  Debug File: {debug_file}")
+        logger.info(f"  Network Interface: {nccl_cfg.socket_ifname or 'auto'}")
+        logger.info(f"  IB Transport: {'enabled' if not nccl_cfg.ib_disable else 'disabled'}")
+        logger.info(f"  P2P Transport: {'enabled' if not nccl_cfg.p2p_disable else 'disabled'}")
+        logger.info(f"  Max Retries: {nccl_cfg.max_retries}")
+        logger.info(f"  Retry Timeout: {nccl_cfg.retry_timeout}s")
 
     def train(self):
         self.train_start = time.time()
@@ -363,7 +443,7 @@ class PufferTrainer:
                     self.optimizer.zero_grad()
                     loss.backward()
                     torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.trainer_cfg.max_grad_norm)
-                    if self.trainer_cfg.sync_gpus and self.trainer_cfg.num_gpus > 1:
+                    if self.trainer_cfg.sync_gpus and self.trainer_cfg.dist.num_gpus > 1:
                         torch.distributed.barrier()
                     self.optimizer.step()
 
@@ -407,7 +487,7 @@ class PufferTrainer:
             )
 
         # Synchronize losses across processes if using distributed training
-        if self.trainer_cfg.num_gpus > 1:
+        if self.trainer_cfg.dist.num_gpus > 1:
             for k in vars(self.losses):
                 if not k.startswith('_'):
                     setattr(self.losses, k, self._dist_mean(getattr(self.losses, k)))
@@ -457,18 +537,44 @@ class PufferTrainer:
         wandb.log({"traces/actions": wandb.Image(image_path)})
 
     def _dist_sum(self, value):
-        if not self.trainer_cfg.num_gpus > 1:
+        if not self.trainer_cfg.dist.num_gpus > 1:
             return value
 
-        tensor = torch.tensor(value, device=self.device)
-        torch.distributed.all_reduce(tensor, op=torch.distributed.ReduceOp.SUM)
-        return tensor.item()
+        try:
+            tensor = torch.tensor(value, device=self.device)
+            # Set NCCL timeout and enable error handling
+            prev_timeout = os.environ.get('NCCL_BLOCKING_WAIT', None)
+            prev_error_handling = os.environ.get('NCCL_ASYNC_ERROR_HANDLING', None)
+            os.environ['NCCL_BLOCKING_WAIT'] = '1'  # Enable blocking wait
+            os.environ['NCCL_ASYNC_ERROR_HANDLING'] = '1'  # Enable async error handling
+
+            try:
+                torch.distributed.all_reduce(tensor, op=torch.distributed.ReduceOp.SUM)
+            finally:
+                # Restore previous settings
+                if prev_timeout is not None:
+                    os.environ['NCCL_BLOCKING_WAIT'] = prev_timeout
+                else:
+                    del os.environ['NCCL_BLOCKING_WAIT']
+                if prev_error_handling is not None:
+                    os.environ['NCCL_ASYNC_ERROR_HANDLING'] = prev_error_handling
+                else:
+                    del os.environ['NCCL_ASYNC_ERROR_HANDLING']
+
+            return tensor.item()
+        except Exception as e:
+            logger.warning(f"Distributed operation failed: {str(e)}. Using local value.")
+            return value
 
     def _dist_mean(self, value):
-        if not self.trainer_cfg.num_gpus > 1:
+        if not self.trainer_cfg.dist.num_gpus > 1:
             return value
 
-        return self._dist_sum(value) / torch.distributed.get_world_size()
+        try:
+            return self._dist_sum(value) / torch.distributed.get_world_size()
+        except Exception as e:
+            logger.warning(f"Distributed operation failed: {str(e)}. Using local value.")
+            return value
 
     def _process_stats(self):
         # Process raw stats first
@@ -480,18 +586,28 @@ class PufferTrainer:
             except:
                 del self.stats[k]
 
-        # Synchronize and aggregate stats across processes
-        sps = self._dist_sum(self.profile.SPS)
-        agent_steps = int(self._dist_sum(self.agent_step))
-        epoch = int(self._dist_sum(self.epoch))
-        learning_rate = self.optimizer.param_groups[0]["lr"]
-        environment = {k: self._dist_mean(v) for k, v in self.stats.items()}
-        losses = {k: self._dist_mean(v) for k, v in vars(self.losses).items() if not k.startswith('_')}
-        performance = {k: self._dist_sum(v) for k, v in self.profile}
+        try:
+            # Synchronize and aggregate stats across processes
+            sps = self._dist_sum(self.profile.SPS)
+            agent_steps = int(self._dist_sum(self.agent_step))
+            epoch = int(self._dist_sum(self.epoch))
+            learning_rate = self.optimizer.param_groups[0]["lr"]
+            environment = {k: self._dist_mean(v) for k, v in self.stats.items()}
+            losses = {k: self._dist_mean(v) for k, v in vars(self.losses).items() if not k.startswith('_')}
+            performance = {k: self._dist_mean(v) for k, v in self.profile}
+        except Exception as e:
+            logger.error(f"Failed to synchronize stats: {str(e)}. Using local values.")
+            sps = self.profile.SPS
+            agent_steps = self.agent_step
+            epoch = self.epoch
+            learning_rate = self.optimizer.param_groups[0]["lr"]
+            environment = self.stats
+            losses = {k: v for k, v in vars(self.losses).items() if not k.startswith('_')}
+            performance = self.profile
 
         # Only log from rank 0 when using distributed training
         should_log = self.wandb_run and self.cfg.wandb.track
-        if self.trainer_cfg.num_gpus > 1:
+        if self.trainer_cfg.dist.num_gpus > 1:
             should_log = should_log and torch.distributed.get_rank() == 0
 
         if should_log:
