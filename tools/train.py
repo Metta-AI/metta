@@ -64,8 +64,10 @@ def train(wandb_run, cfg):
     policy_store = PolicyStore(cfg, wandb_run)
 
     logger.info(f"making trainer on {cfg.device}")
+    print(f"making trainer on {cfg.device}")
     trainer = hydra.utils.instantiate(cfg.trainer, cfg, wandb_run, policy_store)
     logger.info(f"train.start() on {trainer.device}")
+    print(f"train.start() on {trainer.device}")
     trainer.train()
     trainer.close()
 
