@@ -1,12 +1,11 @@
-import logging
 import os
+# Set warning filter before any imports
+os.environ["PYTHONWARNINGS"] = "ignore::DeprecationWarning:pkg_resources"
+
+import logging
 import time
-import warnings
 from collections import defaultdict
 from copy import deepcopy
-
-# Suppress pkg_resources deprecation warning
-warnings.filterwarnings('ignore', category=DeprecationWarning, module='pkg_resources')
 
 import hydra
 import numpy as np
