@@ -78,7 +78,12 @@ class PufferTrainer:
             policy_record = policy_store.policy(cfg.trainer.initial_policy)
         else:
             logger.info("Creating new policy")
-            policy_record = policy_store.create(self.vecenv.driver_env)
+            if self._master:
+                policy_record = policy_store.create(self.vecenv.driver_env)
+            else:
+                policy_record = policy_store.policy(
+                    os.path.join(cfg.trainer.checkpoint_dir,
+                                 policy_store.make_model_name(0))
 
         if policy_record.metadata["action_names"] != self.vecenv.driver_env.action_names():
             raise ValueError(
@@ -521,6 +526,7 @@ class PufferTrainer:
         if not (self.wandb_run and self.cfg.wandb.track and self._master):
             return
 
+        logger.info("Master logging stats")
         # Process raw stats first
         for k in list(self.stats.keys()):
             v = self.stats[k]
