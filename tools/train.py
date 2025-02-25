@@ -23,7 +23,6 @@ logger = logging.getLogger("train")
 
 @hydra.main(version_base=None, config_path="../configs", config_name="config")
 def main(cfg):
-    logger.info("Starting main()")
     setup_metta_environment(cfg)
     with open(os.path.join(cfg.run_dir, "config.yaml"), "w") as f:
         OmegaConf.save(cfg, f)
@@ -59,6 +58,10 @@ def train_ddp(device_id, wandb_run, cfg):
     setup_metta_environment(cfg)
     logger.info(f"Training on {device_id}/{cfg.trainer.dist.num_gpus} GPUs")
     cfg.device = f'{cfg.device}:{device_id}'
+    policy_store = PolicyStore(cfg, wandb_run)
+
+    if device_id != 0:
+        wandb_run = None
 
     logger.info(f"Initializing process group for device {device_id}")
     torch.distributed.init_process_group(
@@ -71,7 +74,7 @@ def train_ddp(device_id, wandb_run, cfg):
 
     try:
         logger.info(f"Starting training on device {device_id}")
-        train(wandb_run, cfg)
+        train(wandb_run, policy_store, cfg)
         logger.info(f"Training completed on device {device_id}")
     except Exception as e:
         logger.error(f"Error in train_ddp on device {device_id}: {e}")
@@ -81,10 +84,9 @@ def train_ddp(device_id, wandb_run, cfg):
         torch.distributed.destroy_process_group()
 
 
-def train(wandb_run, cfg):
+def train(wandb_run, policy_store, cfg):
     logger.info(f"Starting train() on device {cfg.device}")
     setup_metta_environment(cfg)
-    policy_store = PolicyStore(cfg, wandb_run)
     logger.info(f"Policy store initialized on {cfg.device}")
 
     try:
