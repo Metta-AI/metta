@@ -12,9 +12,6 @@ from sample_factory.utils.typing import ActionSpace, ObsSpace
 from pufferlib.cleanrl import sample_logits
 from pufferlib.environment import PufferEnv
 import pufferlib
-import logging
-
-logger = logging.getLogger("metta_agent")
 
 def make_policy(env: PufferEnv, cfg: OmegaConf):
     obs_space = gym.spaces.Dict({
@@ -131,7 +128,6 @@ class MettaAgent(nn.Module):
         return None, td["_value_"], None
 
     def get_action_and_value(self, x, state=None, action=None, e3b=None):
-        logger.info("Starting get_action_and_value")
         td = TensorDict({"x": x})
 
         td["state"] = None
@@ -159,13 +155,10 @@ class MettaAgent(nn.Module):
         e3b, intrinsic_reward = self._e3b_update(td["_core_"].detach(), e3b)
         action, logprob, entropy = sample_logits(logits, action, False)
 
-        logger.info("Completed get_action_and_value")
         return action, logprob, entropy, value, state, e3b, intrinsic_reward
 
     def forward(self, x, state=None, action=None, e3b=None):
-        logger.info("Starting forward")
         action, logprob, entropy, value, state, e3b, intrinsic_reward = self.get_action_and_value(x, state, action, e3b)
-        logger.info("Completed forward")
         return action, logprob, entropy, value, state, e3b, intrinsic_reward
 
     def _e3b_update(self, phi, e3b):

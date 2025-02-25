@@ -220,9 +220,7 @@ class PufferTrainer:
 
         while not experience.full:
             with profile.env:
-                logger.info(f"{self.device} Receiving experience")
                 o, r, d, t, info, env_id, mask = self.vecenv.recv()
-                logger.info(f"{self.device} Received experience")
                 env_id = env_id.tolist()
 
             with profile.eval_misc:
@@ -246,7 +244,9 @@ class PufferTrainer:
                 logger.info(f"{self.device} evaluating policy")
                 actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward = policy(o_device, (h, c), e3b=e3b)
                 logger.info(f"{self.device} policy evaluation complete")
+                logger.info(f"{self.device} updating LSTM_H")
                 lstm_h[:, env_id] = h
+                logger.info(f"{self.device} updating LSTM_C")
                 lstm_c[:, env_id] = c
                 logger.info(f"{self.device} updating e3b")
                 if self.use_e3b:
