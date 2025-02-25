@@ -239,6 +239,7 @@ class PufferTrainer:
                 # Also should be using a cuda tensor to index
                 e3b = e3b_inv[env_id] if self.use_e3b else None
 
+                logger.info(f"{self.device} evaluating LSTM")
                 if lstm_h is not None:
                     h = lstm_h[:, env_id]
                     c = lstm_c[:, env_id]
@@ -246,10 +247,12 @@ class PufferTrainer:
                     lstm_h[:, env_id] = h
                     lstm_c[:, env_id] = c
 
+                logger.info(f"{self.device} evaluating E3B")
                 if self.use_e3b:
                     e3b_inv[env_id] = next_e3b
                     r += intrinsic_reward.cpu()
 
+                logger.info(f"{self.device} synchronizing CUDA")
                 if self.device.startswith('cuda'):
                     torch.cuda.synchronize()
 
