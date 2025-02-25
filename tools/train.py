@@ -88,7 +88,6 @@ def train(cfg):
     logger.info(f"Starting train() on device {cfg.device}")
     setup_metta_environment(cfg)
 
-    raise Exception("Stop here")
     logger.info(f"Instantiating trainer on {cfg.device}")
     with WandbContext(cfg) as wandb_run:
         policy_store = PolicyStore(cfg, wandb_run)
