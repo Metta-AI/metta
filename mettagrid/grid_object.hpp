@@ -9,6 +9,7 @@ using namespace std;
 typedef unsigned short Layer;
 typedef unsigned short TypeId;
 typedef unsigned int GridCoord;
+typedef unsigned char ObsType;
 
 class GridLocation {
     public:
@@ -38,19 +39,20 @@ class GridObject {
 
         virtual ~GridObject() = default;
 
-        inline void init(TypeId type_id, const GridLocation &loc) {
+        void init(TypeId type_id, const GridLocation &loc) {
             this->_type_id = type_id;
             this->location = loc;
         }
 
-        inline void init(TypeId type_id, GridCoord r, GridCoord c) {
+        void init(TypeId type_id, GridCoord r, GridCoord c) {
             init(type_id, GridLocation(r, c, 0));
         }
 
-        inline void init(TypeId type_id, GridCoord r, GridCoord c, Layer layer) {
+        void init(TypeId type_id, GridCoord r, GridCoord c, Layer layer) {
             init(type_id, GridLocation(r, c, layer));
         }
 
+        virtual void obs(ObsType *obs) const = 0;
 };
 
 #endif // GRID_OBJECT_HPP

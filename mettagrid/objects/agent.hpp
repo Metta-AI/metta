@@ -7,7 +7,6 @@
 #include "../stats_tracker.hpp"
 #include "constants.hpp"
 #include "metta_object.hpp"
-typedef unsigned char ObsType;
 
 class Agent : public MettaObject {
 public:
@@ -94,7 +93,7 @@ public:
         this->current_resource_reward = new_reward;
     }
 
-    inline void obs(ObsType* obs) const {
+    virtual void obs(ObsType* obs) const override {
         obs[0] = 1;
         obs[1] = group;
         obs[2] = hp;

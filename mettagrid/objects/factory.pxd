@@ -9,8 +9,5 @@ cdef extern from "factory.hpp":
     cdef cppclass Factory(Usable):
         Factory(GridCoord r, GridCoord c, ObjectConfig cfg) except +
 
-
-        void obs(ObsType *obs)
-
         @staticmethod
         vector[string] feature_names()
