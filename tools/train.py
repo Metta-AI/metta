@@ -100,3 +100,6 @@ def train(wandb_run, policy_store, cfg):
     except Exception as e:
         logger.error(f"Error in train on {cfg.device}: {e}")
         raise
+
+if __name__ == "__main__":
+    main()
