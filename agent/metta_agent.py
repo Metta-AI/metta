@@ -134,45 +134,39 @@ class MettaAgent(nn.Module):
         logger.info("Starting get_action_and_value")
         td = TensorDict({"x": x})
 
-        logger.info("Setting up state")
         td["state"] = None
         if state is not None:
             state = torch.cat(state, dim=0)
             td["state"] = state.to(x.device)
 
-        logger.info("Computing value")
         self.components["_value_"](td)
 
-        logger.info("Computing action type")
         self.components["_action_type_"](td)
         logits = td["_action_type_"]
 
         if self._multi_discrete:
-            logger.info("Computing action params")
             self.components["_action_param_"](td)
             logits = [logits, td["_action_param_"]]
 
-        logger.info("Getting value and state")
         value = td["_value_"]
         state = td["state"]
 
         # Convert state back to tuple to pass back to trainer
         if state is not None:
-            logger.info("Converting state to tuple")
             split_size = self.core_num_layers
             state = (state[:split_size], state[split_size:])
 
-        logger.info("Updating e3b")
         e3b, intrinsic_reward = self._e3b_update(td["_core_"].detach(), e3b)
-
-        logger.info("Sampling logits")
         action, logprob, entropy = sample_logits(logits, action, False)
 
         logger.info("Completed get_action_and_value")
         return action, logprob, entropy, value, state, e3b, intrinsic_reward
 
     def forward(self, x, state=None, action=None, e3b=None):
-        return self.get_action_and_value(x, state, action, e3b)
+        logger.info("Starting forward")
+        action, logprob, entropy, value, state, e3b, intrinsic_reward = self.get_action_and_value(x, state, action, e3b)
+        logger.info("Completed forward")
+        return action, logprob, entropy, value, state, e3b, intrinsic_reward
 
     def _e3b_update(self, phi, e3b):
         intrinsic_reward = None
