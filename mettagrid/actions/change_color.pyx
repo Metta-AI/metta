@@ -1,5 +1,3 @@
-# distutils: language=c++
-
 from libc.stdio cimport printf
 
 from omegaconf import OmegaConf
