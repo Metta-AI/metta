@@ -16,7 +16,8 @@ logging.basicConfig(
     level="INFO",
     format=FORMAT,
     datefmt="[%X]",
-    handlers=[RichHandler(rich_tracebacks=True, show_time=False)]
+    handlers=[RichHandler(rich_tracebacks=True, show_time=False)],
+    force=True
 )
 
 logger = logging.getLogger("train")
@@ -33,7 +34,7 @@ def main(cfg):
 
     logger.info(f"Initializing multi-GPU training with {cfg.trainer.dist.num_gpus} GPUs")
     torch.multiprocessing.set_start_method('spawn', force=True)
-    # torch.multiprocessing.log_to_stderr = True
+    torch.multiprocessing.log_to_stderr = True
 
     try:
         logger.info("Spawning distributed processes")
@@ -49,6 +50,16 @@ def main(cfg):
 
 
 def train_ddp(device_id, cfg):
+    # Reconfigure logging for each process
+    logging.basicConfig(
+        level="INFO",
+        format=FORMAT,
+        datefmt="[%X]",
+        handlers=[RichHandler(rich_tracebacks=True, show_time=False)],
+        force=True
+    )
+    logger = logging.getLogger("train")
+
     logger.info(f"Starting train_ddp on device {device_id}")
     cfg.device = f'{cfg.device}:{device_id}'
 
