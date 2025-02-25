@@ -108,6 +108,7 @@ class PufferTrainer:
             logger.info("Wrapping policy with DistributedDataParallel")
             orig_policy = self.policy
             self.policy = DistributedDataParallel(self.policy, device_ids=[self.device])
+            self.policy.lstm = orig_policy.lstm
             self.policy.hidden_size = orig_policy.hidden_size
             self.policy.compute_effective_rank = orig_policy.compute_effective_rank
             self.policy.update_l2_init_weight_copy = orig_policy.update_l2_init_weight_copy
