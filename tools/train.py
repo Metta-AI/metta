@@ -23,7 +23,7 @@ logger = logging.getLogger("train")
 
 @hydra.main(version_base=None, config_path="../configs", config_name="config")
 def main(cfg):
-    logger.info("Starting main()")
+    print("Starting main()")
     setup_metta_environment(cfg)
     with open(os.path.join(cfg.run_dir, "config.yaml"), "w") as f:
         OmegaConf.save(cfg, f)
