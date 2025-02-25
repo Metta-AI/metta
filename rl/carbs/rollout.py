@@ -121,7 +121,11 @@ class CarbsSweepRollout:
 
         self.eval_stats_logger.log(stats)
 
-        eval_stats_db = EvalStatsDB.from_uri(eval_cfg.eval.eval_db_uri, self.run_dir, wandb_run)
+        if not os.path.exists(self.eval_stats_logger.json_path):
+            logger.info(f"No eval stats found at {self.eval_stats_logger.json_path}")
+            return
+
+        eval_stats_db = EvalStatsDB.from_uri(self.eval_stats_logger.json_path, self.run_dir, wandb_run)
 
         metric_idxs = [i for i, m in enumerate(eval_cfg.analyzer.analysis.metrics) if m.metric == eval_cfg.sweep.metric]
         if len(metric_idxs) == 0:
