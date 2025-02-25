@@ -64,5 +64,5 @@ class ObservationNormalizer(LayerBase):
         self.register_buffer('obs_norm', obs_norm)
 
     def _forward(self, td: TensorDict):
-        td[self.name] = td[self.input_source] / self.obs_norm
+        td[self._name] = td[self._input_source] / self.obs_norm
         return td

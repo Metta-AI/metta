@@ -12,6 +12,7 @@ from sample_factory.utils.typing import ActionSpace, ObsSpace
 from pufferlib.cleanrl import sample_logits
 from pufferlib.environment import PufferEnv
 import pufferlib
+from deps.pufferlib.pufferlib.version import __version__
 
 
 def make_policy(env: PufferEnv, cfg: OmegaConf):
@@ -97,19 +98,19 @@ class MettaAgent(nn.Module):
         print(f"Total number of parameters in MettaAgent: {self._total_params:,}. Setup complete.")
 
     def _setup_components(self, component):
-        if component.input_source is not None:
-            if isinstance(component.input_source, str):
-                self._setup_components(self.components[component.input_source])
-            elif isinstance(component.input_source, list):
-                for input_source in component.input_source:
+        if component._input_source is not None:
+            if isinstance(component._input_source, str):
+                self._setup_components(self.components[component._input_source])
+            elif isinstance(component._input_source, list):
+                for input_source in component._input_source:
                     self._setup_components(self.components[input_source])
 
-        if component.input_source is not None:
-            if isinstance(component.input_source, str):
-                component.setup(self.components[component.input_source])
-            elif isinstance(component.input_source, list):
+        if component._input_source is not None:
+            if isinstance(component._input_source, str):
+                component.setup(self.components[component._input_source])
+            elif isinstance(component._input_source, list):
                 input_source_components = {}
-                for input_source in component.input_source:
+                for input_source in component._input_source:
                     input_source_components[input_source] = self.components[input_source]
                 component.setup(input_source_components)
         else:
@@ -117,7 +118,7 @@ class MettaAgent(nn.Module):
 
     @property
     def lstm(self):
-        return self.components["_core_"].net
+        return self.components["_core_"]._net
 
     @property
     def total_params(self):

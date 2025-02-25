@@ -44,6 +44,7 @@ class PufferTrainer:
         logger.info(f"Trainer device set to: {self.device}")
 
         # Configure NCCL for distributed training
+        self._master = True
         if self.trainer_cfg.dist.num_gpus > 1:
             logger.info("Setting up distributed training")
             self._master = (torch.distributed.get_rank() == 0)
@@ -107,7 +108,6 @@ class PufferTrainer:
             logger.info("Wrapping policy with DistributedDataParallel")
             orig_policy = self.policy
             self.policy = DistributedDataParallel(self.policy, device_ids=[self.device])
-            self.policy.lstm = orig_policy.lstm
             self.policy.hidden_size = orig_policy.hidden_size
             self.policy.compute_effective_rank = orig_policy.compute_effective_rank
             self.policy.update_l2_init_weight_copy = orig_policy.update_l2_init_weight_copy
@@ -240,19 +240,16 @@ class PufferTrainer:
                 e3b = e3b_inv[env_id] if self.use_e3b else None
 
                 logger.info(f"{self.device} evaluating LSTM")
-                if lstm_h is not None:
-                    h = lstm_h[:, env_id]
-                    c = lstm_c[:, env_id]
-                    actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward = policy(o_device, (h, c), e3b=e3b)
-                    lstm_h[:, env_id] = h
-                    lstm_c[:, env_id] = c
+                h = lstm_h[:, env_id]
+                c = lstm_c[:, env_id]
+                actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward = policy(o_device, (h, c), e3b=e3b)
+                lstm_h[:, env_id] = h
+                lstm_c[:, env_id] = c
 
-                logger.info(f"{self.device} evaluating E3B")
                 if self.use_e3b:
                     e3b_inv[env_id] = next_e3b
                     r += intrinsic_reward.cpu()
 
-                logger.info(f"{self.device} synchronizing CUDA")
                 if self.device.startswith('cuda'):
                     torch.cuda.synchronize()
 
@@ -339,17 +336,9 @@ class PufferTrainer:
                     ret = experience.b_returns[mb]
 
                 with profile.train_forward:
-                    if experience.lstm_h is not None:
-                        _, newlogprob, entropy, newvalue, lstm_state, _, _ = self.policy(
-                            obs, state=lstm_state, action=atn)
-                        lstm_state = (lstm_state[0].detach(), lstm_state[1].detach())
-
-                    # the below can be deleted if no LSTM
-                    else:
-                        _, newlogprob, entropy, newvalue, _, _ = self.policy(
-                            obs.reshape(-1, *self.vecenv.single_observation_space.shape),
-                            action=atn,
-                        )
+                    _, newlogprob, entropy, newvalue, lstm_state, _, _ = self.policy(
+                        obs, state=lstm_state, action=atn)
+                    lstm_state = (lstm_state[0].detach(), lstm_state[1].detach())
 
                     if self.device.startswith('cuda'):
                         torch.cuda.synchronize()
@@ -596,10 +585,9 @@ class PufferTrainer:
         atn_dtype = self.vecenv.single_action_space.dtype
         total_agents = self.vecenv.num_agents
 
-        lstm = self.policy.lstm if hasattr(self.policy, 'lstm') else None
         self.experience = Experience(self.trainer_cfg.batch_size, self.trainer_cfg.bptt_horizon,
             self.trainer_cfg.minibatch_size, self.policy.hidden_size, obs_shape, obs_dtype, atn_shape, atn_dtype,
-            self.trainer_cfg.cpu_offload, self.device, lstm, total_agents)
+            self.trainer_cfg.cpu_offload, self.device, self.policy.lstm, total_agents)
 
     def _make_losses(self):
         return pufferlib.namespace(

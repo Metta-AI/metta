@@ -32,22 +32,24 @@ def main(cfg):
     os.environ["MASTER_ADDR"] = "localhost"
     os.environ["MASTER_PORT"] = "29500"
 
-    logger.info(f"Initializing multi-GPU training with {cfg.trainer.dist.num_gpus} GPUs")
-    torch.multiprocessing.set_start_method('spawn', force=True)
-    torch.multiprocessing.log_to_stderr = True
+    if cfg.trainer.dist.num_gpus > 1:
+        logger.info(f"Initializing multi-GPU training with {cfg.trainer.dist.num_gpus} GPUs")
+        torch.multiprocessing.set_start_method('spawn', force=True)
+        torch.multiprocessing.log_to_stderr = True
 
-    try:
-        logger.info("Spawning distributed processes")
-        torch.multiprocessing.spawn(train_ddp,
-            args=(cfg,),
-            nprocs=cfg.trainer.dist.num_gpus,
-            join=True,
-        )
-        logger.info("All distributed processes completed")
-    except Exception as e:
-        logger.error(f"Error in multiprocessing: {e}")
-        raise
-
+        try:
+            logger.info("Spawning distributed processes")
+            torch.multiprocessing.spawn(train_ddp,
+                args=(cfg,),
+                nprocs=cfg.trainer.dist.num_gpus,
+                join=True,
+            )
+            logger.info("All distributed processes completed")
+        except Exception as e:
+            logger.error(f"Error in multiprocessing: {e}")
+            raise
+    else:
+        train(cfg)
 
 def train_ddp(device_id, cfg):
     # Reconfigure logging for each process
