@@ -77,13 +77,16 @@ class PufferTrainer:
             logger.info(f"Loading initial policy: {cfg.trainer.initial_policy.uri}")
             policy_record = policy_store.policy(cfg.trainer.initial_policy)
         else:
-            logger.info("Creating new policy")
-            if self._master:
+            policy_path = os.path.join(cfg.trainer.checkpoint_dir,
+                                 policy_store.make_model_name(0))
+            if os.path.exists(policy_path):
+                logger.info(f"Loading policy from checkpoint: {policy_path}")
+                policy_record = policy_store.policy(policy_path)
+            elif self._master:
+                logger.info("Creating new policy")
                 policy_record = policy_store.create(self.vecenv.driver_env)
             else:
-                policy_record = policy_store.policy(
-                    os.path.join(cfg.trainer.checkpoint_dir,
-                                 policy_store.make_model_name(0)))
+                raise ValueError("No policy found")
 
         if policy_record.metadata["action_names"] != self.vecenv.driver_env.action_names():
             raise ValueError(
