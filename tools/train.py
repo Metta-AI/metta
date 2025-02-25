@@ -23,7 +23,6 @@ logger = logging.getLogger("train")
 
 @hydra.main(version_base=None, config_path="../configs", config_name="config")
 def main(cfg):
-    print("Starting main()")
     setup_metta_environment(cfg)
     with open(os.path.join(cfg.run_dir, "config.yaml"), "w") as f:
         OmegaConf.save(cfg, f)
@@ -32,26 +31,21 @@ def main(cfg):
     os.environ["MASTER_ADDR"] = "localhost"
     os.environ["MASTER_PORT"] = "29500"
 
-    with WandbContext(cfg) as wandb_run:
-        if cfg.trainer.dist.num_gpus > 1:
-            logger.info(f"Initializing multi-GPU training with {cfg.trainer.dist.num_gpus} GPUs")
-            # Enable logging in subprocesses
-            torch.multiprocessing.set_start_method('spawn', force=True)
-            torch.multiprocessing.log_to_stderr = True
+    logger.info(f"Initializing multi-GPU training with {cfg.trainer.dist.num_gpus} GPUs")
+    torch.multiprocessing.set_start_method('spawn', force=True)
+    # torch.multiprocessing.log_to_stderr = True
 
-            try:
-                logger.info("Spawning distributed processes")
-                torch.multiprocessing.spawn(train_ddp,
-                    args=(wandb_run, cfg),
-                    nprocs=cfg.trainer.dist.num_gpus,
-                    join=True,
-                )
-                logger.info("All distributed processes completed")
-            except Exception as e:
-                logger.error(f"Error in multiprocessing: {e}")
-                raise
-        else:
-            train(wandb_run, cfg)
+    try:
+        logger.info("Spawning distributed processes")
+        torch.multiprocessing.spawn(train_ddp,
+            args=(cfg),
+            nprocs=cfg.trainer.dist.num_gpus,
+            join=True,
+        )
+        logger.info("All distributed processes completed")
+    except Exception as e:
+        logger.error(f"Error in multiprocessing: {e}")
+        raise
 
 
 def train_ddp(device_id, wandb_run, cfg):
