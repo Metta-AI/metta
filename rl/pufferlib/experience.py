@@ -42,7 +42,7 @@ class Experience:
         self.dones=torch.zeros(batch_size, pin_memory=pin)
         self.truncateds=torch.zeros(batch_size, pin_memory=pin)
         self.values=torch.zeros(batch_size, pin_memory=pin)
-        self.e3b_inv = 10*torch.eye(hidden_size).repeat(lstm_total_agents, 1, 1).to(device)
+        self.e3b_inv = 10*torch.eye(256).repeat(lstm_total_agents, 1, 1).to(device)
 
         #self.obs_np = np.asarray(self.obs)
         self.actions_np = np.asarray(self.actions)

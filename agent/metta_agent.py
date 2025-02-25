@@ -53,8 +53,10 @@ class FeatureEncoder(nn.Module):
     def forward(self, x):
         # Flatten the input if necessary.
         print(f"Input shape: {x.shape}")
-        x = x.view(x.size(0), -1).float()
-        x = self.relu(self.fc1(x))
+        x = x.view(x.size(0), -1)
+        x = x.float()
+        x = self.fc1(x)
+        x = self.relu(x)
         phi = self.fc2(x)
         return phi
 
