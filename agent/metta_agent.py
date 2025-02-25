@@ -220,7 +220,7 @@ class MettaAgent(nn.Module):
     def sample_logits(self, logits: Union[torch.Tensor, List[torch.Tensor]],
             action=None):
         is_discrete = isinstance(logits, torch.Tensor)
-        if is_discrete:
+        if isinstance(logits, torch.Tensor):
             normalized_logits = [logits - logits.logsumexp(dim=-1, keepdim=True)]
             logits = [logits]
         else:
@@ -238,6 +238,6 @@ class MettaAgent(nn.Module):
         logits_entropy = torch.stack([self.entropy(l) for l in normalized_logits]).T.sum(1)
 
         if is_discrete:
-            return action.squeeze(0), logprob.squeeze(0), logits_entropy.squeeze(0)
+            return action.squeeze(0), logprob.squeeze(0), logits_entropy.squeeze(0), normalized_logits.squeeze(0)
 
         return action.T, logprob, logits_entropy, normalized_logits

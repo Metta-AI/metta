@@ -16,6 +16,7 @@ from tqdm import tqdm
 from typing import List, Tuple
 
 from agent.policy_store import PolicyStore
+from rl.pufferlib.kickstarter import Kickstarter
 from rl.eval.eval_stats_logger import EvalStatsLogger
 from rl.eval.eval_stats_db import EvalStatsDB
 from rl.pufferlib.experience import Experience
@@ -92,7 +93,7 @@ class PufferTrainer:
             for k in ["0verview", "env", "losses", "performance", "train"]:
                 wandb_run.define_metric(f"{k}/*", step_metric="train/agent_step")
 
-        self.kickstarter = Kickstarter(self)
+        self.kickstarter = Kickstarter(self.cfg, self.policy_store, self.vecenv.single_action_space)
 
     def train(self):
         self.train_start = time.time()
@@ -269,6 +270,7 @@ class PufferTrainer:
         total_minibatches = experience.num_minibatches * self.trainer_cfg.update_epochs
         for epoch in range(self.trainer_cfg.update_epochs):
             lstm_state = None
+            teacher_lstm_state = None
             for mb in range(experience.num_minibatches):
                 with profile.train_misc:
                     obs = experience.b_obs[mb]
@@ -283,7 +285,7 @@ class PufferTrainer:
                     _, new_log_prob, entropy, new_value, lstm_state, _, _, new_normalized_logits = self.policy(
                         obs, state=lstm_state, action=atn)
                     lstm_state = (lstm_state[0].detach(), lstm_state[1].detach())
-
+                    
                     if self.device == 'cuda':
                         torch.cuda.synchronize()
 
@@ -325,7 +327,7 @@ class PufferTrainer:
 
                     entropy_loss = entropy.mean()
 
-                    ks_action_loss, ks_value_loss = self.kickstarter.loss(obs, new_normalized_logits, new_value) # ks
+                    ks_action_loss, ks_value_loss, teacher_lstm_state = self.kickstarter.loss(new_normalized_logits, new_value, obs, teacher_lstm_state)
 
                     l2_reg_loss = torch.tensor(0.0, device=self.device)
                     if self.trainer_cfg.l2_reg_loss_coef > 0:
@@ -529,67 +531,3 @@ class AbortingTrainer(PufferTrainer):
         self.wandb_run.config.update({
             "trainer.total_timesteps": self.cfg.trainer.total_timesteps
         }, allow_val_change=True)
-
-
-class Kickstarter:
-    def __init__(self, trainer: PufferTrainer):
-        self.tr = trainer
-        self.activated = self.tr.trainer_cfg.kickstart
-        if not self.activated:
-            return
-        
-        self._load_policies()
-
-    def _load_policies(self):
-        self.teachers = []
-        teachers_cfgs = list(self.tr.trainer_cfg.teachers)
-        for teacher_cfg in teachers_cfgs:
-            policy_record = self.tr.policy_store.policy(teacher_cfg['policy_uri'])
-            policy = policy_record.policy()
-            policy.action_coef = teacher_cfg['action_coef']
-            policy.value_coef = teacher_cfg['value_coef']
-            if self.tr.trainer_cfg.compile:
-                policy = torch.compile(policy, mode=self.tr.trainer_cfg.compile_mode)
-            self.teachers.append(policy)
-
-    def loss(self, o_device, student_normalized_logits, student_value) -> Tuple[torch.Tensor, torch.Tensor]:
-        ks_value_loss = torch.tensor(0.0, device=self.tr.device)
-        ks_action_loss = torch.tensor(0.0, device=self.tr.device)
-
-        if not self.activated:
-            return ks_action_loss, ks_value_loss
-
-        for teacher in self.teachers:
-            teacher_value, teacher_normalized_logits = self._forward(teacher, o_device)
-
-            # action loss
-            #add back multi-discrete check
-            # if self.multi_discrete: 
-            ks_action_loss -= (teacher_normalized_logits[0].exp() * student_normalized_logits[0]).sum(dim=-1).mean() * teacher.action_coef
-            #     # does it make sense to add the param loss if the student chooses a different type entirely?
-                # ks_action_loss -= (teacher_param_lp.exp() * student_normalized_logits[1]).sum(dim=-1).mean() * self.teachers[i].action_coef
-            # else:
-            #     ks_action_loss -= (teacher_normalized_logits.exp() * student_normalized_logits).sum(dim=-1).mean() * teacher.action_coef
-                
-            # value loss
-            ks_value_loss += ((teacher_value.squeeze() - student_value) ** 2).mean() * teacher.value_coef
-     
-        # the losses grow as we add more teachers. Ideally, this would be handled by the coef but we can also div by the number of teachers
-        return ks_action_loss, ks_value_loss
-    
-    def _forward(self, teacher, o_device):
-        
-        # this needs to be outside 
-        # if lstm_h is not None:
-        #     h = lstm_h[:, env_id]
-        #     c = lstm_c[:, env_id]
-        # else:
-        #     h = None
-        #     c = None
-
-        state = None
-        
-        # need to support teacher e3b
-        _, _, _, teacher_value, (h, c), next_e3b, intrinsic_reward, teacher_normalized_logits = teacher(o_device, state, e3b=None)
-
-        return teacher_value, teacher_normalized_logits
