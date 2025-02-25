@@ -146,15 +146,12 @@ class PufferTrainer:
         logger.info(f"Training on {self.device}")
         while self.agent_step < self.trainer_cfg.total_timesteps:
             # Collecting experience
-            logger.info(f"{self.device} Collecting experience")
             self._evaluate()
 
             # Training on collected experience
-            logger.info(f"{self.device} Training on collected experience")
             self._train()
 
             # Processing stats
-            logger.info(f"{self.device} Processing stats")
             self._process_stats()
 
             # Checkpointing trainer
@@ -182,7 +179,6 @@ class PufferTrainer:
         logger.info(f"Training complete. Total time: {self.train_time:.2f} seconds")
 
     def _evaluate_policy(self):
-
         self.cfg.eval.policy_uri = self.last_pr.uri
         self.cfg.analyzer.policy_uri = self.last_pr.uri
 
@@ -213,6 +209,7 @@ class PufferTrainer:
     @pufferlib.utils.profile
     def _evaluate(self):
         experience, profile = self.experience, self.profile
+        logger.info(f"{self.device} Collecting experience")
 
         with profile.eval_misc:
             policy = self.policy
@@ -222,7 +219,9 @@ class PufferTrainer:
 
         while not experience.full:
             with profile.env:
+                logger.info(f"{self.device} Receiving experience")
                 o, r, d, t, info, env_id, mask = self.vecenv.recv()
+                logger.info(f"{self.device} Received experience")
                 env_id = env_id.tolist()
 
             with profile.eval_misc:
@@ -400,8 +399,6 @@ class PufferTrainer:
                     self.optimizer.zero_grad()
                     loss.backward()
                     torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.trainer_cfg.max_grad_norm)
-                    # if self.trainer_cfg.sync_gpus and self.trainer_cfg.dist.num_gpus > 1:
-                    #     torch.distributed.barrier()
                     self.optimizer.step()
 
                     if self.cfg.agent.clip_range > 0:
