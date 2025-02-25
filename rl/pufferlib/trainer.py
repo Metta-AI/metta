@@ -251,6 +251,7 @@ class PufferTrainer:
                     e3b_inv[env_id] = next_e3b
                     r += intrinsic_reward.cpu()
 
+                logger.info(f"{self.device} synchronizing CUDA")
                 if self.device.startswith('cuda'):
                     torch.cuda.synchronize()
 
