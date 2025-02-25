@@ -88,7 +88,7 @@ class Eval():
         # Create mapping from agent index to policy name
         self._agent_idx_to_policy_name = {}
         for agent_idx in self._policy_idxs:
-            self._agent_idx_to_policy_name[agent_idx.item()] = self._policy_pr.name
+            self._agent_idx_to_policy_name[agent_idx.item()] = self._policy_pr.name.replace("file://", "")
 
         for agent_idx in self._npc_idxs:
             self._agent_idx_to_policy_name[agent_idx.item()] = self._npc_pr.name
