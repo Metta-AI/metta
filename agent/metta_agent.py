@@ -206,6 +206,9 @@ class MettaAgent(nn.Module):
             split_size = self.core_num_layers
             state = (state[:split_size], state[split_size:])
 
+        if len(x.shape) == 5:
+            x = x.reshape(-1, *x.shape[2:])
+
         phi = self.phi_encoder(x.to(next(self.phi_encoder.parameters()).device))
         e3b, intrinsic_reward = self._e3b_update(phi.detach(), e3b)
 
