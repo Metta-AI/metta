@@ -27,7 +27,7 @@ import pufferlib.pytorch
 class Experience:
     '''Flat tensor storage and array views for faster indexing'''
     def __init__(self, batch_size, bptt_horizon, minibatch_size, hidden_size, obs_shape, obs_dtype, atn_shape, atn_dtype,
-                 cpu_offload=False, device='cuda', lstm=None, lstm_total_agents=0):
+                 cpu_offload=False, device='cuda', lstm=None, lstm_total_agents=0, multi_discrete=False, action_type_size=None, action_param_size=None):
         if minibatch_size is None:
             minibatch_size = batch_size
 
@@ -43,7 +43,15 @@ class Experience:
         self.truncateds=torch.zeros(batch_size, pin_memory=pin)
         self.values=torch.zeros(batch_size, pin_memory=pin)
         self.e3b_inv = 10*torch.eye(hidden_size).repeat(lstm_total_agents, 1, 1).to(device)
-
+        self.multi_discrete = multi_discrete
+        if self.multi_discrete:
+            self.normalized_type_logits = torch.zeros(batch_size, action_type_size, dtype=atn_dtype, pin_memory=pin) # ks
+            self.normalized_type_logits_np = np.asarray(self.normalized_type_logits)
+            self.normalized_param_logits = torch.zeros(batch_size, action_param_size, dtype=atn_dtype, pin_memory=pin) # ks
+            self.normalized_param_logits_np = np.asarray(self.normalized_param_logits)
+        else:
+            self.normalized_logits = torch.zeros(batch_size, action_type_size, dtype=atn_dtype, pin_memory=pin) # ks
+            self.normalized_type_logits_np = np.asarray(self.normalized_logits)
         #self.obs_np = np.asarray(self.obs)
         self.actions_np = np.asarray(self.actions)
         self.logprobs_np = np.asarray(self.logprobs)
@@ -81,7 +89,7 @@ class Experience:
     def full(self):
         return self.ptr >= self.batch_size
 
-    def store(self, obs, value, action, logprob, reward, done, env_id, mask):
+    def store(self, obs, value, action, logprob, reward, done, env_id, mask, normalized_logits):
         # Mask learner and Ensure indices do not exceed batch size
         ptr = self.ptr
         indices = torch.where(mask)[0].numpy()[:self.batch_size - ptr]
@@ -93,6 +101,13 @@ class Experience:
         self.logprobs_np[ptr:end] = logprob.cpu().numpy()[indices]
         self.rewards_np[ptr:end] = reward.cpu().numpy()[indices]
         self.dones_np[ptr:end] = done.cpu().numpy()[indices]
+
+        if self.multi_discrete:
+            self.normalized_type_logits_np[ptr:end] = normalized_logits[0].cpu().numpy()[indices] # ks
+            self.normalized_param_logits_np[ptr:end] = normalized_logits[1].cpu().numpy()[indices] # ks
+        else:
+            self.normalized_type_logits_np[ptr:end] = normalized_logits.cpu().numpy()[indices] # ks
+
         self.sort_keys.extend([(env_id[i], self.step) for i in indices])
         self.ptr = end
         self.step += 1
@@ -126,3 +141,12 @@ class Experience:
         self.b_dones = self.b_dones[b_idxs]
         self.b_values = self.b_values[b_flat]
         self.b_returns = self.b_advantages + self.b_values
+        
+        if self.multi_discrete:
+            self.b_normalized_type_logits = self.normalized_type_logits.to(self.device, non_blocking=True)
+            self.b_normalized_param_logits = self.normalized_param_logits.to(self.device, non_blocking=True)
+            self.b_normalized_type_logits = self.b_normalized_type_logits[b_idxs] # ks
+            self.b_normalized_param_logits = self.b_normalized_param_logits[b_idxs] # ks
+        else:
+            self.b_normalized_type_logits = self.normalized_type_logits.to(self.device, non_blocking=True)
+            self.b_normalized_type_logits = self.b_normalized_type_logits[b_idxs] # ks

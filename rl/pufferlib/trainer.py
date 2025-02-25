@@ -189,11 +189,11 @@ class PufferTrainer:
                 if lstm_h is not None:
                     h = lstm_h[:, env_id]
                     c = lstm_c[:, env_id]
-                    actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward = policy(o_device, (h, c), e3b=e3b)
+                    actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward, normalized_logits = policy(o_device, (h, c), e3b=e3b)
                     lstm_h[:, env_id] = h
                     lstm_c[:, env_id] = c
 
-                self.kickstarter.forward(o_device, env_id)
+                self.kickstarter.forward(o_device, env_id, mask) # ks
 
                 if self.use_e3b:
                     e3b_inv[env_id] = next_e3b
@@ -207,7 +207,7 @@ class PufferTrainer:
                 actions = actions.cpu().numpy()
                 mask = torch.as_tensor(mask)# * policy.mask)
                 o = o if self.trainer_cfg.cpu_offload else o_device
-                self.experience.store(o, value, actions, logprob, r, d, env_id, mask)
+                self.experience.store(o, value, actions, logprob, r, d, env_id, mask, normalized_logits)
 
                 for i in info:
                     for k, v in pufferlib.utils.unroll_nested_dict(i):
@@ -230,7 +230,7 @@ class PufferTrainer:
         # TODO: Better way to enable multiple collects
         experience.ptr = 0
         experience.step = 0
-        self.kickstarter.reset_experiences()
+        self.kickstarter.reset_experiences() # ks
         return self.stats, infos
 
     @pufferlib.utils.profile
@@ -283,30 +283,22 @@ class PufferTrainer:
                     ret = experience.b_returns[mb]
 
                 with profile.train_forward:
-                    if experience.lstm_h is not None:
-                        _, newlogprob, entropy, newvalue, lstm_state, _, _ = self.policy(
-                            obs, state=lstm_state, action=atn)
-                        lstm_state = (lstm_state[0].detach(), lstm_state[1].detach())
-
-                    # the below can be deleted if no LSTM
-                    else:
-                        _, newlogprob, entropy, newvalue, _, _ = self.policy(
-                            obs.reshape(-1, *self.vecenv.single_observation_space.shape),
-                            action=atn,
-                        )
+                    _, new_log_prob, entropy, new_value, lstm_state, _, _, new_normalized_logits = self.policy(
+                        obs, state=lstm_state, action=atn)
+                    lstm_state = (lstm_state[0].detach(), lstm_state[1].detach())
 
                     if self.device == 'cuda':
                         torch.cuda.synchronize()
 
                 with profile.train_misc:
-                    logratio = newlogprob - log_probs.reshape(-1)
-                    ratio = logratio.exp()
+                    log_ratio = new_log_prob - log_probs.reshape(-1)
+                    ratio = log_ratio.exp()
 
                     with torch.no_grad():
                         # calculate approx_kl http://joschu.net/blog/kl-approx.html
-                        old_approx_kl = (-logratio).mean()
-                        approx_kl = ((ratio - 1) - logratio).mean()
-                        clipfrac = ((ratio - 1.0).abs() > self.trainer_cfg.clip_coef).float().mean()
+                        old_approx_kl = (-log_ratio).mean()
+                        approx_kl = ((ratio - 1) - log_ratio).mean()
+                        clip_frac = ((ratio - 1.0).abs() > self.trainer_cfg.clip_coef).float().mean()
 
                     adv = adv.reshape(-1)
                     if self.trainer_cfg.norm_adv:
@@ -320,11 +312,11 @@ class PufferTrainer:
                     pg_loss = torch.max(pg_loss1, pg_loss2).mean()
 
                     # Value loss
-                    newvalue = newvalue.view(-1)
+                    new_value = new_value.view(-1)
                     if self.trainer_cfg.clip_vloss:
-                        v_loss_unclipped = (newvalue - ret) ** 2
+                        v_loss_unclipped = (new_value - ret) ** 2
                         v_clipped = val + torch.clamp(
-                            newvalue - val,
+                            new_value - val,
                             -self.trainer_cfg.vf_clip_coef,
                             self.trainer_cfg.vf_clip_coef,
                         )
@@ -332,11 +324,11 @@ class PufferTrainer:
                         v_loss_max = torch.max(v_loss_unclipped, v_loss_clipped)
                         v_loss = 0.5 * v_loss_max.mean()
                     else:
-                        v_loss = 0.5 * ((newvalue - ret) ** 2).mean()
+                        v_loss = 0.5 * ((new_value - ret) ** 2).mean()
 
                     entropy_loss = entropy.mean()
 
-                    ks_action_loss, ks_value_loss = self.kickstarter.loss(mb, newlogprob, newvalue) # ks
+                    ks_action_loss, ks_value_loss = self.kickstarter.loss(mb, new_normalized_logits, new_value) # ks
 
                     l2_reg_loss = torch.tensor(0.0, device=self.device)
                     if self.trainer_cfg.l2_reg_loss_coef > 0:
@@ -366,7 +358,7 @@ class PufferTrainer:
                     self.losses.entropy += entropy_loss.item() / total_minibatches
                     self.losses.old_approx_kl += old_approx_kl.item() / total_minibatches
                     self.losses.approx_kl += approx_kl.item() / total_minibatches
-                    self.losses.clipfrac += clipfrac.item() / total_minibatches
+                    self.losses.clipfrac += clip_frac.item() / total_minibatches
                     self.losses.l2_reg_loss += l2_reg_loss.item() / total_minibatches
                     self.losses.l2_init_loss += l2_init_loss.item() / total_minibatches
                     self.losses.ks_action_loss += ks_action_loss.item() / total_minibatches
@@ -485,10 +477,18 @@ class PufferTrainer:
         atn_dtype = self.vecenv.single_action_space.dtype
         total_agents = self.vecenv.num_agents
 
+        if isinstance(self.vecenv.single_action_space, pufferlib.spaces.Discrete):
+            self.multi_discrete = False
+            action_type_size = self.vecenv.single_action_space.n
+        else:
+            self.multi_discrete = True
+            action_type_size = self.vecenv.single_action_space.nvec[0]
+            action_param_size = self.vecenv.single_action_space.nvec[1]
+
         lstm = self.policy.lstm if hasattr(self.policy, 'lstm') else None
         self.experience = Experience(self.trainer_cfg.batch_size, self.trainer_cfg.bptt_horizon,
             self.trainer_cfg.minibatch_size, self.policy.hidden_size, obs_shape, obs_dtype, atn_shape, atn_dtype,
-            self.trainer_cfg.cpu_offload, self.device, lstm, total_agents)
+            self.trainer_cfg.cpu_offload, self.device, lstm, total_agents, self.multi_discrete, action_type_size, action_param_size)
 
     def _make_losses(self):
         return pufferlib.namespace(
@@ -571,12 +571,25 @@ class Kickstarter:
         atn_dtype = self.tr.vecenv.single_action_space.dtype
         total_agents = self.tr.vecenv.num_agents
 
+        if isinstance(self.tr.vecenv.single_action_space, pufferlib.spaces.Discrete):
+            self.multi_discrete = False
+            action_type_size = self.tr.vecenv.single_action_space.n
+        else:
+            self.multi_discrete = True
+            action_type_size = self.tr.vecenv.single_action_space.nvec[0]
+            action_param_size = self.tr.vecenv.single_action_space.nvec[1]
+
+        pin = self.tr.device == 'cuda' and self.tr.trainer_cfg.cpu_offload
+
         self.teacher_experiences = []
         for teacher in self.teachers:
             lstm = teacher.lstm
-            self.teacher_experiences.append(Experience(self.tr.trainer_cfg.batch_size, self.tr.trainer_cfg.bptt_horizon,
+            experience = Experience(self.tr.trainer_cfg.batch_size, self.tr.trainer_cfg.bptt_horizon,
                 self.tr.trainer_cfg.minibatch_size, self.tr.policy.hidden_size, obs_shape, obs_dtype, atn_shape, atn_dtype,
-                self.tr.trainer_cfg.cpu_offload, self.tr.device, lstm, total_agents))
+                self.tr.trainer_cfg.cpu_offload, self.tr.device, lstm, total_agents, self.multi_discrete, action_type_size, action_param_size)
+            # experience.normalized_logits = torch.zeros(self.tr.trainer_cfg.batch_size, *atn_shape, dtype=atn_dtype, pin_memory=pin)
+            # experience.normalized_logits_np = np.asarray(experience.normalized_logits)
+            self.teacher_experiences.append(experience)
             
     def reset_experiences(self):
         if not self.activated:
@@ -585,11 +598,36 @@ class Kickstarter:
         for teacher_experience in self.teacher_experiences:
             teacher_experience.ptr = 0
             teacher_experience.step = 0
-        
-    def forward(self, o_device, env_id):
+
+    def loss(self, mb, student_normalized_logits, student_values) -> Tuple[torch.Tensor, torch.Tensor]:
+        ks_value_loss = torch.tensor(0.0, device=self.tr.device)
+        ks_action_loss = torch.tensor(0.0, device=self.tr.device)
+
+        if not self.activated:
+            return ks_action_loss, ks_value_loss
+
+        for i, teacher_experience in enumerate(self.teacher_experiences):
+            # fix cross entropy loss formula
+            if self.multi_discrete: 
+                teacher_type_lp = teacher_experience.normalized_type_logits_np[mb]
+                ks_action_loss -= (teacher_type_lp.exp() * student_normalized_logits[0]).sum(dim=-1).mean() * self.teachers[i].action_coef
+                # does it make sense to just sum them across type and param??
+                teacher_param_lp = teacher_experience.normalized_param_logits_np[mb]
+                ks_action_loss -= (teacher_param_lp.exp() * student_normalized_logits[1]).sum(dim=-1).mean() * self.teachers[i].action_coef
+            else:
+                teacher_lp = teacher_experience.normalized_type_logits_np[mb]
+                ks_action_loss -= (teacher_lp * student_normalized_logits).sum(dim=-1).mean() * self.teachers[i].action_coef
+                
+            teacher_values = teacher_experience.values_np[mb]
+            ks_value_loss += (teacher_values - student_values) ** 2 * self.teachers[i].value_coef
+            
+        return ks_action_loss, ks_value_loss
+    
+    def forward(self, o_device, env_id, mask):
         if not self.activated:
             return
         
+        # this needs to be outside the class
         for i, teacher_experience in enumerate(self.teacher_experiences):
             if teacher_experience.lstm_h is not None:
                 h = teacher_experience.lstm_h[:, env_id]
@@ -599,36 +637,10 @@ class Kickstarter:
                 c = None
             
             # need to support teacher e3b
-            actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward = self.teachers[i](o_device, (h, c), e3b=None)
+            actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward, normalized_logits = self.teachers[i](o_device, (h, c), e3b=None)
 
             value = value.flatten()
             actions = actions.cpu().numpy()
-            # mask = torch.as_tensor(mask)# * policy.mask)
+            mask = torch.as_tensor(mask)
             o = o if self.tr.trainer_cfg.cpu_offload else o_device
-            teacher_experience.store(o, value, actions, logprob, _, _, env_id, _)
-            # does omitting all this prevent sorting from working??
-
-    # def sort_experiences(self) -> List[np.ndarray]:
-    #     if not self.activated:
-    #         return []
-    #     idxs = []
-    #     for teacher_experience in self.teacher_experiences:
-    #         idxs.append(teacher_experience.sort_training_data())
-    #     return idxs
-
-    def loss(self, mb, student_logprobs, student_values) -> Tuple[torch.Tensor, torch.Tensor]:
-        ks_value_loss = torch.tensor(0.0, device=self.tr.device)
-        ks_action_loss = torch.tensor(0.0, device=self.tr.device)
-
-        if not self.activated:
-            return ks_action_loss, ks_value_loss
-
-        for i, teacher_experience in enumerate(self.teacher_experiences):
-            teacher_logprobs = teacher_experience.logprobs_np[mb]
-            teacher_values = teacher_experience.values_np[mb]
-
-            # fix cross entropy loss formula
-            ks_action_loss -= (teacher_logprobs * student_logprobs).sum(dim=-1).mean() * self.teachers[i].action_coef
-            ks_value_loss += (teacher_values - student_values) ** 2 * self.teachers[i].value_coef
-            
-        return ks_action_loss, ks_value_loss
+            teacher_experience.store(o, value, actions, logprob, _, _, env_id, mask, normalized_logits)
