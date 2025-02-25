@@ -83,7 +83,7 @@ class PufferTrainer:
             else:
                 policy_record = policy_store.policy(
                     os.path.join(cfg.trainer.checkpoint_dir,
-                                 policy_store.make_model_name(0))
+                                 policy_store.make_model_name(0)))
 
         if policy_record.metadata["action_names"] != self.vecenv.driver_env.action_names():
             raise ValueError(
