@@ -52,7 +52,8 @@ class FeatureEncoder(nn.Module):
 
     def forward(self, x):
         # Flatten the input if necessary.
-        print(f"Input shape: {x.shape}")
+        if len(x.shape) == 5:
+            x = x.reshape(-1, *x.shape[2:])
         x = x.view(x.size(0), -1)
         x = x.float()
         x = self.fc1(x)
@@ -208,9 +209,6 @@ class MettaAgent(nn.Module):
             split_size = self.core_num_layers
             state = (state[:split_size], state[split_size:])
 
-        if len(x.shape) == 5:
-            x = x.reshape(-1, *x.shape[2:])
-
         phi = self.phi_encoder(x.to(next(self.phi_encoder.parameters()).device))
         e3b, intrinsic_reward = self._e3b_update(phi.detach(), e3b)
 
@@ -224,15 +222,15 @@ class MettaAgent(nn.Module):
 
     def compute_inverse_dynamics_loss(self, current_obs, next_obs, action_type_targets, action_param_targets):
         # Compute embeddings for current and next observations.
+        b, n, _, _, _ = current_obs.shape
         phi_current = self.phi_encoder(current_obs)
         phi_next = self.phi_encoder(next_obs)
-
         # Get predictions from your inverse dynamics model.
         logits_type, logits_param = self.inverse_dynamics_model(phi_current, phi_next)
 
         # Compute losses for each head.
-        loss_type = F.cross_entropy(logits_type, action_type_targets)
-        loss_param = F.cross_entropy(logits_param, action_param_targets)
+        loss_type = F.cross_entropy(logits_type.reshape(b,n, -1), action_type_targets)
+        loss_param = F.cross_entropy(logits_param.reshape(b,n, -1), action_param_targets.reshape(b*n))
 
         return loss_type + loss_param
 

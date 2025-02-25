@@ -15,19 +15,9 @@ defaults:
 
 npc_policy_uri: null
 
-analyzer:
-  analysis:
-    baseline_policies:
-      - ./train_dir/daphne.local.train.16_pfs/checkpoints
-
-  game:
-    max_steps: 1000
-
-    map_builder:
-      border_width: 0
-
 trainer:
   evaluate_interval: 2
+  use_e3b: false
 
 eval:
   num_envs: 2
