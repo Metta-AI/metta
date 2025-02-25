@@ -146,7 +146,7 @@ class PufferTrainer:
         logger.info(f"Training on {self.device}")
         while self.agent_step < self.trainer_cfg.total_timesteps:
             # Collecting experience
-            logger.info(f"{self.device} Evaluating policy")
+            logger.info(f"{self.device} Collecting experience")
             self._evaluate()
 
             # Training on collected experience
