@@ -1,0 +1,38 @@
+defaults:
+  - mettagrid
+
+game:
+  num_agents: 4
+  max_steps: 1000
+
+  map_builder:
+    _target_: mettagrid.config.room.multi_room.RoomList
+    rooms:
+      - _target_: mettagrid.config.room.cognitive_evals.room_within_room.RoomWithinRoom
+        width: ${uniform:25,35,30}
+        height: ${uniform:25,35,30}
+        inner_size_min: ${uniform:8,12,10}
+        inner_size_max: ${uniform:15,20,18}
+        inner_room_gap_min: 2
+        inner_room_gap_max: ${uniform:4,8,6}
+      - _target_: mettagrid.config.room.cognitive_evals.room_within_room.RoomWithinRoom
+        width: ${uniform:25,35,30}
+        height: ${uniform:25,35,30}
+        inner_size_min: ${uniform:8,12,10}
+        inner_size_max: ${uniform:15,20,18}
+        inner_room_gap_min: 2
+        inner_room_gap_max: ${uniform:4,8,6}
+      - _target_: mettagrid.config.room.cognitive_evals.room_within_room.RoomWithinRoom
+        width: ${uniform:25,35,30}
+        height: ${uniform:25,35,30}
+        inner_size_min: ${uniform:8,12,10}
+        inner_size_max: ${uniform:15,20,18}
+        inner_room_gap_min: 2
+        inner_room_gap_max: ${uniform:4,8,6}
+      - _target_: mettagrid.config.room.cognitive_evals.room_within_room.RoomWithinRoom
+        width: ${uniform:25,35,30}
+        height: ${uniform:25,35,30}
+        inner_size_min: ${uniform:8,12,10}
+        inner_size_max: ${uniform:15,20,18}
+        inner_room_gap_min: 2
+        inner_room_gap_max: ${uniform:4,8,6}

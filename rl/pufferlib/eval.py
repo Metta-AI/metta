@@ -94,9 +94,9 @@ class Eval():
             self._agent_idx_to_policy_name[agent_idx.item()] = self._npc_pr.name
 
     def evaluate(self):
-        logger.info(f"Evaluating policy: {self._policy_pr.name} with {self._policy_agents_per_env}")
+        logger.info(f"Evaluating policy: {self._policy_pr.name} with {self._policy_agents_per_env} agents")
         if self._npc_pr is not None:
-            logger.info(f"Against npc policy: {self._npc_pr.name} with {self._npc_agents_per_env}")
+            logger.info(f"Against npc policy: {self._npc_pr.name} with {self._npc_agents_per_env} agents")
 
         logger.info(f"Eval settings: {self._num_envs} envs, {self._min_episodes} episodes, {self._max_time_s} seconds")
 
@@ -160,7 +160,6 @@ class Eval():
                         game_stats.append(one_episode)
 
 
-        logger.info(f"Total episodes: {self._completed_episodes}")
         logger.info(f"Evaluation time: {time.time() - start}")
         self._vecenv.close()
         return game_stats

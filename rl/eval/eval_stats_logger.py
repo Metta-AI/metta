@@ -12,13 +12,15 @@ class EvalStatsLogger:
     def __init__(self, cfg, wandb_run):
         self._cfg = cfg
         self._wandb_run = wandb_run
+        # We want local stats dir to be the same for train, analysis and eval for a particular run
+        save_dir = cfg.run_dir.replace("analyze", "train").replace("eval", "train")
 
         artifact_name = None
         if cfg.eval.eval_db_uri is None:
-            json_path = os.path.join(cfg.run_dir, "eval_stats")
+            json_path = os.path.join(save_dir, "eval_stats")
         elif cfg.eval.eval_db_uri.startswith("wandb://"):
             artifact_name = cfg.eval.eval_db_uri.split("/")[-1]
-            json_path = os.path.join(cfg.run_dir, "eval_stats")
+            json_path = os.path.join(save_dir, "eval_stats")
         elif cfg.eval.eval_db_uri.startswith("file://"):
             json_path = cfg.eval.eval_db_uri.split("file://")[1]
         else:
@@ -26,7 +28,7 @@ class EvalStatsLogger:
                 raise ValueError(f"Invalid eval_db_uri: {cfg.eval.eval_db_uri}")
             json_path = cfg.eval.eval_db_uri
 
-        self._json_path = json_path if json_path.endswith('.json') else json_path + '.json'
+        self._json_path = json_path if json_path.endswith('.json') else  f"{json_path}.json"
         os.makedirs(os.path.dirname(self._json_path), exist_ok=True)
         self.artifact_name = artifact_name
 
@@ -51,10 +53,12 @@ class EvalStatsLogger:
     def _log_to_file(self, eval_stats):
         # If file exists, load and merge with existing data
         if os.path.exists(self._json_path):
+            logger.info(f"Loading existing eval stats from {self._json_path}")
             with open(self._json_path, "r") as f:
                 existing_stats = json.load(f)
             eval_stats.extend(existing_stats)
         with open(self._json_path, "w") as f:
+
             json.dump(eval_stats, f, indent=4)
         logger.info(f"Saved eval stats to {self._json_path}")
 
@@ -83,9 +87,9 @@ class EvalStatsLogger:
         else:
             self._add_additional_fields(eval_stats)
 
-        self._log_to_file(eval_stats)
-
-        if self.artifact_name is not None:
+        if self.artifact_name is None:
+            self._log_to_file(eval_stats)
+        else:
             self._log_to_wandb(self.artifact_name, eval_stats)
 
         return eval_stats

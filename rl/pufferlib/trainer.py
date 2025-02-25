@@ -3,6 +3,8 @@ import os
 import time
 from collections import defaultdict
 from copy import deepcopy
+from pathlib import Path
+
 import hydra
 import numpy as np
 import pufferlib
@@ -11,19 +13,20 @@ import torch
 import wandb
 from fast_gae import fast_gae
 from omegaconf import OmegaConf
-from pathlib import Path
+from torch.nn.parallel import DistributedDataParallel
 from tqdm import tqdm
 from typing import List, Tuple
 
 from agent.policy_store import PolicyStore
 from rl.pufferlib.kickstarter import Kickstarter
-from rl.eval.eval_stats_logger import EvalStatsLogger
 from rl.eval.eval_stats_db import EvalStatsDB
+from rl.eval.eval_stats_logger import EvalStatsLogger
 from rl.pufferlib.experience import Experience
 from rl.pufferlib.profile import Profile
+from rl.pufferlib.trace import save_trace_image
 from rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
 from rl.pufferlib.vecenv import make_vecenv
-from rl.pufferlib.trace import save_trace_image
+
 torch.set_float32_matmul_precision('high')
 
 logger = logging.getLogger("trainer")
@@ -47,6 +50,7 @@ class PufferTrainer:
         self.use_e3b = self.trainer_cfg.use_e3b
         self.eval_stats_logger = EvalStatsLogger(cfg, wandb_run)
         self.average_reward = 0.0  # Initialize average reward estimate
+        self.policy_fitness = []
 
         self._make_vecenv()
 
@@ -95,6 +99,8 @@ class PufferTrainer:
 
         self.kickstarter = Kickstarter(self.cfg, self.policy_store, self.vecenv.single_action_space)
 
+        print("Training on device:", self.device)
+
     def train(self):
         self.train_start = time.time()
         logger.info("Starting training")
@@ -135,13 +141,16 @@ class PufferTrainer:
     def _evaluate_policy(self):
 
         self.cfg.eval.policy_uri = self.last_pr.uri
+        self.cfg.analyzer.policy_uri = self.last_pr.uri
+
         eval = hydra.utils.instantiate(self.cfg.eval, self.policy_store, self.last_pr, self.cfg.env, _recursive_ = False)
         stats = eval.evaluate()
         self.eval_stats_logger.log(stats)
 
-        eval_stats_db = EvalStatsDB.from_uri(self.cfg.eval.eval_db_uri, self.wandb_run)
+        eval_stats_db = EvalStatsDB.from_uri(self.cfg.eval.eval_db_uri, self.cfg.run_dir, self.wandb_run)
         analyzer = hydra.utils.instantiate(self.cfg.analyzer, eval_stats_db)
-        analyzer.analyze()
+        _, policy_fitness_records = analyzer.analyze()
+        self.policy_fitness = policy_fitness_records
 
     def _compute_effective_rank(self):
         effective_rank = self.policy.compute_effective_rank()
@@ -332,7 +341,7 @@ class PufferTrainer:
                     l2_reg_loss = torch.tensor(0.0, device=self.device)
                     if self.trainer_cfg.l2_reg_loss_coef > 0:
                         l2_reg_loss = self.trainer_cfg.l2_reg_loss_coef * self.policy.l2_reg_loss().to(self.device)
-                    
+
                     l2_init_loss = torch.tensor(0.0, device=self.device)
                     if self.trainer_cfg.l2_init_loss_coef > 0:
                         l2_init_loss = self.trainer_cfg.l2_init_loss_coef * self.policy.l2_init_loss().to(self.device)
@@ -445,11 +454,18 @@ class PufferTrainer:
                 if k in self.stats:
                     overview[v] = self.stats[k]
 
+            policy_fitness_metrics = {
+                f'pfs/{r["eval"]}:{r["metric"]}': r["fitness"]
+                for r in self.policy_fitness
+            }
+            self.policy_fitness = []
+
             self.wandb_run.log({
                 **{f'0verview/{k}': v for k, v in overview.items()},
                 **{f'env/{k}': v for k, v in self.stats.items()},
                 **{f'losses/{k}': v for k, v in self.losses.items()},
                 **{f'performance/{k}': v for k, v in self.profile},
+                **policy_fitness_metrics,
                 'train/agent_step': self.agent_step,
                 'train/epoch': self.epoch,
                 'train/learning_rate': self.optimizer.param_groups[0]["lr"],

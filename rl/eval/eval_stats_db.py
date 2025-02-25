@@ -66,10 +66,13 @@ class EvalStatsDB:
             stats_df = df_per_episode.agg(['mean', 'std'])
             metric_df = stats_df.T.reset_index()
             metric_df.columns = ['eval_name', 'policy_name', 'mean', 'std']
-        return df_per_episode, metric_df
+        return metric_df
 
     @staticmethod
-    def from_uri(uri: str, wandb_run = None):
+    def from_uri(uri: str, run_dir: str, wandb_run = None):
+        # We want eval stats to be the same for train, analysis and eval for a particular run
+        save_dir = run_dir.replace("analyze", "train").replace("eval", "train")
+        uri = uri or os.path.join(save_dir, "eval_stats")
         if uri.startswith("wandb://"):
             artifact_name = uri.split("/")[-1]
             return EvalStatsDbWandb(artifact_name, wandb_run)
@@ -87,6 +90,7 @@ class EvalStatsDbFile(EvalStatsDB):
     Database for loading eval stats from a file.
     """
     def __init__(self, json_path: str):
+        logger.info(f"Loading eval stats from {json_path}")
         with open(json_path, "r") as f:
             data = json.load(f)
         data = self._prepare_data(data)
@@ -97,15 +101,17 @@ class EvalStatsDbWandb(EvalStatsDB):
     """
     Database for loading eval stats from wandb.
     """
-    def __init__(self, artifact_name: str, wandb_run):
+    def __init__(self, artifact_name: str, wandb_run, from_cache: bool = False):
         self.api = wandb.Api()
         self.artifact_identifier = os.path.join(wandb_run.entity, wandb_run.project, artifact_name)
 
         cache_dir = os.path.join(wandb.env.get_cache_dir(), "artifacts", self.artifact_identifier)
         artifact_versions = self.api.artifacts(type_name=artifact_name,name=self.artifact_identifier)
-        artifact_dirs = [os.path.join(cache_dir, f"v{v}") for v in range(len(artifact_versions))]
+        artifact_dirs = [os.path.join(cache_dir, v.name) for v in artifact_versions]
         for dir, artifact in zip(artifact_dirs, artifact_versions):
-            if not os.path.exists(dir):
+            if os.path.exists(dir) and from_cache:
+                logger.info(f"Loading from cache: {dir}")
+            else:
                 artifact.download(root=dir)
                 path = os.path.join(dir, os.listdir(dir)[0])
                 if path.endswith('.json.gz'):
