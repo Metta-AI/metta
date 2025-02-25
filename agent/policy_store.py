@@ -134,7 +134,7 @@ class PolicyStore:
 
     def save(self, name: str, path: str, policy: nn.Module, metadata: dict):
         logger.info(f"Saving policy to {path}")
-        pr = PolicyRecord(self, path, "file://" + path, metadata)
+        pr = PolicyRecord(self, path, path, metadata)
         pr._policy = policy
         pr._policy_store = None
         torch.save(pr, path)
