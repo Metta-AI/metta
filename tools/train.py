@@ -38,7 +38,7 @@ def main(cfg):
     try:
         logger.info("Spawning distributed processes")
         torch.multiprocessing.spawn(train_ddp,
-            args=(cfg),
+            args=(cfg,),
             nprocs=cfg.trainer.dist.num_gpus,
             join=True,
         )
