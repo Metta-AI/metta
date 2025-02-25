@@ -33,7 +33,7 @@ class Experience:
 
         obs_dtype = pufferlib.pytorch.numpy_to_torch_dtype_dict[obs_dtype]
         atn_dtype = pufferlib.pytorch.numpy_to_torch_dtype_dict[atn_dtype]
-        pin = device == 'cuda' and cpu_offload
+        pin = device.startswith('cuda') and cpu_offload
         self.obs=torch.zeros(batch_size, *obs_shape, dtype=obs_dtype,
             pin_memory=pin, device=device if not pin else 'cpu')
         self.actions=torch.zeros(batch_size, *atn_shape, dtype=atn_dtype, pin_memory=pin)
@@ -44,7 +44,6 @@ class Experience:
         self.values=torch.zeros(batch_size, pin_memory=pin)
         self.e3b_inv = 10*torch.eye(hidden_size).repeat(lstm_total_agents, 1, 1).to(device)
 
-        #self.obs_np = np.asarray(self.obs)
         self.actions_np = np.asarray(self.actions)
         self.logprobs_np = np.asarray(self.logprobs)
         self.rewards_np = np.asarray(self.rewards)
@@ -52,12 +51,11 @@ class Experience:
         self.truncateds_np = np.asarray(self.truncateds)
         self.values_np = np.asarray(self.values)
 
-        self.lstm_h = self.lstm_c = None
-        if lstm is not None:
-            assert lstm_total_agents > 0
-            shape = (lstm.num_layers, lstm_total_agents, lstm.hidden_size)
-            self.lstm_h = torch.zeros(shape).to(device)
-            self.lstm_c = torch.zeros(shape).to(device)
+        assert lstm is not None
+        assert lstm_total_agents > 0
+        shape = (lstm.num_layers, lstm_total_agents, lstm.hidden_size)
+        self.lstm_h = torch.zeros(shape).to(device)
+        self.lstm_c = torch.zeros(shape).to(device)
 
         num_minibatches = batch_size / minibatch_size
         self.num_minibatches = int(num_minibatches)
