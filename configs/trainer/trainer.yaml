@@ -11,8 +11,7 @@ checkpoint_dir: ${run_dir}/checkpoints
 
 glicko_scores_path: ${run_dir}/eval/glicko2
 
-evaluate: false
-evaluate_interval: 10
+evaluate_interval: 0
 
 trace_interval: 0
 

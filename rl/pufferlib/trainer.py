@@ -1,21 +1,22 @@
+from . import warnings_config
+
 import logging
 import os
 import time
 from collections import defaultdict
 from copy import deepcopy
-from pathlib import Path
 
 import hydra
 import numpy as np
 import pufferlib
 import pufferlib.utils
 import torch
+import torch.distributed as dist
 import wandb
 from agent.policy_store import PolicyStore
 from fast_gae import fast_gae
 from omegaconf import OmegaConf
 from torch.nn.parallel import DistributedDataParallel
-from tqdm import tqdm
 
 from rl.eval.eval_stats_db import EvalStatsDB
 from rl.eval.eval_stats_logger import EvalStatsLogger
@@ -39,6 +40,11 @@ class PufferTrainer:
         self.cfg = cfg
         self.trainer_cfg = cfg.trainer
         self.device = cfg.device
+
+        # Configure NCCL for distributed training
+        if self.trainer_cfg.dist.num_gpus > 1:
+            self._setup_distributed_training()
+
         self.profile = Profile()
         self.losses = self._make_losses()
         self.stats = defaultdict(list)
@@ -80,6 +86,16 @@ class PufferTrainer:
         if self.trainer_cfg.compile:
             self.policy = torch.compile(self.policy, mode=self.trainer_cfg.compile_mode)
 
+        if self.trainer_cfg.dist.num_gpus > 1:
+            orig_policy = self.policy
+            self.policy = DistributedDataParallel(self.policy, device_ids=[self.device])
+            self.policy.lstm = orig_policy.lstm
+            self.policy.hidden_size = orig_policy.hidden_size
+            self.policy.compute_effective_rank = orig_policy.compute_effective_rank
+            self.policy.update_l2_init_weight_copy = orig_policy.update_l2_init_weight_copy
+            self.policy.l2_reg_loss = orig_policy.l2_reg_loss
+            self.policy.l2_init_loss = orig_policy.l2_init_loss
+
         self._make_experience_buffer()
 
         self.agent_step = checkpoint.agent_step
@@ -95,7 +111,23 @@ class PufferTrainer:
             for k in ["0verview", "env", "losses", "performance", "train"]:
                 wandb_run.define_metric(f"{k}/*", step_metric="train/agent_step")
 
-        print("Training on device:", self.device)
+        print("Done creating trainer on:", self.device)
+
+    def _setup_distributed_training(self):
+        """Setup distributed training."""
+        # Import worker_init to configure warnings in distributed processes
+        import rl.pufferlib.worker_init
+
+        # Configure NCCL settings
+        nccl_cfg = self.trainer_cfg.dist.nccl
+        os.environ["NCCL_TIMEOUT"] = str(nccl_cfg.timeout)
+
+        # Log key settings
+        logger.info("NCCL Configuration:")
+        logger.info(f"  Timeout: {nccl_cfg.timeout}s")
+        logger.info(f"  Debug Level: {nccl_cfg.debug}")
+        logger.info(f"  Blocking Wait: {'enabled' if nccl_cfg.blocking_wait else 'disabled'}")
+        logger.info(f"  Async Error Handling: {'enabled' if nccl_cfg.async_error_handling else 'disabled'}")
 
     def train(self):
         self.train_start = time.time()
@@ -105,14 +137,22 @@ class PufferTrainer:
         if self.trainer_cfg.evaluate_interval != 0 and self.trainer_cfg.evaluate_interval < self.trainer_cfg.checkpoint_interval:
             self.trainer_cfg.evaluate_interval = self.trainer_cfg.checkpoint_interval
 
+        logger.info(f"Training on {self.device}")
         while self.agent_step < self.trainer_cfg.total_timesteps:
             # Collecting experience
+            logger.info(f"{self.device} Evaluating policy")
             self._evaluate()
 
             # Training on collected experience
+            logger.info(f"{self.device} Training on collected experience")
             self._train()
 
+            # Processing stats
+            logger.info(f"{self.device} Processing stats")
             self._process_stats()
+
+            # Checkpointing trainer
+            logger.info(f"{self.device} Checkpointing trainer")
             if self.epoch % self.trainer_cfg.checkpoint_interval == 0:
                 self._checkpoint_trainer()
             if self.trainer_cfg.evaluate_interval != 0 and self.epoch % self.trainer_cfg.evaluate_interval == 0:
@@ -126,6 +166,7 @@ class PufferTrainer:
             if (self.trainer_cfg.trace_interval != 0 and
                 self.epoch % self.trainer_cfg.trace_interval == 0):
                 self._save_trace_to_wandb()
+
 
             self._on_train_step()
 
@@ -203,7 +244,7 @@ class PufferTrainer:
                     e3b_inv[env_id] = next_e3b
                     r += intrinsic_reward.cpu()
 
-                if self.device == 'cuda':
+                if self.device.startswith('cuda'):
                     torch.cuda.synchronize()
 
             with profile.eval_misc:
@@ -298,7 +339,7 @@ class PufferTrainer:
                             action=atn,
                         )
 
-                    if self.device == 'cuda':
+                    if self.device.startswith('cuda'):
                         torch.cuda.synchronize()
 
                 with profile.train_misc:
@@ -353,12 +394,14 @@ class PufferTrainer:
                     self.optimizer.zero_grad()
                     loss.backward()
                     torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.trainer_cfg.max_grad_norm)
+                    # if self.trainer_cfg.sync_gpus and self.trainer_cfg.dist.num_gpus > 1:
+                    #     torch.distributed.barrier()
                     self.optimizer.step()
 
                     if self.cfg.agent.clip_range > 0:
                         self.policy.clip_weights()
 
-                    if self.device == 'cuda':
+                    if self.device.startswith('cuda'):
                         torch.cuda.synchronize()
 
                 with profile.train_misc:
@@ -437,21 +480,59 @@ class PufferTrainer:
         save_trace_image(self.cfg, self.last_pr, image_path)
         wandb.log({"traces/actions": wandb.Image(image_path)})
 
+    def _dist_sum(self, value):
+        if not dist.is_initialized():
+            return value
+
+        tensor = torch.tensor(value, device=self.device)
+        dist.all_reduce(tensor, op=dist.ReduceOp.SUM)
+        return tensor.item()
+
+    def _dist_mean(self, value):
+        if not dist.is_initialized():
+            return value
+
+        return self._dist_sum(value) / dist.get_world_size()
+
     def _process_stats(self):
+        # Process raw stats first
         for k in list(self.stats.keys()):
             v = self.stats[k]
             try:
-                self.stats[k] = np.mean(v)
+                v = np.mean(v)
+                self.stats[k] = v
             except:
                 del self.stats[k]
 
-        if self.wandb_run and self.cfg.wandb.track:
-            overview = {
-                'SPS': self.profile.SPS,
-            }
+        try:
+            # Synchronize and aggregate stats across processes
+            sps = self._dist_sum(self.profile.SPS)
+            agent_steps = int(self._dist_sum(self.agent_step))
+            epoch = int(self._dist_sum(self.epoch))
+            learning_rate = self.optimizer.param_groups[0]["lr"]
+            environment = {k: self._dist_mean(v) for k, v in self.stats.items()}
+            losses = {k: self._dist_mean(v) for k, v in vars(self.losses).items() if not k.startswith('_')}
+            performance = {k: self._dist_mean(v) for k, v in self.profile}
+        except Exception as e:
+            logger.error(f"Failed to synchronize stats: {str(e)}. Using local values.")
+            sps = self.profile.SPS
+            agent_steps = self.agent_step
+            epoch = self.epoch
+            learning_rate = self.optimizer.param_groups[0]["lr"]
+            environment = self.stats
+            losses = {k: v for k, v in vars(self.losses).items() if not k.startswith('_')}
+            performance = self.profile
+
+        # Only log from rank 0 when using distributed training
+        should_log = self.wandb_run and self.cfg.wandb.track
+        if self.trainer_cfg.dist.num_gpus > 1:
+            should_log = should_log and torch.distributed.get_rank() == 0
+
+        if should_log:
+            overview = {'SPS': sps}
             for k, v in self.trainer_cfg.stats.overview.items():
-                if k in self.stats:
-                    overview[v] = self.stats[k]
+                if k in environment:
+                    overview[v] = environment[k]
 
             policy_fitness_metrics = {
                 f'pfs/{r["eval"]}:{r["metric"]}': r["fitness"]
@@ -461,13 +542,13 @@ class PufferTrainer:
 
             self.wandb_run.log({
                 **{f'0verview/{k}': v for k, v in overview.items()},
-                **{f'env/{k}': v for k, v in self.stats.items()},
-                **{f'losses/{k}': v for k, v in self.losses.items()},
-                **{f'performance/{k}': v for k, v in self.profile},
+                **{f'env/{k}': v for k, v in environment.items()},
+                **{f'losses/{k}': v for k, v in losses.items()},
+                **{f'performance/{k}': v for k, v in performance.items()},
                 **policy_fitness_metrics,
-                'train/agent_step': self.agent_step,
-                'train/epoch': self.epoch,
-                'train/learning_rate': self.optimizer.param_groups[0]["lr"],
+                'train/agent_step': agent_steps,
+                'train/epoch': epoch,
+                'train/learning_rate': learning_rate,
                 'train/average_reward': self.average_reward if self.trainer_cfg.average_reward else None,
             })
 
@@ -510,6 +591,11 @@ class PufferTrainer:
         )
 
     def _make_vecenv(self):
+        """Create a vectorized environment."""
+        # Import worker_init to configure warnings in worker processes
+        import rl.pufferlib.worker_init
+
+        # Create the vectorized environment
         self.target_batch_size = self.trainer_cfg.forward_pass_minibatch_target_size // self.cfg.env.game.num_agents
         if self.target_batch_size < 2: # pufferlib bug requires batch size >= 2
             self.target_batch_size = 2
