@@ -52,7 +52,8 @@ class FeatureEncoder(nn.Module):
 
     def forward(self, x):
         # Flatten the input if necessary.
-        x = x.view(x.size(0), -1)
+        print(f"Input shape: {x.shape}")
+        x = x.view(x.size(0), -1).float()
         x = self.relu(self.fc1(x))
         phi = self.fc2(x)
         return phi
@@ -63,7 +64,7 @@ class InverseDynamicsModel(nn.Module):
     The inverse dynamics model g that takes a pair of embeddings (φ(sₜ), φ(sₜ₊₁))
     and outputs predictions over two components: action type and action parameter.
     """
-    def __init__(self, feature_dim: int, hidden_dim: int, action_type_dim: int, action_param_dim: int):
+    def __init__(self, feature_dim: int, action_type_dim: int, action_param_dim: int, hidden_dim: int = 256):
         super().__init__()
         # Concatenate the two embeddings so the input is feature_dim * 2.
         self.fc1 = nn.Linear(feature_dim * 2, hidden_dim)

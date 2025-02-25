@@ -353,6 +353,7 @@ class PufferTrainer:
                         # --- Compute Inverse Dynamics Loss for the mini-batch ---
                         # Assume each mini-batch is a time sequence.
                         # Get consecutive observation pairs and corresponding actions.
+                        print(f"Experience b_obs shape: {experience.b_obs.shape}")
                         b_obs_current = experience.b_obs[mb][:-1]  # s_t for t=0..T-2
                         b_obs_next = experience.b_obs[mb][1:]       # s_{t+1} for t=0..T-2
                         b_actions_current = experience.b_actions[mb][:-1]  # actions corresponding to s_t
