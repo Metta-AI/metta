@@ -530,35 +530,19 @@ class PufferTrainer:
             except:
                 del self.stats[k]
 
-        try:
-            # Synchronize and aggregate stats across processes
-            sps = self._dist_sum(self.profile.SPS)
-            agent_steps = int(self._dist_sum(self.agent_step))
-            epoch = int(self._dist_sum(self.epoch))
-            learning_rate = self.optimizer.param_groups[0]["lr"]
-            environment = {k: self._dist_mean(v) for k, v in self.stats.items()}
-            losses = {k: self._dist_mean(v) for k, v in vars(self.losses).items() if not k.startswith('_')}
-            performance = {k: self._dist_mean(v) for k, v in self.profile}
-        except Exception as e:
-            logger.error(f"Failed to synchronize stats: {str(e)}. Using local values.")
-            sps = self.profile.SPS
-            agent_steps = self.agent_step
-            epoch = self.epoch
-            learning_rate = self.optimizer.param_groups[0]["lr"]
-            environment = self.stats
-            losses = {k: v for k, v in vars(self.losses).items() if not k.startswith('_')}
-            performance = self.profile
+        # Synchronize and aggregate stats across processes
+        sps = self._dist_sum(self.profile.SPS)
+        agent_steps = int(self._dist_sum(self.agent_step))
+        epoch = int(self._dist_sum(self.epoch))
+        learning_rate = self.optimizer.param_groups[0]["lr"]
+        environment = {k: self._dist_mean(v) for k, v in self.stats.items()}
+        losses = {k: self._dist_mean(v) for k, v in vars(self.losses).items() if not k.startswith('_')}
+        performance = {k: self._dist_mean(v) for k, v in self.profile}
 
-        # Only log from rank 0 when using distributed training
-        should_log = self.wandb_run and self.cfg.wandb.track
-        if self.trainer_cfg.dist.num_gpus > 1:
-            should_log = should_log and torch.distributed.get_rank() == 0
-
-        if should_log:
-            overview = {'SPS': sps}
-            for k, v in self.trainer_cfg.stats.overview.items():
-                if k in environment:
-                    overview[v] = environment[k]
+        overview = {'SPS': sps}
+        for k, v in self.trainer_cfg.stats.overview.items():
+            if k in environment:
+                overview[v] = environment[k]
 
         policy_fitness_metrics = {
             f'pfs/{r["eval"]}:{r["metric"]}': r["fitness"]
@@ -566,20 +550,21 @@ class PufferTrainer:
         }
         self.policy_fitness = []
 
-            self.wandb_run.log({
-                **{f'0verview/{k}': v for k, v in overview.items()},
-                **{f'env/{k}': v for k, v in environment.items()},
-                **{f'losses/{k}': v for k, v in losses.items()},
-                **{f'performance/{k}': v for k, v in performance.items()},
-                **policy_fitness_metrics,
-                'train/agent_step': agent_steps,
-                'train/epoch': epoch,
-                'train/learning_rate': learning_rate,
-                'train/average_reward': self.average_reward if self.trainer_cfg.average_reward else None,
-            })
+        self.wandb_run.log({
+            **{f'0verview/{k}': v for k, v in overview.items()},
+            **{f'env/{k}': v for k, v in environment.items()},
+            **{f'losses/{k}': v for k, v in losses.items()},
+            **{f'performance/{k}': v for k, v in performance.items()},
+            **policy_fitness_metrics,
+            'train/agent_step': agent_steps,
+            'train/epoch': epoch,
+            'train/learning_rate': learning_rate,
+            'train/average_reward': self.average_reward if self.trainer_cfg.average_reward else None,
+        })
 
         if len(self.stats) > 0:
             self.recent_stats = deepcopy(self.stats)
+
         self.stats.clear()
 
     def close(self):
