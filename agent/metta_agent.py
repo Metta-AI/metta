@@ -13,7 +13,6 @@ from torch.distributions.utils import logits_to_probs
 from sample_factory.utils.typing import ActionSpace, ObsSpace
 from pufferlib.environment import PufferEnv
 import pufferlib
-from pufferlib.cleanrl import sample_logits
 
 def make_policy(env: PufferEnv, cfg: OmegaConf):
     obs_space = gym.spaces.Dict({
@@ -154,7 +153,7 @@ class MettaAgent(nn.Module):
 
         e3b, intrinsic_reward = self._e3b_update(td["_core_"].detach(), e3b)
 
-        action, logprob, entropy, normalized_logits = sample_logits(logits, action, False)
+        action, logprob, entropy, normalized_logits = self.sample_logits(logits, action)
         return action, logprob, entropy, value, state, e3b, intrinsic_reward, normalized_logits
     
     def forward(self, x, state=None, action=None, e3b=None):
