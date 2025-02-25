@@ -88,18 +88,15 @@ def train(cfg):
     logger.info(f"Starting train() on device {cfg.device}")
     setup_metta_environment(cfg)
 
-    try:
-        logger.info(f"Instantiating trainer on {cfg.device}")
-        with WandbContext(cfg) as wandb_run:
-            policy_store = PolicyStore(cfg, wandb_run)
-            trainer = hydra.utils.instantiate(cfg.trainer, cfg, wandb_run, policy_store)
-            logger.info(f"Starting trainer.train() on {trainer.device}")
-            trainer.train()
-            trainer.close()
-            logger.info(f"Training completed on {trainer.device}")
-    except Exception as e:
-        logger.error(f"Error in train on {cfg.device}: {e}")
-        raise
+    raise Exception("Stop here")
+    logger.info(f"Instantiating trainer on {cfg.device}")
+    with WandbContext(cfg) as wandb_run:
+        policy_store = PolicyStore(cfg, wandb_run)
+        trainer = hydra.utils.instantiate(cfg.trainer, cfg, wandb_run, policy_store)
+        logger.info(f"Starting trainer.train() on {trainer.device}")
+        trainer.train()
+        trainer.close()
+        logger.info(f"Training completed on {trainer.device}")
 
 if __name__ == "__main__":
     main()
