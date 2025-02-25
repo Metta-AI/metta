@@ -349,6 +349,28 @@ class PufferTrainer:
 
                     loss = pg_loss - self.trainer_cfg.ent_coef * entropy_loss + v_loss * self.trainer_cfg.vf_coef + l2_reg_loss + l2_init_loss
 
+                    if self.use_e3b:
+                        # --- Compute Inverse Dynamics Loss for the mini-batch ---
+                        # Assume each mini-batch is a time sequence.
+                        # Get consecutive observation pairs and corresponding actions.
+                        b_obs_current = experience.b_obs[mb][:-1]  # s_t for t=0..T-2
+                        b_obs_next = experience.b_obs[mb][1:]       # s_{t+1} for t=0..T-2
+                        b_actions_current = experience.b_actions[mb][:-1]  # actions corresponding to s_t
+
+                        # Convert one-hot actions for each component to label indices.
+                        # (Adjust this extraction as per your actual tensor shape.)
+                        action_type_targets = torch.argmax(b_actions_current[:, 0], dim=1)
+                        action_param_targets = torch.argmax(b_actions_current[:, 1], dim=1)
+
+                        # Compute the inverse dynamics loss using your agent's method.
+                        inverse_loss = self.policy.compute_inverse_dynamics_loss(
+                            b_obs_current, b_obs_next, action_type_targets, action_param_targets
+                        )
+
+                        # Add the inverse dynamics loss to the total loss,
+                        # scaling it by a hyperparameter (e.g., inverse_loss_coef).
+                        loss = loss + self.trainer_cfg.inverse_loss_coef * inverse_loss
+
                 with profile.learn:
                     self.optimizer.zero_grad()
                     loss.backward()

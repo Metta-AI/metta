@@ -34,6 +34,52 @@ def make_policy(env: PufferEnv, cfg: OmegaConf):
     agent.to(cfg.device)
     return agent
 
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+class FeatureEncoder(nn.Module):
+    """
+    A simple feature encoder that maps an input observation to a feature embedding φ.
+    Adjust the architecture (e.g. CNN or MLP) based on your observation type.
+    """
+    def __init__(self, input_dim, feature_dim):
+        super().__init__()
+        # Example for vector observations – use a CNN if using images.
+        self.fc1 = nn.Linear(input_dim, 128)
+        self.relu = nn.ReLU()
+        self.fc2 = nn.Linear(128, feature_dim)
+
+    def forward(self, x):
+        # Flatten the input if necessary.
+        x = x.view(x.size(0), -1)
+        x = self.relu(self.fc1(x))
+        phi = self.fc2(x)
+        return phi
+
+
+class InverseDynamicsModel(nn.Module):
+    """
+    The inverse dynamics model g that takes a pair of embeddings (φ(sₜ), φ(sₜ₊₁))
+    and outputs predictions over two components: action type and action parameter.
+    """
+    def __init__(self, feature_dim: int, hidden_dim: int, action_type_dim: int, action_param_dim: int):
+        super().__init__()
+        # Concatenate the two embeddings so the input is feature_dim * 2.
+        self.fc1 = nn.Linear(feature_dim * 2, hidden_dim)
+        self.relu = nn.ReLU()
+        # Two heads: one for each action component.
+        self.action_type_head = nn.Linear(hidden_dim, action_type_dim)
+        self.action_param_head = nn.Linear(hidden_dim, action_param_dim)
+
+    def forward(self, phi_s, phi_sp1):
+        # Concatenate along the feature dimension.
+        x = torch.cat([phi_s, phi_sp1], dim=1)
+        x = self.relu(self.fc1(x))
+        logits_type = self.action_type_head(x)
+        logits_param = self.action_param_head(x)
+        return logits_type, logits_param
+
 
 class MettaAgent(nn.Module):
     def __init__(
@@ -42,6 +88,7 @@ class MettaAgent(nn.Module):
         obs_space: ObsSpace,
         action_space: ActionSpace,
         grid_features: List[str],
+        feature_dim=256,
         **cfg
     ):
         super().__init__()
@@ -95,6 +142,13 @@ class MettaAgent(nn.Module):
 
         self._total_params = sum(p.numel() for p in self.parameters())
         print(f"Total number of parameters in MettaAgent: {self._total_params:,}. Setup complete.")
+
+
+        # Add a separate feature encoder for inverse dynamics.
+        self.phi_encoder = FeatureEncoder(input_dim=int(np.prod(obs_shape)), feature_dim=feature_dim)
+        # And an inverse dynamics model to predict actions from consecutive embeddings.
+        self.inverse_dynamics_model = InverseDynamicsModel(feature_dim=feature_dim, action_type_dim=agent_attributes['action_type_size'], action_param_dim=agent_attributes['action_param_size'])
+
 
     def _setup_components(self, component):
         if component.input_source is not None:
@@ -151,13 +205,30 @@ class MettaAgent(nn.Module):
             split_size = self.core_num_layers
             state = (state[:split_size], state[split_size:])
 
-        e3b, intrinsic_reward = self._e3b_update(td["_core_"].detach(), e3b)
+        phi = self.phi_encoder(x.to(next(self.phi_encoder.parameters()).device))
+        e3b, intrinsic_reward = self._e3b_update(phi.detach(), e3b)
+
+       # e3b, intrinsic_reward = self._e3b_update(td["_core_"].detach(), e3b)
 
         action, logprob, entropy = sample_logits(logits, action, False)
         return action, logprob, entropy, value, state, e3b, intrinsic_reward
 
     def forward(self, x, state=None, action=None, e3b=None):
         return self.get_action_and_value(x, state, action, e3b)
+
+    def compute_inverse_dynamics_loss(self, current_obs, next_obs, action_type_targets, action_param_targets):
+        # Compute embeddings for current and next observations.
+        phi_current = self.phi_encoder(current_obs)
+        phi_next = self.phi_encoder(next_obs)
+
+        # Get predictions from your inverse dynamics model.
+        logits_type, logits_param = self.inverse_dynamics_model(phi_current, phi_next)
+
+        # Compute losses for each head.
+        loss_type = F.cross_entropy(logits_type, action_type_targets)
+        loss_param = F.cross_entropy(logits_param, action_param_targets)
+
+        return loss_type + loss_param
 
     def _e3b_update(self, phi, e3b):
         intrinsic_reward = None
