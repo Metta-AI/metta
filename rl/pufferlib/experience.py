@@ -45,12 +45,12 @@ class Experience:
         self.e3b_inv = 10*torch.eye(hidden_size).repeat(lstm_total_agents, 1, 1).to(device)
         self.multi_discrete = multi_discrete
         if self.multi_discrete:
-            self.normalized_type_logits = torch.zeros(batch_size, action_type_size, dtype=atn_dtype, pin_memory=pin) # ks
+            self.normalized_type_logits = torch.zeros(batch_size, action_type_size, pin_memory=pin) # ks
             self.normalized_type_logits_np = np.asarray(self.normalized_type_logits)
-            self.normalized_param_logits = torch.zeros(batch_size, action_param_size, dtype=atn_dtype, pin_memory=pin) # ks
+            self.normalized_param_logits = torch.zeros(batch_size, action_param_size, pin_memory=pin) # ks
             self.normalized_param_logits_np = np.asarray(self.normalized_param_logits)
         else:
-            self.normalized_logits = torch.zeros(batch_size, action_type_size, dtype=atn_dtype, pin_memory=pin) # ks
+            self.normalized_logits = torch.zeros(batch_size, action_type_size, pin_memory=pin) # ks
             self.normalized_type_logits_np = np.asarray(self.normalized_logits)
         #self.obs_np = np.asarray(self.obs)
         self.actions_np = np.asarray(self.actions)
@@ -103,10 +103,12 @@ class Experience:
         self.dones_np[ptr:end] = done.cpu().numpy()[indices]
 
         if self.multi_discrete:
+            self.normalized_type_logits_np[ptr:end] = normalized_logits[0][indices]
+            self.normalized_param_logits_np[ptr:end] = normalized_logits[1][indices]
             self.normalized_type_logits_np[ptr:end] = normalized_logits[0].cpu().numpy()[indices] # ks
             self.normalized_param_logits_np[ptr:end] = normalized_logits[1].cpu().numpy()[indices] # ks
         else:
-            self.normalized_type_logits_np[ptr:end] = normalized_logits.cpu().numpy()[indices] # ks
+            self.normalized_type_logits_np[ptr:end] = normalized_logits.cpu().numpy().astype(np.float32)[indices] # ks
 
         self.sort_keys.extend([(env_id[i], self.step) for i in indices])
         self.ptr = end

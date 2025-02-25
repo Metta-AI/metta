@@ -193,7 +193,7 @@ class PufferTrainer:
                     lstm_h[:, env_id] = h
                     lstm_c[:, env_id] = c
 
-                self.kickstarter.forward(o_device, env_id, mask) # ks
+                self.kickstarter.forward(o_device, r, d,env_id, mask) # ks
 
                 if self.use_e3b:
                     e3b_inv[env_id] = next_e3b
@@ -281,6 +281,8 @@ class PufferTrainer:
                     val = experience.b_values[mb]
                     adv = experience.b_advantages[mb]
                     ret = experience.b_returns[mb]
+
+                    print(experience.normalized_type_logits_np[mb])
 
                 with profile.train_forward:
                     _, new_log_prob, entropy, new_value, lstm_state, _, _, new_normalized_logits = self.policy(
@@ -610,10 +612,13 @@ class Kickstarter:
             # fix cross entropy loss formula
             if self.multi_discrete: 
                 teacher_type_lp = teacher_experience.normalized_type_logits_np[mb]
-                ks_action_loss -= (teacher_type_lp.exp() * student_normalized_logits[0]).sum(dim=-1).mean() * self.teachers[i].action_coef
-                # does it make sense to just sum them across type and param??
-                teacher_param_lp = teacher_experience.normalized_param_logits_np[mb]
-                ks_action_loss -= (teacher_param_lp.exp() * student_normalized_logits[1]).sum(dim=-1).mean() * self.teachers[i].action_coef
+
+                teacher_type_lp_tensor = torch.tensor(teacher_type_lp, device=self.tr.device)
+                ks_action_loss -= (teacher_type_lp_tensor.exp() * student_normalized_logits[0]).sum(dim=-1).mean() * self.teachers[i].action_coef
+
+                # does it make sense to add the param loss if the student chooses a different type entirely?
+                # teacher_param_lp = teacher_experience.normalized_param_logits_np[mb]
+                # ks_action_loss -= (teacher_param_lp.exp() * student_normalized_logits[1]).sum(dim=-1).mean() * self.teachers[i].action_coef
             else:
                 teacher_lp = teacher_experience.normalized_type_logits_np[mb]
                 ks_action_loss -= (teacher_lp * student_normalized_logits).sum(dim=-1).mean() * self.teachers[i].action_coef
@@ -623,7 +628,7 @@ class Kickstarter:
             
         return ks_action_loss, ks_value_loss
     
-    def forward(self, o_device, env_id, mask):
+    def forward(self, o_device, r, d, env_id, mask):
         if not self.activated:
             return
         
@@ -643,4 +648,4 @@ class Kickstarter:
             actions = actions.cpu().numpy()
             mask = torch.as_tensor(mask)
             o = o if self.tr.trainer_cfg.cpu_offload else o_device
-            teacher_experience.store(o, value, actions, logprob, _, _, env_id, mask, normalized_logits)
+            teacher_experience.store(o, value, actions, logprob, r, d, env_id, mask, normalized_logits)
