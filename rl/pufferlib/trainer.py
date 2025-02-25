@@ -1,9 +1,9 @@
-import json
 import logging
 import os
 import time
 from collections import defaultdict
 from copy import deepcopy
+from pathlib import Path
 
 import hydra
 import numpy as np
@@ -14,10 +14,14 @@ import wandb
 from agent.policy_store import PolicyStore
 from fast_gae import fast_gae
 from omegaconf import OmegaConf
-from util.stats_library import Glicko2Test, get_test_results
+from torch.nn.parallel import DistributedDataParallel
+from tqdm import tqdm
 
+from rl.eval.eval_stats_db import EvalStatsDB
+from rl.eval.eval_stats_logger import EvalStatsLogger
 from rl.pufferlib.experience import Experience
 from rl.pufferlib.profile import Profile
+from rl.pufferlib.trace import save_trace_image
 from rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
 from rl.pufferlib.vecenv import make_vecenv
 
@@ -42,6 +46,9 @@ class PufferTrainer:
         self.wandb_run = wandb_run
         self.policy_store = policy_store
         self.use_e3b = self.trainer_cfg.use_e3b
+        self.eval_stats_logger = EvalStatsLogger(cfg, wandb_run)
+        self.average_reward = 0.0  # Initialize average reward estimate
+        self.policy_fitness = []
 
         self._make_vecenv()
 
@@ -50,6 +57,9 @@ class PufferTrainer:
 
         if checkpoint.policy_path:
             policy_record = policy_store.policy(checkpoint.policy_path)
+            # Load average reward state if it exists
+            if hasattr(checkpoint, 'average_reward'):
+                self.average_reward = checkpoint.average_reward
         elif cfg.trainer.initial_policy.uri is not None:
             policy_record = policy_store.policy(cfg.trainer.initial_policy)
         else:
@@ -85,28 +95,37 @@ class PufferTrainer:
             for k in ["0verview", "env", "losses", "performance", "train"]:
                 wandb_run.define_metric(f"{k}/*", step_metric="train/agent_step")
 
+        print("Training on device:", self.device)
+
     def train(self):
         self.train_start = time.time()
         logger.info("Starting training")
 
         # it doesn't make sense to evaluate more often than checkpointing since we need a saved policy to evaluate
-        if self.trainer_cfg.evaluate_interval < self.trainer_cfg.checkpoint_interval:
+        if self.trainer_cfg.evaluate_interval != 0 and self.trainer_cfg.evaluate_interval < self.trainer_cfg.checkpoint_interval:
             self.trainer_cfg.evaluate_interval = self.trainer_cfg.checkpoint_interval
 
-        print(f"wandb checkpoint interval: {self.trainer_cfg.wandb_checkpoint_interval}")
-        print(f"trainercheckpoint interval: {self.trainer_cfg.checkpoint_interval}")
-        print(f"evaluate interval: {self.trainer_cfg.evaluate_interval}")
-
         while self.agent_step < self.trainer_cfg.total_timesteps:
+            # Collecting experience
             self._evaluate()
+
+            # Training on collected experience
             self._train()
+
             self._process_stats()
             if self.epoch % self.trainer_cfg.checkpoint_interval == 0:
                 self._checkpoint_trainer()
-            if self.epoch % self.trainer_cfg.evaluate_interval == 0 and self.trainer_cfg.evaluate:
+            if self.trainer_cfg.evaluate_interval != 0 and self.epoch % self.trainer_cfg.evaluate_interval == 0:
                 self._evaluate_policy()
+            if self.cfg.agent.effective_rank_interval != 0 and self.epoch % self.cfg.agent.effective_rank_interval == 0:
+                self._compute_effective_rank()
             if self.epoch % self.trainer_cfg.wandb_checkpoint_interval == 0:
                 self._save_policy_to_wandb()
+            if self.cfg.agent.l2_init_weight_update_interval != 0 and self.epoch % self.cfg.agent.l2_init_weight_update_interval == 0:
+                self._update_l2_init_weight_copy()
+            if (self.trainer_cfg.trace_interval != 0 and
+                self.epoch % self.trainer_cfg.trace_interval == 0):
+                self._save_trace_to_wandb()
 
             self._on_train_step()
 
@@ -116,33 +135,30 @@ class PufferTrainer:
         logger.info(f"Training complete. Total time: {self.train_time:.2f} seconds")
 
     def _evaluate_policy(self):
-        if not self.cfg.evaluator.baselines.uri:
-            self.cfg.evaluator.baselines.uri = f"file://{self.cfg.trainer.checkpoint_dir}"
 
-        baseline_records = self.policy_store.policies(self.cfg.evaluator.baselines)
+        self.cfg.eval.policy_uri = self.last_pr.uri
+        self.cfg.analyzer.policy_uri = self.last_pr.uri
 
-        evaluator = hydra.utils.instantiate(self.cfg.evaluator, self.cfg, self.last_pr, baseline_records)
-        stats = evaluator.evaluate()
-        evaluator.close()
+        eval = hydra.utils.instantiate(self.cfg.eval, self.policy_store, self.last_pr, self.cfg.env, _recursive_ = False)
+        stats = eval.evaluate()
+        self.eval_stats_logger.log(stats)
 
-        if stats is None:
-            logger.warning("Evaluate Policy: No stats to evaluate")
-            return
+        eval_stats_db = EvalStatsDB.from_uri(self.cfg.eval.eval_db_uri, self.cfg.run_dir, self.wandb_run)
+        analyzer = hydra.utils.instantiate(self.cfg.analyzer, eval_stats_db)
+        _, policy_fitness_records = analyzer.analyze()
+        self.policy_fitness = policy_fitness_records
 
-        results, formatted_results = get_test_results(
-            Glicko2Test(stats, self.cfg.evaluator.stat_categories['altar']),
-            scores_path = self.cfg.trainer.glicko_scores_path)
-
-        rating = results.get(self.last_pr.name, {}).get("rating", None)
-
-        if rating is not None:
+    def _compute_effective_rank(self):
+        effective_rank = self.policy.compute_effective_rank()
+        for rank in effective_rank:
             self.wandb_run.log({
-                "eval/glicko2": rating,
+                f"train/effective_rank/{rank['name']}": rank['effective_rank'],
                 "train/agent_step": self.agent_step,
                 "train/epoch": self.epoch,
             })
 
-        logger.info(f"Glicko2 scores: \n{formatted_results}")
+    def _update_l2_init_weight_copy(self):
+        self.policy.update_l2_init_weight_copy()
 
     def _on_train_step(self):
         pass
@@ -163,7 +179,8 @@ class PufferTrainer:
                 env_id = env_id.tolist()
 
             with profile.eval_misc:
-                self.agent_step += sum(mask)
+                num_steps = sum(mask)
+                self.agent_step += num_steps
 
                 o = torch.as_tensor(o)
                 o_device = o.to(self.device)
@@ -181,8 +198,6 @@ class PufferTrainer:
                     actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward = policy(o_device, (h, c), e3b=e3b)
                     lstm_h[:, env_id] = h
                     lstm_c[:, env_id] = c
-                else:
-                    actions, logprob, _, value, next_e3b, intrinsic_reward = policy(o_device, e3b=e3b)
 
                 if self.use_e3b:
                     e3b_inv[env_id] = next_e3b
@@ -231,9 +246,29 @@ class PufferTrainer:
             dones_np = experience.dones_np[idxs]
             values_np = experience.values_np[idxs]
             rewards_np = experience.rewards_np[idxs]
-            # TODO: bootstrap between segment bounds
-            advantages_np = fast_gae.compute_gae(dones_np, values_np, #generalized advantage estimation
-                rewards_np, self.trainer_cfg.gamma, self.trainer_cfg.gae_lambda)
+
+            # Update average reward estimate
+            if self.trainer_cfg.average_reward:
+                # Update average reward estimate using EMA with configured alpha
+                alpha = self.trainer_cfg.average_reward_alpha
+                self.average_reward = (1 - alpha) * self.average_reward + alpha * np.mean(rewards_np)
+                # Adjust rewards by subtracting average reward for advantage computation
+                rewards_np_adjusted = rewards_np - self.average_reward
+                # Set gamma to 1.0 for average reward case
+                effective_gamma = 1.0
+                # Compute advantages using adjusted rewards
+                advantages_np = fast_gae.compute_gae(dones_np, values_np,
+                    rewards_np_adjusted, effective_gamma, self.trainer_cfg.gae_lambda)
+                # For average reward case, returns are computed differently:
+                # R(s) = Σ(r_t - ρ) represents the bias function
+                experience.returns_np = advantages_np + values_np
+            else:
+                effective_gamma = self.trainer_cfg.gamma
+                # Standard GAE computation for discounted case
+                advantages_np = fast_gae.compute_gae(dones_np, values_np,
+                    rewards_np, effective_gamma, self.trainer_cfg.gae_lambda)
+                experience.returns_np = advantages_np + values_np
+
             experience.flatten_batch(advantages_np)
 
         # Optimizing the policy and value network
@@ -255,6 +290,8 @@ class PufferTrainer:
                         _, newlogprob, entropy, newvalue, lstm_state, _, _ = self.policy(
                             obs, state=lstm_state, action=atn)
                         lstm_state = (lstm_state[0].detach(), lstm_state[1].detach())
+
+                    # the below can be deleted if no LSTM
                     else:
                         _, newlogprob, entropy, newvalue, _, _ = self.policy(
                             obs.reshape(-1, *self.vecenv.single_observation_space.shape),
@@ -301,13 +338,26 @@ class PufferTrainer:
                         v_loss = 0.5 * ((newvalue - ret) ** 2).mean()
 
                     entropy_loss = entropy.mean()
-                    loss = pg_loss - self.trainer_cfg.ent_coef * entropy_loss + v_loss * self.trainer_cfg.vf_coef
+
+                    l2_reg_loss = torch.tensor(0.0, device=self.device)
+                    if self.trainer_cfg.l2_reg_loss_coef > 0:
+                        l2_reg_loss = self.trainer_cfg.l2_reg_loss_coef * self.policy.l2_reg_loss().to(self.device)
+
+                    l2_init_loss = torch.tensor(0.0, device=self.device)
+                    if self.trainer_cfg.l2_init_loss_coef > 0:
+                        l2_init_loss = self.trainer_cfg.l2_init_loss_coef * self.policy.l2_init_loss().to(self.device)
+
+                    loss = pg_loss - self.trainer_cfg.ent_coef * entropy_loss + v_loss * self.trainer_cfg.vf_coef + l2_reg_loss + l2_init_loss
 
                 with profile.learn:
                     self.optimizer.zero_grad()
                     loss.backward()
                     torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.trainer_cfg.max_grad_norm)
                     self.optimizer.step()
+
+                    if self.cfg.agent.clip_range > 0:
+                        self.policy.clip_weights()
+
                     if self.device == 'cuda':
                         torch.cuda.synchronize()
 
@@ -318,6 +368,8 @@ class PufferTrainer:
                     self.losses.old_approx_kl += old_approx_kl.item() / total_minibatches
                     self.losses.approx_kl += approx_kl.item() / total_minibatches
                     self.losses.clipfrac += clipfrac.item() / total_minibatches
+                    self.losses.l2_reg_loss += l2_reg_loss.item() / total_minibatches
+                    self.losses.l2_init_loss += l2_init_loss.item() / total_minibatches
 
             if self.trainer_cfg.target_kl is not None:
                 if approx_kl > self.trainer_cfg.target_kl:
@@ -347,7 +399,8 @@ class PufferTrainer:
             self.agent_step,
             self.epoch,
             self.optimizer.state_dict(),
-            pr.local_path()
+            pr.local_path(),
+            average_reward=self.average_reward  # Save average reward state
         ).save(self.cfg.run_dir)
 
     def _checkpoint_policy(self):
@@ -379,6 +432,11 @@ class PufferTrainer:
             pr = self._checkpoint_policy()
             self.policy_store.add_to_wandb_run(self.wandb_run.name, pr)
 
+    def _save_trace_to_wandb(self):
+        image_path = f"{self.cfg.run_dir}/traces/trace.{self.epoch}.png"
+        save_trace_image(self.cfg, self.last_pr, image_path)
+        wandb.log({"traces/actions": wandb.Image(image_path)})
+
     def _process_stats(self):
         for k in list(self.stats.keys()):
             v = self.stats[k]
@@ -395,14 +453,22 @@ class PufferTrainer:
                 if k in self.stats:
                     overview[v] = self.stats[k]
 
+            policy_fitness_metrics = {
+                f'pfs/{r["eval"]}:{r["metric"]}': r["fitness"]
+                for r in self.policy_fitness
+            }
+            self.policy_fitness = []
+
             self.wandb_run.log({
                 **{f'0verview/{k}': v for k, v in overview.items()},
                 **{f'env/{k}': v for k, v in self.stats.items()},
                 **{f'losses/{k}': v for k, v in self.losses.items()},
                 **{f'performance/{k}': v for k, v in self.profile},
+                **policy_fitness_metrics,
                 'train/agent_step': self.agent_step,
                 'train/epoch': self.epoch,
                 'train/learning_rate': self.optimizer.param_groups[0]["lr"],
+                'train/average_reward': self.average_reward if self.trainer_cfg.average_reward else None,
             })
 
         if len(self.stats) > 0:
@@ -439,6 +505,8 @@ class PufferTrainer:
             approx_kl=0,
             clipfrac=0,
             explained_variance=0,
+            l2_reg_loss=0,
+            l2_init_loss=0,
         )
 
     def _make_vecenv(self):
@@ -448,7 +516,8 @@ class PufferTrainer:
         self.batch_size = (self.target_batch_size // self.trainer_cfg.num_workers) * self.trainer_cfg.num_workers
 
         self.vecenv = make_vecenv(
-            self.cfg,
+            self.cfg.env,
+            self.cfg.vectorization,
             num_envs = self.batch_size * self.trainer_cfg.async_factor,
             batch_size = self.batch_size,
             num_workers=self.trainer_cfg.num_workers,
