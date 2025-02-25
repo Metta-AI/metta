@@ -118,6 +118,8 @@ class CarbsSweepRollout:
         stats = eval.evaluate()
         eval_time = time.time() - eval_start_time
 
+        self.eval_stats_logger.update_path(train_cfg.run_dir)
+
         self.eval_stats_logger.log(stats)
 
         eval_stats_db = EvalStatsDB.from_uri(eval_cfg.eval.eval_db_uri, self.run_dir, wandb_run)

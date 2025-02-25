@@ -13,20 +13,23 @@ class EvalStatsLogger:
         self._cfg = cfg
         self._wandb_run = wandb_run
         # We want local stats dir to be the same for train, analysis and eval for a particular run
-        save_dir = cfg.run_dir.replace("analyze", "train").replace("eval", "train")
+        self.update_path(cfg.run_dir)
+
+    def update_path(self, run_dir):
+        save_dir = run_dir.replace("analyze", "train").replace("eval", "train")
 
         artifact_name = None
-        if cfg.eval.eval_db_uri is None:
+        if self._cfg.eval.eval_db_uri is None:
             json_path = os.path.join(save_dir, "eval_stats")
-        elif cfg.eval.eval_db_uri.startswith("wandb://"):
-            artifact_name = cfg.eval.eval_db_uri.split("/")[-1]
+        elif self._cfg.eval.eval_db_uri.startswith("wandb://"):
+            artifact_name = self._cfg.eval.eval_db_uri.split("/")[-1]
             json_path = os.path.join(save_dir, "eval_stats")
-        elif cfg.eval.eval_db_uri.startswith("file://"):
-            json_path = cfg.eval.eval_db_uri.split("file://")[1]
+        elif self._cfg.eval.eval_db_uri.startswith("file://"):
+            json_path = self._cfg.eval.eval_db_uri.split("file://")[1]
         else:
-            if "://" in cfg.eval.eval_db_uri:
-                raise ValueError(f"Invalid eval_db_uri: {cfg.eval.eval_db_uri}")
-            json_path = cfg.eval.eval_db_uri
+            if "://" in self._cfg.eval.eval_db_uri:
+                raise ValueError(f"Invalid eval_db_uri: {self._cfg.eval.eval_db_uri}")
+            json_path = self._cfg.eval.eval_db_uri
 
         self._json_path = json_path if json_path.endswith('.json') else  f"{json_path}.json"
         os.makedirs(os.path.dirname(self._json_path), exist_ok=True)
