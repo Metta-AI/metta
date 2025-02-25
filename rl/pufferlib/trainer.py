@@ -392,6 +392,8 @@ class PufferTrainer:
                     self.optimizer.zero_grad()
                     loss.backward()
                     torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.trainer_cfg.max_grad_norm)
+                    # if self.trainer_cfg.sync_gpus and self.trainer_cfg.dist.num_gpus > 1:
+                    #     torch.distributed.barrier()
                     self.optimizer.step()
 
                     if self.cfg.agent.clip_range > 0:
@@ -501,6 +503,20 @@ class PufferTrainer:
 
         return self._dist_sum(value) / dist.get_world_size()
 
+    def _dist_sum(self, value):
+        if not dist.is_initialized():
+            return value
+
+        tensor = torch.tensor(value, device=self.device)
+        dist.all_reduce(tensor, op=dist.ReduceOp.SUM)
+        return tensor.item()
+
+    def _dist_mean(self, value):
+        if not dist.is_initialized():
+            return value
+
+        return self._dist_sum(value) / dist.get_world_size()
+
     def _process_stats(self):
         if not (self.wandb_run and self.cfg.wandb.track and self._master):
             return
@@ -533,10 +549,16 @@ class PufferTrainer:
             losses = {k: v for k, v in vars(self.losses).items() if not k.startswith('_')}
             performance = self.profile
 
-        overview = {'SPS': sps}
-        for k, v in self.trainer_cfg.stats.overview.items():
-            if k in environment:
-                overview[v] = environment[k]
+        # Only log from rank 0 when using distributed training
+        should_log = self.wandb_run and self.cfg.wandb.track
+        if self.trainer_cfg.dist.num_gpus > 1:
+            should_log = should_log and torch.distributed.get_rank() == 0
+
+        if should_log:
+            overview = {'SPS': sps}
+            for k, v in self.trainer_cfg.stats.overview.items():
+                if k in environment:
+                    overview[v] = environment[k]
 
         policy_fitness_metrics = {
             f'pfs/{r["eval"]}:{r["metric"]}': r["fitness"]
@@ -544,17 +566,17 @@ class PufferTrainer:
         }
         self.policy_fitness = []
 
-        self.wandb_run.log({
-            **{f'0verview/{k}': v for k, v in overview.items()},
-            **{f'env/{k}': v for k, v in environment.items()},
-            **{f'losses/{k}': v for k, v in losses.items()},
-            **{f'performance/{k}': v for k, v in performance.items()},
-            **policy_fitness_metrics,
-            'train/agent_step': agent_steps,
-            'train/epoch': epoch,
-            'train/learning_rate': learning_rate,
-            'train/average_reward': self.average_reward if self.trainer_cfg.average_reward else None,
-        })
+            self.wandb_run.log({
+                **{f'0verview/{k}': v for k, v in overview.items()},
+                **{f'env/{k}': v for k, v in environment.items()},
+                **{f'losses/{k}': v for k, v in losses.items()},
+                **{f'performance/{k}': v for k, v in performance.items()},
+                **policy_fitness_metrics,
+                'train/agent_step': agent_steps,
+                'train/epoch': epoch,
+                'train/learning_rate': learning_rate,
+                'train/average_reward': self.average_reward if self.trainer_cfg.average_reward else None,
+            })
 
         if len(self.stats) > 0:
             self.recent_stats = deepcopy(self.stats)
