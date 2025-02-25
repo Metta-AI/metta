@@ -246,7 +246,7 @@ class PufferTrainer:
                 actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward = policy(o_device, (h, c), e3b=e3b)
                 lstm_h[:, env_id] = h
                 lstm_c[:, env_id] = c
-
+                logger.info(f"{self.device} LSTM evaluation complete")
                 if self.use_e3b:
                     e3b_inv[env_id] = next_e3b
                     r += intrinsic_reward.cpu()
