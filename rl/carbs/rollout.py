@@ -114,13 +114,14 @@ class CarbsSweepRollout:
         self._log_file("eval_config.yaml", eval_cfg)
 
         eval_cfg.eval.policy_uri = final_pr.uri
+        eval_cfg.analyzer.policy_uri = final_pr.uri
         eval = hydra.utils.instantiate(eval_cfg.eval, policy_store, final_pr, eval_cfg.env, _recursive_ = False)
         stats = eval.evaluate()
         eval_time = time.time() - eval_start_time
 
         self.eval_stats_logger.log(stats)
 
-        eval_stats_db = EvalStatsDB.from_uri(eval_cfg.eval.eval_db_uri, wandb_run)
+        eval_stats_db = EvalStatsDB.from_uri(eval_cfg.eval.eval_db_uri, self.run_dir, wandb_run)
 
         metric_idxs = [i for i, m in enumerate(eval_cfg.analyzer.analysis.metrics) if m.metric == eval_cfg.sweep.metric]
         if len(metric_idxs) == 0:

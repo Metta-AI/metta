@@ -30,7 +30,8 @@ def main(cfg: DictConfig):
 
         stats_logger.log(stats)
 
-        eval_stats_db = EvalStatsDB.from_uri(cfg.eval.eval_db_uri, wandb_run)
+        eval_stats_db = EvalStatsDB.from_uri(cfg.eval.eval_db_uri, cfg.run_dir, wandb_run)
+        cfg.analyzer.policy_uri = policy_pr.uri
         analyzer = hydra.utils.instantiate(cfg.analyzer, eval_stats_db)
         analyzer.analyze()
 

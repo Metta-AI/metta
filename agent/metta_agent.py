@@ -70,7 +70,7 @@ class MettaAgent(nn.Module):
             self._multi_discrete = True
             agent_attributes['action_type_size'] = action_space.nvec[0]
             agent_attributes['action_param_size'] = action_space.nvec[1]
-        
+
         # self.observation_space = obs_space # for use with FeatureSetEncoder
         # self.global_features = global_features # for use with FeatureSetEncoder
 
@@ -92,7 +92,7 @@ class MettaAgent(nn.Module):
         for name, component in self.components.items():
             if not getattr(component, 'ready', False):
                 raise RuntimeError(f"Component {name} in MettaAgent was never setup. It might not be accessible by other components.")
-            
+
         self._total_params = sum(p.numel() for p in self.parameters())
         print(f"Total number of parameters in MettaAgent: {self._total_params:,}. Setup complete.")
 
@@ -106,7 +106,7 @@ class MettaAgent(nn.Module):
 
         if component.input_source is not None:
             if isinstance(component.input_source, str):
-                component.setup(self.components[component.input_source]) 
+                component.setup(self.components[component.input_source])
             elif isinstance(component.input_source, list):
                 input_source_components = {}
                 for input_source in component.input_source:
@@ -118,7 +118,7 @@ class MettaAgent(nn.Module):
     @property
     def lstm(self):
         return self.components["_core_"].net
-    
+
     @property
     def total_params(self):
         return self._total_params
@@ -144,7 +144,7 @@ class MettaAgent(nn.Module):
             logits = [logits, td["_action_param_"]]
 
         value = td["_value_"]
-        state = td["state"] 
+        state = td["state"]
 
         # Convert state back to tuple to pass back to trainer
         if state is not None:
@@ -158,7 +158,7 @@ class MettaAgent(nn.Module):
     
     def forward(self, x, state=None, action=None, e3b=None):
         return self.get_action_and_value(x, state, action, e3b)
-    
+
     def _e3b_update(self, phi, e3b):
         intrinsic_reward = None
         if e3b is not None:
@@ -174,7 +174,7 @@ class MettaAgent(nn.Module):
         for component in self.components.values():
             l2_reg_loss += component.l2_reg_loss() or 0
         return torch.tensor(l2_reg_loss)
-    
+
     def l2_init_loss(self) -> torch.Tensor:
         '''L2 initialization loss is on by default although setting l2_init_coeff to 0 effectively turns it off. Adjust it by setting l2_init_scale in your component config to a multiple of the global loss value or 0 to turn it off.'''
         l2_init_loss = 0
@@ -200,7 +200,6 @@ class MettaAgent(nn.Module):
             rank = component.effective_rank(delta)
             if rank is not None:
                 effective_ranks.append(rank)
-        print(f"Effective ranks: {effective_ranks}")
         return effective_ranks
 
 # ------------------From cleanrl.py--------------------------------
