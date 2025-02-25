@@ -233,6 +233,7 @@ class PufferTrainer:
                 r = torch.as_tensor(r)
                 d = torch.as_tensor(d)
 
+            logger.info(f"{self.device} evaluating forward pass")
             with profile.eval_forward, torch.no_grad():
                 # TODO: In place-update should be faster. Leaking 7% speed max
                 # Also should be using a cuda tensor to index
@@ -252,6 +253,7 @@ class PufferTrainer:
                 if self.device.startswith('cuda'):
                     torch.cuda.synchronize()
 
+            logger.info(f"{self.device} storing experience")
             with profile.eval_misc:
                 value = value.flatten()
                 actions = actions.cpu().numpy()
@@ -263,9 +265,11 @@ class PufferTrainer:
                     for k, v in pufferlib.utils.unroll_nested_dict(i):
                         infos[k].append(v)
 
+            logger.info(f"{self.device} sending actions")
             with profile.env:
                 self.vecenv.send(actions)
 
+        logger.info(f"{self.device} processing stats")
         with profile.eval_misc:
             for k, v in infos.items():
                 if isinstance(v, np.ndarray):
