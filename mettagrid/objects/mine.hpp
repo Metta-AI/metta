@@ -8,8 +8,6 @@
 #include "agent.hpp"
 #include "constants.hpp"
 
-typedef unsigned char ObsType;
-
 class Mine : public Usable {
 public:
     Mine(GridCoord r, GridCoord c, ObjectConfig cfg) {
@@ -27,7 +25,7 @@ public:
         actor->stats.incr(InventoryItemNames[InventoryItem::ore], "created");
     }
 
-    inline void obs(ObsType* obs) const {
+    virtual void obs(ObsType* obs) const override {
         obs[0] = 1;
         obs[1] = hp;
         obs[2] = ready;

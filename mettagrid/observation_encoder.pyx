@@ -52,28 +52,7 @@ cdef class MettaObservationEncoder(ObservationEncoder):
         self._encode(obj, obs, self._offsets[obj._type_id])
 
     cdef _encode(self, GridObject *obj, ObsType[:] obs, unsigned int offset):
-        if obj._type_id == ObjectType.AgentT:
-            (<Agent*>obj).obs(&obs[offset])
-        elif obj._type_id == ObjectType.MineT:
-            (<Mine*>obj).obs(&obs[offset])
-        elif obj._type_id == ObjectType.WallT:
-            (<Wall*>obj).obs(&obs[offset])
-        elif obj._type_id == ObjectType.GeneratorT:
-            (<Generator*>obj).obs(&obs[offset])
-        elif obj._type_id == ObjectType.AltarT:
-            (<Altar*>obj).obs(&obs[offset])
-        elif obj._type_id == ObjectType.ArmoryT:
-            (<Armory*>obj).obs(&obs[offset])
-        elif obj._type_id == ObjectType.LaseryT:
-            (<Lasery*>obj).obs(&obs[offset])
-        elif obj._type_id == ObjectType.LabT:
-            (<Lab*>obj).obs(&obs[offset])
-        elif obj._type_id == ObjectType.FactoryT:
-            (<Factory*>obj).obs(&obs[offset])
-        elif obj._type_id == ObjectType.TempleT:
-            (<Temple*>obj).obs(&obs[offset])
-        else:
-            printf("Encoding object of unknown type: %d\n", obj._type_id)
+        obj.obs(&obs[offset])
 
     cdef vector[string] feature_names(self):
         return self._feature_names

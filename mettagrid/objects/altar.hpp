@@ -8,8 +8,6 @@
 #include "agent.hpp"
 #include "constants.hpp"
 
-typedef unsigned char ObsType;
-
 class Altar : public Usable {
 public:
     Altar(GridCoord r, GridCoord c, ObjectConfig cfg) {
@@ -34,7 +32,7 @@ public:
             InventoryItemNames[InventoryItem::heart], 3);
     }
 
-    inline void obs(ObsType *obs) {
+    void obs(ObsType *obs) const override {
         obs[0] = 1;
         obs[1] = hp;
         obs[2] = ready;
