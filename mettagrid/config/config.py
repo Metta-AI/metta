@@ -73,7 +73,7 @@ def setup_metta_environment(cfg):
     warnings.filterwarnings('ignore', category=DeprecationWarning, module='pygame.pkgdata')
 
     setup_omega_conf()
-    print(OmegaConf.to_yaml(cfg))
+    # print(OmegaConf.to_yaml(cfg))
     traceback.install(show_locals=False)
     seed_everything(cfg.seed, cfg.torch_deterministic)
     os.makedirs(cfg.run_dir, exist_ok=True)
