@@ -48,15 +48,9 @@ def main(cfg):
         raise
 
 
-def train_ddp(device_id, wandb_run, cfg):
+def train_ddp(device_id, cfg):
     logger.info(f"Starting train_ddp on device {device_id}")
-    setup_metta_environment(cfg)
-    logger.info(f"Training on {device_id}/{cfg.trainer.dist.num_gpus} GPUs")
     cfg.device = f'{cfg.device}:{device_id}'
-    policy_store = PolicyStore(cfg, wandb_run)
-
-    if device_id != 0:
-        wandb_run = None
 
     logger.info(f"Initializing process group for device {device_id}")
     torch.distributed.init_process_group(
@@ -69,7 +63,7 @@ def train_ddp(device_id, wandb_run, cfg):
 
     try:
         logger.info(f"Starting training on device {device_id}")
-        train(wandb_run, policy_store, cfg)
+        train(cfg)
         logger.info(f"Training completed on device {device_id}")
     except Exception as e:
         logger.error(f"Error in train_ddp on device {device_id}: {e}")
@@ -79,18 +73,19 @@ def train_ddp(device_id, wandb_run, cfg):
         torch.distributed.destroy_process_group()
 
 
-def train(wandb_run, policy_store, cfg):
+def train(cfg):
     logger.info(f"Starting train() on device {cfg.device}")
     setup_metta_environment(cfg)
-    logger.info(f"Policy store initialized on {cfg.device}")
 
     try:
         logger.info(f"Instantiating trainer on {cfg.device}")
-        trainer = hydra.utils.instantiate(cfg.trainer, cfg, wandb_run, policy_store)
-        logger.info(f"Starting trainer.train() on {trainer.device}")
-        trainer.train()
-        trainer.close()
-        logger.info(f"Training completed on {trainer.device}")
+        with WandbContext(cfg) as wandb_run:
+            policy_store = PolicyStore(cfg, wandb_run)
+            trainer = hydra.utils.instantiate(cfg.trainer, cfg, wandb_run, policy_store)
+            logger.info(f"Starting trainer.train() on {trainer.device}")
+            trainer.train()
+            trainer.close()
+            logger.info(f"Training completed on {trainer.device}")
     except Exception as e:
         logger.error(f"Error in train on {cfg.device}: {e}")
         raise
