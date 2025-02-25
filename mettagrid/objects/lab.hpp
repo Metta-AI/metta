@@ -8,8 +8,6 @@
 #include "agent.hpp"
 #include "constants.hpp"
 
-typedef unsigned char ObsType;
-
 class Lab : public Usable {
 public:
     Lab(GridCoord r, GridCoord c, ObjectConfig cfg) {
@@ -43,7 +41,7 @@ public:
             InventoryItemNames[InventoryItem::blueprint], 3);
     }
 
-    inline void obs(ObsType* obs) const {
+    virtual void obs(ObsType* obs) const override {
         obs[0] = 1;
         obs[1] = hp;
         obs[2] = ready;

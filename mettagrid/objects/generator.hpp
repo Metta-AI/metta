@@ -8,8 +8,6 @@
 #include "agent.hpp"
 #include "constants.hpp"
 
-typedef unsigned char ObsType;
-
 class Generator : public Usable {
 public:
     Generator(GridCoord r, GridCoord c, ObjectConfig cfg) {
@@ -35,7 +33,7 @@ public:
         actor->stats.incr(InventoryItemNames[InventoryItem::battery], "created");
     }
 
-    inline void obs(ObsType *obs) {
+    void obs(ObsType *obs) const override {
         obs[0] = 1;
         obs[1] = this->hp;
         obs[2] = this->ready;

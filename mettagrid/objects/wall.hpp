@@ -8,8 +8,6 @@
 #include "agent.hpp"
 #include "constants.hpp"
 
-typedef unsigned char ObsType;
-
 class Wall : public MettaObject {
 public:
     Wall(GridCoord r, GridCoord c, ObjectConfig cfg) {
@@ -17,7 +15,7 @@ public:
         MettaObject::init_mo(cfg);
     }
 
-    inline void obs(ObsType *obs) {
+    void obs(ObsType *obs) const override {
         obs[0] = 1;
         obs[1] = this->hp;
     }

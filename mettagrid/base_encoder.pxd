@@ -3,9 +3,7 @@
 from libcpp.vector cimport vector
 from libcpp.string cimport string
 
-from mettagrid.grid_object cimport GridObject
-
-ctypedef unsigned char ObsType
+from mettagrid.grid_object cimport GridObject, ObsType
 
 cdef class ObservationEncoder:
     cdef:

@@ -1,12 +1,10 @@
 from libcpp.map cimport map
 from libcpp.vector cimport vector
 from libcpp.string cimport string
-from mettagrid.grid_object cimport GridCoord, GridLocation, GridObject
+from mettagrid.grid_object cimport GridCoord
 from mettagrid.stats_tracker cimport StatsTracker
 from .constants cimport InventoryItem
 from .metta_object cimport MettaObject, ObjectConfig
-from mettagrid.objects.constants cimport InventoryItemNames
-from mettagrid.observation_encoder cimport ObsType
 
 cdef extern from "agent.hpp":
     cdef cppclass Agent(MettaObject):
@@ -31,8 +29,6 @@ cdef extern from "agent.hpp":
             map[string, float] rewards)
 
         void update_inventory(InventoryItem item, short amount, float *reward)
-
-        void obs(ObsType *obs)
 
         @staticmethod
         inline vector[string] feature_names()

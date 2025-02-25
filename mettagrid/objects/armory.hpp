@@ -8,8 +8,6 @@
 #include "agent.hpp"
 #include "constants.hpp"
 
-typedef unsigned char ObsType;
-
 class Armory : public Usable {
 public:
     Armory(GridCoord r, GridCoord c, ObjectConfig cfg) {
@@ -36,7 +34,7 @@ public:
             InventoryItemNames[InventoryItem::armor], 3);
     }
 
-    inline void obs(ObsType* obs) const {
+    virtual void obs(ObsType* obs) const override {
         obs[0] = 1;
         obs[1] = hp;
         obs[2] = ready;
