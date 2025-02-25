@@ -11,5 +11,5 @@ trainer:
   forward_pass_minibatch_target_size: 2
   async_factor: 1
   checkpoint_interval: 10
-  bptt_horizon: 4 #8
+  bptt_horizon: 8
   num_steps: 32
