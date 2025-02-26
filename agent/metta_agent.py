@@ -192,6 +192,12 @@ class MettaAgent(nn.Module):
         if self._multi_discrete:
             self.components["_action_param_"](td)
             logits = [logits, td["_action_param_"]]
+        # Safety check for NaN or inf values
+        for i, l in enumerate(logits):
+            if torch.isnan(l).any() or torch.isinf(l).any():
+                print(f"Warning: NaN or inf detected in logits[{i}], replacing...")
+                logits[i] = torch.zeros_like(l)
+
 
         value = td["_value_"]
         state = td["state"]
@@ -227,10 +233,9 @@ class MettaAgent(nn.Module):
     def _e3b_update(self, phi, e3b):
         intrinsic_reward = None
         if e3b is not None:
-            u = e3b @ phi.unsqueeze(2)  # C⁻¹φ
-            intrinsic_reward = phi.unsqueeze(1) @ u  # φᵀC⁻¹φ
-            denominator = 1 + intrinsic_reward
-            e3b = e3b - (u @ phi.unsqueeze(1) @ e3b) / denominator
+            u = phi.unsqueeze(1) @ e3b
+            intrinsic_reward = u @ phi.unsqueeze(2)
+            e3b = 0.99*e3b - (u.mT @ u) / (1 + intrinsic_reward)
             intrinsic_reward = intrinsic_reward.squeeze()
         return e3b, intrinsic_reward
 
