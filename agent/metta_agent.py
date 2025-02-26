@@ -192,12 +192,6 @@ class MettaAgent(nn.Module):
         if self._multi_discrete:
             self.components["_action_param_"](td)
             logits = [logits, td["_action_param_"]]
-        # Safety check for NaN or inf values
-        for i, l in enumerate(logits):
-            if torch.isnan(l).any() or torch.isinf(l).any():
-                print(f"Warning: NaN or inf detected in logits[{i}], replacing...")
-                logits[i] = torch.zeros_like(l)
-
 
         value = td["_value_"]
         state = td["state"]
