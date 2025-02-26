@@ -519,6 +519,7 @@ class PufferTrainer:
         return self._dist_sum(value) / dist.get_world_size()
 
     def _process_stats(self):
+        return
         if not (self.wandb_run and self.cfg.wandb.track and self._master):
             return
 
