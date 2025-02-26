@@ -29,8 +29,8 @@ def main(cfg):
         OmegaConf.save(cfg, f)
 
     logger.info("Setting up distributed environment")
-    os.environ["MASTER_ADDR"] = "localhost"
-    os.environ["MASTER_PORT"] = "29500"
+    os.environ["MASTER_ADDR"] = cfg.trainer.dist.master_addr
+    os.environ["MASTER_PORT"] = cfg.trainer.dist.master_port
 
     if cfg.trainer.dist.num_gpus > 1:
         logger.info(f"Initializing multi-GPU training with {cfg.trainer.dist.num_gpus} GPUs")

@@ -150,6 +150,8 @@ class PufferTrainer:
             # Processing stats
             self._process_stats()
 
+            logger.info(f"Epoch {self.epoch} of {self.trainer_cfg.total_timesteps}")
+
             # Checkpointing trainer
             if self.epoch % self.trainer_cfg.checkpoint_interval == 0:
                 self._checkpoint_trainer()
@@ -189,6 +191,9 @@ class PufferTrainer:
         self.policy_fitness = policy_fitness_records
 
     def _compute_effective_rank(self):
+        if not self._master:
+            return
+
         effective_rank = self.policy.compute_effective_rank()
         for rank in effective_rank:
             self.wandb_run.log({
@@ -493,7 +498,6 @@ class PufferTrainer:
         return self._dist_sum(value) / dist.get_world_size()
 
     def _process_stats(self):
-        # Process raw stats first
         for k in list(self.stats.keys()):
             v = self.stats[k]
             try:
@@ -501,47 +505,6 @@ class PufferTrainer:
                 self.stats[k] = v
             except:
                 del self.stats[k]
-
-        # # First synchronize which keys exist across all processes
-        # if dist.is_initialized():
-        #     # Get all keys from this process
-        #     local_keys = sorted(list(self.stats.keys()))
-        #     # Create a tensor of key lengths to synchronize
-        #     key_lengths = torch.tensor([len(k) for k in local_keys], device=self.device)
-        #     max_length = torch.tensor([max(key_lengths) if len(key_lengths) > 0 else 0], device=self.device)
-        #     dist.all_reduce(max_length, op=dist.ReduceOp.MAX)
-
-        #     if max_length.item() > 0:
-        #         # Pad all keys to max_length
-        #         padded_keys = torch.zeros(len(local_keys), max_length.item(), dtype=torch.uint8, device=self.device)
-        #         for i, key in enumerate(local_keys):
-        #             padded_keys[i, :len(key)] = torch.tensor([ord(c) for c in key], dtype=torch.uint8, device=self.device)
-
-        #         # Gather number of keys from all processes
-        #         num_keys = torch.tensor([len(local_keys)], device=self.device)
-        #         dist.all_reduce(num_keys, op=dist.ReduceOp.MAX)
-
-        #         # Pad to max number of keys
-        #         if len(local_keys) < num_keys.item():
-        #             padded_keys = torch.cat([
-        #                 padded_keys,
-        #                 torch.zeros(num_keys.item() - len(local_keys), max_length.item(), dtype=torch.uint8, device=self.device)
-        #             ])
-
-        #         # All-reduce to get union of keys
-        #         dist.all_reduce(padded_keys, op=dist.ReduceOp.MAX)
-
-        #         # Convert back to strings and update stats dict
-        #         all_keys = set()
-        #         for i in range(num_keys.item()):
-        #             key = ''.join([chr(c) for c in padded_keys[i].cpu() if c != 0])
-        #             if key:
-        #                 all_keys.add(key)
-
-        #         # Ensure all processes have all keys with zero values if missing
-        #         for key in all_keys:
-        #             if key not in self.stats:
-        #                 self.stats[key] = 0.0
 
         # Now synchronize and aggregate stats across processes
         sps = self._dist_sum(self.profile.SPS)

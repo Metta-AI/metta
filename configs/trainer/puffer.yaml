@@ -50,6 +50,9 @@ stats:
 
 # Distributed training configuration
 dist:
+  master_addr: localhost
+  master_port: 29500
+
   # Basic distributed settings
   num_gpus: 1
   sync_gpus: false

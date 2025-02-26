@@ -102,6 +102,7 @@ def container_config(args, task_args, job_name):
                 'name': 'COLOR_LOGGING',
                 'value': 'false'
             },
+
             {
                 'name': 'WANDB_HOST',
                 'value': job_name
