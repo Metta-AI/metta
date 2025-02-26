@@ -232,19 +232,15 @@ class PufferTrainer:
                 r = torch.as_tensor(r)
                 d = torch.as_tensor(d)
 
-            logger.info(f"{self.device} evaluating forward pass")
             with profile.eval_forward, torch.no_grad():
                 # TODO: In place-update should be faster. Leaking 7% speed max
                 # Also should be using a cuda tensor to index
                 e3b = e3b_inv[env_id] if self.use_e3b else None
 
-                logger.info(f"{self.device} evaluating LSTM")
                 h = lstm_h[:, env_id]
                 c = lstm_c[:, env_id]
-                logger.info(f"{self.device} evaluating policy")
                 actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward = policy(o_device, (h, c), e3b=e3b)
-                logger.info(f"{self.device} policy evaluation complete")
-                logger.info(f"{self.device} updating LSTM_H")
+                logger.info(f"{self.device} {o_device.device} {h.device} {c.device} {env_id} updating LSTM_H")
                 lstm_h[:, env_id] = h
                 logger.info(f"{self.device} updating LSTM_C")
                 lstm_c[:, env_id] = c
