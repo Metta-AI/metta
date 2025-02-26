@@ -31,7 +31,6 @@ parameters:
       max: 1e4
 
 
-
   agent:
     observation_encoders:
     #   grid_obs:

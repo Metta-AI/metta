@@ -4,12 +4,6 @@ defaults:
 sampling: 1
 game:
   num_agents: 18    # Updated for 9 room types with 2 rooms each
-  agent:
-    rewards:
-      action_failure_penalty: 0
-      ore: 0
-      battery: 0
-      heart: 1
 
   map_builder:
     _target_: mettagrid.config.room.room_scene.RoomScene
@@ -156,21 +150,3 @@ game:
     change_color:
       enabled: false
       cost: 0
-
-objects:
-    altar:
-      hp: 30
-      cooldown: 0
-      use_cost: 0
-
-    converter:
-      hp: 30
-      cooldown: 0
-      # This is Dave's fault. Or Cython's. Or mine.
-
-
-    generator:
-      hp: 30
-      cooldown: 0
-      initial_resources: ${uniform:1, 30, 5}
-      use_cost: 0
