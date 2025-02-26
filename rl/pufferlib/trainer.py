@@ -191,7 +191,10 @@ class PufferTrainer:
                     for i, done in enumerate(d):
                         if done:
                             # Reset the E3B matrix for finished episodes
-                            e3b_inv[env_id[i]] = 10*torch.eye(self.policy.hidden_size)
+                            e3b_inv[env_id[i]] = 10 * torch.eye(
+                                self.policy.hidden_size,
+                                device=e3b_inv.device  # Ensure same device
+                            )
 
             with profile.eval_forward, torch.no_grad():
                 # TODO: In place-update should be faster. Leaking 7% speed max
@@ -199,11 +202,14 @@ class PufferTrainer:
                 e3b = e3b_inv[env_id] if self.use_e3b else None
 
                 if lstm_h is not None:
-                    h = lstm_h[:, env_id]
-                    c = lstm_c[:, env_id]
-                    actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward = policy(o_device, (h, c), e3b=e3b)
-                    lstm_h[:, env_id] = h
-                    lstm_c[:, env_id] = c
+                    try:
+                        h = lstm_h[:, env_id]
+                        c = lstm_c[:, env_id]
+                        actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward = policy(o_device, (h, c), e3b=e3b)
+                        lstm_h[:, env_id] = h
+                        lstm_c[:, env_id] = c
+                    except Exception as e:
+                        pdb.set_trace()
 
                 if self.use_e3b:
                     e3b_inv[env_id] = next_e3b
@@ -358,15 +364,13 @@ class PufferTrainer:
 
                     if self.use_e3b:
                         # --- Compute Inverse Dynamics Loss for the mini-batch ---
-                        # Assume each mini-batch is a time sequence.
-                        # Get consecutive observation pairs and corresponding actions.
                         b_obs_current = experience.b_obs[mb][:-1]  # s_t for t=0..T-2
                         b_obs_next = experience.b_obs[mb][1:]       # s_{t+1} for t=0..T-2
-                        b_actions_current = experience.b_actions[mb][:-1]  # actions corresponding to s_t
+                        b_actions_current = experience.b_actions[mb][:-1]
 
                         # Extract the indices for each action component
-                        action_type_targets = b_actions_current[:, :, 0].reshape(-1)  # Shape: [1016]
-                        action_param_targets = b_actions_current[:, :, 1].reshape(-1)  # Shape: [1016]
+                        action_type_targets = b_actions_current[:, :, 0].reshape(-1)
+                        action_param_targets = b_actions_current[:, :, 1].reshape(-1)
 
                          # Compute the inverse dynamics loss using the shared encoder.
                         inverse_loss = self.policy.compute_inverse_dynamics_loss(

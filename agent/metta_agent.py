@@ -199,10 +199,7 @@ class MettaAgent(nn.Module):
             split_size = self.core_num_layers
             state = (state[:split_size], state[split_size:])
 
-        # Ensure x is on the same device as the model
-        # Instead of using next(self.parameters()).device, just use the consistent device
-        phi = self.get_shared_embedding(x)  # x is already on the correct device
-
+        phi = self.get_shared_embedding(x)
         # Detach to prevent inverse dynamics gradients from flowing back
         phi_detached = phi.detach()
 
