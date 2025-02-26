@@ -130,12 +130,12 @@ class CarbsSweepRollout:
         elif len(metric_idxs) > 1:
             assert len(metric_idxs) == len(stats), f"Number of metrics {eval_cfg.analyzer.analysis.metrics} not equal to number of results {len(stats)}"
             raise ValueError(f"Multiple metrics found for {eval_cfg.sweep.metric} in analyzer")
+        sweep_metric_index = metric_idxs[0]
 
         analyzer = hydra.utils.instantiate(eval_cfg.analyzer, eval_stats_db)
         results, _ = analyzer.analyze()
-
         # Filter by policy name and sum up the mean values over evals
-        filtered_results = results[metric_idxs[0]][results[metric_idxs[0]]['policy_name'] == final_pr.name]
+        filtered_results = results[sweep_metric_index][results[sweep_metric_index]['policy_name'] == final_pr.name]
         eval_metric = filtered_results['mean'].sum()
 
         stats_update = {
