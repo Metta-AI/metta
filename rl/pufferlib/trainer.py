@@ -524,7 +524,6 @@ class PufferTrainer:
             f'pfs/{r["eval"]}:{r["metric"]}': r["fitness"]
             for r in self.policy_fitness
         }
-        self.policy_fitness = []
 
         if self.wandb_run and self.cfg.wandb.track and self._master:
             self.wandb_run.log({
@@ -539,6 +538,7 @@ class PufferTrainer:
                 'train/average_reward': self.average_reward if self.trainer_cfg.average_reward else None,
             })
 
+        self.policy_fitness = []
         self.stats.clear()
 
     def close(self):

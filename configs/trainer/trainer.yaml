@@ -20,3 +20,25 @@ trace_interval: 0
 # Average reward settings
 average_reward: false  # Set to true to use average reward optimization
 average_reward_alpha: 0.01  # Smoothing factor for 100k step average (ln(2)/100000)
+
+# Distributed training configuration
+dist:
+  master_addr: localhost
+  master_port: 29500
+
+  # Basic distributed settings
+  num_gpus: 1
+
+  # NCCL configuration
+  nccl:
+    # Basic settings
+    timeout: 60  # Timeout in seconds (10 minutes)
+    blocking_wait: 0  # Enable blocking wait
+    async_error_handling: 1  # Enable async error handling
+
+    # Debug settings
+    debug: INFO  # Debug level (INFO, WARN, or ERROR)
+    debug_subsys: ALL  # Debug subsystems to log (ALL, INIT, COLL, P2P, SHM, NET, etc.)
+    trace_buffer_size: 1048576  # Size of trace buffer for debugging (1MB)
+    debug_file: nccl_debug.log  # Debug log file name (relative to run_dir)
+
