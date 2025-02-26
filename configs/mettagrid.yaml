@@ -3,7 +3,7 @@ _target_: mettagrid.mettagrid_env.MettaGridEnv
 
 report_stats_interval: 100
 normalize_rewards: false
-compact_obs: false
+semi_compact_obs: false
 track_last_action: false
 
 sampling: 0

@@ -32,17 +32,17 @@ public:
         actor->stats.add(InventoryItemNames[InventoryItem::heart], "created", 5);
     }
 
-    virtual void obs(ObsType* obs) const override {
-        obs[0] = 1;
-        obs[1] = hp;
-        obs[2] = ready;
+    virtual void obs(ObsType* obs, const std::vector<unsigned int> &offsets) const override {
+        obs[offsets[0]] = 1;
+        obs[offsets[1]] = hp;
+        obs[offsets[2]] = ready;
     }
 
     static inline std::vector<std::string> feature_names() {
         std::vector<std::string> features;
         features.push_back("temple");
-        features.push_back("temple:hp");
-        features.push_back("temple:ready");
+        features.push_back("hp");
+        features.push_back("ready");
         return features;
     }
 };

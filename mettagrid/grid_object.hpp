@@ -52,7 +52,7 @@ class GridObject {
             init(type_id, GridLocation(r, c, layer));
         }
 
-        virtual void obs(ObsType *obs) const = 0;
+        virtual void obs(ObsType *obs, const vector<unsigned int> &offsets) const = 0;
 };
 
 #endif // GRID_OBJECT_HPP

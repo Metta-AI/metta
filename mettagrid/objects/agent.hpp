@@ -93,16 +93,16 @@ public:
         this->current_resource_reward = new_reward;
     }
 
-    virtual void obs(ObsType* obs) const override {
-        obs[0] = 1;
-        obs[1] = group;
-        obs[2] = hp;
-        obs[3] = frozen;
-        obs[4] = orientation;
-        obs[5] = color;
+    virtual void obs(ObsType* obs, const std::vector<unsigned int> &offsets) const override {
+        obs[offsets[0]] = 1;
+        obs[offsets[1]] = group;
+        obs[offsets[2]] = hp;
+        obs[offsets[3]] = frozen;
+        obs[offsets[4]] = orientation;
+        obs[offsets[5]] = color;
 
         for (int i = 0; i < InventoryItem::InventoryCount; i++) {
-            obs[6 + i] = inventory[i];
+            obs[offsets[6 + i]] = inventory[i];
         }
     }
 
@@ -110,7 +110,7 @@ public:
         std::vector<std::string> names;
         names.push_back("agent");
         names.push_back("agent:group");
-        names.push_back("agent:hp");
+        names.push_back("hp");
         names.push_back("agent:frozen");
         names.push_back("agent:orientation");
         names.push_back("agent:color");
