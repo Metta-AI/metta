@@ -53,7 +53,6 @@ class PufferTrainer:
         self.profile = Profile()
         self.losses = self._make_losses()
         self.stats = defaultdict(list)
-        self.recent_stats = defaultdict(list)
         self.wandb_run = wandb_run
         self.policy_store = policy_store
         self.use_e3b = self.trainer_cfg.use_e3b
@@ -115,21 +114,17 @@ class PufferTrainer:
             self.policy.l2_reg_loss = orig_policy.l2_reg_loss
             self.policy.l2_init_loss = orig_policy.l2_init_loss
 
-        logger.info("Creating experience buffer")
         self._make_experience_buffer()
 
-        logger.info("Setting up optimizer")
         self.agent_step = checkpoint.agent_step
         self.epoch = checkpoint.epoch
         self.optimizer = torch.optim.Adam(self.policy.parameters(),
             lr=self.trainer_cfg.learning_rate, eps=1e-5)
 
         if checkpoint.agent_step > 0:
-            logger.info("Loading optimizer state from checkpoint")
             self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
 
         if self.cfg.wandb.track and wandb_run and self._master:
-            logger.info("Setting up wandb metrics")
             wandb_run.define_metric("train/agent_step")
             for k in ["0verview", "env", "losses", "performance", "train"]:
                 wandb_run.define_metric(f"{k}/*", step_metric="train/agent_step")
@@ -488,6 +483,7 @@ class PufferTrainer:
         wandb.log({"traces/actions": wandb.Image(image_path)})
 
     def _dist_sum(self, value):
+        return value
         if not dist.is_initialized():
             return value
 
@@ -496,27 +492,13 @@ class PufferTrainer:
         return tensor.item()
 
     def _dist_mean(self, value):
-        if not dist.is_initialized():
-            return value
-
-        return self._dist_sum(value) / dist.get_world_size()
-
-    def _dist_sum(self, value):
-        if not dist.is_initialized():
-            return value
-
-        tensor = torch.tensor(value, device=self.device)
-        dist.all_reduce(tensor, op=dist.ReduceOp.SUM)
-        return tensor.item()
-
-    def _dist_mean(self, value):
+        return value
         if not dist.is_initialized():
             return value
 
         return self._dist_sum(value) / dist.get_world_size()
 
     def _process_stats(self):
-        return
         if not (self.wandb_run and self.cfg.wandb.track and self._master):
             return
 
@@ -561,9 +543,6 @@ class PufferTrainer:
             'train/learning_rate': learning_rate,
             'train/average_reward': self.average_reward if self.trainer_cfg.average_reward else None,
         })
-
-        if len(self.stats) > 0:
-            self.recent_stats = deepcopy(self.stats)
 
         self.stats.clear()
 
