@@ -502,19 +502,60 @@ class PufferTrainer:
             except:
                 del self.stats[k]
 
-        # Synchronize and aggregate stats across processes
+        # First synchronize which keys exist across all processes
+        if dist.is_initialized():
+            # Get all keys from this process
+            local_keys = sorted(list(self.stats.keys()))
+            # Create a tensor of key lengths to synchronize
+            key_lengths = torch.tensor([len(k) for k in local_keys], device=self.device)
+            max_length = torch.tensor([max(key_lengths) if len(key_lengths) > 0 else 0], device=self.device)
+            dist.all_reduce(max_length, op=dist.ReduceOp.MAX)
+
+            if max_length.item() > 0:
+                # Pad all keys to max_length
+                padded_keys = torch.zeros(len(local_keys), max_length.item(), dtype=torch.uint8, device=self.device)
+                for i, key in enumerate(local_keys):
+                    padded_keys[i, :len(key)] = torch.tensor([ord(c) for c in key], dtype=torch.uint8, device=self.device)
+
+                # Gather number of keys from all processes
+                num_keys = torch.tensor([len(local_keys)], device=self.device)
+                dist.all_reduce(num_keys, op=dist.ReduceOp.MAX)
+
+                # Pad to max number of keys
+                if len(local_keys) < num_keys.item():
+                    padded_keys = torch.cat([
+                        padded_keys,
+                        torch.zeros(num_keys.item() - len(local_keys), max_length.item(), dtype=torch.uint8, device=self.device)
+                    ])
+
+                # All-reduce to get union of keys
+                dist.all_reduce(padded_keys, op=dist.ReduceOp.MAX)
+
+                # Convert back to strings and update stats dict
+                all_keys = set()
+                for i in range(num_keys.item()):
+                    key = ''.join([chr(c) for c in padded_keys[i].cpu() if c != 0])
+                    if key:
+                        all_keys.add(key)
+
+                # Ensure all processes have all keys with zero values if missing
+                for key in all_keys:
+                    if key not in self.stats:
+                        self.stats[key] = 0.0
+
+        # Now synchronize and aggregate stats across processes
         sps = self._dist_sum(self.profile.SPS)
         agent_steps = int(self._dist_sum(self.agent_step))
         epoch = int(self._dist_sum(self.epoch))
         learning_rate = self.optimizer.param_groups[0]["lr"]
-        # environment = {k: self._dist_mean(v) for k, v in self.stats.items()}
+        environment = {k: self._dist_mean(v) for k, v in self.stats.items()}
         losses = {k: self._dist_mean(v) for k, v in vars(self.losses).items() if not k.startswith('_')}
         performance = {k: self._dist_mean(v) for k, v in self.profile}
 
         overview = {'SPS': sps}
-        # for k, v in self.trainer_cfg.stats.overview.items():
-        #     if k in environment:
-        #         overview[v] = environment[k]
+        for k, v in self.trainer_cfg.stats.overview.items():
+            if k in environment:
+                overview[v] = environment[k]
 
         # policy_fitness_metrics = {
         #     f'pfs/{r["eval"]}:{r["metric"]}': r["fitness"]
@@ -526,7 +567,7 @@ class PufferTrainer:
             logger.info(f"{self.device} Logging stats to wandb")
             self.wandb_run.log({
                 **{f'0verview/{k}': v for k, v in overview.items()},
-                # **{f'env/{k}': v for k, v in environment.items()},
+                **{f'env/{k}': v for k, v in environment.items()},
                 **{f'losses/{k}': v for k, v in losses.items()},
                 **{f'performance/{k}': v for k, v in performance.items()},
                 # **policy_fitness_metrics,
