@@ -187,6 +187,12 @@ class PufferTrainer:
                 r = torch.as_tensor(r)
                 d = torch.as_tensor(d)
 
+                if any(d):  # If any environment is done
+                    for i, done in enumerate(d):
+                        if done:
+                            # Reset the E3B matrix for finished episodes
+                            e3b_inv[env_id[i]] = 10*torch.eye(self.policy.hidden_size).to(self.device)
+
             with profile.eval_forward, torch.no_grad():
                 # TODO: In place-update should be faster. Leaking 7% speed max
                 # Also should be using a cuda tensor to index
@@ -354,23 +360,21 @@ class PufferTrainer:
                         # --- Compute Inverse Dynamics Loss for the mini-batch ---
                         # Assume each mini-batch is a time sequence.
                         # Get consecutive observation pairs and corresponding actions.
-                        # print(f"Experience b_obs shape: {experience.b_obs.shape}")
                         b_obs_current = experience.b_obs[mb][:-1]  # s_t for t=0..T-2
                         b_obs_next = experience.b_obs[mb][1:]       # s_{t+1} for t=0..T-2
                         b_actions_current = experience.b_actions[mb][:-1]  # actions corresponding to s_t
 
-                        # Convert one-hot actions for each component to label indices.
-                        # (Adjust this extraction as per your actual tensor shape.)
-                        action_type_targets = torch.argmax(b_actions_current[:, 0], dim=1)
-                        action_param_targets = torch.argmax(b_actions_current[:, 1], dim=1)
+                        # Extract the indices for each action component
+                        action_type_targets = b_actions_current[:, :, 0].reshape(-1)  # Shape: [1016]
+                        action_param_targets = b_actions_current[:, :, 1].reshape(-1)  # Shape: [1016]
 
-                        # Compute the inverse dynamics loss using your agent's method.
+                         # Compute the inverse dynamics loss using the shared encoder.
                         inverse_loss = self.policy.compute_inverse_dynamics_loss(
-                            b_obs_current, b_obs_next, action_type_targets, action_param_targets
+                            b_obs_current.to(self.device),
+                            b_obs_next.to(self.device),
+                            action_type_targets.to(self.device),
+                            action_param_targets.to(self.device)
                         )
-
-                        # Add the inverse dynamics loss to the total loss,
-                        # scaling it by a hyperparameter (e.g., inverse_loss_coef).
                         loss = loss + self.trainer_cfg.inverse_loss_coef * inverse_loss
 
                 with profile.learn:

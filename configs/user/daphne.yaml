@@ -17,7 +17,7 @@ npc_policy_uri: null
 
 trainer:
   evaluate_interval: 2
-  use_e3b: false
+  use_e3b: true
 
 eval:
   num_envs: 2
@@ -35,6 +35,6 @@ sweep:
   metric: "action.use.altar.agent"
 
 cmd: ???
-run_id: 25
+run_id: 26
 run: ${oc.env:USER}.local.${cmd}.${run_id}
 trained_policy_uri: ./train_dir/${oc.env:USER}.local.train.${run_id}/checkpoints
