@@ -32,17 +32,17 @@ public:
             InventoryItemNames[InventoryItem::heart], 3);
     }
 
-    void obs(ObsType *obs) const override {
-        obs[0] = 1;
-        obs[1] = hp;
-        obs[2] = ready;
+    virtual void obs(ObsType *obs, const std::vector<unsigned int> &offsets) const override {
+        obs[offsets[0]] = 1;
+        obs[offsets[1]] = hp;
+        obs[offsets[2]] = ready;
     }
 
     static std::vector<std::string> feature_names() {
         std::vector<std::string> names;
         names.push_back("altar");
-        names.push_back("altar:hp");
-        names.push_back("altar:ready");
+        names.push_back("hp");
+        names.push_back("ready");
         return names;
     }
 };

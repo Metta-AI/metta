@@ -73,7 +73,7 @@ class AgentRenderer(ObjectRenderer):
         width = render_tile_size
         height = 3  # 3 pixels tall
 
-        hp = min(max(obj["agent:hp"], 0), 10)  # Clamp between 0 and 10
+        hp = min(max(obj["hp"], 0), 10)  # Clamp between 0 and 10
         green_width = int(width * hp / 10)
 
         # Draw red background
@@ -123,7 +123,7 @@ class MineRenderer(ObjectRenderer):
         super().__init__("items.png", 16)
 
     def _sprite_sheet_idx(self, obj):
-        if obj["mine:ready"]:
+        if obj["ready"]:
             return (14, 2)
         else:
             return (13, 2)
@@ -133,7 +133,7 @@ class GeneratorRenderer(ObjectRenderer):
         super().__init__("items.png", 16)
 
     def _sprite_sheet_idx(self, obj):
-        if obj["generator:ready"]:
+        if obj["ready"]:
             return (1, 2)
         else:
             return (0, 2)
@@ -144,7 +144,7 @@ class AltarRenderer(ObjectRenderer):
         super().__init__("items.png", 16)
 
     def _sprite_sheet_idx(self, obj):
-        if obj["altar:ready"]:
+        if obj["ready"]:
             return (11, 2)
         else:
             return (12, 2)
@@ -155,7 +155,7 @@ class ArmoryRenderer(ObjectRenderer):
         super().__init__("items.png", 16)
 
     def _sprite_sheet_idx(self, obj):
-        if obj["armory:ready"]:
+        if obj["ready"]:
             return (6, 3)
         else:
             return (1, 3)
@@ -165,7 +165,7 @@ class LaseryRenderer(ObjectRenderer):
         super().__init__("items.png", 16)
 
     def _sprite_sheet_idx(self, obj):
-        if obj["lasery:ready"]:
+        if obj["ready"]:
             return (6, 5)
         else:
             return (2, 5)
@@ -175,7 +175,7 @@ class LabRenderer(ObjectRenderer):
         super().__init__("items.png", 16)
 
     def _sprite_sheet_idx(self, obj):
-        if obj["lab:ready"]:
+        if obj["ready"]:
             return (5, 1)
         else:
             return (4, 1)
@@ -185,7 +185,7 @@ class FactoryRenderer(ObjectRenderer):
         super().__init__("items.png", 16)
 
     def _sprite_sheet_idx(self, obj):
-        if obj["factory:ready"]:
+        if obj["ready"]:
             return (12, 0)
         else:
             return (13, 0)
@@ -195,7 +195,7 @@ class TempleRenderer(ObjectRenderer):
         super().__init__("items.png", 16)
 
     def _sprite_sheet_idx(self, obj):
-        if obj["temple:ready"]:
+        if obj["ready"]:
             return (6, 2)
         else:
             return (7, 2)
