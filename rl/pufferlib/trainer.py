@@ -11,12 +11,14 @@ import pufferlib
 import pufferlib.utils
 import torch
 import wandb
-from agent.policy_store import PolicyStore
 from fast_gae import fast_gae
 from omegaconf import OmegaConf
 from torch.nn.parallel import DistributedDataParallel
 from tqdm import tqdm
+from typing import List, Tuple
 
+from agent.policy_store import PolicyStore
+from rl.pufferlib.kickstarter import Kickstarter
 from rl.eval.eval_stats_db import EvalStatsDB
 from rl.eval.eval_stats_logger import EvalStatsLogger
 from rl.pufferlib.experience import Experience
@@ -94,6 +96,8 @@ class PufferTrainer:
             wandb_run.define_metric("train/agent_step")
             for k in ["0verview", "env", "losses", "performance", "train"]:
                 wandb_run.define_metric(f"{k}/*", step_metric="train/agent_step")
+
+        self.kickstarter = Kickstarter(self.cfg, self.policy_store, self.vecenv.single_action_space)
 
         print("Training on device:", self.device)
 
@@ -195,7 +199,7 @@ class PufferTrainer:
                 if lstm_h is not None:
                     h = lstm_h[:, env_id]
                     c = lstm_c[:, env_id]
-                    actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward = policy(o_device, (h, c), e3b=e3b)
+                    actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward, _ = policy(o_device, (h, c), e3b=e3b)
                     lstm_h[:, env_id] = h
                     lstm_c[:, env_id] = c
 
@@ -275,6 +279,7 @@ class PufferTrainer:
         total_minibatches = experience.num_minibatches * self.trainer_cfg.update_epochs
         for epoch in range(self.trainer_cfg.update_epochs):
             lstm_state = None
+            teacher_lstm_state = None
             for mb in range(experience.num_minibatches):
                 with profile.train_misc:
                     obs = experience.b_obs[mb]
@@ -286,30 +291,22 @@ class PufferTrainer:
                     ret = experience.b_returns[mb]
 
                 with profile.train_forward:
-                    if experience.lstm_h is not None:
-                        _, newlogprob, entropy, newvalue, lstm_state, _, _ = self.policy(
-                            obs, state=lstm_state, action=atn)
-                        lstm_state = (lstm_state[0].detach(), lstm_state[1].detach())
-
-                    # the below can be deleted if no LSTM
-                    else:
-                        _, newlogprob, entropy, newvalue, _, _ = self.policy(
-                            obs.reshape(-1, *self.vecenv.single_observation_space.shape),
-                            action=atn,
-                        )
-
+                    _, new_log_prob, entropy, new_value, lstm_state, _, _, new_normalized_logits = self.policy(
+                        obs, state=lstm_state, action=atn)
+                    lstm_state = (lstm_state[0].detach(), lstm_state[1].detach())
+                    
                     if self.device == 'cuda':
                         torch.cuda.synchronize()
 
                 with profile.train_misc:
-                    logratio = newlogprob - log_probs.reshape(-1)
-                    ratio = logratio.exp()
+                    log_ratio = new_log_prob - log_probs.reshape(-1)
+                    ratio = log_ratio.exp()
 
                     with torch.no_grad():
                         # calculate approx_kl http://joschu.net/blog/kl-approx.html
-                        old_approx_kl = (-logratio).mean()
-                        approx_kl = ((ratio - 1) - logratio).mean()
-                        clipfrac = ((ratio - 1.0).abs() > self.trainer_cfg.clip_coef).float().mean()
+                        old_approx_kl = (-log_ratio).mean()
+                        approx_kl = ((ratio - 1) - log_ratio).mean()
+                        clip_frac = ((ratio - 1.0).abs() > self.trainer_cfg.clip_coef).float().mean()
 
                     adv = adv.reshape(-1)
                     if self.trainer_cfg.norm_adv:
@@ -323,11 +320,11 @@ class PufferTrainer:
                     pg_loss = torch.max(pg_loss1, pg_loss2).mean()
 
                     # Value loss
-                    newvalue = newvalue.view(-1)
+                    new_value = new_value.view(-1)
                     if self.trainer_cfg.clip_vloss:
-                        v_loss_unclipped = (newvalue - ret) ** 2
+                        v_loss_unclipped = (new_value - ret) ** 2
                         v_clipped = val + torch.clamp(
-                            newvalue - val,
+                            new_value - val,
                             -self.trainer_cfg.vf_clip_coef,
                             self.trainer_cfg.vf_clip_coef,
                         )
@@ -335,9 +332,11 @@ class PufferTrainer:
                         v_loss_max = torch.max(v_loss_unclipped, v_loss_clipped)
                         v_loss = 0.5 * v_loss_max.mean()
                     else:
-                        v_loss = 0.5 * ((newvalue - ret) ** 2).mean()
+                        v_loss = 0.5 * ((new_value - ret) ** 2).mean()
 
                     entropy_loss = entropy.mean()
+
+                    ks_action_loss, ks_value_loss, teacher_lstm_state = self.kickstarter.loss(new_normalized_logits, new_value, obs, teacher_lstm_state)
 
                     l2_reg_loss = torch.tensor(0.0, device=self.device)
                     if self.trainer_cfg.l2_reg_loss_coef > 0:
@@ -347,7 +346,7 @@ class PufferTrainer:
                     if self.trainer_cfg.l2_init_loss_coef > 0:
                         l2_init_loss = self.trainer_cfg.l2_init_loss_coef * self.policy.l2_init_loss().to(self.device)
 
-                    loss = pg_loss - self.trainer_cfg.ent_coef * entropy_loss + v_loss * self.trainer_cfg.vf_coef + l2_reg_loss + l2_init_loss
+                    loss = pg_loss - self.trainer_cfg.ent_coef * entropy_loss + v_loss * self.trainer_cfg.vf_coef + l2_reg_loss + l2_init_loss + ks_action_loss + ks_value_loss
 
                 with profile.learn:
                     self.optimizer.zero_grad()
@@ -367,9 +366,11 @@ class PufferTrainer:
                     self.losses.entropy += entropy_loss.item() / total_minibatches
                     self.losses.old_approx_kl += old_approx_kl.item() / total_minibatches
                     self.losses.approx_kl += approx_kl.item() / total_minibatches
-                    self.losses.clipfrac += clipfrac.item() / total_minibatches
+                    self.losses.clipfrac += clip_frac.item() / total_minibatches
                     self.losses.l2_reg_loss += l2_reg_loss.item() / total_minibatches
                     self.losses.l2_init_loss += l2_init_loss.item() / total_minibatches
+                    self.losses.ks_action_loss += ks_action_loss.item() / total_minibatches
+                    self.losses.ks_value_loss += ks_value_loss.item() / total_minibatches
 
             if self.trainer_cfg.target_kl is not None:
                 if approx_kl > self.trainer_cfg.target_kl:
@@ -507,6 +508,8 @@ class PufferTrainer:
             explained_variance=0,
             l2_reg_loss=0,
             l2_init_loss=0,
+            ks_action_loss=0,
+            ks_value_loss=0,
         )
 
     def _make_vecenv(self):
