@@ -12,7 +12,7 @@ import torch.distributed
 
 # Configure rich colored logging
 logging.basicConfig(
-    level="DEBUG",
+    level="INFO",
     format="%(processName)s %(message)s",
     datefmt="[%X]",
     handlers=[RichHandler(rich_tracebacks=True)],
@@ -53,7 +53,7 @@ def main(cfg):
 def train_ddp(device_id, cfg):
     # Reconfigure logging for each process
     logging.basicConfig(
-        level="DEBUG",
+        level="INFO",
         format="%(processName)s %(message)s",
         datefmt="[%X]",
         handlers=[RichHandler(rich_tracebacks=True)],
