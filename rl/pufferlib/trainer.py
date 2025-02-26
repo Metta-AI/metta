@@ -138,15 +138,12 @@ class PufferTrainer:
         logger.info(f"Training on {self.device}")
         while self.agent_step < self.trainer_cfg.total_timesteps:
             # Collecting experience
-            logger.info(f"{self.device} Collecting experience")
             self._evaluate()
 
             # Training on collected experience
-            logger.info(f"{self.device} Training on collected experience")
             self._train()
 
             # Processing stats
-            logger.info(f"{self.device} Processing stats")
             self._process_stats()
 
             # # Checkpointing trainer
@@ -167,7 +164,6 @@ class PufferTrainer:
 
             self._on_train_step()
 
-        logger.info("done")
         self.train_time = time.time() - self.train_start
         self._checkpoint_trainer()
         self._save_policy_to_wandb()
@@ -425,8 +421,6 @@ class PufferTrainer:
         if not self._master:
             return
 
-        logger.info(f"{self.device} Checkpointing trainer")
-
         pr = self._checkpoint_policy()
         self.checkpoint = TrainerCheckpoint(
             self.agent_step,
@@ -564,7 +558,6 @@ class PufferTrainer:
         self.policy_fitness = []
 
         if self.wandb_run and self.cfg.wandb.track and self._master:
-            logger.info(f"{self.device} Logging stats to wandb")
             self.wandb_run.log({
                 **{f'0verview/{k}': v for k, v in overview.items()},
                 **{f'env/{k}': v for k, v in environment.items()},
@@ -578,7 +571,6 @@ class PufferTrainer:
             })
 
         self.stats.clear()
-        logger.info(f"{self.device} Stats cleared")
 
     def close(self):
         self.vecenv.close()
