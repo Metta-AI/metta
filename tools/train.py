@@ -66,6 +66,7 @@ def train_ddp(device_id, cfg):
     cfg.device = f'{cfg.device}:{device_id}'
 
     logger.info(f"Initializing process group for device {device_id}")
+
     torch.distributed.init_process_group(
         backend='nccl',
         rank=device_id,

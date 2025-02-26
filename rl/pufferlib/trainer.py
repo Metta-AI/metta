@@ -138,12 +138,15 @@ class PufferTrainer:
         logger.info(f"Training on {self.device}")
         while self.agent_step < self.trainer_cfg.total_timesteps:
             # Collecting experience
+            logger.info(f"{self.device} Collecting experience")
             self._evaluate()
 
             # Training on collected experience
+            logger.info(f"{self.device} Training on collected experience")
             self._train()
 
             # Processing stats
+            logger.info(f"{self.device} Processing stats")
             self._process_stats()
 
             # # Checkpointing trainer
@@ -164,6 +167,7 @@ class PufferTrainer:
 
             self._on_train_step()
 
+        logger.info("done")
         self.train_time = time.time() - self.train_start
         self._checkpoint_trainer()
         self._save_policy_to_wandb()
@@ -200,7 +204,6 @@ class PufferTrainer:
     @pufferlib.utils.profile
     def _evaluate(self):
         experience, profile = self.experience, self.profile
-        logger.info(f"{self.device} Collecting experience")
 
         with profile.eval_misc:
             policy = self.policy
