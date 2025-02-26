@@ -53,13 +53,13 @@ def main(cfg):
 def train_ddp(device_id, cfg):
     # Reconfigure logging for each process
     logging.basicConfig(
-        level="INFO",
-        format=FORMAT,
+        level="DEBUG",
+        format="%(processName)s %(message)s",
         datefmt="[%X]",
-        handlers=[RichHandler(rich_tracebacks=True, show_time=False)],
+        handlers=[RichHandler(rich_tracebacks=True)],
         force=True
     )
-    logger = logging.getLogger("train")
+    logger = logging.getLogger("train_ddp")
 
     logger.info(f"Starting train_ddp on device {device_id}")
     cfg.device = f'{cfg.device}:{device_id}'
