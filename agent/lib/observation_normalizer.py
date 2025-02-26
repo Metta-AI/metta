@@ -50,6 +50,8 @@ OBS_NORMALIZATIONS = {
     'last_action': 10,
     'last_action_argument': 10,
     'agent:kinship': 10,
+    'hp': 30,
+    'ready': 1,
 }
 
 class ObservationNormalizer(LayerBase):
