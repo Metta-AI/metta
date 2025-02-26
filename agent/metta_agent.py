@@ -62,13 +62,8 @@ class MettaAgent(nn.Module):
             'core_num_layers': self.core_num_layers
         }
 
-        if isinstance(action_space, pufferlib.spaces.Discrete):
-            self._multi_discrete = False
-            agent_attributes['action_type_size'] = action_space.n
-        else:
-            self._multi_discrete = True
-            agent_attributes['action_type_size'] = action_space.nvec[0]
-            agent_attributes['action_param_size'] = action_space.nvec[1]
+        agent_attributes['action_type_size'] = action_space.nvec[0]
+        agent_attributes['action_param_size'] = action_space.nvec[1]
 
         # self.observation_space = obs_space # for use with FeatureSetEncoder
         # self.global_features = global_features # for use with FeatureSetEncoder
@@ -84,9 +79,8 @@ class MettaAgent(nn.Module):
         self._setup_components(component)
         component = self.components['_action_type_']
         self._setup_components(component)
-        if self._multi_discrete:
-            component = self.components['_action_param_']
-            self._setup_components(component)
+        component = self.components['_action_param_']
+        self._setup_components(component)
 
         for name, component in self.components.items():
             if not getattr(component, 'ready', False):
@@ -140,9 +134,8 @@ class MettaAgent(nn.Module):
         self.components["_action_type_"](td)
         logits = td["_action_type_"]
 
-        if self._multi_discrete:
-            self.components["_action_param_"](td)
-            logits = [logits, td["_action_param_"]]
+        self.components["_action_param_"](td)
+        logits = [logits, td["_action_param_"]]
 
         value = td["_value_"]
         state = td["state"]

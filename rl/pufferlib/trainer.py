@@ -85,7 +85,7 @@ class PufferTrainer:
                     policy_record = policy_store.create(self.vecenv.driver_env)
                     break
 
-                time.sleep(1)
+                time.sleep(10)
             assert policy_record is not None, "No policy found"
 
         if policy_record.metadata["action_names"] != self.vecenv.driver_env.action_names():
