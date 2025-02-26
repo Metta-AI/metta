@@ -4,7 +4,7 @@ import time
 from collections import defaultdict
 from copy import deepcopy
 from pathlib import Path
-
+import pdb
 import hydra
 import numpy as np
 import pufferlib
@@ -202,8 +202,11 @@ class PufferTrainer:
                     h = lstm_h[:, env_id]
                     c = lstm_c[:, env_id]
                     actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward = policy(o_device, (h, c), e3b=e3b)
-                    lstm_h[:, env_id] = h
-                    lstm_c[:, env_id] = c
+                    try:
+                        lstm_h[:, env_id] = h
+                        lstm_c[:, env_id] = c
+                    except Exception as e:
+                        pdb.set_trace()
 
                 if self.use_e3b:
                     e3b_inv[env_id] = next_e3b
