@@ -63,7 +63,7 @@ class EvalStatsAnalyzer:
                     continue
                 policy_fitness = self.policy_fitness(metric_result, metric)
                 policy_fitness_records.extend(policy_fitness)
-                result_dfs.append(metric_result)
+                result_dfs.extend(metric_result)
                 # self.log_result(metric_result, metric, filters)
 
         return result_dfs, policy_fitness_records
