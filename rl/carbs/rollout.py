@@ -137,9 +137,7 @@ class CarbsSweepRollout:
         analyzer = hydra.utils.instantiate(eval_cfg.analyzer, eval_stats_db)
         results, _ = analyzer.analyze()
 
-        metric_idx = metric_idxs[0]
-
-        eval_metric = results[metric_idx].loc[final_pr.uri][f"{eval_cfg.sweep.metric}_mean"]
+        eval_metric = results[metric_idxs[0]].loc[final_pr.uri][f"{eval_cfg.sweep.metric}_mean"]
 
         stats_update = {
             "time.eval": eval_time,
