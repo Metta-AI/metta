@@ -134,12 +134,9 @@ class CarbsSweepRollout:
         analyzer = hydra.utils.instantiate(eval_cfg.analyzer, eval_stats_db)
         results, _ = analyzer.analyze()
 
-        try:
-            eval_metric = results[metric_idxs[0]][results[metric_idxs[0]]['policy_name'] == final_pr.name]
-
-            eval_metric = results[metric_idxs[0]].loc[final_pr.name][f"{eval_cfg.sweep.metric}_mean"]
-        except Exception as e:
-            pdb.set_trace()
+        # Filter by policy name and sum up the mean values over evals
+        filtered_results = results[metric_idxs[0]][results[metric_idxs[0]]['policy_name'] == final_pr.name]
+        eval_metric = filtered_results['mean'].sum()
 
         stats_update = {
             "time.eval": eval_time,
