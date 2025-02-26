@@ -1,4 +1,5 @@
 # distutils: language=c++
+from libcpp.vector cimport vector
 
 cdef extern from "grid_object.hpp":
     ctypedef unsigned short Layer
@@ -31,5 +32,5 @@ cdef extern from "grid_object.hpp":
         GridObject()
         void __dealloc__()
         void init(TypeId type_id, const GridLocation &loc)
-        void obs(ObsType *obs)
+        void obs(ObsType *obs, const vector[unsigned int] &offsets)
 

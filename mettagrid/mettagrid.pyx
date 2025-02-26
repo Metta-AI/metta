@@ -17,7 +17,7 @@ from mettagrid.grid_object cimport GridObject
 from mettagrid.observation_encoder cimport (
     ObsType,
     ObservationEncoder,
-    CompactObservationEncoder
+    SemiCompactObservationEncoder
 )
 
 # Object imports
@@ -58,9 +58,8 @@ cdef class MettaGrid(GridEnv):
         self._cfg = cfg
 
         obs_encoder = ObservationEncoder()
-        if env_cfg.compact_obs:
-            obs_encoder = CompactObservationEncoder()
-
+        if env_cfg.semi_compact_obs:
+            obs_encoder = SemiCompactObservationEncoder()
         actions = []
         if cfg.actions.noop.enabled:
             actions.append(Noop(cfg.actions.noop))
@@ -168,6 +167,7 @@ cdef class MettaGrid(GridEnv):
         cdef ObsType[:] obj_data = np.zeros(len(self.grid_features()), dtype=self._obs_encoder.obs_np_type())
         cdef unsigned int obj_id, i
         cdef ObservationEncoder obs_encoder = self._obs_encoder
+        cdef vector[unsigned int] offsets
         objects = {}
         for obj_id in range(1, self._grid.objects.size()):
             obj = self._grid.object(obj_id)
@@ -180,7 +180,10 @@ cdef class MettaGrid(GridEnv):
                 "c": obj.location.c,
                 "layer": obj.location.layer
             }
-            obs_encoder._encode(obj, obj_data, 0)
+            offsets.resize(obs_encoder._type_feature_names[obj._type_id].size())
+            for i in range(offsets.size()):
+                offsets[i] = i
+            obs_encoder._encode(obj, obj_data, offsets)
             for i, name in enumerate(obs_encoder._type_feature_names[obj._type_id]):
                 objects[obj_id][name] = obj_data[i]
 
