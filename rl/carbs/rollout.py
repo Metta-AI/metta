@@ -7,6 +7,7 @@ import yaml
 import hydra
 from omegaconf import OmegaConf, DictConfig
 from rich.console import Console
+import pdb
 
 from rl.carbs.metta_carbs import MettaCarbs
 from rl.wandb.sweep import generate_run_id_for_sweep
@@ -133,7 +134,10 @@ class CarbsSweepRollout:
         analyzer = hydra.utils.instantiate(eval_cfg.analyzer, eval_stats_db)
         results, _ = analyzer.analyze()
 
-        eval_metric = results[metric_idxs[0]].loc[final_pr.uri][f"{eval_cfg.sweep.metric}_mean"]
+        try:
+            eval_metric = results[metric_idxs[0]].loc[final_pr.uri][f"{eval_cfg.sweep.metric}_mean"]
+        except Exception as e:
+            pdb.set_trace()
 
         stats_update = {
             "time.eval": eval_time,
