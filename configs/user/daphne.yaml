@@ -9,6 +9,9 @@ defaults:
   - override /sweep: fast
   - override /analyzer: analyzer
 
+trainer:
+  evaluate_interval: 0
+
 #policy_uri: wandb://run/cogeval_training_sweep_mini.r.9
 #policy_uri: ./train_dir/daphne.local.train.14_pfs/checkpoints/model_0050.pt
 #policy_uri: ${trained_policy_uri}
