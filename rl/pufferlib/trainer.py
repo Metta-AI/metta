@@ -191,7 +191,7 @@ class PufferTrainer:
                     for i, done in enumerate(d):
                         if done:
                             # Reset the E3B matrix for finished episodes
-                            e3b_inv[env_id[i]] = 10*torch.eye(self.policy.hidden_size).to(self.device)
+                            e3b_inv[env_id[i]] = 10*torch.eye(self.policy.hidden_size)
 
             with profile.eval_forward, torch.no_grad():
                 # TODO: In place-update should be faster. Leaking 7% speed max
