@@ -10,7 +10,7 @@ resume: true
 eval:
   num_envs: 100
   num_episodes: 100
-  max_time_s: 600
+  max_time_s: 60
   policy_agents_pct: 0.5
 
 generation:
