@@ -115,6 +115,9 @@ class PufferTrainer:
             self.policy.l2_reg_loss = orig_policy.l2_reg_loss
             self.policy.l2_init_loss = orig_policy.l2_init_loss
 
+        if self._master:
+            logger.info("Training policy:", self.policy)
+
         logger.info("Creating experience buffer")
         self._make_experience_buffer()
 
