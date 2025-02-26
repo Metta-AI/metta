@@ -490,9 +490,6 @@ class PufferTrainer:
         return self._dist_sum(value) / dist.get_world_size()
 
     def _process_stats(self):
-        if not (self.wandb_run and self.cfg.wandb.track and self._master):
-            return
-
         logger.info("Master logging stats")
         # Process raw stats first
         for k in list(self.stats.keys()):
@@ -523,17 +520,18 @@ class PufferTrainer:
         }
         self.policy_fitness = []
 
-        self.wandb_run.log({
-            **{f'0verview/{k}': v for k, v in overview.items()},
-            **{f'env/{k}': v for k, v in environment.items()},
-            **{f'losses/{k}': v for k, v in losses.items()},
-            **{f'performance/{k}': v for k, v in performance.items()},
-            **policy_fitness_metrics,
-            'train/agent_step': agent_steps,
-            'train/epoch': epoch,
-            'train/learning_rate': learning_rate,
-            'train/average_reward': self.average_reward if self.trainer_cfg.average_reward else None,
-        })
+        if self.wandb_run and self.cfg.wandb.track and self._master:
+            self.wandb_run.log({
+                **{f'0verview/{k}': v for k, v in overview.items()},
+                **{f'env/{k}': v for k, v in environment.items()},
+                **{f'losses/{k}': v for k, v in losses.items()},
+                **{f'performance/{k}': v for k, v in performance.items()},
+                **policy_fitness_metrics,
+                'train/agent_step': agent_steps,
+                'train/epoch': epoch,
+                'train/learning_rate': learning_rate,
+                'train/average_reward': self.average_reward if self.trainer_cfg.average_reward else None,
+            })
 
         self.stats.clear()
 
