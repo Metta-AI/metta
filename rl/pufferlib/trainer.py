@@ -165,7 +165,6 @@ class PufferTrainer:
                 self.epoch % self.trainer_cfg.trace_interval == 0):
                 self._save_trace_to_wandb()
 
-
             self._on_train_step()
 
         self.train_time = time.time() - self.train_start
@@ -174,6 +173,9 @@ class PufferTrainer:
         logger.info(f"Training complete. Total time: {self.train_time:.2f} seconds")
 
     def _evaluate_policy(self):
+        if not self._master:
+            return
+
         self.cfg.eval.policy_uri = self.last_pr.uri
         self.cfg.analyzer.policy_uri = self.last_pr.uri
 
