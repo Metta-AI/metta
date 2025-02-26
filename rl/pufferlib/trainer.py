@@ -543,6 +543,11 @@ class PufferTrainer:
         #             if key not in self.stats:
         #                 self.stats[key] = 0.0
 
+        for k in self.stats.items():
+            print(k)
+
+        environment = {}
+
         # Now synchronize and aggregate stats across processes
         sps = self._dist_sum(self.profile.SPS)
         agent_steps = int(self._dist_sum(self.agent_step))
@@ -557,8 +562,6 @@ class PufferTrainer:
         #     if k in environment:
         #         overview[v] = environment[k]
 
-        for k in self.stats.items():
-            print(k)
 
         # policy_fitness_metrics = {
         #     f'pfs/{r["eval"]}:{r["metric"]}': r["fitness"]
