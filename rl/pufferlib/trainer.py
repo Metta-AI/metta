@@ -228,7 +228,7 @@ class PufferTrainer:
                 self.agent_step += num_steps
 
                 o = torch.as_tensor(o)
-                o_device = o.to(self.device)
+                o_device = o.to(self.device, non_blocking=True)
                 r = torch.as_tensor(r)
                 d = torch.as_tensor(d)
 
@@ -332,7 +332,7 @@ class PufferTrainer:
             for mb in range(experience.num_minibatches):
                 with profile.train_misc:
                     obs = experience.b_obs[mb]
-                    obs = obs.to(self.device)
+                    obs = obs.to(self.device, non_blocking=True)
                     atn = experience.b_actions[mb]
                     log_probs = experience.b_logprobs[mb]
                     val = experience.b_values[mb]
