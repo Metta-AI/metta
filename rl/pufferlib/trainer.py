@@ -249,7 +249,7 @@ class PufferTrainer:
                     r += intrinsic_reward.cpu()
 
                 logger.info(f"{self.device} synchronizing CUDA")
-                if self.device.startswith('cuda'):
+                if self.device == 'cuda':
                     torch.cuda.synchronize()
 
             logger.info(f"{self.device} storing experience")
@@ -339,7 +339,7 @@ class PufferTrainer:
                         obs, state=lstm_state, action=atn)
                     lstm_state = (lstm_state[0].detach(), lstm_state[1].detach())
 
-                    if self.device.startswith('cuda'):
+                    if self.device == 'cuda':
                         torch.cuda.synchronize()
 
                 with profile.train_misc:
@@ -399,7 +399,7 @@ class PufferTrainer:
                     if self.cfg.agent.clip_range > 0:
                         self.policy.clip_weights()
 
-                    if self.device.startswith('cuda'):
+                    if self.device == 'cuda':
                         torch.cuda.synchronize()
 
                 with profile.train_misc:

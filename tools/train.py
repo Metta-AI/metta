@@ -63,6 +63,7 @@ def train_ddp(device_id, cfg):
     logger = logging.getLogger("train")
 
     logger.info(f"Starting train_ddp on device {device_id}")
+    cfg.device = f'{cfg.device}:{device_id}'
 
     logger.info(f"Initializing process group for device {device_id}")
     torch.distributed.init_process_group(
