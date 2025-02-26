@@ -138,7 +138,7 @@ class CarbsSweepRollout:
 
         metric_idx = metric_idxs[0]
 
-        eval_metric = results[metric_idx].loc[final_pr.name][f"{eval_cfg.sweep.metric}_mean"]
+        eval_metric = results[metric_idx].loc[final_pr.uri][f"{eval_cfg.sweep.metric}_mean"]
 
         stats_update = {
             "time.eval": eval_time,
