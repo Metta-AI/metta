@@ -37,11 +37,9 @@ class PufferTrainer:
                  policy_store: PolicyStore,
                  **kwargs):
 
-        logger.info("Initializing PufferTrainer")
         self.cfg = cfg
         self.trainer_cfg = cfg.trainer
         self.device = cfg.device
-        logger.info(f"Trainer device set to: {self.device}")
 
         # Configure NCCL for distributed training
         self._master = True
@@ -49,7 +47,6 @@ class PufferTrainer:
             logger.info("Setting up distributed training")
             self._master = (torch.distributed.get_rank() == 0)
 
-        logger.info("Initializing trainer components")
         self.profile = Profile()
         self.losses = self._make_losses()
         self.stats = defaultdict(list)
@@ -60,7 +57,6 @@ class PufferTrainer:
         self.average_reward = 0.0  # Initialize average reward estimate
         self.policy_fitness = []
 
-        logger.info("Creating vectorized environment")
         self._make_vecenv()
 
         logger.info("Loading checkpoint")
@@ -234,11 +230,8 @@ class PufferTrainer:
                 h = lstm_h[:, env_id]
                 c = lstm_c[:, env_id]
                 actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward = policy(o_device, (h, c), e3b=e3b)
-                logger.info(f"{self.device} {o_device.device} {h.device} {c.device} updating LSTM_H")
                 lstm_h[:, env_id] = h
-                logger.info(f"{self.device} updating LSTM_C")
                 lstm_c[:, env_id] = c
-                logger.info(f"{self.device} updating e3b")
                 if self.use_e3b:
                     e3b_inv[env_id] = next_e3b
                     r += intrinsic_reward.cpu()
@@ -483,7 +476,6 @@ class PufferTrainer:
         wandb.log({"traces/actions": wandb.Image(image_path)})
 
     def _dist_sum(self, value):
-        return value
         if not dist.is_initialized():
             return value
 
@@ -492,7 +484,6 @@ class PufferTrainer:
         return tensor.item()
 
     def _dist_mean(self, value):
-        return value
         if not dist.is_initialized():
             return value
 
