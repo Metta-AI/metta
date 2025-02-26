@@ -516,19 +516,20 @@ class PufferTrainer:
             if k in environment:
                 overview[v] = environment[k]
 
-        policy_fitness_metrics = {
-            f'pfs/{r["eval"]}:{r["metric"]}': r["fitness"]
-            for r in self.policy_fitness
-        }
-        self.policy_fitness = []
+        # policy_fitness_metrics = {
+        #     f'pfs/{r["eval"]}:{r["metric"]}': r["fitness"]
+        #     for r in self.policy_fitness
+        # }
+        # self.policy_fitness = []
 
         if self.wandb_run and self.cfg.wandb.track and self._master:
+            logger.info(f"{self.device} Logging stats to wandb")
             self.wandb_run.log({
                 **{f'0verview/{k}': v for k, v in overview.items()},
                 **{f'env/{k}': v for k, v in environment.items()},
                 **{f'losses/{k}': v for k, v in losses.items()},
                 **{f'performance/{k}': v for k, v in performance.items()},
-                **policy_fitness_metrics,
+                # **policy_fitness_metrics,
                 'train/agent_step': agent_steps,
                 'train/epoch': epoch,
                 'train/learning_rate': learning_rate,
@@ -536,6 +537,7 @@ class PufferTrainer:
             })
 
         self.stats.clear()
+        logger.info(f"{self.device} Stats cleared")
 
     def close(self):
         self.vecenv.close()
