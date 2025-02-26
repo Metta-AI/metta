@@ -202,14 +202,11 @@ class PufferTrainer:
                 e3b = e3b_inv[env_id] if self.use_e3b else None
 
                 if lstm_h is not None:
-                    try:
-                        h = lstm_h[:, env_id]
-                        c = lstm_c[:, env_id]
-                        actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward = policy(o_device, (h, c), e3b=e3b)
-                        lstm_h[:, env_id] = h
-                        lstm_c[:, env_id] = c
-                    except Exception as e:
-                        pdb.set_trace()
+                    h = lstm_h[:, env_id]
+                    c = lstm_c[:, env_id]
+                    actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward = policy(o_device, (h, c), e3b=e3b)
+                    lstm_h[:, env_id] = h
+                    lstm_c[:, env_id] = c
 
                 if self.use_e3b:
                     e3b_inv[env_id] = next_e3b
