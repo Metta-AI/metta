@@ -8,9 +8,8 @@ from mettagrid.event cimport EventManager
 from mettagrid.grid_object cimport GridObjectId, GridObject
 from mettagrid.grid cimport Grid
 from mettagrid.event cimport EventManager
-from mettagrid.base_encoder cimport ObservationEncoder, ObsType
+from mettagrid.observation_encoder cimport ObservationEncoder, ObsType
 from mettagrid.stats_tracker cimport StatsTracker
-from libc.stdio cimport printf
 
 ctypedef unsigned int ActionType
 

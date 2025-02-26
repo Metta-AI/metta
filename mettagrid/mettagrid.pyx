@@ -16,8 +16,8 @@ from mettagrid.grid_env cimport GridEnv
 from mettagrid.grid_object cimport GridObject
 from mettagrid.observation_encoder cimport (
     ObsType,
-    MettaObservationEncoder,
-    MettaCompactObservationEncoder
+    ObservationEncoder,
+    CompactObservationEncoder
 )
 
 # Object imports
@@ -57,9 +57,9 @@ cdef class MettaGrid(GridEnv):
         cfg = OmegaConf.create(env_cfg.game)
         self._cfg = cfg
 
-        obs_encoder = MettaObservationEncoder()
+        obs_encoder = ObservationEncoder()
         if env_cfg.compact_obs:
-            obs_encoder = MettaCompactObservationEncoder()
+            obs_encoder = CompactObservationEncoder()
 
         actions = []
         if cfg.actions.noop.enabled:
@@ -167,7 +167,7 @@ cdef class MettaGrid(GridEnv):
         cdef GridObject *obj
         cdef ObsType[:] obj_data = np.zeros(len(self.grid_features()), dtype=self._obs_encoder.obs_np_type())
         cdef unsigned int obj_id, i
-        cdef MettaObservationEncoder obs_encoder = <MettaObservationEncoder>self._obs_encoder
+        cdef ObservationEncoder obs_encoder = self._obs_encoder
         objects = {}
         for obj_id in range(1, self._grid.objects.size()):
             obj = self._grid.object(obj_id)

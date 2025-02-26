@@ -24,7 +24,6 @@ ext_modules = [
     build_ext(["mettagrid/grid.cpp"]),
     build_ext(["mettagrid/grid_env.pyx"]),
     build_ext(["mettagrid/grid_object.pyx"]),
-    build_ext(["mettagrid/base_encoder.pyx"]),
     build_ext(["mettagrid/stats_tracker.cpp"]),
 
     build_ext(["mettagrid/observation_encoder.pyx"]),
