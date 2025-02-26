@@ -177,11 +177,14 @@ class MettaAgent(nn.Module):
         return None, td["_value_"], None
 
     def get_action_and_value(self, x, state=None, action=None, e3b=None):
+        # Determine device once and stick to it
+        device = x.device
+
         td = TensorDict({"x": x})
         td["state"] = None
         if state is not None:
             state = torch.cat(state, dim=0)
-            td["state"] = state.to(x.device)
+            td["state"] = state.to(device)  # Ensure state is on the same device
 
         self.components["_value_"](td)
         self.components["_action_type_"](td)
@@ -196,12 +199,17 @@ class MettaAgent(nn.Module):
             split_size = self.core_num_layers
             state = (state[:split_size], state[split_size:])
 
-        # Use the shared embedding for inverse dynamics/E3B.
-        # For the policy outputs, the network already computed td["_core_"] if used,
-        # but here we explicitly compute the shared embedding (from, e.g., "encoded_obs").
-        phi = self.get_shared_embedding(x.to(next(self.parameters()).device))
-        # Detach to prevent inverse dynamics gradients from flowing back.
+        # Ensure x is on the same device as the model
+        # Instead of using next(self.parameters()).device, just use the consistent device
+        phi = self.get_shared_embedding(x)  # x is already on the correct device
+
+        # Detach to prevent inverse dynamics gradients from flowing back
         phi_detached = phi.detach()
+
+        # Make sure e3b is on the same device before passing to _e3b_update
+        if e3b is not None:
+            e3b = e3b.to(device)
+
         e3b, intrinsic_reward = self._e3b_update(phi_detached, e3b)
 
         action, logprob, entropy = sample_logits(logits, action, False)
