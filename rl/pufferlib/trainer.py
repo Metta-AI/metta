@@ -146,20 +146,20 @@ class PufferTrainer:
             # Processing stats
             self._process_stats()
 
-            # # Checkpointing trainer
-            # if self.epoch % self.trainer_cfg.checkpoint_interval == 0:
-            #     self._checkpoint_trainer()
-            # if self.trainer_cfg.evaluate_interval != 0 and self.epoch % self.trainer_cfg.evaluate_interval == 0:
-            #     self._evaluate_policy()
-            # if self.cfg.agent.effective_rank_interval != 0 and self.epoch % self.cfg.agent.effective_rank_interval == 0:
-            #     self._compute_effective_rank()
-            # if self.epoch % self.trainer_cfg.wandb_checkpoint_interval == 0:
-            #     self._save_policy_to_wandb()
-            # if self.cfg.agent.l2_init_weight_update_interval != 0 and self.epoch % self.cfg.agent.l2_init_weight_update_interval == 0:
-            #     self._update_l2_init_weight_copy()
-            # if (self.trainer_cfg.trace_interval != 0 and
-            #     self.epoch % self.trainer_cfg.trace_interval == 0):
-            #     self._save_trace_to_wandb()
+            # Checkpointing trainer
+            if self.epoch % self.trainer_cfg.checkpoint_interval == 0:
+                self._checkpoint_trainer()
+            if self.trainer_cfg.evaluate_interval != 0 and self.epoch % self.trainer_cfg.evaluate_interval == 0:
+                self._evaluate_policy()
+            if self.cfg.agent.effective_rank_interval != 0 and self.epoch % self.cfg.agent.effective_rank_interval == 0:
+                self._compute_effective_rank()
+            if self.epoch % self.trainer_cfg.wandb_checkpoint_interval == 0:
+                self._save_policy_to_wandb()
+            if self.cfg.agent.l2_init_weight_update_interval != 0 and self.epoch % self.cfg.agent.l2_init_weight_update_interval == 0:
+                self._update_l2_init_weight_copy()
+            if (self.trainer_cfg.trace_interval != 0 and
+                self.epoch % self.trainer_cfg.trace_interval == 0):
+                self._save_trace_to_wandb()
 
 
             self._on_train_step()
