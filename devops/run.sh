@@ -4,7 +4,7 @@ cmd="$1"
 args="${@:2}"
 
 export PYTHONUNBUFFERED=1
-export WANDB_CO=off
+export WANDB_CONSOLE=off
 
 echo "Running command: $cmd with args: $args"
 

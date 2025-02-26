@@ -509,7 +509,7 @@ class PufferTrainer:
         # Now synchronize and aggregate stats across processes
         sps = self._dist_sum(self.profile.SPS)
         agent_steps = int(self._dist_sum(self.agent_step))
-        epoch = int(self._dist_sum(self.epoch))
+        epoch = int(self.epoch)
         learning_rate = self.optimizer.param_groups[0]["lr"]
         environment = {k: v for k, v in self.stats.items()}
         losses = {k: self._dist_mean(v) for k, v in vars(self.losses).items() if not k.startswith('_')}

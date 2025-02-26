@@ -11,12 +11,11 @@ import torch.multiprocessing
 import torch.distributed
 
 # Configure rich colored logging
-FORMAT = "%(asctime)s %(processName)s %(message)s"
 logging.basicConfig(
-    level="INFO",
-    format=FORMAT,
+    level="DEBUG",
+    format="%(processName)s %(message)s",
     datefmt="[%X]",
-    handlers=[RichHandler(rich_tracebacks=True, show_time=False)],
+    handlers=[RichHandler(rich_tracebacks=True)],
     force=True
 )
 
