@@ -156,7 +156,6 @@ class PufferTrainer:
             self._process_stats()
 
             # Checkpointing trainer
-            logger.info(f"{self.device} Checkpointing trainer")
             if self.epoch % self.trainer_cfg.checkpoint_interval == 0:
                 self._checkpoint_trainer()
             if self.trainer_cfg.evaluate_interval != 0 and self.epoch % self.trainer_cfg.evaluate_interval == 0:
@@ -438,6 +437,8 @@ class PufferTrainer:
     def _checkpoint_trainer(self):
         if not self._master:
             return
+
+        logger.info(f"{self.device} Checkpointing trainer")
 
         pr = self._checkpoint_policy()
         self.checkpoint = TrainerCheckpoint(
