@@ -11,7 +11,7 @@ eval:
   num_envs: 100
   num_episodes: 100
   max_time_s: 600
-  policy_agents_pct: 0.5
+  policy_agents_pct: 1.0
 
 generation:
   enabled: false
@@ -25,12 +25,43 @@ parameters:
         space: linear
         min: 500
         max: 3000
+
   trainer:
+    learning_rate:
+      space: log
+      min: 1e-5
+      max: 1e-1
+    gamma:
+      space: logit
+      min: 0.0
+      max: 1.0
+    gae_lambda:
+      space: logit
+      min: 0.0
+      max: 1.0
+    update_epochs:
+      space: linear
+      is_int: true
+      min: 1
+      max: 3
     vf_coef:
       space: logit
       min: 0.0
       max: 1.0
     ent_coef:
       space: log
-      min: 1e-5
+      min: 1e-4
       max: 1e-1
+    batch_size:
+      space: pow2
+      min: 131072
+      max: 524288
+    minibatch_size:
+      space: pow2
+      min: 1024
+      max: 131072
+
+    bptt_horizon:
+      space: pow2
+      min: 1
+      max: 128

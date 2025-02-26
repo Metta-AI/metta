@@ -154,7 +154,7 @@ class Eval():
                         for m in range(len(one_episode)):
                             agent_idx = m + n * self._agents_per_env
                             if agent_idx in self._agent_idx_to_policy_name:
-                                one_episode[m]['policy_name'] = self._agent_idx_to_policy_name[agent_idx]
+                                one_episode[m]['policy_name'] = self._agent_idx_to_policy_name[agent_idx].replace("file://", "")
                             else:
                                 one_episode[m]['policy_name'] = "No Name Found"
                         game_stats.append(one_episode)
