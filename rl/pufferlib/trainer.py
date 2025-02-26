@@ -507,14 +507,14 @@ class PufferTrainer:
         agent_steps = int(self._dist_sum(self.agent_step))
         epoch = int(self._dist_sum(self.epoch))
         learning_rate = self.optimizer.param_groups[0]["lr"]
-        environment = {k: self._dist_mean(v) for k, v in self.stats.items()}
+        # environment = {k: self._dist_mean(v) for k, v in self.stats.items()}
         losses = {k: self._dist_mean(v) for k, v in vars(self.losses).items() if not k.startswith('_')}
         performance = {k: self._dist_mean(v) for k, v in self.profile}
 
         overview = {'SPS': sps}
-        for k, v in self.trainer_cfg.stats.overview.items():
-            if k in environment:
-                overview[v] = environment[k]
+        # for k, v in self.trainer_cfg.stats.overview.items():
+        #     if k in environment:
+        #         overview[v] = environment[k]
 
         # policy_fitness_metrics = {
         #     f'pfs/{r["eval"]}:{r["metric"]}': r["fitness"]
@@ -526,7 +526,7 @@ class PufferTrainer:
             logger.info(f"{self.device} Logging stats to wandb")
             self.wandb_run.log({
                 **{f'0verview/{k}': v for k, v in overview.items()},
-                **{f'env/{k}': v for k, v in environment.items()},
+                # **{f'env/{k}': v for k, v in environment.items()},
                 **{f'losses/{k}': v for k, v in losses.items()},
                 **{f'performance/{k}': v for k, v in performance.items()},
                 # **policy_fitness_metrics,
