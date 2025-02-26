@@ -240,7 +240,7 @@ class PufferTrainer:
                 h = lstm_h[:, env_id]
                 c = lstm_c[:, env_id]
                 actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward = policy(o_device, (h, c), e3b=e3b)
-                logger.info(f"{self.device} {o_device.device} {h.device} {c.device} {env_id} updating LSTM_H")
+                logger.info(f"{self.device} {o_device.device} {h.device} {c.device} updating LSTM_H")
                 lstm_h[:, env_id] = h
                 logger.info(f"{self.device} updating LSTM_C")
                 lstm_c[:, env_id] = c
