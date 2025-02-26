@@ -135,7 +135,9 @@ class CarbsSweepRollout:
         results, _ = analyzer.analyze()
 
         try:
-            eval_metric = results[metric_idxs[0]].loc[final_pr.uri][f"{eval_cfg.sweep.metric}_mean"]
+            eval_metric = results[metric_idxs[0]][results[metric_idxs[0]]['policy_name'] == final_pr.name]
+
+            eval_metric = results[metric_idxs[0]].loc[final_pr.name][f"{eval_cfg.sweep.metric}_mean"]
         except Exception as e:
             pdb.set_trace()
 
