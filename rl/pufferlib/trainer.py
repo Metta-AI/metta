@@ -155,20 +155,20 @@ class PufferTrainer:
             # Processing stats
             self._process_stats()
 
-            # Checkpointing trainer
-            if self.epoch % self.trainer_cfg.checkpoint_interval == 0:
-                self._checkpoint_trainer()
-            if self.trainer_cfg.evaluate_interval != 0 and self.epoch % self.trainer_cfg.evaluate_interval == 0:
-                self._evaluate_policy()
-            if self.cfg.agent.effective_rank_interval != 0 and self.epoch % self.cfg.agent.effective_rank_interval == 0:
-                self._compute_effective_rank()
-            if self.epoch % self.trainer_cfg.wandb_checkpoint_interval == 0:
-                self._save_policy_to_wandb()
-            if self.cfg.agent.l2_init_weight_update_interval != 0 and self.epoch % self.cfg.agent.l2_init_weight_update_interval == 0:
-                self._update_l2_init_weight_copy()
-            if (self.trainer_cfg.trace_interval != 0 and
-                self.epoch % self.trainer_cfg.trace_interval == 0):
-                self._save_trace_to_wandb()
+            # # Checkpointing trainer
+            # if self.epoch % self.trainer_cfg.checkpoint_interval == 0:
+            #     self._checkpoint_trainer()
+            # if self.trainer_cfg.evaluate_interval != 0 and self.epoch % self.trainer_cfg.evaluate_interval == 0:
+            #     self._evaluate_policy()
+            # if self.cfg.agent.effective_rank_interval != 0 and self.epoch % self.cfg.agent.effective_rank_interval == 0:
+            #     self._compute_effective_rank()
+            # if self.epoch % self.trainer_cfg.wandb_checkpoint_interval == 0:
+            #     self._save_policy_to_wandb()
+            # if self.cfg.agent.l2_init_weight_update_interval != 0 and self.epoch % self.cfg.agent.l2_init_weight_update_interval == 0:
+            #     self._update_l2_init_weight_copy()
+            # if (self.trainer_cfg.trace_interval != 0 and
+            #     self.epoch % self.trainer_cfg.trace_interval == 0):
+            #     self._save_trace_to_wandb()
 
 
             self._on_train_step()
@@ -240,9 +240,9 @@ class PufferTrainer:
                 c = lstm_c[:, env_id]
                 actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward = policy(o_device, (h, c), e3b=e3b)
                 logger.info(f"{self.device} {o_device.device} {h.device} {c.device} updating LSTM_H")
-                lstm_h[:, env_id] = h.detach()
+                lstm_h[:, env_id] = h
                 logger.info(f"{self.device} updating LSTM_C")
-                lstm_c[:, env_id] = c.detach()
+                lstm_c[:, env_id] = c
                 logger.info(f"{self.device} updating e3b")
                 if self.use_e3b:
                     e3b_inv[env_id] = next_e3b
@@ -251,7 +251,6 @@ class PufferTrainer:
                 if self.device == 'cuda':
                     torch.cuda.synchronize()
 
-            logger.info(f"{self.device} storing experience")
             with profile.eval_misc:
                 value = value.flatten()
                 actions = actions.cpu().numpy()
@@ -263,11 +262,9 @@ class PufferTrainer:
                     for k, v in pufferlib.utils.unroll_nested_dict(i):
                         infos[k].append(v)
 
-            logger.info(f"{self.device} sending actions")
             with profile.env:
                 self.vecenv.send(actions)
 
-        logger.info(f"{self.device} processing stats")
         with profile.eval_misc:
             for k, v in infos.items():
                 if isinstance(v, np.ndarray):
