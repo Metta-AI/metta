@@ -131,6 +131,7 @@ class CarbsSweepRollout:
         if len(metric_idxs) == 0:
             raise ValueError(f"Metric {eval_cfg.sweep.metric} not found in analyzer metrics: {eval_cfg.analyzer.analysis.metrics}")
         elif len(metric_idxs) > 1:
+            assert len(metric_idxs) == len(stats), f"Number of metrics {eval_cfg.analyzer.analysis.metrics} not equal to number of results {len(stats)}"
             raise ValueError(f"Multiple metrics found for {eval_cfg.sweep.metric} in analyzer")
 
         analyzer = hydra.utils.instantiate(eval_cfg.analyzer, eval_stats_db)
