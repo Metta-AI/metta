@@ -10,26 +10,32 @@ machine_profiles = {
     "g5.2xlarge": {
         "vcpus": 8,
         "memory": 28,
+        "gpus": 1,
     },
     "g5.4xlarge": {
         "vcpus": 16,
         "memory": 60,
+        "gpus": 1,
     },
     "g5.8xlarge": {
         "vcpus": 32,
         "memory": 120,
+        "gpus": 1,
     },
     "g5.16xlarge": {
         "vcpus": 64,
         "memory": 250,
+        "gpus": 1,
     },
     "g6.8xlarge": {
         "vcpus": 32,
         "memory": 120,
+        "gpus": 1,
     },
     "g6.12xlarge": {
         "vcpus": 48,
         "memory": 120,
+        "gpus": 4,
     },
 
 }
@@ -124,6 +130,12 @@ def container_config(args, task_args, job_name):
         ],
         'vcpus': machine_profiles[args.instance_type]['vcpus'],
         'memory': machine_profiles[args.instance_type]['memory'],
+        'resourceRequirements': [
+            {
+                'type': 'GPU',
+                'value': str(machine_profiles[args.instance_type]['gpus'])
+            }
+        ]
     }
 
 if __name__ == "__main__":
