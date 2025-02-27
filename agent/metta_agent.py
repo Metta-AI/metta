@@ -89,9 +89,9 @@ class MettaAgent(nn.Module):
             if not getattr(component, 'ready', False):
                 raise RuntimeError(f"Component {name} in MettaAgent was never setup. It might not be accessible by other components.")
 
-        self.components = self.components.to(cfg.device)
+        self.components = self.components.to(device)
         if dist.is_initialized():
-            self.components = DistributedDataParallel(self.components, device_ids=[cfg.device], output_device=cfg.device)
+            self.components = DistributedDataParallel(self.components, device_ids=[device], output_device=device)
 
         self._total_params = sum(p.numel() for p in self.parameters())
         print(f"Total number of parameters in MettaAgent: {self._total_params:,}. Setup complete.")
