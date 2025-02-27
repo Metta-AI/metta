@@ -3,7 +3,7 @@
 seed: null
 
 defaults:
-  - override /env/mettagrid@env: simple
+  - override /env/mettagrid@env: bases
   - override /agent: simple
   - override /sweep: fast
 
@@ -12,7 +12,7 @@ defaults:
 
 # policy_uri: wandb://run/b.daveey.sm.train.er.new.0
 # policy_uri: wandb://run/daveey.ar.cards.1
-policy_uri: wandb://run/daveey.8g.lstm512
+policy_uri: wandb://run/daveey.m2.lstm512
 # policy_uri: ${trained_policy_uri}
 # npc_policy_uri: ${trained_policy_uri}
 eval_db_uri: wandb://artifacts/daveey_eval_testing
