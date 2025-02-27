@@ -68,7 +68,7 @@ parameters:
     #   max: 6.0
     ent_coef:
       space: log
-      min: 1e-5
+      min: 1e-4
       max: 1e-1
     batch_size:
       space: pow2
