@@ -90,6 +90,7 @@ class MettaAgent(nn.Module):
 
         self._total_params = sum(p.numel() for p in self.parameters())
 
+        self.components = self.components.to(device)
         if dist.is_initialized():
             self.components = DistributedDataParallel(
                 self.components, device_ids=[device], output_device=device)
