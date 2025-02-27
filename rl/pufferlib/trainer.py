@@ -45,7 +45,7 @@ class PufferTrainer:
         self._world_size = 1
         if dist.is_initialized():
             logger.info("Setting up distributed training")
-            self._master = (dist.get_local_rank() == 0)
+            self._master = (int(os.environ["LOCAL_RANK"]) == 0)
             self._world_size = dist.get_world_size()
 
         self.profile = Profile()
