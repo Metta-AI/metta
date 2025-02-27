@@ -67,7 +67,7 @@ def container_config(args, task_args, job_name):
         f'run={args.run}',
         'hardware=aws',
         f'trainer.dist.num_gpus={args.gpus}',
-        f'trainer.num_workers={machine_profile["vcpus"] // args.gpus // 2}', # 2 vcpu per worker
+        f'trainer.num_workers={max(6, machine_profile["vcpus"] // args.gpus // 2)}', # 2 vcpu per worker
         *task_args,
     ]
     if args.git_branch is not None:
