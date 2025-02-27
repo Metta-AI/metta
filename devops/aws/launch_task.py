@@ -66,7 +66,6 @@ def container_config(args, task_args, job_name):
         f'./devops/{args.cmd}.sh',
         f'run={args.run}',
         'hardware=aws',
-        f'trainer.dist.num_gpus={args.gpus}',
         f'trainer.num_workers={min(6, machine_profile["vcpus"] // args.gpus // 2)}', # 2 vcpu per worker
         *task_args,
     ]

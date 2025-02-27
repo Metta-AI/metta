@@ -41,9 +41,8 @@ class PufferTrainer:
         self.trainer_cfg = cfg.trainer
         self.device = cfg.device
 
-        # Configure NCCL for distributed training
         self._master = True
-        if self.trainer_cfg.dist.num_gpus > 1:
+        if torch.distributed.is_initialized():
             logger.info("Setting up distributed training")
             self._master = (torch.distributed.get_rank() == 0)
 
@@ -103,7 +102,7 @@ class PufferTrainer:
             logger.info("Compiling policy")
             self.policy = torch.compile(self.policy, mode=self.trainer_cfg.compile_mode)
 
-        if self.trainer_cfg.dist.num_gpus > 1:
+        if torch.distributed.is_initialized():
             logger.info("Wrapping policy with DistributedDataParallel")
             orig_policy = self.policy
             self.policy = DistributedDataParallel(self.policy, device_ids=[self.device])
