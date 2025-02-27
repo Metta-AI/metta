@@ -90,7 +90,9 @@ class MettaAgent(nn.Module):
                 raise RuntimeError(f"Component {name} in MettaAgent was never setup. It might not be accessible by other components.")
 
         self.components = self.components.to(device)
+        print(self.components)
         if dist.is_initialized():
+            logger.info(f"Initializing DistributedDataParallel on device {device}")
             self.components = DistributedDataParallel(self.components, device_ids=[device], output_device=device)
 
         self._total_params = sum(p.numel() for p in self.parameters())
