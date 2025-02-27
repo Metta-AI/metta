@@ -107,7 +107,7 @@ class ParamLayer(LayerBase):
         super().__init__(**cfg)
 
     def _initialize(self):
-        self.weight_net = self._make_net()
+        self.__dict__["weight_net"] = self._make_net()
 
         self._initialize_weights()
 
@@ -129,7 +129,7 @@ class ParamLayer(LayerBase):
                     raise ValueError(f"Unsupported nonlinearity: {self.nonlinearity}")
                 nonlinearity_class = getattr(nn, class_name)
                 self._net = nn.Sequential(self.weight_net, nonlinearity_class())
-                self.weight_net = self._net[0]
+                self.__dict__["weight_net"] = self._net[0]
             except (AttributeError, KeyError, ValueError) as e:
                 raise ValueError(f"Unsupported nonlinearity: {self.nonlinearity}") from e
 

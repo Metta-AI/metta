@@ -15,6 +15,8 @@ from tensordict import TensorDict
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 
+import logging
+logger = logging.getLogger("metta_agent")
 
 def make_policy(env: PufferEnv, cfg: OmegaConf):
     obs_space = gym.spaces.Dict({
@@ -24,7 +26,7 @@ def make_policy(env: PufferEnv, cfg: OmegaConf):
             shape=[ 0 ],
             dtype=np.int32)
     })
-    agent = hydra.utils.instantiate(
+    return hydra.utils.instantiate(
         cfg.agent,
         obs_shape=env.single_observation_space.shape,
         obs_space=obs_space,
@@ -33,11 +35,6 @@ def make_policy(env: PufferEnv, cfg: OmegaConf):
         global_features=env.global_features,
         device=cfg.device,
         _recursive_=False)
-
-    agent = agent.to(cfg.device)
-    if dist.is_initialized():
-        agent = DistributedMettaAgent(agent, cfg.device)
-    return agent
 
 class DistributedMettaAgent(DistributedDataParallel):
     def __init__(self, agent, device):
@@ -101,6 +98,8 @@ class MettaAgent(nn.Module):
         for name, component in self.components.items():
             if not getattr(component, 'ready', False):
                 raise RuntimeError(f"Component {name} in MettaAgent was never setup. It might not be accessible by other components.")
+
+        self.components = self.components.to(device)
 
         self._total_params = sum(p.numel() for p in self.parameters())
         print(f"Total number of parameters in MettaAgent: {self._total_params:,}. Setup complete.")
