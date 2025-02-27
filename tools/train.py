@@ -31,6 +31,9 @@ def main(cfg):
     os.environ["MASTER_ADDR"] = cfg.trainer.dist.master_addr
     os.environ["MASTER_PORT"] = str(cfg.trainer.dist.master_port)
 
+    with WandbContext(cfg) as _:
+        logger.info("Wandb context initialized")
+
     if cfg.trainer.dist.num_gpus > 1:
         logger.info(f"Initializing multi-GPU training with {cfg.trainer.dist.num_gpus} GPUs")
         torch.multiprocessing.set_start_method('spawn', force=True)
