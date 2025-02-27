@@ -4,10 +4,8 @@
 #include <vector>
 #include <string>
 #include "../grid_object.hpp"
-#include "usable.hpp"
-#include "agent.hpp"
 #include "constants.hpp"
-
+#include "metta_object.hpp"
 class Wall : public MettaObject {
 public:
     Wall(GridCoord r, GridCoord c, ObjectConfig cfg) {

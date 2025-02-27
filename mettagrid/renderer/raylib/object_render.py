@@ -118,85 +118,81 @@ class WallRenderer(ObjectRenderer):
     def __init__(self):
         super().__init__("wall.png")
 
-class MineRenderer(ObjectRenderer):
+class ConverterRenderer(ObjectRenderer):
     def __init__(self):
         super().__init__("items.png", 16)
+    
+    def _state(self, obj):
+        if obj["converting"]:
+            return "converting"
+        elif obj["inv:ore"] + obj["inv:battery"] + obj["inv:heart"] + obj["inv:laser"] + obj["inv:armor"] + obj["inv:blueprint"] > 0:
+            return "has_inventory"
+        else:
+            return "empty"
 
     def _sprite_sheet_idx(self, obj):
-        if obj["ready"]:
-            return (14, 2)
-        else:
-            return (13, 2)
+        return (0, 0)
 
-class GeneratorRenderer(ObjectRenderer):
-    def __init__(self):
-        super().__init__("items.png", 16)
-
+class MineRenderer(ConverterRenderer):
     def _sprite_sheet_idx(self, obj):
-        if obj["ready"]:
-            return (1, 2)
-        else:
-            return (0, 2)
+        return {
+            "empty": (13, 2),
+            "converting": (15, 2),
+            "has_inventory": (14, 2),
+        }[self._state(obj)]
 
-
-class AltarRenderer(ObjectRenderer):
-    def __init__(self):
-        super().__init__("items.png", 16)
-
+class GeneratorRenderer(ConverterRenderer):
     def _sprite_sheet_idx(self, obj):
-        if obj["ready"]:
-            return (11, 2)
-        else:
-            return (12, 2)
+        return {
+            "empty": (1, 2),
+            "converting": (0, 2),
+            "has_inventory": (2, 2),
+        }[self._state(obj)]
 
-
-class ArmoryRenderer(ObjectRenderer):
-    def __init__(self):
-        super().__init__("items.png", 16)
-
+class AltarRenderer(ConverterRenderer):
     def _sprite_sheet_idx(self, obj):
-        if obj["ready"]:
-            return (6, 3)
-        else:
-            return (1, 3)
+        return {
+            "empty": (11, 2),
+            "converting": (10, 3),
+            "has_inventory": (12, 2),
+        }[self._state(obj)]
 
-class LaseryRenderer(ObjectRenderer):
-    def __init__(self):
-        super().__init__("items.png", 16)
-
+class ArmoryRenderer(ConverterRenderer):
     def _sprite_sheet_idx(self, obj):
-        if obj["ready"]:
-            return (6, 5)
-        else:
-            return (2, 5)
+        return {
+            "empty": (1, 3),
+            "converting": (11, 3),
+            "has_inventory": (6, 3),
+        }[self._state(obj)]
 
-class LabRenderer(ObjectRenderer):
-    def __init__(self):
-        super().__init__("items.png", 16)
-
+class LaseryRenderer(ConverterRenderer):
     def _sprite_sheet_idx(self, obj):
-        if obj["ready"]:
-            return (5, 1)
-        else:
-            return (4, 1)
+        return {
+            "empty": (2, 5),
+            "converting": (6, 5),
+            "has_inventory": (5, 5),
+        }[self._state(obj)]
 
-class FactoryRenderer(ObjectRenderer):
-    def __init__(self):
-        super().__init__("items.png", 16)
-
+class LabRenderer(ConverterRenderer):
     def _sprite_sheet_idx(self, obj):
-        if obj["ready"]:
-            return (12, 0)
-        else:
-            return (13, 0)
+        return {
+            "empty": (4, 1),
+            "converting": (6, 1),
+            "has_inventory": (5, 1),
+        }[self._state(obj)]
 
-class TempleRenderer(ObjectRenderer):
-    def __init__(self):
-        super().__init__("items.png", 16)
-
+class FactoryRenderer(ConverterRenderer):
     def _sprite_sheet_idx(self, obj):
-        if obj["ready"]:
-            return (6, 2)
-        else:
-            return (7, 2)
+        return {
+            "empty": (12, 0),
+            "converting": (14, 0),
+            "has_inventory": (13, 0),
+        }[self._state(obj)]
 
+class TempleRenderer(ConverterRenderer):
+    def _sprite_sheet_idx(self, obj):
+        return {
+            "empty": (8, 2),
+            "converting": (6, 2),
+            "has_inventory": (7, 2),
+        }[self._state(obj)]
