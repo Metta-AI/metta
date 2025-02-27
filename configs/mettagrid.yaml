@@ -145,37 +145,20 @@ game:
   actions:
     noop:
       enabled: true
-      cost: 0
     move:
       enabled: true
-      cost: 0
     rotate:
       enabled: true
-      cost: 0
-    jump:
-      enabled: false
-      cost: 3
-    transfer:
-      enabled: false
-      cost: 0
-    put_action:
+    put_items:
       enabled: true
-      cost: 0
-    get_action:
+    get_items:
       enabled: true
-      cost: 0
-    use:
-      enabled: true
-      cost: 0
     attack:
       enabled: true
-      cost: 0
     swap:
       enabled: true
-      cost: 0
     change_color:
       enabled: true
-      cost: 0
 
   reward_sharing:
     groups:

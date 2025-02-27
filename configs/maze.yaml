@@ -52,11 +52,5 @@ game:
       cooldown: 250
 
   actions:
-    move:
-      cost: 0
-    attack:
-      cost: 255
-      # enabled: false
-    shield:
-      cost: 255
-      # enabled: false
+    move: {}
+    attack: {}

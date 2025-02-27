@@ -61,10 +61,10 @@ cdef class MettaGrid(GridEnv):
         if env_cfg.semi_compact_obs:
             obs_encoder = SemiCompactObservationEncoder()
         actions = []
-        if cfg.actions.put_action.enabled:
-            actions.append(PutRecipeItems(cfg.actions.put_action))
-        if cfg.actions.get_action.enabled:
-            actions.append(GetOutput(cfg.actions.get_action))
+        if cfg.actions.put_items.enabled:
+            actions.append(PutRecipeItems(cfg.actions.put_items))
+        if cfg.actions.get_items.enabled:
+            actions.append(GetOutput(cfg.actions.get_items))
         if cfg.actions.noop.enabled:
             actions.append(Noop(cfg.actions.noop))
         if cfg.actions.move.enabled:
