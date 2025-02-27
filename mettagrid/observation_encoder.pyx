@@ -12,6 +12,7 @@ from mettagrid.objects.constants cimport ObjectType
 from mettagrid.objects.agent cimport Agent
 from mettagrid.objects.altar cimport Altar
 from mettagrid.objects.armory cimport Armory
+from mettagrid.objects.converter cimport Converter
 from mettagrid.objects.factory cimport Factory
 from mettagrid.objects.generator cimport Generator
 from mettagrid.objects.lab cimport Lab

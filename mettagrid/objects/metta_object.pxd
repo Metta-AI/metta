@@ -8,4 +8,4 @@ cdef extern from "metta_object.hpp":
     cdef cppclass MettaObject(GridObject):
         unsigned int hp
         void init_mo(ObjectConfig cfg)
-        bint is_usable_type()
+        bint has_inventory()

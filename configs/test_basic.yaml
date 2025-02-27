@@ -2,7 +2,7 @@ name: "GDY-MettaGrid"
 _target_: mettagrid.mettagrid_env.MettaGridEnv
 
 normalize_rewards: False
-semi_compact_obs: false
+semi_compact_obs: true
 sampling: 0.0
 
 hidden_features:
@@ -76,7 +76,10 @@ game:
     transfer:
       cost: 0
       enabled: false
-    use:
+    put_action:
+      cost: 0
+      enabled: true
+    get_action:
       cost: 0
       enabled: true
     attack:

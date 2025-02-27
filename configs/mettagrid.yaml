@@ -3,7 +3,7 @@ _target_: mettagrid.mettagrid_env.MettaGridEnv
 
 report_stats_interval: 100
 normalize_rewards: false
-semi_compact_obs: false
+semi_compact_obs: true
 track_last_action: false
 
 sampling: 0
@@ -128,6 +128,12 @@ game:
       cost: 3
     transfer:
       enabled: false
+      cost: 0
+    put_action:
+      enabled: true
+      cost: 0
+    get_action:
+      enabled: true
       cost: 0
     use:
       enabled: true

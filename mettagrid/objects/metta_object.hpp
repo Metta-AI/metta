@@ -15,7 +15,7 @@ public:
         this->hp = cfg["hp"];
     }
 
-    virtual bool is_usable_type() {
+    virtual bool has_inventory() {
         return false;
     }
 };
