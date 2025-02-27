@@ -6,7 +6,7 @@ from mettagrid.config.config import setup_metta_environment
 from omegaconf import OmegaConf
 from rich.logging import RichHandler
 from rl.wandb.wandb_context import WandbContext
-
+import torch.distributed as dist
 # Configure rich colored logging
 logging.basicConfig(
     level="INFO",
@@ -23,6 +23,10 @@ def main(cfg):
     setup_metta_environment(cfg)
     with open(os.path.join(cfg.run_dir, "config.yaml"), "w") as f:
         OmegaConf.save(cfg, f)
+
+    local_rank = int(os.environ["LOCAL_RANK"])
+    cfg.device = f'{cfg.device}:{local_rank}'
+    dist.init_process_group(backend="nccl")
 
     with WandbContext(cfg) as wandb_run:
         policy_store = PolicyStore(cfg, wandb_run)
