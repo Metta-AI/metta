@@ -29,9 +29,10 @@ def main(cfg):
     with open(os.path.join(cfg.run_dir, "config.yaml"), "w") as f:
         OmegaConf.save(cfg, f)
 
-    local_rank = int(os.environ["LOCAL_RANK"])
-    cfg.device = f'{cfg.device}:{local_rank}'
-    dist.init_process_group(backend="nccl")
+    if "LOCAL_RANK" in os.environ:
+        local_rank = int(os.environ["LOCAL_RANK"])
+        cfg.device = f'{cfg.device}:{local_rank}'
+        dist.init_process_group(backend="nccl")
 
     with WandbContext(cfg) as wandb_run:
         policy_store = PolicyStore(cfg, wandb_run)

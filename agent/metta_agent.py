@@ -1,17 +1,18 @@
 from typing import List, Tuple
 
-import numpy as np
-import torch
-from torch import nn
-from tensordict import TensorDict
 import gymnasium as gym
 import hydra
+import numpy as np
+import torch
+import torch.distributed as dist
 from omegaconf import OmegaConf
-
-from sample_factory.utils.typing import ActionSpace, ObsSpace
 from pufferlib.cleanrl import sample_logits
 from pufferlib.environment import PufferEnv
-import pufferlib
+from sample_factory.utils.typing import ActionSpace, ObsSpace
+from tensordict import TensorDict
+from torch import nn
+from torch.nn.parallel import DistributedDataParallel
+
 
 def make_policy(env: PufferEnv, cfg: OmegaConf):
     obs_space = gym.spaces.Dict({
@@ -87,6 +88,11 @@ class MettaAgent(nn.Module):
                 raise RuntimeError(f"Component {name} in MettaAgent was never setup. It might not be accessible by other components.")
 
         self._total_params = sum(p.numel() for p in self.parameters())
+
+        if dist.is_initialized():
+            self.components = DistributedDataParallel(
+                self.components, device_ids=[f"cuda:{dist.get_local_rank()}"])
+
         print(f"Total number of parameters in MettaAgent: {self._total_params:,}. Setup complete.")
 
     def _setup_components(self, component):

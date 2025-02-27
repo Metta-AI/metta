@@ -42,9 +42,11 @@ class PufferTrainer:
         self.device = cfg.device
 
         self._master = True
-        if torch.distributed.is_initialized():
+        self._world_size = 1
+        if dist.is_initialized():
             logger.info("Setting up distributed training")
-            self._master = (torch.distributed.get_rank() == 0)
+            self._master = (dist.get_local_rank() == 0)
+            self._world_size = dist.get_world_size()
 
         self.profile = Profile()
         self.losses = self._make_losses()
@@ -87,6 +89,9 @@ class PufferTrainer:
                 time.sleep(10)
             assert policy_record is not None, "No policy found"
 
+        if self._master:
+            print(policy_record.policy())
+
         if policy_record.metadata["action_names"] != self.vecenv.driver_env.action_names():
             raise ValueError(
                 "Action names do not match between policy and environment: "
@@ -101,17 +106,6 @@ class PufferTrainer:
         if self.trainer_cfg.compile:
             logger.info("Compiling policy")
             self.policy = torch.compile(self.policy, mode=self.trainer_cfg.compile_mode)
-
-        if torch.distributed.is_initialized():
-            logger.info("Wrapping policy with DistributedDataParallel")
-            orig_policy = self.policy
-            self.policy = DistributedDataParallel(self.policy, device_ids=[self.device])
-            self.policy.lstm = orig_policy.lstm
-            self.policy.hidden_size = orig_policy.hidden_size
-            self.policy.compute_effective_rank = orig_policy.compute_effective_rank
-            self.policy.update_l2_init_weight_copy = orig_policy.update_l2_init_weight_copy
-            self.policy.l2_reg_loss = orig_policy.l2_reg_loss
-            self.policy.l2_init_loss = orig_policy.l2_init_loss
 
         self._make_experience_buffer()
 
@@ -149,7 +143,8 @@ class PufferTrainer:
             # Processing stats
             self._process_stats()
 
-            logger.info(f"Epoch {self.epoch} of {self.trainer_cfg.total_timesteps}")
+            logger.info(f"Epoch {self.epoch} - {self.agent_step} "\
+                        f"({100.00*self.agent_step / self.trainer_cfg.total_timesteps:.2f}%)")
 
             # Checkpointing trainer
             if self.epoch % self.trainer_cfg.checkpoint_interval == 0:
@@ -174,9 +169,6 @@ class PufferTrainer:
         logger.info(f"Training complete. Total time: {self.train_time:.2f} seconds")
 
     def _evaluate_policy(self):
-        if not self._master:
-            return
-
         self.cfg.eval.policy_uri = self.last_pr.uri
         self.cfg.analyzer.policy_uri = self.last_pr.uri
 
@@ -190,16 +182,14 @@ class PufferTrainer:
         self.policy_fitness = policy_fitness_records
 
     def _compute_effective_rank(self):
-        if not self._master:
-            return
-
         effective_rank = self.policy.compute_effective_rank()
         for rank in effective_rank:
-            self.wandb_run.log({
-                f"train/effective_rank/{rank['name']}": rank['effective_rank'],
-                "train/agent_step": self.agent_step,
-                "train/epoch": self.epoch,
-            })
+            if self._master:
+                self.wandb_run.log({
+                    f"train/effective_rank/{rank['name']}": rank['effective_rank'],
+                    "train/agent_step": self.agent_step,
+                    "train/epoch": self.epoch,
+                })
 
     def _update_l2_init_weight_copy(self):
         self.policy.update_l2_init_weight_copy()
@@ -478,26 +468,10 @@ class PufferTrainer:
         self.policy_store.add_to_wandb_run(self.wandb_run.name, pr)
 
     def _save_trace_to_wandb(self):
-        if not self._master:
-            return
-
         image_path = f"{self.cfg.run_dir}/traces/trace.{self.epoch}.png"
         save_trace_image(self.cfg, self.last_pr, image_path)
-        wandb.log({"traces/actions": wandb.Image(image_path)})
-
-    def _dist_sum(self, value):
-        if not dist.is_initialized():
-            return value
-
-        tensor = torch.tensor(value, device=self.device)
-        dist.all_reduce(tensor, op=dist.ReduceOp.SUM)
-        return tensor.item()
-
-    def _dist_mean(self, value):
-        if not dist.is_initialized():
-            return value
-
-        return self._dist_sum(value) / dist.get_world_size()
+        if self._master:
+            wandb.log({"traces/actions": wandb.Image(image_path)})
 
     def _process_stats(self):
         for k in list(self.stats.keys()):
@@ -509,13 +483,13 @@ class PufferTrainer:
                 del self.stats[k]
 
         # Now synchronize and aggregate stats across processes
-        sps = self._dist_sum(self.profile.SPS)
-        agent_steps = int(self._dist_sum(self.agent_step))
-        epoch = int(self.epoch)
+        sps = self.profile.SPS * self._world_size
+        agent_steps = self.agent_step * self._world_size
+        epoch = self.epoch
         learning_rate = self.optimizer.param_groups[0]["lr"]
         environment = {k: v for k, v in self.stats.items()}
-        losses = {k: self._dist_mean(v) for k, v in vars(self.losses).items() if not k.startswith('_')}
-        performance = {k: self._dist_mean(v) for k, v in self.profile}
+        losses = {k: v for k, v in vars(self.losses).items() if not k.startswith('_')}
+        performance = {k: v for k, v in self.profile}
 
         overview = {'SPS': sps}
         for k, v in self.trainer_cfg.stats.overview.items():
