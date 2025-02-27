@@ -121,20 +121,20 @@ class CarbsSweepRollout:
 
         self.eval_stats_logger.log(stats)
 
-        eval_stats_db = EvalStatsDB.from_uri(eval_cfg.eval.eval_db_uri, self.run_dir, wandb_run)
+        eval_stats_db = EvalStatsDB.from_uri(self.eval_stats_logger.json_path, self.run_dir, wandb_run)
 
         metric_idxs = [i for i, m in enumerate(eval_cfg.analyzer.analysis.metrics) if m.metric == eval_cfg.sweep.metric]
         if len(metric_idxs) == 0:
             raise ValueError(f"Metric {eval_cfg.sweep.metric} not found in analyzer metrics: {eval_cfg.analyzer.analysis.metrics}")
         elif len(metric_idxs) > 1:
             raise ValueError(f"Multiple metrics found for {eval_cfg.sweep.metric} in analyzer")
+        sweep_metric_index = metric_idxs[0]
 
         analyzer = hydra.utils.instantiate(eval_cfg.analyzer, eval_stats_db)
         results, _ = analyzer.analyze()
-
-        metric_idx = metric_idxs[0]
-
-        eval_metric = results[metric_idx].loc[final_pr.name][f"{eval_cfg.sweep.metric}_mean"]
+        # Filter by policy name and sum up the mean values over evals
+        filtered_results = results[sweep_metric_index][results[sweep_metric_index]['policy_name'] == final_pr.name]
+        eval_metric = filtered_results['mean'].sum()
 
         stats_update = {
             "time.eval": eval_time,
