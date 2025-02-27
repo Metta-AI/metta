@@ -63,6 +63,7 @@ def container_config(args, task_args, job_name):
         'ln -s /mnt/efs/train_dir train_dir',
     ]
     train_cmd = [
+        f'NUM_GPUS={args.gpus} ',
         f'./devops/{args.cmd}.sh',
         f'run={args.run}',
         'hardware=aws',
