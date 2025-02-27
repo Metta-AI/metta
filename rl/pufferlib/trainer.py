@@ -82,6 +82,7 @@ class PufferTrainer:
                     policy_record = policy_store.create(self.vecenv.driver_env)
                     break
 
+                logger.info("No policy found. Waiting for 10 seconds before retrying.")
                 time.sleep(10)
             assert policy_record is not None, "No policy found"
 

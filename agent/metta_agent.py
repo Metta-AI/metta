@@ -15,6 +15,8 @@ from tensordict import TensorDict
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 
+import logging
+logger = logging.getLogger("metta_agent")
 
 def make_policy(env: PufferEnv, cfg: OmegaConf):
     obs_space = gym.spaces.Dict({
@@ -34,8 +36,10 @@ def make_policy(env: PufferEnv, cfg: OmegaConf):
         device=cfg.device,
         _recursive_=False)
 
+    logger.info(f"Initializing agent on device {cfg.device}")
     agent = agent.to(cfg.device)
     if dist.is_initialized():
+        logger.info(f"Initializing DistributedDataParallel on device {cfg.device}")
         agent = DistributedMettaAgent(agent, cfg.device)
     return agent
 
