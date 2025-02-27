@@ -31,11 +31,11 @@ class LayerBase(nn.Module):
     forward method of the layer above it.'''
     def __init__(self, name, input_source=None, output_size=None, nn_params={}, **cfg):
         super().__init__()
-        self.name = name
-        self.input_source = input_source
-        self.output_size = output_size
-        self.nn_params = nn_params
-        self.net = None
+        self._name = name
+        self._input_source = input_source
+        self._output_size = output_size
+        self._nn_params = nn_params
+        self._net = None
         self._ready = False
 
     @property
@@ -46,42 +46,42 @@ class LayerBase(nn.Module):
         if self._ready:
             return
 
-        self.input_source_component = input_source_component
+        self.__dict__['_input_source_component'] = input_source_component
 
-        if self.input_source_component is None:
-            self.input_size = None
-            if self.output_size is None:
-                raise ValueError(f"Either input source or output size must be set for layer {self.name}")
+        if self._input_source_component is None:
+            self._input_size = None
+            if self._output_size is None:
+                raise ValueError(f"Either input source or output size must be set for layer {self._name}")
         else:
-            self.input_size = self.input_source_component.output_size
+            self._input_size = self._input_source_component._output_size
 
-        if self.output_size is None:
-            self.output_size = self.input_size
+        if self._output_size is None:
+            self._output_size = self._input_size
 
         self._initialize()
         self._ready = True
 
     def _initialize(self):
-        self.net = self._make_net()
+        self._net = self._make_net()
 
     def _make_net(self):
         pass
 
     def forward(self, td: TensorDict):
-        if self.name in td:
+        if self._name in td:
             return td
 
-        if self.input_source_component is not None:
-            self.input_source_component.forward(td)
+        if self._input_source_component is not None:
+            self._input_source_component.forward(td)
 
         self._forward(td)
 
         return td
-    
+
     def _forward(self, td: TensorDict):
-        td[self.name] = self.net(td[self.input_source])
+        td[self._name] = self._net(td[self._input_source])
         return td
-        
+
     def clip_weights(self):
         pass
     def l2_reg_loss(self):
@@ -92,11 +92,11 @@ class LayerBase(nn.Module):
         pass
     def effective_rank(self, delta: float = 0.01) -> dict:
         pass
-    
+
 class ParamLayer(LayerBase):
     '''This provides a few useful methods for components/nets that have parameters (weights).
     Superclasses should have input_size and output_size already set.'''
-    def __init__(self, clip_scale=1, effective_rank=None, l2_norm_scale=None, l2_init_scale=None, nonlinearity='nn.ReLU', initialization='Orthogonal', clip_range=None, **cfg): 
+    def __init__(self, clip_scale=1, effective_rank=None, l2_norm_scale=None, l2_init_scale=None, nonlinearity='nn.ReLU', initialization='Orthogonal', clip_range=None, **cfg):
         self.clip_scale = clip_scale
         self.effective_rank_bool = effective_rank
         self.l2_norm_scale = l2_norm_scale
@@ -120,7 +120,7 @@ class ParamLayer(LayerBase):
         if self.l2_init_scale != 0:
             self.initial_weights = self.weight_net.weight.data.clone()
 
-        self.net = self.weight_net
+        self._net = self.weight_net
         if self.nonlinearity is not None:
             # expecting a string of the form 'nn.ReLU'
             try:
@@ -128,14 +128,14 @@ class ParamLayer(LayerBase):
                 if class_name not in dir(nn):
                     raise ValueError(f"Unsupported nonlinearity: {self.nonlinearity}")
                 nonlinearity_class = getattr(nn, class_name)
-                self.net = nn.Sequential(self.weight_net, nonlinearity_class())
-                self.weight_net = self.net[0]
+                self._net = nn.Sequential(self.weight_net, nonlinearity_class())
+                self.weight_net = self._net[0]
             except (AttributeError, KeyError, ValueError) as e:
                 raise ValueError(f"Unsupported nonlinearity: {self.nonlinearity}") from e
 
     def _initialize_weights(self):
-        fan_in = self.input_size
-        fan_out = self.output_size
+        fan_in = self._input_size
+        fan_out = self._output_size
 
         if self.initialization.lower() == 'orthogonal':
             if self.nonlinearity == 'nn.Tanh':
@@ -180,31 +180,31 @@ class ParamLayer(LayerBase):
         if self.l2_init_scale != 0 and self.l2_init_scale is not None:
             l2_init_loss = torch.sum((self.weight_net.weight.data - self.initial_weights) ** 2) * self.l2_init_scale
         return l2_init_loss
-    
+
     def update_l2_init_weight_copy(self, alpha: float = 0.9):
-        '''Potentially useful to prevent catastrophic forgetting. Update the 
-        initial weights copy with a weighted average of the previous and 
+        '''Potentially useful to prevent catastrophic forgetting. Update the
+        initial weights copy with a weighted average of the previous and
         current weights.'''
         if self.initial_weights is not None:
             self.initial_weights = (self.initial_weights * alpha + self.weight_net.weight.data * (1 - alpha)).clone()
-    
+
     def compute_effective_rank(self, delta: float = 0.01) -> dict:
         '''Computes the effective rank of a matrix based on the given delta value.
         Effective rank formula:
         srank_\delta(\Phi) = min{k: sum_{i=1}^k σ_i / sum_{j=1}^d σ_j ≥ 1 - δ}
-        See the paper titled 'Implicit Under-Parameterization Inhibits Data-Efficient 
+        See the paper titled 'Implicit Under-Parameterization Inhibits Data-Efficient
         Deep Reinforcement Learning' by A. Kumar et al.'''
         if self.weight_net.weight.data.dim() != 2 or self.effective_rank_bool is None or self.effective_rank_bool == False:
             return None
         # Singular value decomposition. We only need the singular value matrix.
         _, S, _ = torch.linalg.svd(self.weight_net.weight.data.detach())
-        
+
         # Calculate the cumulative sum of singular values
         total_sum = S.sum()
         cumulative_sum = torch.cumsum(S, dim=0)
-        
+
         # Find the smallest k that satisfies the effective rank condition
         threshold = (1 - delta) * total_sum
         effective_rank = torch.where(cumulative_sum >= threshold)[0][0].item() + 1  # Add 1 for 1-based indexing
-        
-        return {'name': self.name, 'effective_rank': effective_rank}
+
+        return {'name': self._name, 'effective_rank': effective_rank}

@@ -1,7 +1,0 @@
-# @package __global__
-
-defaults:
-  - aws
-
-trainer:
-  num_workers: 64 # num cores
