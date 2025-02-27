@@ -23,17 +23,15 @@ def make_policy(env: PufferEnv, cfg: OmegaConf):
             shape=[ 0 ],
             dtype=np.int32)
     })
-    agent = hydra.utils.instantiate(
+    return hydra.utils.instantiate(
         cfg.agent,
         obs_shape=env.single_observation_space.shape,
         obs_space=obs_space,
         action_space=env.single_action_space,
         grid_features=env.grid_features,
         global_features=env.global_features,
+        device=cfg.device,
         _recursive_=False)
-
-    agent.to(cfg.device)
-    return agent
 
 
 class MettaAgent(nn.Module):
@@ -43,6 +41,7 @@ class MettaAgent(nn.Module):
         obs_space: ObsSpace,
         action_space: ActionSpace,
         grid_features: List[str],
+        device: str,
         **cfg
     ):
         super().__init__()
@@ -90,9 +89,10 @@ class MettaAgent(nn.Module):
 
         self._total_params = sum(p.numel() for p in self.parameters())
 
+        self.components = self.components.to(device)
         if dist.is_initialized():
             self.components = DistributedDataParallel(
-                self.components, device_ids=[cfg.device])
+                self.components, device_ids=[device])
 
         print(f"Total number of parameters in MettaAgent: {self._total_params:,}. Setup complete.")
 
