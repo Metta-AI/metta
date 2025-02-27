@@ -53,7 +53,7 @@ class PufferTrainer:
         self.eval_stats_logger = EvalStatsLogger(cfg, wandb_run)
         self.average_reward = 0.0  # Initialize average reward estimate
         self._policy_fitness = []
-
+        self._effective_rank = []
         self._make_vecenv()
 
         logger.info("Loading checkpoint")
