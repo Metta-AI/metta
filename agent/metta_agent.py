@@ -1,4 +1,5 @@
 import os
+import os
 from typing import List, Tuple
 
 import gymnasium as gym
@@ -23,7 +24,7 @@ def make_policy(env: PufferEnv, cfg: OmegaConf):
             shape=[ 0 ],
             dtype=np.int32)
     })
-    agent = hydra.utils.instantiate(
+    return hydra.utils.instantiate(
         cfg.agent,
         obs_shape=env.single_observation_space.shape,
         obs_space=obs_space,
@@ -102,7 +103,6 @@ class MettaAgent(nn.Module):
                 raise RuntimeError(f"Component {name} in MettaAgent was never setup. It might not be accessible by other components.")
 
         self._total_params = sum(p.numel() for p in self.parameters())
-
         print(f"Total number of parameters in MettaAgent: {self._total_params:,}. Setup complete.")
 
     def _setup_components(self, component):
