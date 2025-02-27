@@ -92,7 +92,7 @@ class MettaAgent(nn.Module):
 
         if dist.is_initialized():
             self.components = DistributedDataParallel(
-                self.components, device_ids=[device])
+                self.components, device_ids=[device], output_device=device)
 
         print(f"Total number of parameters in MettaAgent: {self._total_params:,}. Setup complete.")
 
