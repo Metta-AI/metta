@@ -3,22 +3,26 @@
 seed: null
 
 defaults:
-  - override /env/mettagrid@env: simple
-  - override /agent: simple.medium
+  - override /env/mettagrid@env: bases
+  - override /agent: simple
   - override /sweep: fast
 
 # policy: wandb://run/b.daveey.train.maze.sm.dr.warm.0
 # baselines: wandb://run/b.daveey.train.maze.sm.11x11.0
 
-policy_uri: wandb://run/b.daveey.sm.train.er.new.0
-baseline_uri: wandb://run/b.daveey.sm.train.er.new.0
+# policy_uri: ./train_dir/sasmith.local.train.20250225.3/checkpoints
+policy_uri: wandb://run/sasmith.converter.queues.5
+# Currently, if trainer.evaluate is true, we'll use this policy to evalute. So the shapes must match.
+baseline_uri: none
 
 env:
+  semi_compact_obs: true
   game:
-    max_steps: 100
+    max_steps: 2000
 
 trainer:
   evaluate_interval: 2
+  evaluate: false
 
 evaluator:
   policy:
@@ -27,12 +31,14 @@ evaluator:
     uri: ${...baseline_uri}
 
 wandb:
-  enabled: true
-  track: true
+  enabled: false
+  track: false
   checkpoint_interval: 1
 
 sweep:
   metric: action.use
 
 cmd: ???
-run: ${oc.env:USER}.local.${cmd}.1
+run_id: 20250226.5
+run: ${oc.env:USER}.local.${cmd}.${run_id}
+trained_policy_uri: ./train_dir/${oc.env:USER}.local.train.${run_id}/checkpoints
