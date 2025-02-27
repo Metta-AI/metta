@@ -1,6 +1,9 @@
 import logging
 import os
 import hydra
+import sys
+sys.path.append("../")
+
 from agent.policy_store import PolicyStore
 from mettagrid.config.config import setup_metta_environment
 from omegaconf import OmegaConf
