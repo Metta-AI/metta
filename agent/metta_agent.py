@@ -24,7 +24,7 @@ def make_policy(env: PufferEnv, cfg: OmegaConf):
             shape=[ 0 ],
             dtype=np.int32)
     })
-    return hydra.utils.instantiate(
+    agent = hydra.utils.instantiate(
         cfg.agent,
         obs_shape=env.single_observation_space.shape,
         obs_space=obs_space,
@@ -34,7 +34,7 @@ def make_policy(env: PufferEnv, cfg: OmegaConf):
         device=cfg.device,
         _recursive_=False)
 
-    agent.to(cfg.device)
+    agent = agent.to(cfg.device)
     if dist.is_initialized():
         agent = DistributedMettaAgent(agent, cfg.device)
     return agent
