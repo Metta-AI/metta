@@ -7,7 +7,6 @@ import yaml
 import hydra
 from omegaconf import OmegaConf, DictConfig
 from rich.console import Console
-import pdb
 
 from rl.carbs.metta_carbs import MettaCarbs
 from rl.wandb.sweep import generate_run_id_for_sweep
@@ -128,7 +127,6 @@ class CarbsSweepRollout:
         if len(metric_idxs) == 0:
             raise ValueError(f"Metric {eval_cfg.sweep.metric} not found in analyzer metrics: {eval_cfg.analyzer.analysis.metrics}")
         elif len(metric_idxs) > 1:
-            assert len(metric_idxs) == len(stats), f"Number of metrics {eval_cfg.analyzer.analysis.metrics} not equal to number of results {len(stats)}"
             raise ValueError(f"Multiple metrics found for {eval_cfg.sweep.metric} in analyzer")
         sweep_metric_index = metric_idxs[0]
 
