@@ -10,12 +10,7 @@
 
 class Lab : public Converter {
 public:
-    Lab(GridCoord r, GridCoord c, ObjectConfig cfg) : Converter(r, c, cfg, ObjectType::LabT) {
-        this->recipe_input[InventoryItem::battery] = 3;
-        this->recipe_input[InventoryItem::ore] = 3;
-        this->recipe_output[InventoryItem::blueprint] = 1;
-        this->recipe_duration = cfg["cooldown"];
-    }
+    Lab(GridCoord r, GridCoord c, ObjectConfig cfg) : Converter(r, c, cfg, ObjectType::LabT) {}
 
     static std::vector<std::string> feature_names() {
         auto names = Converter::feature_names();

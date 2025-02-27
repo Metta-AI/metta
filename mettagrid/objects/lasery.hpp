@@ -10,12 +10,7 @@
 
 class Lasery : public Converter {
 public:
-    Lasery(GridCoord r, GridCoord c, ObjectConfig cfg) : Converter(r, c, cfg, ObjectType::LaseryT) {
-        this->recipe_input[InventoryItem::ore] = 1;
-        this->recipe_input[InventoryItem::battery] = 2;
-        this->recipe_output[InventoryItem::laser] = 1;
-        this->recipe_duration = cfg["cooldown"];
-    }
+    Lasery(GridCoord r, GridCoord c, ObjectConfig cfg) : Converter(r, c, cfg, ObjectType::LaseryT) {}
 
     static std::vector<std::string> feature_names() {
         auto names = Converter::feature_names();
