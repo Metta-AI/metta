@@ -1,3 +1,4 @@
+import os
 from typing import List, Tuple
 
 import gymnasium as gym
@@ -91,7 +92,7 @@ class MettaAgent(nn.Module):
 
         if dist.is_initialized():
             self.components = DistributedDataParallel(
-                self.components, device_ids=[f"cuda:{dist.get_local_rank()}"])
+                self.components, device_ids=[cfg.device])
 
         print(f"Total number of parameters in MettaAgent: {self._total_params:,}. Setup complete.")
 
