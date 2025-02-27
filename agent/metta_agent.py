@@ -26,7 +26,7 @@ def make_policy(env: PufferEnv, cfg: OmegaConf):
             shape=[ 0 ],
             dtype=np.int32)
     })
-    agent = hydra.utils.instantiate(
+    return hydra.utils.instantiate(
         cfg.agent,
         obs_shape=env.single_observation_space.shape,
         obs_space=obs_space,
@@ -35,23 +35,6 @@ def make_policy(env: PufferEnv, cfg: OmegaConf):
         global_features=env.global_features,
         device=cfg.device,
         _recursive_=False)
-
-    logger.info(f"Initializing agent on device {cfg.device}")
-    agent = agent.to(cfg.device)
-    if dist.is_initialized():
-        logger.info(f"Initializing DistributedDataParallel on device {cfg.device}")
-        agent = DistributedMettaAgent(agent, cfg.device)
-    return agent
-
-class DistributedMettaAgent(DistributedDataParallel):
-    def __init__(self, agent, device):
-        super().__init__(agent, device_ids=[device], output_device=device)
-
-    def __getattr__(self, name):
-        try:
-            return super().__getattr__(name)
-        except AttributeError:
-            return getattr(self.module, name)
 
 class MettaAgent(nn.Module):
     def __init__(
@@ -105,6 +88,10 @@ class MettaAgent(nn.Module):
         for name, component in self.components.items():
             if not getattr(component, 'ready', False):
                 raise RuntimeError(f"Component {name} in MettaAgent was never setup. It might not be accessible by other components.")
+
+        self.components = self.components.to(cfg.device)
+        if dist.is_initialized():
+            self.components = DistributedDataParallel(self.components, device_ids=[cfg.device], output_device=cfg.device)
 
         self._total_params = sum(p.numel() for p in self.parameters())
         print(f"Total number of parameters in MettaAgent: {self._total_params:,}. Setup complete.")
