@@ -13,6 +13,7 @@ from fast_gae import fast_gae
 from omegaconf import OmegaConf
 
 import wandb
+from agent.metta_agent import DistributedMettaAgent
 from agent.policy_store import PolicyStore
 from rl.eval.eval_stats_db import EvalStatsDB
 from rl.eval.eval_stats_logger import EvalStatsLogger
@@ -103,6 +104,10 @@ class PufferTrainer:
         if self.trainer_cfg.compile:
             logger.info("Compiling policy")
             self.policy = torch.compile(self.policy, mode=self.trainer_cfg.compile_mode)
+
+        if dist.is_initialized():
+            logger.info("Initializing DistributedDataParallel")
+            self.policy = DistributedMettaAgent(self.policy, self.device)
 
         self._make_experience_buffer()
 

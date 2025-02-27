@@ -36,6 +36,16 @@ def make_policy(env: PufferEnv, cfg: OmegaConf):
         device=cfg.device,
         _recursive_=False)
 
+class DistributedMettaAgent(DistributedDataParallel):
+    def __init__(self, agent, device):
+        super().__init__(agent, device_ids=[device], output_device=device)
+
+    def __getattr__(self, name):
+        try:
+            return super().__getattr__(name)
+        except AttributeError:
+            return getattr(self.module, name)
+
 class MettaAgent(nn.Module):
     def __init__(
         self,
@@ -90,10 +100,6 @@ class MettaAgent(nn.Module):
                 raise RuntimeError(f"Component {name} in MettaAgent was never setup. It might not be accessible by other components.")
 
         self.components = self.components.to(device)
-        print(self.components)
-        if dist.is_initialized():
-            logger.info(f"Initializing DistributedDataParallel on device {device}")
-            self.components = DistributedDataParallel(self.components, device_ids=[device])
 
         self._total_params = sum(p.numel() for p in self.parameters())
         print(f"Total number of parameters in MettaAgent: {self._total_params:,}. Setup complete.")
