@@ -93,7 +93,7 @@ class MettaAgent(nn.Module):
         print(self.components)
         if dist.is_initialized():
             logger.info(f"Initializing DistributedDataParallel on device {device}")
-            self.components = DistributedDataParallel(self.components, device_ids=[device], output_device=device)
+            self.components = DistributedDataParallel(self.components, device_ids=[device])
 
         self._total_params = sum(p.numel() for p in self.parameters())
         print(f"Total number of parameters in MettaAgent: {self._total_params:,}. Setup complete.")
