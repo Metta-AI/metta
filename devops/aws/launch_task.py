@@ -35,7 +35,7 @@ def submit_batch_job(args, task_args):
 
     random_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=5))
     job_name = args.run.replace('.', '_') + "_" + random_id
-    job_queue = "metta-batch-jq-" + machine_for_gpu_count[args.gpus].replace('.', '-')
+    job_queue = "metta-batch-jq-2"
     job_definition = "metta-batch-train-jd"
 
     response = batch.submit_job(
@@ -67,7 +67,7 @@ def container_config(args, task_args, job_name):
         f'run={args.run}',
         'hardware=aws',
         f'trainer.dist.num_gpus={args.gpus}',
-        f'trainer.num_workers={max(6, machine_profile["vcpus"] // args.gpus // 2)}', # 2 vcpu per worker
+        f'trainer.num_workers={min(6, machine_profile["vcpus"] // args.gpus // 2)}', # 2 vcpu per worker
         *task_args,
     ]
     if args.git_branch is not None:
