@@ -15,18 +15,18 @@ class LSTM(LayerBase):
         super().__init__(**cfg)
         self.obs_shape = obs_shape
         self.hidden_size = hidden_size
-        self.num_layers = self.nn_params['num_layers']
+        self.num_layers = self._nn_params['num_layers']
 
     def _make_net(self):
         net = nn.LSTM(
-            self.input_size,
+            self._input_size,
             self.hidden_size,
-            **self.nn_params
+            **self._nn_params
         )
-    
+
         for name, param in net.named_parameters():
             if "bias" in name:
-                nn.init.constant_(param, 1) # Joseph originally had this as 0 
+                nn.init.constant_(param, 1) # Joseph originally had this as 0
             elif "weight" in name:
                 nn.init.orthogonal_(param, 1.0) # torch's default is uniform
 
@@ -34,7 +34,7 @@ class LSTM(LayerBase):
 
     def _forward(self, td: TensorDict):
         x = td['x']
-        hidden = td[self.input_source]
+        hidden = td[self._input_source]
         state = td["state"]
 
         if state is not None:
@@ -55,12 +55,12 @@ class LSTM(LayerBase):
 
         if state is not None:
             assert state[0].shape[1] == state[1].shape[1] == B
-        assert hidden.shape == (B*TT, self.input_size)
+        assert hidden.shape == (B*TT, self._input_size)
 
-        hidden = hidden.reshape(B, TT, self.input_size)
+        hidden = hidden.reshape(B, TT, self._input_size)
         hidden = hidden.transpose(0, 1)
 
-        hidden, state = self.net(hidden, state)
+        hidden, state = self._net(hidden, state)
 
         hidden = hidden.transpose(0, 1)
         hidden = hidden.reshape(B*TT, self.hidden_size)
@@ -69,7 +69,7 @@ class LSTM(LayerBase):
             state = tuple(s.detach() for s in state)
             state = torch.cat(state, dim=0)
 
-        td[self.name] = hidden
+        td[self._name] = hidden
         td["state"] = state
 
         return td
