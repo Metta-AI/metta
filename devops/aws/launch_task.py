@@ -121,12 +121,12 @@ def container_config(args, task_args, job_name):
                 'value': os.environ.get('USER', 'unknown')
             }
         ],
-        'vcpus': machine_profiles[args.instance_type]['vcpus'],
-        'memory': machine_profiles[args.instance_type]['memory'],
+        'vcpus': machine_profile['vcpus'],
+        'memory': machine_profile['memory'],
         'resourceRequirements': [
             {
                 'type': 'GPU',
-                'value': str(machine_profiles[args.instance_type]['gpus'])
+                'value': str(machine_profile['gpus'])
             }
         ]
     }
