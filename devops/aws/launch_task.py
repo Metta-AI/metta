@@ -137,9 +137,15 @@ if __name__ == "__main__":
     parser.add_argument('--run', required=True, help='The run id.')
     parser.add_argument('--cmd', required=True, choices=["train", "sweep", "evolve"], help='The command to run.')
     parser.add_argument('--git_branch', default=None, help='The git branch to use for the task.')
-    parser.add_argument('--gpus', type=int, default=1, help='Number of GPUs to use for the task.')
+    parser.add_argument('--gpus', type=int, default=None, help='Number of GPUs to use for the task.')
     parser.add_argument('--copies', type=int, default=1, help='Number of job copies to submit.')
     args, task_args = parser.parse_known_args()
+
+    if args.gpus is None:
+        if args.cmd == "train":
+            args.gpus = 8
+        else:
+            args.gpus = 1
 
     for _ in range(args.copies):
         submit_batch_job(args, task_args)

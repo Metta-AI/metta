@@ -1,10 +1,7 @@
-from . import warnings_config
-
 import logging
 import os
 import time
 from collections import defaultdict
-from copy import deepcopy
 
 import hydra
 import numpy as np
@@ -12,12 +9,11 @@ import pufferlib
 import pufferlib.utils
 import torch
 import torch.distributed as dist
-import wandb
-from agent.policy_store import PolicyStore
 from fast_gae import fast_gae
 from omegaconf import OmegaConf
-from torch.nn.parallel import DistributedDataParallel
 
+import wandb
+from agent.policy_store import PolicyStore
 from rl.eval.eval_stats_db import EvalStatsDB
 from rl.eval.eval_stats_logger import EvalStatsLogger
 from rl.pufferlib.experience import Experience
@@ -552,9 +548,6 @@ class PufferTrainer:
 
     def _make_vecenv(self):
         """Create a vectorized environment."""
-        # Import worker_init to configure warnings in worker processes
-        import rl.pufferlib.worker_init
-
         # Create the vectorized environment
         self.target_batch_size = self.trainer_cfg.forward_pass_minibatch_target_size // self.cfg.env.game.num_agents
         if self.target_batch_size < 2: # pufferlib bug requires batch size >= 2
