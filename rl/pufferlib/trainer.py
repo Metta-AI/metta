@@ -472,6 +472,9 @@ class PufferTrainer:
         if not self._master:
             return
 
+        if self.wandb_run is None:
+            return
+
         pr = self._checkpoint_policy()
         self.policy_store.add_to_wandb_run(self.wandb_run.name, pr)
 
