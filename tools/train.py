@@ -7,6 +7,9 @@ from omegaconf import OmegaConf
 from rich.logging import RichHandler
 from rl.wandb.wandb_context import WandbContext
 import torch.distributed as dist
+
+from torch.distributed.elastic.multiprocessing.errors import record
+
 # Configure rich colored logging
 logging.basicConfig(
     level="INFO",
@@ -19,6 +22,7 @@ logging.basicConfig(
 logger = logging.getLogger("train")
 
 @hydra.main(version_base=None, config_path="../configs", config_name="config")
+@record
 def main(cfg):
     setup_metta_environment(cfg)
     with open(os.path.join(cfg.run_dir, "config.yaml"), "w") as f:
