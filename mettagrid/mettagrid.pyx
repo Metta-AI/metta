@@ -23,7 +23,7 @@ from mettagrid.observation_encoder cimport (
 # Object imports
 from mettagrid.objects.mine cimport Mine
 from mettagrid.objects.agent cimport Agent
-from mettagrid.objects.reset_handler cimport ResetHandler
+from mettagrid.objects.production_handler cimport ProductionHandler
 from mettagrid.objects.wall cimport Wall
 from mettagrid.objects.generator cimport Generator
 from mettagrid.objects.altar cimport Altar
@@ -32,13 +32,13 @@ from mettagrid.objects.factory cimport Factory
 from mettagrid.objects.temple cimport Temple
 from mettagrid.objects.armory cimport Armory
 from mettagrid.objects.lasery cimport Lasery
-from mettagrid.objects.usable cimport Usable
-from mettagrid.objects.constants cimport ObjectLayers, InventoryItemNames
+from mettagrid.objects.constants cimport ObjectLayers, InventoryItemNames, Events
 
 # Action imports
 from mettagrid.actions.move import Move
 from mettagrid.actions.rotate import Rotate
-from mettagrid.actions.use import Use
+from mettagrid.actions.get_output import GetOutput
+from mettagrid.actions.put_recipe_items import PutRecipeItems
 from mettagrid.actions.attack import Attack
 from mettagrid.actions.attack_nearest import AttackNearest
 from mettagrid.actions.noop import Noop
@@ -61,14 +61,16 @@ cdef class MettaGrid(GridEnv):
         if env_cfg.semi_compact_obs:
             obs_encoder = SemiCompactObservationEncoder()
         actions = []
+        if cfg.actions.put_action.enabled:
+            actions.append(PutRecipeItems(cfg.actions.put_action))
+        if cfg.actions.get_action.enabled:
+            actions.append(GetOutput(cfg.actions.get_action))
         if cfg.actions.noop.enabled:
             actions.append(Noop(cfg.actions.noop))
         if cfg.actions.move.enabled:
             actions.append(Move(cfg.actions.move))
         if cfg.actions.rotate.enabled:
             actions.append(Rotate(cfg.actions.rotate))
-        if cfg.actions.use.enabled:
-            actions.append(Use(cfg.actions.use))
         if cfg.actions.attack.enabled:
             actions.append(Attack(cfg.actions.attack))
             actions.append(AttackNearest(cfg.actions.attack))
@@ -87,7 +89,7 @@ cdef class MettaGrid(GridEnv):
             cfg.obs_width, cfg.obs_height,
             obs_encoder,
             actions,
-            [ ResetHandler() ],
+            [ ProductionHandler() ],
             track_last_action=env_cfg.track_last_action
         )
 
@@ -111,14 +113,20 @@ cdef class MettaGrid(GridEnv):
                     self._stats.incr(b"objects.wall")
 
                 elif map[r,c] == "mine":
-                    self._grid.add_object(new Mine(r, c, cfg.objects.mine))
+                    mine = new Mine(r, c, cfg.objects.mine)
+                    self._grid.add_object(mine)
                     self._stats.incr(b"objects.mine")
+                    if mine.maybe_start_converting():
+                        self._event_manager.schedule_event(Events.FinishConverting, mine.recipe_duration, mine.id, 0)
+
                 elif map[r,c] == "generator":
                     self._grid.add_object(new Generator(r, c, cfg.objects.generator))
                     self._stats.incr(b"objects.generator")
+
                 elif map[r,c] == "altar":
                     self._grid.add_object(new Altar(r, c, cfg.objects.altar))
                     self._stats.incr(b"objects.altar")
+
                 elif map[r,c] == "armory":
                     self._grid.add_object(new Armory(r, c, cfg.objects.armory))
                     self._stats.incr(b"objects.armory")

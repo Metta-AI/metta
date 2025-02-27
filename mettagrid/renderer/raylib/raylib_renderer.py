@@ -364,9 +364,9 @@ class MettaGridRaylibRenderer:
 
         * Key `1` to `9` attacks with that type of an attack.
         * `Z` attack nearest agent
-        * `U` use
+        * `P` put
+        * `G` get
         * `O` toggle shield
-        * `P` swap
         * `[` increment color
         * `]` decrement color
 
@@ -497,6 +497,8 @@ class MettaGridRaylibRenderer:
             rl.KEY_Q: (self.action_ids["move"], 1),
             # use
             rl.KEY_U: (self.action_ids["use"], 0),
+            rl.KEY_P: (self.action_ids["put_recipe_items"], 0),
+            rl.KEY_G: (self.action_ids["get_output"], 0),
             # color manipulation
             rl.KEY_RIGHT_BRACKET: (self.action_ids["change_color"], 0), # Increment color
             rl.KEY_LEFT_BRACKET: (self.action_ids["change_color"], 1),  # Decrement color
@@ -526,5 +528,5 @@ class MettaGridRaylibRenderer:
             # toggle shield
             rl.KEY_O: (self.action_ids["shield"], 0),
             # swap
-            rl.KEY_P: (self.action_ids["swap"], 0),
+            # rl.KEY_P: (self.action_ids["swap"], 0),
         }

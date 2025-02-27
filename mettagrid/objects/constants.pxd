@@ -8,7 +8,7 @@ from mettagrid.grid_object cimport TypeId
 
 cdef extern from "constants.hpp":
     cdef enum Events:
-        Reset = 0
+        FinishConverting = 0
 
     cdef enum GridLayer:
         Agent_Layer = 0
@@ -25,7 +25,8 @@ cdef extern from "constants.hpp":
         LabT = 7
         FactoryT = 8
         TempleT = 9
-        Count = 10
+        GenericConverterT = 10
+        Count = 11
 
     cdef enum InventoryItem:
         ore = 0
