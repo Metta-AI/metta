@@ -52,7 +52,7 @@ class PufferTrainer:
         self.use_e3b = self.trainer_cfg.use_e3b
         self.eval_stats_logger = EvalStatsLogger(cfg, wandb_run)
         self.average_reward = 0.0  # Initialize average reward estimate
-        self.policy_fitness = []
+        self._policy_fitness = []
 
         self._make_vecenv()
 
@@ -148,7 +148,7 @@ class PufferTrainer:
             if self.trainer_cfg.evaluate_interval != 0 and self.epoch % self.trainer_cfg.evaluate_interval == 0:
                 self._evaluate_policy()
             if self.cfg.agent.effective_rank_interval != 0 and self.epoch % self.cfg.agent.effective_rank_interval == 0:
-                self._compute_effective_rank()
+                self._effective_rank = self.policy.compute_effective_rank()
             if self.epoch % self.trainer_cfg.wandb_checkpoint_interval == 0:
                 self._save_policy_to_wandb()
             if self.cfg.agent.l2_init_weight_update_interval != 0 and self.epoch % self.cfg.agent.l2_init_weight_update_interval == 0:
@@ -175,17 +175,8 @@ class PufferTrainer:
         eval_stats_db = EvalStatsDB.from_uri(self.cfg.eval.eval_db_uri, self.cfg.run_dir, self.wandb_run)
         analyzer = hydra.utils.instantiate(self.cfg.analyzer, eval_stats_db)
         _, policy_fitness_records = analyzer.analyze()
-        self.policy_fitness = policy_fitness_records
+        self._policy_fitness = policy_fitness_records
 
-    def _compute_effective_rank(self):
-        effective_rank = self.policy.compute_effective_rank()
-        for rank in effective_rank:
-            if self._master:
-                self.wandb_run.log({
-                    f"train/effective_rank/{rank['name']}": rank['effective_rank'],
-                    "train/agent_step": self.agent_step,
-                    "train/epoch": self.epoch,
-                })
 
     def _update_l2_init_weight_copy(self):
         self.policy.update_l2_init_weight_copy()
@@ -494,23 +485,30 @@ class PufferTrainer:
 
         policy_fitness_metrics = {
             f'pfs/{r["eval"]}:{r["metric"]}': r["fitness"]
-            for r in self.policy_fitness
+            for r in self._policy_fitness
+        }
+
+        effective_rank_metrics = {
+            f'train/effective_rank/{rank["name"]}': rank["effective_rank"]
+            for rank in self._effective_rank
         }
 
         if self.wandb_run and self.cfg.wandb.track and self._master:
             self.wandb_run.log({
-                **{f'0verview/{k}': v for k, v in overview.items()},
+                **{f'overview/{k}': v for k, v in overview.items()},
                 **{f'env/{k}': v for k, v in environment.items()},
                 **{f'losses/{k}': v for k, v in losses.items()},
                 **{f'performance/{k}': v for k, v in performance.items()},
                 **policy_fitness_metrics,
+                **effective_rank_metrics,
                 'train/agent_step': agent_steps,
                 'train/epoch': epoch,
                 'train/learning_rate': learning_rate,
                 'train/average_reward': self.average_reward if self.trainer_cfg.average_reward else None,
             })
 
-        self.policy_fitness = []
+        self._policy_fitness = []
+        self._effective_rank = []
         self.stats.clear()
 
     def close(self):
