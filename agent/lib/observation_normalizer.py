@@ -9,7 +9,7 @@ from agent.lib.metta_layer import LayerBase
 OBS_NORMALIZATIONS = {
     'agent': 1,
     'agent:group': 10,
-    'agent:hp': 1,
+    'agent:hp': 30,
     'agent:frozen': 1,
     'agent:energy': 255,
     'agent:orientation': 1,
@@ -21,8 +21,14 @@ OBS_NORMALIZATIONS = {
     'agent:inv:laser': 100,
     'agent:inv:armor': 100,
     'agent:inv:blueprint': 100,
+    'inv:ore': 100,
+    'inv:battery': 100,
+    'inv:heart': 100,
+    'inv:laser': 100,
+    'inv:armor': 100,
+    'inv:blueprint': 100,
     'wall': 1,
-    'wall:hp': 10,
+    'wall:hp': 30,
     'generator': 1,
     'generator:hp': 30,
     'generator:ready': 1,
@@ -52,6 +58,7 @@ OBS_NORMALIZATIONS = {
     'agent:kinship': 10,
     'hp': 30,
     'ready': 1,
+    'converting': 1,
 }
 
 class ObservationNormalizer(LayerBase):
