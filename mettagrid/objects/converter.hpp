@@ -26,8 +26,12 @@ public:
         HasInventory::init_has_inventory(cfg);
         this->recipe_input.resize(InventoryItem::InventoryCount);
         this->recipe_output.resize(InventoryItem::InventoryCount);
-        this->max_output = 5;
-        this->recipe_duration = 5;
+        for (unsigned int i = 0; i < InventoryItem::InventoryCount; i++) {
+            this->recipe_input[i] = cfg["input_" + InventoryItemNames[i]];
+            this->recipe_output[i] = cfg["output_" + InventoryItemNames[i]];
+        }
+        this->max_output = cfg["max_output"];
+        this->recipe_duration = cfg["cooldown"];
         this->converting = false;
     }
 

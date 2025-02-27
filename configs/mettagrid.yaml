@@ -80,34 +80,63 @@ game:
   objects:
     altar:
       hp: 30
+      input_battery: 3
+      output_heart: 1
+      max_output: 5
       cooldown: ${uniform:1, 20, 10}
 
     mine:
       hp: 30
+      output_ore: 1
+      max_output: 5
       cooldown: ${uniform:0, 100, 50}
 
     generator:
       hp: 30
+      input_ore: 1
+      output_battery: 1
+      max_output: 5
       cooldown: ${uniform:0, 50, 25}
 
     armory:
       hp: 30
+      input_ore: 3
+      output_armor: 1
+      max_output: 5
       cooldown: ${uniform:0, 20, 10}
 
     lasery:
       hp: 30
+      input_ore: 1
+      input_battery: 2
+      output_laser: 1
+      max_output: 5
       cooldown: ${uniform:0, 20, 10}
 
     lab:
       hp: 30
+      input_ore: 3
+      input_battery: 3
+      output_blueprint: 1
+      max_output: 5
       cooldown: ${uniform:0, 10, 5}
 
     factory:
       hp: 30
+      input_blueprint: 1
+      input_ore: 5
+      input_battery: 5
+      output_armor: 5
+      output_laser: 5
+      max_output: 5
       cooldown: ${uniform:0, 10, 5}
 
     temple:
       hp: 30
+      input_heart: 1
+      input_blueprint: 1
+      output_heart: 5
+      max_output: 5
       cooldown: ${uniform:0, 10, 5}
 
     wall:
