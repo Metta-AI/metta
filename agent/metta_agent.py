@@ -13,7 +13,6 @@ from pufferlib.cleanrl import sample_logits
 from pufferlib.environment import PufferEnv
 import pufferlib
 
-
 def make_policy(env: PufferEnv, cfg: OmegaConf):
     obs_space = gym.spaces.Dict({
         "grid_obs": env.single_observation_space,
@@ -63,13 +62,8 @@ class MettaAgent(nn.Module):
             'core_num_layers': self.core_num_layers
         }
 
-        if isinstance(action_space, pufferlib.spaces.Discrete):
-            self._multi_discrete = False
-            agent_attributes['action_type_size'] = action_space.n
-        else:
-            self._multi_discrete = True
-            agent_attributes['action_type_size'] = action_space.nvec[0]
-            agent_attributes['action_param_size'] = action_space.nvec[1]
+        agent_attributes['action_type_size'] = action_space.nvec[0]
+        agent_attributes['action_param_size'] = action_space.nvec[1]
 
         # self.observation_space = obs_space # for use with FeatureSetEncoder
         # self.global_features = global_features # for use with FeatureSetEncoder
@@ -85,9 +79,8 @@ class MettaAgent(nn.Module):
         self._setup_components(component)
         component = self.components['_action_type_']
         self._setup_components(component)
-        if self._multi_discrete:
-            component = self.components['_action_param_']
-            self._setup_components(component)
+        component = self.components['_action_param_']
+        self._setup_components(component)
 
         for name, component in self.components.items():
             if not getattr(component, 'ready', False):
@@ -97,19 +90,19 @@ class MettaAgent(nn.Module):
         print(f"Total number of parameters in MettaAgent: {self._total_params:,}. Setup complete.")
 
     def _setup_components(self, component):
-        if component.input_source is not None:
-            if isinstance(component.input_source, str):
-                self._setup_components(self.components[component.input_source])
-            elif isinstance(component.input_source, list):
-                for input_source in component.input_source:
+        if component._input_source is not None:
+            if isinstance(component._input_source, str):
+                self._setup_components(self.components[component._input_source])
+            elif isinstance(component._input_source, list):
+                for input_source in component._input_source:
                     self._setup_components(self.components[input_source])
 
-        if component.input_source is not None:
-            if isinstance(component.input_source, str):
-                component.setup(self.components[component.input_source])
-            elif isinstance(component.input_source, list):
+        if component._input_source is not None:
+            if isinstance(component._input_source, str):
+                component.setup(self.components[component._input_source])
+            elif isinstance(component._input_source, list):
                 input_source_components = {}
-                for input_source in component.input_source:
+                for input_source in component._input_source:
                     input_source_components[input_source] = self.components[input_source]
                 component.setup(input_source_components)
         else:
@@ -117,7 +110,7 @@ class MettaAgent(nn.Module):
 
     @property
     def lstm(self):
-        return self.components["_core_"].net
+        return self.components["_core_"]._net
 
     @property
     def total_params(self):
@@ -137,11 +130,12 @@ class MettaAgent(nn.Module):
             td["state"] = state.to(x.device)
 
         self.components["_value_"](td)
+
         self.components["_action_type_"](td)
         logits = td["_action_type_"]
-        if self._multi_discrete:
-            self.components["_action_param_"](td)
-            logits = [logits, td["_action_param_"]]
+
+        self.components["_action_param_"](td)
+        logits = [logits, td["_action_param_"]]
 
         value = td["_value_"]
         state = td["state"]
@@ -152,12 +146,13 @@ class MettaAgent(nn.Module):
             state = (state[:split_size], state[split_size:])
 
         e3b, intrinsic_reward = self._e3b_update(td["_core_"].detach(), e3b)
-
         action, logprob, entropy = sample_logits(logits, action, False)
+
         return action, logprob, entropy, value, state, e3b, intrinsic_reward
 
     def forward(self, x, state=None, action=None, e3b=None):
-        return self.get_action_and_value(x, state, action, e3b)
+        action, logprob, entropy, value, state, e3b, intrinsic_reward = self.get_action_and_value(x, state, action, e3b)
+        return action, logprob, entropy, value, state, e3b, intrinsic_reward
 
     def _e3b_update(self, phi, e3b):
         intrinsic_reward = None

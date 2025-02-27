@@ -1,4 +1,4 @@
-# Configure warnings before any other imports
+# This file is imported before anything else in worker processes
 import os
 import sys
 import warnings
@@ -6,7 +6,7 @@ import warnings
 # Disable all DeprecationWarnings by default
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-# Specifically ignore pkg_resources related warnings
+# Disable specific warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning, module="pkg_resources")
 warnings.filterwarnings("ignore", category=DeprecationWarning, module="pygame.pkgdata")
 warnings.filterwarnings("ignore", message=".*declare_namespace.*")
@@ -16,6 +16,7 @@ warnings.filterwarnings("ignore", message=".*Deprecated call to `pkg_resources.d
 # Set environment variable to suppress warnings
 os.environ["PYTHONWARNINGS"] = "ignore::DeprecationWarning"
 
-# Only proceed with other imports after warnings are configured
-from . import warnings_config
-from . import worker_init
+# Force warnings to be ignored immediately
+if not sys.warnoptions:
+    warnings.simplefilter("ignore", DeprecationWarning)
+    warnings.simplefilter("ignore", ImportWarning)

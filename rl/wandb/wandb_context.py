@@ -3,7 +3,8 @@ import os
 import socket
 from omegaconf import OmegaConf
 
-# os.environ["WANDB_SILENT"] = "true"
+# Enable multi-process logging
+os.environ["WANDB_START_METHOD"] = "thread"
 
 class WandbContext:
     def __init__(self, cfg, resume=True, name=None):

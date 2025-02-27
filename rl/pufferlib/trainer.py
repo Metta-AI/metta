@@ -1,21 +1,22 @@
+from . import warnings_config
+
 import logging
 import os
 import time
 from collections import defaultdict
 from copy import deepcopy
-from pathlib import Path
 
 import hydra
 import numpy as np
 import pufferlib
 import pufferlib.utils
 import torch
+import torch.distributed as dist
 import wandb
 from agent.policy_store import PolicyStore
 from fast_gae import fast_gae
 from omegaconf import OmegaConf
 from torch.nn.parallel import DistributedDataParallel
-from tqdm import tqdm
 
 from rl.eval.eval_stats_db import EvalStatsDB
 from rl.eval.eval_stats_logger import EvalStatsLogger
@@ -39,10 +40,16 @@ class PufferTrainer:
         self.cfg = cfg
         self.trainer_cfg = cfg.trainer
         self.device = cfg.device
+
+        # Configure NCCL for distributed training
+        self._master = True
+        if self.trainer_cfg.dist.num_gpus > 1:
+            logger.info("Setting up distributed training")
+            self._master = (torch.distributed.get_rank() == 0)
+
         self.profile = Profile()
         self.losses = self._make_losses()
         self.stats = defaultdict(list)
-        self.recent_stats = defaultdict(list)
         self.wandb_run = wandb_run
         self.policy_store = policy_store
         self.use_e3b = self.trainer_cfg.use_e3b
@@ -52,19 +59,34 @@ class PufferTrainer:
 
         self._make_vecenv()
 
+        logger.info("Loading checkpoint")
         os.makedirs(cfg.trainer.checkpoint_dir, exist_ok=True)
         checkpoint = TrainerCheckpoint.load(cfg.run_dir)
 
+        logger.info("Setting up policy")
         if checkpoint.policy_path:
+            logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
             policy_record = policy_store.policy(checkpoint.policy_path)
-            # Load average reward state if it exists
             if hasattr(checkpoint, 'average_reward'):
                 self.average_reward = checkpoint.average_reward
         elif cfg.trainer.initial_policy.uri is not None:
+            logger.info(f"Loading initial policy: {cfg.trainer.initial_policy.uri}")
             policy_record = policy_store.policy(cfg.trainer.initial_policy)
         else:
-            logger.info("No initial policy found, creating new")
-            policy_record = policy_store.create(self.vecenv.driver_env)
+            policy_path = os.path.join(cfg.trainer.checkpoint_dir,
+                                 policy_store.make_model_name(0))
+            for i in range(20):
+                if os.path.exists(policy_path):
+                    logger.info(f"Loading policy from checkpoint: {policy_path}")
+                    policy_record = policy_store.policy(policy_path)
+                    break
+                elif self._master:
+                    logger.info("Creating new policy")
+                    policy_record = policy_store.create(self.vecenv.driver_env)
+                    break
+
+                time.sleep(10)
+            assert policy_record is not None, "No policy found"
 
         if policy_record.metadata["action_names"] != self.vecenv.driver_env.action_names():
             raise ValueError(
@@ -78,7 +100,19 @@ class PufferTrainer:
         self.uncompiled_policy = self.policy
 
         if self.trainer_cfg.compile:
+            logger.info("Compiling policy")
             self.policy = torch.compile(self.policy, mode=self.trainer_cfg.compile_mode)
+
+        if self.trainer_cfg.dist.num_gpus > 1:
+            logger.info("Wrapping policy with DistributedDataParallel")
+            orig_policy = self.policy
+            self.policy = DistributedDataParallel(self.policy, device_ids=[self.device])
+            self.policy.lstm = orig_policy.lstm
+            self.policy.hidden_size = orig_policy.hidden_size
+            self.policy.compute_effective_rank = orig_policy.compute_effective_rank
+            self.policy.update_l2_init_weight_copy = orig_policy.update_l2_init_weight_copy
+            self.policy.l2_reg_loss = orig_policy.l2_reg_loss
+            self.policy.l2_init_loss = orig_policy.l2_init_loss
 
         self._make_experience_buffer()
 
@@ -90,12 +124,12 @@ class PufferTrainer:
         if checkpoint.agent_step > 0:
             self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
 
-        if self.cfg.wandb.track and wandb_run:
+        if self.cfg.wandb.track and wandb_run and self._master:
             wandb_run.define_metric("train/agent_step")
             for k in ["0verview", "env", "losses", "performance", "train"]:
                 wandb_run.define_metric(f"{k}/*", step_metric="train/agent_step")
 
-        print("Training on device:", self.device)
+        logger.info(f"PufferTrainer initialization complete on device: {self.device}")
 
     def train(self):
         self.train_start = time.time()
@@ -105,6 +139,7 @@ class PufferTrainer:
         if self.trainer_cfg.evaluate_interval != 0 and self.trainer_cfg.evaluate_interval < self.trainer_cfg.checkpoint_interval:
             self.trainer_cfg.evaluate_interval = self.trainer_cfg.checkpoint_interval
 
+        logger.info(f"Training on {self.device}")
         while self.agent_step < self.trainer_cfg.total_timesteps:
             # Collecting experience
             self._evaluate()
@@ -112,7 +147,12 @@ class PufferTrainer:
             # Training on collected experience
             self._train()
 
+            # Processing stats
             self._process_stats()
+
+            logger.info(f"Epoch {self.epoch} of {self.trainer_cfg.total_timesteps}")
+
+            # Checkpointing trainer
             if self.epoch % self.trainer_cfg.checkpoint_interval == 0:
                 self._checkpoint_trainer()
             if self.trainer_cfg.evaluate_interval != 0 and self.epoch % self.trainer_cfg.evaluate_interval == 0:
@@ -135,6 +175,8 @@ class PufferTrainer:
         logger.info(f"Training complete. Total time: {self.train_time:.2f} seconds")
 
     def _evaluate_policy(self):
+        if not self._master:
+            return
 
         self.cfg.eval.policy_uri = self.last_pr.uri
         self.cfg.analyzer.policy_uri = self.last_pr.uri
@@ -149,6 +191,9 @@ class PufferTrainer:
         self.policy_fitness = policy_fitness_records
 
     def _compute_effective_rank(self):
+        if not self._master:
+            return
+
         effective_rank = self.policy.compute_effective_rank()
         for rank in effective_rank:
             self.wandb_run.log({
@@ -183,7 +228,7 @@ class PufferTrainer:
                 self.agent_step += num_steps
 
                 o = torch.as_tensor(o)
-                o_device = o.to(self.device)
+                o_device = o.to(self.device, non_blocking=True)
                 r = torch.as_tensor(r)
                 d = torch.as_tensor(d)
 
@@ -192,13 +237,11 @@ class PufferTrainer:
                 # Also should be using a cuda tensor to index
                 e3b = e3b_inv[env_id] if self.use_e3b else None
 
-                if lstm_h is not None:
-                    h = lstm_h[:, env_id]
-                    c = lstm_c[:, env_id]
-                    actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward = policy(o_device, (h, c), e3b=e3b)
-                    lstm_h[:, env_id] = h
-                    lstm_c[:, env_id] = c
-
+                h = lstm_h[:, env_id]
+                c = lstm_c[:, env_id]
+                actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward = policy(o_device, (h, c), e3b=e3b)
+                lstm_h[:, env_id] = h
+                lstm_c[:, env_id] = c
                 if self.use_e3b:
                     e3b_inv[env_id] = next_e3b
                     r += intrinsic_reward.cpu()
@@ -278,7 +321,7 @@ class PufferTrainer:
             for mb in range(experience.num_minibatches):
                 with profile.train_misc:
                     obs = experience.b_obs[mb]
-                    obs = obs.to(self.device)
+                    obs = obs.to(self.device, non_blocking=True)
                     atn = experience.b_actions[mb]
                     log_probs = experience.b_logprobs[mb]
                     val = experience.b_values[mb]
@@ -286,17 +329,9 @@ class PufferTrainer:
                     ret = experience.b_returns[mb]
 
                 with profile.train_forward:
-                    if experience.lstm_h is not None:
-                        _, newlogprob, entropy, newvalue, lstm_state, _, _ = self.policy(
-                            obs, state=lstm_state, action=atn)
-                        lstm_state = (lstm_state[0].detach(), lstm_state[1].detach())
-
-                    # the below can be deleted if no LSTM
-                    else:
-                        _, newlogprob, entropy, newvalue, _, _ = self.policy(
-                            obs.reshape(-1, *self.vecenv.single_observation_space.shape),
-                            action=atn,
-                        )
+                    _, newlogprob, entropy, newvalue, lstm_state, _, _ = self.policy(
+                        obs, state=lstm_state, action=atn)
+                    lstm_state = (lstm_state[0].detach(), lstm_state[1].detach())
 
                     if self.device == 'cuda':
                         torch.cuda.synchronize()
@@ -394,6 +429,9 @@ class PufferTrainer:
             )
 
     def _checkpoint_trainer(self):
+        if not self._master:
+            return
+
         pr = self._checkpoint_policy()
         self.checkpoint = TrainerCheckpoint(
             self.agent_step,
@@ -404,6 +442,9 @@ class PufferTrainer:
         ).save(self.cfg.run_dir)
 
     def _checkpoint_policy(self):
+        if not self._master:
+            return
+
         name = self.policy_store.make_model_name(self.epoch)
 
         generation = 0
@@ -428,51 +469,79 @@ class PufferTrainer:
         return self.last_pr
 
     def _save_policy_to_wandb(self):
-        if self.wandb_run and self.cfg.wandb.track:
-            pr = self._checkpoint_policy()
-            self.policy_store.add_to_wandb_run(self.wandb_run.name, pr)
+        if not self._master:
+            return
+
+        if self.wandb_run is None:
+            return
+
+        pr = self._checkpoint_policy()
+        self.policy_store.add_to_wandb_run(self.wandb_run.name, pr)
 
     def _save_trace_to_wandb(self):
+        if not self._master:
+            return
+
         image_path = f"{self.cfg.run_dir}/traces/trace.{self.epoch}.png"
         save_trace_image(self.cfg, self.last_pr, image_path)
         wandb.log({"traces/actions": wandb.Image(image_path)})
+
+    def _dist_sum(self, value):
+        if not dist.is_initialized():
+            return value
+
+        tensor = torch.tensor(value, device=self.device)
+        dist.all_reduce(tensor, op=dist.ReduceOp.SUM)
+        return tensor.item()
+
+    def _dist_mean(self, value):
+        if not dist.is_initialized():
+            return value
+
+        return self._dist_sum(value) / dist.get_world_size()
 
     def _process_stats(self):
         for k in list(self.stats.keys()):
             v = self.stats[k]
             try:
-                self.stats[k] = np.mean(v)
+                v = np.mean(v)
+                self.stats[k] = v
             except:
                 del self.stats[k]
 
-        if self.wandb_run and self.cfg.wandb.track:
-            overview = {
-                'SPS': self.profile.SPS,
-            }
-            for k, v in self.trainer_cfg.stats.overview.items():
-                if k in self.stats:
-                    overview[v] = self.stats[k]
+        # Now synchronize and aggregate stats across processes
+        sps = self._dist_sum(self.profile.SPS)
+        agent_steps = int(self._dist_sum(self.agent_step))
+        epoch = int(self.epoch)
+        learning_rate = self.optimizer.param_groups[0]["lr"]
+        environment = {k: v for k, v in self.stats.items()}
+        losses = {k: self._dist_mean(v) for k, v in vars(self.losses).items() if not k.startswith('_')}
+        performance = {k: self._dist_mean(v) for k, v in self.profile}
 
-            policy_fitness_metrics = {
-                f'pfs/{r["eval"]}:{r["metric"]}': r["fitness"]
-                for r in self.policy_fitness
-            }
-            self.policy_fitness = []
+        overview = {'SPS': sps}
+        for k, v in self.trainer_cfg.stats.overview.items():
+            if k in environment:
+                overview[v] = environment[k]
 
+        policy_fitness_metrics = {
+            f'pfs/{r["eval"]}:{r["metric"]}': r["fitness"]
+            for r in self.policy_fitness
+        }
+
+        if self.wandb_run and self.cfg.wandb.track and self._master:
             self.wandb_run.log({
                 **{f'0verview/{k}': v for k, v in overview.items()},
-                **{f'env/{k}': v for k, v in self.stats.items()},
-                **{f'losses/{k}': v for k, v in self.losses.items()},
-                **{f'performance/{k}': v for k, v in self.profile},
+                **{f'env/{k}': v for k, v in environment.items()},
+                **{f'losses/{k}': v for k, v in losses.items()},
+                **{f'performance/{k}': v for k, v in performance.items()},
                 **policy_fitness_metrics,
-                'train/agent_step': self.agent_step,
-                'train/epoch': self.epoch,
-                'train/learning_rate': self.optimizer.param_groups[0]["lr"],
+                'train/agent_step': agent_steps,
+                'train/epoch': epoch,
+                'train/learning_rate': learning_rate,
                 'train/average_reward': self.average_reward if self.trainer_cfg.average_reward else None,
             })
 
-        if len(self.stats) > 0:
-            self.recent_stats = deepcopy(self.stats)
+        self.policy_fitness = []
         self.stats.clear()
 
     def close(self):
@@ -491,10 +560,9 @@ class PufferTrainer:
         atn_dtype = self.vecenv.single_action_space.dtype
         total_agents = self.vecenv.num_agents
 
-        lstm = self.policy.lstm if hasattr(self.policy, 'lstm') else None
         self.experience = Experience(self.trainer_cfg.batch_size, self.trainer_cfg.bptt_horizon,
             self.trainer_cfg.minibatch_size, self.policy.hidden_size, obs_shape, obs_dtype, atn_shape, atn_dtype,
-            self.trainer_cfg.cpu_offload, self.device, lstm, total_agents)
+            self.trainer_cfg.cpu_offload, self.device, self.policy.lstm, total_agents)
 
     def _make_losses(self):
         return pufferlib.namespace(
@@ -510,6 +578,11 @@ class PufferTrainer:
         )
 
     def _make_vecenv(self):
+        """Create a vectorized environment."""
+        # Import worker_init to configure warnings in worker processes
+        import rl.pufferlib.worker_init
+
+        # Create the vectorized environment
         self.target_batch_size = self.trainer_cfg.forward_pass_minibatch_target_size // self.cfg.env.game.num_agents
         if self.target_batch_size < 2: # pufferlib bug requires batch size >= 2
             self.target_batch_size = 2
