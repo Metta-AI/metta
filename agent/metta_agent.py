@@ -1,4 +1,5 @@
 import os
+import os
 from typing import List, Tuple
 
 import gymnasium as gym
@@ -23,7 +24,7 @@ def make_policy(env: PufferEnv, cfg: OmegaConf):
             shape=[ 0 ],
             dtype=np.int32)
     })
-    return hydra.utils.instantiate(
+    agent = hydra.utils.instantiate(
         cfg.agent,
         obs_shape=env.single_observation_space.shape,
         obs_space=obs_space,
@@ -33,6 +34,20 @@ def make_policy(env: PufferEnv, cfg: OmegaConf):
         device=cfg.device,
         _recursive_=False)
 
+    agent = agent.to(cfg.device)
+    if dist.is_initialized():
+        agent = DistributedMettaAgent(agent, cfg.device)
+    return agent
+
+class DistributedMettaAgent(DistributedDataParallel):
+    def __init__(self, agent, device):
+        super().__init__(agent, device_ids=[device], output_device=device)
+
+    def __getattr__(self, name):
+        try:
+            return super().__getattr__(name)
+        except AttributeError:
+            return getattr(self.module, name)
 
 class MettaAgent(nn.Module):
     def __init__(
@@ -88,12 +103,6 @@ class MettaAgent(nn.Module):
                 raise RuntimeError(f"Component {name} in MettaAgent was never setup. It might not be accessible by other components.")
 
         self._total_params = sum(p.numel() for p in self.parameters())
-
-        self.components = self.components.to(device)
-        if dist.is_initialized():
-            self.components = DistributedDataParallel(
-                self.components, device_ids=[device])
-
         print(f"Total number of parameters in MettaAgent: {self._total_params:,}. Setup complete.")
 
     def _setup_components(self, component):
