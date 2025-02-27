@@ -21,6 +21,12 @@ OBS_NORMALIZATIONS = {
     'agent:inv:laser': 100,
     'agent:inv:armor': 100,
     'agent:inv:blueprint': 100,
+    'inv:ore': 100,
+    'inv:battery': 100,
+    'inv:heart': 100,
+    'inv:laser': 100,
+    'inv:armor': 100,
+    'inv:blueprint': 100,
     'wall': 1,
     'wall:hp': 30,
     'generator': 1,
@@ -52,6 +58,7 @@ OBS_NORMALIZATIONS = {
     'agent:kinship': 10,
     'hp': 30,
     'ready': 1,
+    'converting': 1,
 }
 
 class ObservationNormalizer(LayerBase):
