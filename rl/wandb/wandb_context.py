@@ -3,8 +3,6 @@ import os
 import socket
 from omegaconf import OmegaConf
 
-# os.environ["WANDB_SILENT"] = "true"
-
 class WandbContext:
     def __init__(self, cfg, resume=True, name=None):
         self.cfg = cfg

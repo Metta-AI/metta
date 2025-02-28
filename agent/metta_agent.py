@@ -1,18 +1,22 @@
+import os
+import os
 from typing import List, Tuple
 
-import numpy as np
-import torch
-from torch import nn
-from tensordict import TensorDict
 import gymnasium as gym
 import hydra
+import numpy as np
+import torch
+import torch.distributed as dist
 from omegaconf import OmegaConf
-
-from sample_factory.utils.typing import ActionSpace, ObsSpace
 from pufferlib.cleanrl import sample_logits
 from pufferlib.environment import PufferEnv
-import pufferlib
+from sample_factory.utils.typing import ActionSpace, ObsSpace
+from tensordict import TensorDict
+from torch import nn
+from torch.nn.parallel import DistributedDataParallel
 
+import logging
+logger = logging.getLogger("metta_agent")
 
 def make_policy(env: PufferEnv, cfg: OmegaConf):
     obs_space = gym.spaces.Dict({
@@ -22,17 +26,19 @@ def make_policy(env: PufferEnv, cfg: OmegaConf):
             shape=[ 0 ],
             dtype=np.int32)
     })
-    agent = hydra.utils.instantiate(
+    return hydra.utils.instantiate(
         cfg.agent,
         obs_shape=env.single_observation_space.shape,
         obs_space=obs_space,
         action_space=env.single_action_space,
         grid_features=env.grid_features,
         global_features=env.global_features,
+        device=cfg.device,
         _recursive_=False)
 
-    agent.to(cfg.device)
-    return agent
+class DistributedMettaAgent(DistributedDataParallel):
+    def __init__(self, agent, device):
+        super().__init__(agent, device_ids=[device], output_device=device)
 
 import torch
 import torch.nn as nn
@@ -91,13 +97,8 @@ class MettaAgent(nn.Module):
             'core_num_layers': self.core_num_layers
         }
 
-        if isinstance(action_space, pufferlib.spaces.Discrete):
-            self._multi_discrete = False
-            agent_attributes['action_type_size'] = action_space.n
-        else:
-            self._multi_discrete = True
-            agent_attributes['action_type_size'] = action_space.nvec[0]
-            agent_attributes['action_param_size'] = action_space.nvec[1]
+        agent_attributes['action_type_size'] = action_space.nvec[0]
+        agent_attributes['action_param_size'] = action_space.nvec[1]
 
         self.components = nn.ModuleDict()
         component_cfgs = OmegaConf.to_container(cfg.components, resolve=True)
@@ -116,6 +117,8 @@ class MettaAgent(nn.Module):
             if not getattr(component, 'ready', False):
                 raise RuntimeError(f"Component {name} in MettaAgent was never setup.")
 
+        self.components = self.components.to(device)
+
         self._total_params = sum(p.numel() for p in self.parameters())
         print(f"Total number of parameters in MettaAgent: {self._total_params:,}. Setup complete.")
 
@@ -132,24 +135,27 @@ class MettaAgent(nn.Module):
         # Optionally, you might add an optimizer for the inverse dynamics model if desired.
 
     def _setup_components(self, component):
-        if component.input_source is not None:
-            if isinstance(component.input_source, str):
-                self._setup_components(self.components[component.input_source])
-            elif isinstance(component.input_source, list):
-                for src in component.input_source:
-                    self._setup_components(self.components[src])
-        if component.input_source is not None:
-            if isinstance(component.input_source, str):
-                component.setup(self.components[component.input_source])
-            elif isinstance(component.input_source, list):
-                src_components = {src: self.components[src] for src in component.input_source}
-                component.setup(src_components)
+        if component._input_source is not None:
+            if isinstance(component._input_source, str):
+                self._setup_components(self.components[component._input_source])
+            elif isinstance(component._input_source, list):
+                for input_source in component._input_source:
+                    self._setup_components(self.components[input_source])
+
+        if component._input_source is not None:
+            if isinstance(component._input_source, str):
+                component.setup(self.components[component._input_source])
+            elif isinstance(component._input_source, list):
+                input_source_components = {}
+                for input_source in component._input_source:
+                    input_source_components[input_source] = self.components[input_source]
+                component.setup(input_source_components)
         else:
             component.setup()
 
     @property
     def lstm(self):
-        return self.components["_core_"].net
+        return self.components["_core_"]._net
 
     @property
     def total_params(self):
@@ -187,11 +193,12 @@ class MettaAgent(nn.Module):
             td["state"] = state.to(device)  # Ensure state is on the same device
 
         self.components["_value_"](td)
+
         self.components["_action_type_"](td)
         logits = td["_action_type_"]
-        if self._multi_discrete:
-            self.components["_action_param_"](td)
-            logits = [logits, td["_action_param_"]]
+
+        self.components["_action_param_"](td)
+        logits = [logits, td["_action_param_"]]
 
         value = td["_value_"]
         state = td["state"]
@@ -210,6 +217,7 @@ class MettaAgent(nn.Module):
         e3b, intrinsic_reward = self._e3b_update(phi_detached, e3b)
 
         action, logprob, entropy = sample_logits(logits, action, False)
+
         return action, logprob, entropy, value, state, e3b, intrinsic_reward
 
     def forward(self, x, state=None, action=None, e3b=None):

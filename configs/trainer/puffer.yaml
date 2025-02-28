@@ -27,9 +27,6 @@ anneal_lr: false
 zero_copy: true
 verbose: true
 
-checkpoint_interval: 60
-wandb_checkpoint_interval: 300
-evaluate_interval: 10
 
 batch_size: 262144
 minibatch_size: 4096
@@ -48,4 +45,7 @@ stats:
     episode/reward.mean: episode_reward
   step: train/agent_step
 
+<<<<<<< HEAD
 inverse_loss_coef: 0.1
+=======
+>>>>>>> 64cc0566291edf8e7b9e2a1f196c785ec0f1069e
