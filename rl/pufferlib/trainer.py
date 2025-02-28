@@ -209,7 +209,7 @@ class PufferTrainer:
 
             with profile.eval_misc:
                 num_steps = sum(mask)
-                self.agent_step += num_steps
+                self.agent_step += num_steps * self._world_size
 
                 o = torch.as_tensor(o)
                 o_device = o.to(self.device, non_blocking=True)
@@ -515,18 +515,22 @@ class PufferTrainer:
                 del self.stats[k]
 
         # Now synchronize and aggregate stats across processes
-        sps = self.profile.SPS * self._world_size
-        agent_steps = self.agent_step * self._world_size
+        sps = self.profile.SPS
+        agent_steps = self.agent_step
         epoch = self.epoch
         learning_rate = self.optimizer.param_groups[0]["lr"]
-        environment = {k: v for k, v in self.stats.items()}
         losses = {k: v for k, v in vars(self.losses).items() if not k.startswith('_')}
         performance = {k: v for k, v in self.profile}
 
         overview = {'SPS': sps}
         for k, v in self.trainer_cfg.stats.overview.items():
-            if k in environment:
-                overview[v] = environment[k]
+            if k in self.stats:
+                overview[v] = self.stats[k]
+
+        environment = {
+            f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v
+            for k, v in self.stats.items()
+        }
 
         policy_fitness_metrics = {
             f'pfs/{r["eval"]}:{r["metric"]}': r["fitness"]
@@ -541,9 +545,9 @@ class PufferTrainer:
         if self.wandb_run and self.cfg.wandb.track and self._master:
             self.wandb_run.log({
                 **{f'overview/{k}': v for k, v in overview.items()},
-                **{f'env/{k}': v for k, v in environment.items()},
                 **{f'losses/{k}': v for k, v in losses.items()},
                 **{f'performance/{k}': v for k, v in performance.items()},
+                **environment,
                 **policy_fitness_metrics,
                 **effective_rank_metrics,
                 'train/agent_step': agent_steps,
