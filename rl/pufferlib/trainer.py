@@ -109,7 +109,7 @@ class PufferTrainer:
 
         if dist.is_initialized():
             logger.info("Initializing DistributedDataParallel")
-            self.policy = DistributedMettaAgent(self.policy, self.device)
+            self.policy = DistributedMettaAgent(self.policy, "cuda:0")
 
         self._make_experience_buffer()
 
