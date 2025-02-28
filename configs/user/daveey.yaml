@@ -12,7 +12,7 @@ defaults:
 
 # policy_uri: wandb://run/b.daveey.sm.train.er.new.0
 # policy_uri: wandb://run/daveey.ar.cards.1
-policy_uri: wandb://run/daveey.m2.lstm512
+policy_uri: wandb://run/b.daveey.new.lstm512.0
 # policy_uri: ${trained_policy_uri}
 # npc_policy_uri: ${trained_policy_uri}
 eval_db_uri: wandb://artifacts/daveey_eval_testing
@@ -21,6 +21,11 @@ env:
   # sampling: 0.7
   game:
     num_agents: 36
+
+    agent:
+      rewards:
+        ore_max: 100
+
     # group_reward_pct: 0.9
     # max_steps: 200
 
@@ -54,7 +59,7 @@ sweep:
   metric: action.use
 
 cmd: ???
-run_id: 20
+run_id: 21
 run: ${oc.env:USER}.local.${cmd}.${run_id}
 run_dir: ./train_dir/${oc.env:USER}.local.train.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints

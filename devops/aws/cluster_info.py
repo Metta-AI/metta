@@ -33,23 +33,42 @@ def get_batch_jobs(job_queue, max_jobs):
     job_ids = [job['jobId'] for job in all_jobs]
     job_descriptions = batch.describe_jobs(jobs=job_ids)['jobs']
 
-    task_arns = [job['container'].get('taskArn') for job in job_descriptions if job['container'].get('taskArn')]
-    cluster_arns = [job['container'].get('containerInstanceArn') for job in job_descriptions if job['container'].get('containerInstanceArn')]
+    task_arns = []
+    cluster_arns = []
+    task_to_cluster = {}  # Map to track which cluster each task belongs to
+    for job in job_descriptions:
+        container = job.get('container', {})
+        if container and container.get('taskArn'):
+            task_arn = container.get('taskArn')
+            cluster_arn = container.get('containerInstanceArn')
+            if cluster_arn:  # Only add if we have cluster information
+                cluster_name = cluster_arn.split('/')[1]
+                task_arns.append(task_arn)
+                cluster_arns.append(cluster_arn)
+                task_to_cluster[task_arn] = cluster_name
 
-    # Batch describe tasks
+    # Skip task processing if there are no tasks
+    if not task_arns:
+        return [get_job_details(job) for job in all_jobs]
+
+    # Batch describe tasks by their respective clusters
     tasks_by_cluster = {}
-    for i in range(0, len(task_arns), 100):
-        chunk = task_arns[i:i+100]
-        cluster_name = cluster_arns[i].split('/')[1] if cluster_arns[i] else None
+    for task_arn in task_arns:
+        cluster_name = task_to_cluster.get(task_arn)
         if cluster_name:
-            tasks_by_cluster.setdefault(cluster_name, []).extend(chunk)
+            tasks_by_cluster.setdefault(cluster_name, []).append(task_arn)
 
     task_descriptions = {}
     for cluster_name, tasks in tasks_by_cluster.items():
-        response = ecs.describe_tasks(cluster=cluster_name, tasks=tasks)
-        task_descriptions.update({task['taskArn']: task for task in response['tasks']})
+        for i in range(0, len(tasks), 100):
+            chunk = tasks[i:i+100]
+            try:
+                response = ecs.describe_tasks(cluster=cluster_name, tasks=chunk)
+                task_descriptions.update({task['taskArn']: task for task in response['tasks']})
+            except Exception as e:
+                print(f"Warning: Failed to describe tasks for cluster {cluster_name}: {str(e)}")
+                continue
 
-    # Batch describe container instances
     container_instances_by_cluster = {}
     for task in task_descriptions.values():
         cluster_name = task['clusterArn'].split('/')[1]
@@ -80,20 +99,20 @@ def get_batch_jobs(job_queue, max_jobs):
         container = job_desc.get('container', {})
         task_arn = container.get('taskArn')
 
-        num_retries = len(job_desc.get('attempts', [])) - 1
+        num_retries = len(job_desc.get('attempts', [])) - 1 if job_desc.get('attempts') else 0
 
         public_ip = ''
-        if task_arn:
+        if task_arn and task_arn in task_descriptions:
             task_desc = task_descriptions.get(task_arn, {})
             container_instance_arn = task_desc.get('containerInstanceArn')
-            if container_instance_arn:
+            if container_instance_arn and container_instance_arn in container_instance_descriptions:
                 container_instance_desc = container_instance_descriptions.get(container_instance_arn, {})
                 ec2_instance_id = container_instance_desc.get('ec2InstanceId')
-                if ec2_instance_id:
+                if ec2_instance_id and ec2_instance_id in ec2_instances:
                     ec2_instance = ec2_instances.get(ec2_instance_id, {})
                     public_ip = ec2_instance.get('PublicIpAddress', '')
 
-        stop_command = f"aws batch terminate-job --reason man_stop --job-id {job_id}" if job_status == 'RUNNING' else ''
+        stop_command = f"aws batch terminate-job --reason man_stop --job-id {job_id}" if job_status in ['RUNNING', 'RUNNABLE', 'STARTING'] else ''
 
         return {
             'name': job_name,
@@ -227,21 +246,14 @@ if __name__ == "__main__":
     parser.add_argument('--max-jobs', type=int, default=10, help='The maximum number of jobs to display.')
     parser.add_argument('--ecs', action='store_true', help='Include ECS tasks in the status dump.')
     parser.add_argument('--no-color', action='store_true', help='Disable color output.')
-    parser.add_argument('--queue', default='g6-8xlarge', help='Specify the job queue(s) to check. Use "all" for all queues.')
     args = parser.parse_args()
 
     init()  # Initialize colorama
 
     job_queues = get_batch_job_queues()
-    args.queue = f"metta-batch-jq-{args.queue}"
+    args.queue = f"metta-batch-jq-2"
 
-    if args.queue.lower() == 'all':
-        selected_queues = job_queues
-    else:
-        selected_queues = [queue for queue in job_queues if args.queue in queue]
-        if not selected_queues:
-            print(f"No job queues found matching '{args.queue}'. Available queues: {', '.join(job_queues)}")
-            exit(1)
+    selected_queues = [queue for queue in job_queues if args.queue in queue]
 
     with ThreadPoolExecutor() as executor:
         jobs_by_queue = {queue: executor.submit(get_batch_jobs, queue, args.max_jobs) for queue in selected_queues}
