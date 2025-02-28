@@ -6,7 +6,7 @@ from botocore.exceptions import ClientError
 from devops.aws.cluster_info import get_batch_job_queues, get_batch_jobs
 
 def stop_jobs_batch(batch, jobs, job_prefix, silent=False):
-    jobs_to_stop = [job for job in jobs if job['status'] == 'RUNNING' and job['name'].startswith(job_prefix)]
+    jobs_to_stop = [job for job in jobs if job['status'] in ['RUNNING', 'RUNNABLE', 'STARTING'] and job['name'].startswith(job_prefix)]
     if not jobs_to_stop:
         return []
 
@@ -82,7 +82,7 @@ def stop_batch_jobs(job_prefix, job_queue=None, silent=False):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Stop running AWS Batch jobs with a specific prefix.')
     parser.add_argument('--job_prefix', type=str, required=True, help='Prefix of job names to stop')
-    parser.add_argument('--job_queue', type=str, default="metta-batch-jq-g6-8xlarge", help='Specific job queue to stop jobs from')
+    parser.add_argument('--job_queue', type=str, default="metta-batch-jq-2", help='Specific job queue to stop jobs from')
     parser.add_argument('--silent', action='store_true', help='Skip confirmation prompt')
     args = parser.parse_args()
     args.job_prefix = args.job_prefix.replace('.', '_')
