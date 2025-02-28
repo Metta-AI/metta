@@ -326,7 +326,6 @@ class PufferTrainer:
                     ret = experience.b_returns[mb]
 
                 with profile.train_forward:
-<<<<<<< HEAD
                     if experience.lstm_h is not None:
                         # print(f"Experience obs shape LSTM: {obs.shape}")
                         _, newlogprob, entropy, newvalue, lstm_state, _, _ = self.policy(
@@ -339,11 +338,6 @@ class PufferTrainer:
                             obs.reshape(-1, *self.vecenv.single_observation_space.shape),
                             action=atn,
                         )
-=======
-                    _, newlogprob, entropy, newvalue, lstm_state, _, _ = self.policy(
-                        obs, state=lstm_state, action=atn)
-                    lstm_state = (lstm_state[0].detach(), lstm_state[1].detach())
->>>>>>> 64cc0566291edf8e7b9e2a1f196c785ec0f1069e
 
                     if self.device == 'cuda':
                         torch.cuda.synchronize()
