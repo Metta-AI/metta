@@ -46,7 +46,7 @@ class PufferTrainer:
             self._master = (int(os.environ["RANK"]) == 0)
             self._local_master = (int(os.environ["LOCAL_RANK"]) == 0)
             self._world_size = dist.get_world_size()
-
+            logger.info(f"Rank: {os.environ['RANK']}, Local rank: {os.environ['LOCAL_RANK']}, World size: {self._world_size}")
         self.profile = Profile()
         self.losses = self._make_losses()
         self.stats = defaultdict(list)
