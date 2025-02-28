@@ -42,14 +42,9 @@ class Experience:
         self.dones=torch.zeros(batch_size, pin_memory=pin)
         self.truncateds=torch.zeros(batch_size, pin_memory=pin)
         self.values=torch.zeros(batch_size, pin_memory=pin)
-<<<<<<< HEAD
         # In Experience.__init__
         self.e3b_inv = 10 * torch.eye(hidden_size, device=device).repeat(lstm_total_agents, 1, 1)
         #self.obs_np = np.asarray(self.obs)
-=======
-        self.e3b_inv = 10*torch.eye(hidden_size).repeat(lstm_total_agents, 1, 1).to(device)
-
->>>>>>> 64cc0566291edf8e7b9e2a1f196c785ec0f1069e
         self.actions_np = np.asarray(self.actions)
         self.logprobs_np = np.asarray(self.logprobs)
         self.rewards_np = np.asarray(self.rewards)
