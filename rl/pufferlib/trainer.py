@@ -476,7 +476,7 @@ class PufferTrainer:
                 del self.stats[k]
 
         # Now synchronize and aggregate stats across processes
-        sps = self.profile.SPS * self._world_size
+        sps = self.profile.SPS
         agent_steps = self.agent_step
         epoch = self.epoch
         learning_rate = self.optimizer.param_groups[0]["lr"]
