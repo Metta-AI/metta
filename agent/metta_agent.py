@@ -14,7 +14,8 @@ from sample_factory.utils.typing import ActionSpace, ObsSpace
 from tensordict import TensorDict
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
-
+import torch
+import torch.nn.functional as F
 import logging
 logger = logging.getLogger("metta_agent")
 
@@ -40,9 +41,12 @@ class DistributedMettaAgent(DistributedDataParallel):
     def __init__(self, agent, device):
         super().__init__(agent, device_ids=[device], output_device=device)
 
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
+    def __getattr__(self, name):
+        try:
+            return super().__getattr__(name)
+        except AttributeError:
+            return getattr(self.module, name)
+
 
 
 class InverseDynamicsModel(nn.Module):
@@ -74,6 +78,7 @@ class MettaAgent(nn.Module):
         obs_space: ObsSpace,
         action_space: ActionSpace,
         grid_features: List[str],
+        device: str,
         feature_dim=128,
         **cfg
     ):
@@ -108,10 +113,8 @@ class MettaAgent(nn.Module):
             self.components[component_cfg] = component
 
         # Setup necessary components.
-        for name in ["_value_", "_action_type_"]:
+        for name in ["_value_", "_action_type_", "_action_param_"]:
             self._setup_components(self.components[name])
-        if self._multi_discrete:
-            self._setup_components(self.components["_action_param_"])
 
         for name, component in self.components.items():
             if not getattr(component, 'ready', False):
