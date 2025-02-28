@@ -8,9 +8,9 @@ cdef class ProductionHandler(EventHandler):
         cdef Converter *converter = <Converter*>self.env._grid.object(obj_id)
         if converter is NULL:
             return
-        
+
         converter.finish_converting()
-        self.env._stats.incr(b"finished_production", ObjectTypeNames[converter._type_id])
+        self.env._stats.incr(ObjectTypeNames[converter._type_id], b"produced")
 
         if converter.maybe_start_converting():
             self.env._event_manager.schedule_event(Events.FinishConverting, converter.recipe_duration, converter.id, 0)
