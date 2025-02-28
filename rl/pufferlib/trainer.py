@@ -2,13 +2,9 @@ import logging
 import os
 import time
 from collections import defaultdict
-<<<<<<< HEAD
 from copy import deepcopy
 from pathlib import Path
 import pdb
-=======
-
->>>>>>> 64cc0566291edf8e7b9e2a1f196c785ec0f1069e
 import hydra
 import numpy as np
 import pufferlib
