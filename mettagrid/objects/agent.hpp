@@ -47,7 +47,7 @@ public:
         }
         this->resource_reward_max.resize(InventoryItem::InventoryCount);
         for (int i = 0; i < InventoryItem::InventoryCount; i++) {
-            this->resource_reward_max[i] = rewards[InventoryItemNames[i] + ".max"];
+            this->resource_reward_max[i] = rewards[InventoryItemNames[i] + "_max"];
         }
         this->action_failure_penalty = rewards["action_failure_penalty"];
         this->color = 0;

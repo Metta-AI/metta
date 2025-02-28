@@ -154,7 +154,7 @@ cdef class MettaGrid(GridEnv):
                     del agent_cfg["rewards"]
                     for inv_item in InventoryItemNames:
                         rewards[inv_item] = rewards.get(inv_item, 0)
-                        rewards[inv_item + ".max"] = rewards.get(inv_item + ".max", 1000)
+                        rewards[inv_item + "_max"] = rewards.get(inv_item + "_max", 1000)
                     group_id = cfg.groups[group_name].id
                     agent = new Agent(
                         r, c, group_name, group_id, agent_cfg, rewards)
