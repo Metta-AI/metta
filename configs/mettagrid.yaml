@@ -31,11 +31,11 @@ game:
       # action_failure_penalty: 0.00001
       action_failure_penalty: 0
       ore: 0.005
-      ore.max: 2
+      ore_max: 2
       battery: 0.01
-      battery.max: 2
+      battery_max: 2
       heart: 1
-      heart.max: 1000
+      heart_max: 1000
 
   groups:
     agent:
