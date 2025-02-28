@@ -489,7 +489,7 @@ class PufferTrainer:
                 overview[v] = self.stats[k]
 
         environment = {
-            f"env_{k.split('/')[0]}/{"/".join(k.split('/')[1:])}": v
+            f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v
             for k, v in self.stats.items()
         }
 
