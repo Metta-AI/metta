@@ -2,7 +2,9 @@ import logging
 import os
 import time
 from collections import defaultdict
-
+from copy import deepcopy
+from pathlib import Path
+import pdb
 import hydra
 import numpy as np
 import pufferlib
@@ -214,6 +216,15 @@ class PufferTrainer:
                 r = torch.as_tensor(r)
                 d = torch.as_tensor(d)
 
+                if any(d):  # If any environment is done
+                    for i, done in enumerate(d):
+                        if done:
+                            # Reset the E3B matrix for finished episodes
+                            e3b_inv[env_id[i]] = 10 * torch.eye(
+                                self.policy.hidden_size,
+                                device=e3b_inv.device  # Ensure same device
+                            )
+
             with profile.eval_forward, torch.no_grad():
                 # TODO: In place-update should be faster. Leaking 7% speed max
                 # Also should be using a cuda tensor to index
@@ -311,9 +322,18 @@ class PufferTrainer:
                     ret = experience.b_returns[mb]
 
                 with profile.train_forward:
-                    _, newlogprob, entropy, newvalue, lstm_state, _, _ = self.policy(
-                        obs, state=lstm_state, action=atn)
-                    lstm_state = (lstm_state[0].detach(), lstm_state[1].detach())
+                    if experience.lstm_h is not None:
+                        # print(f"Experience obs shape LSTM: {obs.shape}")
+                        _, newlogprob, entropy, newvalue, lstm_state, _, _ = self.policy(
+                            obs, state=lstm_state, action=atn)
+                        lstm_state = (lstm_state[0].detach(), lstm_state[1].detach())
+
+                    # the below can be deleted if no LSTM
+                    else:
+                        _, newlogprob, entropy, newvalue, _, _ = self.policy(
+                            obs.reshape(-1, *self.vecenv.single_observation_space.shape),
+                            action=atn,
+                        )
 
                     if self.device == 'cuda':
                         torch.cuda.synchronize()
@@ -365,6 +385,25 @@ class PufferTrainer:
                         l2_init_loss = self.trainer_cfg.l2_init_loss_coef * self.policy.l2_init_loss().to(self.device)
 
                     loss = pg_loss - self.trainer_cfg.ent_coef * entropy_loss + v_loss * self.trainer_cfg.vf_coef + l2_reg_loss + l2_init_loss
+
+                    if self.use_e3b:
+                        # --- Compute Inverse Dynamics Loss for the mini-batch ---
+                        b_obs_current = experience.b_obs[mb][:-1]  # s_t for t=0..T-2
+                        b_obs_next = experience.b_obs[mb][1:]       # s_{t+1} for t=0..T-2
+                        b_actions_current = experience.b_actions[mb][:-1]
+
+                        # Extract the indices for each action component
+                        action_type_targets = b_actions_current[:, :, 0].reshape(-1)
+                        action_param_targets = b_actions_current[:, :, 1].reshape(-1)
+
+                         # Compute the inverse dynamics loss using the shared encoder.
+                        inverse_loss = self.policy.compute_inverse_dynamics_loss(
+                            b_obs_current.to(self.device),
+                            b_obs_next.to(self.device),
+                            action_type_targets.to(self.device),
+                            action_param_targets.to(self.device)
+                        )
+                        loss = loss + self.trainer_cfg.inverse_loss_coef * inverse_loss
 
                 with profile.learn:
                     self.optimizer.zero_grad()

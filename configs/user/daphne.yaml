@@ -15,19 +15,10 @@ defaults:
 
 npc_policy_uri: null
 
-analyzer:
-  analysis:
-    baseline_policies:
-      - ./train_dir/daphne.local.train.16_pfs/checkpoints
-
-  game:
-    max_steps: 1000
-
-    map_builder:
-      border_width: 0
-
 trainer:
   evaluate_interval: 2
+  use_e3b: true
+
 
 eval:
   num_envs: 2
@@ -45,6 +36,6 @@ sweep:
   metric: "action.use.altar.agent"
 
 cmd: ???
-run_id: 18
+run_id: 26
 run: ${oc.env:USER}.local.${cmd}.${run_id}
 trained_policy_uri: ./train_dir/${oc.env:USER}.local.train.${run_id}/checkpoints
