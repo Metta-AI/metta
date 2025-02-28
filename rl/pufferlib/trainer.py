@@ -207,7 +207,7 @@ class PufferTrainer:
 
             with profile.eval_misc:
                 num_steps = sum(mask)
-                self.agent_step += num_steps
+                self.agent_step += num_steps * self._world_size
 
                 o = torch.as_tensor(o)
                 o_device = o.to(self.device, non_blocking=True)
@@ -477,7 +477,7 @@ class PufferTrainer:
 
         # Now synchronize and aggregate stats across processes
         sps = self.profile.SPS * self._world_size
-        agent_steps = self.agent_step * self._world_size
+        agent_steps = self.agent_step
         epoch = self.epoch
         learning_rate = self.optimizer.param_groups[0]["lr"]
         environment = {k: v for k, v in self.stats.items()}
