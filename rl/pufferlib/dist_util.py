@@ -80,12 +80,22 @@ def _move_to_device(obj, device):
         return obj.to(device)
     elif isinstance(obj, torch.Tensor):
         return obj.to(device)
-    elif hasattr(obj, '__dict__'):
-        for key, val in obj.__dict__.items():
-            if isinstance(val, (nn.Module, torch.Tensor)):
-                obj.__dict__[key] = val.to(device)
-            elif hasattr(val, '__dict__'):
-                obj.__dict__[key] = _move_to_device(val, device)
+    elif hasattr(obj, '__dict__') and not isinstance(obj.__dict__, type({}).__dict__.__class__):
+        # Only try to modify __dict__ if it's not a mappingproxy (which is immutable)
+        try:
+            for key, val in obj.__dict__.items():
+                if isinstance(val, (nn.Module, torch.Tensor)):
+                    obj.__dict__[key] = val.to(device)
+                elif hasattr(val, '__dict__'):
+                    # Try to modify the nested object, but catch any errors from immutable objects
+                    try:
+                        obj.__dict__[key] = _move_to_device(val, device)
+                    except (TypeError, AttributeError):
+                        # If we can't modify it, just leave it as is
+                        logger.debug(f"Could not move object attribute {key} to device {device}")
+        except (TypeError, AttributeError) as e:
+            # If we can't modify the object at all, just return it as is
+            logger.debug(f"Could not modify object to move to device {device}: {e}")
     return obj
 
 def broadcast_object(obj, src_rank=0, target_device=None):
@@ -149,8 +159,12 @@ def broadcast_object(obj, src_rank=0, target_device=None):
 
     # Move any torch modules to the target device if specified
     if target_device is not None:
-        logger.debug(f"Moving object to device: {target_device}")
-        obj = _move_to_device(obj, target_device)
+        try:
+            logger.debug(f"Moving object to device: {target_device}")
+            obj = _move_to_device(obj, target_device)
+        except Exception as e:
+            logger.warning(f"Error moving object to device {target_device}: {e}")
+            logger.warning("Continuing with object on its current device")
 
     logger.debug(f"Broadcast object of size {size.item()} bytes from rank {src_rank}")
     return obj
