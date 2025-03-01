@@ -114,35 +114,49 @@ cdef class MettaGrid(GridEnv):
                 elif map[r,c] == "mine":
                     mine = new Mine(r, c, cfg.objects.mine)
                     self._grid.add_object(mine)
+                    mine.set_event_manager(&self._event_manager)
                     self._stats.incr(b"objects.mine")
-                    if mine.maybe_start_converting():
-                        self._event_manager.schedule_event(Events.FinishConverting, mine.recipe_duration, mine.id, 0)
 
                 elif map[r,c] == "generator":
-                    self._grid.add_object(new Generator(r, c, cfg.objects.generator))
+                    generator = new Generator(r, c, cfg.objects.generator)
+                    self._grid.add_object(generator)
+                    generator.set_event_manager(&self._event_manager)
                     self._stats.incr(b"objects.generator")
 
                 elif map[r,c] == "altar":
-                    self._grid.add_object(new Altar(r, c, cfg.objects.altar))
+                    altar = new Altar(r, c, cfg.objects.altar)
+                    self._grid.add_object(altar)
+                    altar.set_event_manager(&self._event_manager)
                     self._stats.incr(b"objects.altar")
 
                 elif map[r,c] == "armory":
-                    self._grid.add_object(new Armory(r, c, cfg.objects.armory))
+                    armory = new Armory(r, c, cfg.objects.armory)
+                    self._grid.add_object(armory)
+                    armory.set_event_manager(&self._event_manager)
                     self._stats.incr(b"objects.armory")
+
                 elif map[r,c] == "lasery":
-                    self._grid.add_object(new Lasery(r, c, cfg.objects.lasery))
+                    lasery = new Lasery(r, c, cfg.objects.lasery)
+                    self._grid.add_object(lasery)
+                    lasery.set_event_manager(&self._event_manager)
                     self._stats.incr(b"objects.lasery")
 
                 elif map[r,c] == "lab":
-                    self._grid.add_object(new Lab(r, c, cfg.objects.lab))
+                    lab = new Lab(r, c, cfg.objects.lab)
+                    self._grid.add_object(lab)
+                    lab.set_event_manager(&self._event_manager)
                     self._stats.incr(b"objects.lab")
 
                 elif map[r,c] == "factory":
-                    self._grid.add_object(new Factory(r, c, cfg.objects.factory))
+                    factory = new Factory(r, c, cfg.objects.factory)
+                    self._grid.add_object(factory)
+                    factory.set_event_manager(&self._event_manager)
                     self._stats.incr(b"objects.factory")
 
                 elif map[r,c] == "temple":
-                    self._grid.add_object(new Temple(r, c, cfg.objects.temple))
+                    temple = new Temple(r, c, cfg.objects.temple)
+                    self._grid.add_object(temple)
+                    temple.set_event_manager(&self._event_manager)
                     self._stats.incr(b"objects.temple")
 
                 elif map[r,c].startswith("agent."):

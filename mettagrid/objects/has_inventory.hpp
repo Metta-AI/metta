@@ -22,6 +22,16 @@ public:
     virtual bool inventory_is_accessible() {
         return true;
     }
+
+    virtual void update_inventory(InventoryItem item, short amount, float *reward) {
+        if (amount + this->inventory[item] > 255) {
+            amount = 255 - this->inventory[item];
+        }
+        if (amount + this->inventory[item] < 0) {
+            amount = -this->inventory[item];
+        }
+        this->inventory[item] += amount;
+    }
 };
 
 #endif

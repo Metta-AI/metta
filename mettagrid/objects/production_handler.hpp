@@ -16,12 +16,8 @@ public:
             return;
         }
 
-    converter->finish_converting();
+        converter->finish_converting();
         this->event_manager->stats->incr(ObjectTypeNames[converter->_type_id], "produced");
-
-        if (converter->maybe_start_converting()) {
-            this->event_manager->schedule_event(Events::FinishConverting, converter->recipe_duration, converter->id, 0);
-        }
     }
 };
 
