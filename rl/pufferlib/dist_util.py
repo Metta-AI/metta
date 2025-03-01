@@ -1,6 +1,7 @@
 import io
 import logging
 import os
+import sys
 import torch
 import torch.distributed as dist
 import torch.nn as nn
@@ -65,17 +66,33 @@ def recv_object(src_rank=0):
     logger.debug(f"Received object of size {size.item()} bytes from rank {src_rank}")
     return obj
 
-def _move_to_device(obj, device):
+def _move_to_device(obj, device, visited=None, depth=0, max_depth=100):
     """
     Recursively move an object and all its attributes that are torch modules or tensors to the specified device.
 
     Args:
         obj: The object to move
         device: The target device
+        visited: Set of object ids already visited (to prevent circular references)
+        depth: Current recursion depth
+        max_depth: Maximum recursion depth to prevent stack overflow
 
     Returns:
         The object with all torch modules and tensors moved to the device
     """
+    # Initialize visited set if this is the first call
+    if visited is None:
+        visited = set()
+
+    # Check for circular references or excessive recursion
+    obj_id = id(obj)
+    if obj_id in visited or depth > max_depth:
+        return obj
+
+    # Add this object to visited set
+    visited.add(obj_id)
+
+    # Handle torch modules and tensors
     if isinstance(obj, nn.Module):
         return obj.to(device)
     elif isinstance(obj, torch.Tensor):
@@ -83,19 +100,58 @@ def _move_to_device(obj, device):
     elif hasattr(obj, '__dict__') and not isinstance(obj.__dict__, type({}).__dict__.__class__):
         # Only try to modify __dict__ if it's not a mappingproxy (which is immutable)
         try:
-            for key, val in obj.__dict__.items():
+            for key, val in list(obj.__dict__.items()):
                 if isinstance(val, (nn.Module, torch.Tensor)):
                     obj.__dict__[key] = val.to(device)
                 elif hasattr(val, '__dict__'):
                     # Try to modify the nested object, but catch any errors from immutable objects
                     try:
-                        obj.__dict__[key] = _move_to_device(val, device)
+                        obj.__dict__[key] = _move_to_device(val, device, visited, depth + 1, max_depth)
                     except (TypeError, AttributeError):
                         # If we can't modify it, just leave it as is
-                        logger.debug(f"Could not move object attribute {key} to device {device}")
-        except (TypeError, AttributeError) as e:
+                        pass
+        except (TypeError, AttributeError):
             # If we can't modify the object at all, just return it as is
-            logger.debug(f"Could not modify object to move to device {device}: {e}")
+            pass
+
+    # Handle lists and tuples
+    elif isinstance(obj, list):
+        for i, item in enumerate(obj):
+            if isinstance(item, (nn.Module, torch.Tensor)):
+                obj[i] = item.to(device)
+            elif hasattr(item, '__dict__'):
+                try:
+                    obj[i] = _move_to_device(item, device, visited, depth + 1, max_depth)
+                except (TypeError, AttributeError):
+                    pass
+    elif isinstance(obj, tuple):
+        # Tuples are immutable, so we need to create a new one
+        new_items = []
+        for item in obj:
+            if isinstance(item, (nn.Module, torch.Tensor)):
+                new_items.append(item.to(device))
+            elif hasattr(item, '__dict__'):
+                try:
+                    new_items.append(_move_to_device(item, device, visited, depth + 1, max_depth))
+                except (TypeError, AttributeError):
+                    new_items.append(item)
+            else:
+                new_items.append(item)
+        if len(new_items) != len(obj):
+            return obj  # Something went wrong, return original
+        return type(obj)(new_items)  # Create a new tuple of the same type
+
+    # Handle dictionaries
+    elif isinstance(obj, dict):
+        for key, val in list(obj.items()):
+            if isinstance(val, (nn.Module, torch.Tensor)):
+                obj[key] = val.to(device)
+            elif hasattr(val, '__dict__'):
+                try:
+                    obj[key] = _move_to_device(val, device, visited, depth + 1, max_depth)
+                except (TypeError, AttributeError):
+                    pass
+
     return obj
 
 def broadcast_object(obj, src_rank=0, target_device=None):
@@ -161,6 +217,7 @@ def broadcast_object(obj, src_rank=0, target_device=None):
     if target_device is not None:
         try:
             logger.debug(f"Moving object to device: {target_device}")
+            # Use the improved _move_to_device function with cycle detection
             obj = _move_to_device(obj, target_device)
         except Exception as e:
             logger.warning(f"Error moving object to device {target_device}: {e}")
