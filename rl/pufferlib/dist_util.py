@@ -145,7 +145,7 @@ def broadcast_object(obj, src_rank=0, target_device=None):
         # Move data to CPU for deserialization
         cpu_data = data.cpu()
         buffer = io.BytesIO(cpu_data.numpy().tobytes())
-        obj = torch.load(buffer)
+        obj = torch.load(buffer, weights_only=False)
 
     # Move any torch modules to the target device if specified
     if target_device is not None:
