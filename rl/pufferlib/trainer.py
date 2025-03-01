@@ -17,6 +17,7 @@ from agent.metta_agent import DistributedMettaAgent
 from agent.policy_store import PolicyStore
 from rl.eval.eval_stats_db import EvalStatsDB
 from rl.eval.eval_stats_logger import EvalStatsLogger
+from rl.pufferlib.dist_util import broadcast_object
 from rl.pufferlib.experience import Experience
 from rl.pufferlib.profile import Profile
 from rl.pufferlib.trace import save_trace_image
@@ -39,14 +40,17 @@ class PufferTrainer:
         self.device = cfg.device
 
         self._master = True
-        self._local_master = True
         self._world_size = 1
+
         if dist.is_initialized():
             logger.info("Setting up distributed training")
             self._master = (int(os.environ["RANK"]) == 0)
-            self._local_master = (int(os.environ["LOCAL_RANK"]) == 0)
             self._world_size = dist.get_world_size()
             logger.info(f"Rank: {os.environ['RANK']}, Local rank: {os.environ['LOCAL_RANK']}, World size: {self._world_size}")
+        if not self._master:
+            policy_store = None
+            wandb_run = None
+
         self.profile = Profile()
         self.losses = self._make_losses()
         self.stats = defaultdict(list)
@@ -61,41 +65,23 @@ class PufferTrainer:
 
         logger.info("Loading checkpoint")
         os.makedirs(cfg.trainer.checkpoint_dir, exist_ok=True)
-        checkpoint = TrainerCheckpoint.load(cfg.run_dir)
 
-        logger.info("Setting up policy")
-        if checkpoint.policy_path:
-            logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
-            policy_record = policy_store.policy(checkpoint.policy_path)
+        # Only master loads checkpoint from disk
+        checkpoint = None
+        if self._master:
+            checkpoint = TrainerCheckpoint.load(cfg.run_dir)
             if hasattr(checkpoint, 'average_reward'):
                 self.average_reward = checkpoint.average_reward
-        elif cfg.trainer.initial_policy.uri is not None:
-            logger.info(f"Loading initial policy: {cfg.trainer.initial_policy.uri}")
-            policy_record = policy_store.policy(cfg.trainer.initial_policy)
-        else:
-            policy_path = os.path.join(cfg.trainer.checkpoint_dir,
-                                 policy_store.make_model_name(0))
-            for i in range(20):
-                if os.path.exists(policy_path):
-                    logger.info(f"Loading policy from checkpoint: {policy_path}")
-                    policy_record = policy_store.policy(policy_path)
-                    break
-                elif self._master:
-                    logger.info("Creating new policy")
-                    policy_record = policy_store.create(self.vecenv.driver_env)
-                    break
 
-                logger.info("No policy found. Waiting for 10 seconds before retrying.")
-                time.sleep(10)
-            assert policy_record is not None, "No policy found"
+        # Broadcast checkpoint to all workers
+        if dist.is_initialized():
+            logger.info("Broadcasting checkpoint from master to all workers")
+            checkpoint = broadcast_object(checkpoint, src_rank=0)
+            if hasattr(checkpoint, 'average_reward'):
+                self.average_reward = checkpoint.average_reward
 
-        if self._local_master:
-            print(policy_record.policy())
-
-        if policy_record.metadata["action_names"] != self.vecenv.driver_env.action_names():
-            raise ValueError(
-                "Action names do not match between policy and environment: "
-                f"{policy_record.metadata['action_names']} != {self.vecenv.driver_env.action_names()}")
+        # Load policy record
+        policy_record = self._load_policy_record(checkpoint)
 
         self._initial_pr = policy_record
         self.last_pr = policy_record
@@ -127,6 +113,49 @@ class PufferTrainer:
                 wandb_run.define_metric(f"{k}/*", step_metric="train/agent_step")
 
         logger.info(f"PufferTrainer initialization complete on device: {self.device}")
+
+    def _load_policy_record(self, checkpoint):
+        """
+        Load or create a policy record based on checkpoint information.
+        Only the master process loads/creates the policy, then broadcasts it to all workers.
+
+        Args:
+            checkpoint: The trainer checkpoint containing policy path information
+
+        Returns:
+            The loaded or created policy record
+        """
+        logger.info("Setting up policy")
+        policy_record = None
+
+        if self._master:
+            if checkpoint.policy_path:
+                logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
+                policy_record = self.policy_store.policy(checkpoint.policy_path)
+            elif self.cfg.trainer.initial_policy.uri is not None:
+                logger.info(f"Loading initial policy: {self.cfg.trainer.initial_policy.uri}")
+                policy_record = self.policy_store.policy(self.cfg.trainer.initial_policy)
+            else:
+                policy_path = os.path.join(
+                    self.cfg.trainer.checkpoint_dir, self.policy_store.make_model_name(0))
+                if os.path.exists(policy_path):
+                    logger.info(f"Loading policy from checkpoint: {policy_path}")
+                    policy_record = self.policy_store.policy(policy_path)
+                else:
+                    logger.info("Creating new policy")
+                    policy_record = self.policy_store.create(self.vecenv.driver_env)
+
+            if policy_record.metadata["action_names"] != self.vecenv.driver_env.action_names():
+                raise ValueError(
+                    "Action names do not match between policy and environment: "
+                    f"{policy_record.metadata['action_names']} != {self.vecenv.driver_env.action_names()}")
+
+        # Broadcast policy_record from master to all workers
+        if dist.is_initialized():
+            logger.info("Broadcasting policy from master to all workers")
+            policy_record = broadcast_object(policy_record, src_rank=0)
+
+        return policy_record
 
     def train(self):
         self.train_start = time.time()
@@ -173,6 +202,9 @@ class PufferTrainer:
         logger.info(f"Training complete. Total time: {self.train_time:.2f} seconds")
 
     def _evaluate_policy(self):
+        if not self._master:
+            return
+
         self.cfg.eval.policy_uri = self.last_pr.uri
         self.cfg.analyzer.policy_uri = self.last_pr.uri
 
@@ -413,7 +445,7 @@ class PufferTrainer:
             )
 
     def _checkpoint_trainer(self):
-        if not self._local_master:
+        if not self._master:
             return
 
         pr = self._checkpoint_policy()
@@ -426,7 +458,7 @@ class PufferTrainer:
         ).save(self.cfg.run_dir)
 
     def _checkpoint_policy(self):
-        if not self._local_master:
+        if not self._master:
             return
 
         name = self.policy_store.make_model_name(self.epoch)
@@ -453,9 +485,6 @@ class PufferTrainer:
         return self.last_pr
 
     def _save_policy_to_wandb(self):
-        if not self._master:
-            return
-
         if self.wandb_run is None:
             return
 
@@ -463,10 +492,13 @@ class PufferTrainer:
         self.policy_store.add_to_wandb_run(self.wandb_run.name, pr)
 
     def _save_trace_to_wandb(self):
+        if not self._master:
+            return
+
         image_path = f"{self.cfg.run_dir}/traces/trace.{self.epoch}.png"
         save_trace_image(self.cfg, self.last_pr, image_path)
-        if self._master:
-            wandb.log({"traces/actions": wandb.Image(image_path)})
+        if self.wandb_run:
+            self.wandb_run.log({"traces/actions": wandb.Image(image_path)})
 
     def _process_stats(self):
         for k in list(self.stats.keys()):
@@ -505,7 +537,7 @@ class PufferTrainer:
             for rank in self._effective_rank
         }
 
-        if self.wandb_run and self.cfg.wandb.track and self._master:
+        if self.wandb_run and self.cfg.wandb.track:
             self.wandb_run.log({
                 **{f'overview/{k}': v for k, v in overview.items()},
                 **{f'losses/{k}': v for k, v in losses.items()},
