@@ -60,7 +60,7 @@ def recv_object(src_rank=0):
     dist.recv(data, src=src_rank)
 
     # Deserialize the object
-    buffer = io.BytesIO(data.numpy().tobytes())
+    buffer = io.BytesIO(data.cpu().numpy().tobytes())
     obj = torch.load(buffer, weights_only=False)
 
     logger.debug(f"Received object of size {size.item()} bytes from rank {src_rank}")
@@ -116,7 +116,7 @@ def broadcast_object(obj):
 
     # Deserialize on non-source ranks
     if rank != 0:
-        buffer = io.BytesIO(data.numpy().tobytes())
+        buffer = io.BytesIO(data.cpu().numpy().tobytes())
         obj = torch.load(buffer, weights_only=False)
 
     logger.debug(f"Broadcast object of size {size.item()} bytes from rank {0}")
