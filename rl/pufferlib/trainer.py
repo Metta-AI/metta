@@ -153,7 +153,7 @@ class PufferTrainer:
         # Broadcast policy_record from master to all workers and move to correct device
         if dist.is_initialized():
             logger.info(f"Broadcasting policy from master to all workers and moving to device: {self.device}")
-            policy_record = broadcast_object(policy_record, src_rank=0, target_device=self.device)
+            policy_record = broadcast_object(policy_record, src_rank=0)
 
         return policy_record
 
