@@ -15,7 +15,7 @@ from mettagrid.grid_object cimport (
     GridLocation
 )
 from mettagrid.observation_encoder cimport ObservationEncoder, ObsType
-
+from mettagrid.objects.production_handler cimport ProductionHandler
 # Constants
 obs_np_type = np.uint8
 
@@ -31,7 +31,6 @@ cdef class GridEnv:
             unsigned short obs_height,
             ObservationEncoder observation_encoder,
             list[ActionHandler] action_handlers,
-            list[EventHandler] event_handlers,
             bint track_last_action=False
         ):
         self._obs_width = obs_width
@@ -63,8 +62,9 @@ cdef class GridEnv:
             self._max_action_arg = max(self._max_action_arg, max_arg)
             self._max_action_priority = max(self._max_action_priority, (<ActionHandler>handler)._priority)
 
-        self._event_manager = EventManager(self, event_handlers)
-
+        self._event_manager.init(self._grid, &self._stats)
+        # The order of this needs to match the order in the Events enum
+        self._event_manager.event_handlers.push_back(new ProductionHandler(&self._event_manager))
         self._track_last_action = track_last_action
 
         self.set_buffers(

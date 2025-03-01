@@ -89,7 +89,6 @@ cdef class MettaGrid(GridEnv):
             cfg.obs_width, cfg.obs_height,
             obs_encoder,
             actions,
-            [ ProductionHandler() ],
             track_last_action=env_cfg.track_last_action
         )
 
