@@ -95,24 +95,24 @@ def broadcast_object(obj):
         buffer.seek(0)
 
         # Get the size of the serialized object
-        size = torch.tensor(buffer.getbuffer().nbytes, dtype=torch.long).to(device)
+        size = torch.tensor(buffer.getbuffer().nbytes, dtype=torch.long)
 
         # Convert buffer to tensor
         data = torch.ByteTensor(list(buffer.getbuffer()))
     else:
         # Create empty tensors to receive data
-        size = torch.tensor(0, dtype=torch.long).to(device)
+        size = torch.tensor(0, dtype=torch.long)
         data = None  # Will be initialized after receiving size
 
     # Broadcast the size
-    dist.broadcast(size, src=0)
+    dist.broadcast(size.to(device), src=0)
 
     # Initialize data tensor on non-source ranks
     if rank != 0:
         data = torch.ByteTensor(size.item()).to(device)
 
     # Broadcast the data
-    dist.broadcast(data, src=0)
+    dist.broadcast(data.to(device), src=0)
 
     # Deserialize on non-source ranks
     if rank != 0:
