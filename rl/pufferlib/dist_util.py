@@ -158,26 +158,25 @@ def broadcast_object(obj, src_rank=0, target_device=None):
     """
     Broadcast a Python object from the source rank to all processes.
 
-    Note: This function assumes CUDA is available when distributed training is initialized.
-    If target_device is specified, any torch modules in the object will be moved to that device.
+    This function keeps all objects on CPU and does not attempt to move them to CUDA devices.
+    If you need to move objects to a specific device, do so after calling this function.
 
     Args:
         obj: The Python object to broadcast (only needed on src_rank)
         src_rank: The source rank (default: 0)
-        target_device: The device to move torch modules to after deserialization (default: None)
+        target_device: Ignored parameter kept for backward compatibility
 
     Returns:
-        The broadcast Python object
+        The broadcast Python object (on CPU)
     """
     if not dist.is_initialized():
         logger.warning("Distributed training not initialized, skipping broadcast")
         return obj
 
     rank = dist.get_rank()
-    local_rank = int(os.environ.get('LOCAL_RANK', '0'))
-    device = torch.device(f"cuda:{local_rank}")
 
-    logger.debug(f"Rank {rank} using device {device} for broadcast")
+    if target_device is not None:
+        logger.info(f"target_device parameter is ignored, objects will remain on CPU")
 
     if rank == src_rank:
         # Serialize the object to a buffer
@@ -186,13 +185,13 @@ def broadcast_object(obj, src_rank=0, target_device=None):
         buffer.seek(0)
 
         # Get the size of the serialized object
-        size = torch.tensor(buffer.getbuffer().nbytes, dtype=torch.long).to(device)
+        size = torch.tensor(buffer.getbuffer().nbytes, dtype=torch.long)
 
-        # Convert buffer to tensor - create on CPU first, then move to device
-        data = torch.ByteTensor(list(buffer.getbuffer())).to(device)
+        # Convert buffer to tensor
+        data = torch.ByteTensor(list(buffer.getbuffer()))
     else:
         # Create empty tensors to receive data
-        size = torch.tensor(0, dtype=torch.long).to(device)
+        size = torch.tensor(0, dtype=torch.long)
         data = None  # Will be initialized after receiving size
 
     # Broadcast the size
@@ -200,28 +199,15 @@ def broadcast_object(obj, src_rank=0, target_device=None):
 
     # Initialize data tensor on non-source ranks
     if rank != src_rank:
-        # Create on CPU first, then move to device
-        data = torch.ByteTensor(size.item()).to(device)
+        data = torch.ByteTensor(size.item())
 
     # Broadcast the data
     dist.broadcast(data, src_rank)
 
     # Deserialize on non-source ranks
     if rank != src_rank:
-        # Move data to CPU for deserialization
-        cpu_data = data.cpu()
-        buffer = io.BytesIO(cpu_data.numpy().tobytes())
+        buffer = io.BytesIO(data.numpy().tobytes())
         obj = torch.load(buffer, weights_only=False)
-
-    # Move any torch modules to the target device if specified
-    if target_device is not None:
-        try:
-            logger.debug(f"Moving object to device: {target_device}")
-            # Use the improved _move_to_device function with cycle detection
-            obj = _move_to_device(obj, target_device)
-        except Exception as e:
-            logger.warning(f"Error moving object to device {target_device}: {e}")
-            logger.warning("Continuing with object on its current device")
 
     logger.debug(f"Broadcast object of size {size.item()} bytes from rank {src_rank}")
     return obj
