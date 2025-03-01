@@ -12,12 +12,14 @@ class TrainerCheckpoint:
         epoch: int = 0,
         optimizer_state_dict: dict = None,
         policy_path: str = None,
+        average_reward: float = None,
         **kwargs
     ):
         self.agent_step = agent_step
         self.epoch = epoch
         self.optimizer_state_dict = optimizer_state_dict
         self.policy_path = policy_path
+        self.average_reward = average_reward
         self.extra_args = kwargs
 
     def save(self, run_dir: str):
@@ -26,6 +28,7 @@ class TrainerCheckpoint:
             'agent_step': self.agent_step,
             'epoch': self.epoch,
             'policy_path': self.policy_path,
+            'average_reward': self.average_reward,
             **self.extra_args
         }
         state_path = os.path.join(run_dir, 'trainer_state.pt')

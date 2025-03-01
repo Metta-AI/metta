@@ -66,7 +66,7 @@ def recv_object(src_rank=0):
     logger.debug(f"Received object of size {size.item()} bytes from rank {src_rank}")
     return obj
 
-def broadcast_object(obj, src_rank=0):
+def broadcast_object(obj):
     """
     Broadcast a Python object from the source rank to all processes.
 
@@ -85,37 +85,39 @@ def broadcast_object(obj, src_rank=0):
         return obj
 
     rank = dist.get_rank()
+    local_rank = os.environ.get("LOCAL_RANK", 0)
+    device = f"cuda:{local_rank}"
 
-    if rank == src_rank:
+    if rank == 0:
         # Serialize the object to a buffer
         buffer = io.BytesIO()
         torch.save(obj, buffer)
         buffer.seek(0)
 
         # Get the size of the serialized object
-        size = torch.tensor(buffer.getbuffer().nbytes, dtype=torch.long)
+        size = torch.tensor(buffer.getbuffer().nbytes, dtype=torch.long).to(device)
 
         # Convert buffer to tensor
         data = torch.ByteTensor(list(buffer.getbuffer()))
     else:
         # Create empty tensors to receive data
-        size = torch.tensor(0, dtype=torch.long)
+        size = torch.tensor(0, dtype=torch.long).to(device)
         data = None  # Will be initialized after receiving size
 
     # Broadcast the size
-    dist.broadcast(size, src_rank)
+    dist.broadcast(size, src=0)
 
     # Initialize data tensor on non-source ranks
-    if rank != src_rank:
-        data = torch.ByteTensor(size.item())
+    if rank != 0:
+        data = torch.ByteTensor(size.item()).to(device)
 
     # Broadcast the data
-    dist.broadcast(data, src_rank)
+    dist.broadcast(data, src=0)
 
     # Deserialize on non-source ranks
-    if rank != src_rank:
+    if rank != 0:
         buffer = io.BytesIO(data.numpy().tobytes())
         obj = torch.load(buffer, weights_only=False)
 
-    logger.debug(f"Broadcast object of size {size.item()} bytes from rank {src_rank}")
+    logger.debug(f"Broadcast object of size {size.item()} bytes from rank {0}")
     return obj
