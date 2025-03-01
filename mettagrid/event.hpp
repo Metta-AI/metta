@@ -3,6 +3,7 @@
 
 #include <queue>
 #include <vector>
+#include <cassert>
 using namespace std;
 
 #include "grid_object.hpp"
@@ -66,6 +67,10 @@ public:
 
     void schedule_event(EventId event_id, unsigned int delay, GridObjectId object_id, EventArg arg) {
         Event event;
+        // If the object id is 0, the object has probably not been added to the grid yet. Given
+        // our current usage of events, this is an error, since we won't be able to find the object
+        // later when the event resolves.
+        assert(object_id != 0);
         event.timestamp = this->_current_timestep + delay;
         event.event_id = event_id;
         event.object_id = object_id;
