@@ -1,16 +1,10 @@
-from mettagrid.event cimport EventHandler, EventArg
+from mettagrid.event cimport EventHandler, EventArg, EventManager
 from mettagrid.grid_object cimport GridObjectId
 from .constants cimport ObjectTypeNames, Events
 from .converter cimport Converter
 
-cdef class ProductionHandler(EventHandler):
-    cdef inline void handle_event(self, GridObjectId obj_id, EventArg arg):
-        cdef Converter *converter = <Converter*>self.env._grid.object(obj_id)
-        if converter is NULL:
-            return
+cdef extern from "production_handler.hpp":
+    cdef cppclass ProductionHandler(EventHandler):
+        ProductionHandler(EventManager *event_manager)
 
-        converter.finish_converting()
-        self.env._stats.incr(ObjectTypeNames[converter._type_id], b"produced")
-
-        if converter.maybe_start_converting():
-            self.env._event_manager.schedule_event(Events.FinishConverting, converter.recipe_duration, converter.id, 0)
+        void handle_event(GridObjectId obj_id, EventArg arg)
