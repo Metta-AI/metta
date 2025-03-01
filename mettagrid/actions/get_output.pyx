@@ -50,9 +50,6 @@ cdef class GetOutput(MettaActionHandler):
             # to fix it.
             actor.stats.add(InventoryItemNames[i], b"get", converter.inventory[i])
             actor.update_inventory(<InventoryItem>i, converter.inventory[i], &self.env._rewards[actor_id])
-            converter.inventory[i] = 0
-            
-        if converter.maybe_start_converting():
-            self.env._event_manager.schedule_event(Events.FinishConverting, converter.recipe_duration, converter.id, 0)
+            converter.update_inventory(<InventoryItem>i, -converter.inventory[i], NULL)
 
         return True
