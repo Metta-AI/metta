@@ -60,7 +60,7 @@ def recv_object(src_rank=0):
 
     # Deserialize the object
     buffer = io.BytesIO(data.numpy().tobytes())
-    obj = torch.load(buffer)
+    obj = torch.load(buffer, weights_only=False)
 
     logger.debug(f"Received object of size {size.item()} bytes from rank {src_rank}")
     return obj
