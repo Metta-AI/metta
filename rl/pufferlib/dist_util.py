@@ -108,7 +108,10 @@ def broadcast_object(obj, src_rank=0, target_device=None):
         return obj
 
     rank = dist.get_rank()
-    my_device = torch.device(f"cuda:{os.environ['LOCAL_RANK']}")
+    local_rank = int(os.environ.get('LOCAL_RANK', '0'))
+    device = torch.device(f"cuda:{local_rank}")
+
+    logger.debug(f"Rank {rank} using device {device} for broadcast")
 
     if rank == src_rank:
         # Serialize the object to a buffer
@@ -116,26 +119,25 @@ def broadcast_object(obj, src_rank=0, target_device=None):
         torch.save(obj, buffer)
         buffer.seek(0)
 
-
         # Get the size of the serialized object
-        size = torch.tensor(buffer.getbuffer().nbytes, dtype=torch.long).to(my_device)
+        size = torch.tensor(buffer.getbuffer().nbytes, dtype=torch.long, device=device)
 
         # Convert buffer to tensor
-        data = torch.ByteTensor(list(buffer.getbuffer())).to(my_device)
+        data = torch.ByteTensor(list(buffer.getbuffer())).to(device)
     else:
         # Create empty tensors to receive data
-        size = torch.tensor(0, dtype=torch.long, device=my_device)
+        size = torch.tensor(0, dtype=torch.long, device=device)
         data = None  # Will be initialized after receiving size
 
     # Broadcast the size
-    dist.broadcast(size, src=src_rank)
+    dist.broadcast(size, src_rank)
 
     # Initialize data tensor on non-source ranks
     if rank != src_rank:
-        data = torch.ByteTensor(size.item(), device=my_device)
+        data = torch.ByteTensor(size.item(), device=device)
 
     # Broadcast the data
-    dist.broadcast(data, src=src_rank)
+    dist.broadcast(data, src_rank)
 
     # Deserialize on non-source ranks
     if rank != src_rank:

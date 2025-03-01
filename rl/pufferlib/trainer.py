@@ -76,7 +76,7 @@ class PufferTrainer:
         # Broadcast checkpoint to all workers
         if dist.is_initialized():
             logger.info("Broadcasting checkpoint from master to all workers")
-            checkpoint = broadcast_object(checkpoint)
+            checkpoint = broadcast_object(checkpoint, src_rank=0)
             if hasattr(checkpoint, 'average_reward'):
                 self.average_reward = checkpoint.average_reward
 
@@ -153,7 +153,7 @@ class PufferTrainer:
         # Broadcast policy_record from master to all workers and move to correct device
         if dist.is_initialized():
             logger.info(f"Broadcasting policy from master to all workers and moving to device: {self.device}")
-            policy_record = broadcast_object(policy_record, self.device)
+            policy_record = broadcast_object(policy_record, src_rank=0, target_device=self.device)
 
         return policy_record
 
