@@ -77,22 +77,8 @@ class PufferTrainer:
         if dist.is_initialized():
             checkpoint = broadcast_object(checkpoint)
 
-        # Load policy record
-        policy_record = self._load_policy_record(checkpoint)
+        self._load_policy(checkpoint)
 
-        self._initial_pr = policy_record
-        self.last_pr = policy_record
-        self.policy = policy_record.policy()
-        self.policy_record = policy_record
-        self.uncompiled_policy = self.policy
-
-        if self.trainer_cfg.compile:
-            logger.info("Compiling policy")
-            self.policy = torch.compile(self.policy, mode=self.trainer_cfg.compile_mode)
-
-        if dist.is_initialized():
-            logger.info("Initializing DistributedDataParallel")
-            self.policy = DistributedMettaAgent(self.policy, self.device)
 
         self._make_experience_buffer()
 
@@ -111,7 +97,7 @@ class PufferTrainer:
 
         logger.info(f"PufferTrainer initialization complete on device: {self.device}")
 
-    def _load_policy_record(self, checkpoint):
+    def _load_policy(self, checkpoint):
         """
         Load or create a policy record based on checkpoint information.
         Only the master process loads/creates the policy, then broadcasts it to all workers.
@@ -148,9 +134,22 @@ class PufferTrainer:
                     f"{policy_record.metadata['action_names']} != {self.vecenv.driver_env.action_names()}")
 
         # Broadcast policy_record from master to all workers and move to correct device
+        self.policy = policy_record.policy()
         if dist.is_initialized():
-            policy_record = broadcast_object(policy_record)
-            return policy_record
+            self.policy = broadcast_object(policy_record.policy())
+
+        self._initial_pr = policy_record
+        self.last_pr = policy_record
+        self.policy_record = policy_record
+        self.uncompiled_policy = self.policy
+
+        if self.trainer_cfg.compile:
+            logger.info("Compiling policy")
+            self.policy = torch.compile(self.policy, mode=self.trainer_cfg.compile_mode)
+
+        if dist.is_initialized():
+            logger.info("Initializing DistributedDataParallel")
+            self.policy = DistributedMettaAgent(self.policy, self.device)
 
     def train(self):
         self.train_start = time.time()
