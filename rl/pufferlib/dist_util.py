@@ -68,6 +68,8 @@ def broadcast_object(obj, src_rank=0):
     """
     Broadcast a Python object from the source rank to all processes.
 
+    Note: This function assumes CUDA is available when distributed training is initialized.
+
     Args:
         obj: The Python object to broadcast (only needed on src_rank)
         src_rank: The source rank (default: 0)
@@ -80,6 +82,7 @@ def broadcast_object(obj, src_rank=0):
         return obj
 
     rank = dist.get_rank()
+    device = torch.device(f"cuda:{torch.cuda.current_device()}")
 
     if rank == src_rank:
         # Serialize the object to a buffer
@@ -88,13 +91,13 @@ def broadcast_object(obj, src_rank=0):
         buffer.seek(0)
 
         # Get the size of the serialized object
-        size = torch.tensor(buffer.getbuffer().nbytes, dtype=torch.long)
+        size = torch.tensor(buffer.getbuffer().nbytes, dtype=torch.long, device=device)
 
         # Convert buffer to tensor
-        data = torch.ByteTensor(list(buffer.getbuffer()))
+        data = torch.ByteTensor(list(buffer.getbuffer())).to(device)
     else:
         # Create empty tensors to receive data
-        size = torch.tensor(0, dtype=torch.long)
+        size = torch.tensor(0, dtype=torch.long, device=device)
         data = None  # Will be initialized after receiving size
 
     # Broadcast the size
@@ -102,14 +105,16 @@ def broadcast_object(obj, src_rank=0):
 
     # Initialize data tensor on non-source ranks
     if rank != src_rank:
-        data = torch.ByteTensor(size.item())
+        data = torch.ByteTensor(size.item(), device=device)
 
     # Broadcast the data
     dist.broadcast(data, src=src_rank)
 
     # Deserialize on non-source ranks
     if rank != src_rank:
-        buffer = io.BytesIO(data.numpy().tobytes())
+        # Move data to CPU for deserialization
+        cpu_data = data.cpu()
+        buffer = io.BytesIO(cpu_data.numpy().tobytes())
         obj = torch.load(buffer)
 
     logger.debug(f"Broadcast object of size {size.item()} bytes from rank {src_rank}")
