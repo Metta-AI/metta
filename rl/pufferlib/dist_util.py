@@ -118,7 +118,7 @@ def broadcast_object(obj, src_rank=0, target_device=None):
 
 
         # Get the size of the serialized object
-        size = torch.tensor(buffer.getbuffer().nbytes, dtype=torch.long)
+        size = torch.tensor(buffer.getbuffer().nbytes, dtype=torch.long).to(my_device)
 
         # Convert buffer to tensor
         data = torch.ByteTensor(list(buffer.getbuffer())).to(my_device)
