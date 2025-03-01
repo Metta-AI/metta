@@ -76,7 +76,7 @@ class PufferTrainer:
         # Broadcast checkpoint to all workers
         if dist.is_initialized():
             logger.info("Broadcasting checkpoint from master to all workers")
-            checkpoint = broadcast_object(checkpoint, src_rank=0)
+            checkpoint = broadcast_object(checkpoint, src_rank=0, target_device=self.device)
             if hasattr(checkpoint, 'average_reward'):
                 self.average_reward = checkpoint.average_reward
 

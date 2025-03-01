@@ -7,6 +7,7 @@ from mettagrid.config.config import setup_metta_environment
 from omegaconf import OmegaConf
 from rich.logging import RichHandler
 from rl.wandb.wandb_context import WandbContext
+import torch
 import torch.distributed as dist
 
 from torch.distributed.elastic.multiprocessing.errors import record
@@ -30,7 +31,11 @@ def main(cfg):
 
     if "LOCAL_RANK" in os.environ:
         local_rank = int(os.environ["LOCAL_RANK"])
-        cfg.device = f'{cfg.device}:{local_rank}'
+        # Set visible devices to ensure each process only sees its assigned GPU
+        os.environ["CUDA_VISIBLE_DEVICES"] = str(local_rank)
+        # Now use device 0 since each process only sees one GPU (its assigned one)
+        cfg.device = f'cuda:0'
+        logger.info(f"Process rank {os.environ.get('RANK', '?')} using GPU {local_rank}")
         dist.init_process_group(backend="nccl")
 
     with WandbContext(cfg) as wandb_run:
