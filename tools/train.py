@@ -31,10 +31,9 @@ def main(cfg):
 
     if "LOCAL_RANK" in os.environ:
         local_rank = int(os.environ["LOCAL_RANK"])
-        # Set visible devices to ensure each process only sees its assigned GPU
-        os.environ["CUDA_VISIBLE_DEVICES"] = str(local_rank)
-        # Now use device 0 since each process only sees one GPU (its assigned one)
-        cfg.device = f'cuda:0'
+        # Set the device directly without modifying CUDA_VISIBLE_DEVICES
+        # This allows each process to see all GPUs but use only its assigned one
+        cfg.device = f'cuda:{local_rank}'
         logger.info(f"Process rank {os.environ.get('RANK', '?')} using GPU {local_rank}")
         dist.init_process_group(backend="nccl")
 
