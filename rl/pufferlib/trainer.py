@@ -150,10 +150,10 @@ class PufferTrainer:
                     "Action names do not match between policy and environment: "
                     f"{policy_record.metadata['action_names']} != {self.vecenv.driver_env.action_names()}")
 
-        # Broadcast policy_record from master to all workers
+        # Broadcast policy_record from master to all workers and move to correct device
         if dist.is_initialized():
-            logger.info("Broadcasting policy from master to all workers")
-            policy_record = broadcast_object(policy_record, src_rank=0)
+            logger.info(f"Broadcasting policy from master to all workers and moving to device: {self.device}")
+            policy_record = broadcast_object(policy_record, src_rank=0, target_device=self.device)
 
         return policy_record
 
