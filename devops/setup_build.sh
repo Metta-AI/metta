@@ -32,8 +32,16 @@ git clone https://github.com/Metta-AI/mettagrid.git
 cd mettagrid
 echo "Fetching mettagrid in to $(pwd)"
 git fetch
-echo "Checking out main in to $(pwd)"
-git checkout main
+
+# Check out the specified reference
+if [ -n "$METTAGRID_REF" ]; then
+  echo "Checking out mettagrid reference: $METTAGRID_REF"
+  git checkout "$METTAGRID_REF"
+else
+  echo "No mettagrid reference specified, checking out main branch"
+  git checkout main
+fi
+
 echo "Installing mettagrid in to $(pwd)"
 pip install -r requirements.txt
 echo "Building mettagrid in to $(pwd)"

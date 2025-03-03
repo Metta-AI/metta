@@ -3,132 +3,238 @@ import netrc
 import os
 import random
 import string
+import sys
+import subprocess
 
 import boto3
+from botocore.exceptions import ProfileNotFound, NoCredentialsError, ClientError
 
-machine_profiles = {
-    "g6.8xlarge": {
-        "vcpus": 32,
-        "memory": 120,
-        "gpus": 1,
-    },
-    "g6.12xlarge": {
-        "vcpus": 48,
-        "memory": 120,
-        "gpus": 4,
-    },
-    "g6.48xlarge": {
-        "vcpus": 192,
-        "memory": 600,
-        "gpus": 8,
-    },
-}
-
-machine_for_gpu_count = {
-    1: "g6.8xlarge",
-    4: "g6.12xlarge",
-    8: "g6.48xlarge",
-}
+def get_current_commit(repo_path=None):
+    """Get the current git commit hash."""
+    try:
+        cmd = ["git", "rev-parse", "HEAD"]
+        if repo_path:
+            cmd = ["git", "-C", repo_path, "rev-parse", "HEAD"]
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        return result.stdout.strip()
+    except subprocess.CalledProcessError:
+        return None
 
 def submit_batch_job(args, task_args):
-    batch = boto3.client('batch')
+    session_kwargs = {'region_name': 'us-east-1'}
+    if args.profile:
+        session_kwargs['profile_name'] = args.profile
 
-    random_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=5))
-    job_name = args.run.replace('.', '_') + "_" + random_id
-    job_queue = "metta-batch-jq-2"
-    job_definition = "metta-batch-train-jd"
+    try:
+        # Create a new session with the specified profile
+        session = boto3.Session(**session_kwargs)
 
-    response = batch.submit_job(
-        jobName=job_name,
-        jobQueue=job_queue,
-        jobDefinition=job_definition,
-        containerOverrides=container_config(args, task_args, job_name)
-    )
+        # Check if credentials are available
+        if not session.get_credentials():
+            print("Error: No AWS credentials found. Please run the SSO login command:")
+            print("aws sso login --profile stem")
+            print("Or run the setup script: ./devops/aws/setup_sso.sh")
+            sys.exit(1)
 
-    print(f"Submitted job {job_name} to queue {job_queue} with job ID {response['jobId']}")
-    print(f"https://us-east-1.console.aws.amazon.com/batch/v2/home?region=us-east-1#/jobs/detail/{response['jobId']}")
+        batch = session.client('batch')
+
+        random_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=5))
+        job_name = args.run.replace('.', '_') + "_" + random_id
+        job_queue = args.job_queue
+
+        # Always use the distributed job definition
+        job_definition = "metta-batch-dist-train"
+
+        # Submit multi-node job
+        response = batch.submit_job(
+            jobName=job_name,
+            jobQueue=job_queue,
+            jobDefinition=job_definition,
+            nodeOverrides={
+                'nodePropertyOverrides': [
+                    {
+                        'targetNodes': '0:',
+                        'containerOverrides': container_config(args, task_args, job_name)
+                    }
+                ],
+                'numNodes': args.num_nodes
+            }
+        )
+
+        print(f"Submitted job {job_name} to queue {job_queue} with job ID {response['jobId']}")
+        print(f"https://us-east-1.console.aws.amazon.com/batch/v2/home?region=us-east-1#/jobs/detail/{response['jobId']}")
+    except ProfileNotFound:
+        print(f"Error: AWS profile '{args.profile}' not found. Please check your AWS configuration.")
+        sys.exit(1)
+    except NoCredentialsError:
+        print("Error: AWS credentials not found. Please run the SSO login command:")
+        print("aws sso login --profile stem")
+        print("Or run the setup script: ./devops/aws/setup_sso.sh")
+        sys.exit(1)
+    except ClientError as e:
+        print(f"AWS Error: {e}")
+        sys.exit(1)
 
 def container_config(args, task_args, job_name):
-    # Get the wandb key from the .netrc file
-    netrc_info = netrc.netrc(os.path.expanduser('~/.netrc'))
-    wandb_key = netrc_info.authenticators('api.wandb.ai')[2]
-    if not wandb_key:
-        raise ValueError('WANDB_API_KEY not found in .netrc file')
+    try:
+        # Get the wandb key from the .netrc file
+        netrc_info = netrc.netrc(os.path.expanduser('~/.netrc'))
+        wandb_key = netrc_info.authenticators('api.wandb.ai')[2]
+        if not wandb_key:
+            raise ValueError('WANDB_API_KEY not found in .netrc file')
+    except (FileNotFoundError, TypeError):
+        print("Error: Could not find WANDB_API_KEY in ~/.netrc file")
+        print("Please ensure you have a valid ~/.netrc file with api.wandb.ai credentials")
+        sys.exit(1)
 
-    machine_profile = machine_profiles[machine_for_gpu_count[args.gpus]]
-    setup_cmds = [
-        'git pull',
-        'pip install -r requirements.txt',
-        './devops/setup_build.sh',
-        'ln -s /mnt/efs/train_dir train_dir',
+    # Calculate resource requirements
+    vcpus_per_gpu = args.gpu_cpus * 2
+    total_vcpus = vcpus_per_gpu * args.gpus
+
+    # Memory in GB, convert to MB for AWS Batch API
+    memory_gb = int(args.cpu_ram_gb)
+    memory_mb = memory_gb * 1024
+
+    # Set up environment variables for distributed training
+    env_vars = [
+        {
+            'name': 'HYDRA_FULL_ERROR',
+            'value': '1'
+        },
+        {
+            'name': 'WANDB_API_KEY',
+            'value': wandb_key
+        },
+        {
+            'name': 'WANDB_SILENT',
+            'value': 'true'
+        },
+        {
+            'name': 'COLOR_LOGGING',
+            'value': 'false'
+        },
+        {
+            'name': 'WANDB_HOST',
+            'value': job_name
+        },
+        {
+            'name': 'METTA_HOST',
+            'value': job_name
+        },
+        {
+            'name': 'METTA_USER',
+            'value': os.environ.get('USER', 'unknown')
+        },
+        {
+            'name': 'NCCL_DEBUG',
+            'value': 'INFO'
+        },
     ]
-    train_cmd = [
-        f'NUM_GPUS={args.gpus} ',
-        f'./devops/{args.cmd}.sh',
-        f'run={args.run}',
-        'hardware=aws',
-        f'trainer.num_workers={min(6, machine_profile["vcpus"] // args.gpus // 2)}', # 2 vcpu per worker
-        *task_args,
-    ]
+
+    # Calculate num_workers based on available vCPUs
+    num_workers = min(6, vcpus_per_gpu // 2)  # 2 vCPU per worker
+
+    # Add required environment variables for the entrypoint script
+    env_vars.extend([
+        {
+            'name': 'RUN_ID',
+            'value': args.run
+        },
+        {
+            'name': 'CMD',
+            'value': args.cmd
+        },
+        {
+            'name': 'NUM_GPUS',
+            'value': str(args.gpus)
+        },
+        {
+            'name': 'NUM_WORKERS',
+            'value': str(num_workers)
+        }
+    ])
+
+    # Add git reference (branch or commit)
     if args.git_branch is not None:
-        setup_cmds.append(f'git checkout {args.git_branch}')
-        setup_cmds.append('pip uninstall termcolor')
-        setup_cmds.append('pip install termcolor==2.4.0')
+        env_vars.append({
+            'name': 'GIT_REF',
+            'value': args.git_branch
+        })
+    elif args.git_commit is not None:
+        env_vars.append({
+            'name': 'GIT_REF',
+            'value': args.git_commit
+        })
+
+    # Add mettagrid reference (branch or commit)
+    if args.mettagrid_branch is not None:
+        env_vars.append({
+            'name': 'METTAGRID_REF',
+            'value': args.mettagrid_branch
+        })
+    elif args.mettagrid_commit is not None:
+        env_vars.append({
+            'name': 'METTAGRID_REF',
+            'value': args.mettagrid_commit
+        })
+
+    # Add task args if any
+    if task_args:
+        env_vars.append({
+            'name': 'TASK_ARGS',
+            'value': ' '.join(task_args)
+        })
+
+    # Build the command to run the entrypoint script
+    entrypoint_cmd = []
+
+    # Check out the git reference (branch or commit) before pulling
+    if args.git_branch is not None:
+        entrypoint_cmd.append(f'git checkout {args.git_branch}')
+    elif args.git_commit is not None:
+        entrypoint_cmd.append(f'git checkout {args.git_commit}')
+
+    # Update the repository from the current branch
+    entrypoint_cmd.append('git pull')
+
+    # Run the entrypoint script
+    entrypoint_cmd.append('./devops/aws/train_entrypoint.sh')
 
     print("\n".join([
             "Setup:",
             "-"*10,
-            "\n".join(setup_cmds),
+            "Using train_entrypoint.sh script with environment variables",
             "-"*10,
             "Command:",
             "-"*10,
-            " ".join(train_cmd),
+            " ".join(entrypoint_cmd),
+            "-"*10,
+            f"Resources: {args.gpus} GPUs, {total_vcpus} vCPUs ({vcpus_per_gpu} per GPU), {memory_gb}GB RAM"
         ]))
 
-    return {
-        'command': ["bash", "-c", "; ".join([
-            *setup_cmds,
-            " ".join(train_cmd),
-        ])],
-        'environment': [
-            {
-                'name': 'HYDRA_FULL_ERROR',
-                'value': '1'
-            },
-            {
-                'name': 'WANDB_API_KEY',
-                'value': wandb_key
-            },
-            {
-                'name': 'WANDB_SILENT',
-                'value': 'true'
-            },
-            {
-                'name': 'COLOR_LOGGING',
-                'value': 'false'
-            },
+    # Create resource requirements
+    resource_requirements = [
+        {
+            'type': 'GPU',
+            'value': str(args.gpus)
+        }
+    ]
 
-            {
-                'name': 'WANDB_HOST',
-                'value': job_name
-            },
-            {
-                'name': 'METTA_HOST',
-                'value': job_name
-            },
-            {
-                'name': 'METTA_USER',
-                'value': os.environ.get('USER', 'unknown')
-            }
-        ],
-        'vcpus': machine_profile['vcpus'],
-        'memory': machine_profile['memory'],
-        'resourceRequirements': [
-            {
-                'type': 'GPU',
-                'value': str(machine_profile['gpus'])
-            }
-        ]
+    # Add vCPU and memory requirements
+    resource_requirements.append({
+        'type': 'VCPU',
+        'value': str(total_vcpus)
+    })
+
+    resource_requirements.append({
+        'type': 'MEMORY',
+        'value': str(memory_mb)  # AWS Batch API expects MB
+    })
+
+    return {
+        'command': ["bash", "-c", "; ".join(entrypoint_cmd)],
+        'environment': env_vars,
+        'resourceRequirements': resource_requirements
     }
 
 if __name__ == "__main__":
@@ -136,16 +242,35 @@ if __name__ == "__main__":
     parser.add_argument('--cluster', default="metta", help='The name of the ECS cluster.')
     parser.add_argument('--run', required=True, help='The run id.')
     parser.add_argument('--cmd', required=True, choices=["train", "sweep", "evolve"], help='The command to run.')
-    parser.add_argument('--git_branch', default=None, help='The git branch to use for the task.')
-    parser.add_argument('--gpus', type=int, default=None, help='Number of GPUs to use for the task.')
+
+    parser.add_argument('--git_branch', default=None, help='The git branch to use for the task. If not specified, will use the current commit.')
+    parser.add_argument('--git_commit', default=None, help='The git commit to use for the task. If not specified, will use the current commit.')
+    parser.add_argument('--mettagrid_branch', default=None, help='The mettagrid branch to use for the task. If not specified, will use the current commit.')
+    parser.add_argument('--mettagrid_commit', default=None, help='The mettagrid commit to use for the task. If not specified, will use the current commit.')
+    parser.add_argument('--gpus', type=int, default=None, help='Number of GPUs per node to use for the task.')
+    parser.add_argument('--gpu_cpus', type=int, default=6, help='Number of CPUs per GPU (vCPUs will be 2x this value).')
+    parser.add_argument('--cpu_ram_gb', type=int, default=20, help='RAM per node in GB.')
     parser.add_argument('--copies', type=int, default=1, help='Number of job copies to submit.')
+    parser.add_argument('--num-nodes', type=int, default=1, help='Number of nodes for distributed training.')
+    parser.add_argument('--profile', default=None, help='AWS profile to use. If not specified, uses the default profile.')
+    parser.add_argument('--job_queue', default="metta-batch-jq-test", help='AWS Batch job queue to use.')
     args, task_args = parser.parse_known_args()
 
+    # Set default commit values if not specified
+    if args.git_branch is None and args.git_commit is None:
+        args.git_commit = get_current_commit()
+        print(f"Using current metta commit: {args.git_commit}")
+
+    if args.mettagrid_branch is None and args.mettagrid_commit is None:
+        mettagrid_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "deps", "mettagrid")
+        args.mettagrid_commit = get_current_commit(mettagrid_path) if os.path.exists(mettagrid_path) else "main"
+        print(f"Using current mettagrid commit: {args.mettagrid_commit}")
+
+    # Validate required parameters
     if args.gpus is None:
-        if args.cmd == "train":
-            args.gpus = 8
-        else:
-            args.gpus = 1
+        print("Error: --gpus parameter is required")
+        parser.print_help()
+        sys.exit(1)
 
     for _ in range(args.copies):
         submit_batch_job(args, task_args)

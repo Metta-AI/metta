@@ -23,6 +23,31 @@ python -m devops.aws.launch_task \
     --run=b.$USER.run_name
 ```
 
+2. Specify a custom job queue:
+```bash
+python -m devops.aws.launch_task \
+    --cmd=train \
+    --run=b.$USER.run_name \
+    --job_queue=metta-batch-jq-custom
+```
+
+3. Specify a custom mettagrid branch:
+```bash
+python -m devops.aws.launch_task \
+    --cmd=train \
+    --run=b.$USER.run_name \
+    --mettagrid_branch=feature-branch
+```
+
+4. Use specific git and mettagrid commits:
+```bash
+python -m devops.aws.launch_task \
+    --cmd=train \
+    --run=b.$USER.run_name \
+    --git_commit=abc123 \
+    --mettagrid_commit=def456
+```
+
 ## Stopping Jobs
 
 1. Stop a running job:
@@ -43,7 +68,10 @@ python -m devops.aws.cluster_info
 
 ## Important Notes
 
-- Jobs are processed on the `metta-batch-jq-g6-8xlarge` queue
+- Jobs are processed on the `metta-batch-jq-g6-8xlarge` queue by default
+- You can specify a different queue using the `--job_queue` parameter
+- You can specify a different mettagrid branch using the `--mettagrid_branch` parameter
+- If no branch is specified, the current commit hash will be used by default
 - While jobs may take time to initialize, multiple jobs can run in parallel
 - Use your username in the run name (e.g., `b.$USER.run_name`) to track your jobs
 
