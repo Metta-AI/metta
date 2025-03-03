@@ -188,7 +188,6 @@ class MettaAgent(nn.Module):
     def get_action_and_value(self, x, state=None, action=None, e3b=None):
         # Determine device once and stick to it
         device = x.device
-        device = "cuda"
 
         td = TensorDict({"x": x})
         td["state"] = None

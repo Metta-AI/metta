@@ -4,13 +4,13 @@ seed: null
 
 defaults:
   - override /eval: eval_suite
-  - override /env/mettagrid@env: simple
+  - override /env/mettagrid@env: cognitive_evals/cogeval_training_mini_simplified
   - override /agent: simple
   - override /sweep: fast
   - override /analyzer: analyzer
 
-#policy_uri: wandb://run/cogeval_training_sweep_mini.r.9
-#policy_uri: ./train_dir/daphne.local.train.14_pfs/checkpoints/model_0050.pt
+#policy_uri: wandb://run/daphne_training_e3b_cogeval_simplified_vast_e0.05_2
+policy_uri: wandb://run/b.daphne.aws_train_cogeval_simplified_0.01_mb
 #policy_uri: ${trained_policy_uri}
 
 npc_policy_uri: null
@@ -36,6 +36,6 @@ sweep:
   metric: "action.use.altar.agent"
 
 cmd: ???
-run_id: 26
+run_id: 27
 run: ${oc.env:USER}.local.${cmd}.${run_id}
 trained_policy_uri: ./train_dir/${oc.env:USER}.local.train.${run_id}/checkpoints
