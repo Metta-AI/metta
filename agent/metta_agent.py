@@ -212,9 +212,6 @@ class MettaAgent(nn.Module):
         # Detach to prevent inverse dynamics gradients from flowing back
         phi_detached = phi.detach()
 
-        # Make sure e3b is on the same device before passing to _e3b_update
-        if e3b is not None:
-            e3b = e3b.to(device)
 
         e3b, intrinsic_reward = self._e3b_update(phi_detached, e3b)
 
