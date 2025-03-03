@@ -5,11 +5,12 @@ import boto3
 import os
 from pprint import pprint
 
-def get_role_arn(role_name):
+def get_role_arn(role_name, profile=None):
     """Look up the ARN for a given IAM role name."""
     try:
-        # Explicitly use the default profile
-        iam = boto3.client('iam', region_name='us-east-1')
+        # Use the specified profile or default to stem-root
+        session = boto3.Session(profile_name=profile or 'stem-root', region_name='us-east-1')
+        iam = session.client('iam')
         response = iam.get_role(RoleName=role_name)
         return response['Role']['Arn']
     except Exception as e:
@@ -50,6 +51,9 @@ def get_efs_id(name_tag=None):
 
 def create_job_definition(args):
     """Create a job definition dictionary without registering it."""
+    # Use the stem-root profile for AWS operations
+    session = boto3.Session(profile_name='stem-root', region_name='us-east-1')
+
     # Look up role ARNs if not provided
     job_role_arn = args.job_role_arn
     if not job_role_arn:
@@ -148,7 +152,7 @@ def create_job_definition(args):
                         ],
                         "linuxParameters": {
                             "devices": [],
-                            "sharedMemorySize": 230000,
+                            "sharedMemorySize": args.shared_memory,
                             "tmpfs": [],
                             "maxSwap": 0,
                             "swappiness": 0
@@ -195,8 +199,9 @@ def create_job_definition(args):
 
 def register_job_definition(args):
     """Register a new job definition or a new version of an existing one."""
-    # Explicitly use the default profile
-    batch = boto3.client('batch', region_name='us-east-1')
+    # Use the stem-root profile for AWS operations
+    session = boto3.Session(profile_name='stem-root', region_name='us-east-1')
+    batch = session.client('batch')
 
     # Check if job definition already exists
     try:
@@ -228,10 +233,13 @@ def register_job_definition(args):
         raise
 
 def main():
-    # Unset AWS_PROFILE if it's set to avoid profile not found errors
-    if 'AWS_PROFILE' in os.environ:
-        print(f"Unsetting AWS_PROFILE environment variable (was set to: {os.environ['AWS_PROFILE']})")
-        del os.environ['AWS_PROFILE']
+    # Use stem-root profile instead of unsetting AWS_PROFILE
+    if 'AWS_PROFILE' in os.environ and os.environ['AWS_PROFILE'] != 'stem-root':
+        print(f"Setting AWS_PROFILE environment variable to stem-root (was: {os.environ['AWS_PROFILE']})")
+        os.environ['AWS_PROFILE'] = 'stem-root'
+    elif 'AWS_PROFILE' not in os.environ:
+        print("Setting AWS_PROFILE environment variable to stem-root")
+        os.environ['AWS_PROFILE'] = 'stem-root'
 
     parser = argparse.ArgumentParser(description='Register a multi-node AWS Batch job definition')
     parser.add_argument('--job-definition-name', default='metta-batch-dist-train',
@@ -257,19 +265,26 @@ def main():
     efs_group.add_argument('--efs-name', default=None,
                         help='EFS name tag to look up file system ID')
 
-    # Resource options
-    parser.add_argument('--num-nodes', type=int, default=2,
-                        help='Number of nodes for distributed training')
-    parser.add_argument('--vcpus', type=int, default=32,
-                        help='Number of vCPUs per node')
-    parser.add_argument('--memory', type=int, default=128000,
-                        help='Memory in MB per node')
-    parser.add_argument('--gpus', type=int, default=4,
-                        help='Number of GPUs per node')
     parser.add_argument('--output-json', action='store_true',
                         help='Output the job definition as JSON')
 
     args = parser.parse_args()
+
+    # Hardcoded minimal resource values
+    args.num_nodes = 1
+    args.vcpus = 1
+    args.memory = 1024  # 1GB
+    args.gpus = 1
+    args.shared_memory = 100  # 100MB
+
+    # Print resource configuration
+    print("Using resource configuration:")
+    print(f"  Job Definition: {args.job_definition_name}")
+    print(f"  Nodes: {args.num_nodes}")
+    print(f"  vCPUs: {args.vcpus}")
+    print(f"  Memory: {args.memory}MB")
+    print(f"  GPUs: {args.gpus}")
+    print(f"  Shared Memory: {args.shared_memory}MB")
 
     if args.output_json:
         # Create job definition but don't register it

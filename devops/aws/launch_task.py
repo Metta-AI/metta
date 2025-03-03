@@ -7,7 +7,6 @@ import sys
 import subprocess
 
 import boto3
-from botocore.exceptions import ProfileNotFound, NoCredentialsError, ClientError
 
 def get_current_commit(repo_path=None):
     """Get the current git commit hash."""
@@ -25,55 +24,35 @@ def submit_batch_job(args, task_args):
     if args.profile:
         session_kwargs['profile_name'] = args.profile
 
-    try:
-        # Create a new session with the specified profile
-        session = boto3.Session(**session_kwargs)
+    # Create a new session with the specified profile
+    session = boto3.Session(**session_kwargs)
+    batch = session.client('batch')
 
-        # Check if credentials are available
-        if not session.get_credentials():
-            print("Error: No AWS credentials found. Please run the SSO login command:")
-            print("aws sso login --profile stem")
-            print("Or run the setup script: ./devops/aws/setup_sso.sh")
-            sys.exit(1)
+    random_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=5))
+    job_name = args.run.replace('.', '_') + "_" + random_id
+    job_queue = args.job_queue
 
-        batch = session.client('batch')
+    # Always use the distributed job definition
+    job_definition = "metta-batch-dist-train"
 
-        random_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=5))
-        job_name = args.run.replace('.', '_') + "_" + random_id
-        job_queue = args.job_queue
+    # Submit multi-node job
+    response = batch.submit_job(
+        jobName=job_name,
+        jobQueue=job_queue,
+        jobDefinition=job_definition,
+        nodeOverrides={
+            'nodePropertyOverrides': [
+                {
+                    'targetNodes': '0:',
+                    'containerOverrides': container_config(args, task_args, job_name)
+                }
+            ],
+            'numNodes': args.num_nodes
+        }
+    )
 
-        # Always use the distributed job definition
-        job_definition = "metta-batch-dist-train"
-
-        # Submit multi-node job
-        response = batch.submit_job(
-            jobName=job_name,
-            jobQueue=job_queue,
-            jobDefinition=job_definition,
-            nodeOverrides={
-                'nodePropertyOverrides': [
-                    {
-                        'targetNodes': '0:',
-                        'containerOverrides': container_config(args, task_args, job_name)
-                    }
-                ],
-                'numNodes': args.num_nodes
-            }
-        )
-
-        print(f"Submitted job {job_name} to queue {job_queue} with job ID {response['jobId']}")
-        print(f"https://us-east-1.console.aws.amazon.com/batch/v2/home?region=us-east-1#/jobs/detail/{response['jobId']}")
-    except ProfileNotFound:
-        print(f"Error: AWS profile '{args.profile}' not found. Please check your AWS configuration.")
-        sys.exit(1)
-    except NoCredentialsError:
-        print("Error: AWS credentials not found. Please run the SSO login command:")
-        print("aws sso login --profile stem")
-        print("Or run the setup script: ./devops/aws/setup_sso.sh")
-        sys.exit(1)
-    except ClientError as e:
-        print(f"AWS Error: {e}")
-        sys.exit(1)
+    print(f"Submitted job {job_name} to queue {job_queue} with job ID {response['jobId']}")
+    print(f"https://us-east-1.console.aws.amazon.com/batch/v2/home?region=us-east-1#/jobs/detail/{response['jobId']}")
 
 def container_config(args, task_args, job_name):
     try:
@@ -94,6 +73,9 @@ def container_config(args, task_args, job_name):
     # Memory in GB, convert to MB for AWS Batch API
     memory_gb = int(args.cpu_ram_gb)
     memory_mb = memory_gb * 1024
+
+    # Calculate shared memory size as 90% of available memory
+    shared_memory_mb = int(memory_mb * 0.9)
 
     # Set up environment variables for distributed training
     env_vars = [
@@ -128,6 +110,10 @@ def container_config(args, task_args, job_name):
         {
             'name': 'NCCL_DEBUG',
             'value': 'INFO'
+        },
+        {
+            'name': 'SHARED_MEMORY_SIZE',
+            'value': str(shared_memory_mb)
         },
     ]
 
@@ -209,7 +195,7 @@ def container_config(args, task_args, job_name):
             "-"*10,
             " ".join(entrypoint_cmd),
             "-"*10,
-            f"Resources: {args.gpus} GPUs, {total_vcpus} vCPUs ({vcpus_per_gpu} per GPU), {memory_gb}GB RAM"
+            f"Resources: {args.gpus} GPUs, {total_vcpus} vCPUs ({vcpus_per_gpu} per GPU), {memory_gb}GB RAM, {shared_memory_mb}MB shared memory"
         ]))
 
     # Create resource requirements
@@ -252,7 +238,7 @@ if __name__ == "__main__":
     parser.add_argument('--cpu_ram_gb', type=int, default=20, help='RAM per node in GB.')
     parser.add_argument('--copies', type=int, default=1, help='Number of job copies to submit.')
     parser.add_argument('--num-nodes', type=int, default=1, help='Number of nodes for distributed training.')
-    parser.add_argument('--profile', default=None, help='AWS profile to use. If not specified, uses the default profile.')
+    parser.add_argument('--profile', default="stem", help='AWS profile to use. If not specified, uses the default profile.')
     parser.add_argument('--job_queue', default="metta-batch-jq-test", help='AWS Batch job queue to use.')
     args, task_args = parser.parse_known_args()
 
