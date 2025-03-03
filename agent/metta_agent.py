@@ -187,13 +187,12 @@ class MettaAgent(nn.Module):
 
     def get_action_and_value(self, x, state=None, action=None, e3b=None):
         # Determine device once and stick to it
-        device = x.device
 
         td = TensorDict({"x": x})
         td["state"] = None
         if state is not None:
             state = torch.cat(state, dim=0)
-            td["state"] = state.to(device)  # Ensure state is on the same device
+            td["state"] = state  # Ensure state is on the same device
 
         self.components["_value_"](td)
 
