@@ -81,8 +81,7 @@ def create_job_definition(args):
                         "image": args.image,
                         "command": [
                             "/bin/bash",
-                            "-c",
-                            "/workspace/entrypoint.sh"
+                            "-c"
                         ],
                         "jobRoleArn": job_role_arn,
                         "executionRoleArn": execution_role_arn,
@@ -173,6 +172,10 @@ def create_job_definition(args):
                 {
                     "onExitCode": "139",
                     "action": "retry"
+                },
+                {
+                    "onExitCode": "127",
+                    "action": "exit"
                 }
             ]
         },

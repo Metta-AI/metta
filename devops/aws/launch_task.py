@@ -219,7 +219,7 @@ def container_config(args, task_args, job_name):
     })
 
     return {
-        'command': ["bash", "-c", "; ".join(entrypoint_cmd)],
+        'command': ["; ".join(entrypoint_cmd)],
         'environment': env_vars,
         'resourceRequirements': resource_requirements
     }
