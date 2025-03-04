@@ -7,11 +7,7 @@ analysis:
   metric_patterns: null
 
   metrics:
-    - metric: "action.use.generator"
-    - metric: "action.use.altar"
-    - metric: "action.use.mine"
-    - metric: "action.use.armory"
-
+    - metric: "heart.get"
 
   queries: null
 

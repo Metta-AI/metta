@@ -3,14 +3,15 @@
 seed: null
 
 defaults:
-  - override /eval: eval_suite
+  - override /eval: cogeval_suite
   - override /env/mettagrid@env: cognitive_evals/cogeval_training_mini_simplified
   - override /agent: simple
   - override /sweep: fast
   - override /analyzer: analyzer
-
+eval_db_uri: wandb://artifacts/cogeval_mini_simplified
 #policy_uri: wandb://run/daphne_training_e3b_cogeval_simplified_vast_e0.05_2
-policy_uri: wandb://run/b.daphne.aws_train_cogeval_simplified_0.01_mb
+policy_uri: wandb://run/b.daphne.aws_train_cogeval_simplified_0.01_mb:v36
+##b.daphne.aws_train_cogeval_simplified_0.01_mb:v3
 #policy_uri: ${trained_policy_uri}
 
 npc_policy_uri: null
@@ -19,12 +20,19 @@ trainer:
   evaluate_interval: 2
   use_e3b: true
 
+# analyzer:
+#   analysis:
+#     baseline_policies:
+#       - wandb://run/b.daphne.aws_train_cogeval_simplified_0.08
+#       - wandb://run/b.daphne.aws_train_cogeval_simplified_
+#       - wandb://run/b.daphne.aws_train_cogeval_simplified_0.01
+#       - wandb://run/daphne_training_e3b_cogeval_simplified_vast_e0.05_2
+#       - wandb://run/daphne_training_e3b_cogeval_simplified_mettabox_e0.05
+#       - wandb://run/b.daphne.aws_train_cogeval_simplified_e0.05
+
 
 eval:
-  num_envs: 2
-  num_episodes: 2
-  max_time_s: 300
- # eval_db_uri: ${..eval_db_uri} #file://daphne/sweep_stats
+  policy_uri: ${policy_uri}
 
 wandb:
   enabled: true
@@ -36,6 +44,58 @@ sweep:
   metric: "action.use.altar.agent"
 
 cmd: ???
-run_id: 27
+run_id: 28
 run: ${oc.env:USER}.local.${cmd}.${run_id}
 trained_policy_uri: ./train_dir/${oc.env:USER}.local.train.${run_id}/checkpoints
+
+env:
+  game:
+      objects:
+        altar:
+          hp: 30
+          cooldown: 1
+
+        mine:
+          hp: 30
+          cooldown: 1
+
+        generator:
+          hp: 30
+          cooldown: 1
+
+        armory:
+          hp: 30
+          cooldown: 1
+
+        lasery:
+          hp: 30
+          cooldown: 1
+
+        lab:
+          hp: 30
+          cooldown: 1
+
+        factory:
+          hp: 30
+          cooldown: 1
+
+        temple:
+          hp: 30
+          cooldown: 1
+
+        wall:
+          hp: ${uniform:1, 20, 10}
+
+      actions:
+        noop:
+          enabled: true
+        move:
+          enabled: true
+        rotate:
+          enabled: true
+        attack:
+          enabled: false
+        swap:
+          enabled: false
+        change_color:
+          enabled: false
