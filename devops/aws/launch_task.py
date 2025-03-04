@@ -175,6 +175,7 @@ def container_config(args, task_args, job_name):
     entrypoint_cmd = []
 
     # Check out the git reference (branch or commit) before pulling
+    entrypoint_cmd.append('git checkout fetch')
     if args.git_branch is not None:
         entrypoint_cmd.append(f'git checkout {args.git_branch}')
     elif args.git_commit is not None:
@@ -184,7 +185,7 @@ def container_config(args, task_args, job_name):
     entrypoint_cmd.append('git pull')
 
     # Run the entrypoint script
-    entrypoint_cmd.append('./devops/aws/train_entrypoint.sh')
+    entrypoint_cmd.append('./devops/aws/batch/train_entrypoint.sh')
 
     print("\n".join([
             "Setup:",

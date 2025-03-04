@@ -78,35 +78,119 @@ def get_job_log_streams(job_id):
 
         # Get log streams for each attempt
         log_streams = []
+
+        # List of log groups to check
+        log_groups = ['/aws/batch/job', 'metta-batch-dist-train']
+
         for attempt in attempts:
             container = attempt.get('container', {})
             log_stream_prefix = container.get('logStreamName')
-            if log_stream_prefix:
-                # For multi-node jobs, there will be multiple log streams with the same prefix
-                # but different node indices
-                response = logs.describe_log_streams(
-                    logGroupName='/aws/batch/job',
-                    logStreamNamePrefix=log_stream_prefix,
-                    orderBy='LogStreamName',
-                    descending=False
-                )
-                log_streams.extend(response.get('logStreams', []))
 
-                # Handle pagination if there are more log streams
-                while response.get('nextToken'):
+            if log_stream_prefix:
+                # Check each log group for this stream prefix
+                for log_group in log_groups:
+                    try:
+                        # For multi-node jobs, there will be multiple log streams with the same prefix
+                        # but different node indices
+                        response = logs.describe_log_streams(
+                            logGroupName=log_group,
+                            logStreamNamePrefix=log_stream_prefix,
+                            orderBy='LogStreamName',
+                            descending=False
+                        )
+
+                        if response.get('logStreams'):
+                            # Add log group information to each stream
+                            for stream in response.get('logStreams', []):
+                                stream['logGroupName'] = log_group
+
+                            log_streams.extend(response.get('logStreams', []))
+
+                            # Handle pagination if there are more log streams
+                            while response.get('nextToken'):
+                                response = logs.describe_log_streams(
+                                    logGroupName=log_group,
+                                    logStreamNamePrefix=log_stream_prefix,
+                                    orderBy='LogStreamName',
+                                    descending=False,
+                                    nextToken=response['nextToken']
+                                )
+
+                                # Add log group information to each stream
+                                for stream in response.get('logStreams', []):
+                                    stream['logGroupName'] = log_group
+
+                                log_streams.extend(response.get('logStreams', []))
+                    except Exception as e:
+                        # Just continue to the next log group if this one fails
+                        continue
+
+            # Also check for job ID in the default stream format
+            for log_group in log_groups:
+                try:
+                    # Try with job ID as prefix
                     response = logs.describe_log_streams(
-                        logGroupName='/aws/batch/job',
-                        logStreamNamePrefix=log_stream_prefix,
+                        logGroupName=log_group,
+                        logStreamNamePrefix=f"default/{job_id}",
                         orderBy='LogStreamName',
-                        descending=False,
-                        nextToken=response['nextToken']
+                        descending=False
                     )
-                    log_streams.extend(response.get('logStreams', []))
+
+                    if response.get('logStreams'):
+                        # Add log group information to each stream
+                        for stream in response.get('logStreams', []):
+                            stream['logGroupName'] = log_group
+
+                        log_streams.extend(response.get('logStreams', []))
+                except Exception:
+                    # Just continue to the next log group if this one fails
+                    continue
 
         return log_streams
     except Exception as e:
         print(f"Error retrieving log streams for job {job_id}: {str(e)}")
         return []
+
+def find_alternative_log_streams(job_id):
+    """
+    Try to find alternative log streams for a job when the standard approach fails.
+    This checks various log groups and patterns that might contain logs for the job.
+    """
+    logs = boto3.client('logs', config=config)
+    log_streams = []
+
+    # List of log groups to check
+    log_groups = ['metta-batch-dist-train', '/aws/batch/job']
+
+    # List of patterns to try
+    patterns = [
+        f"default/{job_id}",  # Direct job ID pattern
+        "default/",           # Check all default streams
+    ]
+
+    for log_group in log_groups:
+        for pattern in patterns:
+            try:
+                response = logs.describe_log_streams(
+                    logGroupName=log_group,
+                    logStreamNamePrefix=pattern,
+                    orderBy='LogStreamName',
+                    descending=False,
+                    limit=50  # Increase limit to find more potential matches
+                )
+
+                if response.get('logStreams'):
+                    # Add log group information to each stream
+                    for stream in response.get('logStreams', []):
+                        stream['logGroupName'] = log_group
+                        # Add to list if it's not already there
+                        if not any(s.get('logStreamName') == stream.get('logStreamName') for s in log_streams):
+                            log_streams.append(stream)
+            except Exception as e:
+                print(f"Error checking {log_group}/{pattern}: {str(e)}")
+                continue
+
+    return log_streams
 
 def get_log_events(log_group, log_stream, start_time=None, tail=False):
     """
@@ -199,13 +283,14 @@ def print_logs(job_id, node=None, tail=False):
 
     def print_stream_events(stream, start_time=None):
         stream_name = stream['logStreamName']
+        log_group = stream.get('logGroupName', '/aws/batch/job')  # Default to /aws/batch/job if not specified
         node_info = "unknown"
 
         # Extract node information from the stream name
         if '/node-' in stream_name:
             node_info = stream_name.split('/node-')[1].split('/')[0]
 
-        events = get_log_events('/aws/batch/job', stream_name, start_time, tail)
+        events = get_log_events(log_group, stream_name, start_time, tail)
 
         if events:
             last_timestamp = events[-1]['timestamp']
@@ -246,6 +331,64 @@ def print_logs(job_id, node=None, tail=False):
                         future.result()
         except KeyboardInterrupt:
             print("\nStopped tailing logs.")
+
+def print_log_stream(log_group, log_stream, tail=False):
+    """
+    Print logs from a specific log group and log stream.
+    If tail is True, continuously poll for new logs.
+    """
+    logs = boto3.client('logs', config=config)
+
+    # Check if the log stream exists
+    try:
+        response = logs.describe_log_streams(
+            logGroupName=log_group,
+            logStreamNamePrefix=log_stream,
+            limit=1
+        )
+
+        if not response.get('logStreams'):
+            print(f"Log stream '{log_stream}' not found in log group '{log_group}'")
+            return
+
+        stream = response['logStreams'][0]
+        last_timestamp = None
+
+        # Function to print events from the stream
+        def print_stream_events(start_time=None):
+            nonlocal last_timestamp
+            events = get_log_events(log_group, stream['logStreamName'], start_time, tail)
+
+            if events:
+                last_timestamp = events[-1]['timestamp']
+
+                for event in events:
+                    timestamp = datetime.fromtimestamp(event['timestamp'] / 1000).strftime('%Y-%m-%d %H:%M:%S')
+                    message = event['message'].rstrip()
+                    print(f"{timestamp}: {message}")
+
+                return True
+            return False
+
+        # Initial print of all logs
+        print_stream_events()
+
+        # If tail is True, continuously poll for new logs
+        if tail:
+            print("\nTailing logs... (Press Ctrl+C to stop)")
+            try:
+                while True:
+                    time.sleep(5)  # Poll every 5 seconds
+
+                    # Check for new logs
+                    if last_timestamp:
+                        # Add 1ms to avoid duplicate logs
+                        print_stream_events(last_timestamp + 1)
+            except KeyboardInterrupt:
+                print("\nStopped tailing logs.")
+
+    except Exception as e:
+        print(f"Error retrieving log stream: {str(e)}")
 
 def list_recent_jobs(job_queue=None, max_jobs=10, interactive=True):
     """
@@ -312,12 +455,20 @@ def main():
     parser.add_argument('--job-queue', type=str, help='Specific AWS Batch job queue to use')
     parser.add_argument('--max', type=int, default=10, help='Maximum number of jobs to display (default: 10)')
     parser.add_argument('--non-interactive', action='store_true', help='Disable interactive job selection')
+    parser.add_argument('--log-group', type=str, help='Custom CloudWatch log group to use')
+    parser.add_argument('--log-stream', type=str, help='Specific CloudWatch log stream to view')
 
     args = parser.parse_args()
 
     # Set AWS profile if specified
     if args.profile:
         boto3.setup_default_session(profile_name=args.profile)
+
+    # If log group and log stream are specified, directly show those logs
+    if args.log_group and args.log_stream:
+        print(f"Retrieving logs from log group '{args.log_group}', stream '{args.log_stream}'...")
+        print_log_stream(args.log_group, args.log_stream, args.tail)
+        return
 
     if not args.job:
         # If no job specified, list recent jobs and allow selection
@@ -328,14 +479,14 @@ def main():
         return
 
     # Check if the input is a job ID or a job name prefix
-    if args.job.startswith('job-'):
+    if args.job.startswith('job-') or len(args.job) == 36:  # UUID format
         # It's a job ID
         job_id = args.job
         job_details = get_job_details(job_id=job_id)
 
         if not job_details:
             print(f"Job {job_id} not found. Listing jobs with similar IDs:")
-            similar_jobs = get_job_details(job_prefix=job_id.split('-')[1], job_queue=args.job_queue, max_jobs=args.max)
+            similar_jobs = get_job_details(job_prefix=job_id.split('-')[1] if '-' in job_id else job_id[:8], job_queue=args.job_queue, max_jobs=args.max)
             if similar_jobs:
                 # Display numbered list of similar jobs
                 print("-" * 100)
@@ -379,7 +530,79 @@ def main():
             return
 
         print(f"Retrieving logs for job {job_id}...")
-        print_logs(job_id, args.node, args.tail)
+        log_streams = get_job_log_streams(job_id)
+
+        if not log_streams:
+            print(f"No standard log streams found for job {job_id}. Checking alternative locations...")
+            log_streams = find_alternative_log_streams(job_id)
+
+            if not log_streams:
+                print(f"No log streams found for job {job_id} in any location.")
+                return
+
+            print(f"Found {len(log_streams)} alternative log streams.")
+
+        # Print logs using the found streams
+        if log_streams:
+            # Sort log streams by name to ensure consistent ordering
+            log_streams.sort(key=lambda x: x['logStreamName'])
+
+            # Print logs for each stream
+            last_timestamps = {}
+
+            def print_stream_events(stream, start_time=None):
+                stream_name = stream['logStreamName']
+                log_group = stream.get('logGroupName', '/aws/batch/job')  # Default to /aws/batch/job if not specified
+                node_info = "unknown"
+
+                # Extract node information from the stream name
+                if '/node-' in stream_name:
+                    node_info = stream_name.split('/node-')[1].split('/')[0]
+
+                events = get_log_events(log_group, stream_name, start_time, args.tail)
+
+                if events:
+                    last_timestamp = events[-1]['timestamp']
+                    last_timestamps[stream_name] = last_timestamp
+
+                    for event in events:
+                        timestamp = datetime.fromtimestamp(event['timestamp'] / 1000).strftime('%Y-%m-%d %H:%M:%S')
+                        message = event['message'].rstrip()
+                        print(f"[{log_group}:{stream_name}] {timestamp}: {message}")
+
+                    return True
+                return False
+
+            # Initial print of all logs
+            for stream in log_streams:
+                print(f"Printing logs from {stream.get('logGroupName', '/aws/batch/job')}/{stream['logStreamName']}...")
+                print_stream_events(stream)
+
+            # If tail is True, continuously poll for new logs
+            if args.tail:
+                print("\nTailing logs... (Press Ctrl+C to stop)")
+                try:
+                    while True:
+                        time.sleep(5)  # Poll every 5 seconds
+
+                        # Check for new logs in each stream
+                        with ThreadPoolExecutor(max_workers=min(10, len(log_streams))) as executor:
+                            futures = []
+                            for stream in log_streams:
+                                stream_name = stream['logStreamName']
+                                start_time = last_timestamps.get(stream_name)
+                                if start_time:
+                                    # Add 1ms to avoid duplicate logs
+                                    start_time += 1
+                                futures.append(executor.submit(print_stream_events, stream, start_time))
+
+                            # Wait for all futures to complete
+                            for future in as_completed(futures):
+                                future.result()
+                except KeyboardInterrupt:
+                    print("\nStopped tailing logs.")
+        else:
+            print_logs(job_id, args.node, args.tail)
     else:
         # It's a job name prefix
         jobs = get_job_details(job_prefix=args.job, job_queue=args.job_queue, max_jobs=args.max)
