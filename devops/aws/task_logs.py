@@ -3,10 +3,14 @@ import argparse
 import boto3
 import sys
 import time
+import os
 from datetime import datetime, timedelta
 from botocore.config import Config
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from devops.aws.cluster_info import get_batch_job_queues, get_batch_jobs
+
+# Add the project root to the Python path to allow imports
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
+from metta.devops.aws.cluster_info import get_batch_job_queues, get_batch_jobs
 
 # Configure boto3 to use a higher max_pool_connections
 config = Config(
@@ -14,7 +18,7 @@ config = Config(
     max_pool_connections=50
 )
 
-def get_job_details(job_id=None, job_prefix=None):
+def get_job_details(job_id=None, job_prefix=None, job_queue=None, max_jobs=100):
     """
     Get details for a specific job by ID or jobs matching a prefix.
     Returns a list of job details.
@@ -31,20 +35,29 @@ def get_job_details(job_id=None, job_prefix=None):
             print(f"Error retrieving job details for {job_id}: {str(e)}")
             return []
 
-    # If no specific job ID, get jobs from all queues
-    job_queues = get_batch_job_queues()
+    # If no specific job ID, get jobs from all queues or specified queue
+    if job_queue:
+        job_queues = [job_queue]
+    else:
+        job_queues = get_batch_job_queues()
+
     all_jobs = []
 
     for queue in job_queues:
-        jobs = get_batch_jobs(queue, max_jobs=100)
-        if job_prefix:
-            # Filter jobs by prefix
-            jobs = [job for job in jobs if job['name'].startswith(job_prefix)]
-        all_jobs.extend(jobs)
+        try:
+            jobs = get_batch_jobs(queue, max_jobs=max_jobs)
+            if job_prefix:
+                # Filter jobs by prefix
+                jobs = [job for job in jobs if job['name'].startswith(job_prefix)]
+            all_jobs.extend(jobs)
+        except Exception as e:
+            print(f"Error retrieving jobs from queue {queue}: {str(e)}")
 
     # Sort by creation time, newest first
-    all_jobs.sort(key=lambda x: x.get('createdAt', 0), reverse=True)
-    return all_jobs
+    all_jobs.sort(key=lambda x: x.get('createdAt', 0) if isinstance(x.get('createdAt'), int) else 0, reverse=True)
+
+    # Limit to max_jobs
+    return all_jobs[:max_jobs]
 
 def get_job_log_streams(job_id):
     """
@@ -234,34 +247,61 @@ def print_logs(job_id, node=None, tail=False):
         except KeyboardInterrupt:
             print("\nStopped tailing logs.")
 
-def list_recent_jobs():
-    """List recent jobs from all queues."""
-    jobs = get_job_details()
+def list_recent_jobs(job_queue=None, max_jobs=10, interactive=True):
+    """
+    List recent jobs from all queues or a specific queue.
+    If interactive is True, allow the user to select a job by number.
+    Returns the selected job ID if interactive and a selection is made, otherwise None.
+    """
+    jobs = get_job_details(job_queue=job_queue, max_jobs=max_jobs)
 
     if not jobs:
         print("No recent jobs found.")
-        return
+        return None
 
-    print("\nRecent Jobs:")
-    print("-" * 80)
-    print(f"{'Job Name':<40} {'Job ID':<25} {'Status':<15} {'Created At':<20}")
-    print("-" * 80)
+    print(f"\nRecent Jobs (showing up to {max_jobs}):")
+    print("-" * 100)
+    print(f"{'#':<4} {'Job Name':<40} {'Job ID':<25} {'Status':<15} {'Created At':<20}")
+    print("-" * 100)
 
-    for job in jobs:
-        if isinstance(job, dict) and 'jobId' in job:
+    job_ids = []
+    for i, job in enumerate(jobs, 1):
+        if isinstance(job, dict):
             # Handle job details from get_batch_jobs
-            job_id = job['jobId'] if 'jobId' in job else job.get('stop_command', '').split()[-1]
-            job_name = job['name']
-            status = job['status']
-            created_at = datetime.fromtimestamp(job.get('createdAt', 0) / 1000).strftime('%Y-%m-%d %H:%M:%S') if 'createdAt' in job else 'Unknown'
-        else:
-            # Handle job details from describe_jobs
-            job_id = job.get('jobId', 'Unknown')
-            job_name = job.get('jobName', 'Unknown')
+            job_id = job.get('jobId', job.get('stop_command', '').split()[-1] if job.get('stop_command') else 'Unknown')
+            job_name = job.get('name', 'Unknown')
             status = job.get('status', 'Unknown')
-            created_at = datetime.fromtimestamp(job.get('createdAt', 0) / 1000).strftime('%Y-%m-%d %H:%M:%S') if 'createdAt' in job else 'Unknown'
 
-        print(f"{job_name:<40} {job_id:<25} {status:<15} {created_at:<20}")
+            # Handle creation time
+            created_at = 'Unknown'
+            if 'createdAt' in job and job['createdAt']:
+                try:
+                    created_at = datetime.fromtimestamp(job['createdAt'] / 1000).strftime('%Y-%m-%d %H:%M:%S')
+                except (TypeError, ValueError):
+                    pass
+        else:
+            # Fallback for unexpected data type
+            job_id = 'Unknown'
+            job_name = 'Unknown'
+            status = 'Unknown'
+            created_at = 'Unknown'
+
+        job_ids.append(job_id)
+        print(f"{i:<4} {job_name:<40} {job_id:<25} {status:<15} {created_at:<20}")
+
+    if interactive and job_ids:
+        try:
+            choice = input("\nEnter job number to view logs (or press Enter to exit): ")
+            if choice.strip():
+                choice_idx = int(choice) - 1
+                if 0 <= choice_idx < len(job_ids):
+                    return job_ids[choice_idx]
+                else:
+                    print(f"Invalid selection. Please enter a number between 1 and {len(job_ids)}.")
+        except ValueError:
+            print("Invalid input. Please enter a number.")
+
+    return None
 
 def main():
     parser = argparse.ArgumentParser(description='Retrieve and display logs from AWS Batch jobs')
@@ -269,6 +309,9 @@ def main():
     parser.add_argument('--node', type=str, default='all', help='Node index to retrieve logs for (default: all)')
     parser.add_argument('--tail', action='store_true', help='Continuously poll for new logs')
     parser.add_argument('--profile', type=str, help='AWS profile to use')
+    parser.add_argument('--job-queue', type=str, help='Specific AWS Batch job queue to use')
+    parser.add_argument('--max', type=int, default=10, help='Maximum number of jobs to display (default: 10)')
+    parser.add_argument('--non-interactive', action='store_true', help='Disable interactive job selection')
 
     args = parser.parse_args()
 
@@ -277,8 +320,11 @@ def main():
         boto3.setup_default_session(profile_name=args.profile)
 
     if not args.job:
-        # If no job specified, list recent jobs
-        list_recent_jobs()
+        # If no job specified, list recent jobs and allow selection
+        selected_job_id = list_recent_jobs(args.job_queue, args.max, not args.non_interactive)
+        if selected_job_id:
+            print(f"Retrieving logs for job {selected_job_id}...")
+            print_logs(selected_job_id, args.node, args.tail)
         return
 
     # Check if the input is a job ID or a job name prefix
@@ -289,10 +335,45 @@ def main():
 
         if not job_details:
             print(f"Job {job_id} not found. Listing jobs with similar IDs:")
-            similar_jobs = get_job_details(job_prefix=job_id.split('-')[1])
+            similar_jobs = get_job_details(job_prefix=job_id.split('-')[1], job_queue=args.job_queue, max_jobs=args.max)
             if similar_jobs:
-                for job in similar_jobs:
-                    print(f"Job Name: {job['name']}, Job ID: {job.get('jobId', job.get('stop_command', '').split()[-1])}")
+                # Display numbered list of similar jobs
+                print("-" * 100)
+                print(f"{'#':<4} {'Job Name':<40} {'Job ID':<25} {'Status':<15} {'Created At':<20}")
+                print("-" * 100)
+
+                job_ids = []
+                for i, job in enumerate(similar_jobs, 1):
+                    job_id = job.get('jobId', job.get('stop_command', '').split()[-1] if job.get('stop_command') else 'Unknown')
+                    job_name = job.get('name', 'Unknown')
+                    status = job.get('status', 'Unknown')
+
+                    # Handle creation time
+                    created_at = 'Unknown'
+                    if 'createdAt' in job and job['createdAt']:
+                        try:
+                            created_at = datetime.fromtimestamp(job['createdAt'] / 1000).strftime('%Y-%m-%d %H:%M:%S')
+                        except (TypeError, ValueError):
+                            pass
+
+                    job_ids.append(job_id)
+                    print(f"{i:<4} {job_name:<40} {job_id:<25} {status:<15} {created_at:<20}")
+
+                # Allow selection if interactive
+                if not args.non_interactive:
+                    try:
+                        choice = input("\nEnter job number to view logs (or press Enter to exit): ")
+                        if choice.strip():
+                            choice_idx = int(choice) - 1
+                            if 0 <= choice_idx < len(job_ids):
+                                selected_job_id = job_ids[choice_idx]
+                                print(f"Retrieving logs for job {selected_job_id}...")
+                                print_logs(selected_job_id, args.node, args.tail)
+                                return
+                            else:
+                                print(f"Invalid selection. Please enter a number between 1 and {len(job_ids)}.")
+                    except ValueError:
+                        print("Invalid input. Please enter a number.")
             else:
                 print("No similar jobs found.")
             return
@@ -301,32 +382,60 @@ def main():
         print_logs(job_id, args.node, args.tail)
     else:
         # It's a job name prefix
-        jobs = get_job_details(job_prefix=args.job)
+        jobs = get_job_details(job_prefix=args.job, job_queue=args.job_queue, max_jobs=args.max)
 
         if not jobs:
             print(f"No jobs found with prefix '{args.job}'. Listing recent jobs:")
-            list_recent_jobs()
+            selected_job_id = list_recent_jobs(args.job_queue, args.max, not args.non_interactive)
+            if selected_job_id:
+                print(f"Retrieving logs for job {selected_job_id}...")
+                print_logs(selected_job_id, args.node, args.tail)
             return
 
         if len(jobs) == 1:
             # If only one job matches, show its logs
-            job_id = jobs[0].get('jobId', jobs[0].get('stop_command', '').split()[-1])
-            print(f"Found one job matching '{args.job}': {job_id}")
+            job_id = jobs[0].get('jobId', jobs[0].get('stop_command', '').split()[-1] if jobs[0].get('stop_command') else 'Unknown')
+            job_name = jobs[0].get('name', 'Unknown')
+            print(f"Found one job matching '{args.job}': {job_name} ({job_id})")
             print_logs(job_id, args.node, args.tail)
         else:
-            # If multiple jobs match, list them
-            print(f"Multiple jobs found with prefix '{args.job}':")
-            print("-" * 80)
-            print(f"{'Job Name':<40} {'Job ID':<25} {'Status':<15} {'Created At':<20}")
-            print("-" * 80)
+            # If multiple jobs match, list them with numbers
+            print(f"Multiple jobs found with prefix '{args.job}' (showing up to {args.max}):")
+            print("-" * 100)
+            print(f"{'#':<4} {'Job Name':<40} {'Job ID':<25} {'Status':<15} {'Created At':<20}")
+            print("-" * 100)
 
-            for job in jobs:
-                job_id = job.get('jobId', job.get('stop_command', '').split()[-1])
-                job_name = job['name']
-                status = job['status']
-                created_at = datetime.fromtimestamp(job.get('createdAt', 0) / 1000).strftime('%Y-%m-%d %H:%M:%S') if 'createdAt' in job else 'Unknown'
+            job_ids = []
+            for i, job in enumerate(jobs, 1):
+                job_id = job.get('jobId', job.get('stop_command', '').split()[-1] if job.get('stop_command') else 'Unknown')
+                job_name = job.get('name', 'Unknown')
+                status = job.get('status', 'Unknown')
 
-                print(f"{job_name:<40} {job_id:<25} {status:<15} {created_at:<20}")
+                # Handle creation time
+                created_at = 'Unknown'
+                if 'createdAt' in job and job['createdAt']:
+                    try:
+                        created_at = datetime.fromtimestamp(job['createdAt'] / 1000).strftime('%Y-%m-%d %H:%M:%S')
+                    except (TypeError, ValueError):
+                        pass
+
+                job_ids.append(job_id)
+                print(f"{i:<4} {job_name:<40} {job_id:<25} {status:<15} {created_at:<20}")
+
+            # Allow selection if interactive
+            if not args.non_interactive:
+                try:
+                    choice = input("\nEnter job number to view logs (or press Enter to exit): ")
+                    if choice.strip():
+                        choice_idx = int(choice) - 1
+                        if 0 <= choice_idx < len(job_ids):
+                            selected_job_id = job_ids[choice_idx]
+                            print(f"Retrieving logs for job {selected_job_id}...")
+                            print_logs(selected_job_id, args.node, args.tail)
+                        else:
+                            print(f"Invalid selection. Please enter a number between 1 and {len(job_ids)}.")
+                except ValueError:
+                    print("Invalid input. Please enter a number.")
 
 if __name__ == "__main__":
     main()

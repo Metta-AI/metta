@@ -68,7 +68,7 @@ def container_config(args, task_args, job_name):
 
     # Calculate resource requirements
     vcpus_per_gpu = args.gpu_cpus * 2
-    total_vcpus = vcpus_per_gpu * args.gpus
+    total_vcpus = vcpus_per_gpu * args.node_gpus
 
     # Memory in GB, convert to MB for AWS Batch API
     memory_gb = int(args.cpu_ram_gb)
@@ -132,7 +132,7 @@ def container_config(args, task_args, job_name):
         },
         {
             'name': 'NUM_GPUS',
-            'value': str(args.gpus)
+            'value': str(args.node_gpus)
         },
         {
             'name': 'NUM_WORKERS',
@@ -195,14 +195,14 @@ def container_config(args, task_args, job_name):
             "-"*10,
             " ".join(entrypoint_cmd),
             "-"*10,
-            f"Resources: {args.gpus} GPUs, {total_vcpus} vCPUs ({vcpus_per_gpu} per GPU), {memory_gb}GB RAM, {shared_memory_mb}MB shared memory"
+            f"Resources: {args.num_nodes} nodes, {args.node_gpus} GPUs, {total_vcpus} vCPUs ({vcpus_per_gpu} per GPU), {memory_gb}GB RAM, {shared_memory_mb}MB shared memory"
         ]))
 
     # Create resource requirements
     resource_requirements = [
         {
             'type': 'GPU',
-            'value': str(args.gpus)
+            'value': str(args.node_gpus)
         }
     ]
 
@@ -229,18 +229,20 @@ if __name__ == "__main__":
     parser.add_argument('--run', required=True, help='The run id.')
     parser.add_argument('--cmd', required=True, choices=["train", "sweep", "evolve"], help='The command to run.')
 
-    parser.add_argument('--git_branch', default=None, help='The git branch to use for the task. If not specified, will use the current commit.')
-    parser.add_argument('--git_commit', default=None, help='The git commit to use for the task. If not specified, will use the current commit.')
-    parser.add_argument('--mettagrid_branch', default=None, help='The mettagrid branch to use for the task. If not specified, will use the current commit.')
-    parser.add_argument('--mettagrid_commit', default=None, help='The mettagrid commit to use for the task. If not specified, will use the current commit.')
+    parser.add_argument('--git-branch', default=None, help='The git branch to use for the task. If not specified, will use the current commit.')
+    parser.add_argument('--git-commit', default=None, help='The git commit to use for the task. If not specified, will use the current commit.')
+    parser.add_argument('--mettagrid-branch', default=None, help='The mettagrid branch to use for the task. If not specified, will use the current commit.')
+    parser.add_argument('--mettagrid-commit', default=None, help='The mettagrid commit to use for the task. If not specified, will use the current commit.')
     parser.add_argument('--gpus', type=int, default=4, help='Number of GPUs per node to use for the task.')
-    parser.add_argument('--gpu_cpus', type=int, default=6, help='Number of CPUs per GPU (vCPUs will be 2x this value).')
-    parser.add_argument('--cpu_ram_gb', type=int, default=20, help='RAM per node in GB.')
+    parser.add_argument('--node-gpus', type=int, default=4, help='Number of GPUs per node to use for the task.')
+    parser.add_argument('--gpu-cpus', type=int, default=6, help='Number of CPUs per GPU (vCPUs will be 2x this value).')
+    parser.add_argument('--cpu-ram-gb', type=int, default=20, help='RAM per node in GB.')
     parser.add_argument('--copies', type=int, default=1, help='Number of job copies to submit.')
-    parser.add_argument('--num-nodes', type=int, default=1, help='Number of nodes for distributed training.')
     parser.add_argument('--profile', default="stem", help='AWS profile to use. If not specified, uses the default profile.')
-    parser.add_argument('--job_queue', default="metta-batch-jq-test", help='AWS Batch job queue to use.')
+    parser.add_argument('--job-queue', default="metta-batch-jq-test", help='AWS Batch job queue to use.')
     args, task_args = parser.parse_known_args()
+
+    args.num_nodes = max(1, args.gpus // args.node_gpus)
 
     # Set default commit values if not specified
     if args.git_branch is None and args.git_commit is None:
