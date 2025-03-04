@@ -44,3 +44,5 @@ stats:
   overview:
     episode/reward.mean: episode_reward
   step: train/agent_step
+
+inverse_loss_coef: 0.1

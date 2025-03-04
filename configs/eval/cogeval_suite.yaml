@@ -1,0 +1,31 @@
+_target_: rl.pufferlib.eval.EvalSuite
+
+defaults:
+  - eval
+
+env: null #the env is set in evals:
+
+evals:
+  mini:
+    env: env/mettagrid/cognitive_evals/cogeval_training_mini_simplified
+    policy_agents_pct: 1.0
+
+  cylinder:
+    env: env/mettagrid/cognitive_evals/cylinder
+    policy_agents_pct: 1.0
+
+  explore_exploit:
+    env: env/mettagrid/cognitive_evals/explore_exploit
+    policy_agents_pct: 1.0
+
+  labryinth:
+    env: env/mettagrid/cognitive_evals/labryinth
+    policy_agents_pct: 1.0
+
+  radial_maze:
+    env: env/mettagrid/cognitive_evals/radial_maze
+    policy_agents_pct: 1.0
+
+  room_within_room:
+    env: env/mettagrid/cognitive_evals/room_within_room
+    policy_agents_pct: 1.0

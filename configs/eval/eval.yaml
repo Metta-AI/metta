@@ -10,7 +10,7 @@ vectorization: ${vectorization}
 
 num_envs: 128
 num_episodes: 128
-max_time_s: 60
+max_time_s: 300
 
 name: null
 eval_db_uri: ${eval_db_uri}

@@ -89,7 +89,11 @@ class EvalStatsAnalyzer:
     def get_latest_policy(all_policies, uri):
         if uri in all_policies:
             return uri
+        if "wandb" in uri:
+            uri = uri.replace("wandb://metta-research/metta/", "")
+            uri = uri.replace("wandb://run/", "")
         policy_versions = [i for i in all_policies if uri in i]
+
         if len(policy_versions) == 0:
             raise ValueError(f"No policy found in DB for candidate policy: {uri}, options are {all_policies}")
         if len(policy_versions) > 1 and 'wandb' in uri:
@@ -124,6 +128,8 @@ class EvalStatsAnalyzer:
 
         for eval in evals:
             # Is the difference the correct way to do this?
+            if eval not in candidate_data.index:
+                continue
             candidate_mean = candidate_data.loc[eval][metric_mean]
             baseline_mean = np.mean(baseline_data.loc[eval][metric_mean])
             fitness = (candidate_data.loc[eval][metric_mean] - np.mean(baseline_data.loc[eval][metric_mean])) # / np.std(baseline_data.loc[eval][metric_std])
