@@ -143,7 +143,7 @@ if __name__ == "__main__":
 
     if args.gpus is None:
         if args.cmd == "train":
-            args.gpus = 8
+            args.gpus = 4
         else:
             args.gpus = 1
 
