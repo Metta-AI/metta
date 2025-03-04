@@ -93,12 +93,6 @@ def create_job_definition(args):
                                     "fileSystemId": efs_id
                                 }
                             },
-                            {
-                                "name": "tmp",
-                                "host": {
-                                    "sourcePath": "/tmp"
-                                }
-                            }
                         ],
                         "environment": [
                             {
@@ -115,14 +109,8 @@ def create_job_definition(args):
                                 "containerPath": "/mnt/efs",
                                 "readOnly": False,
                                 "sourceVolume": "efs"
-                            },
-                            {
-                                "containerPath": "/tmp",
-                                "readOnly": False,
-                                "sourceVolume": "tmp"
                             }
                         ],
-                        "privileged": True,
                         "ulimits": [
                             {
                                 "hardLimit": 640000,

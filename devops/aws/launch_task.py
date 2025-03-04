@@ -233,7 +233,7 @@ if __name__ == "__main__":
     parser.add_argument('--git_commit', default=None, help='The git commit to use for the task. If not specified, will use the current commit.')
     parser.add_argument('--mettagrid_branch', default=None, help='The mettagrid branch to use for the task. If not specified, will use the current commit.')
     parser.add_argument('--mettagrid_commit', default=None, help='The mettagrid commit to use for the task. If not specified, will use the current commit.')
-    parser.add_argument('--gpus', type=int, default=None, help='Number of GPUs per node to use for the task.')
+    parser.add_argument('--gpus', type=int, default=4, help='Number of GPUs per node to use for the task.')
     parser.add_argument('--gpu_cpus', type=int, default=6, help='Number of CPUs per GPU (vCPUs will be 2x this value).')
     parser.add_argument('--cpu_ram_gb', type=int, default=20, help='RAM per node in GB.')
     parser.add_argument('--copies', type=int, default=1, help='Number of job copies to submit.')
@@ -252,11 +252,6 @@ if __name__ == "__main__":
         args.mettagrid_commit = get_current_commit(mettagrid_path) if os.path.exists(mettagrid_path) else "main"
         print(f"Using current mettagrid commit: {args.mettagrid_commit}")
 
-    # Validate required parameters
-    if args.gpus is None:
-        print("Error: --gpus parameter is required")
-        parser.print_help()
-        sys.exit(1)
 
     for _ in range(args.copies):
         submit_batch_job(args, task_args)
