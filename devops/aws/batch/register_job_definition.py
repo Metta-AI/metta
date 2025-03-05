@@ -272,7 +272,7 @@ def main():
     args.vcpus = 1
     args.memory = 1024  # 1GB
     args.gpus = 1
-    args.shared_memory = 100  # 100MB
+    args.shared_memory = 230000
 
     # Print resource configuration
     print("Using resource configuration:")

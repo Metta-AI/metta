@@ -74,9 +74,6 @@ def container_config(args, task_args, job_name):
     memory_gb = int(args.cpu_ram_gb)
     memory_mb = memory_gb * 1024
 
-    # Calculate shared memory size as 90% of available memory
-    shared_memory_mb = int(memory_mb * 0.9)
-
     # Set up environment variables for distributed training
     env_vars = [
         {
@@ -112,8 +109,16 @@ def container_config(args, task_args, job_name):
             'value': 'INFO'
         },
         {
-            'name': 'SHARED_MEMORY_SIZE',
-            'value': str(shared_memory_mb)
+            'name': 'NCCL_IGNORE_DISABLED_P2P',
+            'value': '1'
+        },
+        {
+            'name': 'NCCL_IB_DISABLE',
+            'value': '1'
+        },
+        {
+            'name': 'NCCL_P2P_DISABLE',
+            'value': '1'
         },
     ]
 
@@ -191,7 +196,7 @@ def container_config(args, task_args, job_name):
             "-"*10,
             "Command:",
             "-"*10,
-            " ".join(entrypoint_cmd),
+            "; ".join(entrypoint_cmd),
             "-"*10,
             f"Resources: {args.num_nodes} nodes, {args.node_gpus} GPUs, {total_vcpus} vCPUs ({vcpus_per_gpu} per GPU), {memory_gb}GB RAM, {shared_memory_mb}MB shared memory"
         ]))
