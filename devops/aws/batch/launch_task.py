@@ -198,7 +198,7 @@ def container_config(args, task_args, job_name):
             "-"*10,
             "; ".join(entrypoint_cmd),
             "-"*10,
-            f"Resources: {args.num_nodes} nodes, {args.node_gpus} GPUs, {total_vcpus} vCPUs ({vcpus_per_gpu} per GPU), {memory_gb}GB RAM, {shared_memory_mb}MB shared memory"
+            f"Resources: {args.num_nodes} nodes, {args.node_gpus} GPUs, {total_vcpus} vCPUs ({vcpus_per_gpu} per GPU), {memory_gb}GB RAM"
         ]))
 
     # Create resource requirements
