@@ -3,7 +3,7 @@ defaults:
 
 sampling: 1
 game:
-  num_agents: 6    # Updated for 9 room types with 2 rooms each
+  num_agents: 8    # Updated for 9 room types with 2 rooms each
 
   map_builder:
     _target_: mettagrid.config.room.room_scene.RoomScene
@@ -13,6 +13,7 @@ game:
       [ "cylinder", "explore_exploit"],
       [ "labyrinth", "room_within_room"],
       [  "corridor", "radial"],
+      [ "barriermaze", "labyrinth"],
     ]
     # List of room configurations
     rooms:
