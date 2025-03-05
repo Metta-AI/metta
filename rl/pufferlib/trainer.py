@@ -39,12 +39,10 @@ class PufferTrainer:
         self.device = cfg.device
 
         self._master = True
-        self._local_master = True
         self._world_size = 1
         if dist.is_initialized():
             logger.info("Setting up distributed training")
             self._master = (int(os.environ["RANK"]) == 0)
-            self._local_master = (int(os.environ["LOCAL_RANK"]) == 0)
             self._world_size = dist.get_world_size()
             logger.info(f"Rank: {os.environ['RANK']}, Local rank: {os.environ['LOCAL_RANK']}, World size: {self._world_size}")
         self.profile = Profile()
@@ -89,7 +87,7 @@ class PufferTrainer:
                 time.sleep(10)
             assert policy_record is not None, "No policy found"
 
-        if self._local_master:
+        if self._master:
             print(policy_record.policy())
 
         if policy_record.metadata["action_names"] != self.vecenv.driver_env.action_names():
@@ -413,7 +411,7 @@ class PufferTrainer:
             )
 
     def _checkpoint_trainer(self):
-        if not self._local_master:
+        if not self._master:
             return
 
         pr = self._checkpoint_policy()
@@ -426,7 +424,7 @@ class PufferTrainer:
         ).save(self.cfg.run_dir)
 
     def _checkpoint_policy(self):
-        if not self._local_master:
+        if not self._master:
             return
 
         name = self.policy_store.make_model_name(self.epoch)
