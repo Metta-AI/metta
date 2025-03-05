@@ -181,9 +181,6 @@ def container_config(args, task_args, job_name):
     elif args.git_commit is not None:
         entrypoint_cmd.append(f'git checkout {args.git_commit}')
 
-    # Update the repository from the current branch
-    entrypoint_cmd.append('git pull')
-
     # Run the entrypoint script
     entrypoint_cmd.append('./devops/aws/batch/train_entrypoint.sh')
 

@@ -26,17 +26,11 @@ else
   echo "No git reference specified, using current branch"
 fi
 
-# Update code
-git pull
-
 # Install dependencies
 pip install -r requirements.txt
 
-# Install specific termcolor version if we checked out a reference
-if [ -n "$GIT_REF" ]; then
-  pip uninstall -y termcolor
-  pip install termcolor==2.4.0
-fi
+pip uninstall -y termcolor
+pip install termcolor==2.4.0
 
 # Setup build
 export METTAGRID_REF
