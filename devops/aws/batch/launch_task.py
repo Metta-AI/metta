@@ -175,7 +175,7 @@ def container_config(args, task_args, job_name):
     entrypoint_cmd = []
 
     # Check out the git reference (branch or commit) before pulling
-    entrypoint_cmd.append('git checkout fetch')
+    entrypoint_cmd.append('git fetch')
     if args.git_branch is not None:
         entrypoint_cmd.append(f'git checkout {args.git_branch}')
     elif args.git_commit is not None:
@@ -248,13 +248,10 @@ if __name__ == "__main__":
     # Set default commit values if not specified
     if args.git_branch is None and args.git_commit is None:
         args.git_commit = get_current_commit()
-        print(f"Using current metta commit: {args.git_commit}")
 
     if args.mettagrid_branch is None and args.mettagrid_commit is None:
-        mettagrid_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "deps", "mettagrid")
-        args.mettagrid_commit = get_current_commit(mettagrid_path) if os.path.exists(mettagrid_path) else "main"
-        print(f"Using current mettagrid commit: {args.mettagrid_commit}")
+        args.mettagrid_commit = get_current_commit("../mettagrid")
 
-
-    for _ in range(args.copies):
+    # Submit the job
+    for i in range(args.copies):
         submit_batch_job(args, task_args)
