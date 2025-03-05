@@ -10,11 +10,11 @@ game:
     border_width: 3
 
     layout: [
-      [ "room_within_room", "room_within_room"],
+      [ "cylinder", "cylinder"],
       [  "barriermaze", "radial"],
       ["explore_exploit", "labyrinth"],
       ["corridor", "corridor"],
-      [ "room_within_room", "room_within_room"],
+      [ "radial", "radial"],
       [  "barriermaze", "radial"],
       ["explore_exploit", "labyrinth"],
       ["corridor", "corridor"],
