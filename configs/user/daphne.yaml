@@ -4,7 +4,7 @@ seed: null
 
 defaults:
   - override /eval: cogeval_suite
-  - override /env/mettagrid@env: cognitive_evals/cogeval_training_easy
+  - override /env/mettagrid@env: cognitive_evals/corridor_maze
   - override /agent: simple
   - override /sweep: fast
   - override /analyzer: analyzer
