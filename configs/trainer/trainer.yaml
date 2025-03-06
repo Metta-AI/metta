@@ -11,11 +11,14 @@ checkpoint_dir: ${run_dir}/checkpoints
 
 glicko_scores_path: ${run_dir}/eval/glicko2
 
-evaluate: false
-evaluate_interval: 10
+evaluate_interval: 0
+checkpoint_interval: 60
+wandb_checkpoint_interval: 300
 
 trace_interval: 0
 
 # Average reward settings
 average_reward: false  # Set to true to use average reward optimization
 average_reward_alpha: 0.01  # Smoothing factor for 100k step average (ln(2)/100000)
+
+
