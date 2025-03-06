@@ -86,18 +86,28 @@ def normalize_resource_type(res_type):
         return 'compute-environment'
     return res_type
 
-def handle_compute_command(resource_id=None):
+def handle_compute_command(resource_id=None, command=None):
     """Handle the 'compute' command."""
-    if resource_id == 'all' or not resource_id:
-        # List all compute environments
-        list_compute_environments()
-    else:
-        # Get info about a specific compute environment
+    if command == 'info' or (resource_id and resource_id != 'all' and command != 'list'):
+        # Get detailed info about a specific compute environment, including its instances
         get_compute_environment_info(resource_id)
+    else:
+        # List all compute environments with status, instance types, and number of instances
+        list_compute_environments()
 
 def main():
     """Main entry point for the AWS Batch CLI."""
     args = parse_args()
+
+    # Special case for 'compute' command
+    if args.arg1 == 'compute' or args.arg1 == 'c':
+        if args.arg2 and args.arg2 != 'all':
+            # If a specific compute environment is provided, get detailed info about it
+            get_compute_environment_info(args.arg2)
+        else:
+            # Otherwise, list all compute environments
+            list_compute_environments()
+        return
 
     # Determine if we're using the new simplified syntax or the old syntax
     # New syntax: cmd.sh info <job_id>
@@ -140,11 +150,6 @@ def main():
         # If resource_id is provided, it might be a job queue name
         job_queue = resource_id if resource_id else 'metta-jq'
         list_jobs(job_queue=job_queue, max_jobs=args.max)
-        return
-
-    # Special case for 'compute' resource type (alias for compute-environment)
-    if resource_type == 'compute':
-        handle_compute_command(resource_id)
         return
 
     # Execute the appropriate command based on resource type and command

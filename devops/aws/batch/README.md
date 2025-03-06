@@ -48,6 +48,7 @@ cmd.sh [resource_type] [id] [command] [options]
 - **Default Job Queue**: For job commands, if no queue is specified, `metta-jq` is used.
 - **Job Name Support**: You can use either job IDs or job names for job commands.
 - **Resource Auto-Detection**: When a job ID is not found, the system automatically checks if it's a compute environment or job queue.
+- **Compute Environment Details**: The `compute` command displays Status, InstanceTypes, and Num Instances for compute environments.
 
 ## Examples
 
@@ -83,9 +84,13 @@ List jobs with a higher limit:
 cmd.sh jobs --max=10
 ```
 
-List or get information about compute environments:
+List compute environments with status, instance types, and number of instances:
 ```
 cmd.sh compute
+```
+
+Get detailed information about a specific compute environment, including its instances:
+```
 cmd.sh compute <compute_env_name>
 ```
 

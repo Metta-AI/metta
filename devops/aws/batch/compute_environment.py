@@ -26,22 +26,23 @@ def list_compute_environments():
         table_data = []
         for ce in compute_envs:
             name = ce['computeEnvironmentName']
-            state = ce['state']
-            status = ce['status']
-            type_str = ce['type']
 
             # Get compute resources if available
             compute_resources = ce.get('computeResources', {})
             instance_types = compute_resources.get('instanceTypes', [])
             instance_type_str = ', '.join(instance_types) if instance_types else 'N/A'
 
-            min_vcpus = compute_resources.get('minvCpus', 'N/A')
-            max_vcpus = compute_resources.get('maxvCpus', 'N/A')
+            # Get ECS cluster and count instances
+            num_instances = 0
+            ecs_cluster_arn = ce.get('ecsClusterArn')
+            if ecs_cluster_arn:
+                ec2_instances = get_ec2_instances_for_cluster(ecs_cluster_arn)
+                num_instances = len(ec2_instances)
 
-            table_data.append([name, state, status, type_str, min_vcpus, max_vcpus, instance_type_str])
+            table_data.append([name, instance_type_str, num_instances])
 
         # Print the table
-        headers = ['Name', 'State', 'Status', 'Type', 'Min vCPUs', 'Max vCPUs', 'Instance Types']
+        headers = ['Name', 'Instance Types', 'Num Instances']
         print(tabulate(table_data, headers=headers, tablefmt='grid'))
 
         return [ce['computeEnvironmentName'] for ce in compute_envs]

@@ -58,6 +58,37 @@ def format_time_difference(timestamp, end_timestamp=None):
     hours = int((diff_seconds % 86400) / 3600)
     return f"{days}d {hours}h"
 
+def format_time_ago(timestamp):
+    """Format a timestamp as a human-readable 'time ago' string."""
+    if not timestamp:
+        return "N/A"
+
+    # Convert milliseconds to seconds if necessary
+    if timestamp > 1000000000000:  # If timestamp is in milliseconds
+        timestamp = timestamp / 1000
+
+    # Calculate difference from now
+    now = time.time()
+    diff_seconds = now - timestamp
+
+    # Format the difference
+    if diff_seconds < 0:
+        return "Future"
+
+    if diff_seconds < 60:
+        return f"({int(diff_seconds)}s ago)"
+
+    if diff_seconds < 3600:
+        minutes = int(diff_seconds / 60)
+        return f"({minutes}m ago)"
+
+    if diff_seconds < 86400:
+        hours = int(diff_seconds / 3600)
+        return f"({hours}h ago)"
+
+    days = int(diff_seconds / 86400)
+    return f"({days}d ago)"
+
 def list_jobs(job_queue=None, max_jobs=100):
     """List jobs in a job queue."""
     batch = get_boto3_client()
@@ -121,7 +152,6 @@ def list_jobs(job_queue=None, max_jobs=100):
     # Format the output
     table_data = []
     for job in all_jobs:
-        job_id = job['jobId']
         job_name = job['jobName']
         job_status = job['status']
 
@@ -132,6 +162,8 @@ def list_jobs(job_queue=None, max_jobs=100):
 
         # Format timestamps
         created_str = datetime.fromtimestamp(created_at / 1000).strftime('%Y-%m-%d %H:%M:%S') if created_at else 'N/A'
+        created_ago = format_time_ago(created_at) if created_at else ''
+        created_display = f"{created_str} {created_ago}"
 
         # Calculate duration
         if started_at and stopped_at:
@@ -141,18 +173,95 @@ def list_jobs(job_queue=None, max_jobs=100):
         else:
             duration = 'N/A'
 
-        # Get job definition
-        job_definition = job.get('jobDefinition', '').split('/')[-1].split(':')[0]
-
         # Get number of attempts
         attempts = len(job.get('attempts', []))
 
-        table_data.append([job_id, job_name, job_status, created_str, duration, job_definition, attempts])
+        # Get number of nodes
+        num_nodes = 1  # Default for single-node jobs
+        if 'nodeProperties' in job:
+            num_nodes = job['nodeProperties'].get('numNodes', 1)
+
+        # Calculate total GPUs
+        num_gpus = 0
+        container = job.get('container', {})
+        if container:
+            # Check if it's a GPU job
+            resource_requirements = container.get('resourceRequirements', [])
+            for resource in resource_requirements:
+                if resource.get('type') == 'GPU':
+                    num_gpus = int(resource.get('value', 0))
+                    # For single-node jobs, multiply by number of nodes
+                    if 'nodeProperties' not in job:
+                        break
+
+        # For multi-node jobs, calculate total GPUs across all nodes
+        if 'nodeProperties' in job:
+            # Reset GPU count for multi-node jobs to avoid double counting
+            num_gpus = 0
+            node_ranges = job['nodeProperties'].get('nodeRangeProperties', [])
+            total_nodes = job['nodeProperties'].get('numNodes', 1)
+
+            # If no node ranges specified but we have numNodes, use the main container's GPU count
+            if not node_ranges and container:
+                resource_requirements = container.get('resourceRequirements', [])
+                for resource in resource_requirements:
+                    if resource.get('type') == 'GPU':
+                        num_gpus = int(resource.get('value', 0)) * total_nodes
+                        break
+
+            # Process each node range
+            for node_range in node_ranges:
+                node_container = node_range.get('container', {})
+                if node_container:
+                    # First check environment variables for NUM_GPUS
+                    env_vars = node_container.get('environment', [])
+                    gpus_per_node = 0
+                    for env in env_vars:
+                        if env.get('name') == 'NUM_GPUS':
+                            try:
+                                gpus_per_node = int(env.get('value', 0))
+                                break
+                            except (ValueError, TypeError):
+                                pass
+
+                    # If not found in environment, check resource requirements
+                    if gpus_per_node == 0:
+                        node_resources = node_container.get('resourceRequirements', [])
+                        for resource in node_resources:
+                            if resource.get('type') == 'GPU':
+                                gpus_per_node = int(resource.get('value', 0))
+                                break
+
+                    # Get the target nodes range (e.g., "0:1" for nodes 0 and 1)
+                    target_nodes = node_range.get('targetNodes', '')
+                    try:
+                        # Parse the range (e.g., "0:1" -> 2 nodes)
+                        if ':' in target_nodes:
+                            parts = target_nodes.split(':')
+                            if len(parts) == 2:
+                                start = int(parts[0])
+                                # If end is empty (e.g., "0:"), use total_nodes
+                                if parts[1] == '':
+                                    node_count = total_nodes - start
+                                else:
+                                    end = int(parts[1])
+                                    node_count = end - start + 1
+                            else:
+                                node_count = 1
+                        else:
+                            # Single node specified
+                            node_count = 1
+                        num_gpus += gpus_per_node * node_count
+                    except (ValueError, TypeError):
+                        # If we can't parse the range, assume 0 GPUs for this range
+                        pass
+
+        table_data.append([job_name, job_status, created_display, duration, attempts, num_nodes, num_gpus])
 
     # Print the table
     if table_data:
         print(f"Jobs in queue '{job_queue}':")
-        headers = ['Job ID', 'Name', 'Status', 'Created', 'Duration', 'Job Definition', 'Attempts']
+        headers = ['Name', 'Status', 'Created', 'Duration', 'Attempts', 'NumNodes', 'Num GPUs']
         print(tabulate(table_data, headers=headers, tablefmt='grid'))
     else:
         print(f"No jobs found in queue '{job_queue}'")
