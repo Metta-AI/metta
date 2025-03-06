@@ -117,9 +117,9 @@ class Eval():
                 # Parallelize across opponents
                 policy = self._policy_pr.policy() # policy to evaluate
                 if hasattr(policy, 'lstm'):
-                    policy_actions, _, _, _, policy_rnn_state, _, _ = policy(my_obs, policy_rnn_state)
+                    policy_actions, _, _, _, policy_rnn_state, _, _, _ = policy(my_obs, policy_rnn_state)
                 else:
-                    policy_actions, _, _, _, _, _ = policy(my_obs)
+                    policy_actions, _, _, _, _, _, _, _ = policy(my_obs)
 
                 # Iterate opponent policies
                 if self._npc_pr is not None:
@@ -128,9 +128,9 @@ class Eval():
 
                     npc_policy = self._npc_pr.policy()
                     if hasattr(npc_policy, 'lstm'):
-                        npc_action, _, _, _, npc_rnn_state, _, _ = npc_policy(npc_obs, npc_rnn_state)
+                        npc_action, _, _, _, npc_rnn_state, _, _, _ = npc_policy(npc_obs, npc_rnn_state)
                     else:
-                        npc_action, _, _, _, _, _ = npc_policy(npc_obs)
+                        npc_action, _, _, _, _, _, _, _ = npc_policy(npc_obs)
 
             actions = policy_actions
             if self._npc_agents_per_env > 0:
