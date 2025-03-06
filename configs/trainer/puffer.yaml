@@ -47,9 +47,9 @@ stats:
 
 kickstart: false
 teachers:
-  - policy_uri: wandb://run/simple.standard.multi.discrete.2.20.24.r0
+  - policy_uri: wandb://run/mettabox_cogeval_defaults_lowent_initialized0005:v100
     action_coef: 1
     value_coef: 1
-  - policy_uri: wandb://run/b.simple.standard.multi.discrete.2.20.24.r1
-    action_coef: 1
-    value_coef: 1
+  # - policy_uri: wandb://run/b.simple.standard.multi.discrete.2.20.24.r1
+  #   action_coef: 1
+  #   value_coef: 1
