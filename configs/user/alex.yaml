@@ -9,7 +9,7 @@ defaults:
   - override /eval: example
   - override /analyzer: analyzer
 
-policy_uri: wandb://run/alex.trainee.0
+policy_uri: wandb://run/alex.trainee.001
 npc_policy_uri: null
 eval_db_uri: file://artifacts/alex_eval_testing
 
@@ -39,4 +39,4 @@ wandb:
   checkpoint_interval: 1
 
 cmd: ???
-run: ${oc.env:USER}.local.${cmd}.2
+run: ${oc.env:USER}.local.${cmd}.3
