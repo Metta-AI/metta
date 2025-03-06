@@ -5,6 +5,7 @@ AWS Batch job utilities for interacting with AWS Batch jobs.
 import boto3
 from botocore.config import Config
 from datetime import datetime
+import re
 
 def get_batch_job_queues():
     """Get a list of all available AWS Batch job queues."""
@@ -639,13 +640,14 @@ def get_log_events(log_group, log_stream, start_time=None, tail=False):
         print(f"Error retrieving log events for stream {log_stream}: {str(e)}")
         return []
 
-def print_job_logs(job_id, attempt_index=None, tail=False, debug=False):
+def print_job_logs(job_id, attempt_index=None, node_index=None, tail=False, debug=False):
     """
     Print logs for a specific job.
 
     Args:
         job_id (str): The job ID to get logs for
         attempt_index (int, optional): The specific attempt index to get logs for
+        node_index (int, optional): The specific node index to get logs for (for multi-node jobs)
         tail (bool): Whether to continuously poll for new logs
         debug (bool): Whether to show debug information
 
@@ -666,6 +668,7 @@ def print_job_logs(job_id, attempt_index=None, tail=False, debug=False):
 
     # Check if this is a multi-node job
     is_multi_node = False
+    num_nodes = 0
     if 'nodeProperties' in job:
         num_nodes = job.get('nodeProperties', {}).get('numNodes', 0)
         if num_nodes > 1:
@@ -751,6 +754,7 @@ def print_job_logs(job_id, attempt_index=None, tail=False, debug=False):
     # Check if this is likely a multi-node job based on the number of log streams
     if not is_multi_node and len(log_streams) > 3:  # Arbitrary threshold, adjust as needed
         is_multi_node = True
+        num_nodes = len(log_streams)
 
     if is_multi_node and debug:
         print(f"\nDebug: This appears to be a multi-node job with {len(log_streams)} log streams")
@@ -758,13 +762,93 @@ def print_job_logs(job_id, attempt_index=None, tail=False, debug=False):
     # Sort log streams by name
     log_streams.sort(key=lambda x: x.get('logStreamName', ''))
 
+    # For multi-node jobs, identify and display available nodes
+    if is_multi_node:
+        # Extract node information from log stream names
+        node_streams = {}
+        for i, stream in enumerate(log_streams):
+            stream_name = stream.get('logStreamName', '')
+
+            # Try to extract node information from the stream name
+            # Common patterns:
+            # - "node-X" where X is the node index
+            # - "nodeX" where X is the node index
+            # - "X" at the end of the stream name where X is the node index
+            node_id = None
+
+            # Look for node-X pattern
+            node_match = re.search(r'node-(\d+)', stream_name, re.IGNORECASE)
+            if node_match:
+                node_id = int(node_match.group(1))
+            else:
+                # Look for nodeX pattern
+                node_match = re.search(r'node(\d+)', stream_name, re.IGNORECASE)
+                if node_match:
+                    node_id = int(node_match.group(1))
+                else:
+                    # Look for ending with a number
+                    node_match = re.search(r'(\d+)$', stream_name)
+                    if node_match:
+                        node_id = int(node_match.group(1))
+                    else:
+                        # If we can't determine the node ID, use the index
+                        node_id = i
+
+            if node_id not in node_streams:
+                node_streams[node_id] = []
+
+            node_streams[node_id].append(stream)
+
+        # If node_index is specified, filter to only that node
+        if node_index is not None:
+            if node_index in node_streams:
+                selected_streams = node_streams[node_index]
+                print(f"\nShowing logs for node {node_index} ({len(selected_streams)} log streams):")
+            else:
+                available_nodes = sorted(node_streams.keys())
+                print(f"Node {node_index} not found. Available nodes: {available_nodes}")
+                return False
+        else:
+            # If no node is specified and there are multiple nodes, display them and prompt for selection
+            available_nodes = sorted(node_streams.keys())
+            print(f"\nThis is a multi-node job with {len(available_nodes)} nodes:")
+
+            for node_id in available_nodes:
+                streams = node_streams[node_id]
+                print(f"Node {node_id}: {len(streams)} log streams")
+
+            # Prompt for node selection
+            while True:
+                try:
+                    choice = input("\nEnter node number to view logs (or press Enter to view all nodes): ")
+                    if not choice:
+                        # View all nodes
+                        selected_streams = log_streams
+                        break
+
+                    choice = int(choice)
+                    if choice in node_streams:
+                        selected_streams = node_streams[choice]
+                        print(f"\nShowing logs for node {choice} ({len(selected_streams)} log streams):")
+                        break
+                    else:
+                        print(f"Invalid choice. Available nodes: {available_nodes}")
+                except ValueError:
+                    print("Invalid input. Please enter a number.")
+                except KeyboardInterrupt:
+                    print("\nOperation cancelled.")
+                    return False
+    else:
+        # For single-node jobs, use all log streams
+        selected_streams = log_streams
+
     # For multi-node jobs, we'll collect all events first and then sort them by timestamp
     if is_multi_node and not tail:
         all_events = []
         empty_streams = []
 
-        # Get events from all streams
-        for stream in log_streams:
+        # Get events from all selected streams
+        for stream in selected_streams:
             stream_name = stream.get('logStreamName', '')
             log_group_name = stream.get('logGroupName', '/aws/batch/job')
 
@@ -786,7 +870,7 @@ def print_job_logs(job_id, attempt_index=None, tail=False, debug=False):
 
         # Print all events in chronological order
         if all_events:
-            print(f"\nShowing logs from all {len(log_streams) - len(empty_streams)} non-empty streams in chronological order:")
+            print(f"\nShowing logs from all {len(selected_streams) - len(empty_streams)} non-empty streams in chronological order:")
             print("-" * 80)
 
             for event in all_events:
@@ -814,7 +898,7 @@ def print_job_logs(job_id, attempt_index=None, tail=False, debug=False):
         return True
 
     # For single-node jobs or when tailing, process streams individually
-    for stream in log_streams:
+    for stream in selected_streams:
         stream_name = stream.get('logStreamName', '')
         log_group_name = stream.get('logGroupName', '/aws/batch/job')
         attempt_num = stream.get('attemptNum', -1)
@@ -839,6 +923,7 @@ def print_job_logs(job_id, attempt_index=None, tail=False, debug=False):
         if tail:
             print("\nTailing logs... (Press Ctrl+C to stop)")
             next_token = None
+            logs_client = boto3.client('logs')
 
             try:
                 while True:
@@ -853,15 +938,18 @@ def print_job_logs(job_id, attempt_index=None, tail=False, debug=False):
                     if next_token:
                         params['nextToken'] = next_token
 
-                    response = boto3.client('logs').get_log_events(**params)
+                    try:
+                        response = logs_client.get_log_events(**params)
+                        events = response.get('events', [])
+                        next_token = response.get('nextForwardToken')
 
-                    events = response.get('events', [])
-                    for event in events:
-                        timestamp = datetime.fromtimestamp(event.get('timestamp', 0) / 1000).strftime('%Y-%m-%d %H:%M:%S')
-                        message = event.get('message', '')
-                        print(f"[{timestamp}] {message}")
-
-                    next_token = response.get('nextForwardToken')
+                        for event in events:
+                            timestamp = datetime.fromtimestamp(event.get('timestamp', 0) / 1000).strftime('%Y-%m-%d %H:%M:%S')
+                            message = event.get('message', '')
+                            print(f"[{timestamp}] {message}")
+                    except Exception as e:
+                        print(f"Error tailing logs: {str(e)}")
+                        break
             except KeyboardInterrupt:
                 print("\nStopped tailing logs.")
 

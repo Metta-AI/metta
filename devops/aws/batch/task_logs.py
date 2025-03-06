@@ -88,7 +88,7 @@ def list_recent_jobs(job_queue=None, max_jobs=10, interactive=False, debug=False
 
     return None
 
-def show_job_logs(job, tail=False, latest_attempt=False, attempt_index=None, debug=False):
+def show_job_logs(job, tail=False, latest_attempt=False, attempt_index=None, node_index=None, debug=False):
     """
     Show logs for a specific job.
 
@@ -97,6 +97,7 @@ def show_job_logs(job, tail=False, latest_attempt=False, attempt_index=None, deb
         tail (bool): Whether to continuously poll for new logs
         latest_attempt (bool): Whether to show logs only for the latest attempt
         attempt_index (int): The specific attempt index to show logs for
+        node_index (int): The specific node index to show logs for (for multi-node jobs)
         debug (bool): Whether to show debug information
     """
     # Check if the input is a job ID or job name
@@ -199,7 +200,7 @@ def show_job_logs(job, tail=False, latest_attempt=False, attempt_index=None, deb
                 return
 
     # Show logs for the job
-    print_job_logs(job_id, attempt_index=attempt_num, tail=tail, debug=debug)
+    print_job_logs(job_id, attempt_index=attempt_num, node_index=node_index, tail=tail, debug=debug)
 
 def main():
     """Main entry point for the script."""
@@ -210,12 +211,14 @@ def main():
     parser.add_argument('--max-jobs', type=int, default=10, help='Maximum number of jobs to list')
     parser.add_argument('--latest', action='store_true', help='Show logs for the latest attempt only')
     parser.add_argument('--attempt', type=int, help='Show logs for a specific attempt (0-based index)')
+    parser.add_argument('--node', type=int, help='Show logs for a specific node (for multi-node jobs)')
     parser.add_argument('--debug', action='store_true', help='Show debug information')
 
     args = parser.parse_args()
 
     if args.job:
-        show_job_logs(args.job, tail=args.tail, latest_attempt=args.latest, attempt_index=args.attempt, debug=args.debug)
+        show_job_logs(args.job, tail=args.tail, latest_attempt=args.latest,
+                     attempt_index=args.attempt, node_index=args.node, debug=args.debug)
     else:
         list_recent_jobs(job_queue=args.queue, max_jobs=args.max_jobs, debug=args.debug)
 

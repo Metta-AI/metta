@@ -106,7 +106,7 @@ def container_config(args, task_args, job_name):
         },
         {
             'name': 'NCCL_DEBUG',
-            'value': 'INFO'
+            'value': 'ERROR'
         },
         {
             'name': 'NCCL_IGNORE_DISABLED_P2P',
