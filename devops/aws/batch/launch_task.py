@@ -239,18 +239,10 @@ def container_config(args, task_args, job_name):
     entrypoint_cmd = [
         'git fetch',
         f'git checkout {args.git_branch or args.git_commit}',
-        './devops/aws/batch/train_entrypoint.sh'
+        './devops/aws/batch/entrypoint.sh'
     ]
 
     print("\n".join([
-            "Setup:",
-            "-"*10,
-            "Using train_entrypoint.sh script with environment variables",
-            "-"*10,
-            "Command:",
-            "-"*10,
-            "; ".join(entrypoint_cmd),
-            "-"*10,
             f"Resources: {args.num_nodes} nodes, {args.node_gpus} GPUs, {total_vcpus} vCPUs ({vcpus_per_gpu} per GPU), {memory_gb}GB RAM"
         ]))
 
