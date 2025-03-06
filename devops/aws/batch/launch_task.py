@@ -13,6 +13,19 @@ import boto3
 # Initialize colorama
 init(autoreset=True)
 
+specs = {
+    1: {
+        "node_gpus": 1,
+        "node_ram_gb": 60,
+        "gpu_cpus": 10,
+    },
+    4: {
+        "node_gpus": 4,
+        "node_ram_gb": 150,
+        "gpu_cpus": 12,
+    },
+}
+
 def get_current_commit(repo_path=None):
     """Get the current git commit hash."""
     try:
@@ -89,8 +102,8 @@ def submit_batch_job(args, task_args):
             print(f"Number of Nodes: {args.num_nodes}")
         print(f"Number of GPUs per Node: {args.node_gpus}")
         print(f"Total GPUs: {args.gpus}")
-        print(f"vCPUs per GPU: {args.gpu_cpus * 2}")
-        print(f"RAM per Node: {args.cpu_ram_gb} GB")
+        print(f"vCPUs per GPU: {args.gpu_cpus}")
+        print(f"RAM per Node: {args.node_ram_gb} GB")
         print(f"Git Reference: {args.git_branch or args.git_commit}")
         print(f"Mettagrid Reference: {args.mettagrid_branch or args.mettagrid_commit}")
         if task_args:
@@ -144,11 +157,11 @@ def container_config(args, task_args, job_name):
         sys.exit(1)
 
     # Calculate resource requirements
-    vcpus_per_gpu = args.gpu_cpus * 2
+    vcpus_per_gpu = args.gpu_cpus
     total_vcpus = vcpus_per_gpu * args.node_gpus
 
     # Memory in GB, convert to MB for AWS Batch API
-    memory_gb = int(args.cpu_ram_gb)
+    memory_gb = int(args.node_ram_gb)
     memory_mb = memory_gb * 1024
 
     # Set up environment variables for distributed training
@@ -219,7 +232,7 @@ def container_config(args, task_args, job_name):
         },
         {
             'name': 'NUM_WORKERS',
-            'value': str(min(6, vcpus_per_gpu // 2))
+            'value': str(vcpus_per_gpu)
         },
         {
             'name': 'GIT_REF',
@@ -279,8 +292,8 @@ def main():
     parser.add_argument('--mettagrid-commit', default=None, help='The mettagrid commit to use for the task. If not specified, will use the current commit.')
     parser.add_argument('--gpus', type=int, default=4, help='Number of GPUs per node to use for the task.')
     parser.add_argument('--node-gpus', type=int, default=4, help='Number of GPUs per node to use for the task.')
-    parser.add_argument('--gpu-cpus', type=int, default=6, help='Number of CPUs per GPU (vCPUs will be 2x this value).')
-    parser.add_argument('--cpu-ram-gb', type=int, default=20, help='RAM per node in GB.')
+    parser.add_argument('--gpu-cpus', type=int, help='Number of CPUs per GPU (vCPUs will be 2x this value).')
+    parser.add_argument('--node-ram-gb', type=int, help='RAM per node in GB.')
     parser.add_argument('--copies', type=int, default=1, help='Number of job copies to submit.')
     parser.add_argument('--profile', default="stem", help='AWS profile to use. If not specified, uses the default profile.')
     parser.add_argument('--job-queue', default="metta-jq", help='AWS Batch job queue to use.')
@@ -290,6 +303,10 @@ def main():
     args, task_args = parser.parse_known_args()
 
     args.num_nodes = max(1, args.gpus // args.node_gpus)
+    if args.node_ram_gb is None:
+        args.node_ram_gb = specs[args.node_gpus]["node_ram_gb"]
+    if args.gpu_cpus is None:
+        args.gpu_cpus = specs[args.node_gpus]["gpu_cpus"]
 
     # Set default commit values if not specified
     if args.git_branch is None and args.git_commit is None:

@@ -206,13 +206,16 @@ class PufferTrainer:
 
                 # Zero-copy indexing for contiguous env_id
 
-                # David: This was originally self.config.env_batch_size == 1, but you have scaling
+                # This was originally self.config.env_batch_size == 1, but you have scaling
                 # configured differently in metta. You want the whole forward pass batch to come
                 # from one core to reduce indexing overhead.
                 contiguous_env_ids = self.vecenv.agents_per_batch == self.vecenv.agents_per_env[0]
                 if contiguous_env_ids:
                     gpu_env_id = cpu_env_id = slice(env_id[0], env_id[-1] + 1)
                 else:
+                    if self.trainer_cfg.require_contiguous_env_ids:
+                        raise ValueError("Env ids are not contiguous. "\
+                            f"{self.vecenv.agents_per_batch} != {self.vecenv.agents_per_env[0]}")
                     cpu_env_id = env_id
                     gpu_env_id = torch.as_tensor(env_id).to(self.device, non_blocking=True)
 
