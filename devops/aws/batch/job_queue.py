@@ -9,7 +9,7 @@ import boto3
 from botocore.config import Config
 from tabulate import tabulate
 from datetime import datetime
-from job import format_time_difference
+from .job import format_time_difference
 
 def get_boto3_client(service_name='batch'):
     """Get a boto3 client with standard configuration."""

@@ -12,9 +12,6 @@ Usage:
 import sys
 import os
 
-# Add the parent directory to the Python path to allow importing the launch_task module
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../')))
-
 try:
     from devops.aws.batch import launch_task
 except ImportError as e:

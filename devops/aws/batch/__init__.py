@@ -1,3 +1,1 @@
-"""
-AWS Batch utilities for Metta.
-"""
+"""AWS Batch utilities for devops tasks."""

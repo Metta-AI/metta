@@ -8,12 +8,12 @@ There are two ways to use this command-line interface:
 
 ### Simplified Syntax
 ```
-cmd.sh [command] [id] [options]
+../cmd.sh [command] [id] [options]
 ```
 
 ### Traditional Syntax
 ```
-cmd.sh [resource_type] [id] [command] [options]
+../cmd.sh [resource_type] [id] [command] [options]
 ```
 
 ## Resource Types
@@ -30,6 +30,7 @@ cmd.sh [resource_type] [id] [command] [options]
 - `info` or `d`: Get detailed information about a resource
 - `logs` or `ls`: Get logs for a job
 - `stop` or `s`: Stop a job or compute environment
+- `ssh`: Connect to the instance running a job via SSH
 - `launch` or `st`: Launch a job
 
 ## Options
@@ -39,11 +40,12 @@ cmd.sh [resource_type] [id] [command] [options]
 - `--tail` or `-t`: Tail logs
 - `--attempt` or `-a`: Job attempt index
 - `--node` or `-n`: Node index for multi-node jobs
+- `--instance` or `-i`: Connect directly to the instance without attempting to connect to the container (for ssh command)
 - `--debug`: Enable debug output
 
 ## Features
 
-- **Simplified Syntax**: Commands like `cmd.sh info <job_id>` are supported for common operations.
+- **Simplified Syntax**: Commands like `../cmd.sh info <job_id>` are supported for common operations.
 - **Default Commands**: When no command is specified, `list` is assumed.
 - **Default Job Queue**: For job commands, if no queue is specified, `metta-jq` is used.
 - **Job Name Support**: You can use either job IDs or job names for job commands.
@@ -56,141 +58,151 @@ cmd.sh [resource_type] [id] [command] [options]
 
 Get information about a job:
 ```
-cmd.sh info <job_id>
+../cmd.sh info <job_id>
 ```
 
 Get logs for a job:
 ```
-cmd.sh logs <job_id>
+../cmd.sh logs <job_id>
 ```
 
 Stop a job:
 ```
-cmd.sh stop <job_id>
+../cmd.sh stop <job_id>
 ```
 
 List jobs in the default queue (metta-jq):
 ```
-cmd.sh jobs
+../cmd.sh jobs
 ```
 
 List jobs in a specific queue:
 ```
-cmd.sh jobs <queue_name>
+../cmd.sh jobs <queue_name>
 ```
 
 List jobs with a higher limit:
 ```
-cmd.sh jobs --max=10
+../cmd.sh jobs --max=10
 ```
 
 List compute environments with status, instance types, and number of instances:
 ```
-cmd.sh compute
+../cmd.sh compute
 ```
 
 Get detailed information about a specific compute environment, including its instances:
 ```
-cmd.sh compute <compute_env_name>
+../cmd.sh compute <compute_env_name>
 ```
 
 ### Traditional Syntax Examples
 
 List all job queues:
 ```
-cmd.sh job-queue list
+../cmd.sh job-queue list
 ```
 
 Or simply:
 ```
-cmd.sh job-queue
+../cmd.sh job-queue
 ```
 
 Get information about a specific job queue:
 ```
-cmd.sh job-queue my-queue info
+../cmd.sh job-queue my-queue info
 ```
 
 Get information about a specific job queue with more jobs:
 ```
-cmd.sh job-queue my-queue info --max 10
+../cmd.sh job-queue my-queue info --max 10
 ```
 
 List all compute environments:
 ```
-cmd.sh ce list
+../cmd.sh ce list
 ```
 
 Or simply:
 ```
-cmd.sh ce
+../cmd.sh ce
 ```
 
 Get information about a specific compute environment (includes instance details):
 ```
-cmd.sh ce my-compute-env info
+../cmd.sh ce my-compute-env info
 ```
 
 Stop a compute environment:
 ```
-cmd.sh ce my-compute-env stop
+../cmd.sh ce my-compute-env stop
 ```
 
 List jobs in a specific job queue:
 ```
-cmd.sh job list --queue my-queue
+../cmd.sh job list --queue my-queue
 ```
 
 Or simply:
 ```
-cmd.sh job --queue my-queue
+../cmd.sh job --queue my-queue
 ```
 
 List jobs in the default queue (metta-jq):
 ```
-cmd.sh job
+../cmd.sh job
 ```
 
 List more jobs in a job queue:
 ```
-cmd.sh job list --queue my-queue --max 20
+../cmd.sh job list --queue my-queue --max 20
 ```
 
 Get information about a specific job (can use either job ID or job name):
 ```
-cmd.sh job my-job-id info
+../cmd.sh job my-job-id info
 ```
 
 Get logs for a job:
 ```
-cmd.sh job my-job-id logs
+../cmd.sh job my-job-id logs
 ```
 
 Tail logs for a job:
 ```
-cmd.sh job my-job-id logs --tail
+../cmd.sh job my-job-id logs --tail
 ```
 
 Get logs for a specific attempt:
 ```
-cmd.sh job my-job-id logs --attempt 1
+../cmd.sh job my-job-id logs --attempt 1
 ```
 
 Get logs for a specific node in a multi-node job:
 ```
-cmd.sh job my-job-id logs --node 0
+../cmd.sh job my-job-id logs --node 0
 ```
 
 Stop a job:
 ```
-cmd.sh job my-job-id stop
+../cmd.sh job my-job-id stop
+```
+
+Connect to the instance running a job via SSH:
+```
+../cmd.sh ssh <job_id>
+```
+
+Connect directly to the instance without attempting to connect to the container:
+```
+../cmd.sh ssh <job_id> --instance
 ```
 
 ## Launch Command
 
 Launch a new job:
 ```
-cmd.sh launch --run RUN_ID --cmd COMMAND [options]
+../cmd.sh launch --run RUN_ID --cmd COMMAND [options]
 ```
 
 ### Launch Command Options
@@ -211,22 +223,22 @@ cmd.sh launch --run RUN_ID --cmd COMMAND [options]
 
 Launch a training job with 4 GPUs on a single node:
 ```
-cmd.sh launch --run my_run --cmd train
+../cmd.sh launch --run my_run --cmd train
 ```
 
 Launch a training job with 8 GPUs across 2 nodes:
 ```
-cmd.sh launch --run my_run --cmd train --gpus 8 --node-gpus 4
+../cmd.sh launch --run my_run --cmd train --gpus 8 --node-gpus 4
 ```
 
 Launch a training job with a specific git branch:
 ```
-cmd.sh launch --run my_run --cmd train --git-branch my-branch
+../cmd.sh launch --run my_run --cmd train --git-branch my-branch
 ```
 
 Launch a training job without checking if commits have been pushed:
 ```
-cmd.sh launch --run my_run --cmd train --skip-push-check
+../cmd.sh launch --run my_run --cmd train --skip-push-check
 ```
 
 

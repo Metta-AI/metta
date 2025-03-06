@@ -614,5 +614,164 @@ def launch_job(job_queue=None):
     """Launch a new job."""
     print("The launch_job function is deprecated.")
     print("Please use the launch_cmd.py script directly:")
-    print("  ./devops/aws/batch/launch_cmd.py --run RUN_ID --cmd COMMAND [options]")
+    print("  ../cmd.sh launch --run RUN_ID --cmd COMMAND [options]")
     return False
+
+def get_job_ip(job_id_or_name):
+    """Get the public IP address of the instance running a job."""
+    batch = get_boto3_client('batch')
+    ecs = get_boto3_client('ecs')
+    ec2 = get_boto3_client('ec2')
+
+    try:
+        # First try to get the job by ID
+        response = batch.describe_jobs(jobs=[job_id_or_name])
+
+        # If no job found by ID, try to find by name
+        if not response['jobs']:
+            # We need to list jobs from all queues to find by name
+            job = None
+
+            # Get all job queues
+            queues_response = batch.describe_job_queues()
+            job_queues = [queue['jobQueueName'] for queue in queues_response['jobQueues']]
+
+            # Search for the job in each queue
+            for queue in job_queues:
+                # Check all job statuses
+                for status in ['RUNNING']:  # Only look for running jobs
+                    try:
+                        jobs_response = batch.list_jobs(
+                            jobQueue=queue,
+                            jobStatus=status,
+                            maxResults=100
+                        )
+
+                        # Look for a job with the specified name
+                        for job_summary in jobs_response.get('jobSummaryList', []):
+                            if job_summary['jobName'] == job_id_or_name:
+                                # Found a job with the specified name, get its details
+                                job_details_response = batch.describe_jobs(jobs=[job_summary['jobId']])
+                                if job_details_response['jobs']:
+                                    job = job_details_response['jobs'][0]
+                                    break
+
+                        if job:
+                            break
+                    except Exception:
+                        continue
+
+                if job:
+                    break
+
+            if not job:
+                print(f"No running job found with ID or name '{job_id_or_name}'")
+                return None
+        else:
+            job = response['jobs'][0]
+
+        # Check if the job is running
+        if job['status'] != 'RUNNING':
+            print(f"Job '{job['jobId']}' is in state '{job['status']}' and not running")
+            return None
+
+        # Check if it's a multi-node job
+        if 'nodeProperties' in job:
+            print(f"Error: Job '{job['jobId']}' is a multi-node job. SSH is not supported for multi-node jobs.")
+            return None
+
+        # Get the task ARN and cluster
+        container = job['container']
+        task_arn = container.get('taskArn')
+        cluster_arn = container.get('containerInstanceArn')
+
+        if not task_arn or not cluster_arn:
+            print(f"Job '{job['jobId']}' does not have task or container instance information")
+            return None
+
+        # Extract the cluster name from the cluster ARN
+        cluster_name = cluster_arn.split('/')[1]
+
+        # Get the container instance ARN
+        task_desc = ecs.describe_tasks(cluster=cluster_name, tasks=[task_arn])
+        if not task_desc['tasks']:
+            print(f"No task found for job '{job['jobId']}'")
+            return None
+
+        container_instance_arn = task_desc['tasks'][0]['containerInstanceArn']
+
+        # Get the EC2 instance ID
+        container_instance_desc = ecs.describe_container_instances(
+            cluster=cluster_name,
+            containerInstances=[container_instance_arn]
+        )
+        ec2_instance_id = container_instance_desc['containerInstances'][0]['ec2InstanceId']
+
+        # Get the public IP address
+        instances = ec2.describe_instances(InstanceIds=[ec2_instance_id])
+        if 'PublicIpAddress' in instances['Reservations'][0]['Instances'][0]:
+            public_ip = instances['Reservations'][0]['Instances'][0]['PublicIpAddress']
+            return public_ip
+        else:
+            print(f"No public IP address found for job '{job['jobId']}'")
+            return None
+
+    except Exception as e:
+        print(f"Error retrieving job IP: {str(e)}")
+        return None
+
+def ssh_to_job(job_id_or_name, instance_only=False):
+    """Connect to the instance running a job via SSH.
+
+    Args:
+        job_id_or_name: The job ID or name to connect to
+        instance_only: If True, connect directly to the instance without attempting to connect to the container
+    """
+    import subprocess
+    import sys
+
+    # Get the IP address of the job
+    ip = get_job_ip(job_id_or_name)
+    if not ip:
+        return False
+
+    try:
+        # Establish SSH connection and check if it's successful
+        print(f"Checking SSH connection to {ip}...")
+        ssh_check_cmd = f"ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 {ip} 'echo Connected'"
+        ssh_check_output = subprocess.check_output(ssh_check_cmd, shell=True).decode().strip()
+        if ssh_check_output != "Connected":
+            raise subprocess.CalledProcessError(1, "SSH connection check failed")
+
+        if instance_only:
+            # Connect directly to the instance
+            print(f"Connecting directly to the instance at {ip}...")
+            ssh_cmd = f"ssh -o StrictHostKeyChecking=no -t {ip}"
+            subprocess.run(ssh_cmd, shell=True)
+        else:
+            # Retrieve container ID
+            print(f"Finding container on {ip}...")
+            container_cmd = f"ssh -o StrictHostKeyChecking=no -t {ip} \"docker ps | grep 'mettaai/metta'\""
+            container_id_output = subprocess.check_output(container_cmd, shell=True).decode().strip()
+
+            if container_id_output:
+                container_id = container_id_output.split()[0]
+                print(f"Connecting to container {container_id} on {ip}...")
+                exec_cmd = f"ssh -o StrictHostKeyChecking=no -t {ip} \"docker exec -it {container_id} /bin/bash\""
+                subprocess.run(exec_cmd, shell=True)
+            else:
+                print(f"No container running the 'mettaai/metta' image found on the instance {ip}.")
+                print("Connecting to the instance directly...")
+                ssh_cmd = f"ssh -o StrictHostKeyChecking=no -t {ip}"
+                subprocess.run(ssh_cmd, shell=True)
+
+        return True
+    except subprocess.CalledProcessError as e:
+        print(f"Error: {str(e)}")
+        if "Connection timed out" in str(e):
+            print(f"SSH connection to {ip} timed out. Please check the instance status and network connectivity.")
+        elif "Connection refused" in str(e):
+            print(f"SSH connection to {ip} was refused. Please check if the instance is running and accepts SSH connections.")
+        else:
+            print(f"An error occurred while connecting to {ip}. Please check the instance status and SSH configuration.")
+        return False

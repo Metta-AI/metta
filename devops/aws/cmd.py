@@ -20,6 +20,7 @@ Commands:
     - info (d): Get detailed information about a resource
     - logs (ls): Get logs for a job
     - stop (s): Stop a job or compute environment
+    - ssh: Connect to the instance running a job via SSH
     - launch (st): Launch a job
 """
 
@@ -28,13 +29,13 @@ import argparse
 import importlib.util
 import os
 import subprocess
-from job_queue import list_job_queues, get_job_queue_info
-from compute_environment import list_compute_environments, get_compute_environment_info, stop_compute_environment
-from job import list_jobs, get_job_info, stop_job, launch_job
-from job_logs import get_job_logs
+from devops.aws.batch.job_queue import list_job_queues, get_job_queue_info
+from devops.aws.batch.compute_environment import list_compute_environments, get_compute_environment_info, stop_compute_environment
+from devops.aws.batch.job import list_jobs, get_job_info, stop_job, launch_job, ssh_to_job
+from devops.aws.batch.job_logs import get_job_logs
 
 # Define the valid commands and resource types
-VALID_COMMANDS = ['list', 'l', 'info', 'd', 'logs', 'ls', 'stop', 's', 'launch', 'st']
+VALID_COMMANDS = ['list', 'l', 'info', 'd', 'logs', 'ls', 'stop', 's', 'ssh', 'launch', 'st']
 VALID_RESOURCE_TYPES = ['job-queue', 'jq', 'compute-environment', 'ce', 'job', 'j', 'jobs', 'compute']
 
 def parse_args():
@@ -49,17 +50,25 @@ def parse_args():
     parser.add_argument('arg2', nargs='?', default=None,
                         help='Resource ID or command')
 
-    # Third positional argument could be a command if the first two are resource type and ID
+    # Third positional argument could be a command
     parser.add_argument('arg3', nargs='?', default=None,
                         help='Command (if arg1 is resource type and arg2 is ID)')
 
-    # Additional options
-    parser.add_argument('--queue', '-q', help='Job queue name (default: metta-jq for job commands)')
-    parser.add_argument('--max', '-m', type=int, default=5, help='Maximum number of items to return (default: 5)')
-    parser.add_argument('--tail', '-t', action='store_true', help='Tail logs')
-    parser.add_argument('--attempt', '-a', type=int, help='Job attempt index')
-    parser.add_argument('--node', '-n', type=int, help='Node index for multi-node jobs')
-    parser.add_argument('--debug', action='store_true', help='Enable debug output')
+    # Options
+    parser.add_argument('--queue', '-q', default=None,
+                        help='Job queue name (default: metta-jq for job commands)')
+    parser.add_argument('--max', '-m', type=int, default=5,
+                        help='Maximum number of items to return (default: 5)')
+    parser.add_argument('--tail', '-t', action='store_true',
+                        help='Tail logs')
+    parser.add_argument('--attempt', '-a', type=int, default=0,
+                        help='Job attempt index')
+    parser.add_argument('--node', '-n', type=int, default=0,
+                        help='Node index for multi-node jobs')
+    parser.add_argument('--debug', action='store_true',
+                        help='Enable debug output')
+    parser.add_argument('--instance', '-i', action='store_true',
+                        help='Connect directly to the instance without attempting to connect to the container (for ssh command)')
 
     return parser.parse_args()
 
@@ -112,6 +121,16 @@ def main():
             list_compute_environments()
         return
 
+    # Special case for 'ssh' command with simplified syntax
+    if args.arg1 == 'ssh':
+        if not args.arg2:
+            print("Error: Job ID is required for ssh command")
+            sys.exit(1)
+
+        if not ssh_to_job(args.arg2, instance_only=args.instance):
+            sys.exit(1)
+        return
+
     # Special case for 'stop' command with simplified syntax
     if args.arg1 == 'stop' or args.arg1 == 's':
         if not args.arg2:
@@ -137,7 +156,7 @@ def main():
             if confirmation.lower() == 'y':
                 # Extract job IDs and stop them
                 job_ids = [job['jobId'] for job in matching_jobs]
-                from job import stop_jobs
+                from devops.aws.batch.job import stop_jobs
                 stop_jobs(job_ids)
             else:
                 print("Operation cancelled.")
@@ -282,10 +301,16 @@ def main():
                 if confirmation.lower() == 'y':
                     # Extract job IDs and stop them
                     job_ids = [job['jobId'] for job in matching_jobs]
-                    from job import stop_jobs
+                    from devops.aws.batch.job import stop_jobs
                     stop_jobs(job_ids)
                 else:
                     print("Operation cancelled.")
+        elif command == 'ssh':
+            if not resource_id:
+                print("Error: Job ID is required for ssh command")
+                sys.exit(1)
+            if not ssh_to_job(resource_id, instance_only=args.instance):
+                sys.exit(1)
         elif command == 'launch':
             print("The launch command is now handled directly by the cmd.sh script.")
             print("Please use: ./devops/aws/batch/cmd.sh launch --run RUN_ID --cmd COMMAND [options]")
