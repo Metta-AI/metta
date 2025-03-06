@@ -69,6 +69,8 @@ def parse_args():
                         help='Enable debug output')
     parser.add_argument('--instance', '-i', action='store_true',
                         help='Connect directly to the instance without attempting to connect to the container (for ssh command)')
+    parser.add_argument('--no-color', action='store_true',
+                        help='Disable colored output')
 
     return parser.parse_args()
 
@@ -202,7 +204,7 @@ def main():
     if resource_type == 'jobs':
         # If resource_id is provided, it might be a job queue name
         job_queue = resource_id if resource_id else 'metta-jq'
-        list_jobs(job_queue=job_queue, max_jobs=args.max)
+        list_jobs(job_queue=job_queue, max_jobs=args.max, no_color=args.no_color)
         return
 
     # Execute the appropriate command based on resource type and command
@@ -240,14 +242,14 @@ def main():
         job_queue = args.queue if args.queue else 'metta-jq'
 
         if command == 'list':
-            list_jobs(job_queue=job_queue, max_jobs=args.max)
+            list_jobs(job_queue=job_queue, max_jobs=args.max, no_color=args.no_color)
         elif command == 'info':
             if not resource_id:
                 print("Error: Job ID is required for info command")
                 sys.exit(1)
 
             # Try to get job info
-            job = get_job_info(resource_id)
+            job = get_job_info(resource_id, no_color=args.no_color)
 
             # If job not found, try to check if it's a compute environment or job queue
             if job is None:

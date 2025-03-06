@@ -5,8 +5,13 @@ import random
 import string
 import sys
 import subprocess
+import json
+from colorama import Fore, Style, init
 
 import boto3
+
+# Initialize colorama
+init(autoreset=True)
 
 def get_current_commit(repo_path=None):
     """Get the current git commit hash."""
@@ -67,9 +72,64 @@ def submit_batch_job(args, task_args):
         }
         del request["containerOverrides"]
 
+    # Check if no_color attribute exists and is True
+    no_color = getattr(args, 'no_color', False)
+
+    # Check if dry_run attribute exists and is True
+    dry_run = getattr(args, 'dry_run', False)
+
+    if dry_run:
+        print(f"\n{'=' * 40}")
+        print(f"DRY RUN - Job would be submitted with the following details:")
+        print(f"{'=' * 40}")
+        print(f"Job Name: {job_name}")
+        print(f"Job Queue: {job_queue}")
+        print(f"Job Definition: {request['jobDefinition']}")
+        if args.num_nodes > 1:
+            print(f"Number of Nodes: {args.num_nodes}")
+        print(f"Number of GPUs per Node: {args.node_gpus}")
+        print(f"Total GPUs: {args.gpus}")
+        print(f"vCPUs per GPU: {args.gpu_cpus * 2}")
+        print(f"RAM per Node: {args.cpu_ram_gb} GB")
+        print(f"Git Reference: {args.git_branch or args.git_commit}")
+        print(f"Mettagrid Reference: {args.mettagrid_branch or args.mettagrid_commit}")
+        if task_args:
+            if no_color:
+                print(f"\nTask Arguments:")
+                for i, arg in enumerate(task_args):
+                    print(f"  {i+1}. {arg}")
+            else:
+                print(f"\n{Fore.YELLOW}Task Arguments:{Style.RESET_ALL}")
+                for i, arg in enumerate(task_args):
+                    print(f"  {i+1}. {Fore.CYAN}{arg}{Style.RESET_ALL}")
+        print(f"\n{'=' * 40}")
+        print("DRY RUN - No job was actually submitted")
+        print(f"{'=' * 40}")
+        return
+
     response = batch.submit_job(**request)
-    print(f"Submitted job {job_name} to queue {job_queue} with job ID {response['jobId']}")
-    print(f"https://us-east-1.console.aws.amazon.com/batch/v2/home?region=us-east-1#/jobs/detail/{response['jobId']}")
+
+    # Print job information with colors if not disabled
+    job_id = response['jobId']
+    job_url = f"https://us-east-1.console.aws.amazon.com/batch/v2/home?region=us-east-1#/jobs/detail/{job_id}"
+
+    if no_color:
+        print(f"Submitted job {job_name} to queue {job_queue} with job ID {job_id}")
+        print(f"{job_url}")
+    else:
+        print(f"Submitted job {job_name} to queue {job_queue} with job ID {Fore.GREEN}{Style.BRIGHT}{job_id}{Style.RESET_ALL}")
+        print(f"{Fore.BLUE}{Style.BRIGHT}{job_url}{Style.RESET_ALL}")
+
+    # Pretty print task arguments
+    if task_args:
+        if no_color:
+            print(f"\nTask Arguments:")
+            for i, arg in enumerate(task_args):
+                print(f"  {i+1}. {arg}")
+        else:
+            print(f"\n{Fore.YELLOW}Task Arguments:{Style.RESET_ALL}")
+            for i, arg in enumerate(task_args):
+                print(f"  {i+1}. {Fore.CYAN}{arg}{Style.RESET_ALL}")
 
 def container_config(args, task_args, job_name):
     try:
@@ -232,7 +292,12 @@ if __name__ == "__main__":
     parser.add_argument('--profile', default="stem", help='AWS profile to use. If not specified, uses the default profile.')
     parser.add_argument('--job-queue', default="metta-jq", help='AWS Batch job queue to use.')
     parser.add_argument('--skip-push-check', action='store_true', help='Skip checking if commits have been pushed.')
+    parser.add_argument('--no-color', action='store_true', help='Disable colored output.')
+    parser.add_argument('--dry-run', action='store_true', help='Dry run mode, prints job details without submitting.')
     args, task_args = parser.parse_known_args()
+
+    # Filter out --no-color from task_args if present
+    task_args = [arg for arg in task_args if arg != '--no-color']
 
     args.num_nodes = max(1, args.gpus // args.node_gpus)
 

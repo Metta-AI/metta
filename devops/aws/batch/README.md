@@ -42,6 +42,7 @@ There are two ways to use this command-line interface:
 - `--node` or `-n`: Node index for multi-node jobs
 - `--instance` or `-i`: Connect directly to the instance without attempting to connect to the container (for ssh command)
 - `--debug`: Enable debug output
+- `--no-color`: Disable colored output
 
 ## Features
 
@@ -218,6 +219,8 @@ Launch a new job:
 - `--copies COPIES`: Number of job copies to submit (default: 1)
 - `--job-queue QUEUE`: AWS Batch job queue to use (default: metta-jq)
 - `--skip-push-check`: Skip checking if commits have been pushed to remote repositories
+- `--no-color`: Disable colored output
+- `--dry-run`: Dry run mode, prints job details without actually submitting the job
 
 ### Launch Command Examples
 
@@ -239,6 +242,11 @@ Launch a training job with a specific git branch:
 Launch a training job without checking if commits have been pushed:
 ```
 ../cmd.sh launch --run my_run --cmd train --skip-push-check
+```
+
+Preview a training job without actually submitting it:
+```
+../cmd.sh launch --run my_run --cmd train --dry-run
 ```
 
 

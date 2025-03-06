@@ -44,7 +44,12 @@ def main():
         parser.add_argument('--profile', default="stem", help='AWS profile to use. If not specified, uses the default profile.')
         parser.add_argument('--job-queue', default="metta-jq", help='AWS Batch job queue to use.')
         parser.add_argument('--skip-push-check', action='store_true', help='Skip checking if commits have been pushed.')
+        parser.add_argument('--no-color', action='store_true', help='Disable colored output.')
+        parser.add_argument('--dry-run', action='store_true', help='Dry run mode, prints job details without submitting.')
         args, task_args = parser.parse_known_args()
+
+        # Filter out --no-color from task_args
+        task_args = [arg for arg in task_args if arg != '--no-color']
 
         args.num_nodes = max(1, args.gpus // args.node_gpus)
 

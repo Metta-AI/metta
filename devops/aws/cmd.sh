@@ -13,13 +13,24 @@ if ! command -v python3 &> /dev/null; then
     exit 1
 fi
 
+# Process arguments
+NO_COLOR=""
+ARGS=()
+for arg in "$@"; do
+    if [ "$arg" = "--no-color" ]; then
+        NO_COLOR="--no-color"
+    else
+        ARGS+=("$arg")
+    fi
+done
+
 # Check if the first argument is "launch"
-if [ "$1" = "launch" ]; then
-    # Shift the first argument to remove "launch"
-    shift
+if [ "${ARGS[0]}" = "launch" ]; then
+    # Remove the "launch" argument
+    LAUNCH_ARGS=("${ARGS[@]:1}")
 
     # Execute the launch_cmd.py script with the remaining arguments
-    PYTHONPATH="$PROJECT_ROOT" python3 "$SCRIPT_DIR/batch/launch_cmd.py" "$@"
+    PYTHONPATH="$PROJECT_ROOT" python3 "$SCRIPT_DIR/batch/launch_cmd.py" $NO_COLOR "${LAUNCH_ARGS[@]}"
 else
     # Execute the Python command handler as a module
     cd "$PROJECT_ROOT"

@@ -13,6 +13,12 @@ from tabulate import tabulate
 import argparse
 import sys
 import importlib.util
+import os
+import subprocess
+from colorama import Fore, Style, init
+
+# Initialize colorama
+init(autoreset=True)
 
 def get_boto3_client(service_name='batch'):
     """Get a boto3 client with standard configuration."""
@@ -92,8 +98,22 @@ def format_time_ago(timestamp):
     days = int(diff_seconds / 86400)
     return f"({days}d ago)"
 
-def list_jobs(job_queue=None, max_jobs=100):
+def list_jobs(job_queue=None, max_jobs=100, no_color=False):
     """List jobs in a job queue."""
+    # If no_color is True, disable colorama
+    if no_color:
+        global Fore, Style
+        # Save the original values
+        orig_fore, orig_style = Fore, Style
+        # Create dummy objects that return empty strings
+        class DummyFore:
+            def __getattr__(self, _):
+                return ""
+        class DummyStyle:
+            def __getattr__(self, _):
+                return ""
+        Fore, Style = DummyFore(), DummyStyle()
+
     batch = get_boto3_client()
 
     if not job_queue:
@@ -263,16 +283,78 @@ def list_jobs(job_queue=None, max_jobs=100):
 
     # Print the table
     if table_data:
-        print(f"Jobs in queue '{job_queue}':")
+        # Add color to job status and other fields
+        colored_table_data = []
+        for row in table_data:
+            job_name, status, created, duration, attempts, num_nodes, num_gpus = row
+
+            # Color for job status
+            if status == 'RUNNING':
+                colored_status = f"{Fore.GREEN}{status}{Style.RESET_ALL}"
+            elif status == 'SUCCEEDED':
+                colored_status = f"{Fore.BLUE}{status}{Style.RESET_ALL}"
+            elif status == 'FAILED':
+                colored_status = f"{Fore.RED}{status}{Style.RESET_ALL}"
+            elif status in ['SUBMITTED', 'PENDING', 'RUNNABLE']:
+                colored_status = f"{Fore.YELLOW}{status}{Style.RESET_ALL}"
+            elif status == 'STARTING':
+                colored_status = f"{Fore.CYAN}{status}{Style.RESET_ALL}"
+            else:
+                colored_status = status
+
+            # Color for job name
+            colored_job_name = f"{Fore.MAGENTA}{job_name}{Style.RESET_ALL}"
+
+            # Color for duration
+            if duration != 'N/A':
+                colored_duration = f"{Fore.CYAN}{duration}{Style.RESET_ALL}"
+            else:
+                colored_duration = duration
+
+            # Color for GPU count
+            if num_gpus > 0:
+                colored_num_gpus = f"{Fore.YELLOW}{num_gpus}{Style.RESET_ALL}"
+            else:
+                colored_num_gpus = num_gpus
+
+            colored_table_data.append([
+                colored_job_name,
+                colored_status,
+                created,
+                colored_duration,
+                attempts,
+                num_nodes,
+                colored_num_gpus
+            ])
+
+        print(f"Jobs in queue '{Fore.CYAN}{job_queue}{Style.RESET_ALL}':")
         headers = ['Name', 'Status', 'Created', 'Duration', 'Attempts', 'NumNodes', 'Num GPUs']
-        print(tabulate(table_data, headers=headers, tablefmt='grid'))
+        print(tabulate(colored_table_data, headers=headers, tablefmt='grid'))
     else:
-        print(f"No jobs found in queue '{job_queue}'")
+        print(f"No jobs found in queue '{Fore.CYAN}{job_queue}{Style.RESET_ALL}'")
+
+    # Restore colorama if it was disabled
+    if no_color:
+        Fore, Style = orig_fore, orig_style
 
     return all_jobs
 
-def get_job_info(job_id_or_name):
+def get_job_info(job_id_or_name, no_color=False):
     """Get detailed information about a specific job by ID or name."""
+    # If no_color is True, disable colorama
+    if no_color:
+        global Fore, Style
+        # Save the original values
+        orig_fore, orig_style = Fore, Style
+        # Create dummy objects that return empty strings
+        class DummyFore:
+            def __getattr__(self, _):
+                return ""
+        class DummyStyle:
+            def __getattr__(self, _):
+                return ""
+        Fore, Style = DummyFore(), DummyStyle()
+
     batch = get_boto3_client()
 
     try:
@@ -328,10 +410,31 @@ def get_job_info(job_id_or_name):
             job = response['jobs'][0]
 
         # Print basic information
-        print(f"\nJob: {job['jobId']}")
-        print(f"Name: {job['jobName']}")
-        print(f"Status: {job['status']}")
-        print(f"Status Reason: {job.get('statusReason', 'N/A')}")
+        print(f"\nJob: {Fore.CYAN}{job['jobId']}{Style.RESET_ALL}")
+        print(f"Name: {Fore.MAGENTA}{job['jobName']}{Style.RESET_ALL}")
+
+        # Color for job status
+        status = job['status']
+        if status == 'RUNNING':
+            status_color = f"{Fore.GREEN}{status}{Style.RESET_ALL}"
+        elif status == 'SUCCEEDED':
+            status_color = f"{Fore.BLUE}{status}{Style.RESET_ALL}"
+        elif status == 'FAILED':
+            status_color = f"{Fore.RED}{status}{Style.RESET_ALL}"
+        elif status in ['SUBMITTED', 'PENDING', 'RUNNABLE']:
+            status_color = f"{Fore.YELLOW}{status}{Style.RESET_ALL}"
+        elif status == 'STARTING':
+            status_color = f"{Fore.CYAN}{status}{Style.RESET_ALL}"
+        else:
+            status_color = status
+
+        print(f"Status: {status_color}")
+
+        status_reason = job.get('statusReason', 'N/A')
+        if status_reason != 'N/A':
+            print(f"Status Reason: {Fore.RED}{status_reason}{Style.RESET_ALL}")
+        else:
+            print(f"Status Reason: {status_reason}")
 
         # Print timestamps
         created_at = job.get('createdAt', 0)
@@ -340,117 +443,153 @@ def get_job_info(job_id_or_name):
 
         if created_at:
             created_str = datetime.fromtimestamp(created_at / 1000).strftime('%Y-%m-%d %H:%M:%S')
-            print(f"Created: {created_str}")
+            print(f"Created: {Fore.YELLOW}{created_str}{Style.RESET_ALL}")
 
         if started_at:
             started_str = datetime.fromtimestamp(started_at / 1000).strftime('%Y-%m-%d %H:%M:%S')
-            print(f"Started: {started_str}")
+            print(f"Started: {Fore.GREEN}{started_str}{Style.RESET_ALL}")
 
         if stopped_at:
             stopped_str = datetime.fromtimestamp(stopped_at / 1000).strftime('%Y-%m-%d %H:%M:%S')
-            print(f"Stopped: {stopped_str}")
+            if status == 'FAILED':
+                print(f"Stopped: {Fore.RED}{stopped_str}{Style.RESET_ALL}")
+            else:
+                print(f"Stopped: {Fore.BLUE}{stopped_str}{Style.RESET_ALL}")
 
         # Calculate duration
         if started_at and stopped_at:
             duration = format_time_difference(started_at, stopped_at)
-            print(f"Duration: {duration}")
+            print(f"Duration: {Fore.CYAN}{duration}{Style.RESET_ALL}")
         elif started_at:
             duration = format_time_difference(started_at)
-            print(f"Running for: {duration}")
+            print(f"Running for: {Fore.CYAN}{duration}{Style.RESET_ALL}")
 
         # Print job definition
         job_definition = job.get('jobDefinition', '').split('/')[-1]
-        print(f"Job Definition: {job_definition}")
+        print(f"Job Definition: {Fore.BLUE}{job_definition}{Style.RESET_ALL}")
 
         # Print job queue
         job_queue = job.get('jobQueue', '').split('/')[-1]
-        print(f"Job Queue: {job_queue}")
+        print(f"Job Queue: {Fore.BLUE}{job_queue}{Style.RESET_ALL}")
 
         # Print container details
         if 'container' in job:
             container = job['container']
-            print("\nContainer:")
-            print(f"  Image: {container.get('image', 'N/A')}")
-            print(f"  vCPUs: {container.get('vcpus', 'N/A')}")
-            print(f"  Memory: {container.get('memory', 'N/A')} MiB")
+            print(f"\n{Fore.YELLOW}Container:{Style.RESET_ALL}")
+            print(f"  Image: {Fore.CYAN}{container.get('image', 'N/A')}{Style.RESET_ALL}")
+            print(f"  vCPUs: {Fore.GREEN}{container.get('vcpus', 'N/A')}{Style.RESET_ALL}")
+            print(f"  Memory: {Fore.GREEN}{container.get('memory', 'N/A')} MiB{Style.RESET_ALL}")
 
             # Print command
             if 'command' in container:
                 command_str = ' '.join(container['command'])
-                print(f"  Command: {command_str}")
+                print(f"  Command: {Fore.MAGENTA}{command_str}{Style.RESET_ALL}")
 
             # Print environment variables
             if 'environment' in container:
-                print("\n  Environment Variables:")
+                print(f"\n  {Fore.YELLOW}Environment Variables:{Style.RESET_ALL}")
                 for env in container['environment']:
-                    print(f"    {env['name']}: {env['value']}")
+                    print(f"    {Fore.CYAN}{env['name']}{Style.RESET_ALL}: {env['value']}")
 
             # Print exit code
             if 'exitCode' in container:
-                print(f"  Exit Code: {container['exitCode']}")
+                exit_code = container['exitCode']
+                if exit_code == 0:
+                    print(f"  Exit Code: {Fore.GREEN}{exit_code}{Style.RESET_ALL}")
+                else:
+                    print(f"  Exit Code: {Fore.RED}{exit_code}{Style.RESET_ALL}")
 
             # Print reason
             if 'reason' in container:
-                print(f"  Reason: {container['reason']}")
+                print(f"  Reason: {Fore.RED}{container['reason']}{Style.RESET_ALL}")
 
         # Print attempts
         attempts = job.get('attempts', [])
         if attempts:
-            print("\nAttempts:")
+            print(f"\n{Fore.YELLOW}Attempts:{Style.RESET_ALL}")
             for i, attempt in enumerate(attempts):
-                print(f"  Attempt {i}:")
-                print(f"    Status: {attempt.get('status', 'N/A')}")
-                print(f"    Reason: {attempt.get('statusReason', 'N/A')}")
+                print(f"  {Fore.CYAN}Attempt {i}:{Style.RESET_ALL}")
+
+                # Color for attempt status
+                status = attempt.get('status', 'N/A')
+                if status == 'RUNNING':
+                    status_color = f"{Fore.GREEN}{status}{Style.RESET_ALL}"
+                elif status == 'SUCCEEDED':
+                    status_color = f"{Fore.BLUE}{status}{Style.RESET_ALL}"
+                elif status == 'FAILED':
+                    status_color = f"{Fore.RED}{status}{Style.RESET_ALL}"
+                elif status in ['SUBMITTED', 'PENDING', 'RUNNABLE']:
+                    status_color = f"{Fore.YELLOW}{status}{Style.RESET_ALL}"
+                elif status == 'STARTING':
+                    status_color = f"{Fore.CYAN}{status}{Style.RESET_ALL}"
+                else:
+                    status_color = status
+
+                print(f"    Status: {status_color}")
+
+                reason = attempt.get('statusReason', 'N/A')
+                if reason != 'N/A':
+                    print(f"    Reason: {Fore.RED}{reason}{Style.RESET_ALL}")
+                else:
+                    print(f"    Reason: {reason}")
 
                 # Print container details
                 container = attempt.get('container', {})
                 if container:
                     if 'exitCode' in container:
-                        print(f"    Exit Code: {container['exitCode']}")
+                        exit_code = container['exitCode']
+                        if exit_code == 0:
+                            print(f"    Exit Code: {Fore.GREEN}{exit_code}{Style.RESET_ALL}")
+                        else:
+                            print(f"    Exit Code: {Fore.RED}{exit_code}{Style.RESET_ALL}")
                     if 'reason' in container:
-                        print(f"    Reason: {container['reason']}")
+                        print(f"    Reason: {Fore.RED}{container['reason']}{Style.RESET_ALL}")
                     if 'logStreamName' in container:
-                        print(f"    Log Stream: {container['logStreamName']}")
+                        print(f"    Log Stream: {Fore.BLUE}{container['logStreamName']}{Style.RESET_ALL}")
 
         # Print node details for multi-node jobs
         if 'nodeProperties' in job:
             node_props = job['nodeProperties']
-            print("\nNode Properties:")
-            print(f"  Number of Nodes: {node_props.get('numNodes', 'N/A')}")
-            print(f"  Main Node: {node_props.get('mainNode', 'N/A')}")
+            print(f"\n{Fore.YELLOW}Node Properties:{Style.RESET_ALL}")
+            print(f"  Number of Nodes: {Fore.GREEN}{node_props.get('numNodes', 'N/A')}{Style.RESET_ALL}")
+            print(f"  Main Node: {Fore.CYAN}{node_props.get('mainNode', 'N/A')}{Style.RESET_ALL}")
 
             # Print node ranges
             if 'nodeRangeProperties' in node_props:
-                print("\n  Node Ranges:")
+                print(f"\n  {Fore.YELLOW}Node Ranges:{Style.RESET_ALL}")
                 for i, node_range in enumerate(node_props['nodeRangeProperties']):
-                    print(f"    Range {i}:")
-                    print(f"      Target Nodes: {node_range.get('targetNodes', 'N/A')}")
+                    print(f"    {Fore.CYAN}Range {i}:{Style.RESET_ALL}")
+                    print(f"      Target Nodes: {Fore.MAGENTA}{node_range.get('targetNodes', 'N/A')}{Style.RESET_ALL}")
 
                     # Print container details
                     container = node_range.get('container', {})
                     if container:
-                        print(f"      Image: {container.get('image', 'N/A')}")
-                        print(f"      vCPUs: {container.get('vcpus', 'N/A')}")
-                        print(f"      Memory: {container.get('memory', 'N/A')} MiB")
+                        print(f"      Image: {Fore.BLUE}{container.get('image', 'N/A')}{Style.RESET_ALL}")
+                        print(f"      vCPUs: {Fore.GREEN}{container.get('vcpus', 'N/A')}{Style.RESET_ALL}")
+                        print(f"      Memory: {Fore.GREEN}{container.get('memory', 'N/A')} MiB{Style.RESET_ALL}")
 
                         # Print command
                         if 'command' in container:
                             command_str = ' '.join(container['command'])
-                            print(f"      Command: {command_str}")
+                            print(f"      Command: {Fore.MAGENTA}{command_str}{Style.RESET_ALL}")
 
         # Print dependencies
         dependencies = job.get('dependencies', [])
         if dependencies:
-            print("\nDependencies:")
+            print(f"\n{Fore.YELLOW}Dependencies:{Style.RESET_ALL}")
             for dep in dependencies:
-                print(f"  {dep.get('jobId', 'N/A')}: {dep.get('type', 'N/A')}")
+                print(f"  {Fore.CYAN}{dep.get('jobId', 'N/A')}{Style.RESET_ALL}: {dep.get('type', 'N/A')}")
 
         # Print tags
         tags = job.get('tags', {})
         if tags:
-            print("\nTags:")
+            print(f"\n{Fore.YELLOW}Tags:{Style.RESET_ALL}")
             for key, value in tags.items():
-                print(f"  {key}: {value}")
+                print(f"  {Fore.CYAN}{key}{Style.RESET_ALL}: {value}")
+
+        # Restore colorama if it was disabled
+        if no_color:
+            Fore, Style = orig_fore, orig_style
 
         return job
     except Exception as e:
