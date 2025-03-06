@@ -47,14 +47,9 @@ components:
     _target_: agent.lib.nn_layer_library.Flatten
     input_source: cnn2
 
-  fc1:
-    _target_: agent.lib.nn_layer_library.Linear
-    input_source: obs_flattener
-    output_size: 128
-
   encoded_obs:
     _target_: agent.lib.nn_layer_library.Linear
-    input_source: fc1
+    input_source: obs_flattener
     output_size: 128
 
   _core_:
@@ -62,30 +57,20 @@ components:
     input_source: encoded_obs
     output_size: 128
     nn_params:
-      num_layers: 2
-      
-  critic_1:
-    _target_: agent.lib.nn_layer_library.Linear
-    input_source: _core_
-    output_size: 1024
+      num_layers: 1
 
   _value_:
     _target_: agent.lib.nn_layer_library.Linear
-    input_source: critic_1
+    input_source: _core_
     output_size: 1
     nonlinearity: null
 
-  actor_1:
-    _target_: agent.lib.nn_layer_library.Linear
-    input_source: _core_
-    output_size: 512
-
   _action_type_:
     _target_: agent.lib.action.ActionType
-    input_source: actor_1
+    input_source: _core_
     nonlinearity: null
 
   _action_param_:
     _target_: agent.lib.action.ActionParam
-    input_source: actor_1
+    input_source: _core_
     nonlinearity: null
