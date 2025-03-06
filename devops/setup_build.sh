@@ -37,9 +37,6 @@ git fetch
 if [ -n "$METTAGRID_REF" ]; then
   echo "Checking out mettagrid reference: $METTAGRID_REF"
   git checkout "$METTAGRID_REF"
-else
-  echo "No mettagrid reference specified, checking out main branch"
-  git checkout main
 fi
 
 echo "Installing mettagrid in to $(pwd)"
