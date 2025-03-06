@@ -9,7 +9,7 @@ from agent.lib.metta_layer import LayerBase
 OBS_NORMALIZATIONS = {
     'agent': 1,
     'agent:group': 10,
-    'agent:hp': 1,
+    'agent:hp': 30,
     'agent:frozen': 1,
     'agent:energy': 255,
     'agent:orientation': 1,
@@ -21,8 +21,14 @@ OBS_NORMALIZATIONS = {
     'agent:inv:laser': 100,
     'agent:inv:armor': 100,
     'agent:inv:blueprint': 100,
+    'inv:ore': 100,
+    'inv:battery': 100,
+    'inv:heart': 100,
+    'inv:laser': 100,
+    'inv:armor': 100,
+    'inv:blueprint': 100,
     'wall': 1,
-    'wall:hp': 10,
+    'wall:hp': 30,
     'generator': 1,
     'generator:hp': 30,
     'generator:ready': 1,
@@ -50,6 +56,9 @@ OBS_NORMALIZATIONS = {
     'last_action': 10,
     'last_action_argument': 10,
     'agent:kinship': 10,
+    'hp': 30,
+    'ready': 1,
+    'converting': 1,
 }
 
 class ObservationNormalizer(LayerBase):
@@ -64,5 +73,5 @@ class ObservationNormalizer(LayerBase):
         self.register_buffer('obs_norm', obs_norm)
 
     def _forward(self, td: TensorDict):
-        td[self.name] = td[self.input_source] / self.obs_norm
+        td[self._name] = td[self._input_source] / self.obs_norm
         return td

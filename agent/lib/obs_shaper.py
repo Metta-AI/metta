@@ -6,13 +6,13 @@ from agent.lib.metta_layer import LayerBase
 class ObsShaper(LayerBase):
     def __init__(self, obs_shape, num_objects, **cfg):
         super().__init__(**cfg)
-        self.obs_shape = obs_shape
-        self.output_size = num_objects
+        self._obs_shape = obs_shape
+        self._output_size = num_objects
 
     def _forward(self, td: TensorDict):
         x = td['x']
 
-        x_shape, space_shape = x.shape, self.obs_shape
+        x_shape, space_shape = x.shape, self._obs_shape
         x_n, space_n = len(x_shape), len(space_shape)
         if x_shape[-space_n:] != space_shape:
             raise ValueError('Invalid input tensor shape', x.shape)
@@ -33,9 +33,9 @@ class ObsShaper(LayerBase):
         else:
             x = x.permute(0, 3, 1, 2)
 
-        td[self.name] = x
+        td[self._name] = x
         return td
-    
+
     def _mps_permute(self, x):
         '''For compatibility with MPS, it throws an error on .permute()'''
         bs, h, w, c = x.shape

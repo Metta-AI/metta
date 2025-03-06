@@ -44,7 +44,6 @@ class Experience:
         self.values=torch.zeros(batch_size, pin_memory=pin)
         self.e3b_inv = 10*torch.eye(hidden_size).repeat(lstm_total_agents, 1, 1).to(device)
 
-        #self.obs_np = np.asarray(self.obs)
         self.actions_np = np.asarray(self.actions)
         self.logprobs_np = np.asarray(self.logprobs)
         self.rewards_np = np.asarray(self.rewards)
@@ -52,12 +51,11 @@ class Experience:
         self.truncateds_np = np.asarray(self.truncateds)
         self.values_np = np.asarray(self.values)
 
-        self.lstm_h = self.lstm_c = None
-        if lstm is not None:
-            assert lstm_total_agents > 0
-            shape = (lstm.num_layers, lstm_total_agents, lstm.hidden_size)
-            self.lstm_h = torch.zeros(shape).to(device)
-            self.lstm_c = torch.zeros(shape).to(device)
+        assert lstm is not None
+        assert lstm_total_agents > 0
+        shape = (lstm.num_layers, lstm_total_agents, lstm.hidden_size)
+        self.lstm_h = torch.zeros(shape).to(device, non_blocking=True)
+        self.lstm_c = torch.zeros(shape).to(device, non_blocking=True)
 
         num_minibatches = batch_size / minibatch_size
         self.num_minibatches = int(num_minibatches)
@@ -87,7 +85,7 @@ class Experience:
         indices = torch.where(mask)[0].numpy()[:self.batch_size - ptr]
         end = ptr + len(indices)
 
-        self.obs[ptr:end] = obs.to(self.obs.device)[indices]
+        self.obs[ptr:end] = obs.to(self.obs.device, non_blocking=True)[indices]
         self.values_np[ptr:end] = value.cpu().numpy()[indices]
         self.actions_np[ptr:end] = action[indices]
         self.logprobs_np[ptr:end] = logprob.cpu().numpy()[indices]
@@ -103,14 +101,14 @@ class Experience:
         self.b_idxs_obs = torch.as_tensor(idxs.reshape(
                 self.minibatch_rows, self.num_minibatches, self.bptt_horizon
             ).transpose(1,0,-1)).to(self.obs.device).long()
-        self.b_idxs = self.b_idxs_obs.to(self.device)
+        self.b_idxs = self.b_idxs_obs.to(self.device, non_blocking=True)
         self.b_idxs_flat = self.b_idxs.reshape(
             self.num_minibatches, self.minibatch_size)
         self.sort_keys = []
         return idxs
 
     def flatten_batch(self, advantages_np):
-        advantages = torch.as_tensor(advantages_np).to(self.device)
+        advantages = torch.as_tensor(advantages_np).to(self.device, non_blocking=True)
         b_idxs, b_flat = self.b_idxs, self.b_idxs_flat
         self.b_actions = self.actions.to(self.device, non_blocking=True, dtype=torch.long)
         self.b_logprobs = self.logprobs.to(self.device, non_blocking=True)

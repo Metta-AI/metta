@@ -38,11 +38,12 @@ BG_COLOR = MIDNIGHT_BLUE
 NOOP_COLOR = SILVER
 MOVE_COLOR = EMERALD
 ROTATE_COLOR = NEPHRITIS
-USE_COLOR = ORANGE
+PUT_COLOR = ORANGE
+GET_COLOR = CARROT
 ATTACK_COLOR = ALIZARIN
-SHIELD_COLOR = PETER_RIVER
-GIFT_COLOR = PUMPKIN
+CHANGE_COLOR_COLOR = PETER_RIVER
 SWAP_COLOR = POMEGRANATE
+
 
 
 def nice_orientation(orientation):
@@ -73,6 +74,7 @@ def save_trace_image(
     simulator = Simulator(cfg, policy_record)
 
     steps = []
+    actions_names = simulator.env.action_names()
     while not simulator.done():
         actions = simulator.actions()
 
@@ -87,11 +89,12 @@ def save_trace_image(
             step_info.append({
                 "agent": id,
                 "action": action.tolist(),
-                "action_name": nice_actions(simulator.env, action),
+                "action_name": actions_names[action[0]],
+                "action_nice_name": nice_actions(simulator.env, action),
                 "reward": simulator.rewards[id].item(),
                 "total_reward": simulator.total_rewards[id].item(),
                 "position": [agent["c"], agent["r"]],
-                "hp": agent["agent:hp"],
+                "hp": agent["hp"],
                 "frozen": agent["agent:frozen"],
                 "orientation": nice_orientation(agent["agent:orientation"]),
             })
@@ -141,31 +144,35 @@ def save_trace_image(
             elif agent["action_name"] == "noop":
                 paint.color = NOOP_COLOR
                 ctx.fill_rect(x, y, 2, 2)
-            elif agent["action_name"] == "move_forward":
+            elif agent["action_name"] == "move":
                 paint.color = MOVE_COLOR
                 ctx.fill_rect(x, y, 2, 2)
-            elif agent["action_name"] == "move_back":
-                paint.color = MOVE_COLOR
-                ctx.fill_rect(x, y, 2, 2)
-            elif "rotate" in agent["action_name"]:
+            elif agent["action_name"] == "rotate":
                 paint.color = ROTATE_COLOR
                 ctx.fill_rect(x, y, 2, 2)
-            elif agent["action_name"] == "use":
-                paint.color = USE_COLOR
+            elif agent["action_name"] == "put_items":
+                paint.color = PUT_COLOR
+                ctx.fill_rect(x, y-4, 2, 4*2+2)
+            elif agent["action_name"] == "get_items":
+                paint.color = GET_COLOR
                 ctx.fill_rect(x, y-4, 2, 4*2+2)
             elif "attack" in agent["action_name"]:
                 paint.color = ATTACK_COLOR
                 ctx.fill_rect(x, y-6, 2, 6*2+2)
-            elif agent["action_name"] == "shield":
-                paint.color = SHIELD_COLOR
-                ctx.fill_rect(x, y, 2, 2)
-                ctx.fill_rect(x, y-2, 2, 2*2+2)
-            elif agent["action_name"] == "gift":
-                paint.color = GIFT_COLOR
-                ctx.fill_rect(x, y, 2, 2)
             elif agent["action_name"] == "swap":
                 paint.color = SWAP_COLOR
                 ctx.fill_rect(x, y, 2, 2)
+            elif agent["action_name"] == "change_color":
+                paint.color = CHANGE_COLOR_COLOR
+                ctx.fill_rect(x, y, 2, 2)
+            elif agent["action_name"] == "put_recipe_items":
+                paint.color = PUT_COLOR
+                ctx.fill_rect(x, y, 2, 2)
+            elif agent["action_name"] == "get_output":
+                paint.color = GET_COLOR
+                ctx.fill_rect(x, y, 2, 2)
+            else:
+                print("Unknown action:", agent["action_name"])
 
             if agent["reward"] > 0:
                 paint.color = AMETHYST

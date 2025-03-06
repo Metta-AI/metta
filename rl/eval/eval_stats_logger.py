@@ -28,8 +28,8 @@ class EvalStatsLogger:
                 raise ValueError(f"Invalid eval_db_uri: {cfg.eval.eval_db_uri}")
             json_path = cfg.eval.eval_db_uri
 
-        self._json_path = json_path if json_path.endswith('.json') else  f"{json_path}.json"
-        os.makedirs(os.path.dirname(self._json_path), exist_ok=True)
+        self.json_path = json_path if json_path.endswith('.json') else  f"{json_path}.json"
+        os.makedirs(os.path.dirname(self.json_path), exist_ok=True)
         self.artifact_name = artifact_name
 
     def _add_additional_fields(self, eval_stats, eval_name = "eval"):
@@ -52,19 +52,19 @@ class EvalStatsLogger:
 
     def _log_to_file(self, eval_stats):
         # If file exists, load and merge with existing data
-        if os.path.exists(self._json_path):
-            logger.info(f"Loading existing eval stats from {self._json_path}")
-            with open(self._json_path, "r") as f:
+        if os.path.exists(self.json_path):
+            logger.info(f"Loading existing eval stats from {self.json_path}")
+            with open(self.json_path, "r") as f:
                 existing_stats = json.load(f)
             eval_stats.extend(existing_stats)
-        with open(self._json_path, "w") as f:
+        with open(self.json_path, "w") as f:
 
             json.dump(eval_stats, f, indent=4)
-        logger.info(f"Saved eval stats to {self._json_path}")
+        logger.info(f"Saved eval stats to {self.json_path}")
 
     def _log_to_wandb(self, artifact_name: str, eval_stats):
         artifact = wandb.Artifact(name=artifact_name, type=artifact_name)
-        zip_file_path = self._json_path + ".gz"
+        zip_file_path = self.json_path + ".gz"
         with gzip.open(zip_file_path, 'wt', encoding='utf-8') as f:
             json.dump(eval_stats, f)
         artifact = wandb.Artifact(name=artifact_name, type=artifact_name)

@@ -23,5 +23,5 @@ wandb:
   track: False
   project: metta
   entity: metta-research
-  group: metta
+  group: ${run}
   name: ${run}
