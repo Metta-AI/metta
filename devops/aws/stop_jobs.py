@@ -82,7 +82,7 @@ def stop_batch_jobs(job_prefix, job_queue=None, silent=False):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Stop running AWS Batch jobs with a specific prefix.')
     parser.add_argument('--job_prefix', type=str, required=True, help='Prefix of job names to stop')
-    parser.add_argument('--job_queue', type=str, default="metta-batch-jq-2", help='Specific job queue to stop jobs from')
+    parser.add_argument('--job_queue', type=str, default="metta-jq", help='Specific job queue to stop jobs from')
     parser.add_argument('--silent', action='store_true', help='Skip confirmation prompt')
     args = parser.parse_args()
     args.job_prefix = args.job_prefix.replace('.', '_')

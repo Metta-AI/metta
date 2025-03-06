@@ -17,6 +17,21 @@ def get_job_details(job, job_descriptions, task_descriptions=None, container_ins
     job_status = job['status']
     job_link = f"https://console.aws.amazon.com/batch/home?region=us-east-1#jobs/detail/{job_id}"
 
+    # Handle the case when job_descriptions is empty or the job is not found
+    if not job_descriptions:
+        return {
+            'jobId': job_id,
+            'jobName': job_name,
+            'status': job_status,
+            'link': job_link,
+            'publicIp': '',
+            'instanceType': '',
+            'numRetries': 0,
+            'createdAt': job.get('createdAt', 0),
+            'startedAt': job.get('startedAt', 0),
+            'stoppedAt': job.get('stoppedAt', 0)
+        }
+
     job_desc = next((j for j in job_descriptions if j['jobId'] == job_id), {})
     container = job_desc.get('container', {})
     task_arn = container.get('taskArn')
@@ -66,7 +81,10 @@ def get_batch_jobs(job_queue, max_jobs):
     all_jobs = sorted(all_jobs, key=lambda job: job['createdAt'], reverse=True)[:max_jobs]
 
     job_ids = [job['jobId'] for job in all_jobs]
-    job_descriptions = batch.describe_jobs(jobs=job_ids)['jobs']
+    job_descriptions = []
+    # Only call describe_jobs if we have job IDs to process
+    if job_ids:
+        job_descriptions = batch.describe_jobs(jobs=job_ids)['jobs']
 
     task_arns = []
     cluster_arns = []
@@ -84,7 +102,11 @@ def get_batch_jobs(job_queue, max_jobs):
 
     # Skip task processing if there are no tasks
     if not task_arns:
-        return [get_job_details(job, job_descriptions) for job in all_jobs]
+        # If we have job descriptions, use them; otherwise, return basic job info
+        if job_descriptions:
+            return [get_job_details(job, job_descriptions) for job in all_jobs]
+        else:
+            return all_jobs
 
     # Batch describe tasks by their respective clusters
     tasks_by_cluster = {}

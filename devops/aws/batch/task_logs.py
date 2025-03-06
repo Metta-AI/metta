@@ -206,7 +206,7 @@ def main():
     """Main entry point for the script."""
     parser = argparse.ArgumentParser(description='View logs for AWS Batch jobs')
     parser.add_argument('--job', help='Job ID or name to view logs for')
-    parser.add_argument('--queue', default='metta-batch-jq-test', help='Job queue to list jobs from')
+    parser.add_argument('--queue', default='metta-jq', help='Job queue to list jobs from')
     parser.add_argument('--tail', action='store_true', help='Continuously poll for new logs')
     parser.add_argument('--max-jobs', type=int, default=10, help='Maximum number of jobs to list')
     parser.add_argument('--latest', action='store_true', help='Show logs for the latest attempt only')

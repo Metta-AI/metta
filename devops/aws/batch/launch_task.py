@@ -32,15 +32,18 @@ def submit_batch_job(args, task_args):
     job_name = args.run.replace('.', '_') + "_" + random_id
     job_queue = args.job_queue
 
-    # Always use the distributed job definition
-    job_definition = "metta-batch-dist-train"
+    request = {
+        'jobName': job_name,
+        'jobQueue': job_queue,
+        'jobDefinition': 'metta-batch-train-jd',
+        'containerOverrides': container_config(args, task_args, job_name)
+    }
 
-    # Submit multi-node job
-    response = batch.submit_job(
-        jobName=job_name,
-        jobQueue=job_queue,
-        jobDefinition=job_definition,
-        nodeOverrides={
+    # Choose job definition based on number of nodes
+    if args.num_nodes > 1:
+        request["jobDefinition"] = "metta-batch-dist-train"
+        print(f"Using multi-node job definition: {request['jobDefinition']} for {args.num_nodes} nodes")
+        request["nodeOverrides"] = {
             'nodePropertyOverrides': [
                 {
                     'targetNodes': '0:',
@@ -49,8 +52,9 @@ def submit_batch_job(args, task_args):
             ],
             'numNodes': args.num_nodes
         }
-    )
+        del request["containerOverrides"]
 
+    response = batch.submit_job(**request)
     print(f"Submitted job {job_name} to queue {job_queue} with job ID {response['jobId']}")
     print(f"https://us-east-1.console.aws.amazon.com/batch/v2/home?region=us-east-1#/jobs/detail/{response['jobId']}")
 
@@ -122,9 +126,6 @@ def container_config(args, task_args, job_name):
         },
     ]
 
-    # Calculate num_workers based on available vCPUs
-    num_workers = min(6, vcpus_per_gpu // 2)  # 2 vCPU per worker
-
     # Add required environment variables for the entrypoint script
     env_vars.extend([
         {
@@ -141,53 +142,28 @@ def container_config(args, task_args, job_name):
         },
         {
             'name': 'NUM_WORKERS',
-            'value': str(num_workers)
+            'value': str(min(6, vcpus_per_gpu // 2))
+        },
+        {
+            'name': 'GIT_REF',
+            'value': args.git_branch or args.git_commit
+        },
+        {
+            'name': 'METTAGRID_REF',
+            'value': args.mettagrid_branch or args.mettagrid_commit
+        },
+        {
+            'name': 'TASK_ARGS',
+            'value': ' '.join(task_args)
         }
     ])
 
-    # Add git reference (branch or commit)
-    if args.git_branch is not None:
-        env_vars.append({
-            'name': 'GIT_REF',
-            'value': args.git_branch
-        })
-    elif args.git_commit is not None:
-        env_vars.append({
-            'name': 'GIT_REF',
-            'value': args.git_commit
-        })
-
-    # Add mettagrid reference (branch or commit)
-    if args.mettagrid_branch is not None:
-        env_vars.append({
-            'name': 'METTAGRID_REF',
-            'value': args.mettagrid_branch
-        })
-    elif args.mettagrid_commit is not None:
-        env_vars.append({
-            'name': 'METTAGRID_REF',
-            'value': args.mettagrid_commit
-        })
-
-    # Add task args if any
-    if task_args:
-        env_vars.append({
-            'name': 'TASK_ARGS',
-            'value': ' '.join(task_args)
-        })
-
     # Build the command to run the entrypoint script
-    entrypoint_cmd = []
-
-    # Check out the git reference (branch or commit) before pulling
-    entrypoint_cmd.append('git fetch')
-    if args.git_branch is not None:
-        entrypoint_cmd.append(f'git checkout {args.git_branch}')
-    elif args.git_commit is not None:
-        entrypoint_cmd.append(f'git checkout {args.git_commit}')
-
-    # Run the entrypoint script
-    entrypoint_cmd.append('./devops/aws/batch/train_entrypoint.sh')
+    entrypoint_cmd = [
+        'git fetch',
+        f'git checkout {args.git_branch or args.git_commit}',
+        './devops/aws/batch/train_entrypoint.sh'
+    ]
 
     print("\n".join([
             "Setup:",
@@ -206,19 +182,14 @@ def container_config(args, task_args, job_name):
         {
             'type': 'GPU',
             'value': str(args.node_gpus)
+        }, {
+            'type': 'VCPU',
+            'value': str(total_vcpus)
+        }, {
+            'type': 'MEMORY',
+            'value': str(memory_mb)  # AWS Batch API expects MB
         }
     ]
-
-    # Add vCPU and memory requirements
-    resource_requirements.append({
-        'type': 'VCPU',
-        'value': str(total_vcpus)
-    })
-
-    resource_requirements.append({
-        'type': 'MEMORY',
-        'value': str(memory_mb)  # AWS Batch API expects MB
-    })
 
     return {
         'command': ["; ".join(entrypoint_cmd)],
@@ -242,7 +213,7 @@ if __name__ == "__main__":
     parser.add_argument('--cpu-ram-gb', type=int, default=20, help='RAM per node in GB.')
     parser.add_argument('--copies', type=int, default=1, help='Number of job copies to submit.')
     parser.add_argument('--profile', default="stem", help='AWS profile to use. If not specified, uses the default profile.')
-    parser.add_argument('--job-queue', default="metta-batch-jq-test", help='AWS Batch job queue to use.')
+    parser.add_argument('--job-queue', default="metta-jq", help='AWS Batch job queue to use.')
     args, task_args = parser.parse_known_args()
 
     args.num_nodes = max(1, args.gpus // args.node_gpus)
@@ -252,7 +223,7 @@ if __name__ == "__main__":
         args.git_commit = get_current_commit()
 
     if args.mettagrid_branch is None and args.mettagrid_commit is None:
-        args.mettagrid_commit = get_current_commit("../mettagrid")
+        args.mettagrid_commit = get_current_commit("deps/mettagrid")
 
     # Submit the job
     for i in range(args.copies):
