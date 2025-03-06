@@ -112,6 +112,37 @@ def main():
             list_compute_environments()
         return
 
+    # Special case for 'stop' command with simplified syntax
+    if args.arg1 == 'stop' or args.arg1 == 's':
+        if not args.arg2:
+            print("Error: Job ID is required for stop command")
+            sys.exit(1)
+
+        result = stop_job(args.arg2)
+
+        # If result is a list, it means we found multiple jobs with the prefix
+        if isinstance(result, list):
+            matching_jobs = result
+            num_jobs = len(matching_jobs)
+
+            print(f"\nThere are {num_jobs} jobs with the prefix '{args.arg2}':")
+            for i, job in enumerate(matching_jobs, 1):
+                job_id = job['jobId']
+                job_name = job['jobName']
+                job_status = job['status']
+                print(f"{i}. {job_name} ({job_id}) - Status: {job_status}")
+
+            # Ask for confirmation
+            confirmation = input(f"\nThere are {num_jobs} jobs with the prefix '{args.arg2}', stop all of them? (y/n): ")
+            if confirmation.lower() == 'y':
+                # Extract job IDs and stop them
+                job_ids = [job['jobId'] for job in matching_jobs]
+                from job import stop_jobs
+                stop_jobs(job_ids)
+            else:
+                print("Operation cancelled.")
+        return
+
     # Determine if we're using the new simplified syntax or the old syntax
     # New syntax: cmd.sh info <job_id>
     # Old syntax: cmd.sh job <job_id> info
@@ -231,7 +262,30 @@ def main():
             if not resource_id:
                 print("Error: Job ID is required for stop command")
                 sys.exit(1)
-            stop_job(resource_id)
+
+            result = stop_job(resource_id)
+
+            # If result is a list, it means we found multiple jobs with the prefix
+            if isinstance(result, list):
+                matching_jobs = result
+                num_jobs = len(matching_jobs)
+
+                print(f"\nThere are {num_jobs} jobs with the prefix '{resource_id}':")
+                for i, job in enumerate(matching_jobs, 1):
+                    job_id = job['jobId']
+                    job_name = job['jobName']
+                    job_status = job['status']
+                    print(f"{i}. {job_name} ({job_id}) - Status: {job_status}")
+
+                # Ask for confirmation
+                confirmation = input(f"\nThere are {num_jobs} jobs with the prefix '{resource_id}', stop all of them? (y/n): ")
+                if confirmation.lower() == 'y':
+                    # Extract job IDs and stop them
+                    job_ids = [job['jobId'] for job in matching_jobs]
+                    from job import stop_jobs
+                    stop_jobs(job_ids)
+                else:
+                    print("Operation cancelled.")
         elif command == 'launch':
             print("The launch command is now handled directly by the cmd.sh script.")
             print("Please use: ./devops/aws/batch/cmd.sh launch --run RUN_ID --cmd COMMAND [options]")

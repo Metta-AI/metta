@@ -457,6 +457,46 @@ def get_job_info(job_id_or_name):
         print(f"Error retrieving job information: {str(e)}")
         return None
 
+def find_jobs_by_prefix(prefix, max_results=5):
+    """Find jobs that start with the given prefix."""
+    batch = get_boto3_client()
+    matching_jobs = []
+
+    try:
+        # Get all job queues
+        queues_response = batch.describe_job_queues()
+        job_queues = [queue['jobQueueName'] for queue in queues_response['jobQueues']]
+
+        # Search for jobs in each queue
+        for queue in job_queues:
+            # Check all job statuses
+            for status in ['SUBMITTED', 'PENDING', 'RUNNABLE', 'STARTING', 'RUNNING']:
+                try:
+                    jobs_response = batch.list_jobs(
+                        jobQueue=queue,
+                        jobStatus=status,
+                        maxResults=100
+                    )
+
+                    # Look for jobs with the specified prefix
+                    for job_summary in jobs_response.get('jobSummaryList', []):
+                        if job_summary['jobName'].startswith(prefix) or job_summary['jobId'].startswith(prefix):
+                            # Get full job details
+                            job_details_response = batch.describe_jobs(jobs=[job_summary['jobId']])
+                            if job_details_response['jobs']:
+                                matching_jobs.append(job_details_response['jobs'][0])
+
+                                # Limit the number of results
+                                if len(matching_jobs) >= max_results:
+                                    return matching_jobs
+                except Exception:
+                    continue
+
+        return matching_jobs
+    except Exception as e:
+        print(f"Error finding jobs by prefix: {str(e)}")
+        return []
+
 def stop_job(job_id_or_name, reason="Stopped by user"):
     """Stop a running job by ID or name."""
     batch = get_boto3_client()
@@ -505,8 +545,13 @@ def stop_job(job_id_or_name, reason="Stopped by user"):
                         break
 
                 if not job_id:
-                    print(f"No job found with ID or name '{job_id_or_name}'")
-                    return False
+                    # If no exact match found, try to find jobs with the prefix
+                    matching_jobs = find_jobs_by_prefix(job_id_or_name)
+                    if matching_jobs:
+                        return matching_jobs
+                    else:
+                        print(f"No job found with ID or name '{job_id_or_name}'")
+                        return False
             except Exception as e:
                 print(f"Error retrieving job queues: {str(e)}")
                 print(f"Job '{job_id_or_name}' not found")
@@ -532,6 +577,38 @@ def stop_job(job_id_or_name, reason="Stopped by user"):
     except Exception as e:
         print(f"Error stopping job: {str(e)}")
         return False
+
+def stop_jobs(job_ids, reason="Stopped by user"):
+    """Stop multiple jobs by their IDs."""
+    batch = get_boto3_client()
+    success_count = 0
+
+    for job_id in job_ids:
+        try:
+            # Check if the job is in a stoppable state
+            response = batch.describe_jobs(jobs=[job_id])
+            if not response['jobs']:
+                print(f"Job '{job_id}' not found")
+                continue
+
+            job = response['jobs'][0]
+            stoppable_states = ['SUBMITTED', 'PENDING', 'RUNNABLE', 'STARTING', 'RUNNING']
+            if job['status'] not in stoppable_states:
+                print(f"Job '{job_id}' is in state '{job['status']}' and cannot be stopped")
+                continue
+
+            # Stop the job
+            batch.terminate_job(
+                jobId=job_id,
+                reason=reason
+            )
+
+            print(f"Job '{job_id}' has been stopped")
+            success_count += 1
+        except Exception as e:
+            print(f"Error stopping job '{job_id}': {str(e)}")
+
+    return success_count > 0
 
 def launch_job(job_queue=None):
     """Launch a new job."""

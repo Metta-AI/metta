@@ -19,6 +19,19 @@ def get_current_commit(repo_path=None):
     except subprocess.CalledProcessError:
         return None
 
+def is_commit_pushed(commit_hash, repo_path=None):
+    """Check if a commit has been pushed to the remote repository."""
+    try:
+        cmd = ["git", "branch", "-r", "--contains", commit_hash]
+        if repo_path:
+            cmd = ["git", "-C", repo_path, "branch", "-r", "--contains", commit_hash]
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        # If there are any remote branches containing this commit, it has been pushed
+        return bool(result.stdout.strip())
+    except subprocess.CalledProcessError:
+        # If the command fails, assume the commit hasn't been pushed
+        return False
+
 def submit_batch_job(args, task_args):
     session_kwargs = {'region_name': 'us-east-1'}
     if args.profile:
@@ -218,6 +231,7 @@ if __name__ == "__main__":
     parser.add_argument('--copies', type=int, default=1, help='Number of job copies to submit.')
     parser.add_argument('--profile', default="stem", help='AWS profile to use. If not specified, uses the default profile.')
     parser.add_argument('--job-queue', default="metta-jq", help='AWS Batch job queue to use.')
+    parser.add_argument('--skip-push-check', action='store_true', help='Skip checking if commits have been pushed.')
     args, task_args = parser.parse_known_args()
 
     args.num_nodes = max(1, args.gpus // args.node_gpus)
@@ -228,6 +242,20 @@ if __name__ == "__main__":
 
     if args.mettagrid_branch is None and args.mettagrid_commit is None:
         args.mettagrid_commit = get_current_commit("deps/mettagrid")
+
+    # Check if commits have been pushed to remote
+    if not args.skip_push_check:
+        # Check main repo commit
+        if args.git_commit and not is_commit_pushed(args.git_commit):
+            print(f"Error: Git commit {args.git_commit} has not been pushed to the remote repository.")
+            print("Please push your changes or use --skip-push-check to bypass this check.")
+            sys.exit(1)
+
+        # Check mettagrid commit
+        if args.mettagrid_commit and not is_commit_pushed(args.mettagrid_commit, "deps/mettagrid"):
+            print(f"Error: Mettagrid commit {args.mettagrid_commit} has not been pushed to the remote repository.")
+            print("Please push your changes or use --skip-push-check to bypass this check.")
+            sys.exit(1)
 
     # Submit the job
     for i in range(args.copies):
