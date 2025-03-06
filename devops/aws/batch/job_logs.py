@@ -350,6 +350,9 @@ def print_job_logs(job_id, attempt_index=None, node_index=None, tail=False, debu
                     print("No log streams found")
                     return
 
+                # Sort log streams by node index
+                log_streams.sort(key=lambda s: int(re.search(r'/(\d+)$', s).group(1)) if re.search(r'/(\d+)$', s) else 0)
+
                 # If node_index is specified, only show logs for that node
                 if node_index is not None:
                     node_stream = f"{base_log_stream}/{node_index}"
@@ -358,6 +361,20 @@ def print_job_logs(job_id, attempt_index=None, node_index=None, tail=False, debu
                     else:
                         print(f"No log stream found for node {node_index}")
                         return
+                else:
+                    # If node_index is not specified, only show logs for the first node (main node)
+                    main_node = job.get('nodeProperties', {}).get('mainNode', 0)
+                    node_stream = f"{base_log_stream}/{main_node}"
+                    if node_stream in log_streams:
+                        log_streams = [node_stream]
+                        print(f"Showing logs for main node ({main_node}). Use --node=X to view logs for other nodes.")
+                    else:
+                        # If main node log stream not found, use the first available log stream
+                        if log_streams:
+                            log_streams = [log_streams[0]]
+                            node_match = re.search(r'/(\d+)$', log_streams[0])
+                            node_idx = int(node_match.group(1)) if node_match else 0
+                            print(f"Showing logs for node {node_idx}. Use --node=X to view logs for other nodes.")
 
                 # Print logs for each stream
                 for log_stream in log_streams:

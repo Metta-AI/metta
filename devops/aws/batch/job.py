@@ -10,6 +10,9 @@ from botocore.config import Config
 from datetime import datetime
 import time
 from tabulate import tabulate
+import argparse
+import sys
+import importlib.util
 
 def get_boto3_client(service_name='batch'):
     """Get a boto3 client with standard configuration."""
@@ -532,10 +535,7 @@ def stop_job(job_id_or_name, reason="Stopped by user"):
 
 def launch_job(job_queue=None):
     """Launch a new job."""
-    if not job_queue:
-        print("Error: Job queue is required for launching a job")
-        return False
-
-    print("Job launch functionality is not implemented yet")
-    print("Please use the AWS Management Console or AWS CLI to launch jobs")
+    print("The launch_job function is deprecated.")
+    print("Please use the launch_cmd.py script directly:")
+    print("  ./devops/aws/batch/launch_cmd.py --run RUN_ID --cmd COMMAND [options]")
     return False

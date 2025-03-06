@@ -43,6 +43,8 @@ export NODE_RANK=${AWS_BATCH_JOB_NODE_INDEX:-0}
 export NUM_NODES=${AWS_BATCH_JOB_NUM_NODES:-1}
 export MASTER_ADDR=${AWS_BATCH_JOB_MAIN_NODE_PRIVATE_IPV4_ADDRESS:-localhost}
 export MASTER_PORT=29500
+export HARDWARE=${HARDWARE:-aws}
+export SKIP_BUILD=1
 
 echo "=== Starting training ==="
 echo "Run ID: $RUN_ID"
@@ -52,8 +54,9 @@ echo "Node index: $NODE_RANK of $NUM_NODES nodes"
 echo "Master address: $MASTER_ADDR:$MASTER_PORT"
 echo "Workers: $NUM_WORKERS"
 echo "Additional args: $TASK_ARGS"
+echo "Hardware: $HARDWARE"
 
 # Run the training command
-./devops/$CMD.sh run=$RUN_ID hardware=aws trainer.num_workers=$NUM_WORKERS $TASK_ARGS
+./devops/$CMD.sh run=$RUN_ID hardware=$HARDWARE trainer.num_workers=$NUM_WORKERS $TASK_ARGS
 
 echo "=== Training complete ==="

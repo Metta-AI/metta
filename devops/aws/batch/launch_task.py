@@ -131,6 +131,10 @@ def container_config(args, task_args, job_name):
         {
             'name': 'RUN_ID',
             'value': args.run
+            },
+        {
+            'name': 'HARDWARE',
+            'value': 'aws'
         },
         {
             'name': 'CMD',

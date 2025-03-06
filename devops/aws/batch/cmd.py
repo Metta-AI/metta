@@ -25,6 +25,9 @@ Commands:
 
 import sys
 import argparse
+import importlib.util
+import os
+import subprocess
 from job_queue import list_job_queues, get_job_queue_info
 from compute_environment import list_compute_environments, get_compute_environment_info, stop_compute_environment
 from job import list_jobs, get_job_info, stop_job, launch_job
@@ -230,7 +233,9 @@ def main():
                 sys.exit(1)
             stop_job(resource_id)
         elif command == 'launch':
-            launch_job(job_queue=job_queue)
+            print("The launch command is now handled directly by the cmd.sh script.")
+            print("Please use: ./devops/aws/batch/cmd.sh launch --run RUN_ID --cmd COMMAND [options]")
+            sys.exit(1)
         else:
             print(f"Error: Command '{command}' is not supported for jobs")
             sys.exit(1)

@@ -12,5 +12,14 @@ if ! command -v python3 &> /dev/null; then
     exit 1
 fi
 
-# Execute the Python command handler
-python3 "$SCRIPT_DIR/cmd.py" "$@"
+# Check if the first argument is "launch"
+if [ "$1" = "launch" ]; then
+    # Shift the first argument to remove "launch"
+    shift
+
+    # Execute the launch_cmd.py script with the remaining arguments
+    python3 "$SCRIPT_DIR/launch_cmd.py" "$@"
+else
+    # Execute the Python command handler
+    python3 "$SCRIPT_DIR/cmd.py" "$@"
+fi
