@@ -1,7 +1,7 @@
 import logging
 import os
 import hydra
-from typing import Optional
+
 from agent.policy_store import PolicyStore
 from mettagrid.config.config import setup_metta_environment
 from omegaconf import OmegaConf
@@ -33,18 +33,11 @@ def main(cfg):
         cfg.device = f'{cfg.device}:{local_rank}'
         dist.init_process_group(backend="nccl")
 
-
-    def train(wandb_run):
+    with WandbContext(cfg) as wandb_run:
         policy_store = PolicyStore(cfg, wandb_run)
         trainer = hydra.utils.instantiate(cfg.trainer, cfg, wandb_run, policy_store)
         trainer.train()
         trainer.close()
-
-    if os.environ.get("RANK") == "0":
-        with WandbContext(cfg) as wandb_run:
-            train(wandb_run)
-    else:
-        train(None)
 
 if __name__ == "__main__":
     main()
