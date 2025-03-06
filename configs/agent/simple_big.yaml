@@ -50,24 +50,24 @@ components:
   fc1:
     _target_: agent.lib.nn_layer_library.Linear
     input_source: obs_flattener
-    output_size: 128
+    output_size: 1024
 
   encoded_obs:
     _target_: agent.lib.nn_layer_library.Linear
     input_source: fc1
-    output_size: 128
+    output_size: 256
 
   _core_:
     _target_: agent.lib.lstm.LSTM
     input_source: encoded_obs
-    output_size: 128
+    output_size: 512
     nn_params:
       num_layers: 2
       
   critic_1:
     _target_: agent.lib.nn_layer_library.Linear
     input_source: _core_
-    output_size: 1024
+    output_size: 2048
 
   _value_:
     _target_: agent.lib.nn_layer_library.Linear
@@ -78,7 +78,7 @@ components:
   actor_1:
     _target_: agent.lib.nn_layer_library.Linear
     input_source: _core_
-    output_size: 512
+    output_size: 1024
 
   _action_type_:
     _target_: agent.lib.action.ActionType

@@ -34,6 +34,7 @@ echo "Fetching mettagrid in to $(pwd)"
 git fetch
 echo "Checking out main in to $(pwd)"
 git checkout main
+git pull
 echo "Installing mettagrid in to $(pwd)"
 pip install -r requirements.txt
 echo "Building mettagrid in to $(pwd)"
