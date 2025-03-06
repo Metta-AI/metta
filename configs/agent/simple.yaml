@@ -60,9 +60,9 @@ components:
   _core_:
     _target_: agent.lib.lstm.LSTM
     input_source: encoded_obs
-    output_size: 512
+    output_size: 128
     nn_params:
-      num_layers: 2
+      num_layers: 1
       
   critic_1:
     _target_: agent.lib.nn_layer_library.Linear
