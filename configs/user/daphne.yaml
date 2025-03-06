@@ -4,26 +4,23 @@ seed: null
 
 defaults:
   - override /eval: cogeval_suite
-  - override /env/mettagrid@env: cognitive_evals/cogeval_training_easy_simplified
+  - override /env/mettagrid@env: simple
   - override /agent: simple
   - override /sweep: fast
   - override /analyzer: analyzer
 
 policy_uri: wandb://run/b.daphne.aws_train_cogeval_simplified_0.01_mb:v36
-#policy_uri: wandb://run/
-#eval_db_uri: wandb://artifacts/cogeval_mini_simplified2
 #policy_uri: ./train_dir/daphne.local.train.14_pfs/checkpoints/model_0050.pt
-#policy_uri: ${trained_policy_uri}
-#policy_uri: wandb://run/mettabox_cogeval_defaults_lowent_initialized0005:v100
+# policy_uri: wandb://run/mettabox_cogeval_defaults_lowent_initialized0005
 # policy_uri: wandb://run/daphne_mettabox_train_cogeval_simplified_0.01_mb_easyv33
-#policy_uri: wandb://run/b.daphne.aws_train_cogeval_defaults_0.005_v35
+# policy_uri: wandb://run/b.daphne.aws_train_cogeval_defaults_0.005_v35
 #ABOVE IS b.daphne.aws_train_cogeval_easy_simplified_pretrained
 
 # policy_uri: wandb://run/daphne_mettabox_train_cogeval_simplified_0.005_mb_easyv34:v6
 #policy_uri: wandb://run/daphne_mettabox_train_cogeval_simplified_0.01_mb_easyv33:v5
 
 # policy_uri: wandb://run/mettabox_cogeval_easy_defaults_2
-
+eval_db_uri: wandb://artifacts/cogeval_evaluations
 
 npc_policy_uri: null
 
@@ -33,6 +30,8 @@ eval:
   num_envs: 10
   num_episodes: 10
   max_time_s: 300
+analyzer:
+  policy_uri: ${policy_uri}
 wandb:
   enabled: true
   track: true
@@ -49,51 +48,49 @@ env:
   game:
     max_steps: 1000
 
-objects:
-    altar:
-      hp: 30
-      cooldown: 1
+    # objects:
+    #   altar:
+    #     hp: 30
+    #     cooldown: 1
 
-    mine:
-      hp: 30
-      cooldown: 1
+    #   mine:
+    #     hp: 30
+    #     cooldown: 1
 
-    generator:
-      hp: 30
-      cooldown: 1
+    #   generator:
+    #     hp: 30
+    #     cooldown: 1
 
-    armory:
-      hp: 30
-      cooldown: 1
+    #   armory:
+    #     hp: 30
+    #     cooldown: 1
 
-    lasery:
-      hp: 30
-      cooldown: 1
+    #   lasery:
+    #     hp: 30
+    #     cooldown: 1
 
-    lab:
-      hp: 30
-      cooldown: 1
+    #   lab:
+    #     hp: 30
+    #     cooldown: 1
 
-    factory:
-      hp: 30
-      cooldown: 1
+    #   factory:
+    #     hp: 30
+    #     cooldown: 1
 
-    temple:
-      hp: 30
-      cooldown: 1
+    #   temple:
+    #     hp: 30
+    #     cooldown: 1
 
-    wall:
-      hp: ${uniform:1, 20, 10}
-    # actions:
-    #   noop:
-    #     enabled: true
-    #   move:
-    #     enabled: true
-    #   rotate:
-    #     enabled: true
-    #   attack:
-    #     enabled: false
-    #   swap:
-    #     enabled: false
-    #   change_color:
-    #     enabled: false
+    actions:
+      noop:
+        enabled: true
+      move:
+        enabled: true
+      rotate:
+        enabled: true
+      attack:
+        enabled: false
+      swap:
+        enabled: false
+      change_color:
+        enabled: false

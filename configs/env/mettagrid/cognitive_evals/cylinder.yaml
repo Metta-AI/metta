@@ -1,10 +1,8 @@
 defaults:
-  - mettagrid
+  - defaults
 
-sampling: 1
 game:
   num_agents: 4
-  max_steps: 250
 
   map_builder:
     _target_: mettagrid.config.room.room_list.RoomList

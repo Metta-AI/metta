@@ -1,5 +1,5 @@
 defaults:
-  - mettagrid
+  - defaults
 
 sampling: 1
 game:

@@ -1,5 +1,5 @@
 defaults:
-  - mettagrid
+  - defaults
 
 sampling: 1
 game:
@@ -46,13 +46,13 @@ game:
           sparse_min_distance: ${uniform:6,10,8}
       labyrinth:
         _target_: mettagrid.config.room.cognitive_evals.labyrinth.LabyrinthMaze
-        width: ${uniform:10,18,21}
-        height: ${uniform:10,18,21}
+        width: ${uniform:15,20,21}
+        height: ${uniform:15,20,21}
         corridor_width: ${uniform:1,4,3}
       corridor:
         _target_: mettagrid.config.room.cognitive_evals.corridor_maze.CorridorMaze
-        width: ${uniform:18,18,21}
-        height: ${uniform:13,18,21}
+        width: ${uniform:18,25,21}
+        height: ${uniform:18,25,21}
         corridor_width: ${uniform:2,3,2}
         arm_length: ${uniform:5,8,5}
         num_mines: ${uniform:1,3,2}

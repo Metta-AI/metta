@@ -1,17 +1,8 @@
 defaults:
-  - mettagrid
-
-env:
-  track_last_action: false
-
-agent:
-  observation_encoder:
-    track_last_action: ${env.track_last_action}
-sampling: 1
+  - defaults
 
 game:
   num_agents: 4
-  max_steps: 250
   map_builder:
     _target_: mettagrid.config.room.room_list.RoomList
     rooms:
