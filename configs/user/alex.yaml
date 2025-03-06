@@ -9,13 +9,14 @@ defaults:
   - override /eval: example
   - override /analyzer: analyzer
 
-policy_uri: wandb://run/alex.trainee.001
+# policy_uri: wandb://run/alex.trainee.001
+policy_uri: wandb://run/mettabox_cogeval_defaults_lowent_initialized0005:v100
 npc_policy_uri: null
 eval_db_uri: file://artifacts/alex_eval_testing
 
 env:
   game:
-    max_steps: 100
+    max_steps: 1000
 
 trainer:
   evaluate_interval: 2

@@ -7,7 +7,6 @@ import numpy as np
 import torch
 import torch.distributed as dist
 from omegaconf import OmegaConf
-# from pdb import set_trace as T # delete this
 from torch.distributions.utils import logits_to_probs
 
 from pufferlib.environment import PufferEnv
@@ -15,7 +14,6 @@ from sample_factory.utils.typing import ActionSpace, ObsSpace
 from tensordict import TensorDict
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
-# import pufferlib # delete this
 
 import logging
 logger = logging.getLogger("metta_agent")
