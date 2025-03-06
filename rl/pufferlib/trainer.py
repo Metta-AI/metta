@@ -216,7 +216,7 @@ class PufferTrainer:
                 else:
                     if self.trainer_cfg.require_contiguous_env_ids:
                         raise ValueError("Env ids are not contiguous. "\
-                            f"{self.vecenv.agents_per_batch} != {self.vecenv.agents_per_env[0]}")
+                            f"{self.trainer_cfg.async_factor} != {self.trainer_cfg.num_workers}")
                     cpu_env_id = env_id
                     gpu_env_id = torch.as_tensor(env_id).to(self.device, non_blocking=True)
 
