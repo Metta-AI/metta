@@ -209,7 +209,8 @@ class PufferTrainer:
                 # This was originally self.config.env_batch_size == 1, but you have scaling
                 # configured differently in metta. You want the whole forward pass batch to come
                 # from one core to reduce indexing overhead.
-                contiguous_env_ids = self.vecenv.agents_per_batch == self.vecenv.agents_per_env[0]
+                # contiguous_env_ids = self.vecenv.agents_per_batch == self.vecenv.driver_env.agents_per_env[0]
+                contiguous_env_ids = False
                 if contiguous_env_ids:
                     gpu_env_id = cpu_env_id = slice(env_id[0], env_id[-1] + 1)
                 else:
