@@ -148,13 +148,10 @@ class MettaAgent(nn.Module):
             td["state"] = state.to(x.device)
 
         self.components["_value_"](td)
-
         self.components["_action_type_"](td)
-        logits = td["_action_type_"]
-
         self.components["_action_param_"](td)
-        logits = [logits, td["_action_param_"]]
-
+        
+        logits = [td["_action_type_"], td["_action_param_"]]
         value = td["_value_"]
         state = td["state"]
 
