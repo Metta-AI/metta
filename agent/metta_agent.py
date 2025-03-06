@@ -7,10 +7,9 @@ import numpy as np
 import torch
 import torch.distributed as dist
 from omegaconf import OmegaConf
-from pdb import set_trace as T
+# from pdb import set_trace as T # delete this
 from torch.distributions.utils import logits_to_probs
 
-from sample_factory.utils.typing import ActionSpace, ObsSpace
 from pufferlib.environment import PufferEnv
 from sample_factory.utils.typing import ActionSpace, ObsSpace
 from tensordict import TensorDict
@@ -150,7 +149,7 @@ class MettaAgent(nn.Module):
         self.components["_value_"](td)
         self.components["_action_type_"](td)
         self.components["_action_param_"](td)
-        
+
         logits = [td["_action_type_"], td["_action_param_"]]
         value = td["_value_"]
         state = td["state"]

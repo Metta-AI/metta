@@ -1,0 +1,42 @@
+# @package __global__
+
+seed: null
+
+defaults:
+  - override /env/mettagrid@env: simple
+  - override /agent: simple
+  - override /sweep: fast
+  - override /eval: example
+  - override /analyzer: analyzer
+
+policy_uri: wandb://run/alex.trainee.0
+npc_policy_uri: null
+eval_db_uri: file://artifacts/alex_eval_testing
+
+env:
+  game:
+    max_steps: 100
+
+trainer:
+  evaluate_interval: 2
+
+eval:
+  policy_uri: ${..policy_uri}
+  npc_policy_uri: ${..npc_policy_uri}
+  eval_db_uri: ${..eval_db_uri}
+
+analyzer:
+  analysis:
+    metrics:
+    - metric: "action.use.altar.agent"
+
+sweep:
+  metric: "action.use.altar.agent"
+
+wandb:
+  enabled: true
+  track: true
+  checkpoint_interval: 1
+
+cmd: ???
+run: ${oc.env:USER}.local.${cmd}.2
