@@ -274,7 +274,8 @@ def container_config(args, task_args, job_name):
         'resourceRequirements': resource_requirements
     }
 
-if __name__ == "__main__":
+def main():
+    """Main entry point for the script."""
     parser = argparse.ArgumentParser(description='Launch an AWS Batch task with a wandb key.')
     parser.add_argument('--cluster', default="metta", help='The name of the ECS cluster.')
     parser.add_argument('--run', required=True, help='The run id.')
@@ -296,9 +297,6 @@ if __name__ == "__main__":
     parser.add_argument('--dry-run', action='store_true', help='Dry run mode, prints job details without submitting.')
     args, task_args = parser.parse_known_args()
 
-    # Filter out --no-color from task_args if present
-    task_args = [arg for arg in task_args if arg != '--no-color']
-
     args.num_nodes = max(1, args.gpus // args.node_gpus)
 
     # Set default commit values if not specified
@@ -308,15 +306,15 @@ if __name__ == "__main__":
     if args.mettagrid_branch is None and args.mettagrid_commit is None:
         args.mettagrid_commit = get_current_commit("deps/mettagrid")
 
-    # Check if commits have been pushed to remote
+    # Check if commits have been pushed
     if not args.skip_push_check:
-        # Check main repo commit
+        # Check if git commit has been pushed
         if args.git_commit and not is_commit_pushed(args.git_commit):
             print(f"Error: Git commit {args.git_commit} has not been pushed to the remote repository.")
             print("Please push your changes or use --skip-push-check to bypass this check.")
             sys.exit(1)
 
-        # Check mettagrid commit
+        # Check if mettagrid commit has been pushed
         if args.mettagrid_commit and not is_commit_pushed(args.mettagrid_commit, "deps/mettagrid"):
             print(f"Error: Mettagrid commit {args.mettagrid_commit} has not been pushed to the remote repository.")
             print("Please push your changes or use --skip-push-check to bypass this check.")
@@ -325,3 +323,6 @@ if __name__ == "__main__":
     # Submit the job
     for i in range(args.copies):
         submit_batch_job(args, task_args)
+
+if __name__ == '__main__':
+    main()

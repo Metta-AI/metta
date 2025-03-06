@@ -14,63 +14,163 @@ source ~/.bashrc
 aws s3 ls metta-ai
 ```
 
-## Launching Jobs
+## Job Management with cmd.sh
 
-1. Launch a training job using the Python launcher:
+The `cmd.sh` script provides a convenient command-line interface for interacting with AWS Batch resources.
+
+### Command Syntax
+
 ```bash
+# Simplified syntax
+cmd.sh [command] [id] [options]
+
+# Traditional syntax
+cmd.sh [resource_type] [id] [command] [options]
+```
+
+### Resource Types
+
+- `job-queue` or `jq`: AWS Batch job queues
+- `compute-environment` or `ce`: AWS Batch compute environments
+- `job` or `j`: AWS Batch jobs
+- `jobs`: List jobs in the default queue (metta-jq)
+- `compute`: Alias for compute-environment
+
+### Common Commands
+
+- `list` or `l`: List resources (default if not specified)
+- `info` or `d`: Get detailed information about a resource
+- `logs` or `ls`: Get logs for a job
+- `stop` or `s`: Stop a job or compute environment
+- `ssh`: Connect to the instance running a job via SSH
+- `launch` or `st`: Launch a job
+
+### Monitoring Jobs
+
+```bash
+# Get information about a specific job
+cmd.sh info <job_id>
+
+# View logs for a specific job
+cmd.sh logs <job_id>
+
+# Tail logs for a job
+cmd.sh logs <job_id> --tail
+
+# List jobs in a queue (default: metta-jq, max: 10)
+cmd.sh jobs [<job_queue>="metta-jq"] [--max=10]
+
+# List compute environments (default: all)
+cmd.sh compute [<compute_environment>="all"]
+
+# Get detailed information about a compute environment
+cmd.sh compute <compute_env_name>
+
+# Connect to the instance running a job via SSH
+cmd.sh ssh <job_id>
+```
+
+### Launching Jobs
+
+```bash
+# Launch a new job
+cmd.sh launch --run RUN_ID --cmd COMMAND [options]
+
+# Launch command options
+# --run RUN             The run id (required)
+# --cmd {train,sweep,evolve}  The command to run (required)
+# --git-branch BRANCH   The git branch to use (default: current commit)
+# --git-commit COMMIT   The git commit to use (default: current commit)
+# --mettagrid-branch BRANCH  The mettagrid branch to use (default: current commit)
+# --mettagrid-commit COMMIT  The mettagrid commit to use (default: current commit)
+# --gpus GPUS           Total number of GPUs to use (default: 4)
+# --node-gpus NODE_GPUS GPUs per node (default: 4)
+# --copies COPIES       Number of job copies to submit (default: 1)
+# --job-queue QUEUE     AWS Batch job queue to use (default: metta-jq)
+# --skip-push-check     Skip checking if commits have been pushed to remote repositories
+# --dry-run             Dry run mode, prints job details without actually submitting the job
+```
+
+#### Launch Examples
+
+```bash
+# Launch a training job with 4 GPUs on a single node
+cmd.sh launch --run my_run --cmd train
+
+# Launch a training job with 8 GPUs across 2 nodes
+cmd.sh launch --run my_run --cmd train --gpus 8 --node-gpus 4
+
+# Launch a training job with a specific git branch
+cmd.sh launch --run my_run --cmd train --git-branch my-branch
+
+# Launch a training job without checking if commits have been pushed
+cmd.sh launch --run my_run --cmd train --skip-push-check
+
+# Preview a training job without actually submitting it
+cmd.sh launch --run my_run --cmd train --dry-run
+```
+
+You can also use the Python launcher:
+
+```bash
+# Launch a training job
 python -m devops.aws.launch_task \
     --cmd=train \
     --run=b.$USER.run_name
-```
 
-2. Specify a custom job queue:
-```bash
+# Specify a custom job queue
 python -m devops.aws.launch_task \
     --cmd=train \
     --run=b.$USER.run_name \
-    --job_queue=metta-batch-jq-custom
-```
+    --job-queue=metta-batch-jq-custom
 
-3. Specify a custom mettagrid branch:
-```bash
+# Specify a custom mettagrid branch
 python -m devops.aws.launch_task \
     --cmd=train \
     --run=b.$USER.run_name \
-    --mettagrid_branch=feature-branch
-```
+    --mettagrid-branch=feature-branch
 
-4. Use specific git and mettagrid commits:
-```bash
+# Use specific git and mettagrid commits
 python -m devops.aws.launch_task \
     --cmd=train \
     --run=b.$USER.run_name \
-    --git_commit=abc123 \
-    --mettagrid_commit=def456
+    --git-commit=abc123 \
+    --mettagrid-commit=def456
 ```
 
-## Stopping Jobs
+### Stopping Jobs
 
-1. Stop a running job:
 ```bash
-python -m devops.aws.stop_jobs --job_prefix=b.$USER.run_name
+# Stop a specific job
+cmd.sh stop <job_id>
+
+# Stop a compute environment
+cmd.sh ce <compute_env_name> stop
+
+# Stop jobs by prefix using Python module
+python -m devops.aws.stop_jobs --job-prefix=b.$USER.run_name
 ```
 
 ## Monitoring Jobs
 
 1. Monitor jobs through command line:
 ```bash
+# Using cmd.sh
+cmd.sh jobs [<job_queue>="metta-jq"] [--max=10]
+
+# Using Python module
 python -m devops.aws.cluster_info
 ```
 
 2. Monitor jobs through AWS Batch Console:
-- URL: [AWS Batch Console](https://us-east-1.console.aws.amazon.com/batch/home?region=us-east-1#jobs)
-- Queue: `metta-batch-jq-g6-8xlarge`
+   - URL: [AWS Batch Console](https://us-east-1.console.aws.amazon.com/batch/home?region=us-east-1#jobs)
+   - Queue: `metta-batch-jq-g6-8xlarge`
 
 ## Important Notes
 
-- Jobs are processed on the `metta-batch-jq-g6-8xlarge` queue by default
-- You can specify a different queue using the `--job_queue` parameter
-- You can specify a different mettagrid branch using the `--mettagrid_branch` parameter
+- Jobs are processed on the `metta-jq` queue by default
+- You can specify a different queue using the `--job-queue` parameter with both cmd.sh and the Python launcher
+- You can specify a different mettagrid branch using the `--mettagrid-branch` parameter with both cmd.sh and the Python launcher
 - If no branch is specified, the current commit hash will be used by default
 - While jobs may take time to initialize, multiple jobs can run in parallel
 - Use your username in the run name (e.g., `b.$USER.run_name`) to track your jobs
@@ -81,17 +181,19 @@ If you encounter issues:
 1. Verify your AWS SSO session is active (`aws s3 ls`)
 2. Check the AWS Batch console for job status and logs
 3. Ensure your run name follows the correct format (`b.$USER.your_run_name`)
+4. Use `cmd.sh info <job_id>` to get detailed information about a job
+5. Use `cmd.sh logs <job_id>` to view job logs
 
-# AWS Batch Setup for Metta
+## AWS Batch Setup for Metta
 
-This directory contains scripts for setting up and managing AWS Batch resources for Metta.
+This section covers setting up and managing AWS Batch resources for Metta.
 
-## Scripts
+### Scripts
 
 - `batch_setup.py`: Sets up a complete AWS Batch environment (compute environment, job queue, and job definition)
 - `batch_register_job_definition.py`: Registers a job definition for AWS Batch
 
-## Setting up AWS Batch Environment
+### Setting up AWS Batch Environment
 
 The `batch_setup.py` script creates all the necessary AWS Batch resources:
 
@@ -99,7 +201,7 @@ The `batch_setup.py` script creates all the necessary AWS Batch resources:
 2. Job Queue: Creates a queue where jobs will be submitted
 3. Job Definition: Defines the container, resources, and configuration for your jobs
 
-### Prerequisites
+#### Prerequisites
 
 - AWS CLI installed and configured with the `stem-root` profile
 - Required IAM roles already created:
@@ -107,7 +209,7 @@ The `batch_setup.py` script creates all the necessary AWS Batch resources:
   - `ecsInstanceRole`: Instance role for EC2 instances
   - `ecsTaskExecutionRole`: Task execution role for containers
 
-### Basic Usage
+#### Basic Usage
 
 ```bash
 # Set up a complete AWS Batch environment with default settings
@@ -117,9 +219,9 @@ python batch_setup.py
 python batch_setup.py --compute-env-name metta-ce-test --job-queue-name metta-jq-test --job-definition-name metta-jd-test
 ```
 
-### Advanced Options
+#### Advanced Options
 
-#### Compute Environment Options
+##### Compute Environment Options
 
 ```bash
 # Customize compute environment
@@ -135,7 +237,7 @@ python batch_setup.py \
   --security-group-name your-security-group
 ```
 
-#### Job Definition Options
+##### Job Definition Options
 
 ```bash
 # Customize job definition
@@ -152,7 +254,7 @@ python batch_setup.py \
   --shared-memory 230000
 ```
 
-## Submitting Jobs
+### Submitting Jobs
 
 After setting up the AWS Batch environment, you can submit jobs using the AWS CLI:
 
@@ -165,7 +267,7 @@ aws batch submit-job \
   --profile stem-root
 ```
 
-## Troubleshooting
+### Advanced Troubleshooting
 
 If jobs get stuck in the RUNNABLE state, check:
 
@@ -174,18 +276,14 @@ If jobs get stuck in the RUNNABLE state, check:
 3. IAM role permissions - ensure the task execution role has necessary permissions
 4. Container instance status - check if it's in ACTIVE state
 
-To check job status:
 ```bash
+# Check job status
 aws batch describe-jobs --jobs YOUR_JOB_ID --profile stem-root
-```
 
-To check compute environment status:
-```bash
+# Check compute environment status
 aws batch describe-compute-environments --compute-environments YOUR_COMPUTE_ENV --profile stem-root
-```
 
-To check ECS container instances:
-```bash
+# Check ECS container instances
 aws ecs list-container-instances --cluster YOUR_ECS_CLUSTER --profile stem-root
 ```
 
