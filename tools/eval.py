@@ -18,7 +18,7 @@ def main(cfg: DictConfig):
         policy_store = PolicyStore(cfg, wandb_run)
         policy_pr = policy_store.policy(cfg.eval.policy_uri)
 
-        eval = hydra.utils.instantiate(
+        eval =hydra.utils.instantiate(
             cfg.eval,
             policy_store,
             policy_pr,

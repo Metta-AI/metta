@@ -1,0 +1,17 @@
+_target_: rl.eval.eval_stats_analyzer.EvalStatsAnalyzer
+
+policy_uri: ???
+
+analysis:
+
+  metric_patterns: null
+
+  metrics:
+    - metric: "heart.get"
+
+  queries: null
+
+  baseline_policies:
+    - wandb://run/mettabox_cogeval_defaults_lowent_initialized0005 #best baseline on cogevals
+
+  log_all: true
