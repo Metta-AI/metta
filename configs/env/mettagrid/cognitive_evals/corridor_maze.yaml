@@ -1,9 +1,8 @@
 defaults:
-  - mettagrid
+  - defaults
 
 game:
   num_agents: 4
-  max_steps: 1000
 
   map_builder:
     _target_: mettagrid.config.room.multi_room.RoomList
@@ -13,8 +12,8 @@ game:
         height: ${uniform:18,24,21}
         corridor_width: ${uniform:2,3,2}
         arm_length: ${uniform:8,8,5}
-        num_generators: ${uniform:1,3,2}
-        num_convertors: ${uniform:2,4,3}
+        num_mines: ${uniform:1,3,2}
+        num_converters: ${uniform:2,4,3}
         num_heart_altars: ${uniform:2,4,3}
         rotate: ${choose:true,false}
       - _target_: mettagrid.config.room.cognitive_evals.corridor_maze.CorridorMaze
@@ -44,3 +43,39 @@ game:
         num_convertors: ${uniform:2,4,3}
         num_heart_altars: ${uniform:2,4,3}
         rotate: ${choose:true,false}
+
+  objects:
+    altar:
+      hp: 30
+      cooldown: 1
+
+    mine:
+      hp: 30
+      cooldown: 1
+
+    generator:
+      hp: 30
+      cooldown: 1
+
+    armory:
+      hp: 30
+      cooldown: 1
+
+    lasery:
+      hp: 30
+      cooldown: 1
+
+    lab:
+      hp: 30
+      cooldown: 1
+
+    factory:
+      hp: 30
+      cooldown: 1
+
+    temple:
+      hp: 30
+      cooldown: 1
+
+    wall:
+      hp: ${uniform:1, 20, 10}

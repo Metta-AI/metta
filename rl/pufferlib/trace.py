@@ -94,7 +94,6 @@ def save_trace_image(
                 "reward": simulator.rewards[id].item(),
                 "total_reward": simulator.total_rewards[id].item(),
                 "position": [agent["c"], agent["r"]],
-                "hp": agent["hp"],
                 "frozen": agent["agent:frozen"],
                 "orientation": nice_orientation(agent["agent:orientation"]),
             })
