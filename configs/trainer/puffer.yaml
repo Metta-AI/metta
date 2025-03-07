@@ -25,6 +25,7 @@ target_kl: null
 anneal_lr: false
 
 zero_copy: true
+require_contiguous_env_ids: false
 verbose: true
 
 

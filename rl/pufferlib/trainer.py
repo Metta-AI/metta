@@ -42,9 +42,9 @@ class PufferTrainer:
         self._world_size = 1
         if dist.is_initialized():
             logger.info("Setting up distributed training")
-            self._master = (int(os.environ["LOCAL_RANK"]) == 0)
+            self._master = (int(os.environ["RANK"]) == 0)
             self._world_size = dist.get_world_size()
-
+            logger.info(f"Rank: {os.environ['RANK']}, Local rank: {os.environ['LOCAL_RANK']}, World size: {self._world_size}")
         self.profile = Profile()
         self.losses = self._make_losses()
         self.stats = defaultdict(list)
@@ -203,7 +203,22 @@ class PufferTrainer:
         while not experience.full:
             with profile.env:
                 o, r, d, t, info, env_id, mask = self.vecenv.recv()
-                env_id = env_id.tolist()
+
+                # Zero-copy indexing for contiguous env_id
+
+                # This was originally self.config.env_batch_size == 1, but you have scaling
+                # configured differently in metta. You want the whole forward pass batch to come
+                # from one core to reduce indexing overhead.
+                # contiguous_env_ids = self.vecenv.agents_per_batch == self.vecenv.driver_env.agents_per_env[0]
+                contiguous_env_ids = False
+                if contiguous_env_ids:
+                    gpu_env_id = cpu_env_id = slice(env_id[0], env_id[-1] + 1)
+                else:
+                    if self.trainer_cfg.require_contiguous_env_ids:
+                        raise ValueError("Env ids are not contiguous. "\
+                            f"{self.vecenv.agents_per_batch} != {self.vecenv.agents_per_env[0]}")
+                    cpu_env_id = env_id
+                    gpu_env_id = torch.as_tensor(env_id).to(self.device, non_blocking=True)
 
             with profile.eval_misc:
                 num_steps = sum(mask)
@@ -217,13 +232,13 @@ class PufferTrainer:
             with profile.eval_forward, torch.no_grad():
                 # TODO: In place-update should be faster. Leaking 7% speed max
                 # Also should be using a cuda tensor to index
-                e3b = e3b_inv[env_id] if self.use_e3b else None
+                e3b = e3b_inv[gpu_env_id] if self.use_e3b else None
 
-                h = lstm_h[:, env_id]
-                c = lstm_c[:, env_id]
+                h = lstm_h[:, gpu_env_id]
+                c = lstm_c[:, gpu_env_id]
                 actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward = policy(o_device, (h, c), e3b=e3b)
-                lstm_h[:, env_id] = h
-                lstm_c[:, env_id] = c
+                lstm_h[:, gpu_env_id] = h
+                lstm_c[:, gpu_env_id] = c
                 if self.use_e3b:
                     e3b_inv[env_id] = next_e3b
                     r += intrinsic_reward.cpu()
@@ -236,7 +251,7 @@ class PufferTrainer:
                 actions = actions.cpu().numpy()
                 mask = torch.as_tensor(mask)# * policy.mask)
                 o = o if self.trainer_cfg.cpu_offload else o_device
-                self.experience.store(o, value, actions, logprob, r, d, env_id, mask)
+                self.experience.store(o, value, actions, logprob, r, d, cpu_env_id, mask)
 
                 for i in info:
                     for k, v in pufferlib.utils.unroll_nested_dict(i):

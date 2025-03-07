@@ -19,8 +19,8 @@ vectorization: multiprocessing
 dashboard: false
 
 wandb:
-  enabled: False
-  track: False
+  enabled: true
+  track: true
   project: metta
   entity: metta-research
   group: ${run}
