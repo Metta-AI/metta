@@ -34,7 +34,6 @@ def play(cfg: OmegaConf, policy_store: PolicyStore):
                     actions = torch.tensor([actions.item()])
             else:
                 actions, _, _, _, _, _ = policy(obs) #if we are not using an RNN, then we don't need the rnn state
-
         renderer.update(
             actions.cpu().numpy(),
             obs,

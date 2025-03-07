@@ -1,9 +1,8 @@
 defaults:
-  - mettagrid
+  - defaults
 
 game:
   num_agents: 4
-  max_steps: 250
 
   map_builder:
     _target_: mettagrid.config.room.multi_room.RoomList
@@ -36,3 +35,39 @@ game:
           num_arms: ${uniform:4,8,6}
           arm_length: ${uniform:7,10,7}
           center_radius: ${uniform:2,4,3}                       # Set the corridor width to 4 blocks.
+
+  objects:
+    altar:
+      hp: 30
+      cooldown: 1
+
+    mine:
+      hp: 30
+      cooldown: 1
+
+    generator:
+      hp: 30
+      cooldown: 1
+
+    armory:
+      hp: 30
+      cooldown: 1
+
+    lasery:
+      hp: 30
+      cooldown: 1
+
+    lab:
+      hp: 30
+      cooldown: 1
+
+    factory:
+      hp: 30
+      cooldown: 1
+
+    temple:
+      hp: 30
+      cooldown: 1
+
+    wall:
+      hp: ${uniform:1, 20, 10}

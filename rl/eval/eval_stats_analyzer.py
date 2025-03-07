@@ -78,6 +78,11 @@ class EvalStatsAnalyzer:
 
         result_dfs, policy_fitness_records = self._analyze_metrics(metric_configs)
 
+        # Create table with eval_name and mean for each policy
+        if len(result_dfs) > 0 and self.analysis.log_all:
+            df = tabulate(result_dfs[0], headers=list(result_dfs[0].keys()), tablefmt="grid", maxcolwidths=25)
+            logger.info(f"Mean metrics by eval:\n{df}")
+
         policy_fitness_df = pd.DataFrame(policy_fitness_records)
         if len(policy_fitness_df) > 0:
             policy_fitness_table = tabulate(policy_fitness_df, headers=[self.candidate_policy_uri] + list(policy_fitness_df.keys()), tablefmt="grid", maxcolwidths=25)
@@ -89,6 +94,9 @@ class EvalStatsAnalyzer:
     def get_latest_policy(all_policies, uri):
         if uri in all_policies:
             return uri
+        if "wandb" in uri:
+            uri = uri.replace("wandb://metta-research/metta/", "")
+            uri = uri.replace("wandb://run/", "")
         policy_versions = [i for i in all_policies if uri in i]
         if len(policy_versions) == 0:
             raise ValueError(f"No policy found in DB for candidate policy: {uri}, options are {all_policies}")
@@ -117,15 +125,27 @@ class EvalStatsAnalyzer:
         metric_data = metric_data.set_index('policy_name')
         eval, metric_mean, metric_std = metric_data.keys()
 
-        candidate_data = metric_data.loc[candidate_uri].set_index(eval)
+        evals = metric_data[eval].unique()
+
+        if len(evals) == 1:
+            candidate_mean = metric_data.loc[candidate_uri][metric_mean]
+            baseline_mean = metric_data.loc[baseline_policies][metric_mean].mean()
+            fitness = candidate_mean - baseline_mean # / np.std(baseline_data.loc[eval][metric_std])
+            policy_fitness.append({"eval": eval, "metric": metric_name, "candidate_mean": candidate_mean, "baseline_mean": baseline_mean, "fitness": fitness})
+            return policy_fitness
+
+
+        candidate_data = pd.DataFrame(metric_data.loc[candidate_uri]).set_index(eval)
         baseline_data = metric_data.loc[baseline_policies].set_index(eval)
 
         evals = metric_data[eval].unique()
 
         for eval in evals:
             # Is the difference the correct way to do this?
+            if eval not in candidate_data.index:
+                continue
             candidate_mean = candidate_data.loc[eval][metric_mean]
             baseline_mean = np.mean(baseline_data.loc[eval][metric_mean])
-            fitness = (candidate_data.loc[eval][metric_mean] - np.mean(baseline_data.loc[eval][metric_mean])) # / np.std(baseline_data.loc[eval][metric_std])
+            fitness = candidate_mean - baseline_mean # / np.std(baseline_data.loc[eval][metric_std])
             policy_fitness.append({"eval": eval, "metric": metric_name, "candidate_mean": candidate_mean, "baseline_mean": baseline_mean, "fitness": fitness})
         return policy_fitness
