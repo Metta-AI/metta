@@ -1,5 +1,5 @@
 defaults:
-  - mettagrid
+  - defaults
 
 sampling: 1
 game:
@@ -82,3 +82,39 @@ game:
         - ${sub:${..width},2}
         - ${sub:${..height},2}
         branching: ${uniform:0.1,0.8,0.7}
+
+  objects:
+    altar:
+      hp: 30
+      cooldown: 1
+
+    mine:
+      hp: 30
+      cooldown: 1
+
+    generator:
+      hp: 30
+      cooldown: 1
+
+    armory:
+      hp: 30
+      cooldown: 1
+
+    lasery:
+      hp: 30
+      cooldown: 1
+
+    lab:
+      hp: 30
+      cooldown: 1
+
+    factory:
+      hp: 30
+      cooldown: 1
+
+    temple:
+      hp: 30
+      cooldown: 1
+
+    wall:
+      hp: ${uniform:1, 20, 10}
