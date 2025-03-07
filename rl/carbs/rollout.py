@@ -19,12 +19,15 @@ logger = logging.getLogger("sweep_rollout")
 
 
 class CarbsSweepRollout:
-    def __init__(self, cfg: OmegaConf, wandb_run):
+    def __init__(self, cfg: OmegaConf, wandb_run, sweep_id: str):
         self.cfg = cfg
         self.wandb_run = wandb_run
-        self.sweep_id = wandb_run.sweep_id
+        self.sweep_id = sweep_id
 
-        self.run_id = generate_run_id_for_sweep(self.sweep_id, self.cfg.run_dir)
+        self.run_id = generate_run_id_for_sweep(
+            f"{wandb_run.entity}/{wandb_run.project}/{self.sweep_id}",
+            self.cfg.run_dir
+        )
         self.run_dir = os.path.join(self.cfg.run_dir, "runs", self.run_id)
         os.makedirs(self.run_dir)
         wandb_run.name = self.run_id

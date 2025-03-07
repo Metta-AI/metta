@@ -211,6 +211,7 @@ class PufferTrainer:
                 # from one core to reduce indexing overhead.
                 # contiguous_env_ids = self.vecenv.agents_per_batch == self.vecenv.driver_env.agents_per_env[0]
                 contiguous_env_ids = self.trainer_cfg.async_factor == self.trainer_cfg.num_workers
+                contiguous_env_ids = False
                 if contiguous_env_ids:
                     gpu_env_id = cpu_env_id = slice(env_id[0], env_id[-1] + 1)
                 else:

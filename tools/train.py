@@ -21,6 +21,13 @@ logging.basicConfig(
 
 logger = logging.getLogger("train")
 
+def train(cfg, wandb_run):
+    policy_store = PolicyStore(cfg, wandb_run)
+    trainer = hydra.utils.instantiate(cfg.trainer, cfg, wandb_run, policy_store)
+    trainer.train()
+    trainer.close()
+
+
 @record
 @hydra.main(version_base=None, config_path="../configs", config_name="config")
 def main(cfg):
@@ -34,17 +41,12 @@ def main(cfg):
         dist.init_process_group(backend="nccl")
 
 
-    def train(wandb_run):
-        policy_store = PolicyStore(cfg, wandb_run)
-        trainer = hydra.utils.instantiate(cfg.trainer, cfg, wandb_run, policy_store)
-        trainer.train()
-        trainer.close()
 
     if os.environ.get("RANK") == "0":
         with WandbContext(cfg) as wandb_run:
-            train(wandb_run)
+            train(cfg, wandb_run)
     else:
-        train(None)
+        train(cfg, None)
 
 if __name__ == "__main__":
     main()
