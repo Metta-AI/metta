@@ -3,11 +3,11 @@
 seed: null
 
 defaults:
-  - override /eval: cogeval_suite
+  - override /eval: eval_suite
   - override /env/mettagrid@env: simple
   - override /agent: simple
   - override /sweep: fast
-  - override /analyzer: analyzer
+  - override /analyzer: train_analyzer
 
 policy_uri: wandb://run/b.daphne.aws_train_cogeval_simplified_0.01_mb:v36
 #policy_uri: ./train_dir/daphne.local.train.14_pfs/checkpoints/model_0050.pt
@@ -36,7 +36,6 @@ wandb:
   enabled: true
   track: true
   checkpoint_interval: 1
-evaluate_interval: 1
 
 
 cmd: ???

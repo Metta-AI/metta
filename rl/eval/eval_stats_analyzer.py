@@ -79,7 +79,7 @@ class EvalStatsAnalyzer:
         result_dfs, policy_fitness_records = self._analyze_metrics(metric_configs)
 
         # Create table with eval_name and mean for each policy
-        if len(result_dfs) > 0:
+        if len(result_dfs) > 0 and self.analysis.log_all:
             df = tabulate(result_dfs[0], headers=list(result_dfs[0].keys()), tablefmt="grid", maxcolwidths=25)
             logger.info(f"Mean metrics by eval:\n{df}")
 
