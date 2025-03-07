@@ -1,6 +1,4 @@
-
-
-metric: action.use.altar
+metric: heart.get
 test: raw # glicko, elo, raw
 
 rollout_count: 100000
