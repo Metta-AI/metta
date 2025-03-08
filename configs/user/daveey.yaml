@@ -15,7 +15,7 @@ defaults:
 policy_uri: wandb://run/b.daveey.nj.1x4
 # policy_uri: ${trained_policy_uri}
 # npc_policy_uri: ${trained_policy_uri}
-eval_db_uri: wandb://artifacts/daveey_eval_testing
+# eval_db_uri: wandb://artifacts/daveey_eval_testing
 
 env:
   # sampling: 0.7
@@ -47,7 +47,7 @@ eval:
 
   policy_uri: ${..policy_uri}
   # npc_policy_uri: ${..npc_policy_uri}
-  eval_db_uri: ${..eval_db_uri} #file://daphne/sweep_stats
+  # eval_db_uri: ${..eval_db_uri} #file://daphne/sweep_stats
   env: /env/mettagrid/simple
 
 wandb:
