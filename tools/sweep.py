@@ -102,6 +102,14 @@ def main(cfg):
                     cfg.device = f'{device}:{local_rank}'
                     rollout = MasterSweepRollout(cfg, wandb_run)
                     success = rollout.run()
+
+                # Explicitly clear CUDA cache between rollouts
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+
+                # Small delay to ensure resources are released
+                time.sleep(1)
+
                 cfg.run = generate_run_id_for_sweep(
                     f"{cfg.wandb.entity}/{cfg.wandb.project}/{cfg.sweep.id}",
                     cfg.sweep.data_dir)

@@ -46,6 +46,21 @@ class DistributedMettaAgent(DistributedDataParallel):
         except AttributeError:
             return getattr(self.module, name)
 
+    def cleanup(self):
+        """Explicitly clean up DDP resources"""
+        # Release any DDP-specific resources
+        if hasattr(self.components, '_ddp_params_and_buffers_to_ignore'):
+            self.components._ddp_params_and_buffers_to_ignore.clear()
+
+        # Force synchronization to ensure all processes are aligned
+        if torch.distributed.is_initialized():
+            torch.distributed.barrier()
+
+        # Clear any cached gradients
+        for param in self.components.parameters():
+            if param.grad is not None:
+                param.grad = None
+
 class MettaAgent(nn.Module):
     def __init__(
         self,

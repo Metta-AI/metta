@@ -105,9 +105,11 @@ class PufferTrainer:
             logger.info("Compiling policy")
             self.policy = torch.compile(self.policy, mode=self.trainer_cfg.compile_mode)
 
-        # if dist.is_initialized():
-        #     logger.info("Initializing DistributedDataParallel")
-        #     self.policy = DistributedMettaAgent(self.policy, self.device)
+        if dist.is_initialized():
+            logger.info("Initializing DistributedDataParallel")
+            # Store the original policy for cleanup purposes
+            self._original_policy = self.policy
+            self.policy = DistributedMettaAgent(self.policy, self.device)
 
         self._make_experience_buffer()
 
@@ -538,7 +540,22 @@ class PufferTrainer:
         self.stats.clear()
 
     def close(self):
-        self.vecenv.close()
+        if hasattr(self, 'vecenv'):
+            self.vecenv.close()
+
+        # Clean up DDP resources if needed
+        if dist.is_initialized() and hasattr(self, 'policy') and isinstance(self.policy, DistributedMettaAgent):
+            # Call explicit cleanup method
+            self.policy.cleanup()
+
+            # Restore original policy to ensure DDP resources are released
+            if hasattr(self, '_original_policy'):
+                self.policy = self._original_policy
+                delattr(self, '_original_policy')
+
+            # Force CUDA cache clear
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
     def initial_pr_uri(self):
         return self._initial_pr.uri
