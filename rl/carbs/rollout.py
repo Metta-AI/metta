@@ -22,7 +22,8 @@ class MasterSweepRollout:
         self.wandb_run = wandb_run
         wandb_run.name = cfg.run
         self.run_id = wandb_run.name
-        self.run_dir = os.path.join(self.cfg.sweep.data_dir, "runs", self.run_id)
+        cfg.run_dir = os.path.join(self.cfg.sweep.data_dir, "runs", self.run_id)
+        self.run_dir = cfg.run_dir
         os.makedirs(self.run_dir)
 
         self._log_file("run_cfg.yaml", self.cfg)
