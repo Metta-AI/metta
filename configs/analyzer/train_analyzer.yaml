@@ -7,7 +7,7 @@ analysis:
   metric_patterns: null
 
   metrics:
-    - metric: "*.get"
+    - metric: "heart.get"
 
 
   queries: null
