@@ -12,7 +12,7 @@ from rl.carbs.metta_carbs import MettaCarbs
 from agent.policy_store import PolicyStore
 from rl.eval.eval_stats_logger import EvalStatsLogger
 from rl.eval.eval_stats_db import EvalStatsDB
-
+import fnmatch
 logger = logging.getLogger("sweep_rollout")
 
 
@@ -115,7 +115,7 @@ class MasterSweepRollout:
 
         eval_stats_db = EvalStatsDB.from_uri(self.eval_stats_logger.json_path, self.run_dir, wandb_run)
 
-        metric_idxs = [i for i, m in enumerate(eval_cfg.analyzer.analysis.metrics) if m.metric == eval_cfg.sweep.metric]
+        metric_idxs = [i for i, m in enumerate(eval_cfg.analyzer.analysis.metrics) if fnmatch.fnmatch(eval_cfg.sweep.metric, m.metric)]
         if len(metric_idxs) == 0:
             raise ValueError(f"Metric {eval_cfg.sweep.metric} not found in analyzer metrics: {eval_cfg.analyzer.analysis.metrics}")
         elif len(metric_idxs) > 1:
