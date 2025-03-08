@@ -56,7 +56,7 @@ class MasterSweepRollout:
         sweep_stats = {}
         start_time = time.time()
         train_cfg = OmegaConf.create(OmegaConf.to_container(self.cfg))
-        train_cfg.wandb.group = self.cfg.sweep.name
+        train_cfg.wandb.group = self.cfg.sweep.id
         eval_cfg = OmegaConf.create(OmegaConf.to_container(self.cfg))
         eval_cfg.eval.update(self.cfg.sweep.eval)
         train_cfg.sweep = {}

@@ -81,6 +81,7 @@ def main(cfg):
             if os.environ.get("RANK", "0") == "0":
                 init_sweep(cfg)
                 with WandbContext(cfg) as wandb_run:
+                    wandb_run.sweep_id = cfg.sweep.id
                     rollout = MasterSweepRollout(cfg, wandb_run)
                     success = rollout.run()
             else:
