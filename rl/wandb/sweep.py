@@ -30,4 +30,6 @@ def generate_run_id_for_sweep(sweep_id: str, sweep_dir: str) -> str:
     if len(used_ids) > 0:
         id = max(used_ids) + 1
 
-    return f"{sweep.name}.r.{id}"
+    run_id = f"{sweep.name}.r.{id}"
+    sweep.add_run(run_id)
+    return run_id
