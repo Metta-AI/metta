@@ -12,7 +12,7 @@ defaults:
 # policy_uri: wandb://run/alex.trainee.001
 policy_uri: wandb://run/mettabox_cogeval_defaults_lowent_initialized0005:v100
 npc_policy_uri: null
-eval_db_uri: file://artifacts/alex_eval_testing
+eval_db_uri: null
 
 env:
   game:
