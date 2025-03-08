@@ -85,6 +85,7 @@ def main(cfg):
             if os.environ.get("RANK", "0") == "0":
                 init_sweep(cfg)
                 with WandbContext(cfg) as wandb_run:
+                    wandb_run.name = cfg.run
                     wandb_run.tags += (
                         f"sweep_id:{cfg.sweep.id}",
                         f"sweep_name:{cfg.sweep.name}")
