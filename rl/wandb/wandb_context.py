@@ -26,10 +26,8 @@ class WandbContext:
             monitor_gym=True,
             save_code=True,
             resume=self.resume,
-            sweep_id = self.cfg.sweep.id,
             tags=[
-                "user:" + os.environ.get("METTA_USER", "unknown"),
-                *(["sweep_id:" + self.cfg.sweep.id] if self.cfg.sweep.id else []),
+                "user:" + os.environ.get("METTA_USER", "unknown")
             ]
         )
 
