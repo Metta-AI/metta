@@ -83,6 +83,8 @@ def main(cfg):
 
     consecutive_failures = 0
     while True:
+        torch.cuda.empty_cache()
+
         if consecutive_failures > 10:
             logger.debug("Too many consecutive failures, exiting")
             os._exit(0)
