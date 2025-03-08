@@ -102,6 +102,16 @@ def main(cfg):
                     cfg.device = f'{device}:{local_rank}'
                     rollout = MasterSweepRollout(cfg, wandb_run)
                     success = rollout.run()
+                cfg.run = generate_run_id_for_sweep(
+                    f"{cfg.wandb.entity}/{cfg.wandb.project}/{cfg.sweep.id}",
+                    cfg.sweep.data_dir)
+                with WandbContext(cfg) as wandb_run:
+                    wandb_run.tags += (
+                        f"sweep_id:{cfg.sweep.id}",
+                        f"sweep_name:{cfg.sweep.name}")
+                    cfg.device = f'{device}:{local_rank}'
+                    rollout = MasterSweepRollout(cfg, wandb_run)
+                    success = rollout.run()
             else:
                 for i in range(10):
                     if os.path.exists(f"/tmp/{cfg.sweep.name}.config.yaml"):
