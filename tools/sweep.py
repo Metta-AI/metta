@@ -82,6 +82,10 @@ def main(cfg):
         local_rank = int(os.environ["LOCAL_RANK"])
         dist.init_process_group(backend="nccl")
 
+    if os.environ.get("RANK", "0") == "0":
+        init_sweep(cfg)
+        OmegaConf.save(cfg, os.path.join(f"/tmp/{cfg.sweep.name}.config.yaml"))
+
     consecutive_failures = 0
     while True:
         if torch.cuda.is_available():
@@ -94,8 +98,6 @@ def main(cfg):
         success = False
         try:
             if os.environ.get("RANK", "0") == "0":
-                init_sweep(cfg)
-                OmegaConf.save(cfg, os.path.join(f"/tmp/{cfg.sweep.name}.config.yaml"))
                 with WandbContext(cfg) as wandb_run:
                     wandb_run.tags += (
                         f"sweep_id:{cfg.sweep.id}",
