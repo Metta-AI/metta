@@ -24,6 +24,11 @@ specs = {
         "node_ram_gb": 150,
         "gpu_cpus": 12,
     },
+    8: {
+        "node_gpus": 8,
+        "node_ram_gb": 300,
+        "gpu_cpus": 24,
+    },
 }
 
 def get_current_commit(repo_path=None):
