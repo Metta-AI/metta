@@ -181,7 +181,7 @@ class WorkerSweepRollout:
         self.cfg = cfg
 
     def _load_file(self, name: str):
-        path = os.path.join(self.run_dir, name)
+        path = os.path.join(self.cfg.run_dir, name)
         with open(path, "r") as f:
             return OmegaConf.load(f)
 
