@@ -107,5 +107,8 @@ def main(cfg):
         rollout = WorkerSweepRollout(cfg)
         rollout.run()
 
+    if dist.is_initialized():
+        dist.destroy_process_group()
+
 if __name__ == "__main__":
     main()
