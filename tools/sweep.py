@@ -1,8 +1,10 @@
 import logging
 import os
-import signal  # Aggressively exit on ctrl+c
+import signal
+import time  # Aggressively exit on ctrl+c
 
 import hydra
+import torch
 import torch.distributed as dist
 from mettagrid.config.config import setup_metta_environment
 from omegaconf import OmegaConf
@@ -89,6 +91,7 @@ def main(cfg):
         try:
             if os.environ.get("RANK", "0") == "0":
                 init_sweep(cfg)
+                OmegaConf.save(cfg, os.path.join(f"/tmp/{cfg.sweep.name}.config.yaml"))
                 with WandbContext(cfg) as wandb_run:
                     wandb_run.tags += (
                         f"sweep_id:{cfg.sweep.id}",
@@ -96,6 +99,14 @@ def main(cfg):
                     rollout = MasterSweepRollout(cfg, wandb_run)
                     success = rollout.run()
             else:
+                for i in range(10):
+                    if os.path.exists(f"/tmp/{cfg.sweep.name}.config.yaml"):
+                        cfg = OmegaConf.load(f"/tmp/{cfg.sweep.name}.config.yaml")
+                        break
+                    else:
+                        logger.debug(f"Waiting for {cfg.sweep.name}.config.yaml to be created")
+                        time.sleep(10)
+
                 rollout = WorkerSweepRollout(cfg)
                 success = rollout.run()
             if success:

@@ -187,6 +187,7 @@ class WorkerSweepRollout:
             return OmegaConf.load(f)
 
     def run(self):
+        self.cfg.run_dir = os.path.join(self.cfg.sweep.data_dir, "runs", self.cfg.run)
         train_cfg = self._load_file("train_config.yaml")
         policy_store = PolicyStore(train_cfg, None)
         trainer = hydra.utils.instantiate(train_cfg.trainer, train_cfg, None, policy_store)
