@@ -7,7 +7,6 @@ import torch.distributed as dist
 from mettagrid.config.config import setup_metta_environment
 from omegaconf import OmegaConf
 from rich.logging import RichHandler
-import wandb
 from wandb_carbs import create_sweep
 
 from agent.policy_store import PolicyStore
@@ -58,10 +57,6 @@ def init_sweep(cfg):
         f"{cfg.wandb.entity}/{cfg.wandb.project}/{sweep_id}",
         cfg.sweep.data_dir)
 
-    api = wandb.Api()
-    sweep = api.sweep(sweep_id)
-    sweep.add_run(cfg.run)
-
 @record
 @hydra.main(version_base=None, config_path="../configs", config_name="config")
 def main(cfg):
@@ -86,7 +81,9 @@ def main(cfg):
             if os.environ.get("RANK", "0") == "0":
                 init_sweep(cfg)
                 with WandbContext(cfg) as wandb_run:
-                    wandb_run.sweep_id = cfg.sweep.id
+                    wandb_run.tags += (
+                        f"sweep_id:{cfg.sweep.id}",
+                        f"sweep_name:{cfg.sweep.name}")
                     rollout = MasterSweepRollout(cfg, wandb_run)
                     success = rollout.run()
             else:

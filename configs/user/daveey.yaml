@@ -56,12 +56,7 @@ wandb:
   checkpoint_interval: 1
 
 
-sweep_id: 1
-sweep:
-  metric: heart.get
-  name: ${oc.env:USER}.local.sweep.${sweep_id}
-
 cmd: ???
-run_id: 23
+run_id: 4
 run: ${oc.env:USER}.local.${cmd}.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
