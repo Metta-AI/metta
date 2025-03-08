@@ -20,6 +20,7 @@ class MasterSweepRollout:
     def __init__(self, cfg: OmegaConf, wandb_run):
         self.cfg = cfg
         self.wandb_run = wandb_run
+        wandb_run.name = cfg.run
         self.run_id = wandb_run.name
         self.run_dir = os.path.join(self.cfg.sweep.data_dir, "runs", self.run_id)
         os.makedirs(self.run_dir)
