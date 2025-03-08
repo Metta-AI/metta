@@ -32,8 +32,11 @@ logging.basicConfig(
 
 logger = logging.getLogger("train")
 
+global _cfg
 def init_run():
-    pass
+    global _cfg
+    with WandbContext(_cfg) as wandb_run:
+        wandb_run.name = _cfg.run
 
 def init_sweep(cfg):
     sweep_id = sweep_id_from_name(cfg.wandb.project, cfg.sweep.name)
@@ -56,6 +59,8 @@ def init_sweep(cfg):
         cfg.sweep.data_dir)
     cfg.wandb.group = sweep_id
 
+    global _cfg
+    _cfg = cfg
     wandb.agent(sweep_id,
                 entity=cfg.wandb.entity,
                 project=cfg.wandb.project,
