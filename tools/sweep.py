@@ -82,55 +82,30 @@ def main(cfg):
     if os.environ.get("RANK", "0") == "0":
         init_sweep(cfg)
 
-    consecutive_failures = 0
-    while True:
-        if consecutive_failures > 10:
-            logger.debug("Too many consecutive failures, exiting")
-            os._exit(0)
-
-        success = False
-        try:
-            if os.environ.get("RANK", "0") == "0":
-                cfg.run = generate_run_id_for_sweep(
-                    f"{cfg.wandb.entity}/{cfg.wandb.project}/{cfg.sweep.id}",
-                    cfg.sweep.data_dir)
-                OmegaConf.save(cfg, os.path.join(f"/tmp/{cfg.sweep.name}.config.yaml"))
-                with WandbContext(cfg) as wandb_run:
-                    wandb_run.tags += (
-                        f"sweep_id:{cfg.sweep.id}",
-                        f"sweep_name:{cfg.sweep.name}")
-                    cfg.device = f'{device}:{local_rank}'
-                    rollout = MasterSweepRollout(cfg, wandb_run)
-                    success = rollout.run()
-                cfg.run = generate_run_id_for_sweep(
-                    f"{cfg.wandb.entity}/{cfg.wandb.project}/{cfg.sweep.id}",
-                    cfg.sweep.data_dir)
-                with WandbContext(cfg) as wandb_run:
-                    wandb_run.tags += (
-                        f"sweep_id:{cfg.sweep.id}",
-                        f"sweep_name:{cfg.sweep.name}")
-                    cfg.device = f'{device}:{local_rank}'
-                    rollout = MasterSweepRollout(cfg, wandb_run)
-                    success = rollout.run()
+    if os.environ.get("RANK", "0") == "0":
+        cfg.run = generate_run_id_for_sweep(
+            f"{cfg.wandb.entity}/{cfg.wandb.project}/{cfg.sweep.id}",
+            cfg.sweep.data_dir)
+        OmegaConf.save(cfg, os.path.join(f"/tmp/{cfg.sweep.name}.config.yaml"))
+        with WandbContext(cfg) as wandb_run:
+            wandb_run.tags += (
+                f"sweep_id:{cfg.sweep.id}",
+                f"sweep_name:{cfg.sweep.name}")
+            cfg.device = f'{device}:{local_rank}'
+            rollout = MasterSweepRollout(cfg, wandb_run)
+            rollout.run()
+    else:
+        for i in range(10):
+            if os.path.exists(f"/tmp/{cfg.sweep.name}.config.yaml"):
+                cfg = OmegaConf.load(f"/tmp/{cfg.sweep.name}.config.yaml")
+                break
             else:
-                for i in range(10):
-                    if os.path.exists(f"/tmp/{cfg.sweep.name}.config.yaml"):
-                        cfg = OmegaConf.load(f"/tmp/{cfg.sweep.name}.config.yaml")
-                        break
-                    else:
-                        logger.debug(f"Waiting for {cfg.sweep.name}.config.yaml to be created")
-                        time.sleep(10)
+                logger.debug(f"Waiting for {cfg.sweep.name}.config.yaml to be created")
+                time.sleep(10)
 
-                cfg.device = f'{device}:{local_rank}'
-                rollout = WorkerSweepRollout(cfg)
-                success = rollout.run()
-            if success:
-                consecutive_failures = 0
-            else:
-                consecutive_failures += 1
-        except Exception as e:
-            consecutive_failures += 1
-            raise e
+        cfg.device = f'{device}:{local_rank}'
+        rollout = WorkerSweepRollout(cfg)
+        rollout.run()
 
 if __name__ == "__main__":
     main()
