@@ -149,7 +149,7 @@ class MasterSweepRollout:
             "training_run": train_cfg.run,
         })
 
-        policy_store.add_to_wandb_sweep(self.cfg.run, final_pr)
+        policy_store.add_to_wandb_sweep(self.cfg.sweep.name, final_pr)
 
         total_time = time.time() - start_time
         logger.info(f"Carbs Observation: {eval_metric}, {total_time}")
