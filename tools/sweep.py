@@ -56,6 +56,7 @@ def init_sweep(cfg):
     cfg.run = generate_run_id_for_sweep(
         f"{cfg.wandb.entity}/{cfg.wandb.project}/{sweep_id}",
         cfg.sweep.data_dir)
+    cfg.run.group = sweep_id
 
 @record
 @hydra.main(version_base=None, config_path="../configs", config_name="config")
