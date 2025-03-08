@@ -61,12 +61,12 @@ def init_sweep(cfg):
         cfg.sweep.data_dir)
     cfg.wandb.group = sweep_id
 
-    global _cfg
-    _cfg = cfg
-    wandb.agent(sweep_id,
-                entity=cfg.wandb.entity,
-                project=cfg.wandb.project,
-                function=init_run, count=1)
+    # global _cfg
+    # _cfg = cfg
+    # wandb.agent(sweep_id,
+    #             entity=cfg.wandb.entity,
+    #             project=cfg.wandb.project,
+    #             function=init_run, count=1)
 
 @record
 @hydra.main(version_base=None, config_path="../configs", config_name="config")
