@@ -1,3 +1,7 @@
+name: ???
+data_dir: ${data_dir}/${.name}
+id: ???
+
 metric: heart.get
 test: raw # glicko, elo, raw
 

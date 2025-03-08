@@ -9,28 +9,20 @@ from omegaconf import OmegaConf, DictConfig
 from rich.console import Console
 
 from rl.carbs.metta_carbs import MettaCarbs
-from rl.wandb.sweep import generate_run_id_for_sweep
 from agent.policy_store import PolicyStore
 from rl.eval.eval_stats_logger import EvalStatsLogger
 from rl.eval.eval_stats_db import EvalStatsDB
-from pathlib import Path
 
 logger = logging.getLogger("sweep_rollout")
 
 
-class CarbsSweepRollout:
-    def __init__(self, cfg: OmegaConf, wandb_run, sweep_id: str):
+class MasterSweepRollout:
+    def __init__(self, cfg: OmegaConf, wandb_run):
         self.cfg = cfg
         self.wandb_run = wandb_run
-        self.sweep_id = sweep_id
-
-        self.run_id = generate_run_id_for_sweep(
-            f"{wandb_run.entity}/{wandb_run.project}/{self.sweep_id}",
-            self.cfg.run_dir
-        )
-        self.run_dir = os.path.join(self.cfg.run_dir, "runs", self.run_id)
+        self.run_id = wandb_run.name
+        self.run_dir = os.path.join(self.cfg.sweep.data_dir, "runs", self.run_id)
         os.makedirs(self.run_dir)
-        wandb_run.name = self.run_id
 
         self._log_file("run_cfg.yaml", self.cfg)
 
@@ -64,17 +56,12 @@ class CarbsSweepRollout:
         sweep_stats = {}
         start_time = time.time()
         train_cfg = OmegaConf.create(OmegaConf.to_container(self.cfg))
+        train_cfg.wandb.group = self.cfg.sweep.name
+        eval_cfg = OmegaConf.create(OmegaConf.to_container(self.cfg))
+        eval_cfg.eval.update(self.cfg.sweep.eval)
         train_cfg.sweep = {}
 
         policy_store = PolicyStore(train_cfg, wandb_run)
-
-        train_cfg.run = self.run_id
-        train_cfg.run_dir = os.path.join(self.cfg.run_dir, "runs", self.run_id)
-        train_cfg.wandb.group = self.cfg.run
-
-        eval_cfg = OmegaConf.create(OmegaConf.to_container(self.cfg))
-        eval_cfg.eval.update(self.cfg.sweep.eval)
-
         self._apply_carbs_suggestion(train_cfg, self.suggestion)
 
         # if self.cfg.sweep.generation.enabled:
@@ -175,7 +162,7 @@ class CarbsSweepRollout:
                 data = OmegaConf.to_container(data, resolve=True)
             json.dump(data, f, indent=4)
 
-        wandb.run.save(path, base_path=self.run_dir)
+        self.wandb_run.save(path, base_path=self.run_dir)
 
     def _apply_carbs_suggestion(self, config: OmegaConf, suggestion: DictConfig):
         for key, value in suggestion.items():
@@ -187,3 +174,20 @@ class CarbsSweepRollout:
                 new_cfg_param = new_cfg_param[k]
             param_name = key_parts[-1]
             new_cfg_param[param_name] = value
+
+class WorkerSweepRollout:
+    def __init__(self, cfg: OmegaConf):
+        self.cfg = cfg
+
+    def _load_file(self, name: str):
+        path = os.path.join(self.run_dir, name)
+        with open(path, "r") as f:
+            return OmegaConf.load(f)
+
+    def run(self):
+        train_cfg = self._load_file("train_config.yaml")
+        policy_store = PolicyStore(train_cfg, None)
+        trainer = hydra.utils.instantiate(train_cfg.trainer, train_cfg, None, policy_store)
+        trainer.train()
+        trainer.close()
+        return True

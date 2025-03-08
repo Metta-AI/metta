@@ -19,7 +19,7 @@
             "name": "Run Sweep",
             "type": "debugpy",
             "request": "launch",
-            "module": "tools.sweep2",
+            "module": "tools.sweep",
             "args": [
                 "+user=${env:USER}",
                 "hardware=macbook",

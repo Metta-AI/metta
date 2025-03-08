@@ -38,6 +38,14 @@ class WandbContext:
 
         return self.run
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        if self.run:
+    @staticmethod
+    def make_run(cfg, resume=True, name=None):
+        return WandbContext(cfg, resume, name).__enter__()
+
+    @staticmethod
+    def cleanup_run(run):
+        if run:
             wandb.finish(quiet=True)
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.cleanup_run(self.run)

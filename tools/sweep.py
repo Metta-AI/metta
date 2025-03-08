@@ -3,45 +3,48 @@ import os
 import signal  # Aggressively exit on ctrl+c
 
 import hydra
-import wandb
+import torch.distributed as dist
 from mettagrid.config.config import setup_metta_environment
 from omegaconf import OmegaConf
 from rich.logging import RichHandler
+from wandb_carbs import create_sweep
+
+from agent.policy_store import PolicyStore
 from rl.carbs.metta_carbs import carbs_params_from_cfg
-from rl.carbs.rollout import CarbsSweepRollout
+from rl.carbs.rollout import MasterSweepRollout, WorkerSweepRollout
 from rl.wandb.sweep import sweep_id_from_name
 from rl.wandb.wandb_context import WandbContext
-
-from wandb_carbs import create_sweep
+from rl.wandb.sweep import generate_run_id_for_sweep
 
 signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
 
-# Set up colored logging for the current file
+
+from torch.distributed.elastic.multiprocessing.errors import record
+
+# Configure rich colored logging
 logging.basicConfig(
-    level="DEBUG",
-    format="%(message)s",
+    level="INFO",
+    format="%(processName)s %(message)s",
     datefmt="[%X]",
     handlers=[RichHandler(rich_tracebacks=True)]
 )
-logger = logging.getLogger(__name__)
 
-global _cfg
-global _consecutive_failures
-@hydra.main(version_base=None, config_path="../configs", config_name="config")
-def main(cfg):
-    global _cfg
-    _cfg = cfg
-    OmegaConf.set_readonly(_cfg, True)
+logger = logging.getLogger("train")
 
-    setup_metta_environment(cfg)
+def train(cfg, wandb_run):
+    policy_store = PolicyStore(cfg, wandb_run)
+    trainer = hydra.utils.instantiate(cfg.trainer, cfg, wandb_run, policy_store)
+    trainer.train()
+    trainer.close()
 
-    sweep_id = sweep_id_from_name(cfg.wandb.project, cfg.run)
+def init_sweep(cfg):
+    sweep_id = sweep_id_from_name(cfg.wandb.project, cfg.sweep.name)
     if not sweep_id:
-        logger.debug(f"Sweep {cfg.run} not found, creating new sweep")
+        logger.debug(f"Sweep {cfg.sweep.name} not found, creating new sweep")
         os.makedirs(os.path.join(cfg.run_dir, "runs"), exist_ok=True)
 
         sweep_id = create_sweep(
-            cfg.run,
+            cfg.sweep.name,
             cfg.wandb.entity,
             cfg.wandb.project,
             carbs_params_from_cfg(cfg)[0]
@@ -49,36 +52,46 @@ def main(cfg):
 
         logger.debug(f"WanDb Sweep created with ID: {sweep_id}")
 
-    global _consecutive_failures
-    _consecutive_failures = 0
+    cfg.sweep.id = sweep_id
+    cfg.run = generate_run_id_for_sweep(
+        f"{cfg.wandb.entity}/{cfg.wandb.project}/{sweep_id}",
+        cfg.sweep.data_dir)
 
-    wandb.agent(sweep_id,
-                entity=cfg.wandb.entity,
-                project=cfg.wandb.project,
-                function=run_carb_sweep_rollout,
-                count=999999)
+@record
+@hydra.main(version_base=None, config_path="../configs", config_name="config")
+def main(cfg):
+    setup_metta_environment(cfg)
+    with open(os.path.join(cfg.run_dir, "config.yaml"), "w") as f:
+        OmegaConf.save(cfg, f)
 
-def run_carb_sweep_rollout():
-    global _consecutive_failures
-    global _cfg
+    if "LOCAL_RANK" in os.environ:
+        local_rank = int(os.environ["LOCAL_RANK"])
+        cfg.device = f'{cfg.device}:{local_rank}'
+        dist.init_process_group(backend="nccl")
 
-    if _consecutive_failures > 10:
-        logger.debug("Too many consecutive failures, exiting")
-        os._exit(0)
+    consecutive_failures = 0
+    while True:
+        if consecutive_failures > 10:
+            logger.debug("Too many consecutive failures, exiting")
+            os._exit(0)
 
-    success = False
-    try:
-        with WandbContext(_cfg) as wandb_run:
-            rollout = CarbsSweepRollout(_cfg, wandb_run)
-            success = rollout.run()
-            if success:
-                _consecutive_failures = 0
+        success = False
+        try:
+            if os.environ.get("RANK", "0") == "0":
+                init_sweep(cfg)
+                with WandbContext(cfg) as wandb_run:
+                    rollout = MasterSweepRollout(cfg, wandb_run)
+                    success = rollout.run()
             else:
-                _consecutive_failures += 1
-    except Exception as e:
-        _consecutive_failures += 1
-        raise e
-
+                rollout = WorkerSweepRollout(cfg)
+                success = rollout.run()
+            if success:
+                consecutive_failures = 0
+            else:
+                consecutive_failures += 1
+        except Exception as e:
+            consecutive_failures += 1
+            raise e
 
 if __name__ == "__main__":
     main()
