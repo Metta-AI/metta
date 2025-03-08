@@ -1,6 +1,6 @@
-name: ???
+name: null
 data_dir: ${data_dir}/${.name}
-id: ???
+id: null
 
 metric: heart.get
 test: raw # glicko, elo, raw
