@@ -7,6 +7,7 @@ import torch.distributed as dist
 from mettagrid.config.config import setup_metta_environment
 from omegaconf import OmegaConf
 from rich.logging import RichHandler
+import wandb
 from wandb_carbs import create_sweep
 
 from agent.policy_store import PolicyStore
@@ -31,11 +32,8 @@ logging.basicConfig(
 
 logger = logging.getLogger("train")
 
-def train(cfg, wandb_run):
-    policy_store = PolicyStore(cfg, wandb_run)
-    trainer = hydra.utils.instantiate(cfg.trainer, cfg, wandb_run, policy_store)
-    trainer.train()
-    trainer.close()
+def init_run():
+    pass
 
 def init_sweep(cfg):
     sweep_id = sweep_id_from_name(cfg.wandb.project, cfg.sweep.name)
@@ -57,6 +55,11 @@ def init_sweep(cfg):
         f"{cfg.wandb.entity}/{cfg.wandb.project}/{sweep_id}",
         cfg.sweep.data_dir)
     cfg.wandb.group = sweep_id
+
+    wandb.agent(sweep_id,
+                entity=cfg.wandb.entity,
+                project=cfg.wandb.project,
+                function=init_run, count=1)
 
 @record
 @hydra.main(version_base=None, config_path="../configs", config_name="config")
@@ -81,8 +84,6 @@ def main(cfg):
         try:
             if os.environ.get("RANK", "0") == "0":
                 init_sweep(cfg)
-                os.environ["WANDB_SWEEP_ID"] = cfg.sweep.id
-                os.environ["WANDB_RUN_GROUP"] = cfg.sweep.id
                 with WandbContext(cfg) as wandb_run:
                     wandb_run.tags += (
                         f"sweep_id:{cfg.sweep.id}",
