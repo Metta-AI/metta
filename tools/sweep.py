@@ -60,6 +60,7 @@ def init_sweep(cfg):
 @record
 @hydra.main(version_base=None, config_path="../configs", config_name="config")
 def main(cfg):
+    cfg.sweep.name = cfg.run
     setup_metta_environment(cfg)
     with open(os.path.join(cfg.run_dir, "config.yaml"), "w") as f:
         OmegaConf.save(cfg, f)
