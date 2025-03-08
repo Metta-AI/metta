@@ -56,9 +56,6 @@ def init_sweep(cfg):
         logger.debug(f"WanDb Sweep created with ID: {sweep_id}")
 
     cfg.sweep.id = sweep_id
-    cfg.run = generate_run_id_for_sweep(
-        f"{cfg.wandb.entity}/{cfg.wandb.project}/{sweep_id}",
-        cfg.sweep.data_dir)
     cfg.wandb.group = sweep_id
 
     # global _cfg
@@ -84,7 +81,6 @@ def main(cfg):
 
     if os.environ.get("RANK", "0") == "0":
         init_sweep(cfg)
-        OmegaConf.save(cfg, os.path.join(f"/tmp/{cfg.sweep.name}.config.yaml"))
 
     consecutive_failures = 0
     while True:
@@ -98,6 +94,10 @@ def main(cfg):
         success = False
         try:
             if os.environ.get("RANK", "0") == "0":
+                cfg.run = generate_run_id_for_sweep(
+                    f"{cfg.wandb.entity}/{cfg.wandb.project}/{cfg.sweep.id}",
+                    cfg.sweep.data_dir)
+                OmegaConf.save(cfg, os.path.join(f"/tmp/{cfg.sweep.name}.config.yaml"))
                 with WandbContext(cfg) as wandb_run:
                     wandb_run.tags += (
                         f"sweep_id:{cfg.sweep.id}",
