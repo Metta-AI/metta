@@ -82,6 +82,7 @@ def main(cfg):
             if os.environ.get("RANK", "0") == "0":
                 init_sweep(cfg)
                 os.environ["WANDB_SWEEP_ID"] = cfg.sweep.id
+                os.environ["WANDB_RUN_GROUP"] = cfg.sweep.id
                 with WandbContext(cfg) as wandb_run:
                     wandb_run.tags += (
                         f"sweep_id:{cfg.sweep.id}",
