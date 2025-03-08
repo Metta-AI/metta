@@ -13,6 +13,7 @@ class Kickstarter:
         self.compile = cfg.trainer.compile
         self.compile_mode = cfg.trainer.compile_mode
         self.policy_store = policy_store
+        self.kickstart_steps = cfg.trainer.kickstart_steps_pct * cfg.trainer.total_timesteps
 
         if isinstance(single_action_space, pufferlib.spaces.Discrete):
             self.multi_discrete = False
@@ -32,11 +33,11 @@ class Kickstarter:
                 policy = torch.compile(policy, mode=self.compile_mode)
             self.teachers.append(policy)
 
-    def loss(self, student_normalized_logits, student_value, o, teacher_lstm_state=None):
+    def loss(self, agent_step, student_normalized_logits, student_value, o, teacher_lstm_state=None):
         ks_value_loss = torch.tensor(0.0, device=self.device)
         ks_action_loss = torch.tensor(0.0, device=self.device)
 
-        if not self.enabled:
+        if not self.enabled or agent_step > self.kickstart_steps:
             return ks_action_loss, ks_value_loss, teacher_lstm_state
         
         if teacher_lstm_state is None:

@@ -364,7 +364,7 @@ class PufferTrainer:
 
                     entropy_loss = entropy.mean()
 
-                    ks_action_loss, ks_value_loss, teacher_lstm_state = self.kickstarter.loss(new_normalized_logits, new_value, obs, teacher_lstm_state)
+                    ks_action_loss, ks_value_loss, teacher_lstm_state = self.kickstarter.loss(self.agent_step, new_normalized_logits, new_value, obs, teacher_lstm_state)
 
                     l2_reg_loss = torch.tensor(0.0, device=self.device)
                     if self.trainer_cfg.l2_reg_loss_coef > 0:
