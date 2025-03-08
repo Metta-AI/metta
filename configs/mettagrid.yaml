@@ -31,9 +31,9 @@ game:
       # action_failure_penalty: 0.00001
       action_failure_penalty: 0
       ore: 0.005
-      ore_max: 2
+      ore_max: 100
       battery: 0.01
-      battery_max: 2
+      battery_max: 100
       heart: 1
       heart_max: 1000
 
