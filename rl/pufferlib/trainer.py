@@ -105,9 +105,9 @@ class PufferTrainer:
             logger.info("Compiling policy")
             self.policy = torch.compile(self.policy, mode=self.trainer_cfg.compile_mode)
 
-        if dist.is_initialized():
-            logger.info("Initializing DistributedDataParallel")
-            self.policy = DistributedMettaAgent(self.policy, self.device)
+        # if dist.is_initialized():
+        #     logger.info("Initializing DistributedDataParallel")
+        #     self.policy = DistributedMettaAgent(self.policy, self.device)
 
         self._make_experience_buffer()
 
