@@ -38,15 +38,17 @@ class PufferTrainer:
 
         self.cfg = cfg
         self.trainer_cfg = cfg.trainer
-        self.device = cfg.device
 
         self._master = True
         self._world_size = 1
+        self.device = cfg.device
         if dist.is_initialized():
-            logger.info(f"Setting up distributed training on device {self.device}")
             self._master = (int(os.environ["RANK"]) == 0)
             self._world_size = dist.get_world_size()
             logger.info(f"Rank: {os.environ['RANK']}, Local rank: {os.environ['LOCAL_RANK']}, World size: {self._world_size}")
+            self.device = f'cuda:{os.environ["LOCAL_RANK"]}'
+            logger.info(f"Setting up distributed training on device {self.device}")
+
         self.profile = Profile()
         self.losses = self._make_losses()
         self.stats = defaultdict(list)

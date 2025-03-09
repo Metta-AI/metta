@@ -95,8 +95,10 @@ def main(cfg):
             rollout = MasterSweepRollout(cfg, wandb_run)
             rollout.run()
     else:
+        cfg = None
         for i in range(10):
             if os.path.exists(f"/tmp/{cfg.sweep.name}.config.yaml"):
+                logger.debug(f"Loading config from {cfg.sweep.name}.config.yaml")
                 cfg = OmegaConf.load(f"/tmp/{cfg.sweep.name}.config.yaml")
                 cfg.device = f'{cfg.device}:{local_rank}'
                 break
