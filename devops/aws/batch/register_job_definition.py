@@ -241,7 +241,7 @@ def main():
     parser = argparse.ArgumentParser(description='Register a multi-node AWS Batch job definition')
     parser.add_argument('--job-definition-name', default='metta-batch-dist-train',
                         help='Name of the job definition')
-    parser.add_argument('--image', default='mettaai/metta:latest',
+    parser.add_argument('--image', default='767406518141.dkr.ecr.us-east-1.amazonaws.com/metta:latest',
                         help='Docker image to use')
 
     # Role ARN options

@@ -74,10 +74,10 @@ def main(cfg):
         OmegaConf.save(cfg, f)
 
     local_rank = 0
-    device = cfg.device
     if "LOCAL_RANK" in os.environ:
         local_rank = int(os.environ["LOCAL_RANK"])
         dist.init_process_group(backend="nccl")
+        cfg.device = f'{cfg.device}:{local_rank}'
 
     if os.environ.get("RANK", "0") == "0":
         init_sweep(cfg)
@@ -91,7 +91,6 @@ def main(cfg):
             wandb_run.tags += (
                 f"sweep_id:{cfg.sweep.id}",
                 f"sweep_name:{cfg.sweep.name}")
-            cfg.device = f'{device}:{local_rank}'
             rollout = MasterSweepRollout(cfg, wandb_run)
             rollout.run()
     else:
@@ -103,7 +102,6 @@ def main(cfg):
                 logger.debug(f"Waiting for {cfg.sweep.name}.config.yaml to be created")
                 time.sleep(10)
 
-        cfg.device = f'{device}:{local_rank}'
         rollout = WorkerSweepRollout(cfg)
         rollout.run()
 
