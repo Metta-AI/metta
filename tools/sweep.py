@@ -77,7 +77,6 @@ def main(cfg):
     if "LOCAL_RANK" in os.environ:
         local_rank = int(os.environ["LOCAL_RANK"])
         dist.init_process_group(backend="nccl")
-        cfg.device = f'{cfg.device}:{local_rank}'
         print(f"Device: {cfg.device}")
 
     if os.environ.get("RANK", "0") == "0":
@@ -89,6 +88,7 @@ def main(cfg):
             cfg.sweep.data_dir)
         OmegaConf.save(cfg, os.path.join(f"/tmp/{cfg.sweep.name}.config.yaml"))
         with WandbContext(cfg) as wandb_run:
+            cfg.device = f'{cfg.device}:{local_rank}'
             wandb_run.tags += (
                 f"sweep_id:{cfg.sweep.id}",
                 f"sweep_name:{cfg.sweep.name}")
@@ -98,6 +98,7 @@ def main(cfg):
         for i in range(10):
             if os.path.exists(f"/tmp/{cfg.sweep.name}.config.yaml"):
                 cfg = OmegaConf.load(f"/tmp/{cfg.sweep.name}.config.yaml")
+                cfg.device = f'{cfg.device}:{local_rank}'
                 break
             else:
                 logger.debug(f"Waiting for {cfg.sweep.name}.config.yaml to be created")
