@@ -101,7 +101,7 @@ class PufferTrainer:
 
         self._initial_pr = policy_record
         self.last_pr = policy_record
-        self.policy = policy_record.policy()
+        self.policy = policy_record.policy().to(self.device)
         self.policy_record = policy_record
         self.uncompiled_policy = self.policy
 
@@ -110,7 +110,7 @@ class PufferTrainer:
             self.policy = torch.compile(self.policy, mode=self.trainer_cfg.compile_mode)
 
         if dist.is_initialized():
-            logger.info("Initializing DistributedDataParallel")
+            logger.info(f"Initializing DistributedDataParallel on device {self.device}")
             # Store the original policy for cleanup purposes
             self._original_policy = self.policy
             self.policy = DistributedMettaAgent(self.policy, self.device)
