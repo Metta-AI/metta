@@ -78,6 +78,7 @@ def main(cfg):
         local_rank = int(os.environ["LOCAL_RANK"])
         dist.init_process_group(backend="nccl")
         cfg.device = f'{cfg.device}:{local_rank}'
+        print(f"Device: {cfg.device}")
 
     if os.environ.get("RANK", "0") == "0":
         init_sweep(cfg)

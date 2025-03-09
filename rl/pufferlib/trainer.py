@@ -25,8 +25,10 @@ from rl.pufferlib.vecenv import make_vecenv
 
 torch.set_float32_matmul_precision('high')
 
-logger = logging.getLogger("trainer")
-
+# Get rank for logger name
+rank = int(os.environ.get("RANK", 0))
+local_rank = int(os.environ.get("LOCAL_RANK", 0))
+logger = logging.getLogger(f"trainer-{rank}-{local_rank}")
 class PufferTrainer:
     def __init__(self,
                  cfg: OmegaConf,
@@ -41,7 +43,7 @@ class PufferTrainer:
         self._master = True
         self._world_size = 1
         if dist.is_initialized():
-            logger.info("Setting up distributed training")
+            logger.info(f"Setting up distributed training on device {self.device}")
             self._master = (int(os.environ["RANK"]) == 0)
             self._world_size = dist.get_world_size()
             logger.info(f"Rank: {os.environ['RANK']}, Local rank: {os.environ['LOCAL_RANK']}, World size: {self._world_size}")
