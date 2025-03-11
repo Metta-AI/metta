@@ -1,14 +1,14 @@
 import os
-import os
-from typing import List, Tuple
+from typing import List, Tuple, Union
 
 import gymnasium as gym
 import hydra
 import numpy as np
 import torch
 import torch.distributed as dist
+from torch.distributions.utils import logits_to_probs
+
 from omegaconf import OmegaConf
-from pufferlib.cleanrl import sample_logits
 from pufferlib.environment import PufferEnv
 from sample_factory.utils.typing import ActionSpace, ObsSpace
 from tensordict import TensorDict
@@ -145,13 +145,10 @@ class MettaAgent(nn.Module):
             td["state"] = state.to(x.device)
 
         self.components["_value_"](td)
-
         self.components["_action_type_"](td)
-        logits = td["_action_type_"]
-
         self.components["_action_param_"](td)
-        logits = [logits, td["_action_param_"]]
 
+        logits = [td["_action_type_"], td["_action_param_"]]
         value = td["_value_"]
         state = td["state"]
 
@@ -161,9 +158,9 @@ class MettaAgent(nn.Module):
             state = (state[:split_size], state[split_size:])
 
         e3b, intrinsic_reward = self._e3b_update(td["_core_"].detach(), e3b)
-        action, logprob, entropy = sample_logits(logits, action, False)
+        action, logprob, entropy, normalized_logits = self.sample_logits(logits, action)
 
-        return action, logprob, entropy, value, state, e3b, intrinsic_reward
+        return action, logprob, entropy, value, state, e3b, intrinsic_reward, normalized_logits
 
     def forward(self, x, state=None, action=None, e3b=None):
         return self.get_action_and_value(x, state, action, e3b)
@@ -210,3 +207,42 @@ class MettaAgent(nn.Module):
             if rank is not None:
                 effective_ranks.append(rank)
         return effective_ranks
+
+# ------------------From cleanrl.py--------------------------------
+
+    def log_prob(self, logits, value):
+        value = value.long().unsqueeze(-1)
+        value, log_pmf = torch.broadcast_tensors(value, logits)
+        value = value[..., :1]
+        return log_pmf.gather(-1, value).squeeze(-1)
+
+    def entropy(self, logits):
+        min_real = torch.finfo(logits.dtype).min
+        logits = torch.clamp(logits, min=min_real)
+        p_log_p = logits * logits_to_probs(logits)
+        return -p_log_p.sum(-1)
+
+    def sample_logits(self, logits: Union[torch.Tensor, List[torch.Tensor]],
+            action=None):
+        is_discrete = isinstance(logits, torch.Tensor)
+        if isinstance(logits, torch.Tensor):
+            normalized_logits = [logits - logits.logsumexp(dim=-1, keepdim=True)]
+            logits = [logits]
+        else:
+            normalized_logits = [l - l.logsumexp(dim=-1, keepdim=True) for l in logits]
+
+        if action is None:
+            action = torch.stack([torch.multinomial(logits_to_probs(l), 1).squeeze() for l in logits])
+        else:
+            batch = logits[0].shape[0]
+            action = action.view(batch, -1).T
+
+        assert len(logits) == len(action)
+
+        logprob = torch.stack([self.log_prob(l, a) for l, a in zip(normalized_logits, action)]).T.sum(1)
+        logits_entropy = torch.stack([self.entropy(l) for l in normalized_logits]).T.sum(1)
+
+        if is_discrete:
+            return action.squeeze(0), logprob.squeeze(0), logits_entropy.squeeze(0), normalized_logits.squeeze(0)
+
+        return action.T, logprob, logits_entropy, normalized_logits
