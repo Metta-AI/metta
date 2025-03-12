@@ -1,6 +1,4 @@
-import pufferlib
 import torch
-from typing import Tuple
 
 class Kickstarter:
     def __init__(self, cfg, policy_store, single_action_space):
@@ -16,6 +14,7 @@ class Kickstarter:
         self.compile_mode = cfg.trainer.compile_mode
         self.policy_store = policy_store
         self.kickstart_steps = cfg.trainer.kickstart.kickstart_steps
+        self.spaces = len(single_action_space.nvec)
         
         self._load_policies()
 
@@ -43,8 +42,8 @@ class Kickstarter:
         for i, teacher in enumerate(self.teachers):
             teacher_value, teacher_normalized_logits, teacher_lstm_state[i] = self._forward(teacher, o, teacher_lstm_state[i])
 
-            ks_action_loss -= (teacher_normalized_logits[0].exp() * student_normalized_logits[0]).sum(dim=-1).mean() * teacher.action_loss_coef
-            ks_action_loss -= (teacher_normalized_logits[1].exp() * student_normalized_logits[1]).sum(dim=-1).mean() * teacher.action_loss_coef
+            for i in range(self.spaces):
+                ks_action_loss -= (teacher_normalized_logits[i].exp() * student_normalized_logits[i]).sum(dim=-1).mean() * teacher.action_loss_coef
                 
             ks_value_loss += ((teacher_value.squeeze() - student_value) ** 2).mean() * teacher.value_loss_coef
      
