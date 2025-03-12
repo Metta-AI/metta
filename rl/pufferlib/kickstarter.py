@@ -43,7 +43,9 @@ class Kickstarter:
             teacher_value, teacher_normalized_logits, teacher_lstm_state[i] = self._forward(teacher, o, teacher_lstm_state[i])
 
             for i in range(self.spaces):
-                ks_action_loss -= (teacher_normalized_logits[i].exp() * student_normalized_logits[i]).sum(dim=-1).mean() * teacher.action_loss_coef
+                ks_action_loss -= (teacher_normalized_logits[i].exp() * student_normalized_logits[i]).sum(dim=-1).mean()
+                
+            ks_action_loss *= teacher.action_loss_coef
                 
             ks_value_loss += ((teacher_value.squeeze() - student_value) ** 2).mean() * teacher.value_loss_coef
      
