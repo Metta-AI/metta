@@ -5,20 +5,17 @@ from typing import Tuple
 class Kickstarter:
     def __init__(self, cfg, policy_store, single_action_space):
         self.device = cfg.device
-        self.enabled = cfg.trainer.kickstart
-        if not self.enabled:
+
+        self.teacher_cfgs = cfg.trainer.kickstart.teachers
+        self.enabled = True
+        if self.teacher_cfgs is None:
+            self.enabled = False
             return
 
-        self.teacher_cfgs = cfg.trainer.teachers
         self.compile = cfg.trainer.compile
         self.compile_mode = cfg.trainer.compile_mode
         self.policy_store = policy_store
-        self.kickstart_steps = cfg.trainer.kickstart_steps_pct * cfg.trainer.total_timesteps
-
-        if isinstance(single_action_space, pufferlib.spaces.Discrete):
-            self.multi_discrete = False
-        else:
-            self.multi_discrete = True
+        self.kickstart_steps = cfg.trainer.kickstart.kickstart_steps
         
         self._load_policies()
 
@@ -27,8 +24,8 @@ class Kickstarter:
         for teacher_cfg in self.teacher_cfgs:
             policy_record = self.policy_store.policy(teacher_cfg['policy_uri'])
             policy = policy_record.policy()
-            policy.action_coef = teacher_cfg['action_coef']
-            policy.value_coef = teacher_cfg['value_coef']
+            policy.action_loss_coef = teacher_cfg['action_loss_coef']
+            policy.value_loss_coef = teacher_cfg['value_loss_coef']
             if self.compile:
                 policy = torch.compile(policy, mode=self.compile_mode)
             self.teachers.append(policy)
@@ -46,13 +43,10 @@ class Kickstarter:
         for i, teacher in enumerate(self.teachers):
             teacher_value, teacher_normalized_logits, teacher_lstm_state[i] = self._forward(teacher, o, teacher_lstm_state[i])
 
-            if self.multi_discrete: 
-                ks_action_loss -= (teacher_normalized_logits[0].exp() * student_normalized_logits[0]).sum(dim=-1).mean() * teacher.action_coef
-                ks_action_loss -= (teacher_normalized_logits[1].exp() * student_normalized_logits[1]).sum(dim=-1).mean() * teacher.action_coef
-            else:
-                ks_action_loss -= (teacher_normalized_logits.exp() * student_normalized_logits).sum(dim=-1).mean() * teacher.action_coef
+            ks_action_loss -= (teacher_normalized_logits[0].exp() * student_normalized_logits[0]).sum(dim=-1).mean() * teacher.action_loss_coef
+            ks_action_loss -= (teacher_normalized_logits[1].exp() * student_normalized_logits[1]).sum(dim=-1).mean() * teacher.action_loss_coef
                 
-            ks_value_loss += ((teacher_value.squeeze() - student_value) ** 2).mean() * teacher.value_coef
+            ks_value_loss += ((teacher_value.squeeze() - student_value) ** 2).mean() * teacher.value_loss_coef
      
         return ks_action_loss, ks_value_loss, teacher_lstm_state
     

@@ -45,12 +45,12 @@ stats:
     episode/reward.mean: episode_reward
   step: train/agent_step
 
-kickstart: false
-kickstart_steps_pct: 0.005
-teachers:
-  - policy_uri: wandb://run/mettabox_cogeval_defaults_lowent_initialized0005:v100
-    action_coef: 1
-    value_coef: 1
-  # - policy_uri: wandb://run/b.simple.standard.multi.discrete.2.20.24.r1
-  #   action_coef: 1
-  #   value_coef: 1
+kickstart:
+  kickstart_steps: 50_000_000
+  teachers:
+    # - policy_uri: wandb://run/mettabox_cogeval_defaults_lowent_initialized0005:v100
+    #   action_loss_coef: 1
+    #   value_loss_coef: 1
+    # # - policy_uri: wandb://run/mettabox_cogeval_defaults_lowent_initialized0005:v95
+    # #   action_loss_coef: 1
+    # #   value_loss_coef: 1
