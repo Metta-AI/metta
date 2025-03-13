@@ -1,7 +1,7 @@
 import torch
 
 class Kickstarter:
-    def __init__(self, cfg, policy_store, single_action_space):
+    def __init__(self, cfg, policy_store, vecenv):
         self.device = cfg.device
 
         self.teacher_cfgs = cfg.trainer.kickstart.teachers
@@ -14,17 +14,24 @@ class Kickstarter:
         self.compile_mode = cfg.trainer.compile_mode
         self.policy_store = policy_store
         self.kickstart_steps = cfg.trainer.kickstart.kickstart_steps
-        self.spaces = len(single_action_space.nvec)
+        self.spaces = len(vecenv.single_action_space.nvec)
+        self.action_names = vecenv.driver_env.action_names()
         
         self._load_policies()
 
     def _load_policies(self):
         self.teachers = []
         for teacher_cfg in self.teacher_cfgs:
-            policy_record = self.policy_store.policy(teacher_cfg['policy_uri'])
+            policy_record = self.policy_store.policy(teacher_cfg['policy_uri'])        
             policy = policy_record.policy()
             policy.action_loss_coef = teacher_cfg['action_loss_coef']
             policy.value_loss_coef = teacher_cfg['value_loss_coef']
+
+            if policy_record.metadata["action_names"] != self.action_names:
+                raise ValueError(
+                    "Action names do not match between policy and environment: "
+                    f"{policy_record.metadata['action_names']} != {self.action_names}")
+
             if self.compile:
                 policy = torch.compile(policy, mode=self.compile_mode)
             self.teachers.append(policy)
@@ -56,3 +63,28 @@ class Kickstarter:
         _, _, _, teacher_value, teacher_lstm_state, next_e3b, intrinsic_reward, teacher_normalized_logits = teacher(o, teacher_lstm_state, e3b=None)
 
         return teacher_value, teacher_normalized_logits, teacher_lstm_state
+    
+
+    def _create_action_mapping(self, teacher_action_names):
+        """Create mapping between teacher and environment action spaces."""
+        mapping = {}
+        # For each action space
+        for space_idx in range(self.spaces):
+            # Find indices of actions in teacher that exist in environment
+            teacher_to_env_idx = []
+            for i, action in enumerate(teacher_action_names):
+                if action in self.action_names:
+                    # Map to the correct position in environment actions
+                    env_idx = self.action_names.index(action)
+                    teacher_to_env_idx.append((i, env_idx))
+            
+            # Find actions in environment that don't exist in teacher
+            missing_actions = []
+            for i, action in enumerate(self.action_names):
+                if action not in teacher_action_names:
+                    missing_actions.append(i)
+            
+            mapping[space_idx] = {
+                'teacher_to_env': teacher_to_env_idx,
+                'missing_in_teacher': missing_actions
+            }

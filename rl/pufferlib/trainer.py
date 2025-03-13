@@ -125,7 +125,7 @@ class PufferTrainer:
             for k in ["0verview", "env", "losses", "performance", "train"]:
                 wandb_run.define_metric(f"{k}/*", step_metric="train/agent_step")
 
-        self.kickstarter = Kickstarter(self.cfg, self.policy_store, self.vecenv.single_action_space)
+        self.kickstarter = Kickstarter(self.cfg, self.policy_store, self.vecenv)
 
         logger.info(f"PufferTrainer initialization complete on device: {self.device}")
 
