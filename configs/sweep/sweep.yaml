@@ -1,4 +1,4 @@
-metric: heart.get
+metric: episode_reward
 test: raw # glicko, elo, raw
 
 rollout_count: 100000
