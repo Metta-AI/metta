@@ -159,7 +159,7 @@ class Eval():
                                 one_episode[m]['policy_name'] = self._agent_idx_to_policy_name[agent_idx].replace("file://", "")
                             else:
                                 one_episode[m]['policy_name'] = "No Name Found"
-                            one_episode[m]['episode_reward'] = episode_reward[m]
+                            one_episode[m]['episode_reward'] = episode_reward[m].tolist()
                         game_stats.append(one_episode)
 
         logger.info(f"Evaluation time: {time.time() - start}")
