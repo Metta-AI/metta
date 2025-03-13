@@ -3,13 +3,14 @@
 seed: null
 
 defaults:
-  - override /env/mettagrid@env: prog_1
+  - override /env/mettagrid@env: prog_2
   - override /agent: simple
   - override /sweep: fast
   - override /eval: eval_suite
   - override /analyzer: train_analyzer
 
-policy_uri: wandb://run/b.alex.progress.011
+# policy_uri: wandb://run/b.alex.progress.012:v9
+policy_uri: wandb://run/b.alex.progress.015
 # policy_uri: wandb://run/mettabox_cogeval_defaults_lowent_initialized0005:v100
 npc_policy_uri: null
 eval_db_uri: null
