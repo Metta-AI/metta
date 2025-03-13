@@ -43,4 +43,4 @@ wandb:
   checkpoint_interval: 1
 
 cmd: ???
-run: ${oc.env:USER}.local.${cmd}.12
+run: ${oc.env:USER}.local.${cmd}.13
