@@ -16,6 +16,11 @@ generation:
   min_samples: 5
   regen_pct: 0.25
 
+analyzer:
+  analysis:
+    metric: heart.get
+    log_all: true
+
 parameters:
   # env:
   #   sampling:
