@@ -46,7 +46,7 @@ stats:
   step: train/agent_step
 
 kickstart:
-  kickstart_steps: 100_000_000
+  kickstart_steps: 400_000_000
   teachers:
     - policy_uri: wandb://run/mettabox_cogeval_defaults_lowent_initialized0005:v100
       action_loss_coef: 1
