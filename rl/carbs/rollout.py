@@ -127,7 +127,7 @@ class CarbsSweepRollout:
         eval_stats_db = EvalStatsDB.from_uri(self.eval_stats_logger.json_path, self.run_dir, wandb_run)
         analyzer = hydra.utils.instantiate(eval_cfg.analyzer, eval_stats_db)
 
-        metric_idxs = [i for i, m in enumerate(eval_cfg.analyzer.analysis.metrics) if m.metric == eval_cfg.sweep.metric]
+        metric_idxs = [i for i, m in enumerate(analyzer.analysis.metrics) if m.metric == eval_cfg.sweep.metric]
         if len(metric_idxs) == 0:
             raise ValueError(f"Metric {eval_cfg.sweep.metric} not found in analyzer metrics: {eval_cfg.analyzer.analysis.metrics}")
         elif len(metric_idxs) > 1:
