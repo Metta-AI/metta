@@ -81,7 +81,7 @@ class EvalStatsDB:
                 json_path = uri.split("file://")[1]
             else:
                 json_path = uri
-            json_path = json_path if json_path.endswith('.json.gz') else json_path + '.json.gz'
+            json_path = json_path if json_path.endswith('.gz') else json_path + '.gz'
             return EvalStatsDbFile(json_path)
 
 
