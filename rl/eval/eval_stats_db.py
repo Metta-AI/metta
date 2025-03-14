@@ -81,7 +81,7 @@ class EvalStatsDB:
                 json_path = uri.split("file://")[1]
             else:
                 json_path = uri
-            json_path = json_path if json_path.endswith('.json') else json_path + '.json'
+            json_path = json_path if json_path.endswith('.json.gz') else json_path + '.json.gz'
             return EvalStatsDbFile(json_path)
 
 
@@ -90,9 +90,13 @@ class EvalStatsDbFile(EvalStatsDB):
     Database for loading eval stats from a file.
     """
     def __init__(self, json_path: str):
-        logger.info(f"Loading eval stats from {json_path}")
-        with open(json_path, "r") as f:
+        if not os.path.exists(json_path):
+            raise FileNotFoundError(f"File not found: {json_path}")
+
+        with gzip.open(json_path, 'rt') as f:
             data = json.load(f)
+        logger.info(f"Loading eval stats from {json_path}")
+
         data = self._prepare_data(data)
 
         super().__init__(pd.DataFrame(data))
