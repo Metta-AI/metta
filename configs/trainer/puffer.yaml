@@ -48,7 +48,7 @@ stats:
 kickstart:
   kickstart_steps: 400_000_000
   teachers:
-    - policy_uri: wandb://run/b.alex.progress.016:v2
+    - policy_uri: wandb://run/b.alex.progress.011
       action_loss_coef: 1
       value_loss_coef: 1
     # # - policy_uri: wandb://run/mettabox_cogeval_defaults_lowent_initialized0005:v95
