@@ -4,7 +4,7 @@ seed: null
 
 defaults:
   - override /env/mettagrid@env: prog_2
-  - override /agent: NAS008b
+  - override /agent: simple #NAS008b
   - override /sweep: fast
   - override /eval: eval_suite
   - override /analyzer: train_analyzer

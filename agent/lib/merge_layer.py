@@ -4,15 +4,19 @@ from tensordict import TensorDict
 from agent.lib.metta_layer import LayerBase
 
 class MergeLayerBase(LayerBase):
+    # def __init__(self, name, sources, **cfg):
     def __init__(self, name, sources, **cfg):
         super().__init__(name)
         self.sources_list = list(sources)
         self.default_dim = -1
         self._ready = False
 
-        self.input_source = []
+        self.temp_sources_list = []
         for src_cfg in self.sources_list:
-            self.input_source.append(src_cfg['source_name'])
+            self.temp_sources_list.append(src_cfg['source_name'])
+
+        self._input_source = self.temp_sources_list
+        self.sources_list = self.temp_sources_list
 
     @property
     def ready(self):
