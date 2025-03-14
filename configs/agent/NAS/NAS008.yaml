@@ -78,7 +78,7 @@ components:
     output_size: 128
 
 # ------------------------------------------------------------
-    first_14_channels:
+  first_14_channels:
     _target_: agent.lib.merge_layer.ConcatMergeLayer
     sources:
       - source_name: obs_normalizer
