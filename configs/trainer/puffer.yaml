@@ -28,7 +28,6 @@ zero_copy: true
 require_contiguous_env_ids: false
 verbose: true
 
-
 batch_size: 262144
 minibatch_size: 4096
 bptt_horizon: 16
@@ -45,3 +44,13 @@ stats:
   overview:
     episode/reward.mean: episode_reward
   step: train/agent_step
+
+kickstart:
+  kickstart_steps: 50_000_000
+  teachers:
+    # - policy_uri: wandb://run/mettabox_cogeval_defaults_lowent_initialized0005:v100
+    #   action_loss_coef: 1
+    #   value_loss_coef: 1
+    # # - policy_uri: wandb://run/mettabox_cogeval_defaults_lowent_initialized0005:v95
+    # #   action_loss_coef: 1
+    # #   value_loss_coef: 1
