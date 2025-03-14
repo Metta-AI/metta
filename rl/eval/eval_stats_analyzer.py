@@ -22,6 +22,14 @@ class EvalStatsAnalyzer:
         self.candidate_policy_uri = policy_uri
         self.global_filters = analysis.get('filters', None)
 
+        metric_configs = {}
+        metrics = []
+        for cfg in self.analysis.metrics:
+            metric_configs[cfg] = fnmatch.filter(self.stats_db.available_metrics, cfg.metric)
+            metrics.extend(metric_configs[cfg])
+        self.metric_configs = metric_configs
+        self.analysis.metrics = metrics
+
 
     def _filters(self, item):
         local_filters = item.get('filters')
@@ -69,14 +77,11 @@ class EvalStatsAnalyzer:
         return result_dfs, policy_fitness_records
 
     def analyze(self):
-        metric_configs = {}
-        for cfg in self.analysis.metrics:
-            metric_configs[cfg] = fnmatch.filter(self.stats_db.available_metrics, cfg.metric)
-        if all(len(metric_configs[cfg]) == 0 for cfg in metric_configs):
+        if all(len(self.metric_configs[cfg]) == 0 for cfg in self.metric_configs):
             logger.info(f"No metrics to analyze yet for {self.candidate_policy_uri}")
             return [], []
 
-        result_dfs, policy_fitness_records = self._analyze_metrics(metric_configs)
+        result_dfs, policy_fitness_records = self._analyze_metrics(self.metric_configs)
 
         # Create table with eval_name and mean for each policy
         if len(result_dfs) > 0 and self.analysis.log_all:

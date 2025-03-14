@@ -176,7 +176,11 @@ class PufferTrainer:
 
         eval = hydra.utils.instantiate(self.cfg.eval, self.policy_store, self.last_pr, self.cfg.env, _recursive_ = False)
         stats = eval.evaluate()
-        self.eval_stats_logger.log(stats)
+
+        try:
+            self.eval_stats_logger.log(stats)
+        except Exception as e:
+            logger.error(f"Error logging stats: {e}")
 
         eval_stats_db = EvalStatsDB.from_uri(self.cfg.eval.eval_db_uri, self.cfg.run_dir, self.wandb_run)
         analyzer = hydra.utils.instantiate(self.cfg.analyzer, eval_stats_db)
