@@ -152,14 +152,15 @@ class Eval():
                 for n in range(len(infos)):
                     if "agent_raw" in infos[n]:
                         one_episode = infos[n]["agent_raw"]
+                        episode_reward = infos[n]["episode_rewards"]
                         for m in range(len(one_episode)):
                             agent_idx = m + n * self._agents_per_env
                             if agent_idx in self._agent_idx_to_policy_name:
                                 one_episode[m]['policy_name'] = self._agent_idx_to_policy_name[agent_idx].replace("file://", "")
                             else:
                                 one_episode[m]['policy_name'] = "No Name Found"
+                            one_episode[m]['episode_reward'] = episode_reward[m].tolist()
                         game_stats.append(one_episode)
-
 
         logger.info(f"Evaluation time: {time.time() - start}")
         self._vecenv.close()
