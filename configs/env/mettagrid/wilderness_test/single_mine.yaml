@@ -14,22 +14,274 @@ game:
       battery: 1
 
   map_builder:
-    _target_: mettagrid.config.room.multi_room.MultiRoom
-    num_rooms: ${..num_agents}
+    _target_: mettagrid.config.room.multi_room.RoomList
     border_width: 6
 
-    room:
-      _target_: mettagrid.config.room.random.Random
-      width: ${uniform:10,50,25}
-      height: ${uniform:10,50,25}
-      border_width: 1
+    rooms:
+      - _target_: mettagrid.config.room.random.Random
+        width: ${uniform:10,25,20}
+        height: ${uniform:10,25,20}
+        border_width: 1
 
-      agents: 1
+        agents: 1
 
-      objects:
-        mine: 1
-        generator: 1
-        wall: ${uniform:5,25,20}
+        objects:
+          mine: 1
+          generator: 1
+          wall: ${uniform:5,25,20}
+      - _target_: mettagrid.config.room.random.Random
+        width: ${uniform:10,25,20}
+        height: ${uniform:10,25,20}
+        border_width: 1
+
+        agents: 1
+
+        objects:
+          mine: 1
+          generator: 1
+          wall: ${uniform:5,25,20}
+      - _target_: mettagrid.config.room.random.Random
+        width: ${uniform:10,25,20}
+        height: ${uniform:10,25,20}
+        border_width: 1
+
+        agents: 1
+
+        objects:
+          mine: 1
+          generator: 1
+          wall: ${uniform:5,25,20}
+      - _target_: mettagrid.config.room.random.Random
+        width: ${uniform:10,25,20}
+        height: ${uniform:10,25,20}
+        border_width: 1
+
+        agents: 1
+
+        objects:
+          mine: 1
+          generator: 1
+          wall: ${uniform:5,25,20}
+      - _target_: mettagrid.config.room.random.Random
+        width: ${uniform:10,25,20}
+        height: ${uniform:10,25,20}
+        border_width: 1
+
+        agents: 1
+
+        objects:
+          mine: 1
+          generator: 1
+          wall: ${uniform:5,25,20}
+      - _target_: mettagrid.config.room.random.Random
+        width: ${uniform:10,25,20}
+        height: ${uniform:10,25,20}
+        border_width: 1
+
+        agents: 1
+
+        objects:
+          mine: 1
+          generator: 1
+          wall: ${uniform:5,25,20}
+      - _target_: mettagrid.config.room.random.Random
+        width: ${uniform:10,25,20}
+        height: ${uniform:10,25,20}
+        border_width: 1
+
+        agents: 1
+
+        objects:
+          mine: 1
+          generator: 1
+          wall: ${uniform:5,25,20}
+      - _target_: mettagrid.config.room.random.Random
+        width: ${uniform:10,25,20}
+        height: ${uniform:10,25,20}
+        border_width: 1
+
+        agents: 1
+
+        objects:
+          mine: 1
+          generator: 1
+          wall: ${uniform:5,25,20}
+      - _target_: mettagrid.config.room.random.Random
+        width: ${uniform:10,25,20}
+        height: ${uniform:10,25,20}
+        border_width: 1
+
+        agents: 1
+
+        objects:
+          mine: 1
+          generator: 1
+          wall: ${uniform:5,25,20}
+      - _target_: mettagrid.config.room.random.Random
+        width: ${uniform:10,25,20}
+        height: ${uniform:10,25,20}
+        border_width: 1
+
+        agents: 1
+
+        objects:
+          mine: 1
+          generator: 1
+          wall: ${uniform:5,25,20}
+      - _target_: mettagrid.config.room.random.Random
+        width: ${uniform:10,25,20}
+        height: ${uniform:10,25,20}
+        border_width: 1
+
+        agents: 1
+
+        objects:
+          mine: 1
+          generator: 1
+          wall: ${uniform:5,25,20}
+      - _target_: mettagrid.config.room.random.Random
+        width: ${uniform:10,25,20}
+        height: ${uniform:10,25,20}
+        border_width: 1
+
+        agents: 1
+
+        objects:
+          mine: 1
+          generator: 1
+          wall: ${uniform:5,25,20}
+      - _target_: mettagrid.config.room.random.Random
+        width: ${uniform:10,25,20}
+        height: ${uniform:10,25,20}
+        border_width: 1
+
+        agents: 1
+
+        objects:
+          mine: 1
+          generator: 1
+          wall: ${uniform:5,25,20}
+      - _target_: mettagrid.config.room.random.Random
+        width: ${uniform:10,25,20}
+        height: ${uniform:10,25,20}
+        border_width: 1
+
+        agents: 1
+
+        objects:
+          mine: 1
+          generator: 1
+          wall: ${uniform:5,25,20}
+      - _target_: mettagrid.config.room.random.Random
+        width: ${uniform:10,25,20}
+        height: ${uniform:10,25,20}
+        border_width: 1
+
+        agents: 1
+
+        objects:
+          mine: 1
+          generator: 1
+          wall: ${uniform:5,25,20}
+      - _target_: mettagrid.config.room.random.Random
+        width: ${uniform:10,25,20}
+        height: ${uniform:10,25,20}
+        border_width: 1
+
+        agents: 1
+
+        objects:
+          mine: 1
+          generator: 1
+          wall: ${uniform:5,25,20}
+      - _target_: mettagrid.config.room.random.Random
+        width: ${uniform:10,25,20}
+        height: ${uniform:10,25,20}
+        border_width: 1
+
+        agents: 1
+
+        objects:
+          mine: 1
+          generator: 1
+          wall: ${uniform:5,25,20}
+      - _target_: mettagrid.config.room.random.Random
+        width: ${uniform:10,25,20}
+        height: ${uniform:10,25,20}
+        border_width: 1
+
+        agents: 1
+
+        objects:
+          mine: 1
+          generator: 1
+          wall: ${uniform:5,25,20}
+      - _target_: mettagrid.config.room.random.Random
+        width: ${uniform:10,25,20}
+        height: ${uniform:10,25,20}
+        border_width: 1
+
+        agents: 1
+
+        objects:
+          mine: 1
+          generator: 1
+          wall: ${uniform:5,25,20}
+      - _target_: mettagrid.config.room.random.Random
+        width: ${uniform:10,25,20}
+        height: ${uniform:10,25,20}
+        border_width: 1
+
+        agents: 1
+
+        objects:
+          mine: 1
+          generator: 1
+          wall: ${uniform:5,25,20}
+      - _target_: mettagrid.config.room.random.Random
+        width: ${uniform:10,25,20}
+        height: ${uniform:10,25,20}
+        border_width: 1
+
+        agents: 1
+
+        objects:
+          mine: 1
+          generator: 1
+          wall: ${uniform:5,25,20}
+      - _target_: mettagrid.config.room.random.Random
+        width: ${uniform:10,25,20}
+        height: ${uniform:10,25,20}
+        border_width: 1
+
+        agents: 1
+
+        objects:
+          mine: 1
+          generator: 1
+          wall: ${uniform:5,25,20}
+      - _target_: mettagrid.config.room.random.Random
+        width: ${uniform:10,25,20}
+        height: ${uniform:10,25,20}
+        border_width: 1
+
+        agents: 1
+
+        objects:
+          mine: 1
+          generator: 1
+          wall: ${uniform:5,25,20}
+      - _target_: mettagrid.config.room.random.Random
+        width: ${uniform:10,25,20}
+        height: ${uniform:10,25,20}
+        border_width: 1
+
+        agents: 1
+
+        objects:
+          mine: 1
+          generator: 1
+          wall: ${uniform:5,25,20}
   objects:
     mine:
       hp: 30
