@@ -45,10 +45,11 @@ stats:
     episode/reward.mean: episode_reward
   step: train/agent_step
 
+kickstart_enabled: true
 kickstart:
   kickstart_steps: 400_000_000
   teachers:
-    - policy_uri: wandb://run/b.alex.progress.011
+    - policy_uri: wandb://run/b.alex.progress.015:v192
       action_loss_coef: 1
       value_loss_coef: 1
     # # - policy_uri: wandb://run/mettabox_cogeval_defaults_lowent_initialized0005:v95

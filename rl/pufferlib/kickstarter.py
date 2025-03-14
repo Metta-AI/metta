@@ -5,7 +5,12 @@ class Kickstarter:
         self.device = cfg.device
 
         self.teacher_cfgs = cfg.trainer.kickstart.teachers
-        self.enabled = True
+        # self.enabled = True
+        
+        self.enabled = cfg.trainer.kickstart.kickstart_enabled
+        if not self.enabled:
+            return
+
         if self.teacher_cfgs is None:
             self.enabled = False
             return
