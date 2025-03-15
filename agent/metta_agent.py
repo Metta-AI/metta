@@ -36,6 +36,8 @@ def make_policy(env: PufferEnv, cfg: OmegaConf):
         grid_features=env.grid_features,
         global_features=env.global_features,
         device=cfg.device,
+        obs_width=cfg.env.game.obs_width,
+        obs_height=cfg.env.game.obs_height,
         _recursive_=False)
 
 class DistributedMettaAgent(DistributedDataParallel):
@@ -56,6 +58,8 @@ class MettaAgent(nn.Module):
         action_space: ActionSpace,
         grid_features: List[str],
         device: str,
+        obs_width: int,
+        obs_height: int,
         **cfg
     ):
         super().__init__()
@@ -74,7 +78,9 @@ class MettaAgent(nn.Module):
             'obs_input_shape': obs_space[cfg.observations.obs_key].shape[1:],
             'num_objects': obs_space[cfg.observations.obs_key].shape[2], # this is hardcoded for channel # at end of tuple
             'hidden_size': self.hidden_size,
-            'core_num_layers': self.core_num_layers
+            'core_num_layers': self.core_num_layers,
+            'obs_width': obs_width,
+            'obs_height': obs_height,
         }
 
         agent_attributes['action_type_size'] = action_space.nvec[0]
