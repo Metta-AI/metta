@@ -36,8 +36,8 @@ def make_policy(env: PufferEnv, cfg: OmegaConf):
         grid_features=env.grid_features,
         global_features=env.global_features,
         device=cfg.device,
-        obs_width=env.game.obs_width, # copy
-        obs_height=env.game.obs_height, # copy
+        obs_width=cfg.env.game.obs_width,
+        obs_height=cfg.env.game.obs_height,
         _recursive_=False)
 
 class DistributedMettaAgent(DistributedDataParallel):
@@ -58,8 +58,8 @@ class MettaAgent(nn.Module):
         action_space: ActionSpace,
         grid_features: List[str],
         device: str,
-        obs_width: int, # copy
-        obs_height: int, # copy
+        obs_width: int,
+        obs_height: int,
         **cfg
     ):
         super().__init__()

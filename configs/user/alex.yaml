@@ -4,7 +4,7 @@ seed: null
 
 defaults:
   - override /env/mettagrid@env: prog_2
-  - override /agent: simple #NAS008b
+  - override /agent: NAS008b
   - override /sweep: fast
   - override /eval: eval_suite
   - override /analyzer: train_analyzer
@@ -43,4 +43,4 @@ wandb:
   checkpoint_interval: 1
 
 cmd: ???
-run: ${oc.env:USER}.local.${cmd}.22
+run: ${oc.env:USER}.local.${cmd}.31

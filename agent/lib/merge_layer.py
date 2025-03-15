@@ -31,6 +31,9 @@ class MergeLayerBase(LayerBase):
             source_name = src_cfg['source_name']
             full_source_size = self.input_source_components[source_name]._output_size
 
+            if self._name == 'center_pixel':
+                print(f"center_pixel")
+
             processed_size = full_source_size
             if src_cfg.get('slice') is not None:
                 slice_range = src_cfg['slice']
