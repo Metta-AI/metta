@@ -22,6 +22,7 @@ from rl.pufferlib.profile import Profile
 from rl.pufferlib.trace import save_trace_image
 from rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
 from rl.pufferlib.vecenv import make_vecenv
+from rl.pufferlib.kickstarter import Kickstarter
 
 torch.set_float32_matmul_precision('high')
 
@@ -130,6 +131,8 @@ class PufferTrainer:
             for k in ["0verview", "env", "losses", "performance", "train"]:
                 wandb_run.define_metric(f"{k}/*", step_metric="train/agent_step")
 
+        self.kickstarter = Kickstarter(self.cfg, self.policy_store, self.vecenv.single_action_space)
+
         logger.info(f"PufferTrainer initialization complete on device: {self.device}")
 
     def train(self):
@@ -185,7 +188,11 @@ class PufferTrainer:
 
         eval = hydra.utils.instantiate(self.cfg.eval, self.policy_store, self.last_pr, self.cfg.env, _recursive_ = False)
         stats = eval.evaluate()
-        self.eval_stats_logger.log(stats)
+
+        try:
+            self.eval_stats_logger.log(stats)
+        except Exception as e:
+            logger.error(f"Error logging stats: {e}")
 
         eval_stats_db = EvalStatsDB.from_uri(self.cfg.eval.eval_db_uri, self.cfg.run_dir, self.wandb_run)
         analyzer = hydra.utils.instantiate(self.cfg.analyzer, eval_stats_db)
@@ -246,7 +253,7 @@ class PufferTrainer:
 
                 h = lstm_h[:, gpu_env_id]
                 c = lstm_c[:, gpu_env_id]
-                actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward = policy(o_device, (h, c), e3b=e3b)
+                actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward, _ = policy(o_device, (h, c), e3b=e3b)
                 lstm_h[:, gpu_env_id] = h
                 lstm_c[:, gpu_env_id] = c
                 if self.use_e3b:
@@ -325,6 +332,7 @@ class PufferTrainer:
         total_minibatches = experience.num_minibatches * self.trainer_cfg.update_epochs
         for epoch in range(self.trainer_cfg.update_epochs):
             lstm_state = None
+            teacher_lstm_state = None
             for mb in range(experience.num_minibatches):
                 with profile.train_misc:
                     obs = experience.b_obs[mb]
@@ -336,7 +344,7 @@ class PufferTrainer:
                     ret = experience.b_returns[mb]
 
                 with profile.train_forward:
-                    _, newlogprob, entropy, newvalue, lstm_state, _, _ = self.policy(
+                    _, newlogprob, entropy, newvalue, lstm_state, _, _, new_normalized_logits = self.policy(
                         obs, state=lstm_state, action=atn)
                     lstm_state = (lstm_state[0].detach(), lstm_state[1].detach())
 
@@ -381,6 +389,8 @@ class PufferTrainer:
 
                     entropy_loss = entropy.mean()
 
+                    ks_action_loss, ks_value_loss, teacher_lstm_state = self.kickstarter.loss(self.agent_step, new_normalized_logits, newvalue, obs, teacher_lstm_state)
+
                     l2_reg_loss = torch.tensor(0.0, device=self.device)
                     if self.trainer_cfg.l2_reg_loss_coef > 0:
                         l2_reg_loss = self.trainer_cfg.l2_reg_loss_coef * self.policy.l2_reg_loss().to(self.device)
@@ -389,7 +399,7 @@ class PufferTrainer:
                     if self.trainer_cfg.l2_init_loss_coef > 0:
                         l2_init_loss = self.trainer_cfg.l2_init_loss_coef * self.policy.l2_init_loss().to(self.device)
 
-                    loss = pg_loss - self.trainer_cfg.ent_coef * entropy_loss + v_loss * self.trainer_cfg.vf_coef + l2_reg_loss + l2_init_loss
+                    loss = pg_loss - self.trainer_cfg.ent_coef * entropy_loss + v_loss * self.trainer_cfg.vf_coef + l2_reg_loss + l2_init_loss + ks_action_loss + ks_value_loss
 
                 with profile.learn:
                     self.optimizer.zero_grad()
@@ -412,6 +422,8 @@ class PufferTrainer:
                     self.losses.clipfrac += clipfrac.item() / total_minibatches
                     self.losses.l2_reg_loss += l2_reg_loss.item() / total_minibatches
                     self.losses.l2_init_loss += l2_init_loss.item() / total_minibatches
+                    self.losses.ks_action_loss += ks_action_loss.item() / total_minibatches
+                    self.losses.ks_value_loss += ks_value_loss.item() / total_minibatches
 
             if self.trainer_cfg.target_kl is not None:
                 if approx_kl > self.trainer_cfg.target_kl:
@@ -577,6 +589,8 @@ class PufferTrainer:
             explained_variance=0,
             l2_reg_loss=0,
             l2_init_loss=0,
+            ks_action_loss=0,
+            ks_value_loss=0,
         )
 
     def _make_vecenv(self):

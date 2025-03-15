@@ -5,7 +5,7 @@
 1. Configure AWS SSO and credentials:
 ```bash
 # Run the setup script
-./devops/aws/setup_sso.sh
+./devops/aws/setup_sso.py
 
 # Load new environment settings
 source ~/.bashrc
@@ -114,24 +114,24 @@ You can also use the Python launcher:
 
 ```bash
 # Launch a training job
-python -m devops.aws.launch_task \
+python -m devops.aws.batch.launch_task \
     --cmd=train \
     --run=b.$USER.run_name
 
 # Specify a custom job queue
-python -m devops.aws.launch_task \
+python -m devops.aws.batch.launch_task \
     --cmd=train \
     --run=b.$USER.run_name \
     --job-queue=metta-batch-jq-custom
 
 # Specify a custom mettagrid branch
-python -m devops.aws.launch_task \
+python -m devops.aws.batch.launch_task \
     --cmd=train \
     --run=b.$USER.run_name \
     --mettagrid-branch=feature-branch
 
 # Use specific git and mettagrid commits
-python -m devops.aws.launch_task \
+python -m devops.aws.batch.launch_task \
     --cmd=train \
     --run=b.$USER.run_name \
     --git-commit=abc123 \
@@ -146,9 +146,6 @@ cmd.sh stop <job_id>
 
 # Stop a compute environment
 cmd.sh ce <compute_env_name> stop
-
-# Stop jobs by prefix using Python module
-python -m devops.aws.stop_jobs --job-prefix=b.$USER.run_name
 ```
 
 ## Monitoring Jobs

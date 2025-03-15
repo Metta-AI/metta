@@ -120,10 +120,7 @@ class Eval():
 
                 # Parallelize across opponents
                 policy = self._policy_pr.policy() # policy to evaluate
-                if hasattr(policy, 'lstm'):
-                    policy_actions, _, _, _, policy_rnn_state, _, _ = policy(my_obs, policy_rnn_state)
-                else:
-                    policy_actions, _, _, _, _, _ = policy(my_obs)
+                policy_actions, _, _, _, policy_rnn_state, _, _, _ = policy(my_obs, policy_rnn_state)
 
                 # Iterate opponent policies
                 if self._npc_pr is not None:
@@ -131,10 +128,7 @@ class Eval():
                     npc_rnn_state = npc_rnn_state
 
                     npc_policy = self._npc_pr.policy()
-                    if hasattr(npc_policy, 'lstm'):
-                        npc_action, _, _, _, npc_rnn_state, _, _ = npc_policy(npc_obs, npc_rnn_state)
-                    else:
-                        npc_action, _, _, _, _, _ = npc_policy(npc_obs)
+                    npc_action, _, _, _, npc_rnn_state, _, _, _ = npc_policy(npc_obs, npc_rnn_state)
 
             actions = policy_actions
             if self._npc_agents_per_env > 0:
@@ -155,14 +149,15 @@ class Eval():
                 for n in range(len(infos)):
                     if "agent_raw" in infos[n]:
                         one_episode = infos[n]["agent_raw"]
+                        episode_reward = infos[n]["episode_rewards"]
                         for m in range(len(one_episode)):
                             agent_idx = m + n * self._agents_per_env
                             if agent_idx in self._agent_idx_to_policy_name:
                                 one_episode[m]['policy_name'] = self._agent_idx_to_policy_name[agent_idx].replace("file://", "")
                             else:
                                 one_episode[m]['policy_name'] = "No Name Found"
+                            one_episode[m]['episode_reward'] = episode_reward[m].tolist()
                         game_stats.append(one_episode)
-
 
         logger.info(f"Evaluation time: {time.time() - start}")
         self._vecenv.close()

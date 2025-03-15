@@ -53,12 +53,15 @@ class EvalStatsLogger:
     def _log_to_file(self, eval_stats):
         # If file exists, load and merge with existing data
         if os.path.exists(self.json_path):
-            logger.info(f"Loading existing eval stats from {self.json_path}")
-            with open(self.json_path, "r") as f:
-                existing_stats = json.load(f)
-            eval_stats.extend(existing_stats)
-        with open(self.json_path, "w") as f:
+            try:
+                logger.info(f"Loading existing eval stats from {self.json_path}")
+                with open(self.json_path, "r") as f:
+                    existing_stats = json.load(f)
+                eval_stats.extend(existing_stats)
+            except Exception as e:
+                logger.error(f"Error loading existing eval stats from {self.json_path}: {e}, will overwrite")
 
+        with open(self.json_path, "w") as f:
             json.dump(eval_stats, f, indent=4)
         logger.info(f"Saved eval stats to {self.json_path}")
 
