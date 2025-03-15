@@ -21,7 +21,9 @@ while true; do
     echo "Sweep: $sweep == running run $run_id..."
     ./devops/train.sh data_dir=./train_dir/sweep/$sweep/runs run=$run_id $args
 
-    # ./devops/evaluate.sh run="$RUN_ID"
+    cmd="python -m tools.sweep_eval sweep_name=$sweep run=$run_id $args"
+    echo "Sweep: $sweep == running command: $cmd"
+    $cmd
 
     if [ $? -ne 0 ]; then
         consecutive_failures=$((consecutive_failures + 1))
