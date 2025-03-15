@@ -109,6 +109,8 @@ components:
     _target_: agent.lib.nn_layer_library.Flatten
     input_source: center_pixel
 
+#this outputs [48, 28] for some reason
+
   # Process the center pixel vector (length = channels, usually 23) through a Linear layer
   center_linear:
     _target_: agent.lib.nn_layer_library.Linear
@@ -119,7 +121,7 @@ components:
     _target_: agent.lib.merge_layer.ConcatMergeLayer
     sources:
       - source_name: center_linear
-      - source_name: _encoded_obs_
+      - source_name: encoded_obs
 
 # ------------------------------------------------------------
 

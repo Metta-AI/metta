@@ -11,12 +11,9 @@ class MergeLayerBase(LayerBase):
         self.default_dim = -1
         self._ready = False
 
-        self.temp_sources_list = []
+        self._input_source = []
         for src_cfg in self.sources_list:
-            self.temp_sources_list.append(src_cfg['source_name'])
-
-        self._input_source = self.temp_sources_list
-        self.sources_list = self.temp_sources_list
+            self._input_source.append(src_cfg['source_name'])
 
     @property
     def ready(self):
