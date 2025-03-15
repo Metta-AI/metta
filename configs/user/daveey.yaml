@@ -2,23 +2,24 @@
 
 seed: null
 
+
 defaults:
-  - override /env/mettagrid@env: bases
+  - /sweep/fast@parameters
   - override /agent: simple
-  - override /sweep: fast
+  - override /env/mettagrid@env: bases
 
 # policy: wandb://run/b.daveey.train.maze.sm.dr.warm.0
 # baselines: wandb://run/b.daveey.train.maze.sm.11x11.0
 
 # policy_uri: wandb://run/b.daveey.sm.train.er.new.0
 # policy_uri: wandb://run/daveey.ar.cards.1
-policy_uri: wandb://run/b.daveey.16x8.2
+policy_uri: wandb://run/b.daveey.8x4.dr05
 # policy_uri: ${trained_policy_uri}
 # npc_policy_uri: ${trained_policy_uri}
 # eval_db_uri: wandb://artifacts/daveey_eval_testing
 
 env:
-  # sampling: 0.7
+  sampling: 0.7
   game:
     num_agents: 36
 
@@ -27,7 +28,7 @@ env:
         ore_max: 100
 
     # group_reward_pct: 0.9
-    # max_steps: 200
+    max_steps: 10
 
     # map_builder:
     #   border_width: 1
@@ -57,6 +58,6 @@ wandb:
 
 
 cmd: ???
-run_id: 5
+run_id: 6
 run: ${oc.env:USER}.local.${cmd}.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints

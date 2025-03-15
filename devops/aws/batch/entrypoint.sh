@@ -59,4 +59,4 @@ echo "Hardware: $HARDWARE"
 # Run the training command
 ./devops/$CMD.sh run=$RUN_ID hardware=$HARDWARE trainer.num_workers=$NUM_WORKERS $TASK_ARGS
 
-echo "=== Training complete ==="
+echo "=== Batch job complete ==="

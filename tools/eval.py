@@ -2,7 +2,7 @@ import logging
 
 import hydra
 from omegaconf import DictConfig
-from mettagrid.config.config import setup_metta_environment
+from util.runtime_configuration import setup_metta_environment
 from agent.policy_store import PolicyStore
 from rl.eval.eval_stats_logger import EvalStatsLogger
 from rl.eval.eval_stats_db import EvalStatsDB

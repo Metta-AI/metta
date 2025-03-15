@@ -10,20 +10,20 @@
             "request": "launch",
             "module": "tools.train",
             "args": [
+                "data_dir=./train_dir/sweep/daveey.local.sweep.6/runs",
+                "run=daveey.local.sweep.6.r.27",
+                "+hardware=macbook",
                 "+user=${env:USER}",
-                "hardware=macbook",
-                "cmd=train",
             ],
         },
         {
             "name": "Run Sweep",
             "type": "debugpy",
             "request": "launch",
-            "module": "tools.sweep",
+            "module": "tools.sweep_init",
             "args": [
+                "+hardware=macbook",
                 "+user=${env:USER}",
-                "hardware=macbook",
-                "cmd=sweep",
             ],
         },
         {

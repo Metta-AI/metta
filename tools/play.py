@@ -3,7 +3,7 @@ import signal  # Aggressively exit on ctrl+c
 
 import hydra
 from agent.policy_store import PolicyStore
-from mettagrid.config.config import setup_metta_environment
+from util.runtime_configuration import setup_metta_environment
 from omegaconf import OmegaConf
 from rl.pufferlib.play import play
 from rl.wandb.wandb_context import WandbContext

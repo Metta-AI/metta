@@ -1,0 +1,22 @@
+defaults:
+  - wandb
+  - agent: simple
+  - trainer: puffer
+  - env/mettagrid@env: simple
+  - sweep: full
+
+cmd: sweep
+sweep_name: ???
+metric: heart.get
+num_random_samples: 10
+
+eval:
+  env: env/mettagrid/simple
+  num_envs: 25
+  num_episodes: 25
+  max_time_s: 600
+  policy_agents_pct: 1.0
+
+data_dir: "./train_dir"
+sweep_dir: "${.data_dir}/sweep/${.sweep_name}"
+runs_dir: "${.sweep_dir}/runs"
