@@ -20,14 +20,14 @@ class Conv2d(ParamLayer):
         self.obs_height = obs_height
 
     def _make_net(self):
-        self._calculate_output_dimensions()
+        self._set_conv_dims()
         return nn.Conv2d(
             self._input_size,
             self._output_size,
             **self._nn_params
         )
     
-    def _calculate_output_dimensions(self):
+    def _set_conv_dims(self):
         ''' Calculate flattened width and height. This allows us to change obs width and height. '''
         if hasattr(self._input_source_component, '_output_width'):
             self._input_width = self._input_source_component._output_width
