@@ -16,12 +16,12 @@ class Eval():
         self,
         policy_store: PolicyStore,
         policy_pr: PolicyRecord,
-        env_defaults: DictConfig,
 
         env: str,
         npc_policy_uri: str,
         device: str,
 
+        env_overrides: DictConfig = None,
         policy_agents_pct: float = 1.0,
         num_envs: int = 1,
         num_episodes: int = 1,
@@ -32,10 +32,13 @@ class Eval():
 
     ) -> None:
         env_cfg = hydra.compose(config_name=env)
+        if env.startswith("/"):
+            env = env[1:]
         path = env.split("/")
         for p in path[:-1]:
             env_cfg = env_cfg[p]
-        self._env_cfg = env_cfg #OmegaConf.merge(env_defaults, env_cfg)
+        self._env_cfg = env_cfg
+        OmegaConf.merge(env_cfg, env_overrides)
         self._env_name = env
 
         self._npc_policy_uri = npc_policy_uri

@@ -17,10 +17,32 @@
             ],
         },
         {
-            "name": "Run Sweep",
+            "name": "Sweep: Init",
             "type": "debugpy",
             "request": "launch",
             "module": "tools.sweep_init",
+            "args": [
+                "+hardware=macbook",
+                "+user=${env:USER}",
+            ],
+        },
+        {
+            "name": "Sweep: Eval",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "tools.sweep_eval",
+            "args": [
+                "+hardware=macbook",
+                "run=daveey.local.sweep.6.r.27",
+                "sweep_name=daveey.local.sweep.6",
+                "+user=${env:USER}",
+            ],
+        },
+        {
+            "name": "Sweep: Train",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "tools.sweep_train",
             "args": [
                 "+hardware=macbook",
                 "+user=${env:USER}",

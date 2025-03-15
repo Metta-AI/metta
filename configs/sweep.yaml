@@ -1,6 +1,9 @@
 defaults:
+  - common
   - wandb
   - agent: simple
+  - eval: eval
+  - analyzer: train_analyzer
   - trainer: puffer
   - env/mettagrid@env: simple
   - sweep: full
@@ -16,6 +19,7 @@ eval:
   num_episodes: 25
   max_time_s: 600
   policy_agents_pct: 1.0
+  eval_db_uri: ${..sweep_dir}/eval_stats.json
 
 data_dir: "./train_dir"
 sweep_dir: "${.data_dir}/sweep/${.sweep_name}"
