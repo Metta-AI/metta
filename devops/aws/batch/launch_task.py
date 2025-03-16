@@ -111,6 +111,8 @@ def submit_batch_job(args, task_args):
         print(f"RAM per Node: {args.node_ram_gb} GB")
         print(f"Git Reference: {args.git_branch or args.git_commit}")
         print(f"Mettagrid Reference: {args.mettagrid_branch or args.mettagrid_commit}")
+        print(f"{'-' * 40}")
+        print(f"Command: {args.cmd}")
         if task_args:
             if no_color:
                 print(f"\nTask Arguments:")

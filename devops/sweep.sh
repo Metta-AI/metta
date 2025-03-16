@@ -1,6 +1,11 @@
 #!/bin/bash
-sweep="$1"
-args="${@:2}"
+args="${@:1}"
+
+sweep=$(echo "$args" | grep -o 'run=[^ ]*' | sed 's/run=//')
+if [ -z "$sweep" ]; then
+    echo "Error: run arg is required"
+    exit 1
+fi
 
 source ./devops/env.sh
 ./devops/checkout_and_build.sh
