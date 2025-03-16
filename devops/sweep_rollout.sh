@@ -13,7 +13,7 @@ echo "Sweep: $sweep == running command: $cmd"
 $cmd
 
 echo "Sweep: $sweep == training..."
-cmd="python -m tools.train dist_cfg_path=$tmp_run data_dir=./train_dir/sweep/$sweep/runs $args"
+cmd="./devops/train.sh dist_cfg_path=$tmp_run data_dir=./train_dir/sweep/$sweep/runs $args"
 echo "Sweep: $sweep == running command: $cmd"
 $cmd
 
