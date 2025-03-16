@@ -480,7 +480,8 @@ class PufferTrainer:
                 "run": self.cfg.run,
                 "action_names": self.vecenv.driver_env.action_names(),
                 "generation": generation,
-                "initial_uri": self._initial_pr.uri
+                "initial_uri": self._initial_pr.uri,
+                "train_time": time.time() - self.train_start,
             }
         )
         # this is hacky, but otherwise the initial_pr points
@@ -542,16 +543,16 @@ class PufferTrainer:
 
         if self.wandb_run and self.cfg.wandb.track and self._master:
             self.wandb_run.log({
-                **{f'overview/{k}': v for k, v in overview.items()},
-                **{f'losses/{k}': v for k, v in losses.items()},
-                **{f'performance/{k}': v for k, v in performance.items()},
+                **{f"overview/{k}": v for k, v in overview.items()},
+                **{f"losses/{k}": v for k, v in losses.items()},
+                **{f"performance/{k}": v for k, v in performance.items()},
                 **environment,
                 **policy_fitness_metrics,
                 **effective_rank_metrics,
-                'train/agent_step': agent_steps,
-                'train/epoch': epoch,
-                'train/learning_rate': learning_rate,
-                'train/average_reward': self.average_reward if self.trainer_cfg.average_reward else None,
+                "train/agent_step": agent_steps,
+                "train/epoch": epoch,
+                "train/learning_rate": learning_rate,
+                "train/average_reward": self.average_reward if self.trainer_cfg.average_reward else None,
             })
 
         self._policy_fitness = []

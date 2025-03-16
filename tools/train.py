@@ -37,6 +37,11 @@ def train(cfg, wandb_run):
 @record
 @hydra.main(config_path="../configs", config_name="train", version_base=None)
 def main(cfg: OmegaConf) -> int:
+    wandb_run_id = None
+    if cfg.dist_cfg_path is not None:
+        dist_cfg = OmegaConf.load(cfg.dist_cfg_path)
+        cfg.run = dist_cfg.run
+        wandb_run_id = dist_cfg.wandb_run_id
     setup_metta_environment(cfg)
 
     if "LOCAL_RANK" in os.environ and cfg.device == "cuda":
@@ -54,7 +59,7 @@ def main(cfg: OmegaConf) -> int:
         with open(os.path.join(cfg.run_dir, "config.yaml"), "w") as f:
             OmegaConf.save(cfg, f)
 
-        with WandbContext(cfg) as wandb_run:
+        with WandbContext(cfg, run_id=wandb_run_id) as wandb_run:
             train(cfg, wandb_run)
     else:
         train(cfg, None)

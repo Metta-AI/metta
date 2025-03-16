@@ -39,11 +39,9 @@ def main(cfg: OmegaConf) -> int:
     is_master = os.environ.get("RANK", "0") == "0"
     if is_master:
         create_sweep(cfg.sweep_name, cfg)
-        run_id = create_run(cfg.sweep_name, cfg)
-        with open(cfg.save_run, "w") as f:
-            f.write(run_id)
+        create_run(cfg.sweep_name, cfg)
     else:
-        wait_for_run(cfg.sweep_name, cfg, cfg.save_run)
+        wait_for_run(cfg.sweep_name, cfg, cfg.dist_cfg_path)
 
 def create_sweep(sweep_name: str, cfg: OmegaConf) -> None:
     """
@@ -79,16 +77,18 @@ def create_run(sweep_name: str, cfg: OmegaConf) -> str:
 
     sweep_cfg = OmegaConf.load(os.path.join(cfg.sweep_dir, "config.yaml"))
 
-    logger.info(f"Creating new run for sweep: {sweep_name} ({sweep_cfg.wandb_path})")
-    run_id = generate_run_id_for_sweep(sweep_cfg.wandb_path, cfg.runs_dir)
-    logger.info(f"Sweep run ID: {run_id}")
+    logger.info(f"Creating new run for sweepd: {sweep_name} ({sweep_cfg.wandb_path})")
+    run_name = generate_run_id_for_sweep(sweep_cfg.wandb_path, cfg.runs_dir)
+    logger.info(f"Sweep run ID: {run_name}")
 
-    run_dir = os.path.join(cfg.runs_dir, run_id)
+    run_dir = os.path.join(cfg.runs_dir, run_name)
     os.makedirs(run_dir, exist_ok=True)
+    cfg.run = run_name
 
     def init_run():
-        with WandbContext(cfg, run_id=run_id, data_dir=run_dir) as wandb_run:
-            wandb_run.name = run_id
+        with WandbContext(cfg, data_dir=run_dir) as wandb_run:
+            wandb_run_id = wandb_run.id
+            wandb_run.name = run_name
             wandb_run.tags += (
                 f"sweep_id:{sweep_cfg.wandb_sweep_id}",
                 f"sweep_name:{sweep_cfg.sweep}")
@@ -118,12 +118,20 @@ def create_run(sweep_name: str, cfg: OmegaConf) -> str:
             OmegaConf.save(train_cfg, save_path)
             logger.info(f"Saved train config overrides to {save_path}")
 
+        if cfg.dist_cfg_path is not None:
+            logger.info(f"Saved run details to {cfg.dist_cfg_path}")
+            os.makedirs(os.path.dirname(cfg.dist_cfg_path), exist_ok=True)
+            OmegaConf.save({
+                "run": run_name,
+                "wandb_run_id": wandb_run_id,
+            }, cfg.dist_cfg_path)
+
     wandb.agent(sweep_cfg.wandb_sweep_id,
                 entity=cfg.wandb.entity,
                 project=cfg.wandb.project,
                 function=init_run, count=1)
 
-    return run_id
+    return run_name
 
 def wait_for_run(sweep_name: str, cfg: OmegaConf, path: str) -> None:
     """

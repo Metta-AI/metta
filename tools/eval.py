@@ -1,7 +1,7 @@
 import logging
 
 import hydra
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 from util.runtime_configuration import setup_metta_environment
 from agent.policy_store import PolicyStore
 from rl.eval.eval_stats_logger import EvalStatsLogger
@@ -12,9 +12,14 @@ logger = logging.getLogger("eval.py")
 
 @hydra.main(version_base=None, config_path="../configs", config_name="config")
 def main(cfg: DictConfig):
+    wandb_run_id = None
+    if cfg.dist_cfg_path is not None:
+        dist_cfg = OmegaConf.load(cfg.dist_cfg_path)
+        cfg.run = dist_cfg.run
+        wandb_run_id = dist_cfg.wandb_run_id
     setup_metta_environment(cfg)
 
-    with WandbContext(cfg) as wandb_run:
+    with WandbContext(cfg, run_id=wandb_run_id) as wandb_run:
         policy_store = PolicyStore(cfg, wandb_run)
         policy_pr = policy_store.policy(cfg.eval.policy_uri)
 

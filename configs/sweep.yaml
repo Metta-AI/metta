@@ -10,8 +10,12 @@ defaults:
 
 cmd: sweep
 sweep_name: ???
-metric: heart.get
+# metric: heart.get
+metric: episode_reward
 num_random_samples: 10
+
+trainer:
+  evaluate_interval: 0
 
 eval:
   env: env/mettagrid/simple
@@ -19,8 +23,13 @@ eval:
   num_episodes: 25
   max_time_s: 600
   policy_agents_pct: 1.0
-  eval_db_uri: ${..sweep_dir}/eval_stats.json
+  eval_db_uri: ${..run_dir}/eval_stats.json
 
-data_dir: "./train_dir"
+analyzer:
+  analysis:
+    metrics:
+      - metric: episode_reward
+      - metric: heart.get
+
 sweep_dir: "${.data_dir}/sweep/${.sweep_name}"
 runs_dir: "${.sweep_dir}/runs"

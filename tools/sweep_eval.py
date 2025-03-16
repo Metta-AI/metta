@@ -43,6 +43,11 @@ def load_file(run_dir, name):
 
 @hydra.main(config_path="../configs", config_name="sweep", version_base=None)
 def main(cfg: OmegaConf) -> int:
+    wandb_run_id = None
+    if cfg.dist_cfg_path is not None:
+        dist_cfg = OmegaConf.load(cfg.dist_cfg_path)
+        cfg.run = dist_cfg.run
+        wandb_run_id = dist_cfg.wandb_run_id
     setup_metta_environment(cfg)
 
     results_path = os.path.join(cfg.run_dir, "sweep_eval_results.yaml")
@@ -56,9 +61,15 @@ def main(cfg: OmegaConf) -> int:
                 return 1
         return 0
 
-    with WandbContext(cfg) as wandb_run:
+    with WandbContext(cfg, run_id=wandb_run_id) as wandb_run:
         policy_store = PolicyStore(cfg, wandb_run)
-        policy_pr = policy_store.policy("wandb://run/" + cfg.run)
+        policies = policy_store.policies("wandb://run/" + cfg.run)
+        if len(policies) == 0:
+            logger.error(f"No policies found for run {cfg.run}")
+            WandbCarbs._record_failure(wandb_run)
+            return 1
+
+        policy_pr = policies[0]
 
         cfg.eval.policy_uri = policy_pr.uri
         cfg.analyzer.policy_uri = policy_pr.uri
@@ -116,9 +127,9 @@ def main(cfg: OmegaConf) -> int:
         eval_metric = filtered_results['mean'].sum()
 
         # Get training stats from metadata if available
-        train_time = policy_pr.metadata.get("time.train", 0)
-        agent_step = policy_pr.metadata.get("train.agent_step", 0)
-        epoch = policy_pr.metadata.get("train.epoch", 0)
+        train_time = policy_pr.metadata.get("train_time", 0)
+        agent_step = policy_pr.metadata.get("agent_step", 0)
+        epoch = policy_pr.metadata.get("epoch", 0)
 
         # Update sweep stats with evaluation results
         stats_update = {
@@ -153,10 +164,10 @@ def main(cfg: OmegaConf) -> int:
         policy_store.add_to_wandb_sweep(cfg.sweep_name, policy_pr)
 
         # Record observation in CARBS if enabled
-        total_time = time.time() - start_time
+        total_time = train_time + eval_time
         logger.info(f"Evaluation Metric: {eval_metric}, Total Time: {total_time}")
 
-        WandbCarbs._record_observation(wandb_run, eval_metric, total_time)
+        WandbCarbs._record_observation(wandb_run, eval_metric, total_time, allow_update=True)
 
         wandb_run.summary.update({"run_time": total_time})
         return 0

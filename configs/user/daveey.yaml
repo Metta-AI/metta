@@ -4,7 +4,7 @@ seed: null
 
 
 defaults:
-  - /sweep/fast@parameters
+  - override /sweep: fast
   - override /agent: simple
   - override /env/mettagrid@env: bases
 
@@ -64,3 +64,5 @@ cmd: ???
 run_id: 6
 run: ${oc.env:USER}.local.${cmd}.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
+
+sweep_name: "${oc.env:USER}.local.sweep.0"

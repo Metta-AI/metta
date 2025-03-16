@@ -24,6 +24,7 @@
             "args": [
                 "+hardware=macbook",
                 "+user=${env:USER}",
+                "dist_cfg_path=${data_dir}/${env:USER}/dist_cfg.yaml",
             ],
         },
         {
@@ -33,8 +34,7 @@
             "module": "tools.sweep_eval",
             "args": [
                 "+hardware=macbook",
-                "run=daveey.local.sweep.6.r.27",
-                "sweep_name=daveey.local.sweep.6",
+                "dist_cfg_path=./train_dir/${env:USER}/dist_cfg.yaml",
                 "+user=${env:USER}",
             ],
         },
@@ -42,10 +42,12 @@
             "name": "Sweep: Train",
             "type": "debugpy",
             "request": "launch",
-            "module": "tools.sweep_train",
+            "module": "tools.train",
             "args": [
                 "+hardware=macbook",
                 "+user=${env:USER}",
+                "data_dir=./train_dir/sweep/${sweep_name}/runs",
+                "dist_cfg_path=./train_dir/${env:USER}/dist_cfg.yaml",
             ],
         },
         {
