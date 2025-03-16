@@ -7,8 +7,7 @@ source ./devops/env.sh
 mkdir -p ./train_dir/sweep/$sweep
 
 echo "Sweep: $sweep == creating run..."
-DIST_ID=${MASTER_ADDR:-localhost}
-dist_cfg_path=./train_dir/sweep/$sweep/dist_$DIST_ID.yaml
+dist_cfg_path=./train_dir/sweep/$sweep/dist_$JOB_NAME.yaml
 
 cmd="python -m tools.sweep_init sweep_name=$sweep dist_cfg_path=$dist_cfg_path $args"
 echo "Sweep: $sweep == running command: $cmd"

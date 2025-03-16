@@ -198,6 +198,10 @@ def container_config(args, task_args, job_name):
             'value': job_name
         },
         {
+            'name': 'JOB_NAME',
+            'value': job_name
+        },
+        {
             'name': 'METTA_USER',
             'value': os.environ.get('USER', 'unknown')
         },
