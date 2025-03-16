@@ -38,6 +38,8 @@ export METTAGRID_REF
 
 # Link training directory
 ln -s /mnt/efs/train_dir train_dir 2>/dev/null || true
+# Create dist directory
+mkdir -p train_dir/dist/$RUN_ID
 
 export NODE_RANK=${AWS_BATCH_JOB_NODE_INDEX:-0}
 export NUM_NODES=${AWS_BATCH_JOB_NUM_NODES:-1}
@@ -57,6 +59,6 @@ echo "Additional args: $TASK_ARGS"
 echo "Hardware: $HARDWARE"
 
 # Run the training command
-./devops/$CMD.sh run=$RUN_ID hardware=$HARDWARE trainer.num_workers=$NUM_WORKERS $TASK_ARGS
+./devops/$CMD.sh run=$RUN_ID hardware=$HARDWARE dist_cfg_path=./train_dir/dist/$RUN_ID/dist_cfg.yaml trainer.num_workers=$NUM_WORKERS $TASK_ARGS
 
 echo "=== Batch job complete ==="
