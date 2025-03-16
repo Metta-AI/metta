@@ -77,7 +77,7 @@ def create_run(sweep_name: str, cfg: OmegaConf) -> str:
 
     sweep_cfg = OmegaConf.load(os.path.join(cfg.sweep_dir, "config.yaml"))
 
-    logger.info(f"Creating new run for sweepd: {sweep_name} ({sweep_cfg.wandb_path})")
+    logger.info(f"Creating new run for sweep: {sweep_name} ({sweep_cfg.wandb_path})")
     run_name = generate_run_id_for_sweep(sweep_cfg.wandb_path, cfg.runs_dir)
     logger.info(f"Sweep run ID: {run_name}")
 
