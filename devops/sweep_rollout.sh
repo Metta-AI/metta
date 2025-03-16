@@ -3,7 +3,6 @@ sweep="$1"
 args="${@:2}"
 
 source ./devops/env.sh
-./devops/checkout_and_build.sh
 
 mkdir -p ./train_dir/sweep/$sweep
 

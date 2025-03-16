@@ -63,13 +63,13 @@ def main(cfg: OmegaConf) -> int:
 
     with WandbContext(cfg, run_id=wandb_run_id) as wandb_run:
         policy_store = PolicyStore(cfg, wandb_run)
-        policies = policy_store.policies("wandb://run/" + cfg.run)
-        if len(policies) == 0:
-            logger.error(f"No policies found for run {cfg.run}")
+        try:
+            policy_pr = policy_store.policy("wandb://run/" + cfg.run)
+        except Exception as e:
+            logger.error(f"Error getting policy for run {cfg.run}: {e}")
             WandbCarbs._record_failure(wandb_run)
             return 1
 
-        policy_pr = policies[0]
 
         cfg.eval.policy_uri = policy_pr.uri
         cfg.analyzer.policy_uri = policy_pr.uri
