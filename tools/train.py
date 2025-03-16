@@ -26,9 +26,6 @@ logging.basicConfig(
 logger = logging.getLogger("train")
 
 def train(cfg, wandb_run):
-    # pretty print the cfg as yaml
-    logger.info("Training with config:")
-    logger.info(OmegaConf.to_yaml(cfg))
     policy_store = PolicyStore(cfg, wandb_run)
     trainer = hydra.utils.instantiate(cfg.trainer, cfg, wandb_run, policy_store)
     trainer.train()
