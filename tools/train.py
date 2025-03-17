@@ -43,6 +43,7 @@ def train(cfg, wandb_run):
 @record
 @hydra.main(config_path="../configs", config_name="train", version_base=None)
 def main(cfg: OmegaConf) -> int:
+    print("trainer started....")
     logger.info(f"Training {cfg.run} on " +
                 f"{os.environ.get('NODE_RANK', '0')}: " +
                 f"{os.environ.get('LOCAL_RANK', '0')} ({cfg.device})")

@@ -6,10 +6,13 @@ args="${@:1}"
 ./devops/checkout_and_build.sh
 
 NUM_GPUS=${NUM_GPUS:-1}
+echo "NUM_GPUS: $NUM_GPUS"
 NUM_NODES=${NUM_NODES:-1}
+echo "NUM_NODES: $NUM_NODES"
 MASTER_ADDR=${MASTER_ADDR:-localhost}
+echo "MASTER_ADDR: $MASTER_ADDR"
 NODE_RANK=${NODE_RANK:-0}
-
+echo "NODE_RANK: $NODE_RANK"
 
 echo "Running train with args: $args"
 PYTHONPATH=$PYTHONPATH:.

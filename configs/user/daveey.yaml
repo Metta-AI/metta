@@ -7,7 +7,7 @@ defaults:
   - /sweep: fast
   - override /eval: eval
   - override /agent: simple
-  - override /env/mettagrid@env: bases
+  # - override /env/mettagrid@env: bases
 
 # policy: wandb://run/b.daveey.train.maze.sm.dr.warm.0
 # baselines: wandb://run/b.daveey.train.maze.sm.11x11.0
@@ -64,7 +64,7 @@ wandb:
   track: true
   checkpoint_interval: 1
 
-run_id: 7
+run_id: 9
 run: ${oc.env:USER}.local.${cmd}.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 

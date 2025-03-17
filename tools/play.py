@@ -10,7 +10,7 @@ from rl.wandb.wandb_context import WandbContext
 
 signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
 
-@hydra.main(version_base=None, config_path="../configs", config_name="config")
+@hydra.main(version_base=None, config_path="../configs", config_name="eval")
 def main(cfg):
     setup_metta_environment(cfg)
 
