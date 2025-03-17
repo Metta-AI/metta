@@ -47,7 +47,7 @@ def main(cfg: OmegaConf) -> int:
         cfg.device = f'{cfg.device}:{local_rank}'
         dist.init_process_group(backend="nccl")
 
-    if os.environ.get("RANK", "0") == "0":
+    if os.environ.get("NODE_RANK", "0") == "0":
         overrides_path = os.path.join(cfg.run_dir, "train_config_overrides.yaml")
         if os.path.exists(overrides_path):
             logger.info(f"Loading train config overrides from {overrides_path}")

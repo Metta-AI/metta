@@ -36,7 +36,7 @@ def main(cfg: OmegaConf) -> int:
 
     cfg.wandb.name = cfg.sweep_name
 
-    is_master = os.environ.get("RANK", "0") == "0"
+    is_master = os.environ.get("NODE_RANK", "0") == "0"
     if is_master:
         create_sweep(cfg.sweep_name, cfg)
         create_run(cfg.sweep_name, cfg)

@@ -52,7 +52,7 @@ def main(cfg: OmegaConf) -> int:
 
     results_path = os.path.join(cfg.run_dir, "sweep_eval_results.yaml")
     start_time = time.time()
-    if os.environ.get("RANK", "0") != "0":
+    if os.environ.get("NODE_RANK", "0") != "0":
         logger.info("Waiting for master to evaluate policy")
         while not os.path.exists(results_path):
             time.sleep(1)
