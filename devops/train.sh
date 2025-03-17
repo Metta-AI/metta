@@ -2,7 +2,7 @@
 
 args="${@:1}"
 
-./devops/env.sh
+source ./devops/env.sh
 ./devops/checkout_and_build.sh
 
 NUM_GPUS=${NUM_GPUS:-1}
