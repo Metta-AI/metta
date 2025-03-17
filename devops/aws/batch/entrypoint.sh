@@ -56,8 +56,8 @@ echo "GPUs: $NUM_GPUS"
 echo "Node index: $NODE_INDEX of $NUM_NODES nodes"
 echo "Master address: $MASTER_ADDR:$MASTER_PORT"
 echo "Workers: $NUM_WORKERS"
-echo "Additional args: $TASK_ARGS"
 echo "Hardware: $HARDWARE"
+echo "Additional args: $TASK_ARGS"
 
 # Run the training command
 ./devops/$CMD.sh run=$RUN_ID +hardware=$HARDWARE  trainer.num_workers=$NUM_WORKERS $TASK_ARGS

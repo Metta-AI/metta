@@ -45,7 +45,7 @@ def train(cfg, wandb_run):
 def main(cfg: OmegaConf) -> int:
     print("trainer started....")
     logger.info(f"Training {cfg.run} on " +
-                f"{os.environ.get('NODE_RANK', '0')}: " +
+                f"{os.environ.get('NODE_INDEX', '0')}: " +
                 f"{os.environ.get('LOCAL_RANK', '0')} ({cfg.device})")
     setup_metta_environment(cfg)
 
