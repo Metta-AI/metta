@@ -44,7 +44,6 @@ def load_file(run_dir, name):
 
 @hydra.main(config_path="../configs", config_name="sweep", version_base=None)
 def main(cfg: OmegaConf) -> int:
-    cfg, wandb_run_id = init_dist(cfg)
     setup_metta_environment(cfg)
 
     results_path = os.path.join(cfg.run_dir, "sweep_eval_results.yaml")
@@ -58,7 +57,7 @@ def main(cfg: OmegaConf) -> int:
                 return 1
         return 0
 
-    with WandbContext(cfg, run_id=wandb_run_id) as wandb_run:
+    with WandbContext(cfg) as wandb_run:
         policy_store = PolicyStore(cfg, wandb_run)
         try:
             policy_pr = policy_store.policy("wandb://run/" + cfg.run)

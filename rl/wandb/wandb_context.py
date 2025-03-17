@@ -8,7 +8,7 @@ class WandbContext:
         self.cfg = cfg
         self.resume = resume
         self.name = name or cfg.wandb.name
-        self.run_id = run_id or self.cfg.run or wandb.util.generate_id()
+        self.run_id = cfg.wandb.run_id or self.cfg.run or wandb.util.generate_id()
         self.run = None
         self.data_dir = data_dir or self.cfg.run_dir
 

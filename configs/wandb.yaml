@@ -5,3 +5,4 @@ wandb:
   project: metta
   entity: metta-research
   group: ${.name}
+  run_id: null
