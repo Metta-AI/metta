@@ -56,5 +56,8 @@ def main(cfg: OmegaConf) -> int:
     else:
         train(cfg, None)
 
+    if dist.is_initialized():
+        dist.destroy_process_group()
+
 if __name__ == "__main__":
     sys.exit(main())
