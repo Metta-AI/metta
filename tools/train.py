@@ -7,6 +7,7 @@ from typing import List, Optional
 
 import yaml
 from agent.policy_store import PolicyStore
+from util.dist import init_dist
 from util.runtime_configuration import setup_metta_environment, setup_omega_conf
 from omegaconf import OmegaConf, open_dict, DictConfig
 from rich.logging import RichHandler
@@ -34,11 +35,7 @@ def train(cfg, wandb_run):
 @record
 @hydra.main(config_path="../configs", config_name="train", version_base=None)
 def main(cfg: OmegaConf) -> int:
-    wandb_run_id = None
-    if cfg.dist_cfg_path is not None:
-        dist_cfg = OmegaConf.load(cfg.dist_cfg_path)
-        cfg.run = dist_cfg.run
-        wandb_run_id = dist_cfg.wandb_run_id
+    cfg, wandb_run_id = init_dist(cfg)
     setup_metta_environment(cfg)
 
     if "LOCAL_RANK" in os.environ and cfg.device == "cuda":

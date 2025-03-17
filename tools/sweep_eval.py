@@ -15,6 +15,7 @@ from agent.policy_store import PolicyStore
 from rl.eval.eval_stats_db import EvalStatsDB
 from rl.eval.eval_stats_logger import EvalStatsLogger
 from rl.wandb.wandb_context import WandbContext
+from util.dist import init_dist
 from util.runtime_configuration import setup_metta_environment
 
 # Configure rich colored logging to stderr instead of stdout
@@ -43,11 +44,7 @@ def load_file(run_dir, name):
 
 @hydra.main(config_path="../configs", config_name="sweep", version_base=None)
 def main(cfg: OmegaConf) -> int:
-    wandb_run_id = None
-    if cfg.dist_cfg_path is not None:
-        dist_cfg = OmegaConf.load(cfg.dist_cfg_path)
-        cfg.run = dist_cfg.run
-        wandb_run_id = dist_cfg.wandb_run_id
+    cfg, wandb_run_id = init_dist(cfg)
     setup_metta_environment(cfg)
 
     results_path = os.path.join(cfg.run_dir, "sweep_eval_results.yaml")
