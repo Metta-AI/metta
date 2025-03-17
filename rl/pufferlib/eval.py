@@ -169,7 +169,7 @@ class EvalSuite:
         self,
         policy_store: PolicyStore,
         policy_pr: PolicyRecord,
-        env_defaults: DictConfig,
+        env_overrides: DictConfig = None,
         evals: DictConfig = None,
         **kwargs):
 
@@ -177,7 +177,8 @@ class EvalSuite:
         self._evals = []
         for eval_name, eval_cfg in evals.items():
             eval_cfg = OmegaConf.merge(kwargs, eval_cfg)
-            eval = Eval(policy_store, policy_pr, env_defaults, **eval_cfg)
+            eval = Eval(policy_store, policy_pr,
+                        env_overrides=env_overrides, **eval_cfg)
             self._evals.append(eval)
 
     def evaluate(self):
