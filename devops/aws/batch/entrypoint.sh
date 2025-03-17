@@ -47,6 +47,7 @@ export MASTER_ADDR=${AWS_BATCH_JOB_MAIN_NODE_PRIVATE_IPV4_ADDRESS:-localhost}
 export MASTER_PORT=29500
 export HARDWARE=${HARDWARE:-aws}
 export SKIP_BUILD=1
+export DIST_ID=$JOB_NAME
 
 echo "=== Starting training ==="
 echo "Run ID: $RUN_ID"
@@ -59,6 +60,6 @@ echo "Additional args: $TASK_ARGS"
 echo "Hardware: $HARDWARE"
 
 # Run the training command
-./devops/$CMD.sh run=$RUN_ID +hardware=$HARDWARE dist_cfg_path=./train_dir/dist/$JOB_NAME/dist_cfg.yaml trainer.num_workers=$NUM_WORKERS $TASK_ARGS
+./devops/$CMD.sh run=$RUN_ID +hardware=$HARDWARE  trainer.num_workers=$NUM_WORKERS $TASK_ARGS
 
 echo "=== Batch job complete ==="
