@@ -11,7 +11,7 @@ import wandb
 from omegaconf import OmegaConf, DictConfig
 from rich.logging import RichHandler
 import yaml
-
+import random
 from rl.wandb.sweep import generate_run_id_for_sweep, sweep_id_from_name
 from rl.carbs.metta_carbs import carbs_params_from_cfg
 import wandb_carbs
@@ -53,6 +53,10 @@ def create_sweep(sweep_name: str, cfg: OmegaConf) -> None:
         return
 
     logger.info(f"Creating new sweep: {cfg.sweep_dir}")
+    if os.path.exists(cfg.sweep_dir):
+        logger.info("Sweep directory already exists, maybe someone else is running this command?")
+        time.sleep(random.randint(1, 10))
+        return
     os.makedirs(cfg.runs_dir, exist_ok=True)
 
     carbs_params = carbs_params_from_cfg(cfg)
