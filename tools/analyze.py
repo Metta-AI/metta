@@ -18,7 +18,7 @@ def main(cfg: DictConfig) -> None:
 
     with WandbContext(cfg) as wandb_run:
         eval_stats_db = EvalStatsDB.from_uri(cfg.eval.eval_db_uri, cfg.run_dir, wandb_run)
-        analyzer = hydra.utils.instantiate(cfg.analyzer, eval_stats_db)
+        analyzer =  hydra.utils.instantiate(cfg.analyzer, eval_stats_db)
         analyzer.analyze()
 
 if __name__ == "__main__":

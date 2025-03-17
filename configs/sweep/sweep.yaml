@@ -1,6 +1,4 @@
-
-
-metric: action.use.altar
+metric: episode_reward
 test: raw # glicko, elo, raw
 
 rollout_count: 100000
@@ -94,9 +92,9 @@ parameters:
       max: 128
     total_timesteps:
       space: log
-      search_center: 1.1e8
-      min: 1e8
-      max: 1e10
+      search_center: 3e9
+      min: 2e9
+      max: 10e9
     # compile:
     #   space: linear
     #   is_int: true

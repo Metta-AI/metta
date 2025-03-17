@@ -22,6 +22,7 @@ from rl.pufferlib.profile import Profile
 from rl.pufferlib.trace import save_trace_image
 from rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
 from rl.pufferlib.vecenv import make_vecenv
+from rl.pufferlib.kickstarter import Kickstarter
 
 torch.set_float32_matmul_precision('high')
 
@@ -42,9 +43,9 @@ class PufferTrainer:
         self._world_size = 1
         if dist.is_initialized():
             logger.info("Setting up distributed training")
-            self._master = (int(os.environ["LOCAL_RANK"]) == 0)
+            self._master = (int(os.environ["RANK"]) == 0)
             self._world_size = dist.get_world_size()
-
+            logger.info(f"Rank: {os.environ['RANK']}, Local rank: {os.environ['LOCAL_RANK']}, World size: {self._world_size}")
         self.profile = Profile()
         self.losses = self._make_losses()
         self.stats = defaultdict(list)
@@ -124,6 +125,8 @@ class PufferTrainer:
             for k in ["0verview", "env", "losses", "performance", "train"]:
                 wandb_run.define_metric(f"{k}/*", step_metric="train/agent_step")
 
+        self.kickstarter = Kickstarter(self.cfg, self.policy_store, self.vecenv.single_action_space)
+
         logger.info(f"PufferTrainer initialization complete on device: {self.device}")
 
     def train(self):
@@ -176,7 +179,11 @@ class PufferTrainer:
 
         eval = hydra.utils.instantiate(self.cfg.eval, self.policy_store, self.last_pr, self.cfg.env, _recursive_ = False)
         stats = eval.evaluate()
-        self.eval_stats_logger.log(stats)
+
+        try:
+            self.eval_stats_logger.log(stats)
+        except Exception as e:
+            logger.error(f"Error logging stats: {e}")
 
         eval_stats_db = EvalStatsDB.from_uri(self.cfg.eval.eval_db_uri, self.cfg.run_dir, self.wandb_run)
         analyzer = hydra.utils.instantiate(self.cfg.analyzer, eval_stats_db)
@@ -203,7 +210,22 @@ class PufferTrainer:
         while not experience.full:
             with profile.env:
                 o, r, d, t, info, env_id, mask = self.vecenv.recv()
-                env_id = env_id.tolist()
+
+                # Zero-copy indexing for contiguous env_id
+
+                # This was originally self.config.env_batch_size == 1, but you have scaling
+                # configured differently in metta. You want the whole forward pass batch to come
+                # from one core to reduce indexing overhead.
+                # contiguous_env_ids = self.vecenv.agents_per_batch == self.vecenv.driver_env.agents_per_env[0]
+                contiguous_env_ids = False
+                if contiguous_env_ids:
+                    gpu_env_id = cpu_env_id = slice(env_id[0], env_id[-1] + 1)
+                else:
+                    if self.trainer_cfg.require_contiguous_env_ids:
+                        raise ValueError("Env ids are not contiguous. "\
+                            f"{self.vecenv.agents_per_batch} != {self.vecenv.agents_per_env[0]}")
+                    cpu_env_id = env_id
+                    gpu_env_id = torch.as_tensor(env_id).to(self.device, non_blocking=True)
 
             with profile.eval_misc:
                 num_steps = sum(mask)
@@ -217,13 +239,13 @@ class PufferTrainer:
             with profile.eval_forward, torch.no_grad():
                 # TODO: In place-update should be faster. Leaking 7% speed max
                 # Also should be using a cuda tensor to index
-                e3b = e3b_inv[env_id] if self.use_e3b else None
+                e3b = e3b_inv[gpu_env_id] if self.use_e3b else None
 
-                h = lstm_h[:, env_id]
-                c = lstm_c[:, env_id]
-                actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward = policy(o_device, (h, c), e3b=e3b)
-                lstm_h[:, env_id] = h
-                lstm_c[:, env_id] = c
+                h = lstm_h[:, gpu_env_id]
+                c = lstm_c[:, gpu_env_id]
+                actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward, _ = policy(o_device, (h, c), e3b=e3b)
+                lstm_h[:, gpu_env_id] = h
+                lstm_c[:, gpu_env_id] = c
                 if self.use_e3b:
                     e3b_inv[env_id] = next_e3b
                     r += intrinsic_reward.cpu()
@@ -236,7 +258,7 @@ class PufferTrainer:
                 actions = actions.cpu().numpy()
                 mask = torch.as_tensor(mask)# * policy.mask)
                 o = o if self.trainer_cfg.cpu_offload else o_device
-                self.experience.store(o, value, actions, logprob, r, d, env_id, mask)
+                self.experience.store(o, value, actions, logprob, r, d, cpu_env_id, mask)
 
                 for i in info:
                     for k, v in pufferlib.utils.unroll_nested_dict(i):
@@ -300,6 +322,7 @@ class PufferTrainer:
         total_minibatches = experience.num_minibatches * self.trainer_cfg.update_epochs
         for epoch in range(self.trainer_cfg.update_epochs):
             lstm_state = None
+            teacher_lstm_state = None
             for mb in range(experience.num_minibatches):
                 with profile.train_misc:
                     obs = experience.b_obs[mb]
@@ -311,7 +334,7 @@ class PufferTrainer:
                     ret = experience.b_returns[mb]
 
                 with profile.train_forward:
-                    _, newlogprob, entropy, newvalue, lstm_state, _, _ = self.policy(
+                    _, newlogprob, entropy, newvalue, lstm_state, _, _, new_normalized_logits = self.policy(
                         obs, state=lstm_state, action=atn)
                     lstm_state = (lstm_state[0].detach(), lstm_state[1].detach())
 
@@ -356,6 +379,8 @@ class PufferTrainer:
 
                     entropy_loss = entropy.mean()
 
+                    ks_action_loss, ks_value_loss, teacher_lstm_state = self.kickstarter.loss(self.agent_step, new_normalized_logits, newvalue, obs, teacher_lstm_state)
+
                     l2_reg_loss = torch.tensor(0.0, device=self.device)
                     if self.trainer_cfg.l2_reg_loss_coef > 0:
                         l2_reg_loss = self.trainer_cfg.l2_reg_loss_coef * self.policy.l2_reg_loss().to(self.device)
@@ -364,7 +389,7 @@ class PufferTrainer:
                     if self.trainer_cfg.l2_init_loss_coef > 0:
                         l2_init_loss = self.trainer_cfg.l2_init_loss_coef * self.policy.l2_init_loss().to(self.device)
 
-                    loss = pg_loss - self.trainer_cfg.ent_coef * entropy_loss + v_loss * self.trainer_cfg.vf_coef + l2_reg_loss + l2_init_loss
+                    loss = pg_loss - self.trainer_cfg.ent_coef * entropy_loss + v_loss * self.trainer_cfg.vf_coef + l2_reg_loss + l2_init_loss + ks_action_loss + ks_value_loss
 
                 with profile.learn:
                     self.optimizer.zero_grad()
@@ -387,6 +412,8 @@ class PufferTrainer:
                     self.losses.clipfrac += clipfrac.item() / total_minibatches
                     self.losses.l2_reg_loss += l2_reg_loss.item() / total_minibatches
                     self.losses.l2_init_loss += l2_init_loss.item() / total_minibatches
+                    self.losses.ks_action_loss += ks_action_loss.item() / total_minibatches
+                    self.losses.ks_value_loss += ks_value_loss.item() / total_minibatches
 
             if self.trainer_cfg.target_kl is not None:
                 if approx_kl > self.trainer_cfg.target_kl:
@@ -552,6 +579,8 @@ class PufferTrainer:
             explained_variance=0,
             l2_reg_loss=0,
             l2_init_loss=0,
+            ks_action_loss=0,
+            ks_value_loss=0,
         )
 
     def _make_vecenv(self):
