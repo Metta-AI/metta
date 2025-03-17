@@ -41,7 +41,7 @@ ln -s /mnt/efs/train_dir train_dir 2>/dev/null || true
 # Create dist directory
 mkdir -p train_dir/dist/$RUN_ID
 
-export NODE_RANK=${AWS_BATCH_JOB_NODE_INDEX:-0}
+export NODE_INDEX=${AWS_BATCH_JOB_NODE_INDEX:-0}
 export NUM_NODES=${AWS_BATCH_JOB_NUM_NODES:-1}
 export MASTER_ADDR=${AWS_BATCH_JOB_MAIN_NODE_PRIVATE_IPV4_ADDRESS:-localhost}
 export MASTER_PORT=29500
@@ -53,7 +53,7 @@ echo "=== Starting training ==="
 echo "Run ID: $RUN_ID"
 echo "Command: $CMD"
 echo "GPUs: $NUM_GPUS"
-echo "Node index: $NODE_RANK of $NUM_NODES nodes"
+echo "Node index: $NODE_INDEX of $NUM_NODES nodes"
 echo "Master address: $MASTER_ADDR:$MASTER_PORT"
 echo "Workers: $NUM_WORKERS"
 echo "Additional args: $TASK_ARGS"
