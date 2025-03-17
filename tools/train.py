@@ -26,6 +26,15 @@ logging.basicConfig(
 logger = logging.getLogger("train")
 
 def train(cfg, wandb_run):
+    overrides_path = os.path.join(cfg.run_dir, "train_config_overrides.yaml")
+    if os.path.exists(overrides_path):
+        logger.info(f"Loading train config overrides from {overrides_path}")
+        cfg = OmegaConf.merge(cfg, OmegaConf.load(overrides_path))
+
+    if os.environ.get("RANK", "0") == "0":
+        with open(os.path.join(cfg.run_dir, "config.yaml"), "w") as f:
+            OmegaConf.save(cfg, f)
+
     policy_store = PolicyStore(cfg, wandb_run)
     trainer = hydra.utils.instantiate(cfg.trainer, cfg, wandb_run, policy_store)
     trainer.train()
@@ -43,14 +52,6 @@ def main(cfg: OmegaConf) -> int:
         dist.init_process_group(backend="nccl")
 
     if os.environ.get("RANK", "0") == "0":
-        overrides_path = os.path.join(cfg.run_dir, "train_config_overrides.yaml")
-        if os.path.exists(overrides_path):
-            logger.info(f"Loading train config overrides from {overrides_path}")
-            cfg = OmegaConf.merge(cfg, OmegaConf.load(overrides_path))
-
-        with open(os.path.join(cfg.run_dir, "config.yaml"), "w") as f:
-            OmegaConf.save(cfg, f)
-
         with WandbContext(cfg) as wandb_run:
             train(cfg, wandb_run)
     else:
