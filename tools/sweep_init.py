@@ -143,8 +143,8 @@ def wait_for_run(sweep_name: str, cfg: OmegaConf, path: str) -> None:
         logger.info(f"Waiting for run for sweep: {sweep_name}")
         time.sleep(5)
 
-    run_id = OmegaConf.load(path).run_id
-    logger.info(f"Run ID: {run_id} ready")
+    run = OmegaConf.load(path).run
+    logger.info(f"Run ID: {run} ready")
 
 def _apply_carbs_suggestion(config: OmegaConf, suggestion: DictConfig):
     for key, value in suggestion.items():
