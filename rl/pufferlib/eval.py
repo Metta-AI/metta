@@ -38,7 +38,8 @@ class Eval():
         for p in path[:-1]:
             env_cfg = env_cfg[p]
         self._env_cfg = env_cfg
-        OmegaConf.merge(env_cfg, env_overrides)
+        if env_overrides is not None:
+            env_cfg = OmegaConf.merge(env_cfg, env_overrides)
         self._env_name = env
 
         self._npc_policy_uri = npc_policy_uri
