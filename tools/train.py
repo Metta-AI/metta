@@ -7,7 +7,6 @@ from typing import List, Optional
 
 import yaml
 from agent.policy_store import PolicyStore
-from util.dist import init_dist
 from util.runtime_configuration import setup_metta_environment, setup_omega_conf
 from omegaconf import OmegaConf, open_dict, DictConfig
 from rich.logging import RichHandler

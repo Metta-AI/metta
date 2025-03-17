@@ -15,7 +15,6 @@ from agent.policy_store import PolicyStore
 from rl.eval.eval_stats_db import EvalStatsDB
 from rl.eval.eval_stats_logger import EvalStatsLogger
 from rl.wandb.wandb_context import WandbContext
-from util.dist import init_dist
 from util.runtime_configuration import setup_metta_environment
 
 # Configure rich colored logging to stderr instead of stdout

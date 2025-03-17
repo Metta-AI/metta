@@ -177,9 +177,3 @@ def efs_lock(path, timeout=300, retry_interval=5, max_retries=60):
     finally:
         lock._release_lock()
 
-def init_dist(cfg: OmegaConf):
-    if cfg.dist_cfg_path is not None:
-        dist_cfg = OmegaConf.load(cfg.dist_cfg_path)
-        cfg.run = dist_cfg.run
-        wandb_run_id = dist_cfg.wandb_run_id
-    return cfg, wandb_run_id
