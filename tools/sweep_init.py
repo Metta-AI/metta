@@ -37,7 +37,7 @@ def main(cfg: OmegaConf) -> int:
 
     cfg.wandb.name = cfg.sweep_name
 
-    is_master = os.environ.get("RANK", "0") == "0"
+    is_master = os.environ.get("NODE_INDEX", "0") == "0"
     if is_master:
         with efs_lock(cfg.sweep_dir + "/lock", timeout=300):
             create_sweep(cfg.sweep_name, cfg)
