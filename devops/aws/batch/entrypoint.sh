@@ -59,6 +59,6 @@ echo "Additional args: $TASK_ARGS"
 echo "Hardware: $HARDWARE"
 
 # Run the training command
-./devops/$CMD.sh run=$RUN_ID +hardware=$HARDWARE dist_cfg_path=./train_dir/dist/$RUN_ID/dist_cfg.yaml trainer.num_workers=$NUM_WORKERS $TASK_ARGS
+./devops/$CMD.sh run=$RUN_ID +hardware=$HARDWARE dist_cfg_path=./train_dir/dist/$JOB_NAME/dist_cfg.yaml trainer.num_workers=$NUM_WORKERS $TASK_ARGS
 
 echo "=== Batch job complete ==="
