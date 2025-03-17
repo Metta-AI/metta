@@ -43,10 +43,10 @@ def train(cfg, wandb_run):
 @record
 @hydra.main(config_path="../configs", config_name="train", version_base=None)
 def main(cfg: OmegaConf) -> int:
-    setup_metta_environment(cfg)
     logger.info(f"Training {cfg.run} on " +
                 f"{os.environ.get('NODE_RANK', '0')}: " +
                 f"{os.environ.get('LOCAL_RANK', '0')} ({cfg.device})")
+    setup_metta_environment(cfg)
 
     if "LOCAL_RANK" in os.environ and cfg.device == "cuda":
         logger.info(f"Initializing distributed training with {os.environ['LOCAL_RANK']} {cfg.device}")
