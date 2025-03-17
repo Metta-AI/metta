@@ -20,6 +20,6 @@ echo "Sweep: $sweep == running command: $cmd"
 $cmd
 
 echo "Sweep: $sweep == evaluating..."
-cmd="python -m tools.sweep_eval dist_cfg_path=$DIST_CFG_PATH data_dir=./train_dir/sweep/$sweep/runs $args"
+cmd="python -m tools.sweep_eval sweep_name=$sweep dist_cfg_path=$DIST_CFG_PATH data_dir=./train_dir/sweep/$sweep/runs $args"
 echo "Sweep: $sweep == running command: $cmd"
 $cmd

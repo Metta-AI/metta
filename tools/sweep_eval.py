@@ -43,6 +43,7 @@ def load_file(run_dir, name):
 
 @hydra.main(config_path="../configs", config_name="sweep", version_base=None)
 def main(cfg: OmegaConf) -> int:
+    cfg.sweep_name =
     wandb_run_id = None
     if cfg.dist_cfg_path is not None:
         dist_cfg = OmegaConf.load(cfg.dist_cfg_path)
