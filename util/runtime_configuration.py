@@ -98,3 +98,4 @@ def setup_metta_environment(cfg):
         dist_cfg = OmegaConf.load(cfg.dist_cfg_path)
         cfg.run = dist_cfg.run
         cfg.wandb.run_id = dist_cfg.wandb_run_id
+
