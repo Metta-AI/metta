@@ -58,6 +58,9 @@ class LayerBase(nn.Module):
         if self._output_size is None:
             self._output_size = self._input_size
 
+        if hasattr(self._input_source_component, '_out_tensor_shape'):
+            self._in_tensor_shape = self._input_source_component._out_tensor_shape
+
         self._initialize()
         self._ready = True
 
