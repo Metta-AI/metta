@@ -54,6 +54,7 @@ def main(cfg: OmegaConf) -> int:
         cfg.device = f'{cfg.device}:{local_rank}'
         dist.init_process_group(backend="nccl")
 
+    logger.info(f"Training {cfg.run} on {cfg.device}")
     if os.environ.get("RANK", "0") == "0":
         with WandbContext(cfg) as wandb_run:
             train(cfg, wandb_run)
