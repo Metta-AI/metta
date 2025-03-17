@@ -28,7 +28,10 @@ class Conv2d(ParamLayer):
         )
     
     def _set_conv_dims(self):
-        ''' Calculate flattened width and height. This allows us to change obs width and height. '''
+        ''' Calculate flattened width and height. This allows us to change obs width and height. 
+        
+        This assumes that the input height and width are coming from env obs, which *may not be true*
+        if your conv is used for something else.'''
         if hasattr(self._input_source_component, '_output_width'):
             self._input_width = self._input_source_component._output_width
             self._input_height = self._input_source_component._output_height

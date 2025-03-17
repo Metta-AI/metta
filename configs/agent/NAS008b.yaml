@@ -8,23 +8,11 @@ policy_selector:
   metric: final.score
   generation: null
 
-kickstarting: true
-kickstart_policies:
-  - policy_path: wandb://run/simple.standard.2.18.24
-    value_coef: 1
-    action_coef: 1
-
-  - policy_path: wandb://run/simple.standard.2.18.24
-    value_coef: 0
-    action_coef: 0
-  
-#./train_dir/simple.standard.2.18.24
-
 observations:
   obs_key: grid_obs
   track_last_action: ${env.track_last_action}
   
-clip_range: 3.0
+clip_range: 0
 effective_rank_interval: 10
 l2_init_weight_update_interval: 0
 
@@ -84,7 +72,6 @@ components:
       - source_name: obs_normalizer
         slice: [0, 28]  # extract the first 14 channels
         dim: 1          # operates on the channel dimension
-    output_size: 28
   
   # Extract the center row (height = 11 → 1)
   center_row:
@@ -93,7 +80,6 @@ components:
       - source_name: first_14_channels
         slice: [5, 6]   # extract the center row (row index 5)
         dim: 2          # operates on the height dimension
-    output_size: 1
 
   # Extract the center pixel from the center row (width = 11 → 1)
   center_pixel:
@@ -102,7 +88,6 @@ components:
       - source_name: center_row
         slice: [5, 6]   # extract the center column (column index 5)
         dim: 3          # operates on the width dimension
-    output_size: 1
 
   # Flatten (batch, channels, 1, 1) -> (batch, channels)
   center_pixel_flatten:
@@ -137,6 +122,7 @@ components:
     input_source: _core_
     output_size: 1024
     nonlinearity: nn.Tanh
+    effective_rank: true
 
   _value_:
     _target_: agent.lib.nn_layer_library.Linear
@@ -148,6 +134,7 @@ components:
     _target_: agent.lib.nn_layer_library.Linear
     input_source: _core_
     output_size: 512
+    effective_rank: true
 
   _action_type_:
     _target_: agent.lib.action.ActionType

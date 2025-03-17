@@ -31,6 +31,12 @@ class MergeLayerBase(LayerBase):
             source_name = src_cfg['source_name']
             full_source_size = self.input_source_components[source_name]._output_size
 
+            if self._name == 'first_14_channels':
+                print(f"first_14_channels")
+
+            if self._name == 'center_row':
+                print(f"center_row")
+
             if self._name == 'center_pixel':
                 print(f"center_pixel")
 
