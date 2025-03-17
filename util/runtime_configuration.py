@@ -88,14 +88,14 @@ def setup_metta_environment(cfg):
     warnings.filterwarnings('ignore', category=DeprecationWarning, module='pygame.pkgdata')
 
     setup_omega_conf()
+    if cfg.dist_cfg_path is not None:
+        dist_cfg = OmegaConf.load(cfg.dist_cfg_path)
+        cfg.run = dist_cfg.run
+        cfg.wandb.run_id = dist_cfg.wandb_run_id
+
     # print(OmegaConf.to_yaml(cfg))
     traceback.install(show_locals=False)
     seed_everything(cfg.seed, cfg.torch_deterministic)
     os.makedirs(cfg.run_dir, exist_ok=True)
     signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
-
-    if cfg.dist_cfg_path is not None:
-        dist_cfg = OmegaConf.load(cfg.dist_cfg_path)
-        cfg.run = dist_cfg.run
-        cfg.wandb.run_id = dist_cfg.wandb_run_id
 
