@@ -14,9 +14,6 @@ signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
 def main(cfg):
     setup_metta_environment(cfg)
 
-    with open(os.path.join(cfg.run_dir, "config.yaml"), "w") as f:
-        OmegaConf.save(cfg, f)
-
     with WandbContext(cfg) as wandb_run:
         policy_store = PolicyStore(cfg, wandb_run)
 

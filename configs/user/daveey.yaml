@@ -20,16 +20,16 @@ policy_uri: wandb://run/b.daveey.4.sweep.10.r.47
 # eval_db_uri: wandb://artifacts/daveey_eval_testing
 
 env:
-  sampling: 0.7
+  # sampling: 0.7
   game:
-    num_agents: 36
+  #   num_agents: 36
 
-    agent:
-      rewards:
-        ore_max: 100
+  #   agent:
+  #     rewards:
+  #       ore_max: 100
 
     # group_reward_pct: 0.9
-    max_steps: 10
+    max_steps: 1000
 
     # map_builder:
     #   border_width: 1
@@ -57,15 +57,13 @@ eval:
   env: /env/mettagrid/simple
   env_overrides:
     game:
-      max_steps: 100
+      max_steps: 1000
 
 wandb:
-  enabled: true
-  track: true
   checkpoint_interval: 1
 
 run_id: 9
-run: ${oc.env:USER}.local.${cmd}.${run_id}
+run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 
 sweep_name: "${oc.env:USER}.local.sweep.0"
