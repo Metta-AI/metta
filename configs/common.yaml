@@ -5,3 +5,4 @@ run_dir: ${data_dir}/${run}
 
 torch_deterministic: true
 vectorization: multiprocessing
+seed: 0
