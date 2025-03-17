@@ -5,7 +5,7 @@ from omegaconf import OmegaConf
 import torch
 from agent.policy_store import PolicyRecord
 from rl.pufferlib.simulator import Simulator
-import pixie
+# import pixie
 
 
 # Using flat UI colors:
