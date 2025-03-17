@@ -17,6 +17,7 @@ from rl.carbs.metta_carbs import carbs_params_from_cfg
 import wandb_carbs
 import json
 from rl.carbs.metta_carbs import MettaCarbs
+from util.dist import efs_lock
 
 from rl.wandb.wandb_context import WandbContext
 
@@ -38,7 +39,8 @@ def main(cfg: OmegaConf) -> int:
 
     is_master = os.environ.get("RANK", "0") == "0"
     if is_master:
-        create_sweep(cfg.sweep_name, cfg)
+        with efs_lock(cfg.sweep_dir + "/lock", timeout=300):
+            create_sweep(cfg.sweep_name, cfg)
         create_run(cfg.sweep_name, cfg)
     else:
         wait_for_run(cfg.sweep_name, cfg, cfg.dist_cfg_path)
