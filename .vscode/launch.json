@@ -57,7 +57,7 @@
             "module": "tools.play",
             "args": [
                 "+user=${env:USER}",
-                "hardware=macbook",
+                "+hardware=macbook",
                 "cmd=play",
             ],
         },
@@ -68,7 +68,7 @@
             "module": "tools.eval",
             "args": [
                 "+user=${env:USER}",
-                "hardware=macbook",
+                "+hardware=macbook",
                 "cmd=eval",
             ],
         },
@@ -79,7 +79,7 @@
             "module": "tools.analyze",
             "args": [
                 "+user=${env:USER}",
-                "hardware=macbook",
+                "+hardware=macbook",
                 "cmd=analyze",
             ],
         },
