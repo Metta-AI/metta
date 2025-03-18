@@ -11,7 +11,7 @@ cdef extern from "converter.hpp":
         vector[unsigned char] recipe_output
         unsigned short max_output
         unsigned char type
-        unsigned char recipe_duration
+        unsigned char conversion_ticks
         bint converting
 
         Converter(GridCoord r, GridCoord c, ObjectConfig cfg)

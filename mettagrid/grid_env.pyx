@@ -15,7 +15,8 @@ from mettagrid.grid_object cimport (
     GridLocation
 )
 from mettagrid.observation_encoder cimport ObservationEncoder, ObsType
-from mettagrid.objects.production_handler cimport ProductionHandler
+from mettagrid.objects.production_handler cimport ProductionHandler, CoolDownHandler
+
 # Constants
 obs_np_type = np.uint8
 
@@ -65,6 +66,7 @@ cdef class GridEnv:
         self._event_manager.init(self._grid, &self._stats)
         # The order of this needs to match the order in the Events enum
         self._event_manager.event_handlers.push_back(new ProductionHandler(&self._event_manager))
+        self._event_manager.event_handlers.push_back(new CoolDownHandler(&self._event_manager))
         self._track_last_action = track_last_action
 
         self.set_buffers(

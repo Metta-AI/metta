@@ -22,7 +22,7 @@ private:
         // We also need to have an id to schedule the finishing event. If our id
         // is zero, we probably haven't been added to the grid yet.
         assert(this->id != 0);
-        if (this->converting) {
+        if (this->converting || this->cooling_down) {
             return;
         }
         // Check if the converter is already at max output.
@@ -48,7 +48,7 @@ private:
         // All the previous returns were "we don't start converting".
         // This one is us starting to convert.
         this->converting = true;
-        this->event_manager->schedule_event(Events::FinishConverting, this->recipe_duration, this->id, 0);
+        this->event_manager->schedule_event(Events::FinishConverting, this->conversion_ticks, this->id, 0);
     }
 
 public:
@@ -58,8 +58,10 @@ public:
     // the type it produces. This may be clunky in some cases, but the main usage
     // is to make Mines (etc) have a maximum output.
     unsigned short max_output;
-    unsigned char recipe_duration;
-    bool converting;
+    unsigned char conversion_ticks; // Time to produce output
+    unsigned char cooldown;        // Time to wait after producing before starting again
+    bool converting;               // Currently in production phase
+    bool cooling_down;             // Currently in cooldown phase
     EventManager *event_manager;
 
     Converter(GridCoord r, GridCoord c, ObjectConfig cfg, TypeId type_id) {
@@ -73,8 +75,36 @@ public:
             this->recipe_output[i] = cfg["output_" + InventoryItemNames[i]];
         }
         this->max_output = cfg["max_output"];
-        this->recipe_duration = cfg["cooldown"];
+        this->conversion_ticks = cfg["conversion_ticks"];
+
+        // Make sure cooldown exists to prevent crashes, default to 0 if not provided
+        if (cfg.count("cooldown") > 0) {
+            this->cooldown = cfg["cooldown"];
+        } else {
+            this->cooldown = 0;
+        }
+
         this->converting = false;
+        this->cooling_down = false;
+
+        // Initialize inventory with initial_items for all output types
+        // Default to recipe_output values if initial_items is not present
+        unsigned char initial_items = 0;
+        if (cfg.count("initial_items") > 0) {
+            initial_items = cfg["initial_items"];
+            for (unsigned int i = 0; i < InventoryItem::InventoryCount; i++) {
+                if (this->recipe_output[i] > 0) {
+                    HasInventory::update_inventory(static_cast<InventoryItem>(i), initial_items, nullptr);
+                }
+            }
+        } else {
+            // Use recipe_output amounts as initial values if initial_items not specified
+            for (unsigned int i = 0; i < InventoryItem::InventoryCount; i++) {
+                if (this->recipe_output[i] > 0) {
+                    HasInventory::update_inventory(static_cast<InventoryItem>(i), this->recipe_output[i], nullptr);
+                }
+            }
+        }
     }
 
     Converter(GridCoord r, GridCoord c, ObjectConfig cfg) : Converter(r, c, cfg, ObjectType::GenericConverterT) {}
@@ -86,9 +116,27 @@ public:
 
     void finish_converting() {
         this->converting = false;
+
+        // Add output to inventory
         for (unsigned int i = 0; i < InventoryItem::InventoryCount; i++) {
-            this->update_inventory(static_cast<InventoryItem>(i), this->recipe_output[i], nullptr);
+            if (this->recipe_output[i] > 0) {
+                HasInventory::update_inventory(static_cast<InventoryItem>(i), this->recipe_output[i], nullptr);
+            }
         }
+
+        if (this->cooldown > 0) {
+            // Start cooldown phase
+            this->cooling_down = true;
+            this->event_manager->schedule_event(Events::CoolDown, this->cooldown, this->id, 0);
+        } else {
+            // No cooldown, try to start converting again immediately
+            this->maybe_start_converting();
+        }
+    }
+
+    void finish_cooldown() {
+        this->cooling_down = false;
+        this->maybe_start_converting();
     }
 
     void update_inventory(InventoryItem item, short amount, float *reward) override {
@@ -99,7 +147,7 @@ public:
     void obs(ObsType *obs, const std::vector<unsigned int> &offsets) const override {
         obs[offsets[0]] = 1;
         obs[offsets[1]] = this->hp;
-        obs[offsets[2]] = this->converting;
+        obs[offsets[2]] = this->converting || this->cooling_down;
         for (unsigned int i = 0; i < InventoryItem::InventoryCount; i++) {
             obs[offsets[3] + i] = this->inventory[i];
         }
