@@ -215,7 +215,7 @@ class MettaAgent(nn.Module):
 
         e3b, intrinsic_reward = self._e3b_update(phi_detached, e3b)
 
-        action, logprob, entropy = sample_logits(logits, action, False)
+        action, logprob, entropy = sample_logits(logits, action)
 
         return action, logprob, entropy, value, state, e3b, intrinsic_reward, normalized_logits
 
