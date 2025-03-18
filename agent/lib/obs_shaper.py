@@ -6,7 +6,7 @@ from agent.lib.metta_layer import LayerBase
 class ObsShaper(LayerBase):
     def __init__(self, obs_shape, num_objects, **cfg):
         super().__init__(**cfg)
-        self._out_tensor_shape = obs_shape # we do not include batch or TT dimensions
+        self._out_tensor_shape = obs_shape # a list of ints, we do not include batch or TT dimensions
         self._output_size = num_objects
 
     def _forward(self, td: TensorDict):

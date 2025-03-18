@@ -8,36 +8,25 @@ class Linear(ParamLayer):
 
     def _make_net(self):
         return nn.Linear(
-            self._input_size,
-            self._output_size,
+            self._in_tensor_shape[0],
             **self._nn_params
         )
 
 class Conv2d(ParamLayer):
-    def __init__(self, obs_width, obs_height, **cfg):
+    def __init__(self, **cfg):
         super().__init__(**cfg)
-        self.obs_width = obs_width
-        self.obs_height = obs_height
 
     def _make_net(self):
         self._set_conv_dims()
         return nn.Conv2d(
-            self._input_size,
-            self._output_size,
+            self._in_tensor_shape[0],
             **self._nn_params
         )
     
     def _set_conv_dims(self):
-        ''' Calculate flattened width and height. This allows us to change obs width and height. 
-        
-        This assumes that the input height and width are coming from env obs, which *may not be true*
-        if your conv is used for something else.'''
-        if hasattr(self._input_source_component, '_output_width'):
-            self._input_width = self._input_source_component._output_width
-            self._input_height = self._input_source_component._output_height
-        else:
-            self._input_width = self.obs_width
-            self._input_height = self.obs_height
+        ''' Calculate flattened width and height. This allows us to change obs width and height.'''
+        self._input_height = self._in_tensor_shape[2]
+        self._input_width = self._in_tensor_shape[3]
 
         if not hasattr(self._nn_params, 'padding') or self._nn_params.padding is None:
             self._nn_params.padding = 0
@@ -50,8 +39,8 @@ class Conv2d(ParamLayer):
         
         self._output_height = int(self._output_height)
         self._output_width = int(self._output_width)
-        
-        self._flattened_size = self._output_size * self._output_height * self._output_width
+
+        self._out_tensor_shape = [self._nn_params.out_channels, self._output_height, self._output_width]
 
 class MaxPool1d(LayerBase):
     def __init__(self, **cfg):
@@ -59,7 +48,7 @@ class MaxPool1d(LayerBase):
 
     def _make_net(self):
         return nn.MaxPool1d(
-            self._input_size,
+            self._in_tensor_shape[0],
             **self._nn_params
         )
 
@@ -69,7 +58,7 @@ class MaxPool2d(LayerBase):
 
     def _make_net(self):
         return nn.MaxPool2d(
-            self._input_size,
+            self._in_tensor_shape[0],
             **self._nn_params
         )
 
@@ -79,7 +68,7 @@ class AdaptiveAvgPool1d(LayerBase):
 
     def _make_net(self):
         return nn.AdaptiveAvgPool1d(
-            self._input_size,
+            self._in_tensor_shape[0],
             **self._nn_params
         )
 
@@ -89,7 +78,7 @@ class AdaptiveAvgPool2d(LayerBase):
 
     def _make_net(self):
         return nn.AdaptiveAvgPool2d(
-            self._input_size,
+            self._in_tensor_shape[0],
             **self._nn_params
         )
 
@@ -99,7 +88,7 @@ class AdaptiveMaxPool1d(LayerBase):
 
     def _make_net(self):
         return nn.AdaptiveMaxPool1d(
-            self._input_size,
+            self._in_tensor_shape[0],
             **self._nn_params
         )
 
@@ -109,7 +98,7 @@ class AdaptiveMaxPool2d(LayerBase):
 
     def _make_net(self):
         return nn.AdaptiveMaxPool2d(
-            self._input_size,
+            self._in_tensor_shape[0],
             **self._nn_params
         )
 
@@ -119,7 +108,7 @@ class AvgPool1d(LayerBase):
 
     def _make_net(self):
         return nn.AvgPool1d(
-            self._input_size,
+            self._in_tensor_shape[0],
             **self._nn_params
         )
 
@@ -129,7 +118,7 @@ class AvgPool2d(LayerBase):
 
     def _make_net(self):
         return nn.AvgPool2d(
-            self._input_size,
+            self._in_tensor_shape[0],
             **self._nn_params
         )
 
@@ -166,7 +155,7 @@ class BatchNorm1d(LayerBase):
 
     def _make_net(self):
         return nn.BatchNorm1d(
-            self._input_size,
+            self._in_tensor_shape[0],
             **self._nn_params
         )
 
@@ -176,7 +165,7 @@ class BatchNorm2d(LayerBase):
 
     def _make_net(self):
         return nn.BatchNorm2d(
-            self._input_size,
+            self._in_tensor_shape[0],
             **self._nn_params
         )
 
@@ -185,8 +174,7 @@ class Flatten(LayerBase):
         super().__init__(**cfg)
 
     def _make_net(self):
-        if isinstance(self._input_source_component, Conv2d):
-            self._output_size = self._input_source_component._flattened_size
+        self._out_tensor_shape = [sum(self._in_tensor_shape)]
         return nn.Flatten()
 
 class Identity(LayerBase):

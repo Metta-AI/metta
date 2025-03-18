@@ -10,9 +10,9 @@ class MergeLayerBase(LayerBase):
         self.default_dim = -1
         self._ready = False
 
-        self.input_source = []
+        self._input_source = []
         for src_cfg in self.sources_list:
-            self.input_source.append(src_cfg['source_name'])
+            self._input_source.append(src_cfg['source_name'])
 
     @property
     def ready(self):
@@ -49,7 +49,7 @@ class MergeLayerBase(LayerBase):
                 processed_size = length
 
             self.sizes.append(processed_size)
-            self.dims.append(src_cfg.get("dim", self.default_dim))
+            self.dims.append(src_cfg.get("dim", self.default_dim)) # check if default dim is good to have or will cause problems
 
         self._setup_merge_layer()
         self._ready = True
@@ -80,7 +80,7 @@ class ConcatMergeLayer(MergeLayerBase):
         if not all(d == self.dims[0] for d in self.dims):
             raise ValueError(f"For 'concat', all sources must have the same 'dim'. Got dims: {self.dims}")
         self._merge_dim = self.dims[0]
-        self._output_size = sum(self.sizes)
+        self._out_tensor_shape[self._merge_dim] = sum(self.sizes)
 
     def _merge(self, outputs, td):
         merged = torch.cat(outputs, dim=self._merge_dim)
@@ -92,7 +92,8 @@ class AddMergeLayer(MergeLayerBase):
     def _setup_merge_layer(self):
         if not all(s == self.sizes[0] for s in self.sizes):
             raise ValueError(f"For 'add', all source sizes must match. Got sizes: {self.sizes}")
-        self._output_size = self.sizes[0]
+        self._merge_dim = self.dims[0]
+        self._out_tensor_shape[self._merge_dim] = self.sizes[0]
 
     def _merge(self, outputs, td):
         merged = outputs[0]
@@ -106,7 +107,8 @@ class SubtractMergeLayer(MergeLayerBase):
     def _setup_merge_layer(self):
         if not all(s == self.sizes[0] for s in self.sizes):
             raise ValueError(f"For 'subtract', all source sizes must match. Got sizes: {self.sizes}")
-        self._output_size = self.sizes[0]
+        self._merge_dim = self.dims[0]
+        self._out_tensor_shape[self._merge_dim] = self.sizes[0]
 
     def _merge(self, outputs, td):
         if len(outputs) != 2:
@@ -120,7 +122,8 @@ class MeanMergeLayer(MergeLayerBase):
     def _setup_merge_layer(self):
         if not all(s == self.sizes[0] for s in self.sizes):
             raise ValueError(f"For 'mean', all source sizes must match. Got sizes: {self.sizes}")
-        self._output_size = self.sizes[0]
+        self._merge_dim = self.dims[0]
+        self._out_tensor_shape[self._merge_dim] = self.sizes[0]
 
     def _merge(self, outputs, td):
         merged = outputs[0]
