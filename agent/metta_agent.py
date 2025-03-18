@@ -208,7 +208,6 @@ class MettaAgent(nn.Module):
             split_size = self.core_num_layers
             state = (state[:split_size], state[split_size:])
 
-<<<<<<< HEAD
         phi = self.get_shared_embedding(x)
         # Detach to prevent inverse dynamics gradients from flowing back
         phi_detached = phi.detach()
@@ -217,10 +216,6 @@ class MettaAgent(nn.Module):
         e3b, intrinsic_reward = self._e3b_update(phi_detached, e3b)
 
         action, logprob, entropy, normalized_logits = sample_logits(logits, action)
-=======
-        e3b, intrinsic_reward = self._e3b_update(phi_detached, e3b)
-        action, logprob, entropy, normalized_logits = sample_logits(logits, action)
->>>>>>> 892d351b921af95c519629be567e7dc891cd8a08
 
         return action, logprob, entropy, value, state, e3b, intrinsic_reward, normalized_logits
 
