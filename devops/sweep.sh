@@ -12,7 +12,7 @@ source ./devops/env.sh
 
 mkdir -p ./train_dir/sweep/$sweep
 # keep running sweep until it fails N consecutive times
-N=10
+N=3
 consecutive_failures=0
 while true; do
     echo "Running sweep_rollout for $sweep with $consecutive_failures consecutive failures"
