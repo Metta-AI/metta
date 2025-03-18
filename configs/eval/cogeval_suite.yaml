@@ -1,4 +1,4 @@
-_target_: rl.pufferlib.eval.EvalSuite
+s_target_: rl.pufferlib.eval.EvalSuite
 
 defaults:
   - eval

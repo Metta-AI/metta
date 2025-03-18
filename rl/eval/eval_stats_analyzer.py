@@ -103,6 +103,7 @@ class EvalStatsAnalyzer:
             uri = uri.replace("wandb://metta-research/metta/", "")
             uri = uri.replace("wandb://run/", "")
         policy_versions = [i for i in all_policies if uri in i]
+
         if len(policy_versions) == 0:
             raise ValueError(f"No policy found in DB for candidate policy: {uri}, options are {all_policies}")
         if len(policy_versions) > 1 and 'wandb' in uri:

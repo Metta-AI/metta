@@ -66,7 +66,7 @@ parameters:
     #   max: 6.0
     ent_coef:
       space: log
-      min: 1e-5
+      min: 1e-4
       max: 1e-1
     batch_size:
       space: pow2
@@ -76,10 +76,10 @@ parameters:
       space: pow2
       min: 1024
       max: 131072
-    # forward_pass_minibatch_target_size:
-    #   space: pow2
-    #   min: 1024
-    #   max: 32768
+    forward_pass_minibatch_target_size:
+      space: pow2
+      min: 1024
+      max: 32768
 
     #   space: linear
     #   search_center: 2
