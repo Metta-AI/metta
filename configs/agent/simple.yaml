@@ -68,7 +68,6 @@ components:
     _target_: agent.lib.nn_layer_library.Linear
     input_source: _core_
     output_size: 1024
-    nonlinearity: nn.Tanh
 
   _value_:
     _target_: agent.lib.nn_layer_library.Linear

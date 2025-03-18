@@ -42,3 +42,4 @@ WORKDIR /workspace/metta/deps/wandb_carbs
 RUN pip install -e .
 
 WORKDIR /workspace/metta/
+ENTRYPOINT ["/bin/bash", "-c"]

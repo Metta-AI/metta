@@ -7,95 +7,89 @@ defaults:
   - override /env/mettagrid@env: cognitive_evals/cogeval_training_mini_simplified
   - override /agent: simple
   - override /sweep: fast
-  - override /analyzer: analyzer
-eval_db_uri: wandb://artifacts/cogeval_mini_simplified
-#policy_uri: wandb://run/daphne_training_e3b_cogeval_simplified_vast_e0.05_2
+  - override /analyzer: train_analyzer
+
 policy_uri: wandb://run/b.daphne.aws_train_cogeval_simplified_0.01_mb:v36
-##b.daphne.aws_train_cogeval_simplified_0.01_mb:v3
-#policy_uri: ${trained_policy_uri}
+#policy_uri: ./train_dir/daphne.local.train.14_pfs/checkpoints/model_0050.pt
+# policy_uri: wandb://run/mettabox_cogeval_defaults_lowent_initialized0005
+# policy_uri: wandb://run/daphne_mettabox_train_cogeval_simplified_0.01_mb_easyv33
+# policy_uri: wandb://run/b.daphne.aws_train_cogeval_defaults_0.005_v35
+#ABOVE IS b.daphne.aws_train_cogeval_easy_simplified_pretrained
+
+# policy_uri: wandb://run/daphne_mettabox_train_cogeval_simplified_0.005_mb_easyv34:v6
+#policy_uri: wandb://run/daphne_mettabox_train_cogeval_simplified_0.01_mb_easyv33:v5
+
+# policy_uri: wandb://run/mettabox_cogeval_easy_defaults_2
+eval_db_uri: wandb://artifacts/cogeval_evaluations
 
 npc_policy_uri: null
-
-trainer:
-  evaluate_interval: 2
-  use_e3b: true
-
-# analyzer:
-#   analysis:
-#     baseline_policies:
-#       - wandb://run/b.daphne.aws_train_cogeval_simplified_0.08
-#       - wandb://run/b.daphne.aws_train_cogeval_simplified_
-#       - wandb://run/b.daphne.aws_train_cogeval_simplified_0.01
-#       - wandb://run/daphne_training_e3b_cogeval_simplified_vast_e0.05_2
-#       - wandb://run/daphne_training_e3b_cogeval_simplified_mettabox_e0.05
-#       - wandb://run/b.daphne.aws_train_cogeval_simplified_e0.05
 
 
 eval:
   policy_uri: ${policy_uri}
-
+  num_envs: 10
+  num_episodes: 10
+  max_time_s: 300
+analyzer:
+  policy_uri: ${policy_uri}
 wandb:
   enabled: true
   track: true
   checkpoint_interval: 1
-evaluate_interval: 1
 
-sweep:
-  metric: "action.use.altar.agent"
 
 cmd: ???
-run_id: 28
+run_id: 41
 run: ${oc.env:USER}.local.${cmd}.${run_id}
 trained_policy_uri: ./train_dir/${oc.env:USER}.local.train.${run_id}/checkpoints
 
 env:
   game:
-      objects:
-        altar:
-          hp: 30
-          cooldown: 1
+    max_steps: 1000
 
-        mine:
-          hp: 30
-          cooldown: 1
+    # objects:
+    #   altar:
+    #     hp: 30
+    #     cooldown: 1
 
-        generator:
-          hp: 30
-          cooldown: 1
+    #   mine:
+    #     hp: 30
+    #     cooldown: 1
 
-        armory:
-          hp: 30
-          cooldown: 1
+    #   generator:
+    #     hp: 30
+    #     cooldown: 1
 
-        lasery:
-          hp: 30
-          cooldown: 1
+    #   armory:
+    #     hp: 30
+    #     cooldown: 1
 
-        lab:
-          hp: 30
-          cooldown: 1
+    #   lasery:
+    #     hp: 30
+    #     cooldown: 1
 
-        factory:
-          hp: 30
-          cooldown: 1
+    #   lab:
+    #     hp: 30
+    #     cooldown: 1
 
-        temple:
-          hp: 30
-          cooldown: 1
+    #   factory:
+    #     hp: 30
+    #     cooldown: 1
 
-        wall:
-          hp: ${uniform:1, 20, 10}
+    #   temple:
+    #     hp: 30
+    #     cooldown: 1
 
-      actions:
-        noop:
-          enabled: true
-        move:
-          enabled: true
-        rotate:
-          enabled: true
-        attack:
-          enabled: false
-        swap:
-          enabled: false
-        change_color:
-          enabled: false
+    actions:
+      noop:
+        enabled: true
+      move:
+        enabled: true
+      rotate:
+        enabled: true
+      attack:
+        enabled: false
+      swap:
+        enabled: false
+      change_color:
+        enabled: false

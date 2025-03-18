@@ -10,6 +10,56 @@ config = Config(
     max_pool_connections = 50
 )
 
+def get_job_details(job, job_descriptions, task_descriptions=None, container_instance_descriptions=None, ec2_instances=None):
+    """Get details for a specific job."""
+    job_id = job['jobId']
+    job_name = job['jobName']
+    job_status = job['status']
+    job_link = f"https://console.aws.amazon.com/batch/home?region=us-east-1#jobs/detail/{job_id}"
+
+    # Handle the case when job_descriptions is empty or the job is not found
+    if not job_descriptions:
+        return {
+            'jobId': job_id,
+            'jobName': job_name,
+            'status': job_status,
+            'link': job_link,
+            'publicIp': '',
+            'instanceType': '',
+            'numRetries': 0,
+            'createdAt': job.get('createdAt', 0),
+            'startedAt': job.get('startedAt', 0),
+            'stoppedAt': job.get('stoppedAt', 0)
+        }
+
+    job_desc = next((j for j in job_descriptions if j['jobId'] == job_id), {})
+    container = job_desc.get('container', {})
+    task_arn = container.get('taskArn')
+
+    num_retries = len(job_desc.get('attempts', [])) - 1 if job_desc.get('attempts') else 0
+
+    public_ip = ''
+    if task_descriptions and task_arn and task_arn in task_descriptions:
+        task_desc = task_descriptions.get(task_arn, {})
+        container_instance_arn = task_desc.get('containerInstanceArn')
+        if container_instance_descriptions and container_instance_arn and container_instance_arn in container_instance_descriptions:
+            container_instance_desc = container_instance_descriptions.get(container_instance_arn, {})
+            ec2_instance_id = container_instance_desc.get('ec2InstanceId')
+            if ec2_instances and ec2_instance_id and ec2_instance_id in ec2_instances:
+                ec2_instance = ec2_instances.get(ec2_instance_id, {})
+                public_ip = ec2_instance.get('PublicIpAddress', '')
+
+    stop_command = f"aws batch terminate-job --reason man_stop --job-id {job_id}" if job_status in ['RUNNING', 'RUNNABLE', 'STARTING'] else ''
+
+    return {
+        'name': job_name,
+        'status': job_status,
+        'retries': num_retries,
+        'link': job_link,
+        'public_ip': public_ip,
+        'stop_command': stop_command
+    }
+
 def get_batch_job_queues():
     batch = boto3.client('batch', config=config)
     response = batch.describe_job_queues()
@@ -31,7 +81,10 @@ def get_batch_jobs(job_queue, max_jobs):
     all_jobs = sorted(all_jobs, key=lambda job: job['createdAt'], reverse=True)[:max_jobs]
 
     job_ids = [job['jobId'] for job in all_jobs]
-    job_descriptions = batch.describe_jobs(jobs=job_ids)['jobs']
+    job_descriptions = []
+    # Only call describe_jobs if we have job IDs to process
+    if job_ids:
+        job_descriptions = batch.describe_jobs(jobs=job_ids)['jobs']
 
     task_arns = []
     cluster_arns = []
@@ -49,7 +102,11 @@ def get_batch_jobs(job_queue, max_jobs):
 
     # Skip task processing if there are no tasks
     if not task_arns:
-        return [get_job_details(job) for job in all_jobs]
+        # If we have job descriptions, use them; otherwise, return basic job info
+        if job_descriptions:
+            return [get_job_details(job, job_descriptions) for job in all_jobs]
+        else:
+            return all_jobs
 
     # Batch describe tasks by their respective clusters
     tasks_by_cluster = {}
@@ -89,42 +146,11 @@ def get_batch_jobs(job_queue, max_jobs):
         response = ec2.describe_instances(InstanceIds=chunk)
         ec2_instances.update({instance['InstanceId']: instance for reservation in response['Reservations'] for instance in reservation['Instances']})
 
-    def get_job_details(job):
-        job_id = job['jobId']
-        job_name = job['jobName']
-        job_status = job['status']
-        job_link = f"https://console.aws.amazon.com/batch/home?region=us-east-1#jobs/detail/{job_id}"
-
-        job_desc = next((j for j in job_descriptions if j['jobId'] == job_id), {})
-        container = job_desc.get('container', {})
-        task_arn = container.get('taskArn')
-
-        num_retries = len(job_desc.get('attempts', [])) - 1 if job_desc.get('attempts') else 0
-
-        public_ip = ''
-        if task_arn and task_arn in task_descriptions:
-            task_desc = task_descriptions.get(task_arn, {})
-            container_instance_arn = task_desc.get('containerInstanceArn')
-            if container_instance_arn and container_instance_arn in container_instance_descriptions:
-                container_instance_desc = container_instance_descriptions.get(container_instance_arn, {})
-                ec2_instance_id = container_instance_desc.get('ec2InstanceId')
-                if ec2_instance_id and ec2_instance_id in ec2_instances:
-                    ec2_instance = ec2_instances.get(ec2_instance_id, {})
-                    public_ip = ec2_instance.get('PublicIpAddress', '')
-
-        stop_command = f"aws batch terminate-job --reason man_stop --job-id {job_id}" if job_status in ['RUNNING', 'RUNNABLE', 'STARTING'] else ''
-
-        return {
-            'name': job_name,
-            'status': job_status,
-            'retries': num_retries,
-            'link': job_link,
-            'public_ip': public_ip,
-            'stop_command': stop_command
-        }
-
     with ThreadPoolExecutor() as executor:
-        job_details = list(executor.map(get_job_details, all_jobs))
+        job_details = list(executor.map(
+            lambda job: get_job_details(job, job_descriptions, task_descriptions, container_instance_descriptions, ec2_instances),
+            all_jobs
+        ))
 
     return job_details
 
@@ -248,20 +274,24 @@ if __name__ == "__main__":
     parser.add_argument('--no-color', action='store_true', help='Disable color output.')
     args = parser.parse_args()
 
-    init()  # Initialize colorama
+    # Initialize colorama
+    init()
 
+    # Get all job queues
     job_queues = get_batch_job_queues()
-    args.queue = f"metta-batch-jq-2"
 
-    selected_queues = [queue for queue in job_queues if args.queue in queue]
+    # Get jobs for each queue
+    jobs_by_queue = {}
+    for queue in job_queues:
+        jobs = get_batch_jobs(queue, args.max_jobs)
+        if jobs:
+            jobs_by_queue[queue] = jobs
 
-    with ThreadPoolExecutor() as executor:
-        jobs_by_queue = {queue: executor.submit(get_batch_jobs, queue, args.max_jobs) for queue in selected_queues}
-        jobs_by_queue = {queue: future.result() for queue, future in jobs_by_queue.items()}
-
-    ecs_tasks = []
+    # Get ECS tasks if requested
+    tasks = []
     if args.ecs:
-        ecs_clusters = get_ecs_clusters()
-        ecs_tasks = get_ecs_tasks(ecs_clusters, args.max_jobs)
+        clusters = get_ecs_clusters()
+        tasks = get_ecs_tasks(clusters, args.max_jobs)
 
-    print_status(jobs_by_queue, ecs_tasks, not args.no_color)
+    # Print the status
+    print_status(jobs_by_queue, tasks, not args.no_color)

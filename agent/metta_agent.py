@@ -1,14 +1,14 @@
 import os
-import os
-from typing import List, Tuple
+from typing import List, Tuple, Union
 
 import gymnasium as gym
 import hydra
 import numpy as np
 import torch
 import torch.distributed as dist
+from torch.distributions.utils import logits_to_probs
+
 from omegaconf import OmegaConf
-from pufferlib.cleanrl import sample_logits
 from pufferlib.environment import PufferEnv
 from sample_factory.utils.typing import ActionSpace, ObsSpace
 from tensordict import TensorDict
@@ -16,6 +16,9 @@ from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 import torch
 import torch.nn.functional as F
+
+from agent.util.distribution_utils import sample_logits
+
 import logging
 logger = logging.getLogger("metta_agent")
 
@@ -195,13 +198,10 @@ class MettaAgent(nn.Module):
             td["state"] = state  # Ensure state is on the same device
 
         self.components["_value_"](td)
-
         self.components["_action_type_"](td)
-        logits = td["_action_type_"]
-
         self.components["_action_param_"](td)
-        logits = [logits, td["_action_param_"]]
 
+        logits = [td["_action_type_"], td["_action_param_"]]
         value = td["_value_"]
         state = td["state"]
         if state is not None:
@@ -217,7 +217,7 @@ class MettaAgent(nn.Module):
 
         action, logprob, entropy = sample_logits(logits, action, False)
 
-        return action, logprob, entropy, value, state, e3b, intrinsic_reward
+        return action, logprob, entropy, value, state, e3b, intrinsic_reward, normalized_logits
 
     def forward(self, x, state=None, action=None, e3b=None):
         return self.get_action_and_value(x, state, action, e3b)
