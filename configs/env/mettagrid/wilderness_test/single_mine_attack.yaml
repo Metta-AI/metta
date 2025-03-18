@@ -271,6 +271,7 @@ game:
           mine: 1
           generator: 1
           wall: ${uniform:5,15,20}
+
       - _target_: mettagrid.config.room.random.Random
         width: ${uniform:6,25,20}
         height: ${uniform:6,25,20}
@@ -289,6 +290,8 @@ game:
     generator:
       hp: 30
       cooldown: 10
+    wall:
+      hp: ${uniform:1, 6, 3}
 
   actions:
     attack:
