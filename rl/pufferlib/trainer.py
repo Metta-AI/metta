@@ -254,7 +254,7 @@ class PufferTrainer:
 
                 h = lstm_h[:, gpu_env_id]
                 c = lstm_c[:, gpu_env_id]
-                actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward = policy(o_device, (h, c), e3b=e3b)
+                actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward, _ = policy(o_device, (h, c), e3b=e3b)
                 lstm_h[:, gpu_env_id] = h
                 lstm_c[:, gpu_env_id] = c
                 if self.use_e3b:
@@ -346,7 +346,7 @@ class PufferTrainer:
 
                 with profile.train_forward:
                     _, newlogprob, entropy, newvalue, lstm_state, _, _, new_normalized_logits = self.policy(
-                        obs, state=lstm_state, action=atn)
+                        obs, state=lstm_state,  action=atn)
                     lstm_state = (lstm_state[0].detach(), lstm_state[1].detach())
 
                     if self.device == 'cuda':
