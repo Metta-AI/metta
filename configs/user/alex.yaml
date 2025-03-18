@@ -4,13 +4,14 @@ seed: null
 
 defaults:
   - override /env/mettagrid@env: simple
-  - override /agent: simple
+  - override /agent: delete_me
   - override /sweep: fast
   - override /eval: eval_suite
   - override /analyzer: train_analyzer
 
-policy_uri: wandb://run/b.daveey.train.4.full.0
+# policy_uri: wandb://run/b.daveey.train.4.full.0
 # policy_uri: wandb://run/mettabox_cogeval_defaults_lowent_initialized0005:v100
+policy_uri: wandb://run/alex.trainee.001
 npc_policy_uri: null
 eval_db_uri: null
 
@@ -43,4 +44,4 @@ wandb:
   checkpoint_interval: 1
 
 cmd: ???
-run: ${oc.env:USER}.local.${cmd}.27
+run: ${oc.env:USER}.local.${cmd}.35

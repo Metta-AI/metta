@@ -7,6 +7,7 @@ class Linear(ParamLayer):
         super().__init__(**cfg)
 
     def _make_net(self):
+        self._out_tensor_shape = [self._nn_params.out_features]
         return nn.Linear(
             self._in_tensor_shape[0],
             **self._nn_params
@@ -25,8 +26,8 @@ class Conv2d(ParamLayer):
     
     def _set_conv_dims(self):
         ''' Calculate flattened width and height. This allows us to change obs width and height.'''
-        self._input_height = self._in_tensor_shape[2]
-        self._input_width = self._in_tensor_shape[3]
+        self._input_height = self._in_tensor_shape[1]
+        self._input_width = self._in_tensor_shape[2]
 
         if not hasattr(self._nn_params, 'padding') or self._nn_params.padding is None:
             self._nn_params.padding = 0

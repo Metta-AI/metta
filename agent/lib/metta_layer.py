@@ -33,10 +33,10 @@ class LayerBase(nn.Module):
         super().__init__()
         self._name = name
         self._input_source = input_source
-        # self._output_size = output_size # delete me
-        self._nn_params = nn_params
         self._net = None
         self._ready = False
+        if not hasattr(self, '_nn_params'):
+            self._nn_params = nn_params
 
     @property
     def ready(self):
@@ -48,16 +48,14 @@ class LayerBase(nn.Module):
 
         self.__dict__['_input_source_component'] = input_source_component
 
-
-
         if self._input_source_component is None:
             self._in_tensor_shape = None
             if self._out_tensor_shape is None:
                 raise ValueError(f"Either input source or output tensor shape must be set for layer {self._name}")
         else:
             self._in_tensor_shape = self._input_source_component._out_tensor_shape
-            self._out_tensor_shape = self._in_tensor_shape # if necessary, edit this in the superclass
-
+            if not hasattr(self, '_out_tensor_shape'):
+                self._out_tensor_shape = self._in_tensor_shape # if necessary, edit this in the superclass
 
         self._initialize()
         self._ready = True
