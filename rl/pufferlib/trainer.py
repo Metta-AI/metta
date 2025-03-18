@@ -345,24 +345,9 @@ class PufferTrainer:
                     ret = experience.b_returns[mb]
 
                 with profile.train_forward:
-<<<<<<< HEAD
-                    if experience.lstm_h is not None:
-                        # print(f"Experience obs shape LSTM: {obs.shape}")
-                        _, newlogprob, entropy, newvalue, lstm_state, _, _ = self.policy(
-                            obs, state=lstm_state, action=atn)
-                        lstm_state = (lstm_state[0].detach(), lstm_state[1].detach())
-
-                    # the below can be deleted if no LSTM
-                    else:
-                        _, newlogprob, entropy, newvalue, _, _ = self.policy(
-                            obs.reshape(-1, *self.vecenv.single_observation_space.shape),
-                            action=atn,
-                        )
-=======
                     _, newlogprob, entropy, newvalue, lstm_state, _, _, new_normalized_logits = self.policy(
                         obs, state=lstm_state, action=atn)
                     lstm_state = (lstm_state[0].detach(), lstm_state[1].detach())
->>>>>>> 892d351b921af95c519629be567e7dc891cd8a08
 
                     if self.device == 'cuda':
                         torch.cuda.synchronize()
