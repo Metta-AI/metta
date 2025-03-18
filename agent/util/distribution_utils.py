@@ -60,4 +60,4 @@ def sample_logits(logits: Union[torch.Tensor, List[torch.Tensor]], action=None):
     logprob = torch.stack([log_prob(l, a) for l, a in zip(normalized_logits, action)]).T.sum(1)
     logits_entropy = torch.stack([entropy(l) for l in normalized_logits]).T.sum(1)
 
-    return action.T, logprob, logits_entropy#, normalized_logits
+    return action.T, logprob, logits_entropy, normalized_logits
