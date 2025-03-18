@@ -69,6 +69,8 @@ class InverseDynamicsModel(nn.Module):
     def forward(self, phi_s, phi_sp1):
         # Concatenate along the feature dimension.
         x = torch.cat([phi_s, phi_sp1], dim=1)
+        if x.device.type != 'cuda':
+            x = x.cuda()
         x = self.relu(self.fc1(x))
         logits_type = self.action_type_head(x)
         logits_param = self.action_param_head(x)
@@ -211,7 +213,6 @@ class MettaAgent(nn.Module):
         phi = self.get_shared_embedding(x)
         # Detach to prevent inverse dynamics gradients from flowing back
         phi_detached = phi.detach()
-
 
         e3b, intrinsic_reward = self._e3b_update(phi_detached, e3b)
 
