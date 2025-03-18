@@ -76,33 +76,16 @@ public:
         }
         this->max_output = cfg["max_output"];
         this->conversion_ticks = cfg["conversion_ticks"];
-
-        // Make sure cooldown exists to prevent crashes, default to 0 if not provided
-        if (cfg.count("cooldown") > 0) {
-            this->cooldown = cfg["cooldown"];
-        } else {
-            this->cooldown = 0;
-        }
-
+        this->cooldown = cfg["cooldown"];
         this->converting = false;
         this->cooling_down = false;
 
         // Initialize inventory with initial_items for all output types
         // Default to recipe_output values if initial_items is not present
-        unsigned char initial_items = 0;
-        if (cfg.count("initial_items") > 0) {
-            initial_items = cfg["initial_items"];
-            for (unsigned int i = 0; i < InventoryItem::InventoryCount; i++) {
-                if (this->recipe_output[i] > 0) {
-                    HasInventory::update_inventory(static_cast<InventoryItem>(i), initial_items, nullptr);
-                }
-            }
-        } else {
-            // Use recipe_output amounts as initial values if initial_items not specified
-            for (unsigned int i = 0; i < InventoryItem::InventoryCount; i++) {
-                if (this->recipe_output[i] > 0) {
-                    HasInventory::update_inventory(static_cast<InventoryItem>(i), this->recipe_output[i], nullptr);
-                }
+        unsigned char initial_items = cfg["initial_items"];
+        for (unsigned int i = 0; i < InventoryItem::InventoryCount; i++) {
+            if (this->recipe_output[i] > 0) {
+                HasInventory::update_inventory(static_cast<InventoryItem>(i), initial_items, nullptr);
             }
         }
     }
