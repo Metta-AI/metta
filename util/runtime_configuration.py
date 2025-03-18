@@ -91,7 +91,6 @@ def setup_metta_environment(cfg):
 
     setup_omega_conf()
     if cfg.dist_cfg_path is not None:
-        logger.info(f"Loading dist config from {cfg.dist_cfg_path}")
         dist_cfg = OmegaConf.load(cfg.dist_cfg_path)
         cfg.run = dist_cfg.run
         cfg.wandb.run_id = dist_cfg.wandb_run_id

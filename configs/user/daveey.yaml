@@ -22,7 +22,7 @@ policy_uri: wandb://run/b.daveey.train.4.full.0
 env:
   # sampling: 0.7
   game:
-    num_agents: 360
+    num_agents: 36
 
   #   agent:
   #     rewards:
