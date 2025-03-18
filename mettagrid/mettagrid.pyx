@@ -25,6 +25,7 @@ from mettagrid.objects.mine cimport Mine
 from mettagrid.objects.agent cimport Agent
 from mettagrid.objects.production_handler cimport ProductionHandler
 from mettagrid.objects.wall cimport Wall
+from mettagrid.objects.converter cimport Converter
 from mettagrid.objects.generator cimport Generator
 from mettagrid.objects.altar cimport Altar
 from mettagrid.objects.lab cimport Lab
@@ -32,7 +33,8 @@ from mettagrid.objects.factory cimport Factory
 from mettagrid.objects.temple cimport Temple
 from mettagrid.objects.armory cimport Armory
 from mettagrid.objects.lasery cimport Lasery
-from mettagrid.objects.constants cimport ObjectLayers, InventoryItemNames, Events
+from mettagrid.objects.constants cimport ObjectLayers, InventoryItemNames
+
 
 # Action imports
 from mettagrid.actions.move import Move
@@ -102,62 +104,33 @@ cdef class MettaGrid(GridEnv):
         }
 
         cdef Agent *agent
+        cdef Converter *converter = NULL
         cdef string group_name
         cdef unsigned char group_id
         for r in range(map.shape[0]):
             for c in range(map.shape[1]):
 
                 if map[r,c] == "wall":
-                    self._grid.add_object(new Wall(r, c, cfg.objects.wall))
+                    wall = new Wall(r, c, cfg.objects.wall)
+                    self._grid.add_object(wall)
                     self._stats.incr(b"objects.wall")
 
                 elif map[r,c] == "mine":
-                    mine = new Mine(r, c, cfg.objects.mine)
-                    self._grid.add_object(mine)
-                    mine.set_event_manager(&self._event_manager)
-                    self._stats.incr(b"objects.mine")
-
+                    converter = new Mine(r, c, cfg.objects.mine)
                 elif map[r,c] == "generator":
-                    generator = new Generator(r, c, cfg.objects.generator)
-                    self._grid.add_object(generator)
-                    generator.set_event_manager(&self._event_manager)
-                    self._stats.incr(b"objects.generator")
-
+                    converter = new Generator(r, c, cfg.objects.generator)
                 elif map[r,c] == "altar":
-                    altar = new Altar(r, c, cfg.objects.altar)
-                    self._grid.add_object(altar)
-                    altar.set_event_manager(&self._event_manager)
-                    self._stats.incr(b"objects.altar")
-
+                    converter = new Altar(r, c, cfg.objects.altar)
                 elif map[r,c] == "armory":
-                    armory = new Armory(r, c, cfg.objects.armory)
-                    self._grid.add_object(armory)
-                    armory.set_event_manager(&self._event_manager)
-                    self._stats.incr(b"objects.armory")
-
+                    converter = new Armory(r, c, cfg.objects.armory)
                 elif map[r,c] == "lasery":
-                    lasery = new Lasery(r, c, cfg.objects.lasery)
-                    self._grid.add_object(lasery)
-                    lasery.set_event_manager(&self._event_manager)
-                    self._stats.incr(b"objects.lasery")
-
+                    converter = new Lasery(r, c, cfg.objects.lasery)
                 elif map[r,c] == "lab":
-                    lab = new Lab(r, c, cfg.objects.lab)
-                    self._grid.add_object(lab)
-                    lab.set_event_manager(&self._event_manager)
-                    self._stats.incr(b"objects.lab")
-
+                    converter = new Lab(r, c, cfg.objects.lab)
                 elif map[r,c] == "factory":
-                    factory = new Factory(r, c, cfg.objects.factory)
-                    self._grid.add_object(factory)
-                    factory.set_event_manager(&self._event_manager)
-                    self._stats.incr(b"objects.factory")
-
+                    converter = new Factory(r, c, cfg.objects.factory)
                 elif map[r,c] == "temple":
-                    temple = new Temple(r, c, cfg.objects.temple)
-                    self._grid.add_object(temple)
-                    temple.set_event_manager(&self._event_manager)
-                    self._stats.incr(b"objects.temple")
+                    converter = new Temple(r, c, cfg.objects.temple)
 
                 elif map[r,c].startswith("agent."):
                     group_name = map[r,c].split(".")[1]
@@ -175,6 +148,16 @@ cdef class MettaGrid(GridEnv):
                     agent.agent_id = self._agents.size()
                     self.add_agent(agent)
                     self._group_sizes[group_id] += 1
+
+                if converter != NULL:
+                    stat = "objects." + map[r,c]
+                    self._stats.incr(stat)
+                    self._grid.add_object(converter)
+                    converter.set_event_manager(&self._event_manager)
+                    converter = NULL
+
+
+
     cpdef list[str] grid_features(self):
         return self._grid_features
 
