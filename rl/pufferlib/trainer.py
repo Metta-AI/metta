@@ -603,7 +603,7 @@ class PufferTrainer:
         # Create the vectorized environment
         self.target_batch_size = self.trainer_cfg.forward_pass_minibatch_target_size // self.cfg.env.game.num_agents
         if self.target_batch_size < 2: # pufferlib bug requires batch size >= 2
-        self.target_batch_size = 2
+            self.target_batch_size = 2
         self.batch_size = (self.target_batch_size // self.trainer_cfg.num_workers) * self.trainer_cfg.num_workers
 
         self.vecenv = make_vecenv(
