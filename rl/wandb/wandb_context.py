@@ -35,6 +35,7 @@ class WandbContext:
             settings=wandb.Settings(quiet=True)
         )
 
+        OmegaConf.save(cfg, os.path.join(self.data_dir, "config.yaml"))
         wandb.save(os.path.join(self.data_dir, "*.log"), base_path=self.data_dir, policy="live")
         wandb.save(os.path.join(self.data_dir, "*.yaml"), base_path=self.data_dir, policy="live")
 
