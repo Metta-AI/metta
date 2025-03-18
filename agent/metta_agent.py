@@ -217,7 +217,7 @@ class MettaAgent(nn.Module):
 
         action, logprob, entropy = sample_logits(logits, action)
 
-        return action, logprob, entropy, value, state, e3b, intrinsic_reward, normalized_logits
+        return action, logprob, entropy, value, state, e3b, intrinsic_reward#, normalized_logits
 
     def forward(self, x, state=None, action=None, e3b=None):
         return self.get_action_and_value(x, state, action, e3b)
