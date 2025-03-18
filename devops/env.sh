@@ -2,3 +2,4 @@ export PYTHONUNBUFFERED=1
 export PYTHONPATH=$PYTHONPATH:$(pwd)
 export HYDRA_FULL_ERROR=1
 export WANDB_CONSOLE=off
+export WANDB_DIR="./wandb"
