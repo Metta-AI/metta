@@ -15,6 +15,7 @@ mkdir -p ./train_dir/sweep/$sweep
 N=10
 consecutive_failures=0
 while true; do
+    echo "Running sweep_rollout for $sweep with $consecutive_failures consecutive failures"
     ./devops/sweep_rollout.sh $sweep $args
     if [ $? -ne 0 ]; then
         consecutive_failures=$((consecutive_failures + 1))
