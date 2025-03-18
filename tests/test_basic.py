@@ -45,7 +45,7 @@ import tqdm
 def main(cfg):
 
     # Create the environment:
-    mettaGridEnv = mettagrid.mettagrid_env.MettaGridEnv(render_mode=None, **cfg)
+    mettaGridEnv = mettagrid.mettagrid_env.MettaGridEnv(cfg, render_mode=None)
 
     # Make sure the environment was created correctly:
     print("mettaGridEnv._renderer: ", mettaGridEnv._renderer)

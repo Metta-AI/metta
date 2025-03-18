@@ -11,10 +11,9 @@ from mettagrid.mettagrid_c import MettaGrid  # pylint: disable=E0611
 
 
 class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
-    def __init__(self, render_mode: str, buf=None, **cfg):
-
+    def __init__(self, env_cfg: OmegaConf, render_mode: str, buf=None, **kwargs):
         self._render_mode = render_mode
-        self._cfg = OmegaConf.create(cfg)
+        self._cfg = env_cfg
         self.make_env()
         self.should_reset = False
         self._renderer = None

@@ -31,9 +31,9 @@ game:
       # action_failure_penalty: 0.00001
       action_failure_penalty: 0
       ore: 0.005
-      ore_max: 100
+      ore_max: 5
       battery: 0.01
-      battery_max: 100
+      battery_max: 5
       heart: 1
       heart_max: 1000
 
@@ -83,27 +83,35 @@ game:
       input_battery: 3
       output_heart: 1
       max_output: 5
+      conversion_ticks: 1
       cooldown: ${uniform:1, 20, 10}
+      initial_items: 1
 
     mine:
       hp: 30
       output_ore: 1
       max_output: 5
+      conversion_ticks: 1
       cooldown: ${uniform:0, 100, 50}
+      initial_items: 1
 
     generator:
       hp: 30
       input_ore: 1
       output_battery: 1
       max_output: 5
+      conversion_ticks: 1
       cooldown: ${uniform:0, 50, 25}
+      initial_items: 1
 
     armory:
       hp: 30
       input_ore: 3
       output_armor: 1
       max_output: 5
+      conversion_ticks: 1
       cooldown: ${uniform:0, 20, 10}
+      initial_items: 1
 
     lasery:
       hp: 30
@@ -111,7 +119,9 @@ game:
       input_battery: 2
       output_laser: 1
       max_output: 5
+      conversion_ticks: 1
       cooldown: ${uniform:0, 20, 10}
+      initial_items: 1
 
     lab:
       hp: 30
@@ -119,8 +129,9 @@ game:
       input_battery: 3
       output_blueprint: 1
       max_output: 5
+      conversion_ticks: 1
       cooldown: ${uniform:0, 10, 5}
-
+      initial_items: 1
     factory:
       hp: 30
       input_blueprint: 1
@@ -129,7 +140,9 @@ game:
       output_armor: 5
       output_laser: 5
       max_output: 5
+      conversion_ticks: 1
       cooldown: ${uniform:0, 10, 5}
+      initial_items: 1
 
     temple:
       hp: 30
@@ -137,7 +150,9 @@ game:
       input_blueprint: 1
       output_heart: 5
       max_output: 5
+      conversion_ticks: 1
       cooldown: ${uniform:0, 10, 5}
+      initial_items: 1
 
     wall:
       hp: ${uniform:1, 20, 10}

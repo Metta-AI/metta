@@ -8,3 +8,8 @@ cdef extern from "production_handler.hpp":
         ProductionHandler(EventManager *event_manager)
 
         void handle_event(GridObjectId obj_id, EventArg arg)
+
+    cdef cppclass CoolDownHandler(EventHandler):
+        CoolDownHandler(EventManager *event_manager)
+
+        void handle_event(GridObjectId obj_id, EventArg arg)

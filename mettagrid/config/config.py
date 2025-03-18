@@ -8,6 +8,7 @@ from omegaconf import OmegaConf
 from rich import traceback
 import warnings
 
+warnings.warn("This config.py file is deprecated", DeprecationWarning)
 
 def seed_everything(seed, torch_deterministic):
     random.seed(seed)

@@ -8,7 +8,8 @@
 #include "../grid_object.hpp"
 
 enum Events {
-    FinishConverting = 0
+    FinishConverting = 0,
+    CoolDown = 1
 };
 
 enum GridLayer {
