@@ -10,7 +10,7 @@ game:
   agent:
     rewards:
       action_failure_penalty: 0
-      ore: 0.001
+      ore: 0.00
       battery: 5
 
   map_builder:
@@ -291,8 +291,8 @@ game:
       cooldown: 10
 
   actions:
-    # attack:
-    #   enabled: false
+    attack:
+      enabled: false
     swap:
       enabled: false
     change_color:
