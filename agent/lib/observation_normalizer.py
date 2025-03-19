@@ -8,7 +8,6 @@ from agent.lib.metta_layer import LayerBase
 # but here we are. If you add / remove a feature, you should add / remove the corresponding normalization.
 OBS_NORMALIZATIONS = {
     'agent': 1,
-
     'agent:group': 10,
     'agent:hp': 30,
     'agent:frozen': 1,
@@ -37,6 +36,7 @@ OBS_NORMALIZATIONS = {
     'generator': 1,
     'generator:hp': 30,
     'generator:ready': 1,
+    'generator:color': 10,
     'mine': 1,
     'mine:hp': 30,
     'mine:color': 10,
