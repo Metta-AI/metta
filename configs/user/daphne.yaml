@@ -25,13 +25,13 @@ eval_db_uri: wandb://artifacts/cogeval_evaluations
 npc_policy_uri: null
 
 
-eval:
-  policy_uri: ${policy_uri}
-  num_envs: 10
-  num_episodes: 10
-  max_time_s: 300
-analyzer:
-  policy_uri: ${policy_uri}
+# eval:
+#   # policy_uri: ${policy_uri}
+#   num_envs: 10
+#   num_episodes: 10
+#   max_time_s: 300
+# analyzer:
+#   policy_uri: ${policy_uri}
 wandb:
   enabled: true
   track: true
@@ -39,7 +39,7 @@ wandb:
 
 
 cmd: ???
-run_id: 41
+run_id: 43
 run: ${oc.env:USER}.local.${cmd}.${run_id}
 trained_policy_uri: ./train_dir/${oc.env:USER}.local.train.${run_id}/checkpoints
 
