@@ -5,8 +5,7 @@ import numpy as np
 import torch
 from agent.policy_store import PolicyStore, PolicyRecord
 from omegaconf import DictConfig, OmegaConf
-import hydra
-
+from env.util import from_config_path
 from rl.pufferlib.vecenv import make_vecenv
 
 logger = logging.getLogger("eval")
@@ -31,15 +30,7 @@ class Eval():
         **kwargs,
 
     ) -> None:
-        env_cfg = hydra.compose(config_name=env)
-        if env.startswith("/"):
-            env = env[1:]
-        path = env.split("/")
-        for p in path[:-1]:
-            env_cfg = env_cfg[p]
-        self._env_cfg = env_cfg
-        if env_overrides is not None:
-            env_cfg = OmegaConf.merge(env_cfg, env_overrides)
+        self._env_cfg = from_config_path(env, env_overrides)
         self._env_name = env
 
         self._npc_policy_uri = npc_policy_uri

@@ -3,40 +3,41 @@
 seed: null
 
 defaults:
-  - override /env/mettagrid@env: simple
-  - override /agent: simple.medium
-  - override /sweep: fast
-  - override /eval: example
-  - override /analyzer: analyzer
+  - /sweep: fast
+  - override /agent: simple
+  - override /eval: eval
+
 
 policy_uri: wandb://run/b.daveey.sm.train.er.new.0
 npc_policy_uri: null
 eval_db_uri: file://artifacts/daphne_eval_testing
 
-env:
+env_overrides:
   game:
     max_steps: 100
 
 trainer:
-  evaluate_interval: 2
+  env: /env/mettagrid/bases
+  evaluate_interval: 200
 
 eval:
-  policy_uri: ${..policy_uri}
-  npc_policy_uri: ${..npc_policy_uri}
-  eval_db_uri: ${..eval_db_uri}
+  num_envs: 2
+  num_episodes: 2
+  max_time_s: 600
+  env: /env/mettagrid/simple
+  env_overrides: ${env_overrides}
 
 analyzer:
+  eval_stats_uri: ${run_dir}/eval_stats
   analysis:
     metrics:
-    - metric: "action.use.altar.agent"
-
-sweep:
-  metric: "action.use.altar.agent"
+      - metric: episode_reward
+      - metric: "*.get"
 
 wandb:
-  enabled: true
-  track: true
   checkpoint_interval: 1
 
-cmd: ???
-run: ${oc.env:USER}.local.${cmd}.2
+run_id: 1
+run: ${oc.env:USER}.local.${run_id}
+trained_policy_uri: ${run_dir}/checkpoints
+sweep_name: "${oc.env:USER}.local.sweep.0"

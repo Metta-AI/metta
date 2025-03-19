@@ -110,7 +110,12 @@ class MasterSweepRollout:
 
         eval_cfg.eval.policy_uri = final_pr.uri
         eval_cfg.analyzer.policy_uri = final_pr.uri
-        eval = hydra.utils.instantiate(eval_cfg.eval, policy_store, final_pr, eval_cfg.env, _recursive_ = False)
+        eval = hydra.utils.instantiate(
+            eval_cfg.eval,
+            policy_store,
+            final_pr,
+            env_overrides=eval_cfg.env_overrides,
+            _recursive_ = False)
         stats = eval.evaluate()
         eval_time = time.time() - eval_start_time
 

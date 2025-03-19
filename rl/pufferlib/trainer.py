@@ -12,17 +12,18 @@ import torch.distributed as dist
 from fast_gae import fast_gae
 from omegaconf import OmegaConf
 
+from env.util import from_config_path
 import wandb
 from agent.metta_agent import DistributedMettaAgent
 from agent.policy_store import PolicyStore
 from rl.eval.eval_stats_db import EvalStatsDB
 from rl.eval.eval_stats_logger import EvalStatsLogger
 from rl.pufferlib.experience import Experience
+from rl.pufferlib.kickstarter import Kickstarter
 from rl.pufferlib.profile import Profile
 from rl.pufferlib.trace import save_trace_image
 from rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
 from rl.pufferlib.vecenv import make_vecenv
-from rl.pufferlib.kickstarter import Kickstarter
 
 torch.set_float32_matmul_precision('high')
 
@@ -39,6 +40,8 @@ class PufferTrainer:
 
         self.cfg = cfg
         self.trainer_cfg = cfg.trainer
+        self._env_cfg = from_config_path(
+            self.trainer_cfg.env, self.trainer_cfg.env_overrides)
 
         self._master = True
         self._world_size = 1
@@ -601,13 +604,13 @@ class PufferTrainer:
     def _make_vecenv(self):
         """Create a vectorized environment."""
         # Create the vectorized environment
-        self.target_batch_size = self.trainer_cfg.forward_pass_minibatch_target_size // self.cfg.env.game.num_agents
+        self.target_batch_size = self.trainer_cfg.forward_pass_minibatch_target_size // self._env_cfg.game.num_agents
         if self.target_batch_size < 2: # pufferlib bug requires batch size >= 2
             self.target_batch_size = 2
         self.batch_size = (self.target_batch_size // self.trainer_cfg.num_workers) * self.trainer_cfg.num_workers
 
         self.vecenv = make_vecenv(
-            self.cfg.env,
+            self._env_cfg,
             self.cfg.vectorization,
             num_envs = self.batch_size * self.trainer_cfg.async_factor,
             batch_size = self.batch_size,

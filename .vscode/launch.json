@@ -10,8 +10,6 @@
             "request": "launch",
             "module": "tools.train",
             "args": [
-                "data_dir=./train_dir/sweep/daveey.local.sweep.6/runs",
-                "run=daveey.local.sweep.6.r.27",
                 "+hardware=macbook",
                 "+user=${env:USER}",
             ],

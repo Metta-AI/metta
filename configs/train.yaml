@@ -6,8 +6,6 @@ defaults:
   - eval: eval_suite
   - analyzer: train_analyzer
   - wandb
-  - sweep: empty
 
-cmd: train
 seed: 1
 eval_db_uri: null

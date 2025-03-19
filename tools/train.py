@@ -1,14 +1,11 @@
-import argparse
 import logging
 import os
 import sys
 import hydra
-from typing import List, Optional
 
-import yaml
 from agent.policy_store import PolicyStore
-from util.runtime_configuration import setup_metta_environment, setup_omega_conf
-from omegaconf import OmegaConf, open_dict, DictConfig
+from util.runtime_configuration import setup_metta_environment
+from omegaconf import OmegaConf
 from rich.logging import RichHandler
 from rl.wandb.wandb_context import WandbContext
 import torch.distributed as dist
