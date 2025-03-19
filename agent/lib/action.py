@@ -87,3 +87,19 @@ if __name__ == "__main__":
 
     # logits will have the shape [batch_size, num_actions].
         
+        def get_stable_action_encoding(action_name, dim=8):
+            # Create a hash from action_name
+            hashed = int(hashlib.sha256(action_name.encode()).hexdigest(), 16) % (2**32)
+            gen = torch.Generator()
+            gen.manual_seed(hashed)
+            return torch.randn(dim, generator=gen)
+        
+        # Get action names once
+        action_names = self.vecenv.driver_env.action_names()
+        # Create a tensor of shape [num_actions, embed_dim]
+        # ---- change this to be a one-time update function in action.py----
+        action_type_embeds = torch.stack([get_stable_action_encoding(action_name) for action_name in action_names])
+        action_param_embeds = torch.stack([get_stable_action_encoding(action_name) for action_name in action_names])
+
+        self.policy.components['_action_type_'].action_type_embeds = action_type_embeds
+        self.policy.components['_action_param_'].action_param_embeds = action_param_embeds
