@@ -3,7 +3,7 @@
 seed: null
 
 defaults:
-  - /sweep: fast
+  # - sweep_overrides: fast
   - override /agent: simple
   - override /eval: eval
 
@@ -11,7 +11,7 @@ defaults:
 env_overrides:
   # sampling: 0.7
   game:
-    num_agents: 36
+    num_agents: 360
     max_steps: 1000
 
 
