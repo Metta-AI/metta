@@ -124,5 +124,8 @@ def main(cfg):
     print("mettaGridEnv.action_success: ", mettaGridEnv.action_success)
     assert mettaGridEnv.action_success.shape == (5,)
 
+    print("mettaGridEnv.object_type_names: ", mettaGridEnv.object_type_names())
+    assert mettaGridEnv.object_type_names() == mettaGridEnv._c_env.object_type_names()
+
 if __name__ == "__main__":
     main()
