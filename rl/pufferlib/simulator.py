@@ -34,7 +34,7 @@ class Simulator:
         """ Get the actions for the current timestep """
         with torch.no_grad():
             obs = torch.as_tensor(self.obs).to(device=self.device)
-            actions, _, _, _, self.policy_rnn_state, _, _ = self.policy(
+            actions, _, _, _, self.policy_rnn_state, _, _, _ = self.policy(
               obs,
               self.policy_rnn_state
             )

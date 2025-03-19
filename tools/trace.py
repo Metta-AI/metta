@@ -7,7 +7,7 @@ from omegaconf import OmegaConf
 from rl.wandb.wandb_context import WandbContext
 from mettagrid.config.config import setup_metta_environment
 from agent.policy_store import PolicyStore
-from rl.pufferlib.trace import save_trace_image
+from rl.pufferlib.trace import save_trace_image, save_replay
 
 
 @hydra.main(version_base=None, config_path="../configs", config_name="config")
@@ -23,6 +23,8 @@ def main(cfg):
         policy_record = policy_store.policy(cfg.policy_uri)
         image_path = f"{cfg.run_dir}/traces/trace.png"
         save_trace_image(cfg, policy_record, image_path)
+        replay_path = f"{cfg.run_dir}/replays/replay.json"
+        save_replay(cfg, policy_record, replay_path)
         # Open image in Finder
         subprocess.run(["open", image_path])
 
