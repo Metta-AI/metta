@@ -13,6 +13,18 @@ class Linear(ParamLayer):
             **self._nn_params
         )
 
+class Bilinear(ParamLayer):
+    def __init__(self, **cfg):
+        super().__init__(**cfg)
+
+    def _make_net(self):
+        return nn.Bilinear(
+            self._input_size,
+            self._embed_length,
+            self._output_size,
+            **self._nn_params
+        )
+
 class Conv1d(ParamLayer):
     def __init__(self, **cfg):
         super().__init__(**cfg)

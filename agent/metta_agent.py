@@ -74,11 +74,8 @@ class MettaAgent(nn.Module):
             'obs_input_shape': obs_space[cfg.observations.obs_key].shape[1:],
             'num_objects': obs_space[cfg.observations.obs_key].shape[2], # this is hardcoded for channel # at end of tuple
             'hidden_size': self.hidden_size,
-            'core_num_layers': self.core_num_layers
+            'core_num_layers': self.core_num_layers,
         }
-
-        agent_attributes['action_type_size'] = action_space.nvec[0]
-        agent_attributes['action_param_size'] = action_space.nvec[1]
 
         # self.observation_space = obs_space # for use with FeatureSetEncoder
         # self.global_features = global_features # for use with FeatureSetEncoder
