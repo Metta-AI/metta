@@ -4,14 +4,15 @@ from typing import Any, Dict
 import gymnasium as gym
 import hydra
 import numpy as np
+from mettagrid.config.config import setup_omega_conf
 import pufferlib
-from omegaconf import OmegaConf
+from omegaconf import OmegaConf, DictConfig
 
 from mettagrid.mettagrid_c import MettaGrid  # pylint: disable=E0611
 
 
 class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
-    def __init__(self, env_cfg: OmegaConf, render_mode: str, buf=None, **kwargs):
+    def __init__(self, env_cfg: DictConfig, render_mode: str, buf=None, **kwargs):
         self._render_mode = render_mode
         self._cfg = env_cfg
         self.make_env()
@@ -158,3 +159,10 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     def close(self):
         pass
+
+
+def make_env_from_cfg(cfg_path: str, *args, **kwargs):
+    setup_omega_conf()
+    cfg = OmegaConf.load(cfg_path)
+    env = MettaGridEnv(cfg, *args, **kwargs)
+    return env
