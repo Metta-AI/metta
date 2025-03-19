@@ -4,12 +4,12 @@ seed: null
 
 defaults:
   - override /eval: eval_suite
-  - override /env/mettagrid@env: simple
+  - override /env/mettagrid@env: wilderness_test/single_mine_and_altar
   - override /agent: simple
   - override /sweep: fast
   - override /analyzer: train_analyzer
 
-policy_uri: wandb://run/b.daphne.aws_train_cogeval_simplified_0.01_mb:v36
+policy_uri: wandb://run/daphne_storytelling_metta2_single_mine_with_altar_pretrained_e3b.r.0
 #policy_uri: ./train_dir/daphne.local.train.14_pfs/checkpoints/model_0050.pt
 # policy_uri: wandb://run/mettabox_cogeval_defaults_lowent_initialized0005
 # policy_uri: wandb://run/daphne_mettabox_train_cogeval_simplified_0.01_mb_easyv33
