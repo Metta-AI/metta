@@ -7,7 +7,7 @@ import torch
 from agent.policy_store import PolicyRecord
 from rl.pufferlib.simulator import Simulator
 import pixie
-
+import zlib
 
 # Using flat UI colors:
 TURQUOISE = pixie.Color(0x1a/255, 0xbc/255, 0x9c/255, 1)
@@ -44,7 +44,6 @@ GET_COLOR = CARROT
 ATTACK_COLOR = ALIZARIN
 CHANGE_COLOR_COLOR = PETER_RIVER
 SWAP_COLOR = POMEGRANATE
-
 
 
 def nice_orientation(orientation):
@@ -223,8 +222,6 @@ def save_replay(
         actions = simulator.actions()
 
         actions_array = actions.cpu().numpy()
-
-
         step_info = []
 
         for i, grid_object in enumerate(simulator.grid_objects()):
@@ -258,3 +255,11 @@ def save_replay(
 
     with open(output_path, "w") as f:
         f.write(json.dumps(replay))
+
+    # Compress it with deflate.
+    replay_data = json.dumps(replay)  # Convert to JSON string
+    replay_bytes = replay_data.encode('utf-8')  # Encode to bytes
+    compressed_data = zlib.compress(replay_bytes)  # Compress the bytes
+    # Write the compressed data to a file
+    with open(output_path + '.z', 'wb') as f:
+        f.write(compressed_data)
