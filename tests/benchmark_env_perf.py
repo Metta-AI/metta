@@ -40,7 +40,7 @@ def main(cfg):
     print(OmegaConf.to_yaml(cfg))
 
     cfg.game.max_steps = 999999999
-    env = hydra.utils.instantiate(cfg, render_mode="human", _recursive_=False)
+    env = hydra.utils.instantiate(cfg, cfg, render_mode="human", _recursive_=False)
     env.reset()
     global actions
     num_agents = cfg.game.num_agents
