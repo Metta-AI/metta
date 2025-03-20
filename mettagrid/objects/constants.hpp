@@ -33,18 +33,22 @@ enum ObjectType {
 };
 
 enum InventoryItem {
-    ore = 0,
-    battery = 1,
-    heart = 2,
-    armor = 3,
-    laser = 4,
-    blueprint = 5,
-    InventoryCount = 6
+    ore_red = 0,
+    ore_blue =1,
+    ore_green = 2,
+    battery = 3,
+    heart = 4,
+    armor = 5,
+    laser = 6,
+    blueprint = 7,
+    InventoryCount = 8
 };
 
 // These should be const, but we run into type inference issues with cython
 std::vector<std::string> InventoryItemNames = {
-    "ore",
+    "ore.red",
+    "ore.blue",
+    "ore.green",
     "battery",
     "heart",
     "armor",
@@ -55,8 +59,13 @@ std::vector<std::string> InventoryItemNames = {
 std::vector<std::string> ObjectTypeNames = {
     "agent",
     "wall",
-    "mine",
-    "generator",
+    "block",
+    "mine.red",
+    "mine.blue",
+    "mine.green",
+    "generator.red",
+    "generator.blue",
+    "generator.green",
     "altar",
     "armory",
     "lasery",

@@ -30,8 +30,9 @@ game:
     rewards:
       # action_failure_penalty: 0.00001
       action_failure_penalty: 0
-      ore: 0.005
-      ore_max: 5
+      ore.red: 0.005
+      ore.blue: 0
+      ore.green: 0
       battery: 0.01
       battery_max: 5
       heart: 1
@@ -87,18 +88,58 @@ game:
       cooldown: ${uniform:1, 20, 10}
       initial_items: 1
 
-    mine:
+    mine.red:
       hp: 30
-      output_ore: 1
+      output_ore.red: 1
+      color: 0
       max_output: 5
       conversion_ticks: 1
       cooldown: ${uniform:0, 100, 50}
       initial_items: 1
 
-    generator:
+    mine.blue:
       hp: 30
-      input_ore: 1
+      color: 1
+      output_ore.blue: 1
+      max_output: 5
+      conversion_ticks: 1
+      cooldown: ${uniform:0, 100, 50}
+      initial_items: 1
+
+    mine.green:
+      hp: 30
+      output_ore.green: 1
+      color: 2
+      max_output: 5
+      conversion_ticks: 1
+      cooldown: ${uniform:0, 100, 50}
+      initial_items: 1
+
+    generator.red:
+      hp: 30
+      input_ore.red: 1
       output_battery: 1
+      color: 0
+      max_output: 5
+      conversion_ticks: 1
+      cooldown: ${uniform:0, 50, 25}
+      initial_items: 1
+
+    generator.blue:
+      hp: 30
+      input_ore.blue: 1
+      output_battery: 1
+      color: 1
+      max_output: 5
+      conversion_ticks: 1
+      cooldown: ${uniform:0, 50, 25}
+      initial_items: 1
+
+    generator.green:
+      hp: 30
+      input_ore.green: 1
+      output_battery: 1
+      color: 2
       max_output: 5
       conversion_ticks: 1
       cooldown: ${uniform:0, 50, 25}
@@ -132,6 +173,7 @@ game:
       conversion_ticks: 1
       cooldown: ${uniform:0, 10, 5}
       initial_items: 1
+
     factory:
       hp: 30
       input_blueprint: 1
@@ -156,6 +198,11 @@ game:
 
     wall:
       hp: ${uniform:1, 20, 10}
+      swappable: false
+
+    block:
+      hp: ${uniform:1, 20, 10}
+      swappable: true
 
   actions:
     noop:

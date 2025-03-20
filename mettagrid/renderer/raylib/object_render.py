@@ -121,11 +121,11 @@ class WallRenderer(ObjectRenderer):
 class ConverterRenderer(ObjectRenderer):
     def __init__(self):
         super().__init__("items.png", 16)
-    
+
     def _state(self, obj):
         if obj["converting"]:
             return "converting"
-        elif obj["inv:ore"] + obj["inv:battery"] + obj["inv:heart"] + obj["inv:laser"] + obj["inv:armor"] + obj["inv:blueprint"] > 0:
+        elif obj["inv:ore.red"] + obj["inv:ore.blue"] + obj["inv:ore.green"] + obj["inv:battery"] + obj["inv:heart"] + obj["inv:laser"] + obj["inv:armor"] + obj["inv:blueprint"] > 0:
             return "has_inventory"
         else:
             return "empty"

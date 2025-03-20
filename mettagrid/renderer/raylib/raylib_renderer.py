@@ -525,8 +525,6 @@ class MettaGridRaylibRenderer:
 
             rl.KEY_Z: (self.action_ids["attack_nearest"], 0),
 
-            # toggle shield
-            rl.KEY_O: (self.action_ids["shield"], 0),
             # swap
-            # rl.KEY_P: (self.action_ids["swap"], 0),
+            rl.KEY_O: (self.action_ids["swap"], 0),
         }
