@@ -208,6 +208,7 @@ class PufferTrainer:
             e3b_inv = experience.e3b_inv
 
         while not experience.full:
+            print("Am I getting stuck here?")
             with profile.env:
                 o, r, d, t, info, env_id, mask = self.vecenv.recv()
 
