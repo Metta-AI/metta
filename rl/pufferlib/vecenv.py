@@ -1,11 +1,11 @@
-from omegaconf import OmegaConf
+from omegaconf import OmegaConf, DictConfig
 import pufferlib
 import pufferlib.utils
 import pufferlib.vector
 import hydra
 from mettagrid.config.config import setup_omega_conf
 
-def make_env_func(cfg: OmegaConf, buf=None, render_mode='rgb_array'):
+def make_env_func(cfg: DictConfig, buf=None, render_mode='rgb_array'):
     setup_omega_conf()
     env = hydra.utils.instantiate(cfg, env_cfg=cfg, buf=buf, render_mode=render_mode, _recursive_=False)
     return env
