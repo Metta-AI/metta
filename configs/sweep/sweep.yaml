@@ -76,10 +76,10 @@ parameters:
       space: pow2
       min: 1024
       max: 131072
-    forward_pass_minibatch_target_size:
-      space: pow2
-      min: 1024
-      max: 32768
+    # forward_pass_minibatch_target_size:
+    #   space: pow2
+    #   min: 1024
+    #   max: 32768
 
     #   space: linear
     #   search_center: 2
