@@ -12,6 +12,26 @@ class Linear(ParamLayer):
             self._in_tensor_shape[0],
             **self._nn_params
         )
+    
+class Bilinear(LayerBase):
+    def __init__(self, **cfg):
+        super().__init__(**cfg)
+
+    def _make_net(self):
+        self._out_tensor_shape = [self._nn_params.out_features]
+        return nn.Bilinear(
+            **self._nn_params
+        )
+    
+class Embedding(LayerBase):
+    def __init__(self, **cfg):
+        super().__init__(**cfg)
+
+    def _make_net(self):
+        self._out_tensor_shape = [self._nn_params.embedding_dim]
+        return nn.Embedding(
+            **self._nn_params
+        )
 
 class Conv2d(ParamLayer):
     def __init__(self, **cfg):

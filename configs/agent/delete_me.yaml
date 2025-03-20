@@ -29,7 +29,8 @@ components:
 # change names etc.
   last_24_channels:
     _target_: agent.lib.merge_layer.ConcatMergeLayer
-    sources:
+# change this to input_sources:
+    input_source:
       - source_name: obs_normalizer
         slice: [0, 28]  
         dim: 1          
@@ -71,7 +72,7 @@ components:
   # change names etc.
   first_14_channels:
     _target_: agent.lib.merge_layer.ConcatMergeLayer
-    sources:
+    input_source:
       - source_name: obs_normalizer
         slice: [0, 28]  # extract the first 14 channels
         dim: 1          # operates on the channel dimension
@@ -79,7 +80,7 @@ components:
   # Extract the center row (height = 11 → 1)
   center_row:
     _target_: agent.lib.merge_layer.ConcatMergeLayer
-    sources:
+    input_source:
       - source_name: first_14_channels
         slice: [5, 6]   # extract the center row (row index 5)
         dim: 2          # operates on the height dimension
@@ -87,7 +88,7 @@ components:
   # Extract the center pixel from the center row (width = 11 → 1)
   center_pixel:
     _target_: agent.lib.merge_layer.ConcatMergeLayer
-    sources:
+    input_source:
       - source_name: center_row
         slice: [5, 6]   # extract the center column (column index 5)
         dim: 3          # operates on the width dimension
@@ -105,7 +106,7 @@ components:
 
   self_info_encoded_obs_merger:
     _target_: agent.lib.merge_layer.ConcatMergeLayer
-    sources:
+    input_source:
       - source_name: center_linear
       - source_name: encoded_obs
 
@@ -140,12 +141,28 @@ components:
       out_features: 512
     effective_rank: true
 
+  _action_type_embeds_:
+    _target_: agent.lib.nn_layer_library.Embedding
+    input_source: null
+    nn_params:
+      num_embeddings: 50
+      embedding_dim: 64
+
   _action_type_:
     _target_: agent.lib.action.ActionType
-    input_source: actor_1
+    input_source: 
+      - source_name: actor_1
+      - source_name: _action_type_embeds_
     nonlinearity: null
+
+  _action_param_embeds_:
+    _target_: agent.lib.action.ActionHash
+    input_source: null
+    embedding_dim: 4
 
   _action_param_:
     _target_: agent.lib.action.ActionParam
-    input_source: actor_1
+    input_source: 
+      - source_name: actor_1
+      - source_name: _action_param_embeds_
     nonlinearity: null

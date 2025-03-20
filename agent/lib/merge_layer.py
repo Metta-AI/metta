@@ -4,13 +4,14 @@ from tensordict import TensorDict
 from agent.lib.metta_layer import LayerBase
 
 class MergeLayerBase(LayerBase):
-    def __init__(self, name, sources, **cfg):
-        super().__init__(name)
-        self.sources_list = list(sources)
+    def __init__(self, name, **cfg):
         self._ready = False
-
+        super().__init__(name)
+        self.sources_full_list = self._input_source
+        # redefine _input_source to only be the names so MettaAgent can find the components
+        # it's ugly but it maintains consistency in the YAML config
         self._input_source = []
-        for src_cfg in self.sources_list:
+        for src_cfg in self.sources_full_list:
             self._input_source.append(src_cfg['source_name'])
 
     @property
@@ -21,20 +22,15 @@ class MergeLayerBase(LayerBase):
         if self._ready:
             return
 
+        # shouldn't this check if it's a dict or not?
         self.input_source_components = input_source_components
 
-        # self.sizes = []
         self.dims = []
-        # self.in_shapes = []
         self.out_shapes = []
-        for src_cfg in self.sources_list:
+        for src_cfg in self.sources_full_list:
             source_name = src_cfg['source_name']
-            # full_source_size = self.input_source_components[source_name]._output_size
             
             processed_size = self.input_source_components[source_name]._out_tensor_shape
-            # self.in_shapes.append(full_source_size)
-            
-            # processed_size = full_source_size # we don't need this either
 
             if src_cfg.get('slice') is not None:
                 slice_range = src_cfg['slice']
@@ -54,14 +50,10 @@ class MergeLayerBase(LayerBase):
                     'dim': slice_dim
                 }
 
-                # processed_size = length # remove this
-
                 processed_size[slice_dim] = length
-                # processed_size = full_source_size
 
             self.out_shapes.append(processed_size)
 
-            # self.sizes.append(processed_size)# remove this
             self.dims.append(src_cfg.get("dim", 1)) # check if default dim is good to have or will cause problems
 
         self._setup_merge_layer()
@@ -72,7 +64,7 @@ class MergeLayerBase(LayerBase):
 
     def forward(self, td: TensorDict):
         outputs = []
-        for src_cfg in self.sources_list:
+        for src_cfg in self.sources_full_list:
             source_name = src_cfg['source_name']
             self.input_source_components[source_name].forward(td)
             src_tensor = td[source_name]
