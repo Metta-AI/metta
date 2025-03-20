@@ -53,18 +53,19 @@ class EvalStatsLogger:
 
     def _log_to_file(self, eval_stats):
         # If file exists, load and merge with existing data
-        if os.path.exists(self.json_path):
+        gzip_path = self.json_path + ".gz"
+        if os.path.exists(gzip_path):
             try:
-                logger.info(f"Loading existing eval stats from {self.json_path}")
-                with open(self.json_path, "r") as f:
+                logger.info(f"Loading existing eval stats from {gzip_path}")
+                with gzip.open(gzip_path, "rt", encoding='utf-8') as f:
                     existing_stats = json.load(f)
                 eval_stats.extend(existing_stats)
             except Exception as e:
-                logger.error(f"Error loading existing eval stats from {self.json_path}: {e}, will overwrite")
+                logger.error(f"Error loading existing eval stats from {gzip_path}: {e}, will overwrite")
 
-        with open(self.json_path, "w") as f:
+        with gzip.open(gzip_path, "wt", encoding='utf-8') as f:
             json.dump(eval_stats, f, indent=4)
-        logger.info(f"Saved eval stats to {self.json_path}")
+        logger.info(f"Saved eval stats to {gzip_path}")
 
     def _log_to_wandb(self, artifact_name: str, eval_stats):
         artifact = wandb.Artifact(name=artifact_name, type=artifact_name)
