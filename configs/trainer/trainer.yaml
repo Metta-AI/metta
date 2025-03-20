@@ -1,5 +1,8 @@
 num_workers: ???
 
+env: /env/mettagrid/simple
+env_overrides: {}
+
 initial_policy:
   uri: null
   type: top

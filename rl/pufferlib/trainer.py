@@ -12,22 +12,25 @@ import torch.distributed as dist
 from fast_gae import fast_gae
 from omegaconf import OmegaConf
 
+from util.config import config_from_path
 import wandb
 from agent.metta_agent import DistributedMettaAgent
 from agent.policy_store import PolicyStore
 from rl.eval.eval_stats_db import EvalStatsDB
 from rl.eval.eval_stats_logger import EvalStatsLogger
 from rl.pufferlib.experience import Experience
+from rl.pufferlib.kickstarter import Kickstarter
 from rl.pufferlib.profile import Profile
 # from rl.pufferlib.trace import save_trace_image
 from rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
 from rl.pufferlib.vecenv import make_vecenv
-from rl.pufferlib.kickstarter import Kickstarter
 
 torch.set_float32_matmul_precision('high')
 
-logger = logging.getLogger("trainer")
-
+# Get rank for logger name
+rank = int(os.environ.get("RANK", 0))
+local_rank = int(os.environ.get("LOCAL_RANK", 0))
+logger = logging.getLogger(f"trainer-{rank}-{local_rank}")
 class PufferTrainer:
     def __init__(self,
                  cfg: OmegaConf,
@@ -37,22 +40,26 @@ class PufferTrainer:
 
         self.cfg = cfg
         self.trainer_cfg = cfg.trainer
-        self.device = cfg.device
+        self._env_cfg = config_from_path(
+            self.trainer_cfg.env, self.trainer_cfg.env_overrides)
 
         self._master = True
         self._world_size = 1
+        self.device = cfg.device
         if dist.is_initialized():
-            logger.info("Setting up distributed training")
             self._master = (int(os.environ["RANK"]) == 0)
             self._world_size = dist.get_world_size()
             logger.info(f"Rank: {os.environ['RANK']}, Local rank: {os.environ['LOCAL_RANK']}, World size: {self._world_size}")
+            self.device = f'cuda:{os.environ["LOCAL_RANK"]}'
+            logger.info(f"Setting up distributed training on device {self.device}")
+
         self.profile = Profile()
         self.losses = self._make_losses()
         self.stats = defaultdict(list)
         self.wandb_run = wandb_run
         self.policy_store = policy_store
         self.use_e3b = self.trainer_cfg.use_e3b
-        self.eval_stats_logger = EvalStatsLogger(cfg, wandb_run)
+        self.eval_stats_logger = EvalStatsLogger(cfg, self._env_cfg, wandb_run)
         self.average_reward = 0.0  # Initialize average reward estimate
         self._policy_fitness = []
         self._effective_rank = []
@@ -98,7 +105,7 @@ class PufferTrainer:
 
         self._initial_pr = policy_record
         self.last_pr = policy_record
-        self.policy = policy_record.policy()
+        self.policy = policy_record.policy().to(self.device)
         self.policy_record = policy_record
         self.uncompiled_policy = self.policy
 
@@ -107,7 +114,9 @@ class PufferTrainer:
             self.policy = torch.compile(self.policy, mode=self.trainer_cfg.compile_mode)
 
         if dist.is_initialized():
-            logger.info("Initializing DistributedDataParallel")
+            logger.info(f"Initializing DistributedDataParallel on device {self.device}")
+            # Store the original policy for cleanup purposes
+            self._original_policy = self.policy
             self.policy = DistributedMettaAgent(self.policy, self.device)
 
         self._make_experience_buffer()
@@ -174,10 +183,17 @@ class PufferTrainer:
         logger.info(f"Training complete. Total time: {self.train_time:.2f} seconds")
 
     def _evaluate_policy(self):
+        if not self._master:
+            return
+
         self.cfg.eval.policy_uri = self.last_pr.uri
         self.cfg.analyzer.policy_uri = self.last_pr.uri
 
-        eval = hydra.utils.instantiate(self.cfg.eval, self.policy_store, self.last_pr, self.cfg.env, _recursive_ = False)
+        eval = hydra.utils.instantiate(
+            self.cfg.eval,
+            self.policy_store,
+            self.last_pr,
+            _recursive_ = False)
         stats = eval.evaluate()
 
         try:
@@ -217,13 +233,14 @@ class PufferTrainer:
                 # configured differently in metta. You want the whole forward pass batch to come
                 # from one core to reduce indexing overhead.
                 # contiguous_env_ids = self.vecenv.agents_per_batch == self.vecenv.driver_env.agents_per_env[0]
+                contiguous_env_ids = self.trainer_cfg.async_factor == self.trainer_cfg.num_workers
                 contiguous_env_ids = False
                 if contiguous_env_ids:
                     gpu_env_id = cpu_env_id = slice(env_id[0], env_id[-1] + 1)
                 else:
                     if self.trainer_cfg.require_contiguous_env_ids:
                         raise ValueError("Env ids are not contiguous. "\
-                            f"{self.vecenv.agents_per_batch} != {self.vecenv.agents_per_env[0]}")
+                            f"{self.trainer_cfg.async_factor} != {self.trainer_cfg.num_workers}")
                     cpu_env_id = env_id
                     gpu_env_id = torch.as_tensor(env_id).to(self.device, non_blocking=True)
 
@@ -470,7 +487,8 @@ class PufferTrainer:
                 "run": self.cfg.run,
                 "action_names": self.vecenv.driver_env.action_names(),
                 "generation": generation,
-                "initial_uri": self._initial_pr.uri
+                "initial_uri": self._initial_pr.uri,
+                "train_time": time.time() - self.train_start,
             }
         )
         # this is hacky, but otherwise the initial_pr points
@@ -532,16 +550,16 @@ class PufferTrainer:
 
         if self.wandb_run and self.cfg.wandb.track and self._master:
             self.wandb_run.log({
-                **{f'overview/{k}': v for k, v in overview.items()},
-                **{f'losses/{k}': v for k, v in losses.items()},
-                **{f'performance/{k}': v for k, v in performance.items()},
+                **{f"overview/{k}": v for k, v in overview.items()},
+                **{f"losses/{k}": v for k, v in losses.items()},
+                **{f"performance/{k}": v for k, v in performance.items()},
                 **environment,
                 **policy_fitness_metrics,
                 **effective_rank_metrics,
-                'train/agent_step': agent_steps,
-                'train/epoch': epoch,
-                'train/learning_rate': learning_rate,
-                'train/average_reward': self.average_reward if self.trainer_cfg.average_reward else None,
+                "train/agent_step": agent_steps,
+                "train/epoch": epoch,
+                "train/learning_rate": learning_rate,
+                "train/average_reward": self.average_reward if self.trainer_cfg.average_reward else None,
             })
 
         self._policy_fitness = []
@@ -586,13 +604,13 @@ class PufferTrainer:
     def _make_vecenv(self):
         """Create a vectorized environment."""
         # Create the vectorized environment
-        self.target_batch_size = self.trainer_cfg.forward_pass_minibatch_target_size // self.cfg.env.game.num_agents
+        self.target_batch_size = self.trainer_cfg.forward_pass_minibatch_target_size // self._env_cfg.game.num_agents
         if self.target_batch_size < 2: # pufferlib bug requires batch size >= 2
             self.target_batch_size = 2
         self.batch_size = (self.target_batch_size // self.trainer_cfg.num_workers) * self.trainer_cfg.num_workers
 
         self.vecenv = make_vecenv(
-            self.cfg.env,
+            self._env_cfg,
             self.cfg.vectorization,
             num_envs = self.batch_size * self.trainer_cfg.async_factor,
             batch_size = self.batch_size,

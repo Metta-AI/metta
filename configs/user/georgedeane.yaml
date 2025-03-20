@@ -3,20 +3,14 @@
 seed: null
 
 defaults:
-  - override /eval: example
-  - override /env/mettagrid@env: cogeval_training_mini
-  - override /agent: simple.medium
+  - override /eval: eval_suite
+  - override /env/mettagrid@env: ascii/breakout
+  - override /agent: simple
   - override /sweep: fast
-  - override /analyzer: analyzer
+  - override /analyzer: train_analyzer
 
-analyzer:
-  analysis:
-    metrics:
-    - metric: "action.use.altar.agent"
-
-#policy_uri: ${trained_policy_uri}
-policy_uri: wandb://run/cogeval_training_mini_pretrained_ent0.02
-eval_db_uri: wandb://artifacts/cog_eval_training_evals
+policy_uri: ${trained_policy_uri}
+# policy_uri: wandb://run/cogeval_training_mini_pretrained_ent0.02
 #eval_db_uri: file://daphne/daphne_eval_stats
 
 npc_policy_uri: null
@@ -50,10 +44,7 @@ wandb:
   checkpoint_interval: 1
 evaluate_interval: 1
 
-sweep:
-  metric: "action.use.altar.agent"
-
 cmd: ???
-run_id: 12
+run_id: 24
 run: ${oc.env:USER}.local.${cmd}.${run_id}
 trained_policy_uri: ./train_dir/${oc.env:USER}.local.train.${run_id}/checkpoints

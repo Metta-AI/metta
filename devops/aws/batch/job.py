@@ -636,7 +636,7 @@ def find_jobs_by_prefix(prefix, max_results=5):
         print(f"Error finding jobs by prefix: {str(e)}")
         return []
 
-def stop_job(job_id_or_name, reason="Stopped by user"):
+def stop_job(job_id_or_name, reason="Stopped by user", max_results=5):
     """Stop a running job by ID or name."""
     batch = get_boto3_client()
 
@@ -685,7 +685,7 @@ def stop_job(job_id_or_name, reason="Stopped by user"):
 
                 if not job_id:
                     # If no exact match found, try to find jobs with the prefix
-                    matching_jobs = find_jobs_by_prefix(job_id_or_name)
+                    matching_jobs = find_jobs_by_prefix(job_id_or_name, max_results=max_results)
                     if matching_jobs:
                         return matching_jobs
                     else:

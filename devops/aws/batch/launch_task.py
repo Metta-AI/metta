@@ -24,6 +24,11 @@ specs = {
         "node_ram_gb": 150,
         "gpu_cpus": 12,
     },
+    8: {
+        "node_gpus": 8,
+        "node_ram_gb": 300,
+        "gpu_cpus": 24,
+    },
 }
 
 def get_current_commit(repo_path=None):
@@ -106,6 +111,8 @@ def submit_batch_job(args, task_args):
         print(f"RAM per Node: {args.node_ram_gb} GB")
         print(f"Git Reference: {args.git_branch or args.git_commit}")
         print(f"Mettagrid Reference: {args.mettagrid_branch or args.mettagrid_commit}")
+        print(f"{'-' * 40}")
+        print(f"Command: {args.cmd}")
         if task_args:
             if no_color:
                 print(f"\nTask Arguments:")
@@ -188,6 +195,10 @@ def container_config(args, task_args, job_name):
         },
         {
             'name': 'METTA_HOST',
+            'value': job_name
+        },
+        {
+            'name': 'JOB_NAME',
             'value': job_name
         },
         {

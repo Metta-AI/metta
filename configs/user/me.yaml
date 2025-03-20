@@ -43,7 +43,7 @@ eval:
   policy_uri: ${..policy_uri}
   npc_policy_uri: ${..npc_policy_uri}
   eval_db_uri: ${..eval_db_uri} #file://daphne/sweep_stats
-  env: /env/mettagrid/simple
+  env: env/mettagrid/simple
 
 wandb:
   enabled: true

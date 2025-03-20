@@ -1,0 +1,10 @@
+defaults:
+  - common
+  - agent: simple
+  - trainer: puffer
+  - eval: eval_suite
+  - analyzer: train_analyzer
+  - wandb
+
+seed: 1
+eval_db_uri: null
