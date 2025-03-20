@@ -139,7 +139,7 @@ def main():
             print("Error: Job ID is required for stop command")
             sys.exit(1)
 
-        result = stop_job(args.arg2)
+        result = stop_job(args.arg2, max_results=args.max)
 
         # If result is a list, it means we found multiple jobs with the prefix
         if isinstance(result, list):
@@ -284,7 +284,7 @@ def main():
                 print("Error: Job ID is required for stop command")
                 sys.exit(1)
 
-            result = stop_job(resource_id)
+            result = stop_job(resource_id, max_results=args.max)
 
             # If result is a list, it means we found multiple jobs with the prefix
             if isinstance(result, list):
