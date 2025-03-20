@@ -48,7 +48,7 @@ game:
       energy_output.r2: 10
       energy_output.r3: 1
 
-    generator:
+    generator.red:
       hp: 30
       cooldown: 5
       initial_resources: 30

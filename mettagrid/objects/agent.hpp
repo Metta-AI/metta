@@ -93,6 +93,10 @@ public:
         this->current_resource_reward = new_reward;
     }
 
+    virtual bool swappable() const override {
+        return this->frozen;
+    }
+
     virtual void obs(ObsType* obs, const std::vector<unsigned int> &offsets) const override {
         obs[offsets[0]] = 1;
         obs[offsets[1]] = group;
