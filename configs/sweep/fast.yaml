@@ -1,70 +1,18 @@
-defaults:
-  - sweep
 
-eval:
-  num_envs: 10
-  num_episodes: 10
-  max_time_s: 60
+trainer:
+  learning_rate: ${ss:log, 1e-5, 1e-1}
+  gamma: ${ss:logit, 0.0, 1.0}
+  gae_lambda: ${ss:logit, 0.0, 1.0}
+  vf_coef: ${ss:logit, 0.0, 1.0}
+  ent_coef: ${ss:log, 1e-5, 1e-1}
+  batch_size: ${ss:pow2, 128, 1024, 128}
+  minibatch_size: ${ss:pow2, 128, 1024, 128}
+  bptt_horizon: ${ss:pow2, 4, 8, 4}
+  total_timesteps: ${ss:log, 1e3, 1e4, 1e4}
 
-parameters:
-
-  trainer:
-    batch_size:
-      search_center: 128
-      min: 128
-      max: 1024
-    minibatch_size:
-      search_center: 128
-      min: 128
-      max: 1024
-    forward_pass_minibatch_target_size:
-      search_center: 128
-      min: 128
-      max: 1024
-    bptt_horizon:
-      search_center: 8
-      min: 4
-      max: 8
-    total_timesteps:
-      search_center: 1e4
-      min: 1e3
-      max: 1e4
-
-
-
-  agent:
-    observation_encoders:
-    #   grid_obs:
-    #     label_dim:
-    #       search_center: 2
-    #       min: 2
-    #       max: 3
-    #     output_dim:
-    #       search_center: 32
-    #       min: 32
-    #       max: 64
-    #     layers:
-    #       search_center: 1
-    #       is_int: true
-    #       min: 1
-    #       max: 2
-    #     normalize_features:
-    #       min: 0
-    #       max: 1
-      fc:
-        layers:
-          min: 1
-          max: 2
-        output_dim:
-          search_center: 32
-          min: 32
-          max: 64
-
-    core:
-      rnn_num_layers:
-        min: 1
-        max: 2
-      rnn_size:
-        search_center: 32
-        min: 32
-        max: 64
+  env_overrides:
+    game:
+      objects:
+        altar:
+          hp: 10
+          cooldown: ${ss:int, 1, 20, 10}
