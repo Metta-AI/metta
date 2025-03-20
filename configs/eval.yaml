@@ -1,13 +1,13 @@
 defaults:
+  - common
   - agent: simple
   - env/mettagrid@env: simple
   - trainer: puffer
-  - sweep: sweep
-  - hardware: macbook
   - eval: eval_suite
   - analyzer: train_analyzer
+  - wandb
 
-seed: 1
+cmd: eval
 eval_db_uri: null
 run: ???
 data_dir: ./train_dir
@@ -15,12 +15,3 @@ run_dir: ${data_dir}/${run}
 
 torch_deterministic: true
 vectorization: multiprocessing
-dashboard: false
-
-wandb:
-  enabled: true
-  track: true
-  project: metta
-  entity: metta-research
-  group: ${run}
-  name: ${run}
