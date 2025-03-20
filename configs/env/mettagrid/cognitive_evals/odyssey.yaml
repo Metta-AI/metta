@@ -1,0 +1,51 @@
+# odyssey.yaml
+defaults:
+  - mettagrid
+
+game:
+  num_agents: 4
+
+  map_builder:
+    _target_: mettagrid.config.room.cognitive_evals.odyssey.Odyssey
+    layout: "grid"
+    grid_rows: 2
+    grid_cols: 3
+    corridor_width: 2
+    room_builders:
+      - _target_: mettagrid.config.room.cognitive_evals.barriermaze.BarrierMaze
+        width: 21
+        height: 21
+        barrier_width: 2
+        num_barriers: 3
+        barrier_placement_mode: "alternating"
+        barrier_orientation: "vertical"
+      - _target_: mettagrid.config.room.cognitive_evals.explore_exploit.ExploreExploit
+        width: 21
+        height: 21
+        explore_exploit_params:
+          obstruction_gap_prob: 0.2
+          sparse_min_distance: 8
+      - _target_: mettagrid.config.room.cognitive_evals.labyrinth.LabyrinthMaze
+        width: 21
+        height: 21
+        corridor_width: 3
+      - _target_: mettagrid.config.room.cognitive_evals.radial_maze.RadialMaze
+        width: 21
+        height: 21
+        radial_params:
+          num_arms: 6
+          arm_length: 7
+          center_radius: 3
+      - _target_: mettagrid.config.room.cognitive_evals.cylinder.Cylinder
+        width: 30
+        height: 30
+        cylinder_params:
+          horizontal: true
+          both_ends: true
+          length: 5
+      - _target_: mettagrid.config.room.cognitive_evals.corridor_maze.CorridorMaze
+        width: 40
+        height: 40
+        corridor_width: 3
+        arm_length: 10
+        num_mines: 1

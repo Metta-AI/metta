@@ -1,0 +1,50 @@
+defaults:
+  - mettagrid
+
+game:
+  num_agents: 8
+
+  map_builder:
+    _target_: mettagrid.config.room.room_list.RoomList
+    rooms:
+      - _target_: mettagrid.config.room.cognitive_evals.combat_protect_the_gate.CombatProtectTheGate
+        width: 50
+        height: 15
+        inner_room_width: 15
+        num_scattered_mines: 8
+        num_scattered_generators: 6
+        gate_width: 5
+        door_gap_height: 5
+        # Specify teams and number of agents per team:
+        agents: {"team_1": 4, "team_2": 4}
+    layout: "grid"
+    border_width: 1
+    border_object: "wall"
+
+  objects:
+    altar:
+      hp: 30
+      cooldown: 1
+    mine:
+      hp: 30
+      cooldown: 1
+    generator:
+      hp: 30
+      cooldown: 1
+    gate:
+      hp: 50
+      cooldown: 1
+
+  actions:
+    noop:
+      enabled: true
+    move:
+      enabled: true
+    rotate:
+      enabled: true
+    attack:
+      enabled: false
+    swap:
+      enabled: false
+    change_color:
+      enabled: false

@@ -1,0 +1,27 @@
+conjoined_rooms_experiment:
+  defaults:
+    - mettagrid
+
+  env:
+    track_last_action: false
+
+  game:
+    num_agents: 1
+    map_builder:
+      _target_: conjoined_rooms.ConjoinedRooms  # Custom room builder defined in conjoined_rooms.py
+      rows: 10
+      cols: 10
+      room_width: 15          # Width of each room (excluding walls)
+      room_height: 15         # Height of each room (excluding walls)
+      door_gap: 2             # Size of the door gap (configurable) in each wall
+      border_width: 1         # Thickness of the walls (shared between rooms)
+      seed: 42
+
+  agent:
+    observations:
+      track_last_action: ${env.track_last_action}
+
+  objects:
+    mine:
+      hp: 30
+      cooldown: 1

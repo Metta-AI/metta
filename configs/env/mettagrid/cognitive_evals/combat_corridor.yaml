@@ -1,0 +1,50 @@
+defaults:
+  - mettagrid
+
+game:
+  num_agents: 8
+
+  map_builder:
+    _target_: mettagrid.config.room.room_list.RoomList
+    rooms:
+      - _target_: mettagrid.config.room.cognitive_evals.combat_corridor.CombatCorridor
+        width: 24
+        height: 24
+        corridor_width: 2
+        arm_length: 8
+        num_generators: 3
+        num_mines: 2
+        num_heart_altars: 1
+        rotate: false
+        # Specify teams and number of agents per team:
+        agents: {"team_1": 4, "team_2": 4}
+    layout: "grid"
+    border_width: 1
+    border_object: "wall"
+
+  objects:
+    altar:
+      hp: 30
+      cooldown: 1
+    generator:
+      hp: 30
+      cooldown: 1
+    mine:
+      hp: 30
+      cooldown: 1
+    wall:
+      hp: ${uniform:1, 20, 10}
+
+  actions:
+    noop:
+      enabled: true
+    move:
+      enabled: true
+    rotate:
+      enabled: true
+    attack:
+      enabled: false
+    swap:
+      enabled: false
+    change_color:
+      enabled: false

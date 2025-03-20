@@ -1,0 +1,49 @@
+defaults:
+  - mettagrid
+
+game:
+  num_agents: 8
+
+  map_builder:
+    _target_: mettagrid.config.room.room_list.RoomList
+    rooms:
+      - _target_: mettagrid.config.room.cognitive_evals.combat_cylinder.Cylinder
+        width: 21
+        height: 21
+        cylinder_params:
+          length: 7
+          horizontal: true
+          both_ends: true
+        # Specify teams and number of agents per team
+        agents: {"team_1": 4, "team_2": 4}
+    layout: "grid"
+    border_width: 1
+    border_object: "wall"
+
+  objects:
+    altar:
+      hp: 30
+      cooldown: 1
+
+    mine:
+      hp: 30
+      cooldown: 1
+
+    generator:
+      hp: 30
+      cooldown: 1
+
+
+  actions:
+    noop:
+      enabled: true
+    move:
+      enabled: true
+    rotate:
+      enabled: true
+    attack:
+      enabled: false
+    swap:
+      enabled: false
+    change_color:
+      enabled: false
