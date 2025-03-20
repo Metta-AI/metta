@@ -8,6 +8,7 @@ game:
   num_agents: 24
 
   agent:
+    max_inventory: 2000
     rewards:
       action_failure_penalty: 0
       battery: 1
