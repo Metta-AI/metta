@@ -102,6 +102,9 @@ class PufferTrainer:
         self.policy_record = policy_record
         self.uncompiled_policy = self.policy
 
+        self.policy.embed_action_type(self.vecenv.driver_env.action_names())
+        self.policy.embed_action_param(['a', 'b', 'c'])
+
         if self.trainer_cfg.compile:
             logger.info("Compiling policy")
             self.policy = torch.compile(self.policy, mode=self.trainer_cfg.compile_mode)

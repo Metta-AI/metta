@@ -29,14 +29,14 @@ class LayerBase(nn.Module):
     performed (due to some other run up the DAG) and return. After this check,
     it should check if its input source is not None and recursively call the
     forward method of the layer above it.'''
-    def __init__(self, name, input_source=None, output_size=None, nn_params={}, **cfg):
+    def __init__(self, name, input_source=None, nn_params={}, **cfg):
         super().__init__()
         self._name = name
         self._input_source = input_source
-        self._output_size = output_size
-        self._nn_params = nn_params
         self._net = None
         self._ready = False
+        if not hasattr(self, '_nn_params'):
+            self._nn_params = nn_params
 
     @property
     def ready(self):
@@ -49,14 +49,18 @@ class LayerBase(nn.Module):
         self.__dict__['_input_source_component'] = input_source_component
 
         if self._input_source_component is None:
-            self._input_size = None
-            if self._output_size is None:
-                raise ValueError(f"Either input source or output size must be set for layer {self._name}")
+            self._in_tensor_shape = None
+            if self._out_tensor_shape is None:
+                raise ValueError(f"Either input source or output tensor shape must be set for layer {self._name}")
         else:
-            self._input_size = self._input_source_component._output_size
-
-        if self._output_size is None:
-            self._output_size = self._input_size
+            if isinstance(self._input_source_component, dict):
+                self._in_tensor_shape = {}
+                for source in self._input_source_component:
+                    self._in_tensor_shape[source['source_name']] = source._out_tensor_shape.copy()
+            else:
+                self._in_tensor_shape = self._input_source_component._out_tensor_shape.copy()
+            if not hasattr(self, '_out_tensor_shape'):
+                self._out_tensor_shape = self._in_tensor_shape # if necessary, edit this later in the superclass
 
         self._initialize()
         self._ready = True
