@@ -29,12 +29,7 @@ class SampleFactoryEnvWrapper(gym.Env, TrainingInfoInterface):
         self.curr_episode_steps = 0
         self.num_agents = env.player_count
 
-        action_space = env.action_space
-        if isinstance(action_space, gym.spaces.MultiDiscrete):
-            action_space = gym.spaces.Tuple(
-                [gym.spaces.Discrete(num_actions) for num_actions in action_space.nvec]
-            )
-        self.action_space = action_space
+        self.action_space = env.action_space
 
         self.current_episode = 0
         self.env_id = env_id

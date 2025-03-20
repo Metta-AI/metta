@@ -1,8 +1,7 @@
 import wandb
 import os
+import socket
 from omegaconf import OmegaConf
-
-# os.environ["WANDB_SILENT"] = "true"
 
 class WandbContext:
     def __init__(self, cfg, resume=True, name=None):
@@ -27,6 +26,11 @@ class WandbContext:
             monitor_gym=True,
             save_code=True,
             resume=self.resume,
+            tags=[
+                "hostname:" + os.environ.get("METTA_HOST", "unknown"),
+                "user:" + os.environ.get("METTA_USER", "unknown"),
+                "ip:" + socket.gethostbyname(socket.gethostname())
+            ]
         )
 
         wandb.save(os.path.join(self.cfg.run_dir, "*.log"), base_path=self.cfg.run_dir, policy="live")

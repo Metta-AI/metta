@@ -1,0 +1,24 @@
+defaults:
+  - mettagrid
+
+game:
+  num_agents: 6
+  max_steps: 250
+
+  map_builder:
+
+    _target_: mettagrid.config.room.multi_room.MultiRoom
+    num_rooms: 5
+    room:
+      _target_: mettagrid.config.room.ascii.Ascii
+      border_width: 1
+      uri: "configs/env/mettagrid/maps/triangle.map"
+
+
+  objects:
+    altar:
+      cooldown: 250
+
+  actions:
+    move: {}
+    attack: {}

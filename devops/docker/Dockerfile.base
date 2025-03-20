@@ -1,4 +1,4 @@
-FROM pufferai/puffertank:1.0
+FROM pufferai/puffertank:2.0
 # FROM pytorch/pytorch:2.2.1-cuda12.1-cudnn8-devel
 
 WORKDIR /workspace
@@ -26,4 +26,10 @@ RUN echo "defscrollback 10000" >> /root/.screenrc && \
 
 # fix bash history
 RUN echo "unset HISTIGNORE" >> ~/.bashrc
+
+# install tmux
+RUN apt-get install -y tmux
 RUN touch /root/.no_auto_tmux
+COPY devops/mettabox/tmux.conf /root/.tmux.conf
+
+RUN apt-get update && apt-get install -y iproute2 netcat iputils-ping

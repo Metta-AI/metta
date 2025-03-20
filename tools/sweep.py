@@ -4,14 +4,13 @@ import signal  # Aggressively exit on ctrl+c
 
 import hydra
 import wandb
+from mettagrid.config.config import setup_metta_environment
 from omegaconf import OmegaConf
-from rich import traceback
 from rich.logging import RichHandler
-from rl.carbs.rollout import CarbsSweepRollout
 from rl.carbs.metta_carbs import carbs_params_from_cfg
+from rl.carbs.rollout import CarbsSweepRollout
 from rl.wandb.sweep import sweep_id_from_name
 from rl.wandb.wandb_context import WandbContext
-from util.seeding import seed_everything
 
 from wandb_carbs import create_sweep
 
@@ -34,14 +33,12 @@ def main(cfg):
     _cfg = cfg
     OmegaConf.set_readonly(_cfg, True)
 
-    traceback.install(show_locals=False)
-    print(OmegaConf.to_yaml(cfg))
-    seed_everything(cfg.seed, cfg.torch_deterministic)
+    setup_metta_environment(cfg)
 
     sweep_id = sweep_id_from_name(cfg.wandb.project, cfg.run)
     if not sweep_id:
         logger.debug(f"Sweep {cfg.run} not found, creating new sweep")
-        os.makedirs(os.path.join(cfg.run_dir, "runs"))
+        os.makedirs(os.path.join(cfg.run_dir, "runs"), exist_ok=True)
 
         sweep_id = create_sweep(
             cfg.run,

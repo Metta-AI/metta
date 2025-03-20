@@ -1,39 +1,37 @@
-import os
-import signal  # Aggressively exit on ctrl+c
 import logging
-
+import os
 import hydra
-from omegaconf import OmegaConf
-from rich import traceback
-from rich.logging import RichHandler
 
-from rl.wandb.wandb_context import WandbContext
-from util.seeding import seed_everything
 from agent.policy_store import PolicyStore
+from mettagrid.config.config import setup_metta_environment
+from omegaconf import OmegaConf
+from rich.logging import RichHandler
+from rl.wandb.wandb_context import WandbContext
+import torch.distributed as dist
 
-signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
+from torch.distributed.elastic.multiprocessing.errors import record
 
 # Configure rich colored logging
 logging.basicConfig(
     level="INFO",
-    format="%(message)s",
+    format="%(processName)s %(message)s",
     datefmt="[%X]",
     handlers=[RichHandler(rich_tracebacks=True)]
 )
 
 logger = logging.getLogger("train")
 
+@record
 @hydra.main(version_base=None, config_path="../configs", config_name="config")
 def main(cfg):
-
-    traceback.install(show_locals=False)
-
-    logger.info(OmegaConf.to_yaml(cfg))
-
-    seed_everything(cfg.seed, cfg.torch_deterministic)
-    os.makedirs(cfg.run_dir, exist_ok=True)
+    setup_metta_environment(cfg)
     with open(os.path.join(cfg.run_dir, "config.yaml"), "w") as f:
         OmegaConf.save(cfg, f)
+
+    if "LOCAL_RANK" in os.environ:
+        local_rank = int(os.environ["LOCAL_RANK"])
+        cfg.device = f'{cfg.device}:{local_rank}'
+        dist.init_process_group(backend="nccl")
 
     with WandbContext(cfg) as wandb_run:
         policy_store = PolicyStore(cfg, wandb_run)

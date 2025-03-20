@@ -1,0 +1,65 @@
+# @package __global__
+
+seed: null
+
+defaults:
+  - override /env/mettagrid@env: bases
+  - override /agent: simple
+  - override /sweep: fast
+
+# policy: wandb://run/b.daveey.train.maze.sm.dr.warm.0
+# baselines: wandb://run/b.daveey.train.maze.sm.11x11.0
+
+# policy_uri: wandb://run/b.daveey.sm.train.er.new.0
+# policy_uri: wandb://run/daveey.ar.cards.1
+policy_uri: wandb://run/b.daveey.nj.1x4
+# policy_uri: ${trained_policy_uri}
+# npc_policy_uri: ${trained_policy_uri}
+eval_db_uri: wandb://artifacts/daveey_eval_testing
+
+env:
+  # sampling: 0.7
+  game:
+    num_agents: 36
+
+    agent:
+      rewards:
+        ore_max: 100
+
+    # group_reward_pct: 0.9
+    # max_steps: 200
+
+    # map_builder:
+    #   border_width: 1
+    #   room:
+    #     border_width: 0
+
+trainer:
+  evaluate_interval: 200
+
+analyzer:
+  eval_stats_uri: ${run_dir}/eval_stats
+
+eval:
+  num_envs: 10
+  num_episodes: 10
+  max_time_s: 600
+
+  policy_uri: ${..policy_uri}
+  # npc_policy_uri: ${..npc_policy_uri}
+  eval_db_uri: ${..eval_db_uri} #file://daphne/sweep_stats
+  env: /env/mettagrid/simple
+
+wandb:
+  enabled: true
+  track: true
+  checkpoint_interval: 1
+
+sweep:
+  metric: action.use
+
+cmd: ???
+run_id: 21
+run: ${oc.env:USER}.local.${cmd}.${run_id}
+run_dir: ./train_dir/${oc.env:USER}.local.train.${run_id}
+trained_policy_uri: ${run_dir}/checkpoints

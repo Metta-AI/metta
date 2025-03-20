@@ -4,11 +4,11 @@ cmd="$1"
 args="${@:2}"
 
 export PYTHONUNBUFFERED=1
+export WANDB_CONSOLE=off
 
 echo "Running command: $cmd with args: $args"
 
 git pull
-cd deps/puffergrid && git pull && python setup.py build_ext --inplace && cd ../..
 # cd deps/pufferlib && git pull && python setup.py build_ext --inplace && cd ../..
 cd deps/fast_gae && git pull && python setup.py build_ext --inplace && cd ../..
 cd deps/mettagrid && git pull && python setup.py build_ext --inplace && cd ../..

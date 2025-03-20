@@ -1,7 +1,7 @@
 defaults:
   - sweep
 
-evaluator:
+eval:
   num_envs: 10
   num_episodes: 10
   max_time_s: 60
@@ -33,7 +33,7 @@ parameters:
 
 
   agent:
-    # observation_encoders:
+    observation_encoders:
     #   grid_obs:
     #     label_dim:
     #       search_center: 2
@@ -51,14 +51,14 @@ parameters:
     #     normalize_features:
     #       min: 0
     #       max: 1
-    fc:
-      layers:
-        min: 1
-        max: 2
-      output_dim:
-        search_center: 32
-        min: 32
-        max: 64
+      fc:
+        layers:
+          min: 1
+          max: 2
+        output_dim:
+          search_center: 32
+          min: 32
+          max: 64
 
     core:
       rnn_num_layers:

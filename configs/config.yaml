@@ -1,27 +1,27 @@
+defaults:
+  - agent: simple
+  - env/mettagrid@env: simple
+  - trainer: puffer
+  - sweep: sweep
+  - hardware: macbook
+  - eval: eval_suite
+  - analyzer: train_analyzer
+
+seed: 1
+eval_db_uri: null
 run: ???
 data_dir: ./train_dir
 run_dir: ${data_dir}/${run}
 sweep_id: null
 
+torch_deterministic: true
 vectorization: multiprocessing
 dashboard: false
 
-seed: 1
-torch_deterministic: true
-
-defaults:
-  - agent: simple
-  - env/mettagrid@env: a20_train
-  - trainer: puffer
-  - evaluator: puffer
-  - sweep: sweep
-  - hardware: macbook
-
 wandb:
-  enabled: False
-  track: False
+  enabled: true
+  track: true
   project: metta
   entity: metta-research
-  group: metta
+  group: ${run}
   name: ${run}
-

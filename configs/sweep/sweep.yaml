@@ -1,15 +1,15 @@
+metric: episode_reward
+test: raw # glicko, elo, raw
 
-
-metric: action.use.altar
 rollout_count: 100000
 num_random_samples: 10
 resume: true
 
-evaluator:
+eval:
   num_envs: 100
   num_episodes: 100
   max_time_s: 600
-  policy_agents_pct: 0.5
+  policy_agents_pct: 1.0
 
 generation:
   enabled: false
@@ -76,10 +76,10 @@ parameters:
       space: pow2
       min: 1024
       max: 131072
-    # forward_pass_minibatch_target_size:
-    #   space: pow2
-    #   min: 1024
-    #   max: 32768
+    forward_pass_minibatch_target_size:
+      space: pow2
+      min: 1024
+      max: 32768
 
     #   space: linear
     #   search_center: 2
@@ -92,9 +92,9 @@ parameters:
       max: 128
     total_timesteps:
       space: log
-      search_center: 1.1e8
-      min: 1e8
-      max: 1e10
+      search_center: 3e9
+      min: 2e9
+      max: 10e9
     # compile:
     #   space: linear
     #   is_int: true
@@ -140,16 +140,16 @@ parameters:
   #         is_int: true
   #         min: 0
   #         max: 1
-  #   fc:
-  #     layers:
-  #       space: linear
-  #       is_int: true
-  #       min: 1
-  #       max: 4
-  #     output_dim:
-  #       space: pow2
-  #       min: 32
-  #       max: 512
+    #   fc:
+    #     layers:
+    #       space: linear
+    #       is_int: true
+    #       min: 1
+    #       max: 4
+    #     output_dim:
+    #       space: pow2
+    #       min: 32
+    #       max: 512
 
   #   core:
   #     rnn_num_layers:

@@ -9,4 +9,14 @@ initial_policy:
 
 checkpoint_dir: ${run_dir}/checkpoints
 
-evaluate_interval: 10
+glicko_scores_path: ${run_dir}/eval/glicko2
+
+evaluate_interval: 2000
+checkpoint_interval: 2000
+wandb_checkpoint_interval: 2000
+
+trace_interval: 0
+
+# Average reward settings
+average_reward: false  # Set to true to use average reward optimization
+average_reward_alpha: 0.01  # Smoothing factor for 100k step average (ln(2)/100000)
