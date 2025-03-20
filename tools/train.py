@@ -26,7 +26,13 @@ def train(cfg, wandb_run):
     overrides_path = os.path.join(cfg.run_dir, "train_config_overrides.yaml")
     if os.path.exists(overrides_path):
         logger.info(f"Loading train config overrides from {overrides_path}")
-        cfg = OmegaConf.merge(cfg, OmegaConf.load(overrides_path))
+        override_cfg = OmegaConf.load(overrides_path)
+
+        # Set struct flag to False to allow accessing undefined fields
+        OmegaConf.set_struct(cfg, False)
+        cfg = OmegaConf.merge(cfg, override_cfg)
+        # Optionally, restore struct behavior after merge
+        OmegaConf.set_struct(cfg, True)
 
     if os.environ.get("RANK", "0") == "0":
         with open(os.path.join(cfg.run_dir, "config.yaml"), "w") as f:

@@ -15,6 +15,7 @@ from rl.wandb.sweep import generate_run_id_for_sweep, sweep_id_from_name
 from rl.wandb.wandb_context import WandbContext
 from util.efs_lock import efs_lock
 from util.runtime_configuration import setup_omega_conf
+from util.config import config_from_path
 
 import wandb_carbs
 
@@ -33,6 +34,7 @@ def main(cfg: OmegaConf) -> int:
     setup_omega_conf()
 
     cfg.wandb.name = cfg.sweep_name
+    cfg.sweep = config_from_path(cfg.sweep_params, cfg.sweep_params_override)
 
     is_master = os.environ.get("NODE_INDEX", "0") == "0"
     if is_master:
@@ -109,6 +111,7 @@ def create_run(sweep_name: str, cfg: OmegaConf) -> str:
                 "\n" + "-"*10)
             _log_file(run_dir, wandb_run, "carbs_suggestion.yaml", suggestion)
 
+
             train_cfg = OmegaConf.create({
                 key: cfg[key] for key in cfg.sweep.keys()
             })
@@ -152,7 +155,11 @@ def _apply_carbs_suggestion(config: OmegaConf, suggestion: DictConfig):
         new_cfg_param = config
         key_parts = key.split(".")
         for k in key_parts[:-1]:
-            new_cfg_param = new_cfg_param[k]
+            if k in new_cfg_param:
+                new_cfg_param = new_cfg_param[k]
+            else:
+                new_cfg_param[k] = {}
+                new_cfg_param = new_cfg_param[k]
         param_name = key_parts[-1]
         new_cfg_param[param_name] = value
 

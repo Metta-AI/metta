@@ -10,9 +10,9 @@ trainer:
   bptt_horizon: ${ss:pow2, 4, 8, 4}
   total_timesteps: ${ss:log, 1e3, 1e4, 1e4}
 
-env:
-  game:
-    objects:
-      altar:
-        hp: 10
-        cooldown: ${ss:int, 1, 20, 10}
+  env_overrides:
+    game:
+      objects:
+        altar:
+          hp: 10
+          cooldown: ${ss:int, 1, 20, 10}

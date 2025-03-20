@@ -1,24 +1,18 @@
 # @package __global__
 
-seed: null
-
 defaults:
-  # - sweep_overrides: fast
   - override /agent: simple
   - override /eval: eval
-
-
-env_overrides:
-  # sampling: 0.7
-  game:
-    num_agents: 360
-    max_steps: 1000
 
 
 trainer:
   env: /env/mettagrid/bases
   evaluate_interval: 200
-  env_overrides: ${env_overrides}
+  env_overrides:
+    # sampling: 0.7
+    game:
+      num_agents: 36
+      max_steps: 1000
 
 # policy: wandb://run/b.daveey.train.maze.sm.dr.warm.0
 # baselines: wandb://run/b.daveey.train.maze.sm.11x11.0
@@ -46,13 +40,19 @@ eval:
   # npc_policy_uri: ${..npc_policy_uri}
   # eval_db_uri: ${..eval_db_uri} #file://daphne/sweep_stats
   env: /env/mettagrid/simple
-  env_overrides: ${env_overrides}
+  env_overrides:
+    # sampling: 0.7
+    game:
+      num_agents: 360
+      max_steps: 10
 
 wandb:
   checkpoint_interval: 1
 
-run_id: 10
+run_id: 11
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 
-sweep_name: "${oc.env:USER}.local.sweep.0"
+sweep_params: "sweep/fast"
+sweep_name: "${oc.env:USER}.local.sweep.${run_id}"
+seed: null

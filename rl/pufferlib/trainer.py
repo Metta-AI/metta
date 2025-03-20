@@ -12,7 +12,7 @@ import torch.distributed as dist
 from fast_gae import fast_gae
 from omegaconf import OmegaConf
 
-from env.util import from_config_path
+from util.config import config_from_path
 import wandb
 from agent.metta_agent import DistributedMettaAgent
 from agent.policy_store import PolicyStore
@@ -40,7 +40,7 @@ class PufferTrainer:
 
         self.cfg = cfg
         self.trainer_cfg = cfg.trainer
-        self._env_cfg = from_config_path(
+        self._env_cfg = config_from_path(
             self.trainer_cfg.env, self.trainer_cfg.env_overrides)
 
         self._master = True
@@ -59,7 +59,7 @@ class PufferTrainer:
         self.wandb_run = wandb_run
         self.policy_store = policy_store
         self.use_e3b = self.trainer_cfg.use_e3b
-        self.eval_stats_logger = EvalStatsLogger(cfg, wandb_run)
+        self.eval_stats_logger = EvalStatsLogger(cfg, self._env_cfg, wandb_run)
         self.average_reward = 0.0  # Initialize average reward estimate
         self._policy_fitness = []
         self._effective_rank = []

@@ -47,8 +47,7 @@
                 "data_dir=./train_dir/sweep/${sweep_name}/runs",
                 "dist_cfg_path=./train_dir/${env:USER}/dist_cfg.yaml",
             ],
-        },
-        {
+        }, {
             "name": "Play Metta",
             "type": "debugpy",
             "request": "launch",
@@ -91,5 +90,5 @@
                 "cmd=trace",
             ],
         },
-    ]
+    ],
 }

@@ -96,7 +96,7 @@ def main(cfg: OmegaConf) -> int:
         eval_time = time.time() - eval_start_time
 
         # Log evaluation stats
-        eval_stats_logger = EvalStatsLogger(cfg, wandb_run)
+        eval_stats_logger = EvalStatsLogger(cfg, eval._env_cfg, wandb_run)
         eval_stats_logger.log(stats)
 
         # Create eval stats database and analyze results

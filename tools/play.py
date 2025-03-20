@@ -3,7 +3,7 @@ import signal  # Aggressively exit on ctrl+c
 
 import hydra
 from agent.policy_store import PolicyStore
-from env.util import config_from_path
+from util.config import config_from_path
 from util.runtime_configuration import setup_metta_environment
 from omegaconf import OmegaConf
 from rl.pufferlib.play import play

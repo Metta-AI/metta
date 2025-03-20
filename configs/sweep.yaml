@@ -5,11 +5,13 @@ defaults:
   - eval: eval
   - analyzer: train_analyzer
   - trainer: puffer
-  - env/mettagrid@env: simple
-  - sweep: full
 
 cmd: sweep
 sweep_name: ???
+sweep_params: "sweep/full"
+sweep_params_override: {}
+sweep: ???
+
 # metric: heart.get
 metric: episode_reward
 num_random_samples: 10

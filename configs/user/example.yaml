@@ -3,7 +3,7 @@
 seed: null
 
 defaults:
-  - /sweep: fast
+  - override /sweep: fast
   - override /agent: simple
   - override /eval: eval
 

@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from agent.policy_store import PolicyStore, PolicyRecord
 from omegaconf import DictConfig, OmegaConf
-from env.util import from_config_path
+from util.config import config_from_path
 from rl.pufferlib.vecenv import make_vecenv
 
 logger = logging.getLogger("eval")
@@ -30,7 +30,7 @@ class Eval():
         **kwargs,
 
     ) -> None:
-        self._env_cfg = from_config_path(env, env_overrides)
+        self._env_cfg = config_from_path(env, env_overrides)
         self._env_name = env
 
         self._npc_policy_uri = npc_policy_uri
