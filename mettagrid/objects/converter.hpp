@@ -62,6 +62,7 @@ public:
     unsigned char cooldown;        // Time to wait after producing before starting again
     bool converting;               // Currently in production phase
     bool cooling_down;             // Currently in cooldown phase
+    unsigned char color;
     EventManager *event_manager;
 
     Converter(GridCoord r, GridCoord c, ObjectConfig cfg, TypeId type_id) {
@@ -77,6 +78,7 @@ public:
         this->max_output = cfg["max_output"];
         this->conversion_ticks = cfg["conversion_ticks"];
         this->cooldown = cfg["cooldown"];
+        this->color = cfg.count("color") ? cfg["color"] : 0;
         this->converting = false;
         this->cooling_down = false;
 
@@ -130,7 +132,8 @@ public:
     void obs(ObsType *obs, const std::vector<unsigned int> &offsets) const override {
         obs[offsets[0]] = 1;
         obs[offsets[1]] = this->hp;
-        obs[offsets[2]] = this->converting || this->cooling_down;
+        obs[offsets[2]] = this->color;
+        obs[offsets[3]] = this->converting || this->cooling_down;
         for (unsigned int i = 0; i < InventoryItem::InventoryCount; i++) {
             obs[offsets[3] + i] = this->inventory[i];
         }
@@ -143,6 +146,7 @@ public:
         // we expect converters to be hard coded.
         names.push_back("converter");
         names.push_back("hp");
+        names.push_back("color");
         names.push_back("converting");
         for (unsigned int i = 0; i < InventoryItem::InventoryCount; i++) {
             names.push_back("inv:" + InventoryItemNames[i]);

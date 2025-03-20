@@ -9,6 +9,8 @@ from mettagrid.objects.agent cimport Agent
 from mettagrid.grid_object cimport GridLocation, GridObjectId, Orientation, GridObject
 from mettagrid.action cimport ActionHandler, ActionArg
 from mettagrid.actions.actions cimport MettaActionHandler
+from mettagrid.objects.metta_object cimport MettaObject
+from mettagrid.objects.constants cimport GridLayer
 
 cdef class Swap(MettaActionHandler):
     def __init__(self, cfg: OmegaConf):
@@ -25,13 +27,17 @@ cdef class Swap(MettaActionHandler):
 
         cdef GridLocation target_loc = self.env._grid.relative_location(
             actor.location,
-        <Orientation>actor.orientation
+            <Orientation>actor.orientation
         )
-        cdef Agent *target = <Agent*>self.env._grid.object_at(target_loc)
+        cdef MettaObject *target
+        target = <MettaObject*>self.env._grid.object_at(target_loc)
+        if target == NULL:
+            target_loc.layer = GridLayer.Object_Layer
+            target = <MettaObject*>self.env._grid.object_at(target_loc)
         if target == NULL:
             return False
 
-        if not target.frozen:
+        if not target.swappable():
             return False
 
         self.env._grid.swap_objects(actor.id, target.id)

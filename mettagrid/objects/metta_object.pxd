@@ -9,3 +9,4 @@ cdef extern from "metta_object.hpp":
         unsigned int hp
         void init_mo(ObjectConfig cfg)
         bint has_inventory()
+        bint swappable()
