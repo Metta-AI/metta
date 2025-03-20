@@ -10,8 +10,6 @@ game:
   agent:
     rewards:
       action_failure_penalty: 0
-      battery: 1
-      battery_max: 1000
 
   map_builder:
     _target_: mettagrid.config.room.multi_room.RoomList
@@ -26,8 +24,11 @@ game:
         agents: 1
 
         objects:
-          mine: 1
-          generator: 1
+          mine.red: 1
+          mine.blue: 1
+          mine.green: 1
+          generator.red: 1
+          altar: 1
           block: ${uniform:5,25,20}
       - _target_: mettagrid.config.room.random.Random
         width: ${uniform:6,25,20}
@@ -37,8 +38,11 @@ game:
         agents: 1
 
         objects:
-          mine: 1
-          generator: 1
+          mine.red: 1
+          mine.blue: 1
+          mine.green: 1
+          generator.red: 1
+          altar: 1
           block: ${uniform:5,15,12}
       - _target_: mettagrid.config.room.random.Random
         width: ${uniform:6,25,20}
@@ -48,8 +52,11 @@ game:
         agents: 1
 
         objects:
-          mine: 1
-          generator: 1
+          mine.red: 1
+          mine.blue: 1
+          mine.green: 1
+          generator.red: 1
+          altar: 1
           block: ${uniform:5,25,20}
       - _target_: mettagrid.config.room.random.Random
         width: ${uniform:6,25,20}
@@ -59,8 +66,11 @@ game:
         agents: 1
 
         objects:
-          mine: 1
-          generator: 1
+          mine.red: 1
+          mine.blue: 1
+          mine.green: 1
+          generator.red: 1
+          altar: 1
           block: ${uniform:5,25,20}
       - _target_: mettagrid.config.room.random.Random
         width: ${uniform:6,25,20}
@@ -70,8 +80,11 @@ game:
         agents: 1
 
         objects:
-          mine: 1
-          generator: 1
+          mine.red: 1
+          mine.blue: 1
+          mine.green: 1
+          generator.red: 1
+          altar: 1
           block: ${uniform:5,15,20}
       - _target_: mettagrid.config.room.random.Random
         width: ${uniform:6,25,20}
@@ -81,8 +94,11 @@ game:
         agents: 1
 
         objects:
-          mine: 1
-          generator: 1
+          mine.red: 1
+          mine.blue: 1
+          mine.green: 1
+          generator.red: 1
+          altar: 1
           block: ${uniform:5,15,20}
       - _target_: mettagrid.config.room.random.Random
         width: ${uniform:6,25,20}
@@ -92,8 +108,11 @@ game:
         agents: 1
 
         objects:
-          mine: 1
-          generator: 1
+          mine.red: 1
+          mine.blue: 1
+          mine.green: 1
+          generator.red: 1
+          altar: 1
           block: ${uniform:5,15,20}
       - _target_: mettagrid.config.room.random.Random
         width: ${uniform:6,25,20}
@@ -103,8 +122,11 @@ game:
         agents: 1
 
         objects:
-          mine: 1
-          generator: 1
+          mine.red: 1
+          mine.blue: 1
+          mine.green: 1
+          generator.red: 1
+          altar: 1
           block: ${uniform:5,15,20}
       - _target_: mettagrid.config.room.random.Random
         width: ${uniform:6,25,20}
@@ -114,8 +136,11 @@ game:
         agents: 1
 
         objects:
-          mine: 1
-          generator: 1
+          mine.red: 1
+          mine.blue: 1
+          mine.green: 1
+          generator.red: 1
+          altar: 1
           block: ${uniform:5,15,20}
       - _target_: mettagrid.config.room.random.Random
         width: ${uniform:6,25,20}
@@ -125,8 +150,11 @@ game:
         agents: 1
 
         objects:
-          mine: 1
-          generator: 1
+          mine.red: 1
+          mine.blue: 1
+          mine.green: 1
+          generator.red: 1
+          altar: 1
           block: ${uniform:5,15,20}
       - _target_: mettagrid.config.room.random.Random
         width: ${uniform:6,25,20}
@@ -136,8 +164,11 @@ game:
         agents: 1
 
         objects:
-          mine: 1
-          generator: 1
+          mine.red: 1
+          mine.blue: 1
+          mine.green: 1
+          generator.red: 1
+          altar: 1
           block: ${uniform:5,16,20}
       - _target_: mettagrid.config.room.random.Random
         width: ${uniform:6,25,20}
@@ -147,8 +178,11 @@ game:
         agents: 1
 
         objects:
-          mine: 1
-          generator: 1
+          mine.red: 1
+          mine.blue: 1
+          mine.green: 1
+          generator.red: 1
+          altar: 1
           block: ${uniform:5,15,20}
       - _target_: mettagrid.config.room.random.Random
         width: ${uniform:6,25,20}
@@ -158,8 +192,11 @@ game:
         agents: 1
 
         objects:
-          mine: 1
-          generator: 1
+          mine.red: 1
+          mine.blue: 1
+          mine.green: 1
+          generator.red: 1
+          altar: 1
           block: ${uniform:5,15,20}
       - _target_: mettagrid.config.room.random.Random
         width: ${uniform:6,25,20}
@@ -169,8 +206,11 @@ game:
         agents: 1
 
         objects:
-          mine: 1
-          generator: 1
+          mine.red: 1
+          mine.blue: 1
+          mine.green: 1
+          generator.red: 1
+          altar: 1
           block: ${uniform:5,15,20}
       - _target_: mettagrid.config.room.random.Random
         width: ${uniform:6,25,20}
@@ -180,8 +220,11 @@ game:
         agents: 1
 
         objects:
-          mine: 1
-          generator: 1
+          mine.red: 1
+          mine.blue: 1
+          mine.green: 1
+          generator.red: 1
+          altar: 1
           block: ${uniform:5,15,20}
       - _target_: mettagrid.config.room.random.Random
         width: ${uniform:6,25,20}
@@ -191,8 +234,11 @@ game:
         agents: 1
 
         objects:
-          mine: 1
-          generator: 1
+          mine.red: 1
+          mine.blue: 1
+          mine.green: 1
+          generator.red: 1
+          altar: 1
           block: ${uniform:5,15,20}
       - _target_: mettagrid.config.room.random.Random
         width: ${uniform:6,25,20}
@@ -202,8 +248,11 @@ game:
         agents: 1
 
         objects:
-          mine: 1
-          generator: 1
+          mine.red: 1
+          mine.blue: 1
+          mine.green: 1
+          generator.red: 1
+          altar: 1
           block: ${uniform:5,15,20}
       - _target_: mettagrid.config.room.random.Random
         width: ${uniform:6,25,20}
@@ -213,8 +262,11 @@ game:
         agents: 1
 
         objects:
-          mine: 1
-          generator: 1
+          mine.red: 1
+          mine.blue: 1
+          mine.green: 1
+          generator.red: 1
+          altar: 1
           block: ${uniform:5,15,20}
       - _target_: mettagrid.config.room.random.Random
         width: ${uniform:6,25,20}
@@ -224,8 +276,11 @@ game:
         agents: 1
 
         objects:
-          mine: 1
-          generator: 1
+          mine.red: 1
+          mine.blue: 1
+          mine.green: 1
+          generator.red: 1
+          altar: 1
           block: ${uniform:5,15,20}
       - _target_: mettagrid.config.room.random.Random
         width: ${uniform:6,25,20}
@@ -235,8 +290,11 @@ game:
         agents: 1
 
         objects:
-          mine: 1
-          generator: 1
+          mine.red: 1
+          mine.blue: 1
+          mine.green: 1
+          generator.red: 1
+          altar: 1
           block: ${uniform:5,15,20}
       - _target_: mettagrid.config.room.random.Random
         width: ${uniform:6,25,20}
@@ -246,8 +304,11 @@ game:
         agents: 1
 
         objects:
-          mine: 1
-          generator: 1
+          mine.red: 1
+          mine.blue: 1
+          mine.green: 1
+          generator.red: 1
+          altar: 1
           block: ${uniform:5,15,20}
       - _target_: mettagrid.config.room.random.Random
         width: ${uniform:6,25,20}
@@ -257,8 +318,11 @@ game:
         agents: 1
 
         objects:
-          mine: 1
-          generator: 1
+          mine.red: 1
+          mine.blue: 1
+          mine.green: 1
+          generator.red: 1
+          altar: 1
           block: ${uniform:5,15,20}
       - _target_: mettagrid.config.room.random.Random
         width: ${uniform:6,25,20}
@@ -268,8 +332,11 @@ game:
         agents: 1
 
         objects:
-          mine: 1
-          generator: 1
+          mine.red: 1
+          mine.blue: 1
+          mine.green: 1
+          generator.red: 1
+          altar: 1
           block: ${uniform:5,15,20}
       - _target_: mettagrid.config.room.random.Random
         width: ${uniform:6,25,20}
@@ -279,16 +346,31 @@ game:
         agents: 1
 
         objects:
-          mine: 1
-          generator: 1
+          mine.red: 1
+          mine.blue: 1
+          mine.green: 1
+          generator.red: 1
+          altar: 1
           block: ${uniform:5,25,20}
   objects:
-    mine:
+    mine.red:
       hp: 30
       cooldown: 1
-    generator:
+
+    mine.blue:
+      hp: 30
+      cooldown: 1
+
+    mine.green:
+      hp: 30
+      cooldown: 1
+
+    generator.red:
       hp: 30
       cooldown: 10
+
+    block:
+      hp: ${uniform:1,6,3}
 
   actions:
     attack:
