@@ -207,8 +207,9 @@ class PufferTrainer:
             lstm_h, lstm_c = experience.lstm_h, experience.lstm_c
             e3b_inv = experience.e3b_inv
 
-        while not experience.full:
-            print("Am I getting stuck here?")
+        start = time.time()
+
+        while not experience.full and time.time() - start < 100:
             with profile.env:
                 o, r, d, t, info, env_id, mask = self.vecenv.recv()
 
