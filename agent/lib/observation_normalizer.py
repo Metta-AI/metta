@@ -15,7 +15,6 @@ OBS_NORMALIZATIONS = {
     'agent:orientation': 1,
     'agent:shield': 1,
     'agent:color': 255,
-    'agent:inv:ore': 100,
     'agent:inv:ore.red': 100,
     'agent:inv:ore.blue': 100,
     'agent:inv:ore.green': 100,
