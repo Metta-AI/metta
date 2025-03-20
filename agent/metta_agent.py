@@ -113,12 +113,15 @@ class MettaAgent(nn.Module):
 
     def _setup_components(self, component):
         if component._input_source is not None:
-            if isinstance(component._input_source, str):
+            # if isinstance(component._input_source, str):
+            #     self._setup_components(self.components[component._input_source])
+
+            if isinstance(component._input_source, list):
+                for input_source in component._input_source:
+                    self._setup_components(self.components[input_source])
+            else:
                 self._setup_components(self.components[component._input_source])
 
-            elif isinstance(component._input_source, list):
-                for input_source in component._input_source:
-                    self._setup_components(self.components[input_source['source_name']])
 
         if component._input_source is not None:
             if isinstance(component._input_source, str):
@@ -126,8 +129,7 @@ class MettaAgent(nn.Module):
 
             elif isinstance(component._input_source, list):
                 input_source_components = {}
-                for input_source in component._input_source:
-                    name = input_source['source_name']
+                for name in component._input_source:
                     input_source_components[name] = self.components[name]
 
                 component.setup(input_source_components)

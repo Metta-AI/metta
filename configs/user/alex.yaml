@@ -43,5 +43,6 @@ wandb:
   track: true
   checkpoint_interval: 1
 
+run_id: 37
 cmd: ???
-run: ${oc.env:USER}.local.${cmd}.35
+run: ${oc.env:USER}.local.${cmd}.${run_id}

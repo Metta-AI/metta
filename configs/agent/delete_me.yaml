@@ -27,18 +27,18 @@ components:
     _target_: agent.lib.observation_normalizer.ObservationNormalizer
     input_source: _obs_
 # change names etc.
-  last_24_channels:
+  last_18_channels:
     _target_: agent.lib.merge_layer.ConcatMergeLayer
 # change this to input_sources:
     input_source:
       - source_name: obs_normalizer
-        slice: [0, 28]  
+        slice: [10, 28]  
         dim: 1          
 
 # change names etc.
   cnn1:
     _target_: agent.lib.nn_layer_library.Conv2d
-    input_source: last_24_channels
+    input_source: last_18_channels
     nn_params:
       out_channels: 64
       kernel_size: 5

@@ -13,32 +13,33 @@ class ActionType(nn_layer_library.Bilinear):
     def __init__(self, **cfg):
         super().__init__(**cfg)
 
-        for key, value in self._in_tensor_shape.items():
-            if key == '_action_type_embeds_':
-                in2_features = value[0] # length of the embedding or hash
+    def _forward(self, td: TensorDict):
+        for source in self._input_source:
+            #rewrite this to go off of input sources in order
+            source_name = source['source_name']
+            if source_name == '_action_type_embeds_':
+                action_embeds = td[source_name]
             else:
-                in1_features = value[0] # length of the state features
-        self._nn_params = {'in1_features': in1_features, 'in2_features': in2_features, 'out_features': 1}
-        self._out_tensor_shape = self._nn_params['out_features']
+                state_features = td[source_name]
+
+        state_flat, action_flat, num_actions, N = shape_action_embed(state_features, action_embeds)
+        logits_flat = self.bilinear(state_flat, action_flat)
+
+        td[self._name] = logits_flat.view(N, num_actions) # Reshape to [N, num_actions]
+
+        return td
 
 class ActionParam(nn_layer_library.Bilinear):
     def __init__(self, **cfg):
         super().__init__(**cfg)
-        for key, value in self._in_tensor_shape.items():
-            if key == '_action_param_embeds_':
-                in2_features = value[0] # length of the embedding or hash
-            else:
-                in1_features = value[0] # length of the state features
-        self._nn_params = {'in1_features': in1_features, 'in2_features': in2_features, 'out_features': 1}
-        self._out_tensor_shape = self._nn_params['out_features']
 
     def _forward(self, td: TensorDict):
         for source in self._input_source:
-            name = source['source_name']
-            if name == '_action_type_embeds_':
-                action_embeds = td[name]
+            source_name = source['source_name']
+            if source_name == '_action_param_embeds_':
+                action_embeds = td[source_name]
             else:
-                state_features = td[name]
+                state_features = td[source_name]
 
         state_flat, action_flat, num_actions, N = shape_action_embed(state_features, action_embeds)
         logits_flat = self.bilinear(state_flat, action_flat)

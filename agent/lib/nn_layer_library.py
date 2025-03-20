@@ -18,6 +18,8 @@ class Bilinear(LayerBase):
         super().__init__(**cfg)
 
     def _make_net(self):
+        self._nn_params['in1_features'] = self._in_tensor_shape[0]
+        self._nn_params['in2_features'] = self._in_tensor_shape[1]
         self._out_tensor_shape = [self._nn_params.out_features]
         return nn.Bilinear(
             **self._nn_params

@@ -56,9 +56,9 @@ class LayerBase(nn.Module):
             if isinstance(self._input_source_component, dict):
                 self._in_tensor_shape = {}
                 for source in self._input_source_component:
-                    self._in_tensor_shape[source['source_name']] = source._out_tensor_shape
+                    self._in_tensor_shape[source['source_name']] = source._out_tensor_shape.copy()
             else:
-                self._in_tensor_shape = self._input_source_component._out_tensor_shape
+                self._in_tensor_shape = self._input_source_component._out_tensor_shape.copy()
             if not hasattr(self, '_out_tensor_shape'):
                 self._out_tensor_shape = self._in_tensor_shape # if necessary, edit this later in the superclass
 

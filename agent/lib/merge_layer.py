@@ -1,12 +1,15 @@
+import copy
+
 import omegaconf
 import torch
 from tensordict import TensorDict
+
 from agent.lib.metta_layer import LayerBase
 
 class MergeLayerBase(LayerBase):
     def __init__(self, name, **cfg):
         self._ready = False
-        super().__init__(name)
+        super().__init__(name, **cfg)
         self.sources_full_list = self._input_source
         # redefine _input_source to only be the names so MettaAgent can find the components
         # it's ugly but it maintains consistency in the YAML config
@@ -24,14 +27,16 @@ class MergeLayerBase(LayerBase):
 
         # shouldn't this check if it's a dict or not?
         self.input_source_components = input_source_components
+        self._in_tensor_shape = []
+        self._out_tensor_shape = []
 
         self.dims = []
         self.out_shapes = []
         for src_cfg in self.sources_full_list:
             source_name = src_cfg['source_name']
             
-            processed_size = self.input_source_components[source_name]._out_tensor_shape
-
+            processed_size = self.input_source_components[source_name]._out_tensor_shape.copy()
+            self._in_tensor_shape.append(processed_size)
             if src_cfg.get('slice') is not None:
                 slice_range = src_cfg['slice']
                 if isinstance(slice_range, omegaconf.listconfig.ListConfig):
@@ -49,7 +54,7 @@ class MergeLayerBase(LayerBase):
                     'length': length,
                     'dim': slice_dim
                 }
-
+# ----- note to self: need to figure out what we want to do with processed_size since it's just the length of the one dim ---
                 processed_size[slice_dim] = length
 
             self.out_shapes.append(processed_size)
@@ -88,6 +93,7 @@ class ConcatMergeLayer(MergeLayerBase):
         cat_dim_length = 0
         for size in self.out_shapes:
             cat_dim_length += size[self._merge_dim - 1]
+        self._out_tensor_shape = self._in_tensor_shape[0]
         self._out_tensor_shape[self._merge_dim - 1] = cat_dim_length
 
     def _merge(self, outputs, td):
