@@ -1,9 +1,8 @@
 
 defaults:
-  - mettagrid
+  - ../mettagrid
 
 sampling: 1
-semi_compact_obs: true
 
 
 game:
