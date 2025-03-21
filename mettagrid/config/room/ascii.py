@@ -9,6 +9,7 @@ SYMBOLS = {
     "a": "altar",
     "c": "converter",
     "g": "generator",
+    "m": "mine",
     "W": "wall",
     " ": "empty",
     "b": "block",
