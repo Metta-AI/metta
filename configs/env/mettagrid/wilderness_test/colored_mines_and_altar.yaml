@@ -3,6 +3,8 @@ defaults:
   - mettagrid
 
 sampling: 1
+semi_compact_obs: true
+
 
 game:
   num_agents: 24
