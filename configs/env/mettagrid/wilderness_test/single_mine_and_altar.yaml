@@ -1,6 +1,6 @@
 
 defaults:
-  - mettagrid
+  - ../mettagrid
 
 sampling: 1
 
