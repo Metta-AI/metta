@@ -30,8 +30,8 @@ game:
     rewards:
       # action_failure_penalty: 0.00001
       action_failure_penalty: 0
-      ore: 0.005
-      ore_max: 5
+      ore.red: 0.005
+      ore.red_max: 5
       battery: 0.01
       battery_max: 5
       heart: 1
@@ -89,15 +89,23 @@ game:
 
     mine:
       hp: 30
-      output_ore: 1
+      output_ore.red: 1
       max_output: 5
       conversion_ticks: 1
       cooldown: 50
       initial_items: 1
 
-    generator:
+    mine.red:
       hp: 30
-      input_ore: 1
+      output_ore.red: 1
+      max_output: 5
+      conversion_ticks: 1
+      cooldown: 50
+      initial_items: 1
+
+    generator.red:
+      hp: 30
+      input_ore.red: 1
       output_battery: 1
       max_output: 5
       conversion_ticks: 1
@@ -106,7 +114,7 @@ game:
 
     armory:
       hp: 30
-      input_ore: 3
+      input_ore.red: 3
       output_armor: 1
       max_output: 5
       conversion_ticks: 1
@@ -115,7 +123,7 @@ game:
 
     lasery:
       hp: 30
-      input_ore: 1
+      input_ore.red: 1
       input_battery: 2
       output_laser: 1
       max_output: 5
@@ -125,7 +133,7 @@ game:
 
     lab:
       hp: 30
-      input_ore: 3
+      input_ore.red: 3
       input_battery: 3
       output_blueprint: 1
       max_output: 5
@@ -135,7 +143,7 @@ game:
     factory:
       hp: 30
       input_blueprint: 1
-      input_ore: 5
+      input_ore.red: 5
       input_battery: 5
       output_armor: 5
       output_laser: 5
@@ -171,7 +179,7 @@ game:
     attack:
       enabled: true
     swap:
-      enabled: true
+      enabled: false
     change_color:
       enabled: true
 
