@@ -14,7 +14,6 @@ from rl.carbs.metta_carbs import MettaCarbs, carbs_params_from_cfg
 from rl.wandb.sweep import generate_run_id_for_sweep, sweep_id_from_name
 from rl.wandb.wandb_context import WandbContext
 from util.efs_lock import efs_lock
-from util.runtime_configuration import setup_omega_conf
 from util.config import config_from_path
 
 import wandb_carbs
@@ -31,9 +30,8 @@ logger = logging.getLogger("sweep_init")
 
 @hydra.main(config_path="../configs", config_name="sweep", version_base=None)
 def main(cfg: OmegaConf) -> int:
-    setup_omega_conf()
-
     cfg.wandb.name = cfg.sweep_name
+    OmegaConf.register_new_resolver("ss", sweep_space, replace=True)
     cfg.sweep = config_from_path(cfg.sweep_params, cfg.sweep_params_override)
 
     is_master = os.environ.get("NODE_INDEX", "0") == "0"
@@ -171,6 +169,18 @@ def _log_file(run_dir: str, wandb_run, name: str, data):
         json.dump(data, f, indent=4)
 
     wandb_run.save(path, base_path=run_dir)
+
+def sweep_space(space, min_val, max_val, center=None, *, _root_):
+    result = {
+        "space": space,
+        "min": min_val,
+        "max": max_val,
+        "search_center": center,
+    }
+    if space == "int":
+        result["is_int"] = True
+        result["space"] = "linear"
+    return OmegaConf.create(result)
 
 
 if __name__ == "__main__":
