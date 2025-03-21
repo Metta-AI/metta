@@ -8,9 +8,9 @@ from dataclasses import dataclass
 ###
 # This script calculates the maximum reward for a gridworld environment, defined as the total inventory contents at the end of the max_timesteps.
 # It does this by simulating the environment with random object placements
-# then calculating the maximum reward for a single agent multiplied by the number of agents and rooms.
-# It also calculates the maximum reward assuming that the resources are flowing at their maximum possible rate
-# and returns the minimum of the two as the estimated maximum reward.
+# It then returns the minimum of either:
+# - the maximum reward for a single agent multiplied by the number of agents and rooms.
+# - the maximum reward assuming that the resources are flowing at their maximum possible rate.
 
 # To run:   
 # gridworld = GridWorld(mettagrid_yaml_path, map_config_yaml_path)
@@ -21,7 +21,6 @@ from dataclasses import dataclass
 # - Only works for simple gridworlds - will need to adapt to more complex environments. Currenlty optimised for simple.yaml
 # - Only provides an estimate of the maximum reward - will need to refine to get the exact maximum reward if we want this in the future
 # - Assumes no conversion ticks.
-# - Assumes no generator conversion rate.
 ###
 
 # Constants for resource types
@@ -277,7 +276,14 @@ class GridWorld:
         max_ore_rate = ore_per_timestep_per_mine * self.n_mines
         
         # 2. Generator throughput (batteries per timestep)
-        time_per_generator_cycle = self.generator_config.max_output + self.generator_config.cooldown + 1
+        # Calculate time needed for input resources (ore)
+        ore_needed = self.generator_config.max_output * self.generator_config.input_ore
+        time_per_generator_cycle = (
+            ore_needed +                    # Time to put ore
+            self.generator_config.cooldown + # Cooldown period
+            1                               # Action to get batteries
+        )
+        # Calculate batteries per timestep per generator
         batteries_per_timestep_per_generator = self.generator_config.max_output / time_per_generator_cycle
         max_battery_rate = batteries_per_timestep_per_generator * self.n_generators
         
