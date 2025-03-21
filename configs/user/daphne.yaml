@@ -1,97 +1,45 @@
 # @package __global__
 
-seed: null
-
 defaults:
-  - override /eval: eval_suite
-  - override /env/mettagrid@env: wilderness_test/single_mine_and_altar
   - override /agent: simple
-  - override /sweep: fast
-  - override /analyzer: train_analyzer
-
-#policy_uri: ./train_dir/daphne.local.train.43/checkpoints/model_0010.pt
-
-policy_uri: wandb://run/daphne_storytelling_metta2_single_mine_with_altar_pretrained_e3b.r.0
-#policy_uri: ./train_dir/daphne.local.train.14_pfs/checkpoints/model_0050.pt
-# policy_uri: wandb://run/mettabox_cogeval_defaults_lowent_initialized0005
-# policy_uri: wandb://run/daphne_mettabox_train_cogeval_simplified_0.01_mb_easyv33
-# policy_uri: wandb://run/b.daphne.aws_train_cogeval_defaults_0.005_v35
-#ABOVE IS b.daphne.aws_train_cogeval_easy_simplified_pretrained
-
-# policy_uri: wandb://run/daphne_mettabox_train_cogeval_simplified_0.005_mb_easyv34:v6
-#policy_uri: wandb://run/daphne_mettabox_train_cogeval_simplified_0.01_mb_easyv33:v5
-
-# policy_uri: wandb://run/mettabox_cogeval_easy_defaults_2
-eval_db_uri: wandb://artifacts/cogeval_evaluations
-
-npc_policy_uri: null
+  - override /eval: eval
 
 
-# eval:
-#   # policy_uri: ${policy_uri}
-#   num_envs: 10
-#   num_episodes: 10
-#   max_time_s: 300
-# analyzer:
-#   policy_uri: ${policy_uri}
+trainer:
+  env: /env/mettagrid/colored_mines
+  evaluate_interval: 2
+  env_overrides:
+    # sampling: 0.7
+    game:
+      max_steps: 1000
+
+policy_uri: wandb://run/b.daphne.aws_sweep_colored_ore.r.2
+
+
+analyzer:
+  eval_stats_uri: ${run_dir}/eval_stats
+  analysis:
+    metrics:
+      - metric: episode_reward
+      - metric: "*.get"
+
+eval:
+  num_envs: 2
+  num_episodes: 2
+  max_time_s: 600
+
+  policy_uri: ${..policy_uri}
+  # npc_policy_uri: ${..npc_policy_uri}
+  # eval_db_uri: ${..eval_db_uri} #file://daphne/sweep_stats
+  env: /env/mettagrid/colored_mines
+
 wandb:
-  enabled: true
-  track: true
   checkpoint_interval: 1
 
+run_id: 100
+run: ${oc.env:USER}.local.${run_id}
+trained_policy_uri: ${run_dir}/checkpoints
 
-cmd: ???
-run_id: 43
-run: ${oc.env:USER}.local.${cmd}.${run_id}
-trained_policy_uri: ./train_dir/${oc.env:USER}.local.train.${run_id}/checkpoints
-
-env:
-  game:
-    max_steps: 1000
-
-    # objects:
-    #   altar:
-    #     hp: 30
-    #     cooldown: 1
-
-    #   mine:
-    #     hp: 30
-    #     cooldown: 1
-
-    #   generator:
-    #     hp: 30
-    #     cooldown: 1
-
-    #   armory:
-    #     hp: 30
-    #     cooldown: 1
-
-    #   lasery:
-    #     hp: 30
-    #     cooldown: 1
-
-    #   lab:
-    #     hp: 30
-    #     cooldown: 1
-
-    #   factory:
-    #     hp: 30
-    #     cooldown: 1
-
-    #   temple:
-    #     hp: 30
-    #     cooldown: 1
-
-    actions:
-      noop:
-        enabled: true
-      move:
-        enabled: true
-      rotate:
-        enabled: true
-      attack:
-        enabled: false
-      swap:
-        enabled: false
-      change_color:
-        enabled: false
+sweep_params: "sweep/fast"
+sweep_name: "${oc.env:USER}.local.sweep.${run_id}"
+seed: null

@@ -15,10 +15,12 @@ game:
       heart.max: 1000
 
   actions:
-    swap: 
-      enabled: false 
+    swap:
+      enabled: false
     change_color:
       enabled: false
+    attack:
+      enabled: true
 
   objects:
     mine.red:
@@ -44,5 +46,3 @@ game:
       _target_: mettagrid.config.room.ascii.Ascii
       border_width: 1
       uri: "configs/env/mettagrid/maps/montage_break_out.map"
-
-

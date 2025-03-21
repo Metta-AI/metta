@@ -43,7 +43,7 @@ game:
           mine.red: 1
           mine.blue: 1
           mine.green: 1
-          generator.red: 1
+          generator.green: 1
           block: ${uniform:5,15,12}
       - _target_: mettagrid.config.room.random.Random
         width: ${uniform:6,25,20}
@@ -56,7 +56,7 @@ game:
           mine.red: 1
           mine.blue: 1
           mine.green: 1
-          generator.red: 1
+          generator.blue: 1
           block: ${uniform:5,25,20}
       - _target_: mettagrid.config.room.random.Random
         width: ${uniform:6,25,20}
@@ -82,7 +82,20 @@ game:
           mine.red: 1
           mine.blue: 1
           mine.green: 1
-          generator.red: 1
+          generator.green: 1
+          block: ${uniform:5,15,20}
+      - _target_: mettagrid.config.room.random.Random
+        width: ${uniform:6,25,20}
+        height: ${uniform:6,25,20}
+        border_width: 1
+
+        agents: 1
+
+        objects:
+          mine.red: 1
+          mine.blue: 1
+          mine.green: 1
+          generator.blue: 1
           block: ${uniform:5,15,20}
       - _target_: mettagrid.config.room.random.Random
         width: ${uniform:6,25,20}
@@ -108,7 +121,20 @@ game:
           mine.red: 1
           mine.blue: 1
           mine.green: 1
-          generator.red: 1
+          generator.green: 1
+          block: ${uniform:5,15,20}
+      - _target_: mettagrid.config.room.random.Random
+        width: ${uniform:6,25,20}
+        height: ${uniform:6,25,20}
+        border_width: 1
+
+        agents: 1
+
+        objects:
+          mine.red: 1
+          mine.blue: 1
+          mine.green: 1
+          generator.blue: 1
           block: ${uniform:5,15,20}
       - _target_: mettagrid.config.room.random.Random
         width: ${uniform:6,25,20}
@@ -134,33 +160,7 @@ game:
           mine.red: 1
           mine.blue: 1
           mine.green: 1
-          generator.red: 1
-          block: ${uniform:5,15,20}
-      - _target_: mettagrid.config.room.random.Random
-        width: ${uniform:6,25,20}
-        height: ${uniform:6,25,20}
-        border_width: 1
-
-        agents: 1
-
-        objects:
-          mine.red: 1
-          mine.blue: 1
-          mine.green: 1
-          generator.red: 1
-          block: ${uniform:5,15,20}
-      - _target_: mettagrid.config.room.random.Random
-        width: ${uniform:6,25,20}
-        height: ${uniform:6,25,20}
-        border_width: 1
-
-        agents: 1
-
-        objects:
-          mine.red: 1
-          mine.blue: 1
-          mine.green: 1
-          generator.red: 1
+          generator.green: 1
           block: ${uniform:5,16,20}
       - _target_: mettagrid.config.room.random.Random
         width: ${uniform:6,25,20}
@@ -173,7 +173,7 @@ game:
           mine.red: 1
           mine.blue: 1
           mine.green: 1
-          generator.red: 1
+          generator.blue: 1
           block: ${uniform:5,15,20}
       - _target_: mettagrid.config.room.random.Random
         width: ${uniform:6,25,20}
@@ -199,7 +199,20 @@ game:
           mine.red: 1
           mine.blue: 1
           mine.green: 1
-          generator.red: 1
+          generator.green: 1
+          block: ${uniform:5,15,20}
+      - _target_: mettagrid.config.room.random.Random
+        width: ${uniform:6,25,20}
+        height: ${uniform:6,25,20}
+        border_width: 1
+
+        agents: 1
+
+        objects:
+          mine.red: 1
+          mine.blue: 1
+          mine.green: 1
+          generator.blue: 1
           block: ${uniform:5,15,20}
       - _target_: mettagrid.config.room.random.Random
         width: ${uniform:6,25,20}
@@ -225,7 +238,20 @@ game:
           mine.red: 1
           mine.blue: 1
           mine.green: 1
-          generator.red: 1
+          generator.green: 1
+          block: ${uniform:5,15,20}
+      - _target_: mettagrid.config.room.random.Random
+        width: ${uniform:6,25,20}
+        height: ${uniform:6,25,20}
+        border_width: 1
+
+        agents: 1
+
+        objects:
+          mine.red: 1
+          mine.blue: 1
+          mine.green: 1
+          generator.blue: 1
           block: ${uniform:5,15,20}
       - _target_: mettagrid.config.room.random.Random
         width: ${uniform:6,25,20}
@@ -251,7 +277,20 @@ game:
           mine.red: 1
           mine.blue: 1
           mine.green: 1
-          generator.red: 1
+          generator.green: 1
+          block: ${uniform:5,15,20}
+      - _target_: mettagrid.config.room.random.Random
+        width: ${uniform:6,25,20}
+        height: ${uniform:6,25,20}
+        border_width: 1
+
+        agents: 1
+
+        objects:
+          mine.red: 1
+          mine.blue: 1
+          mine.green: 1
+          generator.blue: 1
           block: ${uniform:5,15,20}
       - _target_: mettagrid.config.room.random.Random
         width: ${uniform:6,25,20}
@@ -277,7 +316,7 @@ game:
           mine.red: 1
           mine.blue: 1
           mine.green: 1
-          generator.red: 1
+          generator.green: 1
           block: ${uniform:5,15,20}
       - _target_: mettagrid.config.room.random.Random
         width: ${uniform:6,25,20}
@@ -290,46 +329,7 @@ game:
           mine.red: 1
           mine.blue: 1
           mine.green: 1
-          generator.red: 1
-          block: ${uniform:5,15,20}
-      - _target_: mettagrid.config.room.random.Random
-        width: ${uniform:6,25,20}
-        height: ${uniform:6,25,20}
-        border_width: 1
-
-        agents: 1
-
-        objects:
-          mine.red: 1
-          mine.blue: 1
-          mine.green: 1
-          generator.red: 1
-          block: ${uniform:5,15,20}
-      - _target_: mettagrid.config.room.random.Random
-        width: ${uniform:6,25,20}
-        height: ${uniform:6,25,20}
-        border_width: 1
-
-        agents: 1
-
-        objects:
-          mine.red: 1
-          mine.blue: 1
-          mine.green: 1
-          generator.red: 1
-          block: ${uniform:5,15,20}
-      - _target_: mettagrid.config.room.random.Random
-        width: ${uniform:6,25,20}
-        height: ${uniform:6,25,20}
-        border_width: 1
-
-        agents: 1
-
-        objects:
-          mine.red: 1
-          mine.blue: 1
-          mine.green: 1
-          generator.red: 1
+          generator.blue: 1
           block: ${uniform:5,25,20}
   objects:
     mine.red:
@@ -345,6 +345,14 @@ game:
       cooldown: 1
 
     generator.red:
+      hp: 30
+      cooldown: 10
+
+    generator.green:
+      hp: 30
+      cooldown: 10
+
+    generator.blue:
       hp: 30
       cooldown: 10
 
