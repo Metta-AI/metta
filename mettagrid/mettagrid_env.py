@@ -1,20 +1,22 @@
 import copy
+import random
 from typing import Any, Dict
 
 import gymnasium as gym
 import hydra
 import numpy as np
-from mettagrid.config.config import setup_omega_conf
+from torch import sub
+from mettagrid.config.config import make_odd
 import pufferlib
 from omegaconf import OmegaConf, DictConfig
 
 from mettagrid.mettagrid_c import MettaGrid  # pylint: disable=E0611
-
-
+from mettagrid.config import config
+from util.config import config_from_path
 class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     def __init__(self, env_cfg: DictConfig, render_mode: str, buf=None, **kwargs):
         self._render_mode = render_mode
-        self._cfg = env_cfg
+        self._cfg_template = env_cfg
         self.make_env()
         self.should_reset = False
         self._renderer = None
@@ -22,8 +24,10 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         super().__init__(buf)
 
     def make_env(self):
-        self._env_cfg = copy.deepcopy(self._cfg)
+        self._env_cfg = OmegaConf.create(copy.deepcopy(self._cfg_template))
+
         OmegaConf.resolve(self._env_cfg)
+
         self._map_builder = hydra.utils.instantiate(self._env_cfg.game.map_builder)
         env_map = self._map_builder.build()
         map_agents = np.count_nonzero(np.char.startswith(env_map, "agent"))
@@ -59,7 +63,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self.actions[:] = np.array(actions).astype(np.uint32)
         self._c_env.step(self.actions)
 
-        if self._cfg.normalize_rewards:
+        if self._env_cfg.normalize_rewards:
             self.rewards -= self.rewards.mean()
 
         infos = {}
@@ -165,7 +169,49 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
 
 def make_env_from_cfg(cfg_path: str, *args, **kwargs):
-    setup_omega_conf()
-    cfg = OmegaConf.load(cfg_path)
+    cfg = config_from_path(cfg_path)
     env = MettaGridEnv(cfg, *args, **kwargs)
     return env
+
+
+def oc_uniform(min_val, max_val, center, *, _root_):
+    sampling = _root_.get("sampling", 0)
+    if sampling == 0:
+        return center
+    else:
+
+        center = (max_val + min_val) // 2
+        # Calculate the available range on both sides of the center
+        left_range = center - min_val
+        right_range = max_val - center
+
+        # Scale the ranges based on the sampling parameter
+        scaled_left = min(left_range, sampling * left_range)
+        scaled_right = min(right_range, sampling * right_range)
+
+        # Generate a random value within the scaled range
+        val = np.random.uniform(center - scaled_left, center + scaled_right)
+
+        # Clip to ensure we stay within [min_val, max_val]
+        val = np.clip(val, min_val, max_val)
+
+        # Return integer if the original values were integers
+        return int(round(val)) if isinstance(center, int) else val
+
+def oc_choose(*args):
+    return random.choice(args)
+
+def oc_div(a, b):
+    return a // b
+
+def oc_sub(a, b):
+    return a - b
+
+def oc_make_odd(a):
+    return max(3, a // 2 * 2 + 1)
+
+OmegaConf.register_new_resolver("div", oc_div, replace=True)
+OmegaConf.register_new_resolver("uniform", oc_uniform, replace=True)
+OmegaConf.register_new_resolver("sub", oc_sub, replace=True)
+OmegaConf.register_new_resolver("make_odd", oc_make_odd, replace=True)
+OmegaConf.register_new_resolver("choose", oc_choose, replace=True)

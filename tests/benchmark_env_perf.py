@@ -5,7 +5,6 @@ import numpy as np
 from tqdm import tqdm
 import pandas as pd
 from omegaconf import OmegaConf
-from mettagrid.config.config import setup_omega_conf
 
 global actions
 global env
@@ -31,8 +30,6 @@ actions = {}
 env = {}
 @hydra.main(version_base=None, config_path="../configs", config_name="simple")
 def main(cfg):
-    setup_omega_conf()
-
     # Run with c profile
     from cProfile import run
     global env

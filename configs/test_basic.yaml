@@ -1,7 +1,7 @@
 name: "GDY-MettaGrid"
 _target_: mettagrid.mettagrid_env.MettaGridEnv
 
-normalize_rewards: False
+normalize_rewards: false
 semi_compact_obs: true
 sampling: 0.0
 
