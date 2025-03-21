@@ -1,0 +1,48 @@
+defaults:
+  - ../mettagrid
+
+game:
+  num_agents: 4
+  max_steps: 250
+
+  agent:
+    rewards:
+      ore: 1
+      generator: 1.5
+      heart: 5
+      ore.max: 1000
+      generator.max: 1000
+      heart.max: 1000
+
+  actions:
+    swap: 
+      enabled: false 
+    change_color:
+      enabled: false
+
+  objects:
+    mine.red:
+      cooldown: 1000
+    generator.red:
+      cooldown: 10
+    altar:
+      cooldown: 1
+    wall:
+      hp: 1
+    lasery:
+      output_laser: 5000
+      max_output: 5000
+      cooldown: 0
+      initial_items: 5000
+
+
+  map_builder:
+
+    _target_: mettagrid.config.room.multi_room.MultiRoom
+    num_rooms: 2
+    room:
+      _target_: mettagrid.config.room.ascii.Ascii
+      border_width: 1
+      uri: "configs/env/mettagrid/maps/montage_break_out.map"
+
+

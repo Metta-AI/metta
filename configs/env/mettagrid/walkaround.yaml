@@ -1,0 +1,27 @@
+defaults:
+  - mettagrid
+
+game:
+  num_agents: 32
+
+  actions:
+    attack:
+      enabled: false
+    change_color:
+      enabled: false
+    swap:
+      enabled: false
+
+  objects:
+    altar:
+      initial_items: 0
+
+
+  map_builder:
+
+    _target_: mettagrid.config.room.multi_room.MultiRoom
+    num_rooms: 2
+    room:
+      _target_: mettagrid.config.room.ascii.Ascii
+      border_width: 1
+      uri: "configs/env/mettagrid/maps/montage_walkaround_mega.map"
