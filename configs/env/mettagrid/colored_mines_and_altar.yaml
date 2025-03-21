@@ -13,13 +13,14 @@ game:
     rewards:
       # action_failure_penalty: 0.00001
       action_failure_penalty: 0
-      ore.red: 0.005
-      ore.blue: 0
-      ore.green: 0
-      battery: 0.01
-      battery_max: 5
-      heart: 1
-      heart_max: 100
+      ore.red: 0.0001
+      ore.blue: 0.0001
+      ore.green: 0.0001
+      battery: 0.5
+      battery_max: 10
+      heart: 3
+      heart_max: 1000
+
 
   map_builder:
     _target_: mettagrid.config.room.multi_room.RoomList
