@@ -3,7 +3,7 @@ import numpy as np
 from mettagrid.config.room.room import Room
 
 SYMBOLS = {
-    "A": "agent",
+    "A": "agent.agent",
     "Ap": "agent.prey",
     "AP": "agent.predator",
     "a": "altar",
@@ -11,6 +11,8 @@ SYMBOLS = {
     "g": "generator",
     "W": "wall",
     " ": "empty",
+    "b": "block",
+    "L": "lasery"
 }
 
 class Ascii(Room):
