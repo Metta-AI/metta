@@ -21,7 +21,6 @@ game:
       heart: 3
       heart_max: 1000
 
-
   map_builder:
     _target_: mettagrid.config.room.multi_room.RoomList
     border_width: 6
