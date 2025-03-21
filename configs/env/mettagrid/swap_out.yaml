@@ -27,6 +27,7 @@ game:
       cooldown: 10
     altar:
       cooldown: 1
+      initial_items: 0
     wall:
       hp: 1
     lasery:
