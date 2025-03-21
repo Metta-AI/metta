@@ -15,8 +15,8 @@ game:
       heart.max: 1000
 
   actions:
-    attack: 
-      enabled: false 
+    attack:
+      enabled: false
     change_color:
       enabled: false
 
@@ -44,5 +44,3 @@ game:
       _target_: mettagrid.config.room.ascii.Ascii
       border_width: 1
       uri: "configs/env/mettagrid/maps/montage_swap_out_single.map"
-
-
