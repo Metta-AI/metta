@@ -10,9 +10,15 @@ game:
   agent:
     max_inventory: 2000
     rewards:
+      # action_failure_penalty: 0.00001
       action_failure_penalty: 0
-      battery: 1
-      battery_max: 1000
+      ore.red: 0.0001
+      ore.blue: 0.0001
+      ore.green: 0.0001
+      battery: 1.0
+      battery_max: 100
+      heart: 1
+      heart_max: 100
 
   map_builder:
     _target_: mettagrid.config.room.multi_room.RoomList
