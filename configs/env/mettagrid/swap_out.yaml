@@ -1,9 +1,9 @@
 defaults:
-  - mettagrid
+  - ../mettagrid
 
 game:
   num_agents: 4
-  max_steps: 5000
+  max_steps: 250
 
   agent:
     rewards:
@@ -43,6 +43,6 @@ game:
     room:
       _target_: mettagrid.config.room.ascii.Ascii
       border_width: 1
-      uri: "configs/env/mettagrid/maps/montage_break_out.map"
+      uri: "configs/env/mettagrid/maps/montage_swap_out_single.map"
 
 
