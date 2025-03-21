@@ -5,7 +5,7 @@ import wandb
 from util.datastruct import flatten_config
 import logging
 import gzip
-
+from omegaconf import OmegaConf
 logger = logging.getLogger("eval_stats_logger.py")
 
 class EvalStatsLogger:
@@ -42,7 +42,8 @@ class EvalStatsLogger:
         additional_fields['timestamp'] = datetime.now().isoformat()
 
         # Convert the environment configuration to a dictionary and flatten it.
-        flattened_env = flatten_config(self._env_cfg.game, parent_key = "game")
+        game_cfg = OmegaConf.to_container(self._env_cfg.game, resolve=False)
+        flattened_env = flatten_config(game_cfg, parent_key = "game")
         additional_fields.update(flattened_env)
 
         for episode in eval_stats:
