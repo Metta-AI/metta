@@ -85,8 +85,10 @@ class Grid {
             GridLocation loc2 = obj2->location;
             obj1->location = loc2;
             obj2->location = loc1;
-            grid[loc1.r][loc1.c][loc1.layer] = id2;
-            grid[loc2.r][loc2.c][loc2.layer] = id1;
+
+            // Keep the layer the same
+            grid[loc1.r][loc1.c][loc2.layer] = id2;
+            grid[loc2.r][loc2.c][loc1.layer] = id1;
         }
 
         inline GridObject* object(GridObjectId obj_id) {
