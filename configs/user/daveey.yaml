@@ -19,8 +19,8 @@ trainer:
 
 # policy_uri: wandb://run/b.daveey.sm.train.er.new.0
 # policy_uri: wandb://run/daveey.ar.cards.1
-policy_uri: wandb://run/b.daveey.t.32.instant
-# policy_uri: ${trained_policy_uri}
+# policy_uri: wandb://run/b.daveey.t.32.instant
+policy_uri: ${trained_policy_uri}
 # npc_policy_uri: ${trained_policy_uri}
 # eval_db_uri: wandb://artifacts/daveey_eval_testing
 
@@ -43,13 +43,13 @@ eval:
   env_overrides:
     # sampling: 0.7
     game:
-      num_agents: 360
+      # num_agents: 360
       max_steps: 10
 
 wandb:
   checkpoint_interval: 1
 
-run_id: 11
+run_id: 12
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 
