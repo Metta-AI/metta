@@ -4,11 +4,9 @@ defaults:
   - override /agent: simple
   - override /eval: eval
 
-
 trainer:
-  env: /env/mettagrid/breakout
-  evaluate_interval: 200
-
+  env: /env/mettagrid/walkaround
+  evaluate_interval: 2
 
 # policy: wandb://run/b.daveey.train.maze.sm.dr.warm.0
 # baselines: wandb://run/b.daveey.train.maze.sm.11x11.0
@@ -35,17 +33,16 @@ eval:
   policy_uri: ${..policy_uri}
   # npc_policy_uri: ${..npc_policy_uri}
   # eval_db_uri: ${..eval_db_uri} #file://daphne/sweep_stats
-  env: /env/mettagrid/simple
-  env_overrides:
-    # sampling: 0.7
-    game:
-      # num_agents: 360
-      max_steps: 10
+  env: /env/mettagrid/walkaround
+
+
+
+
 
 wandb:
   checkpoint_interval: 1
 
-run_id: 100
+run_id: 103
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 
