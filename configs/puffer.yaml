@@ -179,7 +179,7 @@ game:
     attack:
       enabled: true
     swap:
-      enabled: false
+      enabled: true
     change_color:
       enabled: true
 

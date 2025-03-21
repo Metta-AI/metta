@@ -80,20 +80,23 @@ class Grid {
 
         inline void swap_objects(GridObjectId id1, GridObjectId id2) {
             GridObject* obj1 = objects[id1];
-            GridObject* obj2 = objects[id2];
             GridLocation loc1 = obj1->location;
-            GridLocation loc2 = obj2->location;
             Layer layer1 = obj1->location.layer;
+            grid[loc1.r][loc1.c][loc1.layer] = 0;
+
+            GridObject* obj2 = objects[id2];
+            GridLocation loc2 = obj2->location;
             Layer layer2 = obj2->location.layer;
+            grid[loc2.r][loc2.c][loc2.layer] = 0;
 
-            obj1->location = loc2;
-            obj2->location = loc1;
             // Keep the layer the same
-            obj1->location.layer = layer2;
-            obj2->location.layer = layer1;
+            obj1->location = loc2;
+            obj1->location.layer = layer1;
+            obj2->location = loc1;
+            obj2->location.layer = layer2;
 
-            grid[loc1.r][loc1.c][loc1.layer] = id2;
-            grid[loc2.r][loc2.c][loc2.layer] = id1;
+            grid[obj1->location.r][obj1->location.c][obj1->location.layer] = id2;
+            grid[obj2->location.r][obj2->location.c][obj2->location.layer] = id1;
         }
 
         inline GridObject* object(GridObjectId obj_id) {

@@ -40,5 +40,7 @@ cdef class Swap(MettaActionHandler):
         if not target.swappable():
             return False
 
+        actor.stats.incr(b"swap", self._stats.target[target._type_id])
+
         self.env._grid.swap_objects(actor.id, target.id)
         return True
