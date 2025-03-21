@@ -5,8 +5,7 @@ import numpy as np
 import torch
 from agent.policy_store import PolicyStore, PolicyRecord
 from omegaconf import DictConfig, OmegaConf
-import hydra
-
+from util.config import config_from_path
 from rl.pufferlib.vecenv import make_vecenv
 
 logger = logging.getLogger("eval")
@@ -16,12 +15,12 @@ class Eval():
         self,
         policy_store: PolicyStore,
         policy_pr: PolicyRecord,
-        env_defaults: DictConfig,
 
         env: str,
         npc_policy_uri: str,
         device: str,
 
+        env_overrides: DictConfig = None,
         policy_agents_pct: float = 1.0,
         num_envs: int = 1,
         num_episodes: int = 1,
@@ -31,11 +30,7 @@ class Eval():
         **kwargs,
 
     ) -> None:
-        env_cfg = hydra.compose(config_name=env)
-        path = env.split("/")
-        for p in path[:-1]:
-            env_cfg = env_cfg[p]
-        self._env_cfg = env_cfg #OmegaConf.merge(env_defaults, env_cfg)
+        self._env_cfg = config_from_path(env, env_overrides)
         self._env_name = env
 
         self._npc_policy_uri = npc_policy_uri
@@ -165,7 +160,7 @@ class EvalSuite:
         self,
         policy_store: PolicyStore,
         policy_pr: PolicyRecord,
-        env_defaults: DictConfig,
+        env_overrides: DictConfig = None,
         evals: DictConfig = None,
         **kwargs):
 
@@ -173,7 +168,8 @@ class EvalSuite:
         self._evals = []
         for eval_name, eval_cfg in evals.items():
             eval_cfg = OmegaConf.merge(kwargs, eval_cfg)
-            eval = Eval(policy_store, policy_pr, env_defaults, **eval_cfg)
+            eval = Eval(policy_store, policy_pr,
+                        env_overrides=env_overrides, **eval_cfg)
             self._evals.append(eval)
 
     def evaluate(self):
