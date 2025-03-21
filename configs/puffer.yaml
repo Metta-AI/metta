@@ -23,8 +23,8 @@ game:
   no_energy_steps: 500
 
   agent:
-    max_inventory: ${uniform:0, 100, 50}
-    freeze_duration: ${uniform:0, 200, 10}
+    max_inventory: 50
+    freeze_duration: 0
     hp: 10
     mortal: False
     rewards:
@@ -84,7 +84,7 @@ game:
       output_heart: 1
       max_output: 5
       conversion_ticks: 1
-      cooldown: ${uniform:1, 20, 10}
+      cooldown: 10
       initial_items: 1
 
     mine:
@@ -92,7 +92,7 @@ game:
       output_ore: 1
       max_output: 5
       conversion_ticks: 1
-      cooldown: ${uniform:0, 100, 50}
+      cooldown: 50
       initial_items: 1
 
     generator:
@@ -101,7 +101,7 @@ game:
       output_battery: 1
       max_output: 5
       conversion_ticks: 1
-      cooldown: ${uniform:0, 50, 25}
+      cooldown: 50
       initial_items: 1
 
     armory:
@@ -110,7 +110,7 @@ game:
       output_armor: 1
       max_output: 5
       conversion_ticks: 1
-      cooldown: ${uniform:0, 20, 10}
+      cooldown: 20
       initial_items: 1
 
     lasery:
@@ -120,7 +120,7 @@ game:
       output_laser: 1
       max_output: 5
       conversion_ticks: 1
-      cooldown: ${uniform:0, 20, 10}
+      cooldown: 20
       initial_items: 1
 
     lab:
@@ -130,7 +130,7 @@ game:
       output_blueprint: 1
       max_output: 5
       conversion_ticks: 1
-      cooldown: ${uniform:0, 10, 5}
+      cooldown: 5
       initial_items: 1
     factory:
       hp: 30
@@ -141,7 +141,7 @@ game:
       output_laser: 5
       max_output: 5
       conversion_ticks: 1
-      cooldown: ${uniform:0, 10, 5}
+      cooldown: 5
       initial_items: 1
 
     temple:
@@ -151,11 +151,11 @@ game:
       output_heart: 5
       max_output: 5
       conversion_ticks: 1
-      cooldown: ${uniform:0, 10, 5}
+      cooldown: 5
       initial_items: 1
 
     wall:
-      hp: ${uniform:1, 20, 10}
+      hp: 10
 
   actions:
     noop:
@@ -193,22 +193,22 @@ game:
 
     room:
       _target_: mettagrid.config.room.random.Random
-      width: ${uniform:10,100,25}
-      height: ${uniform:10,100,25}
+      width: 25
+      height: 25
       border_width: 0
 
       agents: 6
 
       objects:
-        mine: ${uniform:1,20,10}
-        generator: ${uniform:1,10,2}
-        altar: ${uniform:1,5,1}
-        armory: ${uniform:1,5,1}
-        lasery: ${uniform:1,5,1}
-        lab: ${uniform:1,5,1}
-        factory: ${uniform:1,5,1}
-        temple: ${uniform:1,5,1}
+        mine: 10
+        generator: 2
+        altar: 1
+        armory: 1
+        lasery: 1
+        lab: 1
+        factory: 1
+        temple: 1
 
-        wall: ${uniform:10,100,40}
+        wall: 40
 
 
