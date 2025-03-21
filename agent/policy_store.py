@@ -38,7 +38,9 @@ class PolicyRecord:
 
     def policy(self) -> nn.Module:
         if self._policy is None:
-            self._policy = self._policy_store._load_from_uri(self.uri).policy()
+            pr = self._policy_store._load_from_uri(self.uri)
+            self._policy = pr.policy()
+            self._local_path = pr.local_path()
         return self._policy
 
     def num_params(self):
@@ -128,6 +130,7 @@ class PolicyStore:
             "agent_step": 0,
             "epoch": 0,
             "generation": 0,
+            "train_time": 0,
         })
         pr._policy = policy
         return pr

@@ -1,0 +1,8 @@
+wandb:
+  name: ${run}
+  enabled: true
+  track: true
+  project: metta
+  entity: metta-research
+  group: ${.name}
+  run_id: null
