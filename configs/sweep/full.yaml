@@ -18,5 +18,5 @@ trainer:
   l2_init_loss_coef: ${ss:logit, 0.05,1.0, 0.1}
   # compile: ${ss:int, 0, 1}
 
-env:
-  max_steps: ${ss:linear, 500, 2500, 1000}
+# env:
+#   max_steps: ${ss:linear, 500, 2500, 1000}
