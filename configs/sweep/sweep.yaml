@@ -54,19 +54,27 @@ parameters:
     #   max: 1.0
     vf_coef:
       space: logit
-      min: 0.0
+      min: 0.05
       max: 1.0
-    # vf_clip_coef:
-    #   space: logit
-    #   min: 0.0
-    #   max: 1.0
+    l2_reg_loss_coef:
+      space: logit
+      min: 0.05
+      max: 1.0
+    l2_init_loss_coef:
+      space: logit
+      min: 0.05
+      max: 1.0
+    vf_clip_coef:
+      space: logit
+      min: 0.05
+      max: 1.0
     # max_grad_norm:
     #   space: linear
     #   min: 0.0
     #   max: 6.0
     ent_coef:
       space: log
-      min: 1e-5
+      min: 1e-3
       max: 1e-1
     batch_size:
       space: pow2
@@ -92,9 +100,9 @@ parameters:
       max: 128
     total_timesteps:
       space: log
-      search_center: 3e9
-      min: 2e9
-      max: 10e9
+      search_center: 2e9
+      min: 1e9
+      max: 4e9
     # compile:
     #   space: linear
     #   is_int: true

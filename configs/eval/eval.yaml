@@ -2,6 +2,7 @@ _target_: rl.pufferlib.eval.Eval
 
 policy_uri: ???
 env: ???
+env_overrides: null
 npc_policy_uri: null
 policy_agents_pct: 1.0
 

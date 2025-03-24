@@ -1,0 +1,17 @@
+defaults:
+  - common
+  - agent: simple
+  - env/mettagrid@env: simple
+  - trainer: puffer
+  - eval: eval_suite
+  - analyzer: train_analyzer
+  - wandb
+
+cmd: eval
+eval_db_uri: null
+run: ???
+data_dir: ./train_dir
+run_dir: ${data_dir}/${run}
+
+torch_deterministic: true
+vectorization: multiprocessing

@@ -129,7 +129,7 @@ class CarbsSweepRollout:
 
         metric_idxs = [i for i, m in enumerate(analyzer.analysis.metrics) if m == eval_cfg.sweep.metric]
         if len(metric_idxs) == 0:
-            raise ValueError(f"Metric {eval_cfg.sweep.metric} not found in analyzer metrics: {eval_cfg.analyzer.analysis.metrics}")
+            raise ValueError(f"Metric {eval_cfg.sweep.metric} not found in analyzer metrics: {analyzer.analysis.metrics}")
         elif len(metric_idxs) > 1:
             raise ValueError(f"Multiple metrics found for {eval_cfg.sweep.metric} in analyzer")
         sweep_metric_index = metric_idxs[0]

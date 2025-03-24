@@ -12,7 +12,6 @@ eval_db_uri: null
 run: ???
 data_dir: ./train_dir
 run_dir: ${data_dir}/${run}
-sweep_id: null
 
 torch_deterministic: true
 vectorization: multiprocessing

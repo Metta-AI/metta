@@ -18,6 +18,7 @@
 		}
 	],
 	"settings": {
+		"C_Cpp.default.cppStandard": "c++11",
 		"yaml.schemas": {
 			"envs/griddly/gdy-schema.json": "envs/griddly/power_grid/*.yaml"
 		},

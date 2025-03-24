@@ -25,14 +25,12 @@ _carbs_space = {
 }
 
 def carbs_params_from_cfg(cfg: OmegaConf):
-    cfg = OmegaConf.create(OmegaConf.to_container(cfg, resolve=True))
-
     param_spaces = []
     pow2_params = set()
-    params = _fully_qualified_parameters(cfg.sweep.parameters)
+    params = _fully_qualified_parameters(cfg.sweep)
     for param_name, param in params.items():
         train_cfg_param = cfg
-        if "search_center" not in param:
+        if param.search_center is None:
             for k in param_name.split("."):
                 train_cfg_param = train_cfg_param[k]
             OmegaConf.set_struct(param, False)
@@ -94,10 +92,11 @@ class MettaCarbs(Pow2WandbCarbs):
                 CARBSParams(
                     better_direction_sign=1,
                     resample_frequency=5,
-                    num_random_samples=cfg.sweep.num_random_samples,
-                    checkpoint_dir=f"{cfg.run_dir}/carbs/",
+                    num_random_samples=cfg.num_random_samples,
                     is_wandb_logging_enabled=False,
                     seed=int(time.time()),
+                    is_saved_on_every_observation=False,
+                    checkpoint_dir=None,
                 ),
                 carbs_params
             ),
@@ -105,7 +104,7 @@ class MettaCarbs(Pow2WandbCarbs):
 
     def _get_runs_from_wandb(self):
         runs = super()._get_runs_from_wandb()
-        if not self.cfg.sweep.generation.enabled:
+        if not hasattr(self.cfg, 'generation') or not self.cfg.generation.enabled:
             return runs
 
         generations = defaultdict(list)
@@ -116,10 +115,10 @@ class MettaCarbs(Pow2WandbCarbs):
         max_gen = 0
         if len(generations) > 0:
             max_gen = max(generations.keys())
-        if len(generations[max_gen]) < self.cfg.sweep.generation.min_samples:
+        if len(generations[max_gen]) < self.cfg.generation.min_samples:
             self.generation = max_gen
             logger.info(f"Updating newest generation: {self.generation} with {len(generations[self.generation])} samples")
-        elif np.random.random() >= self.cfg.sweep.generation.regen_pct:
+        elif np.random.random() >= self.cfg.generation.regen_pct:
             self.generation = max_gen + 1
             logger.info(f"New creating a new generation: {self.generation}")
         else:

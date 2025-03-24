@@ -5,15 +5,16 @@ import wandb
 from util.datastruct import flatten_config
 import logging
 import gzip
-
+from omegaconf import OmegaConf
 logger = logging.getLogger("eval_stats_logger.py")
 
 class EvalStatsLogger:
-    def __init__(self, cfg, wandb_run):
+    def __init__(self, cfg, env_cfg, wandb_run, save_path: str=None):
         self._cfg = cfg
+        self._env_cfg = env_cfg
         self._wandb_run = wandb_run
         # We want local stats dir to be the same for train, analysis and eval for a particular run
-        save_dir = cfg.run_dir.replace("analyze", "train").replace("eval", "train")
+        save_dir = (save_path or cfg.run_dir).replace("analyze", "train").replace("eval", "train")
 
         artifact_name = None
         if cfg.eval.eval_db_uri is None:
@@ -41,7 +42,8 @@ class EvalStatsLogger:
         additional_fields['timestamp'] = datetime.now().isoformat()
 
         # Convert the environment configuration to a dictionary and flatten it.
-        flattened_env = flatten_config(self._cfg.env.game, parent_key = "env.game")
+        game_cfg = OmegaConf.to_container(self._env_cfg.game, resolve=False)
+        flattened_env = flatten_config(game_cfg, parent_key = "game")
         additional_fields.update(flattened_env)
 
         for episode in eval_stats:
@@ -52,18 +54,19 @@ class EvalStatsLogger:
 
     def _log_to_file(self, eval_stats):
         # If file exists, load and merge with existing data
-        if os.path.exists(self.json_path):
+        gzip_path = self.json_path + ".gz"
+        if os.path.exists(gzip_path):
             try:
-                logger.info(f"Loading existing eval stats from {self.json_path}")
-                with open(self.json_path, "r") as f:
+                logger.info(f"Loading existing eval stats from {gzip_path}")
+                with gzip.open(gzip_path, "rt", encoding='utf-8') as f:
                     existing_stats = json.load(f)
                 eval_stats.extend(existing_stats)
             except Exception as e:
-                logger.error(f"Error loading existing eval stats from {self.json_path}: {e}, will overwrite")
+                logger.error(f"Error loading existing eval stats from {gzip_path}: {e}, will overwrite")
 
-        with open(self.json_path, "w") as f:
+        with gzip.open(gzip_path, "wt", encoding='utf-8') as f:
             json.dump(eval_stats, f, indent=4)
-        logger.info(f"Saved eval stats to {self.json_path}")
+        logger.info(f"Saved eval stats to {gzip_path}")
 
     def _log_to_wandb(self, artifact_name: str, eval_stats):
         artifact = wandb.Artifact(name=artifact_name, type=artifact_name)
@@ -90,9 +93,8 @@ class EvalStatsLogger:
         else:
             self._add_additional_fields(eval_stats)
 
-        if self.artifact_name is None:
-            self._log_to_file(eval_stats)
-        else:
+        self._log_to_file(eval_stats)
+        if self.artifact_name is not None:
             self._log_to_wandb(self.artifact_name, eval_stats)
 
         return eval_stats
