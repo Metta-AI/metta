@@ -17,6 +17,11 @@ generation:
   regen_pct: 0.25
 
 parameters:
+  env:
+    max_steps:
+      space: linear
+      min: 500
+      max: 2500
   # env:
   #   sampling:
   #     space: linear

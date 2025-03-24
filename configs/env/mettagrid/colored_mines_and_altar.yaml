@@ -386,7 +386,13 @@ game:
     generator.blue:
       hp: 30
       cooldown: 10
-    block:
+
+    altar:
+      hp: 1000
+      cooldown: 10
+      initial_items: 0
+
+  block:
       hp: ${uniform:1,6,3}
 
   actions:
