@@ -14,5 +14,9 @@ trainer:
   forward_pass_minibatch_target_size: $pow2(1024, 32768)
   bptt_horizon: ${ss:pow2, 1, 128}
   total_timesteps: ${ss:log, 1e10, 10e12, 2e10}
-  # compile: ${ss:int, 0, 1}
+  l2_reg_loss_coef: ${ss:logit, 0.05, 1.0}
+  l2_init_loss_coef: ${ss:logit, 0.05, 1.0}
 
+env:
+  max_steps: ${ss:linear, 500, 2500}
+  # compile: ${ss:int, 0, 1}
