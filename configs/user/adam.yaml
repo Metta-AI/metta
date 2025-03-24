@@ -1,0 +1,51 @@
+# @package __global__
+
+defaults:
+  - override /agent: simple
+  - override /eval: eval
+
+trainer:
+  env: /env/mettagrid/walkaround
+  evaluate_interval: 2
+
+# policy: wandb://run/b.daveey.train.maze.sm.dr.warm.0
+# baselines: wandb://run/b.daveey.train.maze.sm.11x11.0
+
+# policy_uri: wandb://run/b.daveey.sm.train.er.new.0
+# policy_uri: wandb://run/daveey.ar.cards.1
+# policy_uri: wandb://run/b.daveey.t.32.instant
+policy_uri: ${trained_policy_uri}
+# npc_policy_uri: ${trained_policy_uri}
+# eval_db_uri: wandb://artifacts/daveey_eval_testing
+
+analyzer:
+  eval_stats_uri: ${run_dir}/eval_stats
+  analysis:
+    metrics:
+      - metric: episode_reward
+      - metric: "*.get"
+
+eval:
+  num_envs: 2
+  num_episodes: 2
+  max_time_s: 600
+
+  policy_uri: ${..policy_uri}
+  # npc_policy_uri: ${..npc_policy_uri}
+  # eval_db_uri: ${..eval_db_uri} #file://daphne/sweep_stats
+  env: /env/mettagrid/minimal_differentiation
+
+
+
+
+
+wandb:
+  checkpoint_interval: 1
+
+run_id: 103
+run: ${oc.env:USER}.local.${run_id}
+trained_policy_uri: ${run_dir}/checkpoints
+
+sweep_params: "sweep/fast"
+sweep_name: "${oc.env:USER}.local.sweep.${run_id}"
+seed: null

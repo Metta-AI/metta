@@ -1,0 +1,43 @@
+defaults:
+  - mettagrid
+
+game:
+  num_agents: 1
+  
+  actions: #which actions should be disabled in this map? 
+    attack:
+      enabled: false
+    swap:
+      enabled: false
+    change_color:
+      enabled: false
+
+  objects: #i think we should not have hearts initially in the altar but we can play with this
+
+    mine.red:
+      output_ore.red: 1
+      color: 0
+      max_output: 1000
+      conversion_ticks: 1 # How many timesteps it takes to do the conversion
+      cooldown: 1 # Should this be 0?
+      initial_items: 1
+
+    generator.red:
+      input_ore.red: 1
+      output_battery: 1
+      color: 0
+      max_output: 1000
+      conversion_ticks: 1
+      cooldown: 10
+      initial_items: 1
+
+
+
+  map_builder:
+
+    _target_: mettagrid.config.room.multi_room.MultiRoom
+    num_rooms: 1
+    room:
+      _target_: mettagrid.config.room.ascii.Ascii
+      border_width: 1
+      uri: "configs/env/mettagrid/maps/minimal_differentiation.map"
