@@ -5,14 +5,14 @@ class Kickstarter:
         self.device = cfg.device
         self.teacher_cfgs = cfg.trainer.kickstart.additional_teachers
 
-        self.default_policy_uri = cfg.trainer.kickstart.default_policy_uri
-        if self.default_policy_uri is not None:
+        self.teacher_uri = cfg.trainer.kickstart.teacher_uri
+        if self.teacher_uri is not None:
             if self.teacher_cfgs is None:
                 self.teacher_cfgs = []
             self.teacher_cfgs.append({
-                'policy_uri': self.default_policy_uri,
-                'action_loss_coef': cfg.trainer.kickstart.default_action_loss_coef,
-                'value_loss_coef': cfg.trainer.kickstart.default_value_loss_coef
+                'policy_uri': self.teacher_uri,
+                'action_loss_coef': cfg.trainer.kickstart.action_loss_coef,
+                'value_loss_coef': cfg.trainer.kickstart.value_loss_coef
             })
         
         self.enabled = True
