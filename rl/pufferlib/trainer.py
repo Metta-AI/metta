@@ -21,7 +21,7 @@ from rl.eval.eval_stats_logger import EvalStatsLogger
 from rl.pufferlib.experience import Experience
 from rl.pufferlib.kickstarter import Kickstarter
 from rl.pufferlib.profile import Profile
-# from rl.pufferlib.trace import save_trace_image
+from rl.pufferlib.trace import save_trace_image
 from rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
 from rl.pufferlib.vecenv import make_vecenv
 
@@ -59,7 +59,7 @@ class PufferTrainer:
         self.wandb_run = wandb_run
         self.policy_store = policy_store
         self.use_e3b = self.trainer_cfg.use_e3b
-        self.eval_stats_logger = EvalStatsLogger(cfg, self._env_cfg, wandb_run)
+        self.eval_stats_logger = EvalStatsLogger(cfg, self._env_cfg)
         self.average_reward = 0.0  # Initialize average reward estimate
         self._policy_fitness = []
         self._effective_rank = []
@@ -223,9 +223,7 @@ class PufferTrainer:
             lstm_h, lstm_c = experience.lstm_h, experience.lstm_c
             e3b_inv = experience.e3b_inv
 
-        start = time.time()
-
-        while not experience.full and time.time() - start < 100:
+        while not experience.full:
             with profile.env:
                 o, r, d, t, info, env_id, mask = self.vecenv.recv()
 
