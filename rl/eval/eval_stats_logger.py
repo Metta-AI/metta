@@ -9,11 +9,11 @@ from omegaconf import OmegaConf
 logger = logging.getLogger("eval_stats_logger.py")
 
 class EvalStatsLogger:
-    def __init__(self, cfg, wandb_run, save_path: str=None):
+    def __init__(self, cfg, wandb_run):
         self._cfg = cfg
         self._wandb_run = wandb_run
         # We want local stats dir to be the same for train, analysis and eval for a particular run
-        save_dir = (save_path or cfg.run_dir).replace("analyze", "train").replace("eval", "train")
+        save_dir = (cfg.run_dir).replace("analyze", "train").replace("eval", "train")
 
         artifact_name = None
         if cfg.eval.eval_db_uri is None:
