@@ -21,7 +21,7 @@ from rl.eval.eval_stats_logger import EvalStatsLogger
 from rl.pufferlib.experience import Experience
 from rl.pufferlib.kickstarter import Kickstarter
 from rl.pufferlib.profile import Profile
-from rl.pufferlib.trace import save_trace_image
+# from rl.pufferlib.trace import save_trace_image
 from rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
 from rl.pufferlib.vecenv import make_vecenv
 
