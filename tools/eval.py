@@ -16,7 +16,10 @@ def main(cfg: DictConfig):
 
     with WandbContext(cfg) as wandb_run:
         policy_store = PolicyStore(cfg, wandb_run)
-        policy_prs = policy_store.policies(cfg.eval.policy_uri, cfg.eval.selector_type)
+        if cfg.eval.selector_type == "all":
+            policy_prs = policy_store.policies(cfg.eval.policy_uri, cfg.eval.selector_type)
+        else:
+            policy_prs = [policy_store.policy(cfg.eval.policy_uri)]
 
         for pr in policy_prs:
             print(f"Evaluating policy {pr.uri}")

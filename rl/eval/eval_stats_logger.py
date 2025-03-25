@@ -74,14 +74,13 @@ class EvalStatsLogger:
 
     def log(self, eval_stats):
 
-        eval_stats = []
+        all_stats = []
         for eval_name, stats in eval_stats.items():
             self._add_additional_fields(stats)
-            eval_stats.extend(stats)
-        eval_stats = eval_suite_stats
+            all_stats.extend(stats)
 
-        self._log_to_file(eval_stats)
+        self._log_to_file(all_stats)
         if self.artifact_name is not None:
-            self._log_to_wandb(self.artifact_name, eval_stats)
+            self._log_to_wandb(self.artifact_name, all_stats)
 
         return eval_stats
