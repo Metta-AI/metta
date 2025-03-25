@@ -40,4 +40,4 @@ wandb:
 run_id: 1
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
-sweep_name: "${oc.env:USER}.local.sweep.0"
+sweep_name: "${oc.env:USER}.local.sweep.${run_id}"

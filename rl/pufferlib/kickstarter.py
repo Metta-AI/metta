@@ -3,8 +3,18 @@ import torch
 class Kickstarter:
     def __init__(self, cfg, policy_store, single_action_space):
         self.device = cfg.device
+        self.teacher_cfgs = cfg.trainer.kickstart.additional_teachers
 
-        self.teacher_cfgs = cfg.trainer.kickstart.teachers
+        self.default_policy_uri = cfg.trainer.kickstart.default_policy_uri
+        if self.default_policy_uri is not None:
+            if self.teacher_cfgs is None:
+                self.teacher_cfgs = []
+            self.teacher_cfgs.append({
+                'policy_uri': self.default_policy_uri,
+                'action_loss_coef': cfg.trainer.kickstart.default_action_loss_coef,
+                'value_loss_coef': cfg.trainer.kickstart.default_value_loss_coef
+            })
+        
         self.enabled = True
         if self.teacher_cfgs is None:
             self.enabled = False
