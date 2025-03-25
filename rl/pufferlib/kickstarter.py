@@ -10,7 +10,7 @@ class Kickstarter:
             if self.teacher_cfgs is None:
                 self.teacher_cfgs = []
             self.teacher_cfgs.append({
-                'policy_uri': self.teacher_uri,
+                'teacher_uri': self.teacher_uri,
                 'action_loss_coef': cfg.trainer.kickstart.action_loss_coef,
                 'value_loss_coef': cfg.trainer.kickstart.value_loss_coef
             })

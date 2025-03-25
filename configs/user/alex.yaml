@@ -19,8 +19,8 @@ env:
 
 trainer:
   evaluate_interval: 0
-  kickstart:
-    default_policy_uri: wandb://run/b.daphne.multicolor_ore.r.5
+  # kickstart:
+  #   teacher_uri: wandb://run/b.daphne.multicolor_ore.r.5
 
 eval:
   policy_uri: ${..policy_uri}
@@ -43,7 +43,7 @@ wandb:
   track: true
   checkpoint_interval: 1
 
-run_id: 54
+run_id: 56
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 sweep_name: "${oc.env:USER}.local.sweep.${run_id}"
