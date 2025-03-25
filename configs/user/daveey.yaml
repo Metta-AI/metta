@@ -9,7 +9,7 @@ trainer:
   env: /env/mettagrid/bases
   evaluate_interval: 200
   env_overrides:
-    # sampling: 0.7
+    sampling: 0.7
     game:
       num_agents: 36
       max_steps: 1000
@@ -17,10 +17,14 @@ trainer:
 # policy: wandb://run/b.daveey.train.maze.sm.dr.warm.0
 # baselines: wandb://run/b.daveey.train.maze.sm.11x11.0
 
-# policy_uri: wandb://run/b.daveey.sm.train.er.new.0
-# policy_uri: wandb://run/daveey.ar.cards.1
-# policy_uri: wandb://run/b.daveey.t.32.instant
-policy_uri: ${trained_policy_uri}
+# policy_uri: wandb://run/b.daveey.t.1.bl
+# policy_uri: wandb://run/b.daveey.t.16.dr0
+# policy_uri: wandb://run/b.daveey.t.64.dr90.1
+policy_uri: wandb://run/b.daveey.t.64.dr90.e3b
+
+npc_policy_uri: ${policy_uri}
+# npc_policy_uri: wandb://run/b.daveey.t.16.dr0
+# policy_uri: ${trained_policy_uri}
 # npc_policy_uri: ${trained_policy_uri}
 # eval_db_uri: wandb://artifacts/daveey_eval_testing
 
@@ -32,24 +36,25 @@ analyzer:
       - metric: "*.get"
 
 eval:
-  num_envs: 2
-  num_episodes: 2
+  num_envs: 10
+  num_episodes: 10
   max_time_s: 600
+  # policy_agents_pct: 0.5
 
   policy_uri: ${..policy_uri}
-  # npc_policy_uri: ${..npc_policy_uri}
+  npc_policy_uri: ${..npc_policy_uri}
   # eval_db_uri: ${..eval_db_uri} #file://daphne/sweep_stats
   env: /env/mettagrid/simple
   env_overrides:
     # sampling: 0.7
     game:
       # num_agents: 360
-      max_steps: 10
+      max_steps: 1000
 
 wandb:
   checkpoint_interval: 1
 
-run_id: 12
+run_id: 13
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 
