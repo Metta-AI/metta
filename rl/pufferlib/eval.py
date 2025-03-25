@@ -6,6 +6,8 @@ import torch
 from agent.policy_store import PolicyStore, PolicyRecord
 from omegaconf import DictConfig, OmegaConf
 from util.config import config_from_path
+from util.datastruct import flatten_config
+from datetime import datetime
 from rl.pufferlib.vecenv import make_vecenv
 
 logger = logging.getLogger("eval")
@@ -20,12 +22,14 @@ class Eval():
         npc_policy_uri: str,
         device: str,
 
+
         env_overrides: DictConfig = None,
         policy_agents_pct: float = 1.0,
         num_envs: int = 1,
         num_episodes: int = 1,
         max_time_s: int = 60,
         vectorization: str = "serial",
+
 
         **kwargs,
 
@@ -89,6 +93,22 @@ class Eval():
         for agent_idx in self._npc_idxs:
             self._agent_idx_to_policy_name[agent_idx.item()] = self._npc_pr.name
 
+    def _add_environment_data(self, eval_stats):
+        env_data = {}
+        env_data['eval_name'] = self._env_name
+
+        # Convert the environment configuration to a dictionary and flatten it.
+        game_cfg = OmegaConf.to_container(self._env_cfg.game, resolve=False)
+        flattened_env = flatten_config(game_cfg, parent_key = "game")
+        env_data.update(flattened_env)
+
+        for episode in eval_stats:
+            for record in episode:
+                record.update(env_data)
+
+        return eval_stats
+
+
     def evaluate(self):
         logger.info(f"Evaluating policy: {self._policy_pr.name} in {self._env_name} with {self._policy_agents_per_env} agents")
         if self._npc_pr is not None:
@@ -150,6 +170,8 @@ class Eval():
                                 one_episode[m]['policy_name'] = "No Name Found"
                             one_episode[m]['episode_reward'] = episode_reward[m].tolist()
                         game_stats.append(one_episode)
+
+        self._add_environment_data(game_stats)
 
         logger.info(f"Evaluation time: {time.time() - start}")
         self._vecenv.close()

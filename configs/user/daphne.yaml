@@ -2,26 +2,35 @@
 
 defaults:
   - override /agent: simple
-  - override /eval: eval
-
+  - override /eval: simple
+  - override /analyzer: eval_analyzer
 
 trainer:
-  env: /env/mettagrid/colored_mines
-  evaluate_interval: 2
+  env: /env/mettagrid/bases
+  evaluate_interval: 200
   env_overrides:
     # sampling: 0.7
     game:
+      num_agents: 36
       max_steps: 1000
 
-policy_uri: wandb://run/b.daphne.aws_sweep_colored_ore.r.2
+# policy: wandb://run/b.daveey.train.maze.sm.dr.warm.0
+# baselines: wandb://run/b.daveey.train.maze.sm.11x11.0
 
+# policy_uri: wandb://run/b.daveey.sm.train.er.new.0
+# policy_uri: wandb://run/daveey.ar.cards.1
+# policy_uri: wandb://run/b.daveey.t.32.instant
+policy_uri:  wandb://run/b.daveey.t.64.dr90.e3b
+# npc_policy_uri: ${trained_policy_uri}
+eval_db_uri: wandb://artifacts/daphne_debug
 
 analyzer:
   eval_stats_uri: ${run_dir}/eval_stats
+  policy_uri: ${..policy_uri}
   analysis:
     metrics:
       - metric: episode_reward
-      - metric: "*.get"
+      - metric: "heart.get"
 
 eval:
   num_envs: 2
@@ -30,13 +39,18 @@ eval:
 
   policy_uri: ${..policy_uri}
   # npc_policy_uri: ${..npc_policy_uri}
-  # eval_db_uri: ${..eval_db_uri} #file://daphne/sweep_stats
-  env: /env/mettagrid/colored_mines
+  eval_db_uri: ${..eval_db_uri} #file://daphne/sweep_stats
+  env: /env/mettagrid/simple
+  env_overrides:
+    # sampling: 0.7
+    game:
+      # num_agents: 360
+      max_steps: 10
 
 wandb:
   checkpoint_interval: 1
 
-run_id: 100
+run_id: 13
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 

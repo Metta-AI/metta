@@ -2,9 +2,9 @@ defaults:
   - agent: simple
   - env/mettagrid@env: simple
   - trainer: puffer
-  - sweep: sweep
+  - sweep: full
   - hardware: macbook
-  - eval: eval_suite
+  - eval: simple
   - analyzer: train_analyzer
 
 seed: 1
