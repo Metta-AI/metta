@@ -25,6 +25,7 @@ def main(cfg: DictConfig):
             cfg_recursive_=False
         )
         stats = eval.evaluate()
+
         stats_logger = EvalStatsLogger(cfg, eval._env_cfg, wandb_run)
 
         stats_logger.log(stats)
