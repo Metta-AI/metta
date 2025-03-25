@@ -2,7 +2,7 @@ defaults:
   - mettagrid
 
 game:
-  num_agents: 64  #how many agents are in the map x2
+  num_agents: 60  #how many agents are in the map x2
   
   actions: #which actions should be disabled in this map? 
     attack:
@@ -10,7 +10,7 @@ game:
     change_color:
       enabled: false
     swap:
-      enabled: false
+      enabled: true
 
 
   objects:
@@ -18,18 +18,18 @@ game:
       hp: 30
       input_battery: 1
       output_heart: 1
-      max_output: 500
+      max_output: 30
       conversion_ticks: 0
-      cooldown: 1
+      cooldown: 1000
       initial_items: 1
 
     mine.red:
       hp: 30
       output_ore.red: 1
       color: 0
-      max_output: 500
+      max_output: 30
       conversion_ticks: 1
-      cooldown: 1
+      cooldown: 1000
       initial_items: 1
 
     generator.red:
@@ -37,9 +37,9 @@ game:
       input_ore.red: 1
       output_battery: 1
       color: 0
-      max_output: 500
+      max_output: 30
       conversion_ticks: 1
-      cooldown: 1
+      cooldown: 1000
       initial_items: 1
 
 
@@ -47,8 +47,8 @@ game:
   map_builder:
 
     _target_: mettagrid.config.room.multi_room.MultiRoom
-    num_rooms: 2
+    num_rooms: 15
     room:
       _target_: mettagrid.config.room.ascii.Ascii
       border_width: 1
-      uri: "configs/env/mettagrid/maps/walkaroundmegalevel1.map"
+      uri: "configs/env/mettagrid/maps/spine_maze_extended_easy.map"
