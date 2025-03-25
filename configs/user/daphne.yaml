@@ -1,95 +1,59 @@
 # @package __global__
 
-seed: null
-
 defaults:
-  - override /eval: eval_suite
-  - override /env/mettagrid@env: simple
   - override /agent: simple
-  - override /sweep: fast
-  - override /analyzer: train_analyzer
+  - override /eval: simple
+  - override /analyzer: eval_analyzer
 
-policy_uri: wandb://run/b.daphne.aws_train_cogeval_simplified_0.01_mb:v36
-#policy_uri: ./train_dir/daphne.local.train.14_pfs/checkpoints/model_0050.pt
-# policy_uri: wandb://run/mettabox_cogeval_defaults_lowent_initialized0005
-# policy_uri: wandb://run/daphne_mettabox_train_cogeval_simplified_0.01_mb_easyv33
-# policy_uri: wandb://run/b.daphne.aws_train_cogeval_defaults_0.005_v35
-#ABOVE IS b.daphne.aws_train_cogeval_easy_simplified_pretrained
+trainer:
+  env: /env/mettagrid/bases
+  evaluate_interval: 200
+  env_overrides:
+    # sampling: 0.7
+    game:
+      num_agents: 36
+      max_steps: 1000
 
-# policy_uri: wandb://run/daphne_mettabox_train_cogeval_simplified_0.005_mb_easyv34:v6
-#policy_uri: wandb://run/daphne_mettabox_train_cogeval_simplified_0.01_mb_easyv33:v5
+# policy: wandb://run/b.daveey.train.maze.sm.dr.warm.0
+# baselines: wandb://run/b.daveey.train.maze.sm.11x11.0
 
-# policy_uri: wandb://run/mettabox_cogeval_easy_defaults_2
-eval_db_uri: wandb://artifacts/cogeval_evaluations
+# policy_uri: wandb://run/b.daveey.sm.train.er.new.0
+# policy_uri: wandb://run/daveey.ar.cards.1
+# policy_uri: wandb://run/b.daveey.t.32.instant
+policy_uri:  wandb://run/b.daveey.t.64.dr90.e3b
+# npc_policy_uri: ${trained_policy_uri}
+eval_db_uri: wandb://artifacts/daphne_debug
 
-npc_policy_uri: null
-
+analyzer:
+  eval_stats_uri: ${run_dir}/eval_stats
+  policy_uri: ${..policy_uri}
+  analysis:
+    metrics:
+      - metric: episode_reward
+      - metric: "heart.get"
 
 eval:
-  policy_uri: ${policy_uri}
-  num_envs: 10
-  num_episodes: 10
-  max_time_s: 300
-analyzer:
-  policy_uri: ${policy_uri}
+  num_envs: 2
+  num_episodes: 2
+  max_time_s: 600
+
+  policy_uri: ${..policy_uri}
+  # npc_policy_uri: ${..npc_policy_uri}
+  eval_db_uri: ${..eval_db_uri} #file://daphne/sweep_stats
+  env: /env/mettagrid/simple
+  env_overrides:
+    # sampling: 0.7
+    game:
+      # num_agents: 360
+      max_steps: 10
+
 wandb:
-  enabled: true
-  track: true
   checkpoint_interval: 1
 
+run_id: 13
+run: ${oc.env:USER}.local.${run_id}
+trained_policy_uri: ${run_dir}/checkpoints
 
-cmd: ???
-run_id: 41
-run: ${oc.env:USER}.local.${cmd}.${run_id}
-trained_policy_uri: ./train_dir/${oc.env:USER}.local.train.${run_id}/checkpoints
-
-env:
-  game:
-    max_steps: 1000
-
-    # objects:
-    #   altar:
-    #     hp: 30
-    #     cooldown: 1
-
-    #   mine:
-    #     hp: 30
-    #     cooldown: 1
-
-    #   generator:
-    #     hp: 30
-    #     cooldown: 1
-
-    #   armory:
-    #     hp: 30
-    #     cooldown: 1
-
-    #   lasery:
-    #     hp: 30
-    #     cooldown: 1
-
-    #   lab:
-    #     hp: 30
-    #     cooldown: 1
-
-    #   factory:
-    #     hp: 30
-    #     cooldown: 1
-
-    #   temple:
-    #     hp: 30
-    #     cooldown: 1
-
-    actions:
-      noop:
-        enabled: true
-      move:
-        enabled: true
-      rotate:
-        enabled: true
-      attack:
-        enabled: false
-      swap:
-        enabled: false
-      change_color:
-        enabled: false
+sweep_params: "sweep/fast"
+sweep_name: "${oc.env:USER}.local.sweep.${run_id}"
+seed: null

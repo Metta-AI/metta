@@ -1,0 +1,13 @@
+_target_: rl.pufferlib.eval.EvalSuite
+
+defaults:
+  - eval
+
+env: null #the env is set in evals:
+
+evals:
+  simple:
+    env: env/mettagrid/simple
+    policy_agents_pct: 1.0
+
+selector_type: all

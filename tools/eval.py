@@ -16,21 +16,24 @@ def main(cfg: DictConfig):
 
     with WandbContext(cfg) as wandb_run:
         policy_store = PolicyStore(cfg, wandb_run)
-        policy_pr = policy_store.policy(cfg.eval.policy_uri)
+        policy_prs = policy_store.policies(cfg.eval.policy_uri, cfg.eval.selector_type)
 
-        eval = hydra.utils.instantiate(
-            cfg.eval,
-            policy_store,
-            policy_pr,
-            cfg_recursive_=False
-        )
-        stats = eval.evaluate()
-        stats_logger = EvalStatsLogger(cfg, eval._env_cfg, wandb_run)
+        for pr in policy_prs:
+            print(f"Evaluating policy {pr.uri}")
 
-        stats_logger.log(stats)
+            eval = hydra.utils.instantiate(
+                cfg.eval,
+                policy_store,
+                pr,
+                cfg_recursive_=False
+            )
+            stats = eval.evaluate()
+            stats_logger = EvalStatsLogger(cfg, wandb_run)
+
+            stats_logger.log(stats)
 
         eval_stats_db = EvalStatsDB.from_uri(cfg.eval.eval_db_uri, cfg.run_dir, wandb_run)
-        cfg.analyzer.policy_uri = policy_pr.uri
+        cfg.analyzer.policy_uri = cfg.eval.policy_uri
         analyzer = hydra.utils.instantiate(cfg.analyzer, eval_stats_db)
         analyzer.analyze()
 
