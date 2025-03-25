@@ -31,7 +31,7 @@ class Kickstarter:
     def _load_policies(self):
         self.teachers = []
         for teacher_cfg in self.teacher_cfgs:
-            policy_record = self.policy_store.policy(teacher_cfg['policy_uri'])
+            policy_record = self.policy_store.policy(teacher_cfg['teacher_uri'])
             policy = policy_record.policy()
             policy.action_loss_coef = teacher_cfg['action_loss_coef']
             policy.value_loss_coef = teacher_cfg['value_loss_coef']
