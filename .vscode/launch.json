@@ -10,30 +10,51 @@
             "request": "launch",
             "module": "tools.train",
             "args": [
+                "+hardware=macbook",
                 "+user=${env:USER}",
-                "hardware=macbook",
-                "cmd=train",
             ],
         },
         {
-            "name": "Run Sweep",
+            "name": "Sweep: Init",
             "type": "debugpy",
             "request": "launch",
-            "module": "tools.sweep",
+            "module": "tools.sweep_init",
             "args": [
+                "+hardware=macbook",
                 "+user=${env:USER}",
-                "hardware=macbook",
-                "cmd=sweep",
+                "dist_cfg_path=${data_dir}/${env:USER}/dist_cfg.yaml",
             ],
         },
         {
+            "name": "Sweep: Eval",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "tools.sweep_eval",
+            "args": [
+                "+hardware=macbook",
+                "dist_cfg_path=./train_dir/${env:USER}/dist_cfg.yaml",
+                "+user=${env:USER}",
+            ],
+        },
+        {
+            "name": "Sweep: Train",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "tools.train",
+            "args": [
+                "+hardware=macbook",
+                "+user=${env:USER}",
+                "data_dir=./train_dir/sweep/${sweep_name}/runs",
+                "dist_cfg_path=./train_dir/${env:USER}/dist_cfg.yaml",
+            ],
+        }, {
             "name": "Play Metta",
             "type": "debugpy",
             "request": "launch",
             "module": "tools.play",
             "args": [
                 "+user=${env:USER}",
-                "hardware=macbook",
+                "+hardware=macbook",
                 "cmd=play",
             ],
         },
@@ -44,7 +65,7 @@
             "module": "tools.eval",
             "args": [
                 "+user=${env:USER}",
-                "hardware=macbook",
+                "+hardware=macbook",
                 "cmd=eval",
             ],
         },
@@ -55,7 +76,7 @@
             "module": "tools.analyze",
             "args": [
                 "+user=${env:USER}",
-                "hardware=macbook",
+                "+hardware=macbook",
                 "cmd=analyze",
             ],
         },
@@ -69,5 +90,5 @@
                 "cmd=trace",
             ],
         },
-    ]
+    ],
 }
