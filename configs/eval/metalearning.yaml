@@ -7,7 +7,7 @@ env: null #the env is set in evals:
 
 evals:
   simple:
-    env: env/mettagrid/colored_mines_simplified_eval_two_colours
+    env: env/mettagrid/colored_mines_meta_simplified_eval_two_colours
     policy_agents_pct: 1.0
 
   school:
