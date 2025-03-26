@@ -13,8 +13,8 @@ evals:
     env: env/mettagrid/colored_mines_meta_simplified_eval_red_optimal_2
     policy_agents_pct: 1.0
   blue_optimal_3:
-    env: env/mettagrid/colored_mines_meta_simplified_eval_blue_optimal_3
+    env: env/mettagrid/colored_mines_simplified_eval_blue_optimal_3
     policy_agents_pct: 1.0
   red_optimal_3:
-    env: env/mettagrid/colored_mines_meta_simplified_eval_red_optimal_3
+    env: env/mettagrid/colored_mines_simplified_eval_red_optimal_3
     policy_agents_pct: 1.0
