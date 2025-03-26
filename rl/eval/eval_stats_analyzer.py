@@ -4,6 +4,7 @@ from rl.eval.eval_stats_db import EvalStatsDB
 from tabulate import tabulate
 import fnmatch
 import numpy as np
+from rl.eval.queries import total_metric
 import pandas as pd
 logger = logging.getLogger("eval_stats_analyzer")
 
@@ -59,9 +60,8 @@ class EvalStatsAnalyzer:
         policy_fitness_records = []
         for cfg, metrics in metric_configs.items():
             filters = self._filters(cfg)
-            group_by_episode = cfg.get('group_by_episode', False)
             for metric in metrics:
-                metric_result = self.stats_db._metric(metric, filters, group_by_episode)
+                metric_result = self.stats_db._query(total_metric(metric, filters))
                 if len(metric_result) == 0:
                     logger.info(f"No data found for {metric} with filters {filters}" + "\n")
                     continue
@@ -78,12 +78,6 @@ class EvalStatsAnalyzer:
             return [], []
 
         result_dfs, policy_fitness_records = self._analyze_metrics(self.metric_configs)
-
-        # # Create table with eval_name and mean for each policy
-        # if len(result_dfs) > 0 and self.analysis.log_all:
-        #     for df in result_dfs:
-        #         df = tabulate(df, headers=list(df.keys()), tablefmt="grid", maxcolwidths=25)
-        #         logger.info(f"Mean metrics by eval:\n{df}")
 
         policy_fitness_df = pd.DataFrame(policy_fitness_records)
         if len(policy_fitness_df) > 0:

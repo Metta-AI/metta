@@ -8,14 +8,14 @@ def total_metric(metric_field: str, filters: Dict[str, Any]):
     where_clause = build_where_clause(filters)
     query = f"""
         SELECT
-            episode_index,
             policy_name,
             eval_name,
-            SUM(CAST("{metric_field}" AS DOUBLE)) AS total_metric
+            AVG(CAST("{metric_field}" AS DOUBLE)) AS mean_{metric_field},
+            STDDEV(CAST("{metric_field}" AS DOUBLE)) AS std_{metric_field}
         FROM eval_data
         {where_clause}
-        GROUP BY episode_index, policy_name, eval_name
-        ORDER BY episode_index, policy_name, eval_name;"""
+        GROUP BY policy_name, eval_name
+        ORDER BY policy_name, eval_name;"""
 
     return query
 

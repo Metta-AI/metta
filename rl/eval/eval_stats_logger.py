@@ -32,17 +32,6 @@ class EvalStatsLogger:
         os.makedirs(os.path.dirname(self.json_path), exist_ok=True)
         self.artifact_name = artifact_name
 
-    def _add_additional_fields(self, eval_stats):
-        additional_fields = {}
-        additional_fields['run_id'] = self._cfg.get("run_id", self._wandb_run.id)
-        if self._cfg.eval.npc_policy_uri is not None:
-            additional_fields['npc'] = self._cfg.eval.npc_policy_uri
-        additional_fields['timestamp'] = datetime.now().isoformat()
-        for episode in eval_stats:
-            for record in episode:
-                record.update(additional_fields)
-
-        return eval_stats
 
     def _log_to_file(self, eval_stats):
         # If file exists, load and merge with existing data
@@ -74,13 +63,8 @@ class EvalStatsLogger:
 
     def log(self, eval_stats):
 
-        all_stats = []
-        for eval_name, stats in eval_stats.items():
-            self._add_additional_fields(stats)
-            all_stats.extend(stats)
-
-        self._log_to_file(all_stats)
+        self._log_to_file(eval_stats)
         if self.artifact_name is not None:
-            self._log_to_wandb(self.artifact_name, all_stats)
+            self._log_to_wandb(self.artifact_name, eval_stats)
 
         return eval_stats
