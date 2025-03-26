@@ -311,5 +311,8 @@ cdef class GridEnv:
     def action_success(self):
         return self._action_success
 
+    def max_action_args(self):
+        return self._max_action_args
+        
     def object_type_names(self):
         return ObjectTypeNames
