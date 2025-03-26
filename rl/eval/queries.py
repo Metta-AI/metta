@@ -10,8 +10,8 @@ def total_metric(metric_field: str, filters: Dict[str, Any]):
         SELECT
             policy_name,
             eval_name,
-            AVG(CAST("{metric_field}" AS DOUBLE)) AS mean_{metric_field},
-            STDDEV(CAST("{metric_field}" AS DOUBLE)) AS std_{metric_field}
+            AVG(CAST("{metric_field}" AS DOUBLE)) AS mean_{metric_field.replace('.', '_')},
+            STDDEV(CAST("{metric_field}" AS DOUBLE)) AS std_{metric_field.replace('.', '_')}
         FROM eval_data
         {where_clause}
         GROUP BY policy_name, eval_name
