@@ -68,7 +68,7 @@ class EvalStatsAnalyzer:
                 policy_fitness = self.policy_fitness(metric_result, metric)
                 policy_fitness_records.extend(policy_fitness)
                 result_dfs.append(metric_result)
-                # self.log_result(metric_result, metric, filters)
+                self.log_result(metric_result, metric, filters)
 
         return result_dfs, policy_fitness_records
 
@@ -79,10 +79,11 @@ class EvalStatsAnalyzer:
 
         result_dfs, policy_fitness_records = self._analyze_metrics(self.metric_configs)
 
-        # Create table with eval_name and mean for each policy
-        if len(result_dfs) > 0 and self.analysis.log_all:
-            df = tabulate(result_dfs[0], headers=list(result_dfs[0].keys()), tablefmt="grid", maxcolwidths=25)
-            logger.info(f"Mean metrics by eval:\n{df}")
+        # # Create table with eval_name and mean for each policy
+        # if len(result_dfs) > 0 and self.analysis.log_all:
+        #     for df in result_dfs:
+        #         df = tabulate(df, headers=list(df.keys()), tablefmt="grid", maxcolwidths=25)
+        #         logger.info(f"Mean metrics by eval:\n{df}")
 
         policy_fitness_df = pd.DataFrame(policy_fitness_records)
         if len(policy_fitness_df) > 0:

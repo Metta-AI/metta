@@ -1,0 +1,18 @@
+_target_: rl.eval.eval_stats_analyzer.EvalStatsAnalyzer
+
+policy_uri: ???
+
+analysis:
+
+  metric_patterns: null
+
+  metrics:
+    - metric: ore.blue.get
+    - metric: ore.red.get
+    - metric: ore.green.get
+
+  queries: null
+
+  baseline_policies: null
+
+  log_all: true
