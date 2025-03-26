@@ -10,4 +10,4 @@ evals:
     env: env/mettagrid/simple
     policy_agents_pct: 1.0
 
-selector_type: all
+selector_type: latest

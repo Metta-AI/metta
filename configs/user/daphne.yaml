@@ -2,7 +2,7 @@
 
 defaults:
   - override /agent: simple
-  - override /eval: simple
+  - override /eval: cogeval_suite
   - override /analyzer: eval_analyzer
 
 trainer:
@@ -20,9 +20,9 @@ trainer:
 # policy_uri: wandb://run/b.daveey.sm.train.er.new.0
 # policy_uri: wandb://run/daveey.ar.cards.1
 # policy_uri: wandb://run/b.daveey.t.32.instant
-policy_uri:  wandb://run/b.daveey.t.64.dr90.e3b
+policy_uri:  wandb://run/b.georgedeane.colored_mines_constrained
 # npc_policy_uri: ${trained_policy_uri}
-eval_db_uri: wandb://artifacts/daphne_debug
+eval_db_uri: wandb://artifacts/test_daveey_e3b
 
 analyzer:
   eval_stats_uri: ${run_dir}/eval_stats
@@ -30,17 +30,16 @@ analyzer:
   analysis:
     metrics:
       - metric: episode_reward
-      - metric: "heart.get"
 
 eval:
-  num_envs: 2
-  num_episodes: 2
+  num_envs: 128
+  num_episodes: 128
   max_time_s: 600
+
 
   policy_uri: ${..policy_uri}
   # npc_policy_uri: ${..npc_policy_uri}
   eval_db_uri: ${..eval_db_uri} #file://daphne/sweep_stats
-  env: /env/mettagrid/simple
   env_overrides:
     # sampling: 0.7
     game:
