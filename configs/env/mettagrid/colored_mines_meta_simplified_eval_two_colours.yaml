@@ -59,7 +59,7 @@ game:
           generator.green: 0
           altar: 2
           block: ${uniform:5,15,12}
-  
+
   objects:
     mine.red:
       hp: 30
@@ -77,11 +77,6 @@ game:
       hp: 30
       cooldown: 1
       output_battery: 6
-
-    generator.blue:
-      hp: 30
-      cooldown: 1
-      output_battery: 0
 
     generator.blue:
       hp: 30
