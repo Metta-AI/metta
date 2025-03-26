@@ -22,7 +22,7 @@ trainer:
 # policy_uri: wandb://run/b.daveey.t.32.instant
 policy_uri:  wandb://run/b.georgedeane.colored_mines_constrained
 # npc_policy_uri: ${trained_policy_uri}
-# eval_db_uri: wandb://artifacts/metalearningevaluation2
+eval_db_uri: wandb://artifacts/testing
 
 analyzer:
   eval_stats_uri: ${run_dir}/eval_stats

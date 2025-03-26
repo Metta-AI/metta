@@ -18,8 +18,7 @@ game:
       ore.green: 0
       battery: 0.1
       battery_max: 20
-      heart: 3
-      heart_max: 1000
+      heart: 1
 
   map_builder:
     _target_: mettagrid.config.room.multi_room.RoomList
@@ -76,12 +75,12 @@ game:
     generator.red:
       hp: 30
       cooldown: 1
-      output_battery: 6
+      output_battery: 0
 
     generator.blue:
       hp: 30
       cooldown: 1
-      output_battery: 0
+      output_battery: 6
 
     altar:
       hp: 1000

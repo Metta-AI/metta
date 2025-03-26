@@ -13,13 +13,12 @@ game:
     rewards:
       # action_failure_penalty: 0.00001
       action_failure_penalty: 0
-      ore.red: 0.001
-      ore.blue: 0.001
-      ore.green: 0.001
+      ore.red: 0
+      ore.blue: 0
+      ore.green: 0
       battery: 0.1
       battery_max: 20
-      heart: 3
-      heart_max: 1000
+      heart: 1
 
   map_builder:
     _target_: mettagrid.config.room.multi_room.RoomList
@@ -77,7 +76,6 @@ game:
       hp: 30
       cooldown: 1
       output_battery: 6
-
 
     generator.blue:
       hp: 30
