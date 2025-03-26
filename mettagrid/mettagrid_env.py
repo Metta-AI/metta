@@ -155,6 +155,10 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         return self._c_env.grid_objects()
 
     @property
+    def max_action_args(self):
+        return self._c_env.max_action_args()
+
+    @property
     def action_success(self):
         return np.asarray(self._c_env.action_success())
 
