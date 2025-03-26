@@ -22,7 +22,7 @@ trainer:
 # policy_uri: wandb://run/b.daveey.t.32.instant
 policy_uri:  wandb://run/b.georgedeane.colored_mines_constrained
 # npc_policy_uri: ${trained_policy_uri}
-eval_db_uri: wandb://artifacts/test_daveey_e3b
+eval_db_uri: wandb://artifacts/metalearningevaluation
 
 analyzer:
   eval_stats_uri: ${run_dir}/eval_stats
@@ -46,34 +46,10 @@ eval:
       # num_agents: 360
       max_steps: 10
 
-<<<<<<< HEAD
 wandb:
   checkpoint_interval: 1
 
 run_id: 13
-=======
-analyzer:
-  eval_stats_uri: ${run_dir}/eval_stats
-  analysis:
-    metrics:
-      - metric: episode_reward
-      - metric: "*.get"
-
-eval:
-  num_envs: 2
-  num_episodes: 2
-  max_time_s: 600
-
-  policy_uri: ${..policy_uri}
-  # npc_policy_uri: ${..npc_policy_uri}
-  # eval_db_uri: ${..eval_db_uri} #file://daphne/sweep_stats
-  env: /env/mettagrid/colored_mines
-
-wandb:
-  checkpoint_interval: 1
-
-run_id: 100
->>>>>>> 627c8e416f59236cd685c8667e05e8ba89018301
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 
