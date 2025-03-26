@@ -2,7 +2,7 @@ defaults:
   - mettagrid
 
 game:
-  num_agents: 1
+  num_agents: 2
   
   actions: #which actions should be disabled in this map? 
     attack:

@@ -5,7 +5,7 @@ defaults:
   - override /eval: eval
 
 trainer:
-  env: /env/mettagrid/walkaround
+  env: /env/mettagrid/minimal_differentiation
   evaluate_interval: 2
 
 # policy: wandb://run/b.daveey.train.maze.sm.dr.warm.0
@@ -13,7 +13,7 @@ trainer:
 
 # policy_uri: wandb://run/b.daveey.sm.train.er.new.0
 # policy_uri: wandb://run/daveey.ar.cards.1
-# policy_uri: wandb://run/b.daveey.t.32.instant
+# policy_uri: wandb://run/b.daveey.t.16.dr90.scf.ks
 policy_uri: ${trained_policy_uri}
 # npc_policy_uri: ${trained_policy_uri}
 # eval_db_uri: wandb://artifacts/daveey_eval_testing
@@ -42,7 +42,7 @@ eval:
 wandb:
   checkpoint_interval: 1
 
-run_id: 103
+run_id: 104
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 
