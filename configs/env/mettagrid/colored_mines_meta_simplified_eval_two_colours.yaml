@@ -1,0 +1,104 @@
+
+defaults:
+  - mettagrid
+
+sampling: 1
+
+
+game:
+  num_agents: 2
+
+  agent:
+    max_inventory: 2000
+    rewards:
+      # action_failure_penalty: 0.00001
+      action_failure_penalty: 0
+      ore.red: 0
+      ore.blue: 0
+      ore.green: 0
+      battery: 0.1
+      battery_max: 20
+      heart: 3
+      heart_max: 1000
+
+  map_builder:
+    _target_: mettagrid.config.room.multi_room.RoomList
+    border_width: 6
+
+    rooms:
+      - _target_: mettagrid.config.room.random.Random
+        width: 14
+        height: 14
+        border_width: 1
+
+        agents: 1
+
+        objects:
+          mine.red: 1
+          mine.blue: 1
+          mine.green: 0
+          generator.red: 1
+          generator.blue: 1
+          generator.green: 0
+          altar: 2
+          block: ${uniform:5,25,20}
+
+      - _target_: mettagrid.config.room.random.Random
+        width: 14
+        height: 14
+        border_width: 1
+
+        agents: 1
+
+        objects:
+          mine.red: 1
+          mine.blue: 1
+          mine.green: 0
+          generator.red: 1
+          generator.blue: 1
+          generator.green: 0
+          altar: 2
+          block: ${uniform:5,15,12}
+  
+  objects:
+    mine.red:
+      hp: 30
+      cooldown: 1
+
+    mine.blue:
+      hp: 30
+      cooldown: 1
+
+    mine.green:
+      hp: 30
+      cooldown: 1
+
+    generator.red:
+      hp: 30
+      cooldown: 1
+      output_battery: 6
+
+    generator.blue:
+      hp: 30
+      cooldown: 1
+      output_battery: 0
+
+    generator.blue:
+      hp: 30
+      cooldown: 1
+      output_battery: 0
+
+    altar:
+      hp: 1000
+      cooldown: 1
+      initial_items: 0
+      max_output: 20
+
+    block:
+        hp: ${uniform:1,8,3}
+
+  actions:
+    attack:
+      enabled: false
+    change_color:
+      enabled: false
