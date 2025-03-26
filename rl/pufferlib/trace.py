@@ -2,12 +2,13 @@
 
 import os
 import json
-from omegaconf import OmegaConf
+import zlib
 import torch
+import pixie
+from omegaconf import OmegaConf
 from agent.policy_store import PolicyRecord
 from rl.pufferlib.simulator import Simulator
-import pixie
-import zlib
+
 
 # Using flat UI colors:
 TURQUOISE = pixie.Color(0x1a/255, 0xbc/255, 0x9c/255, 1)
