@@ -9,6 +9,7 @@ analysis:
   metrics:
     - metric: "*.get"
 
+
   queries: null
 
   baseline_policies: null #if left null will average over policies in stats DB
