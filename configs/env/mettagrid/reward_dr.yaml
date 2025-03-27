@@ -5,7 +5,7 @@ defaults:
 game:
   agent:
     rewards:
-      action_failure_penalty: ${uniform:0, 0.00001, 0.000001}
+      # action_failure_penalty: ${uniform:0, 0.0001, 0.00001}
       ore.red: ${uniform:0, 1, 0.1}
       ore.red.max: ${uniform:1, 50, 10}
       ore.blue: ${uniform:0, 1, 0.1}

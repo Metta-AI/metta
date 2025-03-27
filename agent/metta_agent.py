@@ -1,23 +1,18 @@
-import os
+import logging
 from typing import List, Tuple, Union
 
 import gymnasium as gym
 import hydra
 import numpy as np
 import torch
-import torch.distributed as dist
-from torch.distributions.utils import logits_to_probs
-
 from omegaconf import OmegaConf
 from pufferlib.environment import PufferEnv
-from sample_factory.utils.typing import ActionSpace, ObsSpace
 from tensordict import TensorDict
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 
 from agent.util.distribution_utils import sample_logits
 
-import logging
 logger = logging.getLogger("metta_agent")
 
 def make_policy(env: PufferEnv, cfg: OmegaConf):
@@ -52,8 +47,8 @@ class MettaAgent(nn.Module):
     def __init__(
         self,
         obs_shape: Tuple[int, ...],
-        obs_space: ObsSpace,
-        action_space: ActionSpace,
+        obs_space: Union[gym.spaces.Space, gym.spaces.Dict],
+        action_space: gym.spaces.Space,
         grid_features: List[str],
         device: str,
         **cfg
