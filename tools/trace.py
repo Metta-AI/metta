@@ -24,7 +24,7 @@ def main(cfg):
         save_trace_image(cfg, policy_record, image_path)
 
         if platform.system() == "Darwin":
-            # Open image in Finder
+            # Open image in Preview.
             subprocess.run(["open", image_path])
 
 if __name__ == "__main__":
