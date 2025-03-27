@@ -11,16 +11,16 @@ class Simulator:
     def __init__(self, cfg: OmegaConf, policy_record: PolicyRecord):
         """ Initialize the simulator """
         self.cfg = cfg
-        self.policy_record = policy_record
         self.device = cfg.device
         self.vecenv = make_vecenv(
-          cfg.env,
+          cfg.eval.env,
           cfg.vectorization,
           num_envs=1,
           render_mode="human"
         )
         self.obs, _ = self.vecenv.reset()
         self.env = self.vecenv.envs[0]
+        self.policy_record = policy_record
         self.policy = self.policy_record.policy()
         self.policy_rnn_state = None
         self.rewards = np.zeros(self.vecenv.num_agents)

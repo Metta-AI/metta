@@ -28,3 +28,10 @@ jobs:
         PYTHONPATH: ${{ github.workspace }}
       run: |
         python -m tools.train +hardware=github
+
+    - name: Run trace
+      env:
+        HYDRA_FULL_ERROR: 1
+        PYTHONPATH: ${{ github.workspace }}
+      run: |
+        python -m tools.trace +hardware=github
