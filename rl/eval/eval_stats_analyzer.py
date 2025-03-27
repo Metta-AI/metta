@@ -93,15 +93,13 @@ class EvalStatsAnalyzer:
         if "wandb" in uri:
             uri = uri.replace("wandb://metta-research/metta/", "")
             uri = uri.replace("wandb://run/", "")
-        policy_versions = [i for i in all_policies if uri in i]
-        if len(policy_versions) == 0:
+        matching_policies = [i for i in all_policies if uri in i]
+        if len(matching_policies) == 0:
             raise ValueError(f"No policy found in DB for candidate policy: {uri}, options are {all_policies}")
-        if len(policy_versions) > 1:
-            try:
-                policy_versions.sort(key=lambda x: int(x.split(':v')[-1]))
-            except:
-                logger.warning(f"Failed to sort policy versions: {policy_versions}")
-        candidate_uri = policy_versions[-1]
+        if len(matching_policies) > 1:
+            if all([':v' in i for i in matching_policies]):
+                matching_policies.sort(key=lambda x: int(x.split(':v')[-1]))
+        candidate_uri = matching_policies[-1]
 
         return candidate_uri
 
