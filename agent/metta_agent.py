@@ -36,8 +36,10 @@ def make_policy(env: PufferEnv, cfg: OmegaConf):
         grid_features=env.grid_features,
         global_features=env.global_features,
         device=cfg.device,
-        obs_width=cfg.env.game.obs_width,
-        obs_height=cfg.env.game.obs_height,
+        obs_width=11,
+        obs_height=11, # TODO: remove hardcoded values
+        # obs_width=cfg.env.game.obs_width,
+        # obs_height=cfg.env.game.obs_height,
         _recursive_=False)
 
 class DistributedMettaAgent(DistributedDataParallel):
@@ -135,6 +137,11 @@ class MettaAgent(nn.Module):
                 component.setup(input_source_components)
         else:
             component.setup()
+
+        print((
+            f"Component: {component._name}, in name: {component._input_source}, "
+            f"in_size: {component._in_tensor_shape}, out_size: {component._out_tensor_shape}"
+        ))
 
     def embed_action_type(self, action_type_names):
         self.components['_action_type_embeds_'].embed_strings(action_type_names)

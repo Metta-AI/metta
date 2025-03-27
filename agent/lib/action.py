@@ -56,7 +56,7 @@ class ActionEmbedding(nn_layer_library.Embedding):
         self.num_actions = 0 # to be updated at runtime by the size of the embedding
 
     def embed_strings(self, string_list):
-        # each time we run this, we update the metta_agent's known action strings and associated indices
+        # each time we run this, we update the metta_agent object's (the policy's) known action strings and associated indices
         for action_type in string_list:
             if action_type not in self._reserved_action_embeds:
                 embedding_index = len(self._reserved_action_embeds) + 1 # generate index for this string

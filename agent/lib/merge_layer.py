@@ -28,11 +28,14 @@ class MergeLayerBase(LayerBase):
 
         # shouldn't this check if it's a dict or not?
         self.input_source_components = input_source_components
+
+        # NOTE: in and out tensor shapes do not include batch sizes
+        # however, all other sizes do, including processed_lengths
         self._in_tensor_shape = []
         self._out_tensor_shape = []
 
         self.dims = []
-        self.out_lengths = []
+        self.processed_lengths = []
         for src_cfg in self.sources_full_list:
             source_name = src_cfg['source_name']
             
@@ -49,17 +52,16 @@ class MergeLayerBase(LayerBase):
                 start, end = slice_range
                 slice_dim = src_cfg.get("dim", None)
                 if slice_dim is None:
-                    raise ValueError(f"For slice 'dim' must be specified for source {source_name}.")
+                    raise ValueError(f"Slice 'dim' must be specified for source {source_name}. If a vector, use dim=1 (0 is batch size).")
                 length = end - start
                 src_cfg['_slice_params'] = {
                     'start': start,
                     'length': length,
                     'dim': slice_dim
                 }
-# ----- note to self: need to figure out what we want to do with processed_size since it's just the length of the one dim ---
                 processed_size[slice_dim] = length
 
-            self.out_lengths.append(processed_size)
+            self.processed_lengths.append(processed_size)
 
             self.dims.append(src_cfg.get("dim", 1)) # check if default dim is good to have or will cause problems
 
@@ -97,10 +99,10 @@ class ConcatMergeLayer(MergeLayerBase):
             raise ValueError(f"For 'concat', all sources must have the same 'dim'. Got dims: {self.dims}")
         self._merge_dim = self.dims[0]
         cat_dim_length = 0
-        for size in self.out_lengths:
-            cat_dim_length += size[self._merge_dim] # add in -1 to account for batch size
+        for size in self.processed_lengths:
+            cat_dim_length += size[self._merge_dim]
         self._out_tensor_shape = self._in_tensor_shape[0]
-        self._out_tensor_shape[self._merge_dim] = cat_dim_length # add in -1 to account for batch size
+        self._out_tensor_shape[self._merge_dim - 1] = cat_dim_length # add in -1 to account for batch size
 
     def _merge(self, outputs, td):
         merged = torch.cat(outputs, dim=self._merge_dim)
