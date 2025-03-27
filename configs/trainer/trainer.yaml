@@ -14,9 +14,9 @@ checkpoint_dir: ${run_dir}/checkpoints
 
 glicko_scores_path: ${run_dir}/eval/glicko2
 
-evaluate_interval: 2000
-checkpoint_interval: 2000
-wandb_checkpoint_interval: 2000
+evaluate_interval: 300
+checkpoint_interval: 60
+wandb_checkpoint_interval: 300
 
 trace_interval: 0
 
