@@ -15,3 +15,4 @@ trainer:
   bptt_horizon: ${ss:pow2, 1, 128}
   total_timesteps: ${ss:log, 1e10, 10e12, 2e10}
   # compile: ${ss:int, 0, 1}
+  
