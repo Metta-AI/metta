@@ -11,7 +11,7 @@ from rl.pufferlib.trace import save_trace_image
 from util.runtime_configuration import setup_metta_environment
 from util.config import config_from_path
 
-@hydra.main(version_base=None, config_path="../configs", config_name="trace")
+@hydra.main(version_base=None, config_path="../configs", config_name="eval")
 def main(cfg):
 
     setup_metta_environment(cfg)
