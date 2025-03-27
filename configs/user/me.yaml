@@ -4,7 +4,7 @@ seed: null
 
 defaults:
   - override /env/mettagrid@env: simple
-  - override /agent: simple.medium
+  - override /agent: simple
   - override /sweep: fast
 
 # policy: wandb://run/b.daveey.train.maze.sm.dr.warm.0
@@ -43,7 +43,7 @@ eval:
   policy_uri: ${..policy_uri}
   npc_policy_uri: ${..npc_policy_uri}
   eval_db_uri: ${..eval_db_uri} #file://daphne/sweep_stats
-  env: /env/mettagrid/simple
+  env: env/mettagrid/simple
 
 wandb:
   enabled: true

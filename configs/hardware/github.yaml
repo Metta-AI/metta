@@ -1,0 +1,22 @@
+# @package __global__
+
+run: my_experiment
+device: cpu
+vectorization: serial
+
+trainer:
+  num_workers: 1
+  update_epochs: 1
+  batch_size: 1024
+  minibatch_size: 1024
+  forward_pass_minibatch_target_size: 2
+  async_factor: 1
+  checkpoint_interval: 10
+  bptt_horizon: 8
+  num_steps: 32
+  total_timesteps: 2
+
+
+wandb:
+  enabled: false
+  track: false

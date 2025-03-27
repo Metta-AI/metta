@@ -7,7 +7,7 @@ from agent.policy_store import PolicyStore
 
 def play(cfg: OmegaConf, policy_store: PolicyStore):
     device = cfg.device
-    vecenv = make_vecenv(cfg.env, cfg.vectorization, num_envs=1, render_mode="human")
+    vecenv = make_vecenv(cfg.eval.env, cfg.vectorization, num_envs=1, render_mode="human")
 
     obs, _ = vecenv.reset()
     env = vecenv.envs[0]
@@ -28,12 +28,9 @@ def play(cfg: OmegaConf, policy_store: PolicyStore):
             obs = torch.as_tensor(obs).to(device=device)
 
             # Parallelize across opponents
-            if hasattr(policy, 'lstm'):
-                actions, _, _, _, policy_rnn_state, _, _ = policy(obs, policy_rnn_state)
-                if actions.dim() == 0:  # scalar tensor like tensor(2)
-                    actions = torch.tensor([actions.item()])
-            else:
-                actions, _, _, _, _, _ = policy(obs) #if we are not using an RNN, then we don't need the rnn state
+            actions, _, _, _, policy_rnn_state, _, _, _ = policy(obs, policy_rnn_state)
+            if actions.dim() == 0:  # scalar tensor like tensor(2)
+                actions = torch.tensor([actions.item()])
 
         renderer.update(
             actions.cpu().numpy(),

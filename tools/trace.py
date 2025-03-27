@@ -5,7 +5,7 @@ import subprocess
 import hydra
 from omegaconf import OmegaConf
 from rl.wandb.wandb_context import WandbContext
-from mettagrid.config.config import setup_metta_environment
+from util.runtime_configuration import setup_metta_environment
 from agent.policy_store import PolicyStore
 from rl.pufferlib.trace import save_trace_image
 

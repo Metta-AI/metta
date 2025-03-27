@@ -2,29 +2,27 @@
 
 args="${@:1}"
 
-export PYTHONUNBUFFERED=1
-export WANDB_CONSOLE=off
-export PYTHONPATH=$PYTHONPATH:.
-export HYDRA_FULL_ERROR=1
-echo "Running command: $cmd with args: $args"
+source ./devops/env.sh
+./devops/checkout_and_build.sh
 
-#if NUM_GPUS is not set, set it to 1
-if [ -z "$NUM_GPUS" ]; then
-    NUM_GPUS=1
-fi
+NUM_GPUS=${NUM_GPUS:-1}
+echo "NUM_GPUS: $NUM_GPUS"
+NUM_NODES=${NUM_NODES:-1}
+echo "NUM_NODES: $NUM_NODES"
+MASTER_ADDR=${MASTER_ADDR:-localhost}
+echo "MASTER_ADDR: $MASTER_ADDR"
+NODE_INDEX=${NODE_INDEX:-0}
+echo "NODE_INDEX: $NODE_INDEX"
 
-git pull
-# cd deps/pufferlib && git pull && python setup.py build_ext --inplace && cd ../..
-cd deps/fast_gae && git pull && python setup.py build_ext --inplace && cd ../..
-cd deps/mettagrid && git pull && python setup.py build_ext --inplace && cd ../..
-cd deps/wandb_carbs && git pull && cd ../..
+echo "Running train with args: $args"
+PYTHONPATH=$PYTHONPATH:.
 
 torchrun \
-    --standalone \
-    --nnodes=1 \
+    --nnodes=$NUM_NODES \
     --nproc-per-node=$NUM_GPUS \
+    --master-addr=$MASTER_ADDR \
+    --node-rank=$NODE_INDEX \
     tools/train.py \
-    hardware=pufferbox \
     wandb.enabled=true \
     wandb.track=true \
     $args

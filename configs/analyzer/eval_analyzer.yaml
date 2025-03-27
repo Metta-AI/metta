@@ -9,7 +9,9 @@ analysis:
   metrics:
     - metric: "*.get"
 
-
   queries: null
 
-  baseline_policies: null #if left null will average over policies in stats DB
+  baseline_policies:
+    - wandb://run/mettabox_cogeval_defaults_lowent_initialized0005 #best baseline on cogevals
+
+  log_all: true

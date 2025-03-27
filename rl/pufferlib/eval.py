@@ -5,8 +5,7 @@ import numpy as np
 import torch
 from agent.policy_store import PolicyStore, PolicyRecord
 from omegaconf import DictConfig, OmegaConf
-import hydra
-
+from util.config import config_from_path
 from rl.pufferlib.vecenv import make_vecenv
 
 logger = logging.getLogger("eval")
@@ -16,12 +15,12 @@ class Eval():
         self,
         policy_store: PolicyStore,
         policy_pr: PolicyRecord,
-        env_defaults: DictConfig,
 
         env: str,
         npc_policy_uri: str,
         device: str,
 
+        env_overrides: DictConfig = None,
         policy_agents_pct: float = 1.0,
         num_envs: int = 1,
         num_episodes: int = 1,
@@ -31,8 +30,8 @@ class Eval():
         **kwargs,
 
     ) -> None:
-        env_cfg = hydra.compose(config_name=env)
-        self._env_cfg = OmegaConf.merge(env_defaults, env_cfg)
+        self._env_cfg = config_from_path(env, env_overrides)
+        self._env_name = env
 
         self._npc_policy_uri = npc_policy_uri
         self._policy_agents_pct = policy_agents_pct
@@ -58,9 +57,6 @@ class Eval():
         self._policy_agents_per_env = max(1, int(self._agents_per_env * self._policy_agents_pct))
         self._npc_agents_per_env = self._agents_per_env - self._policy_agents_per_env
         self._total_agents = self._num_envs * self._agents_per_env
-
-        logger.info(f'Tournament: Policy Agents: {self._policy_agents_per_env}, ' +
-              f'Npc Agents: {self._npc_agents_per_env}')
 
         self._vecenv = make_vecenv(self._env_cfg, vectorization, num_envs=self._num_envs)
 
@@ -94,7 +90,7 @@ class Eval():
             self._agent_idx_to_policy_name[agent_idx.item()] = self._npc_pr.name
 
     def evaluate(self):
-        logger.info(f"Evaluating policy: {self._policy_pr.name} with {self._policy_agents_per_env} agents")
+        logger.info(f"Evaluating policy: {self._policy_pr.name} in {self._env_name} with {self._policy_agents_per_env} agents")
         if self._npc_pr is not None:
             logger.info(f"Against npc policy: {self._npc_pr.name} with {self._npc_agents_per_env} agents")
 
@@ -116,10 +112,7 @@ class Eval():
 
                 # Parallelize across opponents
                 policy = self._policy_pr.policy() # policy to evaluate
-                if hasattr(policy, 'lstm'):
-                    policy_actions, _, _, _, policy_rnn_state, _, _ = policy(my_obs, policy_rnn_state)
-                else:
-                    policy_actions, _, _, _, _, _ = policy(my_obs)
+                policy_actions, _, _, _, policy_rnn_state, _, _, _ = policy(my_obs, policy_rnn_state)
 
                 # Iterate opponent policies
                 if self._npc_pr is not None:
@@ -127,10 +120,7 @@ class Eval():
                     npc_rnn_state = npc_rnn_state
 
                     npc_policy = self._npc_pr.policy()
-                    if hasattr(npc_policy, 'lstm'):
-                        npc_action, _, _, _, npc_rnn_state, _, _ = npc_policy(npc_obs, npc_rnn_state)
-                    else:
-                        npc_action, _, _, _, _, _ = npc_policy(npc_obs)
+                    npc_action, _, _, _, npc_rnn_state, _, _, _ = npc_policy(npc_obs, npc_rnn_state)
 
             actions = policy_actions
             if self._npc_agents_per_env > 0:
@@ -151,14 +141,15 @@ class Eval():
                 for n in range(len(infos)):
                     if "agent_raw" in infos[n]:
                         one_episode = infos[n]["agent_raw"]
+                        episode_reward = infos[n]["episode_rewards"]
                         for m in range(len(one_episode)):
                             agent_idx = m + n * self._agents_per_env
                             if agent_idx in self._agent_idx_to_policy_name:
                                 one_episode[m]['policy_name'] = self._agent_idx_to_policy_name[agent_idx].replace("file://", "")
                             else:
                                 one_episode[m]['policy_name'] = "No Name Found"
+                            one_episode[m]['episode_reward'] = episode_reward[m].tolist()
                         game_stats.append(one_episode)
-
 
         logger.info(f"Evaluation time: {time.time() - start}")
         self._vecenv.close()
@@ -169,15 +160,16 @@ class EvalSuite:
         self,
         policy_store: PolicyStore,
         policy_pr: PolicyRecord,
-        env_defaults: DictConfig,
+        env_overrides: DictConfig = None,
         evals: DictConfig = None,
         **kwargs):
 
         self._evals_cfgs = evals
         self._evals = []
         for eval_name, eval_cfg in evals.items():
-            eval_cfg = OmegaConf.merge(eval_cfg, kwargs)
-            eval = Eval(policy_store, policy_pr, env_defaults, **eval_cfg)
+            eval_cfg = OmegaConf.merge(kwargs, eval_cfg)
+            eval = Eval(policy_store, policy_pr,
+                        env_overrides=env_overrides, **eval_cfg)
             self._evals.append(eval)
 
     def evaluate(self):

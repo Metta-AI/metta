@@ -1,8 +1,8 @@
 import logging
 
 import hydra
-from omegaconf import DictConfig
-from mettagrid.config.config import setup_metta_environment
+from omegaconf import DictConfig, OmegaConf
+from util.runtime_configuration import setup_metta_environment
 from agent.policy_store import PolicyStore
 from rl.eval.eval_stats_logger import EvalStatsLogger
 from rl.eval.eval_stats_db import EvalStatsDB
@@ -10,7 +10,7 @@ from rl.wandb.wandb_context import WandbContext
 
 logger = logging.getLogger("eval.py")
 
-@hydra.main(version_base=None, config_path="../configs", config_name="config")
+@hydra.main(version_base=None, config_path="../configs", config_name="eval")
 def main(cfg: DictConfig):
     setup_metta_environment(cfg)
 
@@ -22,11 +22,11 @@ def main(cfg: DictConfig):
             cfg.eval,
             policy_store,
             policy_pr,
-            cfg.env,
             cfg_recursive_=False
         )
         stats = eval.evaluate()
-        stats_logger = EvalStatsLogger(cfg, wandb_run)
+
+        stats_logger = EvalStatsLogger(cfg, eval._env_cfg, wandb_run)
 
         stats_logger.log(stats)
 
