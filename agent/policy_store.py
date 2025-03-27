@@ -58,10 +58,11 @@ class PolicyStore:
 
     def policy(self, policy: Union[str, OmegaConf], selector_type: str = "top", n=1, metric="epoch") -> PolicyRecord:
         prs = self._policy_records(policy, selector_type, n, metric) if isinstance(policy, str) else self.policies(policy)
-        if selector_type == "all":
-            return prs
         assert  len(prs) == 1, f"Expected 1 policy, got {len(prs)}"
         return prs[0]
+
+    def policies(self, policy: Union[str, OmegaConf], selector_type: str = "top", n=1, metric="epoch") -> List[PolicyRecord]:
+        return self._policy_records(policy, selector_type, n, metric) if isinstance(policy, str) else self.policies(policy)
 
     def _policy_records(self, uri, selector_type="top", n=1, metric="epoch"):
         version = None
@@ -87,7 +88,7 @@ class PolicyStore:
             return prs
 
         elif selector_type == "latest":
-            return prs[-1]
+            return [prs[-1]]
 
         elif selector_type == "rand":
             return [random.choice(prs)]
