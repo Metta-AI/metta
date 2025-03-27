@@ -12,4 +12,3 @@ ent_coef: 0.0010326257650369725
 batch_size: 524288
 minibatch_size: 4096
 bptt_horizon: 16
-total_timesteps: 34575068265.924644
