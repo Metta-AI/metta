@@ -148,22 +148,21 @@ class Eval():
             flattened_env['timestamp'] = datetime.now().isoformat()
             flattened_env['npc'] = self._npc_policy_uri
 
-             # infos is a list of dictionaries
-            if len(infos) > 0: #fix this
-                for n in range(len(infos)):
-                    if "agent_raw" in infos[n]:
-                        agent_episode_data = infos[n]["agent_raw"]
-                        episode_reward = infos[n]["episode_rewards"]
-                        for agent_i in range(len(agent_episode_data)):
-                            agent_idx = agent_i + n * self._agents_per_env
-                            if agent_idx in self._agent_idx_to_policy_name:
-                                agent_episode_data[agent_i]['policy_name'] = self._agent_idx_to_policy_name[agent_idx].replace("file://", "")
-                            else:
-                                agent_episode_data[agent_i]['policy_name'] = "No Name Found"
-                            agent_episode_data[agent_i]['episode_reward'] = episode_reward[agent_i].tolist()
-                            agent_episode_data[agent_i].update(flattened_env)
 
-                        game_stats.append(agent_episode_data)
+            for n in range(len(infos)):
+                if "agent_raw" in infos[n]:
+                    agent_episode_data = infos[n]["agent_raw"]
+                    episode_reward = infos[n]["episode_rewards"]
+                    for agent_i in range(len(agent_episode_data)):
+                        agent_idx = agent_i + n * self._agents_per_env
+                        if agent_idx in self._agent_idx_to_policy_name:
+                            agent_episode_data[agent_i]['policy_name'] = self._agent_idx_to_policy_name[agent_idx].replace("file://", "")
+                        else:
+                            agent_episode_data[agent_i]['policy_name'] = "No Name Found"
+                        agent_episode_data[agent_i]['episode_reward'] = episode_reward[agent_i].tolist()
+                        agent_episode_data[agent_i].update(flattened_env)
+
+                    game_stats.append(agent_episode_data)
         logger.info(f"Evaluation time: {time.time() - start}")
         self._vecenv.close()
         return game_stats
