@@ -96,9 +96,8 @@ class EvalStatsAnalyzer:
         matching_policies = [i for i in all_policies if uri in i]
         if len(matching_policies) == 0:
             raise ValueError(f"No policy found in DB for candidate policy: {uri}, options are {all_policies}")
-        if len(matching_policies) > 1:
-            if all([':v' in i for i in matching_policies]):
-                matching_policies.sort(key=lambda x: int(x.split(':v')[-1]))
+        if all([':v' in i for i in matching_policies]):
+            matching_policies.sort(key=lambda x: int(x.split(':v')[-1]))
         candidate_uri = matching_policies[-1]
 
         return candidate_uri
