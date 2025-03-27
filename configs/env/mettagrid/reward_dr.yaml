@@ -1,0 +1,26 @@
+
+defaults:
+  - simple
+
+game:
+  agent:
+    rewards:
+      # action_failure_penalty: ${uniform:0, 0.0001, 0.00001}
+      ore.red: ${uniform:0, 1, 0.1}
+      ore.red.max: ${uniform:1, 50, 10}
+      ore.blue: ${uniform:0, 1, 0.1}
+      ore.blue.max: ${uniform:1, 50, 10}
+      ore.green: ${uniform:0, 1, 0.1}
+      ore.green.max: ${uniform:1, 50, 10}
+      battery: ${uniform:0, 1, 0.1}
+      battery_max: ${uniform:1, 50, 10}
+      heart: ${uniform:0, 1, 0.1}
+      heart_max: ${uniform:1, 50, 10}
+      laser: ${uniform:0, 1, 0.1}
+      laser_max: ${uniform:1, 50, 10}
+      armor: ${uniform:0, 1, 0.1}
+      armor_max: ${uniform:1, 50, 10}
+      blueprint: ${uniform:0, 1, 0.1}
+      blueprint_max: ${uniform:1, 50, 10}
+
+
