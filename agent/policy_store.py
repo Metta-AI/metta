@@ -58,6 +58,8 @@ class PolicyStore:
 
     def policy(self, policy: Union[str, OmegaConf], selector_type: str = "top", n=1, metric="epoch") -> PolicyRecord:
         prs = self._policy_records(policy, selector_type, n, metric) if isinstance(policy, str) else self.policies(policy)
+        if selector_type == "all":
+            return prs
         assert  len(prs) == 1, f"Expected 1 policy, got {len(prs)}"
         return prs[0]
 
@@ -106,10 +108,6 @@ class PolicyStore:
             return top[-n:]
         else:
             raise ValueError(f"Invalid selector type {selector_type}")
-
-
-    def policies(self, policy: Union[str, OmegaConf], selector_type: str = "top", n=1, metric="epoch") -> List[PolicyRecord]:
-        return self._policy_records(policy, selector_type, n, metric) if isinstance(policy, str) else self.policies(policy)
 
     def make_model_name(self, epoch: int):
         return f"model_{epoch:04d}.pt"
