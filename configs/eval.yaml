@@ -15,13 +15,3 @@ run_dir: ${data_dir}/${run}
 
 torch_deterministic: true
 vectorization: multiprocessing
-
-policy_uri: ./train_dir/${.run}/checkpoints/
-
-eval:
-  env: env/mettagrid/simple
-  num_envs: 25
-  num_episodes: 25
-  max_time_s: 600
-  policy_agents_pct: 1.0
-  eval_db_uri: ${..run_dir}/eval_stats.json

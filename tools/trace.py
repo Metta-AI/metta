@@ -11,11 +11,12 @@ from rl.pufferlib.trace import save_trace_image
 from util.runtime_configuration import setup_metta_environment
 from util.config import config_from_path
 
-@hydra.main(version_base=None, config_path="../configs", config_name="eval")
+@hydra.main(version_base=None, config_path="../configs", config_name="simulator")
 def main(cfg):
 
     setup_metta_environment(cfg)
-    cfg.eval.env = config_from_path(cfg.eval.env, cfg.eval.env_overrides)
+
+    cfg.env = config_from_path(cfg.env, cfg.env_overrides)
 
     with WandbContext(cfg) as wandb_run:
         policy_store = PolicyStore(cfg, wandb_run)

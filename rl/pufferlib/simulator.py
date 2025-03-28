@@ -13,7 +13,7 @@ class Simulator:
         self.cfg = cfg
         self.device = cfg.device
         self.vecenv = make_vecenv(
-          cfg.eval.env,
+          cfg.env,
           cfg.vectorization,
           num_envs=1,
           render_mode="human"

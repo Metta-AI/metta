@@ -1,0 +1,7 @@
+defaults:
+  - common
+  - wandb
+
+policy_uri: ./train_dir/${.run}/checkpoints/
+env: env/mettagrid/simple
+env_overrides: null
