@@ -178,17 +178,8 @@ class MettaAgent(nn.Module):
         state.hidden = td["hidden"]
         return logits, value
 
-    def forward(self, x, state=None, action=None, e3b=None):
-        return self.get_action_and_value(x, state, action, e3b)
-
-    def _e3b_update(self, phi, e3b):
-        intrinsic_reward = None
-        if e3b is not None:
-            u = phi.unsqueeze(1) @ e3b
-            intrinsic_reward = u @ phi.unsqueeze(2)
-            e3b = 0.99*e3b - (u.mT @ u) / (1 + intrinsic_reward)
-            intrinsic_reward = intrinsic_reward.squeeze()
-        return e3b, intrinsic_reward
+    def forward_train(self, x, state=None):
+        return self.forward(x, state)
 
     def l2_reg_loss(self) -> torch.Tensor:
         '''L2 regularization loss is on by default although setting l2_norm_coeff to 0 effectively turns it off. Adjust it by setting l2_norm_scale in your component config to a multiple of the global loss value or 0 to turn it off.'''
