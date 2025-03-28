@@ -31,8 +31,6 @@ def main(cfg):
 
         replay_path = f"{cfg.run_dir}/replays/replay.json"
         save_replay(cfg, policy_record, replay_path)
-        # Open image in Finder
-        subprocess.run(["open", image_path])
 
 if __name__ == "__main__":
     main()
