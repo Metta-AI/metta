@@ -271,8 +271,7 @@ class PufferTrainer:
             lstm_c = experience.lstm_c
 
         with data.amp_context:
-
-        while not experience.full:
+            while not experience.full:
                 with profile.env:
                     o, r, d, t, info, env_id, mask = data.vecenv.recv()
 
