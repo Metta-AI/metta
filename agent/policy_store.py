@@ -92,7 +92,7 @@ class PolicyStore:
             return prs
 
         elif selector_type == "latest":
-            return [prs[-1]]
+            return [prs[0]]
 
         elif selector_type == "rand":
             return [random.choice(prs)]
