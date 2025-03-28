@@ -6,10 +6,12 @@ import hydra
 import numpy as np
 import torch
 from omegaconf import OmegaConf
+import omegaconf
 from pufferlib.environment import PufferEnv
 from tensordict import TensorDict
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
+
 
 from agent.util.distribution_utils import sample_logits
 
@@ -31,6 +33,10 @@ def make_policy(env: PufferEnv, cfg: OmegaConf):
         grid_features=env.grid_features,
         global_features=env.global_features,
         device=cfg.device,
+        obs_width=11,
+        obs_height=11, # TODO: remove hardcoded values
+        # obs_width=cfg.env.game.obs_width,
+        # obs_height=cfg.env.game.obs_height,
         _recursive_=False)
 
 class DistributedMettaAgent(DistributedDataParallel):
@@ -69,14 +75,13 @@ class MettaAgent(nn.Module):
             'obs_input_shape': obs_space[cfg.observations.obs_key].shape[1:],
             'num_objects': obs_space[cfg.observations.obs_key].shape[2], # this is hardcoded for channel # at end of tuple
             'hidden_size': self.hidden_size,
-            'core_num_layers': self.core_num_layers
+            'core_num_layers': self.core_num_layers,
         }
-
-        agent_attributes['action_type_size'] = action_space.nvec[0]
-        agent_attributes['action_param_size'] = action_space.nvec[1]
-
         # self.observation_space = obs_space # for use with FeatureSetEncoder
         # self.global_features = global_features # for use with FeatureSetEncoder
+
+        self.action_type_embeds = {}
+        self.action_param_embeds = {}
 
         self.components = nn.ModuleDict()
         component_cfgs = OmegaConf.to_container(cfg.components, resolve=True)
@@ -103,22 +108,47 @@ class MettaAgent(nn.Module):
 
     def _setup_components(self, component):
         if component._input_source is not None:
-            if isinstance(component._input_source, str):
-                self._setup_components(self.components[component._input_source])
-            elif isinstance(component._input_source, list):
+            if isinstance(component._input_source, list):
                 for input_source in component._input_source:
                     self._setup_components(self.components[input_source])
+            elif isinstance(component._input_source, omegaconf.listconfig.ListConfig):
+                component._input_source = list(component._input_source)
+                for input_source in component._input_source:
+                    self._setup_components(self.components[input_source])
+            else:
+                self._setup_components(self.components[component._input_source])
 
         if component._input_source is not None:
+            # path 1
             if isinstance(component._input_source, str):
                 component.setup(self.components[component._input_source])
             elif isinstance(component._input_source, list):
                 input_source_components = {}
-                for input_source in component._input_source:
-                    input_source_components[input_source] = self.components[input_source]
+                for name in component._input_source:
+                    input_source_components[name] = self.components[name]
                 component.setup(input_source_components)
+
+            # path 2
+            # if isinstance(component._input_source, list):
+            #     input_source_components = {}
+            #     for name in component._input_source:
+            #         input_source_components[name] = self.components[name]
+            #     component.setup(input_source_components)
+            # else:
+            #     component.setup(self.components[component._input_source])
         else:
             component.setup()
+
+        print((
+            f"Component: {component._name}, in name: {component._input_source}, "
+            f"in_size: {component._in_tensor_shape}, out_size: {component._out_tensor_shape}"
+        ))
+
+    def embed_action_type(self, action_type_names):
+        self.components['_action_type_embeds_'].embed_strings(action_type_names)
+
+    def embed_action_param(self, action_param_names):
+        self.components['_action_param_embeds_'].embed_strings(action_param_names)
 
     @property
     def lstm(self):

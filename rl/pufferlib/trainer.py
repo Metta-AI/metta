@@ -98,16 +98,14 @@ class PufferTrainer:
         if self._master:
             print(policy_record.policy())
 
-        if policy_record.metadata["action_names"] != self.vecenv.driver_env.action_names():
-            raise ValueError(
-                "Action names do not match between policy and environment: "
-                f"{policy_record.metadata['action_names']} != {self.vecenv.driver_env.action_names()}")
-
         self._initial_pr = policy_record
         self.last_pr = policy_record
         self.policy = policy_record.policy().to(self.device)
         self.policy_record = policy_record
         self.uncompiled_policy = self.policy
+
+        self.policy.embed_action_type(self.vecenv.driver_env.action_names())
+        self.policy.embed_action_param(['a', 'b', 'c'])
 
         if self.trainer_cfg.compile:
             logger.info("Compiling policy")
