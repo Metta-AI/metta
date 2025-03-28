@@ -608,7 +608,17 @@ class PufferTrainer:
                             v_loss = 0.5 * ((newvalue - ret) ** 2).mean()
 
                         entropy_loss = entropy.mean()
-                        loss = pg_loss - train_cfg.ent_coef*entropy_loss + v_loss*train_cfg.vf_coef
+
+                        l2_reg_loss = torch.tensor(0.0, device=self.device)
+                        if self.trainer_cfg.l2_reg_loss_coef > 0:
+                            l2_reg_loss = self.trainer_cfg.l2_reg_loss_coef * self.policy.l2_reg_loss().to(self.device)
+
+                        l2_init_loss = torch.tensor(0.0, device=self.device)
+                        if self.trainer_cfg.l2_init_loss_coef > 0:
+                            l2_init_loss = self.trainer_cfg.l2_init_loss_coef * self.policy.l2_init_loss().to(self.device)
+
+
+                        loss = pg_loss - train_cfg.ent_coef*entropy_loss + v_loss*train_cfg.vf_coef + l2_reg_loss + l2_init_loss
 
                         with profile.custom:
                             if train_cfg.use_diayn:
