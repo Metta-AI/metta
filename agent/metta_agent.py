@@ -6,10 +6,12 @@ import hydra
 import numpy as np
 import torch
 from omegaconf import OmegaConf
+import omegaconf
 from pufferlib.environment import PufferEnv
 from tensordict import TensorDict
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
+
 
 from agent.util.distribution_utils import sample_logits
 
@@ -55,8 +57,6 @@ class MettaAgent(nn.Module):
         action_space: gym.spaces.Space,
         grid_features: List[str],
         device: str,
-        obs_width: int,
-        obs_height: int,
         **cfg
     ):
         super().__init__()
@@ -76,8 +76,6 @@ class MettaAgent(nn.Module):
             'num_objects': obs_space[cfg.observations.obs_key].shape[2], # this is hardcoded for channel # at end of tuple
             'hidden_size': self.hidden_size,
             'core_num_layers': self.core_num_layers,
-            'obs_width': obs_width,
-            'obs_height': obs_height,
         }
         # self.observation_space = obs_space # for use with FeatureSetEncoder
         # self.global_features = global_features # for use with FeatureSetEncoder
@@ -110,26 +108,34 @@ class MettaAgent(nn.Module):
 
     def _setup_components(self, component):
         if component._input_source is not None:
-            # if isinstance(component._input_source, str):
-            #     self._setup_components(self.components[component._input_source])
-
             if isinstance(component._input_source, list):
+                for input_source in component._input_source:
+                    self._setup_components(self.components[input_source])
+            elif isinstance(component._input_source, omegaconf.listconfig.ListConfig):
+                component._input_source = list(component._input_source)
                 for input_source in component._input_source:
                     self._setup_components(self.components[input_source])
             else:
                 self._setup_components(self.components[component._input_source])
 
-
         if component._input_source is not None:
+            # path 1
             if isinstance(component._input_source, str):
                 component.setup(self.components[component._input_source])
-
             elif isinstance(component._input_source, list):
                 input_source_components = {}
                 for name in component._input_source:
                     input_source_components[name] = self.components[name]
-
                 component.setup(input_source_components)
+
+            # path 2
+            # if isinstance(component._input_source, list):
+            #     input_source_components = {}
+            #     for name in component._input_source:
+            #         input_source_components[name] = self.components[name]
+            #     component.setup(input_source_components)
+            # else:
+            #     component.setup(self.components[component._input_source])
         else:
             component.setup()
 

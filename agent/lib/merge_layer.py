@@ -26,7 +26,6 @@ class MergeLayerBase(LayerBase):
         if self._ready:
             return
 
-        # shouldn't this check if it's a dict or not?
         self.input_source_components = input_source_components
 
         # NOTE: in and out tensor shapes do not include batch sizes
@@ -42,6 +41,7 @@ class MergeLayerBase(LayerBase):
             processed_size = self.input_source_components[source_name]._out_tensor_shape.copy()
             self._in_tensor_shape.append(processed_size)
 
+            processed_size = processed_size[0]
             if src_cfg.get('slice') is not None:
                 slice_range = src_cfg['slice']
                 if isinstance(slice_range, omegaconf.listconfig.ListConfig):
@@ -59,7 +59,7 @@ class MergeLayerBase(LayerBase):
                     'length': length,
                     'dim': slice_dim
                 }
-                processed_size[slice_dim] = length
+                processed_size = length
 
             self.processed_lengths.append(processed_size)
 
@@ -90,19 +90,19 @@ class MergeLayerBase(LayerBase):
 
 
 class ConcatMergeLayer(MergeLayerBase):
-    '''Concatenates tensors along a specified dimension or for vectors
-    Using this for observations, for instance, can concat channels with their
-    associated fields. But concattenating widths and heights would lead to different
-    shapes of the field of view.'''
+    '''Concatenates tensors along a specified dimension. For vectors, use dim=1.
+    Using this for observations can concat channels (dim=1) with their
+    associated fields (). But concattenating widths and heights (dim=2 or dim=3) would 
+    lead to different shapes of the field of view.'''
     def _setup_merge_layer(self):
         if not all(d == self.dims[0] for d in self.dims):
             raise ValueError(f"For 'concat', all sources must have the same 'dim'. Got dims: {self.dims}")
         self._merge_dim = self.dims[0]
         cat_dim_length = 0
         for size in self.processed_lengths:
-            cat_dim_length += size[self._merge_dim]
-        self._out_tensor_shape = self._in_tensor_shape[0]
-        self._out_tensor_shape[self._merge_dim - 1] = cat_dim_length # add in -1 to account for batch size
+            cat_dim_length += size
+        self._out_tensor_shape = self._in_tensor_shape[0].copy()
+        self._out_tensor_shape[self._merge_dim - 1] = cat_dim_length # the -1 is to account for batch size
 
     def _merge(self, outputs, td):
         merged = torch.cat(outputs, dim=self._merge_dim)

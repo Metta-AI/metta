@@ -28,7 +28,12 @@ class LayerBase(nn.Module):
     key with its own name, indicating that its computation has already been
     performed (due to some other run up the DAG) and return. After this check,
     it should check if its input source is not None and recursively call the
-    forward method of the layer above it.'''
+    forward method of the layer above it.
+    
+    Carefully passing input and output shapes is necessary to setup the agent.
+    self._in_tensor_shape and self._out_tensor_shape are always of type list of
+    list. Note that they do not include the batch dimension (as this is specified
+    in training configs).'''
     def __init__(self, name, input_source=None, nn_params={}, **cfg):
         super().__init__()
         self._name = name
@@ -138,8 +143,8 @@ class ParamLayer(LayerBase):
                 raise ValueError(f"Unsupported nonlinearity: {self.nonlinearity}") from e
 
     def _initialize_weights(self):
-        fan_in = self._input_size
-        fan_out = self._output_size
+        fan_in = self._in_tensor_shape[0]
+        fan_out = self._out_tensor_shape[0]
 
         if self.initialization.lower() == 'orthogonal':
             if self.nonlinearity == 'nn.Tanh':

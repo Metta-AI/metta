@@ -18,6 +18,7 @@ env:
     max_steps: 1000
 
 trainer:
+  env: env/mettagrid/simple.yaml
   evaluate_interval: 0
   # kickstart:
   #   teacher_uri: wandb://run/b.daphne.multicolor_ore.r.5

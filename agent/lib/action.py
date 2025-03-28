@@ -52,7 +52,7 @@ class ActionEmbedding(nn_layer_library.Embedding):
     def __init__(self, **cfg):
         super().__init__(**cfg)
         self._reserved_action_embeds = {} 
-        self._out_tensor_shape = self._nn_params['embedding_dim']
+        self._out_tensor_shape = [self._nn_params['embedding_dim']]
         self.num_actions = 0 # to be updated at runtime by the size of the embedding
 
     def embed_strings(self, string_list):
@@ -76,7 +76,7 @@ class ActionHash(metta_layer.LayerBase):
     def __init__(self, embedding_dim, **cfg):
         super().__init__(**cfg)
         self.action_embeddings = torch.tensor([])
-        self._out_tensor_shape = embedding_dim
+        self._out_tensor_shape = [embedding_dim]
         self.num_actions = 0 # to be updated at runtime by the size of the embedding
 
     def embed_strings(self, string_list):

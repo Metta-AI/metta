@@ -10,7 +10,7 @@ policy_selector:
 
 observations:
   obs_key: grid_obs
-  track_last_action: ${env.track_last_action}
+  track_last_action: false
   
 clip_range: 0
 effective_rank_interval: 10
@@ -142,7 +142,7 @@ components:
     effective_rank: true
 
   _action_type_embeds_:
-    _target_: agent.lib.nn_layer_library.Embedding
+    _target_: agent.lib.action.ActionEmbedding
     input_source: null
     nn_params:
       num_embeddings: 50
@@ -151,8 +151,8 @@ components:
   _action_type_:
     _target_: agent.lib.action.ActionType
     input_source: 
-      - source_name: actor_1
-      - source_name: _action_type_embeds_
+      - actor_1
+      - _action_type_embeds_
     nonlinearity: null
 
   _action_param_embeds_:
@@ -163,6 +163,6 @@ components:
   _action_param_:
     _target_: agent.lib.action.ActionParam
     input_source: 
-      - source_name: actor_1
-      - source_name: _action_param_embeds_
+      - actor_1
+      - _action_param_embeds_
     nonlinearity: null

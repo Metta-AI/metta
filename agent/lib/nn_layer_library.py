@@ -1,3 +1,5 @@
+from math import prod
+
 import torch.nn as nn
 
 from .metta_layer import ParamLayer, LayerBase
@@ -197,7 +199,7 @@ class Flatten(LayerBase):
         super().__init__(**cfg)
 
     def _make_net(self):
-        self._out_tensor_shape = [sum(self._in_tensor_shape)]
+        self._out_tensor_shape = [prod(self._in_tensor_shape)]
         return nn.Flatten()
 
 class Identity(LayerBase):
