@@ -34,6 +34,8 @@ class EvalStatsLogger:
 
 
     def _log_to_file(self, eval_stats):
+        """
+        eval_stats is a dictionary of format {str eval_name : list stats: }"""
         # If file exists, load and merge with existing data
         gzip_path = self.json_path + ".gz"
         if os.path.exists(gzip_path):
