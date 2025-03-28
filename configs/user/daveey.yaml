@@ -44,9 +44,9 @@ eval:
   policy_uri: ${..policy_uri}
   npc_policy_uri: ${..npc_policy_uri}
   # eval_db_uri: ${..eval_db_uri} #file://daphne/sweep_stats
-  env: /env/mettagrid/simple
+  env: /env/mettagrid/reward_dr
   env_overrides:
-    # sampling: 0.7
+    sampling: 0.7
     game:
       # num_agents: 360
       max_steps: 1000
