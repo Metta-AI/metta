@@ -37,6 +37,7 @@ class EvalStatsLogger:
         """
         eval_stats is a dictionary of format {str eval_name : list stats: }"""
         # If file exists, load and merge with existing data
+        existing_stats = eval_stats.copy()
         gzip_path = self.json_path + ".gz"
         if os.path.exists(gzip_path):
             try:
