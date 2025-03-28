@@ -2,6 +2,6 @@ defaults:
   - common
   - wandb
 
-policy_uri: ./train_dir/${.run}/checkpoints/
+policy_uri: ???
 env: env/mettagrid/simple
 env_overrides: null
