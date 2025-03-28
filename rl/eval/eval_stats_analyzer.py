@@ -6,6 +6,7 @@ import fnmatch
 import numpy as np
 from rl.eval.queries import total_metric
 import pandas as pd
+import time
 logger = logging.getLogger("eval_stats_analyzer")
 
 class EvalStatsAnalyzer:
@@ -112,12 +113,14 @@ class EvalStatsAnalyzer:
             uri = self.candidate_policy_uri
 
         all_policies = metric_data['policy_name'].unique()
+        print(f"All policies: {all_policies}")
 
         # Get the latest version of the candidate policy
         candidate_uri = self.get_latest_policy(all_policies, uri)
+        print(f"candidate_uri: {candidate_uri}")
 
         baseline_policies = list(set([self.get_latest_policy(all_policies, b) for b in self.analysis.baseline_policies or all_policies]))
-
+        print(f"baseline_policies: {baseline_policies}")
         metric_data = metric_data.set_index('policy_name')
         eval, metric_mean, metric_std = metric_data.keys()
 
@@ -135,5 +138,7 @@ class EvalStatsAnalyzer:
                 candidate_mean = candidate_data.loc[eval][metric_mean]
                 baseline_mean = np.mean(baseline_data.loc[eval][metric_mean])
             fitness = candidate_mean - baseline_mean
+            print(f"eval: {eval}, candidate_mean: {candidate_mean}, baseline_mean: {baseline_mean}, fitness: {fitness}")
             policy_fitness.append({"eval": eval, "metric": metric_name, "candidate_mean": candidate_mean, "baseline_mean": baseline_mean, "fitness": fitness})
+        time.sleep(10)
         return policy_fitness
