@@ -34,6 +34,8 @@ class EvalStatsLogger:
 
 
     def _log_to_file(self, eval_stats):
+        """
+        eval_stats is a dictionary of format {str eval_name : list stats: }"""
         # If file exists, load and merge with existing data
         gzip_path = self.json_path + ".gz"
         if os.path.exists(gzip_path):
@@ -41,7 +43,8 @@ class EvalStatsLogger:
                 logger.info(f"Loading existing eval stats from {gzip_path}")
                 with gzip.open(gzip_path, "rt", encoding='utf-8') as f:
                     existing_stats = json.load(f)
-                eval_stats.extend(existing_stats)
+                for eval_name, stats in eval_stats.items():
+                    existing_stats[eval_name].extend(stats)
             except Exception as e:
                 logger.error(f"Error loading existing eval stats from {gzip_path}: {e}, will overwrite")
 
