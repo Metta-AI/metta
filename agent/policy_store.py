@@ -56,10 +56,13 @@ class PolicyStore:
         self._wandb_run = wandb_run
         self._cached_prs = {}
 
-    def policy(self, policy: Union[str, OmegaConf]) -> PolicyRecord:
-        prs = self._policy_records(policy) if isinstance(policy, str) else self.policies(policy)
+    def policy(self, policy: Union[str, OmegaConf], selector_type: str = "top", n=1, metric="epoch") -> PolicyRecord:
+        prs = self._policy_records(policy, selector_type, n, metric) if isinstance(policy, str) else self.policies(policy)
         assert  len(prs) == 1, f"Expected 1 policy, got {len(prs)}"
         return prs[0]
+
+    def policies(self, policy: Union[str, OmegaConf], selector_type: str = "top", n=1, metric="epoch") -> List[PolicyRecord]:
+        return self._policy_records(policy, selector_type, n, metric) if isinstance(policy, str) else self.policies(policy)
 
     def _policy_records(self, uri, selector_type="top", n=1, metric="epoch"):
         version = None
@@ -81,7 +84,13 @@ class PolicyStore:
         else:
             prs = self._prs_from_path(uri)
 
-        if selector_type == "rand":
+        if selector_type == "all":
+            return prs
+
+        elif selector_type == "latest":
+            return [prs[-1]]
+
+        elif selector_type == "rand":
             return [random.choice(prs)]
 
         elif selector_type == "top":
@@ -100,23 +109,6 @@ class PolicyStore:
             return top[-n:]
         else:
             raise ValueError(f"Invalid selector type {selector_type}")
-
-
-    def policies(self, policy_selector_cfg: OmegaConf) -> List[PolicyRecord]:
-        prs = []
-        if isinstance(policy_selector_cfg.uri, ListConfig):
-            for uri in policy_selector_cfg.uri:
-                prs += self._policy_records(uri, policy_selector_cfg.type, policy_selector_cfg.range, policy_selector_cfg.metric)
-        else:
-            prs = self._policy_records(policy_selector_cfg.uri, policy_selector_cfg.type, policy_selector_cfg.range, policy_selector_cfg.metric)
-
-        for k,v in policy_selector_cfg.filters.items():
-            prs = [pr for pr in prs if pr.metadata.get(k, None) == v]
-
-        if len(prs) == 0:
-            logger.warning("No policies found matching criteria")
-
-        return prs
 
     def make_model_name(self, epoch: int):
         return f"model_{epoch:04d}.pt"

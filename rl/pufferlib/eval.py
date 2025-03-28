@@ -6,6 +6,8 @@ import torch
 from agent.policy_store import PolicyStore, PolicyRecord
 from omegaconf import DictConfig, OmegaConf
 from util.config import config_from_path
+from util.datastruct import flatten_config
+from datetime import datetime
 from rl.pufferlib.vecenv import make_vecenv
 
 logger = logging.getLogger("eval")
@@ -15,6 +17,7 @@ class Eval():
         self,
         policy_store: PolicyStore,
         policy_pr: PolicyRecord,
+        run_id: str,
 
         env: str,
         npc_policy_uri: str,
@@ -26,6 +29,7 @@ class Eval():
         num_episodes: int = 1,
         max_time_s: int = 60,
         vectorization: str = "serial",
+
 
         **kwargs,
 
@@ -45,7 +49,7 @@ class Eval():
 
         # load candidate policy
         self._policy_pr = policy_pr
-
+        self._run_id = run_id
         # load npc policy
         self._npc_pr = None
         if self._npc_policy_uri is None:
@@ -136,21 +140,29 @@ class Eval():
             self._total_rewards += rewards
             self._completed_episodes += sum([e.done for e in self._vecenv.envs])
 
-             # infos is a list of dictionaries
-            if len(infos) > 0:
-                for n in range(len(infos)):
-                    if "agent_raw" in infos[n]:
-                        one_episode = infos[n]["agent_raw"]
-                        episode_reward = infos[n]["episode_rewards"]
-                        for m in range(len(one_episode)):
-                            agent_idx = m + n * self._agents_per_env
-                            if agent_idx in self._agent_idx_to_policy_name:
-                                one_episode[m]['policy_name'] = self._agent_idx_to_policy_name[agent_idx].replace("file://", "")
-                            else:
-                                one_episode[m]['policy_name'] = "No Name Found"
-                            one_episode[m]['episode_reward'] = episode_reward[m].tolist()
-                        game_stats.append(one_episode)
+            # Convert the environment configuration to a dictionary and flatten it.
+            game_cfg = OmegaConf.to_container(self._env_cfg.game, resolve=False)
+            flattened_env = flatten_config(game_cfg, parent_key = "game")
+            flattened_env['run_id'] = self._run_id
+            flattened_env['eval_name'] = self._env_name
+            flattened_env['timestamp'] = datetime.now().isoformat()
+            flattened_env['npc'] = self._npc_policy_uri
 
+
+            for n in range(len(infos)):
+                if "agent_raw" in infos[n]:
+                    agent_episode_data = infos[n]["agent_raw"]
+                    episode_reward = infos[n]["episode_rewards"]
+                    for agent_i in range(len(agent_episode_data)):
+                        agent_idx = agent_i + n * self._agents_per_env
+                        if agent_idx in self._agent_idx_to_policy_name:
+                            agent_episode_data[agent_i]['policy_name'] = self._agent_idx_to_policy_name[agent_idx].replace("file://", "")
+                        else:
+                            agent_episode_data[agent_i]['policy_name'] = "No Name Found"
+                        agent_episode_data[agent_i]['episode_reward'] = episode_reward[agent_i].tolist()
+                        agent_episode_data[agent_i].update(flattened_env)
+
+                    game_stats.append(agent_episode_data)
         logger.info(f"Evaluation time: {time.time() - start}")
         self._vecenv.close()
         return game_stats
@@ -160,6 +172,7 @@ class EvalSuite:
         self,
         policy_store: PolicyStore,
         policy_pr: PolicyRecord,
+        run_id: str,
         env_overrides: DictConfig = None,
         evals: DictConfig = None,
         **kwargs):
@@ -168,7 +181,7 @@ class EvalSuite:
         self._evals = []
         for eval_name, eval_cfg in evals.items():
             eval_cfg = OmegaConf.merge(kwargs, eval_cfg)
-            eval = Eval(policy_store, policy_pr,
+            eval = Eval(policy_store, policy_pr, run_id,
                         env_overrides=env_overrides, **eval_cfg)
             self._evals.append(eval)
 
