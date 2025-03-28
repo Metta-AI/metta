@@ -37,7 +37,6 @@ class EvalStatsLogger:
         """
         eval_stats is a dictionary of format {str eval_name : list stats: }"""
         # If file exists, load and merge with existing data
-        existing_stats = eval_stats.copy()
         gzip_path = self.json_path + ".gz"
         if os.path.exists(gzip_path):
             try:
@@ -46,11 +45,12 @@ class EvalStatsLogger:
                     existing_stats = json.load(f)
                 for eval_name, stats in eval_stats.items():
                     existing_stats[eval_name].extend(stats)
+                eval_stats = existing_stats
             except Exception as e:
                 logger.error(f"Error loading existing eval stats from {gzip_path}: {e}, will overwrite")
 
         with gzip.open(gzip_path, "wt", encoding='utf-8') as f:
-            json.dump(existing_stats, f, indent=4)
+            json.dump(eval_stats, f, indent=4)
         logger.info(f"Saved eval stats to {gzip_path}")
 
     def _log_to_wandb(self, artifact_name: str, eval_stats):
