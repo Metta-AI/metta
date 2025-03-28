@@ -30,19 +30,27 @@ class Profile:
     eval_time: ... = 0
     env_time: ... = 0
     eval_forward_time: ... = 0
+    eval_copy_time: ... = 0
     eval_misc_time: ... = 0
     train_time: ... = 0
     train_forward_time: ... = 0
+    train_copy_time: ... = 0
+    train_misc_time: ... = 0
     learn_time: ... = 0
     train_misc_time: ... = 0
+    custom_time: ... = 0
     def __init__(self):
         self.start = time.time()
         self.env = pufferlib.utils.Profiler()
         self.eval_forward = pufferlib.utils.Profiler()
+        self.eval_copy = pufferlib.utils.Profiler()
         self.eval_misc = pufferlib.utils.Profiler()
         self.train_forward = pufferlib.utils.Profiler()
+        self.train_copy = pufferlib.utils.Profiler()
+        self.train_misc = pufferlib.utils.Profiler()
         self.learn = pufferlib.utils.Profiler()
         self.train_misc = pufferlib.utils.Profiler()
+        self.custom = pufferlib.utils.Profiler()
         self.prev_steps = 0
 
     def __iter__(self):
@@ -52,11 +60,15 @@ class Profile:
         yield 'eval_time', _fmt_perf(self.eval_time, self.uptime)
         yield 'env_time', _fmt_perf(self.env_time, self.uptime)
         yield 'eval_forward_time', _fmt_perf(self.eval_forward_time, self.uptime)
+        yield 'eval_copy_time', _fmt_perf(self.eval_copy_time, self.uptime)
         yield 'eval_misc_time', _fmt_perf(self.eval_misc_time, self.uptime)
         yield 'train_time', _fmt_perf(self.train_time, self.uptime)
         yield 'train_forward_time', _fmt_perf(self.train_forward_time, self.uptime)
+        yield 'train_copy_time', _fmt_perf(self.train_copy_time, self.uptime)
+        yield 'train_misc_time', _fmt_perf(self.train_misc_time, self.uptime)
         yield 'learn_time', _fmt_perf(self.learn_time, self.uptime)
         yield 'train_misc_time', _fmt_perf(self.train_misc_time, self.uptime)
+        yield 'custom_time', _fmt_perf(self.custom_time, self.uptime)
 
     @property
     def epoch_time(self):
@@ -75,10 +87,14 @@ class Profile:
         self.remaining = (total_timesteps - global_step) / self.SPS
         self.eval_time = timers['_evaluate'].elapsed
         self.eval_forward_time = self.eval_forward.elapsed
+        self.eval_copy_time = self.eval_copy.elapsed
         self.env_time = self.env.elapsed
         self.eval_misc_time = self.eval_misc.elapsed
         self.train_time = timers['_train'].elapsed
         self.train_forward_time = self.train_forward.elapsed
+        self.train_copy_time = self.train_copy.elapsed
+        self.train_misc_time = self.train_misc.elapsed
         self.learn_time = self.learn.elapsed
         self.train_misc_time = self.train_misc.elapsed
+        self.custom_time = self.custom.elapsed
         return True

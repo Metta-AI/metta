@@ -37,6 +37,10 @@ class LSTM(LayerBase):
         hidden = td[self._input_source]
         state = td["state"]
 
+        # You would ideally want this concatted with the rest of your embeddings
+        if 'diayn_embed' in td:
+            hidden = hidden + td['diayn_embed']
+
         if state is not None:
             split_size = self.num_layers
             state = (state[:split_size], state[split_size:])
@@ -71,5 +75,5 @@ class LSTM(LayerBase):
 
         td[self._name] = hidden
         td["state"] = state
-
+        td["hidden"] = hidden
         return td

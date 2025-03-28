@@ -4,7 +4,9 @@ defaults:
   - trainer
 
 resume: true
-use_e3b: false
+optimizer: muon
+scheduler: cosine
+precision: float32
 
 total_timesteps: 50_000_000_000
 
@@ -19,6 +21,26 @@ vf_coef: 0.5
 l2_reg_loss_coef: 0
 l2_init_loss_coef: 0
 
+adam_beta1: 0.9
+adam_beta2: 0.999
+adam_eps: 1e-12
+
+use_e3b: False
+e3b_coef: 0.01
+e3b_norm: 0.001
+e3b_lambda: 10.0
+
+use_diayn: False
+diayn_archive: 8
+diayn_loss_coef: 1.0
+diayn_coef: 0.1
+
+# No P3o yet. Requires more custom
+# policy setup and the algo isn't done
+use_p3o: False
+p3o_horizon: 128
+puf: 0.0
+
 norm_adv: true
 clip_vloss: true
 target_kl: null
@@ -30,6 +52,7 @@ verbose: true
 
 batch_size: 262144
 minibatch_size: 4096
+max_minibatch_size: 16384
 bptt_horizon: 16
 update_epochs: 1
 

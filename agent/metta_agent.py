@@ -56,6 +56,7 @@ class MettaAgent(nn.Module):
         super().__init__()
         cfg = OmegaConf.create(cfg)
 
+        self.is_continuous = False
         self.hidden_size = cfg.components._core_.output_size
         self.core_num_layers = cfg.components._core_.nn_params.num_layers
         self.clip_range = cfg.clip_range
@@ -69,7 +70,8 @@ class MettaAgent(nn.Module):
             'obs_input_shape': obs_space[cfg.observations.obs_key].shape[1:],
             'num_objects': obs_space[cfg.observations.obs_key].shape[2], # this is hardcoded for channel # at end of tuple
             'hidden_size': self.hidden_size,
-            'core_num_layers': self.core_num_layers
+            'core_num_layers': self.core_num_layers,
+            'is_continuous': self.is_continuous
         }
 
         agent_attributes['action_type_size'] = action_space.nvec[0]
@@ -133,13 +135,29 @@ class MettaAgent(nn.Module):
         self.components["_value_"](td)
         return None, td["_value_"], None
 
-    def get_action_and_value(self, x, state=None, action=None, e3b=None):
-        td = TensorDict({"x": x})
+    def forward(self, x, state=None):
+        td = TensorDict({
+            "x": x,
+            **state
+        })
+
+        # This is a terrible spot for this piece of code, but
+        # I don't know where the encoder is to put it there.
+        # You want to concat this encoding with the pre-lstm state
+        if 'diayn_z' in td:
+            td['diayn_embed'] = self.diayn_encoder(td['diayn_z'])
 
         td["state"] = None
-        if state is not None:
-            state = torch.cat(state, dim=0)
-            td["state"] = state.to(x.device)
+        if state.lstm_h is not None:
+            lstm_h = state.lstm_h
+            lstm_c = state.lstm_c
+            if len(lstm_h.shape) == 2:
+                lstm_h = lstm_h.unsqueeze(0)
+            if len(lstm_c.shape) == 2:
+                lstm_c = lstm_c.unsqueeze(0)
+
+            lstm_state = torch.cat([lstm_h, lstm_c], dim=0)
+            td["state"] = lstm_state.to(x.device)
 
         self.components["_value_"](td)
         self.components["_action_type_"](td)
@@ -147,17 +165,18 @@ class MettaAgent(nn.Module):
 
         logits = [td["_action_type_"], td["_action_param_"]]
         value = td["_value_"]
-        state = td["state"]
+        td_state = td["state"]
 
         # Convert state back to tuple to pass back to trainer
-        if state is not None:
+        if td_state is not None:
             split_size = self.core_num_layers
-            state = (state[:split_size], state[split_size:])
+            lstm_h = td_state[:split_size]
+            lstm_c = td_state[split_size:]
 
-        e3b, intrinsic_reward = self._e3b_update(td["_core_"].detach(), e3b)
-        action, logprob, entropy, normalized_logits = sample_logits(logits, action)
-
-        return action, logprob, entropy, value, state, e3b, intrinsic_reward, normalized_logits
+        state.lstm_h = lstm_h
+        state.lstm_c = lstm_c
+        state.hidden = td["hidden"]
+        return logits, value
 
     def forward(self, x, state=None, action=None, e3b=None):
         return self.get_action_and_value(x, state, action, e3b)
