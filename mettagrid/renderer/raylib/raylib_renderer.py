@@ -4,7 +4,6 @@
 import os
 import sys
 from collections import defaultdict, deque
-import math
 import pyray as ray
 import torch
 from cffi import FFI
@@ -31,12 +30,12 @@ class MettaGridRaylibRenderer:
     def __init__(self, env: MettaGridEnv, cfg: OmegaConf):
         self.cfg = cfg
         self.env = env
-        self.grid_width = env.map_width()
-        self.grid_height = env.map_height()
+        self.grid_width = env.map_width
+        self.grid_height = env.map_height
 
         self.window_width = 1280
         self.window_height = 720
-        self.num_agents = env.num_agents()
+        self.num_agents = env.num_agents
 
         self.sidebar_width = 250
         self.tile_size = 24
@@ -48,7 +47,8 @@ class MettaGridRaylibRenderer:
         rl.InitWindow(self.window_width, self.window_height, "MettaGrid".encode())
         rl.SetWindowState(rl.FLAG_WINDOW_RESIZABLE)  # Make the window resizable
 
-        font_path = "deps/mettagrid/mettagrid/renderer/assets/Inter-Regular.ttf"
+        module_path = os.path.dirname(__file__)
+        font_path = os.path.join(module_path, "../assets/Inter-Regular.ttf")
         assert os.path.exists(font_path), f"Font {font_path} does not exist"
 
         # Load custom font
@@ -99,9 +99,9 @@ class MettaGridRaylibRenderer:
 
     def update(self, actions, observations, rewards, total_rewards, current_timestep):
         self.actions = actions
-        self.observations = observations.permute(0, 3, 1, 2)
+        self.observations = observations
         self.current_timestep = current_timestep
-        self.game_objects = self.env.grid_objects()
+        self.game_objects = self.env.grid_objects
         for obj_id, obj in self.game_objects.items():
             obj["id"] = obj_id
             if "agent_id" in obj:
@@ -264,8 +264,8 @@ class MettaGridRaylibRenderer:
         feature_name = "disabled"
 
         # Clamp the observation index to be between -1 and the number of features minus 1
-        self.obs_idx = max(-1, min(self.obs_idx, len(self.env.grid_features()) - 1))
-        feature_name = self.env.grid_features()[self.obs_idx]
+        self.obs_idx = max(-1, min(self.obs_idx, len(self.env.grid_features) - 1))
+        feature_name = self.env.grid_features[self.obs_idx]
 
         obs_txt = f"Press ? for help. Obs: {feature_name} (-/=)"
         self.font_renderer.render_text(obs_txt, sidebar_x + 10, sidebar_height - 60, font_size)
