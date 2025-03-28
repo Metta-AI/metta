@@ -1,7 +1,6 @@
 defaults:
   - common
   - agent: simple
-  - env/mettagrid@env: simple
   - trainer: puffer
   - eval: eval_suite
   - analyzer: eval_analyzer
