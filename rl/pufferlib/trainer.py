@@ -59,7 +59,7 @@ class PufferTrainer:
         self.wandb_run = wandb_run
         self.policy_store = policy_store
         self.use_e3b = self.trainer_cfg.use_e3b
-        self.eval_stats_logger = EvalStatsLogger(cfg, self._env_cfg, wandb_run)
+        self.eval_stats_logger = EvalStatsLogger(cfg, self._env_cfg)
         self.average_reward = 0.0  # Initialize average reward estimate
         self._policy_fitness = []
         self._effective_rank = []
@@ -222,6 +222,7 @@ class PufferTrainer:
             infos = defaultdict(list)
             lstm_h, lstm_c = experience.lstm_h, experience.lstm_c
             e3b_inv = experience.e3b_inv
+
 
         while not experience.full:
             with profile.env:

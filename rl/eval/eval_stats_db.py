@@ -22,33 +22,13 @@ class EvalStatsDB:
         logger.info(f"Loaded {len(self.available_metrics)} metrics from {self._table_name}")
 
     @staticmethod
-    def _prepare_data(data) -> List[dict]:
-        """
-        Each record is augmented with:
-          - 'episode_index': the index of the episode.
-          - 'agent_index': the index of the record within the episode.
-
-          data: list (per episode) of lists of dicts (per agent)
-          eg [
-                [{'action.use ': 1.0, 'r2.gained': 100}, {'action.use ': 3.0, 'r2.gained': 200}]
-             ...
-                [{'action.use ': 1.0, 'r2.gained': 100}, {'action.use ': 3.0, 'r2.gained': 200}]
-             ]
-
-          flattened: list of dicts, where each dict is a record from a single episode.
-          eg [
-            {'episode_index': 0, 'agent_index': 0, 'action.use ': 1.0, 'r2.gained': 100}
-            ...
-            {'episode_index': n, 'agent_index': n, 'action.use ': 1.0, 'r2.gained': 100}
-          ]
-        """
-        flattened = []
-        for episode_index, episode in enumerate(data):
-            for agent_index, record in enumerate(episode):
-                record["episode_index"] = episode_index
-                record["agent_index"] = agent_index
-                flattened.append(record)
-        return flattened
+    def _flatten_data_into_records(data) -> List[dict]:
+        return [
+            record
+            for env_data in data.values()
+            for episode in env_data
+            for record in episode
+        ]
 
     def _query(self, sql_query: str) -> pd.DataFrame:
         try:
@@ -56,17 +36,6 @@ class EvalStatsDB:
             return result
         except Exception as e:
             raise RuntimeError(f"SQL query failed: {sql_query}\nError: {e}")
-
-    def _metric(self, metric_field: str, filters: Optional[Dict[str, Any]] = None, group_by_episode: bool = False) -> pd.DataFrame:
-        long_df = self._query(total_metric(metric_field, filters))
-        # Average over unique policy_name while maintaining eval_name and episode_index
-        df_per_episode = long_df.pivot(index='episode_index', columns=['eval_name', 'policy_name'], values='total_metric').fillna(0)
-        metric_df = df_per_episode.copy()
-        if not group_by_episode:
-            stats_df = df_per_episode.agg(['mean', 'std'])
-            metric_df = stats_df.T.reset_index()
-            metric_df.columns = ['eval_name', 'policy_name', 'mean', 'std']
-        return metric_df
 
     @staticmethod
     def from_uri(uri: str, run_dir: str, wandb_run = None):
@@ -100,7 +69,7 @@ class EvalStatsDbFile(EvalStatsDB):
             data = json.load(f)
         logger.info(f"Loading eval stats from {json_path}")
 
-        data = self._prepare_data(data)
+        data = self._flatten_data_into_records(data)
 
         super().__init__(pd.DataFrame(data))
 
@@ -135,7 +104,7 @@ class EvalStatsDbWandb(EvalStatsDB):
             json_path = os.path.join(artifact_dir, json_files[0])
             with open(json_path, "r") as f:
                 data = json.load(f)
-            data = self._prepare_data(data)
+            data = self._flatten_data_into_records(data)
             all_records.extend(data)
 
         df = pd.DataFrame(all_records)
