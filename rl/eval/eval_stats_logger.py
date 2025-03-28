@@ -41,7 +41,8 @@ class EvalStatsLogger:
                 logger.info(f"Loading existing eval stats from {gzip_path}")
                 with gzip.open(gzip_path, "rt", encoding='utf-8') as f:
                     existing_stats = json.load(f)
-                eval_stats.extend(existing_stats)
+                for eval_name, stats in existing_stats.items():
+                    eval_stats[eval_name].extend(stats)
             except Exception as e:
                 logger.error(f"Error loading existing eval stats from {gzip_path}: {e}, will overwrite")
 
