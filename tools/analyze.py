@@ -8,10 +8,7 @@ from util.runtime_configuration import setup_metta_environment
 from rl.eval.eval_stats_db import EvalStatsDB
 logger = logging.getLogger("analyze.py")
 
-# Aggressively exit on Ctrl+C
-signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
-
-@hydra.main(version_base=None, config_path="../configs", config_name="config")
+@hydra.main(version_base=None, config_path="../configs", config_name="analyzer")
 
 def main(cfg: DictConfig) -> None:
     setup_metta_environment(cfg)

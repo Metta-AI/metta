@@ -10,7 +10,7 @@ defaults:
 
 policy_uri: wandb://run/b.daveey.sm.train.er.new.0
 npc_policy_uri: null
-eval_db_uri: file://artifacts/daphne_eval_testing
+eval_db_uri: null
 
 env_overrides:
   game:
@@ -18,7 +18,7 @@ env_overrides:
 
 trainer:
   env: /env/mettagrid/bases
-  evaluate_interval: 200
+  evaluate_interval: 200g
 
 eval:
   num_envs: 2
@@ -40,4 +40,4 @@ wandb:
 run_id: 1
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
-sweep_name: "${oc.env:USER}.local.sweep.${run_id}"
+sweep_name: "${oc.env:USER}.local.sweep.0"
