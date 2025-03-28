@@ -545,6 +545,11 @@ class PufferTrainer:
             for r in self._policy_fitness
         }
 
+        eval_metrics = {
+            f'eval/{r["eval"]}:{r["metric"]}': r["baseline_mean"]
+            for r in self._policy_fitness
+        }
+
         effective_rank_metrics = {
             f'train/effective_rank/{rank["name"]}': rank["effective_rank"]
             for rank in self._effective_rank
@@ -558,6 +563,7 @@ class PufferTrainer:
                 **environment,
                 **policy_fitness_metrics,
                 **effective_rank_metrics,
+                **eval_metrics,
                 "train/agent_step": agent_steps,
                 "train/epoch": epoch,
                 "train/learning_rate": learning_rate,
