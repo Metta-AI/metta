@@ -217,6 +217,6 @@ game:
         factory: 1
         temple: 1
 
-        wall: 40
-
+        wall: 20
+        block: 20
 

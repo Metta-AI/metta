@@ -28,4 +28,5 @@ game:
         factory: ${uniform:1,5,1}
         temple: ${uniform:1,5,1}
 
-        block: ${uniform:10,100,40}
+        block: ${uniform:5,50,20}
+        wall: ${uniform:5,50,20}
