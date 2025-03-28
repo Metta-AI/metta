@@ -56,15 +56,19 @@ class PolicyStore:
         self._wandb_run = wandb_run
         self._cached_prs = {}
 
-    def policy(self, policy: Union[str, OmegaConf], selector_type: str = "top", n=1, metric="epoch") -> PolicyRecord:
-        prs = self._policy_records(policy, selector_type, n, metric) if isinstance(policy, str) else self.policies(policy)
+    def policy(self, policy: Union[str, OmegaConf], selector_type: str = "latest", n=1, metric="epoch") -> PolicyRecord:
+        if not isinstance(policy, str):
+            policy = policy.uri
+        prs = self._policy_records(policy, selector_type, n, metric)
         assert  len(prs) == 1, f"Expected 1 policy, got {len(prs)}"
         return prs[0]
 
-    def policies(self, policy: Union[str, OmegaConf], selector_type: str = "top", n=1, metric="epoch") -> List[PolicyRecord]:
-        return self._policy_records(policy, selector_type, n, metric) if isinstance(policy, str) else self.policies(policy)
+    def policies(self, policy: Union[str, OmegaConf], selector_type: str = "latest", n=1, metric="epoch") -> List[PolicyRecord]:
+        if not isinstance(policy, str):
+            policy = policy.uri
+        return self._policy_records(policy, selector_type, n, metric)
 
-    def _policy_records(self, uri, selector_type="top", n=1, metric="epoch"):
+    def _policy_records(self, uri, selector_type="latest", n=1, metric="epoch"):
         version = None
         if uri.startswith("wandb://"):
             wandb_uri = uri[len("wandb://"):]
