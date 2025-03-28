@@ -9,30 +9,12 @@ evals:
   cylinder:
     env: env/mettagrid/cognitive_evals/cylinder
     policy_agents_pct: 1.0
-  simple:
-    env: env/mettagrid/simple
-    policy_agents_pct: 1.0
-
-  mini:
-    env: env/mettagrid/cognitive_evals/cogeval_training_mini_defaults
-    policy_agents_pct: 1.0
-
-  medium:
-    env: env/mettagrid/cognitive_evals/cogeval_training_medium_defaults
-    policy_agents_pct: 1.0
-
-  explore_exploit:
-    env: env/mettagrid/cognitive_evals/explore_exploit
-    policy_agents_pct: 1.0
-
-  labyrinth:
-    env: env/mettagrid/cognitive_evals/labyrinth
-    policy_agents_pct: 1.0
-
   radial_maze:
     env: env/mettagrid/cognitive_evals/radial_maze
     policy_agents_pct: 1.0
-
-  room_within_room:
-    env: env/mettagrid/cognitive_evals/room_within_room
+  navigating_obstacles:
+    env: env/mettagrid/cognitive_evals/navigating_obstacles
+    policy_agents_pct: 1.0
+  short_term_memory:
+    env: env/mettagrid/cognitive_evals/short_term_memory
     policy_agents_pct: 1.0
