@@ -193,6 +193,7 @@ class PufferTrainer:
             self.cfg.eval,
             self.policy_store,
             self.last_pr,
+            self.cfg.get("run_id", self.wandb_run.id),
             _recursive_ = False)
         stats = eval.evaluate()
 
