@@ -13,3 +13,4 @@ outputs
 cython_debug
 stats.profile
 /dist
+player/dist
