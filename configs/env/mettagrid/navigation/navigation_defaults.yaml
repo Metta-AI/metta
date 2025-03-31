@@ -85,7 +85,7 @@ game:
       output_heart: 1
       max_output: 5
       conversion_ticks: 1
-      cooldown: ${uniform:1, 20, 10}
+      cooldown: 1
       initial_items: 1
 
     mine.red:
@@ -94,7 +94,7 @@ game:
       color: 0
       max_output: 5
       conversion_ticks: 1
-      cooldown: ${uniform:0, 100, 50}
+      cooldown: 1
       initial_items: 1
 
     generator.red:
@@ -104,7 +104,7 @@ game:
       color: 0
       max_output: 5
       conversion_ticks: 1
-      cooldown: ${uniform:0, 50, 25}
+      cooldown: 1
       initial_items: 1
 
 
