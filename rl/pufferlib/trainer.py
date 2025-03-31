@@ -374,7 +374,7 @@ class PufferTrainer:
                         r += e3b_reward
 
                     # Clip rewards
-                    r = torch.clamp(r, -1, 1)
+                    # r = torch.clamp(r, -1, 1)
 
                     if config.device == 'cuda':
                         torch.cuda.synchronize()
@@ -529,8 +529,8 @@ class PufferTrainer:
 
                 with data.amp_context:
                     with profile.train_forward:
-                        if not hasattr(data.policy, 'recurrent'):
-                            obs = obs.reshape(-1, *data.vecenv.single_observation_space.shape)
+                        #if not hasattr(data.policy, 'recurrent'):
+                        #    obs = obs.reshape(-1, *data.vecenv.single_observation_space.shape)
 
                         logits, newvalue = data.policy.forward_train(obs, state)
                         lstm_h = state.lstm_h
