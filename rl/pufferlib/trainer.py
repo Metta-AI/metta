@@ -374,7 +374,8 @@ class PufferTrainer:
                         r += e3b_reward
 
                     # Clip rewards
-                    # r = torch.clamp(r, -1, 1)
+                    if train_cfg.clip_reward:
+                        r = torch.clamp(r, -1, 1)
 
                     if config.device == 'cuda':
                         torch.cuda.synchronize()
