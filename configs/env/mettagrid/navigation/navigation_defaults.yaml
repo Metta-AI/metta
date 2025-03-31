@@ -130,7 +130,7 @@ game:
     attack:
       enabled: false
     swap:
-      enabled: true
+      enabled: false
     change_color:
       enabled: false
 
