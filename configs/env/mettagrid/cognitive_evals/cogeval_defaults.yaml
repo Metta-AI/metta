@@ -6,7 +6,7 @@ normalize_rewards: false
 semi_compact_obs: true
 track_last_action: false
 
-sampling: 1
+sampling: 0
 
 hidden_features:
   grid_obs: [
@@ -16,10 +16,10 @@ hidden_features:
 
 game:
   num_agents: ???
-  max_steps: 1000
-  tile_size: 16
   obs_width: 11
   obs_height: 11
+  max_steps: 1000
+  tile_size: 16
   no_energy_steps: 500
 
   agent:
@@ -30,11 +30,12 @@ game:
     rewards:
       # action_failure_penalty: 0.00001
       action_failure_penalty: 0
-      ore: 0.005
-      ore_max: 2
+      ore.red: 0.005
+      ore.blue: 0
+      ore.green: 0.005
       battery: 0.01
-      battery_max: 2
-      heart: 1
+      battery_max: 5
+      heart: 3
       heart_max: 1000
 
   groups:
@@ -83,53 +84,107 @@ game:
       input_battery: 3
       output_heart: 1
       max_output: 5
-      cooldown: ${uniform:1, 20, 10}
+      conversion_ticks: 1
+      cooldown: 1
+      initial_items: 1
 
     mine.red:
       hp: 30
       output_ore.red: 1
+      color: 0
       max_output: 5
-      cooldown: ${uniform:0, 100, 50}
+      conversion_ticks: 1
+      cooldown: 1
+      initial_items: 1
+
+    mine.blue:
+      hp: 30
+      color: 1
+      output_ore.blue: 1
+      max_output: 5
+      conversion_ticks: 1
+      cooldown: 1
+      initial_items: 1
+
+    mine.green:
+      hp: 30
+      output_ore.green: 1
+      color: 2
+      max_output: 5
+      conversion_ticks: 1
+      cooldown: 1
+      initial_items: 1
 
     generator.red:
       hp: 30
       input_ore.red: 1
       output_battery: 1
+      color: 0
       max_output: 5
-      cooldown: ${uniform:0, 50, 25}
+      conversion_ticks: 1
+      cooldown: 1
+      initial_items: 1
+
+    generator.blue:
+      hp: 30
+      input_ore.blue: 1
+      output_battery: 1
+      color: 1
+      max_output: 5
+      conversion_ticks: 1
+      cooldown: 1
+      initial_items: 1
+
+    generator.green:
+      hp: 30
+      input_ore.green: 1
+      output_battery: 1
+      color: 2
+      max_output: 5
+      conversion_ticks: 1
+      cooldown: 1
+      initial_items: 1
 
     armory:
       hp: 30
-      input_ore.red: 3
+      input_ore: 3
       output_armor: 1
       max_output: 5
-      cooldown: ${uniform:0, 20, 10}
+      conversion_ticks: 1
+      cooldown: 1
+      initial_items: 1
 
     lasery:
       hp: 30
-      input_ore.red: 1
+      input_ore: 1
       input_battery: 2
       output_laser: 1
       max_output: 5
-      cooldown: ${uniform:0, 20, 10}
+      conversion_ticks: 1
+      cooldown: 1
+      initial_items: 1
 
     lab:
       hp: 30
-      input_ore.red: 3
+      input_ore: 3
       input_battery: 3
       output_blueprint: 1
       max_output: 5
-      cooldown: ${uniform:0, 10, 5}
+      conversion_ticks: 1
+      cooldown: 1
+      initial_items: 1
 
     factory:
       hp: 30
       input_blueprint: 1
-      input_ore.red: 5
+      input_ore: 5
       input_battery: 5
       output_armor: 5
       output_laser: 5
       max_output: 5
-      cooldown: ${uniform:0, 10, 5}
+      conversion_ticks: 1
+      cooldown: 1
+      initial_items: 1
 
     temple:
       hp: 30
@@ -137,10 +192,17 @@ game:
       input_blueprint: 1
       output_heart: 5
       max_output: 5
-      cooldown: ${uniform:0, 10, 5}
+      conversion_ticks: 1
+      cooldown: 1
+      initial_items: 1
 
     wall:
       hp: ${uniform:1, 20, 10}
+      swappable: false
+
+    block:
+      hp: ${uniform:1, 20, 10}
+      swappable: true
 
   actions:
     noop:
