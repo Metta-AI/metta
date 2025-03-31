@@ -13,16 +13,16 @@ game:
 
     room:
       _target_: mettagrid.config.room.random.Random
-      width: ${uniform:40,60,40}
-      height: ${uniform:40,60,40}
+      width: ${uniform:25,60,30}
+      height: ${uniform:25,60,30}
       border_width: ${uniform:1,6,3}
 
       agents: 1
 
       objects:
-        mine: ${uniform:30,100,30}
-        generator: ${uniform:30,100,30}
-        altar: ${uniform:30,100,30}
+        mine: ${uniform:30,60,30}
+        generator: ${uniform:30,60,30}
+        altar: ${uniform:30,60,30}
 
 
   objects:

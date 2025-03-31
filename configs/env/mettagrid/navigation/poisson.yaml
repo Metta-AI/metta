@@ -4,7 +4,7 @@ defaults:
 
 game:
   num_agents: 4
-  max_steps: ${uniform:100,400,100}
+  max_steps: ${uniform:400,600,500}
 
   map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom
