@@ -9,11 +9,15 @@ evals:
   simple:
     env: env/mettagrid/simple
     policy_agents_pct: 1.0
-
-  school:
-    env: env/mettagrid/school
+  cylinder:
+    env: env/mettagrid/cognitive_evals/cylinder
     policy_agents_pct: 1.0
-
-  teams:
-    env: env/mettagrid/teams
+  radial_maze:
+    env: env/mettagrid/cognitive_evals/radial_maze
+    policy_agents_pct: 1.0
+  navigating_obstacles:
+    env: env/mettagrid/cognitive_evals/navigating_obstacles
+    policy_agents_pct: 1.0
+  short_term_memory:
+    env: env/mettagrid/cognitive_evals/short_term_memory
     policy_agents_pct: 1.0
