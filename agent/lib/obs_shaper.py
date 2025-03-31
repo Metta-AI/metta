@@ -33,6 +33,7 @@ class ObsShaper(LayerBase):
         else:
             x = x.permute(0, 3, 1, 2)
 
+        td["_batch_size_"] = B
         td[self._name] = x
         return td
 

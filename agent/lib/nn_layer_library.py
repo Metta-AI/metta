@@ -27,6 +27,12 @@ class Bilinear(LayerBase):
             **self._nn_params
         )
     
+    def _forward(self, td: TensorDict):
+        input_1 = td[self._input_source[0]]
+        input_2 = td[self._input_source[1]]
+        td[self._name] = self._net(input_1, input_2)
+        return td
+    
 class Embedding(LayerBase):
     def __init__(self, **cfg):
         super().__init__(**cfg)

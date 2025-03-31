@@ -166,3 +166,37 @@ components:
       - actor_1
       - _action_param_embeds_
     nonlinearity: null
+
+
+  embed_expanded:
+    _target_: agent.lib.merge_layer.ExpandLayer
+    expand_dim: 0 # never put a batch dim in the expand_dim since batch size changes
+    expand_value: 1 # only use this if there isn't a dims_source
+    input_dim: 0
+    input_source: embeds # the tensor to expand
+    dims_source: obs_shaper # the tensor to use to determine the size of the expanded dimension
+
+  focus_expanded:
+    _target_: agent.lib.merge_layer.ExpandLayer
+    expand_dim: 1 # never put a batch dim in the expand_dim since batch size changes
+    expand_value: 0 # only use this if there isn't a dims_source
+    input_dim: 0
+    input_source: focus # the tensor to expand
+    dims_source: embeds # the tensor to use to determine the size of the expanded dimension
+
+  focus_compressed:
+    _target_: agent.lib.merge_layer.CompressLayer # combines the two dims into the squeezed_dim
+    squeezed_dim: 0
+    popped_dim: 1
+    input_source: focus_expanded
+
+  embed_compressed:
+    _target_: agent.lib.merge_layer.CompressLayer # combines the two dims into the squeezed_dim
+    squeezed_dim: 0
+    popped_dim: 1
+    input_source: embed_expanded
+
+
+
+
+
