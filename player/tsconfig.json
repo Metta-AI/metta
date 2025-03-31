@@ -1,0 +1,11 @@
+{
+  "compilerOptions": {
+    "target": "es6",        // Target ES6 for modern browsers.
+    "module": "es6",        // Use ES6 module system.
+    "outDir": "./dist",     // Output directory for compiled files.
+    "strict": true,         // Enable strict type-checking options.
+    "esModuleInterop": true, // Enable interoperability between CommonJS and ES6 modules.
+    "sourceMap": true       // Enable source map generation.
+  },
+  "include": ["src"]        // Include the source directory.
+}
