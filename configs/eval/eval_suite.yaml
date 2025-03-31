@@ -7,7 +7,7 @@ env: null #the env is set in evals:
 
 evals:
   simple:
-    env: env/mettagrid/simple
+    env: env/mettagrid/navigation/poisson
     policy_agents_pct: 1.0
   cylinder:
     env: env/mettagrid/cognitive_evals/cylinder
