@@ -36,18 +36,41 @@ def entropy(logits):
     return -p_log_p.sum(-1)
 
 
-def sample_logits(logits: Union[torch.Tensor, List[torch.Tensor]], action=None):
-    """
-    Sample actions from logits and compute log probabilities and entropy.
+# def sample_logits(logits: Union[torch.Tensor, List[torch.Tensor]], action=None):
+#     """
+#     Sample actions from logits and compute log probabilities and entropy.
     
-    Args:
-        logits: Unnormalized log probabilities, either a single tensor or a list of tensors
-        action: Optional pre-specified actions to compute probabilities for
+#     Args:
+#         logits: Unnormalized log probabilities, either a single tensor or a list of tensors
+#         action: Optional pre-specified actions to compute probabilities for
         
-    Returns:
-        Tuple of (action, log_probability, entropy, normalized_logits)
-    """
-    normalized_logits = [l - l.logsumexp(dim=-1, keepdim=True) for l in logits]
+#     Returns:
+#         Tuple of (action, log_probability, entropy, normalized_logits)
+#     """
+#     normalized_logits = [l - l.logsumexp(dim=-1, keepdim=True) for l in logits]
+
+#     if action is None:
+#         action = torch.stack([torch.multinomial(logits_to_probs(l), 1).squeeze() for l in logits])
+#     else:
+#         batch = logits[0].shape[0]
+#         action = action.view(batch, -1).T
+
+#     assert len(logits) == len(action)
+
+#     logprob = torch.stack([log_prob(l, a) for l, a in zip(normalized_logits, action)]).T.sum(1)
+#     logits_entropy = torch.stack([entropy(l) for l in normalized_logits]).T.sum(1)
+
+#     return action.T, logprob, logits_entropy, normalized_logits 
+
+def sample_logits(logits: Union[torch.Tensor, List[torch.Tensor]],
+        action=None):
+    is_discrete = False
+    if isinstance(logits, torch.Tensor):
+        normalized_logits = [logits - logits.logsumexp(dim=-1, keepdim=True)]
+        logits = [logits]
+        is_discrete = True
+    else: 
+        normalized_logits = [l - l.logsumexp(dim=-1, keepdim=True) for l in logits]
 
     if action is None:
         action = torch.stack([torch.multinomial(logits_to_probs(l), 1).squeeze() for l in logits])
@@ -56,8 +79,10 @@ def sample_logits(logits: Union[torch.Tensor, List[torch.Tensor]], action=None):
         action = action.view(batch, -1).T
 
     assert len(logits) == len(action)
-
     logprob = torch.stack([log_prob(l, a) for l, a in zip(normalized_logits, action)]).T.sum(1)
     logits_entropy = torch.stack([entropy(l) for l in normalized_logits]).T.sum(1)
 
-    return action.T, logprob, logits_entropy, normalized_logits 
+    if is_discrete:
+        return action.squeeze(0), logprob.squeeze(0), logits_entropy.squeeze(0)
+
+    return action.T, logprob, logits_entropy, normalized_logits

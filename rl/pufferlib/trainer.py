@@ -104,8 +104,9 @@ class PufferTrainer:
         self.policy_record = policy_record
         self.uncompiled_policy = self.policy
 
-        self.policy.embed_action_type(self.vecenv.driver_env.action_names())
-        self.policy.embed_action_param(['a', 'b', 'c'])
+        actions_names = self.vecenv.driver_env.action_names()
+        actions_max_params = self.vecenv.driver_env.c_env.max_action_args()
+        self.policy.activate_actions(actions_names, actions_max_params)
 
         if self.trainer_cfg.compile:
             logger.info("Compiling policy")

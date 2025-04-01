@@ -62,12 +62,20 @@ class ActionEmbedding(nn_layer_library.Embedding):
 
     # see if there is a way to make unused embeddings orthogonal to the used ones
 
-    def embed_strings(self, string_list):
+    def embed_strings(self, actions_list):
         # each time we run this, we update the metta_agent object's (the policy's) known action strings and associated indices
+
+        # convert the actions_dict into a list of strings
+        string_list = []
+        for action_name, max_arg_count in actions_list:
+            for i in range(max_arg_count):
+                string_list.append(f"{action_name}_{i}")
+
+        # for each action string, if it's not already in the reserved_action_embeds, add it and give it an index
         for action_type in string_list:
             if action_type not in self._reserved_action_embeds:
                 embedding_index = len(self._reserved_action_embeds) + 1 # generate index for this string
-                self._reserved_action_embeds[action_type] = embedding_index # update the component's known embeddings
+                self._reserved_action_embeds[action_type] = embedding_index # update this component's known embeddings
 
         self.active_indices = torch.tensor([
             self._reserved_action_embeds[name]
@@ -86,7 +94,13 @@ class ActionHash(metta_layer.LayerBase):
         self._out_tensor_shape = [embedding_dim]
         self.num_actions = 0 # to be updated at runtime by the size of the embedding
 
-    def embed_strings(self, string_list):
+    def embed_strings(self, actions_list):
+        # convert the actions_dict into a list of strings
+        string_list = []
+        for action_name, max_arg_count in actions_list:
+            for i in range(max_arg_count):
+                string_list.append(f"{action_name}_{i}")
+
         self.action_embeddings = torch.tensor([
             self.embed_string(s)
             for s in string_list

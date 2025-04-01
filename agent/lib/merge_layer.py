@@ -162,12 +162,12 @@ class MeanMergeLayer(MergeLayerBase):
 class ExpandLayer(LayerBase):
     '''Expand a tensor along a specified dimension by either a given value (expand_value)
       or a value from another tensor (dims_source and input_dim).'''
-    def __init__(self, name, expand_dim, input_source, expand_value=None, input_dim=None, dims_source=None, **cfg):
+    def __init__(self, name, expand_dim, input_source, expand_value=None, source_dim=None, dims_source=None, **cfg):
         self._ready = False
         self.expand_dim = expand_dim
         self.input_source = input_source
         self.expand_value = expand_value
-        self.input_dim = input_dim
+        self.source_dim = source_dim
         if dims_source is not None:
             self.dims_source = dims_source
             self.input_source = [input_source, dims_source]
@@ -185,7 +185,7 @@ class ExpandLayer(LayerBase):
         self._out_tensor_shape = self.input_source_components[self.input_source[0]]._out_tensor_shape
 
         if self.dims_source is not None:
-            expanded_size = self.input_source_components[self.dims_source]._out_tensor_shape[self.input_dim] 
+            expanded_size = self.input_source_components[self.dims_source]._out_tensor_shape[self.source_dim] 
             self._out_tensor_shape.insert(self.expand_dim, expanded_size)
         else:
             self._out_tensor_shape.insert(self.expand_dim, self.expand_value)
@@ -194,7 +194,7 @@ class ExpandLayer(LayerBase):
         tensor = td[self.input_source[0]]
 
         if self.dims_source is not None:
-            self.expand_value = td[self.dims_source].size(self.input_dim)
+            self.expand_value = td[self.dims_source].size(self.source_dim)
 
         expanded = tensor.unsqueeze(self.expand_dim)
         expand_shape = [-1] * expanded.dim()
@@ -204,7 +204,7 @@ class ExpandLayer(LayerBase):
         td[self._name] = tensor
         return td
 
-class CompressLayer(LayerBase):
+class ReshapeLayer(LayerBase):
     '''Multiply two of the dims together, squeezing them into the squeezed_dim.'''
     def __init__(self, name, popped_dim, squeezed_dim, input_source, **cfg):
         self._ready = False
