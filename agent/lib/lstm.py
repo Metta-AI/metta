@@ -19,7 +19,7 @@ class LSTM(LayerBase):
 
     def _make_net(self):
         net = nn.LSTM(
-            self._input_size,
+            self._in_tensor_shape[0],
             self.hidden_size,
             **self._nn_params
         )

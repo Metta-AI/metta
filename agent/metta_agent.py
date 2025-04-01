@@ -6,10 +6,12 @@ import hydra
 import numpy as np
 import torch
 from omegaconf import OmegaConf
+import omegaconf
 from pufferlib.environment import PufferEnv
 from tensordict import TensorDict
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
+
 
 from agent.util.distribution_utils import sample_logits
 
@@ -31,6 +33,10 @@ def make_policy(env: PufferEnv, cfg: OmegaConf):
         grid_features=env.grid_features,
         global_features=env.global_features,
         device=cfg.device,
+        obs_width=11,
+        obs_height=11, # TODO: remove hardcoded values
+        # obs_width=cfg.env.game.obs_width,
+        # obs_height=cfg.env.game.obs_height,
         _recursive_=False)
 
 class DistributedMettaAgent(DistributedDataParallel):
@@ -69,12 +75,8 @@ class MettaAgent(nn.Module):
             'obs_input_shape': obs_space[cfg.observations.obs_key].shape[1:],
             'num_objects': obs_space[cfg.observations.obs_key].shape[2], # this is hardcoded for channel # at end of tuple
             'hidden_size': self.hidden_size,
-            'core_num_layers': self.core_num_layers
+            'core_num_layers': self.core_num_layers,
         }
-
-        agent_attributes['action_type_size'] = action_space.nvec[0]
-        agent_attributes['action_param_size'] = action_space.nvec[1]
-
         # self.observation_space = obs_space # for use with FeatureSetEncoder
         # self.global_features = global_features # for use with FeatureSetEncoder
 
@@ -87,10 +89,11 @@ class MettaAgent(nn.Module):
 
         component = self.components['_value_']
         self._setup_components(component)
-        component = self.components['_action_type_']
+        component = self.components['_action_']
         self._setup_components(component)
-        component = self.components['_action_param_']
-        self._setup_components(component)
+
+        # component = self.components['_action_param_']
+        # self._setup_components(component)
 
         for name, component in self.components.items():
             if not getattr(component, 'ready', False):
@@ -103,22 +106,63 @@ class MettaAgent(nn.Module):
 
     def _setup_components(self, component):
         if component._input_source is not None:
-            if isinstance(component._input_source, str):
-                self._setup_components(self.components[component._input_source])
-            elif isinstance(component._input_source, list):
+            if isinstance(component._input_source, list):
                 for input_source in component._input_source:
                     self._setup_components(self.components[input_source])
+            elif isinstance(component._input_source, omegaconf.listconfig.ListConfig):
+                component._input_source = list(component._input_source)
+                for input_source in component._input_source:
+                    self._setup_components(self.components[input_source])
+            else:
+                self._setup_components(self.components[component._input_source])
 
         if component._input_source is not None:
+            # path 1
             if isinstance(component._input_source, str):
                 component.setup(self.components[component._input_source])
             elif isinstance(component._input_source, list):
                 input_source_components = {}
-                for input_source in component._input_source:
-                    input_source_components[input_source] = self.components[input_source]
+                for name in component._input_source:
+                    input_source_components[name] = self.components[name]
                 component.setup(input_source_components)
+
+            # path 2
+            # if isinstance(component._input_source, list):
+            #     input_source_components = {}
+            #     for name in component._input_source:
+            #         input_source_components[name] = self.components[name]
+            #     component.setup(input_source_components)
+            # else:
+            #     component.setup(self.components[component._input_source])
         else:
             component.setup()
+
+        # delete this after testing
+        print((
+            f"Component: {component._name}, in name: {component._input_source}, "
+            f"in_size: {component._in_tensor_shape}, out_size: {component._out_tensor_shape}"
+        ))
+
+    def activate_actions(self, action_names, action_max_params):
+        '''Run this at the beginning of training.'''
+        self.active_actions = list(zip(action_names, action_max_params))
+        self.components['_action_'].activate_actions(self.active_actions)
+
+        self.action_index = [] # the list element number maps to the action type index
+        action_type_number = 0
+        for max_param in action_max_params:
+            for j in range(max_param+1):
+                self.action_index.append([action_type_number, j])
+            action_type_number += 1
+
+        
+
+
+    # def embed_action_type(self, action_type_names):
+    #     self.components['_action_type_embeds_'].embed_strings(action_type_names)
+
+    # def embed_action_param(self, action_param_names):
+    #     self.components['_action_param_embeds_'].embed_strings(action_param_names)
 
     @property
     def lstm(self):
@@ -155,7 +199,23 @@ class MettaAgent(nn.Module):
             state = (state[:split_size], state[split_size:])
 
         e3b, intrinsic_reward = self._e3b_update(td["_core_"].detach(), e3b)
-        action, logprob, entropy, normalized_logits = sample_logits(logits, action)
+
+        # convert action from a list of two elements to a single element
+        action_logit_index = None
+        if action is not None:
+            action_type_number = self.action_index[action[0]]
+            action_logit_index = torch.tensor(action_type_number * action[1])
+
+        action_logit_index, logprob, entropy, normalized_logits = sample_logits(logits, action_logit_index)
+
+        action = self.action_index[action_logit_index] # convert the logit index to the action type and param
+        action[0] = torch.tensor(action[0])
+        action[1] = torch.tensor(action[1])
+
+        # action, logprob, entropy, normalized_logits = sample_logits(logits, action)
+
+
+
 
         return action, logprob, entropy, value, state, e3b, intrinsic_reward, normalized_logits
 
