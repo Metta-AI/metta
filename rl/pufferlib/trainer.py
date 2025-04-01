@@ -534,6 +534,9 @@ class PufferTrainer:
         for k, v in self.trainer_cfg.stats.overview.items():
             if k in self.stats:
                 overview[v] = self.stats[k]
+            for r in self._policy_fitness:
+                if r["eval"] == "eval/short_term_memory":
+                    overview["short_term_memory_eval"] = r["baseline_mean"]
 
         environment = {
             f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v
