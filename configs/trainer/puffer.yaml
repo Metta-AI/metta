@@ -20,6 +20,7 @@ vf_clip_coef: 0.1
 vf_coef: 0.5
 l2_reg_loss_coef: 0
 l2_init_loss_coef: 0
+clip_reward: false
 
 adam_beta1: 0.9
 adam_beta2: 0.999
