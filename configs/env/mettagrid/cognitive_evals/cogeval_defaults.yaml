@@ -204,24 +204,6 @@ game:
       hp: ${uniform:1, 20, 10}
       swappable: true
 
-  actions:
-    noop:
-      enabled: true
-    move:
-      enabled: true
-    rotate:
-      enabled: true
-    put_items:
-      enabled: true
-    get_items:
-      enabled: true
-    attack:
-      enabled: false
-    swap:
-      enabled: true
-    change_color:
-      enabled: false
-
   reward_sharing:
     groups:
       team_1:
