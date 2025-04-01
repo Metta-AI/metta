@@ -3,7 +3,7 @@ defaults:
   - agent: simple
   - trainer: puffer
   - eval: eval_suite
-  - analyzer: train_analyzer
+  - analyzer: eval_analyzer
   - wandb
 
 seed: 1
