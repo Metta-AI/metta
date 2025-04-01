@@ -19,7 +19,7 @@ game:
 
       agents: 1
 
-      mean_distance: ${uniform:1,6,5}
+      mean_distance: ${uniform:5,15,5}
 # initial 1, 6, 5
 
       objects:
