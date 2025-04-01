@@ -13,13 +13,13 @@ game:
 
     room:
       _target_: mettagrid.config.room.poisson.Poisson
-      width: ${uniform:10,30,20}
-      height: ${uniform:10,30,20}
+      width: ${uniform:15,30,20}
+      height: ${uniform:15,30,20}
       border_width: ${uniform:1,9,3}
 
       agents: 1
 
-      mean_distance: ${uniform:5,15,5}
+      mean_distance: ${uniform:5,14,5}
 # initial 1, 6, 5
 
       objects:
