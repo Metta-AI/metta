@@ -534,9 +534,17 @@ class PufferTrainer:
         for k, v in self.trainer_cfg.stats.overview.items():
             if k in self.stats:
                 overview[v] = self.stats[k]
-            for r in self._policy_fitness:
-                if r["eval"] == "eval/short_term_memory":
-                    overview["short_term_memory_eval"] = r["baseline_mean"]
+
+        policy_score = []
+
+        for r in self._policy_fitness:
+            if r["metric"] == "episode_reward":
+                overview[r["eval"].split("/")[-1] + ":" + r["metric"]] = r["baseline_mean"]
+                policy_score.append(r["baseline_mean"])
+
+        policy_score = np.mean(policy_score)
+        self.policy_record.metadata["score"] = policy_score
+
 
         environment = {
             f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v
@@ -545,13 +553,15 @@ class PufferTrainer:
 
         policy_fitness_metrics = {
             f'pfs/{r["eval"].split("/")[-1]}:{r["metric"]}': r["fitness"]
-            for r in self._policy_fitness
+            for r in self._policy_fitness if not r["metric"] == "episode_reward"
         }
 
         eval_metrics = {
-            f'eval/{r["eval"]}:{r["metric"]}': r["baseline_mean"]
-            for r in self._policy_fitness
+            f'eval/{r["eval"].split("/")[-1]}:{r["metric"]}': r["baseline_mean"]
+            for r in self._policy_fitness if not r["metric"] == "episode_reward"
         }
+
+
 
         effective_rank_metrics = {
             f'train/effective_rank/{rank["name"]}': rank["effective_rank"]
