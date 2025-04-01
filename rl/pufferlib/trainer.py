@@ -541,7 +541,7 @@ class PufferTrainer:
         }
 
         policy_fitness_metrics = {
-            f'pfs/{r["eval"]}:{r["metric"]}': r["fitness"]
+            f'pfs/{r["eval"].split("/")[-1]}:{r["metric"]}': r["fitness"]
             for r in self._policy_fitness
         }
 
