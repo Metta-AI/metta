@@ -535,16 +535,8 @@ class PufferTrainer:
             if k in self.stats:
                 overview[v] = self.stats[k]
 
-        policy_score = []
-
-        for r in self._policy_fitness:
-            if r["metric"] == "episode_reward":
-                overview[r["eval"].split("/")[-1] + ":" + r["metric"]] = r["baseline_mean"]
-                policy_score.append(r["baseline_mean"])
-
-        policy_score = np.mean(policy_score)
+        policy_score = np.mean([r["baseline_mean"] for r in self._policy_fitness if r["metric"] == "episode_reward"])
         self.policy_record.metadata["score"] = policy_score
-
 
         environment = {
             f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v
@@ -553,15 +545,13 @@ class PufferTrainer:
 
         policy_fitness_metrics = {
             f'pfs/{r["eval"].split("/")[-1]}:{r["metric"]}': r["fitness"]
-            for r in self._policy_fitness if not r["metric"] == "episode_reward"
+            for r in self._policy_fitness
         }
 
         eval_metrics = {
             f'eval/{r["eval"].split("/")[-1]}:{r["metric"]}': r["baseline_mean"]
-            for r in self._policy_fitness if not r["metric"] == "episode_reward"
+            for r in self._policy_fitness
         }
-
-
 
         effective_rank_metrics = {
             f'train/effective_rank/{rank["name"]}': rank["effective_rank"]
