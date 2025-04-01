@@ -7,7 +7,7 @@ defaults:
   - override /agent: simple
   - override /sweep: fast
   - override /eval: eval_suite
-  - override /analyzer: train_analyzer
+  - override /analyzer: eval_analyzer
 
 policy_uri: wandb://run/alex.trainee.002
 npc_policy_uri: null

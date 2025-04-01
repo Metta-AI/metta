@@ -129,11 +129,13 @@ class EvalStatsAnalyzer:
 
         for eval in evals:
             if len(evals) == 1:
-                candidate_mean = metric_data.loc[candidate_uri][metric_mean]
-                baseline_mean = np.mean(metric_data.loc[baseline_policies][metric_mean])
+                candidate_mean = metric_data.loc[candidate_uri][metric_mean] or 0
+                baseline_mean = np.mean(metric_data.loc[baseline_policies][metric_mean]) or 0
             else:
-                candidate_mean = candidate_data.loc[eval][metric_mean]
-                baseline_mean = np.mean(baseline_data.loc[eval][metric_mean])
+                candidate_mean = candidate_data.loc[eval][metric_mean] or 0
+                baseline_mean = np.mean(baseline_data.loc[eval][metric_mean]) or 0
+
             fitness = candidate_mean - baseline_mean
+
             policy_fitness.append({"eval": eval, "metric": metric_name, "candidate_mean": candidate_mean, "baseline_mean": baseline_mean, "fitness": fitness})
         return policy_fitness
