@@ -491,6 +491,7 @@ class PufferTrainer:
                 "generation": generation,
                 "initial_uri": self._initial_pr.uri,
                 "train_time": time.time() - self.train_start,
+                "score": self.current_eval_score,
             }
         )
         # this is hacky, but otherwise the initial_pr points
@@ -535,8 +536,7 @@ class PufferTrainer:
             if k in self.stats:
                 overview[v] = self.stats[k]
 
-        policy_score = np.mean([r["baseline_mean"] for r in self._policy_fitness if r["metric"] == "episode_reward"])
-        self.policy_record.metadata["score"] = policy_score
+        self.current_eval_score = np.mean([r["baseline_mean"] for r in self._policy_fitness if r["metric"] == "episode_reward"])
 
         environment = {
             f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v
