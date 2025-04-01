@@ -309,7 +309,7 @@ sso_role_name = PowerUserAccess
 region = us-east-1
 
 [sso-session stem-sso]
-sso_start_url = https://stemai.awsapps.com/start/
+sso_start_url = https://softmaxx.awsapps.com/start/
 sso_region = us-east-1
 sso_registration_scopes = sso:account:access
 """)
