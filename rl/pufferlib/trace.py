@@ -67,12 +67,13 @@ def nice_actions(env, action):
 
 def save_trace_image(
     cfg: OmegaConf,
+    env_cfg: OmegaConf,
     policy_record: PolicyRecord,
     output_path: str
 ):
     """ Trace a policy and generate a jsonl file """
 
-    simulator = Simulator(cfg, policy_record)
+    simulator = Simulator(cfg, env_cfg, policy_record)
 
     steps = []
     actions_names = simulator.env.action_names()
@@ -197,12 +198,13 @@ def add_sequence_key(grid_object, key, step, value):
 
 def save_replay(
     cfg: OmegaConf,
+    env_cfg: OmegaConf,
     policy_record: PolicyRecord,
     output_path: str
 ):
     """ Trace a policy and generate a replay file """
 
-    simulator = Simulator(cfg, policy_record)
+    simulator = Simulator(cfg, env_cfg, policy_record)
 
     grid_objects = []
 

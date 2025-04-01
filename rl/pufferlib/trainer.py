@@ -21,7 +21,7 @@ from rl.eval.eval_stats_logger import EvalStatsLogger
 from rl.pufferlib.experience import Experience
 from rl.pufferlib.kickstarter import Kickstarter
 from rl.pufferlib.profile import Profile
-from rl.pufferlib.trace import save_trace_image
+from rl.pufferlib.trace import save_trace_image, save_replay
 from rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
 from rl.pufferlib.vecenv import make_vecenv
 
@@ -174,7 +174,9 @@ class PufferTrainer:
                 self._update_l2_init_weight_copy()
             if (self.trainer_cfg.trace_interval != 0 and
                 self.epoch % self.trainer_cfg.trace_interval == 0):
-                self._save_trace_to_wandb()
+                #self._save_trace_to_wandb()
+                print("Saving replay to wandb")
+                self._save_replay_to_wandb()
 
             self._on_train_step()
 
@@ -515,6 +517,48 @@ class PufferTrainer:
         save_trace_image(self.cfg, self.last_pr, image_path)
         if self._master:
             wandb.log({"traces/actions": wandb.Image(image_path)})
+
+    def _save_replay_to_wandb(self):
+        replay_path = f"{self.cfg.run_dir}/replays/replay.{self.epoch}.json.z"
+        save_replay(self.cfg, self._env_cfg, self.last_pr, replay_path)
+        if self._master:
+            print("Saving replay file to wandb")
+
+            # # Method 1: Use wandb Artifacts (good for versioning and organizing)
+            # artifact = wandb.Artifact(f"replay-{self.epoch}", type="replay")
+            # artifact.add_file(replay_path)
+            # self.wandb_run.log_artifact(artifact)
+
+            # Method 2: Direct file save (appears in Files panel)
+            # Save to wandb directly to make it visible in Files panel
+            wandb.save(replay_path, base_path=self.cfg.run_dir)
+
+            # # Also log a summary to make it more visible in the UI
+            artifact_name = f"replay-{self.epoch}:latest"
+            # replay_summary = {
+            #     "replays/epoch": self.epoch,
+            #     "replays/path": replay_path,
+            #     "replays/artifact": artifact_name
+            # }
+            # wandb.log(replay_summary)
+
+            # Log the link to WandB
+
+            player_url = f"https://metta-ai.github.io/mettagrid/?replayUrl=" + \
+                f"https://api.wandb.ai/files/metta-research/metta/{self.cfg.run}/replays/replay.{self.epoch}.json.z"
+            link_summary = {
+                #"player/epoch": self.epoch,
+                # WandB will render this as a clickable link in the UI
+                "replays/link": wandb.Html(
+                    f'<a href="{player_url}" target="_blank">'
+                    f'MetaScope Replay (Epoch {self.epoch})'
+                    '</a>'
+                )
+            }
+            wandb.log(link_summary)
+
+            print(f"Saved replay file to wandb (artifact: {artifact_name}, direct file: {replay_path})")
+
 
     def _process_stats(self):
         for k in list(self.stats.keys()):

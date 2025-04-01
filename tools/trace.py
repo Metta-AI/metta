@@ -17,20 +17,20 @@ def main(cfg):
 
     setup_metta_environment(cfg)
 
-    cfg.env = config_from_path(cfg.env, cfg.env_overrides)
+    env_cfg = config_from_path(cfg.env, cfg.env_overrides)
 
     with WandbContext(cfg) as wandb_run:
         policy_store = PolicyStore(cfg, wandb_run)
         policy_record = policy_store.policy(cfg.policy_uri)
 
         image_path = f"{cfg.run_dir}/traces/trace.png"
-        save_trace_image(cfg, policy_record, image_path)
+        save_trace_image(cfg, env_cfg, policy_record, image_path)
         if platform.system() == "Darwin":
             # Open image in Preview.
             subprocess.run(["open", image_path])
 
         replay_path = f"{cfg.run_dir}/replays/replay.json"
-        save_replay(cfg, policy_record, replay_path)
+        save_replay(cfg, env_cfg, policy_record, replay_path)
 
 if __name__ == "__main__":
     main()
