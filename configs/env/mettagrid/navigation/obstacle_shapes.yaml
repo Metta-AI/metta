@@ -1,0 +1,34 @@
+defaults:
+  - navigation_defaults
+
+game:
+  num_agents: 4
+
+  map_builder:
+    _target_: mettagrid.config.room.multi_room.MultiRoom
+    num_rooms: 4
+    border_width: 6
+
+    room:
+      _target_: mettagrid.config.room.obstacle_shapes.ObstacleShapes
+      width: !!int ${uniform:25,60,30}
+      height: !!int ${uniform:25,60,30}
+      border_width: !!int ${uniform:1,6,3}
+      agents: 1
+      objects:
+        mine: !!int ${uniform:30,60,30}
+        generator: !!int ${uniform:30,60,30}
+        altar: !!int ${uniform:30,60,30}
+      density: !!float ${uniform:0.3,0.7,0.5}
+      wall_cluster_density: !!float ${uniform:0.05,0.2,0.1}
+
+  objects:
+    mine.red:
+      max_output: 1
+      cooldown: 1000
+    generator.red:
+      max_output: 1
+      cooldown: 1000
+    altar.red:
+      max_output: 1
+      cooldown: 1000
