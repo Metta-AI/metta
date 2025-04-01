@@ -3,7 +3,7 @@ defaults:
   - wandb
   - agent: simple
   - eval: eval
-  - analyzer: train_analyzer
+  - analyzer: eval_analyzer
   - trainer: puffer
 
 cmd: sweep
