@@ -9,7 +9,7 @@ use_e3b: false
 total_timesteps: 50_000_000_000
 
 clip_coef: 0.1
-ent_coef: 0.002
+ent_coef: 0.1
 gae_lambda: 0.9
 gamma: 0.97
 learning_rate: 0.0006
