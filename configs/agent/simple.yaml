@@ -13,7 +13,7 @@ observations:
   track_last_action: false
 
 clip_range: 0 # set to 0 to disable clipping
-effective_rank_interval: 10
+effective_rank_interval: 1
 l2_init_weight_update_interval: 0
 
 components:
@@ -68,6 +68,7 @@ components:
     _target_: agent.lib.nn_layer_library.Linear
     input_source: _core_
     output_size: 1024
+    effective_rank: true
 
   _value_:
     _target_: agent.lib.nn_layer_library.Linear
@@ -79,6 +80,7 @@ components:
     _target_: agent.lib.nn_layer_library.Linear
     input_source: _core_
     output_size: 512
+    effective_rank: true
 
   _action_type_:
     _target_: agent.lib.action.ActionType

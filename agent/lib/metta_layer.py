@@ -4,6 +4,8 @@ from torch import nn
 import torch
 import numpy as np
 
+from agent.util.eigen import analyze_eigen
+
 class LayerBase(nn.Module):
     '''The base class for components that make up the Metta agent. All components
     are required to have a name and an input source, although the input source
@@ -90,7 +92,7 @@ class LayerBase(nn.Module):
         pass
     def update_l2_init_weight_copy(self):
         pass
-    def effective_rank(self, delta: float = 0.01) -> dict:
+    def compute_effective_rank(self, delta: float = 0.01) -> dict:
         pass
 
 class ParamLayer(LayerBase):
