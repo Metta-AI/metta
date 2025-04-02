@@ -73,6 +73,7 @@ def main(cfg: OmegaConf) -> int:
             cfg.eval,
             policy_store,
             policy_pr,
+            cfg.get("run_id", wandb_run.id),
             cfg_recursive_=False
         )
 
