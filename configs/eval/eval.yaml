@@ -15,4 +15,4 @@ max_time_s: 60
 
 name: null
 eval_db_uri: ${eval_db_uri}
-selector_type: latest #evaluate the latest version of the policy. For all versions, use "all"
+selector_type: top #evaluate the best version of the policy. For all versions, use "all"

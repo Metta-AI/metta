@@ -61,6 +61,7 @@ class PufferTrainer:
         self.use_e3b = self.trainer_cfg.use_e3b
         self.eval_stats_logger = EvalStatsLogger(cfg, self._env_cfg)
         self.average_reward = 0.0  # Initialize average reward estimate
+        self._current_eval_score = 0.0
         self._policy_fitness = []
         self._effective_rank = []
         self._make_vecenv()
@@ -206,6 +207,7 @@ class PufferTrainer:
         analyzer = hydra.utils.instantiate(self.cfg.analyzer, eval_stats_db)
         _, policy_fitness_records = analyzer.analyze()
         self._policy_fitness = policy_fitness_records
+        self._current_eval_score = np.mean([r["baseline_mean"] for r in self._policy_fitness if r["metric"] == "episode_reward"])
 
 
     def _update_l2_init_weight_copy(self):
@@ -491,6 +493,7 @@ class PufferTrainer:
                 "generation": generation,
                 "initial_uri": self._initial_pr.uri,
                 "train_time": time.time() - self.train_start,
+                "score": self._current_eval_score,
             }
         )
         # this is hacky, but otherwise the initial_pr points
@@ -541,12 +544,12 @@ class PufferTrainer:
         }
 
         policy_fitness_metrics = {
-            f'pfs/{r["eval"]}:{r["metric"]}': r["fitness"]
+            f'pfs/{r["eval"].split("/")[-1]}:{r["metric"]}': r["fitness"]
             for r in self._policy_fitness
         }
 
         eval_metrics = {
-            f'eval/{r["eval"]}:{r["metric"]}': r["baseline_mean"]
+            f'eval/{r["eval"].split("/")[-1]}:{r["metric"]}': r["baseline_mean"]
             for r in self._policy_fitness
         }
 
