@@ -165,13 +165,12 @@ class ExpandLayer(LayerBase):
     def __init__(self, name, expand_dim, input_source, expand_value=None, source_dim=None, dims_source=None, **cfg):
         self._ready = False
         self.expand_dim = expand_dim
-        self.input_source = input_source
         self.expand_value = expand_value
         self.source_dim = source_dim
+        super().__init__(name, **cfg)
         if dims_source is not None:
             self.dims_source = dims_source
-            self.input_source = [input_source, dims_source]
-        super().__init__(name, **cfg)
+            self._input_source = [input_source, dims_source]
 
     @property
     def ready(self):
@@ -182,16 +181,24 @@ class ExpandLayer(LayerBase):
             return
 
         self.input_source_components = input_source_components
-        self._out_tensor_shape = self.input_source_components[self.input_source[0]]._out_tensor_shape
+        if isinstance(self._input_source, list):
+            self._out_tensor_shape = next(iter(self.input_source_components.values()))._out_tensor_shape
+        else:
+            self._out_tensor_shape = self.input_source_components[self._input_source]._out_tensor_shape
 
         if self.dims_source is not None:
-            expanded_size = self.input_source_components[self.dims_source]._out_tensor_shape[self.source_dim] 
-            self._out_tensor_shape.insert(self.expand_dim, expanded_size)
+            self.expand_value = self.input_source_components[self.dims_source]._out_tensor_shape[self.source_dim - 1] # -1 because _out_tensor_shape doesn't account for batch size
+        
+        if self.expand_dim > 0:
+            self._out_tensor_shape.insert(self.expand_dim - 1, self.expand_value) # -1 because _out_tensor_shape doesn't account for batch size
         else:
-            self._out_tensor_shape.insert(self.expand_dim, self.expand_value)
+            raise ValueError("Expand dim must be greater than 0. 0 is the batch dimension.")
 
     def _forward(self, td: TensorDict):
-        tensor = td[self.input_source[0]]
+        if isinstance(self._input_source, list):   
+            tensor = td[self._input_source[0]]
+        else:
+            tensor = td[self._input_source]
 
         if self.dims_source is not None:
             self.expand_value = td[self.dims_source].size(self.source_dim)
@@ -206,11 +213,10 @@ class ExpandLayer(LayerBase):
 
 class ReshapeLayer(LayerBase):
     '''Multiply two of the dims together, squeezing them into the squeezed_dim.'''
-    def __init__(self, name, popped_dim, squeezed_dim, input_source, **cfg):
+    def __init__(self, name, popped_dim, squeezed_dim, **cfg):
         self._ready = False
         self.popped_dim = popped_dim
         self.squeezed_dim = squeezed_dim
-        self.input_source = input_source
         super().__init__(name, **cfg)
 
     def setup(self, input_source_components=None):
@@ -218,20 +224,21 @@ class ReshapeLayer(LayerBase):
             return
 
         self.input_source_components = input_source_components
-        self._out_tensor_shape = self.input_source_components[self.input_source]._out_tensor_shape
+        self._out_tensor_shape = self.input_source_components._out_tensor_shape
         if self.squeezed_dim == 0 or self.popped_dim == 0:
-            # we are multiplying by the batch size, which we don't have ahead of time  
-            self._out_tensor_shape.pop(self.popped_dim)
+            # we are involving the batch size, which we don't have ahead of time 
+            self._out_tensor_shape.pop(self.popped_dim - 1)
         else:
-            compressed_size = self._out_tensor_shape[self.popped_dim] * self._out_tensor_shape[self.squeezed_dim]
-            self._out_tensor_shape[self.squeezed_dim] = compressed_size
-            self._out_tensor_shape.pop(self.popped_dim)
+            compressed_size = self._out_tensor_shape[self.popped_dim - 1] * self._out_tensor_shape[self.squeezed_dim - 1]
+            self._out_tensor_shape[self.squeezed_dim - 1] = compressed_size
+            self._out_tensor_shape.pop(self.popped_dim - 1)
 
     def _forward(self, td: TensorDict):
-        tensor = td[self.input_source]
+        tensor = td[self._input_source]
         shape = list(tensor.shape)
         compressed_size = shape[self.squeezed_dim] * shape[self.popped_dim]
         shape.pop(self.popped_dim)
         shape[self.squeezed_dim] = compressed_size
         tensor = tensor.reshape(*shape)
         td[self._name] = tensor
+

@@ -59,9 +59,11 @@ class LayerBase(nn.Module):
                 raise ValueError(f"Either input source or output tensor shape must be set for layer {self._name}")
         else:
             if isinstance(self._input_source_component, dict):
-                self._in_tensor_shape = {}
-                for source in self._input_source_component:
-                    self._in_tensor_shape[source['source_name']] = source._out_tensor_shape.copy()
+                # self._in_tensor_shape = {}
+                self._in_tensor_shape = []
+                for _, source in self._input_source_component.items():
+                    # self._in_tensor_shape[source_name] = source._out_tensor_shape.copy()
+                    self._in_tensor_shape.append(source._out_tensor_shape.copy())
             else:
                 self._in_tensor_shape = self._input_source_component._out_tensor_shape.copy()
             if not hasattr(self, '_out_tensor_shape'):

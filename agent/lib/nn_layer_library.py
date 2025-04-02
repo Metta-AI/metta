@@ -1,6 +1,7 @@
 from math import prod
 
 import torch.nn as nn
+from tensordict import TensorDict
 
 from .metta_layer import ParamLayer, LayerBase
 

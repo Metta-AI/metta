@@ -84,7 +84,8 @@ class ActionEmbedding(nn_layer_library.Embedding):
         self.num_actions = len(self.active_indices)
 
     def _forward(self, td: TensorDict):
-        td[self._name] = self._net(self.active_indices)
+        B = td['_batch_size_']
+        td[self._name] = self._net(self.active_indices).repeat(B, 1)
         return td
     
 class ActionHash(metta_layer.LayerBase):
@@ -126,7 +127,8 @@ class ActionHash(metta_layer.LayerBase):
         return embedding
 
     def _forward(self, td: TensorDict):
-        td[self._name] = self.action_embeddings
+        B = td['_batch_size_']
+        td[self._name] = self.action_embeddings.repeat(B, 1)
         return td
 
 

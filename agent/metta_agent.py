@@ -140,7 +140,7 @@ class MettaAgent(nn.Module):
         # delete this after testing
         print((
             f"Component: {component._name}, in name: {component._input_source}, "
-            f"in_size: {component._in_tensor_shape}, out_size: {component._out_tensor_shape}"
+            f"in_size: {getattr(component, '_in_tensor_shape', 'None')}, out_size: {getattr(component, '_out_tensor_shape', 'None')}"
         ))
 
     def activate_actions(self, action_names, action_max_params):
