@@ -40,8 +40,12 @@ class PufferTrainer:
 
         self.cfg = cfg
         self.trainer_cfg = cfg.trainer
-        self._env_cfg = config_from_path(
-            self.trainer_cfg.env, self.trainer_cfg.env_overrides)
+
+        if self.trainer_cfg.env is None:
+            assert len(self.trainer_cfg.envs) > 0, "No environment specified"
+            self._env_cfg = [config_from_path(cfg.env, self.trainer_cfg.env_overrides) for cfg in self.trainer_cfg.envs]
+        else:
+            self._env_cfg = config_from_path(self.trainer_cfg.env, self.trainer_cfg.env_overrides)
 
         self._master = True
         self._world_size = 1
@@ -59,7 +63,7 @@ class PufferTrainer:
         self.wandb_run = wandb_run
         self.policy_store = policy_store
         self.use_e3b = self.trainer_cfg.use_e3b
-        self.eval_stats_logger = EvalStatsLogger(cfg, self._env_cfg)
+        self.eval_stats_logger = EvalStatsLogger(cfg, self.wandb_run)
         self.average_reward = 0.0  # Initialize average reward estimate
         self._current_eval_score = 0.0
         self._policy_fitness = []
@@ -615,7 +619,7 @@ class PufferTrainer:
     def _make_vecenv(self):
         """Create a vectorized environment."""
         # Create the vectorized environment
-        self.target_batch_size = self.trainer_cfg.forward_pass_minibatch_target_size // self._env_cfg.game.num_agents
+        self.target_batch_size = self.trainer_cfg.forward_pass_minibatch_target_size // self._env_cfg[0].game.num_agents
         if self.target_batch_size < 2: # pufferlib bug requires batch size >= 2
             self.target_batch_size = 2
         self.batch_size = (self.target_batch_size // self.trainer_cfg.num_workers) * self.trainer_cfg.num_workers
