@@ -1,0 +1,17 @@
+
+
+_target_: rl.pufferlib.eval.EvalSuite
+
+defaults:
+  - eval
+
+env: null #the env is set in evals:
+
+evals:
+
+  radial_maze:
+    env: env/mettagrid/cognitive_evals/radial_maze
+    policy_agents_pct: 1.0
+  navigating_obstacles:
+    env: env/mettagrid/cognitive_evals/navigating_obstacles
+    policy_agents_pct: 1.0
