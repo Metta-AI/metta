@@ -31,6 +31,13 @@ analyzer:
     metrics:
       - metric: episode_reward
 
+eval:
+  num_envs: 10
+  num_episodes: 16
+  max_time_s: 600
+
+  policy_uri: ${..policy_uri}
+  eval_db_uri: ${..eval_db_uri}
 
 evals:
   radial_maze:
@@ -39,6 +46,7 @@ evals:
   navigating_obstacles:
     env: env/mettagrid/cognitive_evals/navigating_obstacles
     policy_agents_pct: 1.0
+
 
 wandb:
   checkpoint_interval: 1
