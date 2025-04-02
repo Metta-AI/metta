@@ -11,8 +11,7 @@ from raylib import colors, rl
 
 class ObjectRenderer:
     def __init__(self, sprite_sheet, tile_size=24):
-        module_path = os.path.dirname(__file__)
-        sprites_dir = os.path.join(module_path, "../assets/")
+        sprites_dir = "deps/mettagrid/mettagrid/renderer/assets/"
         sprite_sheet_path = os.path.join(sprites_dir, sprite_sheet)
         assert os.path.exists(sprite_sheet_path), f"Sprite sheet {sprite_sheet_path} does not exist"
         self.sprite_sheet = rl.LoadTexture(sprite_sheet_path.encode())
@@ -39,13 +38,13 @@ class AgentRenderer(ObjectRenderer):
         super().__init__("monsters.png", 16)
         self._cfgs = DictConfig({
             **{
-                c.id: OmegaConf.merge(cfg.game.agent, c.props)
-                for c in cfg.game.groups.values()
+                c.id: OmegaConf.merge(cfg.agent, c.props)
+                for c in cfg.groups.values()
             }
         })
         self.sprites = {
             c.id: c.sprite
-            for c in cfg.game.groups.values()
+            for c in cfg.groups.values()
         }
 
         self.obs_width = 11  # Assuming these values, adjust if necessary
