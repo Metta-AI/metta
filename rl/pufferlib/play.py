@@ -5,6 +5,9 @@ from mettagrid.renderer.raylib.raylib_renderer import MettaGridRaylibRenderer
 from rl.pufferlib.vecenv import make_vecenv
 from agent.policy_store import PolicyStore
 
+from agent.util.distribution_utils import sample_logits
+import pufferlib
+
 def play(cfg: OmegaConf, policy_store: PolicyStore):
     device = cfg.device
     vecenv = make_vecenv(cfg.eval.env, cfg.vectorization, num_envs=1, render_mode="human")
@@ -18,8 +21,8 @@ def play(cfg: OmegaConf, policy_store: PolicyStore):
     policy = policy_record.policy()
 
     renderer = MettaGridRaylibRenderer(env._c_env, env._env_cfg.game)
-    policy_rnn_state = None
-
+    policy_state = pufferlib.namespace(lstm_h=None, lstm_c=None)
+ 
     rewards = np.zeros(vecenv.num_agents)
     total_rewards = np.zeros(vecenv.num_agents)
 
@@ -28,7 +31,9 @@ def play(cfg: OmegaConf, policy_store: PolicyStore):
             obs = torch.as_tensor(obs).to(device=device)
 
             # Parallelize across opponents
-            actions, _, _, _, policy_rnn_state, _, _, _ = policy(obs, policy_rnn_state)
+            policy_logits, _ = policy(obs, policy_state)
+            actions, _, _, _ = sample_logits(policy_logits)
+
             if actions.dim() == 0:  # scalar tensor like tensor(2)
                 actions = torch.tensor([actions.item()])
 

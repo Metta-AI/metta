@@ -1,6 +1,5 @@
 import logging
 import time
-
 import numpy as np
 import torch
 from agent.policy_store import PolicyStore, PolicyRecord
@@ -9,6 +8,10 @@ from util.config import config_from_path
 from util.datastruct import flatten_config
 from datetime import datetime
 from rl.pufferlib.vecenv import make_vecenv
+
+import pufferlib
+
+from agent.util.distribution_utils import sample_logits
 
 logger = logging.getLogger("eval")
 
@@ -101,8 +104,9 @@ class Eval():
         logger.info(f"Eval settings: {self._num_envs} envs, {self._min_episodes} episodes, {self._max_time_s} seconds")
 
         obs, _ = self._vecenv.reset()
-        policy_rnn_state = None
-        npc_rnn_state = None
+
+        policy_state = pufferlib.namespace(lstm_h=None, lstm_c=None)
+        npc_state = pufferlib.namespace(lstm_h=None, lstm_c=None)
 
         game_stats = []
         start = time.time()
@@ -116,15 +120,16 @@ class Eval():
 
                 # Parallelize across opponents
                 policy = self._policy_pr.policy() # policy to evaluate
-                policy_actions, _, _, _, policy_rnn_state, _, _, _ = policy(my_obs, policy_rnn_state)
+                policy_logits, _ = policy(my_obs, policy_state)
+                policy_actions, _, _, _ = sample_logits(policy_logits)
 
                 # Iterate opponent policies
                 if self._npc_pr is not None:
                     npc_obs = obs[self._npc_idxs]
-                    npc_rnn_state = npc_rnn_state
 
                     npc_policy = self._npc_pr.policy()
-                    npc_action, _, _, _, npc_rnn_state, _, _, _ = npc_policy(npc_obs, npc_rnn_state)
+                    npc_logits, _ = npc_policy(npc_obs, npc_state)
+                    npc_action, _, _, _ = sample_logits(npc_logits)
 
             actions = policy_actions
             if self._npc_agents_per_env > 0:

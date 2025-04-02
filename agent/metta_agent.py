@@ -135,7 +135,7 @@ class MettaAgent(nn.Module):
         self.components["_value_"](td)
         return None, td["_value_"], None
 
-    def forward(self, x, state=None):
+    def forward(self, x, state):
         td = TensorDict({
             "x": x,
             **state
