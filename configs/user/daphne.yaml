@@ -4,15 +4,7 @@ defaults:
   - override /agent: simple
   - override /eval: simple
   - override /analyzer: eval_analyzer
-
-trainer:
-  env: /env/mettagrid/bases
-  evaluate_interval: 200
-  env_overrides:
-    # sampling: 0.7
-    game:
-      num_agents: 36
-      max_steps: 1000
+  - override /trainer: trainer_suite
 
 # policy: wandb://run/b.daveey.train.maze.sm.dr.warm.0
 # baselines: wandb://run/b.daveey.train.maze.sm.11x11.0
