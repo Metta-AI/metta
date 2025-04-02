@@ -34,7 +34,7 @@ cdef extern from "grid.hpp":
         char add_object(GridObject *obj)
         void remove_object(GridObject *obj)
         void remove_object(GridObjectId id)
-        char move_object(GridObjectId id, const GridLocation &loc)
+        bint move_object(GridObjectId id, const GridLocation &loc)
         void swap_objects(GridObjectId id1, GridObjectId id2)
         GridObject* object(GridObjectId obj_id)
         GridObject* object_at(const GridLocation &loc)
