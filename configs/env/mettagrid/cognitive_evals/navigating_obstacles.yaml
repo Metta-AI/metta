@@ -7,7 +7,7 @@ game:
   map_builder:
 
     _target_: mettagrid.config.room.multi_room.MultiRoom
-    num_rooms: 1
+    num_rooms: 2
     room:
       _target_: mettagrid.config.room.ascii.Ascii
       border_width: 1
