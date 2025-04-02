@@ -207,7 +207,7 @@ class PufferTrainer:
         analyzer = hydra.utils.instantiate(self.cfg.analyzer, eval_stats_db)
         _, policy_fitness_records = analyzer.analyze()
         self._policy_fitness = policy_fitness_records
-        self._current_eval_score = np.mean([r["baseline_mean"] for r in self._policy_fitness if r["metric"] == "episode_reward"])
+        self._current_eval_score = np.sum([r["baseline_mean"] for r in self._policy_fitness if r["metric"] == "episode_reward"])
 
 
     def _update_l2_init_weight_copy(self):
