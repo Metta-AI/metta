@@ -256,13 +256,14 @@ def save_replay(
     # Make sure the directory exists:
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
-    with open(output_path, "w") as f:
-        f.write(json.dumps(replay))
-
-    # Compress it with deflate.
-    replay_data = json.dumps(replay)  # Convert to JSON string
-    replay_bytes = replay_data.encode('utf-8')  # Encode to bytes
-    compressed_data = zlib.compress(replay_bytes)  # Compress the bytes
-    # Write the compressed data to a file
-    with open(output_path + '.z', 'wb') as f:
-        f.write(compressed_data)
+    if output_path.endswith(".z"):
+        # Compress it with deflate.
+        replay_data = json.dumps(replay)  # Convert to JSON string
+        replay_bytes = replay_data.encode('utf-8')  # Encode to bytes
+        compressed_data = zlib.compress(replay_bytes)  # Compress the bytes
+        # Write the compressed data to a file
+        with open(output_path, 'wb') as f:
+            f.write(compressed_data)
+    else:
+        with open(output_path, "w") as f:
+            f.write(json.dumps(replay))
