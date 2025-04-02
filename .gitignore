@@ -14,3 +14,4 @@ cython_debug
 stats.profile
 /dist
 player/dist
+player/node_modules
