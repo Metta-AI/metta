@@ -4,7 +4,8 @@ import hydra
 import numpy as np
 import gymnasium as gym
 from gymnasium.spaces import Discrete
-import mettagrid.mettagrid_env
+
+from mettagrid.config.config import setup_omega_conf
 
 
 class SingleAgentWrapper(gym.Wrapper):
@@ -63,43 +64,13 @@ class MultiToDiscreteWrapper(gym.ActionWrapper):
     def step(self, action):
         mapped_action = self.action_map[action]
         return self.env.step(mapped_action)
-    
-class RaylibRendererWrapper(gym.Wrapper):
-    def __init__(self, env, cfg):
-        super(RaylibRendererWrapper, self).__init__(env)
 
-        import mettagrid.renderer.raylib.raylib_renderer as rl
-        self.renderer = rl.MettaGridRaylibRenderer(self.env, cfg)
-        self.total_rewards = np.zeros(self.env.num_agents)
-        self.current_timestep = 0
-
-    def step(self, action):
-        obs, reward, terminated, truncated, info = self.env.step(action)
-
-        self.total_rewards += reward
-        self.current_timestep += 1
-
-        self.renderer.update(action, obs, reward, self.total_rewards, self.current_timestep)
-        self.renderer.render_and_wait()
-
-        return obs, reward, terminated, truncated, info
-    
-    def render(self):
-        return self.renderer.render_and_wait()
-    
-    def reset(self, *, seed: int | None = None, options: dict[str, Any] | None = None):
-        obs, infos = self.env.reset(seed=seed, options=options)
-        self.total_rewards = np.zeros(self.env.num_agents)
-        self.current_timestep = 0
-        return obs, infos
-    
 
 def make(name: str, render_mode: str | None = None, overrides: list[str] | None = None):
+    setup_omega_conf()
+
     with hydra.initialize(config_path="../configs"):
         cfg = hydra.compose(config_name=name, overrides=overrides)
     
     env = hydra.utils.instantiate(cfg, _recursive_=False, env_cfg=cfg, render_mode=render_mode)
-    if render_mode == "human":
-        env = RaylibRendererWrapper(env, cfg)
-
     return env
