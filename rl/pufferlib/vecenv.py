@@ -10,9 +10,12 @@ from mettagrid.mettagrid_env import MettaGridEnv, MettaGridEnvSelector
 def make_env_func(cfg: DictConfig, buf=None, render_mode='rgb_array'):
     return MettaGridEnvSelector(cfg, buf=buf, render_mode=render_mode)
 
+def make_env_func_single_env(cfg: DictConfig, buf=None, render_mode='rgb_array'):
+    return MettaGridEnv(cfg, buf=buf, render_mode=render_mode)
+
 
 def make_vecenv(
-    env_cfg: list[OmegaConf],
+    env_cfg: OmegaConf | list[OmegaConf],
     vectorization: str,
     num_envs=1,
     batch_size=None,
@@ -20,6 +23,9 @@ def make_vecenv(
     render_mode=None,
     **kwargs
 ):
+
+    if not isinstance(env_cfg, list):
+        return make_vecenv_single_env(env_cfg, vectorization, num_envs, batch_size, num_workers, render_mode, **kwargs)
 
     vec = vectorization
     if vec == 'serial' or num_workers == 1:
@@ -43,7 +49,7 @@ def make_vecenv(
     vecenv = pufferlib.vector.make(make_env_func, **vecenv_args)
     return vecenv
 
-def make_vecenv_old(
+def make_vecenv_single_env(
     env_cfg: OmegaConf,
     vectorization: str,
     num_envs=1,
@@ -72,5 +78,5 @@ def make_vecenv_old(
         **kwargs
     )
 
-    vecenv = pufferlib.vector.make(make_env_func, **vecenv_args)
+    vecenv = pufferlib.vector.make(make_env_func_single_env, **vecenv_args)
     return vecenv
