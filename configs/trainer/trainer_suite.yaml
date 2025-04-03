@@ -6,8 +6,10 @@ defaults:
 env: null
 
 envs:
-  - env: /env/mettagrid/simple
-  - env: /env/mettagrid/bases
+  - env: /env/mettagrid/cognitive_evals/navigating_obstacles
+  - env: /env/mettagrid/cognitive_evals/cylinder
+  - env: /env/mettagrid/cognitive_evals/radial_maze
+  - env: /env/mettagrid/cognitive_evals/short_term_memory
 
 resume: true
 use_e3b: false
