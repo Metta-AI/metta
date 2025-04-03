@@ -1,0 +1,12 @@
+_target_: mettagrid.mettagrid_env.MettaGridEnvSet
+
+defaults:
+  - mettagrid
+
+num_agents: 4
+
+envs:
+  - /env/mettagrid/cognitive_evals/navigating_obstacles
+  - /env/mettagrid/cognitive_evals/cylinder
+  - /env/mettagrid/cognitive_evals/radial_maze
+  - /env/mettagrid/cognitive_evals/short_term_memory

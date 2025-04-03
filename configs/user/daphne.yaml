@@ -4,7 +4,6 @@ defaults:
   - override /agent: simple
   - override /eval: simple
   - override /analyzer: eval_analyzer
-  - override /trainer: trainer_suite
 
 # policy: wandb://run/b.daveey.train.maze.sm.dr.warm.0
 # baselines: wandb://run/b.daveey.train.maze.sm.11x11.0
@@ -14,7 +13,16 @@ defaults:
 # policy_uri: wandb://run/b.daveey.t.32.instant
 policy_uri:  wandb://run/b.georgedeane.colored_mines_constrained
 # npc_policy_uri: ${trained_policy_uri}
-eval_db_uri: wandb://artifacts/testing
+
+
+trainer:
+  env: /env/mettagrid/multienv_mettagrid
+  evaluate_interval: 10
+  env_overrides:
+    sampling: 0.7
+    game:
+      num_agents: 36
+      max_steps: 1000
 
 analyzer:
   eval_stats_uri: ${run_dir}/eval_stats
