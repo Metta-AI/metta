@@ -8,9 +8,8 @@ import hydra
 from mettagrid.mettagrid_env import MettaGridEnv, MettaGridEnvSet
 
 def make_env_func(cfg: DictConfig, buf=None, render_mode='rgb_array'):
-    if hasattr(cfg, 'envs'):
-        return MettaGridEnvSet(cfg, buf=buf, render_mode=render_mode)
-    return MettaGridEnv(cfg, buf=buf, render_mode=render_mode)
+    env = hydra.utils.instantiate(cfg, cfg, render_mode=render_mode, buf=buf)
+    return env
 
 def make_vecenv(
     env_cfg: OmegaConf,
@@ -32,13 +31,8 @@ def make_vecenv(
     else:
         raise ValueError('Invalid --vector (serial/multiprocessing/ray).')
 
-    if hasattr(env_cfg, 'envs'):
-        env_kwargs = dict(cfg = env_cfg, render_mode=render_mode)
-    else:
-        env_kwargs = dict(cfg = dict(**env_cfg), render_mode=render_mode)
-
     vecenv_args = dict(
-        env_kwargs=env_kwargs,
+        env_kwargs= dict(cfg = env_cfg, render_mode=render_mode),
         num_envs=num_envs,
         num_workers=num_workers,
         batch_size=batch_size or num_envs,
