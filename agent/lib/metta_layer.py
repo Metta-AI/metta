@@ -90,7 +90,7 @@ class LayerBase(nn.Module):
         pass
     def update_l2_init_weight_copy(self):
         pass
-    def effective_rank(self, delta: float = 0.01) -> dict:
+    def compute_effective_rank(self, delta: float = 0.01) -> dict:
         pass
 
 class ParamLayer(LayerBase):
