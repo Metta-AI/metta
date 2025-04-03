@@ -210,18 +210,46 @@ class MettaAgent(nn.Module):
         e3b, intrinsic_reward = self._e3b_update(td["_core_"].detach(), e3b)
 
         # convert action from a list of two elements to a single element
+        # action_logit_index = None
+        # if action is not None:
+        #     action_type_number = self.action_index[action[0]]
+        #     action_logit_index = torch.tensor(action_type_number * action[1])
+
+        # ------------------------------------------------------------
+        # make into a function
         action_logit_index = None
         if action is not None:
-            action_type_number = self.action_index[action[0]]
-            action_logit_index = torch.tensor(action_type_number * action[1])
+            # Reshape action to [B*TT, 2] if it's [B, TT, 2]
+            orig_shape = action.shape
+            if len(orig_shape) == 3:
+                action = action.reshape(-1, 2)
+            
+            # Convert each action pair to logit index
+            action_type_numbers = torch.tensor([self.action_index[a[0].item()][0] for a in action])
+            action_params = torch.tensor([a[1].item() for a in action])
+            action_logit_index = action_type_numbers * (action_params + 1)
+            
+            # Reshape back to original batch dimensions
+            if len(orig_shape) == 3:
+                action_logit_index = action_logit_index.reshape(orig_shape[0], orig_shape[1], 1)
+            else:
+                action_logit_index = action_logit_index.unsqueeze(-1)  # Shape: [B, 1]
+
+
 
         action_logit_index, logprob, entropy, normalized_logits = sample_logits(logits, action_logit_index)
-        # Convert action_logit_index to indices for lookup
         
-        action = torch.tensor([self.action_index[idx.item()] for idx in action_logit_index])
-        
-
-        # action, logprob, entropy, normalized_logits = sample_logits(logits, action)
+        # only need to do this on experience since training doesn't need action number
+        # action = torch.tensor([self.action_index[idx.item()] for idx in action_logit_index])
+        if td["_TT_"] == 1:
+            action = torch.tensor([self.action_index[idx.item()] for idx in action_logit_index.reshape(-1)], 
+                                  device=action_logit_index.device)
+        # if td["_TT_"] > 1:
+        #     # Reshape to [B, TT, 2]
+        #     action = flat_actions.reshape(td["_batch_size_"], td["_TT_"], 2)
+        # else:
+        #     # Reshape to [B, 2]
+        #     action = flat_actions.reshape(td["_batch_size_"], 2)
 
         return action, logprob, entropy, value, state, e3b, intrinsic_reward, normalized_logits
 
