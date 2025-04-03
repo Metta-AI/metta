@@ -1,0 +1,14 @@
+defaults:
+  - navigation_defaults
+
+game:
+  num_agents: 2  #how many agents are in the map x2
+
+  map_builder:
+
+    _target_: mettagrid.config.room.multi_room.MultiRoom
+    num_rooms: 2
+    room:
+      _target_: mettagrid.config.room.ascii.Ascii
+      border_width: 1
+      uri: "configs/env/mettagrid/maps/9throughtheforest.map"
