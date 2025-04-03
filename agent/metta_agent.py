@@ -210,14 +210,10 @@ class MettaAgent(nn.Module):
 
         action_logit_index, logprob, entropy, normalized_logits = sample_logits(logits, action_logit_index)
 
-        action = self.action_index[action_logit_index] # convert the logit index to the action type and param
-        action[0] = torch.tensor(action[0])
-        action[1] = torch.tensor(action[1])
+        action = self.action_index[action_logit_index]
+        action = torch.tensor(action) # convert the logit index to the action type and param
 
         # action, logprob, entropy, normalized_logits = sample_logits(logits, action)
-
-
-
 
         return action, logprob, entropy, value, state, e3b, intrinsic_reward, normalized_logits
 
