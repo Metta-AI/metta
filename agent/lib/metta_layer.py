@@ -4,6 +4,8 @@ from torch import nn
 import torch
 import numpy as np
 
+
+
 class LayerBase(nn.Module):
     '''The base class for components that make up the Metta agent. All components
     are required to have a name and an input source, although the input source
@@ -83,7 +85,11 @@ class LayerBase(nn.Module):
             return td
 
         if self._input_source_component is not None:
-            self._input_source_component.forward(td)
+            if isinstance(self._input_source_component, dict):
+                for _, source in self._input_source_component.items():
+                    source.forward(td)
+            else:
+                self._input_source_component.forward(td)
 
         self._forward(td)
 

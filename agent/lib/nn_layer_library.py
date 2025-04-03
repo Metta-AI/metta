@@ -21,9 +21,11 @@ class Bilinear(LayerBase):
         super().__init__(**cfg)
 
     def _make_net(self):
-        self._nn_params['in1_features'] = self._in_tensor_shape[0]
-        self._nn_params['in2_features'] = self._in_tensor_shape[1]
         self._out_tensor_shape = [self._nn_params.out_features]
+
+        self._nn_params['in1_features'] = self._in_tensor_shape[0][0]
+        self._nn_params['in2_features'] = self._in_tensor_shape[1][0]
+        self._nn_params = dict(self._nn_params) # need to convert from omegaconf DictConfig
         return nn.Bilinear(
             **self._nn_params
         )
@@ -39,10 +41,12 @@ class Embedding(LayerBase):
         super().__init__(**cfg)
 
     def _make_net(self):
-        self._out_tensor_shape = [self._nn_params.embedding_dim]
-        return nn.Embedding(
+        net = nn.Embedding(
             **self._nn_params
         )
+        # nn.init.xavier_uniform_(net.weight)
+        nn.init.uniform_(net.weight, a=-0.1, b=0.1)
+        return net
 
 class Conv2d(ParamLayer):
     def __init__(self, **cfg):

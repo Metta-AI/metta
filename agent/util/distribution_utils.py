@@ -83,6 +83,6 @@ def sample_logits(logits: Union[torch.Tensor, List[torch.Tensor]],
     logits_entropy = torch.stack([entropy(l) for l in normalized_logits]).T.sum(1)
 
     if is_discrete:
-        return action.squeeze(0), logprob.squeeze(0), logits_entropy.squeeze(0)
+        return action.squeeze(0), logprob.squeeze(0), logits_entropy.squeeze(0), normalized_logits
 
     return action.T, logprob, logits_entropy, normalized_logits

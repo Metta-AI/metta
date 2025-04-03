@@ -106,13 +106,16 @@ class MettaAgent(nn.Module):
 
     def _setup_components(self, component):
         if component._input_source is not None:
+            if isinstance(component._input_source, omegaconf.listconfig.ListConfig):
+                component._input_source = list(component._input_source)
+
             if isinstance(component._input_source, list):
                 for input_source in component._input_source:
                     self._setup_components(self.components[input_source])
-            elif isinstance(component._input_source, omegaconf.listconfig.ListConfig):
-                component._input_source = list(component._input_source)
-                for input_source in component._input_source:
-                    self._setup_components(self.components[input_source])
+            # elif isinstance(component._input_source, omegaconf.listconfig.ListConfig):
+            #     component._input_source = list(component._input_source)
+            #     for input_source in component._input_source:
+            #         self._setup_components(self.components[input_source])
             else:
                 self._setup_components(self.components[component._input_source])
 
@@ -146,7 +149,7 @@ class MettaAgent(nn.Module):
     def activate_actions(self, action_names, action_max_params):
         '''Run this at the beginning of training.'''
         self.active_actions = list(zip(action_names, action_max_params))
-        self.components['_action_'].activate_actions(self.active_actions)
+        self.components['_action_embeds_'].activate_actions(self.active_actions)
 
         self.action_index = [] # the list element number maps to the action type index
         action_type_number = 0
@@ -186,10 +189,9 @@ class MettaAgent(nn.Module):
             td["state"] = state.to(x.device)
 
         self.components["_value_"](td)
-        self.components["_action_type_"](td)
-        self.components["_action_param_"](td)
+        self.components["_action_"](td)
 
-        logits = [td["_action_type_"], td["_action_param_"]]
+        logits = td["_action_"]
         value = td["_value_"]
         state = td["state"]
 

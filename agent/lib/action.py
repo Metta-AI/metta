@@ -55,20 +55,17 @@ class ActionEmbedding(nn_layer_library.Embedding):
     def __init__(self, **cfg):
         super().__init__(**cfg)
         self._reserved_action_embeds = {} 
-        self._out_tensor_shape = [self._nn_params['embedding_dim']]
         self.num_actions = 0 
         # num_actions to be updated at runtime by the size of the active indices
-        # we then make num_actions the batch dimension
+        self._out_tensor_shape = [self.num_actions, self._nn_params['embedding_dim']]
 
-    # see if there is a way to make unused embeddings orthogonal to the used ones
-
-    def embed_strings(self, actions_list):
+    def activate_actions(self, actions_list):
         # each time we run this, we update the metta_agent object's (the policy's) known action strings and associated indices
 
         # convert the actions_dict into a list of strings
         string_list = []
         for action_name, max_arg_count in actions_list:
-            for i in range(max_arg_count):
+            for i in range(max_arg_count + 1):
                 string_list.append(f"{action_name}_{i}")
 
         # for each action string, if it's not already in the reserved_action_embeds, add it and give it an index
@@ -85,7 +82,8 @@ class ActionEmbedding(nn_layer_library.Embedding):
 
     def _forward(self, td: TensorDict):
         B = td['_batch_size_']
-        td[self._name] = self._net(self.active_indices).repeat(B, 1)
+        # below - get embeddings, unsqueeze the 0'th dimension, then expand to match the batch size
+        td[self._name] = self._net(self.active_indices).unsqueeze(0).expand(B, -1, -1)
         return td
     
 class ActionHash(metta_layer.LayerBase):
@@ -95,7 +93,7 @@ class ActionHash(metta_layer.LayerBase):
         self._out_tensor_shape = [embedding_dim]
         self.num_actions = 0 # to be updated at runtime by the size of the embedding
 
-    def embed_strings(self, actions_list):
+    def activate_actions(self, actions_list):
         # convert the actions_dict into a list of strings
         string_list = []
         for action_name, max_arg_count in actions_list:
@@ -128,7 +126,7 @@ class ActionHash(metta_layer.LayerBase):
 
     def _forward(self, td: TensorDict):
         B = td['_batch_size_']
-        td[self._name] = self.action_embeddings.repeat(B, 1)
+        td[self._name] = self.action_embeddings.unsqueeze(0).expand(B, -1, -1)
         return td
 
 

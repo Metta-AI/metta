@@ -15,6 +15,7 @@ class LSTM(LayerBase):
         super().__init__(**cfg)
         self.obs_shape = obs_shape
         self.hidden_size = hidden_size
+        self._out_tensor_shape = [hidden_size]
         self.num_layers = self._nn_params['num_layers']
 
     def _make_net(self):
@@ -55,9 +56,9 @@ class LSTM(LayerBase):
 
         if state is not None:
             assert state[0].shape[1] == state[1].shape[1] == B
-        assert hidden.shape == (B*TT, self._input_size)
+        assert hidden.shape == (B*TT, self._in_tensor_shape[0])
 
-        hidden = hidden.reshape(B, TT, self._input_size)
+        hidden = hidden.reshape(B, TT, self._in_tensor_shape[0])
         hidden = hidden.transpose(0, 1)
 
         hidden, state = self._net(hidden, state)

@@ -6,13 +6,14 @@ from agent.lib.metta_layer import LayerBase
 class ObsShaper(LayerBase):
     def __init__(self, obs_shape, num_objects, **cfg):
         super().__init__(**cfg)
+        self._obs_shape = obs_shape
         self._out_tensor_shape = [obs_shape[2], obs_shape[0], obs_shape[1]]
         self._output_size = num_objects
 
     def _forward(self, td: TensorDict):
         x = td['x']
 
-        x_shape, space_shape = x.shape, self._out_tensor_shape
+        x_shape, space_shape = x.shape, self._obs_shape
         x_n, space_n = len(x_shape), len(space_shape)
         if x_shape[-space_n:] != space_shape:
             raise ValueError('Invalid input tensor shape', x.shape)

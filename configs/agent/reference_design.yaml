@@ -78,7 +78,7 @@ components:
       kernel_size: 5
       stride: 3
     # when defining nn.Modules, put your keyword argements under nn_params.
-    #Do not specify input_size or output_size.
+    # Do not specify input_size or output_size.
 
   cnn1_channels_12-22:
     _target_: agent.lib.nn_layer_library.Conv2d
