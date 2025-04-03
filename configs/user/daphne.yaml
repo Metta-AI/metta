@@ -20,9 +20,6 @@ trainer:
   evaluate_interval: 10
   env_overrides:
     sampling: 0.7
-    game:
-      num_agents: 36
-      max_steps: 1000
 
 analyzer:
   eval_stats_uri: ${run_dir}/eval_stats
