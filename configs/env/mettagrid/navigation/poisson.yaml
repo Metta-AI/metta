@@ -1,0 +1,28 @@
+
+defaults:
+  - navigation_defaults
+
+game:
+  num_agents: 4
+  max_steps: ${uniform:400,600,500}
+
+  map_builder:
+    _target_: mettagrid.config.room.multi_room.MultiRoom
+    num_rooms: 4
+    border_width: 6
+
+    room:
+      _target_: mettagrid.config.room.poisson.Poisson
+      width: ${uniform:15,25,20}
+      height: ${uniform:15,25,20}
+      border_width: ${uniform:1,9,3}
+
+      agents: 1
+
+      mean_distance: ${uniform:1,6,5}
+# initial 1, 6, 5
+
+      objects:
+        mine: 1
+        generator: 1
+        altar: 1
