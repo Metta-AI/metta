@@ -14,8 +14,8 @@ trainer:
       num_agents: 36
       max_steps: 1000
 
-# policy_uri: wandb://run/b.daveey.t.64.dr90.e3b
-policy_uri:  wandb://run/b.georgedeane.colored_mines_constrained
+policy_uri: wandb://run/b.daveey.t.64.dr90.e3b
+# policy_uri:  wandb://run/b.georgedeane.colored_mines_constrained
 
 analyzer:
   eval_stats_uri: ${run_dir}/eval_stats
@@ -31,7 +31,7 @@ eval:
 wandb:
   checkpoint_interval: 1
 
-run_id: 1
+run_id: 2
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 
