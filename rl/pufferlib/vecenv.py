@@ -8,8 +8,7 @@ import hydra
 from mettagrid.mettagrid_env import MettaGridEnv, MettaGridEnvSet
 
 def make_env_func(cfg: DictConfig, buf=None, render_mode='rgb_array'):
-    env = hydra.utils.instantiate(cfg, cfg, render_mode=render_mode, buf=buf)
-    return env
+    return hydra.utils.instantiate(cfg, cfg, render_mode=render_mode, buf=buf)
 
 def make_vecenv(
     env_cfg: OmegaConf,
