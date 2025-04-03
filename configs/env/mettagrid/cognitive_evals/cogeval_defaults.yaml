@@ -216,11 +216,11 @@ game:
     get_items:
       enabled: true
     attack:
-      enabled: true
+      enabled: false
     swap:
-      enabled: true
+      enabled: false
     change_color:
-      enabled: true
+      enabled: false
 
   reward_sharing:
     groups:
