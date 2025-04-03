@@ -209,9 +209,10 @@ class MettaAgent(nn.Module):
             action_logit_index = torch.tensor(action_type_number * action[1])
 
         action_logit_index, logprob, entropy, normalized_logits = sample_logits(logits, action_logit_index)
-
-        action = self.action_index[action_logit_index]
-        action = torch.tensor(action) # convert the logit index to the action type and param
+        # Convert action_logit_index to indices for lookup
+        
+        action = torch.tensor([self.action_index[idx.item()] for idx in action_logit_index])
+        
 
         # action, logprob, entropy, normalized_logits = sample_logits(logits, action)
 

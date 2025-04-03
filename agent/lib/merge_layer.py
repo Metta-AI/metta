@@ -244,3 +244,30 @@ class ReshapeLayer(LayerBase):
         td[self._name] = tensor.reshape(*shape)
         return td
 
+class BatchReshapeLayer(LayerBase):
+    '''Expands at dim 1, sets equal to value at dim 0 div by B. 
+    Then sets dim 0 to B. Finally, squeezes.'''
+    def __init__(self, name, **cfg):
+        self._ready = False
+        super().__init__(name, **cfg)
+
+    def setup(self, input_source_components=None):
+        if self._ready:
+            return
+
+        self._input_source_component = input_source_components
+        self._out_tensor_shape = self._input_source_component._out_tensor_shape
+        # the out_tensor_shape is NOT ACCURATE because we don't know the batch size ahead of time!!!
+
+        self._ready = True
+
+    def _forward(self, td: TensorDict):
+        tensor = td[self._input_source]
+        B = td['_batch_size_']
+        shape = list(tensor.shape)
+        shape.insert(1, 0)
+        shape[1] = shape[0]//B
+        shape[0] = B
+        td[self._name] = tensor.reshape(*shape).squeeze()
+        return td
+
