@@ -1,5 +1,5 @@
-name: "GDY-MettaGrid"
-_target_: mettagrid.mettagrid_env.MettaGridEnv
+defaults:
+  - ../mettagrid
 
 report_stats_interval: 100
 normalize_rewards: false
@@ -216,11 +216,11 @@ game:
     get_items:
       enabled: true
     attack:
-      enabled: true
+      enabled: false
     swap:
       enabled: true
     change_color:
-      enabled: true
+      enabled: false
 
   reward_sharing:
     groups:
