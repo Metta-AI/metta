@@ -18,7 +18,6 @@ def graph_policy_eval_metrics(
     - metric_to_df: Dictionary mapping metric names to their corresponding DataFrames
                    Each DataFrame should have columns: policy_name, eval_name, mean_{metric}, std_{metric}
     - wandb_run: wandb run object to which the visualizations will be logged
-                       
     """
     logger = logging.getLogger("graph_policy_eval_metrics")
     # Get all metric names
@@ -57,13 +56,13 @@ def graph_policy_eval_metrics(
                 # Use 3rd column to avoid any formatting differences on metric name
                 mean_values = eval_data.iloc[:, 2].tolist()
                 
-
-                data = [[label, val] for label, val in zip(policy_names, mean_values)]                
-                chart_title = f"{short_eval_name} - {metric}"
+                display_metric = metric.replace('.', '_')                
+                data = [[label, val] for label, val in zip(policy_names, mean_values)]
+                chart_title = f"{short_eval_name} - {display_metric}"
                 chart = wandb.plot.bar(
-                    wandb.Table(data=data, columns=["Policy", f"Mean {metric}"]),
+                    wandb.Table(data=data, columns=["Policy", f"Mean {display_metric}"]),
                     "Policy", 
-                    f"Mean {metric}",
+                    f"Mean {display_metric}",
                     title=chart_title
                 )
                 
@@ -77,16 +76,23 @@ def graph_policy_eval_metrics(
                 
                 table = wandb.Table(
                     data=table_data, 
-                    columns=["Policy", f"Mean {metric}"]
+                    columns=["Policy", f"Mean {display_metric}"]
                 )
                 wandb_run.log({f"{chart_title} (data)": table})
                 
                 logger.info(f"Created W&B visualization for: {chart_title}")
-    
-
 
 def construct_metric_to_df_map(cfg: DictConfig, dfs: list) -> Dict[str, pd.DataFrame]:
-
+    """
+    Construct a dictionary mapping metrics to their corresponding dataframes.
+    
+    Parameters:
+    - cfg: The hydra config object containing metrics configuration
+    - dfs: List of dataframes returned by analyzer.analyze(), assumed to be in the same order as metrics in config
+    
+    Returns:
+    - Dictionary mapping metric names to their dataframes
+    """
     # Extract metrics from config
     metrics = [m.metric for m in cfg.analyzer.analysis.metrics]
     
@@ -106,12 +112,11 @@ def main(cfg: DictConfig) -> None:
 
     with WandbContext(cfg) as wandb_run:
         eval_stats_db = EvalStatsDB.from_uri(cfg.eval.eval_db_uri, cfg.run_dir, wandb_run)
-        analyzer =  hydra.utils.instantiate(cfg.analyzer, eval_stats_db)
+        analyzer = hydra.utils.instantiate(cfg.analyzer, eval_stats_db)
         dfs, _ = analyzer.analyze()
 
         metric_to_df = construct_metric_to_df_map(cfg, dfs)
         graph_policy_eval_metrics(metric_to_df, wandb_run)
-
 
 if __name__ == "__main__":
     main()
