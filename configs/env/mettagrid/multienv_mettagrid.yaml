@@ -1,8 +1,5 @@
 _target_: mettagrid.mettagrid_env.MettaGridEnvSet
 
-defaults:
-  - mettagrid
-
 num_agents: 4
 
 game:
