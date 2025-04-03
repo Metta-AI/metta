@@ -41,7 +41,6 @@ eval:
   # npc_policy_uri: ${..npc_policy_uri}
   eval_db_uri: ${..eval_db_uri} #file://daphne/sweep_stats
 
-
 wandb:
   checkpoint_interval: 1
 
