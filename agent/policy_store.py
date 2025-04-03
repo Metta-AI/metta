@@ -88,6 +88,9 @@ class PolicyStore:
         else:
             prs = self._prs_from_path(uri)
 
+        if len(prs) == 0:
+            raise ValueError(f"No policies found at {uri}")
+
         if selector_type == "all":
             return prs
 
