@@ -200,7 +200,7 @@ class MettaAgent(nn.Module):
         '''Effective rank computation is off by default. Set effective_rank to True in the config to turn it on for a given component.'''
         effective_ranks = []
         for component in self.components.values():
-            rank = component.effective_rank(delta)
+            rank = component.compute_effective_rank(delta)
             if rank is not None:
                 effective_ranks.append(rank)
         return effective_ranks
