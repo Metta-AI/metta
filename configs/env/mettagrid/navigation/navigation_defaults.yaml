@@ -85,8 +85,8 @@ game:
       output_heart: 1
       max_output: 5
       conversion_ticks: 1
-      cooldown: 1
-      initial_items: 0
+      cooldown: 1000
+      initial_items: 1
 
     mine.red:
       hp: 30
