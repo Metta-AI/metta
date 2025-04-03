@@ -81,18 +81,8 @@ def graph_policy_eval_metrics(
                 wandb_run.log({f"{chart_title} (data)": table})
                 
                 logger.info(f"Created W&B visualization for: {chart_title}")
-
+    
 def construct_metric_to_df_map(cfg: DictConfig, dfs: list) -> Dict[str, pd.DataFrame]:
-    """
-    Construct a dictionary mapping metrics to their corresponding dataframes.
-    
-    Parameters:
-    - cfg: The hydra config object containing metrics configuration
-    - dfs: List of dataframes returned by analyzer.analyze(), assumed to be in the same order as metrics in config
-    
-    Returns:
-    - Dictionary mapping metric names to their dataframes
-    """
     # Extract metrics from config
     metrics = [m.metric for m in cfg.analyzer.analysis.metrics]
     
@@ -112,11 +102,12 @@ def main(cfg: DictConfig) -> None:
 
     with WandbContext(cfg) as wandb_run:
         eval_stats_db = EvalStatsDB.from_uri(cfg.eval.eval_db_uri, cfg.run_dir, wandb_run)
-        analyzer = hydra.utils.instantiate(cfg.analyzer, eval_stats_db)
+        analyzer =  hydra.utils.instantiate(cfg.analyzer, eval_stats_db)
         dfs, _ = analyzer.analyze()
 
         metric_to_df = construct_metric_to_df_map(cfg, dfs)
         graph_policy_eval_metrics(metric_to_df, wandb_run)
+
 
 if __name__ == "__main__":
     main()
