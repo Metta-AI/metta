@@ -82,8 +82,11 @@ class ActionEmbedding(nn_layer_library.Embedding):
 
     def _forward(self, td: TensorDict):
         B = td['_batch_size_']
+        TT = td['_TT_']
+
         # below - get embeddings, unsqueeze the 0'th dimension, then expand to match the batch size
-        td[self._name] = self._net(self.active_indices).unsqueeze(0).expand(B, -1, -1)
+        td[self._name] = self._net(self.active_indices).unsqueeze(0).expand(B * TT, -1, -1)
+        print(f"{self._name} shape: {td[self._name].shape}") # delete after testing
         return td
     
 class ActionHash(metta_layer.LayerBase):

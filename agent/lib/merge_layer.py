@@ -193,7 +193,7 @@ class ExpandLayer(LayerBase):
             self._out_tensor_shape.insert(self.expand_dim - 1, self.expand_value) # -1 because _out_tensor_shape doesn't account for batch size
         else:
             raise ValueError("Expand dim must be greater than 0. 0 is the batch dimension.")
-
+        self.itt = 0 # delete after testing
         self._ready = True
         
     def _forward(self, td: TensorDict):
@@ -204,11 +204,20 @@ class ExpandLayer(LayerBase):
 
         if self.dims_source is not None:
             self.expand_value = td[self.dims_source].size(self.source_dim)
+ 
+        self.itt += 1 # delete after testing
+        # if self.itt > 22:
+        #     breakpoint()
+        TT = td['_TT_']
+        B = td['_batch_size_']
 
         expanded = tensor.unsqueeze(self.expand_dim)
         expand_shape = [-1] * expanded.dim()
         expand_shape[self.expand_dim] = self.expand_value
         td[self._name] = expanded.expand(*expand_shape)
+        self.itt += 1 # delete after testing
+        print(f"itt: {self.itt}") # delete after testing
+        print(f"{self._name} shape: {td[self._name].shape}") # delete after testing
         return td
 
 class ReshapeLayer(LayerBase):
@@ -242,6 +251,7 @@ class ReshapeLayer(LayerBase):
         shape.pop(self.popped_dim)
         shape[self.squeezed_dim] = compressed_size
         td[self._name] = tensor.reshape(*shape)
+        print(f"{self._name} shape: {td[self._name].shape}") # delete after testing
         return td
 
 class BatchReshapeLayer(LayerBase):
@@ -258,16 +268,23 @@ class BatchReshapeLayer(LayerBase):
         self._input_source_component = input_source_components
         self._out_tensor_shape = self._input_source_component._out_tensor_shape
         # the out_tensor_shape is NOT ACCURATE because we don't know the batch size ahead of time!!!
-
+        self.itt = 0 # delete after testing
         self._ready = True
 
     def _forward(self, td: TensorDict):
         tensor = td[self._input_source]
+        self.itt += 1 # delete after testing
+        # if self.itt > 22:
+        #     breakpoint()
+
+        TT = td['_TT_']
         B = td['_batch_size_']
         shape = list(tensor.shape)
         shape.insert(1, 0)
         shape[1] = shape[0]//B
         shape[0] = B
         td[self._name] = tensor.reshape(*shape).squeeze()
+        print(f"itt: {self.itt}") # delete after testing
+        print(f"{self._name} shape: {td[self._name].shape}") # delete after testing
         return td
 

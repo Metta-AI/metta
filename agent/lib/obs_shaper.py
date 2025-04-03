@@ -9,8 +9,13 @@ class ObsShaper(LayerBase):
         self._obs_shape = obs_shape
         self._out_tensor_shape = [obs_shape[2], obs_shape[0], obs_shape[1]]
         self._output_size = num_objects
+        self.itt = 0 # delete after testing
 
     def _forward(self, td: TensorDict):
+        self.itt += 1 # delete after testing
+        if self.itt > 22:
+            breakpoint()
+
         x = td['x']
 
         x_shape, space_shape = x.shape, self._obs_shape
@@ -33,7 +38,7 @@ class ObsShaper(LayerBase):
             x = self._mps_permute(x)
         else:
             x = x.permute(0, 3, 1, 2)
-
+        td["_TT_"] = TT
         td["_batch_size_"] = B
         td[self._name] = x
         return td

@@ -148,6 +148,13 @@ class MettaAgent(nn.Module):
 
     def activate_actions(self, action_names, action_max_params):
         '''Run this at the beginning of training.'''
+
+        #delete after testing
+        for i, max_param in enumerate(action_max_params):
+            if max_param > 2:
+                action_max_params[i] = 2
+        # ---------
+        
         self.active_actions = list(zip(action_names, action_max_params))
         self.components['_action_embeds_'].activate_actions(self.active_actions)
 
