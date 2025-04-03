@@ -558,6 +558,18 @@ class PufferTrainer:
             for rank in self._effective_rank
         }
 
+        # --- For Eigen Metrics ---
+        largest_eigen = {
+            f'train/largest_eigen/{rank["name"]}': rank["largest_eigen"]
+            for rank in self._effective_rank
+        }
+
+        smallest_eigen = {
+            f'train/smallest_eigen/{rank["name"]}': rank["smallest_eigen"]
+            for rank in self._effective_rank
+        }
+        # --- End Eigen Metrics ---
+
         if self.wandb_run and self.cfg.wandb.track and self._master:
             self.wandb_run.log({
                 **{f"overview/{k}": v for k, v in overview.items()},
@@ -566,6 +578,8 @@ class PufferTrainer:
                 **environment,
                 **policy_fitness_metrics,
                 **effective_rank_metrics,
+                **largest_eigen, # --- For Eigen Metrics ---
+                **smallest_eigen, # --- For Eigen Metrics ---
                 **eval_metrics,
                 "train/agent_step": agent_steps,
                 "train/epoch": epoch,

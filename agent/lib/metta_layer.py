@@ -4,7 +4,7 @@ from torch import nn
 import torch
 import numpy as np
 
-from agent.util.eigen import analyze_eigen
+from agent.util.dynamics import analyze_sv
 
 class LayerBase(nn.Module):
     '''The base class for components that make up the Metta agent. All components
@@ -199,7 +199,18 @@ class ParamLayer(LayerBase):
         if self.weight_net.weight.data.dim() != 2 or self.effective_rank_bool is None or self.effective_rank_bool == False:
             return None
         # Singular value decomposition. We only need the singular value matrix.
-        _, S, _ = torch.linalg.svd(self.weight_net.weight.data.detach())
+        weights = self.weight_net.weight.data.detach().float()
+        noise = torch.randn_like(weights) * 1e-7
+        try:
+            _, S, _ = torch.linalg.svd(weights + noise)
+        except Exception as e:
+            avg_abs_weight = torch.abs(weights).mean()
+            cond_num = torch.linalg.cond(weights)
+
+            print(f"Error computing SVD for layer {self._name}: {e}")
+            print(f"Average absolute weight: {avg_abs_weight}")
+            print(f"Condition number: {cond_num}")
+            return None
 
         # Calculate the cumulative sum of singular values
         total_sum = S.sum()
@@ -209,4 +220,8 @@ class ParamLayer(LayerBase):
         threshold = (1 - delta) * total_sum
         effective_rank = torch.where(cumulative_sum >= threshold)[0][0].item() + 1  # Add 1 for 1-based indexing
 
-        return {'name': self._name, 'effective_rank': effective_rank}
+        # --- For Eigen Metrics ---
+        largest_eigen, smallest_eigen = analyze_sv(S)
+
+        return {'name': self._name, 'effective_rank': effective_rank, 'largest_eigen': largest_eigen, 'smallest_eigen': smallest_eigen}
+
