@@ -1,0 +1,23 @@
+
+defaults:
+  - navigation_defaults
+
+game:
+  num_agents: 20
+
+  map_builder:
+    _target_: mettagrid.config.room.multi_room.MultiRoom
+    num_rooms: 20
+    border_width: 3
+
+    room:
+      _target_: mettagrid.config.room.mean_distance.MeanDistance
+      width: ${uniform:40,60,50}
+      height: ${uniform:40,60,50}
+      mean_distance: ${uniform:20,40,30}
+      border_width: 3
+
+      agents: 1
+
+      objects:
+        altar: 3

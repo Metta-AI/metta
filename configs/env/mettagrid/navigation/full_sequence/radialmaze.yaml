@@ -1,0 +1,17 @@
+defaults:
+  - navigation_defaults
+
+game:
+  num_agents: 20
+
+  map_builder:
+    _target_: mettagrid.config.room.multi_room.MultiRoom
+    num_rooms: 20
+    room:
+      _target_: mettagrid.config.room.cognitive_evals.radial_maze.RadialMaze
+      width: ${uniform:18,22,21}
+      height: ${uniform:18,22,21}
+      radial_params:
+        num_arms: ${uniform:4,8,6}
+        arm_length: ${uniform:7,10,7}
+        center_radius: ${uniform:2,4,3}              # Set the corridor width to 4 blocks.
