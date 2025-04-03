@@ -15,3 +15,6 @@ evals:
   navigating_obstacles:
     env: env/mettagrid/cognitive_evals/navigating_obstacles
     policy_agents_pct: 1.0
+  simple:
+    env: env/mettagrid/simple
+    policy_agents_pct: 1.0
