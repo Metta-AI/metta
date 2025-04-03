@@ -41,11 +41,7 @@ class PufferTrainer:
         self.cfg = cfg
         self.trainer_cfg = cfg.trainer
 
-        if self.trainer_cfg.env is None:
-            assert len(self.trainer_cfg.envs) > 0, "No environment specified"
-            self._env_cfg = [config_from_path(cfg.env, self.trainer_cfg.env_overrides) for cfg in self.trainer_cfg.envs]
-        else:
-            self._env_cfg = config_from_path(self.trainer_cfg.env, self.trainer_cfg.env_overrides)
+        self._env_cfg = config_from_path(self.trainer_cfg.env, self.trainer_cfg.env_overrides)
 
         self._master = True
         self._world_size = 1
