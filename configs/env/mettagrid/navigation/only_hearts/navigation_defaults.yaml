@@ -127,11 +127,11 @@ game:
     get_items:
       enabled: true
     attack:
-      enabled: false
+      enabled: true
     swap:
-      enabled: false
+      enabled: true
     change_color:
-      enabled: false
+      enabled: true
 
   reward_sharing:
     groups:
