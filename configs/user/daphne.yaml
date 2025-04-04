@@ -34,7 +34,7 @@ trainer:
 policy_uri:  wandb://run/b.daphne.navigation_varied_obstacle_shapes_pretrained.r.1
 # npc_policy_uri: ${trained_policy_uri}
 # eval_db_uri: wandb://artifacts/testing
-eval_db_uri: wandb://artifacts/navigation_evaluation_onlyhearts
+eval_db_uri: wandb://artifacts/navigation_evaldb_onlyhearts
 
 
 analyzer:

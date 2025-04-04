@@ -12,6 +12,31 @@ from rl.pufferlib.vecenv import make_vecenv
 
 logger = logging.getLogger("eval")
 
+
+class EvalSuite:
+    def __init__(
+        self,
+        policy_store: PolicyStore,
+        policy_pr: PolicyRecord,
+        run_id: str,
+        env_overrides: DictConfig = None,
+        evals: DictConfig = None,
+        **kwargs):
+
+        self._evals_cfgs = evals
+        self._evals = []
+        for eval_name, eval_cfg in evals.items():
+            eval_cfg = OmegaConf.merge(kwargs, eval_cfg)
+            eval = Eval(policy_store, policy_pr, run_id,
+                        env_overrides=env_overrides, **eval_cfg)
+            self._evals.append(eval)
+
+    def evaluate(self):
+        return {
+            eval_name: eval.evaluate()
+            for eval_name, eval in zip(self._evals_cfgs.keys(), self._evals)
+        }
+
 class Eval():
     def __init__(
         self,
@@ -166,27 +191,3 @@ class Eval():
         logger.info(f"Evaluation time: {time.time() - start}")
         self._vecenv.close()
         return game_stats
-
-class EvalSuite:
-    def __init__(
-        self,
-        policy_store: PolicyStore,
-        policy_pr: PolicyRecord,
-        run_id: str,
-        env_overrides: DictConfig = None,
-        evals: DictConfig = None,
-        **kwargs):
-
-        self._evals_cfgs = evals
-        self._evals = []
-        for eval_name, eval_cfg in evals.items():
-            eval_cfg = OmegaConf.merge(kwargs, eval_cfg)
-            eval = Eval(policy_store, policy_pr, run_id,
-                        env_overrides=env_overrides, **eval_cfg)
-            self._evals.append(eval)
-
-    def evaluate(self):
-        return {
-            eval_name: eval.evaluate()
-            for eval_name, eval in zip(self._evals_cfgs.keys(), self._evals)
-        }

@@ -34,11 +34,6 @@ def main(cfg: DictConfig):
             stats_logger.log(stats)
 
         eval_stats_db = EvalStatsDB.from_uri(cfg.eval.eval_db_uri, cfg.run_dir, wandb_run)
-        cfg.analyzer.policy_uri = cfg.eval.policy_uri
-        analyzer = hydra.utils.instantiate(cfg.analyzer, eval_stats_db)
-        dfs, _ = analyzer.analyze()
-        for df in dfs:
-            logger.info(df)
 
 if __name__ == "__main__":
     main()
