@@ -51,11 +51,13 @@ components:
     _target_: agent.lib.nn_layer_library.Linear
     input_source: obs_flattener
     output_size: 128
+    effective_rank: true
 
   encoded_obs:
     _target_: agent.lib.nn_layer_library.Linear
     input_source: fc1
     output_size: 128
+    effective_rank: true
 
   _core_:
     _target_: agent.lib.lstm.LSTM
@@ -75,6 +77,7 @@ components:
     input_source: critic_1
     output_size: 1
     nonlinearity: null
+    effective_rank: true
 
   actor_1:
     _target_: agent.lib.nn_layer_library.Linear
@@ -86,8 +89,10 @@ components:
     _target_: agent.lib.action.ActionType
     input_source: actor_1
     nonlinearity: null
+    effective_rank: true
 
   _action_param_:
     _target_: agent.lib.action.ActionParam
     input_source: actor_1
     nonlinearity: null
+    effective_rank: true

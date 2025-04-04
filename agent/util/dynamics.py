@@ -39,4 +39,4 @@ def analyze_sv(S: torch.Tensor) -> tuple[float, float]:
     else:
         regime = 2 # "Chaotic"
 
-    return sv_ratio, r_value**2
+    return sv_ratio, r_value**2, slope, largest_sv

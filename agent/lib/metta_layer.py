@@ -221,7 +221,7 @@ class ParamLayer(LayerBase):
         effective_rank = torch.where(cumulative_sum >= threshold)[0][0].item() + 1  # Add 1 for 1-based indexing
 
         # --- For Eigen Metrics ---
-        largest_eigen, smallest_eigen = analyze_sv(S)
+        sv_ratio, r2_value, slope, largest_eigen = analyze_sv(S)
 
-        return {'name': self._name, 'effective_rank': effective_rank, 'largest_eigen': largest_eigen, 'smallest_eigen': smallest_eigen}
+        return {'name': self._name, 'effective_rank': effective_rank, 'largest_eigen': largest_eigen, 'r2_value': r2_value, 'sv_ratio': sv_ratio, 'slope': slope}
 

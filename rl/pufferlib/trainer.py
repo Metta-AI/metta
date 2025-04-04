@@ -553,22 +553,16 @@ class PufferTrainer:
             for r in self._policy_fitness
         }
 
-        effective_rank_metrics = {
-            f'train/effective_rank/{rank["name"]}': rank["effective_rank"]
-            for rank in self._effective_rank
-        }
-
-        # --- For Eigen Metrics ---
-        largest_eigen = {
-            f'train/largest_eigen/{rank["name"]}': rank["largest_eigen"]
-            for rank in self._effective_rank
-        }
-
-        smallest_eigen = {
-            f'train/smallest_eigen/{rank["name"]}': rank["smallest_eigen"]
-            for rank in self._effective_rank
-        }
-        # --- End Eigen Metrics ---
+        effective_rank_all_metrics = {}
+        for rank in self._effective_rank:
+            # Get the name to use as the identifier
+            name = rank.get("name", "unknown")
+            # For each key in the rank dictionary (except "name")
+            for key, value in rank.items():
+                if key != "name":  # Skip the name since we're using it as identifier
+                    # Create a wandb log key with the format: train/{metric_name}/{layer_name}
+                    metric_key = f'train/{key}/{name}'
+                    effective_rank_all_metrics[metric_key] = value
 
         if self.wandb_run and self.cfg.wandb.track and self._master:
             self.wandb_run.log({
@@ -577,9 +571,7 @@ class PufferTrainer:
                 **{f"performance/{k}": v for k, v in performance.items()},
                 **environment,
                 **policy_fitness_metrics,
-                **effective_rank_metrics,
-                **largest_eigen, # --- For Eigen Metrics ---
-                **smallest_eigen, # --- For Eigen Metrics ---
+                **effective_rank_all_metrics,
                 **eval_metrics,
                 "train/agent_step": agent_steps,
                 "train/epoch": epoch,
