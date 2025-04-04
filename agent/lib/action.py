@@ -74,15 +74,17 @@ class ActionEmbedding(nn_layer_library.Embedding):
                 embedding_index = len(self._reserved_action_embeds) + 1 # generate index for this string
                 self._reserved_action_embeds[action_type] = embedding_index # update this component's known embeddings
 
+        device = next(self.parameters()).device
         self.active_indices = torch.tensor([
             self._reserved_action_embeds[name]
             for name in string_list
-        ])
+        ], device=device)
         self.num_actions = len(self.active_indices)
 
     def _forward(self, td: TensorDict):
         B = td['_batch_size_']
         TT = td['_TT_']
+        td['_num_actions_'] = self.num_actions
 
         # below - get embeddings, unsqueeze the 0'th dimension, then expand to match the batch size
         td[self._name] = self._net(self.active_indices).unsqueeze(0).expand(B * TT, -1, -1)
@@ -129,7 +131,9 @@ class ActionHash(metta_layer.LayerBase):
 
     def _forward(self, td: TensorDict):
         B = td['_batch_size_']
-        td[self._name] = self.action_embeddings.unsqueeze(0).expand(B, -1, -1)
+        TT = td['_TT_']
+        td['_num_actions_'] = self.num_actions
+        td[self._name] = self.action_embeddings.unsqueeze(0).expand(B * TT, -1, -1)
         return td
 
 

@@ -230,8 +230,8 @@ class MettaAgent(nn.Module):
             cumulative_sum = torch.tensor([sum(self.actions_max_params[:num]) for num in action_type_numbers])
             action_logit_index = action_type_numbers + cumulative_sum + action_params
             
-            # Reshape back to original batch dimensions
-            action_logit_index = action_logit_index.reshape(orig_shape[0], orig_shape[1], 1)
+            # Reshape back to original batch dimensions and send to device
+            action_logit_index = action_logit_index.reshape(*orig_shape[:2], 1).to(logits.device)
 
         action_logit_index, logprob, entropy, normalized_logits = sample_logits(logits, action_logit_index)
         
