@@ -67,12 +67,13 @@ def nice_actions(env, action):
 
 def save_trace_image(
     cfg: OmegaConf,
+    env_cfg: OmegaConf,
     policy_record: PolicyRecord,
     output_path: str
 ):
     """ Trace a policy and generate a jsonl file """
 
-    simulator = Simulator(cfg, policy_record)
+    simulator = Simulator(cfg, env_cfg, policy_record)
 
     steps = []
     actions_names = simulator.env.action_names()
@@ -197,12 +198,13 @@ def add_sequence_key(grid_object, key, step, value):
 
 def save_replay(
     cfg: OmegaConf,
+    env_cfg: OmegaConf,
     policy_record: PolicyRecord,
     output_path: str
 ):
     """ Trace a policy and generate a replay file """
 
-    simulator = Simulator(cfg, policy_record)
+    simulator = Simulator(cfg, env_cfg, policy_record)
 
     grid_objects = []
 
@@ -254,13 +256,14 @@ def save_replay(
     # Make sure the directory exists:
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
-    with open(output_path, "w") as f:
-        f.write(json.dumps(replay))
-
-    # Compress it with deflate.
-    replay_data = json.dumps(replay)  # Convert to JSON string
-    replay_bytes = replay_data.encode('utf-8')  # Encode to bytes
-    compressed_data = zlib.compress(replay_bytes)  # Compress the bytes
-    # Write the compressed data to a file
-    with open(output_path + '.z', 'wb') as f:
-        f.write(compressed_data)
+    if output_path.endswith(".z"):
+        # Compress it with deflate.
+        replay_data = json.dumps(replay)  # Convert to JSON string
+        replay_bytes = replay_data.encode('utf-8')  # Encode to bytes
+        compressed_data = zlib.compress(replay_bytes)  # Compress the bytes
+        # Write the compressed data to a file
+        with open(output_path, 'wb') as f:
+            f.write(compressed_data)
+    else:
+        with open(output_path, "w") as f:
+            f.write(json.dumps(replay))

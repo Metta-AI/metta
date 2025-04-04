@@ -19,6 +19,7 @@ checkpoint_interval: 60
 wandb_checkpoint_interval: 300
 
 trace_interval: 0
+replay_interval: 0
 
 # Average reward settings
 average_reward: false  # Set to true to use average reward optimization
