@@ -9,8 +9,8 @@ policy_agents_pct: 1.0
 device: ${device}
 vectorization: ${vectorization}
 
-num_envs: 1
-num_episodes: 50
+num_envs: 5
+num_episodes: 5
 max_time_s: 60
 
 name: null
