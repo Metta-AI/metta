@@ -12,9 +12,9 @@ game:
 
     room:
       _target_: mettagrid.config.room.mean_distance.MeanDistance
-      width: ${uniform:20,30,25}
-      height: ${uniform:20,30,25}
-      mean_distance: ${uniform:11,20,10}
+      width: 25
+      height: 25
+      mean_distance: 15
       border_width: 3
 
       agents: 1
