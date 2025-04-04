@@ -6,15 +6,45 @@ defaults:
 env: null #the env is set in evals:
 
 evals:
+  emptyspace_withinsight:
+    env: env/mettagrid/navigation/full_sequence/emptyspace_withinsight
+    policy_agents_pct: 1.0
+  emptyspace_outofsight :
+    env: env/mettagrid/navigation/full_sequence/emptyspace_outofsight
+    policy_agents_pct: 1.0
+  emptyspace_sparse:
+    env: env/mettagrid/navigation/full_sequence/emptyspace_sparse
+    policy_agents_pct: 1.0
+  walls_withinsight:
+    env: env/mettagrid/navigation/full_sequence/walls_withinsight
+    policy_agents_pct: 1.0
+  walls_outofsight:
+    env: env/mettagrid/navigation/full_sequence/walls_outofsight
+    policy_agents_pct: 1.0
+  walls_sparse:
+    env: env/mettagrid/navigation/full_sequence/walls_sparse
+    policy_agents_pct: 1.0
   cylinder:
-    env: env/mettagrid/cognitive_evals/cylinder
+    env: env/mettagrid/navigation/full_sequence/cylinder
     policy_agents_pct: 1.0
-  radial_maze:
-    env: env/mettagrid/cognitive_evals/radial_maze
+  obstacles0:
+    env: env/mettagrid/navigation/full_sequence/obstacles0
     policy_agents_pct: 1.0
-  navigating_obstacles:
-    env: env/mettagrid/cognitive_evals/navigating_obstacles
+  obstacles1:
+    env: env/mettagrid/navigation/full_sequence/obstacles1
     policy_agents_pct: 1.0
-  short_term_memory:
-    env: env/mettagrid/cognitive_evals/short_term_memory
+  obstacles2:
+    env: env/mettagrid/navigation/full_sequence/obstacles2
+    policy_agents_pct: 1.0
+  obstacles3:
+    env: env/mettagrid/navigation/full_sequence/obstacles3
+    policy_agents_pct: 1.0
+  corridors:
+    env: env/mettagrid/navigation/full_sequence/corridors
+    policy_agents_pct: 1.0
+  labyrinth:
+    env: env/mettagrid/navigation/full_sequence/labyrinth
+    policy_agents_pct: 1.0
+  radialmaze:
+    env: env/mettagrid/navigation/full_sequence/radialmaze
     policy_agents_pct: 1.0
