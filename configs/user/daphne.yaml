@@ -46,7 +46,7 @@ eval:
   num_envs: 10
   num_episodes: 16
   max_time_s: 600
-  env: /env/mettagrid/navigation/only_hearts/visualize_all
+  env: /env/mettagrid/navigation/full_sequence/emptyspace_sparse
 
   policy_uri: ${..policy_uri}
   # npc_policy_uri: ${..npc_policy_uri}
