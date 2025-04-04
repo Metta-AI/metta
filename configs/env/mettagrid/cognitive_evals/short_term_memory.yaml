@@ -2,12 +2,12 @@ defaults:
   - cogeval_defaults
 
 game:
-  num_agents: 8  #how many agents are in the map x2
+  num_agents: 4
 
   map_builder:
 
     _target_: mettagrid.config.room.multi_room.MultiRoom
-    num_rooms: 2
+    num_rooms: 1
     room:
       _target_: mettagrid.config.room.ascii.Ascii
       border_width: 1
