@@ -3,7 +3,7 @@ defaults:
 
 game:
   num_agents: 20
-  max_steps: 600
+  max_steps: 255
 
 
   map_builder:
