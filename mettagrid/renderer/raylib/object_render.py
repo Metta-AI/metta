@@ -11,7 +11,8 @@ from raylib import colors, rl
 
 class ObjectRenderer:
     def __init__(self, sprite_sheet, tile_size=24):
-        sprites_dir = "deps/mettagrid/mettagrid/renderer/assets/"
+        module_path = os.path.dirname(__file__)
+        sprites_dir = os.path.join(module_path, "../assets/")
         sprite_sheet_path = os.path.join(sprites_dir, sprite_sheet)
         assert os.path.exists(sprite_sheet_path), f"Sprite sheet {sprite_sheet_path} does not exist"
         self.sprite_sheet = rl.LoadTexture(sprite_sheet_path.encode())
