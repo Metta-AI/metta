@@ -24,7 +24,7 @@ POLICIES_FULL_SEQUENCE=(
 
 # Loop through the policies and run evaluations
 for i in "${!POLICIES_HEARTS[@]}"; do
-    POLICY_URI=${POLICIES[$i]}
+    POLICY_URI=${POLICIES_HEARTS[$i]}
     IDX=$((i + 1))
 
     echo "Running only hearts eval for policy $POLICY_URI"
