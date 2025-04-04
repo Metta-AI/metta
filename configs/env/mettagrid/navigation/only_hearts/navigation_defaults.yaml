@@ -18,7 +18,7 @@ game:
   num_agents: ???
   obs_width: 11
   obs_height: 11
-  max_steps: 300
+  max_steps: 255
   tile_size: 16
   no_energy_steps: 0 #what is this?
 
