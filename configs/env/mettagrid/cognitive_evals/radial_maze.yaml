@@ -3,9 +3,9 @@ defaults:
 
 game:
   num_agents: 24
-  num_rooms: 24
   map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom
+    num_rooms: 24
     room:
       _target_: mettagrid.config.room.cognitive_evals.radial_maze.RadialMaze
       width: ${uniform:18,22,21}
