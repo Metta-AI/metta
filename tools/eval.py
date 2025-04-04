@@ -33,7 +33,5 @@ def main(cfg: DictConfig):
 
             stats_logger.log(stats)
 
-        eval_stats_db = EvalStatsDB.from_uri(cfg.eval.eval_db_uri, cfg.run_dir, wandb_run)
-
 if __name__ == "__main__":
     main()
