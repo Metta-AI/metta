@@ -21,7 +21,7 @@ POLICIES=(
 # Loop through the policies and run evaluations
 for i in "${!POLICIES[@]}"; do
     POLICY_URI=${POLICIES[$i]}
-    IDX=$((i + 14))
+    IDX=$((i + 1))
 
     echo "Running only hearts eval for policy $POLICY_URI"
     python3 -m tools.eval \
@@ -30,10 +30,10 @@ for i in "${!POLICIES[@]}"; do
         eval.policy_uri=wandb://run/$POLICY_URI \
         eval_db_uri=wandb://artifacts/navigation_evaldb_onlyhearts
 
-    # echo "Running full sequence eval for policy $POLICY_URI"
-    # python3 -m tools.eval \
-    #     eval=navigation_evals_fullsequence \
-    #     run=navigation_evals_fullsequence$IDX \
-    #     eval.policy_uri=wandb://run/$POLICY_URI \
-    #     eval_db_uri=wandb://artifacts/navigation_evaldb_fullsequence
+    echo "Running full sequence eval for policy $POLICY_URI"
+    python3 -m tools.eval \
+        eval=navigation_evals_fullsequence \
+        run=navigation_evals_fullsequence$IDX \
+        eval.policy_uri=wandb://run/$POLICY_URI \
+        eval_db_uri=wandb://artifacts/navigation_evaldb_fullsequence
 done
