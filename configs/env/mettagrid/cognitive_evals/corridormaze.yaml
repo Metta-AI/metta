@@ -17,39 +17,3 @@ game:
       num_converters: ${uniform:2,4,3}
       num_heart_altars: ${uniform:2,4,3}
       rotate: ${choose:true,false}
-
-  objects:
-    altar:
-      hp: 30
-      cooldown: 1
-
-    mine:
-      hp: 30
-      cooldown: 1
-
-    generator:
-      hp: 30
-      cooldown: 1
-
-    armory:
-      hp: 30
-      cooldown: 1
-
-    lasery:
-      hp: 30
-      cooldown: 1
-
-    lab:
-      hp: 30
-      cooldown: 1
-
-    factory:
-      hp: 30
-      cooldown: 1
-
-    temple:
-      hp: 30
-      cooldown: 1
-
-    wall:
-      hp: ${uniform:1, 20, 10}
