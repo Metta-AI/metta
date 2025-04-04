@@ -526,11 +526,7 @@ class PufferTrainer:
         replay_path = f"{self.cfg.run_dir}/replays/replay.{self.epoch}.json.z"
         save_replay(self.cfg, self._env_cfg, self.last_pr, replay_path)
         if self._master:
-            s3 = boto3.client(
-                "s3",
-                aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-                aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
-            )
+            s3 = boto3.client("s3")
             s3.upload_file(
                 Filename=replay_path,
                 Bucket="softmax-public",
