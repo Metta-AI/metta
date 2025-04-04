@@ -20,6 +20,12 @@ POLICIES_FULL_SEQUENCE=(
     "navigation_infinite_cooldown_sparser_pretrained.r.0"
     "navigation_infinite_cooldown_sparser.r.0"
     "navigation_poisson_sparser_pretrained.r.6"
+    "b.daveey.t.8.rdr9.3"
+    "b.daveey.t.4.rdr9.3"
+    "b.daveey.t.8.rdr9.mb2.1"
+    "daveey.t.1.pi.dpm"
+    "b.daveey.t.64.dr90.1"
+    "b.daveey.t.8.rdr9.sb"
 )
 
 # Loop through the policies and run evaluations
