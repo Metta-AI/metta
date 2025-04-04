@@ -1,6 +1,8 @@
 import logging
 import hydra
 import wandb
+from datetime import datetime
+import copy
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
@@ -195,7 +197,7 @@ def graph_highest_scores_per_eval(
         else:
             logger.warning(f"No data for eval {eval_name}")
     
-    highest_scores.sort(key=lambda x: x[1], reverse=True)
+    highest_scores.sort(key=lambda x: x[0])  # Sort by eval name (index 0)
     highest_score_table = wandb.Table(
         data=highest_scores,
         columns=["Eval", f"Highest {metric_name}", "Winning Policy", "ID"]
@@ -314,9 +316,13 @@ def get_episode_reward_df(metric_to_df: Dict[str, pd.DataFrame]) -> pd.DataFrame
 
 def generate_report(cfg: DictConfig):
     logger = logging.getLogger("generate_report")
-    with WandbContext(cfg) as wandb_run:
-        # Disable step-tracking for all logged metrics (so no slider appears)
-        wandb_run.define_metric("*", step_metric=None)
+    
+    # Set up a one-off run on wandb to avoid conflicts on graphs when iterating
+    one_off_cfg = copy.deepcopy(cfg)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    one_off_cfg.run = f"{cfg.run}.report.{timestamp}"
+    one_off_cfg.run_dir = cfg.run_dir
+    with WandbContext(one_off_cfg) as wandb_run:
 
         eval_stats_db = EvalStatsDB.from_uri(cfg.eval.eval_db_uri, cfg.run_dir, wandb_run)
         analyzer = hydra.utils.instantiate(cfg.analyzer, eval_stats_db)

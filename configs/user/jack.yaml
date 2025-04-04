@@ -31,7 +31,7 @@ eval:
 wandb:
   checkpoint_interval: 1
 
-run_id: 16  
+run_id: 17  
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 
