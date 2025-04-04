@@ -1,0 +1,40 @@
+# @package __global__
+
+defaults:
+  - override /agent: simple
+  - override /eval: core_eval_suite
+  - override /analyzer: eval_analyzer
+
+trainer:
+  env: /env/mettagrid/bases
+  evaluate_interval: 200
+  env_overrides:
+    # sampling: 0.7
+    game:
+      num_agents: 36
+      max_steps: 1000
+
+policy_uri: wandb://run/b.daveey.t.64.dr90.e3b
+# policy_uri:  wandb://run/b.georgedeane.colored_mines_constrained
+
+analyzer:
+  eval_stats_uri: ${run_dir}/eval_stats
+  policy_uri: ${..policy_uri}
+  analysis:
+    metrics:
+      - metric: episode_reward
+      - metric: "heart.get"
+
+eval:
+  policy_uri: ${..policy_uri}
+
+wandb:
+  checkpoint_interval: 1
+
+run_id: 2
+run: ${oc.env:USER}.local.${run_id}
+trained_policy_uri: ${run_dir}/checkpoints
+
+sweep_params: "sweep/fast"
+sweep_name: "${oc.env:USER}.local.sweep.${run_id}"
+seed: null
