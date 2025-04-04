@@ -1,0 +1,54 @@
+defaults:
+  - cogeval_defaults
+
+game:
+  num_agents: 24
+
+  map_builder:
+    _target_: mettagrid.config.room.multi_room.MultiRoom
+    num_rooms: 24
+    room:
+      _target_: mettagrid.config.room.cognitive_evals.barriermaze.BarrierMaze
+      border_width: 1
+      width: ${uniform:15,25,21}
+      height: ${uniform:15,25,21}
+      barrier_width: ${uniform:1,3,2}
+      num_barriers: ${uniform:3,5,3}
+      barrier_placement_mode: ${choose:"same","alternating","doorways"}
+      barrier_orientation: ${choose:"vertical","horizontal"}
+
+  objects:
+    altar:
+      hp: 30
+      cooldown: 1
+
+    mine:
+      hp: 30
+      cooldown: 1
+
+    generator:
+      hp: 30
+      cooldown: 1
+
+    armory:
+      hp: 30
+      cooldown: 1
+
+    lasery:
+      hp: 30
+      cooldown: 1
+
+    lab:
+      hp: 30
+      cooldown: 1
+
+    factory:
+      hp: 30
+      cooldown: 1
+
+    temple:
+      hp: 30
+      cooldown: 1
+
+    wall:
+      hp: ${uniform:1, 20, 10}
