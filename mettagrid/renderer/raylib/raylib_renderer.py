@@ -48,7 +48,8 @@ class MettaGridRaylibRenderer:
         rl.InitWindow(self.window_width, self.window_height, "MettaGrid".encode())
         rl.SetWindowState(rl.FLAG_WINDOW_RESIZABLE)  # Make the window resizable
 
-        font_path = "deps/mettagrid/mettagrid/renderer/assets/Inter-Regular.ttf"
+        module_path = os.path.dirname(__file__)
+        font_path = os.path.join(module_path, "../assets/Inter-Regular.ttf")
         assert os.path.exists(font_path), f"Font {font_path} does not exist"
 
         # Load custom font
