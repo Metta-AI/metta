@@ -18,25 +18,25 @@ game:
   num_agents: ???
   obs_width: 11
   obs_height: 11
-  max_steps: 1000
+  max_steps: 300
   tile_size: 16
-  no_energy_steps: 500
+  no_energy_steps: 0 #what is this?
 
   agent:
-    max_inventory: ${uniform:0, 100, 50}
-    freeze_duration: ${uniform:0, 200, 10}
+    max_inventory: 50
+    freeze_duration: 10
     hp: 10
     mortal: False
     rewards:
       # action_failure_penalty: 0.00001
       action_failure_penalty: 0
-      ore.red: 0.005
-      ore.blue: 0.005
-      ore.green: 0.005
-      battery: 0.01
+      ore.red: 0
+      ore.blue: 0
+      ore.green: 0
+      battery: 0
       battery_max: 5
-      heart: 1
-      heart_max: 1000
+      heart: 3
+      heart_max: 3
 
   groups:
     agent:
@@ -86,7 +86,7 @@ game:
       max_output: 5
       conversion_ticks: 1
       cooldown: 1000
-      initial_items: 1
+      initial_items: 0
 
     mine.red:
       hp: 30
@@ -105,8 +105,7 @@ game:
       max_output: 5
       conversion_ticks: 1
       cooldown: 1
-      initial_items: 1
-
+      initial_items: 0
 
     wall:
       hp: ${uniform:1, 20, 10}
