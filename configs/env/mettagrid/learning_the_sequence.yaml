@@ -1,0 +1,26 @@
+
+defaults:
+  - mettagrid
+
+game:
+  num_agents: 4
+
+  map_builder:
+    _target_: mettagrid.config.room.multi_room.MultiRoom
+    num_rooms: 4
+    border_width: 6
+
+    room:
+      _target_: mettagrid.config.room.poisson.Poisson
+      width: ${uniform:10,50,20}
+      height: ${uniform:10,50,20}
+      border_width: ${uniform:1,6,3}
+
+      agents: 1
+
+      mean_distance: 5
+
+      objects:
+        mine: 1
+        generator: 1
+        altar: 1

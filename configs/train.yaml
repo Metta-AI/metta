@@ -2,7 +2,7 @@ defaults:
   - common
   - agent: simple
   - trainer: puffer
-  - eval: eval_suite
+  - eval: navigation
   - analyzer: eval_analyzer
   - wandb
 
