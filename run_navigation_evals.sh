@@ -28,18 +28,18 @@ POLICIES_FULL_SEQUENCE=(
     "b.daveey.t.8.rdr9.sb"
 )
 
-# Loop through the policies and run evaluations
-for i in "${!POLICIES_HEARTS[@]}"; do
-    POLICY_URI=${POLICIES_HEARTS[$i]}
-    IDX=$((i + 1))
+# # Loop through the policies and run evaluations
+# for i in "${!POLICIES_HEARTS[@]}"; do
+#     POLICY_URI=${POLICIES_HEARTS[$i]}
+#     IDX=$((i + 1))
 
-    echo "Running only hearts eval for policy $POLICY_URI"
-    python3 -m tools.eval \
-        eval=navigation_evals_onlyheart \
-        run=navigation_eval_onlyhearts$IDX \
-        eval.policy_uri=wandb://run/$POLICY_URI \
-        eval_db_uri=wandb://artifacts/navigation_evaldb_onlyhearts
-done
+#     echo "Running only hearts eval for policy $POLICY_URI"
+#     python3 -m tools.eval \
+#         eval=navigation_evals_onlyheart \
+#         run=navigation_eval_onlyhearts$IDX \
+#         eval.policy_uri=wandb://run/$POLICY_URI \
+#         eval_db_uri=wandb://artifacts/navigation_evaldb_onlyhearts
+# done
 
 for i in "${!POLICIES_FULL_SEQUENCE[@]}"; do
     POLICY_URI=${POLICIES_FULL_SEQUENCE[$i]}
