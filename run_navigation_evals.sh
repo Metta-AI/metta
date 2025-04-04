@@ -48,5 +48,5 @@ for i in "${!POLICIES_FULL_SEQUENCE[@]}"; do
         eval=navigation_evals_fullsequence \
         run=navigation_eval_fullsequence$IDX \
         eval.policy_uri=wandb://run/$POLICY_URI \
-        eval_db_uri=wandb://artifacts/navigation_evaldb_fullsequence
+        eval_db_uri=wandb://artifacts/navigation_evaldb_full_sequence
 done
