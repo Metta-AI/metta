@@ -100,3 +100,28 @@ The `track_last_action` property adds the agent's last action to the observation
 ## Configuration
 
 The MettaGrid environment is highly configurable through the use of YAML configuration files. These files specify the layout of the gridworld, the placement of objects, and various properties of the objects and agents.
+
+**Current settings:**
+1. Ore
+   - Base resource obtained from mines. Mines produce one ore when used. No resource requirements for use. 
+   - Reward value: 0.005 per unit (max 2)
+   - Used to create batteries and lasers
+2. Battery
+   - Intermediate resource created from ore at a generator. Generator turns one ore into one battery. 
+   - Reward value: 0.01 per unit (max 2)
+   - Used to create hearts and lasers
+3. Heart / heart altar
+   - High value reward, requires 3 batteries to be converted into a heart at a heart altar.
+4. Laser
+   - Weapon resource created from ore and batteries. Requires 1 ore and 2 batteries. Created at the lasery.
+- Consumed on use. When hitting an unarmored agent: freezes them and steals their whole inventory. When hitting an armoured agent, destroys their armor.
+**Inventory System**
+- Agents have limited inventory space (default max: 50 items)
+- Resources provide rewards just by being in inventory (up to their max reward value)
+- Resources can be stolen through attacks
+Objects
+Various buildings: Mine, Generator, Armory, Lasery, Altar, Lab, Factory, Temple.
+- HP — hitpoints, the number of times something can be hit before destruction. 
+- Cooldown between uses (varies by building)
+- Can be damaged and destroyed by attacks
+
