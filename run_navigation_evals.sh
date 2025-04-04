@@ -8,6 +8,7 @@ POLICIES=(
     "navigation_infinite_cooldown_sparser_pretrained.r.0"
     "navigation_infinite_cooldown_sparser.r.0"
     "navigation_poisson_sparser_pretrained.r.6"
+    "b.daveey.t.64.dr90.1"
 )
 
 # Loop through the policies and run evaluations
