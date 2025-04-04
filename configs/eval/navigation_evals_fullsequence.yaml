@@ -49,5 +49,5 @@ evals:
     env: env/mettagrid/navigation/full_sequence/labyrinth
     policy_agents_pct: 1.0
   radialmaze:
-    env: env/mettagrid/navigation/full_sequence/radial_maze
+    env: env/mettagrid/navigation/full_sequence/radialmaze
     policy_agents_pct: 1.0

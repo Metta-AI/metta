@@ -49,5 +49,5 @@ evals:
     env: env/mettagrid/navigation/only_hearts/labyrinth
     policy_agents_pct: 1.0
   radialmaze:
-    env: env/mettagrid/navigation/only_hearts/radial_maze
+    env: env/mettagrid/navigation/only_hearts/radialmaze
     policy_agents_pct: 1.0
