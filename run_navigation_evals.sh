@@ -36,7 +36,7 @@ for i in "${!POLICIES_HEARTS[@]}"; do
         eval=navigation_evals_onlyheart \
         run=navigation_eval_onlyhearts$IDX \
         eval.policy_uri=wandb://run/$POLICY_URI \
-        eval_db_uri=wandb://artifacts/navigation_evaldb_onlyhearts
+        eval_db_uri=wandb://artifacts/navigation_evaldb_only_hearts
 done
 
 for i in "${!POLICIES_FULL_SEQUENCE[@]}"; do
