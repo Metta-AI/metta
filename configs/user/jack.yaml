@@ -18,20 +18,20 @@ policy_uri: wandb://run/b.daveey.t.64.dr90.e3b
 # policy_uri:  wandb://run/b.georgedeane.colored_mines_constrained
 
 analyzer:
-  eval_stats_uri: ${run_dir}/eval_stats
   policy_uri: ${..policy_uri}
   analysis:
     metrics:
       - metric: episode_reward
-      - metric: "heart.get"
 
 eval:
   policy_uri: ${..policy_uri}
+  eval_db_uri: wandb://artifacts/navigation_evaldb_only_hearts
+
 
 wandb:
   checkpoint_interval: 1
 
-run_id: 2
+run_id: 13
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 
