@@ -10,7 +10,6 @@ import pufferlib
 import pufferlib.utils
 import torch
 import torch.distributed as dist
-from fast_gae import fast_gae
 from omegaconf import OmegaConf
 
 from util.config import config_from_path
@@ -19,14 +18,25 @@ from agent.metta_agent import DistributedMettaAgent
 from agent.policy_store import PolicyStore
 from rl.eval.eval_stats_db import EvalStatsDB
 from rl.eval.eval_stats_logger import EvalStatsLogger
-from rl.pufferlib.experience import Experience
-from rl.pufferlib.kickstarter import Kickstarter
 from rl.pufferlib.profile import Profile
 from rl.pufferlib.trace import save_trace_image
 from rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
 from rl.pufferlib.vecenv import make_vecenv
 
+from rl.pufferlib.algorithm.ppo import PPO
+from rl.pufferlib.algorithm.lstm import LSTM
+# from rl.pufferlib.algorithm.p3o import P3O
+# from rl.pufferlib.algorithm.kickstarter import Kickstarter
+# from rl.pufferlib.algorithm.diayn import DIAYN
+# from rl.pufferlib.algorithm.e3b import E3B
+# from rl.pufferlib.algorithm.l2_reg import L2Reg
+
+
+
 from agent.util.distribution_utils import sample_logits
+from tensordict import TensorDict
+from heavyball import ForeachMuon
+import heavyball.utils
 
 torch.set_float32_matmul_precision('high')
 
@@ -57,11 +67,10 @@ class PufferTrainer:
             logger.info(f"Setting up distributed training on device {self.device}")
 
         self.profile = Profile()
-        self.losses = self._make_losses()
+
         self.stats = defaultdict(list)
         self.wandb_run = wandb_run
         self.policy_store = policy_store
-        self.use_e3b = self.trainer_cfg.use_e3b
         self.eval_stats_logger = EvalStatsLogger(cfg, self._env_cfg)
         self.average_reward = 0.0  # Initialize average reward estimate
         self._policy_fitness = []
@@ -122,40 +131,68 @@ class PufferTrainer:
             self._original_policy = self.policy
             self.policy = DistributedMettaAgent(self.policy, self.device)
 
-        self._make_experience_buffer()
+        self._algs = []
+        self._algs.append(PPO(
+            gamma=self.trainer_cfg.ppo.gamma,
+            gae_lambda=self.trainer_cfg.ppo.gae_lambda,
+            clip_vloss=self.trainer_cfg.ppo.clip_vloss,
+            vf_clip_coef=self.trainer_cfg.ppo.vf_clip_coef,
+            vf_coef=self.trainer_cfg.ppo.vf_coef,
+            ent_coef=self.trainer_cfg.ppo.ent_coef,
+        ))
+        self._algs.append(LSTM(
+            num_layers=self.policy.core_num_layers,
+            total_agents=self.vecenv.num_agents,
+            hidden_size=self.policy.hidden_size
+        ))
 
-        # Inject diayn_discriminator into the policy. You will want this in your policy
-        if cfg.trainer.use_diayn:
-            self.policy.diayn_discriminator = torch.nn.Sequential(
-                pufferlib.pytorch.layer_init(torch.nn.Linear(self.policy.hidden_size, self.policy.hidden_size)),
-                torch.nn.ReLU(),
-                pufferlib.pytorch.layer_init(torch.nn.Linear(self.policy.hidden_size, cfg.trainer.diayn_archive))
-            )
+        # if self.trainer_cfg.diayn.enabled:
+        #     self._algs.append(DIAYN(self.trainer_cfg.diayn.archive))
+        # if self.trainer_cfg.e3b.enabled:
+        #     self._algs.append(E3B(self.policy.hidden_size, self.trainer_cfg.e3b.lambda_, self.trainer_cfg.e3b.norm))
+        # if self.trainer_cfg.kickstart.enabled:
+        #     self._algs.append(Kickstarter(self.cfg, self.policy_store, self.vecenv.single_action_space))
 
-            # Right now, I'm just adding the output of this to the hidden state because I don't know how
-            # to modify your policy setup. You'd ideally want to concat this with the rest of your embeddings
-            self.policy.diayn_encoder = torch.nn.Linear(cfg.trainer.diayn_archive, self.policy.hidden_size)
+        batch_size = self.trainer_cfg.batch_size
+        self.experience = TensorDict({
+            "env": TensorDict({
+                "obs": torch.zeros(
+                    batch_size,
+                    *self.vecenv.single_observation_space.shape,
+                    dtype=pufferlib.pytorch.numpy_to_torch_dtype_dict[self.vecenv.single_observation_space.dtype],
+                    pin_memory=self.device == 'cuda' and self.trainer_cfg.cpu_offload,
+                    device="cpu" if self.trainer_cfg.cpu_offload else self.device
+                ),
+                "rewards": torch.zeros(batch_size),
+                "dones": torch.zeros(batch_size),
+                "truncateds": torch.zeros(batch_size),
+            }, batch_size=batch_size),
+            "policy": TensorDict({
+                "logprobs": torch.zeros(batch_size),
+                "atn": torch.zeros(
+                    batch_size,
+                    *self.vecenv.single_action_space.shape,
+                    dtype=pufferlib.pytorch.numpy_to_torch_dtype_dict[self.vecenv.single_action_space.dtype]
+                ),
+            }, batch_size=batch_size),
+            "ptr": 0,
+            "step": 0,
+        })
+
+        for alg in self._algs:
+            alg.make_experience_buffers(self.experience)
 
         self.agent_step = checkpoint.agent_step
         self.epoch = checkpoint.epoch
 
-        assert self.trainer_cfg.optimizer in ('adam', 'muon')
-        if self.trainer_cfg.optimizer == 'adam':
-            self.optimizer = torch.optim.Adam(
-                self.policy.parameters(),
-                lr=self.trainer_cfg.learning_rate,
-                betas=(self.trainer_cfg.adam_beta1, self.trainer_cfg.adam_beta2),
-                eps=self.trainer_cfg.adam_eps
-            )
-        elif self.trainer_cfg.optimizer == 'muon':
-            from heavyball import ForeachMuon
-            import heavyball.utils
-            self.optimizer = ForeachMuon(
-                self.policy.parameters(),
-                lr=self.trainer_cfg.learning_rate,
-                betas=(self.trainer_cfg.adam_beta1, self.trainer_cfg.adam_beta2),
-                eps=self.trainer_cfg.adam_eps
-            )
+        assert self.trainer_cfg.optimizer.type in ('adam', 'muon')
+        opt_cls = torch.optim.Adam if self.trainer_cfg.optimizer.type == 'adam' else ForeachMuon
+        self.optimizer = opt_cls(
+            self.policy.parameters(),
+            lr=self.trainer_cfg.optimizer.learning_rate,
+            betas=(self.trainer_cfg.optimizer.beta1, self.trainer_cfg.optimizer.beta2),
+            eps=self.trainer_cfg.optimizer.eps
+        )
 
         epochs = self.trainer_cfg.total_timesteps // self.trainer_cfg.batch_size
         assert self.trainer_cfg.scheduler in ('linear', 'cosine')
@@ -176,8 +213,6 @@ class PufferTrainer:
             wandb_run.define_metric("train/agent_step")
             for k in ["0verview", "env", "losses", "performance", "train"]:
                 wandb_run.define_metric(f"{k}/*", step_metric="train/agent_step")
-
-        self.kickstarter = Kickstarter(self.cfg, self.policy_store, self.vecenv.single_action_space)
 
         logger.info(f"PufferTrainer initialization complete on device: {self.device}")
 
@@ -259,281 +294,117 @@ class PufferTrainer:
 
     @pufferlib.utils.profile
     def _evaluate(self):
-        data = self
-        profile = data.profile
-        with profile.eval_misc:
-            config = data.cfg
-            train_cfg = data.trainer_cfg
-            experience = data.experience
-            policy = data.policy
-            infos = defaultdict(list)
-            lstm_h = experience.lstm_h
-            lstm_c = experience.lstm_c
+        infos = defaultdict(list)
 
-        with data.amp_context:
-            while not experience.full:
-                with profile.env:
-                    o, r, d, t, info, env_id, mask = data.vecenv.recv()
+        with self.amp_context:
+            while self.experience["ptr"].item() < self.experience["env"].shape[0]:
+                with self.profile.env:
+                    o, r, d, t, info, agent_id, valid_agents = self.vecenv.recv()
 
-                    # This was originally self.config.env_batch_size == 1, but you have scaling
-                    # configured differently in metta. You want the whole forward pass batch to come
-                    # from one core to reduce indexing overhead.
-                    # contiguous_env_ids = self.vecenv.agents_per_batch == self.vecenv.driver_env.agents_per_env[0]
-                    contiguous_env_ids = self.trainer_cfg.async_factor == self.trainer_cfg.num_workers
-                    contiguous_env_ids = False
-                    if contiguous_env_ids:
-                        gpu_env_id = cpu_env_id = slice(env_id[0], env_id[-1] + 1)
-                    else:
-                        if self.trainer_cfg.require_contiguous_env_ids:
-                            raise ValueError("Env ids are not contiguous. "\
-                                f"{self.trainer_cfg.async_factor} != {self.trainer_cfg.num_workers}")
-                        cpu_env_id = env_id
-                        gpu_env_id = torch.as_tensor(env_id).to(self.device, non_blocking=True)
+                    state = TensorDict({
+                        "env": TensorDict({
+                            "obs": torch.as_tensor(o),
+                            "rewards": torch.as_tensor(r),
+                            "terminals": torch.as_tensor(d),
+                            "truncateds": torch.as_tensor(t),
+                            "valid_agents": torch.as_tensor(valid_agents),
+                            "agent_ids": torch.as_tensor(agent_id),
+                            "dones": torch.as_tensor(d + t)
+                        }, batch_size=o.shape[0])
+                    })
+                    self.agent_step += valid_agents.sum()
 
-                with profile.eval_misc:
-                    done_mask = d + t
-                    data.agent_step += mask.sum()
+                with self.profile.eval_copy:
+                    state = state.to(self.device, non_blocking=True)
 
-                    if data.trainer_cfg.use_diayn:
-                        idxs = env_id[done_mask]
-                        if len(idxs) > 0:
-                            z_idxs = torch.randint(0, experience.diayn_archive.shape[0], (done_mask.sum(),)).to(config.device)
-                            experience.diayn_skills[idxs] = z_idxs
+                with self.profile.eval_forward, torch.no_grad():
+                    for alg in self._algs:
+                        alg.on_pre_step(self.experience, state)
 
-                with profile.eval_copy:
-                    if data.use_e3b and done_mask.any():
-                        done_idxs = env_id[done_mask]
-                        experience.e3b_inv[done_idxs] = experience.e3b_orig[done_idxs]
-
-
-                    o = torch.as_tensor(o)
-                    o_device = o.to(config.device, non_blocking=True)
-                    r = torch.as_tensor(r).to(config.device, non_blocking=True)
-                    d = torch.as_tensor(d).to(config.device, non_blocking=True)
-
-                    h = None
-                    c = None
-                    if lstm_h is not None:
-                        h = lstm_h[:, gpu_env_id]
-                        c = lstm_c[:, gpu_env_id]
-
-                    if config.device == 'cuda':
-                        torch.cuda.synchronize()
-
-                with profile.eval_forward, torch.no_grad():
-                    state = pufferlib.namespace(
-                        reward=r,
-                        done=d,
-                        env_id=gpu_env_id,
-                        mask=mask,
-                        lstm_h=h,
-                        lstm_c=c,
-                    )
-
-                    if data.trainer_cfg.use_diayn:
-                        z_idxs = experience.diayn_skills[env_id]
-                        z = experience.diayn_archive[z_idxs]
-                        state.diayn_z_idxs = z_idxs
-                        state.diayn_z = z
-
-                    logits, value = policy(o_device, state)
+                    logits, value = self.policy(state["env"]["obs"], state)
                     action, logprob, _, normalized_logits = sample_logits(logits)
 
-                    if data.trainer_cfg.use_diayn:
-                        # You will want something like this. I couldn't figure out how
-                        # your components setup works, so I just injected this subnet
-                        # into the policy in trainer init.
-                        #discriminator = policy.components['diayn_discriminator']
-                        discriminator = self.policy.diayn_discriminator
-                        q = discriminator(state.hidden).squeeze()
-                        r_diayn = torch.log_softmax(q, dim=-1).gather(-1, z_idxs.unsqueeze(-1)).squeeze()
-                        r += train_cfg.diayn_coef*r_diayn# - np.log(1/data.diayn_archive)
-                        state.diayn_z = z
-                        state.diayn_z_idxs = z_idxs
+                    state["policy"].update({
+                        "logits": logits,
+                        "value": value,
+                        "action": action,
+                        "logprob": logprob,
+                    })
 
-                    if data.trainer_cfg.use_e3b:
-                        e3b = experience.e3b_inv[env_id]
-                        phi = state.hidden.detach()
-                        u = phi.unsqueeze(1) @ e3b
-                        b = u @ phi.unsqueeze(2)
-                        experience.e3b_inv[env_id] -= (u.mT @ u) / (1 + b)
-                        done_inds = env_id[done_mask]
-                        experience.e3b_inv[done_inds] = experience.e3b_orig[done_inds]
-                        e3b_reward = b.squeeze()
+                    for alg in self._algs:
+                        alg.on_post_step(self.experience, state)
 
-                        if experience.e3b_mean is None:
-                            experience.e3b_mean = e3b_reward.mean()
-                            experience.e3b_std = e3b_reward.std()
-                        else:
-                            w = train_cfg.e3b_norm
-                            experience.e3b_mean = (1-w)*e3b_reward.mean() + w*experience.e3b_mean
-                            experience.e3b_std = (1-w)*e3b_reward.std() + w*experience.e3b_std
+                with self.profile.eval_copy, torch.no_grad():
+                    for alg in self._algs:
+                        alg.store_experience(self.experience, state)
 
-                        e3b_reward = (e3b_reward - experience.e3b_mean) / (experience.e3b_std + 1e-6)
-                        e3b_reward = train_cfg.e3b_coef*e3b_reward
-                        r += e3b_reward
+                with self.profile.eval_copy:
+                    actions = action.cpu().numpy()
 
-                    # Clip rewards
-                    if train_cfg.clip_reward:
-                        r = torch.clamp(r, -1, 1)
-
-                    if config.device == 'cuda':
-                        torch.cuda.synchronize()
-
-                with profile.eval_copy, torch.no_grad():
-                    if lstm_h is not None:
-                        lstm_h[:, gpu_env_id] = state.lstm_h
-                        lstm_c[:, gpu_env_id] = state.lstm_c
-
-                        if config.device == 'cuda':
-                            torch.cuda.synchronize()
-
-                with profile.eval_copy:
-                    o = o if train_cfg.cpu_offload else o_device
-                    actions = experience.store(state, o, o_device, value, action, logprob, r, d, env_id, mask)
-
-                    if config.device == 'cuda':
-                        torch.cuda.synchronize()
-
-                with profile.eval_misc:
+                with self.profile.eval_misc:
                     for i in info:
                         for k, v in pufferlib.utils.unroll_nested_dict(i):
                             infos[k].append(v)
 
-                with profile.env:
-                    data.vecenv.send(actions)
+                with self.profile.env:
+                    self.vecenv.send(actions)
 
-        with profile.eval_misc:
+        with self.profile.eval_misc:
             for k, v in infos.items():
-                if '_map' in k:
-                    if data.wandb is not None:
-                        data.stats[f'Media/{k}'] = data.wandb.Image(v[0])
-                        continue
-                    elif data.neptune is not None:
-                        # TODO: Add neptune image logging
-                        pass
-
                 if isinstance(v, np.ndarray):
                     v = v.tolist()
                 try:
                     iter(v)
                 except TypeError:
-                    data.stats[k].append(v)
+                    self.stats[k].append(v)
                 else:
-                    data.stats[k] += v
+                    self.stats[k] += v
 
         # TODO: Better way to enable multiple collects
-        data.experience.ptr = 0
-        data.experience.step = 0
-        return data.stats, infos
+        self.experience.ptr = 0
+        self.experience.step = 0
+        return self.stats, infos
 
     @pufferlib.utils.profile
     def _train(self):
         data = self
         config, profile, experience = data.cfg, data.profile, data.experience
         train_cfg = data.trainer_cfg
-        self.losses = self._make_losses()
+        self.losses = {}
         losses = data.losses
 
-        with profile.train_copy:
-            idxs = experience.sort_training_data()
-            dones = experience.dones[idxs]
-            rewards = experience.rewards[idxs]
-
         with profile.train_misc:
-            if train_cfg.use_p3o:
-                reward_block = experience.reward_block
-                mask_block = experience.mask_block
-                values_mean = experience.values_mean[idxs]
-                values_std = experience.values_std[idxs]
-                advantages = experience.advantages
-
-                # Note: This function gets messed up by computing across
-                # episode bounds. Because we store experience in a flat buffer,
-                # bounds can be crossed even after handling dones. This prevent
-                # our method from scaling to longer horizons. TODO: Redo the way
-                # we store experience to avoid this issue
-                vstd_min = values_std.min().item()
-                vstd_max = values_std.max().item()
-                torch.cuda.synchronize()
-
-                mask_block.zero_()
-                experience.buf.zero_()
-                reward_block.zero_()
-                r_mean = rewards.mean().item()
-                r_std = rewards.std().item()
-                advantages.zero_()
-                experience.bounds.zero_()
-
-                # TODO: Rename vstd to r_std
-                advantages = self.compute_advantages(reward_block, mask_block, values_mean, values_std,
-                        experience.buf, dones, rewards, advantages, experience.bounds,
-                        r_std, data.puf, train_cfg.p3o_horizon)
-
-                horizon = torch.where(values_std[0] > 0.95*r_std)[0]
-                horizon = horizon[0].item()+1 if len(horizon) else 1
-                if horizon < 16:
-                    horizon = 16
-
-                advantages = advantages.cpu().numpy()
-                torch.cuda.synchronize()
-
-                experience.flatten_batch(advantages, reward_block, mask_block)
-                torch.cuda.synchronize()
-            else:
-                values_np = experience.values[idxs].to('cpu', non_blocking=True).numpy()
-                dones_np = dones.to('cpu', non_blocking=True).numpy()
-                rewards_np = rewards.to('cpu', non_blocking=True).numpy()
-                torch.cuda.synchronize()
-                advantages_np = fast_gae.compute_gae(dones_np, values_np,
-                rewards_np, train_cfg.gamma, train_cfg.gae_lambda)
-                experience.flatten_batch(advantages_np)
+            idxs = np.lexsort((self.sort_keys[:, 2], self.sort_keys[:, 1]))
+            self.b_idxs_obs = torch.as_tensor(idxs.reshape(
+                    self.minibatch_rows, self.num_minibatches, self.bptt_horizon
+                ).transpose(1,0,-1)).to(self.obs.device).long()
+            self.b_idxs = self.b_idxs_obs.to(self.device)
+            self.b_idxs_flat = self.b_idxs.reshape(
+                self.num_minibatches, self.minibatch_size)
+            self.sort_keys[:, 1:] = 0
+            for module in self._algs:
+                module.prepare_experience(experience)
 
         # Optimizing the policy and value network
         total_minibatches = experience.num_minibatches * train_cfg.update_epochs
-        mean_pg_loss, mean_v_loss, mean_entropy_loss = 0, 0, 0
-        mean_old_kl, mean_kl, mean_clipfrac = 0, 0, 0
-        cross_entropy = torch.nn.CrossEntropyLoss()
         accumulate_minibatches = max(1, train_cfg.minibatch_size // train_cfg.max_minibatch_size)
         for epoch in range(train_cfg.update_epochs):
-            lstm_h = None
-            lstm_c = None
             for mb in range(experience.num_minibatches):
                 with profile.train_misc:
-                    state = pufferlib.namespace(
-                        action=experience.b_actions[mb],
-                        lstm_h=lstm_h,
-                        lstm_c=lstm_c,
-                    )
-                    obs = experience.b_obs[mb]
-                    obs = obs.to(config.device)
-                    atn = experience.b_actions[mb]
-                    log_probs = experience.b_logprobs[mb]
-                    adv = experience.b_advantages[mb]
-                    ret = experience.b_returns[mb]
+                    state = TensorDict("action", experience.b_actions[mb])
+                    map(lambda m: m.initialize_state(state), self._algs)
 
-                    if train_cfg.use_diayn:
-                        z_idxs = experience.b_diayn_z_idxs[mb]
-                        z = experience.b_diayn_z[mb]
-                        state.diayn_z = z
-
-                    if train_cfg.use_p3o:
-                        val_mean = experience.b_values_mean[mb]
-                        val_std = experience.b_values_std[mb]
-                        rew_block = experience.b_reward_block[mb]
-                        mask_block = experience.b_mask_block[mb]
-                    else:
-                        val = experience.b_values[mb]
+                    mb_experience = experience[mb].to(config.device)
+                    map(lambda m: m.update_state(mb_experience, state), self._algs)
 
                     if config.device == 'cuda':
                         torch.cuda.synchronize()
 
                 with data.amp_context:
                     with profile.train_forward:
-                        #if not hasattr(data.policy, 'recurrent'):
-                        #    obs = obs.reshape(-1, *data.vecenv.single_observation_space.shape)
+                        logits, newvalue = data.policy.forward_train(mb_experience["obs"], state)
 
-                        logits, newvalue = data.policy.forward_train(obs, state)
+                        # xcxc
                         lstm_h = state.lstm_h
                         lstm_c = state.lstm_c
                         if lstm_h is not None:
@@ -547,87 +418,8 @@ class PufferTrainer:
                             torch.cuda.synchronize()
 
                     with profile.train_misc:
-                        logratio = newlogprob - log_probs.reshape(-1)
-                        ratio = logratio.exp()
-
-                        # TODO: Only do this if we are KL clipping? Saves 1-2% compute
-                        with torch.no_grad():
-                            # calculate approx_kl http://joschu.net/blog/kl-approx.html
-                            old_approx_kl = (-logratio).mean()
-                            approx_kl = ((ratio - 1) - logratio).mean()
-                            clipfrac = ((ratio - 1.0).abs() > train_cfg.clip_coef).float().mean()
-
-                        adv = adv.reshape(-1)
-                        if train_cfg.norm_adv:
-                            adv = (adv - adv.mean()) / (adv.std() + 1e-8)
-
-                        # Policy loss
-                        pg_loss1 = -adv * ratio
-                        pg_loss2 = -adv * torch.clamp(
-                            ratio, 1 - train_cfg.clip_coef, 1 + train_cfg.clip_coef
-                        )
-                        pg_loss = torch.max(pg_loss1, pg_loss2).mean()
-
-                        # Value loss
-                        if train_cfg.use_p3o:
-                            newvalue_mean = newvalue.mean.view(-1, train_cfg.p3o_horizon)
-                            newvalue_std = newvalue.std.view(-1, train_cfg.p3o_horizon)
-                            newvalue_var = torch.square(newvalue_std)
-                            criterion = torch.nn.GaussianNLLLoss(reduction='none')
-                            #v_loss = criterion(newvalue_mean[:, :32], rew_block[:, :32], newvalue_var[:, :32])
-                            v_loss = criterion(newvalue_mean, rew_block, newvalue_var)
-                            v_loss = v_loss[:, :(horizon+3)]
-                            mask_block = mask_block[:, :(horizon+3)]
-                            #v_loss[:, horizon:] = 0
-                            #v_loss = (v_loss * mask_block).sum(axis=1)
-                            #v_loss = (v_loss - v_loss.mean().item()) / (v_loss.std().item() + 1e-8)
-                            #v_loss = v_loss.mean()
-                            v_loss = v_loss[mask_block.bool()].mean()
-                            #TODO: Count mask and sum
-                            # There is going to have to be some sort of norm here.
-                            # Right now, learning works at different horizons, but you need
-                            # to retune hyperparameters. Ideally, horizon should be a stable
-                            # param that zero-shots the same hypers
-
-                            # Faster than masking
-                            #v_loss = (v_loss*mask_block[:, :32]).sum() / mask_block[:, :32].sum()
-                            #v_loss = (v_loss*mask_block).sum() / mask_block.sum()
-                            #v_loss = v_loss[mask_block.bool()].mean()
-                        elif train_cfg.clip_vloss:
-                            newvalue = newvalue.flatten()
-                            v_loss_unclipped = (newvalue - ret) ** 2
-                            v_clipped = val + torch.clamp(
-                                newvalue - val,
-                                -train_cfg.vf_clip_coef,
-                                train_cfg.vf_clip_coef,
-                            )
-                            v_loss_clipped = (v_clipped - ret) ** 2
-                            v_loss_max = torch.max(v_loss_unclipped, v_loss_clipped)
-                            v_loss = 0.5 * v_loss_max.mean()
-                        else:
-                            newvalue = newvalue.flatten()
-                            v_loss = 0.5 * ((newvalue - ret) ** 2).mean()
-
-                        entropy_loss = entropy.mean()
-
-                        l2_reg_loss = torch.tensor(0.0, device=self.device)
-                        if self.trainer_cfg.l2_reg_loss_coef > 0:
-                            l2_reg_loss = self.trainer_cfg.l2_reg_loss_coef * self.policy.l2_reg_loss().to(self.device)
-
-                        l2_init_loss = torch.tensor(0.0, device=self.device)
-                        if self.trainer_cfg.l2_init_loss_coef > 0:
-                            l2_init_loss = self.trainer_cfg.l2_init_loss_coef * self.policy.l2_init_loss().to(self.device)
-
-
-                        loss = pg_loss - train_cfg.ent_coef*entropy_loss + v_loss*train_cfg.vf_coef + l2_reg_loss + l2_init_loss
-
-                        with profile.custom:
-                            if train_cfg.use_diayn:
-                                discriminator = self.policy.diayn_discriminator
-                                q = discriminator(state.hidden).squeeze()
-                                diayn_loss = cross_entropy(q, z_idxs)
-                                loss += train_cfg.diayn_loss_coef*diayn_loss
-                                torch.cuda.synchronize()
+                        map(lambda m: m.compute_losses(state, mb, losses), self._algs)
+                        loss = sum(losses.values())
 
                 with profile.learn:
                     if data.scaler is None:
@@ -658,16 +450,10 @@ class PufferTrainer:
                             torch.cuda.synchronize()
 
                 with profile.train_misc:
-                    losses.policy_loss += pg_loss.item() / total_minibatches
-                    losses.value_loss += v_loss.item() / total_minibatches
-                    losses.entropy += entropy_loss.item() / total_minibatches
-                    losses.old_approx_kl += old_approx_kl.item() / total_minibatches
-                    losses.approx_kl += approx_kl.item() / total_minibatches
-                    losses.clipfrac += clipfrac.item() / total_minibatches
-                    losses.grad_var += grad_var.item() / total_minibatches
-
-                    if train_cfg.use_diayn:
-                        losses.diayn_loss += diayn_loss.item() / total_minibatches
+                    for k, v in losses.items():
+                        losses[k] += v.item() / total_minibatches
+                    losses["clipfrac"] += clipfrac.item() / total_minibatches
+                    losses["grad_var"] += grad_var.item() / total_minibatches
 
             if train_cfg.target_kl is not None:
                 if approx_kl > train_cfg.target_kl:
@@ -822,38 +608,6 @@ class PufferTrainer:
     def last_pr_uri(self):
         return self.last_pr.uri
 
-    def _make_experience_buffer(self):
-        obs_shape = self.vecenv.single_observation_space.shape
-        obs_dtype = self.vecenv.single_observation_space.dtype
-        atn_shape = self.vecenv.single_action_space.shape
-        atn_dtype = self.vecenv.single_action_space.dtype
-        total_agents = self.vecenv.num_agents
-
-        self.experience = Experience(self.trainer_cfg.batch_size, self.trainer_cfg.bptt_horizon,
-            self.trainer_cfg.minibatch_size, self.trainer_cfg.max_minibatch_size,
-            self.policy.hidden_size, obs_shape, obs_dtype,
-            atn_shape, atn_dtype, self.trainer_cfg.cpu_offload, self.device, self.policy.lstm, total_agents,
-            use_e3b=self.trainer_cfg.use_e3b, e3b_coef=self.trainer_cfg.e3b_coef, e3b_lambda=self.trainer_cfg.e3b_lambda,
-            use_diayn=self.trainer_cfg.use_diayn, diayn_archive=self.trainer_cfg.diayn_archive, diayn_coef=self.trainer_cfg.diayn_coef,
-            use_p3o=self.trainer_cfg.use_p3o, p3o_horizon=self.trainer_cfg.p3o_horizon
-        )
-
-    def _make_losses(self):
-        return pufferlib.namespace(
-            policy_loss=0,
-            value_loss=0,
-            entropy=0,
-            old_approx_kl=0,
-            approx_kl=0,
-            clipfrac=0,
-            explained_variance=0,
-            l2_reg_loss=0,
-            l2_init_loss=0,
-            ks_action_loss=0,
-            ks_value_loss=0,
-            grad_var=0,
-            diayn_loss=0,
-        )
 
     def _make_vecenv(self):
         """Create a vectorized environment."""

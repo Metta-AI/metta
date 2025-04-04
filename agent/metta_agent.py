@@ -135,47 +135,22 @@ class MettaAgent(nn.Module):
         self.components["_value_"](td)
         return None, td["_value_"], None
 
-    def forward(self, x, state):
-        td = TensorDict({
-            "x": x,
-            **state
-        })
-
+    def forward(self, obs, state: TensorDict):
         # This is a terrible spot for this piece of code, but
         # I don't know where the encoder is to put it there.
         # You want to concat this encoding with the pre-lstm state
-        if 'diayn_z' in td:
-            td['diayn_embed'] = self.diayn_encoder(td['diayn_z'])
+        # if 'diayn_z' in td:
+        #     td['diayn_embed'] = self.diayn_encoder(td['diayn_z'])
 
-        td["state"] = None
-        if state.lstm_h is not None:
-            lstm_h = state.lstm_h
-            lstm_c = state.lstm_c
-            if len(lstm_h.shape) == 2:
-                lstm_h = lstm_h.unsqueeze(0)
-            if len(lstm_c.shape) == 2:
-                lstm_c = lstm_c.unsqueeze(0)
+        # xcxc fix this?
 
-            lstm_state = torch.cat([lstm_h, lstm_c], dim=0)
-            td["state"] = lstm_state.to(x.device)
+        self.components["_value_"](state)
+        self.components["_action_type_"](state)
+        self.components["_action_param_"](state)
 
-        self.components["_value_"](td)
-        self.components["_action_type_"](td)
-        self.components["_action_param_"](td)
+        logits = [state["_action_type_"], state["_action_param_"]]
+        value = state["_value_"]
 
-        logits = [td["_action_type_"], td["_action_param_"]]
-        value = td["_value_"]
-        td_state = td["state"]
-
-        # Convert state back to tuple to pass back to trainer
-        if td_state is not None:
-            split_size = self.core_num_layers
-            lstm_h = td_state[:split_size]
-            lstm_c = td_state[split_size:]
-
-        state.lstm_h = lstm_h
-        state.lstm_c = lstm_c
-        state.hidden = td["hidden"]
         return logits, value
 
     def forward_train(self, x, state=None):

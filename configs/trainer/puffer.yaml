@@ -3,45 +3,54 @@ _target_: rl.pufferlib.trainer.PufferTrainer
 defaults:
   - trainer
 
-resume: true
-optimizer: muon
+total_timesteps: 50_000_000_000
+
 scheduler: cosine
 precision: float32
 
-total_timesteps: 50_000_000_000
-
-clip_coef: 0.1
-ent_coef: 0.002
-gae_lambda: 0.9
-gamma: 0.97
-learning_rate: 0.0006
-max_grad_norm: 0.5
-vf_clip_coef: 0.1
-vf_coef: 0.5
-l2_reg_loss_coef: 0
-l2_init_loss_coef: 0
 clip_reward: false
 
-adam_beta1: 0.9
-adam_beta2: 0.999
-adam_eps: 1e-5
+ppo:
+  gamma: 0.97
+  gae_lambda: 0.9
+  clip_vloss: true
+  vf_clip_coef: 0.1
+  vf_coef: 0.5
+  ent_coef: 0.002
 
-use_e3b: False
-e3b_coef: 0.01
-e3b_norm: 0.001
-e3b_lambda: 10.0
+p3o:
+  enabled: False
+  horizon: 128
+  puf: 0.0
 
-use_diayn: False
-diayn_archive: 8
-diayn_loss_coef: 1.0
-diayn_coef: 0.1
+optimizer:
+  type: muon # adam
+  beta1: 0.9
+  beta2: 0.999
+  eps: 1e-5
+  learning_rate: 0.0006
 
-# No P3o yet. Requires more custom
-# policy setup and the algo isn't done
-use_p3o: False
-p3o_horizon: 128
-puf: 0.0
+diayn:
+  enabled: False
+  archive: 8
+  loss_coef: 1.0
+  coef: 0.1
 
+e3b:
+  enabled: False
+  coef: 0.01
+  norm: 0.001
+  lambda_: 10.0
+
+l2_reg:
+  loss_coef: 0
+  init_loss_coef: 0
+
+average_reward:
+  enabled: false
+  alpha: 0.01
+
+max_grad_norm: 0.5
 norm_adv: true
 clip_vloss: true
 target_kl: null

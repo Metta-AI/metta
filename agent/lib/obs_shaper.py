@@ -10,7 +10,7 @@ class ObsShaper(LayerBase):
         self._output_size = num_objects
 
     def _forward(self, td: TensorDict):
-        x = td['x']
+        x = td["env", "obs"]
 
         x_shape, space_shape = x.shape, self._obs_shape
         x_n, space_n = len(x_shape), len(space_shape)

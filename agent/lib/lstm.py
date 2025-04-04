@@ -33,47 +33,39 @@ class LSTM(LayerBase):
         return net
 
     def _forward(self, td: TensorDict):
-        x = td['x']
+        obs = td['env', 'obs']
         hidden = td[self._input_source]
-        state = td["state"]
 
+        # xcxc fix this
         # You would ideally want this concatted with the rest of your embeddings
         if 'diayn_embed' in td:
             hidden = hidden + td['diayn_embed']
 
-        if state is not None:
-            split_size = self.num_layers
-            state = (state[:split_size], state[split_size:])
-
-        x_shape, space_shape = x.shape, self.obs_shape
+        x_shape, space_shape = obs.shape, self.obs_shape
         x_n, space_n = len(x_shape), len(space_shape)
         if x_shape[-space_n:] != space_shape:
-            raise ValueError('Invalid input tensor shape', x.shape)
+            raise ValueError('Invalid input tensor shape', obs.shape)
 
         if x_n == space_n + 1:
             B, TT = x_shape[0], 1
         elif x_n == space_n + 2:
             B, TT = x_shape[:2]
         else:
-            raise ValueError('Invalid input tensor shape', x.shape)
+            raise ValueError('Invalid input tensor shape', obs.shape)
 
-        if state is not None:
-            assert state[0].shape[1] == state[1].shape[1] == B
+        assert td["lstm"].shape[1] == B
         assert hidden.shape == (B*TT, self._input_size)
 
         hidden = hidden.reshape(B, TT, self._input_size)
         hidden = hidden.transpose(0, 1)
 
-        hidden, state = self._net(hidden, state)
+        hidden, state = self._net(hidden, (td["lstm"]["h"], td["lstm"]["c"]))
 
-        hidden = hidden.transpose(0, 1)
-        hidden = hidden.reshape(B*TT, self.hidden_size)
+        td[self._name] = hidden.transpose(0, 1).reshape(B*TT, self.hidden_size)
 
-        if state is not None:
-            state = tuple(s.detach() for s in state)
-            state = torch.cat(state, dim=0)
+        td["next", "lstm"] = TensorDict({
+            "h": state[0].detach(),
+            "c": state[1].detach()
+        }, batch_size=td["lstm"].shape)
 
-        td[self._name] = hidden
-        td["state"] = state
-        td["hidden"] = hidden
         return td
