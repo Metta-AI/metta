@@ -146,7 +146,8 @@ def graph_pass_rate(
         pass_rate = (results["passed"] / results["total"]) * 100
         pass_rates.append([policy, pass_rate, results["passed"], results["total"]])
     pass_rates.sort(key=lambda x: x[1], reverse=True)
-    
+    logger.info(f"Pass rates: {pass_rates}")
+
     chart_data = []
     for policy, pass_rate, passing, total in pass_rates:
         display_name = get_display_name(policy, policy_names)
@@ -200,12 +201,12 @@ def graph_highest_scores_per_eval(
     highest_scores.sort(key=lambda x: x[0])  # Sort by eval name (index 0)
     highest_score_table = wandb.Table(
         data=highest_scores,
-        columns=["Eval", f"Highest {metric_name}", "Winning Policy", "ID"]
+        columns=["Eval", "Score", "Winning Policy", "ID"]
     )
     highest_score_chart = wandb.plot.bar(
         highest_score_table,
         "Eval",
-        f"Highest {metric_name}",
+        "Score",
         title=f"Highest {metric_name}"
     )
     wandb_run.log({f"Highest {metric_name} Leaderboard": highest_score_chart})
@@ -342,6 +343,7 @@ def generate_report(cfg: DictConfig):
             "navigation_poisson_sparser.r.2": "3_objects_far",
             "navigation_infinite_cooldown_sparser_pretrained.r.0": "inf_cooldown_sparse_pretrained",
             "navigation_infinite_cooldown_sparser.r.0": "inf_cooldown_sparse",
+            "navigation_infinite_cooldown_sweep:v46": "inf_cooldown:v46",
             "navigation_poisson_sparser_pretrained.r.6": "3_objects_far_pretrained",
             "navigation_infinite_cooldown_sweep": "inf_cooldown",
             "navigation_infinite_cooldown_sweep.r.0": "inf_cooldown2",
