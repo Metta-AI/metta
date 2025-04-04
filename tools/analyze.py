@@ -59,15 +59,11 @@ def graph_policy_eval_metrics(
                 display_metric = metric.replace('.', '_')
                 data = [[label, val] for label, val in zip(policy_names, mean_values)]
                 chart_title = f"{short_eval_name} - {display_metric}"
-                # Set maximum value for x-axis to 3
-                # Create a figure with a fixed x-axis range from 0 to 3
-
                 chart = wandb.plot.bar(
                     wandb.Table(data=data, columns=["Policy", f"Mean {display_metric}"]),
                     "Policy",
                     f"Mean {display_metric}",
-                    title=chart_title,
-                    x_range=[0, 3]
+                    title=chart_title
                 )
 
                 # Log the chart to W&B
