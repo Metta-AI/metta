@@ -26,7 +26,7 @@ trainer:
 # policy_uri: wandb://run/b.daveey.sm.train.er.new.0
 # policy_uri: wandb://run/daveey.ar.cards.1
 # policy_uri: wandb://run/b.daveey.t.32.instant
-policy_uri:  wandb://run/b.daveey.t.8.rdr9.mb2.1
+policy_uri:  wandb://run/b.daphne.navigation_varied_obstacle_shapes.r.0
 # npc_policy_uri: ${trained_policy_uri}
 # eval_db_uri: wandb://artifacts/testing
 eval_db_uri: wandb://artifacts/navigation_evaldb_sequence2
@@ -52,7 +52,7 @@ eval:
 wandb:
   checkpoint_interval: 1
 
-run_id: sequence_evals_24
+run_id: sequence_evals_25
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 
