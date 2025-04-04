@@ -34,7 +34,7 @@ def graph_policy_eval_metrics(
       policy_name, eval_name, mean_{metric}, std_{metric}
     - Each row represents one policy-eval combination
     """
-    logger = logging.getLogger("graph_policy_eval_metrics")
+    logger = logging.getLogger(__name__)
     metric_names = list(metric_to_df.keys())
     dataframes = [metric_to_df[metric] for metric in metric_names]
     
@@ -109,7 +109,7 @@ def graph_pass_rate(
     - An evaluation "passes" if mean score >= threshold
     - Pass rate = (passing evals / total evals) * 100
     """
-    logger = logging.getLogger("graph_pass_rate")
+    logger = logging.getLogger(__name__)
     
     if df is None or df.empty:
         logger.warning("No episode_reward data available for pass rate calculation")
@@ -176,36 +176,25 @@ def graph_highest_scores_per_eval(
     """
     Creates a bar chart showing highest score for each eval across policies.
     """
-    logger = logging.getLogger("graph_highest_scores")
-
+    logger = logging.getLogger(__name__)
     unique_evals = df['eval_name'].unique()
-    # Find the mean column (should be the 3rd column)
-    mean_col = df.columns[2]  # Assumes mean_{metric} is the 3rd column
-    metric_name = df.columns[2][5:]
-
-    highest_scores = []
+    # Assumes the 3rd column is the mean value column (e.g. "mean_episode_reward")
+    mean_col = df.columns[2]
+    metric_name = df.columns[2][5:]  # strip "mean_"
     
+    highest_scores = []
     for eval_name in unique_evals:
-        # Filter the dataframe for this evaluation environment
         eval_data = df[df['eval_name'] == eval_name].copy()
-        
         if not eval_data.empty:
-            # Find the policy with the highest score
             max_idx = eval_data[mean_col].idxmax()
             winning_policy = eval_data.loc[max_idx, 'policy_name']
             highest_score = eval_data.loc[max_idx, mean_col]
-            
-            # Record highest score
             short_eval_name = get_short_eval_name(eval_name)
             display_policy_name = get_display_name(winning_policy, policy_names)
-            highest_scores.append([
-                short_eval_name,
-                highest_score,
-                display_policy_name,
-                winning_policy
-            ])
+            highest_scores.append([short_eval_name, highest_score, display_policy_name, winning_policy])
+        else:
+            logger.warning(f"No data for eval {eval_name}")
     
-
     highest_scores.sort(key=lambda x: x[1], reverse=True)
     highest_score_table = wandb.Table(
         data=highest_scores,
@@ -214,10 +203,9 @@ def graph_highest_scores_per_eval(
     highest_score_chart = wandb.plot.bar(
         highest_score_table,
         "Eval",
-        f"Best Policy",
+        f"Highest {metric_name}",
         title=f"Highest {metric_name}"
     )
-    
     wandb_run.log({f"Highest {metric_name} Leaderboard": highest_score_chart})
     wandb_run.log({f"Highest {metric_name} Leaderboard (data)": highest_score_table})
     
@@ -256,15 +244,17 @@ def graph_leaderboard(
         display_name = get_display_name(policy, policy_names)
         policy_win_data.append([display_name, wins, policy])
     policy_win_data.sort(key=lambda x: x[1], reverse=True)
+    
+    wins_column_name = "Wins"
     policy_win_table = wandb.Table(
         data=policy_win_data,
-        columns=["Policy", f"{metric_name} wins", "ID"]
+        columns=["Policy", wins_column_name, "ID"]
     )
     policy_win_chart = wandb.plot.bar(
         policy_win_table,
         "Policy",
-        f"{metric_name} Wins",
-        title=f"Policy Leaderboard (# of {metric_name} Wins)"
+        wins_column_name,
+        title=f"Policy Leaderboard (# of eval wins)"
     )
     
     wandb_run.log({"Policy Leaderboard": policy_win_chart})
@@ -325,6 +315,9 @@ def get_episode_reward_df(metric_to_df: Dict[str, pd.DataFrame]) -> pd.DataFrame
 def generate_report(cfg: DictConfig):
     logger = logging.getLogger("generate_report")
     with WandbContext(cfg) as wandb_run:
+        # Disable step-tracking for all logged metrics (so no slider appears)
+        wandb_run.define_metric("*", step_metric=None)
+
         eval_stats_db = EvalStatsDB.from_uri(cfg.eval.eval_db_uri, cfg.run_dir, wandb_run)
         analyzer = hydra.utils.instantiate(cfg.analyzer, eval_stats_db)
         dfs, _ = analyzer.analyze(include_policy_fitness=False)
