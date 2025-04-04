@@ -13,8 +13,8 @@ class ObsShaper(LayerBase):
 
     def _forward(self, td: TensorDict):
         self.itt += 1 # delete after testing
-        if self.itt > 22:
-            breakpoint()
+        # if self.itt > 22:
+        #     breakpoint()
 
         x = td['x']
 

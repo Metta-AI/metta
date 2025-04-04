@@ -281,8 +281,8 @@ class BatchReshapeLayer(LayerBase):
         B = td['_batch_size_']
         shape = list(tensor.shape)
         shape.insert(1, 0)
-        shape[1] = shape[0]//B
-        shape[0] = B
+        shape[1] = shape[0]// (B*TT)
+        shape[0] = B*TT
         td[self._name] = tensor.reshape(*shape).squeeze()
         print(f"itt: {self.itt}") # delete after testing
         print(f"{self._name} shape: {td[self._name].shape}") # delete after testing

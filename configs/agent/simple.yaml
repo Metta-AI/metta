@@ -30,16 +30,16 @@ components:
   cnn1:
     _target_: agent.lib.nn_layer_library.Conv2d
     input_source: obs_normalizer
-    output_size: 64
     nn_params:
+      out_channels: 64
       kernel_size: 5
       stride: 3
 
   cnn2:
     _target_: agent.lib.nn_layer_library.Conv2d
     input_source: cnn1
-    output_size: 64
     nn_params:
+      out_channels: 64
       kernel_size: 3
       stride: 1
 
@@ -50,12 +50,14 @@ components:
   fc1:
     _target_: agent.lib.nn_layer_library.Linear
     input_source: obs_flattener
-    output_size: 128
+    nn_params:
+      out_features: 128
 
   encoded_obs:
     _target_: agent.lib.nn_layer_library.Linear
     input_source: fc1
-    output_size: 128
+    nn_params:
+      out_features: 128
 
   _core_:
     _target_: agent.lib.lstm.LSTM
@@ -63,29 +65,65 @@ components:
     output_size: 128
     nn_params:
       num_layers: 2
-
+      
   critic_1:
     _target_: agent.lib.nn_layer_library.Linear
     input_source: _core_
-    output_size: 1024
+    nn_params:
+      out_features: 1024
+    nonlinearity: nn.Tanh
+    effective_rank: true
 
   _value_:
     _target_: agent.lib.nn_layer_library.Linear
     input_source: critic_1
-    output_size: 1
+    nn_params:
+      out_features: 1
     nonlinearity: null
 
   actor_1:
     _target_: agent.lib.nn_layer_library.Linear
     input_source: _core_
-    output_size: 512
+    nn_params:
+      out_features: 512
+    effective_rank: true
 
-  _action_type_:
-    _target_: agent.lib.action.ActionType
-    input_source: actor_1
-    nonlinearity: null
+  _action_embeds_:
+    _target_: agent.lib.action.ActionEmbedding
+    input_source: null
+    nn_params:
+      num_embeddings: 100
+      embedding_dim: 64
 
-  _action_param_:
-    _target_: agent.lib.action.ActionParam
+  embed_reshaped:
+    _target_: agent.lib.merge_layer.ReshapeLayer # combines the two dims into the squeezed_dim
+    squeezed_dim: 0
+    popped_dim: 1
+    input_source: _action_embeds_
+
+  actor_1_expanded:
+    _target_: agent.lib.merge_layer.ExpandLayer
+    expand_dim: 1
+    expand_value: null
     input_source: actor_1
-    nonlinearity: null
+    dims_source: _action_embeds_
+    source_dim: 1
+
+  actor_1_reshaped:
+    _target_: agent.lib.merge_layer.ReshapeLayer
+    squeezed_dim: 0
+    popped_dim: 1
+    input_source: actor_1_expanded
+
+# _action_:
+  attn:
+    _target_: agent.lib.nn_layer_library.Bilinear
+    input_source: 
+      - embed_reshaped
+      - actor_1_reshaped
+    nn_params:
+      out_features: 1
+
+  _action_:
+    _target_: agent.lib.merge_layer.BatchReshapeLayer
+    input_source: attn

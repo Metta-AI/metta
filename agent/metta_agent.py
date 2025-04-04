@@ -154,7 +154,7 @@ class MettaAgent(nn.Module):
             if max_param > 2:
                 action_max_params[i] = 2
         # ---------
-        
+        self.actions_max_params = action_max_params
         self.active_actions = list(zip(action_names, action_max_params))
         self.components['_action_embeds_'].activate_actions(self.active_actions)
 
@@ -164,6 +164,7 @@ class MettaAgent(nn.Module):
             for j in range(max_param+1):
                 self.action_index.append([action_type_number, j])
             action_type_number += 1
+        print(f"Agent action index activated with: {self.active_actions}")
 
         
 
@@ -221,21 +222,16 @@ class MettaAgent(nn.Module):
         if action is not None:
             # Reshape action to [B*TT, 2] if it's [B, TT, 2]
             orig_shape = action.shape
-            if len(orig_shape) == 3:
-                action = action.reshape(-1, 2)
+            action = action.reshape(-1, 2)
             
             # Convert each action pair to logit index
-            action_type_numbers = torch.tensor([self.action_index[a[0].item()][0] for a in action])
+            action_type_numbers = torch.tensor([a[0] for a in action])
             action_params = torch.tensor([a[1].item() for a in action])
-            action_logit_index = action_type_numbers * (action_params + 1)
+            cumulative_sum = torch.tensor([sum(self.actions_max_params[:num]) for num in action_type_numbers])
+            action_logit_index = action_type_numbers + cumulative_sum + action_params
             
             # Reshape back to original batch dimensions
-            if len(orig_shape) == 3:
-                action_logit_index = action_logit_index.reshape(orig_shape[0], orig_shape[1], 1)
-            else:
-                action_logit_index = action_logit_index.unsqueeze(-1)  # Shape: [B, 1]
-
-
+            action_logit_index = action_logit_index.reshape(orig_shape[0], orig_shape[1], 1)
 
         action_logit_index, logprob, entropy, normalized_logits = sample_logits(logits, action_logit_index)
         
