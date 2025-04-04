@@ -5,6 +5,9 @@ defaults:
 
 env: null #the env is set in evals:
 
+num_envs: 1
+num_episodes: 1
+
 evals:
   emptyspace_withinsight:
     env: env/mettagrid/navigation/full_sequence/emptyspace_withinsight
