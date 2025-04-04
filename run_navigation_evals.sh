@@ -1,12 +1,8 @@
 #!/bin/bash
 
 # Define the list of policy URIs
-POLICIES=(
-    "b.daphne.navigation_varied_obstacle_shapes_pretrained.r.1"
-    "b.daphne.navigation_varied_obstacle_shapes.r.0"
+POLICIES_HEARTS=(
     "navigation_poisson_sparser.r.2"
-    "navigation_infinite_cooldown_sparser_pretrained.r.0"
-    "navigation_infinite_cooldown_sparser.r.0"
     "navigation_poisson_sparser_pretrained.r.6"
     "navigation_infinite_cooldown_sweep"
     "navigation_infinite_cooldown_sweep.r.0"
@@ -18,8 +14,16 @@ POLICIES=(
     "b.daveey.t.8.rdr9.sb"
 )
 
+POLICIES_FULL_SEQUENCE=(
+    "b.daphne.navigation_varied_obstacle_shapes_pretrained.r.1"
+    "b.daphne.navigation_varied_obstacle_shapes.r.0"
+    "navigation_infinite_cooldown_sparser_pretrained.r.0"
+    "navigation_infinite_cooldown_sparser.r.0"
+    "navigation_poisson_sparser_pretrained.r.6"
+)
+
 # Loop through the policies and run evaluations
-for i in "${!POLICIES[@]}"; do
+for i in "${!POLICIES_HEARTS[@]}"; do
     POLICY_URI=${POLICIES[$i]}
     IDX=$((i + 1))
 
@@ -29,11 +33,16 @@ for i in "${!POLICIES[@]}"; do
         run=navigation_eval_onlyhearts$IDX \
         eval.policy_uri=wandb://run/$POLICY_URI \
         eval_db_uri=wandb://artifacts/navigation_evaldb_onlyhearts
+done
+
+for i in "${!POLICIES_FULL_SEQUENCE[@]}"; do
+    POLICY_URI=${POLICIES_FULL_SEQUENCE[$i]}
+    IDX=$((i + 1))
 
     echo "Running full sequence eval for policy $POLICY_URI"
     python3 -m tools.eval \
         eval=navigation_evals_fullsequence \
-        run=navigation_evals_fullsequence$IDX \
+        run=navigation_eval_fullsequence$IDX \
         eval.policy_uri=wandb://run/$POLICY_URI \
         eval_db_uri=wandb://artifacts/navigation_evaldb_fullsequence
 done
