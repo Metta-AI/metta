@@ -17,7 +17,7 @@ metric: episode_reward
 num_random_samples: 10
 
 trainer:
-  evaluate_interval: 300
+  evaluate_interval: 0
 
 eval:
   env: env/mettagrid/simple
