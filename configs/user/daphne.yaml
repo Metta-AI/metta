@@ -19,11 +19,6 @@ defaults:
 trainer:
   env: /env/mettagrid/bases
   evaluate_interval: 200
-  env_overrides:
-    # sampling: 0.7
-    game:
-      num_agents: 36
-      max_steps: 300
 
 # policy: wandb://run/b.daveey.train.maze.sm.dr.warm.0
 # baselines: wandb://run/b.daveey.train.maze.sm.11x11.0
@@ -57,7 +52,7 @@ eval:
 wandb:
   checkpoint_interval: 1
 
-run_id: 15
+run_id: fullsequence
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 
