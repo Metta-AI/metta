@@ -3,7 +3,7 @@ import numpy as np
 from scipy import stats
 
 
-def analyze_sv(S: torch.Tensor) -> tuple[float, float]: 
+def analyze_sv(S: torch.Tensor): 
     # the type hint can be changed but we'd have to update how the outputs flow into metta_layer.py and through logging in trainer.py -- 
     # Lars: we might want one of them to be a string at somepoint, to output qualitative metrics e.g. "critical" or "sub-critical"
     ''' Lars, go to town! S is the tensor of singular values. I wrote an example of how to use this function. 
