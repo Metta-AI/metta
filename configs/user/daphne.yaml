@@ -13,7 +13,7 @@
 
 defaults:
   - override /agent: simple
-  - override /eval: navigation_evals_onlyheart
+  - override /eval: navigation
   - override /analyzer: eval_analyzer
 
 trainer:
@@ -43,7 +43,7 @@ eval:
   num_envs: 10
   num_episodes: 16
   max_time_s: 600
-  env: /env/mettagrid/navigation/full_sequence/labyrinth
+  env: /env/mettagrid/navigation/corridors
 
   policy_uri: ${..policy_uri}
   # npc_policy_uri: ${..npc_policy_uri}
