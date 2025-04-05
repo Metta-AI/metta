@@ -96,16 +96,16 @@ conda activate metta
 ### Run the training
 
 ```
-python -m tools.train run=my_experiment hardware=macbook
+python -m tools.train run=my_experiment +hardware=macbook
 ```
 
 ### Run the evaluation
 
 ```
-python -m tools.eval run=my_experiment hardware=macbook
+python -m tools.eval run=my_experiment +hardware=macbook
 ```
 
 ### Run the interactive simulation
 ```
-python -m tools.play run=my_experiment hardware=macbook
+python -m tools.play run=my_experiment +hardware=macbook
 ```
