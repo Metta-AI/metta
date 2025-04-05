@@ -1,11 +1,11 @@
 import copy
 import hydra
 from omegaconf import DictConfig
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass, field
 
 @dataclass
-class ReportConfig:
+class DashboardConfig:
     """Configuration settings for the RL policy evaluation dashboard."""
     
     # Data sources
@@ -15,10 +15,12 @@ class ReportConfig:
     # Server configuration
     debug: bool = True
     port: int = 8050
+    output_html_path: Optional[str] = None  # Path to save HTML output (None for no saving)
     
     # Dashboard settings
     default_graph_height: int = 500
     default_graph_width: int = 800
+    page_title: str = "Metta Policy Evaluation Dashboard"
     
     # Policy display names
     policy_names: Dict[str, str] = field(default_factory=lambda: {
@@ -52,8 +54,10 @@ class ReportConfig:
             'run_dir': self.run_dir,
             'debug': self.debug,
             'port': self.port,
+            'output_html_path': self.output_html_path,
             'default_graph_height': self.default_graph_height,
             'default_graph_width': self.default_graph_width,
+            'page_title': self.page_title,
             'policy_names': self.policy_names,
             'pass_threshold': self.pass_threshold,
             'metrics_of_interest': self.metrics_of_interest,
@@ -64,17 +68,16 @@ class ReportConfig:
     @classmethod
     def from_dict_config(cls, config_dict: DictConfig) -> 'ReportConfig':
         """
-        Create an AppConfig from a dictionary or DictConfig.
+        Create a ReportConfig from a DictConfig.
         
         Args:
             config_dict: Dictionary with configuration values
             
         Returns:
-            New AppConfig instance with values from config_dict
+            New ReportConfig instance with values from config_dict
         """
         # Add _target_ field for instantiate
         config = copy.deepcopy(config_dict)
         if '_target_' not in config or config['_target_'] is None:
             config['_target_'] = f"{cls.__module__}.{cls.__name__}"
         return hydra.utils.instantiate(config)
-    
