@@ -12,7 +12,7 @@ observations:
   obs_key: grid_obs
 
 clip_range: 0 # set to 0 to disable clipping
-effective_rank_interval: 10
+effective_rank_interval: 1
 l2_init_weight_update_interval: 0
 
 components:
@@ -75,7 +75,6 @@ components:
     input_source: critic_1
     output_size: 1
     nonlinearity: null
-    effective_rank: true
 
   actor_1:
     _target_: agent.lib.nn_layer_library.Linear
@@ -87,10 +86,8 @@ components:
     _target_: agent.lib.action.ActionType
     input_source: actor_1
     nonlinearity: null
-    effective_rank: true
 
   _action_param_:
     _target_: agent.lib.action.ActionParam
     input_source: actor_1
     nonlinearity: null
-    effective_rank: true
