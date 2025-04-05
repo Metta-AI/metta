@@ -1,6 +1,6 @@
 defaults:
   - common
-  - wandb
+  - wandb: metta
 
 policy_uri: ???
 env: env/mettagrid/simple
