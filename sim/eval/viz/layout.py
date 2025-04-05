@@ -87,8 +87,8 @@ def create_dashboard_content(
     config: Dict[str, Any],
     filtered_policies: Optional[List[str]] = None,
     filtered_evals: Optional[List[str]] = None,
-    selected_metric: Optional[str] = Nonegit
-) -> html.Div:
+    selected_metric: Optional[str] = None
+) -> html.Div:  
     """
     Create the main dashboard content with visualizations.
     

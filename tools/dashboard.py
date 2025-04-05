@@ -6,7 +6,7 @@ This allows integrating the dashboard with existing Hydra-based workflows.
 import logging
 import hydra
 from omegaconf import DictConfig
-from sim.eval import DashboardApp
+from sim.eval import DashboardApp, DashboardConfig
 
 logger = logging.getLogger(__name__)
 
@@ -14,12 +14,10 @@ logger = logging.getLogger(__name__)
 def serve_dashboard(cfg: DictConfig) -> None:
     logger.info("Starting dashboard with Hydra configuration")
     
-    # Extract dashboard-specific config if needed
+    dict_cfg = cfg
     if 'dashboard' in cfg:
-        dashboard_cfg = cfg.dashboard
-    else:
-        dashboard_cfg = cfg
-    
+        dict_cfg = cfg.dashboard
+    dashboard_cfg = DashboardConfig.from_dict_config(dict_cfg)
     app = DashboardApp(dashboard_cfg)
     app.run()
 

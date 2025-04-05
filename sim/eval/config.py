@@ -1,6 +1,6 @@
 import copy
 import hydra
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass, field
 
@@ -66,18 +66,18 @@ class DashboardConfig:
         }
 
     @classmethod
-    def from_dict_config(cls, config_dict: DictConfig) -> 'ReportConfig':
+    def from_dict_config(cls, config_dict: DictConfig) -> 'DashboardConfig':
         """
-        Create a ReportConfig from a DictConfig.
-        
+        Create a DashboardConfig from a DictConfig.
+
         Args:
             config_dict: Dictionary with configuration values
             
         Returns:
-            New ReportConfig instance with values from config_dict
+            New DashboardConfig instance with values from config_dict
         """
         # Add _target_ field for instantiate
-        config = copy.deepcopy(config_dict)
-        if '_target_' not in config or config['_target_'] is None:
-            config['_target_'] = f"{cls.__module__}.{cls.__name__}"
-        return hydra.utils.instantiate(config)
+        config_dict = copy.deepcopy(config_dict)
+        OmegaConf.set_struct(config_dict, False)
+        config_dict.setdefault('_target_', f"{cls.__module__}.{cls.__name__}")
+        return hydra.utils.instantiate(config_dict)

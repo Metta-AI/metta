@@ -28,6 +28,7 @@ class DashboardApp:
             external_stylesheets=[dbc.themes.BOOTSTRAP],
             suppress_callback_exceptions=True
         )
+        self.cfg = cfg
         self.app.title = self.cfg.page_title
         
         # Load and process data
