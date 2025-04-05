@@ -148,12 +148,6 @@ class MettaAgent(nn.Module):
 
     def activate_actions(self, action_names, action_max_params):
         '''Run this at the beginning of training.'''
-
-        #delete after testing
-        for i, max_param in enumerate(action_max_params):
-            if max_param > 2:
-                action_max_params[i] = 2
-        # ---------
         self.actions_max_params = action_max_params
         self.active_actions = list(zip(action_names, action_max_params))
         self.components['_action_embeds_'].activate_actions(self.active_actions)
@@ -165,15 +159,6 @@ class MettaAgent(nn.Module):
                 self.action_index.append([action_type_number, j])
             action_type_number += 1
         print(f"Agent action index activated with: {self.active_actions}")
-
-        
-
-
-    # def embed_action_type(self, action_type_names):
-    #     self.components['_action_type_embeds_'].embed_strings(action_type_names)
-
-    # def embed_action_param(self, action_param_names):
-    #     self.components['_action_param_embeds_'].embed_strings(action_param_names)
 
     @property
     def lstm(self):
@@ -211,13 +196,7 @@ class MettaAgent(nn.Module):
         e3b, intrinsic_reward = self._e3b_update(td["_core_"].detach(), e3b)
 
         # convert action from a list of two elements to a single element
-        # action_logit_index = None
-        # if action is not None:
-        #     action_type_number = self.action_index[action[0]]
-        #     action_logit_index = torch.tensor(action_type_number * action[1])
-
-        # ------------------------------------------------------------
-        # make into a function
+        # make this a function
         action_logit_index = None
         if action is not None:
             # Reshape action to [B*TT, 2] if it's [B, TT, 2]
