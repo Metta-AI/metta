@@ -20,7 +20,7 @@ def display_name(policy: str, policy_names: Dict[str, str]) -> str:
 def shorten_path(eval_name: str) -> str:
     return eval_name.split('/')[0]
 
-def load_data(eval_db_uri: str, run_dir: str) -> Dict[str, pd.DataFrame]:
+def load_data(eval_db_uri: str, wandb_run, run_dir: str) -> Dict[str, pd.DataFrame]:
     """
     Load evaluation data from database.
     
@@ -35,10 +35,13 @@ def load_data(eval_db_uri: str, run_dir: str) -> Dict[str, pd.DataFrame]:
     
     try:
         # Initialize database connection
-        eval_stats_db = EvalStatsDB.from_uri(eval_db_uri, run_dir, None)
+        logger.info(f"Connecting to database at {eval_db_uri}")
+        eval_stats_db = EvalStatsDB.from_uri(eval_db_uri, run_dir, wandb_run)
         
         # Get all metrics
+        logger.info("Fetching metrics from database")
         metrics_data = eval_stats_db.get_all_metrics()
+        logger.info(f"Retrieved {len(metrics_data)} metrics from database")
         
         # Validate and normalize data
         validated_data = {}
@@ -46,6 +49,9 @@ def load_data(eval_db_uri: str, run_dir: str) -> Dict[str, pd.DataFrame]:
             if df is None or df.empty:
                 logger.warning(f"Empty data for metric: {metric_name}")
                 continue
+            
+            # Log the dataframe shape and columns
+            logger.info(f"Metric {metric_name}: shape={df.shape}, columns={df.columns.tolist()}")
                 
             # Ensure required columns exist
             required_cols = ["policy_name", "eval_name"]
@@ -62,17 +68,22 @@ def load_data(eval_db_uri: str, run_dir: str) -> Dict[str, pd.DataFrame]:
                 
             # Add to validated data
             validated_data[metric_name] = df
+            logger.info(f"Added validated data for metric: {metric_name}")
         
         if not validated_data:
             logger.warning("No valid metrics found in data")
             return {}
-            
+         
+        logger.info(f"Successfully loaded {len(validated_data)} metrics from database")
         return validated_data
     
     except Exception as e:
         logger.error(f"Error loading data: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
         # Return empty dictionary in case of error
         return {}
+    
 
 def create_policy_hierarchy(policy_names: Set[str]) -> Dict[str, List[str]]:
     """
@@ -406,13 +417,13 @@ def create_display_name_mappings(
     """
     # Create policy display name mapping
     policy_display_names = {
-        policy: get_display_name(policy, policy_names_config)
+        policy: display_name(policy, policy_names_config)
         for policy in all_policy_names
     }
     
     # Create evaluation display name mapping
     eval_display_names = {
-        eval_name: get_short_eval_name(eval_name)
+        eval_name: shorten_path(eval_name)
         for eval_name in all_eval_names
     }
     

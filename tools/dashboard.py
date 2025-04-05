@@ -14,11 +14,12 @@ logger = logging.getLogger(__name__)
 def serve_dashboard(cfg: DictConfig) -> None:
     logger.info("Starting dashboard with Hydra configuration")
     
-    dict_cfg = cfg
     if 'dashboard' in cfg:
-        dict_cfg = cfg.dashboard
-    dashboard_cfg = DashboardConfig.from_dict_config(dict_cfg)
-    app = DashboardApp(dashboard_cfg)
+        dashboard_cfg = DashboardConfig.from_dict_config(cfg.dashboard)
+    else:
+        dashboard_cfg = DashboardConfig()
+
+    app = DashboardApp(dashboard_cfg, cfg)
     app.run()
 
 if __name__ == "__main__":

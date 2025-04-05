@@ -238,10 +238,7 @@ def register_collapse_and_search_callbacks(app, processed_data: Dict[str, Any]) 
     Returns:
         Tuple of (policy_category_ids, eval_category_ids)
     """
-    # Register collapsible section callbacks
-    register_collapse_callbacks(app, ["policy-filter", "eval-filter"])
-    
-    # Get all category IDs
+    # Get all category IDs (skip registering collapsible section callbacks here)
     policy_category_ids = get_category_ids(processed_data, "policy")
     eval_category_ids = get_category_ids(processed_data, "eval")
     

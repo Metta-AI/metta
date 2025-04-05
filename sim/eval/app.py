@@ -7,6 +7,9 @@ import dash
 import dash_bootstrap_components as dbc
 from dash import html
 from typing import Optional
+from omegaconf import DictConfig
+
+from rl.wandb.wandb_context import WandbContext
 
 # Import application components
 from .config import DashboardConfig
@@ -21,7 +24,7 @@ class DashboardApp:
     Dashboard application for visualizing RL policy evaluation results.
     """
     
-    def __init__(self, cfg: DashboardConfig):
+    def __init__(self, cfg: DashboardConfig, dict_cfg: DictConfig):
         # Initialize Dash app
         self.app = dash.Dash(
             __name__, 
@@ -29,16 +32,18 @@ class DashboardApp:
             suppress_callback_exceptions=True
         )
         self.cfg = cfg
+        self.dict_cfg = dict_cfg
         self.app.title = self.cfg.page_title
         
         # Load and process data
-        logger.info(f"Loading data from {self.cfg.eval_db_uri}")
-        self.data = load_data(self.cfg.eval_db_uri, self.cfg.run_dir)
+        logger.info(f"Loading data from {self.dict_cfg.eval_db_uri}")
+        with WandbContext(self.dict_cfg) as wandb_run:
+            self.data = load_data(self.dict_cfg.eval_db_uri, wandb_run, self.dict_cfg.run_dir)
         logger.info(f"Processing data for visualization")
-        self.processed_data = process_data(self.data, self.config_dict)
+        self.processed_data = process_data(self.data, self.dict_cfg)
         
         # Create layout
-        self.app.layout = create_layout(self.processed_data, self.config_dict)
+        self.app.layout = create_layout(self.processed_data, self.dict_cfg)
         
         # Register callbacks
         self._register_callbacks()
@@ -51,7 +56,7 @@ class DashboardApp:
         register_collapse_callbacks(self.app, ["policy-filter", "eval-filter"])
         
         # Register main visualization callbacks
-        register_callbacks(self.app, self.processed_data, self.config_dict)
+        register_callbacks(self.app, self.processed_data, self.dict_cfg)
     
     def run(self, debug: Optional[bool] = None, port: Optional[int] = None):
         """
@@ -65,7 +70,7 @@ class DashboardApp:
         port_number = port if port is not None else self.cfg.port
         
         logger.info(f"Starting dashboard server on port {port_number} (debug={debug_mode})")
-        self.app.run_server(debug=debug_mode, port=port_number)
+        self.app.run(debug=debug_mode, port=port_number)
     
     def save_html(self, output_path: Optional[str] = None):
         """

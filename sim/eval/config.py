@@ -6,12 +6,7 @@ from dataclasses import dataclass, field
 
 @dataclass
 class DashboardConfig:
-    """Configuration settings for the RL policy evaluation dashboard."""
-    
-    # Data sources
-    eval_db_uri: str = 'sqlite:///path/to/your/eval_stats.db'
-    run_dir: str = './run_dir'
-    
+    """Configuration settings for the RL policy evaluation dashboard."""   
     # Server configuration
     debug: bool = True
     port: int = 8050
