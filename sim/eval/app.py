@@ -38,7 +38,7 @@ class DashboardApp:
         # Load and process data
         logger.info(f"Loading data from {self.dict_cfg.eval_db_uri}")
         with WandbContext(self.dict_cfg) as wandb_run:
-            self.data = load_data(self.dict_cfg.eval_db_uri, wandb_run, self.dict_cfg.run_dir)
+            self.data = load_data(self.dict_cfg, wandb_run)
         logger.info(f"Processing data for visualization")
         self.processed_data = process_data(self.data, self.dict_cfg)
         

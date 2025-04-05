@@ -7,31 +7,12 @@ from .components import (
     create_collapsible_section, 
     create_metric_selector, 
     create_hierarchical_checklist, 
-    register_collapse_callbacks,
     register_search_callbacks
 )
 
 from .dashboards import (
     create_matrix_visualization, 
-    create_pass_rate_chart, 
-    create_policy_ranking_chart,
-    create_highest_scores_chart
 )
-
-def create_header(title: str = "Metta Policy Evaluation Dashboard") -> html.Div:
-    """
-    Create the dashboard header.
-    
-    Args:
-        title: Dashboard title
-        
-    Returns:
-        Dash layout component for header
-    """
-    return html.Div([
-        html.H1(title, className="mt-3 mb-4"),
-        html.Hr()
-    ], className="dashboard-header")
 
 def create_filters_section(processed_data: Dict[str, Any]) -> html.Div:
     """
@@ -122,39 +103,9 @@ def create_dashboard_content(
             filtered_evals=filtered_evals
         )
         visualizations.append(matrix_viz)
-    
-    # Pass rate chart
-    if "pass_rates" in processed_data:
-        pass_rate_chart = create_pass_rate_chart(
-            processed_data["pass_rates"],
-            config,
-            filtered_policies=filtered_policies
-        )
-        visualizations.append(pass_rate_chart)
-    
-    # Policy ranking chart
-    if "policy_ranking" in processed_data:
-        policy_ranking_chart = create_policy_ranking_chart(
-            processed_data["policy_ranking"],
-            config,
-            filtered_policies=filtered_policies
-        )
-        visualizations.append(policy_ranking_chart)
-    
-    # Highest scores chart
-    if "highest_scores" in processed_data:
-        highest_scores_chart = create_highest_scores_chart(
-            processed_data["highest_scores"],
-            config,
-            filtered_evals=filtered_evals
-        )
-        visualizations.append(highest_scores_chart)
-    
+        
     # Return content container
-    return html.Div([
-        html.H3("Visualizations", className="mb-3"),
-        html.Div(visualizations, id="dashboard-content", className="visualizations-container")
-    ], className="dashboard-content")
+    return html.Div(visualizations, className="dashboard-content")
 
 def create_layout(processed_data: Dict[str, Any], config: Dict[str, Any] = None) -> html.Div:
     """
@@ -183,10 +134,7 @@ def create_layout(processed_data: Dict[str, Any], config: Dict[str, Any] = None)
             rel="stylesheet",
             href="https://use.fontawesome.com/releases/v5.8.1/css/all.css"
         ),
-        
-        # Dashboard header
-        create_header(config.get('page_title', "Metta Policy Evaluation Dashboard")),
-        
+                
         # Main content container
         dbc.Container([
             dbc.Row([
@@ -336,33 +284,6 @@ def register_visualization_callbacks(
                 filtered_evals=selected_evals if selected_evals else None
             )
             visualizations.append(matrix_viz)
-        
-        # Pass rate chart
-        if "pass_rates" in processed_data:
-            pass_rate_chart = create_pass_rate_chart(
-                processed_data["pass_rates"],
-                config,
-                filtered_policies=selected_policies if selected_policies else None
-            )
-            visualizations.append(pass_rate_chart)
-        
-        # Policy ranking chart
-        if "policy_ranking" in processed_data:
-            policy_ranking_chart = create_policy_ranking_chart(
-                processed_data["policy_ranking"],
-                config,
-                filtered_policies=selected_policies if selected_policies else None
-            )
-            visualizations.append(policy_ranking_chart)
-        
-        # Highest scores chart
-        if "highest_scores" in processed_data:
-            highest_scores_chart = create_highest_scores_chart(
-                processed_data["highest_scores"],
-                config,
-                filtered_evals=selected_evals if selected_evals else None
-            )
-            visualizations.append(highest_scores_chart)
         
         return visualizations
 

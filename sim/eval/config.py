@@ -15,7 +15,7 @@ class DashboardConfig:
     # Dashboard settings
     default_graph_height: int = 500
     default_graph_width: int = 800
-    page_title: str = "Metta Policy Evaluation Dashboard"
+    page_title: str = "Softmax Policy Dashboard"
     
     # Policy display names
     policy_names: Dict[str, str] = field(default_factory=lambda: {

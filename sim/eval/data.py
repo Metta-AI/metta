@@ -11,6 +11,8 @@ import numpy as np
 from typing import Dict, Any, List, Optional, Set, Tuple, Union
 from collections import defaultdict
 from rl.eval.eval_stats_db import EvalStatsDB
+from omegaconf import DictConfig
+import hydra
 
 logger = logging.getLogger(__name__)
 
@@ -18,30 +20,55 @@ def display_name(policy: str, policy_names: Dict[str, str]) -> str:
     return policy_names.get(policy, policy)
 
 def shorten_path(eval_name: str) -> str:
-    return eval_name.split('/')[0]
-
-def load_data(eval_db_uri: str, wandb_run, run_dir: str) -> Dict[str, pd.DataFrame]:
-    """
-    Load evaluation data from database.
+    return eval_name.split('/')[-1]
     
-    Args:
-        eval_db_uri: URI for evaluation database
-        run_dir: Directory containing run data
-        
-    Returns:
-        Dictionary of metric names to pandas DataFrames
+def construct_metric_to_df_map(cfg: DictConfig, dfs: list) -> Dict[str, pd.DataFrame]:
     """
-    logger.info(f"Loading data from {eval_db_uri}")
+    Constructs a mapping from metric names to their respective dataframes.
+    
+    The analyzer's configuration defines a list of metrics to analyze (in cfg.analyzer.analysis.metrics).
+    For each metric, the analyzer produces one dataframe, resulting in a 1:1 correspondence
+    between metrics and dataframes. The dataframe will contain scores for all (eval, policy) pairs.
+    
+    Expected dataframe schema for each metric:
+    - policy_name: String identifier for the policy
+    - eval_name: String identifier for the evaluation environment
+    - mean_{metric}: Float value representing the mean of the metric for this policy in this eval
+    - std_{metric}: Float value representing the standard deviation of the metric
+    
+    Parameters:
+    - cfg: Configuration object containing analyzer settings
+    - dfs: List of dataframes produced by the analyzer, one per metric
+    
+    Returns:
+    - Dictionary mapping from metric names to their corresponding dataframes
+    """
+    metrics = [m.metric for m in cfg.analyzer.analysis.metrics]
+    
+    if len(metrics) != len(dfs):
+        raise ValueError(f"Mismatch between metrics ({len(metrics)}) and dataframes ({len(dfs)})")
+    
+    metric_to_df = {}
+    for metric, df in zip(metrics, dfs):
+        metric_to_df[metric] = df
+    
+    return metric_to_df
+
+def load_data(cfg: DictConfig, wandb_run) -> Dict[str, pd.DataFrame]:
+    logger.info(f"Loading data from {cfg.eval_db_uri}")
     
     try:
         # Initialize database connection
-        logger.info(f"Connecting to database at {eval_db_uri}")
-        eval_stats_db = EvalStatsDB.from_uri(eval_db_uri, run_dir, wandb_run)
+        logger.info(f"Connecting to database at {cfg.eval_db_uri}")
+        eval_stats_db = EvalStatsDB.from_uri(cfg.eval_db_uri, cfg.run_dir, wandb_run)
         
         # Get all metrics
         logger.info("Fetching metrics from database")
-        metrics_data = eval_stats_db.get_all_metrics()
-        logger.info(f"Retrieved {len(metrics_data)} metrics from database")
+        analyzer = hydra.utils.instantiate(cfg.analyzer, eval_stats_db)
+        dfs, _ = analyzer.analyze(include_policy_fitness=False)
+        metrics_data = construct_metric_to_df_map(cfg, dfs)
+
+        logger.info(f"Retrieved {len(dfs)} metrics from database")
         
         # Validate and normalize data
         validated_data = {}
@@ -198,182 +225,6 @@ def create_matrix_data(
         'eval_ids': evals.tolist()
     }
 
-def calculate_pass_rates(
-    df: pd.DataFrame,
-    threshold: float, 
-    policy_display_names: Dict[str, str]
-) -> List[Dict[str, Any]]:
-    """
-    Calculate pass rates for each policy.
-    
-    Args:
-        df: DataFrame containing episode rewards
-        threshold: Threshold score for "passing" an evaluation
-        policy_display_names: Mapping from policy IDs to display names
-        
-    Returns:
-        List of dictionaries containing pass rate data
-    """
-    if df is None or df.empty:
-        return []
-    
-    # Find the mean column
-    mean_cols = [col for col in df.columns if col.startswith('mean_')]
-    if not mean_cols:
-        logger.warning("No mean column found for pass rate calculation")
-        return []
-        
-    mean_col = mean_cols[0]
-    
-    # Get unique policies and evaluations
-    unique_policies = df['policy_name'].unique()
-    unique_evals = df['eval_name'].unique()
-    
-    # Track pass/fail data for each policy
-    policy_results = {policy: {"passed": 0, "total": 0} for policy in unique_policies}
-    
-    # For each policy, check how many evals it passes
-    for policy in unique_policies:
-        policy_data = df[df['policy_name'] == policy]
-        for eval_name in unique_evals:
-            eval_policy_data = policy_data[policy_data['eval_name'] == eval_name]
-            
-            if not eval_policy_data.empty:
-                policy_results[policy]["total"] += 1
-                if eval_policy_data[mean_col].values[0] >= threshold:
-                    policy_results[policy]["passed"] += 1
-    
-    # Calculate pass rates
-    pass_rates = []
-    for policy, results in policy_results.items():
-        if results["total"] == 0:
-            continue
-        pass_rate = (results["passed"] / results["total"]) * 100
-        display_name = policy_display_names.get(policy, policy)
-        
-        pass_rates.append({
-            "policy_id": policy,
-            "display_name": display_name,
-            "pass_rate": pass_rate,
-            "passed": results["passed"],
-            "total": results["total"]
-        })
-    
-    # Sort by pass rate (descending)
-    pass_rates.sort(key=lambda x: x["pass_rate"], reverse=True)
-    
-    return pass_rates
-
-def calculate_policy_ranking(
-    df: pd.DataFrame,
-    policy_display_names: Dict[str, str]
-) -> List[Dict[str, Any]]:
-    """
-    Calculate how many evaluations each policy wins.
-    
-    Args:
-        df: DataFrame containing episode rewards
-        policy_display_names: Mapping from policy IDs to display names
-        
-    Returns:
-        List of dictionaries containing policy ranking data
-    """
-    if df is None or df.empty:
-        return []
-    
-    # Find the mean column
-    mean_cols = [col for col in df.columns if col.startswith('mean_')]
-    if not mean_cols:
-        logger.warning("No mean column found for policy ranking calculation")
-        return []
-        
-    mean_col = mean_cols[0]
-    
-    # Get unique evaluations and policies
-    unique_evals = df['eval_name'].unique()
-    unique_policies = df['policy_name'].unique()
-    
-    # Track wins for each policy
-    policy_wins = {policy: 0 for policy in unique_policies}
-    
-    # For each evaluation, find the policy with the highest score
-    for eval_name in unique_evals:
-        eval_data = df[df['eval_name'] == eval_name]
-        if not eval_data.empty:
-            max_idx = eval_data[mean_col].idxmax()
-            winning_policy = eval_data.loc[max_idx, 'policy_name']
-            policy_wins[winning_policy] += 1
-    
-    # Format results
-    ranking = []
-    for policy, wins in policy_wins.items():
-        display_name = policy_display_names.get(policy, policy)
-        ranking.append({
-            "policy_id": policy,
-            "display_name": display_name,
-            "wins": wins
-        })
-    
-    # Sort by number of wins (descending)
-    ranking.sort(key=lambda x: x["wins"], reverse=True)
-    
-    return ranking
-
-def calculate_highest_scores(
-    df: pd.DataFrame,
-    policy_display_names: Dict[str, str],
-    eval_display_names: Dict[str, str]
-) -> List[Dict[str, Any]]:
-    """
-    Calculate the highest score for each evaluation.
-    
-    Args:
-        df: DataFrame containing episode rewards
-        policy_display_names: Mapping from policy IDs to display names
-        eval_display_names: Mapping from evaluation IDs to display names
-        
-    Returns:
-        List of dictionaries containing highest score data
-    """
-    if df is None or df.empty:
-        return []
-    
-    # Find the mean column
-    mean_cols = [col for col in df.columns if col.startswith('mean_')]
-    if not mean_cols:
-        logger.warning("No mean column found for highest scores calculation")
-        return []
-        
-    mean_col = mean_cols[0]
-    
-    # Get unique evaluations
-    unique_evals = df['eval_name'].unique()
-    
-    # For each evaluation, find the policy with the highest score
-    highest_scores = []
-    for eval_name in unique_evals:
-        eval_data = df[df['eval_name'] == eval_name]
-        if not eval_data.empty:
-            max_idx = eval_data[mean_col].idxmax()
-            winning_policy = eval_data.loc[max_idx, 'policy_name']
-            highest_score = eval_data.loc[max_idx, mean_col]
-            
-            display_eval = eval_display_names.get(eval_name, eval_name)
-            display_policy = policy_display_names.get(winning_policy, winning_policy)
-            
-            highest_scores.append({
-                "eval_id": eval_name,
-                "display_eval": display_eval,
-                "policy_id": winning_policy,
-                "display_policy": display_policy,
-                "score": highest_score
-            })
-    
-    # Sort by evaluation name
-    highest_scores.sort(key=lambda x: x["display_eval"])
-    
-    return highest_scores
-
 def extract_unique_items(metric_data: Dict[str, pd.DataFrame]) -> Tuple[Set[str], Set[str]]:
     """
     Extract unique policy and evaluation names from metric data.
@@ -480,30 +331,5 @@ def process_data(metric_data: Dict[str, pd.DataFrame], config: Dict[str, Any]) -
                 processed['policy_display_names'],
                 processed['eval_display_names']
             )
-    
-    # Process data for performance metrics
-    episode_reward_df = next((metric_data[m] for m in metric_data if 'episode_reward' in m), None)
-    if episode_reward_df is not None:
-        logger.info("Calculating performance metrics")
         
-        # Calculate pass rates
-        processed['pass_rates'] = calculate_pass_rates(
-            episode_reward_df, 
-            config.get('pass_threshold', 2.95),
-            processed['policy_display_names']
-        )
-        
-        # Calculate policy ranking
-        processed['policy_ranking'] = calculate_policy_ranking(
-            episode_reward_df,
-            processed['policy_display_names']
-        )
-        
-        # Calculate highest scores per evaluation
-        processed['highest_scores'] = calculate_highest_scores(
-            episode_reward_df,
-            processed['policy_display_names'],
-            processed['eval_display_names']
-        )
-    
     return processed
