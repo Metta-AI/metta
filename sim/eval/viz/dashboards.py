@@ -21,7 +21,7 @@ def create_matrix_visualization(
     Create policy-evaluation matrix visualization component.
     
     Args:
-        matrix_data: Dictionary containing matrix data
+        matrix_data: Dictionary containing matrix data with overall scores
         config: Application configuration
         metric_name: Name of the metric being visualized
         filtered_policies: Optional list of policies to include
@@ -56,9 +56,15 @@ def create_matrix_visualization(
             policy_indices = list(range(len(matrix_data['policy_ids'])))
             
         eval_indices = []
+        # Always include the "overall" column if it exists
+        overall_index = -1
+        if "overall" in matrix_data['eval_ids']:
+            overall_index = matrix_data['eval_ids'].index("overall")
+            
         if filtered_evals:
+            # Add 1 to indices because first column is "overall"
             eval_indices = [i for i, eid in enumerate(matrix_data['eval_ids']) 
-                           if eid in filtered_evals]
+                           if eid in filtered_evals or i == overall_index]
         else:
             eval_indices = list(range(len(matrix_data['eval_ids'])))
             
@@ -116,6 +122,8 @@ def create_matrix_visualization(
         width=config.get('default_graph_width', 800),
         margin=dict(l=50, r=50, t=50, b=100),
     )
+    
+    # No special styling for the "Overall" column - keep it in line with other labels
     
     # Return visualization component
     viz_id = f"matrix-{metric_name.replace('.', '-')}"

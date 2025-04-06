@@ -171,6 +171,7 @@ def create_eval_hierarchy(eval_names: Set[str]) -> Dict[str, List[str]]:
     
     return dict(hierarchy)
 
+
 def create_matrix_data(
     df: pd.DataFrame, 
     policy_display_names: Dict[str, str],
@@ -185,7 +186,7 @@ def create_matrix_data(
         eval_display_names: Mapping from evaluation IDs to display names
         
     Returns:
-        Dictionary containing matrix visualization data
+        Dictionary containing matrix visualization data with overall score column
     """
     if df is None or df.empty:
         return {
@@ -200,10 +201,6 @@ def create_matrix_data(
     policies = df['policy_name'].unique()
     evals = df['eval_name'].unique()
     
-    # Create display name lists
-    policy_labels = [policy_display_names.get(p, p) for p in policies]
-    eval_labels = [eval_display_names.get(e, e) for e in evals]
-    
     # Create a 2D matrix of scores
     mean_col = [col for col in df.columns if col.startswith('mean_')][0]
     
@@ -217,12 +214,32 @@ def create_matrix_data(
             if mask.any():
                 matrix[i, j] = df.loc[mask, mean_col].values[0]
     
+    # Calculate overall score for each policy (mean across evals)
+    overall_scores = np.nanmean(matrix, axis=1)
+    
+    # Sort policies by overall score (descending)
+    sort_indices = np.argsort(overall_scores)  
+    # Reorder data by sorted indices
+    sorted_policies = [policies[i] for i in sort_indices]
+    sorted_policy_labels = [policy_display_names.get(p, p) for p in sorted_policies]
+    sorted_matrix = matrix[sort_indices].tolist()
+    sorted_overall = overall_scores[sort_indices].tolist()
+    
+    # Add "Overall" as first evaluation
+    eval_labels = ["Overall"] + [eval_display_names.get(e, e) for e in evals]
+    eval_ids = ["overall"] + list(evals)  # Convert to list to ensure we have a list
+    
+    # Add overall scores as first column for each policy
+    sorted_matrix_with_overall = []
+    for i, row in enumerate(sorted_matrix):
+        sorted_matrix_with_overall.append([sorted_overall[i]] + row)
+    
     return {
-        'z': matrix.tolist(),
+        'z': sorted_matrix_with_overall,
         'x': eval_labels,
-        'y': policy_labels,
-        'policy_ids': policies.tolist(),
-        'eval_ids': evals.tolist()
+        'y': sorted_policy_labels,
+        'policy_ids': sorted_policies,  # Already a list, no need for tolist()
+        'eval_ids': eval_ids
     }
 
 def extract_unique_items(metric_data: Dict[str, pd.DataFrame]) -> Tuple[Set[str], Set[str]]:
