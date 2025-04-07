@@ -3,6 +3,7 @@ defaults:
   - navigation_defaults
 
 game:
+  max_steps: 1000
 
   agent:
     rewards:
