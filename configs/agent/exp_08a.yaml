@@ -115,10 +115,36 @@ components:
     popped_dim: 1
     input_source: actor_1_expanded
 
+  focus:
+    _target_: agent.lib.nn_layer_library.Linear
+    input_source: _core_
+    nn_params:
+      out_features: 3
+
+  focus_expanded:
+    _target_: agent.lib.merge_layer.ExpandLayer
+    expand_dim: 1
+    expand_value: null
+    input_source: focus
+    dims_source: _action_embeds_
+    source_dim: 1
+
+  focus_reshaped:
+    _target_: agent.lib.merge_layer.ReshapeLayer
+    squeezed_dim: 0
+    popped_dim: 1
+    input_source: focus_expanded
+
+  cat_focus_embed:
+    _target_: agent.lib.merge_layer.ConcatMergeLayer
+    input_source:
+      - embed_reshaped
+      - focus_reshaped
+
   attn:
     _target_: agent.lib.nn_layer_library.Bilinear
     input_source: 
-      - embed_reshaped
+      - cat_focus_embed
       - actor_1_reshaped
     nn_params:
       out_features: 1

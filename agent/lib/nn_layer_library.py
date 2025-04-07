@@ -1,5 +1,6 @@
 from math import prod
 
+import torch
 import torch.nn as nn
 from tensordict import TensorDict
 
@@ -44,8 +45,18 @@ class Embedding(LayerBase):
         net = nn.Embedding(
             **self._nn_params
         )
-        # nn.init.xavier_uniform_(net.weight)
-        nn.init.uniform_(net.weight, a=-0.1, b=0.1)
+        if self.initialization.lower() == 'orthogonal':
+            weight_limit = 0.1
+            nn.init.orthogonal_(net.weight)
+            with torch.no_grad():
+                max_abs_value = torch.max(torch.abs(net.weight))
+                net.weight.mul_(weight_limit / max_abs_value)
+        elif self.initialization.lower() == 'max_1':
+            nn.init.uniform_(net.weight, a=-1, b=1)
+        elif self.initialization.lower() == 'max_0_1':
+            nn.init.uniform_(net.weight, a=-1, b=1)
+        elif self.initialization.lower() == 'max_0_01':
+            nn.init.uniform_(net.weight, a=-0.01, b=0.01)
         return net
 
 class Conv2d(ParamLayer):

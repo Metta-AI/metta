@@ -115,11 +115,15 @@ components:
     popped_dim: 1
     input_source: actor_1_expanded
 
-  attn:
-    _target_: agent.lib.nn_layer_library.Bilinear
-    input_source: 
+  cat_embed_actor_1:
+    _target_: agent.lib.merge_layer.ConcatMergeLayer
+    input_source:
       - embed_reshaped
       - actor_1_reshaped
+
+  attn:
+    _target_: agent.lib.nn_layer_library.Linear
+    input_source: cat_embed_actor_1
     nn_params:
       out_features: 1
 

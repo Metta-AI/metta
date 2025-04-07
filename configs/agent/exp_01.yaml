@@ -91,6 +91,7 @@ components:
   _action_embeds_:
     _target_: agent.lib.action.ActionEmbedding
     input_source: null
+    initialization: max_0_01
     nn_params:
       num_embeddings: 100
       embedding_dim: 64

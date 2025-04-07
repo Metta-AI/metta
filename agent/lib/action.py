@@ -7,58 +7,14 @@ from tensordict import TensorDict
 import agent.lib.nn_layer_library as nn_layer_library
 import agent.lib.metta_layer as metta_layer
 
-# '''Action classes expect two input sources: a feature representation vector and a action hash vector.'''
-
-# class ActionType(nn_layer_library.Bilinear):
-#     def __init__(self, **cfg):
-#         super().__init__(**cfg)
-
-#     def _forward(self, td: TensorDict):
-#         # for source in self._input_source:
-#         #     #rewrite this to go off of input sources in order
-#         #     source_name = source['source_name']
-#         #     if source_name == '_action_type_embeds_':
-#         #         action_embeds = td[source_name]
-#         #     else:
-#         #         state_features = td[source_name]
-
-#         input_1 = td[self._input_source[0]]
-#         input_2 = td[self._input_source[1]]
-
-#         # state_flat, action_flat, num_actions, N = shape_action_embed(input_1, input_2)
-#         td[self._name] = self.bilinear(input_1, input_2)
-
-#         # td[self._name] = logits_flat.view(N, num_actions) # Reshape to [N, num_actions]
-
-#         return td
-
-# class ActionParam(nn_layer_library.Bilinear):
-#     def __init__(self, **cfg):
-#         super().__init__(**cfg)
-
-#     def _forward(self, td: TensorDict):
-#         for source in self._input_source:
-#             source_name = source['source_name']
-#             if source_name == '_action_param_embeds_':
-#                 action_embeds = td[source_name]
-#             else:
-#                 state_features = td[source_name]
-
-#         state_flat, action_flat, num_actions, N = shape_action_embed(state_features, action_embeds)
-#         logits_flat = self.bilinear(state_flat, action_flat)
-
-#         td[self._name] = logits_flat.view(N, num_actions) # Reshape to [N, num_actions]
-
-#         return td
-
 class ActionEmbedding(nn_layer_library.Embedding):
-    def __init__(self, **cfg):
+    def __init__(self, initialization='max_0_01', **cfg):
         super().__init__(**cfg)
         self._reserved_action_embeds = {} 
         self.num_actions = 0 
         # num_actions to be updated at runtime by the size of the active indices
         self._out_tensor_shape = [self.num_actions, self._nn_params['embedding_dim']]
-
+        self.initialization = initialization
     def activate_actions(self, actions_list):
         # each time we run this, we update the metta_agent object's (the policy's) known action strings and associated indices
 
@@ -88,15 +44,14 @@ class ActionEmbedding(nn_layer_library.Embedding):
 
         # below - get embeddings, unsqueeze the 0'th dimension, then expand to match the batch size
         td[self._name] = self._net(self.active_indices).unsqueeze(0).expand(B * TT, -1, -1)
-        print(f"{self._name} shape: {td[self._name].shape}") # delete after testing
         return td
     
 class ActionHash(metta_layer.LayerBase):
     def __init__(self, embedding_dim, **cfg):
         super().__init__(**cfg)
         self.action_embeddings = torch.tensor([])
-        self._out_tensor_shape = [embedding_dim]
         self.num_actions = 0 # to be updated at runtime by the size of the embedding
+        self._out_tensor_shape = [self.num_actions, embedding_dim]
 
     def activate_actions(self, actions_list):
         # convert the actions_dict into a list of strings

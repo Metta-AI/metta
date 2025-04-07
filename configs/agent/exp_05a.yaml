@@ -118,8 +118,8 @@ components:
   attn:
     _target_: agent.lib.nn_layer_library.Bilinear
     input_source: 
-      - embed_reshaped
       - actor_1_reshaped
+      - embed_reshaped
     nn_params:
       out_features: 1
 

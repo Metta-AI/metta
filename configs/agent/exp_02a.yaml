@@ -89,11 +89,9 @@ components:
     effective_rank: true
 
   _action_embeds_:
-    _target_: agent.lib.action.ActionEmbedding
+    _target_: agent.lib.action.ActionHash
     input_source: null
-    nn_params:
-      num_embeddings: 100
-      embedding_dim: 64
+    embedding_dim: 3
 
   embed_reshaped:
     _target_: agent.lib.merge_layer.ReshapeLayer # combines the two dims into the squeezed_dim
