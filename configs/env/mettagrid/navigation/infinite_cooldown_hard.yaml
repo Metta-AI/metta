@@ -1,33 +1,33 @@
 
 defaults:
-  - mettagrid
-
-sampling: 1
+  - navigation_defaults
 
 game:
 
   agent:
     rewards:
-      ore.red: 1
+      heart: 1
 
-  num_agents: 4
+  num_agents: 10
 
   map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom
-    num_rooms: 4
+    num_rooms: 10
     border_width: 6
 
     room:
       _target_: mettagrid.config.room.random.Random
-      width: ${uniform:10,50,30}
-      height: ${uniform:10,50,30}
+      width: ${uniform:15,100,30}
+      height: ${uniform:15,100,30}
       border_width: ${uniform:1,6,3}
 
       agents: 1
 
       objects:
-        mine: ${uniform:30,100,60}
+        altar: ${uniform:20,50,35}
+        wall: ${uniform:60,100,25}
 
   objects:
-    mine:
-      cooldown: 1000
+    altar:
+      cooldown: 255
+      initial_items: 1

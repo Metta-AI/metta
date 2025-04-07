@@ -1,0 +1,33 @@
+
+defaults:
+  - navigation_defaults
+
+game:
+
+  agent:
+    rewards:
+      heart: 1
+
+  num_agents: 10
+
+  map_builder:
+    _target_: mettagrid.config.room.multi_room.MultiRoom
+    num_rooms: 10
+    border_width: 6
+
+    room:
+      _target_: mettagrid.config.room.random.Random
+      width: ${uniform:15,100,30}
+      height: ${uniform:15,100,30}
+      border_width: ${uniform:1,6,3}
+
+      agents: 1
+
+      objects:
+        altar: ${uniform:50,100,75}
+        wall: ${uniform:20,60,25}
+
+  objects:
+    altar:
+      cooldown: 255
+      initial_items: 1

@@ -1,19 +1,11 @@
 _target_: mettagrid.mettagrid_env.MettaGridEnvSet
 
-num_agents: 24
+num_agents: 10
 
 game:
   num_agents: ${..num_agents}
 
 envs:
-  - /env/mettagrid/cognitive_evals/barriermaze
-  - /env/mettagrid/cognitive_evals/cylinder
-  - /env/mettagrid/cognitive_evals/corridormaze
-  - /env/mettagrid/cognitive_evals/labyrinth
-  - /env/mettagrid/cognitive_evals/radial_maze
-  - /env/mettagrid/simple
-  - /env/mettagrid/simple
-  - /env/mettagrid/simple
-  - /env/mettagrid/bases
-  - /env/mettagrid/teams
-  - /env/mettagrid/teams
+  - /env/mettagrid/navigation/infinite_cooldown_easy
+  - /env/mettagrid/navigation/infinite_cooldown_hard
+  - /env/mettagrid/navigation/varied_obstacles
