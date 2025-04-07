@@ -12,4 +12,3 @@ game:
       _target_: mettagrid.config.room.ascii.Ascii
       border_width: 1
       uri: "configs/env/mettagrid/maps/navigating_obstacles.map"
-      
