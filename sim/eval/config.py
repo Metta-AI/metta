@@ -1,8 +1,7 @@
-import copy
-import hydra
-from omegaconf import DictConfig, OmegaConf
 from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass, field
+from omegaconf import DictConfig, OmegaConf
+import hydra
 
 @dataclass
 class DashboardConfig:
@@ -15,7 +14,7 @@ class DashboardConfig:
     # Dashboard settings
     default_graph_height: int = 500
     default_graph_width: int = 800
-    page_title: str = "Softmax Policy Dashboard"
+    page_title: str = "Metta Policy Dashboard"
     
     # Policy display names
     policy_names: Dict[str, str] = field(default_factory=lambda: {
@@ -41,24 +40,6 @@ class DashboardConfig:
     metrics_of_interest: List[str] = field(default_factory=lambda: ['episode_reward'])
     matrix_colorscale: str = 'RdYlGn'
     matrix_score_range: Tuple[float, float] = (0, 3)
-    
-    def to_dict(self) -> Dict:
-        """Convert the config to a dictionary for compatibility with existing code."""
-        return {
-            'eval_db_uri': self.eval_db_uri,
-            'run_dir': self.run_dir,
-            'debug': self.debug,
-            'port': self.port,
-            'output_html_path': self.output_html_path,
-            'default_graph_height': self.default_graph_height,
-            'default_graph_width': self.default_graph_width,
-            'page_title': self.page_title,
-            'policy_names': self.policy_names,
-            'pass_threshold': self.pass_threshold,
-            'metrics_of_interest': self.metrics_of_interest,
-            'matrix_colorscale': self.matrix_colorscale,
-            'matrix_score_range': self.matrix_score_range,
-        }
 
     @classmethod
     def from_dict_config(cls, config_dict: DictConfig) -> 'DashboardConfig':
@@ -72,7 +53,7 @@ class DashboardConfig:
             New DashboardConfig instance with values from config_dict
         """
         # Add _target_ field for instantiate
-        config_dict = copy.deepcopy(config_dict)
+        config_dict = OmegaConf.create(config_dict)
         OmegaConf.set_struct(config_dict, False)
         config_dict.setdefault('_target_', f"{cls.__module__}.{cls.__name__}")
         return hydra.utils.instantiate(config_dict)
