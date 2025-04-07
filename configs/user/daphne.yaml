@@ -26,10 +26,10 @@ trainer:
 # policy_uri: wandb://run/b.daveey.sm.train.er.new.0
 # policy_uri: wandb://run/daveey.ar.cards.1
 # policy_uri: wandb://run/b.daveey.t.32.instant
-policy_uri:  wandb://run/b.daphne.navigation_varied_obstacle_shapes_pretrained.r.1
+policy_uri:  wandb://run/navigation_training_suite_onlyhearts
 # npc_policy_uri: ${trained_policy_uri}
 # eval_db_uri: wandb://artifacts/testing
-eval_db_uri: wandb://artifacts/navigation_evaldb_fullsequence
+eval_db_uri: wandb://artifacts/navigation_db
 
 
 analyzer:
