@@ -17,7 +17,9 @@ def analyze_sv(S: torch.Tensor):
     smallest_non_zero_sv = non_zero_sv[-1].item()
     sv_ratio = largest_sv / smallest_non_zero_sv # also known as the condition number   
 
-    assert len(sorted_sv) > 5, "Need at least 6 singular values for meaningful fit"
+    if len(sorted_sv) <= 5:
+        print(f"Not enough singular values to fit a power law. Only {len(sorted_sv)} singular values.")
+        return {}
 
     # Linear fit in log-log space to check for power law (indicator of criticality)
     log_indices_np = torch.log(torch.arange(1, len(sorted_sv) + 1, device=S.device).float()).cpu().numpy()

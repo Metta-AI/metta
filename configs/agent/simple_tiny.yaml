@@ -64,7 +64,6 @@ components:
     input_source: _core_
     output_size: 1
     nonlinearity: null
-    effective_rank: true
 
   _action_type_:
     _target_: agent.lib.action.ActionType
