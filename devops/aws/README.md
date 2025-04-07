@@ -5,7 +5,7 @@
 1. Configure AWS SSO and credentials:
 ```bash
 # Run the setup script
-./devops/aws/setup_sso.py
+python ./devops/aws/setup_sso.py
 
 # Load new environment settings
 source ~/.bashrc
