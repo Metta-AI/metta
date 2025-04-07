@@ -15,13 +15,13 @@ game:
 
     room:
       _target_: mettagrid.config.room.varied_obstacle_shapes.VariedObstacleShapes
-      width: ${uniform:15,100,30}
-      height: ${uniform:15,100,30}
+      width: ${uniform:40,100,30}
+      height: ${uniform:40,100,30}
       border_width: ${uniform:1,6,3}
       agents: 1
       objects:
          altar: ${uniform:20,80,30}
-         wall: ${uniform:24,80,30}  # 'wall' value determines the number of obstacles
+         wall: ${uniform:24,70,30}  # 'wall' value determines the number of obstacles
 
   objects:
     altar.red:
