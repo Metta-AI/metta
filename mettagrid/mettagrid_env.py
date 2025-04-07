@@ -1,16 +1,14 @@
 import copy
 import random
 from typing import Any, Dict
-import logging
+
 import gymnasium as gym
 import hydra
 import numpy as np
 import pufferlib
 from omegaconf import OmegaConf, DictConfig
-from omegaconf.errors import ConfigKeyError
-from mettagrid.mettagrid_c import MettaGrid  # pylint: disable=E0611
 
-logger = logging.getLogger(__name__)
+from mettagrid.mettagrid_c import MettaGrid  # pylint: disable=E0611
 
 class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     def __init__(self, env_cfg: DictConfig, render_mode: str, buf=None, **kwargs):
@@ -22,9 +20,8 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         super().__init__(buf)
 
-    def make_env(self, env_cfg: DictConfig | None = None):
-        env_cfg = env_cfg or self._cfg_template
-        self._env_cfg = OmegaConf.create(copy.deepcopy(env_cfg))
+    def make_env(self):
+        self._env_cfg = OmegaConf.create(copy.deepcopy(self._cfg_template))
 
         OmegaConf.resolve(self._env_cfg)
 
@@ -171,48 +168,10 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     def close(self):
         pass
 
-class MettaGridEnvSet(MettaGridEnv):
-
-    def __init__(self, env_cfg: DictConfig, render_mode: str, buf=None, **kwargs):
-        self._env_cfgs = env_cfg.envs
-        self._num_agents_global = env_cfg.num_agents
-
-        env_cfg = self.select_env()
-
-        super().__init__(env_cfg, render_mode, buf, **kwargs)
-        self._cfg_template = None
-
-    def select_env(self):
-        selected_env = random.choice(self._env_cfgs)
-        env_cfg = config_from_path(selected_env)
-        if self._num_agents_global != env_cfg.game.num_agents:
-            raise ValueError("For MettaGridEnvSet, the number of agents must be the same for all environments. Global: {}, Env: {}".format(self._num_agents_global, env_cfg.game.num_agents))
-        return env_cfg
-
-    def make_env(self):
-        env_cfg = self.select_env()
-        super().make_env(env_cfg)
-
-
 def make_env_from_cfg(cfg_path: str, *args, **kwargs):
     cfg = OmegaConf.load(cfg_path)
     env = MettaGridEnv(cfg, *args, **kwargs)
     return env
-
-
-def config_from_path(config_path: str, overrides: DictConfig = None) -> DictConfig:
-    env_cfg = hydra.compose(config_name=config_path)
-    if config_path.startswith("/"):
-        config_path = config_path[1:]
-    path = config_path.split("/")
-    for p in path[:-1]:
-        env_cfg = env_cfg[p]
-    if overrides is not None:
-        try:
-            env_cfg = OmegaConf.merge(env_cfg, overrides)
-        except ConfigKeyError:
-            logger.warning(f"Cannot parse overrides when using multienv_mettagrid")
-    return env_cfg
 
 def oc_uniform(min_val, max_val, center, *, _root_):
     sampling = _root_.get("sampling", 0)
