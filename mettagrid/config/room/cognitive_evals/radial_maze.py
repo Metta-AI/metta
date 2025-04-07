@@ -10,7 +10,7 @@ class RadialMaze(Room):
     """A radial maze with a central starting position."""
     def __init__(self, width: int, height: int, radial_params: DictConfig,
                  seed: Union[int, None] = None, border_width: int = 1,
-                 border_object: str = "wall"):
+                 border_object: str = "wall", onlyhearts: bool = False):
         super().__init__(border_width=border_width, border_object=border_object)
         self._width, self._height = width, height
         self._radial_params = radial_params
@@ -19,13 +19,19 @@ class RadialMaze(Room):
         self._arm_length = radial_params.get("arm_length", min(width, height) // 2 - 1)
         self._arm_width = radial_params.get("arm_width", 4)
         self._rng = np.random.default_rng(seed)
+        self._onlyhearts = onlyhearts
 
     def _build(self) -> np.ndarray:
         grid = create_grid(self._height, self._width, fill_value="wall")
         path_positions: Set[Tuple[int, int]] = set()
 
         cx, cy = self._width // 2, self._height // 2
-        specials = {0: "mine", 1: "generator", 2: "altar"}
+
+        if self._onlyhearts:
+            specials = {0: "altar", 1: "altar", 2: "altar"}
+        else:
+            specials = {0: "mine", 1: "generator", 2: "altar"}
+
         special_endpoints = {}
 
         for arm in range(self._arms):
