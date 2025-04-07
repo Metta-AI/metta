@@ -201,7 +201,7 @@ class MettaAgent(nn.Module):
         if action is not None:
             # Reshape action to [B*TT, 2] if it's [B, TT, 2]
             orig_shape = action.shape
-            action = action.reshape(-1, 2)
+            action = action.reshape(-1, 2) # is this necessary?
             
             # Convert each action pair to logit index
             action_type_numbers = torch.tensor([a[0] for a in action])

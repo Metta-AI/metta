@@ -205,6 +205,7 @@ class ExpandLayer(LayerBase):
         if self.dims_source is not None:
             self.expand_value = td[self.dims_source].size(self.source_dim)
  
+        # delete these
         TT = td['_TT_']
         B = td['_batch_size_']
 
