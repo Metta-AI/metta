@@ -1,0 +1,32 @@
+
+defaults:
+  - object_use_defaults
+
+game:
+  num_agents: 20
+
+  agent:
+    rewards:
+      armor: 3
+
+  objects:
+    mine:
+      initial_items: 3
+      output_ore: 3
+
+  map_builder:
+    _target_: mettagrid.config.room.multi_room.MultiRoom
+    num_rooms: 20
+    border_width: 3
+
+    room:
+      _target_: mettagrid.config.room.random.Random
+      width: 15
+      height: 15
+      border_width: 3
+
+      agents: 1
+
+      objects:
+        armory: 1
+        mine: 1
