@@ -35,4 +35,11 @@ def analyze_sv(S: torch.Tensor):
     else:
         regime = 2 # "Chaotic"
 
-    return sv_ratio, r_value**2, slope, largest_sv
+    metrics = {
+        'sv_ratio': sv_ratio,
+        'r2_value': r_value**2,
+        'slope': slope,
+        'largest_eigen': largest_sv
+    }
+    
+    return metrics
