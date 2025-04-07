@@ -3,6 +3,7 @@ defaults:
   - navigation_defaults
 
 game:
+
   num_agents: 20
 
   map_builder:
