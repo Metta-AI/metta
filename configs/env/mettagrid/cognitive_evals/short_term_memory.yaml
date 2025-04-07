@@ -2,7 +2,7 @@ defaults:
   - cogeval_defaults
 
 game:
-  num_agents: 8
+  num_agents: 8  #how many agents are in the map x2
 
   map_builder:
 
