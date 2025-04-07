@@ -7,12 +7,14 @@ from mettagrid.config.room.room import Room
 
 class Cylinder(Room):
     def __init__(self, width: int, height: int, cylinder_params: DictConfig,
-                 agents: int | DictConfig = 1, border_width: int = 1, border_object: str = "wall"):
+                agents: int | DictConfig = 1, border_width: int = 1, border_object: str = "wall",
+                onlyhearts: bool = False):
         super().__init__(border_width=border_width, border_object=border_object)
         self._width = width
         self._height = height
         self._cylinder_params = cylinder_params
         self._agents = agents
+        self._onlyhearts = onlyhearts
         assert cylinder_params['length'] >= 3, "Cylinder length must be at least 3"
 
     def _build(self) -> np.ndarray:
@@ -41,7 +43,7 @@ class Cylinder(Room):
                 self._cylinder_positions.update({(x, center_y - 1), (x, center_y + 1)})
 
         mine_x = start_x + wall_length // 2
-        self._grid[center_y, mine_x] = "mine"
+        self._grid[center_y, mine_x] = "altar" if self._onlyhearts else "mine"
         self._cylinder_positions.add((mine_x, center_y))
 
         agent_start_x = start_x + (wall_length - self._agents) // 2
@@ -61,7 +63,7 @@ class Cylinder(Room):
                 self._cylinder_positions.update({(center_x - 1, y), (center_x + 1, y)})
 
         mine_y = start_y + wall_length // 2
-        self._grid[mine_y, center_x] = "mine"
+        self._grid[mine_y, center_x] = "altar" if self._onlyhearts else "mine"
         self._cylinder_positions.add((center_x, mine_y))
 
         agent_start_y = start_y + (wall_length - self._agents) // 2
@@ -82,5 +84,5 @@ class Cylinder(Room):
             altar_pos = random.choice(left_positions)
             generator_pos = random.choice(right_positions)
             new_grid[altar_pos[1], altar_pos[0]] = "altar"
-            new_grid[generator_pos[1], generator_pos[0]] = "generator"
+            new_grid[generator_pos[1], generator_pos[0]] = "altar" if self._onlyhearts else "generator"
         return new_grid
