@@ -103,7 +103,6 @@ class MettaAgent(nn.Module):
 
         self._total_params = sum(p.numel() for p in self.parameters())
         print(f"Total number of parameters in MettaAgent: {self._total_params:,}. Setup complete.")
-        breakpoint()
         
     def _setup_components(self, component):
         if component._input_source is not None:
