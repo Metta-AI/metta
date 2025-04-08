@@ -1,5 +1,5 @@
 defaults:
-  - navigation_defaults
+  - ../../mettagrid@
 
 game:
   num_agents: 20
@@ -17,3 +17,7 @@ game:
         arm_length: 8
         center_radius: 3
       onlyhearts: true
+
+  objects:
+    altar:
+      cooldown: 255
