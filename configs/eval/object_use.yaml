@@ -21,12 +21,6 @@ evals:
   armory_use:
     env: env/mettagrid/object_use/evals/armory_use
     policy_agents_pct: 1.0
-  colored_generator:
-    env: env/mettagrid/object_use/evals/colored_generator
-    policy_agents_pct: 1.0
-  colored_mine:
-    env: env/mettagrid/object_use/evals/colored_mine
-    policy_agents_pct: 1.0
   generator_use_free:
     env: env/mettagrid/object_use/evals/generator_use_free
     policy_agents_pct: 1.0
