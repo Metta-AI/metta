@@ -118,8 +118,8 @@ components:
   cat_embed_actor_1:
     _target_: agent.lib.merge_layer.ConcatMergeLayer
     input_source:
-      - embed_reshaped
-      - actor_1_reshaped
+      - source_name: embed_reshaped
+      - source_name: actor_1_reshaped
 
   attn:
     _target_: agent.lib.nn_layer_library.Linear
