@@ -16,7 +16,7 @@ game:
       agents: 1
       objects:
          altar: ${uniform:20,80,30}
-         wall: ${uniform:24,70,30}  # 'wall' value determines the number of obstacles
+         wall: ${uniform:12,70,30}  # 'wall' value determines the number of obstacles
 
   objects:
     altar.red:
