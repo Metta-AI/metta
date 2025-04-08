@@ -28,3 +28,11 @@ game:
     altar:
       cooldown: 255
       initial_items: 1
+
+  actions:
+    attack:
+      enabled: false
+    swap:
+      enabled: false
+    change_color:
+      enabled: false
