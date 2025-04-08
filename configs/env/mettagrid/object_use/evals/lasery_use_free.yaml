@@ -1,13 +1,13 @@
 
 defaults:
-  - object_use_defaults
+  - ../../mettagrid@
 
 game:
   num_agents: 20
 
   agent:
     rewards:
-      heart: 3
+      laser: 3
 
   map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom
@@ -24,4 +24,4 @@ game:
       agents: 1
 
       objects:
-        temple: 1
+        lasery: 1
