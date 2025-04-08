@@ -54,7 +54,7 @@ class ActionHash(metta_layer.LayerBase):
         self.num_actions = 0 # to be updated at runtime by the size of the embedding
         self.embedding_dim = embedding_dim
         self._out_tensor_shape = [self.num_actions, self.embedding_dim]
-        self.value_min, self.value_max = min_value, max_value
+        self.min_value, self.max_value = min_value, max_value
         # Add a dummy parameter to track device
         self.register_buffer('dummy_param', torch.zeros(1))
 
@@ -82,11 +82,12 @@ class ActionHash(metta_layer.LayerBase):
         # First normalize to [0,1]
         normalized = byte_array / 255.0
         # Then scale to desired range
-        embedding = normalized * (self.value_max - self.value_min) + self.value_min
+        embedding = normalized * (self.max_value - self.min_value) + self.min_value
 
         # Ensure the embedding is the right size
         if len(embedding) < self.embedding_dim:
             # If the hash is smaller than the needed embedding size, pad with zeros
+            print(f"Padding embedding with 0s from {len(embedding)} to {self.embedding_dim}")
             embedding = np.pad(embedding, (0, self.embedding_dim - len(embedding)), 'constant')
 
         return embedding
