@@ -3,8 +3,8 @@ import logging
 import hydra
 from omegaconf import DictConfig
 from util.runtime_configuration import setup_metta_environment
-from util.wandb import WandbContext
 from eval import simulate_policy
+from rl.wandb.wandb_context import WandbContext
 
 @hydra.main(version_base=None, config_path="../configs", config_name="eval")
 def main(cfg: DictConfig):
