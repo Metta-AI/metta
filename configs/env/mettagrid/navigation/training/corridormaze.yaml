@@ -1,12 +1,12 @@
 defaults:
-  - cogeval_defaults
+  - ../../mettagrid@
 
 game:
-  num_agents: 24
+  num_agents: 10
 
   map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom
-    num_rooms: 24
+    num_rooms: 10
     room:
       _target_: mettagrid.config.room.cognitive_evals.corridor_maze.CorridorMaze
       width: ${uniform:18,24,21}

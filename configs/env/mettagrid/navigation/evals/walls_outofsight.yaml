@@ -1,8 +1,9 @@
 
 defaults:
-  - navigation_defaults
+  - ../../mettagrid@
 
 game:
+
   num_agents: 20
 
   map_builder:
@@ -12,13 +13,17 @@ game:
 
     room:
       _target_: mettagrid.config.room.mean_distance.MeanDistance
-      width: 12
-      height: 12
-      mean_distance: 10
+      width: 25
+      height: 25
+      mean_distance: 15
       border_width: 3
 
       agents: 1
 
       objects:
         altar: 3
-        wall: ${uniform:1,5,5}
+        wall: ${uniform:10,15,12}
+
+  objects:
+    altar:
+      cooldown: 255
