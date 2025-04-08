@@ -1,10 +1,9 @@
 
 defaults:
-  - navigation_defaults
+  - ../../mettagrid@
 
 game:
   max_steps: 1000
-
   agent:
     rewards:
       heart: 1
