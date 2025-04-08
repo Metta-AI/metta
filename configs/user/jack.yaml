@@ -24,7 +24,7 @@ analyzer:
 
 eval:
   policy_uri: ${..policy_uri}
-  eval_db_uri: wandb://artifacts/jack_db
+  eval_db_uri: wandb://artifacts/navigation_db
   policy_uris:
     - "wandb://run/b.daphne.navigation_varied_obstacle_shapes_pretrained.r.1"
     - "wandb://run/b.daphne.navigation_varied_obstacle_shapes.r.0"
