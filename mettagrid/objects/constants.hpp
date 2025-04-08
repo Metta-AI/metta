@@ -32,9 +32,23 @@ enum ObjectType {
     Count = 11
 };
 
+std::vector<std::string> ObjectTypeNames = {
+    "agent",
+    "wall",
+    "mine",
+    "generator",
+    "altar",
+    "armory",
+    "lasery",
+    "lab",
+    "factory",
+    "temple",
+    "converter"
+};
+
 enum InventoryItem {
     ore_red = 0,
-    ore_blue =1,
+    ore_blue = 1,
     ore_green = 2,
     battery = 3,
     heart = 4,
@@ -54,25 +68,6 @@ std::vector<std::string> InventoryItemNames = {
     "armor",
     "laser",
     "blueprint"
-};
-
-std::vector<std::string> ObjectTypeNames = {
-    "agent",
-    "wall",
-    "block",
-    "mine.red",
-    "mine.blue",
-    "mine.green",
-    "generator.red",
-    "generator.blue",
-    "generator.green",
-    "altar",
-    "armory",
-    "lasery",
-    "lab",
-    "factory",
-    "temple",
-    "converter"
 };
 
 std::map<TypeId, GridLayer> ObjectLayers = {
