@@ -538,7 +538,7 @@ class PufferTrainer:
             if k in self.stats:
                 overview[v] = self.stats[k]
 
-        navigation_score = np.mean(r["baseline_mean"] for r in self._eval_results if "navigation" in r["eval"])
+        navigation_score = np.mean([r["baseline_mean"] for r in self._eval_results if "navigation" in r["eval"]])
 
         overview["navigation_evals"] = navigation_score
 
