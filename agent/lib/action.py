@@ -48,13 +48,13 @@ class ActionEmbedding(nn_layer_library.Embedding):
     
 class ActionHash(metta_layer.LayerBase):
     # This can't output hashes larger than 32
-    def __init__(self, embedding_dim, value_range=(-0.2, 0.2), **cfg):
+    def __init__(self, embedding_dim, min_value=-0.2, max_value=0.2, **cfg):
         super().__init__(**cfg)
         self.action_embeddings = torch.tensor([])
         self.num_actions = 0 # to be updated at runtime by the size of the embedding
         self.embedding_dim = embedding_dim
         self._out_tensor_shape = [self.num_actions, self.embedding_dim]
-        self.value_min, self.value_max = value_range
+        self.value_min, self.value_max = min_value, max_value
         # Add a dummy parameter to track device
         self.register_buffer('dummy_param', torch.zeros(1))
 
