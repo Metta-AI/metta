@@ -21,7 +21,7 @@ analyzer:
   analysis:
     metrics:
       - metric: episode_reward
-
+    output_path: s3://softmax-public/policydash/dashboard.html
 eval:
   policy_uri: ${..policy_uri}
   eval_db_uri: wandb://artifacts/navigation_db
