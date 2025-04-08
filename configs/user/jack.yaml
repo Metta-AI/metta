@@ -15,7 +15,6 @@ trainer:
       max_steps: 1000
 
 policy_uri: wandb://run/b.daveey.t.64.dr90.e3b
-# policy_uri:  wandb://run/b.georgedeane.colored_mines_constrained
 
 analyzer:
   policy_uri: ${..policy_uri}
@@ -25,7 +24,15 @@ analyzer:
 
 eval:
   policy_uri: ${..policy_uri}
-  eval_db_uri: wandb://artifacts/navigation_evaldb_only_hearts
+  eval_db_uri: wandb://artifacts/jack_db
+  policy_uris:
+    - "wandb://run/b.daphne.navigation_varied_obstacle_shapes_pretrained.r.1"
+    - "wandb://run/b.daphne.navigation_varied_obstacle_shapes.r.0"
+    - "wandb://run/navigation_poisson_sparser.r.2"
+    - "wandb://run/navigation_infinite_cooldown_sparser_pretrained.r.0"
+    - "wandb://run/navigation_infinite_cooldown_sparser.r.0"
+    - "wandb://run/navigation_poisson_sparser_pretrained.r.6"
+    - "wandb://run/b.daveey.t.64.dr90.1"
 
 
 wandb:

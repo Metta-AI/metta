@@ -7,7 +7,6 @@ defaults:
   - wandb
 
 cmd: eval
-eval_db_uri: wandb://artifacts/navigation_evaldb_only_hearts
 run: ???
 data_dir: ./train_dir
 run_dir: ${data_dir}/${run}

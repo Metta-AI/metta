@@ -21,8 +21,7 @@ def simulate_policy(cfg: DictConfig, wandb_run):
     with WandbContext(cfg) as wandb_run:
         policy_store = PolicyStore(cfg, wandb_run)
         policy_prs = policy_store.policies(cfg.eval.policy_uri, cfg.eval.selector_type)
-        # TODO: I think this is a for loop because it can be multiple checkpoints of a single training run
-        # It's possible this should be organized somehow else.
+        # For each checkpoint of the policy, simulate
         for pr in policy_prs:
             logger.info(f"Evaluating policy {pr.uri}")
 
@@ -36,8 +35,8 @@ def simulate_policy(cfg: DictConfig, wandb_run):
             simulate(eval, cfg, wandb_run)
             logger.info(f"Evaluation complete for policy {pr.uri}; logging stats")
 
-def simulate_policies(cfg: DictConfig, wandb_run):
-    policy_store = PolicyStore(cfg, wandb_run)
-    policy_prs = policy_store.policies(cfg.eval.policy_uri, cfg.eval.selector_type)
-    for pr in policy_prs:
-        simulate_policy(cfg, wandb_run, pr)
+def simulate_policies(cfg: DictConfig):
+    with WandbContext(cfg) as wandb_run:
+        for policy_uri in cfg.eval.policy_uris:
+            cfg.eval.policy_uri = policy_uri
+            simulate_policy(cfg, wandb_run)
