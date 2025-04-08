@@ -13,11 +13,11 @@
 
 defaults:
   - override /agent: simple
-  - override /eval: navigation
+  - override /eval: simple
   - override /analyzer: eval_analyzer
 
 trainer:
-  env: /env/mettagrid/bases
+  env: /env/mettagrid/multienv_mettagrid
   evaluate_interval: 200
 
 # policy: wandb://run/b.daveey.train.maze.sm.dr.warm.0
@@ -43,7 +43,7 @@ eval:
   num_envs: 10
   num_episodes: 16
   max_time_s: 600
-  env: /env/mettagrid/navigation/evals/corridors
+  env: /env/mettagrid/simple
 
   policy_uri: ${..policy_uri}
   # npc_policy_uri: ${..npc_policy_uri}
@@ -52,7 +52,7 @@ eval:
 wandb:
   checkpoint_interval: 1
 
-run_id: fullsequence
+run_id: 1
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 
