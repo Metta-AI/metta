@@ -61,7 +61,7 @@ class PufferTrainer:
         self.use_e3b = self.trainer_cfg.use_e3b
         self.eval_stats_logger = EvalStatsLogger(cfg, wandb_run)
         self.average_reward = 0.0  # Initialize average reward estimate
-        self._current_eval_score = 0.0
+        self._current_eval_score = None
         self._eval_results = []
         self._effective_rank = []
         self._make_vecenv()

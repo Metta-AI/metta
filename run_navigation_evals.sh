@@ -14,8 +14,8 @@ POLICIES=(
     "navigation_onlyhearts_ent0.1"
     "b.daphne.navigation_training_onlyhearts.r.0"
     "navigation_training_suite_onlyhearts"
-    "navigation_training_varied_obs"
-    "navigation_training_simple"
+    "train_variedobs_navigation_evals"
+    "train_simple_nav_evals_test2"
 )
 
 
