@@ -1,15 +1,13 @@
 
 defaults:
-  - object_use_defaults
+  - ../../mettagrid@
 
 game:
   num_agents: 20
 
   agent:
     rewards:
-      ore.red: 1
-      ore.green: 1
-      ore.blue: 1
+      armor: 3
 
   map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom
@@ -26,6 +24,4 @@ game:
       agents: 1
 
       objects:
-        mine.red: 1
-        mine.blue: 1
-        mine.green: 1
+        armory: 1
