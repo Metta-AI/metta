@@ -48,7 +48,7 @@ class ActionEmbedding(nn_layer_library.Embedding):
     
 class ActionHash(metta_layer.LayerBase):
     # This can't output hashes larger than 32
-    def __init__(self, embedding_dim, min_value=-0.2, max_value=0.2, **cfg):
+    def __init__(self, embedding_dim, min_value=0, max_value=1, **cfg):
         super().__init__(**cfg)
         self.action_embeddings = torch.tensor([])
         self.num_actions = 0 # to be updated at runtime by the size of the embedding
