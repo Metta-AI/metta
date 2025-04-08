@@ -3,11 +3,6 @@ defaults:
   - ../../mettagrid@
 
 game:
-  max_steps: 1000
-  agent:
-    rewards:
-      heart: 1
-
   num_agents: 10
 
   map_builder:
