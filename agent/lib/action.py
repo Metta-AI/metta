@@ -47,11 +47,16 @@ class ActionEmbedding(nn_layer_library.Embedding):
         return td
     
 class ActionHash(metta_layer.LayerBase):
-    def __init__(self, embedding_dim, **cfg):
+    # This can't output hashes larger than 32
+    def __init__(self, embedding_dim, value_range=(-0.2, 0.2), **cfg):
         super().__init__(**cfg)
         self.action_embeddings = torch.tensor([])
         self.num_actions = 0 # to be updated at runtime by the size of the embedding
-        self._out_tensor_shape = [self.num_actions, embedding_dim]
+        self.embedding_dim = embedding_dim
+        self._out_tensor_shape = [self.num_actions, self.embedding_dim]
+        self.value_min, self.value_max = value_range
+        # Add a dummy parameter to track device
+        self.register_buffer('dummy_param', torch.zeros(1))
 
     def activate_actions(self, actions_list):
         # convert the actions_dict into a list of strings
@@ -59,28 +64,30 @@ class ActionHash(metta_layer.LayerBase):
         for action_name, max_arg_count in actions_list:
             for i in range(max_arg_count):
                 string_list.append(f"{action_name}_{i}")
-
+                
+        # Use the dummy parameter to get the device
+        device = self.dummy_param.device
         self.action_embeddings = torch.tensor([
             self.embed_string(s)
             for s in string_list
-        ], dtype=torch.float32)
+        ], dtype=torch.float32, device=device)
 
         self.num_actions = self.action_embeddings.size(0)
 
     def embed_string(self, s):
-        # Hash the string using SHA-256, which produces a 32-byte hash
         hash_object = hashlib.sha256(s.encode())
         hash_digest = hash_object.digest()
 
-        # Convert hash bytes to a numpy array of floats
-        # This example simply takes the first 'embedding_dim' bytes and scales them
-        byte_array = np.frombuffer(hash_digest[:self._out_tensor_shape], dtype=np.uint8)
-        embedding = byte_array / 255.0  # Normalize to range [0, 1]
+        byte_array = np.frombuffer(hash_digest[:self.embedding_dim], dtype=np.uint8)
+        # First normalize to [0,1]
+        normalized = byte_array / 255.0
+        # Then scale to desired range
+        embedding = normalized * (self.value_max - self.value_min) + self.value_min
 
         # Ensure the embedding is the right size
-        if len(embedding) < self._out_tensor_shape:
+        if len(embedding) < self.embedding_dim:
             # If the hash is smaller than the needed embedding size, pad with zeros
-            embedding = np.pad(embedding, (0, self._out_tensor_shape - len(embedding)), 'constant')
+            embedding = np.pad(embedding, (0, self.embedding_dim - len(embedding)), 'constant')
 
         return embedding
 
