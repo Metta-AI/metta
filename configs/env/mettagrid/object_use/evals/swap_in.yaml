@@ -1,9 +1,8 @@
 defaults:
-  - object_use_defaults
+  - ../../mettagrid@
 
 game:
   num_agents: 20  #how many agents are in the map x2
-  max_steps: 400
 
   agent:
     rewards:
@@ -16,4 +15,4 @@ game:
     room:
       _target_: mettagrid.config.room.ascii.Ascii
       border_width: 1
-      uri: "configs/env/mettagrid/maps/object_use/shoot_out.map"
+      uri: "configs/env/mettagrid/maps/object_use/swap_in.map"

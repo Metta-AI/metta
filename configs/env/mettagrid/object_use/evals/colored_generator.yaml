@@ -1,6 +1,6 @@
 
 defaults:
-  - object_use_defaults
+  - ../../mettagrid@
 
 game:
   num_agents: 20
@@ -14,9 +14,9 @@ game:
   objects:
     generator.red:
       initial_items: 0
-    generator.green: 
+    generator.green:
       initial_items: 0
-    generator.blue: 
+    generator.blue:
       initial_items: 0
 
   map_builder:

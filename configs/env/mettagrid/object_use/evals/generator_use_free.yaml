@@ -1,18 +1,13 @@
 
 defaults:
-  - object_use_defaults
+  - ../../mettagrid@
 
 game:
   num_agents: 20
 
   agent:
     rewards:
-      laser: 3
-
-  objects:
-    generator:
-      initial_items: 2
-      output_battery: 2
+      battery.red: 3
 
   map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom
@@ -29,6 +24,4 @@ game:
       agents: 1
 
       objects:
-        lasery: 1
-        mine: 1
         generator: 1
