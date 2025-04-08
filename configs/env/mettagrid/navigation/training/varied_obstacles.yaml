@@ -1,6 +1,8 @@
 defaults:
   - ../../mettagrid@
 
+sampling: 5
+
 game:
   num_agents: 20
   map_builder:
