@@ -4,15 +4,17 @@ defaults:
 
 game:
   num_agents: 20
-
+  max_steps: 100
   agent:
     rewards:
       heart: 3
+      battery: 0
 
   objects:
     generator:
       initial_items: 3
       output_battery: 3
+      cooldown: 255
 
   map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom

@@ -4,6 +4,12 @@ defaults:
 
 game:
   num_agents: 20
+  max_steps: 100
+
+  objects:
+    lasery:
+      initial_items: 1
+      cooldown: 255
 
   agent:
     rewards:
