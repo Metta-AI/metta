@@ -12,7 +12,8 @@ class LabyrinthMaze(Room):
     """
     def __init__(self, width: int, height: int, corridor_width: int = 3,
                  agents: int | DictConfig = 1, seed: Optional[int] = None,
-                 border_width: int = 1, border_object: str = "wall"):
+                 border_width: int = 1, border_object: str = "wall",
+                 onlyhearts: bool = False):
         super().__init__(border_width=border_width, border_object=border_object)
         self._desired_width, self._desired_height = width, height
         self._corridor_width = corridor_width
@@ -20,6 +21,7 @@ class LabyrinthMaze(Room):
         self._rng = np.random.default_rng(seed)
         self._border_width = border_width
         self._border_object = border_object
+        self._onlyhearts = onlyhearts
 
         # Calculate number of maze cells and adjust overall dimensions.
         self._maze_cols = (width - 1) // (corridor_width + 1)
@@ -66,7 +68,8 @@ class LabyrinthMaze(Room):
 
     def _build(self) -> np.ndarray:
         # Initialize grid with walls and visited flags for maze cells.
-        self._grid = np.full((self._height, self._width), "wall", dtype='<U50')
+        wall_type = "wall"
+        self._grid = np.full((self._height, self._width), wall_type, dtype='<U50')
         self._visited = np.zeros((self._maze_rows, self._maze_cols), dtype=bool)
         self._carve_passages_from(0, 0)
 
@@ -75,9 +78,14 @@ class LabyrinthMaze(Room):
         margin = 2
         self._grid[max(0, center_y-margin):min(self._height, center_y+margin+1),
                    max(0, center_x-margin-1):min(self._width, center_x+margin+2)] = "empty"
-        self._grid[center_y, center_x-1] = "mine"
-        self._grid[center_y, center_x]   = "altar"
-        self._grid[center_y, center_x+1] = "generator"
+
+        # Place objects, using hearts if onlyhearts is True
+        object_type = "altar" if self._onlyhearts else "mine"
+        self._grid[center_y, center_x-1] = object_type
+        object_type = "altar" if self._onlyhearts else "altar"
+        self._grid[center_y, center_x] = object_type
+        object_type = "altar" if self._onlyhearts else "generator"
+        self._grid[center_y, center_x+1] = object_type
 
         # Place the agent at the entrance (maze cell (0,0)), centered in its block.
         agent_x, agent_y = self._cell_top_left(0, 0)
