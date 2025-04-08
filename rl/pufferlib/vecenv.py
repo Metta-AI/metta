@@ -4,10 +4,8 @@ import pufferlib
 import pufferlib.utils
 import pufferlib.vector
 import hydra
-from mettagrid.mettagrid_env import MettaGridEnv
 
 def make_env_func(cfg: DictConfig, buf=None, render_mode='rgb_array'):
-    # return MettaGridEnv(cfg, buf=buf, render_mode=render_mode)
     return hydra.utils.instantiate(cfg, cfg, render_mode=render_mode, buf=buf)
 
 def make_vecenv(
