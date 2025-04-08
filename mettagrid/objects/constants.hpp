@@ -17,6 +17,13 @@ enum GridLayer {
     Object_Layer = 1
 };
 
+// There should be a one-to-one mapping between ObjectType and ObjectTypeNames.
+// ObjectTypeName is mostly used for human-readability, but may be used as a key
+// in config files, etc. Agents will be able to see an object's type_id.
+//
+// Note that ObjectType does _not_ have to correspond to an object's class (which
+// is a C++ concept). In particular, multiple ObjectTypes may correspond to the
+// same class.
 enum ObjectType {
     AgentT = 0,
     WallT = 1,
