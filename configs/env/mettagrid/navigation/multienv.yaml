@@ -1,0 +1,16 @@
+_target_: mettagrid.mettagrid_env.MettaGridEnvSet
+
+num_agents: 10
+
+game:
+  num_agents: ${..num_agents}
+
+envs:
+  - /env/mettagrid/navigation/training/barriermaze
+  - /env/mettagrid/navigation/training/corridormaze
+  - /env/mettagrid/navigation/training/cylinder
+  - /env/mettagrid/navigation/training/infinite_cooldown_easy
+  - /env/mettagrid/navigation/training/infinite_cooldown_hard
+  - /env/mettagrid/navigation/training/varied_obstacles
+  - /env/mettagrid/navigation/training/radial_maze
+  - /env/mettagrid/navigation/training/labyrinth
