@@ -1,16 +1,13 @@
 defaults:
-  - navigation_defaults
+  - ../../mettagrid@
 
 game:
-  num_agents: 20
-  max_steps: 400
-
+  num_agents: 10
   map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom
-    num_rooms: 20
+    num_rooms: 10
     room:
       _target_: mettagrid.config.room.cognitive_evals.labyrinth.LabyrinthMaze
-      width: 35
-      height: 35
-      corridor_width: 3
-      onlyhearts: true
+      width: ${uniform:20,25,21}
+      height: ${uniform:20,25,21}
+      corridor_width: ${uniform:1,4,3}

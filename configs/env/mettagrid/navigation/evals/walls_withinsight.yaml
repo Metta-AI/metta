@@ -1,6 +1,6 @@
 
 defaults:
-  - navigation_defaults
+  - ../../mettagrid@
 
 game:
   num_agents: 20
@@ -21,3 +21,8 @@ game:
 
       objects:
         altar: 3
+        wall: ${uniform:1,5,5}
+
+  objects:
+    altar:
+      cooldown: 255
