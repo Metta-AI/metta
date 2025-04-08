@@ -3,11 +3,11 @@ defaults:
   - ../../mettagrid@
 
 game:
-  num_agents: 10
+  num_agents: 20
 
   map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom
-    num_rooms: 10
+    num_rooms: 20
     border_width: 6
 
     room:

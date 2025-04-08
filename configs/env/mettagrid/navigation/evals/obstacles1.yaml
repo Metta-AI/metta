@@ -12,3 +12,7 @@ game:
       _target_: mettagrid.config.room.ascii.Ascii
       border_width: 1
       uri: "configs/env/mettagrid/maps/obstacles1.map"
+
+  objects:
+    altar:
+      cooldown: 255
