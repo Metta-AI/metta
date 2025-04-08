@@ -540,7 +540,11 @@ class PufferTrainer:
 
         navigation_score = np.mean([r["baseline_mean"] for r in self._eval_results if "navigation" in r["eval"]])
 
-        overview["navigation_evals"] = navigation_score
+        print(f"NAVIGATION SCORE: {navigation_score}")
+
+        if navigation_score is not None:
+            print("Logging navigation score")
+            overview["navigation_evals"] = navigation_score
 
         environment = {
             f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v
