@@ -1,18 +1,24 @@
 # @package __global__
 
+
+#POLICIES TO EVALUATE
+
+#b.daphne.navigation_varied_obstacle_shapes_pretrained.r.1
+#b.daphne.navigation_varied_obstacle_shapes.r.0
+#navigation_poisson_sparser.r.2
+#navigation_infinite_cooldown_sparser_pretrained.r.0
+#navigation_infinite_cooldown_sparser.r.0
+#navigation_poisson_sparser_pretrained.r.6
+
+
 defaults:
   - override /agent: simple
-  - override /eval: simple
+  - override /eval: navigation
   - override /analyzer: eval_analyzer
 
 trainer:
   env: /env/mettagrid/bases
   evaluate_interval: 200
-  env_overrides:
-    # sampling: 0.7
-    game:
-      num_agents: 36
-      max_steps: 1000
 
 # policy: wandb://run/b.daveey.train.maze.sm.dr.warm.0
 # baselines: wandb://run/b.daveey.train.maze.sm.11x11.0
@@ -20,9 +26,11 @@ trainer:
 # policy_uri: wandb://run/b.daveey.sm.train.er.new.0
 # policy_uri: wandb://run/daveey.ar.cards.1
 # policy_uri: wandb://run/b.daveey.t.32.instant
-policy_uri:  wandb://run/b.georgedeane.colored_mines_constrained
+policy_uri:  wandb://run/b.daveey.t.8.rdr9.3
 # npc_policy_uri: ${trained_policy_uri}
-eval_db_uri: wandb://artifacts/testing
+# eval_db_uri: wandb://artifacts/testing
+eval_db_uri: wandb://artifacts/navigation_db
+
 
 analyzer:
   eval_stats_uri: ${run_dir}/eval_stats
@@ -35,21 +43,16 @@ eval:
   num_envs: 10
   num_episodes: 16
   max_time_s: 600
-
+  env: /env/mettagrid/navigation/evals/corridors
 
   policy_uri: ${..policy_uri}
   # npc_policy_uri: ${..npc_policy_uri}
   eval_db_uri: ${..eval_db_uri} #file://daphne/sweep_stats
-  env_overrides:
-    # sampling: 0.7
-    game:
-      # num_agents: 360
-      max_steps: 10
 
 wandb:
   checkpoint_interval: 1
 
-run_id: 13
+run_id: fullsequence
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 

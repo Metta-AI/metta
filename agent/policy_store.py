@@ -56,19 +56,19 @@ class PolicyStore:
         self._wandb_run = wandb_run
         self._cached_prs = {}
 
-    def policy(self, policy: Union[str, OmegaConf], selector_type: str = "latest", n=1, metric="epoch") -> PolicyRecord:
+    def policy(self, policy: Union[str, OmegaConf], selector_type: str = "top", n=1, metric="score") -> PolicyRecord:
         if not isinstance(policy, str):
             policy = policy.uri
         prs = self._policy_records(policy, selector_type, n, metric)
         assert  len(prs) == 1, f"Expected 1 policy, got {len(prs)}"
         return prs[0]
 
-    def policies(self, policy: Union[str, OmegaConf], selector_type: str = "latest", n=1, metric="epoch") -> List[PolicyRecord]:
+    def policies(self, policy: Union[str, OmegaConf], selector_type: str = "top", n=1, metric="score") -> List[PolicyRecord]:
         if not isinstance(policy, str):
             policy = policy.uri
         return self._policy_records(policy, selector_type, n, metric)
 
-    def _policy_records(self, uri, selector_type="latest", n=1, metric="epoch"):
+    def _policy_records(self, uri, selector_type="top", n=1, metric="score"):
         version = None
         if uri.startswith("wandb://"):
             wandb_uri = uri[len("wandb://"):]
@@ -88,6 +88,9 @@ class PolicyStore:
         else:
             prs = self._prs_from_path(uri)
 
+        if len(prs) == 0:
+            raise ValueError(f"No policies found at {uri}")
+
         if selector_type == "all":
             return prs
 
@@ -98,8 +101,9 @@ class PolicyStore:
             return [random.choice(prs)]
 
         elif selector_type == "top":
-            metric = metric
-
+            if metric not in prs[0].metadata or prs[0].metadata[metric] is None:
+                logger.warning(f"Metric {metric} not found in policy metadata, returning latest policy")
+                return [prs[0]] #return latest if metric not found
             top = sorted(prs, key=lambda x: x.metadata.get(metric, 0))[-n:]
             if len(top) < n:
                 logger.warning(f"Only found {len(top)} policies matching criteria, requested {n}")

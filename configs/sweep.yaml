@@ -1,9 +1,9 @@
 defaults:
   - common
-  - wandb
+  - wandb: metta_research
   - agent: simple
   - eval: eval
-  - analyzer: train_analyzer
+  - analyzer: eval_analyzer
   - trainer: puffer
 
 cmd: sweep

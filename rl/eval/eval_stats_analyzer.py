@@ -6,8 +6,6 @@ import fnmatch
 import numpy as np
 from rl.eval.queries import total_metric
 import pandas as pd
-logger = logging.getLogger("eval_stats_analyzer")
-
 class EvalStatsAnalyzer:
     def __init__(
         self,
@@ -15,6 +13,7 @@ class EvalStatsAnalyzer:
         analysis: DictConfig,
         policy_uri: str,
         **kwargs):
+        self.logger = logging.getLogger(__name__)
         self.analysis = analysis
         self.stats_db = stats_db
         self.candidate_policy_uri = policy_uri
@@ -53,9 +52,9 @@ class EvalStatsAnalyzer:
 
     def log_result(self, result, metric, filters):
         result_table = tabulate(result, headers=list(result.keys()), tablefmt="grid", maxcolwidths=25)
-        logger.info(f"Results for {metric} with filters {filters}:\n{result_table}")
+        self.logger.info(f"Results for {metric} with filters {filters}:\n{result_table}")
 
-    def _analyze_metrics(self, metric_configs):
+    def _analyze_metrics(self, metric_configs, include_policy_fitness=True):
         result_dfs = []
         policy_fitness_records = []
         for cfg, metrics in metric_configs.items():
@@ -63,26 +62,28 @@ class EvalStatsAnalyzer:
             for metric in metrics:
                 metric_result = self.stats_db._query(total_metric(metric, filters))
                 if len(metric_result) == 0:
-                    logger.info(f"No data found for {metric} with filters {filters}" + "\n")
+                    self.logger.info(f"No data found for {metric} with filters {filters}" + "\n")
                     continue
-                policy_fitness = self.policy_fitness(metric_result, metric)
-                policy_fitness_records.extend(policy_fitness)
+                if include_policy_fitness:
+                    policy_fitness = self.policy_fitness(metric_result, metric)
+                    policy_fitness_records.extend(policy_fitness)
                 result_dfs.append(metric_result)
                 self.log_result(metric_result, metric, filters)
 
         return result_dfs, policy_fitness_records
 
-    def analyze(self):
+    def analyze(self, include_policy_fitness=True):
         if all(len(self.metric_configs[cfg]) == 0 for cfg in self.metric_configs):
-            logger.info(f"No metrics to analyze yet for {self.candidate_policy_uri}")
+            self.logger.info(f"No metrics to analyze yet for {self.candidate_policy_uri}")
             return [], []
 
-        result_dfs, policy_fitness_records = self._analyze_metrics(self.metric_configs)
+        result_dfs, policy_fitness_records = self._analyze_metrics(self.metric_configs, include_policy_fitness)
 
-        policy_fitness_df = pd.DataFrame(policy_fitness_records)
-        if len(policy_fitness_df) > 0:
-            policy_fitness_table = tabulate(policy_fitness_df, headers=[self.candidate_policy_uri] + list(policy_fitness_df.keys()), tablefmt="grid", maxcolwidths=25)
-            logger.info(f"Policy fitness results for candidate policy {self.candidate_policy_uri} and baselines {self.analysis.baseline_policies}:\n{policy_fitness_table}")
+        if include_policy_fitness:
+            policy_fitness_df = pd.DataFrame(policy_fitness_records)
+            if len(policy_fitness_df) > 0:
+                policy_fitness_table = tabulate(policy_fitness_df, headers=[self.candidate_policy_uri] + list(policy_fitness_df.keys()), tablefmt="grid", maxcolwidths=25)
+                self.logger.info(f"Policy fitness results for candidate policy {self.candidate_policy_uri} and baselines {self.analysis.baseline_policies}:\n{policy_fitness_table}")
 
         return result_dfs, policy_fitness_records
 
@@ -129,11 +130,13 @@ class EvalStatsAnalyzer:
 
         for eval in evals:
             if len(evals) == 1:
-                candidate_mean = metric_data.loc[candidate_uri][metric_mean]
-                baseline_mean = np.mean(metric_data.loc[baseline_policies][metric_mean])
+                candidate_mean = metric_data.loc[candidate_uri][metric_mean] or 0
+                baseline_mean = np.mean(metric_data.loc[baseline_policies][metric_mean]) or 0
             else:
-                candidate_mean = candidate_data.loc[eval][metric_mean]
-                baseline_mean = np.mean(baseline_data.loc[eval][metric_mean])
+                candidate_mean = candidate_data.loc[eval][metric_mean] or 0
+                baseline_mean = np.mean(baseline_data.loc[eval][metric_mean]) or 0
+
             fitness = candidate_mean - baseline_mean
+
             policy_fitness.append({"eval": eval, "metric": metric_name, "candidate_mean": candidate_mean, "baseline_mean": baseline_mean, "fitness": fitness})
         return policy_fitness

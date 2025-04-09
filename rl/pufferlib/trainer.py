@@ -71,9 +71,11 @@ class PufferTrainer:
         self.stats = defaultdict(list)
         self.wandb_run = wandb_run
         self.policy_store = policy_store
-        self.eval_stats_logger = EvalStatsLogger(cfg, self._env_cfg)
+        self.use_e3b = self.trainer_cfg.use_e3b
+        self.eval_stats_logger = EvalStatsLogger(cfg, wandb_run)
         self.average_reward = 0.0  # Initialize average reward estimate
-        self._policy_fitness = []
+        self._current_eval_score = None
+        self._eval_results = []
         self._effective_rank = []
         self._make_vecenv()
 
@@ -283,7 +285,8 @@ class PufferTrainer:
         eval_stats_db = EvalStatsDB.from_uri(self.cfg.eval.eval_db_uri, self.cfg.run_dir, self.wandb_run)
         analyzer = hydra.utils.instantiate(self.cfg.analyzer, eval_stats_db)
         _, policy_fitness_records = analyzer.analyze()
-        self._policy_fitness = policy_fitness_records
+        self._eval_results = policy_fitness_records
+        self._current_eval_score = np.sum([r["baseline_mean"] for r in self._eval_results if r["metric"] == "episode_reward"])
 
 
     def _update_l2_init_weight_copy(self):
@@ -522,6 +525,7 @@ class PufferTrainer:
                 "generation": generation,
                 "initial_uri": self._initial_pr.uri,
                 "train_time": time.time() - self.train_start,
+                "score": self._current_eval_score,
             }
         )
         # this is hacky, but otherwise the initial_pr points
@@ -566,14 +570,24 @@ class PufferTrainer:
             if k in self.stats:
                 overview[v] = self.stats[k]
 
+        navigation_score = np.mean([r["baseline_mean"] for r in self._eval_results if "navigation" in r["eval"]])
+
+        if not np.isnan(navigation_score):
+            overview["navigation_evals"] = navigation_score
+
         environment = {
             f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v
             for k, v in self.stats.items()
         }
 
         policy_fitness_metrics = {
-            f'pfs/{r["eval"]}:{r["metric"]}': r["fitness"]
-            for r in self._policy_fitness
+            f'pfs/{r["eval"].split("/")[-1]}:{r["metric"]}': r["fitness"]
+            for r in self._eval_results
+        }
+
+        navigation_eval_metrics = {
+            f'navigation_evals/{r["eval"].split("/")[-1]}:{r["metric"]}': r["baseline_mean"]
+            for r in self._eval_results if "navigation" in r["eval"]
         }
 
         effective_rank_metrics = {
@@ -589,13 +603,14 @@ class PufferTrainer:
                 **environment,
                 **policy_fitness_metrics,
                 **effective_rank_metrics,
+                **navigation_eval_metrics,
                 "train/agent_step": agent_steps,
                 "train/epoch": epoch,
                 "train/learning_rate": learning_rate,
                 "train/average_reward": self.average_reward if self.trainer_cfg.average_reward else None,
             })
 
-        self._policy_fitness = []
+        self._eval_results = []
         self._effective_rank = []
         self.stats.clear()
 

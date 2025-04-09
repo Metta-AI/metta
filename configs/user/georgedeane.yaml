@@ -14,7 +14,14 @@ trainer:
 # policy_uri: wandb://run/b.daveey.sm.train.er.new.0
 # policy_uri: wandb://run/daveey.ar.cards.1
 # policy_uri: wandb://run/b.daveey.t.32.instant
-policy_uri: ${trained_policy_uri}
+#policy_uri: ${trained_policy_uri}
+policy_uri: wandb://run/navigation_poisson_train_sampling5
+# Infinite_cooldown models:
+# navigation_infinite_cooldown_sweep_2g_.r.0 - ok
+# navigation_infinite_cooldown_sweep_2g.r.1 - 9 reward after 400 timesteps
+# navigation_infinite_cooldown_high_ent_no_initial_heart - ~9, current best
+# navigation_poisson_train_sampling5 breaks in infinite_cooldown, works great in poisson with short distance
+# navigation_poisson_train_sampling5
 # npc_policy_uri: ${trained_policy_uri}
 # eval_db_uri: wandb://artifacts/daveey_eval_testing
 
@@ -33,8 +40,7 @@ eval:
   policy_uri: ${..policy_uri}
   # npc_policy_uri: ${..npc_policy_uri}
   # eval_db_uri: ${..eval_db_uri} #file://daphne/sweep_stats
-  env: /env/mettagrid/walkaround
-
+  env: /env/mettagrid/navigation/poisson
 
 
 

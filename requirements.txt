@@ -35,3 +35,7 @@ pixie-python==4.3.0
 gymnasium==0.29.1
 ale-py==0.8.1
 shimmy==1.3.0
+
+# Reporting requirements
+plotly>=5.18.0
+pandas>=2.1.1
