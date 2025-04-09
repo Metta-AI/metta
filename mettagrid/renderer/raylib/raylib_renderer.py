@@ -1,6 +1,7 @@
 # disable pylint for raylib
 # pylint: disable=no-member
 # type: ignore
+import numpy as np
 import os
 import sys
 from collections import defaultdict, deque
@@ -79,11 +80,10 @@ class MettaGridRaylibRenderer:
         self.camera = camera
         self.camera_controller = CameraController(self.camera)
 
-        self.game_objects = {}
+        self.game_objects = self.env.grid_objects()
         self.actions = torch.zeros((self.num_agents, 2), dtype=torch.int32)
         self.observations = None
         self.current_timestep = 0
-        self.agents = [None for _ in range(self.num_agents)]
         self.action_history = [deque(maxlen=10) for _ in range(self.num_agents)]
         self.action_history_timestep = 0
         self.mind_control = False
@@ -98,11 +98,10 @@ class MettaGridRaylibRenderer:
         self.time_accumulator = 0.0
         self.step_time = 1.0 / 10.0
 
-    def update(self, actions, observations, rewards, total_rewards, current_timestep):
-        self.actions = actions
-        self.observations = observations.permute(0, 3, 1, 2)
-        self.current_timestep = current_timestep
-        self.game_objects = self.env.grid_objects()
+        self.agents = [None for _ in range(self.num_agents)]
+        self.update_agents(np.zeros(self.num_agents), np.zeros(self.num_agents))
+
+    def update_agents(self, rewards, total_rewards):
         for obj_id, obj in self.game_objects.items():
             obj["id"] = obj_id
             if "agent_id" in obj:
@@ -110,6 +109,14 @@ class MettaGridRaylibRenderer:
                 self.agents[agent_id] = obj
                 obj["last_reward"] = rewards[agent_id].item()
                 obj["total_reward"] = total_rewards[agent_id].item()
+
+    def update(self, actions, observations, rewards, total_rewards, current_timestep):
+        self.actions = actions
+        self.observations = observations.permute(0, 3, 1, 2)
+        self.current_timestep = current_timestep
+        self.game_objects = self.env.grid_objects()
+        self.update_agents(rewards, total_rewards)
+
         if self.selected_agent_idx is not None and self.mind_control:
             self.actions[self.selected_agent_idx][0] = self.action_ids["noop"]
             self.actions[self.selected_agent_idx][1] = 0
