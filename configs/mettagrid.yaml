@@ -147,7 +147,7 @@ game:
 
     armory:
       hp: 30
-      input_ore: 3
+      input_ore.red: 3
       output_armor: 1
       max_output: 5
       conversion_ticks: 1
@@ -156,7 +156,7 @@ game:
 
     lasery:
       hp: 30
-      input_ore: 1
+      input_ore.red: 1
       input_battery: 2
       output_laser: 1
       max_output: 5
@@ -166,7 +166,7 @@ game:
 
     lab:
       hp: 30
-      input_ore: 3
+      input_ore.red: 3
       input_battery: 3
       output_blueprint: 1
       max_output: 5
@@ -177,7 +177,7 @@ game:
     factory:
       hp: 30
       input_blueprint: 1
-      input_ore: 5
+      input_ore.red: 5
       input_battery: 5
       output_armor: 5
       output_laser: 5
