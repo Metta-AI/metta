@@ -21,20 +21,10 @@ from mettagrid.observation_encoder cimport (
 )
 
 # Object imports
-from mettagrid.objects.mine cimport Mine
 from mettagrid.objects.agent cimport Agent
-from mettagrid.objects.production_handler cimport ProductionHandler
 from mettagrid.objects.wall cimport Wall
 from mettagrid.objects.converter cimport Converter
-from mettagrid.objects.generator cimport Generator
-from mettagrid.objects.altar cimport Altar
-from mettagrid.objects.lab cimport Lab
-from mettagrid.objects.factory cimport Factory
-from mettagrid.objects.temple cimport Temple
-from mettagrid.objects.armory cimport Armory
-from mettagrid.objects.lasery cimport Lasery
-from mettagrid.objects.constants cimport ObjectLayers, InventoryItemNames
-
+from mettagrid.objects.constants cimport ObjectLayers, InventoryItemNames, ObjectType
 
 # Action imports
 from mettagrid.actions.move import Move
@@ -122,25 +112,24 @@ cdef class MettaGrid(GridEnv):
                     m = map[r,c]
                     if "." not in m:
                         m = "mine.red"
-                    converter = new Mine(r, c, cfg.objects[m])
+                    converter = new Converter(r, c, cfg.objects[m], ObjectType.MineT)
                 elif map[r,c].startswith("generator"):
                     m = map[r,c]
                     if "." not in m:
                         m = "generator.red"
-                    converter = new Generator(r, c, cfg.objects[m])
+                    converter = new Converter(r, c, cfg.objects[m], ObjectType.GeneratorT)
                 elif map[r,c] == "altar":
-                    converter = new Altar(r, c, cfg.objects.altar)
+                    converter = new Converter(r, c, cfg.objects.altar, ObjectType.AltarT)
                 elif map[r,c] == "armory":
-                    converter = new Armory(r, c, cfg.objects.armory)
+                    converter = new Converter(r, c, cfg.objects.armory, ObjectType.ArmoryT)
                 elif map[r,c] == "lasery":
-                    converter = new Lasery(r, c, cfg.objects.lasery)
+                    converter = new Converter(r, c, cfg.objects.lasery, ObjectType.LaseryT)
                 elif map[r,c] == "lab":
-                    converter = new Lab(r, c, cfg.objects.lab)
+                    converter = new Converter(r, c, cfg.objects.lab, ObjectType.LabT)
                 elif map[r,c] == "factory":
-                    converter = new Factory(r, c, cfg.objects.factory)
+                    converter = new Converter(r, c, cfg.objects.factory, ObjectType.FactoryT)
                 elif map[r,c] == "temple":
-                    converter = new Temple(r, c, cfg.objects.temple)
-
+                    converter = new Converter(r, c, cfg.objects.temple, ObjectType.TempleT)
                 elif map[r,c].startswith("agent."):
                     group_name = map[r,c].split(".")[1]
                     agent_cfg = OmegaConf.to_container(OmegaConf.merge(
