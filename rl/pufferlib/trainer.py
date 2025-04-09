@@ -515,16 +515,17 @@ class PufferTrainer:
         self.policy_store.add_to_wandb_run(self.wandb_run.name, pr)
 
     def _save_trace_to_wandb(self):
-        image_path = f"{self.cfg.run_dir}/traces/trace.{self.epoch}.png"
-        save_trace_image(self.cfg, self.last_pr, image_path)
         if self._master:
+            image_path = f"{self.cfg.run_dir}/traces/trace.{self.epoch}.png"
+            save_trace_image(self.cfg, self.last_pr, image_path)
             wandb.log({"traces/actions": wandb.Image(image_path)})
 
     def _save_replay_to_wandb(self):
-        print(f"Generating and saving a replay to wandb and S3.")
-        replay_path = f"{self.cfg.run_dir}/replays/replay.{self.epoch}.json.z"
-        save_replay(self.cfg, self._env_cfg, self.last_pr, replay_path)
         if self._master:
+            print(f"Generating and saving a replay to wandb and S3.")
+            replay_path = f"{self.cfg.run_dir}/replays/replay.{self.epoch}.json.z"
+            save_replay(self.cfg, self._env_cfg, self.last_pr, replay_path)
+
             s3 = boto3.client("s3")
             s3.upload_file(
                 Filename=replay_path,
