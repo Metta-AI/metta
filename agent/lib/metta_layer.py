@@ -203,11 +203,12 @@ class ParamLayer(LayerBase):
         noise = torch.randn_like(weights) * 1e-7
         try:
             _, S, _ = torch.linalg.svd(weights + noise)
+            weight_norm = torch.linalg.norm(weights).item()
         except Exception as e:
             avg_abs_weight = torch.abs(weights).mean()
             cond_num = torch.linalg.cond(weights)
 
-            print(f"Error computing SVD for layer {self._name}: {e}")
+            print(f"Error computing SVD or weight norm for layer {self._name}: {e}")
             print(f"Average absolute weight: {avg_abs_weight}")
             print(f"Condition number: {cond_num}")
             return None
@@ -225,6 +226,7 @@ class ParamLayer(LayerBase):
         return {
             'name': self._name,
             'effective_rank': effective_rank,
+            'weight_norm': weight_norm,
             **metrics
         }
 
