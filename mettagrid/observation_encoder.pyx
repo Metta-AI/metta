@@ -10,15 +10,7 @@ from mettagrid.grid_object cimport GridObject, ObsType
 from mettagrid.objects.constants cimport ObjectType
 
 from mettagrid.objects.agent cimport Agent
-from mettagrid.objects.altar cimport Altar
-from mettagrid.objects.armory cimport Armory
 from mettagrid.objects.converter cimport Converter
-from mettagrid.objects.factory cimport Factory
-from mettagrid.objects.generator cimport Generator
-from mettagrid.objects.lab cimport Lab
-from mettagrid.objects.lasery cimport Lasery
-from mettagrid.objects.mine cimport Mine
-from mettagrid.objects.temple cimport Temple
 from mettagrid.objects.wall cimport Wall
 
 cdef class ObservationEncoder:
@@ -35,15 +27,13 @@ cdef class ObservationEncoder:
         features = []
 
         self._type_feature_names[ObjectType.AgentT] = Agent.feature_names()
-        self._type_feature_names[ObjectType.AltarT] = Altar.feature_names()
-        self._type_feature_names[ObjectType.ArmoryT] = Armory.feature_names()
-        self._type_feature_names[ObjectType.FactoryT] = Factory.feature_names()
-        self._type_feature_names[ObjectType.GeneratorT] = Generator.feature_names()
-        self._type_feature_names[ObjectType.LabT] = Lab.feature_names()
-        self._type_feature_names[ObjectType.LaseryT] = Lasery.feature_names()
-        self._type_feature_names[ObjectType.MineT] = Mine.feature_names()
-        self._type_feature_names[ObjectType.TempleT] = Temple.feature_names()
         self._type_feature_names[ObjectType.WallT] = Wall.feature_names()
+
+        # These are different types of Converters. The only difference in the feature names
+        # is the 1-hot that they use for their type. We're working to simplify this, so we can
+        # remove these types from code.
+        for type_id in [ObjectType.AltarT, ObjectType.ArmoryT, ObjectType.FactoryT, ObjectType.GeneratorT, ObjectType.LabT, ObjectType.LaseryT, ObjectType.MineT, ObjectType.TempleT]:
+            self._type_feature_names[type_id] = Converter.feature_names(type_id)
 
         for type_id in range(ObjectType.Count):
             for i in range(len(self._type_feature_names[type_id])):

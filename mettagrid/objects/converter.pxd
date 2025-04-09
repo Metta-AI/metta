@@ -1,10 +1,10 @@
 from libcpp.vector cimport vector
 from libcpp.string cimport string
 from mettagrid.event cimport EventManager
-from mettagrid.grid_object cimport GridCoord
+from mettagrid.grid_object cimport GridCoord, TypeId
 from .metta_object cimport ObjectConfig
 from .has_inventory cimport HasInventory
-from mettagrid.objects.constants cimport InventoryItem
+
 cdef extern from "converter.hpp":
     cdef cppclass Converter(HasInventory):
         vector[unsigned char] recipe_input
@@ -14,8 +14,9 @@ cdef extern from "converter.hpp":
         unsigned char conversion_ticks
         bint converting
 
-        Converter(GridCoord r, GridCoord c, ObjectConfig cfg)
+        Converter(GridCoord r, GridCoord c, ObjectConfig cfg, TypeId type_id)
         void finish_converting()
         void set_event_manager(EventManager *event_manager)
-        # @staticmethod
-        # vector[string] feature_names()
+
+        @staticmethod
+        inline vector[string] feature_names(TypeId type_id)
