@@ -178,7 +178,6 @@ class PufferTrainer:
                 self._save_trace_to_wandb()
             if (self.trainer_cfg.replay_interval != 0 and
                 self.epoch % self.trainer_cfg.replay_interval == 0):
-                print(f"Saving replay to S3")
                 self._save_replay_to_wandb()
 
             self._on_train_step()
