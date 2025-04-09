@@ -29,7 +29,7 @@ trainer:
 policy_uri:  wandb://run/b.daveey.t.8.rdr9.3
 # npc_policy_uri: ${trained_policy_uri}
 # eval_db_uri: wandb://artifacts/testing
-eval_db_uri: wandb://artifacts/navigation_db
+eval_db_uri: wandb://artifacts/object_use_db
 
 
 analyzer:
