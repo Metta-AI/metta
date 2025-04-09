@@ -91,7 +91,7 @@ components:
   _action_embeds_:
     _target_: agent.lib.action.ActionHash
     input_source: null
-    embedding_dim: 32
+    embedding_dim: 3
 
   embed_reshaped:
     _target_: agent.lib.merge_layer.ReshapeLayer # combines the two dims into the squeezed_dim
