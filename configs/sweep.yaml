@@ -1,6 +1,6 @@
 defaults:
   - common
-  - wandb
+  - wandb: metta_research
   - agent: simple
   - eval: eval
   - analyzer: eval_analyzer
