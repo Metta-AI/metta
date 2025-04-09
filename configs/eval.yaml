@@ -4,7 +4,7 @@ defaults:
   - trainer: puffer
   - eval: navigation
   - analyzer: eval_analyzer
-  - wandb
+  - wandb: metta_research
 
 cmd: eval
 eval_db_uri: null
