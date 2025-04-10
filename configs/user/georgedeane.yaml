@@ -1,24 +1,12 @@
 # @package __global__
 
-
-#POLICIES TO EVALUATE
-
-#b.daphne.navigation_varied_obstacle_shapes_pretrained.r.1
-#b.daphne.navigation_varied_obstacle_shapes.r.0
-#navigation_poisson_sparser.r.2
-#navigation_infinite_cooldown_sparser_pretrained.r.0
-#navigation_infinite_cooldown_sparser.r.0
-#navigation_poisson_sparser_pretrained.r.6
-
-
 defaults:
   - override /agent: simple
-  - override /eval: navigation
-  - override /analyzer: eval_analyzer
+  - override /eval: eval
 
 trainer:
-  env: /env/mettagrid/bases
-  evaluate_interval: 200
+  env: /env/mettagrid/walkaround
+  evaluate_interval: 2
 
 # policy: wandb://run/b.daveey.train.maze.sm.dr.warm.0
 # baselines: wandb://run/b.daveey.train.maze.sm.11x11.0
@@ -26,34 +14,42 @@ trainer:
 # policy_uri: wandb://run/b.daveey.sm.train.er.new.0
 # policy_uri: wandb://run/daveey.ar.cards.1
 # policy_uri: wandb://run/b.daveey.t.32.instant
-policy_uri:  wandb://run/b.daveey.t.8.rdr9.3
+#policy_uri: ${trained_policy_uri}
+policy_uri: wandb://run/navigation_poisson_train_sampling5
+# Infinite_cooldown models:
+# navigation_infinite_cooldown_sweep_2g_.r.0 - ok
+# navigation_infinite_cooldown_sweep_2g.r.1 - 9 reward after 400 timesteps
+# navigation_infinite_cooldown_high_ent_no_initial_heart - ~9, current best
+# navigation_poisson_train_sampling5 breaks in infinite_cooldown, works great in poisson with short distance
+# navigation_poisson_train_sampling5
 # npc_policy_uri: ${trained_policy_uri}
-# eval_db_uri: wandb://artifacts/testing
-
-# Evaluation:
-# eval_db_uri: wandb://artifacts/object_use_db
-
+eval_db_uri: wandb://artifacts/navigation_db
 
 analyzer:
-  eval_stats_uri: ${run_dir}/eval_stats
+  # eval_stats_uri: ${run_dir}/eval_stats
   policy_uri: ${..policy_uri}
   analysis:
     metrics:
       - metric: episode_reward
+    output_path: evalresults/navigation_results.html
 
 eval:
-  num_envs: 10
-  num_episodes: 16
+  num_envs: 2
+  num_episodes: 2
   max_time_s: 600
-  env: /env/mettagrid/navigation/training/varied_terrain_labyrinths
+
   policy_uri: ${..policy_uri}
   # npc_policy_uri: ${..npc_policy_uri}
-  eval_db_uri: ${..eval_db_uri} #file://daphne/sweep_stats
+  # eval_db_uri: ${..eval_db_uri} #file://daphne/sweep_stats
+  env: /env/mettagrid/navigation/poisson
+
+
+
 
 wandb:
   checkpoint_interval: 1
 
-run_id: usingbasicobject
+run_id: 103
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 
