@@ -1,0 +1,35 @@
+
+defaults:
+  - ../../mettagrid@
+
+game:
+  num_agents: 20
+  max_steps: 100
+  agent:
+    rewards:
+      heart: 3
+      battery: 0
+
+  objects:
+    generator:
+      initial_items: 3
+      output_battery: 3
+      cooldown: 255
+
+  map_builder:
+    _target_: mettagrid.config.room.multi_room.MultiRoom
+    num_rooms: 20
+    border_width: 3
+
+    room:
+      _target_: mettagrid.config.room.mean_distance.MeanDistance
+      width: 15
+      height: 15
+      mean_distance: 6
+      border_width: 3
+
+      agents: 1
+
+      objects:
+        altar: 1
+        generator: 1
