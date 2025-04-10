@@ -1,0 +1,18 @@
+line-length = 100
+target-version = "py310"
+select = ["E", "F", "B", "I"]
+ignore = ["E203"]
+
+# Allow autofix for all selected rules
+fix = true
+
+# Exclude a variety of commonly ignored directories
+exclude = [
+  ".git",
+  ".mypy_cache",
+  ".ruff_cache",
+  ".venv",
+  "__pypackages__",
+  "dist",
+  "node_modules",
+]
