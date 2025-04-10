@@ -1,5 +1,6 @@
 from omegaconf import OmegaConf
 from omegaconf import OmegaConf, DictConfig
+from mettagrid.mettagrid_env import MettaGridEnv
 import pufferlib
 import pufferlib.utils
 import pufferlib.vector
