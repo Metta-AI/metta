@@ -4,6 +4,7 @@ defaults:
 
 game:
   num_agents: 20
+  max_steps: 80
 
   objects:
     generator:
@@ -30,5 +31,3 @@ game:
 
       objects:
         generator: 1
-
-    
