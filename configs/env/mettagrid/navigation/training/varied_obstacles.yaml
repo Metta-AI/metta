@@ -27,8 +27,16 @@ game:
 
   actions:
     attack:
+<<<<<<< HEAD
       enabled: true
     swap:
       enabled: true
     change_color:
       enabled: true
+=======
+      enabled: false
+    swap:
+      enabled: false
+    change_color:
+      enabled: false
+>>>>>>> 03372cd3a22161194635947dbcd3d902c5a3d2de
