@@ -7,7 +7,7 @@ defaults:
 
 trainer:
   env: /env/mettagrid/bases
-  evaluate_interval: 200
+  evaluate_interval: 10
   env_overrides:
     # sampling: 0.7
     game:
@@ -21,11 +21,14 @@ analyzer:
   analysis:
     metrics:
       - metric: episode_reward
-    output_path: s3://softmax-public/policydash/dashboard.html
+#    output_path: s3://softmax-public/jack/policydash/dashboard.html
 eval:
+  num_episodes: 1
+  num_envs: 1
   policy_uri: ${..policy_uri}
-  selector_type: all
-  eval_db_uri: wandb://artifacts/navigation_db
+  selector_type: policy_versions
+  eval_db_uri: wandb://artifacts/jack_eval_db
+  max_time_s: 3
   policy_uris:
     - "wandb://run/b.daphne.navigation_varied_obstacle_shapes_pretrained.r.1"
     - "wandb://run/b.daphne.navigation_varied_obstacle_shapes.r.0"
@@ -39,7 +42,7 @@ eval:
 wandb:
   checkpoint_interval: 1
 
-run_id: 17  
+run_id: 18
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 

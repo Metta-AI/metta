@@ -2,9 +2,11 @@ _target_: rl.eval.eval_stats_analyzer.EvalStatsAnalyzer
 
 policy_uri: ???
 
-analysis:
+view_type: policy_versions # this is what we want when training a policy
+output_path: /tmp/dashboard.html
+metric: episode_reward
 
-  output_path: ???
+analysis:
 
   metric_patterns: null
 
