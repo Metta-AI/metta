@@ -1,7 +1,5 @@
 import hydra
 from omegaconf import DictConfig, OmegaConf
-import logging
-logger = logging.getLogger(__name__)
 
 def config_from_path(config_path: str, overrides: DictConfig = None) -> DictConfig:
     env_cfg = hydra.compose(config_name=config_path)

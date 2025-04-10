@@ -29,7 +29,7 @@ def make_vecenv(
         raise ValueError('Invalid --vector (serial/multiprocessing/ray).')
 
     vecenv_args = dict(
-        env_kwargs= dict(cfg=env_cfg, render_mode=render_mode),
+        env_kwargs=dict(cfg=env_cfg, render_mode=render_mode),
         num_envs=num_envs,
         num_workers=num_workers,
         batch_size=batch_size or num_envs,
