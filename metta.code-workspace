@@ -107,10 +107,6 @@
 			"${env:CONDA_PREFIX}/lib/python3.11/site-packages",
 			"deps/**",
 		],
-		"pylint.args": [
-			"--disable=C0111",
-			"--max-line-length=120"
-		],
 		"python.analysis.exclude": [
 			"**/pufferlib/**",
 		],
