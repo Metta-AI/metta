@@ -34,7 +34,6 @@ def main(cfg):
 
         with WandbContext(cfg) as wandb_run:
             policy_store = PolicyStore(cfg, wandb_run)
-
             play(cfg, policy_store)
 
 
