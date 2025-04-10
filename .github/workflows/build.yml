@@ -34,4 +34,4 @@ jobs:
         HYDRA_FULL_ERROR: 1
         PYTHONPATH: ${{ github.workspace }}
       run: |
-        python -m tools.trace +hardware=github policy_uri=./train_dir/my_experiment/checkpoints/
+        python -m tools.replay +hardware=github policy_uri=./train_dir/my_experiment/checkpoints/
