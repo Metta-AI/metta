@@ -59,9 +59,59 @@ components:
     nn_params:
       out_features: 128
 
+# ------------------------------------------------------------
+  # change names etc.
+  self_channels:
+    _target_: agent.lib.merge_layer.ConcatMergeLayer
+    input_source:
+      - source_name: obs_normalizer
+        slice: [0, 14]  # extract the first 13 or 14 channels?
+        dim: 1          # operates on the channel dimension
+  
+  # Extract the center row (height = 11 → 1)
+  center_row:
+    _target_: agent.lib.merge_layer.ConcatMergeLayer
+    input_source:
+      - source_name: self_channels
+        slice: [5, 6]   # extract the center row (row index 5)
+        dim: 2          # operates on the height dimension
+
+  # Extract the center pixel from the center row (width = 11 → 1)
+  center_pixel:
+    _target_: agent.lib.merge_layer.ConcatMergeLayer
+    input_source:
+      - source_name: center_row
+        slice: [5, 6]   # extract the center column (column index 5)
+        dim: 3          # operates on the width dimension
+
+  # Flatten (batch, channels, 1, 1) -> (batch, channels)
+  center_pixel_flatten:
+    _target_: agent.lib.nn_layer_library.Flatten
+    input_source: center_pixel
+
+  center_linear_1:
+    _target_: agent.lib.nn_layer_library.Linear
+    input_source: center_pixel_flatten
+    nn_params:
+      out_features: 256
+
+  center_linear_2:
+    _target_: agent.lib.nn_layer_library.Linear
+    input_source: center_linear_1
+    nn_params:
+      out_features: 32
+
+  self_info_encoded_obs_merger:
+    _target_: agent.lib.merge_layer.ConcatMergeLayer
+    input_source:
+      - source_name: center_linear_2
+      - source_name: encoded_obs
+
+#--------------------------------
+
   _core_:
     _target_: agent.lib.lstm.LSTM
-    input_source: encoded_obs
+    input_source: self_info_encoded_obs_merger
     output_size: 128
     nn_params:
       num_layers: 2
@@ -84,9 +134,10 @@ components:
   _action_embeds_:
     _target_: agent.lib.action.ActionEmbedding
     input_source: null
+    initialization: max_0_01
     nn_params:
       num_embeddings: 100
-      embedding_dim: 32
+      embedding_dim: 16
 
   embed_reshaped:
     _target_: agent.lib.merge_layer.ReshapeLayer # combines the two dims into the squeezed_dim
@@ -114,7 +165,7 @@ components:
       - embed_reshaped
       - LSTM_reshaped
     nn_params:
-      out_features: 16
+      out_features: 20
 
   attn_to_action_1:
     _target_: agent.lib.nn_layer_library.Linear

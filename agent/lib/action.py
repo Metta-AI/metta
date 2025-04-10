@@ -23,6 +23,9 @@ class ActionEmbedding(nn_layer_library.Embedding):
         for action_name, max_arg_count in actions_list:
             for i in range(max_arg_count + 1):
                 string_list.append(f"{action_name}_{i}")
+        
+        for i in range(len(string_list)-1):
+            print(f"Action {i}: {string_list[i]}")
 
         # for each action string, if it's not already in the reserved_action_embeds, add it and give it an index
         for action_type in string_list:
@@ -44,6 +47,7 @@ class ActionEmbedding(nn_layer_library.Embedding):
 
         # below - get embeddings, unsqueeze the 0'th dimension, then expand to match the batch size
         td[self._name] = self._net(self.active_indices).unsqueeze(0).expand(B * TT, -1, -1)
+        
         return td
     
 class ActionHash(metta_layer.LayerBase):
