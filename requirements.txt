@@ -35,6 +35,10 @@ gymnasium==0.29.1
 ale-py==0.8.1
 shimmy==1.3.0
 
+# Development tools
+ruff>=0.11
+mypy>=1.15
+
 # Reporting requirements
 plotly>=5.18.0
 pandas>=2.1.1

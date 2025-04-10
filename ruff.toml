@@ -1,11 +1,5 @@
 line-length = 100
 target-version = "py310"
-select = ["E", "F", "B", "I"]
-ignore = ["E203"]
-
-# Allow autofix for all selected rules
-fix = true
-
 # Exclude a variety of commonly ignored directories
 exclude = [
   ".git",
@@ -16,3 +10,12 @@ exclude = [
   "dist",
   "node_modules",
 ]
+
+[lint]
+# Rules to select
+select = ["E", "F", "B", "I"]
+# Rules to ignore
+ignore = ["E203"]
+# Allow autofix for all selected rules
+fixable = ["E", "F", "B", "I"]
+unfixable = []
