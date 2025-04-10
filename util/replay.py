@@ -23,7 +23,7 @@ def generate_replay_video(path: str, frames: list, fps: int):
     if min(frame_size) < MIN_FRAME_SIZE:
         resize = True
         scaling_factor = MIN_FRAME_SIZE / min(frame_size)
-        frame_size = (int(frame_size[0] * scaling_factor), int(frame_size[1] * scaling_factor))
+        frame_size = (a2(frame_size[0] * scaling_factor), int(frame_size[1] * scaling_factor))
 
     video = cv2.VideoWriter(tmp_name, cv2.VideoWriter_fourcc(*"mp4v"), fps, frame_size)
     for frame in frames:
