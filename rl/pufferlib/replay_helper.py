@@ -13,6 +13,7 @@ from rl.pufferlib.simulator import Simulator
 from rl.wandb.wandb_context import WandbContext
 
 class ReplayHelper:
+    """ Helper class for generating and uploading replays. """
     def __init__(self,
             cfg: OmegaConf,
             env_cfg: OmegaConf,
@@ -42,6 +43,7 @@ class ReplayHelper:
                 grid_object[key].append([step, value])
 
     def generate_replay(self, replay_path: str):
+        """ Generate a replay and save it to a file. """
         simulator = Simulator(self.cfg, self.env_cfg, self.policy_record)
 
         grid_objects = []
@@ -74,10 +76,30 @@ class ReplayHelper:
 
                 if "agent_id" in grid_object:
                     agent_id = grid_object["agent_id"]
-                    self._add_sequence_key(grid_objects[i], "action", step, actions_array[agent_id].tolist())
-                    self._add_sequence_key(grid_objects[i], "action_success", step, bool(simulator.env.action_success[agent_id]))
-                    self._add_sequence_key(grid_objects[i], "reward", step, simulator.rewards[agent_id].item())
-                    self._add_sequence_key(grid_objects[i], "total_reward", step, simulator.total_rewards[agent_id].item())
+                    self._add_sequence_key(
+                        grid_objects[i],
+                        "action",
+                        step,
+                        actions_array[agent_id].tolist()
+                    )
+                    self._add_sequence_key(
+                        grid_objects[i],
+                        "action_success",
+                        step,
+                        bool(simulator.env.action_success[agent_id])
+                    )
+                    self._add_sequence_key(
+                        grid_objects[i],
+                        "reward",
+                        step,
+                        simulator.rewards[agent_id].item()
+                    )
+                    self._add_sequence_key(
+                        grid_objects[i],
+                        "total_reward",
+                        step,
+                        simulator.total_rewards[agent_id].item()
+                    )
 
             simulator.step(actions)
 
@@ -112,10 +134,10 @@ class ReplayHelper:
             Key=replay_url,
             ExtraArgs={'ContentType': 'application/x-compress'}
         )
-        s3_link = f"https://{s3_bucket}.s3.us-east-1.amazonaws.com/{replay_url}"
+        link = f"https://{s3_bucket}.s3.us-east-1.amazonaws.com/{replay_url}"
 
         # Log the link to WandB
-        player_url = f"https://metta-ai.github.io/mettagrid/?replayUrl=" + s3_link
+        player_url = f"https://metta-ai.github.io/mettagrid/?replayUrl=" + link
         link_summary = {
             "replays/link": wandb.Html(
                 f'<a href="{player_url}">'
