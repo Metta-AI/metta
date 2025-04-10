@@ -206,7 +206,9 @@ class PufferTrainer:
         except Exception as e:
             logger.error(f"Error logging stats: {e}")
 
-        self._heatmap_html = generate_report_html(self.cfg)
+        heatmap_html = generate_report_html(self.cfg)
+        if self.wandb_run and self.cfg.wandb.track and self._master:
+            self.wandb_run.log({"overview/heatmap": wandb.Html(heatmap_html)}, commit=True, step=False)
 
         eval_stats_db = EvalStatsDB.from_uri(self.cfg.eval.eval_db_uri, self.cfg.run_dir, self.wandb_run)
         analyzer = hydra.utils.instantiate(self.cfg.analyzer, eval_stats_db)
@@ -591,7 +593,6 @@ class PufferTrainer:
                 "train/learning_rate": learning_rate,
                 "train/average_reward": self.average_reward if self.trainer_cfg.average_reward else None,
             })
-            self.wandb_run.log({"overview/heatmap": wandb.Html(self._heatmap_html)}, commit=True, step=False)
 
         self._eval_results = []
         self._effective_rank = []
