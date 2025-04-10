@@ -92,6 +92,16 @@ This readme provides only a brief overview of research explorations. Visit the [
 
 # Installation
 
+## Installing with conda
+
+Install and initialize conda
+
+```
+brew install --cask miniconda
+conda init "$(basename "${SHELL}")"
+source ~/.zshrc
+```
+
 Create a Conda environment (or use venv)
 
 ```
@@ -100,24 +110,35 @@ conda activate metta
 ./devops/setup_build.sh
 ```
 
+## Installing with UV (experimental)
+
+```
+uv venv -p [some python 3.11, see `uv python`]
+. .venv/bin/activate
+uv pip install pip
+./devops/setup_build.sh
+```
+
 # Training a Model
 
 ### Run the training
 
 ```
-python -m tools.train run=my_experiment +hardware=macbook
+python -m tools.train run=my_experiment +hardware=macbook wandb=off
 ```
 
-### Run the evaluation
+Add `wandb=off` parameter if you're not a member of `metta-research` on wandb, or add your own wandb config in `configs/wandb`.
+
+### Run the evaluation (requires wandb)
 
 ```
 python -m tools.eval run=my_experiment +hardware=macbook
 ```
 
-### Run the interactive simulation
+### Run the interactive simulation  (requires wandb)
 
 ```
 python -m tools.play run=my_experiment +hardware=macbook
 ```
 
-Add `wandb=off` parameter if you're not a member of `metta-research` on wandb, or add your own wandb config in `configs/wandb`.
+
