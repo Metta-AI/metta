@@ -4,10 +4,10 @@ defaults:
 
 game:
   num_agents: 20
-  max_steps: 200
+  max_steps: 100
 
   objects:
-    generator.red: 
+    generator.red:
       initial_items: 0
       cooldown: 255
     mine:
