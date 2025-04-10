@@ -52,6 +52,8 @@ def main(cfg: OmegaConf) -> int:
                 f"{os.environ.get('LOCAL_RANK', '0')} ({cfg.device})")
     setup_metta_environment(cfg)
 
+    logger.info(f"Training {cfg.env.keys()}.")
+
     if "LOCAL_RANK" in os.environ and cfg.device.startswith("cuda"):
         logger.info(f"Initializing distributed training with {os.environ['LOCAL_RANK']} {cfg.device}")
         local_rank = int(os.environ["LOCAL_RANK"])
