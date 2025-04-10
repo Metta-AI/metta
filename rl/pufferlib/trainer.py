@@ -16,7 +16,6 @@ from util.config import config_from_path
 import wandb
 from agent.metta_agent import DistributedMettaAgent
 from agent.policy_store import PolicyStore
-from eval.report import generate_report_html
 from rl.eval.eval_stats_db import EvalStatsDB
 from rl.eval.eval_stats_logger import EvalStatsLogger
 from rl.pufferlib.experience import Experience
@@ -185,6 +184,9 @@ class PufferTrainer:
         logger.info(f"Training complete. Total time: {self.train_time:.2f} seconds")
 
     def _evaluate_policy(self):
+        # TODO: refactor to not involve circular import
+        from eval.report import generate_report_html
+
         if not self._master:
             return
 
