@@ -13,8 +13,8 @@ POLICIES=(
 
 for i in "${!POLICIES[@]}"; do
     POLICY_URI=${POLICIES[$i]}
-    IDX=$((i + 1))
-
+    RANDOM_NUM=$((RANDOM % 1000))
+    IDX="${IDX}_${RANDOM_NUM}"
     echo "Running full sequence eval for policy $POLICY_URI"
     python3 -m tools.eval \
         eval=object_use \
