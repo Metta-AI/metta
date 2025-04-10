@@ -1,11 +1,13 @@
 # Metta AI
+
 A reinforcement learning codebase focusing on the emergence of cooperation and alignment in multi-agent AI systems.
 
-* **Discord**: https://discord.gg/mQzrgwqmwy
-* **Short (5m) Talk**: https://www.youtube.com/watch?v=bt6hV73VA8I
-* **Talk**: https://foresight.org/summary/david-bloomin-metta-learning-love-is-all-you-need/
+- **Discord**: https://discord.gg/mQzrgwqmwy
+- **Short (5m) Talk**: https://www.youtube.com/watch?v=bt6hV73VA8I
+- **Talk**: https://foresight.org/summary/david-bloomin-metta-learning-love-is-all-you-need/
 
 ## What is Metta Learning?
+
 <p align="middle">
 <img src="https://github.com/debbly/metta-learning-assets/blob/main/gifs/example_video.gif?raw=true" width="360" alt="Metta learning example video">
 </p>
@@ -61,23 +63,29 @@ Future plans include incorporating mate-selection dynamics, where agents share f
 Metta aims to create a rich, evolving environment where AI agents can develop general intelligence through continuous learning and adaptation.
 
 ## Research Explorations
+
 The project's modular design and open-source nature make it easy for researchers to adapt and extend the platform to investigate their own hypotheses in this domain. The highly performant, open-ended game rules provide a rich environment for studying these behaviors and their potential implications for AI alignment.
 
 Some areas of research interest:
 
 #### 1. Environment Development
+
 Develop rich and diverse gridworld environments with complex dynamics, such as resource systems, agent diversity, procedural terrain generation, support for various environment types, population dynamics, and kinship schemes.
 
 #### 2. Agent Architecture Research
+
 Incorporate techniques like dense learning signals, surprise minimization, exploration strategies, and blending reinforcement and imitation learning.
 
 #### 3. Scalable Training Infrastructure
+
 Investigate scalable training approaches, including distributed reinforcement learning, student-teacher architectures, and blending reinforcement learning with imitation learning, to enable efficient training of large-scale multi-agent systems.
 
 #### 4. Intelligence Evaluations for Gridworld Agents
+
 Design and implement a comprehensive suite of intelligence evaluations for gridworld agents, covering navigation tasks, maze solving, in-context learning, cooperation, and competition scenarios.
 
 #### 5. DevOps and Tooling
+
 Develop tools and infrastructure for efficient management, tracking, and deployment of experiments, such as cloud cluster management, experiment tracking and visualization, and continuous integration and deployment pipelines.
 
 This readme provides only a brief overview of research explorations. Visit the [research roadmap](https://github.com/Metta-AI/metta/blob/master/roadmap.md) for more details.
@@ -85,6 +93,7 @@ This readme provides only a brief overview of research explorations. Visit the [
 # Installation
 
 Create a Conda environment (or use venv)
+
 ```
 conda create -n metta python=3.11.7
 conda activate metta
@@ -96,16 +105,19 @@ conda activate metta
 ### Run the training
 
 ```
-python -m tools.train run=my_experiment hardware=macbook
+python -m tools.train run=my_experiment +hardware=macbook
 ```
 
 ### Run the evaluation
 
 ```
-python -m tools.eval run=my_experiment hardware=macbook
+python -m tools.eval run=my_experiment +hardware=macbook
 ```
 
 ### Run the interactive simulation
+
 ```
-python -m tools.play run=my_experiment hardware=macbook
+python -m tools.play run=my_experiment +hardware=macbook
 ```
+
+Add `wandb=off` parameter if you're not a member of `metta-research` on wandb, or add your own wandb config in `configs/wandb`.
