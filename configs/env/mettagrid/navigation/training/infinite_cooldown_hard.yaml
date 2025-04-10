@@ -2,17 +2,14 @@
 defaults:
   - ../../mettagrid@
 
-game:
-  max_steps: 1000
-  agent:
-    rewards:
-      heart: 1
+sampling: 5
 
-  num_agents: 10
+game:
+  num_agents: 20
 
   map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom
-    num_rooms: 10
+    num_rooms: 20
     border_width: 6
 
     room:
@@ -31,3 +28,11 @@ game:
     altar:
       cooldown: 255
       initial_items: 1
+
+  actions:
+    attack:
+      enabled: false
+    swap:
+      enabled: false
+    change_color:
+      enabled: false
