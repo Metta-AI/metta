@@ -126,8 +126,6 @@ Add `wandb=off` parameter if you're not a member of `metta-research` on wandb, o
 
 When you run training, if you have wandb enabled, then you will be able to see in your wandb run page results for the eval suites. 
 
-For example see this wandb run: https://wandb.ai/metta-research/metta/runs/train_simple_objectuse_and_nav_evals?nw=nwuserdaphned
-
 However, this will not apply for anything trained before April 8th. 
 
 ### Post hoc evaluation
