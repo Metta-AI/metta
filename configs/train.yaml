@@ -2,9 +2,9 @@ defaults:
   - common
   - agent: simple
   - trainer: puffer
-  - eval: navigation
+  - eval: all
   - analyzer: eval_analyzer
-  - wandb
+  - wandb: metta_research
 
 seed: 1
 eval_db_uri: null

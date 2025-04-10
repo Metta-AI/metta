@@ -1,3 +1,5 @@
+set -e
+
 pip install -r requirements.txt
 
 mkdir deps

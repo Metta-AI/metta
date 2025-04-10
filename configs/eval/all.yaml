@@ -5,8 +5,8 @@ defaults:
 
 env: null #the env is set in evals:
 
-num_envs: 10
-num_episodes: 10
+num_envs: 1
+num_episodes: 1
 
 evals:
   emptyspace_withinsight:
@@ -50,6 +50,45 @@ evals:
     policy_agents_pct: 1.0
   radialmaze:
     env: env/mettagrid/navigation/evals/radialmaze
+    policy_agents_pct: 1.0
+  altar_use_free:
+    env: env/mettagrid/object_use/evals/altar_use_free
+    policy_agents_pct: 1.0
+  altar_use:
+    env: env/mettagrid/object_use/evals/altar_use
+    policy_agents_pct: 1.0
+  armory_use_free:
+    env: env/mettagrid/object_use/evals/armory_use_free
+    policy_agents_pct: 1.0
+  armory_use:
+    env: env/mettagrid/object_use/evals/armory_use
+    policy_agents_pct: 1.0
+  generator_use_free:
+    env: env/mettagrid/object_use/evals/generator_use_free
+    policy_agents_pct: 1.0
+  generator_uses:
+    env: env/mettagrid/object_use/evals/generator_use
+    policy_agents_pct: 1.0
+  lasery_use_free:
+    env: env/mettagrid/object_use/evals/lasery_use_free
+    policy_agents_pct: 1.0
+  lasery_use:
+    env: env/mettagrid/object_use/evals/lasery_use
+    policy_agents_pct: 1.0
+  mine_use:
+    env: env/mettagrid/object_use/evals/mine_use
+    policy_agents_pct: 1.0
+  shoot_out:
+    env: env/mettagrid/object_use/evals/shoot_out
+    policy_agents_pct: 1.0
+  swap_in:
+    env: env/mettagrid/object_use/evals/swap_in
+    policy_agents_pct: 1.0
+  swap_out:
+    env: env/mettagrid/object_use/evals/swap_out
+    policy_agents_pct: 1.0
+  temple_use_free:
+    env: env/mettagrid/object_use/evals/temple_use_free
     policy_agents_pct: 1.0
 
 selector_type: latest

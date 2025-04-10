@@ -14,16 +14,17 @@ POLICIES=(
     "navigation_onlyhearts_ent0.1"
     "b.daphne.navigation_training_onlyhearts.r.0"
     "navigation_training_suite_onlyhearts"
-    "train_variedobs_navigation_evals"
     "train_simple_nav_evals_test2"
+    "b.daphne.varied_obstacles_navigation_eval"
 )
 
 
 for i in "${!POLICIES[@]}"; do
     POLICY_URI=${POLICIES[$i]}
-    IDX=$((i + 1))
 
     echo "Running full sequence eval for policy $POLICY_URI"
+    RANDOM_NUM=$((RANDOM % 1000))
+    IDX="${IDX}_${RANDOM_NUM}"
     python3 -m tools.eval \
         eval=navigation \
         run=navigation_evaluation$IDX \
