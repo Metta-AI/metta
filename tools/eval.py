@@ -6,6 +6,7 @@ from rich.logging import RichHandler
 
 from eval import simulate_policy
 from rl.wandb.wandb_context import WandbContext
+from util.runtime_configuration import setup_metta_environment
 
 # Configure rich colored logging
 logging.basicConfig(
@@ -24,6 +25,7 @@ def main(cfg: DictConfig):
 
     else:
         with WandbContext(cfg) as wandb_run:
+            setup_metta_environment(cfg)
             simulate_policy(cfg, wandb_run)
 
 
