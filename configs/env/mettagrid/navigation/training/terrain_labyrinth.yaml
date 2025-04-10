@@ -1,0 +1,40 @@
+# Config: Labyrinth Focused Worlds
+defaults:
+  - ../../mettagrid@
+sampling: 5
+
+game:
+  num_agents: 20
+  map_builder:
+    _target_: mettagrid.config.room.multi_room.MultiRoom
+    num_rooms: 2
+    border_width: 4
+
+    room:
+      _target_: mettagrid.config.room.varied_terrain_labyrinths.VariedTerrainLabyrinths
+      width: ${uniform:50,70,1}         # Slightly smaller room.
+      height: ${uniform:50,70,1}
+      border_width: ${uniform:1,4,1}
+      agents: 10
+      objects:
+         altar: ${uniform:30,60,1}       # Moderate altar count.
+
+      large_obstacles:
+         size_range: [10, 25]
+         count: ${uniform:5,10,1}        # Fewer random obstacles.
+      small_obstacles:
+         size_range: [3, 6]
+         count: ${uniform:5,10,1}
+      crosses:
+         count: ${uniform:2,5,1}
+      hearts_count: ${uniform:70,150,1}   # A middle range for heart altars.
+      clumpiness: ${uniform:0,3,1}
+      labyrinths:
+         count: ${uniform:10,15,1}       # High count of mini labyrinths.
+      scattered_walls:
+         count: ${uniform:10,30,1}       # Few scattered walls, keeping the focus on labyrinths.
+
+  objects:
+    altar:
+      cooldown: ${uniform:50,150,1}
+      initial_items: 1
