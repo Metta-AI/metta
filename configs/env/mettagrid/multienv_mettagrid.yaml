@@ -9,3 +9,8 @@ envs:
   - /env/mettagrid/simple
   - /env/mettagrid/teams
   - /env/mettagrid/bases
+
+probabilities:
+  - 0.5
+  - 0.25
+  - 0.25
