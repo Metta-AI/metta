@@ -101,7 +101,7 @@ class PolicyStore:
             return [random.choice(prs)]
 
         elif selector_type == "top":
-            if metric not in prs[0].metadata:
+            if metric not in prs[0].metadata or prs[0].metadata[metric] is None:
                 logger.warning(f"Metric {metric} not found in policy metadata, returning latest policy")
                 return [prs[0]] #return latest if metric not found
             top = sorted(prs, key=lambda x: x.metadata.get(metric, 0))[-n:]

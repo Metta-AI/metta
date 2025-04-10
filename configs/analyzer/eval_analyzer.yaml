@@ -7,7 +7,6 @@ analysis:
   metric_patterns: null
 
   metrics:
-    - metric: heart.get
     - metric: episode_reward
 
   queries: null
