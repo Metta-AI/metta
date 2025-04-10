@@ -5,7 +5,6 @@ from collections import defaultdict
 
 import hydra
 import numpy as np
-import boto3
 import pufferlib
 import pufferlib.utils
 import torch
@@ -22,7 +21,7 @@ from rl.eval.eval_stats_logger import EvalStatsLogger
 from rl.pufferlib.experience import Experience
 from rl.pufferlib.kickstarter import Kickstarter
 from rl.pufferlib.profile import Profile
-from rl.pufferlib.trace import save_trace_image, save_replay
+from rl.pufferlib.replay_helper import ReplayHelper
 from rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
 from rl.pufferlib.vecenv import make_vecenv
 
@@ -138,6 +137,8 @@ class PufferTrainer:
 
         self.kickstarter = Kickstarter(self.cfg, self.policy_store, self.vecenv.single_action_space)
 
+        self.replay_helper = ReplayHelper(cfg, self._env_cfg, self.last_pr, wandb_run)
+
         logger.info(f"PufferTrainer initialization complete on device: {self.device}")
 
     def train(self):
@@ -173,12 +174,9 @@ class PufferTrainer:
                 self._save_policy_to_wandb()
             if self.cfg.agent.l2_init_weight_update_interval != 0 and self.epoch % self.cfg.agent.l2_init_weight_update_interval == 0:
                 self._update_l2_init_weight_copy()
-            if (self.trainer_cfg.trace_interval != 0 and
-                self.epoch % self.trainer_cfg.trace_interval == 0):
-                self._save_trace_to_wandb()
             if (self.trainer_cfg.replay_interval != 0 and
                 self.epoch % self.trainer_cfg.replay_interval == 0):
-                self._save_replay_to_wandb()
+                self._generate_and_upload_replay()
 
             self._on_train_step()
 
@@ -514,37 +512,10 @@ class PufferTrainer:
         pr = self._checkpoint_policy()
         self.policy_store.add_to_wandb_run(self.wandb_run.name, pr)
 
-    def _save_trace_to_wandb(self):
+    def _generate_and_upload_replay(self):
         if self._master:
-            image_path = f"{self.cfg.run_dir}/traces/trace.{self.epoch}.png"
-            save_trace_image(self.cfg, self.last_pr, image_path)
-            wandb.log({"traces/actions": wandb.Image(image_path)})
-
-    def _save_replay_to_wandb(self):
-        if self._master:
-            print(f"Generating and saving a replay to wandb and S3.")
-            replay_path = f"{self.cfg.run_dir}/replays/replay.{self.epoch}.json.z"
-            save_replay(self.cfg, self._env_cfg, self.last_pr, replay_path)
-
-            s3 = boto3.client("s3")
-            s3.upload_file(
-                Filename=replay_path,
-                Bucket="softmax-public",
-                Key=f"replays/{self.cfg.run}/replay.{self.epoch}.json.z",
-                ExtraArgs={'ContentType': 'application/x-compress'}
-            )
-            s3_link = f"https://softmax-public.s3.us-east-1.amazonaws.com/replays/{self.cfg.run}/replay.{self.epoch}.json.z"
-
-            # Log the link to WandB
-            player_url = f"https://metta-ai.github.io/mettagrid/?replayUrl=" + s3_link
-            link_summary = {
-                "replays/link": wandb.Html(
-                    f'<a href="{player_url}">'
-                    f'MetaScope Replay (Epoch {self.epoch})'
-                    '</a>'
-                )
-            }
-            wandb.log(link_summary)
+            logger.info(f"Generating and saving a replay to wandb and S3.")
+            self.replay_helper.generate_and_upload_replay(self.epoch)
 
     def _process_stats(self):
         for k in list(self.stats.keys()):

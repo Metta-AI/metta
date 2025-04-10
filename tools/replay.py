@@ -7,7 +7,7 @@ import hydra
 from omegaconf import OmegaConf
 from agent.policy_store import PolicyStore
 from rl.wandb.wandb_context import WandbContext
-from rl.pufferlib.trace import save_trace_image, save_replay
+from rl.pufferlib.replay_helper import ReplayHelper
 from util.runtime_configuration import setup_metta_environment
 from util.config import config_from_path
 
@@ -22,15 +22,10 @@ def main(cfg):
     with WandbContext(cfg) as wandb_run:
         policy_store = PolicyStore(cfg, wandb_run)
         policy_record = policy_store.policy(cfg.policy_uri)
-
-        image_path = f"{cfg.run_dir}/traces/trace.png"
-        save_trace_image(cfg, env_cfg, policy_record, image_path)
-        if platform.system() == "Darwin":
-            # Open image in Preview.
-            subprocess.run(["open", image_path])
-
-        replay_path = f"{cfg.run_dir}/replays/replay.json"
-        save_replay(cfg, env_cfg, policy_record, replay_path)
+        replay_helper = ReplayHelper(cfg, env_cfg, policy_record, wandb_run)
+        replay_path = f"{cfg.run_dir}/replays/replay.json.z"
+        replay_helper.generate_replay(replay_path)
+        print(f"Replay saved to {replay_path}")
 
 if __name__ == "__main__":
     main()
