@@ -1,11 +1,11 @@
 defaults:
-  - _self_
   - common
   - agent: simple
   - trainer: puffer
   - eval: all
   - analyzer: eval_analyzer
   - wandb: metta_research
+  - _self_
 
 seed: 1
 eval_db_uri: null
