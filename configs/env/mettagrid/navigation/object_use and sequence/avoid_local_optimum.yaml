@@ -1,0 +1,53 @@
+
+defaults:
+  - navigation_defaults
+
+game:
+  num_agents: 20
+
+  map_builder:
+    _target_: mettagrid.config.room.multi_room.MultiRoom
+    num_rooms: 20
+    border_width: 3
+
+    room:
+      _target_: mettagrid.config.room.mean_distance.MeanDistance
+      width: 25
+      height: 25
+      mean_distance: 15
+      border_width: 3
+
+      agents: 1
+
+      objects:
+        mine: 1
+        generator: 1
+        altar: 1
+ objects: #the idea here is to have initial batteries in all of the altars, but greater reward on the table if you do the sequence.
+    altar:
+      hp: 30
+      input_battery: 3
+      output_heart: 4
+      max_output: 5
+      conversion_ticks: 1
+      cooldown: 255
+      initial_items: 1
+
+    mine.red:
+      hp: 30
+      output_ore.red: 1
+      color: 0
+      max_output: 5
+      conversion_ticks: 1
+      cooldown: 255
+      initial_items: 1
+
+    generator.red:
+      hp: 30
+      input_ore.red: 1
+      output_battery: 1
+      color: 0
+      max_output: 5
+      conversion_ticks: 1
+      cooldown: 255
+      initial_items: 0

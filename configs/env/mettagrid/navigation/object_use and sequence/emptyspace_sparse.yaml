@@ -1,0 +1,26 @@
+
+defaults:
+  - navigation_defaults
+
+game:
+  num_agents: 20
+  max_steps: 400
+
+  map_builder:
+    _target_: mettagrid.config.room.multi_room.MultiRoom
+    num_rooms: 20
+    border_width: 3
+
+    room:
+      _target_: mettagrid.config.room.mean_distance.MeanDistance
+      width: 35
+      height: 35
+      mean_distance: ${uniform:20,30,30}
+      border_width: 3
+
+      agents: 1
+
+      objects:
+        mine: 1
+        generator: 1
+        altar: 1
