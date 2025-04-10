@@ -29,7 +29,6 @@
   ],
   "python.testing.pytestEnabled": false,
   "python.testing.unittestEnabled": true,
-  // "python.analysis.extraPaths": ["../sample-factory", "../Griddly/python"],
   "cmake.configureOnOpen": false,
   "files.exclude": {
     "**/*.egg-info": true,
