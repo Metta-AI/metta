@@ -1,11 +1,13 @@
 defaults:
   - ../../mettagrid@
 
+sampling: 5
+
 game:
-  num_agents: 10
+  num_agents: 20
   map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom
-    num_rooms: 10
+    num_rooms: 20
     border_width: 6
 
     room:
@@ -16,9 +18,17 @@ game:
       agents: 1
       objects:
          altar: ${uniform:20,80,30}
-         wall: ${uniform:24,70,30}  # 'wall' value determines the number of obstacles
+         wall: ${uniform:12,70,30}  # 'wall' value determines the number of obstacles
 
   objects:
     altar.red:
       cooldown: 255
       initial_items: 1
+
+  actions:
+    attack:
+      enabled: true
+    swap:
+      enabled: true
+    change_color:
+      enabled: true

@@ -54,7 +54,7 @@ class EvalStatsAnalyzer:
         result_table = tabulate(result, headers=list(result.keys()), tablefmt="grid", maxcolwidths=25)
         self.logger.info(f"Results for {metric} with filters {filters}:\n{result_table}")
 
-    def _analyze_metrics(self, metric_configs):
+    def _analyze_metrics(self, metric_configs, include_policy_fitness=True):
         result_dfs = []
         policy_fitness_records = []
         for cfg, metrics in metric_configs.items():
@@ -64,24 +64,26 @@ class EvalStatsAnalyzer:
                 if len(metric_result) == 0:
                     self.logger.info(f"No data found for {metric} with filters {filters}" + "\n")
                     continue
-                policy_fitness = self.policy_fitness(metric_result, metric)
-                policy_fitness_records.extend(policy_fitness)
+                if include_policy_fitness:
+                    policy_fitness = self.policy_fitness(metric_result, metric)
+                    policy_fitness_records.extend(policy_fitness)
                 result_dfs.append(metric_result)
                 self.log_result(metric_result, metric, filters)
 
         return result_dfs, policy_fitness_records
 
-    def analyze(self):
+    def analyze(self, include_policy_fitness=True):
         if all(len(self.metric_configs[cfg]) == 0 for cfg in self.metric_configs):
             self.logger.info(f"No metrics to analyze yet for {self.candidate_policy_uri}")
             return [], []
 
-        result_dfs, policy_fitness_records = self._analyze_metrics(self.metric_configs)
+        result_dfs, policy_fitness_records = self._analyze_metrics(self.metric_configs, include_policy_fitness)
 
-        policy_fitness_df = pd.DataFrame(policy_fitness_records)
-        if len(policy_fitness_df) > 0:
-            policy_fitness_table = tabulate(policy_fitness_df, headers=[self.candidate_policy_uri] + list(policy_fitness_df.keys()), tablefmt="grid", maxcolwidths=25)
-            self.logger.info(f"Policy fitness results for candidate policy {self.candidate_policy_uri} and baselines {self.analysis.baseline_policies}:\n{policy_fitness_table}")
+        if include_policy_fitness:
+            policy_fitness_df = pd.DataFrame(policy_fitness_records)
+            if len(policy_fitness_df) > 0:
+                policy_fitness_table = tabulate(policy_fitness_df, headers=[self.candidate_policy_uri] + list(policy_fitness_df.keys()), tablefmt="grid", maxcolwidths=25)
+                self.logger.info(f"Policy fitness results for candidate policy {self.candidate_policy_uri} and baselines {self.analysis.baseline_policies}:\n{policy_fitness_table}")
 
         return result_dfs, policy_fitness_records
 
