@@ -8,12 +8,19 @@ from agent.policy_store import PolicyRecord
 class Simulator:
     """ Simulate a policy for playing or tracing the environment """
 
-    def __init__(self, cfg: OmegaConf, policy_record: PolicyRecord):
+    def __init__(
+        self,
+        cfg: OmegaConf,
+        env_cfg: OmegaConf,
+        policy_record: PolicyRecord,
+        num_steps: int = 500
+    ):
         """ Initialize the simulator """
         self.cfg = cfg
+        self.env_cfg = env_cfg
         self.device = cfg.device
         self.vecenv = make_vecenv(
-          cfg.env,
+          env_cfg,
           cfg.vectorization,
           num_envs=1,
           render_mode="human"
