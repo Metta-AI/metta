@@ -4,11 +4,7 @@ defaults:
 
 game:
   num_agents: 20
-<<<<<<< HEAD
-  max_steps: 100
-=======
   max_steps: 80
->>>>>>> 43417744b9ed0be1b72f76481469b18c5a07a859
 
   objects:
     altar:
