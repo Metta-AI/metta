@@ -4,6 +4,8 @@ policy_uri: ???
 
 analysis:
 
+  output_path: ???
+
   metric_patterns: null
 
   metrics:

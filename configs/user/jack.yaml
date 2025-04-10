@@ -2,7 +2,7 @@
 
 defaults:
   - override /agent: simple
-  - override /eval: core_eval_suite
+  - override /eval: navigation
   - override /analyzer: eval_analyzer
 
 trainer:
@@ -14,17 +14,18 @@ trainer:
       num_agents: 36
       max_steps: 1000
 
-policy_uri: wandb://run/b.daveey.t.64.dr90.e3b
+policy_uri: wandb://run/b.daveey.t.64.dr90.1
 
 analyzer:
   policy_uri: ${..policy_uri}
   analysis:
     metrics:
       - metric: episode_reward
-
+    output_path: s3://softmax-public/policydash/dashboard.html
 eval:
   policy_uri: ${..policy_uri}
-  eval_db_uri: wandb://artifacts/jack_db
+  selector_type: all
+  eval_db_uri: wandb://artifacts/navigation_db
   policy_uris:
     - "wandb://run/b.daphne.navigation_varied_obstacle_shapes_pretrained.r.1"
     - "wandb://run/b.daphne.navigation_varied_obstacle_shapes.r.0"

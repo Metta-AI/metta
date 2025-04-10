@@ -126,6 +126,9 @@ class PolicyEvalDB:
         
         return metric_to_df
     
+    def short_name(self, name: str) -> str:
+        return name.split('/')[-1]
+
     def import_from_eval_stats(self, cfg: DictConfig):
         """
         Expected dataframe schema for each metric:
@@ -141,6 +144,7 @@ class PolicyEvalDB:
         analyzer = hydra.utils.instantiate(cfg.analyzer, eval_stats_db)
         dfs, _ = analyzer.analyze(include_policy_fitness=False)
         metric_to_df = self._construct_metric_to_df_map(cfg, dfs)
+        
 
         # Track policies and evaluation metrics we've already created
         created_policies = set()
@@ -218,7 +222,6 @@ class PolicyEvalDB:
             raise
             
     def get_matrix_data(self, metric: str) -> pd.DataFrame:
-        """Get matrix data for heatmap visualization."""
         sql = """
         SELECT 
             p.uri as policy_uri,
@@ -231,33 +234,40 @@ class PolicyEvalDB:
         """
         
         df = self.query(sql, (metric,))
-        
         if len(df) == 0:
+            logger.warning(f"No data found for metric {metric}")
             return pd.DataFrame()
         
-        # Calculate overall scores (average across evaluations) 
-        overall_scores = df.groupby('policy_uri')['value'].mean().reset_index()
-        overall_scores['evaluation_name'] = 'Overall'
-        combined_df = pd.concat([
-            df, 
-            overall_scores[['policy_uri', 'evaluation_name', 'value']]
-        ])
+        df['display_name'] = df['evaluation_name'].apply(self.short_name)
         
-        # Create a proper matrix (policies as rows, evaluations as columns)
-        matrix = combined_df.pivot_table(
-            index='policy_uri', 
-            columns='evaluation_name', 
-            values='value'
-        )
+        policies = df['policy_uri'].unique()
+        eval_display_names = df['display_name'].unique()
         
-        # Reorder columns to put 'Overall' first
-        if 'Overall' in matrix.columns:
-            cols = ['Overall'] + [c for c in matrix.columns if c != 'Overall']
-            matrix = matrix[cols]
+        # Generate an overall score which is just the average of all the scores per-policy
+        overall_scores = {}
+        for policy in policies:
+            policy_data = df[df['policy_uri'] == policy]
+            overall_scores[policy] = policy_data['value'].mean()
+        all_display_names = ['Overall'] + eval_display_names.tolist()
+
+        data_map = {}
+        for _, row in df.iterrows():
+            data_map[(row['policy_uri'], row['display_name'])] = row['value']
+        
+        matrix_data = []
+        for policy in policies:
+            row_data = {'policy_uri': policy}
+            row_data['Overall'] = overall_scores[policy]
+            for display_name in eval_display_names:
+                key = (policy, display_name)
+                if key in data_map:
+                    row_data[display_name] = data_map[key]
+            matrix_data.append(row_data)
+        matrix = pd.DataFrame(matrix_data)
+        matrix = matrix.set_index('policy_uri')
         
         # Reorder rows by overall score
-        policy_order = overall_scores.sort_values('value', ascending=True)['policy_uri'].tolist() 
+        policy_order = sorted(policies, key=lambda p: overall_scores[p])
         matrix = matrix.reindex(policy_order)
-
-        matrix.attrs['eval_names'] = {name: name for name in matrix.columns}
+                
         return matrix
