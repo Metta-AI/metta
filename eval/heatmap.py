@@ -53,7 +53,7 @@ def create_matrix_visualization(
         return fig
     
     # Get policy names and evaluation names
-    policy_names = matrix_data.pop('policy_name').tolist() if 'policy_name' in matrix_data.columns else matrix_data.index.tolist()
+    policy_uris = matrix_data.pop('policy_uri').tolist() if 'policy_uri' in matrix_data.columns else matrix_data.index.tolist()
     eval_names = matrix_data.columns.tolist()
     
     # Calculate aggregates across policies
@@ -68,7 +68,7 @@ def create_matrix_visualization(
     z_values = [mean_values, max_values] + z_values
     
     # Add aggregate policy names in the same order as z_values
-    policy_names_with_aggregates = ['Mean', 'Max'] + policy_names
+    policy_uris_with_aggregates = ['Mean', 'Max'] + policy_uris
     
     # Set score range if not provided
     if score_range is None:
@@ -81,7 +81,7 @@ def create_matrix_visualization(
     fig = go.Figure(data=go.Heatmap(
         z=z_values,
         x=eval_names,
-        y=policy_names_with_aggregates,
+        y=policy_uris_with_aggregates,
         colorscale=colorscale,
         zmin=score_range[0],
         zmax=score_range[1],
@@ -92,7 +92,7 @@ def create_matrix_visualization(
     
     # Prepare ticktext with clickable links for regular policies and bold text for aggregates
     ticktext = []
-    for i, name in enumerate(policy_names_with_aggregates):
+    for i, name in enumerate(policy_uris_with_aggregates):
         if i >= 2:  # Skip the first two rows (aggregates)
             # Regular policy - make clickable
             ticktext.append(f'<a href="{build_wandb_url(name)}" target="_blank">{name}</a>')
@@ -104,7 +104,7 @@ def create_matrix_visualization(
     fig.update_layout(
         yaxis=dict(
             tickmode='array',
-            tickvals=list(range(len(policy_names_with_aggregates))),
+            tickvals=list(range(len(policy_uris_with_aggregates))),
             ticktext=ticktext,
             tickfont=dict(family='Arial', size=12)
         )
@@ -158,7 +158,7 @@ def create_matrix_visualization(
             x0=overall_idx - 0.5, 
             x1=overall_idx + 0.5,
             y0=-0.5, 
-            y1=len(policy_names_with_aggregates) - 0.5,
+            y1=len(policy_uris_with_aggregates) - 0.5,
             line=dict(color=border_color, width=border_width, dash="dash"),
             fillcolor="rgba(0, 0, 0, 0)",
             layer="above"
