@@ -208,7 +208,7 @@ class PufferTrainer:
 
         heatmap_html = generate_report_html(self.cfg)
         if self.wandb_run and self.cfg.wandb.track and self._master:
-            self.wandb_run.log({"overview/heatmap": wandb.Html(heatmap_html)}, commit=False, step=False)
+            self.wandb_run.log({"overview/heatmap": wandb.Html(heatmap_html)})
 
         eval_stats_db = EvalStatsDB.from_uri(self.cfg.eval.eval_db_uri, self.cfg.run_dir, self.wandb_run)
         analyzer = hydra.utils.instantiate(self.cfg.analyzer, eval_stats_db)
