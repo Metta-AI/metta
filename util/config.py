@@ -16,7 +16,7 @@ def config_from_path(config_path: str, overrides: DictConfig = None) -> DictConf
         env_cfg = OmegaConf.merge(env_cfg, overrides)
     return env_cfg
 
-def read_file(path: str) -> str:
+def try_read_file(path: str) -> str:
     try:
         with open(path, "r") as f:
             return f.read()
@@ -72,7 +72,7 @@ def setup_metta_environment(
     if cfg.wandb.track and require_wandb:
         # Check that W&B is good to go.
         # Open ~/.netrc file and see if there is a api.wandb.ai entry.
-        if "api.wandb.ai" not in read_file(os.path.expanduser("~/.netrc")) and \
+        if "api.wandb.ai" not in try_read_file(os.path.expanduser("~/.netrc")) and \
             "WANDB_API_KEY" not in os.environ:
             print("W&B is not configured, please install:")
             print("pip install wandb")
