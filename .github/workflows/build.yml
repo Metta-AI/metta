@@ -26,6 +26,9 @@ jobs:
       env:
         HYDRA_FULL_ERROR: 1
         PYTHONPATH: ${{ github.workspace }}
+        WANDB_API_KEY: set_but_not_used
+        AWS_ACCESS_KEY_ID: set_but_not_used
+        AWS_SECRET_ACCESS_KEY: set_but_not_used
       run: |
         python -m tools.train +hardware=github
 
@@ -33,5 +36,8 @@ jobs:
       env:
         HYDRA_FULL_ERROR: 1
         PYTHONPATH: ${{ github.workspace }}
+        WANDB_API_KEY: set_but_not_used
+        AWS_ACCESS_KEY_ID: set_but_not_used
+        AWS_SECRET_ACCESS_KEY: set_but_not_used
       run: |
         python -m tools.replay +hardware=github policy_uri=./train_dir/my_experiment/checkpoints/
