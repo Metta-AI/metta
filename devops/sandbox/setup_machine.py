@@ -39,14 +39,14 @@ def run_brew_bundle(force=False, no_fail=False):
     if not brewfile_path.exists():
         print(f"Error: Brewfile not found at {brewfile_path}")
         sys.exit(1)
-    
+
     print(f"Running brew bundle with {brewfile_path}...")
     command = ["brew", "bundle", "--file", str(brewfile_path)]
     if force:
         command.append("--force")
     if no_fail:
         command.append("--no-fail")
-    
+
     try:
         run_command(command)
     except subprocess.CalledProcessError as e:
@@ -69,4 +69,4 @@ def main():
     print("Machine setup complete!")
 
 if __name__ == "__main__":
-    main() 
+    main()
