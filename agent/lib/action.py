@@ -15,28 +15,25 @@ class ActionEmbedding(nn_layer_library.Embedding):
         # num_actions to be updated at runtime by the size of the active indices
         self._out_tensor_shape = [self.num_actions, self._nn_params['embedding_dim']]
         self.initialization = initialization
-    def activate_actions(self, actions_list):
+    def activate_actions(self, strings):
         # each time we run this, we update the metta_agent object's (the policy's) known action strings and associated indices
 
         # convert the actions_dict into a list of strings
-        string_list = []
-        for action_name, max_arg_count in actions_list:
-            for i in range(max_arg_count + 1):
-                string_list.append(f"{action_name}_{i}")
-        
-        for i in range(len(string_list)-1):
-            print(f"Action {i}: {string_list[i]}")
+        # string_list = []
+        # for action_name, max_arg_count in actions_list:
+        #     for i in range(max_arg_count + 1):
+        #         string_list.append(f"{action_name}_{i}")
 
         # for each action string, if it's not already in the reserved_action_embeds, add it and give it an index
-        for action_type in string_list:
-            if action_type not in self._reserved_action_embeds:
+        for string in strings:
+            if string not in self._reserved_action_embeds:
                 embedding_index = len(self._reserved_action_embeds) + 1 # generate index for this string
-                self._reserved_action_embeds[action_type] = embedding_index # update this component's known embeddings
+                self._reserved_action_embeds[string] = embedding_index # update this component's known embeddings
 
         device = next(self.parameters()).device
         self.active_indices = torch.tensor([
             self._reserved_action_embeds[name]
-            for name in string_list
+            for name in strings
         ], device=device)
         self.num_actions = len(self.active_indices)
 
@@ -45,13 +42,13 @@ class ActionEmbedding(nn_layer_library.Embedding):
         TT = td['_TT_']
         td['_num_actions_'] = self.num_actions
 
-        # below - get embeddings, unsqueeze the 0'th dimension, then expand to match the batch size
+        # get embeddings, unsqueeze the 0'th dimension, then expand to match the batch size
         td[self._name] = self._net(self.active_indices).unsqueeze(0).expand(B * TT, -1, -1)
         
         return td
     
 class ActionHash(metta_layer.LayerBase):
-    # This can't output hashes larger than 32
+    ''' This can't output hashes with embedding_dim larger than 32 '''
     def __init__(self, embedding_dim, min_value=0, max_value=1, **cfg):
         super().__init__(**cfg)
         self.action_embeddings = torch.tensor([])
@@ -62,18 +59,18 @@ class ActionHash(metta_layer.LayerBase):
         # Add a dummy parameter to track device
         self.register_buffer('dummy_param', torch.zeros(1))
 
-    def activate_actions(self, actions_list):
+    def activate_actions(self, strings):
         # convert the actions_dict into a list of strings
-        string_list = []
-        for action_name, max_arg_count in actions_list:
-            for i in range(max_arg_count):
-                string_list.append(f"{action_name}_{i}")
+        # string_list = []
+        # for action_name, max_arg_count in actions_list:
+        #     for i in range(max_arg_count):
+        #         string_list.append(f"{action_name}_{i}")
                 
         # Use the dummy parameter to get the device
         device = self.dummy_param.device
         self.action_embeddings = torch.tensor([
             self.embed_string(s)
-            for s in string_list
+            for s in strings
         ], dtype=torch.float32, device=device)
 
         self.num_actions = self.action_embeddings.size(0)

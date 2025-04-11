@@ -4,7 +4,7 @@ seed: null
 
 defaults:
   # - override /env/mettagrid@env: simple
-  - override /agent: can_02
+  - override /agent: multi_discrete
   # - override /sweep: fast
   # - override /eval: eval_suite
   # - override /analyzer: train_analyzer
@@ -43,7 +43,7 @@ wandb:
   track: true
   checkpoint_interval: 1
 
-run_id: 151
+run_id: 156
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 sweep_name: "${oc.env:USER}.local.sweep.${run_id}"

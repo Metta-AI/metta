@@ -33,10 +33,10 @@ def make_policy(env: PufferEnv, cfg: OmegaConf):
         grid_features=env.grid_features,
         global_features=env.global_features,
         device=cfg.device,
-        obs_width=11,
-        obs_height=11, # TODO: remove hardcoded values
-        # obs_width=cfg.env.game.obs_width,
-        # obs_height=cfg.env.game.obs_height,
+        # obs_width=11,
+        # obs_height=11, # TODO: remove hardcoded values
+        # # obs_width=cfg.env.game.obs_width,
+        # # obs_height=cfg.env.game.obs_height,
         _recursive_=False)
 
 class DistributedMettaAgent(DistributedDataParallel):
@@ -65,6 +65,7 @@ class MettaAgent(nn.Module):
         self.hidden_size = cfg.components._core_.output_size
         self.core_num_layers = cfg.components._core_.nn_params.num_layers
         self.clip_range = cfg.clip_range
+        self.convert_to_single_discrete = cfg.get('convert_to_single_discrete', True)
 
         agent_attributes = {
             'obs_shape': obs_shape,
@@ -89,11 +90,16 @@ class MettaAgent(nn.Module):
 
         component = self.components['_value_']
         self._setup_components(component)
-        component = self.components['_action_']
-        self._setup_components(component)
 
-        # component = self.components['_action_param_']
-        # self._setup_components(component)
+        # delete if logic after testing
+        if self.convert_to_single_discrete:
+            component = self.components['_action_']
+            self._setup_components(component)
+        else:
+            component = self.components['_action_type_']
+            self._setup_components(component)
+            component = self.components['_action_param_']
+            self._setup_components(component)
 
         for name, component in self.components.items():
             if not getattr(component, 'ready', False):
@@ -112,35 +118,21 @@ class MettaAgent(nn.Module):
             if isinstance(component._input_source, list):
                 for input_source in component._input_source:
                     self._setup_components(self.components[input_source])
-            # elif isinstance(component._input_source, omegaconf.listconfig.ListConfig):
-            #     component._input_source = list(component._input_source)
-            #     for input_source in component._input_source:
-            #         self._setup_components(self.components[input_source])
             else:
                 self._setup_components(self.components[component._input_source])
 
         if component._input_source is not None:
-            # path 1
-            if isinstance(component._input_source, str):
-                component.setup(self.components[component._input_source])
-            elif isinstance(component._input_source, list):
+            if isinstance(component._input_source, list):
                 input_source_components = {}
                 for name in component._input_source:
                     input_source_components[name] = self.components[name]
                 component.setup(input_source_components)
-
-            # path 2
-            # if isinstance(component._input_source, list):
-            #     input_source_components = {}
-            #     for name in component._input_source:
-            #         input_source_components[name] = self.components[name]
-            #     component.setup(input_source_components)
-            # else:
-            #     component.setup(self.components[component._input_source])
+            else:
+                component.setup(self.components[component._input_source])
         else:
             component.setup()
 
-        # delete this after testing
+        # delete after testing
         print((
             f"Component: {component._name}, in name: {component._input_source}, "
             f"in_size: {getattr(component, '_in_tensor_shape', 'None')}, out_size: {getattr(component, '_out_tensor_shape', 'None')}"
@@ -150,7 +142,21 @@ class MettaAgent(nn.Module):
         '''Run this at the beginning of training.'''
         self.actions_max_params = action_max_params
         self.active_actions = list(zip(action_names, action_max_params))
-        self.components['_action_embeds_'].activate_actions(self.active_actions)
+        
+        # delete if logic after testing
+        if self.convert_to_single_discrete:
+            # convert the actions_dict into a list of strings
+            string_list = []
+            for action_name, max_arg_count in self.active_actions:
+                for i in range(max_arg_count + 1):
+                    string_list.append(f"{action_name}_{i}")
+            self.components['_action_embeds_'].activate_actions(string_list)
+        else:
+            self.components['_action_type_embeds_'].activate_actions(action_names)
+            param_list = []
+            for i in range(max(action_max_params) - 1):
+                param_list.append(str(i))
+            self.components['_action_param_embeds_'].activate_actions(param_list)
 
         self.action_index = [] # the list element number maps to the action type index
         action_type_number = 0
@@ -173,6 +179,24 @@ class MettaAgent(nn.Module):
         self.components["_value_"](td)
         return None, td["_value_"], None
 
+    def _convert_action_to_logit_index(self, action, logits):
+        """Convert action pairs to logit indices"""
+        orig_shape = action.shape
+        action = action.reshape(-1, 2)
+        
+        action_type_numbers = torch.tensor([a[0] for a in action])
+        action_params = torch.tensor([a[1].item() for a in action])
+        cumulative_sum = torch.tensor([sum(self.actions_max_params[:num]) for num in action_type_numbers])
+        action_logit_index = action_type_numbers + cumulative_sum + action_params
+        
+        return action_logit_index.reshape(*orig_shape[:2], 1).to(logits.device)
+
+    def _convert_logit_index_to_action(self, action_logit_index, td):
+        """Convert logit indices back to action pairs"""
+        if td["_TT_"] == 1: # means we are in rollout, not training
+            return torch.tensor([self.action_index[idx.item()] for idx in action_logit_index.reshape(-1)], 
+                              device=action_logit_index.device)
+
     def get_action_and_value(self, x, state=None, action=None, e3b=None):
         td = TensorDict({"x": x})
 
@@ -182,49 +206,32 @@ class MettaAgent(nn.Module):
             td["state"] = state.to(x.device)
 
         self.components["_value_"](td)
-        self.components["_action_"](td)
-
-        logits = td["_action_"]
         value = td["_value_"]
         state = td["state"]
 
-        # Convert state back to tuple to pass back to trainer
+        # delete if logic after testing
+        if self.convert_to_single_discrete:
+            self.components["_action_"](td)
+            logits = td["_action_"]
+        else:  
+            self.components["_action_type_"](td)
+            self.components["_action_param_"](td)
+            logits = [td["_action_type_"], td["_action_param_"]]
+
         if state is not None:
             split_size = self.core_num_layers
             state = (state[:split_size], state[split_size:])
 
         e3b, intrinsic_reward = self._e3b_update(td["_core_"].detach(), e3b)
 
-        # convert action from a list of two elements to a single element
-        # make this a function
-        action_logit_index = None
-        if action is not None:
-            # Reshape action to [B*TT, 2] if it's [B, TT, 2]
-            orig_shape = action.shape
-            action = action.reshape(-1, 2) # is this necessary?
-            
-            # Convert each action pair to logit index
-            action_type_numbers = torch.tensor([a[0] for a in action])
-            action_params = torch.tensor([a[1].item() for a in action])
-            cumulative_sum = torch.tensor([sum(self.actions_max_params[:num]) for num in action_type_numbers])
-            action_logit_index = action_type_numbers + cumulative_sum + action_params
-            
-            # Reshape back to original batch dimensions and send to device
-            action_logit_index = action_logit_index.reshape(*orig_shape[:2], 1).to(logits.device)
-
-        action_logit_index, logprob, entropy, normalized_logits = sample_logits(logits, action_logit_index)
-        
-        # only need to do this on experience since training doesn't need action number
-        # action = torch.tensor([self.action_index[idx.item()] for idx in action_logit_index])
-        if td["_TT_"] == 1:
-            action = torch.tensor([self.action_index[idx.item()] for idx in action_logit_index.reshape(-1)], 
-                                  device=action_logit_index.device)
-        # if td["_TT_"] > 1:
-        #     # Reshape to [B, TT, 2]
-        #     action = flat_actions.reshape(td["_batch_size_"], td["_TT_"], 2)
-        # else:
-        #     # Reshape to [B, 2]
-        #     action = flat_actions.reshape(td["_batch_size_"], 2)
+        # delete if logic after testing
+        if self.convert_to_single_discrete:
+            action_logit_index = self._convert_action_to_logit_index(action, logits) if action is not None else None
+            action_logit_index, logprob, entropy, normalized_logits = sample_logits(logits, action_logit_index)
+            action = self._convert_logit_index_to_action(action_logit_index, td)
+        else:
+            action_logit_index, logprob, entropy, normalized_logits = sample_logits(logits, action)
+            action = action_logit_index
 
         return action, logprob, entropy, value, state, e3b, intrinsic_reward, normalized_logits
 

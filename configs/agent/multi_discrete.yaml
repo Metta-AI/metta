@@ -1,7 +1,7 @@
 # see reference_design.yaml for explanation of components
 _target_: agent.metta_agent.MettaAgent
 
-convert_to_single_discrete: true  # Add this flag to control action conversion behavior
+convert_to_single_discrete: false  # Add this flag to control action conversion behavior
 
 policy_selector:
   uri: null
@@ -90,41 +90,83 @@ components:
       out_features: 512
     effective_rank: true
 
-  _action_embeds_:
+  _action_type_embeds_:
     _target_: agent.lib.action.ActionEmbedding
     input_source: null
     nn_params:
       num_embeddings: 100
       embedding_dim: 32
 
-  embed_reshaped:
+  action_type_embed_reshaped:
     _target_: agent.lib.merge_layer.ReshapeLayer # combines the two dims into the squeezed_dim
     squeezed_dim: 0
     popped_dim: 1
-    input_source: _action_embeds_
+    input_source: _action_type_embeds_
 
-  actor_1_expanded:
+  actor_1_to_type_expanded:
     _target_: agent.lib.merge_layer.ExpandLayer
     expand_dim: 1
     expand_value: null
     input_source: actor_1
-    dims_source: _action_embeds_
+    dims_source: _action_type_embeds_
     source_dim: 1
 
-  actor_1_reshaped:
+  actor_1_to_type_reshaped:
     _target_: agent.lib.merge_layer.ReshapeLayer
     squeezed_dim: 0
     popped_dim: 1
-    input_source: actor_1_expanded
+    input_source: actor_1_to_type_expanded
 
-  attn:
+  action_type_attn:
     _target_: agent.lib.nn_layer_library.Bilinear
     input_source: 
-      - embed_reshaped
-      - actor_1_reshaped
+      - action_type_embed_reshaped
+      - actor_1_to_type_reshaped
     nn_params:
       out_features: 1
 
-  _action_:
+  _action_type_:
     _target_: agent.lib.merge_layer.BatchReshapeLayer
-    input_source: attn
+    input_source: action_type_attn
+
+  _action_param_embeds_:
+    _target_: agent.lib.action.ActionEmbedding
+    input_source: null
+    nn_params:
+      num_embeddings: 100
+      embedding_dim: 32
+
+  action_param_embed_reshaped:
+    _target_: agent.lib.merge_layer.ReshapeLayer # combines the two dims into the squeezed_dim
+    squeezed_dim: 0
+    popped_dim: 1
+    input_source: _action_param_embeds_
+
+  actor_1_to_param_expanded:
+    _target_: agent.lib.merge_layer.ExpandLayer
+    expand_dim: 1
+    expand_value: null
+    input_source: actor_1
+    dims_source: _action_param_embeds_
+    source_dim: 1
+
+  actor_1_to_param_reshaped:
+    _target_: agent.lib.merge_layer.ReshapeLayer
+    squeezed_dim: 0
+    popped_dim: 1
+    input_source: actor_1_to_param_expanded
+
+  action_param_attn:
+    _target_: agent.lib.nn_layer_library.Bilinear
+    input_source: 
+      - action_param_embed_reshaped
+      - actor_1_to_param_reshaped
+    nn_params:
+      out_features: 1
+
+  _action_param_:
+    _target_: agent.lib.merge_layer.BatchReshapeLayer
+    input_source: action_param_attn
+
+    
+    
