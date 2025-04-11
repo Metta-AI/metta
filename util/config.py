@@ -38,10 +38,11 @@ def setup_metta_environment(
     if cfg.wandb.track and require_wandb:
         # Check that W&B is good to go.
         # Open ~/.netrc file and see if there is a api.wandb.ai entry.
-        if "api.wandb.ai" not in read_file(os.path.expanduser("~/.netrc")):
+        if "api.wandb.ai" not in read_file(os.path.expanduser("~/.netrc")) and \
+            "WANDB_API_KEY" not in os.environ:
             print("W&B is not configured, please install:")
             print("pip install wandb")
             print("and run:")
             print("wandb login")
-            print("Alternatively, copy ~/.netrc from another machine that has it configured.")
+            print("Alternatively, set WANDB_API_KEY or copy ~/.netrc from another machine that has it configured.")
             exit(1)
