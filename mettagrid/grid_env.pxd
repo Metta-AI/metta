@@ -109,5 +109,5 @@ cdef class GridEnv:
     cpdef get_episode_rewards(self)
 
     cpdef tuple get_buffers(self)
-    cpdef cnp.ndarray render_ascii(self, list[char] type_to_char)
+    cpdef cnp.ndarray render_ascii(self)
     cpdef cnp.ndarray grid_objects_types(self)

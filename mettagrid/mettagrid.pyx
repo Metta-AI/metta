@@ -24,7 +24,7 @@ from mettagrid.observation_encoder cimport (
 from mettagrid.objects.agent cimport Agent
 from mettagrid.objects.wall cimport Wall
 from mettagrid.objects.converter cimport Converter
-from mettagrid.objects.constants cimport ObjectLayers, InventoryItemNames, ObjectType
+from mettagrid.objects.constants cimport ObjectLayers, InventoryItemNames, ObjectType, ObjectTypeAscii
 
 # Action imports
 from mettagrid.actions.move import Move
@@ -160,7 +160,7 @@ cdef class MettaGrid(GridEnv):
         return self._grid_features
 
     def render(self):
-        grid = self.render_ascii(["A", "#", "g", "c", "a"])
+        grid = self.render_ascii()
         for r in grid:
                 print("".join(r))
 

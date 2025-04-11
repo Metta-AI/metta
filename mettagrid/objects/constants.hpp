@@ -53,6 +53,20 @@ std::vector<std::string> ObjectTypeNames = {
     "converter"
 };
 
+std::vector<std::string> ObjectTypeAscii = {
+    "A",
+    "#",
+    "g",
+    "c",
+    "a",
+    "r",
+    "l",
+    "b",
+    "f",
+    "t",
+    "v"
+};
+
 enum InventoryItem {
     ore_red = 0,
     ore_blue = 1,
