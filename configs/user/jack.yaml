@@ -6,13 +6,9 @@ defaults:
   - override /analyzer: eval_analyzer
 
 trainer:
-  env: /env/mettagrid/bases
-  evaluate_interval: 200
-  env_overrides:
-    # sampling: 0.7
-    game:
-      num_agents: 36
-      max_steps: 1000
+  env: /env/mettagrid/multienv_mettagrid
+  evaluate_interval: 10
+
 
 policy_uri: wandb://run/b.daveey.t.64.dr90.1
 
