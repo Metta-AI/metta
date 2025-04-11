@@ -1,9 +1,11 @@
-from omegaconf import OmegaConf
-import torch
 import numpy as np
+import torch
 from mettagrid.renderer.raylib.raylib_renderer import MettaGridRaylibRenderer
-from rl.pufferlib.vecenv import make_vecenv
+from omegaconf import OmegaConf
+
 from agent.policy_store import PolicyStore
+from rl.pufferlib.vecenv import make_vecenv
+
 
 def play(cfg: OmegaConf, policy_store: PolicyStore):
     device = cfg.device
@@ -13,8 +15,10 @@ def play(cfg: OmegaConf, policy_store: PolicyStore):
     env = vecenv.envs[0]
     policy_record = policy_store.policy(cfg.policy_uri)
 
-    assert policy_record.metadata["action_names"] == env._c_env.action_names(), \
-        f"Action names do not match: {policy_record.metadata['action_names']} != {env._c_env.action_names()}"
+    assert policy_record.metadata["action_names"] == env._c_env.action_names(), (
+        "Action names do not match: "
+        + "{policy_record.metadata['action_names']} != {env._c_env.action_names()}"
+    )
     policy = policy_record.policy()
 
     renderer = MettaGridRaylibRenderer(env._c_env, env._env_cfg.game)
@@ -49,12 +53,13 @@ def play(cfg: OmegaConf, policy_store: PolicyStore):
             break
 
     import pandas as pd
+
     agent_df = pd.DataFrame([infos[0]["agent"]]).T.reset_index()
-    agent_df.columns = ['stat', 'value']
-    agent_df = agent_df.sort_values('stat')
+    agent_df.columns = ["stat", "value"]
+    agent_df = agent_df.sort_values("stat")
     game_df = pd.DataFrame([infos[0]["game"]]).T.reset_index()
-    game_df.columns = ['stat', 'value']
-    game_df = game_df.sort_values('stat')
+    game_df.columns = ["stat", "value"]
+    game_df = game_df.sort_values("stat")
     print("\nAgent stats:")
     print(agent_df.to_string(index=False))
     print("\nGame stats:")

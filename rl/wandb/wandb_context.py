@@ -1,8 +1,10 @@
 import copy
-import wandb
 import os
-import sys
+
 from omegaconf import OmegaConf
+
+import wandb
+
 
 class WandbContext:
     def __init__(self, cfg, job_type=None, resume=True, name=None, run_id=None, data_dir=None):
@@ -13,6 +15,7 @@ class WandbContext:
         self.run = None
         self.data_dir = data_dir or self.cfg.run_dir
         self.job_type = job_type
+
     def __enter__(self):
         if not self.cfg.wandb.enabled:
             assert not self.cfg.wandb.track, "wandb.track won't work if wandb.enabled is False"
@@ -31,10 +34,8 @@ class WandbContext:
             monitor_gym=True,
             save_code=True,
             resume=self.resume,
-            tags=[
-                "user:" + os.environ.get("METTA_USER", "unknown")
-            ],
-            settings=wandb.Settings(quiet=True)
+            tags=["user:" + os.environ.get("METTA_USER", "unknown")],
+            settings=wandb.Settings(quiet=True),
         )
 
         OmegaConf.save(cfg, os.path.join(self.data_dir, "config.yaml"))

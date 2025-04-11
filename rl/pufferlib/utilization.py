@@ -1,11 +1,10 @@
+import time
+from collections import deque
+from threading import Thread
 
 import psutil
-import time
-
-from threading import Thread
-from collections import deque
-
 import torch
+
 
 class Utilization(Thread):
     def __init__(self, delay=1, maxlen=20):

@@ -46,7 +46,9 @@ class PufferTrainer:
             self._master = int(os.environ["RANK"]) == 0
             self._world_size = dist.get_world_size()
             logger.info(
-                f"Rank: {os.environ['RANK']}, Local rank: {os.environ['LOCAL_RANK']}, World size: {self._world_size}"
+                f"Rank: {os.environ['RANK']}, "
+                + f"Local rank: {os.environ['LOCAL_RANK']}, World size: {self._world_size}, "
+                + f"World size: {self._world_size}"
             )
             self.device = f"cuda:{os.environ['LOCAL_RANK']}"
             logger.info(f"Setting up distributed training on device {self.device}")
@@ -79,7 +81,7 @@ class PufferTrainer:
             policy_record = policy_store.policy(cfg.trainer.initial_policy)
         else:
             policy_path = os.path.join(cfg.trainer.checkpoint_dir, policy_store.make_model_name(0))
-            for i in range(20):
+            for _i in range(20):
                 if os.path.exists(policy_path):
                     logger.info(f"Loading policy from checkpoint: {policy_path}")
                     policy_record = policy_store.policy(policy_path)
@@ -96,10 +98,11 @@ class PufferTrainer:
         if self._master:
             print(policy_record.policy())
 
-        if policy_record.metadata["action_names"] != self.vecenv.driver_env.action_names():
+        action_names = self.vecenv.driver_env.action_names()
+        if policy_record.metadata["action_names"] != action_names:
             raise ValueError(
                 "Action names do not match between policy and environment: "
-                f"{policy_record.metadata['action_names']} != {self.vecenv.driver_env.action_names()}"
+                f"{policy_record.metadata['action_names']} != {action_names}"
             )
 
         self._initial_pr = policy_record
@@ -146,7 +149,8 @@ class PufferTrainer:
 
         logger.info("Starting training")
 
-        # it doesn't make sense to evaluate more often than checkpointing since we need a saved policy to evaluate
+        # it doesn't make sense to evaluate more often than checkpointing since we
+        # need a saved policy to evaluate
         if (
             self.trainer_cfg.evaluate_interval != 0
             and self.trainer_cfg.evaluate_interval < self.trainer_cfg.checkpoint_interval
@@ -278,7 +282,8 @@ class PufferTrainer:
                 # This was originally self.config.env_batch_size == 1, but you have scaling
                 # configured differently in metta. You want the whole forward pass batch to come
                 # from one core to reduce indexing overhead.
-                # contiguous_env_ids = self.vecenv.agents_per_batch == self.vecenv.driver_env.agents_per_env[0]
+                # contiguous_env_ids
+                #   = self.vecenv.agents_per_batch == self.vecenv.driver_env.agents_per_env[0]
                 contiguous_env_ids = self.trainer_cfg.async_factor == self.trainer_cfg.num_workers
                 contiguous_env_ids = False
                 if contiguous_env_ids:
@@ -399,7 +404,7 @@ class PufferTrainer:
 
         # Optimizing the policy and value network
         total_minibatches = experience.num_minibatches * self.trainer_cfg.update_epochs
-        for epoch in range(self.trainer_cfg.update_epochs):
+        for _epoch in range(self.trainer_cfg.update_epochs):
             lstm_state = None
             teacher_lstm_state = None
             for mb in range(experience.num_minibatches):
@@ -607,7 +612,11 @@ class PufferTrainer:
             try:
                 v = np.mean(v)
                 self.stats[k] = v
-            except:
+            except TypeError:
+                print(f"Warning: Could not compute mean of {k}, value is not a numeric sequence")
+                del self.stats[k]
+            except ValueError:
+                print(f"Warning: Could not compute mean of {k}, possibly an empty sequence")
                 del self.stats[k]
 
         # Now synchronize and aggregate stats across processes
