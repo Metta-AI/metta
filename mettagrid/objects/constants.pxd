@@ -39,4 +39,5 @@ cdef extern from "constants.hpp":
 
     cdef vector[string] InventoryItemNames
     cdef vector[string] ObjectTypeNames
+    cdef vector[string] ObjectTypeAscii
     cdef map[TypeId, GridLayer] ObjectLayers
