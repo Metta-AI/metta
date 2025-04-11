@@ -17,8 +17,11 @@ def config_from_path(config_path: str, overrides: DictConfig = None) -> DictConf
     return env_cfg
 
 def read_file(path: str) -> str:
-    with open(path, "r") as f:
-        return f.read()
+    try:
+        with open(path, "r") as f:
+            return f.read()
+    except FileNotFoundError:
+        return ""
 
 def check_ec2() -> bool:
     """Check if we're running on an EC2 instance with valid IAM role credentials."""
