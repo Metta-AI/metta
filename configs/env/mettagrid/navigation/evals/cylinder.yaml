@@ -12,7 +12,7 @@ game:
     room:
       _target_: mettagrid.config.room.ascii.Ascii
       border_width: 1
-      uri: "configs/env/mettagrid/maps/cylinder.map"
+      uri: "configs/env/mettagrid/maps/navigation/cylinder.map"
 
   objects:
     altar:
