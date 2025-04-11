@@ -24,7 +24,7 @@ eval:
   num_envs: 2
   num_episodes: 2
   max_time_s: 600
-  env: /env/mettagrid/simple
+  env: /env/mettagrid-base/simple
   env_overrides: ${env_overrides}
 
 analyzer:

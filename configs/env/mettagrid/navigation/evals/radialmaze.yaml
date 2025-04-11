@@ -1,5 +1,5 @@
 defaults:
-  - ../../mettagrid@
+  - /env/mettagrid-base/mettagrid@
 
 game:
   num_agents: 20
