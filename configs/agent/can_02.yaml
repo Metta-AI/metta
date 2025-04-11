@@ -115,22 +115,21 @@ components:
       - embed_reshaped
       - LSTM_reshaped
     nn_params:
+      out_features: 7
+
+  attn_to_action_1:
+    _target_: agent.lib.nn_layer_library.Linear
+    input_source: attn
+    nn_params:
+      out_features: 256
+
+  attn_to_action_2:
+    _target_: agent.lib.nn_layer_library.Linear
+    input_source: attn_to_action_1
+    nn_params:
       out_features: 1
-
-  # attn_to_action_1:
-  #   _target_: agent.lib.nn_layer_library.Linear
-  #   input_source: attn
-  #   nn_params:
-  #     out_features: 256
-
-  # attn_to_action_2:
-  #   _target_: agent.lib.nn_layer_library.Linear
-  #   input_source: attn_to_action_1
-  #   nn_params:
-  #     out_features: 1
-  #   nonlinearity: null
+    nonlinearity: null
 
   _action_:
     _target_: agent.lib.merge_layer.BatchReshapeLayer
-    # input_source: attn_to_action_2
-    input_source: attn
+    input_source: attn_to_action_2

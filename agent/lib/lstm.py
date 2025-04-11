@@ -13,7 +13,7 @@ class LSTM(LayerBase):
         foot with bad transpose and shape operations. This saves much pain.'''
 
         super().__init__(**cfg)
-        self.obs_shape = obs_shape
+        self._obs_shape = list(obs_shape) # make sure no Omegaconf types are used in forward passes
         self.hidden_size = hidden_size
         self._out_tensor_shape = [hidden_size]
         self.num_layers = self._nn_params['num_layers']
@@ -42,9 +42,9 @@ class LSTM(LayerBase):
             split_size = self.num_layers
             state = (state[:split_size], state[split_size:])
 
-        x_shape, space_shape = x.shape, self.obs_shape
+        x_shape, space_shape = x.shape, self._obs_shape
         x_n, space_n = len(x_shape), len(space_shape)
-        if x_shape[-space_n:] != space_shape:
+        if tuple(x_shape[-space_n:]) != tuple(space_shape):
             raise ValueError('Invalid input tensor shape', x.shape)
 
         if x_n == space_n + 1:

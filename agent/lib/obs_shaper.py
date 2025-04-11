@@ -1,4 +1,4 @@
-import omegaconf
+import torch
 from tensordict import TensorDict
 
 from agent.lib.metta_layer import LayerBase
@@ -6,8 +6,8 @@ from agent.lib.metta_layer import LayerBase
 class ObsShaper(LayerBase):
     def __init__(self, obs_shape, num_objects, **cfg):
         super().__init__(**cfg)
-        self._obs_shape = obs_shape
-        self._out_tensor_shape = [obs_shape[2], obs_shape[0], obs_shape[1]]
+        self._obs_shape = list(obs_shape) # make sure no Omegaconf types are used in forward passes
+        self._out_tensor_shape = [self._obs_shape[2], self._obs_shape[0], self._obs_shape[1]]
         self._output_size = num_objects
 
     def _forward(self, td: TensorDict):
@@ -15,7 +15,7 @@ class ObsShaper(LayerBase):
 
         x_shape, space_shape = x.shape, self._obs_shape
         x_n, space_n = len(x_shape), len(space_shape)
-        if x_shape[-space_n:] != space_shape:
+        if tuple(x_shape[-space_n:]) != tuple(space_shape):
             raise ValueError('Invalid input tensor shape', x.shape)
 
         if x_n == space_n + 1:

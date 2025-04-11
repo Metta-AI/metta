@@ -349,78 +349,117 @@ class PufferTrainer:
                     adv = experience.b_advantages[mb]
                     ret = experience.b_returns[mb]
 
-                with profile.train_forward:
-                    _, newlogprob, entropy, newvalue, lstm_state, _, _, new_normalized_logits = self.policy(
-                        obs, state=lstm_state, action=atn)
-                    lstm_state = (lstm_state[0].detach(), lstm_state[1].detach())
+                # Add PyTorch Profiler for detailed timing
+                profiler_dir = os.path.join(self.cfg.run_dir, "profiler")
+                os.makedirs(profiler_dir, exist_ok=True)
+                logger.info(f"Setting up profiler in directory: {profiler_dir}")
+                
+                try:
+                    with torch.profiler.profile(
+                        activities=[
+                            torch.profiler.ProfilerActivity.CPU,
+                            torch.profiler.ProfilerActivity.CUDA,
+                        ],
+                        schedule=torch.profiler.schedule(
+                            wait=0,  # Start immediately
+                            warmup=0,  # No warmup
+                            active=1,  # Profile every step
+                            repeat=0  # Keep profiling
+                        ),
+                        on_trace_ready=torch.profiler.tensorboard_trace_handler(
+                            profiler_dir,
+                            worker_name=f"worker_{os.environ.get('RANK', '0')}"
+                        ),
+                        record_shapes=True,
+                        profile_memory=True,
+                        with_stack=True,
+                        with_flops=True,
+                        with_modules=True
+                    ) as prof:
+                        logger.info("Starting profiler")
+                        with profile.train_forward:
+                            _, newlogprob, entropy, newvalue, lstm_state, _, _, new_normalized_logits = self.policy(
+                                obs, state=lstm_state, action=atn)
+                            lstm_state = (lstm_state[0].detach(), lstm_state[1].detach())
 
-                    if self.device == 'cuda':
-                        torch.cuda.synchronize()
+                            if self.device == 'cuda':
+                                torch.cuda.synchronize()
 
-                with profile.train_misc:
-                    logratio = newlogprob - log_probs.reshape(-1)
-                    ratio = logratio.exp()
+                        with profile.train_misc:
+                            logratio = newlogprob - log_probs.reshape(-1)
+                            ratio = logratio.exp()
 
-                    with torch.no_grad():
-                        # calculate approx_kl http://joschu.net/blog/kl-approx.html
-                        old_approx_kl = (-logratio).mean()
-                        approx_kl = ((ratio - 1) - logratio).mean()
-                        clipfrac = ((ratio - 1.0).abs() > self.trainer_cfg.clip_coef).float().mean()
+                            with torch.no_grad():
+                                # calculate approx_kl http://joschu.net/blog/kl-approx.html
+                                old_approx_kl = (-logratio).mean()
+                                approx_kl = ((ratio - 1) - logratio).mean()
+                                clipfrac = ((ratio - 1.0).abs() > self.trainer_cfg.clip_coef).float().mean()
 
-                    adv = adv.reshape(-1)
-                    if self.trainer_cfg.norm_adv:
-                        adv = (adv - adv.mean()) / (adv.std() + 1e-8)
+                            adv = adv.reshape(-1)
+                            if self.trainer_cfg.norm_adv:
+                                adv = (adv - adv.mean()) / (adv.std() + 1e-8)
 
-                    # Policy loss
-                    pg_loss1 = -adv * ratio
-                    pg_loss2 = -adv * torch.clamp(
-                        ratio, 1 - self.trainer_cfg.clip_coef, 1 + self.trainer_cfg.clip_coef
-                    )
-                    pg_loss = torch.max(pg_loss1, pg_loss2).mean()
+                            # Policy loss
+                            pg_loss1 = -adv * ratio
+                            pg_loss2 = -adv * torch.clamp(
+                                ratio, 1 - self.trainer_cfg.clip_coef, 1 + self.trainer_cfg.clip_coef
+                            )
+                            pg_loss = torch.max(pg_loss1, pg_loss2).mean()
 
-                    # Value loss
-                    newvalue = newvalue.view(-1)
-                    if self.trainer_cfg.clip_vloss:
-                        v_loss_unclipped = (newvalue - ret) ** 2
-                        v_clipped = val + torch.clamp(
-                            newvalue - val,
-                            -self.trainer_cfg.vf_clip_coef,
-                            self.trainer_cfg.vf_clip_coef,
-                        )
-                        v_loss_clipped = (v_clipped - ret) ** 2
-                        v_loss_max = torch.max(v_loss_unclipped, v_loss_clipped)
-                        v_loss = 0.5 * v_loss_max.mean()
-                    else:
-                        v_loss = 0.5 * ((newvalue - ret) ** 2).mean()
+                            # Value loss
+                            newvalue = newvalue.view(-1)
+                            if self.trainer_cfg.clip_vloss:
+                                v_loss_unclipped = (newvalue - ret) ** 2
+                                v_clipped = val + torch.clamp(
+                                    newvalue - val,
+                                    -self.trainer_cfg.vf_clip_coef,
+                                    self.trainer_cfg.vf_clip_coef,
+                                )
+                                v_loss_clipped = (v_clipped - ret) ** 2
+                                v_loss_max = torch.max(v_loss_unclipped, v_loss_clipped)
+                                v_loss = 0.5 * v_loss_max.mean()
+                            else:
+                                v_loss = 0.5 * ((newvalue - ret) ** 2).mean()
 
-                    entropy_loss = entropy.mean()
+                            entropy_loss = entropy.mean()
 
-                    ks_action_loss = torch.tensor(0.0, device=self.device)
-                    ks_value_loss = torch.tensor(0.0, device=self.device)
-                    if self.kickstarter.enabled and self.agent_step <= self.kickstarter.kickstart_steps:
-                        ks_action_loss, ks_value_loss, teacher_lstm_state = self.kickstarter.loss(self.agent_step, new_normalized_logits, newvalue, obs, teacher_lstm_state)
-                    
-                    l2_reg_loss = torch.tensor(0.0, device=self.device)
-                    if self.trainer_cfg.l2_reg_loss_coef > 0:
-                        l2_reg_loss = self.trainer_cfg.l2_reg_loss_coef * self.policy.l2_reg_loss().to(self.device)
+                            logger.info(f"Kickstarter enabled: {self.kickstarter.enabled}, agent_step: {self.agent_step}, kickstart_steps: {self.kickstarter.kickstart_steps}")
+                            
+                            if self.kickstarter.enabled and self.agent_step <= self.kickstarter.kickstart_steps:
+                                ks_action_loss, ks_value_loss, teacher_lstm_state = self.kickstarter.loss(self.agent_step, new_normalized_logits, newvalue, obs, teacher_lstm_state)
+                            else:
+                                ks_action_loss = torch.tensor(0.0, device=self.device)
+                                ks_value_loss = torch.tensor(0.0, device=self.device)
 
-                    l2_init_loss = torch.tensor(0.0, device=self.device)
-                    if self.trainer_cfg.l2_init_loss_coef > 0:
-                        l2_init_loss = self.trainer_cfg.l2_init_loss_coef * self.policy.l2_init_loss().to(self.device)
+                            l2_reg_loss = torch.tensor(0.0, device=self.device)
+                            if self.trainer_cfg.l2_reg_loss_coef > 0:
+                                l2_reg_loss = self.trainer_cfg.l2_reg_loss_coef * self.policy.l2_reg_loss().to(self.device)
 
-                    loss = pg_loss - self.trainer_cfg.ent_coef * entropy_loss + v_loss * self.trainer_cfg.vf_coef + l2_reg_loss + l2_init_loss + ks_action_loss + ks_value_loss
+                            l2_init_loss = torch.tensor(0.0, device=self.device)
+                            if self.trainer_cfg.l2_init_loss_coef > 0:
+                                l2_init_loss = self.trainer_cfg.l2_init_loss_coef * self.policy.l2_init_loss().to(self.device)
 
-                with profile.learn:
-                    self.optimizer.zero_grad()
-                    loss.backward()
-                    torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.trainer_cfg.max_grad_norm)
-                    self.optimizer.step()
+                            loss = pg_loss - self.trainer_cfg.ent_coef * entropy_loss + v_loss * self.trainer_cfg.vf_coef + l2_reg_loss + l2_init_loss + ks_action_loss + ks_value_loss
 
-                    if self.cfg.agent.clip_range > 0:
-                        self.policy.clip_weights()
+                        with profile.learn:
+                            self.optimizer.zero_grad()
+                            loss.backward()
+                            torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.trainer_cfg.max_grad_norm)
+                            self.optimizer.step()
 
-                    if self.device == 'cuda':
-                        torch.cuda.synchronize()
+                            if self.cfg.agent.clip_range > 0:
+                                self.policy.clip_weights()
+
+                            if self.device == 'cuda':
+                                torch.cuda.synchronize()
+
+                        # Only call prof.step() once at the end of all operations
+                        prof.step()
+
+                except Exception as e:
+                    logger.error(f"Profiler setup failed: {e}")
+                    # Continue training even if profiling fails
+                    pass
 
                 with profile.train_misc:
                     self.losses.policy_loss += pg_loss.item() / total_minibatches
