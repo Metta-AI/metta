@@ -18,6 +18,7 @@ policy_uri: wandb://run/b.daveey.t.64.dr90.1
 
 analyzer:
   policy_uri: ${..policy_uri}
+  view_type: policy_versions
   analysis:
     metrics:
       - metric: episode_reward
