@@ -1,30 +1,31 @@
 import copy
 import random
-from typing import Any, Dict
-
+from typing import Any, Dict, List
 import gymnasium as gym
 import hydra
 import numpy as np
 import pufferlib
 from omegaconf import OmegaConf, DictConfig
-
 from mettagrid.mettagrid_c import MettaGrid  # pylint: disable=E0611
+
 
 class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     def __init__(self, env_cfg: DictConfig, render_mode: str, buf=None, **kwargs):
         self._render_mode = render_mode
         self._cfg_template = env_cfg
-        self.make_env()
+        self._env_cfg = self._get_new_env_cfg()
+        self._reset_env()
         self.should_reset = False
         self._renderer = None
 
         super().__init__(buf)
 
-    def make_env(self):
-        self._env_cfg = OmegaConf.create(copy.deepcopy(self._cfg_template))
+    def _get_new_env_cfg(self):
+        env_cfg = OmegaConf.create(copy.deepcopy(self._cfg_template))
+        OmegaConf.resolve(env_cfg)
+        return env_cfg
 
-        OmegaConf.resolve(self._env_cfg)
-
+    def _reset_env(self):
         self._map_builder = hydra.utils.instantiate(self._env_cfg.game.map_builder)
         env_map = self._map_builder.build()
         map_agents = np.count_nonzero(np.char.startswith(env_map, "agent"))
@@ -42,7 +43,8 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         #self._env = FeatureMasker(self._env, self._cfg.hidden_features)
 
     def reset(self, seed=None, options=None):
-        self.make_env()
+        self._env_cfg = self._get_new_env_cfg()
+        self._reset_env()
 
         self._c_env.set_buffers(
             self.observations,
@@ -168,10 +170,45 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     def close(self):
         pass
 
+class MettaGridEnvSet(MettaGridEnv):
+    """
+    This is a wrapper around MettaGridEnv that allows for multiple environments to be used for training.
+    """
+
+    def __init__(self, env_cfg: DictConfig, probabilities: List[float] | None, render_mode: str, buf=None, **kwargs):
+        self._env_cfgs = env_cfg.envs
+        self._num_agents_global = env_cfg.num_agents
+        self._probabilities = probabilities
+        self._env_cfg = self._get_new_env_cfg()
+
+        super().__init__(env_cfg, render_mode, buf, **kwargs)
+        self._cfg_template = None #we don't use this with multiple envs, so we clear it to emphasize that fact
+
+    def _get_new_env_cfg(self):
+        selected_env = np.random.choice(self._env_cfgs, p = self._probabilities)
+        env_cfg = config_from_path(selected_env)
+        if self._num_agents_global != env_cfg.game.num_agents:
+            raise ValueError("For MettaGridEnvSet, the number of agents must be the same for all environments. Global: {}, Env: {}".format(self._num_agents_global, env_cfg.game.num_agents))
+        env_cfg = OmegaConf.create(env_cfg)
+        OmegaConf.resolve(env_cfg)
+        return env_cfg
+
 def make_env_from_cfg(cfg_path: str, *args, **kwargs):
     cfg = OmegaConf.load(cfg_path)
     env = MettaGridEnv(cfg, *args, **kwargs)
     return env
+
+def config_from_path(config_path: str) -> DictConfig:
+    env_cfg = hydra.compose(config_name=config_path)
+
+    # when hydra loads a config, it "prefixes" the keys with the path of the config file.
+    # We don't want that prefix, so we remove it.
+    if config_path.startswith("/"):
+        config_path = config_path[1:]
+    path = config_path.split("/")
+    for p in path[:-1]:
+        env_cfg = env_cfg[p]
+    return env_cfg
 
 def oc_uniform(min_val, max_val, center, *, _root_):
     sampling = _root_.get("sampling", 0)
