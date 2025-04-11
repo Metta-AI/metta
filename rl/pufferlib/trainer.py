@@ -9,10 +9,10 @@ import pufferlib
 import pufferlib.utils
 import torch
 import torch.distributed as dist
-import wandb
 from fast_gae import fast_gae
 from omegaconf import OmegaConf
 
+import wandb
 from agent.metta_agent import DistributedMettaAgent
 from agent.policy_store import PolicyStore
 from rl.eval.eval_stats_db import EvalStatsDB
@@ -20,7 +20,7 @@ from rl.eval.eval_stats_logger import EvalStatsLogger
 from rl.pufferlib.experience import Experience
 from rl.pufferlib.kickstarter import Kickstarter
 from rl.pufferlib.profile import Profile
-from rl.pufferlib.trace import save_trace_image
+from rl.pufferlib.replay_helper import ReplayHelper
 from rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
 from rl.pufferlib.vecenv import make_vecenv
 from util.config import config_from_path
@@ -136,6 +136,8 @@ class PufferTrainer:
 
         self.kickstarter = Kickstarter(self.cfg, self.policy_store, self.vecenv.single_action_space)
 
+        self.replay_helper = ReplayHelper(cfg, self._env_cfg, self.last_pr, wandb_run)
+
         logger.info(f"PufferTrainer initialization complete on device: {self.device}")
 
     def train(self):
@@ -208,10 +210,10 @@ class PufferTrainer:
             ):
                 self._update_l2_init_weight_copy()
             if (
-                self.trainer_cfg.trace_interval != 0
-                and self.epoch % self.trainer_cfg.trace_interval == 0
+                self.trainer_cfg.replay_interval != 0
+                and self.epoch % self.trainer_cfg.replay_interval == 0
             ):
-                self._save_trace_to_wandb()
+                self._generate_and_upload_replay()
 
             self._on_train_step()
 
@@ -594,11 +596,10 @@ class PufferTrainer:
         pr = self._checkpoint_policy()
         self.policy_store.add_to_wandb_run(self.wandb_run.name, pr)
 
-    def _save_trace_to_wandb(self):
-        image_path = f"{self.cfg.run_dir}/traces/trace.{self.epoch}.png"
-        save_trace_image(self.cfg, self.last_pr, image_path)
+    def _generate_and_upload_replay(self):
         if self._master:
-            wandb.log({"traces/actions": wandb.Image(image_path)})
+            logger.info("Generating and saving a replay to wandb and S3.")
+            self.replay_helper.generate_and_upload_replay(self.epoch)
 
     def _process_stats(self):
         for k in list(self.stats.keys()):
