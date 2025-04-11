@@ -2,8 +2,8 @@ import os
 import hydra
 from omegaconf import DictConfig, OmegaConf
 import wandb
-import requests
-import json
+import boto3
+from botocore.exceptions import NoCredentialsError, ClientError
 
 def config_from_path(config_path: str, overrides: DictConfig = None) -> DictConfig:
     env_cfg = hydra.compose(config_name=config_path)
@@ -23,32 +23,26 @@ def try_read_file(path: str) -> str:
     except FileNotFoundError:
         return ""
 
-def check_ec2() -> bool:
-    """Check if we're running on an EC2 instance with valid IAM role credentials."""
+def check_aws_credentials() -> bool:
+    """Check if valid AWS credentials are available from any source."""
+    if "AWS_ACCESS_KEY_ID" in os.environ and "AWS_SECRET_ACCESS_KEY" in os.environ:
+        # This check is primarily for github actions.
+        return True
     try:
-        # First try IMDSv2 (more secure)
-        token_response = requests.put(
-            "http://169.254.169.254/latest/api/token",
-            headers={"X-aws-ec2-metadata-token-ttl-seconds": "21600"},
-            timeout=1
-        )
-        if token_response.status_code == 200:
-            token = token_response.text
-            response = requests.get(
-                "http://169.254.169.254/latest/meta-data/iam/security-credentials/",
-                headers={"X-aws-ec2-metadata-token": token},
-                timeout=1
-            )
-            if response.status_code == 200 and response.text:
-                return True
+        sts = boto3.client('sts')
+        sts.get_caller_identity()
+        return True
+    except (NoCredentialsError, ClientError):
+        return False
 
-        # Fallback to IMDSv1 if IMDSv2 fails
-        response = requests.get(
-            "http://169.254.169.254/latest/meta-data/iam/security-credentials/",
-            timeout=1
-        )
-        return response.status_code == 200 and response.text
-    except (requests.exceptions.RequestException, json.JSONDecodeError):
+def check_wandb_credentials() -> bool:
+    """Check if valid W&B credentials are available."""
+    if "WANDB_API_KEY" in os.environ:
+        # This check is primarily for github actions.
+        return True
+    try:
+        return wandb.login(anonymous="never", timeout=10)
+    except Exception:
         return False
 
 def setup_metta_environment(
@@ -58,11 +52,7 @@ def setup_metta_environment(
 ):
     if require_aws:
         # Check that AWS is good to go.
-        # Check that ~/.aws/credentials exist or env var AWS_PROFILE is set.
-        if not os.path.exists(os.path.expanduser("~/.aws/sso/cache")) and \
-            "AWS_ACCESS_KEY_ID" not in os.environ and \
-            "AWS_SECRET_ACCESS_KEY" not in os.environ and \
-            not check_ec2():
+        if not check_aws_credentials():
             print("AWS is not configured, please install:")
             print("brew install awscli")
             print("and run:")
@@ -71,9 +61,7 @@ def setup_metta_environment(
             exit(1)
     if cfg.wandb.track and require_wandb:
         # Check that W&B is good to go.
-        # Open ~/.netrc file and see if there is a api.wandb.ai entry.
-        if "api.wandb.ai" not in try_read_file(os.path.expanduser("~/.netrc")) and \
-            "WANDB_API_KEY" not in os.environ:
+        if not check_wandb_credentials():
             print("W&B is not configured, please install:")
             print("pip install wandb")
             print("and run:")
