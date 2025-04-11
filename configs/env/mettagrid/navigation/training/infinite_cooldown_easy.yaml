@@ -1,6 +1,6 @@
 
 defaults:
-  - ../../mettagrid@
+  - /env/mettagrid-base/mettagrid@
 
 sampling: 5
 

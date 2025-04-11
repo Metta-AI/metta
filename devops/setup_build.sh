@@ -2,37 +2,43 @@ set -e
 
 pip install -r requirements.txt
 
-mkdir deps
+mkdir -p deps
 cd deps
 
-echo "Cloning fast_gae in to $(pwd)"
-git clone https://github.com/Metta-AI/fast_gae.git
+if [ ! -d "fast_gae" ]; then
+  echo "Cloning fast_gae into $(pwd)"
+  git clone https://github.com/Metta-AI/fast_gae.git
+fi
 cd fast_gae
 git pull
-echo "Building fast_gae in to $(pwd)"
+echo "Building fast_gae into $(pwd)"
 python setup.py build_ext --inplace
-echo "Installing fast_gae in to $(pwd)"
+echo "Installing fast_gae into $(pwd)"
 pip install -e .
 cd ..
 
-echo "Cloning pufferlib in to $(pwd)"
-git clone https://github.com/Metta-AI/pufferlib.git
+if [ ! -d "pufferlib" ]; then
+  echo "Cloning pufferlib into $(pwd)"
+  git clone https://github.com/Metta-AI/pufferlib.git
+fi
 cd pufferlib
-echo "Fetching pufferlib in to $(pwd)"
+echo "Fetching pufferlib into $(pwd)"
 git fetch
-echo "Checking out metta in to $(pwd)"
+echo "Checking out metta into $(pwd)"
 git checkout metta
 git pull
-echo "Installing pufferlib in to $(pwd)"
+echo "Installing pufferlib into $(pwd)"
 pip install -e .
-echo "Stashing pufferlib in to $(pwd)"
+echo "Stashing pufferlib into $(pwd)"
 git stash
 cd ..
 
-echo "Cloning mettagrid in to $(pwd)"
-git clone https://github.com/Metta-AI/mettagrid.git
+if [ ! -d "mettagrid" ]; then
+  echo "Cloning mettagrid into $(pwd)"
+  git clone https://github.com/Metta-AI/mettagrid.git
+fi
 cd mettagrid
-echo "Fetching mettagrid in to $(pwd)"
+echo "Fetching mettagrid into $(pwd)"
 git fetch
 
 # Check out the specified reference
@@ -41,27 +47,31 @@ if [ -n "$METTAGRID_REF" ]; then
   git checkout "$METTAGRID_REF"
 fi
 
-echo "Installing mettagrid in to $(pwd)"
+echo "Installing mettagrid into $(pwd)"
 pip install -r requirements.txt
-echo "Building mettagrid in to $(pwd)"
+echo "Building mettagrid into $(pwd)"
 python setup.py build_ext --inplace
-echo "Installing mettagrid in to $(pwd)"
+echo "Installing mettagrid into $(pwd)"
 pip install -e .
 cd ..
 
-#git clone https://github.com/imbue-ai/carbs.git
-git clone https://github.com/kywch/carbs.git
+if [ ! -d "carbs" ]; then
+  #git clone https://github.com/imbue-ai/carbs.git
+  git clone https://github.com/kywch/carbs.git
+fi
 cd carbs
-echo "Fetching carbs in to $(pwd)"
+echo "Fetching carbs into $(pwd)"
 git pull
-echo "Installing carbs in to $(pwd)"
+echo "Installing carbs into $(pwd)"
 pip install -e .
 cd ..
 
-git clone https://github.com/Metta-AI/wandb_carbs.git
+if [ ! -d "wandb_carbs" ]; then
+  git clone https://github.com/Metta-AI/wandb_carbs.git
+fi
 cd wandb_carbs
-echo "Fetching wandb_carbs in to $(pwd)"
+echo "Fetching wandb_carbs into $(pwd)"
 git pull
-echo "Installing wandb_carbs in to $(pwd)"
+echo "Installing wandb_carbs into $(pwd)"
 pip install -e .
 cd ..
