@@ -7,7 +7,6 @@ defaults:
 
 trainer:
   env: /env/mettagrid/reward_dr
-  evaluate_interval: 200
   env_overrides:
     sampling: 0.7
     game:
