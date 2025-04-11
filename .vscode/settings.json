@@ -18,13 +18,7 @@
     ],
     "python.testing.pytestEnabled": false,
     "python.testing.unittestEnabled": true,
-    // "python.analysis.extraPaths": ["../sample-factory", "../Griddly/python"],
-    "pylint.args": [
-			"--rcfile",
-			"./.pylintrc"
-    ],
     "cmake.configureOnOpen": false,
-
     "files.exclude": {
       "**/*.egg-info": true,
       "**/__pycache__": true,
