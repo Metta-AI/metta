@@ -184,9 +184,6 @@ class PufferTrainer:
         logger.info(f"Training complete. Total time: {self.train_time:.2f} seconds")
 
     def _evaluate_policy(self):
-        # TODO: refactor to not involve circular import
-        from eval.report import generate_report_html
-
         if not self._master:
             return
 
@@ -205,10 +202,6 @@ class PufferTrainer:
             self.eval_stats_logger.log(stats)
         except Exception as e:
             logger.error(f"Error logging stats: {e}")
-
-        heatmap_html = generate_report_html(self.cfg)
-        if self.wandb_run and self.cfg.wandb.track and self._master:
-            self.wandb_run.log({"overview/heatmap": wandb.Html(heatmap_html)})
 
         eval_stats_db = EvalStatsDB.from_uri(self.cfg.eval.eval_db_uri, self.cfg.run_dir, self.wandb_run)
         analyzer = hydra.utils.instantiate(self.cfg.analyzer, eval_stats_db)
