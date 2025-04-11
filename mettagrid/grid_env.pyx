@@ -16,7 +16,7 @@ from mettagrid.grid_object cimport (
 )
 from mettagrid.observation_encoder cimport ObservationEncoder, ObsType
 from mettagrid.objects.production_handler cimport ProductionHandler, CoolDownHandler
-from mettagrid.objects.constants cimport ObjectTypeNames
+from mettagrid.objects.constants cimport ObjectTypeNames, ObjectTypeAscii
 
 # Constants
 obs_np_type = np.uint8
@@ -278,12 +278,12 @@ cdef class GridEnv:
     cpdef tuple get_buffers(self):
         return (self._observations_np, self._terminals_np, self._truncations_np, self._rewards_np)
 
-    cpdef cnp.ndarray render_ascii(self, list[char] type_to_char):
+    cpdef cnp.ndarray render_ascii(self):
         cdef GridObject *obj
         grid = np.full((self._grid.height, self._grid.width), " ", dtype=np.str_)
         for obj_id in range(1, self._grid.objects.size()):
             obj = self._grid.object(obj_id)
-            grid[obj.location.r, obj.location.c] = type_to_char[obj._type_id]
+            grid[obj.location.r, obj.location.c] = ObjectTypeAscii[obj._type_id]
         return grid
 
     cpdef cnp.ndarray grid_objects_types(self):
