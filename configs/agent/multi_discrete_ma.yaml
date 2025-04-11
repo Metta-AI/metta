@@ -139,7 +139,7 @@ components:
 
   _action_type_:
     _target_: agent.lib.merge_layer.BatchReshapeLayer
-    input_source: action_type_attn
+    input_source: action_type_layer_2
 
   _action_param_embeds_:
     _target_: agent.lib.action.ActionEmbedding
