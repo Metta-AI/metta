@@ -4,7 +4,7 @@ defaults:
 
 game:
   num_agents: 20
-  max_steps: 100
+  max_steps: 80
 
   objects:
     mine.red:
