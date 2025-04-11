@@ -3,7 +3,7 @@ defaults:
 
 game:
   num_agents: 20
-  max_steps: 600
+  max_steps: 250
 
   map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom
@@ -21,3 +21,11 @@ game:
   objects:
     altar:
       cooldown: 255
+
+actions:
+    attack:
+      enabled: false
+    swap:
+      enabled: false
+    change_color:
+      enabled: false
