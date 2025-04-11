@@ -15,7 +15,7 @@ from eval.heatmap import create_matrix_visualization
 
 logger = logging.getLogger(__name__)
 
-def upload_to_s3(content: str, s3_path: str) -> bool:
+def upload_to_s3(content: str, s3_path: str):
     if not s3_path.startswith("s3://"):
         raise ValueError(f"Invalid S3 path: {s3_path}. Must start with s3://")
     
@@ -36,13 +36,12 @@ def upload_to_s3(content: str, s3_path: str) -> bool:
             ContentType='text/html'
         )
         logger.info(f"Successfully uploaded to {s3_path}")
-        return True
-    except NoCredentialsError:
+    except NoCredentialsError as e:
         logger.error("AWS credentials not found. Make sure AWS credentials are configured.")
-        return False
+        raise e
     except Exception as e:
         logger.error(f"Error uploading to S3: {e}")
-        return False
+        raise e
 
 def generate_report_html(
     cfg: DictConfig
