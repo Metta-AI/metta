@@ -125,6 +125,18 @@ components:
     nn_params:
       out_features: 7
 
+  action_type_layer_1:
+    _target_: agent.lib.nn_layer_library.Linear
+    input_source: action_type_attn
+    nn_params:
+      out_features: 128
+
+  action_type_layer_2:
+    _target_: agent.lib.nn_layer_library.Linear
+    input_source: action_type_layer_1
+    nn_params:
+      out_features: 1
+
   _action_type_:
     _target_: agent.lib.merge_layer.BatchReshapeLayer
     input_source: action_type_attn
