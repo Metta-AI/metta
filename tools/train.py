@@ -5,6 +5,7 @@ import hydra
 
 from agent.policy_store import PolicyStore
 from util.runtime_configuration import setup_mettagrid_environment
+from util.config import setup_metta_environment
 from omegaconf import OmegaConf
 from rich.logging import RichHandler
 from rl.wandb.wandb_context import WandbContext
@@ -50,6 +51,7 @@ def main(cfg: OmegaConf) -> int:
     logger.info(f"Training {cfg.run} on " +
                 f"{os.environ.get('NODE_INDEX', '0')}: " +
                 f"{os.environ.get('LOCAL_RANK', '0')} ({cfg.device})")
+    setup_metta_environment(cfg)
     setup_mettagrid_environment(cfg)
 
     if "LOCAL_RANK" in os.environ and cfg.device.startswith("cuda"):
