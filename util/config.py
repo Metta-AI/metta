@@ -2,6 +2,8 @@ import os
 import hydra
 from omegaconf import DictConfig, OmegaConf
 import wandb
+import requests
+import json
 
 def config_from_path(config_path: str, overrides: DictConfig = None) -> DictConfig:
     env_cfg = hydra.compose(config_name=config_path)
@@ -18,6 +20,34 @@ def read_file(path: str) -> str:
     with open(path, "r") as f:
         return f.read()
 
+def check_ec2() -> bool:
+    """Check if we're running on an EC2 instance with valid IAM role credentials."""
+    try:
+        # First try IMDSv2 (more secure)
+        token_response = requests.put(
+            "http://169.254.169.254/latest/api/token",
+            headers={"X-aws-ec2-metadata-token-ttl-seconds": "21600"},
+            timeout=1
+        )
+        if token_response.status_code == 200:
+            token = token_response.text
+            response = requests.get(
+                "http://169.254.169.254/latest/meta-data/iam/security-credentials/",
+                headers={"X-aws-ec2-metadata-token": token},
+                timeout=1
+            )
+            if response.status_code == 200 and response.text:
+                return True
+
+        # Fallback to IMDSv1 if IMDSv2 fails
+        response = requests.get(
+            "http://169.254.169.254/latest/meta-data/iam/security-credentials/",
+            timeout=1
+        )
+        return response.status_code == 200 and response.text
+    except (requests.exceptions.RequestException, json.JSONDecodeError):
+        return False
+
 def setup_metta_environment(
     cfg: DictConfig,
     require_aws: bool = True,
@@ -28,7 +58,8 @@ def setup_metta_environment(
         # Check that ~/.aws/credentials exist or env var AWS_PROFILE is set.
         if not os.path.exists(os.path.expanduser("~/.aws/sso/cache")) and \
             "AWS_ACCESS_KEY_ID" not in os.environ and \
-            "AWS_SECRET_ACCESS_KEY" not in os.environ:
+            "AWS_SECRET_ACCESS_KEY" not in os.environ and \
+            not check_ec2():
             print("AWS is not configured, please install:")
             print("brew install awscli")
             print("and run:")
