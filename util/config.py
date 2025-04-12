@@ -16,13 +16,6 @@ def config_from_path(config_path: str, overrides: DictConfig = None) -> DictConf
         env_cfg = OmegaConf.merge(env_cfg, overrides)
     return env_cfg
 
-def try_read_file(path: str) -> str:
-    try:
-        with open(path, "r") as f:
-            return f.read()
-    except FileNotFoundError:
-        return ""
-
 def check_aws_credentials() -> bool:
     """Check if valid AWS credentials are available from any source."""
     if "AWS_ACCESS_KEY_ID" in os.environ and "AWS_SECRET_ACCESS_KEY" in os.environ:
