@@ -11,7 +11,7 @@ import torch
 import torch.distributed as dist
 from fast_gae import fast_gae
 from omegaconf import OmegaConf
-import heavyball
+from heavyball import ForeachMuon
 
 from util.config import config_from_path
 import wandb
@@ -127,7 +127,7 @@ class PufferTrainer:
         self.epoch = checkpoint.epoch
 
         assert self.trainer_cfg.optimizer.type in ('adam', 'muon')
-        opt_cls = torch.optim.Adam if self.trainer_cfg.optimizer.type == 'adam' else heavyball.utils.ForeachMuon
+        opt_cls = torch.optim.Adam if self.trainer_cfg.optimizer.type == 'adam' else ForeachMuon
         self.optimizer = opt_cls(
             self.policy.parameters(),
             lr=self.trainer_cfg.optimizer.learning_rate,
