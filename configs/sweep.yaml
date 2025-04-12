@@ -2,7 +2,7 @@ defaults:
   - common
   - wandb: metta_research
   - agent: simple
-  - eval: eval
+  - eval: navigation
   - analyzer: eval_analyzer
   - trainer: puffer
 
@@ -18,20 +18,6 @@ num_random_samples: 10
 
 trainer:
   evaluate_interval: 300
-
-eval:
-  env: env/mettagrid-base/simple
-  num_envs: 25
-  num_episodes: 25
-  max_time_s: 600
-  policy_agents_pct: 1.0
-  eval_db_uri: ${..run_dir}/eval_stats.json
-
-analyzer:
-  analysis:
-    metrics:
-      - metric: episode_reward
-      - metric: heart.get
 
 sweep_dir: "${.data_dir}/sweep/${.sweep_name}"
 runs_dir: "${.sweep_dir}/runs"
