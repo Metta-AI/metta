@@ -37,7 +37,7 @@ def upload_to_s3(content: str, s3_path: str):
         )
         logger.info(f"Successfully uploaded to {s3_path}")
     except NoCredentialsError as e:
-        logger.error("AWS credentials not found. Make sure AWS credentials are configured.")
+        logger.error("AWS credentials not found. Make sure AWS credentials are configured. Try running setup_sso.py.")
         raise e
     except Exception as e:
         logger.error(f"Error uploading to S3: {e}")
