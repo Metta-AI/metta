@@ -1,13 +1,14 @@
+import copy
 from omegaconf import OmegaConf
 from omegaconf import OmegaConf, DictConfig
-from mettagrid.mettagrid_env import MettaGridEnv
 import pufferlib
 import pufferlib.utils
 import pufferlib.vector
 import hydra
+from mettagrid.mettagrid_env import MettaGridEnv
 
 def make_env_func(cfg: DictConfig, buf=None, render_mode='rgb_array'):
-    return hydra.utils.instantiate(cfg, cfg, render_mode=render_mode, buf=buf)
+    return MettaGridEnv(cfg, buf=buf, render_mode=render_mode)
 
 def make_vecenv(
     env_cfg: OmegaConf,
@@ -30,7 +31,7 @@ def make_vecenv(
         raise ValueError('Invalid --vector (serial/multiprocessing/ray).')
 
     vecenv_args = dict(
-        env_kwargs=dict(cfg=env_cfg, render_mode=render_mode),
+        env_kwargs=dict(cfg = dict(**env_cfg), render_mode=render_mode),
         num_envs=num_envs,
         num_workers=num_workers,
         batch_size=batch_size or num_envs,
