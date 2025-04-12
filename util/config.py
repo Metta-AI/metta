@@ -2,6 +2,8 @@ import os
 import hydra
 from omegaconf import DictConfig, OmegaConf
 import wandb
+import boto3
+from botocore.exceptions import NoCredentialsError, ClientError
 
 def config_from_path(config_path: str, overrides: DictConfig = None) -> DictConfig:
     env_cfg = hydra.compose(config_name=config_path)
@@ -16,9 +18,27 @@ def config_from_path(config_path: str, overrides: DictConfig = None) -> DictConf
         env_cfg = OmegaConf.merge(env_cfg, overrides)
     return env_cfg
 
-def read_file(path: str) -> str:
-    with open(path, "r") as f:
-        return f.read()
+def check_aws_credentials() -> bool:
+    """Check if valid AWS credentials are available from any source."""
+    if "AWS_ACCESS_KEY_ID" in os.environ and "AWS_SECRET_ACCESS_KEY" in os.environ:
+        # This check is primarily for github actions.
+        return True
+    try:
+        sts = boto3.client('sts')
+        sts.get_caller_identity()
+        return True
+    except (NoCredentialsError, ClientError):
+        return False
+
+def check_wandb_credentials() -> bool:
+    """Check if valid W&B credentials are available."""
+    if "WANDB_API_KEY" in os.environ:
+        # This check is primarily for github actions.
+        return True
+    try:
+        return wandb.login(anonymous="never", timeout=10)
+    except Exception:
+        return False
 
 def setup_metta_environment(
     cfg: DictConfig,
@@ -27,10 +47,7 @@ def setup_metta_environment(
 ):
     if require_aws:
         # Check that AWS is good to go.
-        # Check that ~/.aws/credentials exist or env var AWS_PROFILE is set.
-        if not os.path.exists(os.path.expanduser("~/.aws/sso/cache")) and \
-            "AWS_ACCESS_KEY_ID" not in os.environ and \
-            "AWS_SECRET_ACCESS_KEY" not in os.environ:
+        if not check_aws_credentials():
             print("AWS is not configured, please install:")
             print("brew install awscli")
             print("and run:")
@@ -39,9 +56,7 @@ def setup_metta_environment(
             exit(1)
     if cfg.wandb.track and require_wandb:
         # Check that W&B is good to go.
-        # Open ~/.netrc file and see if there is a api.wandb.ai entry.
-        if "api.wandb.ai" not in read_file(os.path.expanduser("~/.netrc")) and \
-            "WANDB_API_KEY" not in os.environ:
+        if not check_wandb_credentials():
             print("W&B is not configured, please install:")
             print("pip install wandb")
             print("and run:")
