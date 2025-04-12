@@ -124,17 +124,14 @@ class EvalStatsAnalyzer:
 
         evals = metric_data[eval].unique()
 
-        if len(evals) > 1:
-            candidate_data = pd.DataFrame(metric_data.loc[candidate_uri]).set_index(eval)
-            baseline_data = metric_data.loc[baseline_policies].set_index(eval)
+        candidate_data = pd.DataFrame(metric_data.loc[[candidate_uri]]).set_index(eval)
+        baseline_data = metric_data.loc[baseline_policies].set_index(eval)
 
         for eval in evals:
-            if len(evals) == 1:
-                candidate_mean = metric_data.loc[candidate_uri][metric_mean] or 0
-                baseline_mean = np.mean(metric_data.loc[baseline_policies][metric_mean]) or 0
-            else:
-                candidate_mean = candidate_data.loc[eval][metric_mean] or 0
-                baseline_mean = np.mean(baseline_data.loc[eval][metric_mean]) or 0
+            # Here the candidates get a score of 0 if the eval is not in the data. We should
+            # consider some sort of "N/A" instead.
+            candidate_mean = candidate_data.loc[eval][metric_mean] if eval in candidate_data else 0
+            baseline_mean = np.mean(baseline_data.loc[eval][metric_mean]) if eval in baseline_data else 0
 
             fitness = candidate_mean - baseline_mean
 
