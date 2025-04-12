@@ -5,6 +5,7 @@ sympy==1.13.1
 numpy==1.26.4
 
 # Required for running.
+awscli>=1.38.33
 boto3>=1.35.69
 colorama>=0.4.6
 duckdb>=1.2.0
