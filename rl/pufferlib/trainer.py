@@ -209,7 +209,7 @@ class PufferTrainer:
         analyzer = hydra.utils.instantiate(self.cfg.analyzer, eval_stats_db)
         _, policy_fitness_records = analyzer.analyze()
         self._eval_results = policy_fitness_records
-        self._current_eval_score = np.sum([r["baseline_mean"] for r in self._eval_results if r["metric"] == "episode_reward"])
+        self._current_eval_score = np.sum([r["candidate_mean"] for r in self._eval_results if r["metric"] == "episode_reward"])
 
 
     def _update_l2_init_weight_copy(self):
@@ -539,13 +539,20 @@ class PufferTrainer:
             if k in self.stats:
                 overview[v] = self.stats[k]
 
-        navigation_score = np.mean([r["candidate_mean"] for r in self._eval_results if "navigation" in r["eval"]])
-        object_use_score = np.mean([r["candidate_mean"] for r in self._eval_results if "object_use" in r["eval"]])
+        navigation_eval_metrics = {}
+        if len(self._eval_results) > 0:
+            navigation_score = np.mean([r["candidate_mean"] for r in self._eval_results if "navigation" in r["eval"]])
+            if not np.isnan(navigation_score):
+                overview["navigation_evals"] = navigation_score
 
-        if not np.isnan(navigation_score):
-            overview["navigation_evals"] = navigation_score
-        if not np.isnan(object_use_score):
-            overview["object_use_evals"] = object_use_score
+            navigation_eval_metrics = {
+                f'navigation_evals/{r["eval"].split("/")[-1]}:{r["metric"]}': r["candidate_mean"]
+                for r in self._eval_results if "navigation" in r["eval"]
+            }
+        # object_use_score = np.mean([r["candidate_mean"] for r in self._eval_results if "object_use" in r["eval"]])
+
+        # if not np.isnan(object_use_score):
+        #     overview["object_use_evals"] = object_use_score
 
         environment = {
             f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v
@@ -557,15 +564,11 @@ class PufferTrainer:
             for r in self._eval_results
         }
 
-        navigation_eval_metrics = {
-            f'navigation_evals/{r["eval"].split("/")[-1]}:{r["metric"]}': r["candidate_mean"]
-            for r in self._eval_results if "navigation" in r["eval"]
-        }
 
-        object_use_eval_metrics = {
-            f'object_use_evals/{r["eval"].split("/")[-1]}:{r["metric"]}': r["candidate_mean"]
-            for r in self._eval_results if "object_use" in r["eval"]
-        }
+        # object_use_eval_metrics = {
+        #     f'object_use_evals/{r["eval"].split("/")[-1]}:{r["metric"]}': r["candidate_mean"]
+        #     for r in self._eval_results if "object_use" in r["eval"]
+        # }
 
         effective_rank_metrics = {
             f'train/effective_rank/{rank["name"]}': rank["effective_rank"]
@@ -581,7 +584,7 @@ class PufferTrainer:
                 **policy_fitness_metrics,
                 **effective_rank_metrics,
                 **navigation_eval_metrics,
-                **object_use_eval_metrics,
+                # **object_use_eval_metrics,
                 "train/agent_step": agent_steps,
                 "train/epoch": epoch,
                 "train/learning_rate": learning_rate,

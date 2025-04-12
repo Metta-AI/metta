@@ -128,12 +128,24 @@ class EvalStatsAnalyzer:
         baseline_data = metric_data.loc[baseline_policies].set_index(eval)
 
         for eval in evals:
-            # Here the candidates get a score of 0 if the eval is not in the data. We should
-            # consider some sort of "N/A" instead.
-            candidate_mean = candidate_data.loc[eval][metric_mean] if eval in candidate_data else 0
-            baseline_mean = np.mean(baseline_data.loc[eval][metric_mean]) if eval in baseline_data else 0
+            if len(evals) == 1:
+                candidate_mean = metric_data.loc[candidate_uri][metric_mean] or 0
+                baseline_mean = np.mean(metric_data.loc[baseline_policies][metric_mean]) or 0
+            else:
+                candidate_mean = candidate_data.loc[eval][metric_mean] or 0
+                baseline_mean = np.mean(baseline_data.loc[eval][metric_mean]) or 0
 
             fitness = candidate_mean - baseline_mean
 
             policy_fitness.append({"eval": eval, "metric": metric_name, "candidate_mean": candidate_mean, "baseline_mean": baseline_mean, "fitness": fitness})
+
+        # for eval in evals:
+        #     # Here the candidates get a score of 0 if the eval is not in the data. We should
+        #     # consider some sort of "N/A" instead.
+        #     candidate_mean = candidate_data.loc[eval][metric_mean] if eval in candidate_data else 0
+        #     baseline_mean = np.mean(baseline_data.loc[eval][metric_mean]) if eval in baseline_data else 0
+
+        #     fitness = candidate_mean - baseline_mean
+
+        #     policy_fitness.append({"eval": eval, "metric": metric_name, "candidate_mean": candidate_mean, "baseline_mean": baseline_mean, "fitness": fitness})
         return policy_fitness
