@@ -42,7 +42,7 @@ def check_wandb_credentials() -> bool:
 
 def setup_metta_environment(
     cfg: DictConfig,
-    require_aws: bool = True,
+    require_aws: bool = False,
     require_wandb: bool = True
 ):
     if require_aws:
