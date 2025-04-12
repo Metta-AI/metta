@@ -1,17 +1,18 @@
 import copy
 import wandb
 import os
+import sys
 from omegaconf import OmegaConf
 
 class WandbContext:
-    def __init__(self, cfg, resume=True, name=None, run_id=None, data_dir=None):
+    def __init__(self, cfg, job_type=None, resume=True, name=None, run_id=None, data_dir=None):
         self.cfg = cfg
         self.resume = resume
         self.name = name or cfg.wandb.name
         self.run_id = cfg.wandb.run_id or self.cfg.run or wandb.util.generate_id()
         self.run = None
         self.data_dir = data_dir or self.cfg.run_dir
-
+        self.job_type = job_type
     def __enter__(self):
         if not self.cfg.wandb.enabled:
             assert not self.cfg.wandb.track, "wandb.track won't work if wandb.enabled is False"
@@ -20,6 +21,7 @@ class WandbContext:
         cfg = copy.deepcopy(self.cfg)
         self.run = wandb.init(
             id=self.run_id,
+            job_type=self.job_type,
             project=self.cfg.wandb.project,
             entity=self.cfg.wandb.entity,
             config=OmegaConf.to_container(cfg, resolve=False),
@@ -43,7 +45,7 @@ class WandbContext:
 
     @staticmethod
     def make_run(cfg, resume=True, name=None):
-        return WandbContext(cfg, resume, name).__enter__()
+        return WandbContext(cfg, resume=resume, name=name).__enter__()
 
     @staticmethod
     def cleanup_run(run):

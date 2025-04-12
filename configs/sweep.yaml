@@ -20,7 +20,7 @@ trainer:
   evaluate_interval: 0
 
 eval:
-  env: env/mettagrid/simple
+  env: env/mettagrid-base/simple
   num_envs: 25
   num_episodes: 25
   max_time_s: 600

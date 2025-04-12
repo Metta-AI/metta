@@ -18,7 +18,7 @@ def seed_everything(seed, torch_deterministic):
         torch.manual_seed(seed)
     torch.backends.cudnn.deterministic = torch_deterministic
 
-def setup_metta_environment(cfg):
+def setup_mettagrid_environment(cfg):
     # Set environment variables to run without display
     os.environ['GLFW_PLATFORM'] = 'osmesa'  # Use OSMesa as the GLFW backend
     os.environ['SDL_VIDEODRIVER'] = 'dummy'
@@ -41,4 +41,3 @@ def setup_metta_environment(cfg):
     seed_everything(cfg.seed, cfg.torch_deterministic)
     os.makedirs(cfg.run_dir, exist_ok=True)
     signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
-
