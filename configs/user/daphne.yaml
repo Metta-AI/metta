@@ -43,7 +43,7 @@ eval:
   num_envs: 10
   num_episodes: 16
   max_time_s: 600
-  env: /env/mettagrid/navigation/training/terrain_labyrinth
+  env: /env/mettagrid-base/simple
 
   policy_uri: ${..policy_uri}
   # npc_policy_uri: ${..npc_policy_uri}

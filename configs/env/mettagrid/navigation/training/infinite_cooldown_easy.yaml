@@ -1,3 +1,4 @@
+
 defaults:
   - /env/mettagrid-base/mettagrid@
 
@@ -5,23 +6,26 @@ sampling: 5
 
 game:
   num_agents: 20
+
   map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom
     num_rooms: 20
     border_width: 6
 
     room:
-      _target_: mettagrid.config.room.varied_obstacle_shapes.VariedObstacleShapes
-      width: ${uniform:40,100,30}
-      height: ${uniform:40,100,30}
+      _target_: mettagrid.config.room.random.Random
+      width: ${uniform:15,100,30}
+      height: ${uniform:15,100,30}
       border_width: ${uniform:1,6,3}
+
       agents: 1
+
       objects:
-         altar: ${uniform:20,80,30}
-         wall: ${uniform:12,70,30}  # 'wall' value determines the number of obstacles
+        altar: ${uniform:50,100,75}
+        wall: ${uniform:20,60,25}
 
   objects:
-    altar.red:
+    altar:
       cooldown: 255
       initial_items: 1
 
