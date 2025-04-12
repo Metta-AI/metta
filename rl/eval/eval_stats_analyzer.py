@@ -127,6 +127,7 @@ class EvalStatsAnalyzer:
         candidate_data = pd.DataFrame(metric_data.loc[[candidate_uri]]).set_index(eval)
         baseline_data = metric_data.loc[baseline_policies].set_index(eval)
 
+
         for eval in evals:
             if len(evals) == 1:
                 candidate_mean = metric_data.loc[candidate_uri][metric_mean] or 0
