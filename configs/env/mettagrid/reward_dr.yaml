@@ -1,6 +1,6 @@
 
 defaults:
-  - simple
+  - /env/mettagrid-base/simple@
 
 game:
   agent:

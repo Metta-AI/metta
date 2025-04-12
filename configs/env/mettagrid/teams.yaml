@@ -1,5 +1,5 @@
 defaults:
-  - simple
+  - /env/mettagrid-base/simple@
 
 game:
   group_reward_pct: 0.5
