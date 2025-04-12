@@ -124,8 +124,11 @@ class PufferTrainer:
 
         self.agent_step = checkpoint.agent_step
         self.epoch = checkpoint.epoch
-        self.optimizer = torch.optim.Adam(self.policy.parameters(),
-            lr=self.trainer_cfg.learning_rate, eps=1e-5)
+
+        # Initialize optimizer using Hydra instantiation
+        optimizer_cfg = OmegaConf.to_container(self.trainer_cfg.optimizer, resolve=True)
+        optimizer_cfg['params'] = self.policy.parameters()
+        self.optimizer = hydra.utils.instantiate(optimizer_cfg)
 
         if checkpoint.agent_step > 0:
             self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)

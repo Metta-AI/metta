@@ -12,12 +12,22 @@ clip_coef: 0.1
 ent_coef: 0.002
 gae_lambda: 0.9
 gamma: 0.97
-learning_rate: 0.0006
 max_grad_norm: 0.5
 vf_clip_coef: 0.1
 vf_coef: 0.5
 l2_reg_loss_coef: 0
 l2_init_loss_coef: 0
+
+optimizer:
+  _target_: torch.optim.Adam
+  lr: 0.0006
+  eps: 1e-5
+  # For Muon optimizer, use:
+  # _target_: muon.Muon
+  # lr: 0.0006
+  # betas: [0.9, 0.999]
+  # eps: 1e-8
+  # weight_decay: 0.0
 
 norm_adv: true
 clip_vloss: true
