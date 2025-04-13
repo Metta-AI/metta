@@ -16,7 +16,6 @@ import re
 import subprocess
 import sys
 from dataclasses import dataclass
-from pathlib import Path
 from typing import List, Optional, Tuple
 
 try:
@@ -173,9 +172,7 @@ class AutoRuffFix:
         """
         context_str = "\n".join(error.context_lines)
 
-        prompt = f"""
-I need to fix a Ruff linting error in my Python code. Please help me generate a diff that only 
-contains the changes needed to fix this specific issue.
+        prompt = f"""I need to fix a Ruff linting error in my Python code. Please help me generate a diff that only contains the changes needed to fix this specific issue.
 
 File: {error.file_path}
 Error: {error.error_code} at line {error.line_number}, column {error.column}
@@ -191,9 +188,14 @@ Here's the full file content:
 {file_content}
 ```
 
-Please generate a unified diff that contains ONLY the changes needed to fix this specific 
-{error.error_code} error. The diff should use the standard unified diff format with @@ line
-markers. Include ONLY the diff and enclose it between <diff> and </diff> tags.
+Please generate a unified diff that contains ONLY the minimal changes needed to fix this specific {error.error_code} error. The diff should use the standard unified diff format with @@ line markers. 
+
+Important rules:
+1. The diff should change as few lines as possible - ideally just the problematic line
+2. Make sure any changed Python code is syntactically valid
+3. Do not use wildcard characters like * in the Python code
+4. For line length issues (E501), prefer simple formatting fixes like line breaks
+5. Include ONLY the diff and enclose it between <diff> and </diff> tags
 
 Example of the format I need:
 <diff>
@@ -208,18 +210,14 @@ Example of the format I need:
 """
 
         if self.verbose:
-            print(
-                f"Sending request to Claude for "
-                f"{error.file_path}:{error.line_number} ({error.error_code})"
-            )
+            print(f"Sending request to Claude for {error.file_path}:{error.line_number} ({error.error_code})")
 
         try:
             response = self.client.messages.create(
                 model=self.model,
                 max_tokens=1000,
                 temperature=0.0,
-                system="You are an expert Python developer who specializes in fixing code style and"
-                "linting issues. You provide precise, minimal diffs to fix specific issues.",
+                system="You are an expert Python developer who specializes in fixing code style and linting issues. You provide precise, minimal diffs to fix specific issues.",
                 messages=[{"role": "user", "content": prompt}],
             )
 
@@ -228,12 +226,24 @@ Example of the format I need:
             diff_match = re.search(r"<diff>(.*?)</diff>", content, re.DOTALL)
 
             if diff_match:
-                return diff_match.group(1).strip()
+                diff_content = diff_match.group(1).strip()
+
+                # Validate the diff - make sure it doesn't have any wildcard characters
+                # that would make invalid Python syntax
+                if "*" in diff_content and re.search(r"[+].*\*.*\*", diff_content):
+                    print(f"Invalid diff generated for {error.file_path}:{error.line_number} ({error.error_code})")
+                    print("Diff contains wildcard characters that would create invalid Python")
+
+                    # Try to fix the diff by replacing wildcard patterns
+                    # This is a simple fix for patterns like "*, X, *" which are likely SVD unpacking
+                    diff_content = re.sub(r"([+].*)\*, (.*?), \*(.*)", r"\1_, \2, _\3", diff_content)
+
+                    if self.verbose:
+                        print(f"Attempted to fix diff:\n{diff_content}")
+
+                return diff_content
             else:
-                print(
-                    f"Failed to extract diff for "
-                    f"{error.file_path}:{error.line_number} ({error.error_code})"
-                )
+                print(f"Failed to extract diff for {error.file_path}:{error.line_number} ({error.error_code})")
                 if self.verbose:
                     print(f"Claude response: {content}")
                 return None
@@ -243,46 +253,154 @@ Example of the format I need:
             return None
 
     def apply_diff(self, file_path: str, diff_content: str) -> bool:
-        """Apply the diff to the file using the patch command.
+        """Apply the diff using a robust string replacement approach.
+
+        This bypasses the patch command entirely and just looks for the specific lines to replace.
 
         Args:
             file_path: Path to the file to be patched
             diff_content: The diff content to apply
 
         Returns:
-            True if patch was successfully applied, False otherwise
+            True if replacement was applied, False otherwise
         """
-        # Write the diff to a temporary file
-        diff_file = Path(f"{file_path}.patch")
         try:
+            # Write the diff to a temporary file (for reference)
+            diff_file = f"{file_path}.patch"
             with open(diff_file, "w", encoding="utf-8") as f:
                 f.write(diff_content)
 
-            # Apply the patch
-            cmd = ["patch", file_path, diff_file]
+            # Read the original file
+            with open(file_path, "r", encoding="utf-8") as f:
+                file_content = f.read()
+
+            # Parse the diff to extract what needs to be changed
+            old_text = ""
+            new_text = ""
+
+            in_content = False
+            for line in diff_content.split("\n"):
+                if line.startswith("@@"):
+                    in_content = True
+                    old_text = ""
+                    new_text = ""
+                elif in_content:
+                    if line.startswith("-"):
+                        if old_text:
+                            old_text += "\n"
+                        old_text += line[1:]
+                    elif line.startswith("+"):
+                        if new_text:
+                            new_text += "\n"
+                        new_text += line[1:]
+
+            if not old_text or not new_text:
+                print(f"Could not extract changes from diff for {file_path}")
+                return False
+
             if self.verbose:
-                print(f"Running: {' '.join(cmd)}")
+                print(f"Looking to replace:\n{old_text}\n\nWith:\n{new_text}")
 
-            result = subprocess.run(cmd, check=False, capture_output=True, text=True)
+            # Find and replace the old text with the new text
+            if old_text in file_content:
+                modified_content = file_content.replace(old_text, new_text)
 
-            if result.returncode == 0:
+                with open(file_path, "w", encoding="utf-8") as f:
+                    f.write(modified_content)
+
                 print(f"Successfully applied fix to {file_path}")
-                os.unlink(diff_file)
+                os.unlink(diff_file)  # Remove the patch file on success
                 return True
             else:
-                print(f"Failed to apply patch to {file_path}")
-                print(f"Patch output: {result.stdout}")
-                print(f"Patch error: {result.stderr}")
+                # Try with normalized whitespace
+                import re
+
+                # First, try a more relaxed match with flexible whitespace
+                escaped_text = re.escape(old_text.strip()).replace("\\ ", "\\s+")
+                pattern = re.compile(escaped_text, re.MULTILINE)
+                if pattern.search(file_content):
+                    modified_content = pattern.sub(new_text, file_content)
+
+                    with open(file_path, "w", encoding="utf-8") as f:
+                        f.write(modified_content)
+
+                    print(f"Successfully applied fix to {file_path} (relaxed match)")
+                    os.unlink(diff_file)
+                    return True
+
+                # If still not found, try a line-by-line approach
+                # for long files, this can be time-consuming, so we'll use it as a last resort
+                file_lines = file_content.split("\n")
+                old_lines = old_text.split("\n")
+
+                if len(old_lines) > 1:  # Only try this for multi-line replacements
+                    from difflib import get_close_matches
+
+                    # Find the best matching line for the first line of old_text
+                    first_line = old_lines[0].strip()
+                    matches = []
+
+                    # Look for potential matches
+                    for i, line in enumerate(file_lines):
+                        if first_line in line:
+                            matches.append((i, line))
+
+                    # If no direct substring matches, try fuzzy matching
+                    if not matches:
+                        matches = [
+                            (file_lines.index(match), match)
+                            for match in get_close_matches(first_line, file_lines, n=5, cutoff=0.7)
+                        ]
+
+                    if matches:
+                        for match_idx, match in matches:
+                            # Check if the next lines also match
+                            if match_idx + len(old_lines) > len(file_lines):
+                                continue  # Not enough lines left
+
+                            # Look for a sequence match
+                            matched_section = "\n".join(file_lines[match_idx : match_idx + len(old_lines)])
+                            if self._text_similar(matched_section, old_text):
+                                # Replace the matching lines with the new lines
+                                new_lines = new_text.split("\n")
+
+                                # Update file_lines with the new content
+                                file_lines[match_idx : match_idx + len(old_lines)] = new_lines
+
+                                # Write the modified content back
+                                modified_content = "\n".join(file_lines)
+                                with open(file_path, "w", encoding="utf-8") as f:
+                                    f.write(modified_content)
+
+                                print(f"Successfully applied fix to {file_path} (fuzzy line match)")
+                                os.unlink(diff_file)
+                                return True
+
+                # If everything fails, keep the patch file for manual inspection
+                print(f"Could not find the text to replace in {file_path}")
                 print(f"Diff saved to {diff_file}")
+
+                # Also save specific instructions for manual fixing
+                with open(f"{file_path}.manual_fix", "w", encoding="utf-8") as f:
+                    f.write(f"Original text to find:\n{old_text}\n\nNew text to replace with:\n{new_text}")
+
+                print(f"Manual fix instructions saved to {file_path}.manual_fix")
                 return False
 
         except Exception as e:
             print(f"Error applying diff to {file_path}: {e}")
+            import traceback
+
+            traceback.print_exc()
             return False
 
-    def fix_errors(
-        self, errors: List[RuffError], max_errors: Optional[int] = None
-    ) -> Tuple[int, int]:
+    def _text_similar(self, text1, text2, threshold=0.8):
+        """Check if two text blocks are similar enough."""
+        import difflib
+
+        return difflib.SequenceMatcher(None, text1, text2).ratio() >= threshold
+
+    def fix_errors(self, errors: List[RuffError], max_errors: Optional[int] = None) -> Tuple[int, int]:
         """Fix the given Ruff errors.
 
         Args:
@@ -301,9 +419,7 @@ Example of the format I need:
         for error in errors:
             attempted_count += 1
             print(
-                f"Fixing error {attempted_count}/{len(errors)}: "
-                f"{error.file_path}:{error.line_number} - "
-                f"{error.error_code} {error.message}"
+                f"Fixing error {attempted_count}/{len(errors)}: {error.file_path}:{error.line_number} - {error.error_code} {error.message}"
             )
 
             file_content = self.get_file_content(error.file_path)
@@ -331,9 +447,7 @@ def main():
         default="claude-3-7-sonnet-20250219",
         help="Claude model to use (default: claude-3-7-sonnet-20250219)",
     )
-    parser.add_argument(
-        "--api-key", help="Anthropic API key (can also use ANTHROPIC_API_KEY env var)"
-    )
+    parser.add_argument("--api-key", help="Anthropic API key (can also use ANTHROPIC_API_KEY env var)")
 
     args = parser.parse_args()
 
