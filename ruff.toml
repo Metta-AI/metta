@@ -1,7 +1,7 @@
 # Maximum line length (characters)
-line-length = 100
+line-length = 120
 # Specify the target Python version for compatibility checks
-target-version = "py310"
+target-version = "py311"
 
 # Exclude directories from linting
 # These are common directories that typically don't need linting
