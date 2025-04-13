@@ -7,7 +7,7 @@
       "source.fixAll": "explicit",
       "source.organizeImports": "explicit"
     },
-    "editor.rulers": [100],
+    "editor.rulers": [120],
     "editor.renderWhitespace": "all"
   },
   "[yaml]": {
