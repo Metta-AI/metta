@@ -2,11 +2,12 @@ import os
 import signal  # Aggressively exit on ctrl+c
 
 import hydra
+
 from agent.policy_store import PolicyStore
-from util.config import config_from_path
-from util.runtime_configuration import setup_mettagrid_environment
 from rl.pufferlib.play import play
 from rl.wandb.wandb_context import WandbContext
+from util.config import config_from_path
+from util.runtime_configuration import setup_mettagrid_environment
 
 signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
 

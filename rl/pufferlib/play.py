@@ -1,9 +1,11 @@
-from omegaconf import OmegaConf
-import torch
 import numpy as np
+import torch
 from mettagrid.renderer.raylib.raylib_renderer import MettaGridRaylibRenderer
-from rl.pufferlib.vecenv import make_vecenv
+from omegaconf import OmegaConf
+
 from agent.policy_store import PolicyStore
+from rl.pufferlib.vecenv import make_vecenv
+
 
 def play(cfg: OmegaConf, policy_store: PolicyStore):
     device = cfg.device

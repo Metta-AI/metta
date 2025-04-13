@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 import argparse
+import getpass
 import os
 import subprocess
-import getpass
 import sys
 import time
-from pathlib import Path
 import traceback
+from pathlib import Path
+
 
 # ANSI color codes for terminal output
 class Colors:
@@ -45,7 +46,7 @@ def run_command(cmd, check=True, capture_output=False):
         result = subprocess.run(cmd, shell=True, check=check,
                                capture_output=capture_output, text=True)
         if result.returncode == 0:
-            print_status(f"Command completed successfully")
+            print_status("Command completed successfully")
         else:
             print_warning(f"Command exited with code {result.returncode}")
 
@@ -110,10 +111,10 @@ def setup_root_profile():
                         f.write(f"{line}\n")
 
             # Write stem-root profile
-            f.write(f"[stem-root]\n")
+            f.write("[stem-root]\n")
             f.write(f"aws_access_key_id = {aws_access_key_id}\n")
             f.write(f"aws_secret_access_key = {aws_secret_access_key}\n")
-            f.write(f"region = us-east-1\n")
+            f.write("region = us-east-1\n")
         print_success("Successfully updated credentials file")
     except Exception as e:
         print_error(f"Error writing to credentials file: {e}")
@@ -155,9 +156,9 @@ def setup_root_profile():
                         f.write(f"{line}\n")
 
             # Write stem-root profile
-            f.write(f"[profile stem-root]\n")
-            f.write(f"region = us-east-1\n")
-            f.write(f"output = json\n")
+            f.write("[profile stem-root]\n")
+            f.write("region = us-east-1\n")
+            f.write("output = json\n")
         print_success("Successfully updated config file")
     except Exception as e:
         print_error(f"Error writing to config file: {e}")
@@ -374,14 +375,14 @@ def main():
         parser.add_argument('--root', action='store_true', help='Set up root account access only (skips SSO)')
         args = parser.parse_args()
 
-        print_status(f"Starting AWS setup script (Python version)")
+        print_status("Starting AWS setup script (Python version)")
 
         if args.root:
-            print_status(f"Mode: Root Account Only")
+            print_status("Mode: Root Account Only")
             print_status("Root account setup requested, skipping SSO setup")
             setup_root_profile()
         else:
-            print_status(f"Mode: SSO Only")
+            print_status("Mode: SSO Only")
             setup_sso_profile()
             print_status("Root account setup not requested (use --root flag to set up root credentials)")
 

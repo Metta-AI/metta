@@ -1,13 +1,9 @@
 from copy import deepcopy
-from typing import Union
 
 import gymnasium as gym
-
-
-from sample_factory.envs.env_utils import TrainingInfoInterface
-from pettingzoo import utils as pettingzoo_utils
-
 import numpy as np
+from sample_factory.envs.env_utils import TrainingInfoInterface
+
 
 class SampleFactoryEnvWrapper(gym.Env, TrainingInfoInterface):
 

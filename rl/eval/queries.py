@@ -1,5 +1,7 @@
+from typing import Any, Dict
+
 from omegaconf import OmegaConf
-from typing import Dict, Any
+
 
 def all_fields():
     return "SELECT * FROM eval_data"

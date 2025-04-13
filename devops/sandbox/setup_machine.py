@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 
+import argparse
 import os
 import subprocess
 import sys
-import argparse
 from pathlib import Path
+
 
 def run_command(command, check=True):
     """Run a shell command and return its output."""
@@ -49,7 +50,7 @@ def run_brew_bundle(force=False, no_fail=False):
 
     try:
         run_command(command)
-    except subprocess.CalledProcessError as e:
+    except subprocess.CalledProcessError:
         if not force and not no_fail:
             print("\nSome packages are already installed but not managed by Homebrew.")
             print("To proceed, run the script with one of these options:")

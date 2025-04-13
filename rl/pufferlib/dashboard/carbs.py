@@ -1,11 +1,11 @@
 
-import numpy as np
 from rich.table import Table
+
 from rl.carbs.carbs_controller import CarbsController
-from .dashboard import DashboardComponent
-from .dashboard import c1, b1, c2, b2, c3, ROUND_OPEN
+
+from .dashboard import ROUND_OPEN, DashboardComponent, abbreviate, c1, c2
 from .training import Training
-from .dashboard import abbreviate
+
 
 class Carbs(DashboardComponent):
     def __init__(self, carbs_controller: CarbsController):

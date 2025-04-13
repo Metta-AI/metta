@@ -11,20 +11,18 @@ The encoder is designed to work with Sample Factory RL framework and MettaAgent 
 """
 
 from __future__ import annotations
+
 from typing import List
-
-from torch import nn
-import torch
-
-
-from .lib.util import make_nn_stack, embed_strings
 
 import numpy as np
 import torch
-
 from omegaconf import OmegaConf
+from torch import nn
+
 from agent.lib.feature_normalizer import FeatureListNormalizer
-from .lib.util import make_nn_stack
+
+from .lib.util import embed_strings, make_nn_stack
+
 
 # this is not currently working
 class FeatureSetEncoder(nn.Module):

@@ -20,6 +20,7 @@ import pufferlib
 import pufferlib.pytorch
 import pufferlib.utils
 
+
 def _fmt_perf(time: float, uptime: float) -> float:
     return 100 * (time / uptime if uptime > 0 else 0)
 

@@ -1,9 +1,12 @@
 import os
-import hydra
-from omegaconf import DictConfig, OmegaConf
-import wandb
+
 import boto3
-from botocore.exceptions import NoCredentialsError, ClientError
+import hydra
+from botocore.exceptions import ClientError, NoCredentialsError
+from omegaconf import DictConfig, OmegaConf
+
+import wandb
+
 
 def config_from_path(config_path: str, overrides: DictConfig = None) -> DictConfig:
     env_cfg = hydra.compose(config_name=config_path)

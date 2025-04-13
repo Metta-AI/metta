@@ -1,11 +1,11 @@
 import torch
-from torch import nn
 from omegaconf import OmegaConf
 from pufferlib.pytorch import layer_init
+from torch import nn
 
-
-from agent.lib.util import name_to_activation
 from agent.lib.observation_normalizer import ObservationNormalizer
+from agent.lib.util import name_to_activation
+
 
 class _ResidualBlock(nn.Module):
     def __init__(self, depth: int, activation: str):
@@ -71,7 +71,7 @@ class IMPALAishCNN(nn.Module):
         grid_width_height = grid_shape[1:]
 
         cnn_blocks = []
-        for in_channels, out_channels in zip(channels, channels[1:]):
+        for in_channels, out_channels in zip(channels, channels[1:], strict=False):
             cnn_blocks.append(_IMPALAishBlock(in_channels, out_channels, cfg.activation))
             grid_width_height = _convolution_shape(grid_width_height, 3, 2)
 

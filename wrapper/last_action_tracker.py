@@ -1,7 +1,6 @@
-from functools import lru_cache
-import re
 import gymnasium as gym
 import numpy as np
+
 
 class LastActionTracker(gym.Wrapper):
     def __init__(self, env):
@@ -13,7 +12,6 @@ class LastActionTracker(gym.Wrapper):
         obs, infos = self.env.reset(**kwargs)
         return self._augment_observations(obs), infos
 
-
     def step(self, actions):
         obs, rewards, terms, truncs, infos = self.env.step(actions)
         self._last_actions = actions
@@ -21,17 +19,13 @@ class LastActionTracker(gym.Wrapper):
         return self._augment_observations(obs), rewards, terms, truncs, infos
 
     def _augment_observations(self, obs):
-        return [{
-            "last_action": self._last_actions[agent],
-            **agent_obs
-        } for agent, agent_obs in enumerate(obs)]
-
+        return [{"last_action": self._last_actions[agent], **agent_obs} for agent, agent_obs in enumerate(obs)]
 
     @property
     def observation_space(self):
-        return gym.spaces.Dict({
-            "last_action": gym.spaces.Box(
-                low=0, high=255, shape=(2,), dtype=np.int32
-            ),
-            **self.env.observation_space.spaces
-        })
+        return gym.spaces.Dict(
+            {
+                "last_action": gym.spaces.Box(low=0, high=255, shape=(2,), dtype=np.int32),
+                **self.env.observation_space.spaces,
+            }
+        )

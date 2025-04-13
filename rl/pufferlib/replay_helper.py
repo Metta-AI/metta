@@ -1,16 +1,17 @@
 # Generate a graphical trace of multiple runs.
 
-import os
 import json
+import os
 import zlib
-import torch
-import pixie
+
 import boto3
-import wandb
 from omegaconf import OmegaConf
+
+import wandb
 from agent.policy_store import PolicyRecord
 from rl.pufferlib.simulator import Simulator
 from rl.wandb.wandb_context import WandbContext
+
 
 class ReplayHelper:
     """ Helper class for generating and uploading replays. """
@@ -65,7 +66,6 @@ class ReplayHelper:
             actions = simulator.actions()
 
             actions_array = actions.cpu().numpy()
-            step_info = []
 
             for i, grid_object in enumerate(simulator.grid_objects()):
                 if len(grid_objects) <= i:
@@ -137,7 +137,7 @@ class ReplayHelper:
         link = f"https://{s3_bucket}.s3.us-east-1.amazonaws.com/{replay_url}"
 
         # Log the link to WandB
-        player_url = f"https://metta-ai.github.io/mettagrid/?replayUrl=" + link
+        player_url = "https://metta-ai.github.io/mettagrid/?replayUrl=" + link
         link_summary = {
             "replays/link": wandb.Html(
                 f'<a href="{player_url}">'

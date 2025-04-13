@@ -1,11 +1,11 @@
 
-import numpy as np
-from rich.table import Table
 from omegaconf import OmegaConf
+from rich.table import Table
 
-from .dashboard import DashboardComponent
-from .dashboard import c1, b1, c2, b2, c3
 import wandb
+
+from .dashboard import DashboardComponent, b2, c1
+
 
 class WanDb(DashboardComponent):
     def __init__(self, wandb_cfg: OmegaConf):

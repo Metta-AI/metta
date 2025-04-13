@@ -2,12 +2,12 @@ import logging
 import os
 import random
 import signal
+import warnings
 
 import numpy as np
 import torch
 from omegaconf import OmegaConf
 from rich import traceback
-import warnings
 
 logger = logging.getLogger("runtime_configuration")
 

@@ -1,16 +1,17 @@
-import torch
 from typing import List, Union
+
+import torch
 from torch.distributions.utils import logits_to_probs
 
 
 def log_prob(logits, value):
     """
     Compute log probability of a value given logits.
-    
+
     Args:
         logits: Unnormalized log probabilities
         value: The value to compute probability for
-        
+
     Returns:
         Log probability of the value
     """
@@ -23,10 +24,10 @@ def log_prob(logits, value):
 def entropy(logits):
     """
     Compute entropy of a categorical distribution given logits.
-    
+
     Args:
         logits: Unnormalized log probabilities
-        
+
     Returns:
         Entropy of the distribution
     """
@@ -39,11 +40,11 @@ def entropy(logits):
 def sample_logits(logits: Union[torch.Tensor, List[torch.Tensor]], action=None):
     """
     Sample actions from logits and compute log probabilities and entropy.
-    
+
     Args:
         logits: Unnormalized log probabilities, either a single tensor or a list of tensors
         action: Optional pre-specified actions to compute probabilities for
-        
+
     Returns:
         Tuple of (action, log_probability, entropy, normalized_logits)
     """
@@ -57,7 +58,7 @@ def sample_logits(logits: Union[torch.Tensor, List[torch.Tensor]], action=None):
 
     assert len(logits) == len(action)
 
-    logprob = torch.stack([log_prob(l, a) for l, a in zip(normalized_logits, action)]).T.sum(1)
+    logprob = torch.stack([log_prob(l, a) for l, a in zip(normalized_logits, action, strict=False)]).T.sum(1)
     logits_entropy = torch.stack([entropy(l) for l in normalized_logits]).T.sum(1)
 
-    return action.T, logprob, logits_entropy, normalized_logits 
+    return action.T, logprob, logits_entropy, normalized_logits

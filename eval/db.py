@@ -2,18 +2,20 @@
 Database interface for storing and querying policy evaluation metrics.
 """
 
+import logging
 import os
 import sqlite3
-import logging
+from typing import Dict, List, Tuple
+
+import hydra
 import pandas as pd
 from omegaconf import DictConfig
 
-from typing import Dict, Tuple, List
-import hydra
-from rl.wandb.wandb_context import WandbContext
 from rl.eval.eval_stats_db import EvalStatsDB
+from rl.wandb.wandb_context import WandbContext
 
 logger = logging.getLogger(__name__)
+
 
 class PolicyEvalDB:
     SCHEMA = """
@@ -41,13 +43,13 @@ class PolicyEvalDB:
         FOREIGN KEY (evaluation_name, metric) REFERENCES evaluations(name, metric)
     );
     """
-    
+
     def __init__(self, db_path: str):
         self.db_path = db_path
         self.conn = self._create_connection(db_path)
         self._init_schema()
-    
-    ## 
+
+    ##
     ## Database Connections
     ##
 
@@ -57,35 +59,35 @@ class PolicyEvalDB:
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
         return conn
-    
+
     def _begin(self):
         self.conn.execute("BEGIN TRANSACTION")
-    
+
     def _commit(self):
         self.conn.commit()
-    
+
     def _rollback(self):
         self.conn.rollback()
-        
+
     def _init_schema(self):
         cursor = self.conn.cursor()
-        
+
         try:
             self._begin()
             cursor.execute("PRAGMA foreign_keys = ON")
-            statements = [s.strip() for s in self.SCHEMA.split(';') if s.strip()]
+            statements = [s.strip() for s in self.SCHEMA.split(";") if s.strip()]
             for statement in statements:
                 cursor.execute(statement)
             self._commit()
             logger.info(f"Schema initialized successfully for {self.db_path}")
-                
+
         except Exception as e:
             self._rollback()
             logger.error(f"Error initializing schema: {e}")
             raise
         finally:
             cursor.close()
-    
+
     def _execute(self, sql: str, params: Tuple = None):
         cursor = self.conn.cursor()
         try:
@@ -96,7 +98,7 @@ class PolicyEvalDB:
             logger.error(f"Query: {sql}")
             logger.error(f"Params: {params}")
             raise
-    
+
     def _executemany(self, sql: str, params_list: List[Tuple]):
         cursor = self.conn.cursor()
         try:
@@ -106,28 +108,28 @@ class PolicyEvalDB:
             logger.error(f"SQL executemany error: {e}")
             logger.error(f"Query: {sql}")
             raise
-    
+
     def query(self, sql: str, params: Tuple = None) -> pd.DataFrame:
         return pd.read_sql_query(sql, self.conn, params=params)
 
     ##
-    ## Data Loading 
+    ## Data Loading
     ##
 
     def _construct_metric_to_df_map(self, cfg: DictConfig, dfs: list) -> Dict[str, pd.DataFrame]:
         metrics = [m.metric for m in cfg.analyzer.analysis.metrics]
-        
+
         if len(metrics) != len(dfs):
             raise ValueError(f"Mismatch between metrics ({len(metrics)}) and dataframes ({len(dfs)})")
-        
+
         metric_to_df = {}
-        for metric, df in zip(metrics, dfs):
+        for metric, df in zip(metrics, dfs, strict=False):
             metric_to_df[metric] = df
-        
+
         return metric_to_df
-    
+
     def short_name(self, name: str) -> str:
-        return name.split('/')[-1]
+        return name.split("/")[-1]
 
     def import_from_eval_stats(self, cfg: DictConfig):
         """
@@ -144,12 +146,11 @@ class PolicyEvalDB:
         analyzer = hydra.utils.instantiate(cfg.analyzer, eval_stats_db)
         dfs, _ = analyzer.analyze(include_policy_fitness=False)
         metric_to_df = self._construct_metric_to_df_map(cfg, dfs)
-        
 
         # Track policies and evaluation metrics we've already created
         created_policies = set()
         created_metrics = set()
-        
+
         # A list to collect all the evaluation results for batch insertion
         results_to_insert = []
 
@@ -160,46 +161,34 @@ class PolicyEvalDB:
                 if df is None or df.empty:
                     logger.warning(f"No data found for metric {metric}")
                     continue
-                    
+
                 logger.info(f"Processing {len(df)} results for metric {metric}")
-                
+
                 # Process each policy-environment pair
                 for _, row in df.iterrows():
-                    policy_uri = row['policy_name']
-                    evaluation_name = row['eval_name']
-                    
+                    policy_uri = row["policy_name"]
+                    evaluation_name = row["eval_name"]
+
                     # Create policy if needed
-                    if policy_uri not in created_policies:   
+                    if policy_uri not in created_policies:
                         cursor = self.conn.execute("SELECT 1 FROM policies WHERE uri = ?", (policy_uri,))
                         if not cursor.fetchone():
-                            self.conn.execute(
-                                "INSERT INTO policies (uri) VALUES (?)",
-                                (policy_uri,)
-                            )
+                            self.conn.execute("INSERT INTO policies (uri) VALUES (?)", (policy_uri,))
                         created_policies.add(policy_uri)
-                    
+
                     # Create metric if needed
                     metric_key = (evaluation_name, metric)
                     if metric_key not in created_metrics:
-                        self._execute(
-                            "INSERT INTO evaluations (name, metric) VALUES (?, ?)",
-                            (evaluation_name, metric)
-                        )
+                        self._execute("INSERT INTO evaluations (name, metric) VALUES (?, ?)", (evaluation_name, metric))
                         created_metrics.add(metric_key)
-                    
+
                     # Extract metric values - find the appropriate column names
-                    mean_col = [col for col in row.index if col.startswith('mean_')][0]
-                    std_col = [col for col in row.index if col.startswith('std_')][0]
-                    
+                    mean_col = [col for col in row.index if col.startswith("mean_")][0]
+                    std_col = [col for col in row.index if col.startswith("std_")][0]
+
                     # Add to batch list
-                    results_to_insert.append((
-                        policy_uri,
-                        evaluation_name,
-                        metric,
-                        row[mean_col],
-                        row[std_col]
-                    ))
-            
+                    results_to_insert.append((policy_uri, evaluation_name, metric, row[mean_col], row[std_col]))
+
             # Insert all results in a batch
             if results_to_insert:
                 # Insert with conflict handling since unique constraint exists
@@ -208,19 +197,21 @@ class PolicyEvalDB:
                     """INSERT OR IGNORE INTO policy_evaluations 
                     (policy_uri, evaluation_name, metric, mean, stdev) 
                     VALUES (?, ?, ?, ?, ?)""",
-                    results_to_insert
+                    results_to_insert,
                 )
-            
+
             # Commit the transaction
             self.conn.commit()
-            logger.info(f"Import completed with {len(created_policies)} policies, {len(created_metrics)} metrics, {len(results_to_insert)} results")
-            
+            logger.info(
+                f"Import completed with {len(created_policies)} policies, {len(created_metrics)} metrics, {len(results_to_insert)} results"
+            )
+
         except Exception as e:
             # Rollback on error
             self.conn.rollback()
             logger.error(f"Import failed, transaction rolled back: {e}")
             raise
-            
+
     def get_matrix_data(self, metric: str) -> pd.DataFrame:
         sql = """
         SELECT 
@@ -232,42 +223,42 @@ class PolicyEvalDB:
         WHERE pe.metric = ?
         ORDER BY p.uri, pe.evaluation_name
         """
-        
+
         df = self.query(sql, (metric,))
         if len(df) == 0:
             logger.warning(f"No data found for metric {metric}")
             return pd.DataFrame()
-        
-        df['display_name'] = df['evaluation_name'].apply(self.short_name)
-        
-        policies = df['policy_uri'].unique()
-        eval_display_names = df['display_name'].unique()
-        
+
+        df["display_name"] = df["evaluation_name"].apply(self.short_name)
+
+        policies = df["policy_uri"].unique()
+        eval_display_names = df["display_name"].unique()
+
         # Generate an overall score which is just the average of all the scores per-policy
         overall_scores = {}
         for policy in policies:
-            policy_data = df[df['policy_uri'] == policy]
-            overall_scores[policy] = policy_data['value'].mean()
-        all_display_names = ['Overall'] + eval_display_names.tolist()
+            policy_data = df[df["policy_uri"] == policy]
+            overall_scores[policy] = policy_data["value"].mean()
+        ["Overall"] + eval_display_names.tolist()
 
         data_map = {}
         for _, row in df.iterrows():
-            data_map[(row['policy_uri'], row['display_name'])] = row['value']
-        
+            data_map[(row["policy_uri"], row["display_name"])] = row["value"]
+
         matrix_data = []
         for policy in policies:
-            row_data = {'policy_uri': policy}
-            row_data['Overall'] = overall_scores[policy]
+            row_data = {"policy_uri": policy}
+            row_data["Overall"] = overall_scores[policy]
             for display_name in eval_display_names:
                 key = (policy, display_name)
                 if key in data_map:
                     row_data[display_name] = data_map[key]
             matrix_data.append(row_data)
         matrix = pd.DataFrame(matrix_data)
-        matrix = matrix.set_index('policy_uri')
-        
+        matrix = matrix.set_index("policy_uri")
+
         # Reorder rows by overall score
         policy_order = sorted(policies, key=lambda p: overall_scores[p])
         matrix = matrix.reindex(policy_order)
-                
+
         return matrix

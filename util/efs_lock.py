@@ -1,11 +1,10 @@
-import os
-import time
 import logging
-import random
+import os
 import platform
+import random
 import socket
+import time
 from contextlib import contextmanager
-from omegaconf import OmegaConf
 
 logger = logging.getLogger(__name__)
 
@@ -163,7 +162,7 @@ def efs_lock(path, timeout=300, retry_interval=5, max_retries=60):
     """
     # For local development on Mac, use a shorter timeout and retry interval
     if platform.system() == "Darwin":
-        logger.debug(f"Running on macOS, adjusting lock parameters")
+        logger.debug("Running on macOS, adjusting lock parameters")
         if timeout > 60:
             timeout = 60
         if retry_interval > 2:

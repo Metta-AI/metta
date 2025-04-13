@@ -1,7 +1,9 @@
-import torch
 import os
 
-class Replay():
+import torch
+
+
+class Replay:
     def __init__(self, filename):
         self.filename = filename
         self.data = {

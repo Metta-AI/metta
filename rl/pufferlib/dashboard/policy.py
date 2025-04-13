@@ -1,11 +1,9 @@
 
 from rich.table import Table
 
-
-from .dashboard import DashboardComponent
-from .dashboard import c1, c2, b2
-from .dashboard import abbreviate, ROUND_OPEN
 from rl.pufferlib.trainer import PolicyCheckpoint
+
+from .dashboard import ROUND_OPEN, DashboardComponent, abbreviate, c1, c2
 
 
 class Policy(DashboardComponent):

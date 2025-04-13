@@ -1,6 +1,6 @@
-from omegaconf import OmegaConf
-import pufferlib.vector
 import hydra
+import pufferlib.vector
+
 
 def make_env():
     global env_config

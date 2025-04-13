@@ -1,16 +1,15 @@
+import os
 import time
 from threading import Thread
-import os
-from omegaconf import OmegaConf
 
 import rich
+from omegaconf import OmegaConf
 from rich.console import Console
-from rich.table import Table
 from rich.live import Live
+from rich.table import Table
+
 from util.logging import remap_io, restore_io
 
-
-import sys
 
 class Dashboard(Thread):
     def __init__(self, cfg: OmegaConf, delay=1, components=None):

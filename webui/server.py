@@ -1,17 +1,18 @@
-from fastapi import FastAPI, WebSocket, Query, HTTPException
-from fastapi.responses import HTMLResponse
-import hydra
 import json
-from omegaconf import OmegaConf
-from hydra import initialize, compose
 import logging
+
+import hydra
 import numpy as np
+from fastapi import FastAPI, HTTPException, Query, WebSocket
+from fastapi.responses import HTMLResponse
+from hydra import compose, initialize
 
 app = FastAPI()
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
 
 @app.get("/", response_class=HTMLResponse)
 async def get_client():
@@ -21,6 +22,7 @@ async def get_client():
         return HTMLResponse(content=html_content)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Client HTML file not found")
+
 
 @app.websocket("/ws")
 async def websocket_endpoint(
@@ -46,8 +48,8 @@ async def websocket_endpoint(
                     f"env=mettagrid/{env}",
                     "cmd=webui",
                     "experiment=webui",
-
-                ] + overrides,
+                ]
+                + overrides,
             )
         logger.info(f"Loaded configuration for {env}")
         await send_message(f"Loaded configuration for {env}")
@@ -65,12 +67,14 @@ async def websocket_endpoint(
         obs, infos = env.reset()
         logger.info("Environment initialized and reset")
         await send_message("Environment initialized and reset")
-        await websocket.send_json({
-            "message": "Initial state",
-            # "observation": obs,
-            "info": infos,
-            "objects": env._c_env.grid_objects(),
-        })
+        await websocket.send_json(
+            {
+                "message": "Initial state",
+                # "observation": obs,
+                "info": infos,
+                "objects": env._c_env.grid_objects(),
+            }
+        )
 
         while True:
             # Receive action from client
@@ -80,17 +84,19 @@ async def websocket_endpoint(
             logger.info(f"Received actions: {actions}")
 
             # Step the environment
-            obs, rewards, terminated, truncated, infos  = env.step(actions)
+            obs, rewards, terminated, truncated, infos = env.step(actions)
 
             # Send results back to client
-            await websocket.send_json({
-                # "observation": obs,
-                # "rewards": list(rewards),
-                #"terminated": terminated,
-                #"truncated": truncated,
-                "infos": infos,
-                "objects": env._c_env.grid_objects(),
-            })
+            await websocket.send_json(
+                {
+                    # "observation": obs,
+                    # "rewards": list(rewards),
+                    # "terminated": terminated,
+                    # "truncated": truncated,
+                    "infos": infos,
+                    "objects": env._c_env.grid_objects(),
+                }
+            )
 
             step_count += 1
             logger.info(f"Completed step {step_count}")
@@ -111,6 +117,8 @@ async def websocket_endpoint(
         await send_message("Closing WebSocket connection")
         await websocket.close()
 
+
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -5,11 +5,14 @@ AWS Batch Job Queue Utilities
 This module provides functions for interacting with AWS Batch job queues.
 """
 
+from datetime import datetime
+
 import boto3
 from botocore.config import Config
 from tabulate import tabulate
-from datetime import datetime
+
 from .job import format_time_difference
+
 
 def get_boto3_client(service_name='batch'):
     """Get a boto3 client with standard configuration."""

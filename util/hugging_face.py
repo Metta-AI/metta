@@ -1,14 +1,11 @@
 import os
 
-import cv2
 import numpy as np
 from huggingface_hub import HfApi, Repository, repocard, upload_folder
-
-from sample_factory.utils.typing import Config
-from sample_factory.utils.utils import log, project_tmp_dir
-import imageio
+from sample_factory.utils.utils import log
 
 # https://huggingface.co/metta-ai/baseline.sf.v0.6.1/resolve/main/behaviors_resources_100x100.gif
+
 
 def generate_model_card(
     dir_path: str,

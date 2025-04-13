@@ -1,10 +1,10 @@
 
-import numpy as np
+import os
+
 from rich.table import Table
 
-import os
-from .dashboard import DashboardComponent
-from .dashboard import c1, b1, c2, b2, c3, ROUND_OPEN
+from .dashboard import ROUND_OPEN, DashboardComponent, c1, c2
+
 
 class Logs(DashboardComponent):
     def __init__(self, logs_path: str, max_lines=5):

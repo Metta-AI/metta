@@ -1,6 +1,8 @@
 import math
+
 import gymnasium as gym
 import numpy as np
+
 
 class Kinship(gym.Wrapper):
     def __init__(self, team_size: int, team_reward: float, env: gym.Env):
@@ -10,13 +12,10 @@ class Kinship(gym.Wrapper):
         self._num_agents = self.env.unwrapped.player_count
         self._num_teams = int(math.ceil(self._num_agents / self._team_size))
 
-        self._agent_team = np.array([
-            agent // self._team_size for agent in range(self._num_agents)])
+        self._agent_team = np.array([agent // self._team_size for agent in range(self._num_agents)])
         self._team_to_agents = {
-            team: np.array([
-                agent for agent in range(self._num_agents)
-                if self._agent_team[agent] == team
-            ]) for team in range(self._num_teams)
+            team: np.array([agent for agent in range(self._num_agents) if self._agent_team[agent] == team])
+            for team in range(self._num_teams)
         }
 
         self._agent_id_feature_idx = self.env.unwrapped.grid_features.index("agent:id")
@@ -57,17 +56,13 @@ class Kinship(gym.Wrapper):
         return team_id_obs
 
     def _augment_observations(self, obs):
-        return [{
-            "kinship": self._team_id_obs(agent_obs),
-            **agent_obs
-        } for agent, agent_obs in enumerate(obs)]
+        return [{"kinship": self._team_id_obs(agent_obs), **agent_obs} for agent, agent_obs in enumerate(obs)]
 
     @property
     def observation_space(self):
-        return gym.spaces.Dict({
-            "kinship": gym.spaces.Box(
-                -np.inf, high=np.inf,
-                shape=self._kinship_shape, dtype=np.float32
-            ),
-            **self.env.observation_space.spaces
-        })
+        return gym.spaces.Dict(
+            {
+                "kinship": gym.spaces.Box(-np.inf, high=np.inf, shape=self._kinship_shape, dtype=np.float32),
+                **self.env.observation_space.spaces,
+            }
+        )

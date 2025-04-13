@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 import argparse
-import subprocess
-import os
 import json
+import os
+import subprocess
 import time
-import shlex
-from typing import List
+
 
 def gen_search_cmd(args):
     """ Generate the search command that matches the given criteria. """
@@ -359,7 +358,7 @@ def main():
       help='Instance ID'
     )
 
-    show_parser = subparsers.add_parser(
+    subparsers.add_parser(
       'show',
       help='Show a machine'
     )

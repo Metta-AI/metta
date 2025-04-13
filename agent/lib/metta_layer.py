@@ -1,8 +1,8 @@
-from omegaconf import OmegaConf
+import numpy as np
+import torch
 from tensordict import TensorDict
 from torch import nn
-import torch
-import numpy as np
+
 
 class LayerBase(nn.Module):
     '''The base class for components that make up the Metta agent. All components
@@ -29,7 +29,9 @@ class LayerBase(nn.Module):
     performed (due to some other run up the DAG) and return. After this check,
     it should check if its input source is not None and recursively call the
     forward method of the layer above it.'''
-    def __init__(self, name, input_source=None, output_size=None, nn_params={}, **cfg):
+    def __init__(self, name, input_source=None, output_size=None, nn_params=None, **cfg):
+        if nn_params is None:
+            nn_params = {}
         super().__init__()
         self._name = name
         self._input_source = input_source
@@ -194,7 +196,7 @@ class ParamLayer(LayerBase):
         srank_\delta(\Phi) = min{k: sum_{i=1}^k σ_i / sum_{j=1}^d σ_j ≥ 1 - δ}
         See the paper titled 'Implicit Under-Parameterization Inhibits Data-Efficient
         Deep Reinforcement Learning' by A. Kumar et al.'''
-        if self.weight_net.weight.data.dim() != 2 or self.effective_rank_bool is None or self.effective_rank_bool == False:
+        if self.weight_net.weight.data.dim() != 2 or self.effective_rank_bool is None or self.effective_rank_bool is False:
             return None
         # Singular value decomposition. We only need the singular value matrix.
         _, S, _ = torch.linalg.svd(self.weight_net.weight.data.detach())

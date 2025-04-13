@@ -1,6 +1,8 @@
 import math
+
 import gymnasium as gym
 import numpy as np
+
 
 class Kinship(gym.Wrapper):
     def __init__(self, team_size: int, team_reward: float, env: gym.Env):

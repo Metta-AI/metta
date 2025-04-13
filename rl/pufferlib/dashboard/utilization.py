@@ -4,8 +4,8 @@ from rich.table import Table
 
 import rl.pufferlib.utilization as utilization
 
-from .dashboard import DashboardComponent
-from .dashboard import c1, b1, c2, b2, c3
+from .dashboard import DashboardComponent, b2, c1, c3
+
 
 class Utilization(DashboardComponent):
     def __init__(self):

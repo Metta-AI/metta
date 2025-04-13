@@ -1,14 +1,15 @@
 import logging
 import time
+from datetime import datetime
 
 import numpy as np
 import torch
-from agent.policy_store import PolicyStore, PolicyRecord
 from omegaconf import DictConfig, OmegaConf
+
+from agent.policy_store import PolicyRecord, PolicyStore
+from rl.pufferlib.vecenv import make_vecenv
 from util.config import config_from_path
 from util.datastruct import flatten_config
-from datetime import datetime
-from rl.pufferlib.vecenv import make_vecenv
 
 logger = logging.getLogger("eval")
 
@@ -179,7 +180,7 @@ class EvalSuite:
 
         self._evals_cfgs = evals
         self._evals = []
-        for eval_name, eval_cfg in evals.items():
+        for _eval_name, eval_cfg in evals.items():
             eval_cfg = OmegaConf.merge(kwargs, eval_cfg)
             eval = Eval(policy_store, policy_pr, run_id,
                         env_overrides=env_overrides, **eval_cfg)
@@ -188,5 +189,5 @@ class EvalSuite:
     def evaluate(self):
         return {
             eval_name: eval.evaluate()
-            for eval_name, eval in zip(self._evals_cfgs.keys(), self._evals)
+            for eval_name, eval in zip(self._evals_cfgs.keys(), self._evals, strict=False)
         }

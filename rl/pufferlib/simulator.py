@@ -1,8 +1,9 @@
-import torch
 import numpy as np
+import torch
 from omegaconf import OmegaConf
-from rl.pufferlib.vecenv import make_vecenv
+
 from agent.policy_store import PolicyRecord
+from rl.pufferlib.vecenv import make_vecenv
 
 
 class Simulator:

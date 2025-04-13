@@ -1,17 +1,17 @@
 import logging
 import os
 import sys
-import hydra
 
-from agent.policy_store import PolicyStore
-from util.runtime_configuration import setup_mettagrid_environment
-from util.config import setup_metta_environment
+import hydra
+import torch.distributed as dist
 from omegaconf import OmegaConf
 from rich.logging import RichHandler
-from rl.wandb.wandb_context import WandbContext
-import torch.distributed as dist
-
 from torch.distributed.elastic.multiprocessing.errors import record
+
+from agent.policy_store import PolicyStore
+from rl.wandb.wandb_context import WandbContext
+from util.config import setup_metta_environment
+from util.runtime_configuration import setup_mettagrid_environment
 
 # Configure rich colored logging
 logging.basicConfig(

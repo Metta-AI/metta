@@ -1,9 +1,8 @@
 
-import numpy as np
 from rich.table import Table
 
-from .dashboard import DashboardComponent
-from .dashboard import c1, b1, c2, b2, c3, ROUND_OPEN
+from .dashboard import ROUND_OPEN, DashboardComponent, b2, c1, c2
+
 
 class UserStats(DashboardComponent):
     def __init__(self, stats: dict, max_stats=5):

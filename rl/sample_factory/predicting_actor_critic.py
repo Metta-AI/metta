@@ -2,16 +2,11 @@
 
 from __future__ import annotations
 
-from sample_factory.algo.utils.tensor_dict import TensorDict
-import torch.nn.functional as F
-
-import numpy as np
-from torch import nn
-
-from sample_factory.model.actor_critic import ActorCriticSharedWeights
-from sample_factory.utils.typing import Config
 import torch
 from sample_factory.algo.utils.context import global_model_factory
+from sample_factory.algo.utils.tensor_dict import TensorDict
+from sample_factory.model.actor_critic import ActorCriticSharedWeights
+from sample_factory.utils.typing import Config
 
 
 class PredictingActorCritic(ActorCriticSharedWeights):

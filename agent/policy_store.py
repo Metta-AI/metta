@@ -9,18 +9,19 @@ It provides functionality to:
 The PolicyStore is used by the training system to manage opponent policies and checkpoints.
 """
 
+import logging
+import os
+import random
+import warnings
+from typing import List, Union
+
+import torch
 from omegaconf import OmegaConf
-from omegaconf.listconfig import ListConfig
+from torch import nn
+
 import wandb
 from agent.metta_agent import make_policy
-import torch
-import os
-import warnings
-import logging
-from typing import List, Union
-import random
 from wandb.sdk import wandb_run
-from torch import nn
 
 logger = logging.getLogger("policy_store")
 

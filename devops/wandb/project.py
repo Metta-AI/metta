@@ -1,6 +1,9 @@
 import argparse
+
 import yaml
+
 import wandb
+
 
 def main():
     parser = argparse.ArgumentParser()

@@ -1,8 +1,10 @@
 import copy
-import wandb
 import os
-import sys
+
 from omegaconf import OmegaConf
+
+import wandb
+
 
 class WandbContext:
     def __init__(self, cfg, job_type=None, resume=True, name=None, run_id=None, data_dir=None):
