@@ -1,43 +1,40 @@
 name: Python Tests
-
 on:
   push:
     branches: [ main ]
   pull_request:
     branches: [ main ]
-
 jobs:
   test:
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v3
-
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11.7'
-
-    - name: Install dependencies
-      run: |
-        bash ./devops/setup_build.sh
-
-    - name: Run test training
-      env:
-        HYDRA_FULL_ERROR: 1
-        PYTHONPATH: ${{ github.workspace }}
-        WANDB_API_KEY: set_but_not_used
-        AWS_ACCESS_KEY_ID: set_but_not_used
-        AWS_SECRET_ACCESS_KEY: set_but_not_used
-      run: |
-        python -m tools.train +hardware=github
-
-    - name: Run trace
-      env:
-        HYDRA_FULL_ERROR: 1
-        PYTHONPATH: ${{ github.workspace }}
-        WANDB_API_KEY: set_but_not_used
-        AWS_ACCESS_KEY_ID: set_but_not_used
-        AWS_SECRET_ACCESS_KEY: set_but_not_used
-      run: |
-        python -m tools.replay +hardware=github policy_uri=./train_dir/my_experiment/checkpoints/
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11.7'
+      - name: Install dependencies
+        run: |
+          bash ./devops/setup_build.sh
+      - name: Run Ruff check
+        run: |
+          pip install ruff
+          ruff check .
+      - name: Run test training 
+        env:
+          HYDRA_FULL_ERROR: 1
+          PYTHONPATH: ${{ github.workspace }}
+          WANDB_API_KEY: set_but_not_used
+          AWS_ACCESS_KEY_ID: set_but_not_used
+          AWS_SECRET_ACCESS_KEY: set_but_not_used
+        run: |
+          python -m tools.train +hardware=github
+      - name: Run trace
+        env:
+          HYDRA_FULL_ERROR: 1
+          PYTHONPATH: ${{ github.workspace }}
+          WANDB_API_KEY: set_but_not_used
+          AWS_ACCESS_KEY_ID: set_but_not_used
+          AWS_SECRET_ACCESS_KEY: set_but_not_used
+        run: |
+          python -m tools.replay +hardware=github policy_uri=./train_dir/my_experiment/checkpoints/
