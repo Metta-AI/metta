@@ -41,16 +41,18 @@ class RuffError:
 
 
 class AutoRuffFix:
-    def __init__(self, claude_api_key: str, model: str = "claude-3-7-sonnet-20250219"):
+    def __init__(self, claude_api_key: str, model: str = "claude-3-7-sonnet-20250219", context_lines: int = 5):
         """Initialize the AutoRuffFix tool.
 
         Args:
             claude_api_key: Anthropic API key for Claude
             model: Claude model to use for generating fixes
+            context_lines: Number of lines to include before and after the error line (default: 5)
         """
         self.client = anthropic.Anthropic(api_key=claude_api_key)
         self.model = model
         self.verbose = False
+        self.context_lines = context_lines
 
     def set_verbose(self, verbose: bool):
         """Set verbosity level."""
@@ -94,8 +96,8 @@ class AutoRuffFix:
                 code = error.get("code", "")
                 message = error.get("message", "")
 
-                # Get context lines from the file
-                context_lines = self._get_context_lines(file_path, line, 5)
+                # Get context lines from the file using the configured context_lines
+                context_lines = self._get_context_lines(file_path, line)
 
                 ruff_error = RuffError(
                     file_path=file_path,
@@ -113,17 +115,21 @@ class AutoRuffFix:
             print(f"Error running Ruff: {e}")
             return []
 
-    def _get_context_lines(self, file_path: str, line_number: int, context_size: int) -> List[str]:
+    def _get_context_lines(self, file_path: str, line_number: int, context_size: Optional[int] = None) -> List[str]:
         """Get context lines around the specified line in the file.
 
         Args:
             file_path: Path to the file
             line_number: The line number where the error was found (1-based)
             context_size: Number of lines to get before and after the error line
+                         (if None, uses self.context_lines)
 
         Returns:
             List of context lines with line numbers
         """
+        if context_size is None:
+            context_size = self.context_lines
+
         try:
             with open(file_path, "r", encoding="utf-8") as f:
                 lines = f.readlines()
@@ -172,13 +178,22 @@ class AutoRuffFix:
         """
         context_str = "\n".join(error.context_lines)
 
-        prompt = f"""I need to fix a Ruff linting error in my Python code. Please help me generate a diff that only contains the changes needed to fix this specific issue.
+        # Calculate line count of the file to check if we should include selective context or whole file
+        line_count = len(file_content.splitlines())
+        file_too_large = line_count > 300  # Set a reasonable threshold (about 15KB of text)
 
-File: {error.file_path}
-Error: {error.error_code} at line {error.line_number}, column {error.column}
-Message: {error.message}
+        # If we have a specific large context size but the file isn't huge, we might want to
+        # include the entire file content as context instead of just the error surroundings
+        include_file_snippet = self.context_lines >= 20 and not file_too_large
 
-Context of the error:
+        # Prepare the prompt with appropriate context
+        if include_file_snippet:
+            context_section = f"""Here's the full file content:
+```python
+{file_content}
+```"""
+        else:
+            context_section = f"""Context of the error:
 ```
 {context_str}
 ```
@@ -186,9 +201,19 @@ Context of the error:
 Here's the full file content:
 ```python
 {file_content}
-```
+```"""
 
-Please generate a unified diff that contains ONLY the minimal changes needed to fix this specific {error.error_code} error. The diff should use the standard unified diff format with @@ line markers. 
+        prompt = f"""I need to fix a Ruff linting error in my Python code. Please help me generate a diff that only 
+contains the changes needed to fix this specific issue.
+
+File: {error.file_path}
+Error: {error.error_code} at line {error.line_number}, column {error.column}
+Message: {error.message}
+
+{context_section}
+
+Please generate a unified diff that contains ONLY the minimal changes needed to fix this specific {error.error_code} 
+error. The diff should use the standard unified diff format with @@ line markers. 
 
 Important rules:
 1. The diff should change as few lines as possible - ideally just the problematic line
@@ -211,13 +236,16 @@ Example of the format I need:
 
         if self.verbose:
             print(f"Sending request to Claude for {error.file_path}:{error.line_number} ({error.error_code})")
+            if include_file_snippet:
+                print(f"Including entire file content in prompt (lines: {line_count})")
 
         try:
             response = self.client.messages.create(
                 model=self.model,
                 max_tokens=1000,
                 temperature=0.0,
-                system="You are an expert Python developer who specializes in fixing code style and linting issues. You provide precise, minimal diffs to fix specific issues.",
+                system="You are an expert Python developer who specializes in fixing code style and linting issues. "
+                "You provide precise, minimal diffs to fix specific issues.",
                 messages=[{"role": "user", "content": prompt}],
             )
 
@@ -273,38 +301,99 @@ Example of the format I need:
             # Read the original file
             with open(file_path, "r", encoding="utf-8") as f:
                 file_content = f.read()
+                file_lines = file_content.split("\n")
 
-            # Parse the diff to extract what needs to be changed
-            old_text = ""
-            new_text = ""
+            # Parse the diff to extract changes - handle line additions, removals, and replacements
+            changes = []
+            current_hunk = None
 
-            in_content = False
             for line in diff_content.split("\n"):
                 if line.startswith("@@"):
-                    in_content = True
-                    old_text = ""
-                    new_text = ""
-                elif in_content:
-                    if line.startswith("-"):
-                        if old_text:
-                            old_text += "\n"
-                        old_text += line[1:]
-                    elif line.startswith("+"):
-                        if new_text:
-                            new_text += "\n"
-                        new_text += line[1:]
+                    # Parse the @@ -start,count +start,count @@ line to get position info
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        # Extract line numbers from the format "@@ -start,count +start,count @@"
+                        minus_part = parts[1]  # e.g., "-5,6"
+                        plus_part = parts[2]  # e.g., "+5,7"
 
-            if not old_text or not new_text:
-                print(f"Could not extract changes from diff for {file_path}")
-                return False
+                        # Extract the starting line numbers
+                        try:
+                            minus_start = int(minus_part.split(",")[0][1:])  # Remove the '-' and get the number
+                            plus_start = int(plus_part.split(",")[0][1:])  # Remove the '+' and get the number
+
+                            current_hunk = {
+                                "minus_start": minus_start,
+                                "plus_start": plus_start,
+                                "minus_lines": [],
+                                "plus_lines": [],
+                            }
+                            changes.append(current_hunk)
+                        except (ValueError, IndexError):
+                            print(f"Failed to parse hunk header: {line}")
+                            current_hunk = None
+                elif current_hunk is not None:
+                    if line.startswith("-"):
+                        current_hunk["minus_lines"].append(line[1:])
+                    elif line.startswith("+"):
+                        current_hunk["plus_lines"].append(line[1:])
+                    elif line.startswith(" "):
+                        # Context lines appear in both old and new versions
+                        current_hunk["minus_lines"].append(line[1:])
+                        current_hunk["plus_lines"].append(line[1:])
 
             if self.verbose:
-                print(f"Looking to replace:\n{old_text}\n\nWith:\n{new_text}")
+                print(f"Parsed {len(changes)} change hunks from diff")
 
-            # Find and replace the old text with the new text
-            if old_text in file_content:
-                modified_content = file_content.replace(old_text, new_text)
+            # Apply the changes in reverse order (to maintain line numbers)
+            changes.sort(key=lambda x: x["minus_start"], reverse=True)
+            modified = False
 
+            for hunk in changes:
+                minus_start = hunk["minus_start"] - 1  # Convert to 0-based index
+                minus_lines = hunk["minus_lines"]
+                plus_lines = hunk["plus_lines"]
+
+                # Special case: handle pure additions (no lines removed)
+                if not minus_lines and plus_lines:
+                    if self.verbose:
+                        print(f"Adding {len(plus_lines)} new lines at line {minus_start + 1}")
+                    file_lines[minus_start:minus_start] = plus_lines
+                    modified = True
+                    continue
+
+                # Special case: handle pure deletions (no lines added)
+                if minus_lines and not plus_lines:
+                    if self.verbose:
+                        print(f"Removing {len(minus_lines)} lines at line {minus_start + 1}")
+                    del file_lines[minus_start : minus_start + len(minus_lines)]
+                    modified = True
+                    continue
+
+                # Regular case: replacing lines
+                # Check if the lines to be removed match what's in the file
+                file_section = file_lines[minus_start : minus_start + len(minus_lines)]
+
+                if file_section == minus_lines:
+                    # Direct match, replace the lines
+                    if self.verbose:
+                        print(f"Replacing {len(minus_lines)} lines at line {minus_start + 1}")
+                    file_lines[minus_start : minus_start + len(minus_lines)] = plus_lines
+                    modified = True
+                else:
+                    # Try fuzzy matching if exact match fails
+                    if self._text_similar("\n".join(file_section), "\n".join(minus_lines)):
+                        if self.verbose:
+                            print(f"Fuzzy replacing {len(minus_lines)} lines at line {minus_start + 1}")
+                        file_lines[minus_start : minus_start + len(minus_lines)] = plus_lines
+                        modified = True
+                    else:
+                        print(f"Failed to match lines at {minus_start + 1}, skipping this hunk")
+                        if self.verbose:
+                            print(f"Expected:\n{minus_lines}\nFound:\n{file_section}")
+
+            if modified:
+                # Write the modified content back to the file
+                modified_content = "\n".join(file_lines)
                 with open(file_path, "w", encoding="utf-8") as f:
                     f.write(modified_content)
 
@@ -312,79 +401,8 @@ Example of the format I need:
                 os.unlink(diff_file)  # Remove the patch file on success
                 return True
             else:
-                # Try with normalized whitespace
-                import re
-
-                # First, try a more relaxed match with flexible whitespace
-                escaped_text = re.escape(old_text.strip()).replace("\\ ", "\\s+")
-                pattern = re.compile(escaped_text, re.MULTILINE)
-                if pattern.search(file_content):
-                    modified_content = pattern.sub(new_text, file_content)
-
-                    with open(file_path, "w", encoding="utf-8") as f:
-                        f.write(modified_content)
-
-                    print(f"Successfully applied fix to {file_path} (relaxed match)")
-                    os.unlink(diff_file)
-                    return True
-
-                # If still not found, try a line-by-line approach
-                # for long files, this can be time-consuming, so we'll use it as a last resort
-                file_lines = file_content.split("\n")
-                old_lines = old_text.split("\n")
-
-                if len(old_lines) > 1:  # Only try this for multi-line replacements
-                    from difflib import get_close_matches
-
-                    # Find the best matching line for the first line of old_text
-                    first_line = old_lines[0].strip()
-                    matches = []
-
-                    # Look for potential matches
-                    for i, line in enumerate(file_lines):
-                        if first_line in line:
-                            matches.append((i, line))
-
-                    # If no direct substring matches, try fuzzy matching
-                    if not matches:
-                        matches = [
-                            (file_lines.index(match), match)
-                            for match in get_close_matches(first_line, file_lines, n=5, cutoff=0.7)
-                        ]
-
-                    if matches:
-                        for match_idx, match in matches:
-                            # Check if the next lines also match
-                            if match_idx + len(old_lines) > len(file_lines):
-                                continue  # Not enough lines left
-
-                            # Look for a sequence match
-                            matched_section = "\n".join(file_lines[match_idx : match_idx + len(old_lines)])
-                            if self._text_similar(matched_section, old_text):
-                                # Replace the matching lines with the new lines
-                                new_lines = new_text.split("\n")
-
-                                # Update file_lines with the new content
-                                file_lines[match_idx : match_idx + len(old_lines)] = new_lines
-
-                                # Write the modified content back
-                                modified_content = "\n".join(file_lines)
-                                with open(file_path, "w", encoding="utf-8") as f:
-                                    f.write(modified_content)
-
-                                print(f"Successfully applied fix to {file_path} (fuzzy line match)")
-                                os.unlink(diff_file)
-                                return True
-
-                # If everything fails, keep the patch file for manual inspection
-                print(f"Could not find the text to replace in {file_path}")
+                print(f"No changes applied to {file_path}")
                 print(f"Diff saved to {diff_file}")
-
-                # Also save specific instructions for manual fixing
-                with open(f"{file_path}.manual_fix", "w", encoding="utf-8") as f:
-                    f.write(f"Original text to find:\n{old_text}\n\nNew text to replace with:\n{new_text}")
-
-                print(f"Manual fix instructions saved to {file_path}.manual_fix")
                 return False
 
         except Exception as e:
@@ -400,11 +418,14 @@ Example of the format I need:
 
         return difflib.SequenceMatcher(None, text1, text2).ratio() >= threshold
 
-    def fix_errors(self, errors: List[RuffError], max_errors: Optional[int] = None) -> Tuple[int, int]:
+    def fix_errors(
+        self, errors: List[RuffError], config: Optional[str] = None, max_errors: Optional[int] = None
+    ) -> Tuple[int, int]:
         """Fix the given Ruff errors.
 
         Args:
             errors: List of RuffError objects to fix
+            config: Optional path to Ruff config file
             max_errors: Maximum number of errors to fix (None for all)
 
         Returns:
@@ -413,25 +434,67 @@ Example of the format I need:
         fixed_count = 0
         attempted_count = 0
 
-        if max_errors is not None:
-            errors = errors[:max_errors]
-
+        # Group errors by file
+        errors_by_file = {}
         for error in errors:
-            attempted_count += 1
-            print(
-                f"Fixing error {attempted_count}/{len(errors)}: {error.file_path}:{error.line_number} - {error.error_code} {error.message}"
-            )
+            if error.file_path not in errors_by_file:
+                errors_by_file[error.file_path] = []
+            errors_by_file[error.file_path].append(error)
 
-            file_content = self.get_file_content(error.file_path)
-            if not file_content:
-                continue
+        # Process one file at a time
+        total_files = len(errors_by_file)
+        file_counter = 0
 
-            diff = self.generate_fix(error, file_content)
-            if not diff:
-                continue
+        for file_path, file_errors in errors_by_file.items():
+            file_counter += 1
+            print(f"\nProcessing file {file_counter}/{total_files}: {file_path} ({len(file_errors)} errors)")
 
-            if self.apply_diff(error.file_path, diff):
-                fixed_count += 1
+            # Sort errors by line number in descending order to avoid line number shifting
+            # (fixing errors from bottom to top of the file)
+            file_errors.sort(key=lambda e: e.line_number, reverse=True)
+
+            # Process one error at a time for this file
+            for error_index, error in enumerate(file_errors):
+                if max_errors is not None and attempted_count >= max_errors:
+                    break
+
+                attempted_count += 1
+                print(
+                    f"  Fixing error {error_index + 1}/{len(file_errors)}: Line {error.line_number} - "
+                    f"{error.error_code} {error.message}"
+                )
+
+                # Get the latest file content
+                file_content = self.get_file_content(error.file_path)
+                if not file_content:
+                    continue
+
+                # Generate and apply the fix
+                diff = self.generate_fix(error, file_content)
+                if not diff:
+                    continue
+
+                if self.apply_diff(error.file_path, diff):
+                    fixed_count += 1
+
+                    # Re-run Ruff on this file to get updated errors
+                    if error_index < len(file_errors) - 1:  # If there are more errors to fix in this file
+                        print("  Re-running Ruff to get updated errors...")
+                        # Just run Ruff on the current file to get updated errors
+                        updated_errors = self.run_ruff([file_path], config)
+
+                        # Update the remaining errors for this file
+                        updated_file_errors = [e for e in updated_errors if e.file_path == file_path]
+                        if updated_file_errors:
+                            # Sort by line number in descending order
+                            updated_file_errors.sort(key=lambda e: e.line_number, reverse=True)
+                            # Replace the remaining errors with the updated ones
+                            file_errors[error_index + 1 :] = updated_file_errors
+                            print(f"  Found {len(updated_file_errors)} remaining errors after fix")
+                        else:
+                            # No more errors in this file, skip the rest
+                            print("  All errors in this file fixed!")
+                            break
 
         return fixed_count, attempted_count
 
@@ -448,6 +511,12 @@ def main():
         help="Claude model to use (default: claude-3-7-sonnet-20250219)",
     )
     parser.add_argument("--api-key", help="Anthropic API key (can also use ANTHROPIC_API_KEY env var)")
+    parser.add_argument(
+        "--context-lines",
+        type=int,
+        default=10,
+        help="Number of context lines to include before and after the error (default: 5)",
+    )
 
     args = parser.parse_args()
 
@@ -457,7 +526,7 @@ def main():
         print("Error: ANTHROPIC_API_KEY environment variable not set and --api-key not provided")
         sys.exit(1)
 
-    auto_fix = AutoRuffFix(claude_api_key=api_key, model=args.model)
+    auto_fix = AutoRuffFix(claude_api_key=api_key, model=args.model, context_lines=args.context_lines)
     auto_fix.set_verbose(args.verbose)
 
     errors = auto_fix.run_ruff(args.paths, args.config)
@@ -465,9 +534,10 @@ def main():
         return
 
     print(f"Found {len(errors)} Ruff errors")
-    fixed, attempted = auto_fix.fix_errors(errors, args.max_errors)
+    # Pass just the config and max_errors to fix_errors
+    fixed, attempted = auto_fix.fix_errors(errors, args.config, args.max_errors)
 
-    print(f"Fixed {fixed}/{attempted} errors")
+    print(f"\nFixed {fixed}/{attempted} errors")
 
     # Run Ruff again to check if all errors were fixed
     remaining_errors = auto_fix.run_ruff(args.paths, args.config)
