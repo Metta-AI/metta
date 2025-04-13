@@ -14,30 +14,33 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.11.7'
-          
+      
       - name: Cache Python dependencies
         uses: actions/cache@v3
+        id: cache-python
         with:
           path: |
             ~/.cache/pip
             venv
-          key: ${{ runner.os }}-python-${{ hashFiles('**/requirements.txt', 'devops/setup_build.sh') }}
+          key: ${{ runner.os }}-py3.11.7-${{ hashFiles('**/requirements.txt') }}-${{ hashFiles('devops/setup_build.sh') }}
           restore-keys: |
-            ${{ runner.os }}-python-
-            
+            ${{ runner.os }}-py3.11.7-${{ hashFiles('**/requirements.txt') }}-
+            ${{ runner.os }}-py3.11.7-
+      
       - name: Install dependencies
         run: |
           python -m venv venv
           source venv/bin/activate
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           bash ./devops/setup_build.sh
-          
+          pip list
+      
       - name: Run Ruff check
         run: |
           source venv/bin/activate
           pip install ruff==0.11.5
-          if [ -f ruff.toml ]; then cat ruff.toml; else echo "No ruff.toml found"; fi
           ruff check .
-          
+      
       - name: Run test training
         env:
           HYDRA_FULL_ERROR: 1
@@ -48,7 +51,7 @@ jobs:
         run: |
           source venv/bin/activate
           python -m tools.train +hardware=github
-          
+      
       - name: Run trace
         env:
           HYDRA_FULL_ERROR: 1

@@ -3,6 +3,9 @@ line-length = 120
 # Specify the target Python version for compatibility checks
 target-version = "py311"
 
+# Tell Ruff to respect .gitignore files
+respect-gitignore = true
+
 # Exclude directories from linting
 # These are common directories that typically don't need linting
 exclude = [
