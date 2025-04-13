@@ -21,17 +21,19 @@ def config_from_path(config_path: str, overrides: DictConfig = None) -> DictConf
         env_cfg = OmegaConf.merge(env_cfg, overrides)
     return env_cfg
 
+
 def check_aws_credentials() -> bool:
     """Check if valid AWS credentials are available from any source."""
     if "AWS_ACCESS_KEY_ID" in os.environ and "AWS_SECRET_ACCESS_KEY" in os.environ:
         # This check is primarily for github actions.
         return True
     try:
-        sts = boto3.client('sts')
+        sts = boto3.client("sts")
         sts.get_caller_identity()
         return True
     except (NoCredentialsError, ClientError):
         return False
+
 
 def check_wandb_credentials() -> bool:
     """Check if valid W&B credentials are available."""
@@ -43,11 +45,8 @@ def check_wandb_credentials() -> bool:
     except Exception:
         return False
 
-def setup_metta_environment(
-    cfg: DictConfig,
-    require_aws: bool = True,
-    require_wandb: bool = True
-):
+
+def setup_metta_environment(cfg: DictConfig, require_aws: bool = True, require_wandb: bool = True):
     if require_aws:
         # Check that AWS is good to go.
         if not check_aws_credentials():

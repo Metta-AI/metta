@@ -19,14 +19,10 @@ from util.config import config_from_path
 from util.efs_lock import efs_lock
 
 # Configure rich colored logging to stderr instead of stdout
-logging.basicConfig(
-    level="INFO",
-    format="%(message)s",
-    datefmt="[%X]",
-    handlers=[RichHandler(rich_tracebacks=True)]
-)
+logging.basicConfig(level="INFO", format="%(message)s", datefmt="[%X]", handlers=[RichHandler(rich_tracebacks=True)])
 
 logger = logging.getLogger("sweep_init")
+
 
 @hydra.main(config_path="../configs", config_name="sweep", version_base=None)
 def main(cfg: OmegaConf) -> int:
@@ -42,6 +38,7 @@ def main(cfg: OmegaConf) -> int:
     else:
         wait_for_run(cfg.sweep_name, cfg, cfg.dist_cfg_path)
 
+
 def create_sweep(sweep_name: str, cfg: OmegaConf) -> None:
     """
     Create a new sweep with the given name.
@@ -55,18 +52,17 @@ def create_sweep(sweep_name: str, cfg: OmegaConf) -> None:
     os.makedirs(cfg.runs_dir, exist_ok=True)
 
     carbs_params = carbs_params_from_cfg(cfg)
-    sweep_id = wandb_carbs.create_sweep(
-        sweep_name,
-        cfg.wandb.entity,
-        cfg.wandb.project,
-        carbs_params[0]
+    sweep_id = wandb_carbs.create_sweep(sweep_name, cfg.wandb.entity, cfg.wandb.project, carbs_params[0])
+    OmegaConf.save(
+        {
+            "sweep": sweep_name,
+            "wandb_sweep_id": sweep_id,
+            "wandb_path": f"{cfg.wandb.entity}/{cfg.wandb.project}/{sweep_id}",
+            "carbs_params": carbs_params[0],
+        },
+        os.path.join(cfg.sweep_dir, "config.yaml"),
     )
-    OmegaConf.save({
-        "sweep": sweep_name,
-        "wandb_sweep_id": sweep_id,
-        "wandb_path": f"{cfg.wandb.entity}/{cfg.wandb.project}/{sweep_id}",
-        "carbs_params": carbs_params[0],
-    }, os.path.join(cfg.sweep_dir, "config.yaml"))
+
 
 def create_run(sweep_name: str, cfg: OmegaConf) -> str:
     """
@@ -88,31 +84,28 @@ def create_run(sweep_name: str, cfg: OmegaConf) -> str:
         with WandbContext(cfg, data_dir=run_dir) as wandb_run:
             wandb_run_id = wandb_run.id
             wandb_run.name = run_name
-            wandb_run.tags += (
-                f"sweep_id:{sweep_cfg.wandb_sweep_id}",
-                f"sweep_name:{sweep_cfg.sweep}")
+            wandb_run.tags += (f"sweep_id:{sweep_cfg.wandb_sweep_id}", f"sweep_name:{sweep_cfg.sweep}")
 
             carbs = MettaCarbs(cfg, wandb_run)
             logger.info("Config:")
             logger.info(OmegaConf.to_yaml(cfg))
-            _log_file(run_dir, wandb_run, "carbs_state.yaml", {
-                "generation": carbs.generation,
-                "observations": carbs._observations,
-                "params": str(carbs._carbs.params)
-            })
+            _log_file(
+                run_dir,
+                wandb_run,
+                "carbs_state.yaml",
+                {
+                    "generation": carbs.generation,
+                    "observations": carbs._observations,
+                    "params": str(carbs._carbs.params),
+                },
+            )
 
             suggestion = carbs.suggest()
             logger.info("Generated CARBS suggestion: ")
-            logger.info(
-                "\n" + "-"*10 + "\n" +
-                yaml.dump(suggestion, default_flow_style=False) +
-                "\n" + "-"*10)
+            logger.info("\n" + "-" * 10 + "\n" + yaml.dump(suggestion, default_flow_style=False) + "\n" + "-" * 10)
             _log_file(run_dir, wandb_run, "carbs_suggestion.yaml", suggestion)
 
-
-            train_cfg = OmegaConf.create({
-                key: cfg[key] for key in cfg.sweep.keys()
-            })
+            train_cfg = OmegaConf.create({key: cfg[key] for key in cfg.sweep.keys()})
             _apply_carbs_suggestion(train_cfg, suggestion)
             save_path = os.path.join(run_dir, "train_config_overrides.yaml")
             OmegaConf.save(train_cfg, save_path)
@@ -121,17 +114,20 @@ def create_run(sweep_name: str, cfg: OmegaConf) -> str:
         if cfg.dist_cfg_path is not None:
             logger.info(f"Saved run details to {cfg.dist_cfg_path}")
             os.makedirs(os.path.dirname(cfg.dist_cfg_path), exist_ok=True)
-            OmegaConf.save({
-                "run": run_name,
-                "wandb_run_id": wandb_run_id,
-            }, cfg.dist_cfg_path)
+            OmegaConf.save(
+                {
+                    "run": run_name,
+                    "wandb_run_id": wandb_run_id,
+                },
+                cfg.dist_cfg_path,
+            )
 
-    wandb.agent(sweep_cfg.wandb_sweep_id,
-                entity=cfg.wandb.entity,
-                project=cfg.wandb.project,
-                function=init_run, count=1)
+    wandb.agent(
+        sweep_cfg.wandb_sweep_id, entity=cfg.wandb.entity, project=cfg.wandb.project, function=init_run, count=1
+    )
 
     return run_name
+
 
 def wait_for_run(sweep_name: str, cfg: OmegaConf, path: str) -> None:
     """
@@ -145,6 +141,7 @@ def wait_for_run(sweep_name: str, cfg: OmegaConf, path: str) -> None:
 
     run = OmegaConf.load(path).run
     logger.info(f"Run ID: {run} ready")
+
 
 def _apply_carbs_suggestion(config: OmegaConf, suggestion: DictConfig):
     for key, value in suggestion.items():
@@ -161,6 +158,7 @@ def _apply_carbs_suggestion(config: OmegaConf, suggestion: DictConfig):
         param_name = key_parts[-1]
         new_cfg_param[param_name] = value
 
+
 def _log_file(run_dir: str, wandb_run, name: str, data):
     path = os.path.join(run_dir, name)
     with open(path, "w") as f:
@@ -169,6 +167,7 @@ def _log_file(run_dir: str, wandb_run, name: str, data):
         json.dump(data, f, indent=4)
 
     wandb_run.save(path, base_path=run_dir)
+
 
 def sweep_space(space, min_val, max_val, center=None, *, _root_):
     result = {

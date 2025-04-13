@@ -9,19 +9,36 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11.7'
+          
+      - name: Cache Python dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/pip
+            venv
+          key: ${{ runner.os }}-python-${{ hashFiles('**/requirements.txt', 'devops/setup_build.sh') }}
+          restore-keys: |
+            ${{ runner.os }}-python-
+            
       - name: Install dependencies
         run: |
+          python -m venv venv
+          source venv/bin/activate
           bash ./devops/setup_build.sh
+          
       - name: Run Ruff check
         run: |
+          source venv/bin/activate
           pip install ruff==0.11.5
           if [ -f ruff.toml ]; then cat ruff.toml; else echo "No ruff.toml found"; fi
           ruff check .
-      - name: Run test training 
+          
+      - name: Run test training
         env:
           HYDRA_FULL_ERROR: 1
           PYTHONPATH: ${{ github.workspace }}
@@ -29,7 +46,9 @@ jobs:
           AWS_ACCESS_KEY_ID: set_but_not_used
           AWS_SECRET_ACCESS_KEY: set_but_not_used
         run: |
+          source venv/bin/activate
           python -m tools.train +hardware=github
+          
       - name: Run trace
         env:
           HYDRA_FULL_ERROR: 1
@@ -38,4 +57,5 @@ jobs:
           AWS_ACCESS_KEY_ID: set_but_not_used
           AWS_SECRET_ACCESS_KEY: set_but_not_used
         run: |
+          source venv/bin/activate
           python -m tools.replay +hardware=github policy_uri=./train_dir/my_experiment/checkpoints/
