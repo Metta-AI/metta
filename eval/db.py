@@ -203,7 +203,9 @@ class PolicyEvalDB:
             # Commit the transaction
             self.conn.commit()
             logger.info(
-                f"Import completed with {len(created_policies)} policies, {len(created_metrics)} metrics, {len(results_to_insert)} results"
+                f"Import completed with {len(created_policies)} policies, "
+                f"{len(created_metrics)} metrics, "
+                f"{len(results_to_insert)} results"
             )
 
         except Exception as e:

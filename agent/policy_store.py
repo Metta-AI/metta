@@ -64,7 +64,8 @@ class PolicyStore:
         assert  len(prs) == 1, f"Expected 1 policy, got {len(prs)}"
         return prs[0]
 
-    def policies(self, policy: Union[str, OmegaConf], selector_type: str = "top", n=1, metric="score") -> List[PolicyRecord]:
+    def policies(self, policy: Union[str, OmegaConf], selector_type: str = "top", n=1, 
+                 metric="score") -> List[PolicyRecord]:
         if not isinstance(policy, str):
             policy = policy.uri
         return self._policy_records(policy, selector_type, n, metric)

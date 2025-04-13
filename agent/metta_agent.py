@@ -179,14 +179,18 @@ class MettaAgent(nn.Module):
         return e3b, intrinsic_reward
 
     def l2_reg_loss(self) -> torch.Tensor:
-        """L2 regularization loss is on by default although setting l2_norm_coeff to 0 effectively turns it off. Adjust it by setting l2_norm_scale in your component config to a multiple of the global loss value or 0 to turn it off."""
+        """L2 regularization loss is on by default although setting l2_norm_coeff to 0 effectively turns it off.
+        Adjust it by setting l2_norm_scale in your component config to a multiple of the global loss value or 0 to
+        turn it off."""
         l2_reg_loss = 0
         for component in self.components.values():
             l2_reg_loss += component.l2_reg_loss() or 0
         return torch.tensor(l2_reg_loss)
 
     def l2_init_loss(self) -> torch.Tensor:
-        """L2 initialization loss is on by default although setting l2_init_coeff to 0 effectively turns it off. Adjust it by setting l2_init_scale in your component config to a multiple of the global loss value or 0 to turn it off."""
+        """L2 initialization loss is on by default although setting l2_init_coeff to 0 effectively turns it off.
+        Adjust it by setting l2_init_scale in your component config to a multiple of the global loss value or 0 to
+        turn it off."""
         l2_init_loss = 0
         for component in self.components.values():
             l2_init_loss += component.l2_init_loss() or 0
@@ -198,13 +202,16 @@ class MettaAgent(nn.Module):
             component.update_l2_init_weight_copy()
 
     def clip_weights(self):
-        """Weight clipping is on by default although setting clip_range or clip_scale to 0, or a large positive value effectively turns it off. Adjust it by setting clip_scale in your component config to a multiple of the global loss value or 0 to turn it off."""
+        """Weight clipping is on by default although setting clip_range or clip_scale to 0, or a large positive value 
+        effectively turns it off. Adjust it by setting clip_scale in your component config to a multiple of the global 
+        loss value or 0 to turn it off."""
         if self.clip_range > 0:
             for component in self.components.values():
                 component.clip_weights()
 
     def compute_effective_rank(self, delta: float = 0.01) -> List[dict]:
-        """Effective rank computation is off by default. Set effective_rank to True in the config to turn it on for a given component."""
+        """Effective rank computation is off by default. Set effective_rank to True in the config to turn it on for 
+        a given component."""
         effective_ranks = []
         for component in self.components.values():
             rank = component.compute_effective_rank(delta)

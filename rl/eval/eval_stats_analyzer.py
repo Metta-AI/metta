@@ -87,7 +87,9 @@ class EvalStatsAnalyzer:
                     maxcolwidths=25,
                 )
                 self.logger.info(
-                    f"Policy fitness results for candidate policy {self.candidate_policy_uri} and baselines {self.analysis.baseline_policies}:\n{policy_fitness_table}"
+                    f"Policy fitness results for candidate policy {self.candidate_policy_uri} "
+                    f"and baselines {self.analysis.baseline_policies}:\n"
+                    f"{policy_fitness_table}"
                 )
 
         return result_dfs, policy_fitness_records

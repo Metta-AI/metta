@@ -1,5 +1,6 @@
 """
-This file implements an Experience class for storing and managing experience data during reinforcement learning training.
+This file implements an Experience class for storing and managing experience data during reinforcement 
+learning training.
 
 The Experience class provides:
 - Flat tensor storage for observations, actions, rewards, etc.

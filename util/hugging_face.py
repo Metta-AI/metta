@@ -51,9 +51,17 @@ See https://www.samplefactory.dev/10-huggingface/huggingface/ for more details
 ## Training with this model\n
 To continue training with this model, use the `train` script corresponding to this environment:
 ```
-python -m {train_name} --algo={algo} --env={env} --train_dir=./train_dir --experiment={repo_name} --restart_behavior=resume --train_for_env_steps=10000000000
+python 
+    -m {train_name}
+    --algo={algo}
+    --env={env}
+    --train_dir=./train_dir
+    --experiment={repo_name}
+    --restart_behavior=resume
+    --train_for_env_steps=10000000000
 ```\n
-Note, you may have to adjust `--train_for_env_steps` to a suitably high number as the experiment will resume at the number of steps it concluded at.
+Note, you may have to adjust `--train_for_env_steps` to a suitably high number as the experiment will resume at 
+the number of steps it concluded at.
     """
 
     with open(readme_path, "w", encoding="utf-8") as f:

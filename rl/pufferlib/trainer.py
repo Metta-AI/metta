@@ -533,7 +533,7 @@ class PufferTrainer:
             try:
                 v = np.mean(v)
                 self.stats[k] = v
-            except:
+            except (TypeError, ValueError):
                 del self.stats[k]
 
         # Now synchronize and aggregate stats across processes

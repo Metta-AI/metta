@@ -182,7 +182,9 @@ def setup_root_profile():
             f.write("""#!/bin/bash
 # Helper script to open the AWS console in the browser
 aws_signin_url="https://signin.aws.amazon.com/console"
-open "$aws_signin_url" 2>/dev/null || xdg-open "$aws_signin_url" 2>/dev/null || echo "Could not open browser. Please visit $aws_signin_url manually."
+open "$aws_signin_url" 2>/dev/null || \
+xdg-open "$aws_signin_url" 2>/dev/null || \
+echo "Could not open browser. Please visit $aws_signin_url manually."
 """)
         print_success("Successfully created console helper script")
     except Exception as e:

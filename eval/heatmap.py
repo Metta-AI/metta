@@ -55,7 +55,9 @@ def create_matrix_visualization(
         return fig
     
     # Get policy names and evaluation names
-    policy_names = matrix_data.pop('policy_name').tolist() if 'policy_name' in matrix_data.columns else matrix_data.index.tolist()
+    policy_names = (matrix_data.pop('policy_name').tolist() 
+                    if 'policy_name' in matrix_data.columns 
+                    else matrix_data.index.tolist())
     eval_names = matrix_data.columns.tolist()
     
     # Calculate aggregates across policies
@@ -168,7 +170,7 @@ def create_matrix_visualization(
         
         # Custom tick labels for x-axis to make Overall bold
         ticktext = []
-        for i, name in enumerate(eval_names):
+        for name in eval_names:
             if name == "Overall":
                 ticktext.append(f'<b>{name}</b>')
             else:

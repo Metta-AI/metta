@@ -31,7 +31,7 @@ class EvalStatsDB:
             result = self._db.execute(sql_query).fetchdf()
             return result
         except Exception as e:
-            raise RuntimeError(f"SQL query failed: {sql_query}\nError: {e}")
+            raise RuntimeError(f"SQL query failed: {sql_query}\nError: {e}") from e
 
     @staticmethod
     def from_uri(uri: str, run_dir: str, wandb_run=None):

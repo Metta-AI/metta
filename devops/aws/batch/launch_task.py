@@ -137,7 +137,8 @@ def submit_batch_job(args, task_args):
         print(f"{job_url}")
     else:
         print(
-            f"Submitted job {job_name} to queue {job_queue} with job ID {Fore.GREEN}{Style.BRIGHT}{job_id}{Style.RESET_ALL}"
+            f"Submitted job {job_name} to queue {job_queue} with job ID "
+            f"{Fore.GREEN}{Style.BRIGHT}{job_id}{Style.RESET_ALL}"
         )
         print(f"{Fore.BLUE}{Style.BRIGHT}{job_url}{Style.RESET_ALL}")
 
@@ -213,7 +214,9 @@ def container_config(args, task_args, job_name):
     print(
         "\n".join(
             [
-                f"Resources: {args.num_nodes} nodes, {args.node_gpus} GPUs, {total_vcpus} vCPUs ({vcpus_per_gpu} per GPU), {memory_gb}GB RAM"
+                f"Resources: {args.num_nodes} nodes, {args.node_gpus} GPUs, "
+                f"{total_vcpus} vCPUs ({vcpus_per_gpu} per GPU), "
+                f"{memory_gb}GB RAM"
             ]
         )
     )

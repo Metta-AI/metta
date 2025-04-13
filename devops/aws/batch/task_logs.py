@@ -178,7 +178,10 @@ def show_job_logs(job, tail=False, latest_attempt=False, attempt_index=None, nod
                 duration = "Running" if started_at else "N/A"
 
             print(
-                f"Attempt {i + 1}: Started: {started_at_str}, Stopped: {stopped_at_str}, Duration: {duration}, Exit Code: {exit_code}, Reason: {reason}"
+                f"Attempt {i + 1}: Started: {started_at_str}, Stopped: {stopped_at_str}, "
+                f"Duration: {duration}, "
+                f"Exit Code: {exit_code}, "
+                f"Reason: {reason}"
             )
 
         while True:

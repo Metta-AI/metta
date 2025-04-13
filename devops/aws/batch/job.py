@@ -894,7 +894,8 @@ def ssh_to_job(job_id_or_name, instance_only=False):
             print(f"SSH connection to {ip} timed out. Please check the instance status and network connectivity.")
         elif "Connection refused" in str(e):
             print(
-                f"SSH connection to {ip} was refused. Please check if the instance is running and accepts SSH connections."
+                f"SSH connection to {ip} was refused. Please check if the instance is running and accepts SSH "
+            "connections."
             )
         else:
             print(
