@@ -18,7 +18,8 @@ jobs:
           bash ./devops/setup_build.sh
       - name: Run Ruff check
         run: |
-          pip install ruff
+          pip install ruff==0.11.5
+          if [ -f ruff.toml ]; then cat ruff.toml; else echo "No ruff.toml found"; fi
           ruff check .
       - name: Run test training 
         env:
