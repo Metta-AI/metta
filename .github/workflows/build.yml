@@ -28,18 +28,23 @@ jobs:
             ${{ runner.os }}-py3.11.7-
       
       - name: Install dependencies
+        if: steps.cache-python.outputs.cache-hit != 'true'
         run: |
           python -m venv venv
           source venv/bin/activate
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           bash ./devops/setup_build.sh
+      
+      - name: List installed packages
+        run: |
+          source venv/bin/activate
           pip list
       
       - name: Run Ruff check
         run: |
           source venv/bin/activate
           pip install ruff==0.11.5
-          ruff check .
+          ruff check --respect-gitignore .
       
       - name: Run test training
         env:
