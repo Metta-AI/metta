@@ -1,10 +1,9 @@
 
-import psutil
 import time
-
-from threading import Thread
 from collections import deque
+from threading import Thread
 
+import psutil
 import torch
 
 class Utilization(Thread):

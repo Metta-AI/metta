@@ -1,39 +1,30 @@
 # Generate a graphical trace of multiple runs.
 
-import os
 import json
+import os
 import zlib
-import torch
-import pixie
+
 import boto3
 import wandb
 from omegaconf import OmegaConf
+
 from agent.policy_store import PolicyRecord
 from rl.pufferlib.simulator import Simulator
 from rl.wandb.wandb_context import WandbContext
 
 class ReplayHelper:
-    """ Helper class for generating and uploading replays. """
-    def __init__(self,
-            cfg: OmegaConf,
-            env_cfg: OmegaConf,
-            policy_record: PolicyRecord,
-            wandb_run: WandbContext
-        ):
+    """Helper class for generating and uploading replays."""
+
+    def __init__(self, cfg: OmegaConf, env_cfg: OmegaConf, policy_record: PolicyRecord, wandb_run: WandbContext):
         self.cfg = cfg
         self.env_cfg = env_cfg
         self.policy_record = policy_record
         self.wandb_run = wandb_run
 
-        self.s3_client = boto3.client('s3')
+        self.s3_client = boto3.client("s3")
 
-    def _add_sequence_key(self,
-            grid_object: dict,
-            key: str,
-            step: int,
-            value
-        ):
-        """ Add a key to the replay that is a sequence of values. """
+    def _add_sequence_key(self, grid_object: dict, key: str, step: int, value):
+        """Add a key to the replay that is a sequence of values."""
         if key not in grid_object:
             # Add new key.
             grid_object[key] = [[step, value]]
@@ -43,7 +34,7 @@ class ReplayHelper:
                 grid_object[key].append([step, value])
 
     def generate_replay(self, replay_path: str):
-        """ Generate a replay and save it to a file. """
+        """Generate a replay and save it to a file."""
         simulator = Simulator(self.cfg, self.env_cfg, self.policy_record)
 
         grid_objects = []
@@ -65,7 +56,6 @@ class ReplayHelper:
             actions = simulator.actions()
 
             actions_array = actions.cpu().numpy()
-            step_info = []
 
             for i, grid_object in enumerate(simulator.grid_objects()):
                 if len(grid_objects) <= i:
@@ -76,29 +66,13 @@ class ReplayHelper:
 
                 if "agent_id" in grid_object:
                     agent_id = grid_object["agent_id"]
+                    self._add_sequence_key(grid_objects[i], "action", step, actions_array[agent_id].tolist())
                     self._add_sequence_key(
-                        grid_objects[i],
-                        "action",
-                        step,
-                        actions_array[agent_id].tolist()
+                        grid_objects[i], "action_success", step, bool(simulator.env.action_success[agent_id])
                     )
+                    self._add_sequence_key(grid_objects[i], "reward", step, simulator.rewards[agent_id].item())
                     self._add_sequence_key(
-                        grid_objects[i],
-                        "action_success",
-                        step,
-                        bool(simulator.env.action_success[agent_id])
-                    )
-                    self._add_sequence_key(
-                        grid_objects[i],
-                        "reward",
-                        step,
-                        simulator.rewards[agent_id].item()
-                    )
-                    self._add_sequence_key(
-                        grid_objects[i],
-                        "total_reward",
-                        step,
-                        simulator.total_rewards[agent_id].item()
+                        grid_objects[i], "total_reward", step, simulator.total_rewards[agent_id].item()
                     )
 
             simulator.step(actions)
@@ -115,7 +89,7 @@ class ReplayHelper:
 
         # Compress it with deflate.
         replay_data = json.dumps(replay)  # Convert to JSON string
-        replay_bytes = replay_data.encode('utf-8')  # Encode to bytes
+        replay_bytes = replay_data.encode("utf-8")  # Encode to bytes
         compressed_data = zlib.compress(replay_bytes)  # Compress the bytes
 
         # Make sure the directory exists.
@@ -124,31 +98,21 @@ class ReplayHelper:
         with open(replay_path, "wb") as f:
             f.write(compressed_data)
 
-
     def upload_replay(self, replay_path: str, replay_url: str, epoch: int):
-        """ Upload the replay to S3 and log the link to WandB. """
+        """Upload the replay to S3 and log the link to WandB."""
         s3_bucket = "softmax-public"
         self.s3_client.upload_file(
-            Filename=replay_path,
-            Bucket=s3_bucket,
-            Key=replay_url,
-            ExtraArgs={'ContentType': 'application/x-compress'}
+            Filename=replay_path, Bucket=s3_bucket, Key=replay_url, ExtraArgs={"ContentType": "application/x-compress"}
         )
         link = f"https://{s3_bucket}.s3.us-east-1.amazonaws.com/{replay_url}"
 
         # Log the link to WandB
-        player_url = f"https://metta-ai.github.io/mettagrid/?replayUrl=" + link
-        link_summary = {
-            "replays/link": wandb.Html(
-                f'<a href="{player_url}">'
-                f'MetaScope Replay (Epoch {epoch})'
-                '</a>'
-            )
-        }
+        player_url = "https://metta-ai.github.io/mettagrid/?replayUrl=" + link
+        link_summary = {"replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {epoch})</a>')}
         self.wandb_run.log(link_summary)
 
     def generate_and_upload_replay(self, epoch: int):
-        """ Generate a replay and upload it to S3 and log the link to WandB. """
+        """Generate a replay and upload it to S3 and log the link to WandB."""
         replay_path = f"{self.cfg.run_dir}/replays/replay.{epoch}.json.z"
         self.generate_replay(replay_path)
 

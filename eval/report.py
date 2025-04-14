@@ -2,14 +2,15 @@
 Generate reports from policy evaluation metrics.
 """
 
-import os
 import logging
-import tempfile
+import os
 import shutil
+import tempfile
+
 import boto3
 from botocore.exceptions import NoCredentialsError
-from typing import Optional, Tuple, Union
 from omegaconf import DictConfig
+
 from eval.db import PolicyEvalDB
 from eval.heatmap import create_matrix_visualization
 

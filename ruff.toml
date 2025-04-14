@@ -1,7 +1,7 @@
 # Maximum line length (characters)
-line-length = 100
+line-length = 120
 # Specify the target Python version for compatibility checks
-target-version = "py310"
+target-version = "py311"
 
 # Exclude directories from linting
 # These are common directories that typically don't need linting
@@ -10,10 +10,29 @@ exclude = [
     ".mypy_cache",    # MyPy type checking cache
     ".ruff_cache",    # Ruff linter cache
     ".venv",          # Virtual environment
+    "venv",
     "__pypackages__", # PEP 582 packages
     "dist",           # Distribution builds
     "node_modules",   # Node.js packages
 ]
+
+[lint.isort]
+# Define import sections and their order
+known-third-party = ["wandb", "torch", "omegaconf"]
+known-first-party = [
+    "agent",
+    "rl",
+    "devops",
+] # Add your local package names here
+section-order = [
+    "future",
+    "standard-library",
+    "third-party",
+    "first-party",
+    "local-folder",
+]
+# Add blank lines between import sections
+lines-after-imports = 1
 
 [lint]
 # Rules to enable for linting
