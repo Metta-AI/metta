@@ -3,7 +3,7 @@ defaults:
 
 game:
   num_agents: 20  #how many agents are in the map x2
-  max_steps: 400
+  max_steps: 250
 
   map_builder:
 
@@ -12,7 +12,7 @@ game:
     room:
       _target_: mettagrid.config.room.ascii.Ascii
       border_width: 1
-      uri: "configs/env/mettagrid/maps/obstacles2.map"
+      uri: "configs/env/mettagrid/maps/navigation/obstacles2.map"
 
   objects:
     altar:

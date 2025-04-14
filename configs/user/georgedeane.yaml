@@ -15,7 +15,7 @@ trainer:
 # policy_uri: wandb://run/daveey.ar.cards.1
 # policy_uri: wandb://run/b.daveey.t.32.instant
 #policy_uri: ${trained_policy_uri}
-policy_uri: wandb://run/navigation_poisson_train_sampling5
+policy_uri: wandb://run/daveey.t.1.pi.dpm
 # Infinite_cooldown models:
 # navigation_infinite_cooldown_sweep_2g_.r.0 - ok
 # navigation_infinite_cooldown_sweep_2g.r.1 - 9 reward after 400 timesteps
@@ -23,14 +23,15 @@ policy_uri: wandb://run/navigation_poisson_train_sampling5
 # navigation_poisson_train_sampling5 breaks in infinite_cooldown, works great in poisson with short distance
 # navigation_poisson_train_sampling5
 # npc_policy_uri: ${trained_policy_uri}
-# eval_db_uri: wandb://artifacts/daveey_eval_testing
+# eval_db_uri: wandb://artifacts/navigation_db
 
 analyzer:
-  eval_stats_uri: ${run_dir}/eval_stats
+  # eval_stats_uri: ${run_dir}/eval_stats
+  policy_uri: ${..policy_uri}
   analysis:
     metrics:
       - metric: episode_reward
-      - metric: "*.get"
+    output_path: evalresults/navigation_results.html
 
 eval:
   num_envs: 2
@@ -40,7 +41,7 @@ eval:
   policy_uri: ${..policy_uri}
   # npc_policy_uri: ${..npc_policy_uri}
   # eval_db_uri: ${..eval_db_uri} #file://daphne/sweep_stats
-  env: /env/mettagrid/navigation/poisson
+  env: /env/mettagrid/navigation/evals/walls_sparse
 
 
 
