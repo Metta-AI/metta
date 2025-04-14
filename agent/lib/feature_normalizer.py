@@ -1,8 +1,8 @@
-from sample_factory.algo.utils.running_mean_std import RunningMeanStdInPlace
-from torch import nn
-import torch
-from tensordict import TensorDict
 import omegaconf
+import torch
+from sample_factory.algo.utils.running_mean_std import RunningMeanStdInPlace
+from tensordict import TensorDict
+from torch import nn
 
 from agent.lib.metta_layer import LayerBase
 

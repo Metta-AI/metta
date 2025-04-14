@@ -1,6 +1,6 @@
-from tensordict import TensorDict
 import torch
 import torch.nn as nn
+from tensordict import TensorDict
 
 from agent.lib.metta_layer import LayerBase
 

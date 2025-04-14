@@ -4,12 +4,14 @@ Simulates a set of policies in a set of environments.
 """
 
 import logging
+
 import hydra
 from omegaconf import DictConfig
+
 from agent.policy_store import PolicyStore
 from rl.eval.eval_stats_logger import EvalStatsLogger
-from rl.wandb.wandb_context import WandbContext
 from rl.pufferlib.eval import Eval
+from rl.wandb.wandb_context import WandbContext
 
 def simulate(eval: Eval, cfg: DictConfig, wandb_run):
     stats = eval.evaluate()

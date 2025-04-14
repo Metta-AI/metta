@@ -1,12 +1,14 @@
 import unittest
+from types import SimpleNamespace
+
 import gymnasium as gym
 import numpy as np
 import torch
-from rl.sample_factory.predicting_actor_critic import PredictingActorCritic
-from types import SimpleNamespace
 from sample_factory.algo.utils.context import SampleFactoryContext
-from torch import nn
 from sample_factory.model.encoder import Encoder
+from torch import nn
+
+from rl.sample_factory.predicting_actor_critic import PredictingActorCritic
 
 class MockObsPredictor(nn.Module):
     def __init__(self, obs_shape):

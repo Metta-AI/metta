@@ -2,23 +2,19 @@
 
 from __future__ import annotations
 
-from sample_factory.algo.utils.action_distributions import sample_actions_log_probs
-from sample_factory.model.action_parameterization import ActionParameterizationDefault
-from sample_factory.model.core import ModelCoreRNN
-from tensordict import TensorDict
-
-
-from sample_factory.model.actor_critic import ActorCritic
-from sample_factory.model.model_utils import model_device
-from sample_factory.utils.attr_dict import AttrDict
-import torch
-
-from agent.metta_agent import MettaAgent
-
 from typing import Dict
 
+import torch
+from sample_factory.algo.utils.action_distributions import sample_actions_log_probs
+from sample_factory.model.action_parameterization import ActionParameterizationDefault
+from sample_factory.model.actor_critic import ActorCritic
+from sample_factory.model.core import ModelCoreRNN
+from sample_factory.model.model_utils import model_device
+from sample_factory.utils.attr_dict import AttrDict
+from tensordict import TensorDict
 from torch import Tensor
 
+from agent.metta_agent import MettaAgent
 
 class SampleFactoryAgentWrapper(ActorCritic):
     def __init__(self, agent: MettaAgent):

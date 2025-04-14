@@ -1,11 +1,10 @@
-import os
-import json
-from datetime import datetime
-import wandb
-from util.datastruct import flatten_config
-import logging
 import gzip
-from omegaconf import OmegaConf
+import json
+import logging
+import os
+
+import wandb
+
 logger = logging.getLogger("eval_stats_logger.py")
 
 class EvalStatsLogger:
