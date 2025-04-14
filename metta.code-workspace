@@ -22,6 +22,18 @@
 		"yaml.schemas": {
 			"envs/griddly/gdy-schema.json": "envs/griddly/power_grid/*.yaml"
 		},
+		"editor.formatOnSave": true,
+		"ruff.enable": true,
+		"ruff.organizeImports": true,
+		"ruff.fixAll": true,
+		"ruff.configuration": "${workspaceFolder}/ruff.toml",
+		"[python]": {
+			"editor.defaultFormatter": "charliermarsh.ruff",
+			"editor.codeActionsOnSave": {
+				"source.fixAll.ruff": "explicit",
+				"source.organizeImports.ruff": "explicit"
+			}
+		},
 		"files.associations": {
 			"unordered_map": "cpp",
 			"__bit_reference": "cpp",
