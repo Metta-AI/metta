@@ -17,11 +17,3 @@ game:
   objects:
     altar:
       cooldown: 255
-
-  actions:
-    attack:
-      enabled: true
-    swap:
-      enabled: true
-    change_color:
-      enabled: true
