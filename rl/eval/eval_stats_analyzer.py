@@ -138,12 +138,12 @@ class EvalStatsAnalyzer:
         baseline_data: pd.DataFrame = metric_data.loc[baseline_policies].set_index(eval_header)
 
         for eval in evals:
-            if eval not in candidate_data.index:
-                self.logger.info(f"No data found for {eval} in candidate policy {candidate_uri}, cannot compute fitness")
-                continue
-            if eval not in baseline_data.index:
-                self.logger.info(f"No data found for {eval} in baseline policies {baseline_policies}, cannot compute fitnesss")
-                continue
+            # check if the eval is in the candidate and baseline data
+            for type, policy in [("candidate", candidate_data), ("baseline", baseline_data)]:
+                if eval not in policy.index:
+                    self.logger.info(f"No data found for {eval} in {type} policy {policy.index},
+                                     cannot compute fitness")
+                    continue
             candidate_mean = candidate_data.loc[eval][metric_mean]
             baseline_mean = np.mean(baseline_data.loc[eval][metric_mean])
 
