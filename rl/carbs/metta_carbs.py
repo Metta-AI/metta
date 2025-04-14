@@ -1,7 +1,9 @@
-import __future__
+import logging
 import math
 import time
+from collections import defaultdict
 
+import numpy as np
 from carbs import (
     CARBS,
     CARBSParams,
@@ -11,10 +13,8 @@ from carbs import (
     Param,
 )
 from omegaconf import DictConfig, OmegaConf
-from collections import defaultdict
 from wandb_carbs import Pow2WandbCarbs
-import numpy as np
-import logging
+
 logger = logging.getLogger("sweep_rollout")
 
 _carbs_space = {
@@ -23,6 +23,7 @@ _carbs_space = {
     "pow2": LinearSpace,
     "logit": LogitSpace,
 }
+
 
 def carbs_params_from_cfg(cfg: OmegaConf):
     param_spaces = []
@@ -43,7 +44,9 @@ def carbs_params_from_cfg(cfg: OmegaConf):
                 param.max = int(math.log2(param.max))
                 param.search_center = int(math.log2(param.search_center))
             except Exception as e:
-                print(f"Error setting pow2 params for {param_name}=({param.min}, {param.max}, {param.search_center}): {e}")
+                print(
+                    f"Error setting pow2 params for {param_name}=({param.min}, {param.max}, {param.search_center}): {e}"
+                )
                 raise e
             pow2_params.add(param_name)
         scale = param.get("scale", 1)
@@ -51,7 +54,9 @@ def carbs_params_from_cfg(cfg: OmegaConf):
         if param.space == "pow2" or param.get("is_int", False):
             scale = 4
         if param.search_center < param.min or param.search_center > param.max:
-            raise ValueError(f"Search center for {param_name}: {param.search_center} is not in range [{param.min}, {param.max}]")
+            raise ValueError(
+                f"Search center for {param_name}: {param.search_center} is not in range [{param.min}, {param.max}]"
+            )
 
         param_spaces.append(
             Param(
@@ -69,7 +74,7 @@ def carbs_params_from_cfg(cfg: OmegaConf):
     return param_spaces, pow2_params
 
 
-def _fully_qualified_parameters(nested_dict, prefix=''):
+def _fully_qualified_parameters(nested_dict, prefix=""):
     qualified_params = {}
     if "space" in nested_dict:
         return {prefix: nested_dict}
@@ -98,13 +103,15 @@ class MettaCarbs(Pow2WandbCarbs):
                     is_saved_on_every_observation=False,
                     checkpoint_dir=None,
                 ),
-                carbs_params
+                carbs_params,
             ),
-            pow2_params, run)
+            pow2_params,
+            run,
+        )
 
     def _get_runs_from_wandb(self):
         runs = super()._get_runs_from_wandb()
-        if not hasattr(self.cfg, 'generation') or not self.cfg.generation.enabled:
+        if not hasattr(self.cfg, "generation") or not self.cfg.generation.enabled:
             return runs
 
         generations = defaultdict(list)
@@ -117,7 +124,9 @@ class MettaCarbs(Pow2WandbCarbs):
             max_gen = max(generations.keys())
         if len(generations[max_gen]) < self.cfg.generation.min_samples:
             self.generation = max_gen
-            logger.info(f"Updating newest generation: {self.generation} with {len(generations[self.generation])} samples")
+            logger.info(
+                f"Updating newest generation: {self.generation} with {len(generations[self.generation])} samples"
+            )
         elif np.random.random() >= self.cfg.generation.regen_pct:
             self.generation = max_gen + 1
             logger.info(f"New creating a new generation: {self.generation}")

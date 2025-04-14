@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 import argparse
 import json
-import boto3
 import os
 from pprint import pprint
+
+import boto3
 
 def get_role_arn(role_name, profile=None):
     """Look up the ARN for a given IAM role name."""
@@ -52,7 +53,7 @@ def get_efs_id(name_tag=None):
 def create_job_definition(args):
     """Create a job definition dictionary without registering it."""
     # Use the stem-root profile for AWS operations
-    session = boto3.Session(profile_name='stem-root', region_name='us-east-1')
+    boto3.Session(profile_name='stem-root', region_name='us-east-1')
 
     # Look up role ARNs if not provided
     job_role_arn = args.job_role_arn
@@ -219,7 +220,7 @@ def register_job_definition(args):
     # Register the job definition
     try:
         response = batch.register_job_definition(**job_def)
-        print(f"Successfully registered job definition:")
+        print("Successfully registered job definition:")
         pprint(response)
         print(f"\nARN: {response.get('jobDefinitionArn')}")
         print(f"Revision: {response.get('revision')}")

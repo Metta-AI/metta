@@ -5,10 +5,12 @@ AWS Batch Job Queue Utilities
 This module provides functions for interacting with AWS Batch job queues.
 """
 
+from datetime import datetime
+
 import boto3
 from botocore.config import Config
 from tabulate import tabulate
-from datetime import datetime
+
 from .job import format_time_difference
 
 def get_boto3_client(service_name='batch'):
@@ -121,7 +123,9 @@ def get_job_queue_info(queue_name, max_jobs=5):
                             stopped_at = details.get('stoppedAt', 0)
 
                             # Format timestamps
-                            created_str = datetime.fromtimestamp(created_at / 1000).strftime('%Y-%m-%d %H:%M:%S') if created_at else 'N/A'
+                            created_str = (datetime.fromtimestamp(created_at / 1000)
+                                          .strftime('%Y-%m-%d %H:%M:%S')
+                                          if created_at else 'N/A')
 
                             # Calculate duration
                             if started_at and stopped_at:
@@ -143,7 +147,10 @@ def get_job_queue_info(queue_name, max_jobs=5):
                         if table_data:
                             print(f"\n    Recent {status} Jobs:")
                             headers = ['Job ID', 'Name', 'Created', 'Duration', 'Job Definition', 'Attempts']
-                            print(tabulate(table_data, headers=headers, tablefmt='grid', maxcolwidths=[20, 30, 20, 10, 20, 8]))
+                            print(tabulate(
+                                table_data, headers=headers, tablefmt='grid',
+                                maxcolwidths=[20, 30, 20, 10, 20, 8]
+                            ))
                 except Exception as e:
                     print(f"  Error retrieving {status} jobs: {str(e)}")
         except Exception as e:

@@ -9,20 +9,22 @@ It provides functionality to:
 The PolicyStore is used by the training system to manage opponent policies and checkpoints.
 """
 
-from omegaconf import OmegaConf
-from omegaconf.listconfig import ListConfig
-import wandb
-from agent.metta_agent import make_policy
-import torch
-import os
-import warnings
 import logging
-from typing import List, Union
+import os
 import random
-from wandb.sdk import wandb_run
+import warnings
+from typing import List, Union
+
+import torch
+import wandb
+from omegaconf import OmegaConf
 from torch import nn
+from wandb.sdk import wandb_run
+
+from agent.metta_agent import make_policy
 
 logger = logging.getLogger("policy_store")
+
 
 class PolicyRecord:
     def __init__(self, policy_store, name: str, uri: str, metadata: dict):
@@ -34,7 +36,7 @@ class PolicyRecord:
         self._local_path = None
 
         if self.uri.startswith("file://"):
-            self._local_path = self.uri[len("file://"):]
+            self._local_path = self.uri[len("file://") :]
 
     def policy(self) -> nn.Module:
         if self._policy is None:
@@ -49,6 +51,7 @@ class PolicyRecord:
     def local_path(self):
         return self._local_path
 
+
 class PolicyStore:
     def __init__(self, cfg: OmegaConf, wandb_run: wandb_run.Run):
         self._cfg = cfg
@@ -60,10 +63,12 @@ class PolicyStore:
         if not isinstance(policy, str):
             policy = policy.uri
         prs = self._policy_records(policy, selector_type, n, metric)
-        assert  len(prs) == 1, f"Expected 1 policy, got {len(prs)}"
+        assert len(prs) == 1, f"Expected 1 policy, got {len(prs)}"
         return prs[0]
 
-    def policies(self, policy: Union[str, OmegaConf], selector_type: str = "top", n=1, metric="score") -> List[PolicyRecord]:
+    def policies(
+        self, policy: Union[str, OmegaConf], selector_type: str = "top", n=1, metric="score"
+    ) -> List[PolicyRecord]:
         if not isinstance(policy, str):
             policy = policy.uri
         return self._policy_records(policy, selector_type, n, metric)
@@ -71,20 +76,20 @@ class PolicyStore:
     def _policy_records(self, uri, selector_type="top", n=1, metric="score"):
         version = None
         if uri.startswith("wandb://"):
-            wandb_uri = uri[len("wandb://"):]
+            wandb_uri = uri[len("wandb://") :]
             if ":" in wandb_uri:
                 wandb_uri, version = wandb_uri.split(":")
             if wandb_uri.startswith("run/"):
-                run_id = wandb_uri[len("run/"):]
+                run_id = wandb_uri[len("run/") :]
                 prs = self._prs_from_wandb_run(run_id, version)
             elif wandb_uri.startswith("sweep/"):
-                sweep_name = wandb_uri[len("sweep/"):]
+                sweep_name = wandb_uri[len("sweep/") :]
                 prs = self._prs_from_wandb_sweep(sweep_name, version)
             else:
                 prs = self._prs_from_wandb_artifact(wandb_uri, version)
 
         elif uri.startswith("file://"):
-            prs = self._prs_from_path(uri[len("file://"):])
+            prs = self._prs_from_path(uri[len("file://") :])
         else:
             prs = self._prs_from_path(uri)
 
@@ -103,7 +108,7 @@ class PolicyStore:
         elif selector_type == "top":
             if metric not in prs[0].metadata or prs[0].metadata[metric] is None:
                 logger.warning(f"Metric {metric} not found in policy metadata, returning latest policy")
-                return [prs[0]] #return latest if metric not found
+                return [prs[0]]  # return latest if metric not found
             top = sorted(prs, key=lambda x: x.metadata.get(metric, 0))[-n:]
             if len(top) < n:
                 logger.warning(f"Only found {len(top)} policies matching criteria, requested {n}")
@@ -125,13 +130,18 @@ class PolicyStore:
         policy = make_policy(env, self._cfg)
         name = self.make_model_name(0)
         path = os.path.join(self._cfg.trainer.checkpoint_dir, name)
-        pr = self.save(name, path, policy, {
-            "action_names": env.action_names(),
-            "agent_step": 0,
-            "epoch": 0,
-            "generation": 0,
-            "train_time": 0,
-        })
+        pr = self.save(
+            name,
+            path,
+            policy,
+            {
+                "action_names": env.action_names(),
+                "agent_step": 0,
+                "epoch": 0,
+                "generation": 0,
+                "train_time": 0,
+            },
+        )
         pr._policy = policy
         return pr
 
@@ -150,22 +160,10 @@ class PolicyStore:
         return pr
 
     def add_to_wandb_run(self, run_id: str, pr: PolicyRecord, additional_files=None):
-        return self.add_to_wandb_artifact(
-            run_id,
-            "model",
-            pr.metadata,
-            pr.local_path(),
-            additional_files
-        )
+        return self.add_to_wandb_artifact(run_id, "model", pr.metadata, pr.local_path(), additional_files)
 
     def add_to_wandb_sweep(self, sweep_name: str, pr: PolicyRecord, additional_files=None):
-        return self.add_to_wandb_artifact(
-            sweep_name,
-            "sweep_model",
-            pr.metadata,
-            pr.local_path(),
-            additional_files
-        )
+        return self.add_to_wandb_artifact(sweep_name, "sweep_model", pr.metadata, pr.local_path(), additional_files)
 
     def add_to_wandb_artifact(self, name: str, type: str, metadata: dict, local_path: str, additional_files=None):
         if self._wandb_run is None:
@@ -190,10 +188,7 @@ class PolicyStore:
         else:
             paths.extend([os.path.join(path, p) for p in os.listdir(path) if p.endswith(".pt")])
 
-        return [
-            self._load_from_file(path, metadata_only=True)
-            for path in paths
-        ]
+        return [self._load_from_file(path, metadata_only=True) for path in paths]
 
     def _prs_from_wandb_artifact(self, uri: str, version: str = None) -> List[PolicyRecord]:
         entity, project, artifact_type, name = uri.split("/")
@@ -209,31 +204,24 @@ class PolicyStore:
             artifacts = [a for a in artifacts if a.version == version]
 
         return [
-            PolicyRecord(
-                self,
-                name=a.name,
-                uri="wandb://" + a.qualified_name,
-                metadata=a.metadata
-            ) for a in artifacts
+            PolicyRecord(self, name=a.name, uri="wandb://" + a.qualified_name, metadata=a.metadata) for a in artifacts
         ]
 
     def _prs_from_wandb_sweep(self, sweep_name: str, version: str = None) -> List[PolicyRecord]:
         return self._prs_from_wandb_artifact(
-            f"{self._cfg.wandb.entity}/{self._cfg.wandb.project}/sweep_model/{sweep_name}",
-            version
+            f"{self._cfg.wandb.entity}/{self._cfg.wandb.project}/sweep_model/{sweep_name}", version
         )
 
     def _prs_from_wandb_run(self, run_id: str, version: str = None) -> List[PolicyRecord]:
         return self._prs_from_wandb_artifact(
-            f"{self._cfg.wandb.entity}/{self._cfg.wandb.project}/model/{run_id}",
-            version
+            f"{self._cfg.wandb.entity}/{self._cfg.wandb.project}/model/{run_id}", version
         )
 
     def _load_from_uri(self, uri: str):
         if uri.startswith("wandb://"):
-            return self._load_wandb_artifact(uri[len("wandb://"):])
+            return self._load_wandb_artifact(uri[len("wandb://") :])
         elif uri.startswith("file://"):
-            return self._load_from_file(uri[len("file://"):])
+            return self._load_from_file(uri[len("file://") :])
         else:
             return self._load_from_file(uri)
 
@@ -241,11 +229,11 @@ class PolicyStore:
         if path in self._cached_prs:
             if metadata_only or self._cached_prs[path]._policy is not None:
                 return self._cached_prs[path]
-        if not path.endswith('.pt') and os.path.isdir(path):
+        if not path.endswith(".pt") and os.path.isdir(path):
             path = os.path.join(path, os.listdir(path)[-1])
         logger.info(f"Loading policy from {path}")
 
-        assert path.endswith('.pt'), f"Policy file {path} does not have a .pt extension"
+        assert path.endswith(".pt"), f"Policy file {path} does not have a .pt extension"
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=FutureWarning)
             pr = torch.load(
@@ -274,8 +262,6 @@ class PolicyStore:
 
         logger.info(f"Downloaded artifact {artifact.name} to {artifact_path}")
 
-        pr = self._load_from_file(
-            os.path.join(artifact_path, "model.pt")
-        )
+        pr = self._load_from_file(os.path.join(artifact_path, "model.pt"))
         pr.metadata.update(artifact.metadata)
         return pr
