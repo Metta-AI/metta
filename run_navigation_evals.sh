@@ -16,6 +16,7 @@ POLICIES=(
     "navigation_training_suite_onlyhearts"
     "train_simple_nav_evals_test2"
     "b.daphne.varied_obstacles_navigation_eval"
+    "b.daphne.navigation_terrain_training"
 )
 
 
