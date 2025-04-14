@@ -220,7 +220,7 @@ class PufferTrainer:
         _, policy_fitness_records = analyzer.analyze()
         self._eval_results = policy_fitness_records
         self._current_eval_score = np.sum(
-            [r["baseline_mean"] for r in self._eval_results if r["metric"] == "episode_reward"]
+            [r["candidate_mean"] for r in self._eval_results if r["metric"] == "episode_reward"]
         )
 
     def _update_l2_init_weight_copy(self):
