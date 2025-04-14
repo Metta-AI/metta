@@ -3,6 +3,9 @@ import os
 import sys
 
 import hydra
+
+# Import mettagrid_env to ensure OmegaConf resolvers are registered before Hydra loads
+import mettagrid.mettagrid_env  # noqa: F401
 import torch.distributed as dist
 from omegaconf import OmegaConf
 from rich.logging import RichHandler
@@ -15,13 +18,11 @@ from util.runtime_configuration import setup_mettagrid_environment
 
 # Configure rich colored logging
 logging.basicConfig(
-    level="INFO",
-    format="%(processName)s %(message)s",
-    datefmt="[%X]",
-    handlers=[RichHandler(rich_tracebacks=True)]
+    level="INFO", format="%(processName)s %(message)s", datefmt="[%X]", handlers=[RichHandler(rich_tracebacks=True)]
 )
 
 logger = logging.getLogger("train")
+
 
 def train(cfg, wandb_run):
     overrides_path = os.path.join(cfg.run_dir, "train_config_overrides.yaml")
@@ -44,20 +45,24 @@ def train(cfg, wandb_run):
     trainer.train()
     trainer.close()
 
+
 @record
 @hydra.main(config_path="../configs", config_name="train", version_base=None)
 def main(cfg: OmegaConf) -> int:
-    print("trainer started....")
-    logger.info(f"Training {cfg.run} on " +
-                f"{os.environ.get('NODE_INDEX', '0')}: " +
-                f"{os.environ.get('LOCAL_RANK', '0')} ({cfg.device})")
     setup_metta_environment(cfg)
     setup_mettagrid_environment(cfg)
+
+    print("trainer started....")
+    logger.info(
+        f"Training {cfg.run} on "
+        + f"{os.environ.get('NODE_INDEX', '0')}: "
+        + f"{os.environ.get('LOCAL_RANK', '0')} ({cfg.device})"
+    )
 
     if "LOCAL_RANK" in os.environ and cfg.device.startswith("cuda"):
         logger.info(f"Initializing distributed training with {os.environ['LOCAL_RANK']} {cfg.device}")
         local_rank = int(os.environ["LOCAL_RANK"])
-        cfg.device = f'{cfg.device}:{local_rank}'
+        cfg.device = f"{cfg.device}:{local_rank}"
         dist.init_process_group(backend="nccl")
 
     logger.info(f"Training {cfg.run} on {cfg.device}")
@@ -69,6 +74,7 @@ def main(cfg: OmegaConf) -> int:
 
     if dist.is_initialized():
         dist.destroy_process_group()
+
 
 if __name__ == "__main__":
     sys.exit(main())

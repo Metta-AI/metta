@@ -8,6 +8,7 @@ from contextlib import contextmanager
 
 logger = logging.getLogger(__name__)
 
+
 class EfsLock:
     """
     A distributed lock implementation for AWS EFS and other shared filesystems.
@@ -72,8 +73,8 @@ class EfsLock:
         while retries < self.max_retries:
             try:
                 # Try to create the lock file exclusively
-                logger.debug(f"Attempt {retries+1}/{self.max_retries} to acquire lock: {self.path}")
-                with open(self.path, 'x') as f:
+                logger.debug(f"Attempt {retries + 1}/{self.max_retries} to acquire lock: {self.path}")
+                with open(self.path, "x") as f:
                     # Write current timestamp to the lock file
                     timestamp = time.time()
                     pid = os.getpid()
@@ -88,7 +89,7 @@ class EfsLock:
                 # Lock file exists, check if it's stale
                 try:
                     logger.debug(f"Lock file exists, checking if stale: {self.path}")
-                    with open(self.path, 'r') as f:
+                    with open(self.path, "r") as f:
                         lines = f.readlines()
                         if len(lines) >= 1:
                             timestamp = float(lines[0].strip())
@@ -175,4 +176,3 @@ def efs_lock(path, timeout=300, retry_interval=5, max_retries=60):
         yield
     finally:
         lock._release_lock()
-
