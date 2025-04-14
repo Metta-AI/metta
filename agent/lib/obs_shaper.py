@@ -1,4 +1,3 @@
-import omegaconf
 from tensordict import TensorDict
 
 from agent.lib.metta_layer import LayerBase

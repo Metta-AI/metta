@@ -1,13 +1,13 @@
-import os
-import time
 import logging
-import random
+import os
 import platform
+import random
 import socket
+import time
 from contextlib import contextmanager
-from omegaconf import OmegaConf
 
 logger = logging.getLogger(__name__)
+
 
 class EfsLock:
     """
@@ -73,8 +73,8 @@ class EfsLock:
         while retries < self.max_retries:
             try:
                 # Try to create the lock file exclusively
-                logger.debug(f"Attempt {retries+1}/{self.max_retries} to acquire lock: {self.path}")
-                with open(self.path, 'x') as f:
+                logger.debug(f"Attempt {retries + 1}/{self.max_retries} to acquire lock: {self.path}")
+                with open(self.path, "x") as f:
                     # Write current timestamp to the lock file
                     timestamp = time.time()
                     pid = os.getpid()
@@ -89,7 +89,7 @@ class EfsLock:
                 # Lock file exists, check if it's stale
                 try:
                     logger.debug(f"Lock file exists, checking if stale: {self.path}")
-                    with open(self.path, 'r') as f:
+                    with open(self.path, "r") as f:
                         lines = f.readlines()
                         if len(lines) >= 1:
                             timestamp = float(lines[0].strip())
@@ -163,7 +163,7 @@ def efs_lock(path, timeout=300, retry_interval=5, max_retries=60):
     """
     # For local development on Mac, use a shorter timeout and retry interval
     if platform.system() == "Darwin":
-        logger.debug(f"Running on macOS, adjusting lock parameters")
+        logger.debug("Running on macOS, adjusting lock parameters")
         if timeout > 60:
             timeout = 60
         if retry_interval > 2:
@@ -176,4 +176,3 @@ def efs_lock(path, timeout=300, retry_interval=5, max_retries=60):
         yield
     finally:
         lock._release_lock()
-

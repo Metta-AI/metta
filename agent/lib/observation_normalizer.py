@@ -1,8 +1,8 @@
 import torch
-import omegaconf
 from tensordict import TensorDict
 
 from agent.lib.metta_layer import LayerBase
+
 # ##ObservationNormalization
 # These are approximate maximum values for each feature. Ideally they would be defined closer to their source,
 # but here we are. If you add / remove a feature, you should add / remove the corresponding normalization.
@@ -42,7 +42,6 @@ OBS_NORMALIZATIONS = {
     'temple': 1,
     'last_action': 10,
     'temple:ready': 1,
-    'last_action': 10,
     'last_action_argument': 10,
     'agent:kinship': 10,
     'hp': 30,

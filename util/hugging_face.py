@@ -1,14 +1,11 @@
 import os
 
-import cv2
 import numpy as np
 from huggingface_hub import HfApi, Repository, repocard, upload_folder
-
-from sample_factory.utils.typing import Config
-from sample_factory.utils.utils import log, project_tmp_dir
-import imageio
+from sample_factory.utils.utils import log
 
 # https://huggingface.co/metta-ai/baseline.sf.v0.6.1/resolve/main/behaviors_resources_100x100.gif
+
 
 def generate_model_card(
     dir_path: str,
@@ -54,9 +51,17 @@ See https://www.samplefactory.dev/10-huggingface/huggingface/ for more details
 ## Training with this model\n
 To continue training with this model, use the `train` script corresponding to this environment:
 ```
-python -m {train_name} --algo={algo} --env={env} --train_dir=./train_dir --experiment={repo_name} --restart_behavior=resume --train_for_env_steps=10000000000
+python 
+    -m {train_name}
+    --algo={algo}
+    --env={env}
+    --train_dir=./train_dir
+    --experiment={repo_name}
+    --restart_behavior=resume
+    --train_for_env_steps=10000000000
 ```\n
-Note, you may have to adjust `--train_for_env_steps` to a suitably high number as the experiment will resume at the number of steps it concluded at.
+Note, you may have to adjust `--train_for_env_steps` to a suitably high number as the experiment will resume at 
+the number of steps it concluded at.
     """
 
     with open(readme_path, "w", encoding="utf-8") as f:

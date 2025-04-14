@@ -1,10 +1,8 @@
 import os
 
 import cv2
-import numpy as np
-
-from sample_factory.utils.utils import log, project_tmp_dir
 import imageio
+from sample_factory.utils.utils import log, project_tmp_dir
 
 MIN_FRAME_SIZE = 180
 
@@ -36,7 +34,7 @@ def generate_replay_video(path: str, frames: list, fps: int):
     os.system(f"ffmpeg -y -i {tmp_name} -vcodec libx264 {path}")
     log.debug(f"Replay video saved to {path}!")
 
+
 def generate_replay_gif(path: str, frames: list, fps: int):
     imageio.mimsave(path, frames, fps=fps)
     log.debug(f"Replay gif saved to {path}!")
-

@@ -2,16 +2,17 @@
 Database interface for storing and querying policy evaluation metrics.
 """
 
+import logging
 import os
 import sqlite3
-import logging
+from typing import Dict, List, Tuple
+
+import hydra
 import pandas as pd
 from omegaconf import DictConfig
 
-from typing import Dict, Tuple, List, Optional
-import hydra
-from rl.wandb.wandb_context import WandbContext
 from rl.eval.eval_stats_db import EvalStatsDB
+from rl.wandb.wandb_context import WandbContext
 
 logger = logging.getLogger(__name__)
 
@@ -148,7 +149,7 @@ class PolicyEvalDB:
             raise ValueError(f"Mismatch between metrics ({len(metrics)}) and dataframes ({len(dfs)})")
         
         metric_to_df = {}
-        for metric, df in zip(metrics, dfs):
+        for metric, df in zip(metrics, dfs, strict=False):
             metric_to_df[metric] = df
         
         return metric_to_df
@@ -244,12 +245,14 @@ class PolicyEvalDB:
                 )
             
             # Commit the transaction
+            # Commit the transaction
             self.conn.commit()
-            logger.info(f"Import completed with {len(created_policies)} policies, {len(created_metrics)} metrics, {len(results_to_insert)} results")
-            
+            logger.info(f"Import completed with {len(created_policies)} policies, "
+                        f"{len(created_metrics)} metrics, "
+                        f"{len(results_to_insert)} results")
+
         except Exception as e:
             # Rollback on error
-            self.conn.rollback()
             logger.error(f"Import failed, transaction rolled back: {e}")
             raise
 
