@@ -16,7 +16,7 @@ game:
       height: ${uniform:50,100,60}
       border_width: ${uniform:1,6,3}
       agents: 10
-      style: ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
+      style: ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects", "maze"}
 
   objects:
     altar:
