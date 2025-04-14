@@ -91,7 +91,7 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}
         run: |
           source venv/bin/activate
-          pytest --maxfail=1 --disable-warnings -q
+          pytest tests/ --maxfail=1 --disable-warnings -q
 
       - name: Cache training output
         if: success()
