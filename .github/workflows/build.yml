@@ -1,12 +1,18 @@
 name: Python Tests
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   push:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 30  # Prevent hung jobs from consuming resources
     steps:
       - uses: actions/checkout@v3
       
@@ -14,39 +20,62 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.11.7'
-      
-      - name: Cache Python dependencies
+          
+      - name: Cache pip packages
         uses: actions/cache@v3
-        id: cache-python
+        id: cache-pip
         with:
           path: |
             ~/.cache/pip
             venv
-          key: ${{ runner.os }}-py3.11.7-${{ hashFiles('**/requirements.txt') }}-${{ hashFiles('devops/setup_build.sh') }}
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt', '**/requirements-dev.txt', '**/setup.py') }}
           restore-keys: |
-            ${{ runner.os }}-py3.11.7-${{ hashFiles('**/requirements.txt') }}-
-            ${{ runner.os }}-py3.11.7-
-      
-      - name: Install dependencies
-        if: steps.cache-python.outputs.cache-hit != 'true'
+            ${{ runner.os }}-pip-
+            
+      - name: Install pip dependencies
+        if: steps.cache-pip.outputs.cache-hit != 'true'
         run: |
           python -m venv venv
           source venv/bin/activate
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          
+      - name: Cache Git dependencies
+        uses: actions/cache@v3
+        id: cache-git-deps
+        with:
+          path: deps
+          key: ${{ runner.os }}-git-deps-${{ hashFiles('devops/setup_build.sh') }}
+          restore-keys: |
+            ${{ runner.os }}-git-deps-
+            
+      - name: Run setup build script
+        if: steps.cache-git-deps.outputs.cache-hit != 'true'
+        run: |
+          source venv/bin/activate
+          mkdir -p deps
           bash ./devops/setup_build.sh
-      
+          
       - name: List installed packages
         run: |
           source venv/bin/activate
           pip list
-      
+          
+      - name: Cache Ruff
+        uses: actions/cache@v3
+        id: cache-ruff
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-ruff-0.11.5
+          
       - name: Run Ruff check
         run: |
           source venv/bin/activate
           pip install ruff==0.11.5
           ruff check --respect-gitignore .
-      
+          
       - name: Run test training
+        id: training
+        continue-on-error: false
         env:
           HYDRA_FULL_ERROR: 1
           PYTHONPATH: ${{ github.workspace }}
@@ -56,8 +85,17 @@ jobs:
         run: |
           source venv/bin/activate
           python -m tools.train +hardware=github
-      
+          
+      - name: Cache training output
+        if: success()
+        uses: actions/cache@v3
+        id: cache-train-output
+        with:
+          path: train_dir
+          key: ${{ runner.os }}-train-dir-${{ github.sha }}
+          
       - name: Run trace
+        if: success()
         env:
           HYDRA_FULL_ERROR: 1
           PYTHONPATH: ${{ github.workspace }}

@@ -1,24 +1,26 @@
 {
   "editor.formatOnSave": true,
   "ruff.enable": true,
+  "ruff.organizeImports": true,
+  "ruff.fixAll": true,
+  "ruff.format": true,
+  "ruff.configuration": "./ruff.toml",
   "[python]": {
     "editor.defaultFormatter": "charliermarsh.ruff",
     "editor.codeActionsOnSave": {
-      "source.fixAll": "explicit",
-      "source.organizeImports": "explicit"
+      "source.fixAll.ruff": "explicit",
+      "source.organizeImports.ruff": "explicit"
     },
     "editor.rulers": [120],
     "editor.renderWhitespace": "all"
   },
-  "[yaml]": {
-    "editor.insertSpaces": true,
-    "editor.tabSize": 2,
-    "editor.quickSuggestions": {
-      "other": true,
-      "comments": false,
-      "strings": true
-    },
-    "editor.autoIndent": "none"
+  "files.exclude": {
+    "**/*.egg-info": true,
+    "**/__pycache__": true,
+    "replays": true,
+    "train_dir": true,
+    "outputs": true,
+    ".pytest_cache": true
   },
   "python.testing.unittestArgs": [
     "-v",
@@ -29,12 +31,14 @@
   ],
   "python.testing.pytestEnabled": false,
   "python.testing.unittestEnabled": true,
-  "files.exclude": {
-    "**/*.egg-info": true,
-    "**/__pycache__": true,
-    "replays": true,
-    "train_dir": true,
-    "outputs": true,
-    ".pytest_cache": true
+  "[yaml]": {
+    "editor.insertSpaces": true,
+    "editor.tabSize": 2,
+    "editor.quickSuggestions": {
+      "other": true,
+      "comments": false,
+      "strings": true
+    },
+    "editor.autoIndent": "keep"
   }
 }

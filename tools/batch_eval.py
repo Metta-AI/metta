@@ -1,4 +1,3 @@
-
 import hydra
 from omegaconf import DictConfig
 
@@ -9,5 +8,7 @@ from util.runtime_configuration import setup_mettagrid_environment
 def main(cfg: DictConfig):
     setup_mettagrid_environment(cfg)
     simulate_policies(cfg)
+
+
 if __name__ == "__main__":
     main()
