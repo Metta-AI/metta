@@ -145,9 +145,6 @@ class EvalStatsAnalyzer:
 
             fitness = candidate_mean - baseline_mean
 
-<<<<<<< HEAD
-            policy_fitness.append({"eval": eval, "metric": metric_name, "candidate_mean": candidate_mean, "baseline_mean": baseline_mean, "fitness": fitness})
-=======
             policy_fitness.append(
                 {
                     "eval": eval,
@@ -157,6 +154,5 @@ class EvalStatsAnalyzer:
                     "fitness": fitness,
                 }
             )
->>>>>>> f19e0087d4f60315ccd84a5a589359f7f85efd6c
 
         return policy_fitness
