@@ -18,40 +18,40 @@ game:
     rooms:
       base:
         _target_: mettagrid.config.room.random.Random
-        width: ${uniform:10,50,10}
-        height: ${uniform:10,50,10}
+        width: ${if:${eq:${..sampling},0},10,${uniform:10,50}}
+        height: ${if:${eq:${..sampling},0},10,${uniform:10,50}}
         border_width: 0
 
         agents: ${div:${....num_agents},4}
 
         objects:
-          generator: ${uniform:1,10,2}
-          armory: ${uniform:1,5,1}
-          lasery: ${uniform:1,5,1}
-          lab: ${uniform:1,5,1}
-          factory: ${uniform:1,5,1}
-          temple: ${uniform:1,5,1}
-          wall: ${uniform:0,10,5}
+          generator: ${if:${eq:${..sampling},0},2,${uniform:1,10}}
+          armory: ${if:${eq:${..sampling},0},1,${uniform:1,5}}
+          lasery: ${if:${eq:${..sampling},0},1,${uniform:1,5}}
+          lab: ${if:${eq:${..sampling},0},1,${uniform:1,5}}
+          factory: ${if:${eq:${..sampling},0},1,${uniform:1,5}}
+          temple: ${if:${eq:${..sampling},0},1,${uniform:1,5}}
+          wall: ${if:${eq:${..sampling},0},5,${uniform:0,10}}
 
       wild:
         _target_: mettagrid.config.room.random.Random
-        width: ${uniform:10,50,20}
-        height: ${uniform:10,50,20}
+        width: ${if:${eq:${..sampling},0},20,${uniform:10,50}}
+        height: ${if:${eq:${..sampling},0},20,${uniform:10,50}}
         border_width: 0
 
         objects:
-          mine: ${uniform:1,20,10}
-          altar: ${uniform:1,5,1}
-          wall: ${uniform:0,20,5}
+          mine: ${if:${eq:${..sampling},0},10,${uniform:10,20}}
+          altar: ${if:${eq:${..sampling},0},1,${uniform:1,5}}
+          wall: ${if:${eq:${..sampling},0},5,${uniform:0,20}}
 
       center:
         _target_: mettagrid.config.room.random.Random
-        width: ${uniform:10,50,10}
-        height: ${uniform:10,50,10}
+        width: ${if:${eq:${..sampling},0},10,${uniform:10,50}}
+        height: ${if:${eq:${..sampling},0},10,${uniform:10,50}}
         border_width: 0
 
         objects:
-          altar: ${uniform:1,3,2}
-          wall: ${uniform:0,20,5}
-          generator: ${uniform:1,10,2}
+          altar: ${if:${eq:${..sampling},0},2,${uniform:1,3}}
+          wall: ${if:${eq:${..sampling},0},5,${uniform:0,20}}
+          generator: ${if:${eq:${..sampling},0},2,${uniform:1,10}}
 

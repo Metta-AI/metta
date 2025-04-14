@@ -14,15 +14,15 @@ game:
 
     room:
       _target_: mettagrid.config.room.random.Random
-      width: ${uniform:15,100,30}
-      height: ${uniform:15,100,30}
-      border_width: ${uniform:1,6,3}
+      width: ${if:${eq:${..sampling},0},30,${uniform:15,100}}
+      height: ${if:${eq:${..sampling},0},30,${uniform:15,100}}
+      border_width: ${if:${eq:${..sampling},0},3,${uniform:1,6}}
 
       agents: 1
 
       objects:
-        altar: ${uniform:50,100,75}
-        wall: ${uniform:20,60,25}
+        altar: ${if:${eq:${..sampling},0},75,${uniform:50,100}}
+        wall: ${if:${eq:${..sampling},0},25,${uniform:20,60}}
 
   objects:
     altar:
