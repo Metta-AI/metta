@@ -2,9 +2,6 @@
 
 import hydra
 
-# Import mettagrid_env to ensure OmegaConf resolvers are registered before Hydra loads
-import mettagrid.mettagrid_env  # noqa: F401
-
 from agent.policy_store import PolicyStore
 from rl.pufferlib.replay_helper import ReplayHelper
 from rl.wandb.wandb_context import WandbContext

@@ -3,9 +3,6 @@ import os
 import sys
 
 import hydra
-
-# Import mettagrid_env to ensure OmegaConf resolvers are registered before Hydra loads
-import mettagrid.mettagrid_env  # noqa: F401
 import torch.distributed as dist
 from omegaconf import OmegaConf
 from rich.logging import RichHandler
