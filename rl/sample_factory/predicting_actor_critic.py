@@ -1,6 +1,7 @@
 
 
 from __future__ import annotations
+
 import numpy as np
 import torch
 from sample_factory.algo.utils.context import global_model_factory
