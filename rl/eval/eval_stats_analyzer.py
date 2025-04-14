@@ -123,6 +123,7 @@ class EvalStatsAnalyzer:
         # Get the latest version of the candidate policy
         candidate_uri = self.get_latest_policy(all_policies, uri)
 
+        # filter by inputted baseline policies if there are, otherwise use all policies as baselines
         baseline_policies = list(
             set([self.get_latest_policy(all_policies, b) for b in self.analysis.baseline_policies or all_policies])
         )
@@ -137,10 +138,12 @@ class EvalStatsAnalyzer:
         baseline_data: pd.DataFrame = metric_data.loc[baseline_policies].set_index(eval_header)
 
         for eval in evals:
-            # if len(evals) == 1:
-            #     candidate_mean = metric_data.loc[candidate_uri][metric_mean] or 0
-            #     baseline_mean = np.mean(metric_data.loc[baseline_policies][metric_mean]) or 0
-            # else:
+            if eval not in candidate_data.index:
+                self.logger.info(f"No data found for {eval} in candidate policy {candidate_uri}, cannot compute fitness")
+                continue
+            if eval not in baseline_data.index:
+                self.logger.info(f"No data found for {eval} in baseline policies {baseline_policies}, cannot compute fitnesss")
+                continue
             candidate_mean = candidate_data.loc[eval][metric_mean]
             baseline_mean = np.mean(baseline_data.loc[eval][metric_mean])
 
