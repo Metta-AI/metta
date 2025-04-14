@@ -57,7 +57,7 @@ class EvalStatsAnalyzer:
         for cfg, metrics in metric_configs.items():
             filters = self._filters(cfg)
             for metric in metrics:
-                metric_result = self.stats_db._query(total_metric(metric, filters))
+                metric_result = self.stats_db.query(total_metric(metric, filters))
                 if len(metric_result) == 0:
                     self.logger.info(f"No data found for {metric} with filters {filters}" + "\n")
                     continue
@@ -109,7 +109,7 @@ class EvalStatsAnalyzer:
 
         return candidate_uri
 
-    def policy_fitness(self, metric_data, metric_name):
+    def policy_fitness(self, metric_data: pd.DataFrame, metric_name: str) -> list[dict]:
         policy_fitness = []
         if "wandb" in self.candidate_policy_uri:
             uri = self.candidate_policy_uri.replace("wandb://run/", "")
@@ -128,20 +128,21 @@ class EvalStatsAnalyzer:
         )
 
         metric_data = metric_data.set_index("policy_name")
-        eval, metric_mean, metric_std = metric_data.keys()
+        eval_header, metric_mean, _ = metric_data.keys()
 
-        evals = metric_data[eval].unique()
+        evals = metric_data[eval_header].unique()
 
-        candidate_data = pd.DataFrame(metric_data.loc[[candidate_uri]]).set_index(eval)
-        baseline_data = metric_data.loc[baseline_policies].set_index(eval)
+        # use a list to index the metric_data to ensure we return a dataframe
+        candidate_data: pd.DataFrame = metric_data.loc[[candidate_uri]].set_index(eval_header)
+        baseline_data: pd.DataFrame = metric_data.loc[baseline_policies].set_index(eval_header)
 
         for eval in evals:
-            if len(evals) == 1:
-                candidate_mean = metric_data.loc[candidate_uri][metric_mean] or 0
-                baseline_mean = np.mean(metric_data.loc[baseline_policies][metric_mean]) or 0
-            else:
-                candidate_mean = candidate_data.loc[eval][metric_mean] or 0
-                baseline_mean = np.mean(baseline_data.loc[eval][metric_mean]) or 0
+            # if len(evals) == 1:
+            #     candidate_mean = metric_data.loc[candidate_uri][metric_mean] or 0
+            #     baseline_mean = np.mean(metric_data.loc[baseline_policies][metric_mean]) or 0
+            # else:
+            candidate_mean = candidate_data.loc[eval][metric_mean]
+            baseline_mean = np.mean(baseline_data.loc[eval][metric_mean])
 
             fitness = candidate_mean - baseline_mean
 
