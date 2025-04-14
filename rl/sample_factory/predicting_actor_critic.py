@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import numpy as np
 import torch
 from sample_factory.algo.utils.context import global_model_factory
 from sample_factory.algo.utils.tensor_dict import TensorDict
@@ -12,7 +11,7 @@ from sample_factory.utils.typing import Config
 class PredictingActorCritic(ActorCriticSharedWeights):
     def __init__(self, model_factory, obs_space, action_space, cfg: Config):
         super().__init__(model_factory, obs_space, action_space, cfg)
-        self._obs_size = np.prod(obs_space["obs"].shape)
+        # self._obs_size = np.prod(obs_space["obs"].shape)
         # self.obs_predictor = nn.Sequential(
         #     nn.Linear(self.encoder.get_out_size(), 512),
         #     nn.ReLU(),
