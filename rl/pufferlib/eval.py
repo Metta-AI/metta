@@ -165,6 +165,7 @@ class Eval:
                         else:
                             agent_episode_data[agent_i]["policy_name"] = "No Name Found"
                         agent_episode_data[agent_i]["episode_reward"] = episode_reward[agent_i].tolist()
+                        agent_episode_data[agent_i].update(flattened_env)
 
                     game_stats.append(agent_episode_data)
         logger.info(f"Evaluation time: {time.time() - start}")
