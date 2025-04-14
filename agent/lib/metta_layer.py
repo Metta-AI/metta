@@ -3,7 +3,6 @@ import torch
 from tensordict import TensorDict
 from torch import nn
 
-
 class LayerBase(nn.Module):
     """The base class for components that make up the Metta agent. All components
     are required to have a name and an input source, although the input source

@@ -3,7 +3,6 @@ from typing import List, Union
 import torch
 from torch.distributions.utils import logits_to_probs
 
-
 def log_prob(logits, value):
     """
     Compute log probability of a value given logits.

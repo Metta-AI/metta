@@ -6,12 +6,12 @@ import sys
 import time
 
 import hydra
+import wandb
 import wandb_carbs
 import yaml
 from omegaconf import DictConfig, OmegaConf
 from rich.logging import RichHandler
 
-import wandb
 from rl.carbs.metta_carbs import MettaCarbs, carbs_params_from_cfg
 from rl.wandb.sweep import generate_run_id_for_sweep, sweep_id_from_name
 from rl.wandb.wandb_context import WandbContext

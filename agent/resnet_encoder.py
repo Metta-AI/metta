@@ -6,7 +6,6 @@ from torch import nn
 from agent.lib.observation_normalizer import ObservationNormalizer
 from agent.lib.util import name_to_activation
 
-
 class _ResidualBlock(nn.Module):
     def __init__(self, depth: int, activation: str):
         super().__init__()

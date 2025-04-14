@@ -16,6 +16,24 @@ exclude = [
     "node_modules",   # Node.js packages
 ]
 
+[lint.isort]
+# Define import sections and their order
+known-third-party = ["wandb", "torch", "omegaconf"]
+known-first-party = [
+    "agent",
+    "rl",
+    "devops",
+] # Add your local package names here
+section-order = [
+    "future",
+    "standard-library",
+    "third-party",
+    "first-party",
+    "local-folder",
+]
+# Add blank lines between import sections
+lines-after-imports = 1
+
 [lint]
 # Rules to enable for linting
 # E: pycodestyle errors

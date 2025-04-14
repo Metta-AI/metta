@@ -1,10 +1,8 @@
+import wandb
 from omegaconf import OmegaConf
 from rich.table import Table
 
-import wandb
-
 from .dashboard import DashboardComponent, b2, c1
-
 
 class WanDb(DashboardComponent):
     def __init__(self, wandb_cfg: OmegaConf):

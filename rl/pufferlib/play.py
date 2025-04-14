@@ -6,7 +6,6 @@ from omegaconf import OmegaConf
 from agent.policy_store import PolicyStore
 from rl.pufferlib.vecenv import make_vecenv
 
-
 def play(cfg: OmegaConf, policy_store: PolicyStore):
     device = cfg.device
     vecenv = make_vecenv(cfg.eval.env, cfg.vectorization, num_envs=1, render_mode="human")

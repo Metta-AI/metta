@@ -16,12 +16,12 @@ import warnings
 from typing import List, Union
 
 import torch
+import wandb
 from omegaconf import OmegaConf
 from torch import nn
-
-import wandb
-from agent.metta_agent import make_policy
 from wandb.sdk import wandb_run
+
+from agent.metta_agent import make_policy
 
 logger = logging.getLogger("policy_store")
 

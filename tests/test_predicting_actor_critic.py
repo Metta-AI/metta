@@ -10,7 +10,6 @@ from torch import nn
 
 from rl.sample_factory.predicting_actor_critic import PredictingActorCritic
 
-
 class MockObsPredictor(nn.Module):
     def __init__(self, obs_shape):
         super().__init__()

@@ -12,7 +12,6 @@ from datetime import datetime
 import boto3
 from botocore.config import Config
 
-
 def get_boto3_client(service_name):
     """Get a boto3 client with standard configuration."""
     config = Config(retries={"max_attempts": 10, "mode": "standard"}, max_pool_connections=50)

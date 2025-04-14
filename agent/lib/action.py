@@ -1,6 +1,5 @@
 import agent.lib.nn_layer_library as nn_layer_library
 
-
 class ActionType(nn_layer_library.Linear):
     def __init__(self, action_type_size, **cfg):
         super().__init__(**cfg)

@@ -5,7 +5,6 @@ from rl.pufferlib.trainer import PufferTrainer
 from .dashboard import ROUND_OPEN, DashboardComponent, abbreviate, b2, c1, c2, duration, fmt_perf
 from .user_stats import UserStats
 
-
 class Training(DashboardComponent):
     def __init__(self, trainer: PufferTrainer):
         self.trainer = trainer

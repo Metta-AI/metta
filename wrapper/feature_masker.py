@@ -1,7 +1,6 @@
 import gymnasium as gym
 import numpy as np
 
-
 class FeatureMasker(gym.Wrapper):
     def __init__(self, env, masked_features):
         super().__init__(env)

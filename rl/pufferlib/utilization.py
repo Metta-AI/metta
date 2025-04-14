@@ -6,7 +6,6 @@ from threading import Thread
 import psutil
 import torch
 
-
 class Utilization(Thread):
     def __init__(self, delay=1, maxlen=20):
         super().__init__()

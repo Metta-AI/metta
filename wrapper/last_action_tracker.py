@@ -1,7 +1,6 @@
 import gymnasium as gym
 import numpy as np
 
-
 class LastActionTracker(gym.Wrapper):
     def __init__(self, env):
         super(LastActionTracker, self).__init__(env)

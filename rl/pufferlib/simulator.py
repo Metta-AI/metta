@@ -5,7 +5,6 @@ from omegaconf import OmegaConf
 from agent.policy_store import PolicyRecord
 from rl.pufferlib.vecenv import make_vecenv
 
-
 class Simulator:
     """ Simulate a policy for playing or tracing the environment """
 

@@ -202,15 +202,15 @@ class MettaAgent(nn.Module):
             component.update_l2_init_weight_copy()
 
     def clip_weights(self):
-        """Weight clipping is on by default although setting clip_range or clip_scale to 0, or a large positive value 
-        effectively turns it off. Adjust it by setting clip_scale in your component config to a multiple of the global 
+        """Weight clipping is on by default although setting clip_range or clip_scale to 0, or a large positive value
+        effectively turns it off. Adjust it by setting clip_scale in your component config to a multiple of the global
         loss value or 0 to turn it off."""
         if self.clip_range > 0:
             for component in self.components.values():
                 component.clip_weights()
 
     def compute_effective_rank(self, delta: float = 0.01) -> List[dict]:
-        """Effective rank computation is off by default. Set effective_rank to True in the config to turn it on for 
+        """Effective rank computation is off by default. Set effective_rank to True in the config to turn it on for
         a given component."""
         effective_ranks = []
         for component in self.components.values():

@@ -2,7 +2,6 @@ from typing import Any, Dict
 
 from omegaconf import OmegaConf
 
-
 def all_fields():
     return "SELECT * FROM eval_data"
 

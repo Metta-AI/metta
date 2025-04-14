@@ -3,7 +3,6 @@ import sys
 
 from loguru import logger
 
-
 def remap_io(logs_path: str):
     os.makedirs(logs_path, exist_ok=True)
     stdout_log_path = os.path.join(logs_path, "out.log")

@@ -8,7 +8,6 @@ from sample_factory.algo.utils.tensor_dict import TensorDict
 from sample_factory.model.actor_critic import ActorCriticSharedWeights
 from sample_factory.utils.typing import Config
 
-
 class PredictingActorCritic(ActorCriticSharedWeights):
     def __init__(self, model_factory, obs_space, action_space, cfg: Config):
         super().__init__(model_factory, obs_space, action_space, cfg)

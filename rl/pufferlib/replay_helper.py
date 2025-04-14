@@ -5,13 +5,12 @@ import os
 import zlib
 
 import boto3
+import wandb
 from omegaconf import OmegaConf
 
-import wandb
 from agent.policy_store import PolicyRecord
 from rl.pufferlib.simulator import Simulator
 from rl.wandb.wandb_context import WandbContext
-
 
 class ReplayHelper:
     """Helper class for generating and uploading replays."""

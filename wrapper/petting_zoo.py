@@ -2,7 +2,6 @@ import gymnasium as gym
 import numpy as np
 import pettingzoo
 
-
 class PettingZooEnvWrapper(pettingzoo.ParallelEnv):
     def __init__(self, gym_env: gym.Env, render_mode="rgb_array"):
         super().__init__()

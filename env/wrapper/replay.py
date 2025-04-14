@@ -2,7 +2,6 @@ import os
 
 import torch
 
-
 class Replay():
     def __init__(self, filename):
         self.filename = filename

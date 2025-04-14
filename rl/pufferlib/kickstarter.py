@@ -1,6 +1,5 @@
 import torch
 
-
 class Kickstarter:
     def __init__(self, cfg, policy_store, single_action_space):
         self.device = cfg.device

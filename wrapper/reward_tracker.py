@@ -1,7 +1,6 @@
 import gymnasium as gym
 import numpy as np
 
-
 class RewardTracker(gym.Wrapper):
     def __init__(self, env):
         super(RewardTracker, self).__init__(env)
