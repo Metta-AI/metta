@@ -11,6 +11,7 @@ import torch
 import torch.distributed as dist
 from fast_gae import fast_gae
 from omegaconf import OmegaConf
+from heavyball import ForeachMuon
 
 from util.config import config_from_path
 import wandb
@@ -124,8 +125,15 @@ class PufferTrainer:
 
         self.agent_step = checkpoint.agent_step
         self.epoch = checkpoint.epoch
-        self.optimizer = torch.optim.Adam(self.policy.parameters(),
-            lr=self.trainer_cfg.learning_rate, eps=1e-5)
+
+        assert self.trainer_cfg.optimizer.type in ('adam', 'muon')
+        opt_cls = torch.optim.Adam if self.trainer_cfg.optimizer.type == 'adam' else ForeachMuon
+        self.optimizer = opt_cls(
+            self.policy.parameters(),
+            lr=self.trainer_cfg.optimizer.learning_rate,
+            betas=(self.trainer_cfg.optimizer.beta1, self.trainer_cfg.optimizer.beta2),
+            eps=self.trainer_cfg.optimizer.eps
+        )
 
         if checkpoint.agent_step > 0:
             self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
