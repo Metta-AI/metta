@@ -558,20 +558,13 @@ class PufferTrainer:
             if k in self.stats:
                 overview[v] = self.stats[k]
 
-        navigation_eval_metrics = {}
-        if len(self._eval_results) > 0:
-            navigation_score = np.mean([r["candidate_mean"] for r in self._eval_results if "navigation" in r["eval"]])
-            if not np.isnan(navigation_score):
-                overview["navigation_evals"] = navigation_score
+        navigation_score = np.mean([r["candidate_mean"] for r in self._eval_results if "navigation" in r["eval"]])
+        object_use_score = np.mean([r["candidate_mean"] for r in self._eval_results if "object_use" in r["eval"]])
 
-            navigation_eval_metrics = {
-                f'navigation_evals/{r["eval"].split("/")[-1]}:{r["metric"]}': r["candidate_mean"]
-                for r in self._eval_results if "navigation" in r["eval"]
-            }
-        # object_use_score = np.mean([r["candidate_mean"] for r in self._eval_results if "object_use" in r["eval"]])
-
-        # if not np.isnan(object_use_score):
-        #     overview["object_use_evals"] = object_use_score
+        if not np.isnan(navigation_score):
+            overview["navigation_evals"] = navigation_score
+        if not np.isnan(object_use_score):
+            overview["object_use_evals"] = object_use_score
 
         environment = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
 
