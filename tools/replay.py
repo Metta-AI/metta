@@ -2,15 +2,18 @@
 
 import hydra
 
+# Import mettagrid_env to ensure OmegaConf resolvers are registered before Hydra loads
+import mettagrid.mettagrid_env  # noqa: F401
+
 from agent.policy_store import PolicyStore
 from rl.pufferlib.replay_helper import ReplayHelper
 from rl.wandb.wandb_context import WandbContext
 from util.config import config_from_path, setup_metta_environment
 from util.runtime_configuration import setup_mettagrid_environment
 
+
 @hydra.main(version_base=None, config_path="../configs", config_name="simulator")
 def main(cfg):
-
     setup_metta_environment(cfg)
     setup_mettagrid_environment(cfg)
 
@@ -23,6 +26,7 @@ def main(cfg):
         replay_path = f"{cfg.run_dir}/replays/replay.json.z"
         replay_helper.generate_replay(replay_path)
         print(f"Replay saved to {replay_path}")
+
 
 if __name__ == "__main__":
     main()
