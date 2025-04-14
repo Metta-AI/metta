@@ -579,13 +579,6 @@ class PufferTrainer:
             f"pfs/{r['eval'].split('/')[-1]}:{r['metric']}": r["fitness"] for r in self._eval_results
         }
 
-<<<<<<< HEAD
-
-        # object_use_eval_metrics = {
-        #     f'object_use_evals/{r["eval"].split("/")[-1]}:{r["metric"]}': r["candidate_mean"]
-        #     for r in self._eval_results if "object_use" in r["eval"]
-        # }
-=======
         navigation_eval_metrics = {
             f"navigation_evals/{r['eval'].split('/')[-1]}:{r['metric']}": r["candidate_mean"]
             for r in self._eval_results
@@ -597,29 +590,12 @@ class PufferTrainer:
             for r in self._eval_results
             if "object_use" in r["eval"]
         }
->>>>>>> f19e0087d4f60315ccd84a5a589359f7f85efd6c
 
         effective_rank_metrics = {
             f"train/effective_rank/{rank['name']}": rank["effective_rank"] for rank in self._effective_rank
         }
 
         if self.wandb_run and self.cfg.wandb.track and self._master:
-<<<<<<< HEAD
-            self.wandb_run.log({
-                **{f"overview/{k}": v for k, v in overview.items()},
-                **{f"losses/{k}": v for k, v in losses.items()},
-                **{f"performance/{k}": v for k, v in performance.items()},
-                **environment,
-                **policy_fitness_metrics,
-                **effective_rank_metrics,
-                **navigation_eval_metrics,
-                # **object_use_eval_metrics,
-                "train/agent_step": agent_steps,
-                "train/epoch": epoch,
-                "train/learning_rate": learning_rate,
-                "train/average_reward": self.average_reward if self.trainer_cfg.average_reward else None,
-            })
-=======
             self.wandb_run.log(
                 {
                     **{f"overview/{k}": v for k, v in overview.items()},
@@ -636,7 +612,6 @@ class PufferTrainer:
                     "train/average_reward": self.average_reward if self.trainer_cfg.average_reward else None,
                 }
             )
->>>>>>> f19e0087d4f60315ccd84a5a589359f7f85efd6c
 
         self._eval_results = []
         self._effective_rank = []
