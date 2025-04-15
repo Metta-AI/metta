@@ -6,10 +6,7 @@ semi_compact_obs: true
 sampling: 0.0
 
 hidden_features:
-  grid_obs: [
-    "agent:energy",
-    "agent:hp",
-  ]
+  grid_obs: ["agent:energy", "agent:hp"]
 
 game:
   obs_width: 11
