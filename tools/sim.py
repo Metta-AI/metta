@@ -9,6 +9,7 @@ from metta.sim.simulation import Simulation
 from metta.util.runtime_configuration import setup_mettagrid_environment
 from metta.util.wandb.wandb_context import WandbContext
 
+
 def simulate(eval: Simulation, cfg: DictConfig, wandb_run):
     stats = eval.simulate()
     stats_logger = EvalStatsLogger(cfg, wandb_run)
