@@ -16,14 +16,14 @@ from omegaconf import OmegaConf
 
 from metta.agent.metta_agent import DistributedMettaAgent
 from metta.agent.policy_store import PolicyStore
-from metta.rl.eval.eval_stats_db import EvalStatsDB
-from metta.rl.eval.eval_stats_logger import EvalStatsLogger
 from metta.rl.pufferlib.experience import Experience
 from metta.rl.pufferlib.kickstarter import Kickstarter
 from metta.rl.pufferlib.profile import Profile
-from metta.rl.pufferlib.replay_helper import ReplayHelper
 from metta.rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
-from metta.rl.pufferlib.vecenv import make_vecenv
+from metta.sim.eval_stats_db import EvalStatsDB
+from metta.sim.eval_stats_logger import EvalStatsLogger
+from metta.sim.replay_helper import ReplayHelper
+from metta.sim.vecenv import make_vecenv
 from metta.util.config import config_from_path
 
 torch.set_float32_matmul_precision("high")
@@ -208,7 +208,7 @@ class PufferTrainer:
         eval = hydra.utils.instantiate(
             self.cfg.eval, self.policy_store, self.last_pr, self.cfg.get("run_id", self.wandb_run.id), _recursive_=False
         )
-        stats = eval.evaluate()
+        stats = eval.simulate()
 
         try:
             self.eval_stats_logger.log(stats)
