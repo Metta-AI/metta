@@ -23,6 +23,7 @@ from rl.pufferlib.kickstarter import Kickstarter
 from rl.pufferlib.profile import Profile
 from rl.pufferlib.trace import save_trace_image
 from rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
+from rl.pufferlib.torch_profiler import TorchProfiler
 from rl.pufferlib.vecenv import make_vecenv
 
 torch.set_float32_matmul_precision('high')
@@ -54,6 +55,7 @@ class PufferTrainer:
             logger.info(f"Setting up distributed training on device {self.device}")
 
         self.profile = Profile()
+        self.torch_profiler = TorchProfiler(cfg.run_dir)
         self.losses = self._make_losses()
         self.stats = defaultdict(list)
         self.wandb_run = wandb_run
@@ -141,17 +143,43 @@ class PufferTrainer:
         self.train_start = time.time()
         logger.info("Starting training")
 
+        # --- Profiler Setup ---
+        should_profile_this_epoch = (
+            self.trainer_cfg.profiler_interval_epochs != 0
+            # note, this will also run at the beginning since self.epoch == 0
+            and self.epoch % self.trainer_cfg.profiler_interval_epochs == 0
+            and self._master
+        )
+        if should_profile_this_epoch:
+             self.torch_profiler.setup_profiler(self.epoch)
+
         # it doesn't make sense to evaluate more often than checkpointing since we need a saved policy to evaluate
         if self.trainer_cfg.evaluate_interval != 0 and self.trainer_cfg.evaluate_interval < self.trainer_cfg.checkpoint_interval:
             self.trainer_cfg.evaluate_interval = self.trainer_cfg.checkpoint_interval
 
         logger.info(f"Training on {self.device}")
         while self.agent_step < self.trainer_cfg.total_timesteps:
-            # Collecting experience
-            self._evaluate()
+            # --- Profiler Setup (inside loop for subsequent epochs) ---
+            # Check if it's time to arm the profiler for this epoch
+            # We check again here in case the loop runs multiple times or epoch increments
+            if not self.torch_profiler.active: # Only setup if not already active
+                should_profile_this_epoch = (
+                    self.trainer_cfg.profiler_interval_epochs != 0
+                    and self.epoch % self.trainer_cfg.profiler_interval_epochs == 0
+                    and self._master
+                )
+                if should_profile_this_epoch:
+                     self.torch_profiler.setup_profiler(self.epoch)
+            # --- End Profiler Setup ---
 
-            # Training on collected experience
-            self._train()
+            # --- Profiler Context ---
+            if self.torch_profiler.active:
+                with self.torch_profiler: # This will start/stop profiling
+                    self._evaluate()
+                    self._train()
+            else: # Run normally if profiler is not active for this epoch
+                self._evaluate()
+                self._train()
 
             # Processing stats
             self._process_stats()
