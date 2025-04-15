@@ -1,5 +1,6 @@
 from metta.agent.lib.nn_layer_library import Linear
 
+
 class ActionType(Linear):
     def __init__(self, action_type_size, **cfg):
         super().__init__(**cfg)

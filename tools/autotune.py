@@ -1,6 +1,7 @@
 import hydra
 import pufferlib.vector
 
+
 def make_env():
     global env_config
     env = hydra.utils.instantiate(env_config.env, render_mode="human")

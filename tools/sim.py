@@ -38,6 +38,7 @@ def simulate_policies(cfg: DictConfig):
             simulate_policy(cfg, wandb_run)
 
 
+
 @hydra.main(version_base=None, config_path="../configs", config_name="eval")
 def main(cfg: DictConfig):
     setup_mettagrid_environment(cfg)

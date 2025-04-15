@@ -29,6 +29,7 @@ except ImportError:
 
 import anthropic
 
+
 @dataclass
 class RuffError:
     file_path: str
