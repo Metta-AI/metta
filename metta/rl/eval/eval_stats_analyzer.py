@@ -3,7 +3,7 @@ import logging
 
 import numpy as np
 import pandas as pd
-from omegaconf import DictConfig
+from omegaconf import DictConfig, ListConfig
 from tabulate import tabulate
 
 from metta.rl.eval.eval_stats_db import EvalStatsDB
@@ -15,7 +15,7 @@ class EvalStatsAnalyzer:
         self.analysis = analysis
         self.stats_db = stats_db
         self.candidate_policy_uri = policy_uri
-        self.global_filters = analysis.get("filters", None)
+        self.global_filters = analysis.get("filters", {})
 
         metric_configs = {}
         metrics = []
@@ -26,12 +26,12 @@ class EvalStatsAnalyzer:
         self.analysis.metrics = metrics
 
     def _filters(self, item):
-        local_filters = item.get("filters")
+        local_filters = item.get("filters", {})
 
-        if not self.global_filters:
+        if len(self.global_filters) == 0:
             return local_filters
 
-        if not local_filters:
+        if len(local_filters) == 0:
             return self.global_filters
 
         merged = {}
@@ -39,7 +39,7 @@ class EvalStatsAnalyzer:
             global_val = self.global_filters.get(key)
             local_val = local_filters.get(key)
             # If both values exist and are lists, concatenate them.
-            if isinstance(global_val, list) and isinstance(local_val, list):
+            if type(global_val) in [ListConfig, list] and type(local_val) in [ListConfig, list]:
                 merged[key] = global_val + local_val
             # Otherwise, prefer the local value if it exists; if not, use the global value.
             else:
@@ -110,6 +110,12 @@ class EvalStatsAnalyzer:
         return candidate_uri
 
     def policy_fitness(self, metric_data: pd.DataFrame, metric_name: str) -> list[dict]:
+        """This returns a list comparing the fitness of the candidate policy (gotten from config or the latest
+        checkpoint if called from training) to a collection of baseline policies (optionally specified in config,
+        defaulting to all policies evaluated so far in metric_data).
+        This expects metric_data to exist for each policy, but this isn't strongly enforced,
+        and we'll filter out evaluations that don't have data for every policy we're trying to compare."""
+
         policy_fitness = []
         if "wandb" in self.candidate_policy_uri:
             uri = self.candidate_policy_uri.replace("wandb://run/", "")
@@ -123,9 +129,11 @@ class EvalStatsAnalyzer:
         # Get the latest version of the candidate policy
         candidate_uri = self.get_latest_policy(all_policies, uri)
 
+        baseline_policy_names = self.analysis.baseline_policies or all_policies
+
         # filter by inputted baseline policies if there are, otherwise use all policies as baselines
         baseline_policies = list(
-            set([self.get_latest_policy(all_policies, b) for b in self.analysis.baseline_policies or all_policies])
+            set([self.get_latest_policy(all_policies, b) for b in baseline_policy_names])
         )
 
         metric_data = metric_data.set_index("policy_name")

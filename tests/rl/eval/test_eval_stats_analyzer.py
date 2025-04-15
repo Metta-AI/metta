@@ -68,7 +68,7 @@ class TestFilters:
         analyzer_instance = EvalStatsAnalyzer(dummy_stats_db, analysis_conf, policy_uri=candidate_policy)
         # With no filters set anywhere, expect None.
         result = analyzer_instance._filters({})
-        assert result is None
+        assert result == {}
 
     def test_global_only(self, analysis_config_factory, dummy_stats_db, candidate_policy):
         analysis_conf = OmegaConf.create({
@@ -85,6 +85,22 @@ class TestFilters:
         local_item = {"filters": {"level": "local_value"}}
         result = analyzer_instance._filters(local_item)
         assert result == {"level": "local_value"}
+
+    def test_merging_global_and_local(self, analysis_config_factory, dummy_stats_db, candidate_policy):
+        analysis_conf = OmegaConf.create({
+            "metrics": [{"metric": "reward*"}],
+            "filters": {"env": "test_env", "shared_key": "global_value", "list_key": ["global1", "global2"]}
+        })
+        analyzer_instance = EvalStatsAnalyzer(dummy_stats_db, analysis_conf, policy_uri=candidate_policy)
+        local_item = {"filters": {"level": "local_value", "shared_key": "local_value", "list_key": ["local1", "local2"]}}
+        result = analyzer_instance._filters(local_item)
+        expected = {
+            "env": "test_env",
+            "level": "local_value",
+            "shared_key": "local_value",
+            "list_key": ["global1", "global2", "local1", "local2"]
+        }
+        assert result == expected, f"Expected {result} to be {expected}"
 # --- Grouped Tests for get_latest_policy --- #
 
 class TestGetLatestPolicy:
