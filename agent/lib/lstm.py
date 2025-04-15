@@ -13,7 +13,7 @@ class LSTM(LayerBase):
         foot with bad transpose and shape operations. This saves much pain.'''
 
         super().__init__(**cfg)
-        self.obs_shape = obs_shape
+        self.obs_shape = list(obs_shape)
         self.hidden_size = hidden_size
         self.num_layers = self._nn_params['num_layers']
 
@@ -32,6 +32,7 @@ class LSTM(LayerBase):
 
         return net
 
+    @torch.compile(disable=True)  # Dynamo doesn't support compiling LSTMs
     def _forward(self, td: TensorDict):
         x = td['x']
         hidden = td[self._input_source]
@@ -43,7 +44,7 @@ class LSTM(LayerBase):
 
         x_shape, space_shape = x.shape, self.obs_shape
         x_n, space_n = len(x_shape), len(space_shape)
-        if x_shape[-space_n:] != space_shape:
+        if tuple(x_shape[-space_n:]) != tuple(space_shape):
             raise ValueError('Invalid input tensor shape', x.shape)
 
         if x_n == space_n + 1:

@@ -5,7 +5,7 @@ from agent.lib.metta_layer import LayerBase
 class ObsShaper(LayerBase):
     def __init__(self, obs_shape, num_objects, **cfg):
         super().__init__(**cfg)
-        self._obs_shape = obs_shape
+        self._obs_shape = list(obs_shape)
         self._output_size = num_objects
 
     def _forward(self, td: TensorDict):
@@ -13,7 +13,7 @@ class ObsShaper(LayerBase):
 
         x_shape, space_shape = x.shape, self._obs_shape
         x_n, space_n = len(x_shape), len(space_shape)
-        if x_shape[-space_n:] != space_shape:
+        if tuple(x_shape[-space_n:]) != tuple(space_shape):
             raise ValueError('Invalid input tensor shape', x.shape)
 
         if x_n == space_n + 1:

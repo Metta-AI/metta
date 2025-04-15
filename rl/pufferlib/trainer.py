@@ -23,6 +23,7 @@ from rl.pufferlib.kickstarter import Kickstarter
 from rl.pufferlib.profile import Profile
 from rl.pufferlib.replay_helper import ReplayHelper
 from rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
+from rl.pufferlib.torch_profiler import TorchProfiler
 from rl.pufferlib.vecenv import make_vecenv
 from util.config import config_from_path
 
@@ -53,6 +54,7 @@ class PufferTrainer:
             logger.info(f"Setting up distributed training on device {self.device}")
 
         self.profile = Profile()
+        self.torch_profiler = TorchProfiler(cfg.run_dir)
         self.losses = self._make_losses()
         self.stats = defaultdict(list)
         self.wandb_run = wandb_run
@@ -110,8 +112,14 @@ class PufferTrainer:
         self.uncompiled_policy = self.policy
 
         if self.trainer_cfg.compile:
-            logger.info("Compiling policy")
-            self.policy = torch.compile(self.policy, mode=self.trainer_cfg.compile_mode)
+            mode = self.trainer_cfg.compile_mode
+            try:
+                self.policy = torch.compile(
+                    self.policy, mode=mode, fullgraph=False
+                )
+                logger.info(f"Successfully compiled policy with mode={mode} and fullgraph=False")
+            except Exception as e:
+                logger.error(f"Failed to compile policy with mode={mode} and fullgraph=False: {e}")
 
         if dist.is_initialized():
             logger.info(f"Initializing DistributedDataParallel on device {self.device}")
@@ -190,6 +198,8 @@ class PufferTrainer:
                 self._update_l2_init_weight_copy()
             if self.trainer_cfg.replay_interval != 0 and self.epoch % self.trainer_cfg.replay_interval == 0:
                 self._generate_and_upload_replay()
+            if self.trainer_cfg.profiler_interval_epochs != 0 and self.epoch % self.trainer_cfg.profiler_interval_epochs == 0 and self._master:
+                self.torch_profiler.setup_profiler(self.epoch)
 
             self._on_train_step()
 
@@ -231,6 +241,9 @@ class PufferTrainer:
 
     @pufferlib.utils.profile
     def _evaluate(self):
+        # if self.torch_profiler.active: # delete this
+        #     self.torch_profiler.profiler.__enter__()
+
         experience, profile = self.experience, self.profile
 
         with profile.eval_misc:
@@ -461,6 +474,9 @@ class PufferTrainer:
                     self.losses.ks_action_loss += ks_action_loss.item() / total_minibatches
                     self.losses.ks_value_loss += ks_value_loss.item() / total_minibatches
 
+                if self.torch_profiler.active:
+                    self.torch_profiler.step()
+            
             if self.trainer_cfg.target_kl is not None:
                 if approx_kl > self.trainer_cfg.target_kl:
                     break
