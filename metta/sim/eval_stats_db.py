@@ -9,7 +9,7 @@ import duckdb
 import pandas as pd
 import wandb
 
-from metta.rl.eval.queries import all_fields
+from metta.sim.queries import all_fields
 
 logger = logging.getLogger("eval_stats_db.py")
 

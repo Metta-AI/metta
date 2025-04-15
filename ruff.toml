@@ -19,10 +19,7 @@ exclude = [
 [lint.isort]
 # Define import sections and their order
 known-third-party = ["wandb", "torch", "omegaconf"]
-known-first-party = [
-    "metta",
-    "mettagrid"
-] # Add your local package names here
+known-first-party = ["metta", "mettagrid"]
 section-order = [
     "future",
     "standard-library",
@@ -30,8 +27,6 @@ section-order = [
     "first-party",
     "local-folder",
 ]
-# Add blank lines between import sections
-lines-after-imports = 1
 
 [lint]
 # Rules to enable for linting
