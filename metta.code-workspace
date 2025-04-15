@@ -200,7 +200,10 @@
 		"terminal.integrated.splitCwd": "workspaceRoot",
 		"cSpell.words": [
 			"metta",
-			"mettagrid"
+			"mettagrid",
+			"pytest",
+			"PYTHONPATH",
+			"venv"
 		]
 	}
 }
