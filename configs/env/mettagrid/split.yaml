@@ -18,41 +18,41 @@ game:
     rooms:
       spawn:
         _target_: mettagrid.config.room.random.Random
-        width: ${if:${eq:${..sampling},0},25,${uniform:10,100}}
-        height: ${if:${eq:${..sampling},0},25,${uniform:10,100}}
+        width: ${uniform:10,100,25}
+        height: ${uniform:10,100,25}
         border_width: 0
 
         agents: ${....num_agents}
         objects:
-          altar: ${if:${eq:${..sampling},0},3,${uniform:1,5}}
-          wall: ${if:${eq:${..sampling},0},40,${uniform:0,90}}
+          altar: ${uniform:1,5,3}
+          wall: ${uniform:0,90,40}
 
       wild:
         _target_: mettagrid.config.room.random.Random
-        width: ${if:${eq:${..sampling},0},25,${uniform:10,100}}
-        height: ${if:${eq:${..sampling},0},25,${uniform:10,100}}
+        width: ${uniform:10,100,25}
+        height: ${uniform:10,100,25}
         border_width: 0
 
         objects:
-          wall: ${if:${eq:${..sampling},0},40,${uniform:10,100}}
+          wall: ${uniform:10,100,40}
 
       resources:
         _target_: mettagrid.config.room.random.Random
-        width: ${if:${eq:${..sampling},0},25,${uniform:10,100}}
-        height: ${if:${eq:${..sampling},0},25,${uniform:10,100}}
+        width: ${uniform:10,100,25}
+        height: ${uniform:10,100,25}
         border_width: 0
 
         objects:
-          generator: ${if:${eq:${..sampling},0},10,${uniform:1,20}}
-          wall: ${if:${eq:${..sampling},0},10,${uniform:10,60}}
+          generator: ${uniform:1,20,10}
+          wall: ${uniform:10,60,10}
 
       converters:
         _target_: mettagrid.config.room.random.Random
-        width: ${if:${eq:${..sampling},0},25,${uniform:10,100}}
-        height: ${if:${eq:${..sampling},0},25,${uniform:10,100}}
+        width: ${uniform:10,100,25}
+        height: ${uniform:10,100,25}
         border_width: 0
 
         objects:
-          converter: ${if:${eq:${..sampling},0},5,${uniform:1,15}}
-          wall: ${if:${eq:${..sampling},0},10,${uniform:10,60}}
+          converter: ${uniform:1,15,5}
+          wall: ${uniform:10,60,10}
 
