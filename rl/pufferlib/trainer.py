@@ -199,9 +199,6 @@ class PufferTrainer:
             else: # Run normally if profiler is not active for this epoch
                 self._evaluate()
                 self._train()
-            
-            self._evaluate()
-            self._train()
 
             # Processing stats
             self._process_stats()
