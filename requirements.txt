@@ -32,6 +32,9 @@ websockets>=14.1
 sample-factory==2.1.1
 pixie-python==4.3.0
 
+# forks
+git+https://github.com/Metta-AI/pufferlib.git@metta
+
 # Gym environments
 gymnasium==0.29.1
 ale-py==0.8.1

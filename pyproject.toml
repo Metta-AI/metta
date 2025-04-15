@@ -1,0 +1,14 @@
+[project]
+name = "metta"
+version = "0.1"
+description = "Metta AI framework"
+readme = "README.md"
+requires-python = "3.11"
+
+[tool.setuptools]
+packages = ["metta"]
+package-dir = { "" = "." }
+
+# Optional: If you want to keep dependencies in requirements.txt
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }

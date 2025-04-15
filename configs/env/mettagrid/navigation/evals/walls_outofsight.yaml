@@ -23,7 +23,7 @@ game:
 
       objects:
         altar: 3
-        wall: $(sampling:10,15,12}
+        wall: ${sampling:10,15,12}
 
   objects:
     altar:
