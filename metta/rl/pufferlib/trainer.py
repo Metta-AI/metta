@@ -139,10 +139,6 @@ class PufferTrainer:
             self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
                 self.optimizer, T_max=self.trainer_cfg.total_timesteps // self.trainer_cfg.batch_size)
 
-        self.scaler = None if self.trainer_cfg.precision == 'float32' else torch.amp.GradScaler()
-        self.amp_context = (nullcontext() if self.trainer_cfg.precision == 'float32'
-            else torch.amp.autocast(device_type='cuda', dtype=getattr(torch, self.trainer_cfg.precision)))
-
         if checkpoint.agent_step > 0:
             self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
 
@@ -476,7 +472,7 @@ class PufferTrainer:
                     break
 
         with profile.train_misc:
-            if self.trainer_cfg.lr_scheduler.enabled:
+            if self.lr_scheduler is not None:
                 self.lr_scheduler.step()
 
             y_pred = experience.values_np
