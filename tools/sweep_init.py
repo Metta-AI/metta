@@ -12,11 +12,11 @@ import yaml
 from omegaconf import DictConfig, OmegaConf
 from rich.logging import RichHandler
 
-from rl.carbs.metta_carbs import MettaCarbs, carbs_params_from_cfg
-from rl.wandb.sweep import generate_run_id_for_sweep, sweep_id_from_name
-from rl.wandb.wandb_context import WandbContext
-from util.config import config_from_path
-from util.efs_lock import efs_lock
+from metta.rl.carbs.metta_carbs import MettaCarbs, carbs_params_from_cfg
+from metta.rl.wandb.sweep import generate_run_id_for_sweep, sweep_id_from_name
+from metta.rl.wandb.wandb_context import WandbContext
+from metta.util.config import config_from_path
+from metta.util.efs_lock import efs_lock
 
 # Configure rich colored logging to stderr instead of stdout
 logging.basicConfig(level="INFO", format="%(message)s", datefmt="[%X]", handlers=[RichHandler(rich_tracebacks=True)])
