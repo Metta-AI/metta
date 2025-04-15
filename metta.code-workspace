@@ -199,8 +199,14 @@
 		"terminal.integrated.cwd": "${workspaceFolder}",
 		"terminal.integrated.splitCwd": "workspaceRoot",
 		"cSpell.words": [
+			"cooldown",
+			"Kruskal",
+			"lasery",
 			"metta",
-			"mettagrid"
+			"mettagrid",
+			"pytest",
+			"PYTHONPATH",
+			"venv"
 		]
 	}
 }
