@@ -5,6 +5,7 @@ import metta.rl.pufferlib.utilization as utilization
 
 from .dashboard import DashboardComponent, b2, c1, c3
 
+
 class Utilization(DashboardComponent):
     def __init__(self):
         super().__init__()
