@@ -89,7 +89,8 @@ class TestFilters:
     def test_merging_global_and_local(self, analysis_config_factory, dummy_stats_db, candidate_policy):
         analysis_conf = OmegaConf.create({
             "metrics": [{"metric": "reward*"}],
-            "filters": {"env": "test_env", "shared_key": "global_value", "list_key": ["global1", "global2"]}
+            "filters": {"env": "test_env", "shared_key": "global_value",
+                        "list_key": ["global1", "global2"]}
         })
         analyzer_instance = EvalStatsAnalyzer(dummy_stats_db, analysis_conf, policy_uri=candidate_policy)
         local_item = {"filters": {"level": "local_value", "shared_key": "local_value", "list_key": ["local1", "local2"]}}
