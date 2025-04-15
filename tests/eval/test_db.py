@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 import pytest
 
-from eval.db import PolicyEvalDB
+from metta.eval.db import PolicyEvalDB
 
 @pytest.fixture
 def mock_db_connection():
@@ -289,7 +289,7 @@ def test_get_matrix_data_empty_result(sample_db):
     assert matrix.empty
 
 
-@patch("eval.db.logger")
+@patch("metta.eval.db.logger")
 def test_get_matrix_data_logs_warning_for_empty_result(mock_logger, sample_db):
     """Test that get_matrix_data logs a warning when no data is found."""
     sample_db.get_matrix_data("nonexistent_metric")

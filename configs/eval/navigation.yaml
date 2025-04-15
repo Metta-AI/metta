@@ -1,12 +1,12 @@
-_target_: rl.pufferlib.eval.EvalSuite
+_target_: metta.rl.pufferlib.eval.EvalSuite
 
 defaults:
   - eval
 
 env: null #the env is set in evals:
 
-num_envs: 10
-num_episodes: 10
+num_envs: 1
+num_episodes: 1
 
 evals:
   emptyspace_withinsight:

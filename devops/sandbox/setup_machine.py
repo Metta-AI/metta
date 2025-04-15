@@ -9,29 +9,23 @@ from pathlib import Path
 def run_command(command, check=True):
     """Run a shell command and return its output."""
     try:
-        result = subprocess.run(
-            command,
-            check=check,
-            text=True,
-            capture_output=True
-        )
+        result = subprocess.run(command, check=check, text=True, capture_output=True)
         return result.stdout
     except subprocess.CalledProcessError as e:
         print(f"Error running command '{' '.join(command)}': {e.stderr}")
         sys.exit(1)
 
+
 def install_homebrew():
     """Install Homebrew if it's not already installed."""
     if not os.path.exists("/opt/homebrew/bin/brew"):
         print("Installing Homebrew...")
-        run_command([
-            "curl", "-fsSL",
-            "https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh"
-        ])
+        run_command(["curl", "-fsSL", "https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh"])
         run_command(["/bin/bash", "install.sh"])
         os.remove("install.sh")
     else:
         print("Homebrew is already installed")
+
 
 def run_brew_bundle(force=False, no_fail=False):
     """Run brew bundle with the Brewfile."""
@@ -58,6 +52,7 @@ def run_brew_bundle(force=False, no_fail=False):
             sys.exit(1)
         raise
 
+
 def main():
     parser = argparse.ArgumentParser(description="Setup developer machine with Homebrew and required packages")
     parser.add_argument("--brew-force", action="store_true", help="Let Homebrew take over existing installations")
@@ -67,6 +62,7 @@ def main():
     install_homebrew()
     run_brew_bundle(force=args.brew_force, no_fail=args.brew_no_fail)
     print("Machine setup complete!")
+
 
 if __name__ == "__main__":
     main()
