@@ -12,7 +12,6 @@ from metta.agent.policy_store import PolicyRecord
 from metta.sim.simulator import Simulator
 from metta.util.wandb.wandb_context import WandbContext
 
-
 class ReplayHelper:
     """Helper class for generating and uploading replays."""
 

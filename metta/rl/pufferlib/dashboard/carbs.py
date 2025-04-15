@@ -5,7 +5,6 @@ from metta.rl.carbs.carbs_controller import CarbsController
 from .dashboard import ROUND_OPEN, DashboardComponent, abbreviate, c1, c2
 from .training import Training
 
-
 class Carbs(DashboardComponent):
     def __init__(self, carbs_controller: CarbsController):
         super().__init__()

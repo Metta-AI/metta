@@ -6,7 +6,6 @@ from torch import nn
 
 from metta.agent.lib.metta_layer import LayerBase
 
-
 # this is not currently working
 class FeatureListNormalizer(LayerBase):
     def __init__(self, metta_agent, **cfg):

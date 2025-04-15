@@ -9,10 +9,10 @@ It provides functionality to:
 The PolicyStore is used by the training system to manage opponent policies and checkpoints.
 """
 
+import collections
 import logging
 import os
 import random
-import collections
 import sys
 import warnings
 from typing import List, Union

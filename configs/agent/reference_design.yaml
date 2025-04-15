@@ -1,4 +1,4 @@
-_target_: metta.agent.metta_metta.agent.MettaAgent
+_target_: metta.agent.metta_agent.MettaAgent
 
 policy_selector:
   uri: null
@@ -28,7 +28,7 @@ l2_init_weight_update_interval: 0 # update the copy of initial weights every N e
 # Necessary outputs: _action_type_ and _value_ (and _action_param_ if MultiDiscrete)
 # You must have layers with these names, and their output sizes must correspond
 # to your action and value space. They can otherwise be any class that works
-# with Mettametta.agent.
+# with Metta.agent.
 
 # Components are nn.Modules. Linear and Conv modules get extra weight helper
 # functions found in the ParamLayer class.

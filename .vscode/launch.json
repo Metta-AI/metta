@@ -67,7 +67,7 @@
             "args": [
                 "+user=${env:USER}",
                 "+hardware=macbook",
-                "cmd=eval",
+                "cmd=sim",
             ],
         },
         {
