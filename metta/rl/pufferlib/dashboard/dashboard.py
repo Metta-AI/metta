@@ -10,7 +10,6 @@ from rich.table import Table
 
 from metta.util.logging import remap_io, restore_io
 
-
 class Dashboard(Thread):
     def __init__(self, cfg: OmegaConf, delay=1, components=None):
         super().__init__()

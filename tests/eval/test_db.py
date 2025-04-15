@@ -11,7 +11,6 @@ import pytest
 
 from metta.eval.db import PolicyEvalDB
 
-
 @pytest.fixture
 def mock_db_connection():
     """Create a mock database connection for testing."""

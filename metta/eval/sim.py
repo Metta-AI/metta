@@ -12,7 +12,6 @@ from metta.rl.eval.eval_stats_logger import EvalStatsLogger
 from metta.rl.pufferlib.eval import Eval
 from metta.rl.wandb.wandb_context import WandbContext
 
-
 def simulate(eval: Eval, cfg: DictConfig, wandb_run):
     stats = eval.evaluate()
     stats_logger = EvalStatsLogger(cfg, wandb_run)
