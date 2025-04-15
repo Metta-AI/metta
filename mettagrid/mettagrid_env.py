@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional
 
 import gymnasium as gym
 import hydra
+from mettagrid.resolvers import register_resolvers
 import numpy as np
 import pufferlib
 from omegaconf import DictConfig, OmegaConf
@@ -260,3 +261,4 @@ OmegaConf.register_new_resolver("uniform", oc_uniform, replace=True)
 OmegaConf.register_new_resolver("sub", oc_sub, replace=True)
 OmegaConf.register_new_resolver("make_odd", oc_make_odd, replace=True)
 OmegaConf.register_new_resolver("choose", oc_choose, replace=True)
+register_resolvers()
