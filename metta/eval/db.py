@@ -11,8 +11,8 @@ import hydra
 import pandas as pd
 from omegaconf import DictConfig
 
-from metta.rl.eval.eval_stats_db import EvalStatsDB
-from metta.rl.wandb.wandb_context import WandbContext
+from metta.sim.eval_stats_db import EvalStatsDB
+from metta.util.wandb.wandb_context import WandbContext
 
 logger = logging.getLogger(__name__)
 

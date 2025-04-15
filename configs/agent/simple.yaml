@@ -1,5 +1,5 @@
 # see reference_design.yaml for explanation of components
-_target_: metta.agent.metta_agent.MettaAgent
+_target_: metta.agent.metta_metta.agent.MettaAgent
 
 policy_selector:
   uri: null

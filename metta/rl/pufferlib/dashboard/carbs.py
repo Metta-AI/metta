@@ -5,6 +5,7 @@ from metta.rl.carbs.carbs_controller import CarbsController
 from .dashboard import ROUND_OPEN, DashboardComponent, abbreviate, c1, c2
 from .training import Training
 
+
 class Carbs(DashboardComponent):
     def __init__(self, carbs_controller: CarbsController):
         super().__init__()
@@ -23,7 +24,7 @@ class Carbs(DashboardComponent):
             c.add_row(f"{c2}Score", abbreviate(r["score"]))
             c.add_row(f"{c2}Rollout Time", abbreviate(r["rollout_time"]))
             c.add_row(f"{c2}Train Time", abbreviate(r["train_time"]))
-            c.add_row(f"{c2}Eval Time", abbreviate(r["eval_time"]))
+            c.add_row(f"{c2}Simulation Time", abbreviate(r["eval_time"]))
 
         table = Table(box=ROUND_OPEN, expand=True, pad_edge=False)
         components = []

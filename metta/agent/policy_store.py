@@ -12,6 +12,8 @@ The PolicyStore is used by the training system to manage opponent policies and c
 import logging
 import os
 import random
+import collections
+import sys
 import warnings
 from typing import List, Union
 
@@ -225,6 +227,48 @@ class PolicyStore:
         else:
             return self._load_from_file(uri)
 
+    def _make_codebase_backwards_compatible(self):
+        """
+        torch.load expects the codebase to be in the same structure as when the model was saved.
+
+        We can use this function to alias old layout structures. For now we are just supporting moving
+        agent --> metta.agent
+        """
+        # Start with the base module
+        sys.modules["agent"] = sys.modules["metta.agent"]
+
+        modules_queue = collections.deque(["metta.agent"])
+
+        processed = set()
+        while modules_queue:
+            module_name = modules_queue.popleft()
+            if module_name in processed:
+                continue
+            processed.add(module_name)
+
+            if module_name not in sys.modules:
+                continue
+            module = sys.modules[module_name]
+            old_name = module_name.replace("metta.agent", "agent")
+            sys.modules[old_name] = module
+
+            # Find all submodules
+            for attr_name in dir(module):
+                try:
+                    attr = getattr(module, attr_name)
+                except (ImportError, AttributeError):
+                    continue
+                if hasattr(attr, "__module__"):
+                    attr_module = getattr(attr, "__module__", None)
+
+                    # If it's a module and part of metta.agent, queue it
+                    if attr_module and attr_module.startswith("metta.agent"):
+                        modules_queue.append(attr_module)
+
+                submodule_name = f"{module_name}.{attr_name}"
+                if submodule_name in sys.modules:
+                    modules_queue.append(submodule_name)
+
     def _load_from_file(self, path: str, metadata_only: bool = False) -> PolicyRecord:
         if path in self._cached_prs:
             if metadata_only or self._cached_prs[path]._policy is not None:
@@ -232,6 +276,8 @@ class PolicyStore:
         if not path.endswith(".pt") and os.path.isdir(path):
             path = os.path.join(path, os.listdir(path)[-1])
         logger.info(f"Loading policy from {path}")
+
+        self._make_codebase_backwards_compatible()
 
         assert path.endswith(".pt"), f"Policy file {path} does not have a .pt extension"
         with warnings.catch_warnings():
