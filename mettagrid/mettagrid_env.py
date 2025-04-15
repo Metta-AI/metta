@@ -1,16 +1,18 @@
 import copy
 import random
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
+
 import gymnasium as gym
 import hydra
 import numpy as np
 import pufferlib
-from omegaconf import OmegaConf, DictConfig
+from omegaconf import DictConfig, OmegaConf
+
 from mettagrid.mettagrid_c import MettaGrid  # pylint: disable=E0611
 
 
 class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
-    def __init__(self, env_cfg: DictConfig, render_mode: str, buf=None, **kwargs):
+    def __init__(self, env_cfg: DictConfig, render_mode: Optional[str], buf=None, **kwargs):
         self._render_mode = render_mode
         self._cfg_template = env_cfg
         self._env_cfg = self._get_new_env_cfg()
@@ -29,8 +31,9 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._map_builder = hydra.utils.instantiate(self._env_cfg.game.map_builder)
         env_map = self._map_builder.build()
         map_agents = np.count_nonzero(np.char.startswith(env_map, "agent"))
-        assert self._env_cfg.game.num_agents == map_agents, \
+        assert self._env_cfg.game.num_agents == map_agents, (
             f"Number of agents {self._env_cfg.game.num_agents} does not match number of agents in map {map_agents}"
+        )
 
         self._c_env = MettaGrid(self._env_cfg, env_map)
         self._grid_env = self._c_env
@@ -39,18 +42,14 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         env = self._grid_env
 
         self._env = env
-        #self._env = RewardTracker(self._env)
-        #self._env = FeatureMasker(self._env, self._cfg.hidden_features)
+        # self._env = RewardTracker(self._env)
+        # self._env = FeatureMasker(self._env, self._cfg.hidden_features)
 
     def reset(self, seed=None, options=None):
         self._env_cfg = self._get_new_env_cfg()
         self._reset_env()
 
-        self._c_env.set_buffers(
-            self.observations,
-            self.terminals,
-            self.truncations,
-            self.rewards)
+        self._c_env.set_buffers(self.observations, self.terminals, self.truncations, self.rewards)
 
         # obs, infos = self._env.reset(**kwargs)
         # return obs, infos
@@ -76,13 +75,15 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         episode_rewards = self._c_env.get_episode_rewards()
         episode_rewards_sum = episode_rewards.sum()
         episode_rewards_mean = episode_rewards_sum / self._num_agents
-        infos.update({
-            "episode/reward.sum": episode_rewards_sum,
-            "episode/reward.mean": episode_rewards_mean,
-            "episode/reward.min": episode_rewards.min(),
-            "episode/reward.max": episode_rewards.max(),
-            "episode_length": self._c_env.current_timestep(),
-        })
+        infos.update(
+            {
+                "episode/reward.sum": episode_rewards_sum,
+                "episode/reward.mean": episode_rewards_mean,
+                "episode/reward.min": episode_rewards.min(),
+                "episode/reward.max": episode_rewards.max(),
+                "episode_length": self._c_env.current_timestep(),
+            }
+        )
         stats = self._c_env.get_episode_stats()
 
         infos["episode_rewards"] = episode_rewards
@@ -123,10 +124,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         if self._renderer is None:
             return None
 
-        return self._renderer.render(
-            self._c_env.current_timestep(),
-            self._c_env.grid_objects()
-        )
+        return self._renderer.render(self._c_env.current_timestep(), self._c_env.grid_objects())
 
     @property
     def done(self):
@@ -170,6 +168,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     def close(self):
         pass
 
+
 class MettaGridEnvSet(MettaGridEnv):
     """
     This is a wrapper around MettaGridEnv that allows for multiple environments to be used for training.
@@ -182,21 +181,26 @@ class MettaGridEnvSet(MettaGridEnv):
         self._env_cfg = self._get_new_env_cfg()
 
         super().__init__(env_cfg, render_mode, buf, **kwargs)
-        self._cfg_template = None #we don't use this with multiple envs, so we clear it to emphasize that fact
+        self._cfg_template = None  # we don't use this with multiple envs, so we clear it to emphasize that fact
 
     def _get_new_env_cfg(self):
-        selected_env = np.random.choice(self._env_cfgs, p = self._probabilities)
+        selected_env = np.random.choice(self._env_cfgs, p=self._probabilities)
         env_cfg = config_from_path(selected_env)
         if self._num_agents_global != env_cfg.game.num_agents:
-            raise ValueError("For MettaGridEnvSet, the number of agents must be the same for all environments. Global: {}, Env: {}".format(self._num_agents_global, env_cfg.game.num_agents))
+            raise ValueError(
+                "For MettaGridEnvSet, the number of agents must be the same for all environments. "
+                f"Global: {self._num_agents_global}, Env: {env_cfg.game.num_agents}"
+            )
         env_cfg = OmegaConf.create(env_cfg)
         OmegaConf.resolve(env_cfg)
         return env_cfg
+
 
 def make_env_from_cfg(cfg_path: str, *args, **kwargs):
     cfg = OmegaConf.load(cfg_path)
     env = MettaGridEnv(cfg, *args, **kwargs)
     return env
+
 
 def config_from_path(config_path: str) -> DictConfig:
     env_cfg = hydra.compose(config_name=config_path)
@@ -210,12 +214,12 @@ def config_from_path(config_path: str) -> DictConfig:
         env_cfg = env_cfg[p]
     return env_cfg
 
+
 def oc_uniform(min_val, max_val, center, *, _root_):
     sampling = _root_.get("sampling", 0)
     if sampling == 0:
         return center
     else:
-
         center = (max_val + min_val) // 2
         # Calculate the available range on both sides of the center
         left_range = center - min_val
@@ -234,17 +238,22 @@ def oc_uniform(min_val, max_val, center, *, _root_):
         # Return integer if the original values were integers
         return int(round(val)) if isinstance(center, int) else val
 
+
 def oc_choose(*args):
     return random.choice(args)
+
 
 def oc_div(a, b):
     return a // b
 
+
 def oc_sub(a, b):
     return a - b
 
+
 def oc_make_odd(a):
     return max(3, a // 2 * 2 + 1)
+
 
 OmegaConf.register_new_resolver("div", oc_div, replace=True)
 OmegaConf.register_new_resolver("uniform", oc_uniform, replace=True)

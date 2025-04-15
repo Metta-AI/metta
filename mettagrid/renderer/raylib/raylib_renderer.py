@@ -1,11 +1,11 @@
 # disable pylint for raylib
 # pylint: disable=no-member
 # type: ignore
-import numpy as np
 import os
 import sys
 from collections import defaultdict, deque
-import math
+
+import numpy as np
 import pyray as ray
 import torch
 from cffi import FFI
@@ -13,20 +13,21 @@ from omegaconf import OmegaConf
 from raylib import colors, rl
 
 from mettagrid.mettagrid_env import MettaGridEnv
+from mettagrid.renderer.raylib.camera_controller import CameraController
+from mettagrid.renderer.raylib.font_renderer import FontRenderer
 from mettagrid.renderer.raylib.object_render import (
     AgentRenderer,
     AltarRenderer,
     ArmoryRenderer,
     FactoryRenderer,
     GeneratorRenderer,
-    LaseryRenderer,
     LabRenderer,
+    LaseryRenderer,
     MineRenderer,
     TempleRenderer,
     WallRenderer,
 )
-from mettagrid.renderer.raylib.font_renderer import FontRenderer
-from mettagrid.renderer.raylib.camera_controller import CameraController
+
 
 class MettaGridRaylibRenderer:
     def __init__(self, env: MettaGridEnv, cfg: OmegaConf):
@@ -132,7 +133,9 @@ class MettaGridRaylibRenderer:
                 delta_time = rl.GetFrameTime()
                 self.time_accumulator += delta_time
 
-                self.camera_controller.update(delta_time, float(rl.GetScreenWidth() - self.sidebar_width), float(rl.GetScreenHeight()))
+                self.camera_controller.update(
+                    delta_time, float(rl.GetScreenWidth() - self.sidebar_width), float(rl.GetScreenHeight())
+                )
 
                 self.handle_keyboard_input()
                 self.handle_mouse_input()
@@ -149,8 +152,9 @@ class MettaGridRaylibRenderer:
 
     def _update_layout(self):
         sidebar_width = 250
-        self.tile_size = max(5, min((self.window_width - sidebar_width) // self.grid_width,
-                             self.window_height // self.grid_height))
+        self.tile_size = max(
+            5, min((self.window_width - sidebar_width) // self.grid_width, self.window_height // self.grid_height)
+        )
         self.sidebar_width = self.window_width - self.grid_width * self.tile_size
 
     def _cdata_to_numpy(self):
@@ -161,7 +165,6 @@ class MettaGridRaylibRenderer:
         # return np.frombuffer(cdata, dtype=np.uint8).reshape((height, width, channels))[:, :, :3]
 
     def _render(self):
-
         # Update window size if it has changed
         if rl.IsWindowResized():
             self.window_width = rl.GetScreenWidth()
@@ -183,7 +186,7 @@ class MettaGridRaylibRenderer:
         rl.EndMode2D()
         self.render_sidebar()
 
-        if rl.IsKeyDown(rl.KEY_SLASH): # Also the `?` key.
+        if rl.IsKeyDown(rl.KEY_SLASH):  # Also the `?` key.
             self._draw_help_overlay()
 
         rl.EndDrawing()
@@ -237,9 +240,9 @@ class MettaGridRaylibRenderer:
 
                 if "agent_id" in obj:
                     agent_id = obj["agent_id"]
-                    action_txt = ", ".join([
-                        f"{self.action_names[action[0]]}({action[1]})"
-                        for action in self.action_history[agent_id]])
+                    action_txt = ", ".join(
+                        [f"{self.action_names[action[0]]}({action[1]})" for action in self.action_history[agent_id]]
+                    )
                     self.font_renderer.render_text(action_txt, sidebar_x + 10, y, font_size)
                     y += line_height
 
@@ -260,10 +263,7 @@ class MettaGridRaylibRenderer:
                 for c in range(obs.shape[1]):
                     text = f"{obs[r][c]}"
                     self.font_renderer.render_text_right_aligned(
-                        text,
-                        sidebar_x + 10 + (c + 1) * font_size * 3,
-                        y + r * font_size,
-                        font_size + 2
+                        text, sidebar_x + 10 + (c + 1) * font_size * 3, y + r * font_size, font_size + 2
                     )
 
         # Display current timestep at the bottom of the sidebar
@@ -292,7 +292,8 @@ class MettaGridRaylibRenderer:
                 ray.Color(0, 0, 255, 128),
                 ray.Color(255, 255, 0, 128),
                 ray.Color(0, 255, 255, 128),
-                ray.Color(255, 0, 255, 128)][agent["agent:group"] % 5]
+                ray.Color(255, 0, 255, 128),
+            ][agent["agent:group"] % 5]
 
             if agent["agent:frozen"]:
                 continue
@@ -309,39 +310,40 @@ class MettaGridRaylibRenderer:
                     points = [
                         ray.Vector2(base_x, base_y),
                         ray.Vector2(base_x - self.tile_size * 1.5, base_y - self.tile_size * 3),
-                        ray.Vector2(base_x + self.tile_size * 1.5, base_y - self.tile_size * 3)
+                        ray.Vector2(base_x + self.tile_size * 1.5, base_y - self.tile_size * 3),
                     ]
                 elif agent["agent:orientation"] == 1:  # Facing down
                     points = [
                         ray.Vector2(base_x, base_y),
                         ray.Vector2(base_x - self.tile_size * 1.5, base_y + self.tile_size * 3),
-                        ray.Vector2(base_x + self.tile_size * 1.5, base_y + self.tile_size * 3)
+                        ray.Vector2(base_x + self.tile_size * 1.5, base_y + self.tile_size * 3),
                     ]
                 elif agent["agent:orientation"] == 2:  # Facing left
                     points = [
                         ray.Vector2(base_x, base_y),
                         ray.Vector2(base_x - self.tile_size * 3, base_y - self.tile_size * 1.5),
-                        ray.Vector2(base_x - self.tile_size * 3, base_y + self.tile_size * 1.5)
+                        ray.Vector2(base_x - self.tile_size * 3, base_y + self.tile_size * 1.5),
                     ]
                 else:  # Facing right
                     points = [
                         ray.Vector2(base_x, base_y),
                         ray.Vector2(base_x + self.tile_size * 3, base_y - self.tile_size * 1.5),
-                        ray.Vector2(base_x + self.tile_size * 3, base_y + self.tile_size * 1.5)
+                        ray.Vector2(base_x + self.tile_size * 3, base_y + self.tile_size * 1.5),
                     ]
                 ray.draw_triangle(points[0], points[1], points[2], attack_color)
             if self.action_names[action[0]] == "attack":
                 distance = 1 + (action[1] - 1) // 3
                 offset = -((action[1] - 1) % 3 - 1)
                 target_loc = self._relative_location(
-                    agent["r"], agent["c"], agent["agent:orientation"], distance, offset)
+                    agent["r"], agent["c"], agent["agent:orientation"], distance, offset
+                )
 
                 # Draw red rectangle around target
                 ray.draw_circle_lines(
                     target_loc[1] * self.tile_size + self.tile_size // 2,
                     target_loc[0] * self.tile_size + self.tile_size // 2,
                     self.tile_size * 0.2,
-                    attack_color
+                    attack_color,
                 )
 
                 # Draw red line from attacker to target
@@ -352,7 +354,7 @@ class MettaGridRaylibRenderer:
                 ray.draw_line(int(start_x), int(start_y), int(end_x), int(end_y), attack_color)
 
     def _draw_help_overlay(self):
-        """ Draws a help overlay on the screen with the available keys and their actions. """
+        """Draws a help overlay on the screen with the available keys and their actions."""
 
         font_size = 16
         help_text = """
@@ -391,12 +393,7 @@ class MettaGridRaylibRenderer:
         pos_y = (rl.GetScreenHeight() - size_y) // 2
         # Draw a semi-transparent black rectangle behind the text.
         rl.DrawRectangle(pos_x, pos_y, size_x, size_y, (0, 0, 0, 200))
-        self.font_renderer.render_text(
-            help_text,
-            pos_x + 15,
-            pos_y + 15,
-            font_size
-        )
+        self.font_renderer.render_text(help_text, pos_x + 15, pos_y + 15, font_size)
 
     def handle_keyboard_input(self):
         if rl.IsKeyPressed(rl.KEY_ESCAPE) or rl.WindowShouldClose():
@@ -412,6 +409,7 @@ class MettaGridRaylibRenderer:
             # Do WASD movement actions.
             agent = self.agents[self.selected_agent_idx]
             orientation = agent["agent:orientation"]
+
             def doAction(action_name, value):
                 self.actions[self.selected_agent_idx][0] = self.action_ids[action_name]
                 self.actions[self.selected_agent_idx][1] = value
@@ -419,24 +417,36 @@ class MettaGridRaylibRenderer:
 
             if rl.IsKeyPressed(rl.KEY_W):
                 # Move Up.
-                if orientation == 0: doAction("move", 0)
-                elif orientation == 1: doAction("move", 1)
-                else: doAction("rotate", 0)
+                if orientation == 0:
+                    doAction("move", 0)
+                elif orientation == 1:
+                    doAction("move", 1)
+                else:
+                    doAction("rotate", 0)
             elif rl.IsKeyPressed(rl.KEY_S):
                 # Move Down.
-                if orientation == 1: doAction("move", 0)
-                elif orientation == 0: doAction("move", 1)
-                else: doAction("rotate", 1)
+                if orientation == 1:
+                    doAction("move", 0)
+                elif orientation == 0:
+                    doAction("move", 1)
+                else:
+                    doAction("rotate", 1)
             elif rl.IsKeyPressed(rl.KEY_A):
                 # Move left.
-                if orientation == 2: doAction("move", 0)
-                elif orientation == 3: doAction("move", 1)
-                else: doAction("rotate", 2)
+                if orientation == 2:
+                    doAction("move", 0)
+                elif orientation == 3:
+                    doAction("move", 1)
+                else:
+                    doAction("rotate", 2)
             elif rl.IsKeyPressed(rl.KEY_D):
                 # Move right.
-                if orientation == 3: doAction("move", 0)
-                elif orientation == 2: doAction("move", 1)
-                else: doAction("rotate", 3)
+                if orientation == 3:
+                    doAction("move", 0)
+                elif orientation == 2:
+                    doAction("move", 1)
+                else:
+                    doAction("rotate", 3)
 
             if rl.IsKeyPressed(rl.KEY_GRAVE):
                 self.mind_control = not self.mind_control
@@ -508,7 +518,7 @@ class MettaGridRaylibRenderer:
             rl.KEY_P: (self.action_ids["put_recipe_items"], 0),
             rl.KEY_G: (self.action_ids["get_output"], 0),
             # color manipulation
-            rl.KEY_RIGHT_BRACKET: (self.action_ids["change_color"], 0), # Increment color
+            rl.KEY_RIGHT_BRACKET: (self.action_ids["change_color"], 0),  # Increment color
             rl.KEY_LEFT_BRACKET: (self.action_ids["change_color"], 1),  # Decrement color
             # attack
             rl.KEY_KP_1: (self.action_ids["attack"], 1),  # KEY_1
@@ -520,19 +530,16 @@ class MettaGridRaylibRenderer:
             rl.KEY_KP_7: (self.action_ids["attack"], 7),  # KEY_7
             rl.KEY_KP_8: (self.action_ids["attack"], 8),  # KEY_8
             rl.KEY_KP_9: (self.action_ids["attack"], 9),  # KEY_9
-
-            rl.KEY_ONE: (self.action_ids["attack"], 1),   # KEY_1
-            rl.KEY_TWO: (self.action_ids["attack"], 2),   # KEY_2
-            rl.KEY_THREE: (self.action_ids["attack"], 3), # KEY_3
+            rl.KEY_ONE: (self.action_ids["attack"], 1),  # KEY_1
+            rl.KEY_TWO: (self.action_ids["attack"], 2),  # KEY_2
+            rl.KEY_THREE: (self.action_ids["attack"], 3),  # KEY_3
             rl.KEY_FOUR: (self.action_ids["attack"], 4),  # KEY_4
             rl.KEY_FIVE: (self.action_ids["attack"], 5),  # KEY_5
-            rl.KEY_SIX: (self.action_ids["attack"], 6),   # KEY_6
-            rl.KEY_SEVEN: (self.action_ids["attack"], 7), # KEY_7
-            rl.KEY_EIGHT: (self.action_ids["attack"], 8), # KEY_8
+            rl.KEY_SIX: (self.action_ids["attack"], 6),  # KEY_6
+            rl.KEY_SEVEN: (self.action_ids["attack"], 7),  # KEY_7
+            rl.KEY_EIGHT: (self.action_ids["attack"], 8),  # KEY_8
             rl.KEY_NINE: (self.action_ids["attack"], 9),  # KEY_9
-
             rl.KEY_Z: (self.action_ids["attack_nearest"], 0),
-
             # swap
             rl.KEY_O: (self.action_ids["swap"], 0),
         }

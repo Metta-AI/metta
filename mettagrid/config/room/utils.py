@@ -1,9 +1,9 @@
 # maze_utils.py
 
-from typing import List, Tuple, Dict, Optional, Set
+from typing import Dict, List, Optional, Set, Tuple
+
 import numpy as np
-import math
-import random
+
 
 def create_grid(height: int, width: int, fill_value: str = "empty", dtype: str = "<U50") -> np.ndarray:
     """

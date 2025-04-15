@@ -1,12 +1,10 @@
-from typing import Any, NamedTuple
+from typing import Any
 
+import gymnasium as gym
 import hydra
 import numpy as np
-import gymnasium as gym
-from gymnasium.spaces import Discrete
 import torch
-
-import mettagrid.mettagrid_env
+from gymnasium.spaces import Discrete
 
 
 class SingleAgentWrapper(gym.Wrapper):

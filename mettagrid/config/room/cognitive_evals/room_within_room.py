@@ -1,8 +1,10 @@
 from typing import Set, Tuple
+
 import numpy as np
 
 from mettagrid.config.room.room import Room
 from mettagrid.config.room.utils import create_grid, draw_border  # New utility functions
+
 
 class RoomWithinRoom(Room):
     """

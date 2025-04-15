@@ -2,12 +2,13 @@ import time
 
 import hydra
 import numpy as np
-from tqdm import tqdm
 import pandas as pd
 from omegaconf import OmegaConf
+from tqdm import tqdm
 
 global actions
 global env
+
 
 def test_performance(env, actions, duration):
     tick = 0
@@ -23,15 +24,19 @@ def test_performance(env, actions, duration):
 
     print_stats(env._c_env.get_episode_stats())
     sps = atns.shape[0] * tick / (time.time() - start)
-    microseconds = 1/sps * 1000000
-    print(f'SPS: {sps:.2f} {microseconds:.4f} μs')
+    microseconds = 1 / sps * 1000000
+    print(f"SPS: {sps:.2f} {microseconds:.4f} μs")
+
 
 actions = {}
 env = {}
+
+
 @hydra.main(version_base=None, config_path="../configs", config_name="simple")
 def main(cfg):
     # Run with c profile
     from cProfile import run
+
     global env
 
     print(OmegaConf.to_yaml(cfg))
@@ -40,19 +45,20 @@ def main(cfg):
     env = hydra.utils.instantiate(cfg, cfg, render_mode="human", _recursive_=False)
     env.reset()
     global actions
-    num_agents = cfg.game.num_agents
+    # num_agents = cfg.game.num_agents
     actions = []
-    for a in range(1024):
+    for _a in range(1024):
         actions.append(env.action_space.sample())
     actions = np.array(actions)
 
     test_performance(env, actions, 5)
     exit(0)
 
-    run("test_performance(env, actions, 10)", 'stats.profile')
+    run("test_performance(env, actions, 10)", "stats.profile")
     import pstats
     from pstats import SortKey
-    p = pstats.Stats('stats.profile')
+
+    p = pstats.Stats("stats.profile")
     p.sort_stats(SortKey.TIME).print_stats(25)
     exit(0)
 
@@ -75,8 +81,8 @@ def print_stats(stats):
         for key, value in agent_stat.items():
             if key not in total_agent_stats:
                 total_agent_stats[key] = 0
-                min_agent_stats[key] = float('inf')
-                max_agent_stats[key] = float('-inf')
+                min_agent_stats[key] = float("inf")
+                max_agent_stats[key] = float("-inf")
             total_agent_stats[key] += value
             if value < min_agent_stats[key]:
                 min_agent_stats[key] = value
@@ -93,13 +99,15 @@ def print_stats(stats):
     game_stats_df = pd.DataFrame(sorted(game_stats.items()), columns=["Stat", "Value"])
 
     # Create DataFrame for agent stats
-    agent_stats_df = pd.DataFrame({
-        "Stat": sorted_keys,
-        "Total": [total_agent_stats[key] for key in sorted_keys],
-        "Average": [avg_agent_stats[key] for key in sorted_keys],
-        "Min": [min_agent_stats[key] for key in sorted_keys],
-        "Max": [max_agent_stats[key] for key in sorted_keys]
-    })
+    agent_stats_df = pd.DataFrame(
+        {
+            "Stat": sorted_keys,
+            "Total": [total_agent_stats[key] for key in sorted_keys],
+            "Average": [avg_agent_stats[key] for key in sorted_keys],
+            "Min": [min_agent_stats[key] for key in sorted_keys],
+            "Max": [max_agent_stats[key] for key in sorted_keys],
+        }
+    )
 
     # Print the DataFrames
     print("\nGame Stats:")

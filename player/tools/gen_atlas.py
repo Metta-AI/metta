@@ -1,6 +1,7 @@
-import pixie
-import os
 import json
+import os
+
+import pixie
 
 # Pack all of the images into a single atlas.
 # We are using Skyline bin packing algorithm, its simple to implement, fast,
