@@ -6,6 +6,7 @@ import wandb
 from botocore.exceptions import ClientError, NoCredentialsError
 from omegaconf import DictConfig, OmegaConf
 
+
 def config_from_path(config_path: str, overrides: DictConfig = None) -> DictConfig:
     env_cfg = hydra.compose(config_name=config_path)
     if config_path.startswith("/"):
