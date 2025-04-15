@@ -1,4 +1,3 @@
-
 defaults:
   - mettagrid
 
@@ -12,8 +11,8 @@ game:
 
     room:
       _target_: mettagrid.config.room.random.Random
-      width: ${uniform:10,100,25}
-      height: ${uniform:10,100,25}
+      width: ${sampling:10,100,25}
+      height: ${sampling:10,100,25}
       border_width: 0
 
       agents:
@@ -21,9 +20,7 @@ game:
         predator: 1
 
       objects:
-        altar: ${uniform:1,5,1}
-        converter: ${uniform:1,15,5}
-        generator: ${uniform:1,50,15}
-        wall: ${uniform:10,100,40}
-
-
+        altar: ${sampling:1,5,1}
+        converter: ${sampling:1,15,5}
+        generator: ${sampling:1,50,15}
+        wall: ${sampling:10,100,40}

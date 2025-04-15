@@ -9,10 +9,7 @@ track_last_action: false
 sampling: 0
 
 hidden_features:
-  grid_obs: [
-    "agent:energy",
-    "agent:hp",
-  ]
+  grid_obs: ["agent:energy", "agent:hp"]
 
 game:
   num_agents: ???
@@ -23,8 +20,8 @@ game:
   no_energy_steps: 500
 
   agent:
-    max_inventory: ${uniform:0, 100, 50}
-    freeze_duration: ${uniform:0, 200, 10}
+    max_inventory: ${sampling:0, 100, 50}
+    freeze_duration: ${sampling:0, 200, 10}
     hp: 10
     mortal: False
     rewards:
@@ -85,7 +82,7 @@ game:
       output_heart: 1
       max_output: 5
       conversion_ticks: 1
-      cooldown: ${uniform:1, 20, 10}
+      cooldown: ${sampling:1, 20, 10}
       initial_items: 1
 
     mine.red:
@@ -94,7 +91,7 @@ game:
       color: 0
       max_output: 5
       conversion_ticks: 1
-      cooldown: ${uniform:0, 100, 50}
+      cooldown: ${sampling:0, 100, 50}
       initial_items: 1
 
     mine.blue:
@@ -103,7 +100,7 @@ game:
       output_ore.blue: 1
       max_output: 5
       conversion_ticks: 1
-      cooldown: ${uniform:0, 100, 50}
+      cooldown: ${sampling:0, 100, 50}
       initial_items: 1
 
     mine.green:
@@ -112,7 +109,7 @@ game:
       color: 2
       max_output: 5
       conversion_ticks: 1
-      cooldown: ${uniform:0, 100, 50}
+      cooldown: ${sampling:0, 100, 50}
       initial_items: 1
 
     generator.red:
@@ -122,7 +119,7 @@ game:
       color: 0
       max_output: 5
       conversion_ticks: 1
-      cooldown: ${uniform:0, 50, 25}
+      cooldown: ${sampling:0, 50, 25}
       initial_items: 1
 
     generator.blue:
@@ -132,7 +129,7 @@ game:
       color: 1
       max_output: 5
       conversion_ticks: 1
-      cooldown: ${uniform:0, 50, 25}
+      cooldown: ${sampling:0, 50, 25}
       initial_items: 1
 
     generator.green:
@@ -142,7 +139,7 @@ game:
       color: 2
       max_output: 5
       conversion_ticks: 1
-      cooldown: ${uniform:0, 50, 25}
+      cooldown: ${sampling:0, 50, 25}
       initial_items: 1
 
     armory:
@@ -151,7 +148,7 @@ game:
       output_armor: 1
       max_output: 5
       conversion_ticks: 1
-      cooldown: ${uniform:0, 20, 10}
+      cooldown: ${sampling:0, 20, 10}
       initial_items: 1
 
     lasery:
@@ -161,7 +158,7 @@ game:
       output_laser: 1
       max_output: 5
       conversion_ticks: 1
-      cooldown: ${uniform:0, 20, 10}
+      cooldown: ${sampling:0, 20, 10}
       initial_items: 1
 
     lab:
@@ -171,7 +168,7 @@ game:
       output_blueprint: 1
       max_output: 5
       conversion_ticks: 1
-      cooldown: ${uniform:0, 10, 5}
+      cooldown: ${sampling:0, 10, 5}
       initial_items: 1
 
     factory:
@@ -183,7 +180,7 @@ game:
       output_laser: 5
       max_output: 5
       conversion_ticks: 1
-      cooldown: ${uniform:0, 10, 5}
+      cooldown: ${sampling:0, 10, 5}
       initial_items: 1
 
     temple:
@@ -193,15 +190,15 @@ game:
       output_heart: 5
       max_output: 5
       conversion_ticks: 1
-      cooldown: ${uniform:0, 10, 5}
+      cooldown: ${sampling:0, 10, 5}
       initial_items: 1
 
     wall:
-      hp: ${uniform:1, 20, 10}
+      hp: ${sampling:1, 20, 10}
       swappable: false
 
     block:
-      hp: ${uniform:1, 20, 10}
+      hp: ${sampling:1, 20, 10}
       swappable: true
 
   actions:

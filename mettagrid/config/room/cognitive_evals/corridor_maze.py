@@ -5,9 +5,21 @@ from mettagrid.config.room.utils import create_grid
 
 
 class CorridorMaze(Room):
-    def __init__(self, width: int, height: int, border_width: int = 1, corridor_width: int = 2,
-                 arm_length: int = 10, num_mines: int = 0, num_convertors: int = 0,
-                 num_heart_altars: int = 0, seed=None, agents: int = 1, rotate: bool = False, **kwargs):
+    def __init__(
+        self,
+        width: int,
+        height: int,
+        border_width: int = 1,
+        corridor_width: int = 2,
+        arm_length: int = 10,
+        num_mines: int = 0,
+        num_convertors: int = 0,
+        num_heart_altars: int = 0,
+        seed=None,
+        agents: int = 1,
+        rotate: bool = False,
+        **kwargs,
+    ):
         """
         Maze with a vertical corridor and horizontal arms.
         Arms alternate left/right, with resources placed at their ends.
@@ -36,7 +48,7 @@ class CorridorMaze(Room):
         # Compute vertical corridor bounds.
         v_left = mid_x - (self.corridor_width // 2)
         v_right = v_left + self.corridor_width - 1
-        grid[:, v_left:v_right+1] = "empty"
+        grid[:, v_left : v_right + 1] = "empty"
 
         # Calculate evenly spaced arm positions along the corridor.
         spacing = (self.height - 2 * self.border_width) / (self.num_arms + 1)
@@ -44,9 +56,7 @@ class CorridorMaze(Room):
         directions = ["left" if i % 2 == 0 else "right" for i in range(self.num_arms)]
 
         # Build and shuffle the resource list.
-        resources = (["generator"] * self.num_convertors +
-                     ["altar"] * self.num_heart_altars +
-                     ["mine"] * self.num_mines)
+        resources = ["generator"] * self.num_convertors + ["altar"] * self.num_heart_altars + ["mine"] * self.num_mines
         resources += ["empty"] * (self.num_arms - len(resources))
         self._rng.shuffle(resources)
 
@@ -57,12 +67,12 @@ class CorridorMaze(Room):
             if directions[i] == "left":
                 start_x = v_left
                 end_x = max(self.border_width, start_x - self.arm_length)
-                grid[arm_top:arm_bottom+1, end_x:start_x] = "empty"
+                grid[arm_top : arm_bottom + 1, end_x:start_x] = "empty"
                 grid[arm_y, end_x] = resources[i]
             else:
                 start_x = v_right
                 end_x = min(self.width - self.border_width - 1, start_x + self.arm_length)
-                grid[arm_top:arm_bottom+1, start_x+1:end_x+1] = "empty"
+                grid[arm_top : arm_bottom + 1, start_x + 1 : end_x + 1] = "empty"
                 grid[arm_y, end_x] = resources[i]
 
         # Place the agent near the top of the corridor.
