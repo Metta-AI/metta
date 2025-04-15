@@ -22,12 +22,10 @@
 		"yaml.schemas": {
 			"envs/griddly/gdy-schema.json": "envs/griddly/power_grid/*.yaml"
 		},
-		"editor.formatOnSave": true,
 		"ruff.enable": true,
-		"ruff.organizeImports": true,
-		"ruff.fixAll": true,
-		"ruff.configuration": "${workspaceFolder}/ruff.toml",
+		"ruff.nativeServer": "on",
 		"[python]": {
+			"editor.formatOnSave": true,
 			"editor.defaultFormatter": "charliermarsh.ruff",
 			"editor.codeActionsOnSave": {
 				"source.fixAll.ruff": "explicit",
