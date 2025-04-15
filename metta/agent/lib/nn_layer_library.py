@@ -2,6 +2,7 @@ import torch.nn as nn
 
 from .metta_layer import LayerBase, ParamLayer
 
+
 class Linear(ParamLayer):
     def __init__(self, **cfg):
         super().__init__(**cfg)

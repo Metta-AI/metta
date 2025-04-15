@@ -5,6 +5,7 @@ import os
 import subprocess
 import time
 
+
 def gen_search_cmd(args):
     """Generate the search command that matches the given criteria."""
     cmd_str = f'vastai search offers \
