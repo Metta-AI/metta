@@ -14,8 +14,8 @@ from fast_gae import fast_gae
 from heavyball import ForeachMuon
 from omegaconf import OmegaConf
 
-from metta.agent.metta_agent import DistributedMettaAgent
-from metta.agent.policy_store import PolicyStore
+from agent.metta_agent import DistributedMettaAgent
+from agent.policy_store import PolicyStore
 from metta.rl.pufferlib.experience import Experience
 from metta.rl.pufferlib.kickstarter import Kickstarter
 from metta.rl.pufferlib.profile import Profile

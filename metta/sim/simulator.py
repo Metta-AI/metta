@@ -6,6 +6,7 @@ from metta.agent.policy_store import PolicyRecord
 from metta.sim.vecenv import make_vecenv
 
 
+# TODO: Merge with Simulation
 class Simulator:
     """Simulate a policy for playing or tracing the environment"""
 

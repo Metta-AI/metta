@@ -32,13 +32,13 @@ analyzer:
     metrics:
       - metric: episode_reward
   output_path: s3://softmax-public/policydash/dashboard.html
-eval:
-  num_episodes: 1
-  num_envs: 1
-  policy_uri: ${..policy_uri}
+sim_job:
+  simulation_suite:
+    env: /env/mettagrid/reward_dr
+    num_episodes: 1
+    num_envs: 1
   selector_type: latest
   eval_db_uri: wandb://artifacts/eval_db_jack_testing
-  max_time_s: 3
   policy_uris:
     - "wandb://run/b.daphne.navigation_varied_obstacle_shapes_pretrained.r.1"
     - "wandb://run/b.daphne.navigation_varied_obstacle_shapes.r.0"

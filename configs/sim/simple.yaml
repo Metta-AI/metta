@@ -1,0 +1,4 @@
+evals:
+  simple:
+    env: env/mettagrid-base/simple
+    policy_agents_pct: 1.0
