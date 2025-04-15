@@ -7,7 +7,7 @@ import torch
 from omegaconf import OmegaConf
 
 from metta.agent.policy_store import PolicyRecord, PolicyStore
-from metta.sim.simulation_config import SimulationConfig, SimulationSuiteConfig
+from metta.sim.simulation_config import SimulationConfig, SimulationSuiteConfig, apply_defaults_to_simulations
 from metta.sim.vecenv import make_vecenv
 from metta.util.config import config_from_path
 from metta.util.datastruct import flatten_config
@@ -177,8 +177,9 @@ class SimulationSuite:
         policy_pr: PolicyRecord,
         policy_store: PolicyStore,
     ):
+        logger.info(f"Building Simulation suite from config:{config}")
         # Apply defaults from suite config to individual simulation configs
-        config.apply_defaults_to_simulations()
+        apply_defaults_to_simulations(config)
 
         self._simulations = dict()
 

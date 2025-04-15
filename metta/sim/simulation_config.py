@@ -29,23 +29,24 @@ class SimulationSuiteConfig(SimulationConfig):
     # Named simulation configs
     simulations: Dict[str, SimulationConfig] = field(default_factory=dict)
 
-    def apply_defaults_to_simulations(self):
-        """
-        Apply suite-wide defaults to simulations that don't specify values.
-        Uses inheritance to automatically propagate all SimulationConfig fields.
-        """
-        # Iterate through all simulation configs
-        for _, sim_config in self.simulations.items():
-            # For each field in the parent SimulationConfig class
-            for field_obj in fields(SimulationConfig):
-                field_name = field_obj.name
 
-                # Skip if simulation explicitly sets this value to something other than MISSING
-                sim_value = getattr(sim_config, field_name)
-                if sim_value is not MISSING:
-                    continue
+def apply_defaults_to_simulations(config: SimulationSuiteConfig):
+    """
+    Apply suite-wide defaults to simulations that don't specify values.
+    Uses inheritance to automatically propagate all SimulationConfig fields.
+    """
+    # Iterate through all simulation configs
+    for name, sim_config in config.simulations.items():
+        # For each field in the parent SimulationConfig class
+        for field_obj in fields(SimulationConfig):
+            field_name = field_obj.name
 
-                # Apply suite's value as default
-                suite_value = getattr(self, field_name)
-                if suite_value is not MISSING:
-                    setattr(sim_config, field_name, suite_value)
+            # Skip if simulation explicitly sets this value to something other than MISSING
+            sim_value = getattr(sim_config, field_name)
+            if sim_value is not MISSING:
+                continue
+
+            # Apply suite's value as default
+            suite_value = getattr(config, field_name)
+            if suite_value is not MISSING:
+                setattr(sim_config, field_name, suite_value)
