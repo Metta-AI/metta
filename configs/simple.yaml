@@ -1,5 +1,6 @@
 defaults:
   - mettagrid
+  - _self_
 
 game:
   num_agents: 24
@@ -22,7 +23,7 @@ game:
         generator: ${sampling:1,10,2}
         altar: ${sampling:1,5,1}
         armory: ${sampling:1,5,1}
-        lasery: ${sampling:1,5,1}
+        lasery: ${sampling:1,5,1} 
         lab: ${sampling:1,5,1}
         factory: ${sampling:1,5,1}
         temple: ${sampling:1,5,1}
