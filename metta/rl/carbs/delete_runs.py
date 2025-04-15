@@ -3,7 +3,6 @@ from typing import List
 
 import wandb
 
-
 def delete_init_runs(sweep_id: str, entity: str, project: str) -> List[str]:
     deleted_runs = []
     api = wandb.Api()

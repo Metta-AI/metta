@@ -2,7 +2,6 @@ from rich.table import Table
 
 from .dashboard import ROUND_OPEN, DashboardComponent, b2, c1, c2
 
-
 class UserStats(DashboardComponent):
     def __init__(self, stats: dict, max_stats=5):
         super().__init__()

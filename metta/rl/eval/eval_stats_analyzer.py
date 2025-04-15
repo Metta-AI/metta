@@ -9,7 +9,6 @@ from tabulate import tabulate
 from metta.rl.eval.eval_stats_db import EvalStatsDB
 from metta.rl.eval.queries import total_metric
 
-
 class EvalStatsAnalyzer:
     def __init__(self, stats_db: EvalStatsDB, analysis: DictConfig, policy_uri: str, **kwargs):
         self.logger = logging.getLogger(__name__)

@@ -13,7 +13,6 @@ from tabulate import tabulate
 
 from .job import format_time_difference
 
-
 def get_boto3_client(service_name="batch"):
     """Get a boto3 client with standard configuration."""
     config = Config(retries={"max_attempts": 10, "mode": "standard"}, max_pool_connections=50)

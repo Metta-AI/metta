@@ -14,7 +14,6 @@ from torch import Tensor
 
 from metta.agent.metta_agent import MettaAgent
 
-
 class SampleFactoryAgentWrapper(ActorCritic):
     def __init__(self, agent: MettaAgent):
         super().__init__(

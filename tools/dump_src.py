@@ -1,7 +1,6 @@
 import argparse
 import os
 
-
 def dump_files(paths, extensions):
     for path in paths:
         for root, _, files in os.walk(path):

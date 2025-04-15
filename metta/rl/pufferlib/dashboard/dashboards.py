@@ -9,7 +9,6 @@ from metta.rl.pufferlib.dashboard.utilization import Utilization
 from metta.rl.pufferlib.dashboard.wandb import WanDb
 from metta.rl.pufferlib.train import PufferTrainer
 
-
 def train_dashboard(trainer: PufferTrainer, logs_path: str):
     return Dashboard(
         trainer.cfg,

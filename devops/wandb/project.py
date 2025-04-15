@@ -3,7 +3,6 @@ import argparse
 import wandb
 import yaml
 
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--wandb_user", required=True)

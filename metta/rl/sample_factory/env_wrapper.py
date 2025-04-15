@@ -4,7 +4,6 @@ import gymnasium as gym
 import numpy as np
 from sample_factory.envs.env_utils import TrainingInfoInterface
 
-
 class SampleFactoryEnvWrapper(gym.Env, TrainingInfoInterface):
     def __init__(self, env: gym.Env, env_id: int):
         TrainingInfoInterface.__init__(self)

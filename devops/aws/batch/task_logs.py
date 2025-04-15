@@ -13,7 +13,6 @@ from devops.aws.batch.job import (
     print_job_logs,
 )
 
-
 def get_batch_job_queues():
     """Get a list of all AWS Batch job queues."""
     batch = boto3.client("batch")

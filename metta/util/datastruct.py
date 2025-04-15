@@ -1,6 +1,5 @@
 from omegaconf import DictConfig, ListConfig
 
-
 def flatten_config(obj, parent_key="", sep="."):
     """
     Recursively flatten a nested structure of DictConfig, ListConfig, dict, and list

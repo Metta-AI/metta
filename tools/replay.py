@@ -8,7 +8,6 @@ from metta.rl.wandb.wandb_context import WandbContext
 from metta.util.config import config_from_path, setup_metta_environment
 from metta.util.runtime_configuration import setup_mettagrid_environment
 
-
 @hydra.main(version_base=None, config_path="../configs", config_name="simulator")
 def main(cfg):
     setup_metta_environment(cfg)

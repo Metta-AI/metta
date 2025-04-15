@@ -4,7 +4,6 @@ from metta.rl.pufferlib.trainer import PolicyCheckpoint
 
 from .dashboard import ROUND_OPEN, DashboardComponent, abbreviate, c1, c2
 
-
 class Policy(DashboardComponent):
     def __init__(self, checkpoint: PolicyCheckpoint):
         super().__init__()

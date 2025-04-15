@@ -4,7 +4,6 @@ import os
 import wandb
 from omegaconf import OmegaConf
 
-
 class WandbContext:
     def __init__(self, cfg, job_type=None, resume=True, name=None, run_id=None, data_dir=None):
         self.cfg = cfg

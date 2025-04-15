@@ -4,7 +4,6 @@ from rich.table import Table
 
 from .dashboard import ROUND_OPEN, DashboardComponent, c1, c2
 
-
 class Logs(DashboardComponent):
     def __init__(self, logs_path: str, max_lines=5):
         super().__init__()

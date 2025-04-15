@@ -2,7 +2,6 @@ import math
 
 import torch
 
-
 def position_embeddings(width, height, embedding_dim=128):
     x = torch.linspace(-1, 1, width)
     y = torch.linspace(-1, 1, height)

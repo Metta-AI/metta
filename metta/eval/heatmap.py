@@ -7,7 +7,6 @@ from typing import Optional, Tuple
 import pandas as pd
 import plotly.graph_objects as go
 
-
 def format_metric(metric: str) -> str:
     """Format a metric name for display."""
     return metric.replace("_", " ").capitalize()

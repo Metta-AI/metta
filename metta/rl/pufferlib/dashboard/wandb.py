@@ -4,7 +4,6 @@ from rich.table import Table
 
 from .dashboard import DashboardComponent, b2, c1
 
-
 class WanDb(DashboardComponent):
     def __init__(self, wandb_cfg: OmegaConf):
         super().__init__()
