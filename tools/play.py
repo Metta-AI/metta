@@ -5,9 +5,9 @@ import hydra
 
 from metta.agent.policy_store import PolicyStore
 from metta.rl.pufferlib.play import play
-from metta.rl.wandb.wandb_context import WandbContext
 from metta.util.config import config_from_path
 from metta.util.runtime_configuration import setup_mettagrid_environment
+from metta.util.wandb.wandb_context import WandbContext
 
 signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
 
