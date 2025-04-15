@@ -6,6 +6,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+
 def run_command(command, check=True):
     """Run a shell command and return its output."""
     try:

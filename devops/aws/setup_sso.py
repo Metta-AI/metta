@@ -8,6 +8,7 @@ import time
 import traceback
 from pathlib import Path
 
+
 # ANSI color codes for terminal output
 class Colors:
     HEADER = "\033[95m"

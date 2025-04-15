@@ -9,9 +9,9 @@ from rich.logging import RichHandler
 from torch.distributed.elastic.multiprocessing.errors import record
 
 from metta.agent.policy_store import PolicyStore
-from metta.rl.wandb.wandb_context import WandbContext
 from metta.util.config import setup_metta_environment
 from metta.util.runtime_configuration import setup_mettagrid_environment
+from metta.util.wandb.wandb_context import WandbContext
 
 # Configure rich colored logging
 logging.basicConfig(

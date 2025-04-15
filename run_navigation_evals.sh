@@ -26,7 +26,7 @@ for i in "${!POLICIES[@]}"; do
     echo "Running full sequence eval for policy $POLICY_URI"
     RANDOM_NUM=$((RANDOM % 1000))
     IDX="${IDX}_${RANDOM_NUM}"
-    python3 -m tools.eval \
+    python3 -m tools.sim \
         eval=navigation \
         run=navigation_evaluation$IDX \
         eval.policy_uri=wandb://run/$POLICY_URI \
