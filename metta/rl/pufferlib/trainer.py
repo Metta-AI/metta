@@ -2,6 +2,7 @@ import logging
 import os
 import time
 from collections import defaultdict
+from contextlib import nullcontext
 
 import hydra
 import numpy as np
@@ -132,6 +133,15 @@ class PufferTrainer:
             betas=(self.trainer_cfg.optimizer.beta1, self.trainer_cfg.optimizer.beta2),
             eps=self.trainer_cfg.optimizer.eps,
         )
+
+        self.lr_scheduler = None
+        if self.trainer_cfg.lr_scheduler.enabled:
+            self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+                self.optimizer, T_max=self.trainer_cfg.total_timesteps // self.trainer_cfg.batch_size)
+
+        self.scaler = None if self.trainer_cfg.precision == 'float32' else torch.amp.GradScaler()
+        self.amp_context = (nullcontext() if self.trainer_cfg.precision == 'float32'
+            else torch.amp.autocast(device_type='cuda', dtype=getattr(torch, self.trainer_cfg.precision)))
 
         if checkpoint.agent_step > 0:
             self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
@@ -466,10 +476,8 @@ class PufferTrainer:
                     break
 
         with profile.train_misc:
-            if self.trainer_cfg.anneal_lr:
-                frac = 1.0 - self.agent_step / self.trainer_cfg.total_timesteps
-                lrnow = frac * self.trainer_cfg.learning_rate
-                self.optimizer.param_groups[0]["lr"] = lrnow
+            if self.trainer_cfg.lr_scheduler.enabled:
+                self.lr_scheduler.step()
 
             y_pred = experience.values_np
             y_true = experience.returns_np
