@@ -3,6 +3,7 @@ from typing import List
 
 import wandb
 
+
 def delete_init_runs(sweep_id: str, entity: str, project: str) -> List[str]:
     deleted_runs = []
     api = wandb.Api()
@@ -24,6 +25,7 @@ def delete_init_runs(sweep_id: str, entity: str, project: str) -> List[str]:
 
     return deleted_runs
 
+
 def main():
     parser = argparse.ArgumentParser(description="Delete .init runs from a sweep using wandb API")
     parser.add_argument("--sweep", type=str, required=True, help="Sweep ID")
@@ -37,6 +39,7 @@ def main():
         print(f"Successfully deleted {len(deleted_runs)} .init runs")
     else:
         print("No .init runs found to delete")
+
 
 if __name__ == "__main__":
     main()

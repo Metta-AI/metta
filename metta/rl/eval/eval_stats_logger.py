@@ -7,6 +7,7 @@ import wandb
 
 logger = logging.getLogger("eval_stats_logger.py")
 
+
 class EvalStatsLogger:
     def __init__(self, cfg, wandb_run):
         self._cfg = cfg
@@ -27,10 +28,9 @@ class EvalStatsLogger:
                 raise ValueError(f"Invalid eval_db_uri: {cfg.eval.eval_db_uri}")
             json_path = cfg.eval.eval_db_uri
 
-        self.json_path = json_path if json_path.endswith('.json') else  f"{json_path}.json"
+        self.json_path = json_path if json_path.endswith(".json") else f"{json_path}.json"
         os.makedirs(os.path.dirname(self.json_path), exist_ok=True)
         self.artifact_name = artifact_name
-
 
     def _log_to_file(self, eval_stats):
         """
@@ -40,7 +40,7 @@ class EvalStatsLogger:
         if os.path.exists(gzip_path):
             try:
                 logger.info(f"Loading existing eval stats from {gzip_path}")
-                with gzip.open(gzip_path, "rt", encoding='utf-8') as f:
+                with gzip.open(gzip_path, "rt", encoding="utf-8") as f:
                     existing_stats = json.load(f)
                 for eval_name, stats in eval_stats.items():
                     existing_stats[eval_name].extend(stats)
@@ -48,14 +48,14 @@ class EvalStatsLogger:
             except Exception as e:
                 logger.error(f"Error loading existing eval stats from {gzip_path}: {e}, will overwrite")
 
-        with gzip.open(gzip_path, "wt", encoding='utf-8') as f:
+        with gzip.open(gzip_path, "wt", encoding="utf-8") as f:
             json.dump(eval_stats, f, indent=4)
         logger.info(f"Saved eval stats to {gzip_path}")
 
     def _log_to_wandb(self, artifact_name: str, eval_stats):
         artifact = wandb.Artifact(name=artifact_name, type=artifact_name)
         zip_file_path = self.json_path + ".gz"
-        with gzip.open(zip_file_path, 'wt', encoding='utf-8') as f:
+        with gzip.open(zip_file_path, "wt", encoding="utf-8") as f:
             json.dump(eval_stats, f)
         artifact = wandb.Artifact(name=artifact_name, type=artifact_name)
         artifact.add_file(zip_file_path)
@@ -65,7 +65,6 @@ class EvalStatsLogger:
         logger.info(f"Logged artifact {artifact_name} to wandb")
 
     def log(self, eval_stats):
-
         self._log_to_file(eval_stats)
         if self.artifact_name is not None:
             self._log_to_wandb(self.artifact_name, eval_stats)

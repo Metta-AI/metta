@@ -4,22 +4,20 @@ import gymnasium as gym
 import numpy as np
 from sample_factory.envs.env_utils import TrainingInfoInterface
 
+
 class SampleFactoryEnvWrapper(gym.Env, TrainingInfoInterface):
-
     def __init__(self, env: gym.Env, env_id: int):
-
         TrainingInfoInterface.__init__(self)
 
         self.env = env
         self.multi_agent = True
 
-        self.observation_space = gym.spaces.Dict({
-            "grid_obs": env.observation_space,
-            "global_vars": gym.spaces.Box(
-            low=-np.inf, high=np.inf,
-            shape=[ 0 ],
-            dtype=np.int32)
-        })
+        self.observation_space = gym.spaces.Dict(
+            {
+                "grid_obs": env.observation_space,
+                "global_vars": gym.spaces.Box(low=-np.inf, high=np.inf, shape=[0], dtype=np.int32),
+            }
+        )
 
         self.curr_episode_steps = 0
         self.num_agents = env.player_count
@@ -28,7 +26,6 @@ class SampleFactoryEnvWrapper(gym.Env, TrainingInfoInterface):
 
         self.current_episode = 0
         self.env_id = env_id
-
 
     def reset(self, **kwargs):
         self.current_episode += 1

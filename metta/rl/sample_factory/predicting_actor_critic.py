@@ -1,5 +1,3 @@
-
-
 from __future__ import annotations
 
 import torch
@@ -7,6 +5,7 @@ from sample_factory.algo.utils.context import global_model_factory
 from sample_factory.algo.utils.tensor_dict import TensorDict
 from sample_factory.model.actor_critic import ActorCriticSharedWeights
 from sample_factory.utils.typing import Config
+
 
 class PredictingActorCritic(ActorCriticSharedWeights):
     def __init__(self, model_factory, obs_space, action_space, cfg: Config):
@@ -24,10 +23,10 @@ class PredictingActorCritic(ActorCriticSharedWeights):
         # by reconstructing the observations from the rnn states
         # and pass it through as the last action
         batch_size = rnn_states.shape[0]
-        obs = normalized_obs_dict['obs'].view(batch_size, -1)
+        obs = normalized_obs_dict["obs"].view(batch_size, -1)
         obs_pred = self.obs_predictor(rnn_states)
         return torch.mean((obs - obs_pred) ** 2)
 
+
 def make_actor_critic_func(cfg, obs_space, action_space):
-    return PredictingActorCritic(
-        global_model_factory(), obs_space, action_space, cfg)
+    return PredictingActorCritic(global_model_factory(), obs_space, action_space, cfg)

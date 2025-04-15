@@ -1,10 +1,10 @@
-
 import time
 from collections import deque
 from threading import Thread
 
 import psutil
 import torch
+
 
 class Utilization(Thread):
     def __init__(self, delay=1, maxlen=20):
