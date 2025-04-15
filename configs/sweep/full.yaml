@@ -1,6 +1,7 @@
 
 trainer:
-  learning_rate: ${ss:log, 1e-5, 1e-1}
+  optimizer:
+    learning_rate: ${ss:log, 1e-5, 1e-1}
   gamma: ${ss:logit, 0.0, 1.0}
   gae_lambda: ${ss:logit, 0.0, 1.0}
   update_epochs: ${ss:int, 1, 3}
