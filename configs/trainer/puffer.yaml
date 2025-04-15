@@ -44,7 +44,7 @@ update_epochs: 1
 cpu_offload: false
 compile: false
 compile_mode: default
-profiler_interval_epochs: 200
+profiler_interval_epochs: 1000
 profiler_warmup_steps: 5
 
 forward_pass_minibatch_target_size: 2048
