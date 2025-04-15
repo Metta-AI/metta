@@ -1,43 +1,80 @@
 name: Python Tests
-
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 on:
   push:
     branches: [ main ]
   pull_request:
     branches: [ main ]
-
 jobs:
   test:
     runs-on: ubuntu-latest
-
+    timeout-minutes: 30 # Prevent hung jobs from consuming resources
     steps:
-    - uses: actions/checkout@v3
-
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11.7'
-
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-
-    - name: Install PufferLib
-      run: |
-        cd ..
-        git clone --depth=1 --branch=metta https://github.com/Metta-AI/pufferlib.git
-        cd pufferlib
-        pip install -e .
-
-    - name: Run setup.py build_ext
-      run: |
-        python setup.py build_ext --inplace
-
-    - name: Run tests
-      env:
-        HYDRA_FULL_ERROR: 1
-        PYTHONPATH: ${{ github.workspace }}
-      run: |
-        python tests/test_basic.py
-        python tests/test_kinship.py
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11.7'
+      
+      # Cache pip packages
+      - name: Cache pip packages
+        uses: actions/cache@v3
+        id: cache-pip
+        with:
+          path: |
+            ~/.cache/pip
+            venv
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt', '**/setup.py') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+      
+      # Install dependencies (only if cache miss)
+      - name: Install dependencies
+        if: steps.cache-pip.outputs.cache-hit != 'true'
+        run: |
+          python -m venv venv
+          source venv/bin/activate
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      # Cache PufferLib dependency   
+      - name: Cache PufferLib
+        uses: actions/cache@v3
+        id: cache-pufferlib
+        with:
+          path: ../pufferlib
+          key: ${{ runner.os }}-pufferlib-metta-${{ hashFiles('.github/workflows/python-tests.yml') }}
+      
+      # Install PufferLib (only if cache miss)
+      - name: Install PufferLib
+        if: steps.cache-pufferlib.outputs.cache-hit != 'true'
+        run: |
+          source venv/bin/activate
+          cd ..
+          git clone --depth=1 --branch=metta https://github.com/Metta-AI/pufferlib.git
+          cd pufferlib
+          pip install -e .
+      
+      # Always run build_ext since it's quick and needs to be done after checkout
+      - name: Run setup.py build_ext
+        run: |
+          source venv/bin/activate
+          python setup.py build_ext --inplace
+      
+      # List installed packages for debugging
+      - name: List installed packages
+        run: |
+          source venv/bin/activate
+          pip list
+      
+      # Run tests
+      - name: Run tests
+        env:
+          HYDRA_FULL_ERROR: 1
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          source venv/bin/activate
+          pytest tests/test_basic.py
+          python tests/test_kinship.py

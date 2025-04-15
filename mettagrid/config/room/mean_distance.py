@@ -1,8 +1,11 @@
+import logging
 from typing import Optional
+
 import numpy as np
 from omegaconf import DictConfig
-import logging
-from mettagrid.config.room.room import Room, GameObject
+
+from mettagrid.config.room.room import Room
+
 
 class MeanDistance(Room):
     def __init__(
@@ -14,7 +17,7 @@ class MeanDistance(Room):
         mean_distance: float = 5.0,  # Mean distance parameter for objects relative to agent.
         seed: Optional[int] = None,
         border_width: int = 0,
-        border_object: str = "wall"
+        border_object: str = "wall",
     ):
         super().__init__(border_width=border_width, border_object=border_object)
         logger = logging.getLogger(__name__)
@@ -26,7 +29,10 @@ class MeanDistance(Room):
         self._agents = agents
 
         if mean_distance > width or mean_distance > height:
-            logger.warning(f"Mean distance {mean_distance} is greater than room size {width}x{height}. Setting to {min(width, height) - 1}")
+            logger.warning(
+                f"Mean distance {mean_distance} is greater than room size {width}x{height}. "
+                f"Setting to {min(width, height) - 1}"
+            )
             mean_distance = min(width, height) - 1
 
         self.mean_distance = mean_distance
@@ -58,9 +64,7 @@ class MeanDistance(Room):
                 # Candidate position (note: grid indexing is row, col so we add dy then dx).
                 candidate = (agent_pos[0] + dy, agent_pos[1] + dx)
                 # Check if candidate position is inside the room and unoccupied.
-                if (0 <= candidate[0] < self._height and
-                    0 <= candidate[1] < self._width and
-                    grid[candidate] == "empty"):
+                if 0 <= candidate[0] < self._height and 0 <= candidate[1] < self._width and grid[candidate] == "empty":
                     grid[candidate] = obj_name
                     placed += 1
 
@@ -69,7 +73,7 @@ class MeanDistance(Room):
             # We already placed one agent at the center.
             for _ in range(1, self._agents):
                 while True:
-                    free_positions = list(zip(*np.where(grid == "empty")))
+                    free_positions = list(zip(*np.where(grid == "empty"), strict=False))
                     if not free_positions:
                         break
                     pos = free_positions[self._rng.integers(0, len(free_positions))]
@@ -84,7 +88,7 @@ class MeanDistance(Room):
             if agent_symbols:
                 grid[agent_pos] = agent_symbols.pop(0)
             while agent_symbols:
-                free_positions = list(zip(*np.where(grid == "empty")))
+                free_positions = list(zip(*np.where(grid == "empty"), strict=False))
                 if not free_positions:
                     break
                 pos = free_positions[self._rng.integers(0, len(free_positions))]
