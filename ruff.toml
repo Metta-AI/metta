@@ -20,9 +20,8 @@ exclude = [
 # Define import sections and their order
 known-third-party = ["wandb", "torch", "omegaconf"]
 known-first-party = [
-    "agent",
-    "rl",
-    "devops",
+    "metta",
+    "mettagrid"
 ] # Add your local package names here
 section-order = [
     "future",
