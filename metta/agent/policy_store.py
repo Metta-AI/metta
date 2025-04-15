@@ -60,6 +60,7 @@ class PolicyStore:
         self._device = cfg.device
         self._wandb_run = wandb_run
         self._cached_prs = {}
+        self._made_codebase_backwards_compatible = False
 
     def policy(self, policy: Union[str, OmegaConf], selector_type: str = "top", n=1, metric="score") -> PolicyRecord:
         if not isinstance(policy, str):
@@ -234,6 +235,11 @@ class PolicyStore:
         We can use this function to alias old layout structures. For now we are just supporting moving
         agent --> metta.agent
         """
+        # Memoize
+        if getattr(self, "_made_codebase_backwards_compatible", False):
+            return
+        self._made_codebase_backwards_compatible = True
+
         # Start with the base module
         sys.modules["agent"] = sys.modules["metta.agent"]
 
