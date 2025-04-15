@@ -15,3 +15,4 @@ stats.profile
 /dist
 player/dist
 player/node_modules
+.coverage
