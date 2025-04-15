@@ -113,10 +113,15 @@ public:
             // Start cooldown phase
             this->cooling_down = true;
             this->event_manager->schedule_event(Events::CoolDown, this->cooldown, this->id, 0);
-        } else {
+        }
+        else if (this->cooldown == 0) {
             // No cooldown, try to start converting again immediately
             this->maybe_start_converting();
+        } else if (this->cooldown < 0) {
+            // Negative cooldown means never convert again
+            this->cooling_down = true;
         }
+
     }
 
     void finish_cooldown() {
