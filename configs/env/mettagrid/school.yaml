@@ -19,8 +19,8 @@ game:
       # single agent small room
       - _target_: mettagrid.config.room.random.Random
         border_width: 2
-        width: ${uniform:5,20,10}
-        height: ${uniform:5,20,10}
+        width: $(sampling:5,20,10}
+        height: $(sampling:5,20,10}
         agents: 1
         objects:
           altar: 1
@@ -31,8 +31,8 @@ game:
       # multi agent small room
       - _target_: mettagrid.config.room.random.Random
         border_width: 2
-        width: ${uniform:5,20,10}
-        height: ${uniform:5,20,10}
+        width: $(sampling:5,20,10}
+        height: $(sampling:5,20,10}
         agents: 3
         objects:
           altar: 1
@@ -43,8 +43,8 @@ game:
       # 2 agent scarce room
       - _target_: mettagrid.config.room.random.Random
         border_width: 2
-        width: ${uniform:5,20,10}
-        height: ${uniform:5,20,10}
+        width: $(sampling:5,20,10}
+        height: $(sampling:5,20,10}
         agents: 2
         objects:
           altar: 1
@@ -55,8 +55,8 @@ game:
       # predator and prey room
       - _target_: mettagrid.config.room.random.Random
         border_width: 2
-        width: ${uniform:5,20,10}
-        height: ${uniform:5,20,10}
+        width: $(sampling:5,20,10}
+        height: $(sampling:5,20,10}
         agents:
           predator: 1
           prey: 3
@@ -69,13 +69,13 @@ game:
       # maze
       # - _target_: mettagrid.config.room.maze.Maze
       #   border_width: 2
-      #   width: ${make_odd:${uniform:10,40,21}}
-      #   height: ${make_odd:${uniform:10,40,21}}
+      #   width: ${make_odd:$(sampling:10,40,21}}
+      #   height: ${make_odd:$(sampling:10,40,21}}
       #   start_pos: [1, 1]
       #   end_pos:
       #   - ${sub:${..width},2}
       #   - ${sub:${..height},2}
-      #   branching: ${uniform:0.1,0.95,0.7}
+      #   branching: $(sampling:0.1,0.95,0.7}
 
       # break room
       - _target_: mettagrid.config.room.room_list.RoomList
@@ -83,8 +83,8 @@ game:
         rooms:
           - _target_: mettagrid.config.room.random.Random
             border_width: 0
-            width: ${uniform:5,20,10}
-            height: ${uniform:5,20,10}
+            width: $(sampling:5,20,10}
+            height: $(sampling:5,20,10}
             agents: 1
             objects:
               generator: 1
@@ -92,8 +92,8 @@ game:
               wall: ${..width}
           - _target_: mettagrid.config.room.random.Random
             border_width: 1
-            width: ${uniform:5,20,10}
-            height: ${uniform:5,20,10}
+            width: $(sampling:5,20,10}
+            height: $(sampling:5,20,10}
             objects:
               altar: 1
               wall: ${..width}
