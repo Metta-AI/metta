@@ -1,6 +1,5 @@
 
 trainer:
-  learning_rate: ${ss:log, 1e-5, 1e-1}
   gamma: ${ss:logit, 0.0, 1.0}
   gae_lambda: ${ss:logit, 0.0, 1.0}
   update_epochs: ${ss:int, 1, 3}
@@ -15,3 +14,9 @@ trainer:
   bptt_horizon: ${ss:pow2, 1, 128}
   total_timesteps: ${ss:log, 1e10, 10e12, 2e10}
   # compile: ${ss:int, 0, 1}
+
+  optimizer:
+    learning_rate: ${ss:log, 1e-5, 1e-1}
+    beta1: ${ss:logit, 0.0, 1.0}
+    beta2: ${ss:logit, 0.0, 1.0}
+    eps: ${ss:log, 1e-14, 1e-6}
