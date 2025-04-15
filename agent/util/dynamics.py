@@ -5,10 +5,11 @@ from scipy import stats
 
 def analyze_sv(S: torch.Tensor): 
     sorted_sv = torch.sort(S, descending=True).values
-    sorted_sv = sorted_sv[sorted_sv > 1e-10] # ignore singular values close to zero as they do not contribute to the dynamics
+    sorted_sv_non_zero = sorted_sv[sorted_sv > 1e-10] # ignore singular values close to zero as they do not contribute to the dynamics
     mean_sv = torch.mean(S).item()
     largest_sv = sorted_sv[0].item()
-    smallest_sv = sorted_sv[-1].item()
+    smallest_sv = sorted_sv_non_zero[-1].item()
+    collapsed_dim_ratio = (len(sorted_sv) - len(sorted_sv_non_zero)) / len(sorted_sv)
 
     sv_ratio = largest_sv / smallest_sv # also known as the condition number   
 
@@ -28,6 +29,7 @@ def analyze_sv(S: torch.Tensor):
         'slope': slope,
         'largest_sv': largest_sv,
         'mean_sv': mean_sv,
+        'collapsed_dim_%': collapsed_dim_ratio,
     }
     
     return metrics
