@@ -11,6 +11,7 @@ def analyze_sv(S: torch.Tensor):
     '''
     
     sorted_sv = torch.sort(S, descending=True).values
+    mean_sv = torch.mean(S).item()
     largest_sv = sorted_sv[0].item()
     smallest_sv = sorted_sv[-1].item()
     non_zero_sv = sorted_sv[sorted_sv > 0]
@@ -27,21 +28,14 @@ def analyze_sv(S: torch.Tensor):
 
     slope, intercept, r_value, p_value, std_err = stats.linregress(log_indices_np, log_sv_np)
 
-    # TODO:  make the regime determination more sophisticated
-    # Determine regime
-    if sv_ratio > 1000:  # Very high ratio indicates subcritical
-        regime = 0 # "Subcritical"
-    elif r_value**2 > 0.9 and -1.5 < slope < -0.5:
-                
-        regime = 1 # "Critical" -- a ood power-law fit with reasonable exponent indicates criticality
-    else:
-        regime = 2 # "Chaotic"
+   
 
     metrics = {
         'sv_ratio': sv_ratio,
         'r2_value': r_value**2,
         'slope': slope,
-        'largest_eigen': largest_sv
+        'largest_sv': largest_sv,
+        'mean_sv': mean_sv,
     }
     
     return metrics
