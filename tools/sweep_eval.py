@@ -11,21 +11,17 @@ from omegaconf import DictConfig, OmegaConf
 from rich.logging import RichHandler
 from wandb_carbs import WandbCarbs
 
-from agent.policy_store import PolicyStore
-from rl.eval.eval_stats_db import EvalStatsDB
-from rl.eval.eval_stats_logger import EvalStatsLogger
-from rl.wandb.wandb_context import WandbContext
-from util.runtime_configuration import setup_mettagrid_environment
+from metta.agent.policy_store import PolicyStore
+from metta.rl.eval.eval_stats_db import EvalStatsDB
+from metta.rl.eval.eval_stats_logger import EvalStatsLogger
+from metta.rl.wandb.wandb_context import WandbContext
+from metta.util.runtime_configuration import setup_mettagrid_environment
 
 # Configure rich colored logging to stderr instead of stdout
-logging.basicConfig(
-    level="INFO",
-    format="%(message)s",
-    datefmt="[%X]",
-    handlers=[RichHandler(rich_tracebacks=True)]
-)
+logging.basicConfig(level="INFO", format="%(message)s", datefmt="[%X]", handlers=[RichHandler(rich_tracebacks=True)])
 
 logger = logging.getLogger("sweep_eval")
+
 
 def log_file(run_dir, name, data, wandb_run):
     path = os.path.join(run_dir, name)
@@ -36,10 +32,12 @@ def log_file(run_dir, name, data, wandb_run):
 
     wandb_run.save(path, base_path=run_dir)
 
+
 def load_file(run_dir, name):
     path = os.path.join(run_dir, name)
     with open(path, "r") as f:
         return OmegaConf.load(f)
+
 
 @hydra.main(config_path="../configs", config_name="sweep", version_base=None)
 def main(cfg: OmegaConf) -> int:
@@ -65,16 +63,11 @@ def main(cfg: OmegaConf) -> int:
             WandbCarbs._record_failure(wandb_run)
             return 1
 
-
         cfg.eval.policy_uri = policy_pr.uri
         cfg.analyzer.policy_uri = policy_pr.uri
 
         eval = hydra.utils.instantiate(
-            cfg.eval,
-            policy_store,
-            policy_pr,
-            cfg.get("run_id", wandb_run.id),
-            cfg_recursive_=False
+            cfg.eval, policy_store, policy_pr, cfg.get("run_id", wandb_run.id), cfg_recursive_=False
         )
 
         # Start evaluation process
@@ -82,9 +75,11 @@ def main(cfg: OmegaConf) -> int:
         start_time = time.time()
 
         # Update sweep stats with initial information
-        sweep_stats.update({
-            "score.metric": cfg.metric,
-        })
+        sweep_stats.update(
+            {
+                "score.metric": cfg.metric,
+            }
+        )
         wandb_run.summary.update(sweep_stats)
 
         # Start evaluation
@@ -104,8 +99,7 @@ def main(cfg: OmegaConf) -> int:
         eval_stats_db = EvalStatsDB.from_uri(eval_stats_logger.json_path, cfg.run_dir, wandb_run)
 
         # Find the metric index in the analyzer metrics
-        metric_idxs = [i for i, m in enumerate(cfg.analyzer.analysis.metrics)
-                      if fnmatch.fnmatch(cfg.metric, m.metric)]
+        metric_idxs = [i for i, m in enumerate(cfg.analyzer.analysis.metrics) if fnmatch.fnmatch(cfg.metric, m.metric)]
         if len(metric_idxs) == 0:
             logger.error(f"Metric {cfg.metric} not found in analyzer metrics: {cfg.analyzer.analysis.metrics}")
             return 1
@@ -119,8 +113,8 @@ def main(cfg: OmegaConf) -> int:
         results, _ = analyzer.analyze()
 
         # Filter by policy name and sum up the mean values over evals
-        filtered_results = results[sweep_metric_index][results[sweep_metric_index]['policy_name'] == policy_pr.name]
-        eval_metric = filtered_results['mean'].sum()
+        filtered_results = results[sweep_metric_index][results[sweep_metric_index]["policy_name"] == policy_pr.name]
+        eval_metric = filtered_results["mean"].sum()
 
         # Get training stats from metadata if available
         train_time = policy_pr.metadata.get("train_time", 0)
@@ -146,15 +140,15 @@ def main(cfg: OmegaConf) -> int:
 
         # Update wandb summary
         wandb_run.summary.update(sweep_stats)
-        logger.info(
-            "Sweep Stats: \n" +
-            json.dumps({ k: str(v) for k, v in sweep_stats.items() }, indent=4))
+        logger.info("Sweep Stats: \n" + json.dumps({k: str(v) for k, v in sweep_stats.items()}, indent=4))
 
         # Update policy metadata
-        policy_pr.metadata.update({
-            **sweep_stats,
-            "training_run": cfg.run,
-        })
+        policy_pr.metadata.update(
+            {
+                **sweep_stats,
+                "training_run": cfg.run,
+            }
+        )
 
         # Add policy to wandb sweep
         policy_store.add_to_wandb_sweep(cfg.sweep_name, policy_pr)
@@ -167,6 +161,7 @@ def main(cfg: OmegaConf) -> int:
 
         wandb_run.summary.update({"run_time": total_time})
         return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

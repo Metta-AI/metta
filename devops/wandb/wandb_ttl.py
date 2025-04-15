@@ -45,8 +45,8 @@ if __name__ == "__main__":
         type=int,
         required=True,
         help="The TTL in number of days to apply to each artifact. "
-             "Note that it's in days from artifact version creation, "
-             "not the current date.",
+        "Note that it's in days from artifact version creation, "
+        "not the current date.",
     )
 
     args = parser.parse_args()
