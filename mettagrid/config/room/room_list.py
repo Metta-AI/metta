@@ -1,7 +1,9 @@
-import numpy as np
 from typing import List
 
+import numpy as np
+
 from mettagrid.config.room.room import Room
+
 
 class RoomList(Room):
     def __init__(

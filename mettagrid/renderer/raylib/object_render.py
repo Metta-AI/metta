@@ -1,11 +1,10 @@
 # disable pylint for raylib
 # pylint: disable=no-member
 # type: ignore
-import __future__
 import os
 
 import pyray as ray
-from omegaconf import OmegaConf, DictConfig
+from omegaconf import DictConfig, OmegaConf
 from raylib import colors, rl
 
 
@@ -22,31 +21,18 @@ class ObjectRenderer:
         return (0, 0)
 
     def render(self, obj, render_tile_size):
-        dest_rect = (
-            obj["c"] * render_tile_size, obj["r"] * render_tile_size,
-            render_tile_size, render_tile_size)
+        dest_rect = (obj["c"] * render_tile_size, obj["r"] * render_tile_size, render_tile_size, render_tile_size)
         tile_idx_x, tile_idx_y = self._sprite_sheet_idx(obj)
-        src_rect = (
-            tile_idx_x * self.tile_size, tile_idx_y * self.tile_size,
-            self.tile_size, self.tile_size)
+        src_rect = (tile_idx_x * self.tile_size, tile_idx_y * self.tile_size, self.tile_size, self.tile_size)
 
-        rl.DrawTexturePro(
-            self.sprite_sheet, src_rect, dest_rect,
-            (0, 0), 0, colors.WHITE)
+        rl.DrawTexturePro(self.sprite_sheet, src_rect, dest_rect, (0, 0), 0, colors.WHITE)
+
 
 class AgentRenderer(ObjectRenderer):
     def __init__(self, cfg: OmegaConf):
         super().__init__("monsters.png", 16)
-        self._cfgs = DictConfig({
-            **{
-                c.id: OmegaConf.merge(cfg.agent, c.props)
-                for c in cfg.groups.values()
-            }
-        })
-        self.sprites = {
-            c.id: c.sprite
-            for c in cfg.groups.values()
-        }
+        self._cfgs = DictConfig({**{c.id: OmegaConf.merge(cfg.agent, c.props) for c in cfg.groups.values()}})
+        self.sprites = {c.id: c.sprite for c in cfg.groups.values()}
 
         self.obs_width = 11  # Assuming these values, adjust if necessary
         self.obs_height = 11
@@ -115,9 +101,11 @@ class AgentRenderer(ObjectRenderer):
         # Draw the semi-transparent grey square
         ray.draw_rectangle(obs_x, obs_y, width, height, grey_color)
 
+
 class WallRenderer(ObjectRenderer):
     def __init__(self):
         super().__init__("wall.png")
+
 
 class ConverterRenderer(ObjectRenderer):
     def __init__(self):
@@ -126,13 +114,24 @@ class ConverterRenderer(ObjectRenderer):
     def _state(self, obj):
         if obj["converting"]:
             return "converting"
-        elif obj["inv:ore.red"] + obj["inv:ore.blue"] + obj["inv:ore.green"] + obj["inv:battery"] + obj["inv:heart"] + obj["inv:laser"] + obj["inv:armor"] + obj["inv:blueprint"] > 0:
+        elif (
+            obj["inv:ore.red"]
+            + obj["inv:ore.blue"]
+            + obj["inv:ore.green"]
+            + obj["inv:battery"]
+            + obj["inv:heart"]
+            + obj["inv:laser"]
+            + obj["inv:armor"]
+            + obj["inv:blueprint"]
+            > 0
+        ):
             return "has_inventory"
         else:
             return "empty"
 
     def _sprite_sheet_idx(self, obj):
         return (0, 0)
+
 
 class MineRenderer(ConverterRenderer):
     def _sprite_sheet_idx(self, obj):
@@ -142,6 +141,7 @@ class MineRenderer(ConverterRenderer):
             "has_inventory": (14, 2),
         }[self._state(obj)]
 
+
 class GeneratorRenderer(ConverterRenderer):
     def _sprite_sheet_idx(self, obj):
         return {
@@ -149,6 +149,7 @@ class GeneratorRenderer(ConverterRenderer):
             "converting": (0, 2),
             "has_inventory": (2, 2),
         }[self._state(obj)]
+
 
 class AltarRenderer(ConverterRenderer):
     def _sprite_sheet_idx(self, obj):
@@ -158,6 +159,7 @@ class AltarRenderer(ConverterRenderer):
             "has_inventory": (12, 2),
         }[self._state(obj)]
 
+
 class ArmoryRenderer(ConverterRenderer):
     def _sprite_sheet_idx(self, obj):
         return {
@@ -165,6 +167,7 @@ class ArmoryRenderer(ConverterRenderer):
             "converting": (11, 3),
             "has_inventory": (6, 3),
         }[self._state(obj)]
+
 
 class LaseryRenderer(ConverterRenderer):
     def _sprite_sheet_idx(self, obj):
@@ -174,6 +177,7 @@ class LaseryRenderer(ConverterRenderer):
             "has_inventory": (5, 5),
         }[self._state(obj)]
 
+
 class LabRenderer(ConverterRenderer):
     def _sprite_sheet_idx(self, obj):
         return {
@@ -182,6 +186,7 @@ class LabRenderer(ConverterRenderer):
             "has_inventory": (5, 1),
         }[self._state(obj)]
 
+
 class FactoryRenderer(ConverterRenderer):
     def _sprite_sheet_idx(self, obj):
         return {
@@ -189,6 +194,7 @@ class FactoryRenderer(ConverterRenderer):
             "converting": (14, 0),
             "has_inventory": (13, 0),
         }[self._state(obj)]
+
 
 class TempleRenderer(ConverterRenderer):
     def _sprite_sheet_idx(self, obj):

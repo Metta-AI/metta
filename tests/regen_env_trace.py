@@ -1,5 +1,6 @@
 import hydra
 import numpy as np
+
 import mettagrid
 import mettagrid.mettagrid_env
 

@@ -1,10 +1,12 @@
-from typing import List
 import random
+from typing import List
+
 import numpy as np
 from omegaconf import DictConfig
 
 from mettagrid.config.room.room import Room
-from mettagrid.config.room.utils import create_grid, draw_border, compute_positions
+from mettagrid.config.room.utils import compute_positions, create_grid, draw_border
+
 
 class BarrierMaze(Room):
     """
@@ -23,6 +25,7 @@ class BarrierMaze(Room):
 
     For horizontal orientation, dimensions are swapped and the final grid is rotated.
     """
+
     def __init__(
         self,
         width: int,
@@ -33,8 +36,8 @@ class BarrierMaze(Room):
         agents: int | DictConfig = 1,
         border_width: int = 1,
         border_object: str = "wall",
-        barrier_placement_mode: str = "same",    # "same", "alternating", "doorways"
-        barrier_orientation: str = "vertical"      # "vertical" or "horizontal"
+        barrier_placement_mode: str = "same",  # "same", "alternating", "doorways"
+        barrier_orientation: str = "vertical",  # "vertical" or "horizontal"
     ):
         super().__init__(border_width=border_width, border_object=border_object)
         self._width = width
@@ -97,10 +100,14 @@ class BarrierMaze(Room):
             x = positions[barrier]
             if self._placement_mode in ("alternating", "same"):
                 # For alternating mode, even-indexed barriers attach at the top; otherwise, at the bottom.
-                top = interior_y_start if (self._placement_mode == "alternating" and idx % 2 == 0) else interior_y_end - size
-                grid[top:top + size, x:x + self._barrier_width] = self._border_object
+                top = (
+                    interior_y_start
+                    if (self._placement_mode == "alternating" and idx % 2 == 0)
+                    else interior_y_end - size
+                )
+                grid[top : top + size, x : x + self._barrier_width] = self._border_object
             elif self._placement_mode == "doorways":
                 capped = min(size, max(1, (secondary_length - 1) // 2))
-                grid[interior_y_start:interior_y_start + capped, x:x + self._barrier_width] = self._border_object
-                grid[interior_y_end - capped:interior_y_end, x:x + self._barrier_width] = self._border_object
+                grid[interior_y_start : interior_y_start + capped, x : x + self._barrier_width] = self._border_object
+                grid[interior_y_end - capped : interior_y_end, x : x + self._barrier_width] = self._border_object
         return grid

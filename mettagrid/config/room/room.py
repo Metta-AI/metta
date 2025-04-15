@@ -1,5 +1,6 @@
 import numpy as np
 
+
 class GameObject:
     def __init__(self, name: str, symbol: str):
         self.name = name

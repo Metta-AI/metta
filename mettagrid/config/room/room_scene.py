@@ -2,7 +2,7 @@ from typing import Dict
 
 from omegaconf import ListConfig
 
-from mettagrid.config.room.room import GameObject, Room
+from mettagrid.config.room.room import Room
 from mettagrid.config.room.room_list import RoomList
 
 

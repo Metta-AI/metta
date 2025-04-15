@@ -1,6 +1,6 @@
-import pyray as ray
-from raylib import rl
 import math
+
+from raylib import rl
 
 _SIN_45 = 2 ** 0.5 / 2
 
@@ -50,7 +50,7 @@ class CameraController:
 
 
     def get_world_mouse_position(self) -> tuple[float, float]:
-        screen_pos = rl.GetMousePosition();
+        screen_pos = rl.GetMousePosition()
         world_pos = rl.GetScreenToWorld2D(screen_pos, self.camera)
         return world_pos.x, world_pos.y
 

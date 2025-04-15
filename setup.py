@@ -1,10 +1,11 @@
-from sympy import li
-from setuptools import Extension, setup, find_packages, Command
-from Cython.Build import cythonize
-import numpy
-import os
 import multiprocessing
+import os
 import sys
+
+import numpy
+from Cython.Build import cythonize
+from setuptools import Extension, find_packages, setup
+
 multiprocessing.freeze_support()
 
 def build_ext(srcs, module_name=None):

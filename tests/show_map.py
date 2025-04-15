@@ -2,10 +2,12 @@ import os
 import signal  # Aggressively exit on ctrl+c
 
 import hydra
+
 from mettagrid.mettagrid_env import MettaGridEnv
 from mettagrid.renderer.raylib.raylib_renderer import MettaGridRaylibRenderer
 
 signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
+
 
 @hydra.main(version_base=None, config_path="../configs", config_name="simple")
 def main(cfg):

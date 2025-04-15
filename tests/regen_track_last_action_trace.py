@@ -1,8 +1,10 @@
 import hydra
 import numpy as np
+from regen_env_trace import header, render_obs_to_string, render_to_string
+
 import mettagrid
 import mettagrid.mettagrid_env
-from regen_env_trace import render_obs_to_string, render_to_string, header
+
 
 @hydra.main(version_base=None, config_path="../configs", config_name="test_basic")
 def main(cfg):
@@ -15,11 +17,11 @@ def main(cfg):
     env.reset()
 
     actions = [
-        [0,5],
-        [1,6],
-        [2,7],
-        [3,8],
-        [4,9],
+        [0, 5],
+        [1, 6],
+        [2, 7],
+        [3, 8],
+        [4, 9],
     ]
     output += render_to_string(env)
 
@@ -47,7 +49,7 @@ def main(cfg):
     assert "last_action" not in env.grid_features
     assert "last_action_argument" not in env.grid_features
 
-    (obs, rewards, terminated, truncated, infos) = env.step([[1,2]]*5)
+    (obs, rewards, terminated, truncated, infos) = env.step([[1, 2]] * 5)
     output += f"rewards: {rewards}\n"
     output += f"terminated: {terminated}\n"
     output += f"truncated: {truncated}\n"
@@ -56,6 +58,7 @@ def main(cfg):
 
     with open("tests/gold/track_last_action_trace.txt", "w") as f:
         f.write(output)
+
 
 if __name__ == "__main__":
     main()
