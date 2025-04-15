@@ -6,6 +6,7 @@ from omegaconf import DictConfig
 from metta.eval.report import generate_report
 from metta.util.runtime_configuration import setup_mettagrid_environment
 
+
 @hydra.main(version_base=None, config_path="../configs", config_name="analyzer")
 def main(cfg: DictConfig) -> None:
     setup_mettagrid_environment(cfg)

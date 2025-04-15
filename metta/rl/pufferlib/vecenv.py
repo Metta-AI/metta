@@ -4,6 +4,7 @@ import pufferlib.utils
 import pufferlib.vector
 from omegaconf import DictConfig, OmegaConf
 
+
 def make_env_func(cfg: DictConfig, buf=None, render_mode="rgb_array"):
     return hydra.utils.instantiate(cfg, cfg, render_mode=render_mode, buf=buf)
 

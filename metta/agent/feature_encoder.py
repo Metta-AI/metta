@@ -23,6 +23,7 @@ from metta.agent.lib.feature_normalizer import FeatureListNormalizer
 
 from .lib.util import embed_strings, make_nn_stack
 
+
 # this is not currently working
 class FeatureSetEncoder(nn.Module):
     def __init__(
