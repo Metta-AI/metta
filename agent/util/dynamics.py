@@ -18,8 +18,8 @@ def analyze_sv(S: torch.Tensor):
         return {}
         
     # Linear fit in log-log space to check for power law (indicator of criticality)
-    log_indices_np = torch.log(torch.arange(1, len(sorted_sv) + 1, device=S.device).float()).cpu().numpy()
-    log_sv_np = torch.log(sorted_sv + 1e-10).cpu().numpy()
+    log_indices_np = torch.log(torch.arange(1, len(sorted_sv_non_zero) + 1, device=S.device).float()).cpu().numpy()
+    log_sv_np = torch.log(sorted_sv_non_zero + 1e-10).cpu().numpy()
 
     slope, intercept, r_value, p_value, std_err = stats.linregress(log_indices_np, log_sv_np)
 
