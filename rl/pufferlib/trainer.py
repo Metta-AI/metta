@@ -159,6 +159,16 @@ class PufferTrainer:
         self.train_start = time.time()
         logger.info("Starting training")
 
+        # --- Profiler Setup ---
+        should_profile_this_epoch = (
+            self.trainer_cfg.profiler_interval_epochs != 0
+            # note, this will also run at the beginning since self.epoch == 0
+            and self.epoch % self.trainer_cfg.profiler_interval_epochs == 0
+            and self._master
+        )
+        if should_profile_this_epoch:
+             self.torch_profiler.setup_profiler(self.epoch)
+
         # it doesn't make sense to evaluate more often than checkpointing since we need a saved policy to evaluate
         if (
             self.trainer_cfg.evaluate_interval != 0
@@ -168,10 +178,29 @@ class PufferTrainer:
 
         logger.info(f"Training on {self.device}")
         while self.agent_step < self.trainer_cfg.total_timesteps:
-            # Collecting experience
-            self._evaluate()
+            # --- Profiler Setup (inside loop for subsequent epochs) ---
+            # Check if it's time to arm the profiler for this epoch
+            # We check again here in case the loop runs multiple times or epoch increments
+            if not self.torch_profiler.active: # Only setup if not already active
+                should_profile_this_epoch = (
+                    self.trainer_cfg.profiler_interval_epochs != 0
+                    and self.epoch % self.trainer_cfg.profiler_interval_epochs == 0
+                    and self._master
+                )
+                if should_profile_this_epoch:
+                     self.torch_profiler.setup_profiler(self.epoch)
+            # --- End Profiler Setup ---
 
-            # Training on collected experience
+            # --- Profiler Context ---
+            if self.torch_profiler.active:
+                with self.torch_profiler: # This will start/stop profiling
+                    self._evaluate()
+                    self._train()
+            else: # Run normally if profiler is not active for this epoch
+                self._evaluate()
+                self._train()
+            
+            self._evaluate()
             self._train()
 
             # Processing stats
@@ -198,8 +227,6 @@ class PufferTrainer:
                 self._update_l2_init_weight_copy()
             if self.trainer_cfg.replay_interval != 0 and self.epoch % self.trainer_cfg.replay_interval == 0:
                 self._generate_and_upload_replay()
-            if self.trainer_cfg.profiler_interval_epochs != 0 and self.epoch % self.trainer_cfg.profiler_interval_epochs == 0 and self._master:
-                self.torch_profiler.setup_profiler(self.epoch)
 
             self._on_train_step()
 
@@ -474,8 +501,8 @@ class PufferTrainer:
                     self.losses.ks_action_loss += ks_action_loss.item() / total_minibatches
                     self.losses.ks_value_loss += ks_value_loss.item() / total_minibatches
 
-                if self.torch_profiler.active:
-                    self.torch_profiler.step()
+                # if self.torch_profiler.active:
+                #     self.torch_profiler.step()
             
             if self.trainer_cfg.target_kl is not None:
                 if approx_kl > self.trainer_cfg.target_kl:
