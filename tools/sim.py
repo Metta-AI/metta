@@ -5,6 +5,7 @@ from metta.eval import simulate_policy
 from metta.rl.wandb.wandb_context import WandbContext
 from metta.util.runtime_configuration import setup_mettagrid_environment
 
+
 @hydra.main(version_base=None, config_path="../configs", config_name="eval")
 def main(cfg: DictConfig):
     setup_mettagrid_environment(cfg)
