@@ -1,4 +1,4 @@
-_target_: metta.rl.pufferlib.eval.Eval
+_target_: metta.sim.Simulation
 
 policy_uri: ???
 env: ???

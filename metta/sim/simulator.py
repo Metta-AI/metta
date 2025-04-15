@@ -3,7 +3,7 @@ import torch
 from omegaconf import OmegaConf
 
 from metta.agent.policy_store import PolicyRecord
-from metta.rl.pufferlib.vecenv import make_vecenv
+from metta.sim.vecenv import make_vecenv
 
 
 class Simulator:

@@ -12,10 +12,10 @@ from rich.logging import RichHandler
 from wandb_carbs import WandbCarbs
 
 from metta.agent.policy_store import PolicyStore
-from metta.rl.eval.eval_stats_db import EvalStatsDB
-from metta.rl.eval.eval_stats_logger import EvalStatsLogger
-from metta.rl.wandb.wandb_context import WandbContext
+from metta.sim.eval_stats_db import EvalStatsDB
+from metta.sim.eval_stats_logger import EvalStatsLogger
 from metta.util.runtime_configuration import setup_mettagrid_environment
+from metta.util.wandb.wandb_context import WandbContext
 
 # Configure rich colored logging to stderr instead of stdout
 logging.basicConfig(level="INFO", format="%(message)s", datefmt="[%X]", handlers=[RichHandler(rich_tracebacks=True)])
@@ -88,7 +88,7 @@ def main(cfg: OmegaConf) -> int:
         logger.info(f"Evaluating policy {policy_pr.name}")
         log_file(cfg.run_dir, "sweep_eval_config.yaml", cfg, wandb_run)
 
-        stats = eval.evaluate()
+        stats = eval.simulate()
         eval_time = time.time() - eval_start_time
 
         # Log evaluation stats

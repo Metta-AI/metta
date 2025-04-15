@@ -36,8 +36,8 @@ eval:
   num_episodes: 1
   num_envs: 1
   policy_uri: ${..policy_uri}
-  selector_type: policy_versions
-  eval_db_uri: wandb://artifacts/navigation_db
+  selector_type: latest
+  eval_db_uri: wandb://artifacts/eval_db_jack_testing
   max_time_s: 3
   policy_uris:
     - "wandb://run/b.daphne.navigation_varied_obstacle_shapes_pretrained.r.1"
