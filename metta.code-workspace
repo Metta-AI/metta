@@ -113,10 +113,12 @@
 		},
 		"python.analysis.extraPaths": [
 			"${env:CONDA_PREFIX}/lib/python3.11/site-packages",
+			"/Users/daveey/miniforge3/envs/metta/lib/python3.11/site-packages",
 			"deps/**",
 		],
 		"python.autoComplete.extraPaths": [
 			"${env:CONDA_PREFIX}/lib/python3.11/site-packages",
+			"/Users/daveey/miniforge3/envs/metta/lib/python3.11/site-packages",
 			"deps/**",
 		],
 		"python.analysis.exclude": [
@@ -125,10 +127,8 @@
 		"python.analysis.ignore": [
 			"**/pufferlib/**",
 			"${workspaceFolder:pufferlib}/**",
-
 		],
-		"files.watcherExclude": {
-		},
+		"files.watcherExclude": {},
 		"files.exclude": {
 			"train_dir": true,
 			"wandb": true,
@@ -201,8 +201,14 @@
 		"terminal.integrated.cwd": "${workspaceFolder}",
 		"terminal.integrated.splitCwd": "workspaceRoot",
 		"cSpell.words": [
+			"bptt",
+			"coef",
 			"metta",
-			"mettagrid"
+			"mettagrid",
+			"minibatch",
+			"pufferlib",
+			"timesteps",
+			"vloss"
 		]
 	}
 }

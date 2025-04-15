@@ -2,7 +2,6 @@ import logging
 import os
 import time
 from collections import defaultdict
-from contextlib import nullcontext
 
 import hydra
 import numpy as np
