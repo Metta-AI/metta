@@ -9,8 +9,8 @@ import wandb
 from omegaconf import OmegaConf
 
 from metta.agent.policy_store import PolicyRecord
-from metta.rl.pufferlib.simulator import Simulator
-from metta.rl.wandb.wandb_context import WandbContext
+from metta.sim.simulator import Simulator
+from metta.util.wandb.wandb_context import WandbContext
 
 
 class ReplayHelper:
