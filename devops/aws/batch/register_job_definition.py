@@ -6,6 +6,7 @@ from pprint import pprint
 
 import boto3
 
+
 def get_role_arn(role_name, profile=None):
     """Look up the ARN for a given IAM role name."""
     try:
