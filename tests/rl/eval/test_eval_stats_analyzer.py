@@ -4,7 +4,7 @@ import pandas as pd
 import pytest
 from omegaconf import OmegaConf
 
-from rl.eval.eval_stats_analyzer import EvalStatsAnalyzer
+from metta.rl.eval.eval_stats_analyzer import EvalStatsAnalyzer
 
 # --- Fixtures for shared test resources --- #
 
