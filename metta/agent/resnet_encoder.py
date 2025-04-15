@@ -6,6 +6,7 @@ from torch import nn
 from metta.agent.lib.observation_normalizer import ObservationNormalizer
 from metta.agent.lib.util import name_to_activation
 
+
 class _ResidualBlock(nn.Module):
     def __init__(self, depth: int, activation: str):
         super().__init__()
