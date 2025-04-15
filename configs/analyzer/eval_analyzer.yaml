@@ -1,4 +1,4 @@
-_target_: rl.eval.eval_stats_analyzer.EvalStatsAnalyzer
+_target_: metta.rl.eval.eval_stats_analyzer.EvalStatsAnalyzer
 
 policy_uri: ???
 
