@@ -1,8 +1,7 @@
 import logging
 import os
-import time
-import gzip # Add gzip for compression
-
+import gzip
+import wandb
 import boto3
 import torch.profiler
 
@@ -106,10 +105,17 @@ class TorchProfiler:
                 logger.warning(f"Could not remove temporary trace file {temp_json_path}: {e}")
 
             # S3 upload:
-            s3_location = f"torch_traces/{os.path.basename(self.run_dir)}/{output_filename_gz}"
-            logger.info(f"Uploading profile trace to S3: s3://softmax-public/{s3_location}")
-            self.s3_client.upload_file(final_gz_path, "softmax-public", s3_location)
+            s3_bucket = "softmax-public"
+            s3_path = f"torch_traces/{os.path.basename(self.run_dir)}/{output_filename_gz}"
+            logger.info(f"Uploading profile trace to S3: s3://softmax-public/{s3_path}")
+            self.s3_client.upload_file(final_gz_path, s3_bucket, s3_path)
             logger.info(f"Successfully uploaded profile trace to S3.")
+
+            # Log the link to WandB
+            link = f"https://{s3_bucket}.s3.us-east-1.amazonaws.com/{s3_path}"
+            player_url = "https://metta-ai.github.io/mettagrid/?traceUrl=" + link
+            link_summary = {"torch_traces/link": wandb.Html(f'<a href="{player_url}">Torch Trace (Epoch {epoch})</a>')}
+            self.wandb_run.log(link_summary)
 
         except Exception as e:
             logger.error(f"Error exporting/compressing/uploading profile trace for epoch {self._start_epoch}: {e}", exc_info=True)
@@ -119,3 +125,4 @@ class TorchProfiler:
                      os.remove(temp_json_path)
                  except OSError as e_rem:
                      logger.warning(f"Could not remove temporary trace file {temp_json_path} after error: {e_rem}")
+ 
