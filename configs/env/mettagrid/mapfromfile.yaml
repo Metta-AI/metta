@@ -8,7 +8,7 @@ game:
 
     _target_: mettagrid.config.room.map_from_file.MapFromFile
     border_width: 1
-    dir: "terrain_maps"
+    dir: "terrain_maps_nohearts"
 
   objects:
     altar:
