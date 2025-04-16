@@ -17,7 +17,7 @@ defaults:
   - override /analyzer: eval_analyzer
 
 trainer:
-  env: /env/mettagrid/navigation/training/varied_terrain
+  env: /env/mettagrid/navigation/training/mapfromfile
   evaluate_interval: 10
 
 # policy: wandb://run/b.daveey.train.maze.sm.dr.warm.0
@@ -42,9 +42,7 @@ analyzer:
   output_path: navigation_results/results.html
 
 eval:
-  env: /env/mettagrid/configs/mapgen
-  env_overrides:
-    sampling: 20
+  env: /env/mettagrid/navigation/training/multienv
 
   policy_uri: ${..policy_uri}
   # npc_policy_uri: ${..npc_policy_uri}
