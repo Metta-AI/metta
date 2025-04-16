@@ -114,8 +114,7 @@ class TorchProfiler:
 
             # Log the link to WandB
             link = f"https://{s3_bucket}.s3.us-east-1.amazonaws.com/{s3_path}"
-            player_url = "https://metta-ai.github.io/mettagrid/?traceUrl=" + link
-            link_summary = {"torch_traces/link": wandb.Html(f'<a href="{player_url}">Torch Trace (Epoch {self._start_epoch})</a>')}
+            link_summary = {"torch_traces/link": wandb.Html(f'<a href="{link}">Torch Trace (Epoch {self._start_epoch})</a>')}
             self.wandb_run.log(link_summary)
 
         except Exception as e:
