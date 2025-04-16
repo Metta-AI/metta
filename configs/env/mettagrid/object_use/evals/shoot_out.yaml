@@ -15,7 +15,7 @@ game:
 
   agent:
     rewards:
-      heart: 3
+      heart: 1
 
   map_builder:
 
