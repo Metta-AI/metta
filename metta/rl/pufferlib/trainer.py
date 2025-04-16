@@ -613,7 +613,6 @@ class PufferTrainer:
                 }
             )
 
-        self._policy_fitness = []  # do we need this?
         self._eval_results = []
         self._effective_rank = []
         self.stats.clear()
