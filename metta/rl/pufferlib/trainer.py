@@ -133,6 +133,11 @@ class PufferTrainer:
             eps=self.trainer_cfg.optimizer.eps,
         )
 
+        self.lr_scheduler = None
+        if self.trainer_cfg.lr_scheduler.enabled:
+            self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+                self.optimizer, T_max=self.trainer_cfg.total_timesteps // self.trainer_cfg.batch_size)
+
         if checkpoint.agent_step > 0:
             self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
 
@@ -468,10 +473,8 @@ class PufferTrainer:
                     break
 
         with profile.train_misc:
-            if self.trainer_cfg.anneal_lr:
-                frac = 1.0 - self.agent_step / self.trainer_cfg.total_timesteps
-                lrnow = frac * self.trainer_cfg.learning_rate
-                self.optimizer.param_groups[0]["lr"] = lrnow
+            if self.lr_scheduler is not None:
+                self.lr_scheduler.step()
 
             y_pred = experience.values_np
             y_true = experience.returns_np
