@@ -7,15 +7,15 @@ import sys
 import time
 
 import hydra
+from omegaconf import DictConfig, OmegaConf
+from rich.logging import RichHandler
+from wandb_carbs import WandbCarbs
+
 from metta.agent.policy_store import PolicyStore
 from metta.sim.eval_stats_db import EvalStatsDB
 from metta.sim.eval_stats_logger import EvalStatsLogger
 from metta.util.runtime_configuration import setup_mettagrid_environment
 from metta.util.wandb.wandb_context import WandbContext
-from omegaconf import DictConfig, OmegaConf
-from rich.logging import RichHandler
-
-from wandb_carbs import WandbCarbs
 
 # Configure rich colored logging to stderr instead of stdout
 logging.basicConfig(

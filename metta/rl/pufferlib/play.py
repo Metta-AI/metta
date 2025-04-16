@@ -1,9 +1,10 @@
 import numpy as np
 import torch
 from agent.policy_store import PolicyStore
-from mettagrid.renderer.raylib.raylib_renderer import MettaGridRaylibRenderer
 from omegaconf import OmegaConf
 from rl.pufferlib.vecenv import make_vecenv
+
+from mettagrid.renderer.raylib.raylib_renderer import MettaGridRaylibRenderer
 
 
 def play(cfg: OmegaConf, policy_store: PolicyStore):

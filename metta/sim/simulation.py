@@ -1,18 +1,17 @@
+import logging
 import time
 from datetime import datetime
 
 import numpy as np
 import torch
-from agent.policy_store import PolicyRecord, PolicyStore
 from omegaconf import DictConfig, OmegaConf
-from rl.pufferlib.vecenv import make_vecenv
-from util.config import config_from_path
-from util.datastruct import flatten_config
 
 from metta.agent.policy_store import PolicyRecord, PolicyStore
 from metta.sim.vecenv import make_vecenv
 from metta.util.config import config_from_path
 from metta.util.datastruct import flatten_config
+
+logger = logging.getLogger("simulation")
 
 
 class Eval:
@@ -56,22 +55,16 @@ class Eval:
             self._npc_pr = self._policy_store.policy(self._npc_policy_uri)
 
         self._agents_per_env = self._env_cfg.game.num_agents
-        self._policy_agents_per_env = max(
-            1, int(self._agents_per_env * self._policy_agents_pct)
-        )
+        self._policy_agents_per_env = max(1, int(self._agents_per_env * self._policy_agents_pct))
         self._npc_agents_per_env = self._agents_per_env - self._policy_agents_per_env
         self._total_agents = self._num_envs * self._agents_per_env
 
-        self._vecenv = make_vecenv(
-            self._env_cfg, vectorization, num_envs=self._num_envs
-        )
+        self._vecenv = make_vecenv(self._env_cfg, vectorization, num_envs=self._num_envs)
 
         # each index is an agent, and we reshape it into a matrix of num_envs x agents_per_env
         # you can figure out which episode you're in by doing the floor division
         slice_idxs = (
-            torch.arange(self._vecenv.num_agents)
-            .reshape(self._num_envs, self._agents_per_env)
-            .to(device=self._device)
+            torch.arange(self._vecenv.num_agents).reshape(self._num_envs, self._agents_per_env).to(device=self._device)
         )
 
         self._policy_idxs = slice_idxs[:, : self._policy_agents_per_env].reshape(
@@ -79,9 +72,7 @@ class Eval:
         )
 
         self._npc_idxs = []
-        self._npc_idxs = slice_idxs[:, self._policy_agents_per_env :].reshape(
-            self._num_envs * self._npc_agents_per_env
-        )
+        self._npc_idxs = slice_idxs[:, self._policy_agents_per_env :].reshape(self._num_envs * self._npc_agents_per_env)
 
         self._completed_episodes = 0
         self._total_rewards = np.zeros(self._total_agents)
@@ -106,13 +97,10 @@ class Eval:
             + "with {self._policy_agents_per_env} agents"
         )
         if self._npc_pr is not None:
-            logger.info(
-                f"Against npc policy: {self._npc_pr.name} with {self._npc_agents_per_env} agents"
-            )
+            logger.info(f"Against npc policy: {self._npc_pr.name} with {self._npc_agents_per_env} agents")
 
         logger.info(
-            f"Eval settings: {self._num_envs} envs, "
-            + "{self._min_episodes} episodes, {self._max_time_s} seconds"
+            f"Eval settings: {self._num_envs} envs, " + "{self._min_episodes} episodes, {self._max_time_s} seconds"
         )
 
         obs, _ = self._vecenv.reset()
@@ -123,10 +111,7 @@ class Eval:
         start = time.time()
 
         # set of episodes that parallelize the environments
-        while (
-            self._completed_episodes < self._min_episodes
-            and time.time() - start < self._max_time_s
-        ):
+        while self._completed_episodes < self._min_episodes and time.time() - start < self._max_time_s:
             with torch.no_grad():
                 obs = torch.as_tensor(obs).to(device=self._device)
                 # observavtions that correspond to policy agent
@@ -134,9 +119,7 @@ class Eval:
 
                 # Parallelize across opponents
                 policy = self._policy_pr.policy()  # policy to evaluate
-                policy_actions, _, _, _, policy_rnn_state, _, _, _ = policy(
-                    my_obs, policy_rnn_state
-                )
+                policy_actions, _, _, _, policy_rnn_state, _, _, _ = policy(my_obs, policy_rnn_state)
 
                 # Iterate opponent policies
                 if self._npc_pr is not None:
@@ -144,17 +127,13 @@ class Eval:
                     npc_rnn_state = npc_rnn_state
 
                     npc_policy = self._npc_pr.policy()
-                    npc_action, _, _, _, npc_rnn_state, _, _, _ = npc_policy(
-                        npc_obs, npc_rnn_state
-                    )
+                    npc_action, _, _, _, npc_rnn_state, _, _, _ = npc_policy(npc_obs, npc_rnn_state)
 
             actions = policy_actions
             if self._npc_agents_per_env > 0:
                 actions = torch.cat(
                     [
-                        policy_actions.view(
-                            self._num_envs, self._policy_agents_per_env, -1
-                        ),
+                        policy_actions.view(self._num_envs, self._policy_agents_per_env, -1),
                         npc_action.view(self._num_envs, self._npc_agents_per_env, -1),
                     ],
                     dim=1,
@@ -162,9 +141,7 @@ class Eval:
 
             actions = actions.view(self._num_envs * self._agents_per_env, -1)
 
-            obs, rewards, dones, truncated, infos = self._vecenv.step(
-                actions.cpu().numpy()
-            )
+            obs, rewards, dones, truncated, infos = self._vecenv.step(actions.cpu().numpy())
 
             self._total_rewards += rewards
             self._completed_episodes += sum([e.done for e in self._vecenv.envs])
@@ -185,16 +162,12 @@ class Eval:
                         agent_idx = agent_i + n * self._agents_per_env
 
                         if agent_idx in self._agent_idx_to_policy_name:
-                            agent_episode_data[agent_i]["policy_name"] = (
-                                self._agent_idx_to_policy_name[agent_idx].replace(
-                                    "file://", ""
-                                )
-                            )
+                            agent_episode_data[agent_i]["policy_name"] = self._agent_idx_to_policy_name[
+                                agent_idx
+                            ].replace("file://", "")
                         else:
                             agent_episode_data[agent_i]["policy_name"] = "No Name Found"
-                        agent_episode_data[agent_i]["episode_reward"] = episode_reward[
-                            agent_i
-                        ].tolist()
+                        agent_episode_data[agent_i]["episode_reward"] = episode_reward[agent_i].tolist()
                         agent_episode_data[agent_i].update(flattened_env)
 
                     game_stats.append(agent_episode_data)
@@ -217,15 +190,10 @@ class EvalSuite:
         self._evals = []
         for _eval_name, eval_cfg in evals.items():
             eval_cfg = OmegaConf.merge(kwargs, eval_cfg)
-            eval = Eval(
-                policy_store, policy_pr, run_id, env_overrides=env_overrides, **eval_cfg
-            )
+            eval = Eval(policy_store, policy_pr, run_id, env_overrides=env_overrides, **eval_cfg)
             self._evals.append(eval)
 
     def simulate(self):
         return {
-            eval_name: eval.evaluate()
-            for eval_name, eval in zip(
-                self._evals_cfgs.keys(), self._evals, strict=False
-            )
+            eval_name: eval.evaluate() for eval_name, eval in zip(self._evals_cfgs.keys(), self._evals, strict=False)
         }
