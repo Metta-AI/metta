@@ -51,5 +51,27 @@ evals:
   radialmaze:
     env: env/mettagrid/navigation/evals/radialmaze
     policy_agents_pct: 1.0
-
+  cylinder_easy:
+    env: env/mettagrid/navigation/evals/cylinder_easy 
+  honeypot:
+    env: env/mettagrid/navigation/evals/honeypot 
+  knotty:
+    env: env/mettagrid/navigation/evals/knotty 
+  memory_palace:
+    env: env/mettagrid/navigation/evals/memory_palace 
+  radial_large:
+    env: env/mettagrid/navigation/evals/radial_large 
+  radial_mini:
+    env: env/mettagrid/navigation/evals/radial_mini 
+  radial_small:
+    env: env/mettagrid/navigation/evals/radial_small 
+  swirls:
+    env: env/mettagrid/navigation/evals/swirls 
+  thecube:
+    env: env/mettagrid/navigation/evals/thecube 
+  walkaround:
+    env: env/mettagrid/navigation/evals/walkaround 
+  wanderout:
+    env: env/mettagrid/navigation/evals/wanderout
+     
 selector_type: latest
