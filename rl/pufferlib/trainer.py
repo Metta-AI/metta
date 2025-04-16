@@ -452,20 +452,26 @@ class PufferTrainer:
                     #     torch.cuda.synchronize()
 
                 with profile.train_misc:
-                    self.losses.policy_loss += pg_loss.item() / total_minibatches
-                    self.losses.value_loss += v_loss.item() / total_minibatches
-                    self.losses.entropy += entropy_loss.item() / total_minibatches
-                    self.losses.old_approx_kl += old_approx_kl.item() / total_minibatches
-                    self.losses.approx_kl += approx_kl.item() / total_minibatches
-                    self.losses.clipfrac += clipfrac.item() / total_minibatches
-                    self.losses.l2_reg_loss += l2_reg_loss.item() / total_minibatches
-                    self.losses.l2_init_loss += l2_init_loss.item() / total_minibatches
-                    self.losses.ks_action_loss += ks_action_loss.item() / total_minibatches
-                    self.losses.ks_value_loss += ks_value_loss.item() / total_minibatches
+                    # Accumulate tensor losses directly without .item()
+                    self.losses.policy_loss += pg_loss / total_minibatches
+                    self.losses.value_loss += v_loss / total_minibatches
+                    self.losses.entropy += entropy_loss / total_minibatches
+                    self.losses.old_approx_kl += old_approx_kl / total_minibatches
+                    self.losses.approx_kl += approx_kl / total_minibatches
+                    self.losses.clipfrac += clipfrac / total_minibatches
+                    self.losses.l2_reg_loss += l2_reg_loss / total_minibatches
+                    self.losses.l2_init_loss += l2_init_loss / total_minibatches
+                    self.losses.ks_action_loss += ks_action_loss / total_minibatches
+                    self.losses.ks_value_loss += ks_value_loss / total_minibatches
 
             if self.trainer_cfg.target_kl is not None:
                 if approx_kl > self.trainer_cfg.target_kl:
                     break
+
+        # Convert accumulated tensor losses to floats after the loops
+        for k, v in self.losses.__dict__.items():
+            if isinstance(v, torch.Tensor):
+                self.losses.__dict__[k] = v.item()
 
         with profile.train_misc:
             if self.trainer_cfg.anneal_lr:
@@ -619,17 +625,17 @@ class PufferTrainer:
 
     def _make_losses(self):
         return pufferlib.namespace(
-            policy_loss=0,
-            value_loss=0,
-            entropy=0,
-            old_approx_kl=0,
-            approx_kl=0,
-            clipfrac=0,
-            explained_variance=0,
-            l2_reg_loss=0,
-            l2_init_loss=0,
-            ks_action_loss=0,
-            ks_value_loss=0,
+            policy_loss=torch.tensor(0.0, device=self.device),
+            value_loss=torch.tensor(0.0, device=self.device),
+            entropy=torch.tensor(0.0, device=self.device),
+            old_approx_kl=torch.tensor(0.0, device=self.device),
+            approx_kl=torch.tensor(0.0, device=self.device),
+            clipfrac=torch.tensor(0.0, device=self.device),
+            explained_variance=0, # This is calculated later from numpy arrays
+            l2_reg_loss=torch.tensor(0.0, device=self.device),
+            l2_init_loss=torch.tensor(0.0, device=self.device),
+            ks_action_loss=torch.tensor(0.0, device=self.device),
+            ks_value_loss=torch.tensor(0.0, device=self.device),
         )
 
     def _make_vecenv(self):
