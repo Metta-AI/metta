@@ -1,0 +1,173 @@
+_target_: mettagrid.map.mapgen.MapGen
+
+width: 120
+height: 120
+
+root:
+  _target_: mettagrid.map.scenes.auto.Auto
+
+  # (Seed is set outside of the config for the convenience of implementation)
+  # seed: 42
+
+  config:
+    # How many agents to generate? These are placed randomly over the map.
+    num_agents: 10
+
+    # These will be placed anywhere, randomly distributed over the entire map.
+    # Values are absolute counts. (TODO: make them percentages?)
+    objects: {}
+      # mine: ${uniform:1,800,400}
+      # generator: ${uniform:1,400,80}
+      # altar: ${uniform:1,200,40}
+      # armory: ${uniform:1,200,40}
+      # lasery: ${uniform:1,200,40}
+      # lab: ${uniform:1,200,40}
+      # factory: ${uniform:1,200,40}
+      # temple: ${uniform:1,200,40}
+      # TODO - blocks?
+
+    # The percentage of objects to generate in each area.
+    # The percentage will be sampled from the distribution for each room separately.
+    room_objects:
+      mine:
+        distribution_type: uniform
+        min: 0.001
+        max: 0.03
+      generator:
+        distribution_type: lognormal
+        p5: 0.0001
+        p95: 0.03
+        max: 0.05 # optional but recommended - lognormal can occasionally generate some very large values
+      altar:
+        distribution_type: lognormal
+        p5: 0.0001
+        p95: 0.05
+        max: 0.05
+      armory:
+        distribution_type: uniform
+        min: 0.001
+        max: 0.03
+      lasery:
+        distribution_type: uniform
+        min: 0.001
+        max: 0.03
+      lab:
+        distribution_type: uniform
+        min: 0.001
+        max: 0.03
+      factory:
+        distribution_type: uniform
+        min: 0.001
+        max: 0.03
+      temple:
+        distribution_type: uniform
+        min: 0.001
+        max: 0.03
+
+    # Which layout to use? We have two options for now: BSP (binary space partitioning) and a rectangular grid.
+    layout:
+      # weights for layout choice
+      grid: 1
+      bsp: 1
+
+    # If we go with grid layout, how many rows and columns?
+    grid:
+      min_rows: 2
+      max_rows: 4
+      min_columns: 2
+      max_columns: 4
+
+    # If we go with BSP layout, how many areas?
+    bsp:
+      min_area_count: 3
+      max_area_count: 15
+
+    # Should some rooms be symmetric?
+    room_symmetry:
+      # weights for room symmetry choice
+      none: 10
+      horizontal: 3
+      vertical: 3
+      x4: 3
+
+    # Which content to use? We have two options for now: maze and WFC (wave function collapse).
+    content:
+      # weights for content choice
+      maze: 1
+      wfc: 1
+
+    # If we go with maze layout, how big are walls and cells?
+    maze:
+      min_wall_size: 1
+      max_wall_size: 3
+      min_room_size: 1
+      max_room_size: 3
+
+    # If we go with WFC, which patterns to use?
+    wfc_patterns:
+        - |
+          |####   ####|
+          |####   ####|
+          |####   ####|
+          |           |
+          |           |
+          |####   ####|
+          |####   ####|
+          |####   ####|
+
+        - |
+          |####     #####|
+          |####     #####|
+          |####     #####|
+          |            ##|
+          |            ##|
+          |            ##|
+          |####     #####|
+          |####     #####|
+          |####     #####|
+
+        - |
+          |      |
+          |  ##  |
+          | #### |
+          | ###  |
+          |  ##  |
+          |      |
+          |      |
+
+        - |
+          |          |
+          |   ####   |
+          |  ######  |
+          | ######## |
+          | ######## |
+          |  ######  |
+          |   ####   |
+          |          |
+
+        - |
+          |###   ##   |
+          |##    #### |
+          |#    ## ## |
+          |##    #    |
+          |#    ### ##|
+          |       ### |
+          |   ###     |
+          |   #     # |
+          |   ###   ##|
+          |           |
+
+        - |
+          |##    ###     |
+          |##    ####### |
+          |#    ##    ## |
+          |##    #       |
+          |#    ####   ##|
+          |        ##### |
+          |   ###        |
+          |#    ###### ##|
+          |       ###### |
+          |  ###         |
+          |  ##          |
+          |   ###      ##|
+          |              |
