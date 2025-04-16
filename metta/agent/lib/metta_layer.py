@@ -4,7 +4,7 @@ from torch import nn
 import torch
 import numpy as np
 
-from agent.util.dynamics import analyze_sv
+from metta.agent.util.dynamics import analyze_sv
 
 class LayerBase(nn.Module):
     '''The base class for components that make up the Metta agent. All components
