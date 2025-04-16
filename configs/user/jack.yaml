@@ -1,0 +1,61 @@
+# @package __global__
+
+defaults:
+  - override /agent: simple
+  - override /eval: navigation
+  - override /analyzer: eval_analyzer
+
+trainer:
+  env: /env/mettagrid/reward_dr
+  env_overrides:
+    sampling: 0.7
+    game:
+      num_agents: 36
+      max_steps: 1000
+  evaluate_interval: 50
+  checkpoint_interval: 50
+
+
+env:
+  semi_compact_obs: true
+  game:
+    max_steps: 2000
+
+
+
+policy_uri: wandb://run/b.daveey.t.64.dr90.1
+
+analyzer:
+  policy_uri: ${..policy_uri}
+  view_type: latest
+  analysis:
+    metrics:
+      - metric: episode_reward
+  output_path: s3://softmax-public/policydash/dashboard.html
+eval:
+  num_episodes: 1
+  num_envs: 1
+  policy_uri: ${..policy_uri}
+  selector_type: latest
+  eval_db_uri: wandb://artifacts/eval_db_jack_testing
+  max_time_s: 3
+  policy_uris:
+    - "wandb://run/b.daphne.navigation_varied_obstacle_shapes_pretrained.r.1"
+    - "wandb://run/b.daphne.navigation_varied_obstacle_shapes.r.0"
+    - "wandb://run/navigation_poisson_sparser.r.2"
+    - "wandb://run/navigation_infinite_cooldown_sparser_pretrained.r.0"
+    - "wandb://run/navigation_infinite_cooldown_sparser.r.0"
+    - "wandb://run/navigation_poisson_sparser_pretrained.r.6"
+    - "wandb://run/b.daveey.t.64.dr90.1"
+
+
+wandb:
+  checkpoint_interval: 1
+
+run_id: 18
+run: ${oc.env:USER}.local.${run_id}
+trained_policy_uri: ${run_dir}/checkpoints
+
+sweep_params: "sweep/fast"
+sweep_name: "${oc.env:USER}.local.sweep.${run_id}"
+seed: null

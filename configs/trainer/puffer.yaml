@@ -1,4 +1,4 @@
-_target_: rl.pufferlib.trainer.PufferTrainer
+_target_: metta.rl.pufferlib.trainer.PufferTrainer
 
 defaults:
   - trainer
@@ -12,7 +12,15 @@ clip_coef: 0.1
 ent_coef: 0.002
 gae_lambda: 0.9
 gamma: 0.97
-learning_rate: 0.0006
+
+optimizer:
+  type: adam
+  # type: muon
+  beta1: 0.9
+  beta2: 0.999
+  eps: 1e-5
+  learning_rate: 0.0006
+
 max_grad_norm: 0.5
 vf_clip_coef: 0.1
 vf_coef: 0.5

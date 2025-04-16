@@ -8,6 +8,8 @@ defaults:
 trainer:
   env: /env/mettagrid/reward_dr
   evaluate_interval: 200
+  optimizer:
+    type: muon
   env_overrides:
     sampling: 0.7
     game:
@@ -45,16 +47,16 @@ eval:
   npc_policy_uri: ${..npc_policy_uri}
   # eval_db_uri: ${..eval_db_uri} #file://daphne/sweep_stats
   env: /env/mettagrid/reward_dr
-  env_overrides:
-    sampling: 0.7
-    game:
-      # num_agents: 360
-      max_steps: 1000
+  # env_overrides:
+  #   sampling: 0.7
+  #   game:
+  #     # num_agents: 360
+  #     max_steps: 1000
 
 wandb:
   checkpoint_interval: 1
 
-run_id: 13
+run_id: 14
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 

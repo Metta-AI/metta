@@ -1,4 +1,4 @@
-_target_: rl.pufferlib.eval.EvalSuite
+_target_: metta.sim.simulation.SimulationSuite
 
 defaults:
   - eval
@@ -7,5 +7,5 @@ env: null #the env is set in evals:
 
 evals:
   simple:
-    env: env/mettagrid/simple
+    env: env/mettagrid-base/simple
     policy_agents_pct: 1.0

@@ -1,6 +1,6 @@
 
 defaults:
-  - mettagrid
+  - /env/mettagrid-base/mettagrid@
 
 game:
   num_agents: 20
@@ -18,41 +18,41 @@ game:
     rooms:
       spawn:
         _target_: mettagrid.config.room.random.Random
-        width: ${uniform:10,100,25}
-        height: ${uniform:10,100,25}
+        width: ${sampling:10,100,25}
+        height: ${sampling:10,100,25}
         border_width: 0
 
         agents: ${....num_agents}
         objects:
-          altar: ${uniform:1,5,3}
-          wall: ${uniform:0,90,40}
+          altar: ${sampling:1,5,3}
+          wall: ${sampling:0,90,40}
 
       wild:
         _target_: mettagrid.config.room.random.Random
-        width: ${uniform:10,100,25}
-        height: ${uniform:10,100,25}
+        width: ${sampling:10,100,25}
+        height: ${sampling:10,100,25}
         border_width: 0
 
         objects:
-          wall: ${uniform:10,100,40}
+          wall: ${sampling:10,100,40}
 
       resources:
         _target_: mettagrid.config.room.random.Random
-        width: ${uniform:10,100,25}
-        height: ${uniform:10,100,25}
+        width: ${sampling:10,100,25}
+        height: ${sampling:10,100,25}
         border_width: 0
 
         objects:
-          generator: ${uniform:1,20,10}
-          wall: ${uniform:10,60,10}
+          generator: ${sampling:1,20,10}
+          wall: ${sampling:10,60,10}
 
       converters:
         _target_: mettagrid.config.room.random.Random
-        width: ${uniform:10,100,25}
-        height: ${uniform:10,100,25}
+        width: ${sampling:10,100,25}
+        height: ${sampling:10,100,25}
         border_width: 0
 
         objects:
-          converter: ${uniform:1,15,5}
-          wall: ${uniform:10,60,10}
+          converter: ${sampling:1,15,5}
+          wall: ${sampling:10,60,10}
 

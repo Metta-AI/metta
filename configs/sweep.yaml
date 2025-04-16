@@ -1,8 +1,8 @@
 defaults:
   - common
-  - wandb
+  - wandb: metta_research
   - agent: simple
-  - eval: eval
+  - eval: navigation
   - analyzer: eval_analyzer
   - trainer: puffer
 
@@ -20,7 +20,7 @@ trainer:
   evaluate_interval: 0
 
 eval:
-  env: env/mettagrid/simple
+  env: env/mettagrid-base/simple
   num_envs: 25
   num_episodes: 25
   max_time_s: 600

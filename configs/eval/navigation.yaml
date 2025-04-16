@@ -1,0 +1,55 @@
+_target_: metta.sim.simulation.SimulationSuite
+
+defaults:
+  - eval
+
+env: null #the env is set in evals:
+
+num_envs: 1
+num_episodes: 1
+
+evals:
+  emptyspace_withinsight:
+    env: env/mettagrid/navigation/evals/emptyspace_withinsight
+    policy_agents_pct: 1.0
+  emptyspace_outofsight :
+    env: env/mettagrid/navigation/evals/emptyspace_outofsight
+    policy_agents_pct: 1.0
+  emptyspace_sparse:
+    env: env/mettagrid/navigation/evals/emptyspace_sparse
+    policy_agents_pct: 1.0
+  walls_withinsight:
+    env: env/mettagrid/navigation/evals/walls_withinsight
+    policy_agents_pct: 1.0
+  walls_outofsight:
+    env: env/mettagrid/navigation/evals/walls_outofsight
+    policy_agents_pct: 1.0
+  walls_sparse:
+    env: env/mettagrid/navigation/evals/walls_sparse
+    policy_agents_pct: 1.0
+  cylinder:
+    env: env/mettagrid/navigation/evals/cylinder
+    policy_agents_pct: 1.0
+  obstacles0:
+    env: env/mettagrid/navigation/evals/obstacles0
+    policy_agents_pct: 1.0
+  obstacles1:
+    env: env/mettagrid/navigation/evals/obstacles1
+    policy_agents_pct: 1.0
+  obstacles2:
+    env: env/mettagrid/navigation/evals/obstacles2
+    policy_agents_pct: 1.0
+  obstacles3:
+    env: env/mettagrid/navigation/evals/obstacles3
+    policy_agents_pct: 1.0
+  corridors:
+    env: env/mettagrid/navigation/evals/corridors
+    policy_agents_pct: 1.0
+  labyrinth:
+    env: env/mettagrid/navigation/evals/labyrinth
+    policy_agents_pct: 1.0
+  radialmaze:
+    env: env/mettagrid/navigation/evals/radialmaze
+    policy_agents_pct: 1.0
+
+selector_type: latest
