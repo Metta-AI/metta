@@ -13,5 +13,5 @@ mapgen:
     # name: ??? - will be generated if not set
 
 game:
-  num_agents: 0
+  num_agents: 10
   recursive_map_builder: false
