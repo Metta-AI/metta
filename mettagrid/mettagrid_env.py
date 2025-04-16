@@ -12,9 +12,7 @@ from mettagrid.resolvers import register_resolvers
 
 
 class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
-    def __init__(
-        self, env_cfg: DictConfig, render_mode: Optional[str], buf=None, **kwargs
-    ):
+    def __init__(self, env_cfg: DictConfig, render_mode: Optional[str], buf=None, **kwargs):
         self._render_mode = render_mode
         self._cfg_template = env_cfg
         self._env_cfg = self._get_new_env_cfg()
@@ -54,9 +52,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._env_cfg = self._get_new_env_cfg()
         self._reset_env()
 
-        self._c_env.set_buffers(
-            self.observations, self.terminals, self.truncations, self.rewards
-        )
+        self._c_env.set_buffers(self.observations, self.terminals, self.truncations, self.rewards)
 
         # obs, infos = self._env.reset(**kwargs)
         # return obs, infos
@@ -131,9 +127,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         if self._renderer is None:
             return None
 
-        return self._renderer.render(
-            self._c_env.current_timestep(), self._c_env.grid_objects()
-        )
+        return self._renderer.render(self._c_env.current_timestep(), self._c_env.grid_objects())
 
     @property
     def done(self):

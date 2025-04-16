@@ -1,9 +1,11 @@
-from typing import Any
-import random
 import math
+import random
+from typing import Any, List, Optional
+
 import numpy as np
-from mettagrid.map.scene import Scene
+
 from mettagrid.map.node import Node
+from mettagrid.map.scene import Scene
 from mettagrid.map.utils.pattern import Pattern, ascii_to_weights_of_all_patterns
 
 
@@ -24,7 +26,7 @@ class ConvChain(Scene):
         receptor_size: int = 2,
         iterations: int = 2,
         temperature: float = 0.3,
-        children: list[Any] = [],
+        children: Optional[List[Any]] = None,
     ):
         super().__init__(children=children)
         self._pattern = pattern

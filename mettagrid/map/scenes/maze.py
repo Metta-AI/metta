@@ -1,10 +1,9 @@
-import random
-from typing import Any, List, Literal, Tuple, Union
+from typing import Any, List, Literal, Optional, Tuple, Union
 
 import numpy as np
 
-from mettagrid.map.scene import Scene
 from mettagrid.map.node import Node
+from mettagrid.map.scene import Scene
 from mettagrid.map.utils.random import MaybeSeed
 
 Anchor = Union[
@@ -55,7 +54,7 @@ class MazeKruskal(Scene):
         room_size: int = 1,
         wall_size: int = 1,
         seed: MaybeSeed = None,
-        children: list[Any] = [],
+        children: Optional[List[Any]] = None,
     ):
         super().__init__(children=children)
         self._room_size = room_size
@@ -87,11 +86,7 @@ class MazeKruskal(Scene):
         v_wall_positions.append(width)
         h_wall_positions.append(height)
 
-        cells = [
-            (col, row)
-            for row in range(height_in_rooms)
-            for col in range(width_in_rooms)
-        ]
+        cells = [(col, row) for row in range(height_in_rooms) for col in range(width_in_rooms)]
 
         # DSU
         parent = {cell: cell for cell in cells}

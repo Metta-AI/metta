@@ -15,6 +15,6 @@ root:
   skip_corridors: true # disable BSP corridors
 
   children:
-  - where: full
-    scene:
-      _target_: mettagrid.map.scenes.make_connected.MakeConnected
+    - where: full
+      scene:
+        _target_: mettagrid.map.scenes.make_connected.MakeConnected

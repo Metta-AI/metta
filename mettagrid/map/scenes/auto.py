@@ -1,7 +1,9 @@
 from dataclasses import dataclass, field
 from typing import Any
+
 import numpy as np
 from omegaconf import Node
+
 from mettagrid.map.scene import Scene, TypedChild
 from mettagrid.map.scenes.bsp import BSPLayout
 from mettagrid.map.scenes.make_connected import MakeConnected
@@ -64,9 +66,7 @@ class Auto(BaseAuto):
 
 class AutoLayout(BaseAuto):
     def get_children(self, node) -> list[TypedChild]:
-        weights = np.array(
-            [self._config.layout.grid, self._config.layout.bsp], dtype=np.float32
-        )
+        weights = np.array([self._config.layout.grid, self._config.layout.bsp], dtype=np.float32)
         weights /= weights.sum()
         layout = self._rng.choice(["grid", "bsp"], p=weights)
 
@@ -77,20 +77,14 @@ class AutoLayout(BaseAuto):
                     "where": {"tags": [tag]},
                 },
                 {
-                    "scene": RandomObjects(
-                        object_ranges=self._config.room_objects, seed=self._rng
-                    ),
+                    "scene": RandomObjects(object_ranges=self._config.room_objects, seed=self._rng),
                     "where": {"tags": [tag]},
                 },
             ]
 
         if layout == "grid":
-            rows = self._rng.integers(
-                self._config.grid.min_rows, self._config.grid.max_rows + 1
-            )
-            columns = self._rng.integers(
-                self._config.grid.min_columns, self._config.grid.max_columns + 1
-            )
+            rows = self._rng.integers(self._config.grid.min_rows, self._config.grid.max_rows + 1)
+            columns = self._rng.integers(self._config.grid.min_columns, self._config.grid.max_columns + 1)
 
             return [
                 {
@@ -104,9 +98,7 @@ class AutoLayout(BaseAuto):
                 },
             ]
         elif layout == "bsp":
-            area_count = self._rng.integers(
-                self._config.bsp.min_area_count, self._config.bsp.max_area_count + 1
-            )
+            area_count = self._rng.integers(self._config.bsp.min_area_count, self._config.bsp.max_area_count + 1)
 
             return [
                 {
@@ -144,9 +136,7 @@ class AutoSymmetry(BaseAuto):
 class AutoContent(BaseAuto):
     def get_children(self, node) -> list[TypedChild]:
         candidates = ["maze", "wfc"]
-        weights = np.array(
-            [self._config.content.maze, self._config.content.wfc], dtype=np.float32
-        )
+        weights = np.array([self._config.content.maze, self._config.content.wfc], dtype=np.float32)
         weights /= weights.sum()
         choice = self._rng.choice(candidates, p=weights)
 
@@ -159,9 +149,7 @@ class AutoContent(BaseAuto):
                 self._config.maze.min_room_size,
                 self._config.maze.max_room_size + 1,
             )
-            scene = MazeKruskal(
-                room_size=room_size, wall_size=wall_size, seed=self._rng
-            )
+            scene = MazeKruskal(room_size=room_size, wall_size=wall_size, seed=self._rng)
         else:
             pattern = self._rng.choice(self._config.wfc_patterns)
             scene = WFC(

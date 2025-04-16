@@ -1,7 +1,7 @@
-from typing import Any, List
+from typing import Any, List, Optional
 
-from mettagrid.map.scene import Scene
 from mettagrid.map.node import Node
+from mettagrid.map.scene import Scene
 
 
 class RoomGrid(Scene):
@@ -30,7 +30,7 @@ class RoomGrid(Scene):
         columns: int,
         border_width: int = 1,
         border_object: str = "wall",
-        children: List[Any] = [],
+        children: Optional[List[Any]] = None,
     ):
         super().__init__(children=children)
         self._rows = rows
@@ -39,12 +39,8 @@ class RoomGrid(Scene):
         self._border_object = border_object
 
     def _render(self, node: Node):
-        room_width = (
-            node.width - self._border_width * (self._columns - 1)
-        ) // self._columns
-        room_height = (
-            node.height - self._border_width * (self._rows - 1)
-        ) // self._rows
+        room_width = (node.width - self._border_width * (self._columns - 1)) // self._columns
+        room_height = (node.height - self._border_width * (self._rows - 1)) // self._rows
 
         # fill entire node.grid with walls
         node.grid[:] = self._border_object

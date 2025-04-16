@@ -1,7 +1,7 @@
 import hydra
 import numpy as np
+
 from mettagrid.mettagrid_c import MettaGrid
-from omegaconf import OmegaConf
 
 
 @hydra.main(version_base=None, config_path="../configs", config_name="test_basic")
