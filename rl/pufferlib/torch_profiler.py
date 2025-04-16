@@ -8,8 +8,9 @@ import torch.profiler
 logger = logging.getLogger(__name__)
 
 class TorchProfiler:
-    def __init__(self, run_dir):
+    def __init__(self, run_dir, wandb_run):
         self.run_dir = run_dir
+        self.wandb_run = wandb_run
         self.profile_dir = os.path.join(self.run_dir, "torch_traces")
         os.makedirs(self.profile_dir, exist_ok=True)
         self.s3_client = boto3.client("s3")
