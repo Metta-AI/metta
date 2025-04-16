@@ -383,8 +383,8 @@ class PufferTrainer:
                         obs, state=lstm_state, action=atn)
                     lstm_state = (lstm_state[0].detach(), lstm_state[1].detach())
 
-                    if self.device == 'cuda':
-                        torch.cuda.synchronize()
+                    # if self.device == 'cuda':
+                    #     torch.cuda.synchronize()
 
                 with profile.train_misc:
                     logratio = newlogprob - log_probs.reshape(-1)
@@ -448,8 +448,8 @@ class PufferTrainer:
                     if self.cfg.agent.clip_range > 0:
                         self.policy.clip_weights()
 
-                    if self.device == 'cuda':
-                        torch.cuda.synchronize()
+                    # if self.device == 'cuda':
+                    #     torch.cuda.synchronize()
 
                 with profile.train_misc:
                     self.losses.policy_loss += pg_loss.item() / total_minibatches
