@@ -105,22 +105,22 @@ conda activate metta
 ### Run the training
 
 ```
-python -m tools.train run=my_experiment +hardware=macbook
+python -m tools.train run=my_experiment +hardware=macbook wandb=off
 ```
 
 ### Run the evaluation
 
 ```
-python -m tools.sim run=my_experiment +hardware=macbook
+python -m tools.sim run=my_experiment +hardware=macbook wandb=off
 ```
 
 ### Run the interactive simulation
 
 ```
-python -m tools.play run=my_experiment +hardware=macbook
+python -m tools.play run=my_experiment +hardware=macbook wandb=off
 ```
 
-Add `wandb=off` parameter if you're not a member of `metta-research` on wandb, or add your own wandb config in `configs/wandb`.
+If you're a member of `metta-research` on wandb, or you add your own wandb config in `configs/wandb`, you should be able to remove the `wandb=off` command. This is assumed for the rest of the readme.
 
 # Evaluating a model
 

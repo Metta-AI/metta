@@ -93,7 +93,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: set_but_not_used
         run: |
           source venv/bin/activate
-          python -m tools.train +hardware=github
+          python -m tools.train +hardware=github wandb=off
           # Verify the output path exists
           ls -la $CHECKPOINT_PATH || echo "Warning: Checkpoint directory not created"
 
@@ -130,7 +130,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: set_but_not_used
         run: |
           source venv/bin/activate
-          python -m tools.replay +hardware=github policy_uri=$CHECKPOINT_PATH
+          python -m tools.replay +hardware=github policy_uri=$CHECKPOINT_PATH wandb=off
 
       - name: Debug on failure
         if: failure()
