@@ -127,7 +127,6 @@ class PufferTrainer:
 
         assert self.trainer_cfg.optimizer.type in ("adam", "muon")
         opt_cls = torch.optim.Adam if self.trainer_cfg.optimizer.type == "adam" else ForeachMuon
-
         self.optimizer = opt_cls(
             self.policy.parameters(),
             lr=self.trainer_cfg.optimizer.learning_rate,
@@ -272,8 +271,7 @@ class PufferTrainer:
                 # This was originally self.config.env_batch_size == 1, but you have scaling
                 # configured differently in metta. You want the whole forward pass batch to come
                 # from one core to reduce indexing overhead.
-                # contiguous_env_ids
-                #   = self.vecenv.agents_per_batch == self.vecenv.driver_env.agents_per_env[0]
+                # contiguous_env_ids = self.vecenv.agents_per_batch == self.vecenv.driver_env.agents_per_env[0]
                 contiguous_env_ids = self.trainer_cfg.async_factor == self.trainer_cfg.num_workers
                 contiguous_env_ids = False
                 if contiguous_env_ids:
@@ -365,11 +363,7 @@ class PufferTrainer:
                 effective_gamma = 1.0
                 # Compute advantages using adjusted rewards
                 advantages_np = fast_gae.compute_gae(
-                    dones_np,
-                    values_np,
-                    rewards_np_adjusted,
-                    effective_gamma,
-                    self.trainer_cfg.gae_lambda,
+                    dones_np, values_np, rewards_np_adjusted, effective_gamma, self.trainer_cfg.gae_lambda
                 )
                 # For average reward case, returns are computed differently:
                 # R(s) = Σ(r_t - ρ) represents the bias function
@@ -378,11 +372,7 @@ class PufferTrainer:
                 effective_gamma = self.trainer_cfg.gamma
                 # Standard GAE computation for discounted case
                 advantages_np = fast_gae.compute_gae(
-                    dones_np,
-                    values_np,
-                    rewards_np,
-                    effective_gamma,
-                    self.trainer_cfg.gae_lambda,
+                    dones_np, values_np, rewards_np, effective_gamma, self.trainer_cfg.gae_lambda
                 )
                 experience.returns_np = advantages_np + values_np
 
@@ -404,16 +394,9 @@ class PufferTrainer:
                     ret = experience.b_returns[mb]
 
                 with profile.train_forward:
-                    (
-                        _,
-                        newlogprob,
-                        entropy,
-                        newvalue,
-                        lstm_state,
-                        _,
-                        _,
-                        new_normalized_logits,
-                    ) = self.policy(obs, state=lstm_state, action=atn)
+                    _, newlogprob, entropy, newvalue, lstm_state, _, _, new_normalized_logits = self.policy(
+                        obs, state=lstm_state, action=atn
+                    )
                     lstm_state = (lstm_state[0].detach(), lstm_state[1].detach())
 
                     if self.device == "cuda":
@@ -435,11 +418,7 @@ class PufferTrainer:
 
                     # Policy loss
                     pg_loss1 = -adv * ratio
-                    pg_loss2 = -adv * torch.clamp(
-                        ratio,
-                        1 - self.trainer_cfg.clip_coef,
-                        1 + self.trainer_cfg.clip_coef,
-                    )
+                    pg_loss2 = -adv * torch.clamp(ratio, 1 - self.trainer_cfg.clip_coef, 1 + self.trainer_cfg.clip_coef)
                     pg_loss = torch.max(pg_loss1, pg_loss2).mean()
 
                     # Value loss
@@ -460,11 +439,7 @@ class PufferTrainer:
                     entropy_loss = entropy.mean()
 
                     ks_action_loss, ks_value_loss, teacher_lstm_state = self.kickstarter.loss(
-                        self.agent_step,
-                        new_normalized_logits,
-                        newvalue,
-                        obs,
-                        teacher_lstm_state,
+                        self.agent_step, new_normalized_logits, newvalue, obs, teacher_lstm_state
                     )
 
                     l2_reg_loss = torch.tensor(0.0, device=self.device)
@@ -650,7 +625,7 @@ class PufferTrainer:
                     "train/agent_step": agent_steps,
                     "train/epoch": epoch,
                     "train/learning_rate": learning_rate,
-                    "train/average_reward": (self.average_reward if self.trainer_cfg.average_reward else None),
+                    "train/average_reward": self.average_reward if self.trainer_cfg.average_reward else None,
                 }
             )
 
@@ -740,6 +715,5 @@ class AbortingTrainer(PufferTrainer):
         logger.info("Abort tag detected. Stopping the run.")
         self.cfg.trainer.total_timesteps = int(self.agent_step)
         self.wandb_run.config.update(
-            {"trainer.total_timesteps": self.cfg.trainer.total_timesteps},
-            allow_val_change=True,
+            {"trainer.total_timesteps": self.cfg.trainer.total_timesteps}, allow_val_change=True
         )
