@@ -5,21 +5,21 @@ concurrency:
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 30  # Prevent hung jobs from consuming resources
+    timeout-minutes: 30 # Prevent hung jobs from consuming resources
     steps:
       - uses: actions/checkout@v3
 
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.11.7'
+          python-version: "3.11.7"
 
       - name: Cache pip packages
         uses: actions/cache@v3

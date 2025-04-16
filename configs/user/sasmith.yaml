@@ -5,7 +5,7 @@ defaults:
   - override /eval: simple
   - override /analyzer: eval_analyzer
   - _self_
-  
+
 trainer:
   env: /env/mettagrid/bases
   evaluate_interval: 200
@@ -36,7 +36,6 @@ eval:
   policy_uri: ${..policy_uri}
   # npc_policy_uri: ${..npc_policy_uri}
   eval_db_uri: ${..eval_db_uri}
-
 
 wandb:
   enabled: false

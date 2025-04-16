@@ -1,4 +1,3 @@
-
 defaults:
   - puffer
   - _self_
@@ -12,4 +11,3 @@ vf_coef: 0.480
 batch_size: 524288
 minibatch_size: 8192
 bptt_horizon: 64
-

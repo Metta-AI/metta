@@ -6,7 +6,7 @@ defaults:
   - analyzer: eval_analyzer
   - trainer: puffer
   - _self_
-  
+
 cmd: sweep
 sweep_name: ???
 sweep_params: "sweep/full"

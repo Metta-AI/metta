@@ -3,7 +3,7 @@ _target_: metta.sim.simulation.SimulationSuite
 defaults:
   - eval
   - _self_
-  
+
 env: null #the env is set in evals:
 
 evals:

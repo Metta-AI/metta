@@ -3,7 +3,7 @@ _target_: metta.sim.simulation.SimulationSuite
 defaults:
   - eval
   - _self_
-  
+
 env: null #the env is set in evals:
 
 num_envs: 1
@@ -13,7 +13,7 @@ evals:
   emptyspace_withinsight:
     env: env/mettagrid/navigation/evals/emptyspace_withinsight
     policy_agents_pct: 1.0
-  emptyspace_outofsight :
+  emptyspace_outofsight:
     env: env/mettagrid/navigation/evals/emptyspace_outofsight
     policy_agents_pct: 1.0
   emptyspace_sparse:

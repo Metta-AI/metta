@@ -1,8 +1,7 @@
-
 defaults:
   - /env/mettagrid-base/mettagrid@
   - _self_
-  
+
 game:
   num_agents: 20
 
@@ -10,11 +9,12 @@ game:
     _target_: mettagrid.config.room.room_scene.RoomScene
     border_width: 6
 
-    layout: [
-      [ "resources", "wild", "converters" ],
-      [ "wild", "spawn", "wild" ],
-      [ "converters", "wild", "resources" ],
-    ]
+    layout:
+      [
+        ["resources", "wild", "converters"],
+        ["wild", "spawn", "wild"],
+        ["converters", "wild", "resources"],
+      ]
 
     rooms:
       spawn:
@@ -56,4 +56,3 @@ game:
         objects:
           converter: ${sampling:1,15,5}
           wall: ${sampling:10,60,10}
-

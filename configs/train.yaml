@@ -6,6 +6,6 @@ defaults:
   - analyzer: eval_analyzer
   - wandb: metta_research
   - _self_
-  
+
 seed: 1
 eval_db_uri: null

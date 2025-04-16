@@ -1,15 +1,14 @@
-
 defaults:
   - override /agent: simple
   - override /eval: simple
   - override /analyzer: eval_analyzer
   - _self_
-  
+
 trainer:
   env: /env/mettagrid/multienv_mettagrid
   evaluate_interval: 10
 
-policy_uri:  wandb://run/b.daveey.t.8.rdr9.3
+policy_uri: wandb://run/b.daveey.t.8.rdr9.3
 
 analyzer:
   eval_stats_uri: ${run_dir}/eval_stats

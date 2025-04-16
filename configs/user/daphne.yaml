@@ -1,6 +1,5 @@
 # @package __global__
 
-
 #POLICIES TO EVALUATE
 
 #b.daphne.navigation_varied_obstacle_shapes_pretrained.r.1
@@ -10,13 +9,12 @@
 #navigation_infinite_cooldown_sparser.r.0
 #navigation_poisson_sparser_pretrained.r.6
 
-
 defaults:
   - override /agent: simple
   - override /eval: navigation
   - override /analyzer: eval_analyzer
   - _self_
-  
+
 trainer:
   env: /env/mettagrid/navigation/training/varied_terrain
   evaluate_interval: 10
@@ -27,11 +25,10 @@ trainer:
 # policy_uri: wandb://run/b.daveey.sm.train.er.new.0
 # policy_uri: wandb://run/daveey.ar.cards.1
 # policy_uri: wandb://run/b.daveey.t.32.instant
-policy_uri:  wandb://run/b.daveey.t.8.rdr9.3
+policy_uri: wandb://run/b.daveey.t.8.rdr9.3
 # npc_policy_uri: ${trained_policy_uri}
 # eval_db_uri: wandb://artifacts/testing
 eval_db_uri: null
-
 
 analyzer:
   eval_stats_uri: ${run_dir}/eval_stats

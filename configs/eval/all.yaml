@@ -13,7 +13,7 @@ evals:
   emptyspace_withinsight:
     env: env/mettagrid/navigation/evals/emptyspace_withinsight
     policy_agents_pct: 1.0
-  emptyspace_outofsight :
+  emptyspace_outofsight:
     env: env/mettagrid/navigation/evals/emptyspace_outofsight
     policy_agents_pct: 1.0
   emptyspace_sparse:

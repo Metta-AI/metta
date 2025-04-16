@@ -1,7 +1,7 @@
 defaults:
   - /env/mettagrid-base/mettagrid@
   - _self_
-  
+
 game:
   num_agents: 11
   max_steps: 100

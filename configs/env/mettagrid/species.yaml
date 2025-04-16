@@ -1,25 +1,24 @@
-
 defaults:
   - /env/mettagrid-base/simple@
   - _self_
-  
+
 game:
   agent:
     rewards:
       group_fitness: 1.0
 
   groups:
-      group_1:
-        id: 1
-        sprite: 1
+    group_1:
+      id: 1
+      sprite: 1
 
-      group_2:
-        id: 2
-        sprite: 4
+    group_2:
+      id: 2
+      sprite: 4
 
-      group_3:
-        id: 3
-        sprite: 8
+    group_3:
+      id: 3
+      sprite: 8
 
   map_builder:
     room:

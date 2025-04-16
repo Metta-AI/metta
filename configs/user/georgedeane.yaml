@@ -4,7 +4,7 @@ defaults:
   - override /agent: simple
   - override /eval: eval
   - _self_
-  
+
 trainer:
   env: /env/mettagrid/walkaround
   evaluate_interval: 2
@@ -43,9 +43,6 @@ eval:
   # npc_policy_uri: ${..npc_policy_uri}
   # eval_db_uri: ${..eval_db_uri} #file://daphne/sweep_stats
   env: /env/mettagrid/navigation/evals/walls_sparse
-
-
-
 
 wandb:
   checkpoint_interval: 1

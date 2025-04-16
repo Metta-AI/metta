@@ -5,7 +5,7 @@ seed: null
 defaults:
   - override /agent: simple
   - _self_
-  
+
 policy_uri: wandb://run/alex.trainee.002
 npc_policy_uri: null
 eval_db_uri: null
@@ -30,7 +30,7 @@ eval:
 analyzer:
   analysis:
     metrics:
-    - metric: "action.use.altar.agent"
+      - metric: "action.use.altar.agent"
 
 sweep:
   metric: "action.use.altar.agent"
