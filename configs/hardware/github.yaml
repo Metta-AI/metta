@@ -21,6 +21,10 @@ trainer:
   total_timesteps: 2
   evaluate_interval: 1
   replay_interval: 1
+  env_overrides:
+    game:
+      # This impacts the replay size.
+      max_steps: 2
   # Don't actually try to upload the replay.
   replay_dry_run: true
 
