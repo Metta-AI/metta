@@ -10,19 +10,20 @@ import pufferlib.utils
 import torch
 import torch.distributed as dist
 import wandb
-from agent.metta_agent import DistributedMettaAgent
-from agent.policy_store import PolicyStore
 from fast_gae import fast_gae
 from omegaconf import OmegaConf
-from rl.eval.eval_stats_db import EvalStatsDB
-from rl.eval.eval_stats_logger import EvalStatsLogger
-from rl.pufferlib.experience import Experience
-from rl.pufferlib.kickstarter import Kickstarter
-from rl.pufferlib.profile import Profile
-from rl.pufferlib.replay_helper import ReplayHelper
-from rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
-from rl.pufferlib.vecenv import make_vecenv
-from util.config import config_from_path
+
+from metta.agent.metta_agent import DistributedMettaAgent
+from metta.agent.policy_store import PolicyStore
+from metta.rl.pufferlib.experience import Experience
+from metta.rl.pufferlib.kickstarter import Kickstarter
+from metta.rl.pufferlib.profile import Profile
+from metta.rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
+from metta.sim.eval_stats_db import EvalStatsDB
+from metta.sim.eval_stats_logger import EvalStatsLogger
+from metta.sim.replay_helper import ReplayHelper
+from metta.sim.vecenv import make_vecenv
+from metta.util.config import config_from_path
 
 torch.set_float32_matmul_precision("high")
 
@@ -45,9 +46,7 @@ class PufferTrainer:
             self._master = int(os.environ["RANK"]) == 0
             self._world_size = dist.get_world_size()
             logger.info(
-                f"Rank: {os.environ['RANK']}, "
-                + f"Local rank: {os.environ['LOCAL_RANK']}, World size: {self._world_size}, "
-                + f"World size: {self._world_size}"
+                f"Rank: {os.environ['RANK']}, Local rank: {os.environ['LOCAL_RANK']}, World size: {self._world_size}"
             )
             self.device = f"cuda:{os.environ['LOCAL_RANK']}"
             logger.info(f"Setting up distributed training on device {self.device}")

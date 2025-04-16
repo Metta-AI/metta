@@ -1,9 +1,9 @@
 import numpy as np
 import torch
-from agent.policy_store import PolicyStore
 from omegaconf import OmegaConf
-from rl.pufferlib.vecenv import make_vecenv
 
+from metta.agent.policy_store import PolicyStore
+from metta.sim.vecenv import make_vecenv
 from mettagrid.renderer.raylib.raylib_renderer import MettaGridRaylibRenderer
 
 

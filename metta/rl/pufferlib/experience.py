@@ -106,7 +106,6 @@ class Experience:
         # Zero-copy indexing for contiguous env_id
         if num_indices == mask.size and isinstance(env_id, slice):
             cpu_inds = slice(0, min(self.batch_size - ptr, num_indices))
-
         else:
             cpu_inds = indices[: self.batch_size - ptr]
             torch.as_tensor(indices).to(self.obs.device, non_blocking=True)
