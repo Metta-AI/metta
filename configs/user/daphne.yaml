@@ -42,7 +42,7 @@ analyzer:
   output_path: navigation_results/results.html
 
 eval:
-  env: /env/mettagrid/mapfromfile
+  env: /env/mettagrid/configs/mapgen
   env_overrides:
     sampling: 20
 

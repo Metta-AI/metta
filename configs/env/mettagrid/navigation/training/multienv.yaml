@@ -1,0 +1,16 @@
+_target_: mettagrid.mettagrid_env.MettaGridEnvSet
+
+num_agents: 20
+
+game:
+  num_agents: ${..num_agents}
+
+envs:
+  - /env/mettagrid/navigation/training/fractal_cylinder
+  - /env/mettagrid/navigation/training/mapfromfile
+  - /env/mettagrid/navigation/training/varied_terrain
+
+probabilities:
+  - 0.1
+  - 0.3
+  - 0.6
