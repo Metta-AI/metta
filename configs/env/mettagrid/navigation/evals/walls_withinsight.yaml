@@ -21,7 +21,7 @@ game:
 
       objects:
         altar: 3
-        wall: ${uniform:1,5,5}
+        wall: ${sampling:1,5,5}
 
   objects:
     altar:
