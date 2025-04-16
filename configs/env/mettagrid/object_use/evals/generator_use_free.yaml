@@ -13,7 +13,7 @@ game:
 
   agent:
     rewards:
-      battery: 3
+      battery: 1
 
   map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom

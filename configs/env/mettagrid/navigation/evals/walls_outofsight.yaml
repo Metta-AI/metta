@@ -7,6 +7,10 @@ game:
   num_agents: 20
   max_steps: 200
 
+  agent:
+    rewards:
+      heart: 0.333
+
   map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom
     num_rooms: 20
