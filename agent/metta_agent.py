@@ -106,6 +106,7 @@ class MettaAgent(nn.Module):
                 raise RuntimeError(f"Component {name} in MettaAgent was never setup. It might not be accessible by other components.")
 
         self.components = self.components.to(device)
+        self.device = device
 
         self._total_params = sum(p.numel() for p in self.parameters())
         print(f"Total number of parameters in MettaAgent: {self._total_params:,}. Setup complete.")
@@ -143,6 +144,10 @@ class MettaAgent(nn.Module):
         self.actions_max_params = action_max_params
         self.active_actions = list(zip(action_names, action_max_params))
         
+        # Precompute cumulative sums for faster conversion
+        self.cum_action_max_params = torch.tensor([0] + [sum(action_max_params[:i+1]) for i in range(len(action_max_params))], 
+                                                 device=self.device)
+        
         # delete if logic after testing
         if self.convert_to_single_discrete:
             # convert the actions_dict into a list of strings
@@ -158,12 +163,15 @@ class MettaAgent(nn.Module):
                 param_list.append(str(i))
             self.components['_action_param_embeds_'].activate_actions(param_list)
 
-        self.action_index = [] # the list element number maps to the action type index
+        # Create action_index tensor instead of list
+        action_index = []
         action_type_number = 0
         for max_param in action_max_params:
             for j in range(max_param+1):
-                self.action_index.append([action_type_number, j])
+                action_index.append([action_type_number, j])
             action_type_number += 1
+            
+        self.action_index_tensor = torch.tensor(action_index, device=self.device)
         print(f"Agent action index activated with: {self.active_actions}")
 
     @property
@@ -180,22 +188,27 @@ class MettaAgent(nn.Module):
         return None, td["_value_"], None
 
     def _convert_action_to_logit_index(self, action, logits):
-        """Convert action pairs to logit indices"""
+        """Convert action pairs to logit indices using vectorized operations"""
         orig_shape = action.shape
         action = action.reshape(-1, 2)
         
-        action_type_numbers = torch.tensor([a[0] for a in action])
-        action_params = torch.tensor([a[1].item() for a in action])
-        cumulative_sum = torch.tensor([sum(self.actions_max_params[:num]) for num in action_type_numbers])
+        # Extract action components without list comprehension
+        action_type_numbers = action[:, 0].long()
+        action_params = action[:, 1].long()
+        
+        # Use precomputed cumulative sum with vectorized indexing
+        cumulative_sum = self.cum_action_max_params[action_type_numbers]
+        
+        # Vectorized addition
         action_logit_index = action_type_numbers + cumulative_sum + action_params
         
-        return action_logit_index.reshape(*orig_shape[:2], 1).to(logits.device)
+        return action_logit_index.reshape(*orig_shape[:2], 1)
 
     def _convert_logit_index_to_action(self, action_logit_index, td):
-        """Convert logit indices back to action pairs"""
-        if td["_TT_"] == 1: # means we are in rollout, not training
-            return torch.tensor([self.action_index[idx.item()] for idx in action_logit_index.reshape(-1)], 
-                              device=action_logit_index.device)
+        """Convert logit indices back to action pairs using tensor indexing"""
+        if td.get("_TT_", 0) == 1:  # means we are in rollout, not training
+            # Use direct tensor indexing on precomputed action_index_tensor
+            return self.action_index_tensor[action_logit_index.reshape(-1)]
 
     def get_action_and_value(self, x, state=None, action=None, e3b=None):
         td = TensorDict({"x": x})
