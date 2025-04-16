@@ -9,12 +9,7 @@ logger = logging.getLogger("trainer")
 
 class TrainerCheckpoint:
     def __init__(
-        self,
-        agent_step: int = 0,
-        epoch: int = 0,
-        optimizer_state_dict: dict = None,
-        policy_path: str = None,
-        **kwargs,
+        self, agent_step: int = 0, epoch: int = 0, optimizer_state_dict: dict = None, policy_path: str = None, **kwargs
     ):
         self.agent_step = agent_step
         self.epoch = epoch

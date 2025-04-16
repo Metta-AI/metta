@@ -6,10 +6,11 @@ import zlib
 
 import boto3
 import wandb
-from agent.policy_store import PolicyRecord
 from omegaconf import OmegaConf
-from rl.pufferlib.simulator import Simulator
-from rl.wandb.wandb_context import WandbContext
+
+from metta.agent.policy_store import PolicyRecord
+from metta.sim.simulator import Simulator
+from metta.util.wandb.wandb_context import WandbContext
 
 
 class ReplayHelper:
@@ -72,41 +73,13 @@ class ReplayHelper:
 
                 if "agent_id" in grid_object:
                     agent_id = grid_object["agent_id"]
+                    self._add_sequence_key(grid_objects[i], "action", step, actions_array[agent_id].tolist())
                     self._add_sequence_key(
-                        grid_objects[i],
-                        "action",
-                        step,
-                        actions_array[agent_id].tolist(),
+                        grid_objects[i], "action_success", step, bool(simulator.env.action_success[agent_id])
                     )
+                    self._add_sequence_key(grid_objects[i], "reward", step, simulator.rewards[agent_id].item())
                     self._add_sequence_key(
-                        grid_objects[i],
-                        "action",
-                        step,
-                        actions_array[agent_id].tolist(),
-                    )
-                    self._add_sequence_key(
-                        grid_objects[i],
-                        "reward",
-                        step,
-                        simulator.rewards[agent_id].item(),
-                    )
-                    self._add_sequence_key(
-                        grid_objects[i],
-                        "action_success",
-                        step,
-                        bool(simulator.env.action_success[agent_id]),
-                    )
-                    self._add_sequence_key(
-                        grid_objects[i],
-                        "reward",
-                        step,
-                        simulator.rewards[agent_id].item(),
-                    )
-                    self._add_sequence_key(
-                        grid_objects[i],
-                        "total_reward",
-                        step,
-                        simulator.total_rewards[agent_id].item(),
+                        grid_objects[i], "total_reward", step, simulator.total_rewards[agent_id].item()
                     )
 
             simulator.step(actions)
@@ -136,10 +109,7 @@ class ReplayHelper:
         """Upload the replay to S3 and log the link to WandB."""
         s3_bucket = "softmax-public"
         self.s3_client.upload_file(
-            Filename=replay_path,
-            Bucket=s3_bucket,
-            Key=replay_url,
-            ExtraArgs={"ContentType": "application/x-compress"},
+            Filename=replay_path, Bucket=s3_bucket, Key=replay_url, ExtraArgs={"ContentType": "application/x-compress"}
         )
         link = f"https://{s3_bucket}.s3.us-east-1.amazonaws.com/{replay_url}"
 
