@@ -41,7 +41,7 @@ eval:
   policy_uri: ${..policy_uri}
   # npc_policy_uri: ${..npc_policy_uri}
   # eval_db_uri: ${..eval_db_uri} #file://daphne/sweep_stats
-  env: /env/mettagrid/navigation/evals/walls_sparse
+  env: /env/mettagrid/navigation/evals/wanderout
 
 
 
