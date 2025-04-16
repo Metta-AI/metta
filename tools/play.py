@@ -7,7 +7,8 @@ from rich.logging import RichHandler
 
 from metta.agent.policy_store import PolicyStore
 from metta.rl.pufferlib.play import play
-from metta.util.config import config_from_path, setup_metta_environment
+from metta.util.config import config_from_path
+from metta.util.runtime_configuration import setup_mettagrid_environment
 from metta.util.wandb.wandb_context import WandbContext
 
 # Configure rich colored logging
@@ -26,14 +27,14 @@ signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
 def main(cfg):
     if not cfg.wandb.enabled:
         logger.info(f"run {cfg.run}: agent.PolicyStore needs more work to run locally")
+        exit()
 
-    else:
-        setup_metta_environment(cfg)
-        cfg.eval.env = config_from_path(cfg.eval.env, cfg.eval.env_overrides)
+    setup_mettagrid_environment(cfg)
+    cfg.eval.env = config_from_path(cfg.eval.env, cfg.eval.env_overrides)
 
-        with WandbContext(cfg) as wandb_run:
-            policy_store = PolicyStore(cfg, wandb_run)
-            play(cfg, policy_store)
+    with WandbContext(cfg) as wandb_run:
+        policy_store = PolicyStore(cfg, wandb_run)
+        play(cfg, policy_store)
 
 
 if __name__ == "__main__":

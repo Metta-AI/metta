@@ -18,12 +18,7 @@ from metta.util.runtime_configuration import setup_mettagrid_environment
 from metta.util.wandb.wandb_context import WandbContext
 
 # Configure rich colored logging to stderr instead of stdout
-logging.basicConfig(
-    level="INFO",
-    format="%(message)s",
-    datefmt="[%X]",
-    handlers=[RichHandler(rich_tracebacks=True)],
-)
+logging.basicConfig(level="INFO", format="%(message)s", datefmt="[%X]", handlers=[RichHandler(rich_tracebacks=True)])
 
 logger = logging.getLogger("sweep_eval")
 
@@ -72,11 +67,7 @@ def main(cfg: OmegaConf) -> int:
         cfg.analyzer.policy_uri = policy_pr.uri
 
         eval = hydra.utils.instantiate(
-            cfg.eval,
-            policy_store,
-            policy_pr,
-            cfg.get("run_id", wandb_run.id),
-            cfg_recursive_=False,
+            cfg.eval, policy_store, policy_pr, cfg.get("run_id", wandb_run.id), cfg_recursive_=False
         )
 
         # Start evaluation process
@@ -110,7 +101,7 @@ def main(cfg: OmegaConf) -> int:
         # Find the metric index in the analyzer metrics
         metric_idxs = [i for i, m in enumerate(cfg.analyzer.analysis.metrics) if fnmatch.fnmatch(cfg.metric, m.metric)]
         if len(metric_idxs) == 0:
-            logger.error(f"Metric {cfg.metric} not found in analyzer metrics: " + f"{cfg.analyzer.analysis.metrics}")
+            logger.error(f"Metric {cfg.metric} not found in analyzer metrics: {cfg.analyzer.analysis.metrics}")
             return 1
         elif len(metric_idxs) > 1:
             logger.error(f"Multiple metrics found for {cfg.metric} in analyzer")
