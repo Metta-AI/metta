@@ -15,10 +15,7 @@ from metta.util.wandb.wandb_context import WandbContext
 
 # Configure rich colored logging
 logging.basicConfig(
-    level="INFO",
-    format="%(processName)s %(message)s",
-    datefmt="[%X]",
-    handlers=[RichHandler(rich_tracebacks=True)],
+    level="INFO", format="%(processName)s %(message)s", datefmt="[%X]", handlers=[RichHandler(rich_tracebacks=True)]
 )
 
 logger = logging.getLogger("train")

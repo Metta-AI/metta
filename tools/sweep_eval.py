@@ -105,21 +105,12 @@ def main(cfg: OmegaConf) -> int:
         eval_stats_logger.log(stats)
 
         # Create eval stats database and analyze results
-        eval_stats_db = EvalStatsDB.from_uri(
-            eval_stats_logger.json_path, cfg.run_dir, wandb_run
-        )
+        eval_stats_db = EvalStatsDB.from_uri(eval_stats_logger.json_path, cfg.run_dir, wandb_run)
 
         # Find the metric index in the analyzer metrics
-        metric_idxs = [
-            i
-            for i, m in enumerate(cfg.analyzer.analysis.metrics)
-            if fnmatch.fnmatch(cfg.metric, m.metric)
-        ]
+        metric_idxs = [i for i, m in enumerate(cfg.analyzer.analysis.metrics) if fnmatch.fnmatch(cfg.metric, m.metric)]
         if len(metric_idxs) == 0:
-            logger.error(
-                f"Metric {cfg.metric} not found in analyzer metrics: "
-                + f"{cfg.analyzer.analysis.metrics}"
-            )
+            logger.error(f"Metric {cfg.metric} not found in analyzer metrics: " + f"{cfg.analyzer.analysis.metrics}")
             return 1
         elif len(metric_idxs) > 1:
             logger.error(f"Multiple metrics found for {cfg.metric} in analyzer")
@@ -131,9 +122,7 @@ def main(cfg: OmegaConf) -> int:
         results, _ = analyzer.analyze()
 
         # Filter by policy name and sum up the mean values over evals
-        filtered_results = results[sweep_metric_index][
-            results[sweep_metric_index]["policy_name"] == policy_pr.name
-        ]
+        filtered_results = results[sweep_metric_index][results[sweep_metric_index]["policy_name"] == policy_pr.name]
         eval_metric = filtered_results["mean"].sum()
 
         # Get training stats from metadata if available
@@ -155,23 +144,12 @@ def main(cfg: OmegaConf) -> int:
         sweep_stats.update(stats_update)
 
         # Update lineage stats
-        for stat in [
-            "train.agent_step",
-            "train.epoch",
-            "time.train",
-            "time.eval",
-            "time.total",
-        ]:
-            sweep_stats["lineage." + stat] = sweep_stats[stat] + policy_pr.metadata.get(
-                "lineage." + stat, 0
-            )
+        for stat in ["train.agent_step", "train.epoch", "time.train", "time.eval", "time.total"]:
+            sweep_stats["lineage." + stat] = sweep_stats[stat] + policy_pr.metadata.get("lineage." + stat, 0)
 
         # Update wandb summary
         wandb_run.summary.update(sweep_stats)
-        logger.info(
-            "Sweep Stats: \n"
-            + json.dumps({k: str(v) for k, v in sweep_stats.items()}, indent=4)
-        )
+        logger.info("Sweep Stats: \n" + json.dumps({k: str(v) for k, v in sweep_stats.items()}, indent=4))
 
         # Update policy metadata
         policy_pr.metadata.update(
@@ -188,9 +166,7 @@ def main(cfg: OmegaConf) -> int:
         total_time = train_time + eval_time
         logger.info(f"Evaluation Metric: {eval_metric}, Total Time: {total_time}")
 
-        WandbCarbs._record_observation(
-            wandb_run, eval_metric, total_time, allow_update=True
-        )
+        WandbCarbs._record_observation(wandb_run, eval_metric, total_time, allow_update=True)
 
         wandb_run.summary.update({"run_time": total_time})
         return 0
