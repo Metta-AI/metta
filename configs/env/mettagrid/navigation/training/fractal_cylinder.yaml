@@ -1,0 +1,25 @@
+# Config: Fractal Cylinder Map
+defaults:
+  - /env/mettagrid-base/mettagrid@
+sampling: 20
+
+game:
+  num_agents: 20
+  map_builder:
+    _target_: mettagrid.config.room.multi_room.MultiRoom
+    num_rooms: 2
+    border_width: 6
+
+    room:
+      _target_: mettagrid.config.room.fractal_cylinder.FractalCylinder
+      width: ${sampling:50,100,60}
+      height: ${sampling:50,100,60}
+      border_width: ${sampling:1,6,3}
+      agents: 10
+      recursion_depth: ${sampling:2,4,3}
+      min_cylinder_length: ${sampling:3,6,4}
+
+  objects:
+    altar:
+      cooldown: 255
+      initial_items: 1 
