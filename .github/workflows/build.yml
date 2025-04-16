@@ -12,7 +12,7 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 10  # Prevent hung jobs from consuming resources
+    timeout-minutes: 10 # Prevent hung jobs from consuming resources
     env:
       CHECKPOINT_PATH: ./train_dir/github_test/checkpoints/
     steps:
@@ -104,7 +104,7 @@ jobs:
           name: train-output
           path: train_dir/
           retention-days: 1
-          if-no-files-found: error  # This will fail the workflow if no files are found
+          if-no-files-found: error # This will fail the workflow if no files are found
 
       - name: Download training output
         if: success()
