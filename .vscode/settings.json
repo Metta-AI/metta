@@ -1,8 +1,10 @@
 {
   // ruff format on save is configured in metta.code-workspace
   "[python]": {
-    "editor.rulers": [120],
-    "editor.renderWhitespace": "all"
+    "editor.rulers": [
+      120
+    ],
+    "editor.renderWhitespace": "trailing"
   },
   "files.exclude": {
     "**/*.egg-info": true,
