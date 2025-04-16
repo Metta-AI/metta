@@ -1,4 +1,4 @@
-_target_: rl.pufferlib.eval.EvalSuite
+_target_: metta.sim.simulation.SimulationSuite
 
 defaults:
   - eval

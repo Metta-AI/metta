@@ -1,4 +1,4 @@
-_target_: rl.pufferlib.trainer.PufferTrainer
+_target_: metta.rl.pufferlib.trainer.PufferTrainer
 
 defaults:
   - puffer

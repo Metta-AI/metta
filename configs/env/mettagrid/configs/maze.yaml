@@ -1,0 +1,21 @@
+defaults:
+  - mettagrid
+  - game/map_builder: maze
+
+game:
+  num_agents: 4
+  max_steps: 250
+
+  groups:
+    mazer:
+      id: 0
+      sprite: 10
+      props: {}
+
+  objects:
+    altar:
+      cooldown: 250
+
+  actions:
+    move: {}
+    attack: {}
