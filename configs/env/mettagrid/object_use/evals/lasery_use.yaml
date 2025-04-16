@@ -8,7 +8,7 @@ game:
 
   agent:
     rewards:
-      laser: 3 
+      laser: 1
       ore.red: 0
       battery: 0
 
@@ -17,11 +17,11 @@ game:
       initial_items: 2
       output_battery: 2
       cooldown: 255
-    mine.e:
+    mine:
       cooldown: 255
     lasery:
       initial_items: 0
-  
+
 
   map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom

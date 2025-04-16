@@ -6,7 +6,7 @@ game:
   max_steps: 150
   agent:
     rewards:
-      heart: 3
+      heart: 1
 
   map_builder:
 
