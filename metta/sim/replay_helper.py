@@ -145,11 +145,7 @@ class ReplayHelper:
 
         # Log the link to WandB
         player_url = "https://metta-ai.github.io/mettagrid/?replayUrl=" + link
-        link_summary = {
-            "replays/link": wandb.Html(
-                f'<a href="{player_url}">MetaScope Replay (Epoch {epoch})</a>'
-            )
-        }
+        link_summary = {"replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {epoch})</a>')}
         self.wandb_run.log(link_summary)
 
     def generate_and_upload_replay(self, epoch: int):

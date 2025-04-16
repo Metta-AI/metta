@@ -19,9 +19,7 @@ class Simulator:
         self.cfg = cfg
         self.env_cfg = env_cfg
         self.device = cfg.device
-        self.vecenv = make_vecenv(
-            env_cfg, cfg.vectorization, num_envs=1, render_mode="human"
-        )
+        self.vecenv = make_vecenv(env_cfg, cfg.vectorization, num_envs=1, render_mode="human")
         self.obs, _ = self.vecenv.reset()
         self.env = self.vecenv.envs[0]
         self.policy_record = policy_record
@@ -38,16 +36,12 @@ class Simulator:
         """Get the actions for the current timestep"""
         with torch.no_grad():
             obs = torch.as_tensor(self.obs).to(device=self.device)
-            actions, _, _, _, self.policy_rnn_state, _, _, _ = self.policy(
-                obs, self.policy_rnn_state
-            )
+            actions, _, _, _, self.policy_rnn_state, _, _, _ = self.policy(obs, self.policy_rnn_state)
         return actions
 
     def step(self, actions):
         """Step the simulator forward one timestep"""
-        (self.obs, self.rewards, self.dones, self.trunc, self.infos) = self.vecenv.step(
-            actions.cpu().numpy()
-        )
+        (self.obs, self.rewards, self.dones, self.trunc, self.infos) = self.vecenv.step(actions.cpu().numpy())
         self.total_rewards += self.rewards
 
     def done(self):

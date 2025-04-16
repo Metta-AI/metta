@@ -133,9 +133,7 @@ class EvalStatsAnalyzer:
         baseline_policy_names = self.analysis.baseline_policies or all_policies
 
         # filter by inputted baseline policies if there are, otherwise use all policies as baselines
-        baseline_policies = list(
-            set([self.get_latest_policy(all_policies, b) for b in baseline_policy_names])
-        )
+        baseline_policies = list(set([self.get_latest_policy(all_policies, b) for b in baseline_policy_names]))
 
         metric_data = metric_data.set_index("policy_name")
         eval_header, metric_mean, _ = metric_data.keys()
@@ -149,14 +147,12 @@ class EvalStatsAnalyzer:
         for eval in evals:
             if eval not in candidate_data.index:
                 self.logger.info(
-                    f"No data found for {eval} in candidate policy {candidate_uri}, "
-                    "cannot compute fitness"
+                    f"No data found for {eval} in candidate policy {candidate_uri}, cannot compute fitness"
                 )
                 continue
             if eval not in baseline_data.index:
                 self.logger.info(
-                    f"No data found for {eval} in baseline policies {baseline_policies}, "
-                    "cannot compute fitness"
+                    f"No data found for {eval} in baseline policies {baseline_policies}, cannot compute fitness"
                 )
                 continue
             candidate_mean = candidate_data.loc[eval][metric_mean]

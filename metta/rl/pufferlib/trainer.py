@@ -36,9 +36,7 @@ class PufferTrainer:
     def __init__(self, cfg: OmegaConf, wandb_run, policy_store: PolicyStore, **kwargs):
         self.cfg = cfg
         self.trainer_cfg = cfg.trainer
-        self._env_cfg = config_from_path(
-            self.trainer_cfg.env, self.trainer_cfg.env_overrides
-        )
+        self._env_cfg = config_from_path(self.trainer_cfg.env, self.trainer_cfg.env_overrides)
 
         self._master = True
         self._world_size = 1
@@ -81,9 +79,7 @@ class PufferTrainer:
             logger.info(f"Loading initial policy: {cfg.trainer.initial_policy.uri}")
             policy_record = policy_store.policy(cfg.trainer.initial_policy)
         else:
-            policy_path = os.path.join(
-                cfg.trainer.checkpoint_dir, policy_store.make_model_name(0)
-            )
+            policy_path = os.path.join(cfg.trainer.checkpoint_dir, policy_store.make_model_name(0))
             for _i in range(20):
                 if os.path.exists(policy_path):
                     logger.info(f"Loading policy from checkpoint: {policy_path}")
@@ -128,9 +124,7 @@ class PufferTrainer:
 
         self.agent_step = checkpoint.agent_step
         self.epoch = checkpoint.epoch
-        self.optimizer = torch.optim.Adam(
-            self.policy.parameters(), lr=self.trainer_cfg.learning_rate, eps=1e-5
-        )
+        self.optimizer = torch.optim.Adam(self.policy.parameters(), lr=self.trainer_cfg.learning_rate, eps=1e-5)
 
         if checkpoint.agent_step > 0:
             self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
@@ -140,9 +134,7 @@ class PufferTrainer:
             for k in ["0verview", "env", "losses", "performance", "train"]:
                 wandb_run.define_metric(f"{k}/*", step_metric="train/agent_step")
 
-        self.kickstarter = Kickstarter(
-            self.cfg, self.policy_store, self.vecenv.single_action_space
-        )
+        self.kickstarter = Kickstarter(self.cfg, self.policy_store, self.vecenv.single_action_space)
 
         self.replay_helper = ReplayHelper(cfg, self._env_cfg, self.last_pr, wandb_run)
 
@@ -158,8 +150,7 @@ class PufferTrainer:
         # need a saved policy to evaluate
         if (
             self.trainer_cfg.evaluate_interval != 0
-            and self.trainer_cfg.evaluate_interval
-            < self.trainer_cfg.checkpoint_interval
+            and self.trainer_cfg.evaluate_interval < self.trainer_cfg.checkpoint_interval
         ):
             self.trainer_cfg.evaluate_interval = self.trainer_cfg.checkpoint_interval
 
@@ -176,9 +167,7 @@ class PufferTrainer:
             self._process_stats()
 
             # log progress
-            steps_per_second = (self.agent_step - self.steps_start) / (
-                time.time() - self.train_start
-            )
+            steps_per_second = (self.agent_step - self.steps_start) / (time.time() - self.train_start)
             remaining_steps = self.trainer_cfg.total_timesteps - self.agent_step
             remaining_time_sec = remaining_steps / steps_per_second
 
@@ -207,10 +196,7 @@ class PufferTrainer:
                 and self.epoch % self.trainer_cfg.evaluate_interval == 0
             ):
                 self._evaluate_policy()
-            if (
-                self.cfg.agent.effective_rank_interval != 0
-                and self.epoch % self.cfg.agent.effective_rank_interval == 0
-            ):
+            if self.cfg.agent.effective_rank_interval != 0 and self.epoch % self.cfg.agent.effective_rank_interval == 0:
                 self._effective_rank = self.policy.compute_effective_rank()
             if self.epoch % self.trainer_cfg.wandb_checkpoint_interval == 0:
                 self._save_policy_to_wandb()
@@ -219,10 +205,7 @@ class PufferTrainer:
                 and self.epoch % self.cfg.agent.l2_init_weight_update_interval == 0
             ):
                 self._update_l2_init_weight_copy()
-            if (
-                self.trainer_cfg.replay_interval != 0
-                and self.epoch % self.trainer_cfg.replay_interval == 0
-            ):
+            if self.trainer_cfg.replay_interval != 0 and self.epoch % self.trainer_cfg.replay_interval == 0:
                 self._generate_and_upload_replay()
 
             self._on_train_step()
@@ -253,18 +236,12 @@ class PufferTrainer:
         except Exception as e:
             logger.error(f"Error logging stats: {e}")
 
-        eval_stats_db = EvalStatsDB.from_uri(
-            self.cfg.eval.eval_db_uri, self.cfg.run_dir, self.wandb_run
-        )
+        eval_stats_db = EvalStatsDB.from_uri(self.cfg.eval.eval_db_uri, self.cfg.run_dir, self.wandb_run)
         analyzer = hydra.utils.instantiate(self.cfg.analyzer, eval_stats_db)
         _, policy_fitness_records = analyzer.analyze()
         self._eval_results = policy_fitness_records
         self._current_eval_score = np.sum(
-            [
-                r["baseline_mean"]
-                for r in self._eval_results
-                if r["metric"] == "episode_reward"
-            ]
+            [r["baseline_mean"] for r in self._eval_results if r["metric"] == "episode_reward"]
         )
 
     def _update_l2_init_weight_copy(self):
@@ -294,9 +271,7 @@ class PufferTrainer:
                 # from one core to reduce indexing overhead.
                 # contiguous_env_ids
                 #   = self.vecenv.agents_per_batch == self.vecenv.driver_env.agents_per_env[0]
-                contiguous_env_ids = (
-                    self.trainer_cfg.async_factor == self.trainer_cfg.num_workers
-                )
+                contiguous_env_ids = self.trainer_cfg.async_factor == self.trainer_cfg.num_workers
                 contiguous_env_ids = False
                 if contiguous_env_ids:
                     gpu_env_id = cpu_env_id = slice(env_id[0], env_id[-1] + 1)
@@ -307,9 +282,7 @@ class PufferTrainer:
                             f"{self.trainer_cfg.async_factor} != {self.trainer_cfg.num_workers}"
                         )
                     cpu_env_id = env_id
-                    gpu_env_id = torch.as_tensor(env_id).to(
-                        self.device, non_blocking=True
-                    )
+                    gpu_env_id = torch.as_tensor(env_id).to(self.device, non_blocking=True)
 
             with profile.eval_misc:
                 num_steps = sum(mask)
@@ -327,9 +300,7 @@ class PufferTrainer:
 
                 h = lstm_h[:, gpu_env_id]
                 c = lstm_c[:, gpu_env_id]
-                actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward, _ = (
-                    policy(o_device, (h, c), e3b=e3b)
-                )
+                actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward, _ = policy(o_device, (h, c), e3b=e3b)
                 lstm_h[:, gpu_env_id] = h
                 lstm_c[:, gpu_env_id] = c
                 if self.use_e3b:
@@ -344,9 +315,7 @@ class PufferTrainer:
                 actions = actions.cpu().numpy()
                 mask = torch.as_tensor(mask)  # * policy.mask)
                 o = o if self.trainer_cfg.cpu_offload else o_device
-                self.experience.store(
-                    o, value, actions, logprob, r, d, cpu_env_id, mask
-                )
+                self.experience.store(o, value, actions, logprob, r, d, cpu_env_id, mask)
 
                 for i in info:
                     for k, v in pufferlib.utils.unroll_nested_dict(i):
@@ -386,9 +355,7 @@ class PufferTrainer:
             if self.trainer_cfg.average_reward:
                 # Update average reward estimate using EMA with configured alpha
                 alpha = self.trainer_cfg.average_reward_alpha
-                self.average_reward = (
-                    1 - alpha
-                ) * self.average_reward + alpha * np.mean(rewards_np)
+                self.average_reward = (1 - alpha) * self.average_reward + alpha * np.mean(rewards_np)
                 # Adjust rewards by subtracting average reward for advantage computation
                 rewards_np_adjusted = rewards_np - self.average_reward
                 # Set gamma to 1.0 for average reward case
@@ -457,11 +424,7 @@ class PufferTrainer:
                         # calculate approx_kl http://joschu.net/blog/kl-approx.html
                         old_approx_kl = (-logratio).mean()
                         approx_kl = ((ratio - 1) - logratio).mean()
-                        clipfrac = (
-                            ((ratio - 1.0).abs() > self.trainer_cfg.clip_coef)
-                            .float()
-                            .mean()
-                        )
+                        clipfrac = ((ratio - 1.0).abs() > self.trainer_cfg.clip_coef).float().mean()
 
                     adv = adv.reshape(-1)
                     if self.trainer_cfg.norm_adv:
@@ -493,29 +456,21 @@ class PufferTrainer:
 
                     entropy_loss = entropy.mean()
 
-                    ks_action_loss, ks_value_loss, teacher_lstm_state = (
-                        self.kickstarter.loss(
-                            self.agent_step,
-                            new_normalized_logits,
-                            newvalue,
-                            obs,
-                            teacher_lstm_state,
-                        )
+                    ks_action_loss, ks_value_loss, teacher_lstm_state = self.kickstarter.loss(
+                        self.agent_step,
+                        new_normalized_logits,
+                        newvalue,
+                        obs,
+                        teacher_lstm_state,
                     )
 
                     l2_reg_loss = torch.tensor(0.0, device=self.device)
                     if self.trainer_cfg.l2_reg_loss_coef > 0:
-                        l2_reg_loss = (
-                            self.trainer_cfg.l2_reg_loss_coef
-                            * self.policy.l2_reg_loss().to(self.device)
-                        )
+                        l2_reg_loss = self.trainer_cfg.l2_reg_loss_coef * self.policy.l2_reg_loss().to(self.device)
 
                     l2_init_loss = torch.tensor(0.0, device=self.device)
                     if self.trainer_cfg.l2_init_loss_coef > 0:
-                        l2_init_loss = (
-                            self.trainer_cfg.l2_init_loss_coef
-                            * self.policy.l2_init_loss().to(self.device)
-                        )
+                        l2_init_loss = self.trainer_cfg.l2_init_loss_coef * self.policy.l2_init_loss().to(self.device)
 
                     loss = (
                         pg_loss
@@ -530,9 +485,7 @@ class PufferTrainer:
                 with profile.learn:
                     self.optimizer.zero_grad()
                     loss.backward()
-                    torch.nn.utils.clip_grad_norm_(
-                        self.policy.parameters(), self.trainer_cfg.max_grad_norm
-                    )
+                    torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.trainer_cfg.max_grad_norm)
                     self.optimizer.step()
 
                     if self.cfg.agent.clip_range > 0:
@@ -545,19 +498,13 @@ class PufferTrainer:
                     self.losses.policy_loss += pg_loss.item() / total_minibatches
                     self.losses.value_loss += v_loss.item() / total_minibatches
                     self.losses.entropy += entropy_loss.item() / total_minibatches
-                    self.losses.old_approx_kl += (
-                        old_approx_kl.item() / total_minibatches
-                    )
+                    self.losses.old_approx_kl += old_approx_kl.item() / total_minibatches
                     self.losses.approx_kl += approx_kl.item() / total_minibatches
                     self.losses.clipfrac += clipfrac.item() / total_minibatches
                     self.losses.l2_reg_loss += l2_reg_loss.item() / total_minibatches
                     self.losses.l2_init_loss += l2_init_loss.item() / total_minibatches
-                    self.losses.ks_action_loss += (
-                        ks_action_loss.item() / total_minibatches
-                    )
-                    self.losses.ks_value_loss += (
-                        ks_value_loss.item() / total_minibatches
-                    )
+                    self.losses.ks_action_loss += ks_action_loss.item() / total_minibatches
+                    self.losses.ks_value_loss += ks_value_loss.item() / total_minibatches
 
             if self.trainer_cfg.target_kl is not None:
                 if approx_kl > self.trainer_cfg.target_kl:
@@ -572,14 +519,10 @@ class PufferTrainer:
             y_pred = experience.values_np
             y_true = experience.returns_np
             var_y = np.var(y_true)
-            explained_var = (
-                np.nan if var_y == 0 else 1 - np.var(y_true - y_pred) / var_y
-            )
+            explained_var = np.nan if var_y == 0 else 1 - np.var(y_true - y_pred) / var_y
             self.losses.explained_variance = explained_var
             self.epoch += 1
-            profile.update(
-                self.agent_step, self.trainer_cfg.total_timesteps, self._timers
-            )
+            profile.update(self.agent_step, self.trainer_cfg.total_timesteps, self._timers)
 
     def _checkpoint_trainer(self):
         if not self._master:
@@ -660,55 +603,34 @@ class PufferTrainer:
             if k in self.stats:
                 overview[v] = self.stats[k]
 
-        navigation_score = np.mean(
-            [
-                r["candidate_mean"]
-                for r in self._eval_results
-                if "navigation" in r["eval"]
-            ]
-        )
-        object_use_score = np.mean(
-            [
-                r["candidate_mean"]
-                for r in self._eval_results
-                if "object_use" in r["eval"]
-            ]
-        )
+        navigation_score = np.mean([r["candidate_mean"] for r in self._eval_results if "navigation" in r["eval"]])
+        object_use_score = np.mean([r["candidate_mean"] for r in self._eval_results if "object_use" in r["eval"]])
 
         if not np.isnan(navigation_score):
             overview["navigation_evals"] = navigation_score
         if not np.isnan(object_use_score):
             overview["object_use_evals"] = object_use_score
 
-        environment = {
-            f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v
-            for k, v in self.stats.items()
-        }
+        environment = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
 
         policy_fitness_metrics = {
-            f"pfs/{r['eval'].split('/')[-1]}:{r['metric']}": r["fitness"]
-            for r in self._eval_results
+            f"pfs/{r['eval'].split('/')[-1]}:{r['metric']}": r["fitness"] for r in self._eval_results
         }
 
         navigation_eval_metrics = {
-            f"navigation_evals/{r['eval'].split('/')[-1]}:{r['metric']}": r[
-                "candidate_mean"
-            ]
+            f"navigation_evals/{r['eval'].split('/')[-1]}:{r['metric']}": r["candidate_mean"]
             for r in self._eval_results
             if "navigation" in r["eval"]
         }
 
         object_use_eval_metrics = {
-            f"object_use_evals/{r['eval'].split('/')[-1]}:{r['metric']}": r[
-                "candidate_mean"
-            ]
+            f"object_use_evals/{r['eval'].split('/')[-1]}:{r['metric']}": r["candidate_mean"]
             for r in self._eval_results
             if "object_use" in r["eval"]
         }
 
         effective_rank_metrics = {
-            f"train/effective_rank/{rank['name']}": rank["effective_rank"]
-            for rank in self._effective_rank
+            f"train/effective_rank/{rank['name']}": rank["effective_rank"] for rank in self._effective_rank
         }
 
         if self.wandb_run and self.cfg.wandb.track and self._master:
@@ -725,9 +647,7 @@ class PufferTrainer:
                     "train/agent_step": agent_steps,
                     "train/epoch": epoch,
                     "train/learning_rate": learning_rate,
-                    "train/average_reward": (
-                        self.average_reward if self.trainer_cfg.average_reward else None
-                    ),
+                    "train/average_reward": (self.average_reward if self.trainer_cfg.average_reward else None),
                 }
             )
 
@@ -784,15 +704,10 @@ class PufferTrainer:
     def _make_vecenv(self):
         """Create a vectorized environment."""
         # Create the vectorized environment
-        self.target_batch_size = (
-            self.trainer_cfg.forward_pass_minibatch_target_size
-            // self._env_cfg.game.num_agents
-        )
+        self.target_batch_size = self.trainer_cfg.forward_pass_minibatch_target_size // self._env_cfg.game.num_agents
         if self.target_batch_size < 2:  # pufferlib bug requires batch size >= 2
             self.target_batch_size = 2
-        self.batch_size = (
-            self.target_batch_size // self.trainer_cfg.num_workers
-        ) * self.trainer_cfg.num_workers
+        self.batch_size = (self.target_batch_size // self.trainer_cfg.num_workers) * self.trainer_cfg.num_workers
 
         self.vecenv = make_vecenv(
             self._env_cfg,
