@@ -9,133 +9,133 @@ root:
   columns: 4
 
   children:
-  - limit: 1
-    lock: lock1
-    order_by: first
-    scene:
-      _target_: mettagrid.map.scenes.wfc.WFC
-      pattern_size: 3
-      pattern: |
-        |####   ####|
-        |####   ####|
-        |####   ####|
-        |           |
-        |           |
-        |####   ####|
-        |####   ####|
-        |####   ####|
+    - limit: 1
+      lock: lock1
+      order_by: first
+      scene:
+        _target_: mettagrid.map.scenes.wfc.WFC
+        pattern_size: 3
+        pattern: |
+          |####   ####|
+          |####   ####|
+          |####   ####|
+          |           |
+          |           |
+          |####   ####|
+          |####   ####|
+          |####   ####|
 
-  - limit: 1
-    lock: lock1
-    order_by: first
-    scene:
-      _target_: mettagrid.map.scenes.wfc.WFC
-      pattern_size: 3
-      pattern: |
-        |####     #####|
-        |####     #####|
-        |####     #####|
-        |            ##|
-        |            ##|
-        |            ##|
-        |####     #####|
-        |####     #####|
-        |####     #####|
+    - limit: 1
+      lock: lock1
+      order_by: first
+      scene:
+        _target_: mettagrid.map.scenes.wfc.WFC
+        pattern_size: 3
+        pattern: |
+          |####     #####|
+          |####     #####|
+          |####     #####|
+          |            ##|
+          |            ##|
+          |            ##|
+          |####     #####|
+          |####     #####|
+          |####     #####|
 
-  - limit: 1
-    lock: lock1
-    order_by: first
-    scene:
-      _target_: mettagrid.map.scenes.wfc.WFC
-      pattern_size: 2
-      pattern: |
-        | ##  |
-        | ##  |
-        | #   |
-        |     |
-        |     |
+    - limit: 1
+      lock: lock1
+      order_by: first
+      scene:
+        _target_: mettagrid.map.scenes.wfc.WFC
+        pattern_size: 2
+        pattern: |
+          | ##  |
+          | ##  |
+          | #   |
+          |     |
+          |     |
 
-  - limit: 1
-    lock: lock1
-    order_by: first
-    scene:
-      _target_: mettagrid.map.scenes.wfc.WFC
-      pattern_size: 3
-      pattern: |
-        |      |
-        |  ##  |
-        | #### |
-        | ###  |
-        |  ##  |
-        |      |
-        |      |
+    - limit: 1
+      lock: lock1
+      order_by: first
+      scene:
+        _target_: mettagrid.map.scenes.wfc.WFC
+        pattern_size: 3
+        pattern: |
+          |      |
+          |  ##  |
+          | #### |
+          | ###  |
+          |  ##  |
+          |      |
+          |      |
 
-  - limit: 1
-    lock: lock1
-    order_by: first
-    scene:
-      _target_: mettagrid.map.scenes.wfc.WFC
-      pattern_size: 3
-      pattern: |
-        |   ##  |
-        |   ### |
-        |  #####|
-        |  #####|
-        |   ##  |
-        |       |
-        |       |
+    - limit: 1
+      lock: lock1
+      order_by: first
+      scene:
+        _target_: mettagrid.map.scenes.wfc.WFC
+        pattern_size: 3
+        pattern: |
+          |   ##  |
+          |   ### |
+          |  #####|
+          |  #####|
+          |   ##  |
+          |       |
+          |       |
 
-  - limit: 1
-    lock: lock1
-    order_by: first
-    scene:
-      _target_: mettagrid.map.scenes.wfc.WFC
-      pattern_size: 3
-      pattern: |
-        |          |
-        |   ####   |
-        |  ######  |
-        | ######## |
-        | ######## |
-        |  ######  |
-        |   ####   |
-        |          |
+    - limit: 1
+      lock: lock1
+      order_by: first
+      scene:
+        _target_: mettagrid.map.scenes.wfc.WFC
+        pattern_size: 3
+        pattern: |
+          |          |
+          |   ####   |
+          |  ######  |
+          | ######## |
+          | ######## |
+          |  ######  |
+          |   ####   |
+          |          |
 
-  - limit: 1
-    lock: lock1
-    order_by: first
-    scene:
-      _target_: mettagrid.map.scenes.wfc.WFC
-      pattern_size: 3
-      pattern: |
-        |###   ##   |
-        |##    #### |
-        |#    ## ## |
-        |##    #    |
-        |#    ### ##|
-        |       ### |
-        |   ###     |
-        |   #     # |
-        |   ###   ##|
-        |           |
+    - limit: 1
+      lock: lock1
+      order_by: first
+      scene:
+        _target_: mettagrid.map.scenes.wfc.WFC
+        pattern_size: 3
+        pattern: |
+          |###   ##   |
+          |##    #### |
+          |#    ## ## |
+          |##    #    |
+          |#    ### ##|
+          |       ### |
+          |   ###     |
+          |   #     # |
+          |   ###   ##|
+          |           |
 
-  - limit: 1
-    lock: lock1
-    order_by: first
-    scene:
-      _target_: mettagrid.map.scenes.wfc.WFC
-      pattern_size: 3
-      pattern: |
-        |##    ###     |
-        |##    ####### |
-        |#    ##    ## |
-        |##    #       |
-        |#    ####   ##|
-        |        ##### |
-        |   ###        |
-        |#    ###### ##|
-        |       ###### |
-        |  ###         |
-        |  ##          |
-        |   ###      ##|
-        |              |
+    - limit: 1
+      lock: lock1
+      order_by: first
+      scene:
+        _target_: mettagrid.map.scenes.wfc.WFC
+        pattern_size: 3
+        pattern: |
+          |##    ###     |
+          |##    ####### |
+          |#    ##    ## |
+          |##    #       |
+          |#    ####   ##|
+          |        ##### |
+          |   ###        |
+          |#    ###### ##|
+          |       ###### |
+          |  ###         |
+          |  ##          |
+          |   ###      ##|
+          |              |

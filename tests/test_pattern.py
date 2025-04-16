@@ -1,10 +1,11 @@
-import pytest
 import numpy as np
+import pytest
+
 from mettagrid.map.utils.pattern import (
-    parse_ascii_into_grid,
     Pattern,
     ascii_to_patterns_with_counts,
     ascii_to_weights_of_all_patterns,
+    parse_ascii_into_grid,
 )
 
 

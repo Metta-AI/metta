@@ -2,6 +2,7 @@
 import hydra
 import numpy as np
 from omegaconf import DictConfig
+
 from .scene import Scene
 
 

@@ -1,16 +1,13 @@
-from typing import Any, List, Literal
+from typing import Any, List, Literal, Optional
 
 from mettagrid.map.node import Node
 from mettagrid.map.scene import Scene
-
 
 Symmetry = Literal["horizontal", "vertical", "x4"]
 
 
 class Mirror(Scene):
-    def __init__(
-        self, scene: Scene, symmetry: Symmetry = "horizontal", children: List[Any] = []
-    ):
+    def __init__(self, scene: Scene, symmetry: Symmetry = "horizontal", children: Optional[List[Any]] = None):
         super().__init__(children=children)
         self._scene = scene
         self._symmetry = symmetry
@@ -45,6 +42,4 @@ class Mirror(Scene):
             node.grid[:sub_height, node.width - sub_width :] = child_node.grid[:, ::-1]
 
             # reflect to the bottom
-            node.grid[node.height - sub_height :, :] = node.grid[:sub_height, :][
-                ::-1, :
-            ]
+            node.grid[node.height - sub_height :, :] = node.grid[:sub_height, :][::-1, :]

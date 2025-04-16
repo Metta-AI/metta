@@ -1,4 +1,5 @@
-from typing import Any, Optional, TypedDict
+from typing import Any, List, Optional, TypedDict
+
 import hydra
 import numpy as np
 import numpy.typing as npt
@@ -15,8 +16,8 @@ class TypedChild(TypedDict):
 
 # Base class for all map scenes.
 class Scene:
-    def __init__(self, children: list[TypedChild] = []):
-        self._children = children
+    def __init__(self, children: Optional[List[TypedChild]] = None):
+        self._children = children if children is not None else []
         pass
 
     def make_node(self, grid: npt.NDArray[np.str_]):
@@ -29,8 +30,9 @@ class Scene:
         raise NotImplementedError("Subclass must implement render method")
 
     # Subclasses can override this to provide a list of children based on the node.
-    # By default, children are static, which makes them configurable in the config file, but they can't depend on the node.
-    def get_children(self, node) -> list[TypedChild]:
+    # By default, children are static, which makes them configurable in the config file, but they can't depend
+    # on the node.
+    def get_children(self, node) -> List[TypedChild]:
         return self._children
 
     def render(self, node: Node):

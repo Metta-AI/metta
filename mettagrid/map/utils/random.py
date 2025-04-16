@@ -1,16 +1,15 @@
 from typing import Union
+
 import numpy as np
 from omegaconf import DictConfig
 from scipy import stats
 
-
-# Useful for scene classes - they want to take an optional seed, but sometimes we pass in a generator from another scene.
+# Useful for scene classes - they want to take an optional seed, but sometimes we
+# pass in a generator from another scene.
 MaybeSeed = Union[int, np.random.Generator, None]
 
 
-def lognormal_from_90_percentile(
-    low: float, high: float, rng: np.random.Generator
-) -> float:
+def lognormal_from_90_percentile(low: float, high: float, rng: np.random.Generator) -> float:
     """
     Calculate the mean and standard deviation of a lognormal distribution that has a 90%
     probability of being between low and high.

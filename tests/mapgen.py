@@ -31,7 +31,8 @@ def save_env_map(env, target_file, gen_time):
     }
 
     with open(target_file, "w") as f:
-        # Note: OmegaConf messes up multiline strings (adds extra newlines). But we take care of it in the mettamap viewer.
+        # Note: OmegaConf messes up multiline strings (adds extra newlines).
+        # But we take care of it in the mettamap viewer.
         frontmatter = OmegaConf.to_yaml(
             {
                 "metadata": metadata,
@@ -56,9 +57,7 @@ def main(cfg):
     if cfg.mapgen.save:
         target_name = cfg.mapgen.target.get("name", None)
         if target_name is None:
-            random_suffix = "".join(
-                random.choices(string.ascii_lowercase + string.digits, k=8)
-            )
+            random_suffix = "".join(random.choices(string.ascii_lowercase + string.digits, k=8))
             target_name = f"map_{random_suffix}.yaml"
 
         target_file = os.path.join(cfg.mapgen.target.dir, target_name)

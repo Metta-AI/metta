@@ -1,5 +1,7 @@
-from dataclasses import dataclass
 import random
+from dataclasses import dataclass
+from typing import List, Optional
+
 import numpy as np
 import numpy.typing as npt
 
@@ -36,13 +38,11 @@ class Node:
     def render(self):
         self.scene.render(self)
 
-    def make_area(
-        self, x: int, y: int, width: int, height: int, tags: list[str] = []
-    ) -> Area:
+    def make_area(self, x: int, y: int, width: int, height: int, tags: Optional[List[str]] = None) -> Area:
         area = Area(
             id=len(self._areas),
             grid=self.grid[y : y + height, x : x + width],
-            tags=tags,
+            tags=tags if tags is not None else [],
         )
         self._areas.append(area)
         return area
@@ -57,15 +57,21 @@ class Node:
             if isinstance(where, str) and where == "full":
                 selected_areas = [self._full_area]
             else:
-                for area in areas:
-                    match = True
-                    for tag in where["tags"]:
-                        if tag not in area.tags:
-                            match = False
-                            break
-
-                    if match:
-                        selected_areas.append(area)
+                # Type check and handling
+                if isinstance(where, dict) and "tags" in where:
+                    tags = where.get("tags", [])
+                    if isinstance(tags, list):
+                        for area in areas:
+                            match = True
+                            for tag in tags:
+                                if tag not in area.tags:
+                                    match = False
+                                    break
+                            if match:
+                                selected_areas.append(area)
+                else:
+                    # Handle the case where "where" doesn't have expected structure
+                    selected_areas = areas
         else:
             selected_areas = areas
 
@@ -76,9 +82,7 @@ class Node:
                 self._locks[lock] = set()
 
             # Remove areas that are locked.
-            selected_areas = [
-                area for area in selected_areas if area.id not in self._locks[lock]
-            ]
+            selected_areas = [area for area in selected_areas if area.id not in self._locks[lock]]
 
         limit = query.get("limit")
         if limit is not None and limit < len(selected_areas):

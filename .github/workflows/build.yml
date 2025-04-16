@@ -1,4 +1,4 @@
-name: Python Tests
+name: Mettagrid Python Tests
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -12,15 +12,23 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30 # Prevent hung jobs from consuming resources
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+
+      # Download ruff.toml from Metta-AI/metta repository
+      - name: Fetch latest ruff.toml
+        run: |
+          curl -s https://raw.githubusercontent.com/Metta-AI/metta/main/ruff.toml -o ruff.toml
+          echo "Downloaded ruff.toml from Metta-AI/metta repository"
+          cat ruff.toml
+
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11.7"
 
       # Cache pip packages
       - name: Cache pip packages
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: cache-pip
         with:
           path: |
@@ -41,7 +49,7 @@ jobs:
 
       # Cache PufferLib dependency
       - name: Cache PufferLib
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: cache-pufferlib
         with:
           path: ../pufferlib
@@ -68,6 +76,21 @@ jobs:
         run: |
           source venv/bin/activate
           pip list
+
+      # Add Ruff cache
+      - name: Cache Ruff
+        uses: actions/cache@v4
+        id: cache-ruff
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-ruff-0.11.5
+
+      # Add Ruff check
+      - name: Run Ruff check
+        run: |
+          source venv/bin/activate
+          pip install ruff==0.11.5
+          ruff check --respect-gitignore .
 
       # Run tests
       - name: Run tests
