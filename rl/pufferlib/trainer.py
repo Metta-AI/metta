@@ -55,7 +55,7 @@ class PufferTrainer:
             logger.info(f"Setting up distributed training on device {self.device}")
 
         self.profile = Profile()
-        self.torch_profiler = TorchProfiler(cfg.run_dir)
+        self.torch_profiler = TorchProfiler(cfg.run_dir, wandb_run)
         self.losses = self._make_losses()
         self.stats = defaultdict(list)
         self.wandb_run = wandb_run
