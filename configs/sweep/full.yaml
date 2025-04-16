@@ -1,4 +1,3 @@
-
 trainer:
   learning_rate: ${ss:log, 1e-5, 1e-1}
   gamma: ${ss:logit, 0.0, 1.0}

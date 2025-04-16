@@ -5,6 +5,7 @@ defaults:
   - eval: all
   - analyzer: eval_analyzer
   - wandb: metta_research
+  - _self_
 
 cmd: eval
 eval_db_uri: null

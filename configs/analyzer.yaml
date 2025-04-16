@@ -5,6 +5,7 @@ defaults:
   - eval: navigation
   - analyzer: eval_analyzer
   - wandb: metta_research
+  - _self_
 
 cmd: eval
 run: ???
