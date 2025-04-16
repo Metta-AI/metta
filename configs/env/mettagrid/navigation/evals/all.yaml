@@ -27,7 +27,7 @@ game:
       - _target_: mettagrid.config.room.mean_distance.MeanDistance
         width: 35
         height: 35
-        mean_distance: ${uniform:20,30,30}
+        mean_distance: ${sampling:20,30,30}
         border_width: 3
         agents: 1
         objects:
@@ -73,16 +73,16 @@ game:
         agents: 1
         objects:
           altar: 3
-          wall: ${uniform:10,15,12}
+          wall: ${sampling:10,15,12}
       - _target_: mettagrid.config.room.mean_distance.MeanDistance
         width: 35
         height: 35
-        mean_distance: ${uniform:20,30,30}
+        mean_distance: ${sampling:20,30,30}
         border_width: 3
         agents: 1
         objects:
           altar: 3
-          wall: ${uniform:10,15,12}
+          wall: ${sampling:10,15,12}
       - _target_: mettagrid.config.room.mean_distance.MeanDistance
         width: 12
         height: 12
@@ -91,7 +91,7 @@ game:
         agents: 1
         objects:
           altar: 3
-          wall: ${uniform:1,5,5}
+          wall: ${sampling:1,5,5}
   objects:
     altar:
       cooldown: 255
