@@ -110,15 +110,6 @@ conda activate metta
 ./devops/setup_build.sh
 ```
 
-## Installing with UV (experimental)
-
-```
-uv venv -p [some python 3.11, see `uv python`]
-. .venv/bin/activate
-uv pip install pip
-./devops/setup_build.sh
-```
-
 # Training a Model
 
 ### Run the training
