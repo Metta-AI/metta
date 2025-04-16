@@ -244,6 +244,6 @@ class ParamLayer(LayerBase):
         threshold = (1 - delta) * total_sum
         effective_rank = torch.where(cumulative_sum >= threshold)[0][0].item() + 1  # Add 1 for 1-based indexing
 
-        # --- For Eigen Metrics ---
+        # --- For Singular Value Metrics ---
         metrics = analyze_sv(S)
         return {"name": self._name, "effective_rank": effective_rank, "weight_norm": weight_norm, **metrics}

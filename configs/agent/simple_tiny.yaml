@@ -12,7 +12,7 @@ observations:
   obs_key: grid_obs
 
 clip_range: 0 # set to 0 to disable clipping
-effective_rank_interval: 10
+effective_rank_interval: 300
 l2_init_weight_update_interval: 0
 
 components:
