@@ -16,13 +16,7 @@ from metta.util.wandb.wandb_context import WandbContext
 class ReplayHelper:
     """Helper class for generating and uploading replays."""
 
-    def __init__(
-        self,
-        cfg: OmegaConf,
-        env_cfg: OmegaConf,
-        policy_record: PolicyRecord,
-        wandb_run: WandbContext,
-    ):
+    def __init__(self, cfg: OmegaConf, env_cfg: OmegaConf, policy_record: PolicyRecord, wandb_run: WandbContext):
         self.cfg = cfg
         self.env_cfg = env_cfg
         self.policy_record = policy_record

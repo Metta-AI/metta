@@ -11,10 +11,10 @@ from metta.sim.vecenv import make_vecenv
 from metta.util.config import config_from_path
 from metta.util.datastruct import flatten_config
 
-logger = logging.getLogger("simulation")
+logger = logging.getLogger(__name__)
 
 
-class Eval:
+class Simulation:
     def __init__(
         self,
         policy_store: PolicyStore,
@@ -91,16 +91,16 @@ class Eval:
         for agent_idx in self._npc_idxs:
             self._agent_idx_to_policy_name[agent_idx.item()] = self._npc_pr.name
 
-    def evaluate(self):
+    def simulate(self):
         logger.info(
-            f"Evaluating policy: {self._policy_pr.name} in {self._env_name} "
-            + "with {self._policy_agents_per_env} agents"
+            f"Simulating policy: {self._policy_pr.name} in {self._env_name} with {self._policy_agents_per_env} agents"
         )
         if self._npc_pr is not None:
             logger.info(f"Against npc policy: {self._npc_pr.name} with {self._npc_agents_per_env} agents")
 
         logger.info(
-            f"Eval settings: {self._num_envs} envs, " + "{self._min_episodes} episodes, {self._max_time_s} seconds"
+            f"Simulation settings: {self._num_envs} envs, "
+            + "{self._min_episodes} episodes, {self._max_time_s} seconds"
         )
 
         obs, _ = self._vecenv.reset()
@@ -176,7 +176,7 @@ class Eval:
         return game_stats
 
 
-class EvalSuite:
+class SimulationSuite:
     def __init__(
         self,
         policy_store: PolicyStore,
@@ -190,10 +190,10 @@ class EvalSuite:
         self._evals = []
         for _eval_name, eval_cfg in evals.items():
             eval_cfg = OmegaConf.merge(kwargs, eval_cfg)
-            eval = Eval(policy_store, policy_pr, run_id, env_overrides=env_overrides, **eval_cfg)
+            eval = Simulation(policy_store, policy_pr, run_id, env_overrides=env_overrides, **eval_cfg)
             self._evals.append(eval)
 
     def simulate(self):
         return {
-            eval_name: eval.evaluate() for eval_name, eval in zip(self._evals_cfgs.keys(), self._evals, strict=False)
+            eval_name: eval.simulate() for eval_name, eval in zip(self._evals_cfgs.keys(), self._evals, strict=False)
         }

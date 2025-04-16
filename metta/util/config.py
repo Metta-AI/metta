@@ -66,7 +66,7 @@ def setup_metta_environment(cfg: DictConfig, require_aws: bool = True, require_w
             print("brew install awscli")
             print("and run:")
             print("python ./devops/aws/setup_sso.py")
-            print("Alternatively, set AWS_ACCESS_KEY_ID and " + "AWS_SECRET_ACCESS_KEY in your environment.")
+            print("Alternatively, set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in your environment.")
             exit(1)
     if cfg.wandb.track and require_wandb:
         # Check that W&B is good to go.
@@ -76,5 +76,5 @@ def setup_metta_environment(cfg: DictConfig, require_aws: bool = True, require_w
             print("pip install wandb")
             print("and run:")
             print("wandb login")
-            print("Alternatively, set WANDB_API_KEY or copy ~/.netrc from " + "another machine that has it configured.")
+            print("Alternatively, set WANDB_API_KEY or copy ~/.netrc from another machine that has it configured.")
             exit(1)

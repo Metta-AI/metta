@@ -1,20 +1,15 @@
 import numpy as np
 import torch
-from agent.policy_store import PolicyRecord
 from omegaconf import OmegaConf
-from rl.pufferlib.vecenv import make_vecenv
+
+from metta.agent.policy_store import PolicyRecord
+from metta.sim.vecenv import make_vecenv
 
 
 class Simulator:
     """Simulate a policy for playing or tracing the environment"""
 
-    def __init__(
-        self,
-        cfg: OmegaConf,
-        env_cfg: OmegaConf,
-        policy_record: PolicyRecord,
-        num_steps: int = 500,
-    ):
+    def __init__(self, cfg: OmegaConf, env_cfg: OmegaConf, policy_record: PolicyRecord, num_steps: int = 500):
         """Initialize the simulator"""
         self.cfg = cfg
         self.env_cfg = env_cfg
