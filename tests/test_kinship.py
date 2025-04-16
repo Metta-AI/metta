@@ -1,27 +1,26 @@
+import hydra
 import numpy as np
+from mettagrid.mettagrid_c import MettaGrid
 from omegaconf import OmegaConf
 
-from mettagrid.mettagrid_c import MettaGrid
 
-map = np.array([["A", "a", "A"], [" ", " ", " "], ["A", " ", "A"]])
-cfg = OmegaConf.load("configs/test_basic.yaml")
+@hydra.main(version_base=None, config_path="../configs", config_name="test_basic")
+def main(cfg):
+    map = np.array([["A", "a", "A"], [" ", " ", " "], ["A", " ", "A"]])
+    cfg.game.num_agents = 4
+    cfg.game.map_builder.width = 3
+    cfg.game.map_builder.height = 3
+    cfg.game.map_builder.agents = 4
+    cfg.game.map_builder.objects.altar = 1
+    cfg.game.map_builder.objects.generator = 0
+    cfg.game.map_builder.objects.converter = 0
 
-cfg.game.map_builder.num_agents = 4
-cfg.game.map_builder.width = 3
-cfg.game.map_builder.height = 3
-cfg.game.map_builder.agents = 4
-cfg.game.map_builder.objects.altar = 1
-cfg.game.map_builder.objects.generator = 0
-cfg.game.map_builder.objects.converter = 0
+    metta_grid = MettaGrid(cfg, map)
+    metta_grid.reset()
 
-cfg.game.num_agents = cfg.game.map_builder.num_agents
-
-metta_grid = MettaGrid(cfg, map)
-metta_grid.reset()
-
-actions = np.array([[0, 0], [0, 0], [0, 0], [0, 0]], dtype=np.int32)
-(obs, rewards, terms, truncs, infos) = metta_grid.step(actions)
-assert str(rewards) == "[0. 0. 0. 0.]"
+    actions = np.array([[0, 0], [0, 0], [0, 0], [0, 0]], dtype=np.int32)
+    (obs, rewards, terms, truncs, infos) = metta_grid.step(actions)
+    assert str(rewards) == "[0. 0. 0. 0.]"
 
 
 # def test_shared_rewards(msg, rewards, expected, team_reward):
@@ -92,3 +91,6 @@ assert str(rewards) == "[0. 0. 0. 0.]"
 #   expected = [1, 0, 0, 0],
 #   team_reward = 0.0
 # )
+
+if __name__ == "__main__":
+    main()

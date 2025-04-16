@@ -12,7 +12,9 @@ from mettagrid.resolvers import register_resolvers
 
 
 class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
-    def __init__(self, env_cfg: DictConfig, render_mode: Optional[str], buf=None, **kwargs):
+    def __init__(
+        self, env_cfg: DictConfig, render_mode: Optional[str], buf=None, **kwargs
+    ):
         self._render_mode = render_mode
         self._cfg_template = env_cfg
         self._env_cfg = self._get_new_env_cfg()
@@ -28,7 +30,10 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         return env_cfg
 
     def _reset_env(self):
-        self._map_builder = hydra.utils.instantiate(self._env_cfg.game.map_builder)
+        self._map_builder = hydra.utils.instantiate(
+            self._env_cfg.game.map_builder,
+            _recursive_=self._env_cfg.game.recursive_map_builder,
+        )
         env_map = self._map_builder.build()
         map_agents = np.count_nonzero(np.char.startswith(env_map, "agent"))
         assert self._env_cfg.game.num_agents == map_agents, (
@@ -49,7 +54,9 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._env_cfg = self._get_new_env_cfg()
         self._reset_env()
 
-        self._c_env.set_buffers(self.observations, self.terminals, self.truncations, self.rewards)
+        self._c_env.set_buffers(
+            self.observations, self.terminals, self.truncations, self.rewards
+        )
 
         # obs, infos = self._env.reset(**kwargs)
         # return obs, infos
@@ -124,7 +131,9 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         if self._renderer is None:
             return None
 
-        return self._renderer.render(self._c_env.current_timestep(), self._c_env.grid_objects())
+        return self._renderer.render(
+            self._c_env.current_timestep(), self._c_env.grid_objects()
+        )
 
     @property
     def done(self):
@@ -174,7 +183,14 @@ class MettaGridEnvSet(MettaGridEnv):
     This is a wrapper around MettaGridEnv that allows for multiple environments to be used for training.
     """
 
-    def __init__(self, env_cfg: DictConfig, probabilities: List[float] | None, render_mode: str, buf=None, **kwargs):
+    def __init__(
+        self,
+        env_cfg: DictConfig,
+        probabilities: List[float] | None,
+        render_mode: str,
+        buf=None,
+        **kwargs,
+    ):
         self._env_cfgs = env_cfg.envs
         self._num_agents_global = env_cfg.num_agents
         self._probabilities = probabilities
