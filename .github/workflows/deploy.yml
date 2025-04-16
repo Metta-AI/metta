@@ -5,9 +5,9 @@ on:
     branches:
       - main
     paths:
-      - 'player/**'  # Run when any file in player directory changes
-      - '.github/workflows/**'  # Run when workflow files change
-  workflow_dispatch:  # Allow manual triggers
+      - "player/**" # Run when any file in player directory changes
+      - ".github/workflows/**" # Run when workflow files change
+  workflow_dispatch: # Allow manual triggers
 
 # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
@@ -30,12 +30,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Get all history to ensure we don't hit caching issues
+          fetch-depth: 0 # Get all history to ensure we don't hit caching issues
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
 
       - name: Install TypeScript
         run: npm install -g typescript
@@ -48,7 +48,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
       - name: Debug Python
         run: |
@@ -79,7 +79,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './player'
+          path: "./player"
 
       - name: Deploy to GitHub Pages
         id: deployment
