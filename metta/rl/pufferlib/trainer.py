@@ -156,12 +156,12 @@ class PufferTrainer:
         self.train_start = time.time()
         logger.info("Starting training")
 
-        # it doesn't make sense to evaluate more often than checkpointing since we need a saved policy to evaluate
         if (
             self.trainer_cfg.evaluate_interval != 0
             and self.trainer_cfg.evaluate_interval < self.trainer_cfg.checkpoint_interval
         ):
-            self.trainer_cfg.evaluate_interval = self.trainer_cfg.checkpoint_interval
+            # it doesn't make sense to evaluate more often than checkpointing since we need a saved policy to evaluate
+            raise ValueError("evaluate_interval must be at least as large as checkpoint_interval")
 
         logger.info(f"Training on {self.device}")
         while self.agent_step < self.trainer_cfg.total_timesteps:
@@ -210,9 +210,11 @@ class PufferTrainer:
         self.cfg.eval.policy_uri = self.last_pr.uri
         self.cfg.analyzer.policy_uri = self.last_pr.uri
 
-        eval = hydra.utils.instantiate(
-            self.cfg.eval, self.policy_store, self.last_pr, self.cfg.get("run_id", self.wandb_run.id), _recursive_=False
-        )
+        run_id = self.cfg.get("run_id")
+        if run_id is None and self.wandb_run is not None:
+            run_id = self.wandb_run.id
+
+        eval = hydra.utils.instantiate(self.cfg.eval, self.policy_store, self.last_pr, run_id, _recursive_=False)
         stats = eval.simulate()
 
         try:
@@ -537,7 +539,9 @@ class PufferTrainer:
     def _generate_and_upload_replay(self):
         if self._master:
             logger.info("Generating and saving a replay to wandb and S3.")
-            self.replay_helper.generate_and_upload_replay(self.epoch)
+            self.replay_helper.generate_and_upload_replay(
+                self.epoch, dry_run=self.trainer_cfg.get("replay_dry_run", False)
+            )
 
     def _process_stats(self):
         for k in list(self.stats.keys()):

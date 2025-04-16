@@ -99,8 +99,8 @@ parameters:
     # compile:
     #   space: linear
     #   is_int: true
-        #   min: 0
-        #   max: 1
+    #   min: 0
+    #   max: 1
 
   # agent:
   #   policy_selector:
@@ -109,7 +109,6 @@ parameters:
   #       min: 1
   #       max: 5
   #       is_int: true
-
 
   # agent:
   #   observation_encoder:
@@ -141,16 +140,16 @@ parameters:
   #         is_int: true
   #         min: 0
   #         max: 1
-    #   fc:
-    #     layers:
-    #       space: linear
-    #       is_int: true
-    #       min: 1
-    #       max: 4
-    #     output_dim:
-    #       space: pow2
-    #       min: 32
-    #       max: 512
+  #   fc:
+  #     layers:
+  #       space: linear
+  #       is_int: true
+  #       min: 1
+  #       max: 4
+  #     output_dim:
+  #       space: pow2
+  #       min: 32
+  #       max: 512
 
   #   core:
   #     rnn_num_layers:

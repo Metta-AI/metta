@@ -1,4 +1,3 @@
-
 trainer:
   gamma: ${ss:logit, 0.0, 1.0}
   gae_lambda: ${ss:logit, 0.0, 1.0}
