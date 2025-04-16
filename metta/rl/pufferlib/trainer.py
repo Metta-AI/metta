@@ -11,6 +11,7 @@ import torch
 import torch.distributed as dist
 import wandb
 from fast_gae import fast_gae
+from heavyball import ForeachMuon
 from omegaconf import OmegaConf
 
 from metta.agent.metta_agent import DistributedMettaAgent
@@ -123,7 +124,16 @@ class PufferTrainer:
 
         self.agent_step = checkpoint.agent_step
         self.epoch = checkpoint.epoch
-        self.optimizer = torch.optim.Adam(self.policy.parameters(), lr=self.trainer_cfg.learning_rate, eps=1e-5)
+
+        assert self.trainer_cfg.optimizer.type in ("adam", "muon")
+        opt_cls = torch.optim.Adam if self.trainer_cfg.optimizer.type == "adam" else ForeachMuon
+
+        self.optimizer = opt_cls(
+            self.policy.parameters(),
+            lr=self.trainer_cfg.optimizer.learning_rate,
+            betas=(self.trainer_cfg.optimizer.beta1, self.trainer_cfg.optimizer.beta2),
+            eps=self.trainer_cfg.optimizer.eps,
+        )
 
         if checkpoint.agent_step > 0:
             self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
@@ -145,8 +155,7 @@ class PufferTrainer:
 
         logger.info("Starting training")
 
-        # it doesn't make sense to evaluate more often than checkpointing since we
-        # need a saved policy to evaluate
+        # it doesn't make sense to evaluate more often than checkpointing since we need a saved policy to evaluate
         if (
             self.trainer_cfg.evaluate_interval != 0
             and self.trainer_cfg.evaluate_interval < self.trainer_cfg.checkpoint_interval
@@ -154,7 +163,6 @@ class PufferTrainer:
             self.trainer_cfg.evaluate_interval = self.trainer_cfg.checkpoint_interval
 
         logger.info(f"Training on {self.device}")
-
         while self.agent_step < self.trainer_cfg.total_timesteps:
             # Collecting experience
             self._evaluate()
@@ -222,11 +230,7 @@ class PufferTrainer:
         self.cfg.analyzer.policy_uri = self.last_pr.uri
 
         eval = hydra.utils.instantiate(
-            self.cfg.eval,
-            self.policy_store,
-            self.last_pr,
-            self.cfg.get("run_id", self.wandb_run.id),
-            _recursive_=False,
+            self.cfg.eval, self.policy_store, self.last_pr, self.cfg.get("run_id", self.wandb_run.id), _recursive_=False
         )
         stats = eval.simulate()
 

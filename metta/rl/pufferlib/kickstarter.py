@@ -68,15 +68,8 @@ class Kickstarter:
 
     def _forward(self, teacher, o, teacher_lstm_state):
         # teacher e3b?
-        (
-            _,
-            _,
-            _,
-            teacher_value,
-            teacher_lstm_state,
-            next_e3b,
-            intrinsic_reward,
-            teacher_normalized_logits,
-        ) = teacher(o, teacher_lstm_state, e3b=None)
+        _, _, _, teacher_value, teacher_lstm_state, next_e3b, intrinsic_reward, teacher_normalized_logits = teacher(
+            o, teacher_lstm_state, e3b=None
+        )
 
         return teacher_value, teacher_normalized_logits, teacher_lstm_state
