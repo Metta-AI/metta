@@ -5,15 +5,19 @@
 			"path": "."
 		},
 		{
+			"name": "fast_gae",
 			"path": "deps/fast_gae"
 		},
 		{
+			"name": "mettagrid",
 			"path": "deps/mettagrid"
 		},
 		{
+			"name": "pufferlib",
 			"path": "deps/pufferlib"
 		},
 		{
+			"name": "wandb_carbs",
 			"path": "deps/wandb_carbs"
 		}
 	],
@@ -111,13 +115,13 @@
 		},
 		"python.analysis.extraPaths": [
 			"${env:CONDA_PREFIX}/lib/python3.11/site-packages",
-			"/opt/homebrew/Caskroom/miniconda/base/envs/metta/lib/python3.11/site-packages",
 			"deps/**",
 			"${workspaceFolder}"
 		],
 		"python.autoComplete.extraPaths": [
 			"${env:CONDA_PREFIX}/lib/python3.11/site-packages",
 			"deps/**",
+			"${workspaceFolder}"
 		],
 		"python.analysis.exclude": [
 			"**/pufferlib/**",
@@ -125,10 +129,8 @@
 		"python.analysis.ignore": [
 			"**/pufferlib/**",
 			"${workspaceFolder:pufferlib}/**",
-
 		],
-		"files.watcherExclude": {
-		},
+		"files.watcherExclude": {},
 		"files.exclude": {
 			"train_dir": true,
 			"wandb": true,
@@ -202,6 +204,7 @@
 		"terminal.integrated.splitCwd": "workspaceRoot",
 		"cSpell.words": [
 			"bptt",
+			"coef",
 			"cooldown",
 			"dones",
 			"heavyball",
@@ -223,7 +226,8 @@
 			"timesteps",
 			"truncateds",
 			"vecenv",
-			"venv"
+			"venv",
+			"vloss"
 		]
 	}
 }
