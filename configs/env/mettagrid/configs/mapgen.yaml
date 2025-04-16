@@ -1,0 +1,17 @@
+defaults:
+  - /env/mettagrid-base/mettagrid@
+  - game/map_builder: mapgen_auto
+  - _self_
+
+mapgen:
+  show: raylib
+  metadata: {}
+
+  save: false
+  target:
+    dir: ./maps
+    # name: ??? - will be generated if not set
+
+game:
+  num_agents: 0
+  recursive_map_builder: false
