@@ -2,7 +2,7 @@ defaults:
   - common
   - agent: simple
   - trainer: puffer
-  - eval: all
+  - eval: navigation
   - analyzer: eval_analyzer
   - wandb: metta_research
 
