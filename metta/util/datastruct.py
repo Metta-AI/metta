@@ -10,9 +10,7 @@ ScalarType = Union[str, int, float, bool, None]
 ConfigType = Union[Dict[str, Any], List[Any], DictConfig, ListConfig, ScalarType]
 
 
-def flatten_config(
-    obj: ConfigType, parent_key: str = "", sep: str = "."
-) -> Dict[str, ScalarType]:
+def flatten_config(obj: ConfigType, parent_key: str = "", sep: str = ".") -> Dict[str, ScalarType]:
     """
     Recursively flatten a nested structure of DictConfig, ListConfig, dict, and list
     using dot notation, including indices for list items.

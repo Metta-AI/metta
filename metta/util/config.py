@@ -37,9 +37,7 @@ def config_from_path(
                 idx = int(p)
                 env_cfg = env_cfg[idx]
             except ValueError as err:
-                raise TypeError(
-                    f"Cannot use string key '{p}' with ListConfig - must be an integer index"
-                ) from err
+                raise TypeError(f"Cannot use string key '{p}' with ListConfig - must be an integer index") from err
         else:
             raise TypeError(f"Unexpected config type: {type(env_cfg)}")
 
@@ -55,9 +53,7 @@ def read_file(path: str) -> str:
         return f.read()
 
 
-def setup_metta_environment(
-    cfg: DictConfig, require_aws: bool = True, require_wandb: bool = True
-):
+def setup_metta_environment(cfg: DictConfig, require_aws: bool = True, require_wandb: bool = True):
     if require_aws:
         # Check that AWS is good to go.
         # Check that ~/.aws/credentials exist or env var AWS_PROFILE is set.
@@ -70,24 +66,15 @@ def setup_metta_environment(
             print("brew install awscli")
             print("and run:")
             print("python ./devops/aws/setup_sso.py")
-            print(
-                "Alternatively, set AWS_ACCESS_KEY_ID and "
-                + "AWS_SECRET_ACCESS_KEY in your environment."
-            )
+            print("Alternatively, set AWS_ACCESS_KEY_ID and " + "AWS_SECRET_ACCESS_KEY in your environment.")
             exit(1)
     if cfg.wandb.track and require_wandb:
         # Check that W&B is good to go.
         # Open ~/.netrc file and see if there is a api.wandb.ai entry.
-        if (
-            "api.wandb.ai" not in read_file(os.path.expanduser("~/.netrc"))
-            and "WANDB_API_KEY" not in os.environ
-        ):
+        if "api.wandb.ai" not in read_file(os.path.expanduser("~/.netrc")) and "WANDB_API_KEY" not in os.environ:
             print("W&B is not configured, please install:")
             print("pip install wandb")
             print("and run:")
             print("wandb login")
-            print(
-                "Alternatively, set WANDB_API_KEY or copy ~/.netrc from "
-                + "another machine that has it configured."
-            )
+            print("Alternatively, set WANDB_API_KEY or copy ~/.netrc from " + "another machine that has it configured.")
             exit(1)

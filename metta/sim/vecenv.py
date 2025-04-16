@@ -10,13 +10,7 @@ def make_env_func(cfg: DictConfig, buf=None, render_mode="rgb_array"):
 
 
 def make_vecenv(
-    env_cfg: OmegaConf,
-    vectorization: str,
-    num_envs=1,
-    batch_size=None,
-    num_workers=1,
-    render_mode=None,
-    **kwargs,
+    env_cfg: OmegaConf, vectorization: str, num_envs=1, batch_size=None, num_workers=1, render_mode=None, **kwargs
 ):
     vec = vectorization
     if vec == "serial" or num_workers == 1:
