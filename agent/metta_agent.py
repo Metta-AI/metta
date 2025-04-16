@@ -239,22 +239,14 @@ class MettaAgent(nn.Module):
 
         # delete if logic after testing
         if self.convert_to_single_discrete:
-            action_logit_index_provided = self._convert_action_to_logit_index(action, logits) if action is not None else None
-            sampled_action_logit_index, logprob, entropy, normalized_logits = sample_logits(logits, action_logit_index_provided)
-
-            # Only convert the sampled index back to action pair format if we didn't have an action provided (i.e., during evaluation/rollout)
-            if action is None:
-                action_to_return = self._convert_logit_index_to_action(sampled_action_logit_index, td)
-            else:
-                # During training, we don't need the converted action, just return the sampled index (or original action if needed elsewhere, though likely not)
-                # Keep sampled_action_logit_index as it aligns with logprob/entropy for loss calculation
-                action_to_return = sampled_action_logit_index
+            action_logit_index = self._convert_action_to_logit_index(action, logits) if action is not None else None
+            action_logit_index, logprob, entropy, normalized_logits = sample_logits(logits, action_logit_index)
+            action = self._convert_logit_index_to_action(action_logit_index, td)
         else:
-            # Assuming similar logic: sample_logits returns the action/index needed for loss
             action_logit_index, logprob, entropy, normalized_logits = sample_logits(logits, action)
-            action_to_return = action_logit_index
+            action = action_logit_index
 
-        return action_to_return, logprob, entropy, value, state, e3b, intrinsic_reward, normalized_logits
+        return action, logprob, entropy, value, state, e3b, intrinsic_reward, normalized_logits
 
     def forward(self, x, state=None, action=None, e3b=None):
         return self.get_action_and_value(x, state, action, e3b)
