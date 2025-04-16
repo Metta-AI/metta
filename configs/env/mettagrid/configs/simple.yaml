@@ -1,0 +1,6 @@
+defaults:
+  - mettagrid
+  - game/map_builder: simple
+
+game:
+  num_agents: 24

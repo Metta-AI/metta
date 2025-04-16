@@ -1,0 +1,85 @@
+defaults:
+  - game/map_builder: test_basic
+
+name: "GDY-MettaGrid"
+_target_: mettagrid.mettagrid_env.MettaGridEnv
+
+normalize_rewards: false
+semi_compact_obs: true
+track_last_action: false
+
+sampling: 0
+
+hidden_features:
+  grid_obs: [
+    "agent:energy",
+    "agent:hp",
+  ]
+
+game:
+  # default for the old map builder; new mettagrid.map.mapgen requires false
+  recursive_map_builder: true
+
+  num_agents: 5
+  obs_width: 11
+  obs_height: 11
+  max_steps: 5000
+  tile_size: 16
+  no_energy_steps: 500
+
+  groups:
+    agent:
+      id: 0
+      sprite: 0
+      props: {}
+
+  agent:
+    max_inventory: 5
+    freeze_duration: 10
+    energy_reward: 0
+    hp: 1
+    mortal: False
+    use_cost: 0
+    rewards:
+      heart: 1
+
+  objects:
+    altar:
+      hp: 30
+      cooldown: 2
+      use_cost: 100
+
+    converter:
+      hp: 30
+      cooldown: 2
+      energy_output.r1: 100
+      energy_output.r2: 10
+      energy_output.r3: 1
+
+    generator.red:
+      hp: 30
+      cooldown: 5
+      initial_resources: 30
+      use_cost: 0
+
+    wall:
+      hp: 10
+
+  actions:
+    noop:
+      enabled: true
+    move:
+      enabled: true
+    rotate:
+      enabled: true
+    put_items:
+      enabled: true
+    get_items:
+      enabled: true
+    attack:
+      enabled: true
+    swap:
+      enabled: true
+    change_color:
+      enabled: true
+

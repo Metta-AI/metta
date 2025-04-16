@@ -2,7 +2,7 @@ defaults:
 - simple
 
 observation_encoder:
-  _target_: agent.resnet_encoder.IMPALAishCNN
+  _target_: metta.agent.resnet_encoder.IMPALAishCNN
   cnn_channels: [32, 64]
   activation: leaky_relu
   obs_key: grid_obs

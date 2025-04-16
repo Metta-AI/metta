@@ -1,0 +1,15 @@
+defaults:
+  - /env/mettagrid-base/mettagrid@
+
+game:
+  num_agents: 12  #how many agents are in the map x2
+
+  map_builder:
+
+    _target_: mettagrid.config.room.map_from_file.MapFromFile
+    border_width: 1
+    dir: "terrain_maps"
+
+  objects:
+    altar:
+      cooldown: 255
