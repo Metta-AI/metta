@@ -1,6 +1,6 @@
 _target_: metta.sim.Simulation
 
-policy_uri: ???
+policy_uri: ${..policy_uri}
 env: ???
 env_overrides: null
 npc_policy_uri: null
