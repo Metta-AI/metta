@@ -99,8 +99,7 @@ class Simulation:
             logger.info(f"Against npc policy: {self._npc_pr.name} with {self._npc_agents_per_env} agents")
 
         logger.info(
-            f"Simulation settings: {self._num_envs} envs, "
-            + "{self._min_episodes} episodes, {self._max_time_s} seconds"
+            f"Simulation settings: {self._num_envs} envs, {self._min_episodes} episodes, {self._max_time_s} seconds"
         )
 
         obs, _ = self._vecenv.reset()
