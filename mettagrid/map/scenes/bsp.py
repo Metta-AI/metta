@@ -1,7 +1,8 @@
 import logging
-from typing import Any, Literal, Tuple, Union
+from typing import Any, List, Literal, Optional, Tuple
 
 import numpy as np
+
 from mettagrid.map.node import Node
 from mettagrid.map.scene import Scene
 from mettagrid.map.utils.random import MaybeSeed
@@ -49,7 +50,7 @@ class BSP(Scene):
         max_room_size_ratio: float,
         skip_corridors: bool = False,
         seed: MaybeSeed = None,
-        children: list[Any] = [],
+        children: Optional[List[Any]] = None,
     ):
         super().__init__(children=children)
         self._rooms = rooms
@@ -112,19 +113,13 @@ class BSP(Scene):
             # draw lines on the original grid
             for line in lines:
                 if line.direction == "vertical":
-                    grid[line.start[1] : line.start[1] + line.length, line.start[0]] = (
-                        "empty"
-                    )
+                    grid[line.start[1] : line.start[1] + line.length, line.start[0]] = "empty"
                 else:
-                    grid[line.start[1], line.start[0] : line.start[0] + line.length] = (
-                        "empty"
-                    )
+                    grid[line.start[1], line.start[0] : line.start[0] + line.length] = "empty"
 
 
 class Zone:
-    def __init__(
-        self, x: int, y: int, width: int, height: int, rng: np.random.Generator
-    ):
+    def __init__(self, x: int, y: int, width: int, height: int, rng: np.random.Generator):
         self.x = x
         self.y = y
         self.width = width
@@ -183,12 +178,11 @@ class Zone:
         room_width = random_size(self.width)
         room_height = random_size(self.height)
 
-        # Randomly position the room within the zone; always leave a 1 cell border on bottom-right, otherwise the rooms could touch each other.
+        # Randomly position the room within the zone; always leave a 1 cell border on bottom-right, otherwise the
+        # rooms could touch each other.
         shift_x = self.rng.integers(1, max(1, self.width - room_width) + 1)
         shift_y = self.rng.integers(1, max(1, self.height - room_height) + 1)
-        return Zone(
-            self.x + shift_x, self.y + shift_y, room_width, room_height, self.rng
-        )
+        return Zone(self.x + shift_x, self.y + shift_y, room_width, room_height, self.rng)
 
     def transpose(self) -> "Zone":
         # Zones can be transposed, to avoid having to write code for both horizontal and vertical splits.
@@ -201,7 +195,8 @@ class Zone:
 
 class Surface:
     """
-    When choosing how to connect rooms, or rooms with corridors, we need to represent the surface of possible attachment points.
+    When choosing how to connect rooms, or rooms with corridors, we need to represent the surface of possible
+    attachment points.
 
     Surface example:
 
@@ -216,7 +211,8 @@ class Surface:
 
     The empty areas on the left and right are not part of the surface.
 
-    The code that uses the surface doesn't care what the surface is made of, it just needs to know which that can be approached.
+    The code that uses the surface doesn't care what the surface is made of, it just needs to know which that can be
+    approached.
     """
 
     def __init__(
@@ -267,10 +263,9 @@ class Surface:
         return (x + self.min_x, self.ys[x])
 
     @staticmethod
-    def from_zone(
-        grid: np.ndarray, zone: Zone, side: Literal["up", "down"]
-    ) -> "Surface":
-        # Scan the entire zone, starting from the top or bottom, and collect all the y values that are part of the surface.
+    def from_zone(grid: np.ndarray, zone: Zone, side: Literal["up", "down"]) -> "Surface":
+        # Scan the entire zone, starting from the top or bottom, and collect all the y values that are part of
+        # the surface.
         min_x = None
         ys: list[int] = []
 
@@ -345,7 +340,8 @@ def connect_surfaces(surface1: Surface, surface2: Surface):
     """
     Connect two surfaces with a corridor.
 
-    Assumes that the surfaces are adjacent and the surface1 is strictly above of surface2, i.e. all its positions are strictly smaller than all of surface2's positions.
+    Assumes that the surfaces are adjacent and the surface1 is strictly above of surface2, i.e. all its positions
+    are strictly smaller than all of surface2's positions.
 
     Surfaces should have been transposed as needed to make this true.
 

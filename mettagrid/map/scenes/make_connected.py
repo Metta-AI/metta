@@ -1,6 +1,8 @@
 import logging
+from typing import List, Optional
 
 import numpy as np
+
 from mettagrid.map.node import Node
 from mettagrid.map.scene import Scene, TypedChild
 from mettagrid.map.utils.random import MaybeSeed
@@ -24,7 +26,7 @@ class MakeConnected(Scene):
     TODO: This can result in some extra tunnels being dug.
     """
 
-    def __init__(self, seed: MaybeSeed = None, children: list[TypedChild] = []):
+    def __init__(self, seed: MaybeSeed = None, children: Optional[List[TypedChild]] = None):
         super().__init__(children=children)
         self._rng = np.random.default_rng(seed)
 
@@ -42,9 +44,7 @@ class MakeConnected(Scene):
             return
 
         # find the largest component
-        largest_component_id = max(
-            range(len(component_sizes)), key=component_sizes.__getitem__
-        )
+        largest_component_id = max(range(len(component_sizes)), key=component_sizes.__getitem__)
         logger.debug(f"Largest component: {largest_component_id}")
 
         logger.debug("Populating distance to largest component")
@@ -60,9 +60,7 @@ class MakeConnected(Scene):
                 continue
 
             # find the cell that's closest to the largest component
-            min_distance_cell = min(
-                component, key=lambda c: distances_to_largest_component[*c]
-            )
+            min_distance_cell = min(component, key=lambda c: distances_to_largest_component[*c])
 
             # shouldn't happen
             if min_distance_cell is None:
@@ -80,8 +78,7 @@ class MakeConnected(Scene):
                     for dy, dx in DIRECTIONS
                     if 0 <= y + dy < height
                     and 0 <= x + dx < width
-                    and distances_to_largest_component[y + dy, x + dx]
-                    == current_distance - 1
+                    and distances_to_largest_component[y + dy, x + dx] == current_distance - 1
                 ]
 
                 # Pick a random candidate from those with the minimum distance
@@ -147,7 +144,8 @@ class MakeConnected(Scene):
         component_cells: list[Cell],
     ):
         height, width = node.grid.shape
-        # find the distance from the component to all other cells (ignoring the occupied cells - used for finding the optimal tunnels)
+        # find the distance from the component to all other cells (ignoring the occupied cells - used for finding
+        # the optimal tunnels)
         distances = np.full((height, width), np.inf)
         queue = []
         for cell in component_cells:

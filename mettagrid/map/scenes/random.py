@@ -1,9 +1,12 @@
+from typing import Optional
+
 import numpy as np
+from omegaconf import DictConfig
 
 from mettagrid.map.utils.random import MaybeSeed
-from ..scene import Scene
+
 from ..node import Node
-from omegaconf import DictConfig
+from ..scene import Scene
 
 
 class Random(Scene):
@@ -15,14 +18,14 @@ class Random(Scene):
 
     def __init__(
         self,
-        objects: DictConfig | dict = {},
+        objects: Optional[DictConfig | dict] = None,
         agents: int | DictConfig = 0,
         too_many_is_ok: bool = True,
         seed: MaybeSeed = None,
     ):
         super().__init__()
         self._rng = np.random.default_rng(seed)
-        self._objects = objects
+        self._objects = objects if objects is not None else {}
         self._agents = agents
         self._too_many_is_ok = too_many_is_ok
 
@@ -32,11 +35,7 @@ class Random(Scene):
         if isinstance(self._agents, int):
             agents = ["agent.agent"] * self._agents
         elif isinstance(self._agents, DictConfig):
-            agents = [
-                "agent." + str(agent)
-                for agent, na in self._agents.items()
-                for _ in range(na)
-            ]
+            agents = ["agent." + str(agent) for agent, na in self._agents.items() for _ in range(na)]
 
         # Find empty cells in the grid
         empty_mask = node.grid == "empty"
@@ -50,9 +49,7 @@ class Random(Scene):
         symbols.extend(agents)
 
         if not self._too_many_is_ok and len(symbols) > empty_count:
-            raise ValueError(
-                f"Too many objects for available empty cells: {len(symbols)} > {empty_count}"
-            )
+            raise ValueError(f"Too many objects for available empty cells: {len(symbols)} > {empty_count}")
         else:
             # everything will be filled with symbols, oh well
             symbols = symbols[:empty_count]

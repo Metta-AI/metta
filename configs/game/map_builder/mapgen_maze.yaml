@@ -9,19 +9,19 @@ root:
   columns: 2
 
   children:
-  - scene:
-      _target_: mettagrid.map.scenes.maze.MazeKruskal
+    - scene:
+        _target_: mettagrid.map.scenes.maze.MazeKruskal
 
-      children:
-      - where:
-          tags:
-          - top-left
-        scene:
-          _target_: mettagrid.map.scenes.inline_ascii.InlineAscii
-          data: A
-      - where:
-          tags:
-          - bottom-right
-        scene:
-          _target_: mettagrid.map.scenes.inline_ascii.InlineAscii
-          data: a
+        children:
+          - where:
+              tags:
+                - top-left
+            scene:
+              _target_: mettagrid.map.scenes.inline_ascii.InlineAscii
+              data: A
+          - where:
+              tags:
+                - bottom-right
+            scene:
+              _target_: mettagrid.map.scenes.inline_ascii.InlineAscii
+              data: a
