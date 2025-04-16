@@ -4,6 +4,7 @@ defaults:
   - /hardware: macbook
   - override /agent: simple
   - override /eval: simple
+  - _self_
 
 run: train5
 
