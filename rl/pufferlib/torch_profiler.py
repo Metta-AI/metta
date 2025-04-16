@@ -55,6 +55,7 @@ class TorchProfiler:
             record_shapes=True,
             profile_memory=True,
             with_stack=True,
+            with_modules=True,
         )
         self.profiler.start()
         return self

@@ -333,6 +333,8 @@ class PufferTrainer:
         experience, profile = self.experience, self.profile
         self.losses = self._make_losses()
 
+        self.cuda_sync_1()
+
         with profile.train_misc:
             idxs = experience.sort_training_data()
             dones_np = experience.dones_np[idxs]
@@ -363,6 +365,7 @@ class PufferTrainer:
 
             experience.flatten_batch(advantages_np)
 
+        self.cuda_sync_2()
         # Optimizing the policy and value network
         total_minibatches = experience.num_minibatches * self.trainer_cfg.update_epochs
         for epoch in range(self.trainer_cfg.update_epochs):
@@ -383,8 +386,10 @@ class PufferTrainer:
                         obs, state=lstm_state, action=atn)
                     lstm_state = (lstm_state[0].detach(), lstm_state[1].detach())
 
-                    if self.device == 'cuda':
-                        torch.cuda.synchronize()
+                    # if self.device == 'cuda':
+                    #     torch.cuda.synchronize()
+
+                self.cuda_sync_3()
 
                 with profile.train_misc:
                     logratio = newlogprob - log_probs.reshape(-1)
@@ -439,6 +444,8 @@ class PufferTrainer:
 
                     loss = pg_loss - self.trainer_cfg.ent_coef * entropy_loss + v_loss * self.trainer_cfg.vf_coef + l2_reg_loss + l2_init_loss + ks_action_loss + ks_value_loss
 
+                self.cuda_sync_4()
+
                 with profile.learn:
                     self.optimizer.zero_grad()
                     loss.backward()
@@ -450,6 +457,8 @@ class PufferTrainer:
 
                     if self.device == 'cuda':
                         torch.cuda.synchronize()
+
+                self.cuda_sync_5()
 
                 with profile.train_misc:
                     self.losses.policy_loss += pg_loss.item() / total_minibatches
@@ -467,6 +476,7 @@ class PufferTrainer:
                 if approx_kl > self.trainer_cfg.target_kl:
                     break
 
+        self.cuda_sync_6()
         with profile.train_misc:
             if self.trainer_cfg.anneal_lr:
                 frac = 1.0 - self.agent_step / self.trainer_cfg.total_timesteps
@@ -652,6 +662,29 @@ class PufferTrainer:
             self.cfg.seed = np.random.randint(0, 1000000)
         self.vecenv.async_reset(self.cfg.seed)
 
+    def cuda_sync_1(self):
+        if self.device == 'cuda':
+            torch.cuda.synchronize()
+
+    def cuda_sync_2(self):
+        if self.device == 'cuda':
+            torch.cuda.synchronize()
+
+    def cuda_sync_3(self):
+        if self.device == 'cuda':
+            torch.cuda.synchronize()
+
+    def cuda_sync_4(self):
+        if self.device == 'cuda':
+            torch.cuda.synchronize()
+
+    def cuda_sync_5(self):
+        if self.device == 'cuda':
+            torch.cuda.synchronize()
+
+    def cuda_sync_6(self):
+        if self.device == 'cuda':
+            torch.cuda.synchronize()
 
 class AbortingTrainer(PufferTrainer):
     def __init__(self, *args, **kwargs):
