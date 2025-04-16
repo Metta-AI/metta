@@ -12,7 +12,9 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 30  # Prevent hung jobs from consuming resources
+    timeout-minutes: 10  # Prevent hung jobs from consuming resources
+    env:
+      CHECKPOINT_PATH: ./train_dir/my_experiment/checkpoints/
     steps:
       - uses: actions/checkout@v3
 
@@ -73,7 +75,14 @@ jobs:
           pip install ruff==0.11.5
           ruff check --respect-gitignore .
 
-      - name: Run test training
+      - name: Run Pytest
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          source venv/bin/activate
+          pytest tests/ --maxfail=1 --disable-warnings -q
+
+      - name: Training smoke test
         id: training
         continue-on-error: false
         env:
@@ -85,23 +94,33 @@ jobs:
         run: |
           source venv/bin/activate
           python -m tools.train +hardware=github
+          # Verify the output path exists
+          ls -la $CHECKPOINT_PATH || echo "Warning: Checkpoint directory not created"
 
-      - name: Run Pytest
-        env:
-          PYTHONPATH: ${{ github.workspace }}
+      - name: Upload training output
+        if: success()
+        uses: actions/upload-artifact@v3
+        with:
+          name: train-output
+          path: train_dir/
+          retention-days: 1
+          if-no-files-found: error  # This will fail the workflow if no files are found
+
+      - name: Download training output
+        if: success()
+        uses: actions/download-artifact@v3
+        with:
+          name: train-output
+          path: train_dir/
+
+      - name: Verify training artifacts
+        if: success()
         run: |
           source venv/bin/activate
-          pytest tests/ --maxfail=1 --disable-warnings -q
+          ls -la train_dir/
+          ls -la $CHECKPOINT_PATH || echo "Checkpoint directory not found!"
 
-      - name: Cache training output
-        if: success()
-        uses: actions/cache@v3
-        id: cache-train-output
-        with:
-          path: train_dir
-          key: ${{ runner.os }}-train-dir-${{ github.sha }}
-
-      - name: Run trace
+      - name: Replay smoke test
         if: success()
         env:
           HYDRA_FULL_ERROR: 1
@@ -111,4 +130,12 @@ jobs:
           AWS_SECRET_ACCESS_KEY: set_but_not_used
         run: |
           source venv/bin/activate
-          python -m tools.replay +hardware=github policy_uri=./train_dir/my_experiment/checkpoints/
+          python -m tools.replay +hardware=github policy_uri=$CHECKPOINT_PATH
+
+      - name: Debug on failure
+        if: failure()
+        run: |
+          source venv/bin/activate
+          echo "Listing the contents of the workspace:"
+          find train_dir -type f -name "*.py" | sort
+          find train_dir -type d | sort
