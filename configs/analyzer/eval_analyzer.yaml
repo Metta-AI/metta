@@ -1,10 +1,12 @@
-_target_: rl.eval.eval_stats_analyzer.EvalStatsAnalyzer
+_target_: metta.sim.eval_stats_analyzer.EvalStatsAnalyzer
 
 policy_uri: ???
 
-analysis:
+view_type: all
+output_path: /tmp/dashboard.html
+metric: episode_reward
 
-  output_path: ???
+analysis:
 
   metric_patterns: null
 

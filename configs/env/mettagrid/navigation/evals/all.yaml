@@ -1,0 +1,97 @@
+
+
+defaults:
+  - /env/mettagrid-base/mettagrid@
+
+game:
+  num_agents: 14
+  max_steps: 250
+
+  map_builder:
+    _target_: mettagrid.config.room.multi_room.RoomList
+    rooms:
+      - _target_: mettagrid.config.room.ascii.Ascii
+        border_width: 1
+        uri: "configs/env/mettagrid/maps/navigation/corridors.map"
+      - _target_: mettagrid.config.room.ascii.Ascii
+        border_width: 1
+        uri: "configs/env/mettagrid/maps/navigation/cylinder.map"
+      - _target_: mettagrid.config.room.mean_distance.MeanDistance
+        width: 25
+        height: 25
+        mean_distance: 15
+        border_width: 3
+        agents: 1
+        objects:
+          altar: 3
+      - _target_: mettagrid.config.room.mean_distance.MeanDistance
+        width: 35
+        height: 35
+        mean_distance: ${sampling:20,30,30}
+        border_width: 3
+        agents: 1
+        objects:
+          altar: 3
+      - _target_: mettagrid.config.room.mean_distance.MeanDistance
+        width: 12
+        height: 12
+        mean_distance: 10
+        border_width: 3
+        agents: 1
+        objects:
+          altar: 3
+      - _target_: mettagrid.config.room.cognitive_evals.labyrinth.LabyrinthMaze
+        width: 35
+        height: 35
+        corridor_width: 3
+        onlyhearts: true
+      - _target_: mettagrid.config.room.ascii.Ascii
+        border_width: 1
+        uri: "configs/env/mettagrid/maps/navigation/obstacles0.map"
+      - _target_: mettagrid.config.room.ascii.Ascii
+        border_width: 1
+        uri: "configs/env/mettagrid/maps/navigation/obstacles1.map"
+      - _target_: mettagrid.config.room.ascii.Ascii
+        border_width: 1
+        uri: "configs/env/mettagrid/maps/navigation/obstacles2.map"
+      - _target_: mettagrid.config.room.ascii.Ascii
+        border_width: 1
+        uri: "configs/env/mettagrid/maps/navigation/obstacles3.map"
+      - _target_: mettagrid.config.room.cognitive_evals.radial_maze.RadialMaze
+        width: 20
+        height: 20
+        radial_params:
+          num_arms: 4
+          arm_length: 8
+          center_radius: 3
+        onlyhearts: true
+      - _target_: mettagrid.config.room.mean_distance.MeanDistance
+        width: 25
+        height: 25
+        mean_distance: 15
+        border_width: 3
+        agents: 1
+        objects:
+          altar: 3
+          wall: ${sampling:10,15,12}
+      - _target_: mettagrid.config.room.mean_distance.MeanDistance
+        width: 35
+        height: 35
+        mean_distance: ${sampling:20,30,30}
+        border_width: 3
+        agents: 1
+        objects:
+          altar: 3
+          wall: ${sampling:10,15,12}
+      - _target_: mettagrid.config.room.mean_distance.MeanDistance
+        width: 12
+        height: 12
+        mean_distance: 10
+        border_width: 3
+        agents: 1
+        objects:
+          altar: 3
+          wall: ${sampling:1,5,5}
+  objects:
+    altar:
+      cooldown: 255

@@ -1,0 +1,24 @@
+# Config: Dense Obstacles & Sparse Altars
+defaults:
+  - /env/mettagrid-base/mettagrid@
+sampling: 20
+
+game:
+  num_agents: 20
+  map_builder:
+    _target_: mettagrid.config.room.multi_room.MultiRoom
+    num_rooms: 2
+    border_width: 6
+
+    room:
+      _target_: mettagrid.config.room.varied_terrain.VariedTerrain
+      width: ${sampling:50,100,60}
+      height: ${sampling:50,100,60}
+      border_width: ${sampling:1,6,3}
+      agents: 10
+      style: ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
+
+  objects:
+    altar:
+      cooldown: 255
+      initial_items: 1

@@ -22,6 +22,16 @@
 		"yaml.schemas": {
 			"envs/griddly/gdy-schema.json": "envs/griddly/power_grid/*.yaml"
 		},
+		"ruff.enable": true,
+		"ruff.nativeServer": "on",
+		"[python]": {
+			"editor.formatOnSave": true,
+			"editor.defaultFormatter": "charliermarsh.ruff",
+			"editor.codeActionsOnSave": {
+				"source.fixAll.ruff": "explicit",
+				"source.organizeImports.ruff": "explicit"
+			}
+		},
 		"files.associations": {
 			"unordered_map": "cpp",
 			"__bit_reference": "cpp",
@@ -101,7 +111,9 @@
 		},
 		"python.analysis.extraPaths": [
 			"${env:CONDA_PREFIX}/lib/python3.11/site-packages",
+			"/opt/homebrew/Caskroom/miniconda/base/envs/metta/lib/python3.11/site-packages",
 			"deps/**",
+			"${workspaceFolder}"
 		],
 		"python.autoComplete.extraPaths": [
 			"${env:CONDA_PREFIX}/lib/python3.11/site-packages",
@@ -187,6 +199,31 @@
 			}
 		},
 		"terminal.integrated.cwd": "${workspaceFolder}",
-		"terminal.integrated.splitCwd": "workspaceRoot"
+		"terminal.integrated.splitCwd": "workspaceRoot",
+		"cSpell.words": [
+			"bptt",
+			"cooldown",
+			"dones",
+			"heavyball",
+			"kickstarter",
+			"Kruskal",
+			"lasery",
+			"lexsort",
+			"metta",
+			"mettagrid",
+			"minibatch",
+			"minibatches",
+			"pufferlib",
+			"pytest",
+			"PYTHONPATH",
+			"raylib",
+			"relu",
+			"tensordict",
+			"timestep",
+			"timesteps",
+			"truncateds",
+			"vecenv",
+			"venv"
+		]
 	}
 }

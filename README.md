@@ -2,9 +2,9 @@
 
 A reinforcement learning codebase focusing on the emergence of cooperation and alignment in multi-agent AI systems.
 
-- **Discord**: https://discord.gg/mQzrgwqmwy
-- **Short (5m) Talk**: https://www.youtube.com/watch?v=bt6hV73VA8I
-- **Talk**: https://foresight.org/summary/david-bloomin-metta-learning-love-is-all-you-need/
+- **Discord**: <https://discord.gg/mQzrgwqmwy>
+- **Short (5m) Talk**: <https://www.youtube.com/watch?v=bt6hV73VA8I>
+- **Talk**: <https://foresight.org/summary/david-bloomin-metta-learning-love-is-all-you-need/>
 
 ## What is Metta Learning?
 
@@ -132,7 +132,7 @@ Add `wandb=off` parameter if you're not a member of `metta-research` on wandb, o
 ### Run the evaluation (requires wandb)
 
 ```
-python -m tools.eval run=my_experiment +hardware=macbook
+python -m tools.sim run=my_experiment +hardware=macbook
 ```
 
 ### Run the interactive simulation  (requires wandb)
@@ -143,9 +143,7 @@ python -m tools.play run=my_experiment +hardware=macbook
 
 # Evaluating a model 
 
-When you run training, if you have wandb enabled, then you will be able to see in your wandb run page results for the eval suites. 
-
-However, this will not apply for anything trained before April 8th. 
+However, this will not apply for anything trained before April 8th.
 
 ### Post hoc evaluation
 
@@ -154,7 +152,7 @@ If you want to run evaluation post-training to compare different policies, you c
 To add your policy to the existing navigation evals db:
 
 ```
-python3 -m tools.eval eval=navigation run=RUN_NAME eval.policy_uri=POLICY_URI +eval_db_uri=wandb://artifacts/navigation_db
+python3 -m tools.sim eval=navigation run=RUN_NAME eval.policy_uri=POLICY_URI +eval_db_uri=wandb://artifacts/navigation_db
 ```
 
 This will run your policy through the `configs/eval/navigation` eval_suite and then save it to the `navigation_db` artifact on wandb
@@ -167,5 +165,4 @@ python3 -m tools.analyze run=analyze +eval_db_uri=wandb://artifacts/navigation_d
 
 Currently you need to pass in a policy_uri here, and need to use any policy that is in the navigation db, for example `wandb://run/b.daveey.t.8.rdr9.3`, but that shouldn't be necessary in the future, and we are working on refactoring that
 
-You can do the same process for the object-use eval artifact using: `wandb://artifacts/object_use_db` 
-
+You can do the same process for the object-use eval artifact using: `wandb://artifacts/object_use_db`

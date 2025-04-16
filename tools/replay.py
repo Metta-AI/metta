@@ -1,21 +1,16 @@
 # Generate a graphical trace of multiple runs.
 
-import os
-import subprocess
-import platform
 import hydra
-from omegaconf import OmegaConf
-from util.config import setup_metta_environment
-from util.runtime_configuration import setup_mettagrid_environment
-from util.config import config_from_path
-from agent.policy_store import PolicyStore
-from rl.wandb.wandb_context import WandbContext
-from rl.pufferlib.replay_helper import ReplayHelper
+
+from metta.agent.policy_store import PolicyStore
+from metta.sim.replay_helper import ReplayHelper
+from metta.util.config import config_from_path, setup_metta_environment
+from metta.util.runtime_configuration import setup_mettagrid_environment
+from metta.util.wandb.wandb_context import WandbContext
 
 
 @hydra.main(version_base=None, config_path="../configs", config_name="simulator")
 def main(cfg):
-
     setup_metta_environment(cfg)
     setup_mettagrid_environment(cfg)
 
@@ -28,6 +23,7 @@ def main(cfg):
         replay_path = f"{cfg.run_dir}/replays/replay.json.z"
         replay_helper.generate_replay(replay_path)
         print(f"Replay saved to {replay_path}")
+
 
 if __name__ == "__main__":
     main()

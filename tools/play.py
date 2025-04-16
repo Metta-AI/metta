@@ -3,9 +3,8 @@ import os
 import signal  # Aggressively exit on ctrl+c
 
 import hydra
-from rich.logging import RichHandler
-
 from agent.policy_store import PolicyStore
+from rich.logging import RichHandler
 from rl.pufferlib.play import play
 from rl.wandb.wandb_context import WandbContext
 from util.config import config_from_path

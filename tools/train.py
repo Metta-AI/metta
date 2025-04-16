@@ -4,12 +4,11 @@ import sys
 
 import hydra
 import torch.distributed as dist
+from agent.policy_store import PolicyStore
 from omegaconf import OmegaConf
 from rich.logging import RichHandler
-from torch.distributed.elastic.multiprocessing.errors import record
-
-from agent.policy_store import PolicyStore
 from rl.wandb.wandb_context import WandbContext
+from torch.distributed.elastic.multiprocessing.errors import record
 from util.config import setup_metta_environment
 from util.runtime_configuration import setup_mettagrid_environment
 
@@ -57,6 +56,13 @@ def main(cfg: OmegaConf) -> int:
     )
     setup_metta_environment(cfg)
     setup_mettagrid_environment(cfg)
+
+    print("trainer started....")
+    logger.info(
+        f"Training {cfg.run} on "
+        + f"{os.environ.get('NODE_INDEX', '0')}: "
+        + f"{os.environ.get('LOCAL_RANK', '0')} ({cfg.device})"
+    )
 
     if "LOCAL_RANK" in os.environ and cfg.device.startswith("cuda"):
         logger.info(

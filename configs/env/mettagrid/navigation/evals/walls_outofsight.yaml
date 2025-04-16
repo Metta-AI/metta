@@ -5,6 +5,7 @@ defaults:
 game:
 
   num_agents: 20
+  max_steps: 200
 
   map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom
@@ -22,7 +23,7 @@ game:
 
       objects:
         altar: 3
-        wall: ${uniform:10,15,12}
+        wall: ${sampling:10,15,12}
 
   objects:
     altar:

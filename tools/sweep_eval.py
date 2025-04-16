@@ -7,19 +7,22 @@ import sys
 import time
 
 import hydra
+from metta.agent.policy_store import PolicyStore
+from metta.sim.eval_stats_db import EvalStatsDB
+from metta.sim.eval_stats_logger import EvalStatsLogger
+from metta.util.runtime_configuration import setup_mettagrid_environment
+from metta.util.wandb.wandb_context import WandbContext
 from omegaconf import DictConfig, OmegaConf
 from rich.logging import RichHandler
-from wandb_carbs import WandbCarbs
 
-from agent.policy_store import PolicyStore
-from rl.eval.eval_stats_db import EvalStatsDB
-from rl.eval.eval_stats_logger import EvalStatsLogger
-from rl.wandb.wandb_context import WandbContext
-from util.runtime_configuration import setup_mettagrid_environment
+from wandb_carbs import WandbCarbs
 
 # Configure rich colored logging to stderr instead of stdout
 logging.basicConfig(
-    level="INFO", format="%(message)s", datefmt="[%X]", handlers=[RichHandler(rich_tracebacks=True)]
+    level="INFO",
+    format="%(message)s",
+    datefmt="[%X]",
+    handlers=[RichHandler(rich_tracebacks=True)],
 )
 
 logger = logging.getLogger("sweep_eval")
@@ -69,7 +72,11 @@ def main(cfg: OmegaConf) -> int:
         cfg.analyzer.policy_uri = policy_pr.uri
 
         eval = hydra.utils.instantiate(
-            cfg.eval, policy_store, policy_pr, cfg.get("run_id", wandb_run.id), cfg_recursive_=False
+            cfg.eval,
+            policy_store,
+            policy_pr,
+            cfg.get("run_id", wandb_run.id),
+            cfg_recursive_=False,
         )
 
         # Start evaluation process
@@ -90,7 +97,7 @@ def main(cfg: OmegaConf) -> int:
         logger.info(f"Evaluating policy {policy_pr.name}")
         log_file(cfg.run_dir, "sweep_eval_config.yaml", cfg, wandb_run)
 
-        stats = eval.evaluate()
+        stats = eval.simulate()
         eval_time = time.time() - eval_start_time
 
         # Log evaluation stats
@@ -98,7 +105,9 @@ def main(cfg: OmegaConf) -> int:
         eval_stats_logger.log(stats)
 
         # Create eval stats database and analyze results
-        eval_stats_db = EvalStatsDB.from_uri(eval_stats_logger.json_path, cfg.run_dir, wandb_run)
+        eval_stats_db = EvalStatsDB.from_uri(
+            eval_stats_logger.json_path, cfg.run_dir, wandb_run
+        )
 
         # Find the metric index in the analyzer metrics
         metric_idxs = [
@@ -146,7 +155,13 @@ def main(cfg: OmegaConf) -> int:
         sweep_stats.update(stats_update)
 
         # Update lineage stats
-        for stat in ["train.agent_step", "train.epoch", "time.train", "time.eval", "time.total"]:
+        for stat in [
+            "train.agent_step",
+            "train.epoch",
+            "time.train",
+            "time.eval",
+            "time.total",
+        ]:
             sweep_stats["lineage." + stat] = sweep_stats[stat] + policy_pr.metadata.get(
                 "lineage." + stat, 0
             )
@@ -154,7 +169,8 @@ def main(cfg: OmegaConf) -> int:
         # Update wandb summary
         wandb_run.summary.update(sweep_stats)
         logger.info(
-            "Sweep Stats: \n" + json.dumps({k: str(v) for k, v in sweep_stats.items()}, indent=4)
+            "Sweep Stats: \n"
+            + json.dumps({k: str(v) for k, v in sweep_stats.items()}, indent=4)
         )
 
         # Update policy metadata
@@ -172,7 +188,9 @@ def main(cfg: OmegaConf) -> int:
         total_time = train_time + eval_time
         logger.info(f"Evaluation Metric: {eval_metric}, Total Time: {total_time}")
 
-        WandbCarbs._record_observation(wandb_run, eval_metric, total_time, allow_update=True)
+        WandbCarbs._record_observation(
+            wandb_run, eval_metric, total_time, allow_update=True
+        )
 
         wandb_run.summary.update({"run_time": total_time})
         return 0

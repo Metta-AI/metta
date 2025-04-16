@@ -12,13 +12,12 @@ To set up the Git hooks, run:
 
 ```bash
 # Make the setup script executable
-chmod +x devops/setup-git-hooks.sh
+chmod +x devops/setup_git_hooks.sh
 
 # Run the setup script
-./devops/setup-git-hooks.sh
+./devops/setup_git_hooks.sh
 ```
 
 ### Available Hooks
 
 - **pre-commit**: Checks Python files with ruff before committing
-

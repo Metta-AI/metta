@@ -1,51 +1,56 @@
 #!/usr/bin/env python3
 import argparse
+import getpass
 import os
 import subprocess
-import getpass
 import sys
 import time
-from pathlib import Path
 import traceback
+from pathlib import Path
+
 
 # ANSI color codes for terminal output
 class Colors:
-    HEADER = '\033[95m'
-    BLUE = '\033[94m'
-    GREEN = '\033[92m'
-    YELLOW = '\033[93m'
-    RED = '\033[91m'
-    ENDC = '\033[0m'
-    BOLD = '\033[1m'
+    HEADER = "\033[95m"
+    BLUE = "\033[94m"
+    GREEN = "\033[92m"
+    YELLOW = "\033[93m"
+    RED = "\033[91m"
+    ENDC = "\033[0m"
+    BOLD = "\033[1m"
+
 
 def print_status(message):
     """Print a status message with timestamp."""
     timestamp = time.strftime("%H:%M:%S")
     print(f"{Colors.BLUE}[{timestamp}] STATUS: {message}{Colors.ENDC}")
 
+
 def print_success(message):
     """Print a success message with timestamp."""
     timestamp = time.strftime("%H:%M:%S")
     print(f"{Colors.GREEN}[{timestamp}] SUCCESS: {message}{Colors.ENDC}")
+
 
 def print_error(message):
     """Print an error message with timestamp."""
     timestamp = time.strftime("%H:%M:%S")
     print(f"{Colors.RED}[{timestamp}] ERROR: {message}{Colors.ENDC}", file=sys.stderr)
 
+
 def print_warning(message):
     """Print a warning message with timestamp."""
     timestamp = time.strftime("%H:%M:%S")
     print(f"{Colors.YELLOW}[{timestamp}] WARNING: {message}{Colors.ENDC}")
 
+
 def run_command(cmd, check=True, capture_output=False):
     """Run a shell command and handle errors."""
     print_status(f"Running command: {cmd}")
     try:
-        result = subprocess.run(cmd, shell=True, check=check,
-                               capture_output=capture_output, text=True)
+        result = subprocess.run(cmd, shell=True, check=check, capture_output=capture_output, text=True)
         if result.returncode == 0:
-            print_status(f"Command completed successfully")
+            print_status("Command completed successfully")
         else:
             print_warning(f"Command exited with code {result.returncode}")
 
@@ -58,6 +63,7 @@ def run_command(cmd, check=True, capture_output=False):
         if check:
             sys.exit(1)
         return e
+
 
 def setup_root_profile():
     """Set up AWS configuration for root account under stem-root profile."""
@@ -84,11 +90,11 @@ def setup_root_profile():
     if credentials_path.exists():
         print_status("Existing credentials file found, reading contents...")
         try:
-            with open(credentials_path, 'r') as f:
+            with open(credentials_path, "r") as f:
                 current_profile = None
                 for line in f:
                     line = line.strip()
-                    if line.startswith('[') and line.endswith(']'):
+                    if line.startswith("[") and line.endswith("]"):
                         current_profile = line[1:-1]
                         existing_credentials[current_profile] = []
                     elif current_profile:
@@ -102,7 +108,7 @@ def setup_root_profile():
     # Add or update stem-root profile
     print_status("Updating credentials file with stem-root profile...")
     try:
-        with open(credentials_path, 'w') as f:
+        with open(credentials_path, "w") as f:
             for profile, lines in existing_credentials.items():
                 if profile != "stem-root":  # Skip stem-root as we'll rewrite it
                     f.write(f"[{profile}]\n")
@@ -110,10 +116,10 @@ def setup_root_profile():
                         f.write(f"{line}\n")
 
             # Write stem-root profile
-            f.write(f"[stem-root]\n")
+            f.write("[stem-root]\n")
             f.write(f"aws_access_key_id = {aws_access_key_id}\n")
             f.write(f"aws_secret_access_key = {aws_secret_access_key}\n")
-            f.write(f"region = us-east-1\n")
+            f.write("region = us-east-1\n")
         print_success("Successfully updated credentials file")
     except Exception as e:
         print_error(f"Error writing to credentials file: {e}")
@@ -129,11 +135,11 @@ def setup_root_profile():
     if config_path.exists():
         print_status("Existing config file found, reading contents...")
         try:
-            with open(config_path, 'r') as f:
+            with open(config_path, "r") as f:
                 current_section = None
                 for line in f:
                     line = line.strip()
-                    if line.startswith('[') and line.endswith(']'):
+                    if line.startswith("[") and line.endswith("]"):
                         current_section = line[1:-1]
                         existing_config[current_section] = []
                     elif current_section:
@@ -147,7 +153,7 @@ def setup_root_profile():
     # Add or update stem-root profile in config
     print_status("Updating config file with stem-root profile...")
     try:
-        with open(config_path, 'w') as f:
+        with open(config_path, "w") as f:
             for section, lines in existing_config.items():
                 if section != "stem-root" and section != "profile stem-root":  # Skip as we'll rewrite it
                     f.write(f"[{section}]\n")
@@ -155,9 +161,9 @@ def setup_root_profile():
                         f.write(f"{line}\n")
 
             # Write stem-root profile
-            f.write(f"[profile stem-root]\n")
-            f.write(f"region = us-east-1\n")
-            f.write(f"output = json\n")
+            f.write("[profile stem-root]\n")
+            f.write("region = us-east-1\n")
+            f.write("output = json\n")
         print_success("Successfully updated config file")
     except Exception as e:
         print_error(f"Error writing to config file: {e}")
@@ -177,11 +183,13 @@ def setup_root_profile():
     print_status("Creating AWS console helper script...")
     console_script = aws_dir / "console.sh"
     try:
-        with open(console_script, 'w') as f:
+        with open(console_script, "w") as f:
             f.write("""#!/bin/bash
 # Helper script to open the AWS console in the browser
 aws_signin_url="https://signin.aws.amazon.com/console"
-open "$aws_signin_url" 2>/dev/null || xdg-open "$aws_signin_url" 2>/dev/null || echo "Could not open browser. Please visit $aws_signin_url manually."
+open "$aws_signin_url" 2>/dev/null || \
+xdg-open "$aws_signin_url" 2>/dev/null || \
+echo "Could not open browser. Please visit $aws_signin_url manually."
 """)
         print_success("Successfully created console helper script")
     except Exception as e:
@@ -200,15 +208,15 @@ open "$aws_signin_url" 2>/dev/null || xdg-open "$aws_signin_url" 2>/dev/null || 
 
     # Add an alias for the console command to shell config files
     print_status("Adding aws-console alias to shell configuration files...")
-    for rc_file in ['.bashrc', '.zshrc']:
+    for rc_file in [".bashrc", ".zshrc"]:
         rc_path = Path.home() / rc_file
         if rc_path.exists():
             try:
-                with open(rc_path, 'r') as f:
+                with open(rc_path, "r") as f:
                     content = f.read()
 
-                if 'alias aws-console=' not in content:
-                    with open(rc_path, 'a') as f:
+                if "alias aws-console=" not in content:
+                    with open(rc_path, "a") as f:
                         f.write(f"\nalias aws-console='{console_script}'\n")
                     print_status(f"Added aws-console alias to {rc_file}")
                 else:
@@ -223,22 +231,22 @@ open "$aws_signin_url" 2>/dev/null || xdg-open "$aws_signin_url" 2>/dev/null || 
 
     # Update shell config files to use stem-root profile
     print_status("Updating shell configuration files to use stem-root profile...")
-    for rc_file in ['.bashrc', '.zshrc']:
+    for rc_file in [".bashrc", ".zshrc"]:
         rc_path = Path.home() / rc_file
         if rc_path.exists():
             try:
-                with open(rc_path, 'r') as f:
+                with open(rc_path, "r") as f:
                     content = f.read()
 
                 # Remove any existing AWS_PROFILE export
-                lines = content.split('\n')
-                new_lines = [line for line in lines if not line.strip().startswith('export AWS_PROFILE=')]
+                lines = content.split("\n")
+                new_lines = [line for line in lines if not line.strip().startswith("export AWS_PROFILE=")]
 
                 # Add the new export
-                new_lines.append('export AWS_PROFILE=stem-root')
+                new_lines.append("export AWS_PROFILE=stem-root")
 
-                with open(rc_path, 'w') as f:
-                    f.write('\n'.join(new_lines))
+                with open(rc_path, "w") as f:
+                    f.write("\n".join(new_lines))
 
                 print_status(f"Updated AWS_PROFILE in {rc_file} to use stem-root")
             except Exception as e:
@@ -247,6 +255,7 @@ open "$aws_signin_url" 2>/dev/null || xdg-open "$aws_signin_url" 2>/dev/null || 
 
     print_success("Root account setup complete!")
     print_status("You can open the AWS Console in your browser by typing 'aws-console'")
+
 
 def setup_sso_profile():
     """Set up AWS configuration for SSO access."""
@@ -271,11 +280,11 @@ def setup_sso_profile():
     if config_path.exists():
         print_status("Existing config file found, reading contents...")
         try:
-            with open(config_path, 'r') as f:
+            with open(config_path, "r") as f:
                 current_section = None
                 for line in f:
                     line = line.strip()
-                    if line.startswith('[') and line.endswith(']'):
+                    if line.startswith("[") and line.endswith("]"):
                         current_section = line[1:-1]
                         existing_config[current_section] = []
                     elif current_section:
@@ -289,7 +298,7 @@ def setup_sso_profile():
     # Add or update SSO profiles
     print_status("Updating config file with SSO profiles...")
     try:
-        with open(config_path, 'w') as f:
+        with open(config_path, "w") as f:
             # Preserve existing profiles except the ones we're updating
             for section, lines in existing_config.items():
                 if section not in ["stem", "profile stem", "sso-session stem-sso"]:
@@ -344,22 +353,22 @@ sso_registration_scopes = sso:account:access
 
     # Add profile to shell config files
     print_status("Updating shell configuration files...")
-    for rc_file in ['.bashrc', '.zshrc']:
+    for rc_file in [".bashrc", ".zshrc"]:
         rc_path = Path.home() / rc_file
         if rc_path.exists():
             try:
-                with open(rc_path, 'r') as f:
+                with open(rc_path, "r") as f:
                     content = f.read()
 
                 # Remove any existing AWS_PROFILE export
-                lines = content.split('\n')
-                new_lines = [line for line in lines if not line.strip().startswith('export AWS_PROFILE=')]
+                lines = content.split("\n")
+                new_lines = [line for line in lines if not line.strip().startswith("export AWS_PROFILE=")]
 
                 # Add the new export
-                new_lines.append('export AWS_PROFILE=stem')
+                new_lines.append("export AWS_PROFILE=stem")
 
-                with open(rc_path, 'w') as f:
-                    f.write('\n'.join(new_lines))
+                with open(rc_path, "w") as f:
+                    f.write("\n".join(new_lines))
 
                 print_status(f"Updated AWS_PROFILE in {rc_file}")
             except Exception as e:
@@ -368,20 +377,21 @@ sso_registration_scopes = sso:account:access
 
     print_success("SSO setup complete!")
 
+
 def main():
     try:
-        parser = argparse.ArgumentParser(description='Set up AWS SSO or root account access')
-        parser.add_argument('--root', action='store_true', help='Set up root account access only (skips SSO)')
+        parser = argparse.ArgumentParser(description="Set up AWS SSO or root account access")
+        parser.add_argument("--root", action="store_true", help="Set up root account access only (skips SSO)")
         args = parser.parse_args()
 
-        print_status(f"Starting AWS setup script (Python version)")
+        print_status("Starting AWS setup script (Python version)")
 
         if args.root:
-            print_status(f"Mode: Root Account Only")
+            print_status("Mode: Root Account Only")
             print_status("Root account setup requested, skipping SSO setup")
             setup_root_profile()
         else:
-            print_status(f"Mode: SSO Only")
+            print_status("Mode: SSO Only")
             setup_sso_profile()
             print_status("Root account setup not requested (use --root flag to set up root credentials)")
 
@@ -394,6 +404,7 @@ def main():
         print_error(f"Unexpected error: {e}")
         traceback.print_exc()
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()
