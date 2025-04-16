@@ -93,7 +93,8 @@ class TestFilters:
                         "list_key": ["global1", "global2"]}
         })
         analyzer_instance = EvalStatsAnalyzer(dummy_stats_db, analysis_conf, policy_uri=candidate_policy)
-        local_item = {"filters": {"level": "local_value", "shared_key": "local_value", "list_key": ["local1", "local2"]}}
+        local_item = {"filters": {"level": "local_value",
+                                  "shared_key": "local_value", "list_key": ["local1", "local2"]}}
         result = analyzer_instance._filters(local_item)
         expected = {
             "env": "test_env",
