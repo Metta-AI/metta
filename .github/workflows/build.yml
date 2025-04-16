@@ -15,12 +15,12 @@ jobs:
     timeout-minutes: 30  # Prevent hung jobs from consuming resources
     steps:
       - uses: actions/checkout@v3
-      
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11.7'
-          
+
       - name: Cache pip packages
         uses: actions/cache@v3
         id: cache-pip
@@ -31,14 +31,14 @@ jobs:
           key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt', '**/requirements-dev.txt', '**/setup.py') }}
           restore-keys: |
             ${{ runner.os }}-pip-
-            
+
       - name: Install pip dependencies
         if: steps.cache-pip.outputs.cache-hit != 'true'
         run: |
           python -m venv venv
           source venv/bin/activate
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          
+
       - name: Cache Git dependencies
         uses: actions/cache@v3
         id: cache-git-deps
@@ -47,32 +47,32 @@ jobs:
           key: ${{ runner.os }}-git-deps-${{ hashFiles('devops/setup_build.sh') }}
           restore-keys: |
             ${{ runner.os }}-git-deps-
-            
+
       - name: Run setup build script
         if: steps.cache-git-deps.outputs.cache-hit != 'true'
         run: |
           source venv/bin/activate
           mkdir -p deps
           bash ./devops/setup_build.sh
-          
+
       - name: List installed packages
         run: |
           source venv/bin/activate
           pip list
-          
+
       - name: Cache Ruff
         uses: actions/cache@v3
         id: cache-ruff
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-ruff-0.11.5
-          
+
       - name: Run Ruff check
         run: |
           source venv/bin/activate
           pip install ruff==0.11.5
           ruff check --respect-gitignore .
-          
+
       - name: Run test training
         id: training
         continue-on-error: false
@@ -85,7 +85,14 @@ jobs:
         run: |
           source venv/bin/activate
           python -m tools.train +hardware=github
-          
+
+      - name: Run Pytest
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          source venv/bin/activate
+          pytest tests/ --maxfail=1 --disable-warnings -q
+
       - name: Cache training output
         if: success()
         uses: actions/cache@v3
@@ -93,7 +100,7 @@ jobs:
         with:
           path: train_dir
           key: ${{ runner.os }}-train-dir-${{ github.sha }}
-          
+
       - name: Run trace
         if: success()
         env:
