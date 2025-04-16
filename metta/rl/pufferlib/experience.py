@@ -1,6 +1,6 @@
 """
-This file implements an Experience class for storing and managing experience data
-during reinforcement learning training.
+This file implements an Experience class for storing and managing experience data during reinforcement
+learning training.
 
 The Experience class provides:
 - Flat tensor storage for observations, actions, rewards, etc.
@@ -49,11 +49,7 @@ class Experience:
         atn_dtype = pufferlib.pytorch.numpy_to_torch_dtype_dict[atn_dtype]
         pin = device == "cuda" and cpu_offload
         self.obs = torch.zeros(
-            batch_size,
-            *obs_shape,
-            dtype=obs_dtype,
-            pin_memory=pin,
-            device=device if not pin else "cpu",
+            batch_size, *obs_shape, dtype=obs_dtype, pin_memory=pin, device=device if not pin else "cpu"
         )
         self.actions = torch.zeros(batch_size, *atn_shape, dtype=atn_dtype, pin_memory=pin)
         self.logprobs = torch.zeros(batch_size, pin_memory=pin)
@@ -109,11 +105,11 @@ class Experience:
 
         # Zero-copy indexing for contiguous env_id
         if num_indices == mask.size and isinstance(env_id, slice):
-            pass
-            # gpu_inds = cpu_inds = slice(0, min(self.batch_size - ptr, num_indices))
+            cpu_inds = slice(0, min(self.batch_size - ptr, num_indices))
+
         else:
             cpu_inds = indices[: self.batch_size - ptr]
-            # gpu_inds = torch.as_tensor(indices).to(self.obs.device, non_blocking=True)
+            torch.as_tensor(indices).to(self.obs.device, non_blocking=True)
 
         self.obs[dst] = obs.to(self.obs.device, non_blocking=True)[cpu_inds]
         self.values_np[dst] = value.cpu().numpy()[cpu_inds]

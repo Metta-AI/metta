@@ -42,14 +42,7 @@ class Kickstarter:
                 policy = torch.compile(policy, mode=self.compile_mode)
             self.teachers.append(policy)
 
-    def loss(
-        self,
-        agent_step,
-        student_normalized_logits,
-        student_value,
-        o,
-        teacher_lstm_state=None,
-    ):
+    def loss(self, agent_step, student_normalized_logits, student_value, o, teacher_lstm_state=None):
         ks_value_loss = torch.tensor(0.0, device=self.device)
         ks_action_loss = torch.tensor(0.0, device=self.device)
 
