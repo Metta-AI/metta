@@ -18,7 +18,7 @@ logging.basicConfig(
     level="INFO", format="%(processName)s %(message)s", datefmt="[%X]", handlers=[RichHandler(rich_tracebacks=True)]
 )
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("train")
 
 
 def train(cfg, wandb_run):
