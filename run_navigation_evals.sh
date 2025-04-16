@@ -11,12 +11,13 @@ POLICIES=(
     "b.daveey.t.64.dr90.1"
     "b.daveey.t.8.rdr9.sb"
     "b.daphne.navigation_training_onlyhearts.r.1"
-    "navigation_onlyhearts_ent0.1"
     "b.daphne.navigation_training_onlyhearts.r.0"
     "navigation_training_suite_onlyhearts"
-    "train_simple_nav_evals_test2"
-    "b.daphne.varied_obstacles_navigation_eval"
     "b.daphne.navigation_terrain_training"
+    "b.georgedeane.terrain_newmaps_pretrained"
+    "b.georgedeane.terrain_newmaps"
+    "b.daphne.terrain_newmaps2"
+    "terrain_training_newmaps2"
 )
 
 
