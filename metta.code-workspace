@@ -115,18 +115,13 @@
 		},
 		"python.analysis.extraPaths": [
 			"${env:CONDA_PREFIX}/lib/python3.11/site-packages",
-<<<<<<< HEAD
-			"/Users/daveey/miniforge3/envs/metta/lib/python3.11/site-packages",
-=======
-			"/opt/homebrew/Caskroom/miniconda/base/envs/metta/lib/python3.11/site-packages",
->>>>>>> origin/main
 			"deps/**",
 			"${workspaceFolder}"
 		],
 		"python.autoComplete.extraPaths": [
 			"${env:CONDA_PREFIX}/lib/python3.11/site-packages",
-			"/Users/daveey/miniforge3/envs/metta/lib/python3.11/site-packages",
 			"deps/**",
+			"${workspaceFolder}"
 		],
 		"python.analysis.exclude": [
 			"**/pufferlib/**",
