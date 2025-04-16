@@ -5,15 +5,19 @@
 			"path": "."
 		},
 		{
+			"name": "fast_gae",
 			"path": "deps/fast_gae"
 		},
 		{
+			"name": "mettagrid",
 			"path": "deps/mettagrid"
 		},
 		{
+			"name": "pufferlib",
 			"path": "deps/pufferlib"
 		},
 		{
+			"name": "wandb_carbs",
 			"path": "deps/wandb_carbs"
 		}
 	],
