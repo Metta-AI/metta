@@ -173,14 +173,16 @@ class PufferTrainer:
             # --- End Profiler Setup ---
 
             # --- Profiler Context ---
-            if self.torch_profiler.active:
-                with self.torch_profiler: # This will start/stop profiling
-                    self._evaluate()
-                    self._train()
-            else: # Run normally if profiler is not active for this epoch
-                self._evaluate()
-                self._train()
-
+            # if self.torch_profiler.active:
+            #     with self.torch_profiler: # This will start/stop profiling
+            #         self._evaluate()
+            #         self._train()
+            # else: # Run normally if profiler is not active for this epoch
+            #     self._evaluate()
+            #     self._train()
+            self._evaluate()
+            self._train()
+            
             # Processing stats
             self._process_stats()
 
@@ -287,7 +289,11 @@ class PufferTrainer:
 
                 h = lstm_h[:, gpu_env_id]
                 c = lstm_c[:, gpu_env_id]
-                actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward, _ = policy(o_device, (h, c), e3b=e3b)
+                if self.torch_profiler.active:
+                    with self.torch_profiler:
+                        actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward, _ = policy(o_device, (h, c), e3b=e3b)
+                else:
+                    actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward, _ = policy(o_device, (h, c), e3b=e3b)
                 lstm_h[:, gpu_env_id] = h
                 lstm_c[:, gpu_env_id] = c
                 if self.use_e3b:
