@@ -4,13 +4,14 @@ import sys
 
 import hydra
 import torch.distributed as dist
-from agent.policy_store import PolicyStore
 from omegaconf import OmegaConf
 from rich.logging import RichHandler
-from rl.wandb.wandb_context import WandbContext
 from torch.distributed.elastic.multiprocessing.errors import record
-from util.config import setup_metta_environment
-from util.runtime_configuration import setup_mettagrid_environment
+
+from metta.agent.policy_store import PolicyStore
+from metta.util.config import setup_metta_environment
+from metta.util.runtime_configuration import setup_mettagrid_environment
+from metta.util.wandb.wandb_context import WandbContext
 
 # Configure rich colored logging
 logging.basicConfig(
@@ -65,9 +66,7 @@ def main(cfg: OmegaConf) -> int:
     )
 
     if "LOCAL_RANK" in os.environ and cfg.device.startswith("cuda"):
-        logger.info(
-            f"Initializing distributed training with {os.environ['LOCAL_RANK']} {cfg.device}"
-        )
+        logger.info(f"Initializing distributed training with {os.environ['LOCAL_RANK']} {cfg.device}")
         local_rank = int(os.environ["LOCAL_RANK"])
         cfg.device = f"{cfg.device}:{local_rank}"
         dist.init_process_group(backend="nccl")

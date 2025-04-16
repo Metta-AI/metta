@@ -3,12 +3,12 @@ import os
 import signal  # Aggressively exit on ctrl+c
 
 import hydra
-from agent.policy_store import PolicyStore
 from rich.logging import RichHandler
-from rl.pufferlib.play import play
-from rl.wandb.wandb_context import WandbContext
-from util.config import config_from_path
-from util.runtime_configuration import setup_metta_environment
+
+from metta.agent.policy_store import PolicyStore
+from metta.rl.pufferlib.play import play
+from metta.util.config import config_from_path, setup_metta_environment
+from metta.util.wandb.wandb_context import WandbContext
 
 # Configure rich colored logging
 logging.basicConfig(

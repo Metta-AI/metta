@@ -16,7 +16,7 @@ def play(cfg: OmegaConf, policy_store: PolicyStore):
     policy_record = policy_store.policy(cfg.policy_uri)
 
     assert policy_record.metadata["action_names"] == env._c_env.action_names(), (
-        "Action names do not match: " + "{policy_record.metadata['action_names']} != {env._c_env.action_names()}"
+        f"Action names do not match: {policy_record.metadata['action_names']} != {env._c_env.action_names()}"
     )
     policy = policy_record.policy()
 

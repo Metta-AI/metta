@@ -1,9 +1,10 @@
 import logging
 
 import hydra
-from eval.report import generate_report
 from omegaconf import DictConfig
-from util.runtime_configuration import setup_mettagrid_environment
+
+from metta.eval.report import generate_report
+from metta.util.runtime_configuration import setup_mettagrid_environment
 
 
 @hydra.main(version_base=None, config_path="../configs", config_name="analyzer")
