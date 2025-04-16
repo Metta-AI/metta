@@ -1,7 +1,8 @@
 
 defaults:
   - /env/mettagrid-base/simple@
-
+  - _self_
+  
 game:
   agent:
     rewards:

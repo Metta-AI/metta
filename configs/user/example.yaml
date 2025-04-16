@@ -3,7 +3,8 @@ defaults:
   - override /agent: simple
   - override /eval: simple
   - override /analyzer: eval_analyzer
-
+  - _self_
+  
 trainer:
   env: /env/mettagrid/multienv_mettagrid
   evaluate_interval: 10

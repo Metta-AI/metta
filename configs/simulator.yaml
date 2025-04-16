@@ -1,7 +1,8 @@
 defaults:
   - common
   - wandb: metta_research
-
+  - _self_
+  
 policy_uri: ???
 env: env/mettagrid-base/simple
 env_overrides: null

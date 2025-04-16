@@ -4,7 +4,8 @@ defaults:
   - override /agent: simple
   - override /eval: navigation
   - override /analyzer: eval_analyzer
-
+  - _self_
+  
 trainer:
   env: /env/mettagrid/reward_dr
   env_overrides:

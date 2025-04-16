@@ -1,6 +1,7 @@
 
 defaults:
   - puffer
+  - _self_
 
 ent_coef: 0.00209
 gae_lambda: 0.818

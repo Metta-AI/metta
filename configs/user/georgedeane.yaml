@@ -3,7 +3,8 @@
 defaults:
   - override /agent: simple
   - override /eval: eval
-
+  - _self_
+  
 trainer:
   env: /env/mettagrid/walkaround
   evaluate_interval: 2
