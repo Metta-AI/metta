@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10  # Prevent hung jobs from consuming resources
     env:
-      CHECKPOINT_PATH: ./train_dir/my_experiment/checkpoints/
+      CHECKPOINT_PATH: ./train_dir/github_test/checkpoints/
     steps:
       - uses: actions/checkout@v4
 
