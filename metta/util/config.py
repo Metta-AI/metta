@@ -87,7 +87,7 @@ def setup_metta_environment(cfg: DictConfig, require_aws: bool = True, require_w
         require_wandb: Whether to require W&B credentials
     """
     if require_aws:
-        # Check that AWS is ready using the robust boto3 method
+        # Check that AWS is good to go.
         if not check_aws_credentials():
             print("AWS is not configured, please install:")
             print("brew install awscli")
@@ -97,7 +97,7 @@ def setup_metta_environment(cfg: DictConfig, require_aws: bool = True, require_w
             exit(1)
 
     if cfg.wandb.track and require_wandb:
-        # Check that W&B is ready using the robust login method
+        # Check that AWS is good to go.
         if not check_wandb_credentials():
             print("W&B is not configured, please install:")
             print("pip install wandb")
