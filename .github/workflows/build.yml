@@ -16,15 +16,15 @@ jobs:
     env:
       CHECKPOINT_PATH: ./train_dir/my_experiment/checkpoints/
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11.7'
 
       - name: Cache pip packages
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: cache-pip
         with:
           path: |
@@ -42,7 +42,7 @@ jobs:
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
       - name: Cache Git dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: cache-git-deps
         with:
           path: deps
@@ -63,7 +63,7 @@ jobs:
           pip list
 
       - name: Cache Ruff
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: cache-ruff
         with:
           path: ~/.cache/pip
@@ -99,7 +99,7 @@ jobs:
 
       - name: Upload training output
         if: success()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: train-output
           path: train_dir/
@@ -108,7 +108,7 @@ jobs:
 
       - name: Download training output
         if: success()
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: train-output
           path: train_dir/
