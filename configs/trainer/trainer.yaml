@@ -14,7 +14,7 @@ checkpoint_dir: ${run_dir}/checkpoints
 
 glicko_scores_path: ${run_dir}/eval/glicko2
 
-evaluate_interval: 300
+evaluate_interval: 2000
 checkpoint_interval: 60
 wandb_checkpoint_interval: 300
 replay_interval: ${trainer.evaluate_interval}
