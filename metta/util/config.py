@@ -1,7 +1,10 @@
 import os
 from typing import Any, List, Optional, Union
 
+import boto3
 import hydra
+import wandb
+from botocore.exceptions import ClientError, NoCredentialsError
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
 
@@ -41,37 +44,61 @@ def config_from_path(
         else:
             raise TypeError(f"Unexpected config type: {type(env_cfg)}")
 
-    # Apply overrides if provided
-    if overrides is not None:
+    # Handle the original edge case with special error message
+    if overrides is not None and overrides != {}:
+        if isinstance(env_cfg, DictConfig) and env_cfg.get("_target_") == "mettagrid.mettagrid_env.MettaGridEnvSet":
+            raise NotImplementedError("Cannot parse overrides when using multienv_mettagrid")
         env_cfg = OmegaConf.merge(env_cfg, overrides)
 
     return env_cfg
 
 
-def read_file(path: str) -> str:
-    with open(path, "r") as f:
-        return f.read()
+def check_aws_credentials() -> bool:
+    """Check if valid AWS credentials are available from any source."""
+    if "AWS_ACCESS_KEY_ID" in os.environ and "AWS_SECRET_ACCESS_KEY" in os.environ:
+        # This check is primarily for github actions.
+        return True
+    try:
+        sts = boto3.client("sts")
+        sts.get_caller_identity()
+        return True
+    except (NoCredentialsError, ClientError):
+        return False
+
+
+def check_wandb_credentials() -> bool:
+    """Check if valid W&B credentials are available."""
+    if "WANDB_API_KEY" in os.environ:
+        # This check is primarily for github actions.
+        return True
+    try:
+        return wandb.login(anonymous="never", timeout=10)
+    except Exception:
+        return False
 
 
 def setup_metta_environment(cfg: DictConfig, require_aws: bool = True, require_wandb: bool = True):
+    """
+    Set up the environment for metta, checking for required credentials.
+
+    Args:
+        cfg: The configuration object
+        require_aws: Whether to require AWS credentials
+        require_wandb: Whether to require W&B credentials
+    """
     if require_aws:
-        # Check that AWS is good to go.
-        # Check that ~/.aws/credentials exist or env var AWS_PROFILE is set.
-        if (
-            not os.path.exists(os.path.expanduser("~/.aws/sso/cache"))
-            and "AWS_ACCESS_KEY_ID" not in os.environ
-            and "AWS_SECRET_ACCESS_KEY" not in os.environ
-        ):
+        # Check that AWS is ready using the robust boto3 method
+        if not check_aws_credentials():
             print("AWS is not configured, please install:")
             print("brew install awscli")
             print("and run:")
             print("python ./devops/aws/setup_sso.py")
             print("Alternatively, set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in your environment.")
             exit(1)
+
     if cfg.wandb.track and require_wandb:
-        # Check that W&B is good to go.
-        # Open ~/.netrc file and see if there is a api.wandb.ai entry.
-        if "api.wandb.ai" not in read_file(os.path.expanduser("~/.netrc")) and "WANDB_API_KEY" not in os.environ:
+        # Check that W&B is ready using the robust login method
+        if not check_wandb_credentials():
             print("W&B is not configured, please install:")
             print("pip install wandb")
             print("and run:")
