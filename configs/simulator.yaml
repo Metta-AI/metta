@@ -1,5 +1,6 @@
 defaults:
   - common
+  - eval: null
   - wandb: metta_research
   - _self_
 
