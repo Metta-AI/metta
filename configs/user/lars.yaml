@@ -1,9 +1,20 @@
 # @package __global__
 
-seed: null
+
+#POLICIES TO EVALUATE
+
+#b.daphne.navigation_varied_obstacle_shapes_pretrained.r.1
+#b.daphne.navigation_varied_obstacle_shapes.r.0
+#navigation_poisson_sparser.r.2
+#navigation_infinite_cooldown_sparser_pretrained.r.0
+#navigation_infinite_cooldown_sparser.r.0
+#navigation_poisson_sparser_pretrained.r.6
 
 defaults:
   - override /agent: simple
+  - override /eval: simple
+  - override /analyzer: eval_analyzer
+  - _self_
 
 policy_uri: wandb://run/alex.trainee.002
 npc_policy_uri: null
@@ -13,18 +24,14 @@ env:
   game:
     max_steps: 1000
 
-trainer:
-  evaluate_interval: 0
-  # kickstart:
-  #   teacher_uri: wandb://run/b.daphne.multicolor_ore.r.5
 
-eval:
-  policy_uri: ${..policy_uri}
-  npc_policy_uri: ${..npc_policy_uri}
-  eval_db_uri: ${..eval_db_uri}
-  num_envs: 10
-  num_episodes: 10
-  max_time_s: 60
+# policy_uri: wandb://run/b.daveey.sm.train.er.new.0
+# policy_uri: wandb://run/daveey.ar.cards.1
+# policy_uri: wandb://run/b.daveey.t.32.instant
+policy_uri: wandb://run/b.daveey.t.8.rdr9.3
+# npc_policy_uri: ${trained_policy_uri}
+# eval_db_uri: wandb://artifacts/testing
+eval_db_uri: wandb://artifacts/object_use_db
 
 analyzer:
   analysis:

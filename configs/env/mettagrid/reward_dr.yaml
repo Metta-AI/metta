@@ -1,6 +1,6 @@
-
 defaults:
   - /env/mettagrid-base/simple@
+  - _self_
 
 game:
   agent:
@@ -23,73 +23,72 @@ game:
       blueprint: ${sampling:0, 1, 0.1}
       blueprint_max: ${sampling:1, 50, 10}
 
-
   groups:
-      group_1:
-        id: 1
-        sprite: 1
-        props:
-          rewards:
-            ore.red: ${sampling:0, 1, 0.1}
-            ore.red.max: ${sampling:1, 50, 10}
-            ore.blue: ${sampling:0, 1, 0.1}
-            ore.blue.max: ${sampling:1, 50, 10}
-            ore.green: ${sampling:0, 1, 0.1}
-            ore.green.max: ${sampling:1, 50, 10}
-            battery: ${sampling:0, 1, 0.1}
-            battery_max: ${sampling:1, 50, 10}
-            heart: ${sampling:0, 1, 0.1}
-            heart_max: ${sampling:1, 50, 10}
-            laser: ${sampling:0, 1, 0.1}
-            laser_max: ${sampling:1, 50, 10}
-            armor: ${sampling:0, 1, 0.1}
-            armor_max: ${sampling:1, 50, 10}
-            blueprint: ${sampling:0, 1, 0.1}
-            blueprint_max: ${sampling:1, 50, 10}
+    group_1:
+      id: 1
+      sprite: 1
+      props:
+        rewards:
+          ore.red: ${sampling:0, 1, 0.1}
+          ore.red.max: ${sampling:1, 50, 10}
+          ore.blue: ${sampling:0, 1, 0.1}
+          ore.blue.max: ${sampling:1, 50, 10}
+          ore.green: ${sampling:0, 1, 0.1}
+          ore.green.max: ${sampling:1, 50, 10}
+          battery: ${sampling:0, 1, 0.1}
+          battery_max: ${sampling:1, 50, 10}
+          heart: ${sampling:0, 1, 0.1}
+          heart_max: ${sampling:1, 50, 10}
+          laser: ${sampling:0, 1, 0.1}
+          laser_max: ${sampling:1, 50, 10}
+          armor: ${sampling:0, 1, 0.1}
+          armor_max: ${sampling:1, 50, 10}
+          blueprint: ${sampling:0, 1, 0.1}
+          blueprint_max: ${sampling:1, 50, 10}
 
-      group_2:
-        id: 2
-        sprite: 4
-        props:
-          rewards:
-            ore.red: ${sampling:0, 1, 0.1}
-            ore.red.max: ${sampling:1, 50, 10}
-            ore.blue: ${sampling:0, 1, 0.1}
-            ore.blue.max: ${sampling:1, 50, 10}
-            ore.green: ${sampling:0, 1, 0.1}
-            ore.green.max: ${sampling:1, 50, 10}
-            battery: ${sampling:0, 1, 0.1}
-            battery_max: ${sampling:1, 50, 10}
-            heart: ${sampling:0, 1, 0.1}
-            heart_max: ${sampling:1, 50, 10}
-            laser: ${sampling:0, 1, 0.1}
-            laser_max: ${sampling:1, 50, 10}
-            armor: ${sampling:0, 1, 0.1}
-            armor_max: ${sampling:1, 50, 10}
-            blueprint: ${sampling:0, 1, 0.1}
-            blueprint_max: ${sampling:1, 50, 10}
+    group_2:
+      id: 2
+      sprite: 4
+      props:
+        rewards:
+          ore.red: ${sampling:0, 1, 0.1}
+          ore.red.max: ${sampling:1, 50, 10}
+          ore.blue: ${sampling:0, 1, 0.1}
+          ore.blue.max: ${sampling:1, 50, 10}
+          ore.green: ${sampling:0, 1, 0.1}
+          ore.green.max: ${sampling:1, 50, 10}
+          battery: ${sampling:0, 1, 0.1}
+          battery_max: ${sampling:1, 50, 10}
+          heart: ${sampling:0, 1, 0.1}
+          heart_max: ${sampling:1, 50, 10}
+          laser: ${sampling:0, 1, 0.1}
+          laser_max: ${sampling:1, 50, 10}
+          armor: ${sampling:0, 1, 0.1}
+          armor_max: ${sampling:1, 50, 10}
+          blueprint: ${sampling:0, 1, 0.1}
+          blueprint_max: ${sampling:1, 50, 10}
 
-      group_3:
-        id: 3
-        sprite: 8
-        props:
-          rewards:
-            ore.red: ${sampling:0, 1, 0.1}
-            ore.red.max: ${sampling:1, 50, 10}
-            ore.blue: ${sampling:0, 1, 0.1}
-            ore.blue.max: ${sampling:1, 50, 10}
-            ore.green: ${sampling:0, 1, 0.1}
-            ore.green.max: ${sampling:1, 50, 10}
-            battery: ${sampling:0, 1, 0.1}
-            battery_max: ${sampling:1, 50, 10}
-            heart: ${sampling:0, 1, 0.1}
-            heart_max: ${sampling:1, 50, 10}
-            laser: ${sampling:0, 1, 0.1}
-            laser_max: ${sampling:1, 50, 10}
-            armor: ${sampling:0, 1, 0.1}
-            armor_max: ${sampling:1, 50, 10}
-            blueprint: ${sampling:0, 1, 0.1}
-            blueprint_max: ${sampling:1, 50, 10}
+    group_3:
+      id: 3
+      sprite: 8
+      props:
+        rewards:
+          ore.red: ${sampling:0, 1, 0.1}
+          ore.red.max: ${sampling:1, 50, 10}
+          ore.blue: ${sampling:0, 1, 0.1}
+          ore.blue.max: ${sampling:1, 50, 10}
+          ore.green: ${sampling:0, 1, 0.1}
+          ore.green.max: ${sampling:1, 50, 10}
+          battery: ${sampling:0, 1, 0.1}
+          battery_max: ${sampling:1, 50, 10}
+          heart: ${sampling:0, 1, 0.1}
+          heart_max: ${sampling:1, 50, 10}
+          laser: ${sampling:0, 1, 0.1}
+          laser_max: ${sampling:1, 50, 10}
+          armor: ${sampling:0, 1, 0.1}
+          armor_max: ${sampling:1, 50, 10}
+          blueprint: ${sampling:0, 1, 0.1}
+          blueprint_max: ${sampling:1, 50, 10}
 
   map_builder:
     room:

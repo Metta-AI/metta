@@ -17,8 +17,8 @@ effective_rank_interval: 300
 l2_init_weight_update_interval: 0
 
 components:
-#necessary source layers: _obs_, _core_
-#necessary output layers: _action_type_ and _value_ (and _action_param_ if MultiDiscrete)
+  #necessary source layers: _obs_, _core_
+  #necessary output layers: _action_type_ and _value_ (and _action_param_ if MultiDiscrete)
   _obs_:
     _target_: metta.agent.lib.obs_shaper.ObsShaper
     input_source: null

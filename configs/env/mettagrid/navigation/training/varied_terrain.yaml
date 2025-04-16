@@ -1,7 +1,9 @@
 # Config: Dense Obstacles & Sparse Altars
 defaults:
   - /env/mettagrid-base/mettagrid@
-sampling: 20
+  - _self_
+
+sampling: 1
 
 game:
   num_agents: 20
