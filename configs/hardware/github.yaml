@@ -27,7 +27,3 @@ trainer:
       max_steps: 2
   # Don't actually try to upload the replay.
   replay_dry_run: true
-
-wandb:
-  enabled: false
-  track: false
