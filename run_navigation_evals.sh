@@ -18,8 +18,15 @@ POLICIES=(
     # "b.georgedeane.terrain_newmaps"
     # "b.daphne.terrain_newmaps2"
     # "terrain_training_newmaps2"
+    "b.daphne.terrain_multienv_pretrained"
     "b.daphne.navigation_terrain_training_v2"
     "b.georgedeane.navigation_terrain_training_v2"
+    "terrain_training_multienv2"
+    "b.daphne.terrain_multienv_moremaps"
+    "terrain_training_multienv_newmaps"
+    "terrain_training_multienv"
+    "b.daphne.cylinder_run"
+    
 )
 
 
