@@ -19,14 +19,14 @@ class EvalStatsDB:
         self._db = duckdb.connect(database=":memory:")
         self._table_name = "eval_data"
         self._db.register(self._table_name, data)
-        self.available_metrics = self._query(all_fields())
+        self.available_metrics = self.query(all_fields())
         logger.info(f"Loaded {len(self.available_metrics)} metrics from {self._table_name}")
 
     @staticmethod
     def _flatten_data_into_records(data) -> List[dict]:
         return [record for env_data in data.values() for episode in env_data for record in episode]
 
-    def _query(self, sql_query: str) -> pd.DataFrame:
+    def query(self, sql_query: str) -> pd.DataFrame:
         try:
             result = self._db.execute(sql_query).fetchdf()
             return result
@@ -39,6 +39,7 @@ class EvalStatsDB:
         save_dir = run_dir.replace("analyze", "train").replace("eval", "train")
         uri = uri or os.path.join(save_dir, "eval_stats")
         if uri.startswith("wandb://"):
+            assert wandb_run is not None, f"wandb_run is required when loading from wandb. uri: {uri}"
             artifact_name = uri.split("/")[-1]
             return EvalStatsDbWandb(artifact_name, wandb_run)
         else:

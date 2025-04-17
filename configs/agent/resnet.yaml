@@ -1,5 +1,6 @@
 defaults:
-- simple
+  - simple
+  - _self_
 
 observation_encoder:
   _target_: metta.agent.resnet_encoder.IMPALAishCNN

@@ -873,7 +873,7 @@ def ssh_to_job(job_id_or_name, instance_only=False):
         else:
             # Retrieve container ID
             print(f"Finding container on {ip}...")
-            container_cmd = f"ssh -o StrictHostKeyChecking=no -t {ip} \"docker ps | grep 'mettaai/metta'\""
+            container_cmd = f"ssh -o StrictHostKeyChecking=no -t {ip} \"docker ps | grep 'metta'\""
             container_id_output = subprocess.check_output(container_cmd, shell=True).decode().strip()
 
             if container_id_output:
