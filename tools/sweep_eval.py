@@ -92,11 +92,11 @@ def main(cfg: OmegaConf) -> int:
         eval_time = time.time() - eval_start_time
 
         # Log evaluation stats
-        eval_stats_logger = EvalStatsLogger(cfg, eval._env_cfg, wandb_run)
+        eval_stats_logger = EvalStatsLogger(cfg, wandb_run)
         eval_stats_logger.log(stats)
 
         # Create eval stats database and analyze results
-        eval_stats_db = EvalStatsDB.from_uri(eval_stats_logger.json_path, cfg.run_dir, wandb_run)
+        eval_stats_db = EvalStatsDB.from_uri(cfg.eval_db_uri, cfg.run_dir, wandb_run)
 
         # Find the metric index in the analyzer metrics
         metric_idxs = [i for i, m in enumerate(cfg.analyzer.analysis.metrics) if fnmatch.fnmatch(cfg.metric, m.metric)]
