@@ -13,7 +13,9 @@ class ObjectRenderer:
         module_path = os.path.dirname(__file__)
         sprites_dir = os.path.join(module_path, "../assets/")
         sprite_sheet_path = os.path.join(sprites_dir, sprite_sheet)
-        assert os.path.exists(sprite_sheet_path), f"Sprite sheet {sprite_sheet_path} does not exist"
+        assert os.path.exists(sprite_sheet_path), (
+            f"Sprite sheet {sprite_sheet_path} does not exist"
+        )
         self.sprite_sheet = rl.LoadTexture(sprite_sheet_path.encode())
         self.tile_size = tile_size
 
@@ -21,17 +23,31 @@ class ObjectRenderer:
         return (0, 0)
 
     def render(self, obj, render_tile_size):
-        dest_rect = (obj["c"] * render_tile_size, obj["r"] * render_tile_size, render_tile_size, render_tile_size)
+        dest_rect = (
+            obj["c"] * render_tile_size,
+            obj["r"] * render_tile_size,
+            render_tile_size,
+            render_tile_size,
+        )
         tile_idx_x, tile_idx_y = self._sprite_sheet_idx(obj)
-        src_rect = (tile_idx_x * self.tile_size, tile_idx_y * self.tile_size, self.tile_size, self.tile_size)
+        src_rect = (
+            tile_idx_x * self.tile_size,
+            tile_idx_y * self.tile_size,
+            self.tile_size,
+            self.tile_size,
+        )
 
-        rl.DrawTexturePro(self.sprite_sheet, src_rect, dest_rect, (0, 0), 0, colors.WHITE)
+        rl.DrawTexturePro(
+            self.sprite_sheet, src_rect, dest_rect, (0, 0), 0, colors.WHITE
+        )
 
 
 class AgentRenderer(ObjectRenderer):
     def __init__(self, cfg: OmegaConf):
         super().__init__("monsters.png", 16)
-        self._cfgs = DictConfig({**{c.id: OmegaConf.merge(cfg.agent, c.props) for c in cfg.groups.values()}})
+        self._cfgs = DictConfig(
+            {**{c.id: OmegaConf.merge(cfg.agent, c.props) for c in cfg.groups.values()}}
+        )
         self.sprites = {c.id: c.sprite for c in cfg.groups.values()}
 
         self.obs_width = 11  # Assuming these values, adjust if necessary
@@ -56,7 +72,9 @@ class AgentRenderer(ObjectRenderer):
 
     def draw_hp_bar(self, obj, render_tile_size):
         x = obj["c"] * render_tile_size
-        y = obj["r"] * render_tile_size - 4  # 4 pixels above the agent, below energy bar
+        y = (
+            obj["r"] * render_tile_size - 4
+        )  # 4 pixels above the agent, below energy bar
         width = render_tile_size
         height = 3  # 3 pixels tall
 
@@ -154,9 +172,9 @@ class GeneratorRenderer(ConverterRenderer):
 class AltarRenderer(ConverterRenderer):
     def _sprite_sheet_idx(self, obj):
         return {
-            "empty": (11, 2),
+            "empty": (0, 6),  # Use (11, 2),to get heart.
             "converting": (10, 3),
-            "has_inventory": (12, 2),
+            "has_inventory": (1, 6),  # Use (12, 2) to get heart.
         }[self._state(obj)]
 
 
