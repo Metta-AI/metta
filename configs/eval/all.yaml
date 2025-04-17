@@ -91,5 +91,9 @@ evals:
   temple_use_free:
     env: env/mettagrid/object_use/evals/temple_use_free
     policy_agents_pct: 1.0
+  simple_npc_b.daveey.t.8.rdr9.3:
+    env: env/mettagrid-base/simple
+    policy_agents_pct: 0.5
+    npc_policy_uri: wandb://run/b.daveey.t.8.rdr9.3
 
 selector_type: latest
