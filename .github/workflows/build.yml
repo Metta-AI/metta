@@ -130,7 +130,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: set_but_not_used
         run: |
           source venv/bin/activate
-          python -m tools.replay +hardware=github policy_uri=$CHECKPOINT_PATH
+          python -m tools.replay +hardware=github
 
       - name: Debug on failure
         if: failure()
