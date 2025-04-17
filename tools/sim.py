@@ -25,8 +25,9 @@ def simulate_policy(cfg: DictConfig, wandb_run):
         for pr in policy_prs:
             logger.info(f"Evaluating policy {pr.uri}")
 
+            wandb_run_id = wandb_run and wandb_run.id
             eval = hydra.utils.instantiate(
-                cfg.eval, policy_store, pr, cfg.get("run_id", wandb_run.id), cfg_recursive_=False
+                cfg.eval, policy_store, pr, cfg.get("run_id", wandb_run_id), cfg_recursive_=False
             )
             simulate(eval, cfg, wandb_run)
             logger.info(f"Evaluation complete for policy {pr.uri}; logging stats")
@@ -37,7 +38,6 @@ def simulate_policies(cfg: DictConfig):
         for policy_uri in cfg.eval.policy_uris:
             cfg.eval.policy_uri = policy_uri
             simulate_policy(cfg, wandb_run)
-
 
 
 @hydra.main(version_base=None, config_path="../configs", config_name="eval")
