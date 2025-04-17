@@ -4,6 +4,7 @@ defaults:
   - override /agent: simple
   - override /eval: navigation
   - override /analyzer: eval_analyzer
+  - _self_
 
 trainer:
   env: /env/mettagrid/reward_dr
@@ -15,13 +16,10 @@ trainer:
   evaluate_interval: 50
   checkpoint_interval: 50
 
-
 env:
   semi_compact_obs: true
   game:
     max_steps: 2000
-
-
 
 policy_uri: wandb://run/b.daveey.t.64.dr90.1
 
@@ -47,7 +45,6 @@ eval:
     - "wandb://run/navigation_infinite_cooldown_sparser.r.0"
     - "wandb://run/navigation_poisson_sparser_pretrained.r.6"
     - "wandb://run/b.daveey.t.64.dr90.1"
-
 
 wandb:
   checkpoint_interval: 1
