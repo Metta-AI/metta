@@ -49,6 +49,5 @@ sim_job:
     - "wandb://run/navigation_poisson_sparser_pretrained.r.6"
     - "wandb://run/b.daveey.t.64.dr90.1"
 
-# WandB configuration
 wandb:
   checkpoint_interval: 1

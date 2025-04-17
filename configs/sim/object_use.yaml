@@ -1,5 +1,6 @@
 defaults:
   - sim
+  - _self_
 
 num_envs: 10
 num_episodes: 10

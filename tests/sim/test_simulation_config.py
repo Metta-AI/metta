@@ -129,3 +129,15 @@ def test_missing_device_always_errors():
     }
     with pytest.raises(TypeError):
         _build(cfg)
+
+def test_missing_suite_env_is_allowed():
+    cfg = {
+        "env": "",
+        "run_dir": RUN_DIR,
+        "device": DEVICE,
+        "simulations": {"sim": {
+            "env": CHILD_A,
+        }},
+    }
+    suite = _build(cfg)
+    assert suite.simulations["sim"].env == CHILD_A

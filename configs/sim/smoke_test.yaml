@@ -1,0 +1,14 @@
+# This is meant as a smoke test, rather than a full evaluation.
+
+defaults:
+  - _self_
+
+num_envs: 1
+num_episodes: 1
+
+evals:
+  emptyspace_withinsight:
+    env: env/mettagrid/navigation/evals/emptyspace_withinsight
+    policy_agents_pct: 1.0
+
+selector_type: latest

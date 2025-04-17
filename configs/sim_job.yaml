@@ -2,6 +2,7 @@ defaults:
   - common
   - wandb: metta_research
   - /sim/simple@sim_job.simulation_suite
+  - _self_
 
 cmd: sim
 run: ???

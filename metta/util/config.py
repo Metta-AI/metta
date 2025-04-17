@@ -246,6 +246,11 @@ def dictconfig_to_dataclass(
 # (unchanged)  AWS / wandb helpers                                            #
 # --------------------------------------------------------------------------- #
 def config_from_path(config_path: str, overrides: DictConfig = None) -> DictConfig:
+    if config_path is None:
+        # Handle the None case appropriately
+        # For example, return a default configuration or raise a more informative error
+        raise ValueError("Config path cannot be None")
+
     env_cfg = hydra.compose(config_name=config_path)
     if config_path.startswith("/"):
         config_path = config_path[1:]

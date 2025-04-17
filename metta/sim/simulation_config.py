@@ -1,9 +1,9 @@
 from dataclasses import dataclass
 from typing import Dict, Optional
 
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 
-from metta.util.config import dictconfig_to_dataclass, propagate_cfg
+from metta.util.config import propagate_cfg
 
 
 @dataclass(kw_only=True)
@@ -39,4 +39,6 @@ class SimulationSuiteConfig(SimulationConfig):
         """
         # parent mapping is cfg_dict itself; children mapping is cfg_dict["simulations"]
         propagate_cfg(cfg_dict, cfg_dict.get("simulations", {}), SimulationConfig)
+        if getattr(cfg_dict, "env", None) is None:
+            cfg_dict["env"] = ""  # Allow for empty env for the simulation suite
         return cfg_dict
