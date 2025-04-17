@@ -1,0 +1,15 @@
+defaults:
+  - common
+  - wandb: metta_research
+  - /sim/simple@replay_job.sim
+  - _self_
+
+cmd: play
+run: ???
+data_dir: ./train_dir
+run_dir: ${data_dir}/${run}
+torch_deterministic: true
+
+
+replay_job:
+  policy_uri: ${policy_uri}

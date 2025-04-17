@@ -2,10 +2,16 @@ defaults:
   - common
   - agent: simple
   - trainer: puffer
-  - eval: all
   - analyzer: eval_analyzer
   - wandb: metta_research
   - _self_
 
 seed: 1
 eval_db_uri: null
+
+train_job:
+  simulation_suite:
+    run_dir: ${run_dir}
+  policy_uris:
+    - ${policy_uri}
+  selector_type: latest

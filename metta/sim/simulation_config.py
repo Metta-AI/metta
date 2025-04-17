@@ -42,3 +42,4 @@ class SimulationSuiteConfig(SimulationConfig):
         if getattr(cfg_dict, "env", None) is None:
             cfg_dict["env"] = ""  # Allow for empty env for the simulation suite
         return cfg_dict
+

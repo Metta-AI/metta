@@ -10,12 +10,12 @@ import pufferlib.utils
 import torch
 import torch.distributed as dist
 import wandb
+from agent.metta_agent import DistributedMettaAgent
+from agent.policy_store import PolicyStore
 from fast_gae import fast_gae
 from heavyball import ForeachMuon
 from omegaconf import OmegaConf
 
-from agent.metta_agent import DistributedMettaAgent
-from agent.policy_store import PolicyStore
 from metta.rl.pufferlib.experience import Experience
 from metta.rl.pufferlib.kickstarter import Kickstarter
 from metta.rl.pufferlib.profile import Profile
@@ -23,6 +23,8 @@ from metta.rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
 from metta.sim.eval_stats_db import EvalStatsDB
 from metta.sim.eval_stats_logger import EvalStatsLogger
 from metta.sim.replay_helper import ReplayHelper
+from metta.sim.simulation import SimulationSuite
+from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.sim.vecenv import make_vecenv
 from metta.util.config import config_from_path
 
@@ -35,10 +37,13 @@ logger = logging.getLogger(f"trainer-{rank}-{local_rank}")
 
 
 class PufferTrainer:
-    def __init__(self, cfg: OmegaConf, wandb_run, policy_store: PolicyStore, **kwargs):
+    def __init__(
+        self, cfg: OmegaConf, wandb_run, policy_store: PolicyStore, sim_suite_config: SimulationSuiteConfig, **kwargs
+    ):
         self.cfg = cfg
         self.trainer_cfg = cfg.trainer
         self._env_cfg = config_from_path(self.trainer_cfg.env, self.trainer_cfg.env_overrides)
+        self.sim_suite_config = sim_suite_config
 
         self._master = True
         self._world_size = 1
@@ -58,7 +63,7 @@ class PufferTrainer:
         self.wandb_run = wandb_run
         self.policy_store = policy_store
         self.use_e3b = self.trainer_cfg.use_e3b
-        self.eval_stats_logger = EvalStatsLogger(cfg, wandb_run)
+        self.eval_stats_logger = EvalStatsLogger(self.sim_suite_config, wandb_run)
         self.average_reward = 0.0  # Initialize average reward estimate
         self._current_eval_score = None
         self._eval_results = []
@@ -136,7 +141,8 @@ class PufferTrainer:
         self.lr_scheduler = None
         if self.trainer_cfg.lr_scheduler.enabled:
             self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-                self.optimizer, T_max=self.trainer_cfg.total_timesteps // self.trainer_cfg.batch_size)
+                self.optimizer, T_max=self.trainer_cfg.total_timesteps // self.trainer_cfg.batch_size
+            )
 
         if checkpoint.agent_step > 0:
             self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
@@ -148,7 +154,7 @@ class PufferTrainer:
 
         self.kickstarter = Kickstarter(self.cfg, self.policy_store, self.vecenv.single_action_space)
 
-        self.replay_helper = ReplayHelper(cfg, self._env_cfg, self.last_pr, wandb_run)
+        self.replay_helper = ReplayHelper(self.eval_sim_config, self.last_pr, wandb_run)
 
         logger.info(f"PufferTrainer initialization complete on device: {self.device}")
 
@@ -207,22 +213,21 @@ class PufferTrainer:
         if not self._master:
             return
 
-        self.cfg.eval.policy_uri = self.last_pr.uri
         self.cfg.analyzer.policy_uri = self.last_pr.uri
 
         run_id = self.cfg.get("run_id")
         if run_id is None and self.wandb_run is not None:
             run_id = self.wandb_run.id
 
-        eval = hydra.utils.instantiate(self.cfg.eval, self.policy_store, self.last_pr, run_id, _recursive_=False)
-        stats = eval.simulate()
+        sim = SimulationSuite(self.sim_suite_config, self.policy_store, self.last_pr)
+        stats = sim.simulate()
 
         try:
             self.eval_stats_logger.log(stats)
         except Exception as e:
             logger.error(f"Error logging stats: {e}")
 
-        eval_stats_db = EvalStatsDB.from_uri(self.cfg.eval.eval_db_uri, self.cfg.run_dir, self.wandb_run)
+        eval_stats_db = EvalStatsDB.from_uri(self.sim_suite_config.eval_db_uri, self.cfg.run_dir, self.wandb_run)
         analyzer = hydra.utils.instantiate(self.cfg.analyzer, eval_stats_db)
         _, policy_fitness_records = analyzer.analyze()
         self._eval_results = policy_fitness_records

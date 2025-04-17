@@ -12,9 +12,7 @@ torch_deterministic: true
 
 sim_job:
   simulation_suite:
-    env: 
     run_dir: ${run_dir}
-    eval_db_uri: ${eval_db_uri}
   policy_uris:
     - ${policy_uri}
   selector_type: latest

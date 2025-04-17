@@ -11,6 +11,7 @@ data_dir: ./train_dir
 run_dir: ${data_dir}/${run}
 policy_uri: wandb://run/navigation_poisson_sparser.r.2
 trained_policy_uri: ${run_dir}/checkpoints
+# eval_db_uri: wandb://artifacts/eval_db_jack_testing_sim_config
 
 trainer:
   env: /env/mettagrid/reward_dr
@@ -39,7 +40,6 @@ sim_job:
   simulation_suite:
     num_episodes: 2
     num_envs: 2
-    eval_db_uri: wandb://artifacts/eval_db_jack_testing_sim_config
   policy_uris:
     - "wandb://run/b.daphne.navigation_varied_obstacle_shapes_pretrained.r.1"
     - "wandb://run/b.daphne.navigation_varied_obstacle_shapes.r.0"
@@ -51,3 +51,4 @@ sim_job:
 
 wandb:
   checkpoint_interval: 1
+

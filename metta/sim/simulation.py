@@ -18,7 +18,6 @@ logger = logging.getLogger(__name__)
 class Simulation:
     def __init__(
         self,
-        *,
         config: SimulationConfig,
         policy_pr: PolicyRecord,
         policy_store: PolicyStore,
@@ -72,11 +71,6 @@ class Simulation:
         self._completed_episodes = 0
         self._total_rewards = np.zeros(self._total_agents)
         self._agent_stats = [{} for a in range(self._total_agents)]
-
-        # Extract policy names
-        logger.info(f"Policy name: {self._policy_pr.name}")
-        if self._npc_pr is not None:
-            logger.info(f"NPC name: {self._npc_pr.name}")
 
         # Create mapping from metta.agent index to policy name
         self._agent_idx_to_policy_name = {}
@@ -172,7 +166,6 @@ class Simulation:
 class SimulationSuite:
     def __init__(
         self,
-        *,
         config: SimulationSuiteConfig,
         policy_pr: PolicyRecord,
         policy_store: PolicyStore,
@@ -188,3 +181,4 @@ class SimulationSuite:
     def simulate(self):
         # Run all simulations and gather results by name
         return {name: sim.simulate() for name, sim in self._simulations.items()}
+

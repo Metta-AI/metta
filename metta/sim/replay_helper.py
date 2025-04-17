@@ -6,9 +6,9 @@ import zlib
 
 import boto3
 import wandb
-from omegaconf import OmegaConf
 
 from metta.agent.policy_store import PolicyRecord
+from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulator import Simulator
 from metta.util.wandb.wandb_context import WandbContext
 
@@ -16,9 +16,8 @@ from metta.util.wandb.wandb_context import WandbContext
 class ReplayHelper:
     """Helper class for generating and uploading replays."""
 
-    def __init__(self, cfg: OmegaConf, env_cfg: OmegaConf, policy_record: PolicyRecord, wandb_run: WandbContext):
-        self.cfg = cfg
-        self.env_cfg = env_cfg
+    def __init__(self, config: SimulationConfig, policy_record: PolicyRecord, wandb_run: WandbContext):
+        self.config = config
         self.policy_record = policy_record
         self.wandb_run = wandb_run
 
@@ -36,7 +35,7 @@ class ReplayHelper:
 
     def generate_replay(self, replay_path: str):
         """Generate a replay and save it to a file."""
-        simulator = Simulator(self.cfg, self.env_cfg, self.policy_record)
+        simulator = Simulator(self.config, self.policy_record)
 
         grid_objects = []
 
