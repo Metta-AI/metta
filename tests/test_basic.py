@@ -48,7 +48,7 @@ def test_dependencies():
     mettagrid_modules = [
         "mettagrid.objects",
         "mettagrid.observation_encoder",
-        "mettagrid.actions.actions",
+        "mettagrid.actions.metta_action_handler",
         "mettagrid.actions.attack",
         "mettagrid.actions.move",
         "mettagrid.actions.noop",
