@@ -112,10 +112,11 @@ class ReplayHelper:
         link_summary = {"replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {epoch})</a>')}
         self.wandb_run.log(link_summary)
 
-    def generate_and_upload_replay(self, epoch: int):
+    def generate_and_upload_replay(self, epoch: int, dry_run: bool = False):
         """Generate a replay and upload it to S3 and log the link to WandB."""
         replay_path = f"{self.cfg.run_dir}/replays/replay.{epoch}.json.z"
         self.generate_replay(replay_path)
 
         replay_url = f"replays/{self.cfg.run}/replay.{epoch}.json.z"
-        self.upload_replay(replay_path, replay_url, epoch)
+        if not dry_run:
+            self.upload_replay(replay_path, replay_url, epoch)
