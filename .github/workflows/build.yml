@@ -5,24 +5,26 @@ concurrency:
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 30  # Prevent hung jobs from consuming resources
+    timeout-minutes: 10 # Prevent hung jobs from consuming resources
+    env:
+      CHECKPOINT_PATH: ./train_dir/github_test/checkpoints/
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.11.7'
+          python-version: "3.11.7"
 
       - name: Cache pip packages
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: cache-pip
         with:
           path: |
@@ -40,7 +42,7 @@ jobs:
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
       - name: Cache Git dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: cache-git-deps
         with:
           path: deps
@@ -61,7 +63,7 @@ jobs:
           pip list
 
       - name: Cache Ruff
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: cache-ruff
         with:
           path: ~/.cache/pip
@@ -73,7 +75,14 @@ jobs:
           pip install ruff==0.11.5
           ruff check --respect-gitignore .
 
-      - name: Run test training
+      - name: Run Pytest
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          source venv/bin/activate
+          pytest tests/ --maxfail=1 --disable-warnings -q
+
+      - name: Training smoke test
         id: training
         continue-on-error: false
         env:
@@ -85,23 +94,33 @@ jobs:
         run: |
           source venv/bin/activate
           python -m tools.train +hardware=github
+          # Verify the output path exists
+          ls -la $CHECKPOINT_PATH || echo "Warning: Checkpoint directory not created"
 
-      - name: Run Pytest
-        env:
-          PYTHONPATH: ${{ github.workspace }}
+      - name: Upload training output
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: train-output
+          path: train_dir/
+          retention-days: 1
+          if-no-files-found: error # This will fail the workflow if no files are found
+
+      - name: Download training output
+        if: success()
+        uses: actions/download-artifact@v4
+        with:
+          name: train-output
+          path: train_dir/
+
+      - name: Verify training artifacts
+        if: success()
         run: |
           source venv/bin/activate
-          pytest tests/ --maxfail=1 --disable-warnings -q
+          ls -la train_dir/
+          ls -la $CHECKPOINT_PATH || echo "Checkpoint directory not found!"
 
-      - name: Cache training output
-        if: success()
-        uses: actions/cache@v3
-        id: cache-train-output
-        with:
-          path: train_dir
-          key: ${{ runner.os }}-train-dir-${{ github.sha }}
-
-      - name: Run trace
+      - name: Replay smoke test
         if: success()
         env:
           HYDRA_FULL_ERROR: 1
@@ -111,4 +130,12 @@ jobs:
           AWS_SECRET_ACCESS_KEY: set_but_not_used
         run: |
           source venv/bin/activate
-          python -m tools.replay +hardware=github policy_uri=./train_dir/my_experiment/checkpoints/
+          python -m tools.replay +hardware=github policy_uri=$CHECKPOINT_PATH
+
+      - name: Debug on failure
+        if: failure()
+        run: |
+          source venv/bin/activate
+          echo "Listing the contents of the workspace:"
+          find train_dir -type f -name "*.py" | sort
+          find train_dir -type d | sort

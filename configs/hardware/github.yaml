@@ -1,6 +1,10 @@
 # @package __global__
 
-run: my_experiment
+defaults:
+  # Full fledged evaluation is heavier than we want for Github Actions.
+  - override /eval: smoke_test
+
+run: github_test
 device: cpu
 vectorization: serial
 
@@ -11,11 +15,18 @@ trainer:
   minibatch_size: 1024
   forward_pass_minibatch_target_size: 2
   async_factor: 1
-  checkpoint_interval: 10
+  checkpoint_interval: 1
   bptt_horizon: 8
   num_steps: 32
   total_timesteps: 2
-
+  evaluate_interval: 1
+  replay_interval: 1
+  env_overrides:
+    game:
+      # This impacts the replay size.
+      max_steps: 2
+  # Don't actually try to upload the replay.
+  replay_dry_run: true
 
 wandb:
   enabled: false
