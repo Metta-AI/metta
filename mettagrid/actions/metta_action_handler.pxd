@@ -1,4 +1,3 @@
-
 from libc.stdio cimport printf
 from libcpp.string cimport string
 from libcpp.map cimport map
@@ -30,4 +29,4 @@ cdef class MettaActionHandler(ActionHandler):
         self,
         unsigned int actor_id,
         Agent * actor,
-        ActionArg arg)
+        ActionArg arg) 

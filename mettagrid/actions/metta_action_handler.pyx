@@ -54,4 +54,4 @@ cdef class MettaActionHandler(ActionHandler):
         unsigned int actor_id,
         Agent * actor,
         ActionArg arg):
-        return False
+        return False 

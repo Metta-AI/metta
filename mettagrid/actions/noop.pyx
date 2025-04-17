@@ -3,7 +3,8 @@ from libc.stdio cimport printf
 from omegaconf import OmegaConf
 
 from mettagrid.action_handler cimport ActionArg
-from mettagrid.actions.actions cimport MettaActionHandler
+from mettagrid.actions.metta_action_handler cimport MettaActionHandler
+
 from mettagrid.objects.agent cimport Agent
 
 cdef class Noop(MettaActionHandler):
