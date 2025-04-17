@@ -1,44 +1,85 @@
 """
-Generate reports from policy evaluation metrics.
+High‑level report generator.
+
+At the moment we produce a single heat‑map, but the structure anticipates
+multiple chart types – simply append more HTML snippets to `graphs_html`.
 """
+
+from __future__ import annotations
 
 import logging
 import os
 import shutil
 import tempfile
+from typing import List
 
 import boto3
 from botocore.exceptions import NoCredentialsError
 from omegaconf import DictConfig
 
 from metta.eval.db import PolicyEvalDB
-from metta.eval.heatmap import create_matrix_visualization
+from metta.eval.heatmap import create_heatmap_html_snippet
 
 logger = logging.getLogger(__name__)
 
 
-def upload_to_s3(content: str, s3_path: str):
+# --------------------------------------------------------------------------- #
+# S3 util
+# --------------------------------------------------------------------------- #
+def _upload_to_s3(html: str, s3_path: str):
     if not s3_path.startswith("s3://"):
-        raise ValueError(f"Invalid S3 path: {s3_path}. Must start with s3://")
+        raise ValueError("S3 path must start with s3://")
 
-    s3_parts = s3_path[5:].split("/", 1)
-    if len(s3_parts) < 2:
-        raise ValueError(f"Invalid S3 path: {s3_path}. Must be in format s3://bucket/path")
-
-    bucket = s3_parts[0]
-    key = s3_parts[1]
-
+    bucket, key = s3_path[5:].split("/", 1)
     try:
-        s3_client = boto3.client("s3")
-        logger.info(f"Uploading content to S3 bucket {bucket}, key {key}")
-        s3_client.put_object(Body=content, Bucket=bucket, Key=key, ContentType="text/html")
-        logger.info(f"Successfully uploaded to {s3_path}")
+        boto3.client("s3").put_object(Body=html, Bucket=bucket, Key=key, ContentType="text/html")
     except NoCredentialsError as e:
-        logger.error("AWS credentials not found. Make sure AWS credentials are configured. Try running setup_sso.py.")
+        logger.error("AWS credentials not found; run setup_sso.py")
         raise e
-    except Exception as e:
-        logger.error(f"Error uploading to S3: {e}")
-        raise e
+
+
+# --------------------------------------------------------------------------- #
+# report generator
+# --------------------------------------------------------------------------- #
+_POPOVER_CSS = """
+.popover{
+  position:fixed;z-index:1000;background:#fff;border:1px solid #ddd;border-radius:5px;
+  padding:10px;box-shadow:0 2px 8px rgba(0,0,0,.3);pointer-events:none;opacity:0;
+  transition:opacity .2s;
+}
+.popover-title{font-weight:bold;text-align:center;margin-bottom:8px;border-bottom:1px solid #eee;padding-bottom:5px}
+.popover-img{max-width:100%;max-height:250px;display:block;margin:0 auto}
+"""
+
+_BODY_CSS = """
+body{
+  font-family:Arial, sans-serif;margin:0;padding:20px;background:#f8f9fa;
+}
+.container{
+  max-width:1200px;margin:0 auto;background:#fff;padding:20px;border-radius:5px;
+  box-shadow:0 2px 4px rgba(0,0,0,.1);
+}
+h1{color:#333;border-bottom:1px solid #ddd;padding-bottom:10px}
+"""
+
+
+def _assemble_page(title: str, graphs: List[str]) -> str:
+    graphs_html = "\n".join(graphs)
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>{title}</title>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <style>{_BODY_CSS}{_POPOVER_CSS}</style>
+</head>
+<body>
+  <div class="container">
+    <h1>{title}</h1>
+    {graphs_html}
+  </div>
+</body>
+</html>"""
 
 
 def generate_report_html(cfg: DictConfig) -> str:
@@ -48,118 +89,52 @@ def generate_report_html(cfg: DictConfig) -> str:
 
     tmp_dir = tempfile.mkdtemp()
     db_path = os.path.join(tmp_dir, "policy_metrics.sqlite")
-    logger.info(f"Using temporary database path: {db_path}")
+    logger.info("Working db path: %s", db_path)
 
     try:
-        # Initialize database and import data
-        logger.info(f"Initializing database at {db_path}")
         db = PolicyEvalDB(db_path)
         db.import_from_eval_stats(cfg)
 
-        # Generate report title with additional context for policy-specific views
-        title = f"Policy Evaluation Report: {metric}"
-
-        logger.info(f"Generating matrix visualization for metric: {metric} with view type: {view_type}")
-
-        matrix_data = db.get_matrix_data(metric, view_type=view_type, policy_uri=policy_uri)
-
-        if matrix_data.empty:
-            logger.warning(f"No data found for metric: {metric}")
+        matrix = db.get_matrix_data(metric, view_type=view_type, policy_uri=policy_uri)
+        if matrix.empty:
             return "<html><body><h1>No data available</h1></body></html>"
 
-        score_range = (0, 3)
-        RED = "rgb(235, 40, 40)"
-        YELLOW = "rgb(225, 210, 80)"
-        LIGHT_GREEN = "rgb(175, 230, 80)"
-        FULL_GREEN = "rgb(20, 230, 80)"
-        colorscale = [[0.0, RED], [0.5 / 3.0, RED], [2.2 / 3.0, YELLOW], [2.8 / 3.0, LIGHT_GREEN], [1.0, FULL_GREEN]]
 
-        # Create visualization with fixed score range and custom colorscale
-        fig = create_matrix_visualization(
-            matrix_data=matrix_data,
-            metric=metric,
-            colorscale=colorscale,
-            score_range=score_range,
+        # create heat‑map snippet
+        heatmap_html = create_heatmap_html_snippet(
+            matrix,
+            metric,
             height=600,
             width=900,
         )
 
-        view_type_description = ""
+        title = f"Policy Evaluation Report: {metric}"
         if view_type == "policy_versions" and policy_uri:
-            view_type_description = f" - All versions of {policy_uri}"
+            title += f" – All versions of {policy_uri}"
 
-        html_content = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>{title}{view_type_description}</title>
-            <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-            <style>
-                body {{
-                    font-family: Arial, sans-serif;
-                    margin: 0;
-                    padding: 20px;
-                    background-color: #f8f9fa;
-                }}
-                .container {{
-                    max-width: 1200px;
-                    margin: 0 auto;
-                    background-color: white;
-                    padding: 20px;
-                    border-radius: 5px;
-                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                }}
-                h1 {{
-                    color: #333;
-                    border-bottom: 1px solid #ddd;
-                    padding-bottom: 10px;
-                }}
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <h1>{title}{view_type_description}</h1>
-                <div id="heatmap"></div>
-            </div>
-            <script>
-                var figure = {fig.to_json()};
-                Plotly.newPlot('heatmap', figure.data, figure.layout);
-            </script>
-        </body>
-        </html>
-        """
+        return _assemble_page(title, [heatmap_html])
+
     finally:
-        # Clean up temporary directory if created
-        if os.path.exists(tmp_dir):
-            logger.info(f"Cleaning up temporary directory: {tmp_dir}")
-            shutil.rmtree(tmp_dir)
-
-    return html_content
+        shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
 def generate_report(cfg: DictConfig):
-    output_path = cfg.analyzer.output_path
-    view_type = cfg.analyzer.view_type
-    policy_uri = cfg.analyzer.policy_uri
-    # Generate the HTML report
     html_content = generate_report_html(cfg)
+    output_path = cfg.analyzer.output_path
 
-    # Add policy name to output path if we're doing a policy-specific report
-    if view_type == "policy_versions" and policy_uri:
-        # Extract policy name from URI if needed
-        policy_filename = policy_uri.split("/")[-1].replace(":", "_")
-        filename, ext = os.path.splitext(output_path)
-        output_path = f"{filename}_{policy_filename}{ext}"
+    # handle per‑policy filename tweak
+    if cfg.analyzer.view_type == "policy_versions" and cfg.analyzer.policy_uri:
+        base, ext = os.path.splitext(output_path)
+        safe_name = cfg.analyzer.policy_uri.split("/")[-1].replace(":", "_")
+        output_path = f"{base}_{safe_name}{ext}"
 
     if output_path.startswith("s3://"):
-        # Upload directly to S3
-        upload_to_s3(html_content, output_path)
-        logger.info(f"Report uploaded to {output_path}")
+        _upload_to_s3(html_content, output_path)
+        logger.info("Report uploaded to %s", output_path)
     else:
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        with open(output_path, "w") as f:
-            f.write(html_content)
-        logger.info(f"Report saved to {output_path}")
+        with open(output_path, "w") as fh:
+            fh.write(html_content)
+        logger.info("Report written to %s", output_path)
+
     return html_content, output_path
