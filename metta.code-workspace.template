@@ -1,3 +1,21 @@
+/*
+  # metta.code-workspace.template
+
+  VS Code does not support environment variable expansion (e.g. ${env:VAR})
+  inside .code-workspace files for paths, settings, or terminal profiles.
+
+  This file is a template that uses placeholder variables like $CONDA_PREFIX
+  and $USER, which can be substituted at runtime using the `envsubst` tool.
+
+  To generate a usable workspace file for your current environment, run:
+
+			conda activate metta
+      export WORKSPACE=$(pwd) && envsubst < metta.code-workspace.template > metta.code-workspace
+
+  This allows IntelliSense and other per-user settings to be correctly configured
+  without hardcoding machine-specific paths or secrets.
+*/
+
 {
 	"folders": [
 		{
@@ -115,27 +133,15 @@
 		},
 		"python.languageServer": "Pylance",
 		"python.analysis.typeCheckingMode": "basic",
-		/*
-			To persist your Conda env path for use in VSCode settings:
-
-			conda activate metta && \
-			LINE="export METTA_CONDA_PREFIX=\"$CONDA_PREFIX\"" && \
-			grep -qxF "$LINE" ~/.zshrc || \
-			printf "\n%s\n" "$LINE" >> ~/.zshrc && \
-			echo "✅ METTA_CONDA_PREFIX added to ~/.zshrc"
-
-		*/
 		"python.analysis.extraPaths": [
-			"${env:CONDA_PREFIX}/lib/python3.11/site-packages",
-			"${env:METTA_CONDA_PREFIX}/lib/python3.11/site-packages",
+			"$CONDA_PREFIX/lib/python3.11/site-packages",
 			"deps/**",
-			"${workspaceFolder}"
+			"$WORKSPACE"
 		],
 		"python.autoComplete.extraPaths": [
-			"${env:CONDA_PREFIX}/lib/python3.11/site-packages",
-			"${env:METTA_CONDA_PREFIX}/lib/python3.11/site-packages",
+			"$CONDA_PREFIX/lib/python3.11/site-packages",
 			"deps/**",
-			"${workspaceFolder}"
+			"$WORKSPACE"
 		],
 		"python.analysis.exclude": [
 			"**/pufferlib/**",
