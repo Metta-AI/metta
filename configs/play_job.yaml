@@ -8,6 +8,8 @@ cmd: play
 run: ???
 data_dir: ./train_dir
 run_dir: ${data_dir}/${run}
+eval_db_uri: null
+
 torch_deterministic: true
 
 
