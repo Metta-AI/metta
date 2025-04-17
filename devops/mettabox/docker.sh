@@ -48,6 +48,7 @@ test() {
             -v /mnt/wslg:/mnt/wslg \
             -v "$(pwd):/puffertank/docker" \
             -v /home/metta/data_dir:/workspace/metta/train_dir \
+            --env-file ~/.metta_env \
             -e DISPLAY \
             -e WAYLAND_DISPLAY \
             -e XDG_RUNTIME_DIR \

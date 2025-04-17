@@ -1,0 +1,31 @@
+# @package __global__
+
+defaults:
+  - /hardware: macbook
+  - override /agent: simple
+  - override /eval: simple
+  - _self_
+
+run: train5
+
+wandb:
+  entity: berekuk-personal
+
+policy_uri: wandb://run/${run}
+
+eval:
+  num_envs: 10
+  num_episodes: 16
+  max_time_s: 600
+  policy_uri: ${..policy_uri}
+  env: /env/mettagrid/school
+
+trainer:
+  env: /env/mettagrid/school
+  total_timesteps: 1000000
+
+  # env_overrides:
+  #   sampling: 0.7
+  #   game:
+  #     num_agents: 36
+  #     max_steps: 1000

@@ -1,26 +1,25 @@
 import logging
 import os
 import sys
-import hydra
 
-from agent.policy_store import PolicyStore
-from util.runtime_configuration import setup_metta_environment
+import hydra
+import torch.distributed as dist
 from omegaconf import OmegaConf
 from rich.logging import RichHandler
-from rl.wandb.wandb_context import WandbContext
-import torch.distributed as dist
-
 from torch.distributed.elastic.multiprocessing.errors import record
+
+from metta.agent.policy_store import PolicyStore
+from metta.util.config import setup_metta_environment
+from metta.util.runtime_configuration import setup_mettagrid_environment
+from metta.util.wandb.wandb_context import WandbContext
 
 # Configure rich colored logging
 logging.basicConfig(
-    level="INFO",
-    format="%(processName)s %(message)s",
-    datefmt="[%X]",
-    handlers=[RichHandler(rich_tracebacks=True)]
+    level="INFO", format="%(processName)s %(message)s", datefmt="[%X]", handlers=[RichHandler(rich_tracebacks=True)]
 )
 
 logger = logging.getLogger("train")
+
 
 def train(cfg, wandb_run):
     overrides_path = os.path.join(cfg.run_dir, "train_config_overrides.yaml")
@@ -43,30 +42,36 @@ def train(cfg, wandb_run):
     trainer.train()
     trainer.close()
 
+
 @record
 @hydra.main(config_path="../configs", config_name="train", version_base=None)
 def main(cfg: OmegaConf) -> int:
-    print("trainer started....")
-    logger.info(f"Training {cfg.run} on " +
-                f"{os.environ.get('NODE_INDEX', '0')}: " +
-                f"{os.environ.get('LOCAL_RANK', '0')} ({cfg.device})")
     setup_metta_environment(cfg)
+    setup_mettagrid_environment(cfg)
+
+    print("trainer started....")
+    logger.info(
+        f"Training {cfg.run} on "
+        + f"{os.environ.get('NODE_INDEX', '0')}: "
+        + f"{os.environ.get('LOCAL_RANK', '0')} ({cfg.device})"
+    )
 
     if "LOCAL_RANK" in os.environ and cfg.device.startswith("cuda"):
         logger.info(f"Initializing distributed training with {os.environ['LOCAL_RANK']} {cfg.device}")
         local_rank = int(os.environ["LOCAL_RANK"])
-        cfg.device = f'{cfg.device}:{local_rank}'
+        cfg.device = f"{cfg.device}:{local_rank}"
         dist.init_process_group(backend="nccl")
 
     logger.info(f"Training {cfg.run} on {cfg.device}")
     if os.environ.get("RANK", "0") == "0":
-        with WandbContext(cfg) as wandb_run:
+        with WandbContext(cfg, job_type="train") as wandb_run:
             train(cfg, wandb_run)
     else:
         train(cfg, None)
 
     if dist.is_initialized():
         dist.destroy_process_group()
+
 
 if __name__ == "__main__":
     sys.exit(main())

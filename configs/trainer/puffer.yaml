@@ -1,7 +1,8 @@
-_target_: rl.pufferlib.trainer.PufferTrainer
+_target_: metta.rl.pufferlib.trainer.PufferTrainer
 
 defaults:
   - trainer
+  - _self_
 
 resume: true
 use_e3b: false
@@ -12,7 +13,18 @@ clip_coef: 0.1
 ent_coef: 0.002
 gae_lambda: 0.9
 gamma: 0.97
-learning_rate: 0.0006
+
+optimizer:
+  type: adam
+  # type: muon
+  beta1: 0.9
+  beta2: 0.999
+  eps: 1e-12
+  learning_rate: 0.0004573146765703167
+
+lr_scheduler:
+  enabled: false
+
 max_grad_norm: 0.5
 vf_clip_coef: 0.1
 vf_coef: 0.5
@@ -22,13 +34,13 @@ l2_init_loss_coef: 0
 norm_adv: true
 clip_vloss: true
 target_kl: null
-anneal_lr: false
 
 zero_copy: true
 require_contiguous_env_ids: false
 verbose: true
 
 batch_size: 262144
+# minibatch_size: 32768
 minibatch_size: 4096
 bptt_horizon: 16
 update_epochs: 1

@@ -1,6 +1,6 @@
 num_workers: ???
 
-env: /env/mettagrid/simple
+env: /env/mettagrid-base/simple
 env_overrides: {}
 
 initial_policy:
@@ -17,9 +17,8 @@ glicko_scores_path: ${run_dir}/eval/glicko2
 evaluate_interval: 300
 checkpoint_interval: 60
 wandb_checkpoint_interval: 100
-
-trace_interval: 0
+replay_interval: ${trainer.evaluate_interval}
 
 # Average reward settings
-average_reward: false  # Set to true to use average reward optimization
-average_reward_alpha: 0.01  # Smoothing factor for 100k step average (ln(2)/100000)
+average_reward: false # Set to true to use average reward optimization
+average_reward_alpha: 0.01 # Smoothing factor for 100k step average (ln(2)/100000)

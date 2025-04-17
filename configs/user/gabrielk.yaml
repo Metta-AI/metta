@@ -6,6 +6,7 @@ defaults:
   - override /hardware: aws
   - override /env/mettagrid@env: simple
   - override /agent: resnet
+  - _self_
 
 # policy: file://.train_dir/gabrielk.local.train.simple/checkpoints/model_0000.pt
 # baselines: file://.train_dir/gabrielk.local.train.simple/checkpoints/model_0000.pt
@@ -13,8 +14,8 @@ defaults:
 # evaluator:
 #   policy:
 #     uri: ${...policy_uri}
-  # baselines:
-  #   uri: ${...baseline_uri}
+# baselines:
+#   uri: ${...baseline_uri}
 
 policy_uri: file://./train_dir/gabrielk.local.train.resnet/checkpoints/model_0000.pt
 baseline_uri: file://./train_dir/gabrielk.local.train.simple/checkpoints/model_0000.pt

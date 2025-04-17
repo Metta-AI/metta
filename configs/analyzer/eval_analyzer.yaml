@@ -1,17 +1,19 @@
-_target_: rl.eval.eval_stats_analyzer.EvalStatsAnalyzer
+_target_: metta.sim.eval_stats_analyzer.EvalStatsAnalyzer
 
 policy_uri: ???
 
-analysis:
+view_type: all
+output_path: /tmp/dashboard.html
+metric: episode_reward
 
+analysis:
   metric_patterns: null
 
   metrics:
-    - metric: "*.get"
+    - metric: episode_reward
 
   queries: null
 
-  baseline_policies:
-    - wandb://run/mettabox_cogeval_defaults_lowent_initialized0005 #best baseline on cogevals
+  baseline_policies: null
 
   log_all: true

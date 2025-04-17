@@ -1,11 +1,11 @@
 defaults:
   - common
   - agent: simple
-  - env/mettagrid@env: simple
   - trainer: puffer
-  - eval: eval_suite
-  - analyzer: train_analyzer
-  - wandb
+  - eval: all
+  - analyzer: eval_analyzer
+  - wandb: metta_research
+  - _self_
 
 cmd: eval
 eval_db_uri: null

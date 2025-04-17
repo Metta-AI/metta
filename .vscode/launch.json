@@ -26,7 +26,7 @@
             ],
         },
         {
-            "name": "Sweep: Eval",
+            "name": "Sweep: Simulation",
             "type": "debugpy",
             "request": "launch",
             "module": "tools.sweep_eval",
@@ -47,7 +47,8 @@
                 "data_dir=./train_dir/sweep/${sweep_name}/runs",
                 "dist_cfg_path=./train_dir/${env:USER}/dist_cfg.yaml",
             ],
-        }, {
+        },
+        {
             "name": "Play Metta",
             "type": "debugpy",
             "request": "launch",
@@ -62,11 +63,11 @@
             "name": "Evaluate",
             "type": "debugpy",
             "request": "launch",
-            "module": "tools.eval",
+            "module": "tools.sim",
             "args": [
                 "+user=${env:USER}",
                 "+hardware=macbook",
-                "cmd=eval",
+                "cmd=sim",
             ],
         },
         {
@@ -81,13 +82,13 @@
             ],
         },
         {
-            "name": "Trace",
+            "name": "Generate Replay",
             "type": "debugpy",
             "request": "launch",
-            "module": "tools.trace",
+            "module": "tools.replay",
             "args": [
                 "+user=${env:USER}",
-                "cmd=trace",
+                "+hardware=macbook",
             ],
         },
     ],
