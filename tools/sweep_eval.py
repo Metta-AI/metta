@@ -5,7 +5,7 @@ import logging
 import os
 import sys
 import time
-
+import pdb
 import hydra
 from omegaconf import DictConfig, OmegaConf
 from rich.logging import RichHandler
@@ -96,7 +96,7 @@ def main(cfg: OmegaConf) -> int:
         eval_stats_logger.log(stats)
 
         # Create eval stats database and analyze results
-        eval_stats_db = EvalStatsDB.from_uri(cfg.eval_db_uri, cfg.run_dir, wandb_run)
+        eval_stats_db = EvalStatsDB.from_uri(eval_stats_logger.json_path, cfg.run_dir, wandb_run)
 
         # Find the metric index in the analyzer metrics
         metric_idxs = [i for i, m in enumerate(cfg.analyzer.analysis.metrics) if fnmatch.fnmatch(cfg.metric, m.metric)]
@@ -111,6 +111,7 @@ def main(cfg: OmegaConf) -> int:
         # Analyze the evaluation results
         analyzer = hydra.utils.instantiate(cfg.analyzer, eval_stats_db)
         results, _ = analyzer.analyze()
+        pdb.set_trace()
 
         # Filter by policy name and sum up the mean values over evals
         filtered_results = results[sweep_metric_index][results[sweep_metric_index]["policy_name"] == policy_pr.name]
