@@ -99,7 +99,7 @@ class LayerBase(nn.Module):
     def update_l2_init_weight_copy(self):
         pass
 
-    def compute_effective_rank(self, delta: float = 0.01) -> dict:
+    def compute_weight_metrics(self, delta: float = 0.01) -> dict:
         pass
 
 
