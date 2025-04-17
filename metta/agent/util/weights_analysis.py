@@ -68,7 +68,7 @@ def analyze_weights(weights: torch.Tensor, delta: float = 0.01) -> dict:
         metrics.update({"svd_error": str(e), "avg_abs_weight": torch.abs(weights).mean().item()})
         try:
             metrics["condition_number"] = torch.linalg.cond(weights).item()
-        except:
+        except RuntimeError:
             metrics["condition_number"] = float("nan")
 
     return metrics
