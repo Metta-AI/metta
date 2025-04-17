@@ -1,16 +1,24 @@
 """
-Generate a self‑contained HTML *snippet* with an interactive policy‑evaluation
-heat‑map.  The snippet relies on two global resources that the caller (e.g.
-`report.py`) must include exactly once per page:
+Return an embeddable HTML snippet that shows a policy‑evaluation heat‑map.
 
+Features
+--------
+* Native Plotly hover box on every cell contains the evaluation‑map picture.
+* An extra pop‑over appears when you hover (or click) an x‑axis label.
+* The 'Overall' column is excluded from both image behaviours.
+* All IDs are namespaced; multiple snippets can coexist in the same page.
+
+External boiler‑plate (include once per page)
+---------------------------------------------
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-    <style> … the .popover styles shown in report.py … </style>
-
-Only one public helper is exposed:
-
-    create_heatmap_html_snippet(matrix: pd.DataFrame, metric: str, ...)
-
-It returns an HTML string ready to be embedded in a larger report.
+    <style>
+        .popover{position:fixed;z-index:1000;background:#fff;border:1px solid #ddd;
+                 border-radius:5px;padding:10px;box-shadow:0 2px 8px rgba(0,0,0,.3);
+                 pointer-events:none;opacity:0;transition:opacity .2s}
+        .popover-title{font-weight:bold;text-align:center;margin-bottom:8px;
+                       border-bottom:1px solid #eee;padding-bottom:5px}
+        .popover-img{max-width:100%;max-height:250px;display:block;margin:0 auto}
+    </style>
 """
 
 from __future__ import annotations
@@ -25,7 +33,7 @@ from plotly.utils import PlotlyJSONEncoder
 
 
 # --------------------------------------------------------------------------- #
-# internal helpers
+# helpers                                                                    #
 # --------------------------------------------------------------------------- #
 def _format_metric(metric: str) -> str:
     return metric.replace("_", " ").capitalize()
@@ -39,16 +47,18 @@ def _wandb_url(uri: str, entity: str = "metta-research", project: str = "metta")
     return f"https://wandb.ai/{entity}/{project}/runs/{uri}"
 
 
-def _build_plotly_figure(
+# --------------------------------------------------------------------------- #
+# core figure builder                                                         #
+# --------------------------------------------------------------------------- #
+def _build_figure(
     matrix: pd.DataFrame,
     metric: str,
-    colorscale: List[Tuple[float, str]],
-    score_range: Tuple[float, float],
     *,
+    colorscale,
+    score_range: Tuple[float, float],
     height: int,
     width: int,
 ) -> go.Figure:
-    # ----------------------------------------------- rows / columns / values
     eval_names: List[str] = matrix.columns.tolist()
     policy_rows: List[str] = (
         matrix.pop("policy_uri").tolist() if "policy_uri" in matrix.columns else matrix.index.tolist()
@@ -57,16 +67,33 @@ def _build_plotly_figure(
     z = [matrix.mean().tolist(), matrix.max().tolist()] + matrix.values.tolist()
     y_labels = ["Mean", "Max"] + policy_rows
 
+    # ---------------------------------------------------------------- images
+    img_base = "https://softmax-public.s3.amazonaws.com/policydash/evals/img"
+    img_map = {e: f"{img_base}/{e.lower()}.png" for e in eval_names}
+    img_map["Overall"] = ""  # no tooltip image
+
+    # customdata for each cell (same for every row of a given column)
+    customdata = [[img_map[ev] for ev in eval_names] for _ in y_labels]
+
+    # ---------------------------------------------------------------- chart
     fig = go.Figure(
         go.Heatmap(
             z=z,
+            customdata=customdata,
             x=eval_names,
             y=y_labels,
             colorscale=colorscale,
             zmin=score_range[0],
             zmax=score_range[1],
             colorbar=dict(title="Score"),
-            hovertemplate=("<b>Policy:</b> %{y}<br><b>Evaluation:</b> %{x}<br><b>Score:</b> %{z:.2f}<extra></extra>"),
+            hovertemplate=(
+                "<b>Policy:</b> %{y}"
+                "<br><b>Evaluation:</b> %{x}"
+                "<br><b>Score:</b> %{z:.2f}"
+                "<br><img src='%{customdata}' "
+                "style='width:140px; margin-top:6px;'>"
+                "<extra></extra>"
+            ),
         )
     )
 
@@ -82,9 +109,10 @@ def _build_plotly_figure(
         margin=dict(l=50, r=50, t=50, b=100),
         plot_bgcolor="white",
         showlegend=False,
+        meta=dict(eval_image_map=img_map),
     )
 
-    # draw dashed box around aggregates
+    # dashed rectangle around aggregates
     fig.add_shape(
         type="rect",
         x0=-0.5,
@@ -95,16 +123,11 @@ def _build_plotly_figure(
         fillcolor="rgba(0,0,0,0)",
         layer="above",
     )
-
-    # store eval‑>image map in meta
-    img_base = "https://softmax-public.s3.amazonaws.com/policydash/evals/img"
-    fig.update_layout(meta=dict(eval_image_map={e: f"{img_base}/{e.lower()}.png" for e in eval_names}))
-
     return fig
 
 
 # --------------------------------------------------------------------------- #
-# public API
+# public API                                                                  #
 # --------------------------------------------------------------------------- #
 def create_heatmap_html_snippet(
     matrix: pd.DataFrame,
@@ -114,11 +137,9 @@ def create_heatmap_html_snippet(
     width: int = 900,
 ) -> str:
     """
-    Return an HTML fragment (``<div>…</div><script>…</script>``) that renders
-    an interactive heat‑map with image tool‑tips.
+    Return an HTML fragment containing the heat‑map `<div>` plus scoped JS.
 
-    The caller is responsible for injecting Plotly’s JS bundle and the shared
-    `.popover` CSS *once* per page.
+    Caller must embed Plotly + the `.popover` CSS (shown in module docstring).
     """
     if matrix.empty:
         return "<p>No data available</p>"
@@ -134,69 +155,68 @@ def create_heatmap_html_snippet(
         [1.0, "rgb(20, 230, 80)"],
     ]
 
-    fig = _build_plotly_figure(
-        matrix,
-        metric,
-        colorscale=colorscale,
-        score_range=score_range,
-        height=height,
-        width=width,
-    )
-
-    uid = f"heatmap_{uuid.uuid4().hex[:8]}"
-    p_id = f"popover_{uid}"
-    t_id = f"popover_title_{uid}"
-    i_id = f"popover_img_{uid}"
-
+    fig = _build_figure(matrix, metric, colorscale=colorscale, score_range=score_range, height=height, width=width)
+    uid = f"heat_{uuid.uuid4().hex[:8]}"
+    pop_id = f"{uid}_pop"
+    tit_id = f"{uid}_title"
+    img_id = f"{uid}_img"
     fig_json = json.dumps(fig, cls=PlotlyJSONEncoder)
 
-    # ---- HTML fragment ----------------------------------------------------
+    # ---------------------------------------------------------------- HTML
     return f"""
 <div class="heatmap-wrapper">
   <div id="{uid}"></div>
-  <div class="popover" id="{p_id}">
-      <div class="popover-title" id="{t_id}"></div>
-      <img class="popover-img" id="{i_id}" alt="Evaluation map">
+  <div class="popover" id="{pop_id}">
+      <div class="popover-title" id="{tit_id}"></div>
+      <img class="popover-img" id="{img_id}" alt="Evaluation map">
   </div>
 </div>
 
 <script>
 (function() {{
-  const fig      = {fig_json};
-  const el       = document.getElementById("{uid}");
-  const pop      = document.getElementById("{p_id}");
-  const popTitle = document.getElementById("{t_id}");
-  const popImg   = document.getElementById("{i_id}");
-  const imgMap   = fig.layout.meta.eval_image_map;
+  const fig   = {fig_json};
+  const el    = document.getElementById("{uid}");
+  const pop   = document.getElementById("{pop_id}");
+  const pT    = document.getElementById("{tit_id}");
+  const pImg  = document.getElementById("{img_id}");
+  const imgs  = fig.layout.meta.eval_image_map;
 
   let lastMouse = {{clientX:0, clientY:0}};
   window.addEventListener("mousemove", e => (lastMouse = e));
 
-  Plotly.newPlot(el, fig.data, fig.layout).then(() => attachHover());
+  Plotly.newPlot(el, fig.data, fig.layout).then(() => attachAxisHover());
 
-  function attachHover() {{
-    Plotly.d3.selectAll(el.querySelectorAll(".xtick text"))
-      .on("mouseenter", function(_, i) {{
-          const name = this.textContent.trim();
-          show(name, d3.event);
-      }})
-      .on("mouseleave", hide);
-
-    el.on("plotly_hover", d => {{
-      if (!d.points?.length) return;
-      show(d.points[0].x, d.event || lastMouse);
+  /* ------------------------------------------------ axis‑label hover ----- */
+  function attachAxisHover() {{
+    const ticks = el.querySelectorAll(".xtick text");
+    ticks.forEach((tick, i) => {{
+        const evalName = fig.data[0].x[i];
+        if (evalName === "Overall") return;       // skip
+        tick.style.cursor = "pointer";
+        tick.onmouseenter = ev => show(evalName, ev);
+        tick.onmouseleave = hide;
+        tick.onclick      = ev => show(evalName, ev);
     }});
-    el.on("plotly_unhover", hide);
   }}
 
-  function show(name, ev) {{
-    const img = imgMap[name] || "";
-    popTitle.textContent = name;
-    popImg.src = img;
-    popImg.style.display = img ? "block" : "none";
+  /* ------------------------------------------------ cell hover ----------- */
+  el.on("plotly_hover", d => {{
+      if (!d.points?.length) return;
+      const evalName = d.points[0].x;
+      if (evalName === "Overall") return;
+      show(evalName, d.event || lastMouse);
+  }});
+  el.on("plotly_unhover", hide);
 
-    const x = Math.min(ev.clientX + 15, innerWidth  - pop.offsetWidth  - 10);
-    const y = Math.min(ev.clientY + 15, innerHeight - pop.offsetHeight - 10);
+  /* ------------------------------------------------ helpers -------------- */
+  function show(name, ev) {{
+    const url = imgs[name] || "";
+    pT.textContent = name;
+    pImg.src       = url;
+    pImg.style.display = url ? "block" : "none";
+
+    const x = Math.min(ev.clientX+15, innerWidth  - pop.offsetWidth  - 10);
+    const y = Math.min(ev.clientY+15, innerHeight - pop.offsetHeight - 10);
     pop.style.left = x + "px";
     pop.style.top  = y + "px";
     pop.style.opacity = "1";
