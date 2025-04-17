@@ -2,7 +2,7 @@ from libc.stdio cimport printf
 
 from omegaconf import OmegaConf
 
-from mettagrid.action cimport ActionArg
+from mettagrid.action_handler cimport ActionArg
 from mettagrid.actions.attack cimport Attack
 from mettagrid.grid_object cimport GridLocation, Orientation
 from mettagrid.objects.agent cimport Agent, InventoryItem

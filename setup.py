@@ -21,7 +21,7 @@ def build_ext(srcs, module_name=None):
 
 
 ext_modules = [
-    build_ext(["mettagrid/action.pyx"]),
+    build_ext(["mettagrid/action_handler.pyx"]),
     build_ext(["mettagrid/event.pyx"]),
     build_ext(["mettagrid/grid.cpp"]),
     build_ext(["mettagrid/grid_env.pyx"]),

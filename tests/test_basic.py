@@ -54,7 +54,7 @@ def test_dependencies():
         "mettagrid.actions.noop",
         "mettagrid.actions.rotate",
         "mettagrid.actions.swap",
-        "mettagrid.action",
+        "mettagrid.action_handler",
         "mettagrid.event",
         "mettagrid.grid_env",
         "mettagrid.grid_object",

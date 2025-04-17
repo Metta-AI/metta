@@ -4,10 +4,9 @@ from libc.stdio cimport printf
 from omegaconf import OmegaConf
 
 from mettagrid.grid_object cimport GridLocation, Orientation
-from mettagrid.action cimport ActionArg
+from mettagrid.action_handler cimport ActionArg
 from mettagrid.objects.agent cimport Agent
 from mettagrid.grid_object cimport GridLocation, GridObjectId, Orientation, GridObject
-from mettagrid.action cimport ActionHandler, ActionArg
 from mettagrid.actions.actions cimport MettaActionHandler
 from mettagrid.objects.metta_object cimport MettaObject
 from mettagrid.objects.constants cimport GridLayer

@@ -3,7 +3,7 @@ import numpy as np
 
 from libcpp.string cimport string
 from libcpp.vector cimport vector
-from mettagrid.action cimport ActionHandler, Action
+from mettagrid.action_handler cimport ActionHandler
 from mettagrid.event cimport EventManager
 from mettagrid.grid_object cimport GridObjectId, GridObject
 from mettagrid.grid cimport Grid

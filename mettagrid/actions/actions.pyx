@@ -3,7 +3,7 @@ from libcpp.string cimport string
 
 from omegaconf import OmegaConf
 
-from mettagrid.action cimport ActionHandler, ActionArg
+from mettagrid.action_handler cimport ActionHandler, ActionArg
 from mettagrid.grid_object cimport GridObjectId
 from mettagrid.objects.agent cimport Agent
 from mettagrid.objects.constants cimport ObjectTypeNames
