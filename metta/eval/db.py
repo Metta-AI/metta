@@ -224,8 +224,8 @@ class PolicyEvalDB:
                 # Insert with conflict handling since unique constraint exists
                 logger.info(f"Batch inserting {len(results_to_insert)} evaluation results")
                 self.conn.executemany(
-                    """INSERT OR IGNORE INTO policy_evaluations 
-                    (policy_uri, policy_version, evaluation_name, metric, mean, stdev) 
+                    """INSERT OR IGNORE INTO policy_evaluations
+                    (policy_uri, policy_version, evaluation_name, metric, mean, stdev)
                     VALUES (?, ?, ?, ?, ?, ?)""",
                     results_to_insert,
                 )
@@ -272,9 +272,9 @@ class PolicyEvalDB:
                 FROM policies
                 GROUP BY uri
             )
-            SELECT 
+            SELECT
                 p.uri || ':' || p.version as policy_uri,
-                pe.evaluation_name, 
+                pe.evaluation_name,
                 pe.mean as value
             FROM policy_evaluations pe
             JOIN policies p ON pe.policy_uri = p.uri AND pe.policy_version = p.version
@@ -285,9 +285,9 @@ class PolicyEvalDB:
         elif view_type == "policy_versions" and policy_uri:
             # Get all versions of a specific policy
             sql = """
-            SELECT 
+            SELECT
                 p.uri || ':' || p.version as policy_uri,
-                pe.evaluation_name, 
+                pe.evaluation_name,
                 pe.mean as value
             FROM policy_evaluations pe
             JOIN policies p ON pe.policy_uri = p.uri AND pe.policy_version = p.version
@@ -297,9 +297,9 @@ class PolicyEvalDB:
         elif view_type == "chronological":
             # All policies and versions, sorted by creation date
             sql = """
-            SELECT 
+            SELECT
                 p.uri || ':' || p.version as policy_uri,
-                pe.evaluation_name, 
+                pe.evaluation_name,
                 pe.mean as value
             FROM policy_evaluations pe
             JOIN policies p ON pe.policy_uri = p.uri AND pe.policy_version = p.version
@@ -310,9 +310,9 @@ class PolicyEvalDB:
         else:  # "all" or default
             # Get all versions of all policies
             sql = """
-            SELECT 
+            SELECT
                 p.uri || ':' || p.version as policy_uri,
-                pe.evaluation_name, 
+                pe.evaluation_name,
                 pe.mean as value
             FROM policy_evaluations pe
             JOIN policies p ON pe.policy_uri = p.uri AND pe.policy_version = p.version
