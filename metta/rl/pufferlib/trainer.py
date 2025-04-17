@@ -62,7 +62,7 @@ class PufferTrainer:
         self.average_reward = 0.0  # Initialize average reward estimate
         self._current_eval_score = None
         self._eval_results = []
-        self._effective_rank = []
+        self._weight_metrics = []
         self._make_vecenv()
 
         logger.info("Loading checkpoint")
@@ -179,8 +179,11 @@ class PufferTrainer:
                 self._checkpoint_trainer()
             if self.trainer_cfg.evaluate_interval != 0 and self.epoch % self.trainer_cfg.evaluate_interval == 0:
                 self._evaluate_policy()
-            if self.cfg.agent.effective_rank_interval != 0 and self.epoch % self.cfg.agent.effective_rank_interval == 0:
-                self._effective_rank = self.policy.compute_effective_rank()
+            if (
+                self.cfg.agent.analyze_weights_interval != 0
+                and self.epoch % self.cfg.agent.analyze_weights_interval == 0
+            ):
+                self._weight_metrics = self.policy.compute_weight_metrics()
             if self.epoch % self.trainer_cfg.wandb_checkpoint_interval == 0:
                 self._save_policy_to_wandb()
             if (
@@ -588,16 +591,13 @@ class PufferTrainer:
             if "object_use" in r["eval"]
         }
 
-        effective_rank_all_metrics = {}
-        for rank in self._effective_rank:
-            # Get the name to use as the identifier
-            name = rank.get("name", "unknown")
-            # For each key in the rank dictionary (except "name")
-            for key, value in rank.items():
-                if key != "name":  # Skip the name since we're using it as identifier
-                    # Create a wandb log key with the format: train/{metric_name}/{layer_name}
+        weight_metrics = {}  # Better name - these are just weight metrics from various components
+        for metrics in self._weight_metrics:
+            name = metrics.get("name", "unknown")
+            for key, value in metrics.items():
+                if key != "name":
                     metric_key = f"train/{key}/{name}"
-                    effective_rank_all_metrics[metric_key] = value
+                    weight_metrics[metric_key] = value
 
         if self.wandb_run and self.cfg.wandb.track and self._master:
             self.wandb_run.log(
@@ -607,7 +607,7 @@ class PufferTrainer:
                     **{f"performance/{k}": v for k, v in performance.items()},
                     **environment,
                     **policy_fitness_metrics,
-                    **effective_rank_all_metrics,
+                    **weight_metrics,
                     **navigation_eval_metrics,
                     **object_use_eval_metrics,
                     "train/agent_step": agent_steps,
@@ -618,7 +618,7 @@ class PufferTrainer:
             )
 
         self._eval_results = []
-        self._effective_rank = []
+        self._weight_metrics = []
         self.stats.clear()
 
     def close(self):
