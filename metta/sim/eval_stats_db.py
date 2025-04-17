@@ -39,6 +39,7 @@ class EvalStatsDB:
         save_dir = run_dir.replace("analyze", "train").replace("eval", "train")
         uri = uri or os.path.join(save_dir, "eval_stats")
         if uri.startswith("wandb://"):
+            assert wandb_run is not None, f"wandb_run is required when loading from wandb. uri: {uri}"
             artifact_name = uri.split("/")[-1]
             return EvalStatsDbWandb(artifact_name, wandb_run)
         else:

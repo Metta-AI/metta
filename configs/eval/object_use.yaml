@@ -2,6 +2,7 @@ _target_: metta.sim.simulation.SimulationSuite
 
 defaults:
   - eval
+  - _self_
 
 env: null #the env is set in evals:
 
@@ -48,6 +49,5 @@ evals:
   temple_use_free:
     env: env/mettagrid/object_use/evals/temple_use_free
     policy_agents_pct: 1.0
-
 
 selector_type: latest
