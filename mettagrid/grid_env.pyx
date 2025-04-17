@@ -5,8 +5,7 @@ import numpy as np
 cimport numpy as cnp
 import gymnasium as gym
 
-from mettagrid.action cimport ActionArg, ActionHandler
-from mettagrid.event cimport EventManager, EventHandler
+from mettagrid.action_handler cimport ActionArg, ActionHandler
 from mettagrid.grid cimport Grid
 from mettagrid.grid_object cimport (
     GridObject,

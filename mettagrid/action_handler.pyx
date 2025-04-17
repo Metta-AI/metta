@@ -1,4 +1,4 @@
-from mettagrid.action cimport ActionArg
+from mettagrid.action_handler cimport ActionArg
 from mettagrid.grid_env cimport GridEnv
 from mettagrid.grid_object cimport GridObjectId
 

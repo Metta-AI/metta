@@ -2,7 +2,7 @@
 from omegaconf import OmegaConf
 
 from mettagrid.grid_object cimport GridLocation, Orientation
-from mettagrid.action cimport ActionArg
+from mettagrid.action_handler cimport ActionArg
 from mettagrid.objects.agent cimport Agent
 from mettagrid.objects.metta_object cimport MettaObject
 from mettagrid.objects.constants cimport Events, GridLayer, InventoryItem, InventoryItemNames
