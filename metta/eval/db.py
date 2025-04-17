@@ -170,7 +170,7 @@ class PolicyEvalDB:
             eval_stats_db = EvalStatsDB.from_uri(cfg.eval.eval_db_uri, cfg.run_dir, wandb_run)
 
         analyzer = hydra.utils.instantiate(cfg.analyzer, eval_stats_db)
-        dfs, _ = analyzer.analyze(include_policy_fitness=False)
+        dfs, _ = analyzer.analyze(include_policy_fitness=True)
         metric_to_df = self._construct_metric_to_df_map(cfg, dfs)
 
         # Track policies and evaluation metrics we've already created
