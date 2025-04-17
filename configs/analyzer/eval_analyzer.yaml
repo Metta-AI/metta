@@ -1,6 +1,6 @@
 _target_: metta.sim.eval_stats_analyzer.EvalStatsAnalyzer
 
-policy_uri: ???
+policy_uri: ${..policy_uri}
 
 view_type: all
 output_path: /tmp/dashboard.html

@@ -24,7 +24,7 @@ eval:
 
 run_id: 1
 run: ${oc.env:USER}.local.${run_id}
-trained_policy_uri: ${run_dir}/checkpoints
+trained_policy_uri: file://${run_dir}/checkpoints
 
 sweep_params: "sweep/fast"
 sweep_name: "${oc.env:USER}.local.sweep.${run_id}"
