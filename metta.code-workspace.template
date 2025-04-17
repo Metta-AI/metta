@@ -1,21 +1,3 @@
-/*
-  # metta.code-workspace.template
-
-  VS Code does not support environment variable expansion (e.g. ${env:VAR})
-  inside .code-workspace files for paths, settings, or terminal profiles.
-
-  This file is a template that uses placeholder variables like $CONDA_PREFIX
-  and $USER, which can be substituted at runtime using the `envsubst` tool.
-
-  To generate a usable workspace file for your current environment, run:
-
-			conda activate metta
-      export WORKSPACE=$(pwd) && envsubst < metta.code-workspace.template > metta.code-workspace
-
-  This allows IntelliSense and other per-user settings to be correctly configured
-  without hardcoding machine-specific paths or secrets.
-*/
-
 {
 	"folders": [
 		{
@@ -131,24 +113,29 @@
 			"*.pxd": "cython",
 			"print": "cpp"
 		},
-		"python.languageServer": "Pylance",
-		"python.analysis.typeCheckingMode": "basic",
+
+		// IntelliSense may not automatically resolve packages from your Conda environment.
+		// To fix this, first activate the environment and then create a symlink to your
+		// environment's site-packages directory somewhere where we can find it at an
+		// absolute path.
+		//
+		// run:
+		//     conda activate metta
+		//     ln -s "$CONDA_PREFIX/lib/python3.11/site-packages" /var/tmp/metta/conda-site-packages
+		//
+		// Then ensure "/var/tmp/metta/conda-site-packages" is included in the extraPaths lists below.
+
 		"python.analysis.extraPaths": [
-			"$CONDA_PREFIX/lib/python3.11/site-packages",
-			"deps/**",
-			"$WORKSPACE"
+			"/var/tmp/metta/conda-site-packages"
 		],
 		"python.autoComplete.extraPaths": [
-			"$CONDA_PREFIX/lib/python3.11/site-packages",
-			"deps/**",
-			"$WORKSPACE"
+			"/var/tmp/metta/conda-site-packages"
 		],
 		"python.analysis.exclude": [
-			"**/pufferlib/**",
+			"**/deps/pufferlib/**"
 		],
 		"python.analysis.ignore": [
-			"**/pufferlib/**",
-			"${workspaceFolder:pufferlib}/**",
+			"**/deps/pufferlib/**"
 		],
 		"files.watcherExclude": {},
 		"files.exclude": {
@@ -236,21 +223,19 @@
 			"mettagrid",
 			"minibatch",
 			"minibatches",
-			"ndarray",
 			"pufferlib",
-			"Pylance",
 			"pytest",
 			"PYTHONPATH",
 			"raylib",
 			"relu",
-			"stacksize",
 			"tensordict",
 			"timestep",
 			"timesteps",
 			"truncateds",
 			"vecenv",
 			"venv",
-			"vloss"
+			"vloss",
+			"wandb"
 		]
 	}
 }
