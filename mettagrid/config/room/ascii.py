@@ -13,8 +13,9 @@ SYMBOLS = {
     "W": "wall",
     " ": "empty",
     "b": "block",
-    "L": "lasery"
+    "L": "lasery",
 }
+
 
 class Ascii(Room):
     def __init__(self, uri: str, border_width: int = 0, border_object: str = "wall"):

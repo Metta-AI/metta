@@ -10,9 +10,17 @@ from mettagrid.config.room.utils import bresenham_line, create_grid
 
 class RadialMaze(Room):
     """A radial maze with a central starting position."""
-    def __init__(self, width: int, height: int, radial_params: DictConfig,
-                 seed: Union[int, None] = None, border_width: int = 1,
-                 border_object: str = "wall", onlyhearts: bool = False):
+
+    def __init__(
+        self,
+        width: int,
+        height: int,
+        radial_params: DictConfig,
+        seed: Union[int, None] = None,
+        border_width: int = 1,
+        border_object: str = "wall",
+        onlyhearts: bool = False,
+    ):
         super().__init__(border_width=border_width, border_object=border_object)
         self._width, self._height = width, height
         self._radial_params = radial_params

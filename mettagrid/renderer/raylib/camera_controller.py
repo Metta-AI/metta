@@ -2,7 +2,8 @@ import math
 
 from raylib import rl
 
-_SIN_45 = 2 ** 0.5 / 2
+_SIN_45 = 2**0.5 / 2
+
 
 class CameraController:
     def __init__(self, camera):
@@ -38,16 +39,15 @@ class CameraController:
         mouse_world_x, mouse_world_y = self.get_world_mouse_position()
 
         if scroll != 0:
-            self.camera.zoom *=  math.exp(scroll * self.zoom_speed * delta_time)
+            self.camera.zoom *= math.exp(scroll * self.zoom_speed * delta_time)
             self.camera.zoom = clamp(self.camera.zoom, self.zoom_lower_bound, self.zoom_upper_bound)
 
         new_mouse_x, new_mouse_y = self.get_world_mouse_position()
-        self.camera.target.x += (mouse_world_x - new_mouse_x)
-        self.camera.target.y += (mouse_world_y - new_mouse_y)
+        self.camera.target.x += mouse_world_x - new_mouse_x
+        self.camera.target.y += mouse_world_y - new_mouse_y
 
         self.camera.offset.x = viewport_width / 2.0
         self.camera.offset.y = viewport_height / 2.0
-
 
     def get_world_mouse_position(self) -> tuple[float, float]:
         screen_pos = rl.GetMousePosition()

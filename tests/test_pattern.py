@@ -143,9 +143,7 @@ class TestPatternsWithCounts:
         |##|
         |##|
         """
-        patterns = ascii_to_patterns_with_counts(
-            source, 2, periodic=False, symmetry="none"
-        )
+        patterns = ascii_to_patterns_with_counts(source, 2, periodic=False, symmetry="none")
 
         print(patterns)
         # There should be 1 pattern (only one 2x2 pattern in a 2x2 source)
@@ -160,16 +158,12 @@ class TestPatternsWithCounts:
         |##|
         |##|
         """
-        patterns = ascii_to_patterns_with_counts(
-            source, 2, periodic=True, symmetry="none"
-        )
+        patterns = ascii_to_patterns_with_counts(source, 2, periodic=True, symmetry="none")
 
         assert len(patterns) == 1
 
         assert patterns[0][0].index() == 15
-        assert (
-            patterns[0][1] == 4
-        )  # generated from all 4 possible positions - wrapping is allowed
+        assert patterns[0][1] == 4  # generated from all 4 possible positions - wrapping is allowed
 
     def test_multiple_patterns(self):
         # More complex source with multiple patterns
@@ -178,9 +172,7 @@ class TestPatternsWithCounts:
         |# #|
         |###|
         """
-        patterns = ascii_to_patterns_with_counts(
-            source, 2, periodic=False, symmetry="none"
-        )
+        patterns = ascii_to_patterns_with_counts(source, 2, periodic=False, symmetry="none")
 
         # Check we have the expected number of unique patterns
         # 2x2 window in a 3x3 grid gives 4 possible positions
@@ -197,9 +189,7 @@ class TestPatternsWithCounts:
         |# #|
         |###|
         """
-        patterns = ascii_to_patterns_with_counts(
-            source, 2, periodic=False, symmetry="all"
-        )
+        patterns = ascii_to_patterns_with_counts(source, 2, periodic=False, symmetry="all")
         assert len(patterns) == 4
 
         # With symmetry, there might be more patterns, but the total count should be the same
@@ -214,9 +204,7 @@ class TestWeightsOfAllPatterns:
         |##|
         |##|
         """
-        weights = ascii_to_weights_of_all_patterns(
-            source, 2, periodic=False, symmetry="none"
-        )
+        weights = ascii_to_weights_of_all_patterns(source, 2, periodic=False, symmetry="none")
 
         # For a 2x2 pattern, there are 2^4 = 16 possible patterns (0-15)
         assert len(weights) == 16
@@ -235,9 +223,7 @@ class TestWeightsOfAllPatterns:
         |# #|
         |###|
         """
-        weights = ascii_to_weights_of_all_patterns(
-            source, 2, periodic=False, symmetry="none"
-        )
+        weights = ascii_to_weights_of_all_patterns(source, 2, periodic=False, symmetry="none")
 
         # For a 2x2 pattern, there are still 16 possible patterns
         assert len(weights) == 16
@@ -252,9 +238,7 @@ class TestWeightsOfAllPatterns:
         |# #|
         |###|
         """
-        weights = ascii_to_weights_of_all_patterns(
-            source, 2, periodic=False, symmetry="all"
-        )
+        weights = ascii_to_weights_of_all_patterns(source, 2, periodic=False, symmetry="all")
 
         # With symmetry, the total weight should increase
         assert sum(weights) == 4 * 8  # 4 patterns * 8 variations per pattern

@@ -11,6 +11,7 @@ def create_grid(height: int, width: int, fill_value: str = "empty", dtype: str =
     """
     return np.full((height, width), fill_value, dtype=dtype)
 
+
 def draw_border(grid: np.ndarray, border_width: int, border_object: str) -> None:
     """
     Draws a border on the given grid in-place. The border (of thickness border_width) is set to border_object.
@@ -19,6 +20,7 @@ def draw_border(grid: np.ndarray, border_width: int, border_object: str) -> None
     grid[-border_width:, :] = border_object
     grid[:, :border_width] = border_object
     grid[:, -border_width:] = border_object
+
 
 def bresenham_line(x0: int, y0: int, x1: int, y1: int) -> List[Tuple[int, int]]:
     """
@@ -53,6 +55,7 @@ def bresenham_line(x0: int, y0: int, x1: int, y1: int) -> List[Tuple[int, int]]:
     points.append((x1, y1))
     return points
 
+
 def compute_positions(start: int, end: int, blocks: List[Tuple[str, int]]) -> Dict[str, int]:
     """
     Given a starting and ending coordinate along an axis and a list of blocks (name, width),
@@ -75,6 +78,7 @@ def compute_positions(start: int, end: int, blocks: List[Tuple[str, int]]) -> Di
             pos += base_gap + (1 if i < extra else 0)
     return positions
 
+
 def sample_position(
     x_min: int,
     x_max: int,
@@ -84,7 +88,7 @@ def sample_position(
     existing: List[Tuple[int, int]],
     forbidden: Optional[Set[Tuple[int, int]]] = None,
     rng: Optional[np.random.Generator] = None,
-    attempts: int = 100
+    attempts: int = 100,
 ) -> Tuple[int, int]:
     """
     Samples and returns a position (x, y) within the rectangular region defined by
@@ -108,8 +112,10 @@ def sample_position(
             return pos
     return (x_min, y_min)
 
+
 def make_odd(x):
     return x if x % 2 == 1 else x + 1
+
 
 def set_position(x, upper_bound):
     x = make_odd(x)
