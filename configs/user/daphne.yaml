@@ -29,7 +29,7 @@ policy_uri:  wandb://run/b.daphne.navigation_terrain_training_v2
 # policy_uri: wandb://run/b.georgedeane.navigation_terrain_training_v2
 # npc_policy_uri: ${trained_policy_uri}
 # eval_db_uri: wandb://artifacts/testing
-eval_db_uri: wandb://artifacts/navigation_db
+eval_db_uri: wandb://artifacts/cylinder_navigation
 
 analyzer:
   eval_stats_uri: ${run_dir}/eval_stats
@@ -37,10 +37,10 @@ analyzer:
   analysis:
     metrics:
       - metric: episode_reward
-  output_path: navigation_results/results.html
+  output_path: navigation_results/cylinder.html
 
 eval:
-  env: /env/mettagrid/navigation/training/multienv
+  env: /env/mettagrid/navigation/evals/cylinder
 
   policy_uri: ${..policy_uri}
   # npc_policy_uri: ${..npc_policy_uri}
