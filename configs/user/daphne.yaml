@@ -1,6 +1,5 @@
 # @package __global__
 
-
 #POLICIES TO EVALUATE
 
 #b.daphne.navigation_varied_obstacle_shapes_pretrained.r.1
@@ -10,11 +9,11 @@
 #navigation_infinite_cooldown_sparser.r.0
 #navigation_poisson_sparser_pretrained.r.6
 
-
 defaults:
   - override /agent: simple
   - override /eval: navigation
   - override /analyzer: eval_analyzer
+  - _self_
 
 trainer:
   env: /env/mettagrid/navigation/training/mapfromfile
@@ -31,7 +30,6 @@ policy_uri:  wandb://run/b.daphne.navigation_terrain_training_v2
 # npc_policy_uri: ${trained_policy_uri}
 # eval_db_uri: wandb://artifacts/testing
 eval_db_uri: wandb://artifacts/navigation_db
-
 
 analyzer:
   eval_stats_uri: ${run_dir}/eval_stats
