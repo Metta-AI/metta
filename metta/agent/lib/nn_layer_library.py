@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 from tensordict import TensorDict
 
-from .metta_layer import ParamLayer, LayerBase
+from metta.agent.lib.metta_layer import ParamLayer, LayerBase
 
 class Linear(ParamLayer):
     def __init__(self, **cfg):

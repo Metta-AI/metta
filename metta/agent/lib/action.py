@@ -4,8 +4,8 @@ import torch
 
 from tensordict import TensorDict
 
-import agent.lib.nn_layer_library as nn_layer_library
-import agent.lib.metta_layer as metta_layer
+import metta.agent.lib.nn_layer_library as nn_layer_library
+import metta.agent.lib.metta_layer as metta_layer
 
 class ActionEmbedding(nn_layer_library.Embedding):
     def __init__(self, initialization='max_0_01', **cfg):

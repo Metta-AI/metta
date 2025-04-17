@@ -3,7 +3,7 @@ import torch
 from sklearn.metrics.pairwise import cosine_similarity, euclidean_distances
 from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
-import seaborn as sns # Need this for heatmaps!
+import seaborn as sns
 
 # # --- The code to drop into the action.py file's forward pass ---
 

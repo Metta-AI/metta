@@ -13,7 +13,7 @@ from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 
 
-from agent.util.distribution_utils import sample_logits
+from metta.agent.util.distribution_utils import sample_logits
 
 logger = logging.getLogger("metta_agent")
 

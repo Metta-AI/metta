@@ -1,5 +1,5 @@
 # see reference_design.yaml for explanation of components
-_target_: agent.metta_agent.MettaAgent
+_target_: metta.agent.metta_agent.MettaAgent
 
 policy_selector:
   uri: null
@@ -19,15 +19,15 @@ components:
 #necessary source layers: _obs_, _core_
 #necessary output layers: _action_type_ and _value_ (and _action_param_ if MultiDiscrete)
   _obs_:
-    _target_: agent.lib.obs_shaper.ObsShaper
+    _target_: metta.agent.lib.obs_shaper.ObsShaper
     input_source: null
 
   obs_normalizer:
-    _target_: agent.lib.observation_normalizer.ObservationNormalizer
+    _target_: metta.agent.lib.observation_normalizer.ObservationNormalizer
     input_source: _obs_
 
   cnn1:
-    _target_: agent.lib.nn_layer_library.Conv2d
+    _target_: metta.agent.lib.nn_layer_library.Conv2d
     input_source: obs_normalizer
     output_size: 64
     nn_params:
@@ -35,7 +35,7 @@ components:
       stride: 3
 
   cnn2:
-    _target_: agent.lib.nn_layer_library.Conv2d
+    _target_: metta.agent.lib.nn_layer_library.Conv2d
     input_source: cnn1
     output_size: 64
     nn_params:
@@ -43,33 +43,33 @@ components:
       stride: 1
 
   obs_flattener:
-    _target_: agent.lib.nn_layer_library.Flatten
+    _target_: metta.agent.lib.nn_layer_library.Flatten
     input_source: cnn2
 
   encoded_obs:
-    _target_: agent.lib.nn_layer_library.Linear
+    _target_: metta.agent.lib.nn_layer_library.Linear
     input_source: obs_flattener
     output_size: 128
 
   _core_:
-    _target_: agent.lib.lstm.LSTM
+    _target_: metta.agent.lib.lstm.LSTM
     input_source: encoded_obs
     output_size: 128
     nn_params:
       num_layers: 1
 
   _value_:
-    _target_: agent.lib.nn_layer_library.Linear
+    _target_: metta.agent.lib.nn_layer_library.Linear
     input_source: _core_
     output_size: 1
     nonlinearity: null
 
   _action_type_:
-    _target_: agent.lib.action.ActionType
+    _target_: metta.agent.lib.action.ActionType
     input_source: _core_
     nonlinearity: null
 
   _action_param_:
-    _target_: agent.lib.action.ActionParam
+    _target_: metta.agent.lib.action.ActionParam
     input_source: _core_
     nonlinearity: null

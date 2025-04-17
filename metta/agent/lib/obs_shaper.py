@@ -1,7 +1,7 @@
 import torch
 from tensordict import TensorDict
 
-from agent.lib.metta_layer import LayerBase
+from metta.agent.lib.metta_layer import LayerBase
 
 class ObsShaper(LayerBase):
     def __init__(self, obs_shape, num_objects, **cfg):

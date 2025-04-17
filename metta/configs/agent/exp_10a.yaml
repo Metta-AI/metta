@@ -1,5 +1,5 @@
 # see reference_design.yaml for explanation of components
-_target_: agent.metta_agent.MettaAgent
+_target_: metta.agent.metta_agent.MettaAgent
 
 policy_selector:
   uri: null
@@ -20,15 +20,15 @@ components:
 #necessary source layers: _obs_, _core_
 #necessary output layers: _action_type_ and _value_ (and _action_param_ if MultiDiscrete)
   _obs_:
-    _target_: agent.lib.obs_shaper.ObsShaper
+    _target_: metta.agent.lib.obs_shaper.ObsShaper
     input_source: null
 
   obs_normalizer:
-    _target_: agent.lib.observation_normalizer.ObservationNormalizer
+    _target_: metta.agent.lib.observation_normalizer.ObservationNormalizer
     input_source: _obs_
 
   cnn1:
-    _target_: agent.lib.nn_layer_library.Conv2d
+    _target_: metta.agent.lib.nn_layer_library.Conv2d
     input_source: obs_normalizer
     nn_params:
       out_channels: 64
@@ -36,7 +36,7 @@ components:
       stride: 3
 
   cnn2:
-    _target_: agent.lib.nn_layer_library.Conv2d
+    _target_: metta.agent.lib.nn_layer_library.Conv2d
     input_source: cnn1
     nn_params:
       out_channels: 64
@@ -44,30 +44,30 @@ components:
       stride: 1
 
   obs_flattener:
-    _target_: agent.lib.nn_layer_library.Flatten
+    _target_: metta.agent.lib.nn_layer_library.Flatten
     input_source: cnn2
 
   fc1:
-    _target_: agent.lib.nn_layer_library.Linear
+    _target_: metta.agent.lib.nn_layer_library.Linear
     input_source: obs_flattener
     nn_params:
       out_features: 128
 
   encoded_obs:
-    _target_: agent.lib.nn_layer_library.Linear
+    _target_: metta.agent.lib.nn_layer_library.Linear
     input_source: fc1
     nn_params:
       out_features: 128
 
   _core_:
-    _target_: agent.lib.lstm.LSTM
+    _target_: metta.agent.lib.lstm.LSTM
     input_source: encoded_obs
     output_size: 128
     nn_params:
       num_layers: 2
       
   critic_1:
-    _target_: agent.lib.nn_layer_library.Linear
+    _target_: metta.agent.lib.nn_layer_library.Linear
     input_source: _core_
     nn_params:
       out_features: 1024
@@ -75,27 +75,27 @@ components:
     effective_rank: true
 
   _value_:
-    _target_: agent.lib.nn_layer_library.Linear
+    _target_: metta.agent.lib.nn_layer_library.Linear
     input_source: critic_1
     nn_params:
       out_features: 1
     nonlinearity: null
 
   _action_embeds_:
-    _target_: agent.lib.action.ActionEmbedding
+    _target_: metta.agent.lib.action.ActionEmbedding
     input_source: null
     nn_params:
       num_embeddings: 100
       embedding_dim: 32
 
   embed_reshaped:
-    _target_: agent.lib.merge_layer.ReshapeLayer # combines the two dims into the squeezed_dim
+    _target_: metta.agent.lib.merge_layer.ReshapeLayer # combines the two dims into the squeezed_dim
     squeezed_dim: 0
     popped_dim: 1
     input_source: _action_embeds_
 
   LSTM_expanded:
-    _target_: agent.lib.merge_layer.ExpandLayer
+    _target_: metta.agent.lib.merge_layer.ExpandLayer
     expand_dim: 1
     expand_value: null
     input_source: _core_
@@ -103,13 +103,13 @@ components:
     source_dim: 1
 
   LSTM_reshaped:
-    _target_: agent.lib.merge_layer.ReshapeLayer
+    _target_: metta.agent.lib.merge_layer.ReshapeLayer
     squeezed_dim: 0
     popped_dim: 1
     input_source: LSTM_expanded
 
   attn:
-    _target_: agent.lib.nn_layer_library.Bilinear
+    _target_: metta.agent.lib.nn_layer_library.Bilinear
     input_source: 
       - embed_reshaped
       - LSTM_reshaped
@@ -117,11 +117,11 @@ components:
       out_features: 16
 
   attn_to_action:
-    _target_: agent.lib.nn_layer_library.Linear
+    _target_: metta.agent.lib.nn_layer_library.Linear
     input_source: attn
     nn_params:
       out_features: 1
 
   _action_:
-    _target_: agent.lib.merge_layer.BatchReshapeLayer
+    _target_: metta.agent.lib.merge_layer.BatchReshapeLayer
     input_source: attn_to_action

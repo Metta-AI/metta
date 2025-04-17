@@ -4,7 +4,7 @@ import omegaconf
 import torch
 from tensordict import TensorDict
 
-from agent.lib.metta_layer import LayerBase
+from metta.agent.lib.metta_layer import LayerBase
 
 class MergeLayerBase(LayerBase):
     def __init__(self, name, **cfg):
