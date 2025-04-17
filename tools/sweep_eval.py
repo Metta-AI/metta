@@ -5,7 +5,6 @@ import logging
 import os
 import sys
 import time
-
 import hydra
 from omegaconf import DictConfig, OmegaConf
 from rich.logging import RichHandler
