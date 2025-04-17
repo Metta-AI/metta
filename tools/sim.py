@@ -21,7 +21,7 @@ class SimJob:
     selector_type: str = "latest"
 
 
-def simulate_policy(sim_job: SimJob, policy_uri: str, cfg: DictConfig, wandb_run):  
+def simulate_policy(sim_job: SimJob, policy_uri: str, cfg: DictConfig, wandb_run):
     logger = logging.getLogger("metta.tools.sim")
     # TODO: Remove dependence on cfg in PolicyStore
     policy_store = PolicyStore(cfg, wandb_run)
