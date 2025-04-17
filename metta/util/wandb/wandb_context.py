@@ -15,13 +15,12 @@ def check_wandb_version():
         # Get the installed wandb version
         wandb_version = pkg_resources.get_distribution("wandb").version
 
-        # Parse the major version number
-        major_version = int(wandb_version.split(".")[0])
+        minor_version = int(wandb_version.split(".")[1])
 
         # Check if the major version is less than 19
-        if major_version < 19:
+        if minor_version < 19:
             print(f"ERROR: Your wandb version ({wandb_version}) is outdated.")
-            print("Please update to wandb version 19 or later using:")
+            print("Please update to wandb version 0.19 or later using:")
             print("    pip install --upgrade wandb")
             return False
 
