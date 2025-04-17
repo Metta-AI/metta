@@ -105,14 +105,6 @@ def validate_dataclass(instance: Any, cls: Type[T], path: str = None) -> None:
             raise TypeError(f"{fpath}: expected {ftype.__name__}, got {type(value).__name__}")
 
 
-# --------------------------------------------------------------------------- #
-# Internal helpers for building dataclasses                                   #
-# --------------------------------------------------------------------------- #
-def _get_parent_config_for_child(child_cls: Type, data: Mapping[str, Any]) -> Dict[str, Any]:
-    child_fields = {f.name for f in fields(child_cls)}
-    return {k: data[k] for k in child_fields if k in data}
-
-
 def _build_dataclass(
     cls: Type[T],
     data: Dict[str, Any],
@@ -147,7 +139,18 @@ def _build_dataclass(
         logger.warning(f"{path}: ignoring extra fields {sorted(extra)}")
 
     # ------------------------------------------------------------------ #
-    # 2.  Build field values                                             #
+    # 2.  Check for missing required fields                              #
+    # ------------------------------------------------------------------ #
+    required_fields = {f.name for f in fields(cls) if f.default is MISSING and f.default_factory is MISSING}
+    missing = required_fields - set(data.keys())
+    if missing:
+        raise TypeError(
+            f"{path} is missing required fields: {sorted(missing)}. "
+            f"Required fields are: {sorted(required_fields)}. "
+            f"Provided fields were: {sorted(data.keys())}"
+        )
+    # ------------------------------------------------------------------ #
+    # 3.  Build field values                                             #
     # ------------------------------------------------------------------ #
     for f in fields(cls):
         key, fpath = f.name, f"{path}.{f.name}"
@@ -166,7 +169,6 @@ def _build_dataclass(
         # List[Dataclass]   --------------------------------------------
         if origin in (list, List) and args and is_dataclass(args[0]) and isinstance(val, list):
             item_type = args[0]
-            parent_defaults = _get_parent_config_for_child(item_type, data)
             kwargs[key] = [
                 _build_dataclass(
                     item_type,
@@ -183,7 +185,6 @@ def _build_dataclass(
         # Dict[str, Dataclass] ----------------------------------------
         if origin in (dict, Dict) and len(args) == 2 and is_dataclass(args[1]) and isinstance(val, dict):
             value_type = args[1]
-            parent_defaults = _get_parent_config_for_child(value_type, data)
             kwargs[key] = {
                 k: _build_dataclass(
                     value_type,
@@ -199,11 +200,9 @@ def _build_dataclass(
 
         # Embedded dataclass ------------------------------------------
         if is_dataclass(ftype) and isinstance(val, dict):
-            parent_defaults = _get_parent_config_for_child(ftype, data)
-            merged = {**parent_defaults, **val}
             kwargs[key] = _build_dataclass(
                 ftype,
-                merged,
+                val,
                 fpath,
                 allow_extra=allow_extra,
             )

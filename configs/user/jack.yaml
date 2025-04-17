@@ -5,7 +5,7 @@ defaults:
   - _self_
 
 # Basic config variables
-run_id: 18
+run_id: 21
 run: ${oc.env:USER}.local.${run_id}
 data_dir: ./train_dir
 run_dir: ${data_dir}/${run}
@@ -48,6 +48,11 @@ sim_job:
     - "wandb://run/navigation_infinite_cooldown_sparser.r.0"
     - "wandb://run/navigation_poisson_sparser_pretrained.r.6"
     - "wandb://run/b.daveey.t.64.dr90.1"
+
+train_job:
+  evals:
+    num_episodes: 2
+    num_envs: 2
 
 wandb:
   checkpoint_interval: 1

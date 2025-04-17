@@ -11,7 +11,7 @@ from torch.distributed.elastic.multiprocessing.errors import record
 
 from metta.agent.policy_store import PolicyStore
 from metta.sim.simulation_config import SimulationSuiteConfig
-from metta.util.config import setup_metta_environment
+from metta.util.config import dictconfig_to_dataclass, setup_metta_environment
 from metta.util.runtime_configuration import setup_mettagrid_environment
 from metta.util.wandb.wandb_context import WandbContext
 
@@ -71,8 +71,6 @@ def main(cfg: OmegaConf) -> int:
         local_rank = int(os.environ["LOCAL_RANK"])
         cfg.device = f"{cfg.device}:{local_rank}"
         dist.init_process_group(backend="nccl")
-
-
 
     logger.info(f"Training {cfg.run} on {cfg.device}")
     if os.environ.get("RANK", "0") == "0":

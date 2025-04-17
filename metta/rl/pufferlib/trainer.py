@@ -10,12 +10,12 @@ import pufferlib.utils
 import torch
 import torch.distributed as dist
 import wandb
-from agent.metta_agent import DistributedMettaAgent
-from agent.policy_store import PolicyStore
 from fast_gae import fast_gae
 from heavyball import ForeachMuon
 from omegaconf import OmegaConf
 
+from metta.agent.metta_agent import DistributedMettaAgent
+from metta.agent.policy_store import PolicyStore
 from metta.rl.pufferlib.experience import Experience
 from metta.rl.pufferlib.kickstarter import Kickstarter
 from metta.rl.pufferlib.profile import Profile
@@ -154,7 +154,7 @@ class PufferTrainer:
 
         self.kickstarter = Kickstarter(self.cfg, self.policy_store, self.vecenv.single_action_space)
 
-        self.replay_helper = ReplayHelper(self.eval_sim_config, self.last_pr, wandb_run)
+        self.replay_helper = ReplayHelper(self.sim_suite_config, self.last_pr, wandb_run)
 
         logger.info(f"PufferTrainer initialization complete on device: {self.device}")
 
@@ -219,8 +219,10 @@ class PufferTrainer:
         if run_id is None and self.wandb_run is not None:
             run_id = self.wandb_run.id
 
-        sim = SimulationSuite(self.sim_suite_config, self.policy_store, self.last_pr)
+        logger.info(f"Simulating policy: {self.last_pr.uri}")
+        sim = SimulationSuite(config=self.sim_suite_config, policy_pr=self.last_pr, policy_store=self.policy_store)
         stats = sim.simulate()
+        logger.info("Simulation complete")
 
         try:
             self.eval_stats_logger.log(stats)
@@ -545,7 +547,10 @@ class PufferTrainer:
         if self._master:
             logger.info("Generating and saving a replay to wandb and S3.")
             self.replay_helper.generate_and_upload_replay(
-                self.epoch, dry_run=self.trainer_cfg.get("replay_dry_run", False)
+                self.epoch,
+                self.cfg.run_dir,
+                self.cfg.run,
+                dry_run=self.trainer_cfg.get("replay_dry_run", False),
             )
 
     def _process_stats(self):

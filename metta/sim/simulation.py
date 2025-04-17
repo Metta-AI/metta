@@ -81,13 +81,13 @@ class Simulation:
             self._agent_idx_to_policy_name[agent_idx.item()] = self._npc_pr.name
 
     def simulate(self):
-        logger.info(
+        logger.debug(
             f"Simulating policy: {self._policy_pr.name} in {self._env_name} with {self._policy_agents_per_env} agents"
         )
         if self._npc_pr is not None:
-            logger.info(f"Against npc policy: {self._npc_pr.name} with {self._npc_agents_per_env} agents")
+            logger.debug(f"Against npc policy: {self._npc_pr.name} with {self._npc_agents_per_env} agents")
 
-        logger.info(
+        logger.debug(
             f"Simulation settings: {self._num_envs} envs, {self._min_episodes} episodes, {self._max_time_s} seconds"
         )
 
@@ -158,7 +158,7 @@ class Simulation:
                         agent_episode_data[agent_i].update(flattened_env)
 
                     game_stats.append(agent_episode_data)
-        logger.info(f"Evaluation time: {time.time() - start}")
+        logger.debug(f"Simulation time: {time.time() - start}")
         self._vecenv.close()
         return game_stats
 
@@ -170,7 +170,7 @@ class SimulationSuite:
         policy_pr: PolicyRecord,
         policy_store: PolicyStore,
     ):
-        logger.info(f"Building Simulation suite from config:{config}")
+        logger.debug(f"Building Simulation suite from config:{config}")
         self._simulations = dict()
 
         for name, sim_config in config.simulations.items():
@@ -181,4 +181,3 @@ class SimulationSuite:
     def simulate(self):
         # Run all simulations and gather results by name
         return {name: sim.simulate() for name, sim in self._simulations.items()}
-
