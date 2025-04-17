@@ -126,11 +126,13 @@
 		// Then ensure ""conda-site-packages/**"" is included in the extraPaths lists below.
 
 		"python.analysis.extraPaths": [
+			//"/opt/homebrew/Caskroom/miniconda/base/envs/metta/lib/python3.11/site-packages",
 			"conda-site-packages/**",
 			"deps/**",
 			"${workspaceFolder}"
 		],
 		"python.autoComplete.extraPaths": [
+			//"/opt/homebrew/Caskroom/miniconda/base/envs/metta/lib/python3.11/site-packages",
 			"conda-site-packages/**",
 			"deps/**",
 			"${workspaceFolder}"
