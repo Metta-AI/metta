@@ -25,7 +25,7 @@ class RandomObjects(Scene):
     ):
         super().__init__()
         self._rng = np.random.default_rng(seed)
-        self._object_ranges = object_ranges if object_ranges is not None else {}
+        self._object_ranges = object_ranges or {}
 
     def get_children(self, node: Node) -> list[TypedChild]:
         size = node.height * node.width
