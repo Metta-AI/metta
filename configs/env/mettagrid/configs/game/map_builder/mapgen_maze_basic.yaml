@@ -1,8 +1,0 @@
-# Minimal example of a maze scene.
-_target_: mettagrid.map.mapgen.MapGen
-
-width: 10
-height: 10
-
-root:
-  _target_: mettagrid.map.scenes.maze.MazeKruskal
