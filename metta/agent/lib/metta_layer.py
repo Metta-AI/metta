@@ -42,7 +42,7 @@ class LayerBase(nn.Module):
         self._input_source = input_source
         self._net = None
         self._ready = False
-        if not hasattr(self, '_nn_params'):
+        if not hasattr(self, "_nn_params"):
             self._nn_params = nn_params
 
     @property
@@ -53,7 +53,7 @@ class LayerBase(nn.Module):
         if self._ready:
             return
 
-        self.__dict__['_input_source_component'] = input_source_component
+        self.__dict__["_input_source_component"] = input_source_component
 
         if self._input_source_component is None:
             self._in_tensor_shape = None
@@ -66,7 +66,7 @@ class LayerBase(nn.Module):
                     self._in_tensor_shape.append(source._out_tensor_shape.copy())
             else:
                 self._in_tensor_shape = self._input_source_component._out_tensor_shape.copy()
-            if not hasattr(self, '_out_tensor_shape'):
+            if not hasattr(self, "_out_tensor_shape"):
                 self._out_tensor_shape = self._in_tensor_shape # if necessary, edit this later in the superclass
 
         self._initialize()
@@ -111,7 +111,17 @@ class LayerBase(nn.Module):
 class ParamLayer(LayerBase):
     '''This provides a few useful methods for components/nets that have parameters (weights).
     Superclasses should have input_size and output_size already set.'''
-    def __init__(self, clip_scale=1, effective_rank=None, l2_norm_scale=None, l2_init_scale=None, nonlinearity='nn.ReLU', initialization='Orthogonal', clip_range=None, **cfg):
+    def __init__(
+        self,
+        clip_scale=1,
+        effective_rank=None,
+        l2_norm_scale=None,
+        l2_init_scale=None,
+        nonlinearity="nn.ReLU",
+        initialization="Orthogonal",
+        clip_range=None,
+        **cfg,
+        ):
         self.clip_scale = clip_scale
         self.effective_rank_bool = effective_rank
         self.l2_norm_scale = l2_norm_scale
@@ -152,21 +162,21 @@ class ParamLayer(LayerBase):
         fan_in = self._in_tensor_shape[0]
         fan_out = self._out_tensor_shape[0]
 
-        if self.initialization.lower() == 'orthogonal':
-            if self.nonlinearity == 'nn.Tanh':
+        if self.initialization.lower() == "orthogonal":
+            if self.nonlinearity == "nn.Tanh":
                 gain = np.sqrt(2)
             else:
                 gain = 1
             nn.init.orthogonal_(self.weight_net.weight, gain=gain)
             largest_weight = self.weight_net.weight.max().item()
-        elif self.initialization.lower() == 'xavier':
+        elif self.initialization.lower() == "xavier":
             largest_weight = np.sqrt(6 / (fan_in + fan_out))
             nn.init.xavier_uniform_(self.weight_net.weight)
-        elif self.initialization.lower() == 'normal':
+        elif self.initialization.lower() == "normal":
             largest_weight = np.sqrt(2 / fan_in)
             nn.init.normal_(self.weight_net.weight, mean=0, std=largest_weight)
-        elif self.initialization.lower() == 'max_0_01':
-            #set to uniform with largest weight = 0.01
+        elif self.initialization.lower() == "max_0_01":
+            # set to uniform with largest weight = 0.01
             largest_weight = 0.01
             nn.init.uniform_(self.weight_net.weight, a=-largest_weight, b=largest_weight)
         else:

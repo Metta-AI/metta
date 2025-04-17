@@ -19,11 +19,7 @@ class LSTM(LayerBase):
         self.num_layers = self._nn_params['num_layers']
 
     def _make_net(self):
-        net = nn.LSTM(
-            self._in_tensor_shape[0],
-            self.hidden_size,
-            **self._nn_params
-        )
+        net = nn.LSTM(self._in_tensor_shape[0], self.hidden_size, **self._nn_params)
 
         for name, param in net.named_parameters():
             if "bias" in name:
@@ -34,7 +30,7 @@ class LSTM(LayerBase):
         return net
 
     def _forward(self, td: TensorDict):
-        x = td['x']
+        x = td["x"]
         hidden = td[self._input_source]
         state = td["state"]
 
@@ -45,14 +41,14 @@ class LSTM(LayerBase):
         x_shape, space_shape = x.shape, self._obs_shape
         x_n, space_n = len(x_shape), len(space_shape)
         if tuple(x_shape[-space_n:]) != tuple(space_shape):
-            raise ValueError('Invalid input tensor shape', x.shape)
+            raise ValueError("Invalid input tensor shape", x.shape)
 
         if x_n == space_n + 1:
             B, TT = x_shape[0], 1
         elif x_n == space_n + 2:
             B, TT = x_shape[:2]
         else:
-            raise ValueError('Invalid input tensor shape', x.shape)
+            raise ValueError("Invalid input tensor shape", x.shape)
 
         if state is not None:
             assert state[0].shape[1] == state[1].shape[1] == B
