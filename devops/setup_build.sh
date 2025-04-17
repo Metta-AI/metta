@@ -6,7 +6,7 @@
 set -e
 
 # Install base requirements
-echo "Installing requirements..."
+echo "Installing metta python requirements..."
 pip install -r requirements.txt
 
 # Create and enter deps directory for all external dependencies
@@ -59,7 +59,7 @@ if [ -n "$METTAGRID_REF" ]; then
   echo "Checking out mettagrid reference: $METTAGRID_REF"
   git checkout "$METTAGRID_REF"
 fi
-echo "Installing mettagrid dependencies..."
+echo "Installing mettagrid python requirements..."
 pip install -r requirements.txt
 echo "Building mettagrid into $(pwd)"
 python setup.py build_ext --inplace

@@ -234,7 +234,8 @@
 			"truncateds",
 			"vecenv",
 			"venv",
-			"vloss"
+			"vloss",
+			"wandb"
 		]
 	}
 }
