@@ -6,7 +6,7 @@ class FontRenderer:
         self.ffi = ffi
         self.font_path = font_path
         self.fonts = {}
-    
+
     def get(self, size: int):
         """
         Loads the font at the given size if it is not already loaded.
@@ -31,4 +31,3 @@ class FontRenderer:
     def unload(self):
         for font in self.fonts.values():
             rl.UnloadFont(font)
-

@@ -19,11 +19,11 @@ def main(cfg):
     env.reset()
 
     actions = [
-        [0,5],
-        [1,6],
-        [2,7],
-        [3,8],
-        [4,9],
+        [0, 5],
+        [1, 6],
+        [2, 7],
+        [3, 8],
+        [4, 9],
     ] * 4
     output += render_to_string(env, show_team=True)
     output += dump_agents(env)
@@ -72,11 +72,12 @@ def main(cfg):
 
     assert "kinship" not in env.grid_features
 
-    (obs, rewards, terminated, truncated, infos) = env.step([[0,0]]*20)
+    (obs, rewards, terminated, truncated, infos) = env.step([[0, 0]] * 20)
     output += render_obs_to_string(env, obs, match="kinship")
 
     with open("tests/gold/track_kinship_trace.txt", "w") as f:
         f.write(output)
+
 
 if __name__ == "__main__":
     main()

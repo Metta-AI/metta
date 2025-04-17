@@ -7,9 +7,7 @@ from .scene import Scene
 
 
 class MapGen:
-    def __init__(
-        self, width: int, height: int, root: DictConfig, border_width: int = 1
-    ):
+    def __init__(self, width: int, height: int, root: DictConfig, border_width: int = 1):
         self._width = width
         self._height = height
         self._border_width = border_width
@@ -23,9 +21,7 @@ class MapGen:
         else:
             raise ValueError("Root config must be a DictConfig or a Node")
 
-        self._grid = np.full(
-            (height + 2 * border_width, width + 2 * border_width), "empty", dtype="<U50"
-        )
+        self._grid = np.full((height + 2 * border_width, width + 2 * border_width), "empty", dtype="<U50")
         self._grid[:border_width, :] = "wall"
         self._grid[-border_width:, :] = "wall"
         self._grid[:, :border_width] = "wall"

@@ -109,9 +109,7 @@ def make(name: str, render_mode: str | None = None, overrides: list[str] | None 
     with hydra.initialize(config_path="../configs"):
         cfg = hydra.compose(config_name=name, overrides=overrides)
 
-    env = hydra.utils.instantiate(
-        cfg, _recursive_=False, env_cfg=cfg, render_mode=render_mode
-    )
+    env = hydra.utils.instantiate(cfg, _recursive_=False, env_cfg=cfg, render_mode=render_mode)
     if render_mode == "human":
         env = RaylibRendererWrapper(env, cfg)
 
