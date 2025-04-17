@@ -53,7 +53,7 @@ def analyze_weights(weights: torch.Tensor, delta: float = 0.01) -> dict:
                 log_indices.cpu().numpy(), log_sv.cpu().numpy()
             )
 
-            metrics.update({"r2_value": r_value**2, "slope": slope})
+            metrics.update({"sv_loglog_r2": r_value**2, "sv_loglog_slope": slope})
 
         # Calculate effective rank
         if len(S) > 1:
