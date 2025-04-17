@@ -7,7 +7,8 @@ from mettagrid.objects.agent cimport Agent
 from mettagrid.objects.metta_object cimport MettaObject
 from mettagrid.objects.constants cimport Events, GridLayer, InventoryItem, InventoryItemNames
 from mettagrid.objects.converter cimport Converter
-from mettagrid.actions.actions cimport MettaActionHandler
+from mettagrid.actions.metta_action_handler cimport MettaActionHandler
+
 
 # Puts one recipe worth of resources into a Converter. Noop if not enough resources.
 cdef class PutRecipeItems(MettaActionHandler):
