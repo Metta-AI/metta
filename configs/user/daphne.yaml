@@ -25,11 +25,11 @@ trainer:
 # policy_uri: wandb://run/b.daveey.sm.train.er.new.0
 # policy_uri: wandb://run/daveey.ar.cards.1
 # policy_uri: wandb://run/b.daveey.t.32.instant
-policy_uri:  wandb://run/b.daphne.navigation_terrain_training_v2
+policy_uri:  wandb://run/b.georgedeane.terrain_multienv
 # policy_uri: wandb://run/b.georgedeane.navigation_terrain_training_v2
 # npc_policy_uri: ${trained_policy_uri}
 # eval_db_uri: wandb://artifacts/testing
-eval_db_uri: wandb://artifacts/cylinder_navigation
+# eval_db_uri: wandb://artifacts/cylinder_navigation
 
 analyzer:
   eval_stats_uri: ${run_dir}/eval_stats
@@ -40,7 +40,7 @@ analyzer:
   output_path: navigation_results/cylinder.html
 
 eval:
-  env: /env/mettagrid/navigation/evals/cylinder
+  env: /env/mettagrid/navigation/evals/wanderout
 
   policy_uri: ${..policy_uri}
   # npc_policy_uri: ${..npc_policy_uri}
