@@ -241,9 +241,6 @@ def dictconfig_to_dataclass(
     return instance
 
 
-# --------------------------------------------------------------------------- #
-# (unchanged)  AWS / wandb helpers                                            #
-# --------------------------------------------------------------------------- #
 def config_from_path(config_path: str, overrides: DictConfig = None) -> DictConfig:
     if config_path is None:
         # Handle the None case appropriately
