@@ -37,7 +37,6 @@ cpu_offload: false
 compile: false
 compile_mode: default
 profiler_interval_epochs: 4
-profiler_warmup_steps: 5
 
 forward_pass_minibatch_target_size: 2048
 async_factor: 2
