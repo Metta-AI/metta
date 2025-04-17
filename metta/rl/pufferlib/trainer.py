@@ -136,7 +136,8 @@ class PufferTrainer:
         self.lr_scheduler = None
         if self.trainer_cfg.lr_scheduler.enabled:
             self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-                self.optimizer, T_max=self.trainer_cfg.total_timesteps // self.trainer_cfg.batch_size)
+                self.optimizer, T_max=self.trainer_cfg.total_timesteps // self.trainer_cfg.batch_size
+            )
 
         if checkpoint.agent_step > 0:
             self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
@@ -567,11 +568,14 @@ class PufferTrainer:
 
         navigation_score = np.mean([r["candidate_mean"] for r in self._eval_results if "navigation" in r["eval"]])
         object_use_score = np.mean([r["candidate_mean"] for r in self._eval_results if "object_use" in r["eval"]])
+        against_npc_score = np.mean([r["candidate_mean"] for r in self._eval_results if "npc" in r["eval"]])
 
         if not np.isnan(navigation_score):
             overview["navigation_evals"] = navigation_score
         if not np.isnan(object_use_score):
             overview["object_use_evals"] = object_use_score
+        if not np.isnan(against_npc_score):
+            overview["npc_evals"] = against_npc_score
 
         environment = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
 
@@ -591,6 +595,12 @@ class PufferTrainer:
             if "object_use" in r["eval"]
         }
 
+        against_npc_eval_metrics = {
+            f"npc_evals/{r['eval'].split('/')[-1]}:{r['metric']}": r["candidate_mean"]
+            for r in self._eval_results
+            if "npc" in r["eval"]
+        }
+
         effective_rank_metrics = {
             f"train/effective_rank/{rank['name']}": rank["effective_rank"] for rank in self._effective_rank
         }
@@ -606,6 +616,7 @@ class PufferTrainer:
                     **effective_rank_metrics,
                     **navigation_eval_metrics,
                     **object_use_eval_metrics,
+                    **against_npc_eval_metrics,
                     "train/agent_step": agent_steps,
                     "train/epoch": epoch,
                     "train/learning_rate": learning_rate,
