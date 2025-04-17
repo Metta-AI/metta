@@ -3,10 +3,10 @@
 defaults:
   - override /agent: simple
   - override /eval: eval
-
+  - _self_
 
 trainer:
-  env: /env/mettagrid/reward_dr
+  env: /env/mettagrid-base/simple
   evaluate_interval: 200
   optimizer:
     type: muon
