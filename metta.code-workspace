@@ -116,33 +116,26 @@
 
 		// IntelliSense may not automatically resolve packages from your Conda environment.
 		// To fix this, first activate the environment and then create a symlink to your
-		// environment's site-packages directory.
+		// environment's site-packages directory somewhere where we can find it at an
+		// absolute path.
 		//
-		// From the root of the repository, run:
-		//
+		// run:
 		//     conda activate metta
-		//     ln -s "$CONDA_PREFIX/lib/python3.11/site-packages" conda-site-packages
+		//     ln -s "$CONDA_PREFIX/lib/python3.11/site-packages" /tmp/conda-site-packages
 		//
-		// Then ensure ""conda-site-packages/**"" is included in the extraPaths lists below.
+		// Then ensure "/tmp/conda-site-packages" is included in the extraPaths lists below.
 
 		"python.analysis.extraPaths": [
-			//"/opt/homebrew/Caskroom/miniconda/base/envs/metta/lib/python3.11/site-packages",
-			"conda-site-packages/**",
-			"deps/**",
-			"${workspaceFolder}"
+			"/tmp/conda-site-packages"
 		],
 		"python.autoComplete.extraPaths": [
-			//"/opt/homebrew/Caskroom/miniconda/base/envs/metta/lib/python3.11/site-packages",
-			"conda-site-packages/**",
-			"deps/**",
-			"${workspaceFolder}"
+			"/tmp/conda-site-packages"
 		],
 		"python.analysis.exclude": [
-			"**/pufferlib/**",
+			"**/deps/pufferlib/**"
 		],
 		"python.analysis.ignore": [
-			"**/pufferlib/**",
-			"${workspaceFolder:pufferlib}/**",
+			"**/deps/pufferlib/**"
 		],
 		"files.watcherExclude": {},
 		"files.exclude": {
