@@ -15,7 +15,7 @@ gae_lambda: 0.9
 gamma: 0.97
 
 optimizer:
-  type: adam
+  # type: adam
   # type: muon
   beta1: 0.9
   beta2: 0.999
