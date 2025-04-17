@@ -13,7 +13,7 @@ from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 
 
-from metta.agent.util.distribution_utils import sample_logits
+from metta.agent.util.distribution_utils import sample_logits, log_prob, entropy, logits_to_probs
 
 logger = logging.getLogger("metta_agent")
 
@@ -185,34 +185,23 @@ class MettaAgent(nn.Module):
 
     def _convert_action_to_logit_index(self, action, logits):
         """Convert action pairs to logit indices using vectorized operations"""
-        # --- IMPORTANT ASSUMPTION ---
-        # Assumes the input 'action' tensor is already of dtype torch.long.
-        # Verify this assumption holds true, e.g., during training data loading/storage.
-        # --- /IMPORTANT ASSUMPTION ---
         orig_shape = action.shape
-        # Prefer view() when possible, might avoid copies if contiguous
-        action_flat = action.view(-1, 2)
-
-        # Extract action components (NO .long() needed if assumption holds)
-        action_type_numbers = action_flat[:, 0]
-        action_params = action_flat[:, 1]
-
+        action = action.reshape(-1, 2)
+        
+        # Extract action components without list comprehension
+        action_type_numbers = action[:, 0].long()
+        action_params = action[:, 1].long()
+        
         # Use precomputed cumulative sum with vectorized indexing
-        # Indexing still creates a new tensor 'cumulative_sum'
         cumulative_sum = self.cum_action_max_params[action_type_numbers]
-
-        # Vectorized addition still creates a new tensor 'action_logit_index'
+        
+        # Vectorized addition
         action_logit_index = action_type_numbers + cumulative_sum + action_params
+        
+        b = action_logit_index.unsqueeze(1)
+        return action_logit_index.reshape(*orig_shape[:2], 1)
 
-        # Use view() again
-        return action_logit_index.view(*orig_shape[:2], 1)
-
-    def _convert_logit_index_to_action(self, action_logit_index, td):
-        """Convert logit indices back to action pairs using tensor indexing"""
-        if td.get("_TT_", 0) == 1:  # means we are in rollout, not training
-            # Use direct tensor indexing on precomputed action_index_tensor
-            return self.action_index_tensor[action_logit_index.reshape(-1)]
-
+    
     def get_action_and_value(self, x, state=None, action=None, e3b=None):
         td = TensorDict({"x": x})
 
@@ -250,6 +239,37 @@ class MettaAgent(nn.Module):
             action = action_logit_index
 
         return action, logprob, entropy, value, state, e3b, intrinsic_reward, normalized_logits
+
+    def _convert_logit_index_to_action(self, action_logit_index, td):
+        """Convert logit indices back to action pairs using tensor indexing"""
+        if td.get("_TT_", 0) == 1:  # means we are in rollout, not training
+            # Use direct tensor indexing on precomputed action_index_tensor
+            return self.action_index_tensor[action_logit_index.reshape(-1)]
+        
+    # def sample_logits_2(logits: Union[torch.Tensor, List[torch.Tensor]],
+    #     action=None):
+
+    #     normalized_logits = [logits - logits.logsumexp(dim=-1, keepdim=True)]
+    #     logits = [logits]
+    #     is_discrete = True
+        
+    #     if action is None:
+    #         action = torch.stack([torch.multinomial(logits_to_probs(l), 1).squeeze() for l in logits])
+    #     else:
+    #         logits_multi_discrete = self.action_index_tensor[logits.reshape(-1)]
+
+    #         batch = logits[0].shape[0]
+    #         action = action.view(batch, -1).T
+
+    #     assert len(logits) == len(action)
+    #     logprob = torch.stack([log_prob(l, a) for l, a in zip(normalized_logits, action)]).T.sum(1)
+    #     logits_entropy = torch.stack([entropy(l) for l in normalized_logits]).T.sum(1)
+
+    #     if is_discrete:
+    #         return action.squeeze(0), logprob.squeeze(0), logits_entropy.squeeze(0), normalized_logits
+
+    #     return action.T, logprob, logits_entropy, normalized_logits
+        
 
     def forward(self, x, state=None, action=None, e3b=None):
         return self.get_action_and_value(x, state, action, e3b)
