@@ -11,7 +11,7 @@ data_dir: ./train_dir
 run_dir: ${data_dir}/${run}
 policy_uri: wandb://run/navigation_poisson_sparser.r.2
 trained_policy_uri: ${run_dir}/checkpoints
-# eval_db_uri: wandb://artifacts/eval_db_jack_testing_sim_config
+eval_db_uri: wandb://artifacts/navigation_db
 
 trainer:
   env: /env/mettagrid/reward_dr

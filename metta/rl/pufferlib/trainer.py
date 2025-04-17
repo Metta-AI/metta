@@ -24,7 +24,7 @@ from metta.sim.eval_stats_db import EvalStatsDB
 from metta.sim.eval_stats_logger import EvalStatsLogger
 from metta.sim.replay_helper import ReplayHelper
 from metta.sim.simulation import SimulationSuite
-from metta.sim.simulation_config import SimulationSuiteConfig
+from metta.sim.simulation_config import SimulationConfig, SimulationSuiteConfig
 from metta.sim.vecenv import make_vecenv
 from metta.util.config import config_from_path
 
@@ -154,7 +154,13 @@ class PufferTrainer:
 
         self.kickstarter = Kickstarter(self.cfg, self.policy_store, self.vecenv.single_action_space)
 
-        self.replay_helper = ReplayHelper(self.sim_suite_config, self.last_pr, wandb_run)
+        replay_sim_config = SimulationConfig(
+            env=self.trainer_cfg.env,
+            env_overrides=self.trainer_cfg.env_overrides,
+            device=self.device,
+            vectorization=self.cfg.vectorization,
+        )
+        self.replay_helper = ReplayHelper(replay_sim_config, self.last_pr, wandb_run)
 
         logger.info(f"PufferTrainer initialization complete on device: {self.device}")
 

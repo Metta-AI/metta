@@ -2,12 +2,11 @@ defaults:
   - common
   - agent: simple
   - trainer: puffer
-  - eval: navigation
   - analyzer: eval_analyzer
   - wandb: metta_research
   - _self_
 
-cmd: eval
+cmd: analyze
 run: ???
 data_dir: ./train_dir
 run_dir: ${data_dir}/${run}
