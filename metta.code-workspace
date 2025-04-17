@@ -113,13 +113,25 @@
 			"*.pxd": "cython",
 			"print": "cpp"
 		},
+
+		// IntelliSense may not automatically resolve packages from your Conda environment.
+		// To fix this, first activate the environment and then create a symlink to your
+		// environment's site-packages directory.
+		//
+		// From the root of the repository, run:
+		//
+		//     conda activate metta
+		//     ln -s "$CONDA_PREFIX/lib/python3.11/site-packages" conda-site-packages
+		//
+		// Then ensure ""conda-site-packages/**"" is included in the extraPaths lists below.
+
 		"python.analysis.extraPaths": [
-			"${env:CONDA_PREFIX}/lib/python3.11/site-packages",
+			"conda-site-packages/**",
 			"deps/**",
 			"${workspaceFolder}"
 		],
 		"python.autoComplete.extraPaths": [
-			"${env:CONDA_PREFIX}/lib/python3.11/site-packages",
+			"conda-site-packages/**",
 			"deps/**",
 			"${workspaceFolder}"
 		],

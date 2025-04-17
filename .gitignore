@@ -21,3 +21,4 @@ sweep_id
 .vscode/PythonImportHelper-v2-Completion.json
 personal/
 .env
+conda-site-packages
