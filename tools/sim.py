@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import List
 
 import hydra
-from omegaconf import MISSING, DictConfig
+from omegaconf import DictConfig
 
 from metta.agent.policy_store import PolicyStore
 from metta.sim.eval_stats_logger import EvalStatsLogger
@@ -16,12 +16,12 @@ from metta.util.wandb.wandb_context import WandbContext
 
 @dataclass
 class SimJob:
-    simulation_suite: SimulationSuiteConfig = MISSING
-    policy_uris: List[str] = MISSING
+    simulation_suite: SimulationSuiteConfig
+    policy_uris: List[str]
     selector_type: str = "latest"
 
 
-def simulate_policy(sim_job: SimJob, policy_uri: str, cfg: DictConfig, wandb_run):
+def simulate_policy(sim_job: SimJob, policy_uri: str, cfg: DictConfig, wandb_run):  
     logger = logging.getLogger("metta.tools.sim")
     # TODO: Remove dependence on cfg in PolicyStore
     policy_store = PolicyStore(cfg, wandb_run)
