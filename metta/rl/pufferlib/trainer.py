@@ -359,7 +359,6 @@ class PufferTrainer:
 
     @pufferlib.utils.profile
     def _train(self):
-        self.cuda_sync_1()
 
         experience, profile = self.experience, self.profile
         self.losses = self._make_losses()
@@ -395,7 +394,7 @@ class PufferTrainer:
                 experience.returns_np = advantages_np + values_np
 
             experience.flatten_batch(advantages_np)
-        self.cuda_sync_2()
+
         # Optimizing the policy and value network
         total_minibatches = experience.num_minibatches * self.trainer_cfg.update_epochs
         for _epoch in range(self.trainer_cfg.update_epochs):
@@ -419,7 +418,7 @@ class PufferTrainer:
 
                     # if self.device == "cuda":
                     #     torch.cuda.synchronize()
-                self.cuda_sync_3()
+
                 with profile.train_misc:
                     logratio = newlogprob - log_probs.reshape(-1)
                     ratio = logratio.exp()
@@ -477,19 +476,23 @@ class PufferTrainer:
                         + ks_action_loss
                         + ks_value_loss
                     )
-                self.cuda_sync_4()
+                self.cuda_sync_1()
                 with profile.learn:
                     self.optimizer.zero_grad()
+                    self.cuda_sync_2()
                     loss.backward()
+                    self.cuda_sync_3()
                     torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.trainer_cfg.max_grad_norm)
+                    self.cuda_sync_4()
                     self.optimizer.step()
-
+                    self.cuda_sync_5()
                     if self.cfg.agent.clip_range > 0:
                         self.policy.clip_weights()
+                    self.cuda_sync_6()
 
                     # if self.device == "cuda":
                     # #     torch.cuda.synchronize()
-                self.cuda_sync_5()
+
                 with profile.train_misc:
                     self.losses.policy_loss += pg_loss.item() / total_minibatches
                     self.losses.value_loss += v_loss.item() / total_minibatches
@@ -505,7 +508,7 @@ class PufferTrainer:
             if self.trainer_cfg.target_kl is not None:
                 if approx_kl > self.trainer_cfg.target_kl:
                     break
-        self.cuda_sync_6()
+
         with profile.train_misc:
             if self.lr_scheduler is not None:
                 self.lr_scheduler.step()
