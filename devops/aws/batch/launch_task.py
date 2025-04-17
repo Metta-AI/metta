@@ -265,8 +265,8 @@ def main():
         default=None,
         help="The mettagrid commit to use for the task. If not specified, will use the current commit.",
     )
-    parser.add_argument("--gpus", type=int, default=4, help="Number of GPUs per node to use for the task.")
-    parser.add_argument("--node-gpus", type=int, default=4, help="Number of GPUs per node to use for the task.")
+    parser.add_argument("--gpus", type=int, default=1, help="Number of GPUs per node to use for the task.")
+    parser.add_argument("--node-gpus", type=int, default=1, help="Number of GPUs per node to use for the task.")
     parser.add_argument("--gpu-cpus", type=int, help="Number of CPUs per GPU (vCPUs will be 2x this value).")
     parser.add_argument("--node-ram-gb", type=int, help="RAM per node in GB.")
     parser.add_argument("--copies", type=int, default=1, help="Number of job copies to submit.")
