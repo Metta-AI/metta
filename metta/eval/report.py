@@ -67,12 +67,12 @@ def generate_report_html(cfg: DictConfig) -> str:
             logger.warning(f"No data found for metric: {metric}")
             return "<html><body><h1>No data available</h1></body></html>"
 
-        score_range = (0, 3)
+        score_range = (0, 1)
         RED = "rgb(235, 40, 40)"
         YELLOW = "rgb(225, 210, 80)"
         LIGHT_GREEN = "rgb(175, 230, 80)"
         FULL_GREEN = "rgb(20, 230, 80)"
-        colorscale = [[0.0, RED], [0.5 / 3.0, RED], [2.2 / 3.0, YELLOW], [2.8 / 3.0, LIGHT_GREEN], [1.0, FULL_GREEN]]
+        colorscale = [[0.0, RED], [0.5, RED], [0.75, YELLOW], [0.9, LIGHT_GREEN], [1.0, FULL_GREEN]]
 
         # Create visualization with fixed score range and custom colorscale
         fig = create_matrix_visualization(

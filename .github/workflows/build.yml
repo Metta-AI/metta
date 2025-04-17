@@ -16,20 +16,12 @@ jobs:
     env:
       CHECKPOINT_PATH: ./train_dir/github_test/checkpoints/
     steps:
-<<<<<<< HEAD
-      - uses: actions/checkout@v3
-=======
       - uses: actions/checkout@v4
->>>>>>> origin/main
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-<<<<<<< HEAD
-          python-version: '3.11.7'
-=======
           python-version: "3.11.7"
->>>>>>> origin/main
 
       - name: Cache pip packages
         uses: actions/cache@v4
@@ -102,31 +94,13 @@ jobs:
         run: |
           source venv/bin/activate
           python -m tools.train +hardware=github
-<<<<<<< HEAD
-
-      - name: Run Pytest
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-        run: |
-          source venv/bin/activate
-          pytest tests/ --maxfail=1 --disable-warnings -q
-
-      - name: Cache training output
-=======
           # Verify the output path exists
           ls -la $CHECKPOINT_PATH || echo "Warning: Checkpoint directory not created"
 
       - name: Upload training output
->>>>>>> origin/main
         if: success()
         uses: actions/upload-artifact@v4
         with:
-<<<<<<< HEAD
-          path: train_dir
-          key: ${{ runner.os }}-train-dir-${{ github.sha }}
-
-      - name: Run trace
-=======
           name: train-output
           path: train_dir/
           retention-days: 1
@@ -147,7 +121,6 @@ jobs:
           ls -la $CHECKPOINT_PATH || echo "Checkpoint directory not found!"
 
       - name: Replay smoke test
->>>>>>> origin/main
         if: success()
         env:
           HYDRA_FULL_ERROR: 1
@@ -157,9 +130,6 @@ jobs:
           AWS_SECRET_ACCESS_KEY: set_but_not_used
         run: |
           source venv/bin/activate
-<<<<<<< HEAD
-          python -m tools.replay +hardware=github policy_uri=./train_dir/my_experiment/checkpoints/
-=======
           python -m tools.replay +hardware=github policy_uri=$CHECKPOINT_PATH
 
       - name: Debug on failure
@@ -169,4 +139,3 @@ jobs:
           echo "Listing the contents of the workspace:"
           find train_dir -type f -name "*.py" | sort
           find train_dir -type d | sort
->>>>>>> origin/main
