@@ -211,7 +211,8 @@ class MettaAgent(nn.Module):
 
     def compute_weight_metrics(self, delta: float = 0.01) -> List[dict]:
         """Compute weight metrics for all components that have weights enabled for analysis.
-        Returns a list of metric dictionaries, one per component."""
+        Returns a list of metric dictionaries, one per component. Set analyze_weights to True in the config to turn it
+        on for a given component."""
         weight_metrics = []
         for component in self.components.values():
             metrics = component.compute_weight_metrics(delta)
