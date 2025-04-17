@@ -7,7 +7,7 @@ defaults:
 env: null #the env is set in evals:
 
 evals:
-  simple:
+  simple_npc_b.daveey.t.8.rdr9.3:
     env: env/mettagrid-base/simple
     policy_agents_pct: 0.5
     npc_policy_uri: wandb://run/b.daveey.t.8.rdr9.3
