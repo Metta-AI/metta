@@ -16,7 +16,7 @@ specs = {
     1: {
         "node_gpus": 1,
         "node_ram_gb": 60,
-        "gpu_cpus": 10,
+        "gpu_cpus": 8,
     },
     4: {
         "node_gpus": 4,
