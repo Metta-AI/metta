@@ -218,6 +218,10 @@ class MettaAgent(nn.Module):
             state = torch.cat(state, dim=0)
             td["state"] = state.to(x.device)
 
+        # Ensure action is on the correct device if provided
+        if action is not None:
+            action = action.to(x.device) # Ensure action is on the correct device
+
         self.components["_value_"](td)
         value = td["_value_"]
         state = td["state"]
@@ -239,10 +243,12 @@ class MettaAgent(nn.Module):
 
         # delete if logic after testing
         if self.convert_to_single_discrete:
+            # 'action' here is already on the device due to the check above
             action_logit_index = self._convert_action_to_logit_index(action, logits) if action is not None else None
             action_logit_index, logprob, entropy, normalized_logits = sample_logits(logits, action_logit_index)
             action = self._convert_logit_index_to_action(action_logit_index, td)
         else:
+            # 'action' here is already on the device due to the check above
             action_logit_index, logprob, entropy, normalized_logits = sample_logits(logits, action)
             action = action_logit_index
 
