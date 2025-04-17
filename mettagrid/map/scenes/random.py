@@ -25,7 +25,7 @@ class Random(Scene):
     ):
         super().__init__()
         self._rng = np.random.default_rng(seed)
-        self._objects = objects if objects is not None else {}
+        self._objects = objects or {}
         self._agents = agents
         self._too_many_is_ok = too_many_is_ok
 

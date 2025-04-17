@@ -42,7 +42,7 @@ class Node:
         area = Area(
             id=len(self._areas),
             grid=self.grid[y : y + height, x : x + width],
-            tags=tags if tags is not None else [],
+            tags=tags or [],
         )
         self._areas.append(area)
         return area
@@ -69,9 +69,10 @@ class Node:
                                     break
                             if match:
                                 selected_areas.append(area)
+                    else:
+                        raise ValueError(f"Invalid 'tags' format in 'where' clause: expected list, got {type(tags)}")
                 else:
-                    # Handle the case where "where" doesn't have expected structure
-                    selected_areas = areas
+                    raise ValueError(f"Invalid 'where' structure: {where}")
         else:
             selected_areas = areas
 

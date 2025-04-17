@@ -17,7 +17,7 @@ class TypedChild(TypedDict):
 # Base class for all map scenes.
 class Scene:
     def __init__(self, children: Optional[List[TypedChild]] = None):
-        self._children = children if children is not None else []
+        self._children = children or []
         pass
 
     def make_node(self, grid: npt.NDArray[np.str_]):
