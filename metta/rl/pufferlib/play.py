@@ -20,7 +20,7 @@ def play(cfg: OmegaConf, policy_store: PolicyStore):
     )
     policy = policy_record.policy()
 
-    renderer = MettaGridRaylibRenderer(env._c_env, env._env_cfg.game)
+    renderer = MettaGridRaylibRenderer(env._c_env, env.active_cfg.game)
     policy_rnn_state = None
 
     rewards = np.zeros(vecenv.num_agents)

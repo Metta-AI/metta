@@ -31,8 +31,6 @@ wandb-core==0.17.0b11
 websockets>=14.1
 sample-factory==2.1.1
 pixie-python==4.3.0
-
-# forks
 git+https://github.com/Metta-AI/pufferlib.git@metta
 
 # Gym environments
