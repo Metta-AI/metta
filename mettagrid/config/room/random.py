@@ -15,7 +15,7 @@ class Random(Room):
         agents: int | DictConfig = 0,
         seed: Optional[int] = None,
         border_width: int = 0,
-        border_object: str = "wall"
+        border_object: str = "wall",
     ):
         super().__init__(border_width=border_width, border_object=border_object)
         self._rng = np.random.default_rng(seed)
@@ -35,7 +35,7 @@ class Random(Room):
 
         # Check if total objects exceed room size and halve counts if needed
         total_objects = sum(count for count in self._objects.values()) + len(agents)
-        while total_objects > 2*area / 3:
+        while total_objects > 2 * area / 3:
             for obj_name in self._objects:
                 self._objects[obj_name] = max(1, self._objects[obj_name] // 2)
                 total_objects = sum(count for count in self._objects.values()) + len(agents)
@@ -45,7 +45,7 @@ class Random(Room):
             symbols.extend([obj_name] * count)
         symbols.extend(agents)
 
-        assert(len(symbols) <= area), f"Too many objects in room: {len(symbols)} > {area}"
+        assert len(symbols) <= area, f"Too many objects in room: {len(symbols)} > {area}"
         symbols.extend(["empty"] * (area - len(symbols)))
 
         # Shuffle and reshape the array into a room.

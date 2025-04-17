@@ -11,11 +11,20 @@ class RoomWithinRoom(Room):
     Outer room with walls and a centered inner room (with a door gap in its top wall).
     Specific objects are placed at the inner room corners and in the outer room's top-left.
     """
-    def __init__(self, width: int, height: int,
-                 inner_size_min: int, inner_size_max: int,
-                 inner_room_gap_min: int, inner_room_gap_max: int,
-                 border_width: int = 1, border_object: str = "wall",
-                 agents: int = 1, seed=None):
+
+    def __init__(
+        self,
+        width: int,
+        height: int,
+        inner_size_min: int,
+        inner_size_max: int,
+        inner_room_gap_min: int,
+        inner_room_gap_max: int,
+        border_width: int = 1,
+        border_object: str = "wall",
+        agents: int = 1,
+        seed=None,
+    ):
         super().__init__(border_width=border_width, border_object=border_object)
         self._overall_width, self._overall_height = width, height
         self._inner_size_min, self._inner_size_max = inner_size_min, inner_size_max

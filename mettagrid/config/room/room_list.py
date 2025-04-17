@@ -6,12 +6,7 @@ from mettagrid.config.room.room import Room
 
 
 class RoomList(Room):
-    def __init__(
-        self,
-        rooms: List[Room],
-        layout: str = "grid",
-        border_width: int = 0,
-        border_object: str = "wall"):
+    def __init__(self, rooms: List[Room], layout: str = "grid", border_width: int = 0, border_object: str = "wall"):
         super().__init__(border_width=border_width, border_object=border_object)
         self._room_configs = rooms
         self._layout = layout
@@ -41,8 +36,7 @@ class RoomList(Room):
             grid_cols = n_rooms
 
         # Create empty grid to hold all rooms
-        level = np.full((grid_rows * max_height, grid_cols * max_width),
-                        "empty", dtype='<U50')
+        level = np.full((grid_rows * max_height, grid_cols * max_width), "empty", dtype="<U50")
 
         # Place rooms into grid
         for i in range(n_rooms):
@@ -56,7 +50,6 @@ class RoomList(Room):
             start_col = col * max_width + (max_width - room_width) // 2
 
             # Place room in centered position
-            level[start_row:start_row + room_height,
-                 start_col:start_col + room_width] = rooms[i]
+            level[start_row : start_row + room_height, start_col : start_col + room_width] = rooms[i]
 
         return level

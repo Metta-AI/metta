@@ -1,4 +1,3 @@
-
 # Reads a compressed JSON file and prints the contents.
 import json
 import zlib
