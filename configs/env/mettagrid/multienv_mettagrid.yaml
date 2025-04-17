@@ -6,6 +6,11 @@ game:
   num_agents: ${..num_agents}
 
 envs:
-  - /env/mettagrid-base/simple
+  - /env/mettagrid/simple
   - /env/mettagrid/teams
   - /env/mettagrid/bases
+
+probabilities:
+  - 0.5
+  - 0.25
+  - 0.25
