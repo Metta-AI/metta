@@ -33,10 +33,6 @@ def make_policy(env: PufferEnv, cfg: OmegaConf):
         grid_features=env.grid_features,
         global_features=env.global_features,
         device=cfg.device,
-        # obs_width=11,
-        # obs_height=11, # TODO: remove hardcoded values
-        # # obs_width=cfg.env.game.obs_width,
-        # # obs_height=cfg.env.game.obs_height,
         _recursive_=False)
 
 class DistributedMettaAgent(DistributedDataParallel):
@@ -189,20 +185,27 @@ class MettaAgent(nn.Module):
 
     def _convert_action_to_logit_index(self, action, logits):
         """Convert action pairs to logit indices using vectorized operations"""
+        # --- IMPORTANT ASSUMPTION ---
+        # Assumes the input 'action' tensor is already of dtype torch.long.
+        # Verify this assumption holds true, e.g., during training data loading/storage.
+        # --- /IMPORTANT ASSUMPTION ---
         orig_shape = action.shape
-        action = action.reshape(-1, 2)
-        
-        # Extract action components without list comprehension
-        action_type_numbers = action[:, 0].long()
-        action_params = action[:, 1].long()
-        
+        # Prefer view() when possible, might avoid copies if contiguous
+        action_flat = action.view(-1, 2)
+
+        # Extract action components (NO .long() needed if assumption holds)
+        action_type_numbers = action_flat[:, 0]
+        action_params = action_flat[:, 1]
+
         # Use precomputed cumulative sum with vectorized indexing
+        # Indexing still creates a new tensor 'cumulative_sum'
         cumulative_sum = self.cum_action_max_params[action_type_numbers]
-        
-        # Vectorized addition
+
+        # Vectorized addition still creates a new tensor 'action_logit_index'
         action_logit_index = action_type_numbers + cumulative_sum + action_params
-        
-        return action_logit_index.reshape(*orig_shape[:2], 1)
+
+        # Use view() again
+        return action_logit_index.view(*orig_shape[:2], 1)
 
     def _convert_logit_index_to_action(self, action_logit_index, td):
         """Convert logit indices back to action pairs using tensor indexing"""
@@ -217,10 +220,6 @@ class MettaAgent(nn.Module):
         if state is not None:
             state = torch.cat(state, dim=0)
             td["state"] = state.to(x.device)
-
-        # Ensure action is on the correct device if provided
-        if action is not None:
-            action = action.to(x.device) # Ensure action is on the correct device
 
         self.components["_value_"](td)
         value = td["_value_"]
@@ -243,12 +242,10 @@ class MettaAgent(nn.Module):
 
         # delete if logic after testing
         if self.convert_to_single_discrete:
-            # 'action' here is already on the device due to the check above
             action_logit_index = self._convert_action_to_logit_index(action, logits) if action is not None else None
             action_logit_index, logprob, entropy, normalized_logits = sample_logits(logits, action_logit_index)
             action = self._convert_logit_index_to_action(action_logit_index, td)
         else:
-            # 'action' here is already on the device due to the check above
             action_logit_index, logprob, entropy, normalized_logits = sample_logits(logits, action)
             action = action_logit_index
 
