@@ -9,6 +9,8 @@ import torch
 from omegaconf import OmegaConf
 from rich import traceback
 
+from mettagrid.resolvers import register_resolvers
+
 logger = logging.getLogger("runtime_configuration")
 
 
@@ -21,8 +23,8 @@ def seed_everything(seed, torch_deterministic):
 
 
 def setup_mettagrid_environment(cfg):
-    # Import mettagrid_env to ensure OmegaConf resolvers are registered before Hydra loads
-    import mettagrid.mettagrid_env  # noqa: F401
+    # register our custom hydra resolvers from mettagrid
+    register_resolvers()
 
     # Set environment variables to run without display
     os.environ["GLFW_PLATFORM"] = "osmesa"  # Use OSMesa as the GLFW backend
