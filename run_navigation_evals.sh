@@ -25,7 +25,8 @@ POLICIES=(
     "terrain_training_multienv_newmaps"
     "terrain_training_multienv"
     "b.daphne.cylinder_run"
-    
+    "b.georgedeane.terrain_multienv"
+
 )
 
 
