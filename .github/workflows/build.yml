@@ -99,5 +99,5 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}
         run: |
           source venv/bin/activate
-          pytest tests/test_basic.py
+          pytest tests
           python tests/test_kinship.py
