@@ -7,7 +7,7 @@ import torch
 from omegaconf import OmegaConf
 
 from metta.agent.policy_store import PolicyRecord, PolicyStore
-from metta.sim.simulation_config import SimulationConfig, SimulationSuiteConfig, apply_defaults_to_simulations
+from metta.sim.simulation_config import SimulationConfig, SimulationSuiteConfig
 from metta.sim.vecenv import make_vecenv
 from metta.util.config import config_from_path
 from metta.util.datastruct import flatten_config
@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 class Simulation:
     def __init__(
         self,
+        *,
         config: SimulationConfig,
         policy_pr: PolicyRecord,
         policy_store: PolicyStore,
@@ -38,7 +39,6 @@ class Simulation:
 
         # load candidate policy
         self._policy_pr = policy_pr
-        self._run_id = config.run_id
 
         # load npc policy
         self._npc_pr = None
@@ -143,7 +143,6 @@ class Simulation:
             # Convert the environment configuration to a dictionary and flatten it.
             game_cfg = OmegaConf.to_container(self._env_cfg.game, resolve=False)
             flattened_env = flatten_config(game_cfg, parent_key="game")
-            flattened_env["run_id"] = self._run_id
             flattened_env["eval_name"] = self._env_name
             flattened_env["timestamp"] = datetime.now().isoformat()
             flattened_env["npc"] = self._npc_policy_uri
@@ -173,19 +172,17 @@ class Simulation:
 class SimulationSuite:
     def __init__(
         self,
+        *,
         config: SimulationSuiteConfig,
         policy_pr: PolicyRecord,
         policy_store: PolicyStore,
     ):
         logger.info(f"Building Simulation suite from config:{config}")
-        # Apply defaults from suite config to individual simulation configs
-        apply_defaults_to_simulations(config)
-
         self._simulations = dict()
 
         for name, sim_config in config.simulations.items():
             # Create a Simulation object for each config
-            sim = Simulation(sim_config, policy_pr, policy_store)
+            sim = Simulation(config=sim_config, policy_pr=policy_pr, policy_store=policy_store)
             self._simulations[name] = sim
 
     def simulate(self):

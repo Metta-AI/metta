@@ -1,0 +1,19 @@
+defaults:
+  - common
+  - wandb: metta_research
+  - /sim/simple@sim_job.simulation_suite
+
+cmd: sim
+run: ???
+data_dir: ./train_dir
+run_dir: ${data_dir}/${run}
+torch_deterministic: true
+
+sim_job:
+  simulation_suite:
+    env: 
+    run_dir: ${run_dir}
+    eval_db_uri: ${eval_db_uri}
+  policy_uris:
+    - ${policy_uri}
+  selector_type: latest

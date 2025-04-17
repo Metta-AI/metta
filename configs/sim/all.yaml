@@ -1,7 +1,7 @@
-num_envs: 1
-num_episodes: 1
+defaults:
+  - sim
 
-evals:
+simulations:
   emptyspace_withinsight:
     env: env/mettagrid/navigation/evals/emptyspace_withinsight
     policy_agents_pct: 1.0

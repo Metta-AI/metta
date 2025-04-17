@@ -1,7 +1,10 @@
+defaults:
+  - sim
+
 num_envs: 10
 num_episodes: 10
 
-evals:
+simulations:
   altar_use_free:
     env: env/mettagrid/object_use/evals/altar_use_free
     policy_agents_pct: 1.0
