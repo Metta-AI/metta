@@ -19,6 +19,7 @@ from metta.agent.policy_store import PolicyStore
 from metta.rl.pufferlib.experience import Experience
 from metta.rl.pufferlib.kickstarter import Kickstarter
 from metta.rl.pufferlib.profile import Profile
+from metta.rl.pufferlib.torch_profiler import TorchProfiler
 from metta.rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
 from metta.sim.eval_stats_db import EvalStatsDB
 from metta.sim.eval_stats_logger import EvalStatsLogger
@@ -53,6 +54,7 @@ class PufferTrainer:
             logger.info(f"Setting up distributed training on device {self.device}")
 
         self.profile = Profile()
+        self.torch_profiler = TorchProfiler(cfg.run_dir, wandb_run)
         self.losses = self._make_losses()
         self.stats = defaultdict(list)
         self.wandb_run = wandb_run
@@ -110,8 +112,15 @@ class PufferTrainer:
         self.uncompiled_policy = self.policy
 
         if self.trainer_cfg.compile:
-            logger.info("Compiling policy")
-            self.policy = torch.compile(self.policy, mode=self.trainer_cfg.compile_mode)
+            mode = self.trainer_cfg.compile_mode
+            try:
+                self.policy = torch.compile(
+                    self.policy, mode=mode, fullgraph=False
+                )
+                logger.info(f"Successfully compiled policy with mode={mode} and fullgraph=False")
+            except Exception as e:
+                logger.error(f"Failed to compile policy with mode={mode} and fullgraph=False: {e}")
+
 
         if dist.is_initialized():
             logger.info(f"Initializing DistributedDataParallel on device {self.device}")
@@ -164,12 +173,15 @@ class PufferTrainer:
             raise ValueError("evaluate_interval must be at least as large as checkpoint_interval")
 
         logger.info(f"Training on {self.device}")
+        
         while self.agent_step < self.trainer_cfg.total_timesteps:
-            # Collecting experience
-            self._evaluate()
-
-            # Training on collected experience
-            self._train()
+            if self.torch_profiler.active:
+                with self.torch_profiler: # start/stop profiling
+                    self._evaluate() # aka rollout
+                    self._train()
+            else: # run normally if profiler is not active for this epoch
+                self._evaluate() # aka rollout
+                self._train()
 
             # Processing stats
             self._process_stats()
@@ -195,6 +207,14 @@ class PufferTrainer:
                 self._update_l2_init_weight_copy()
             if self.trainer_cfg.replay_interval != 0 and self.epoch % self.trainer_cfg.replay_interval == 0:
                 self._generate_and_upload_replay()
+            if not self.torch_profiler.active: # check if we should setup the profiler at this epoch
+                should_profile_this_epoch = (
+                    self.trainer_cfg.profiler_interval_epochs != 0
+                    and self.epoch % self.trainer_cfg.profiler_interval_epochs == 0
+                    and self._master
+                )
+                if should_profile_this_epoch:
+                     self.torch_profiler.setup_profiler(self.epoch)
 
             self._on_train_step()
 

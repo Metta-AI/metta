@@ -28,7 +28,8 @@ class LSTM(LayerBase):
                 nn.init.orthogonal_(param, 1.0)  # torch's default is uniform
 
         return net
-
+    
+    @torch.compile(disable=True)  # Dynamo doesn't support compiling LSTMs
     def _forward(self, td: TensorDict):
         x = td["x"]
         hidden = td[self._input_source]
