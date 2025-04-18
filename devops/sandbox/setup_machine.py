@@ -22,7 +22,7 @@ def install_homebrew():
     if not os.path.exists("/opt/homebrew/bin/brew"):
         print("Installing Homebrew...")
         run_command(["curl", "-fsSL", "https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh"])
-        run_command(["install.sh"])
+        run_command(["/bin/bash", "install.sh"])
         os.remove("install.sh")
     else:
         print("Homebrew is already installed")
