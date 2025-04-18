@@ -208,7 +208,7 @@ class ExpandLayer(LayerBase):
         expanded = tensor.unsqueeze(self.expand_dim)
         expand_shape = [-1] * expanded.dim()
         expand_shape[self.expand_dim] = self.expand_value
-        td[self._name] = expanded.expand(*expand_shape)
+        td[self._name] = expanded.expand(*expand_shape).contiguous()
         return td
 
 class ReshapeLayer(LayerBase):
@@ -241,7 +241,8 @@ class ReshapeLayer(LayerBase):
         compressed_size = shape[self.squeezed_dim] * shape[self.popped_dim]
         shape.pop(self.popped_dim)
         shape[self.squeezed_dim] = compressed_size
-        td[self._name] = tensor.reshape(*shape)
+        # td[self._name] = tensor.reshape(*shape)
+        td[self._name] = tensor.view(*shape)
         return td
 
 class BatchReshapeLayer(LayerBase):
@@ -256,7 +257,8 @@ class BatchReshapeLayer(LayerBase):
             return
 
         self._input_source_component = input_source_components
-        self._out_tensor_shape = self._input_source_component._out_tensor_shape
+        # self._out_tensor_shape = self._input_source_component._out_tensor_shape
+        self._out_tensor_shape = [512] # delete after testing
         # the out_tensor_shape is NOT ACCURATE because we don't know the batch size ahead of time!!!
         self._ready = True
 
@@ -268,6 +270,7 @@ class BatchReshapeLayer(LayerBase):
         shape.insert(1, 0)
         shape[1] = shape[0]// (B*TT)
         shape[0] = B*TT
-        td[self._name] = tensor.reshape(*shape).squeeze()
+        # td[self._name] = tensor.reshape(*shape).squeeze()
+        td[self._name] = tensor.view(*shape).squeeze()
         return td
 

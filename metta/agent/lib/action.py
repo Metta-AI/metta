@@ -26,18 +26,17 @@ class ActionEmbedding(nn_layer_library.Embedding):
         #         string_list.append(f"{action_name}_{i}")
 
         # for each action string, if it's not already in the reserved_action_embeds, add it and give it an index
-        pass
-        #uncomment below after testing
-        # for string in strings:
-        #     if string not in self._reserved_action_embeds:
-        #         embedding_index = len(self._reserved_action_embeds) + 1 # generate index for this string
-        #         self._reserved_action_embeds[string] = embedding_index # update this component's known embeddings
 
-        # self.active_indices = torch.tensor([
-        #     self._reserved_action_embeds[name]
-        #     for name in strings
-        # ], device=device)
-        # self.num_actions = len(self.active_indices)
+        for string in strings:
+            if string not in self._reserved_action_embeds:
+                embedding_index = len(self._reserved_action_embeds) + 1 # generate index for this string
+                self._reserved_action_embeds[string] = embedding_index # update this component's known embeddings
+
+        self.active_indices = torch.tensor([
+            self._reserved_action_embeds[name]
+            for name in strings
+        ], device=device)
+        self.num_actions = len(self.active_indices)
 
     def _forward(self, td: TensorDict):
         B = td['_batch_size_']
@@ -45,7 +44,7 @@ class ActionEmbedding(nn_layer_library.Embedding):
         td['_num_actions_'] = self.num_actions
 
         # get embeddings, unsqueeze the 0'th dimension, then expand to match the batch size
-        td[self._name] = self._net(self.active_indices).unsqueeze(0).expand(B * TT, -1, -1)
+        td[self._name] = self._net(self.active_indices).unsqueeze(0).expand(B * TT, -1, -1).contiguous()
         
         return td
     

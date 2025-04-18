@@ -90,13 +90,6 @@ components:
       out_features: 512
     effective_rank: true
 
-  _action_:
-    _target_: metta.agent.lib.nn_layer_library.Linear
-    input_source: actor_1
-    nn_params:
-      out_features: 25
-    effective_rank: true
-
   _action_embeds_:
     _target_: metta.agent.lib.action.ActionEmbedding
     input_source: null
@@ -110,19 +103,19 @@ components:
   #   popped_dim: 1
   #   input_source: _action_embeds_
 
-  # actor_1_expanded:
-  #   _target_: metta.agent.lib.merge_layer.ExpandLayer
-  #   expand_dim: 1
-  #   expand_value: null
-  #   input_source: actor_1
-  #   dims_source: _action_embeds_
-  #   source_dim: 1
+  actor_1_expanded:
+    _target_: metta.agent.lib.merge_layer.ExpandLayer
+    expand_dim: 1
+    expand_value: null
+    input_source: actor_1
+    dims_source: _action_embeds_
+    source_dim: 1
 
-  # actor_1_reshaped:
-  #   _target_: metta.agent.lib.merge_layer.ReshapeLayer
-  #   squeezed_dim: 0
-  #   popped_dim: 1
-  #   input_source: actor_1_expanded
+  actor_1_reshaped:
+    _target_: metta.agent.lib.merge_layer.ReshapeLayer
+    squeezed_dim: 0
+    popped_dim: 1
+    input_source: actor_1_expanded
 
   # attn:
   #   _target_: metta.agent.lib.nn_layer_library.Bilinear
@@ -135,3 +128,14 @@ components:
   # _action_:
   #   _target_: metta.agent.lib.merge_layer.BatchReshapeLayer
   #   input_source: attn
+
+  temp_actor_batchreshape:
+    _target_: metta.agent.lib.merge_layer.BatchReshapeLayer
+    input_source: actor_1_reshaped
+
+  _action_:
+    _target_: metta.agent.lib.nn_layer_library.Linear
+    input_source: temp_actor_batchreshape
+    nn_params:
+      out_features: 25
+    effective_rank: true
