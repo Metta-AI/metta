@@ -1,7 +1,7 @@
-from typing import Union
+from typing import Literal, Union
 
 import numpy as np
-from omegaconf import DictConfig
+from omegaconf import ListConfig
 from scipy import stats
 
 # Useful for scene classes - they want to take an optional seed, but sometimes we
@@ -38,14 +38,53 @@ def lognormal_from_90_percentile(low: float, high: float, rng: np.random.Generat
     return rng.lognormal(mean=mu, sigma=sigma)
 
 
-def sample_distribution(cfg: DictConfig, rng: np.random.Generator) -> float:
-    if cfg.distribution_type == "uniform":
-        return rng.uniform(cfg.min, cfg.max)
-    elif cfg.distribution_type == "lognormal":
-        percentage = lognormal_from_90_percentile(cfg.p5, cfg.p95, rng)
-        abs_max = cfg.get("max", None)
-        if abs_max is not None:
-            percentage = min(percentage, abs_max)
-        return percentage
+FloatDistribution = Union[float, tuple[Literal["uniform"], float, float]]
+
+
+def sample_float_distribution(cfg: FloatDistribution, rng: np.random.Generator) -> float:
+    """
+    Valid config values:
+    - `float`: just return the value
+    - `["uniform", low: float, high: float]`: any float in the range
+    - `["lognormal", p5: float, p95: float, max: float]`: any float in the range, max (absolute limit) is optional
+    """
+    if isinstance(cfg, float):
+        return cfg
+    elif isinstance(cfg, tuple) or isinstance(cfg, ListConfig):
+        (dist_type, *args) = cfg
+        if dist_type == "uniform":
+            assert len(args) == 2
+            return rng.uniform(args[0], args[1])
+        elif dist_type == "lognormal":
+            assert len(args) == 2 or len(args) == 3
+            percentage = lognormal_from_90_percentile(args[0], args[1], rng)
+            abs_max = args[2] if len(args) == 3 else None
+            if abs_max is not None:
+                percentage = min(percentage, abs_max)
+            return percentage
+        else:
+            raise ValueError(f"Unknown distribution type: {dist_type}")
     else:
-        raise ValueError(f"Unknown distribution type: {cfg.distribution_type}")
+        raise ValueError(f"Invalid distribution: {cfg}")
+
+
+IntDistribution = Union[int, tuple[Literal["uniform"], int, int]]
+
+
+def sample_int_distribution(cfg: IntDistribution, rng: np.random.Generator) -> int:
+    """
+    Valid config values:
+    - `int`: just return the value
+    - `["uniform", low: int, high: int]`: any integer in the range, high is inclusive
+    """
+    if isinstance(cfg, int):
+        return cfg
+    elif isinstance(cfg, tuple) or isinstance(cfg, ListConfig):
+        (dist_type, *args) = cfg
+        if dist_type == "uniform":
+            assert len(args) == 2
+            return rng.integers(args[0], args[1], endpoint=True)
+        else:
+            raise ValueError(f"Unknown distribution type: {dist_type}")
+    else:
+        raise ValueError(f"Invalid distribution: {cfg}")

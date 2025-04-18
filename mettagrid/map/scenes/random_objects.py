@@ -4,7 +4,7 @@ import numpy as np
 from omegaconf import DictConfig
 
 from mettagrid.map.scenes.random import Random
-from mettagrid.map.utils.random import MaybeSeed, sample_distribution
+from mettagrid.map.utils.random import MaybeSeed, sample_float_distribution
 
 from ..node import Node
 from ..scene import Scene, TypedChild
@@ -31,7 +31,7 @@ class RandomObjects(Scene):
         size = node.height * node.width
         objects = {}
         for obj_name, distribution in self._object_ranges.items():
-            percentage = sample_distribution(distribution, self._rng)
+            percentage = sample_float_distribution(distribution, self._rng)
             objects[obj_name] = int(size * percentage)
 
         return [
