@@ -8,7 +8,7 @@ game:
 
   agent:
     rewards:
-      armor: 3
+      armor: 1
       ore.red: 0
 
   objects:

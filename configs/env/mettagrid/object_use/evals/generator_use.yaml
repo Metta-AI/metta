@@ -15,7 +15,7 @@ game:
 
   agent:
     rewards:
-      battery: 3
+      battery: 1
       ore.red: 0
       ore.blue: 0
       ore.green: 0
