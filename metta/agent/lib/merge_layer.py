@@ -271,6 +271,7 @@ class BatchReshapeLayer(LayerBase):
         shape[1] = shape[0]// (B*TT)
         shape[0] = B*TT
         # td[self._name] = tensor.reshape(*shape).squeeze()
-        td[self._name] = tensor.view(*shape).squeeze()
+        # td[self._name] = tensor.view(*shape).squeeze()
+        td[self._name] = tensor.view(*shape)[:,0,:]
         return td
 
