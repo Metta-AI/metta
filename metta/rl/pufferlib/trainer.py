@@ -16,6 +16,7 @@ from omegaconf import OmegaConf
 
 from metta.agent.metta_agent import DistributedMettaAgent
 from metta.agent.policy_store import PolicyStore
+from metta.agent.util.weights_analysis import WeightsMetricsHelper
 from metta.rl.pufferlib.experience import Experience
 from metta.rl.pufferlib.kickstarter import Kickstarter
 from metta.rl.pufferlib.profile import Profile
@@ -62,7 +63,7 @@ class PufferTrainer:
         self.average_reward = 0.0  # Initialize average reward estimate
         self._current_eval_score = None
         self._eval_results = []
-        self._weight_metrics = []
+        self._weights_helper = WeightsMetricsHelper(cfg)
         self._make_vecenv()
 
         logger.info("Loading checkpoint")
@@ -136,7 +137,8 @@ class PufferTrainer:
         self.lr_scheduler = None
         if self.trainer_cfg.lr_scheduler.enabled:
             self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-                self.optimizer, T_max=self.trainer_cfg.total_timesteps // self.trainer_cfg.batch_size)
+                self.optimizer, T_max=self.trainer_cfg.total_timesteps // self.trainer_cfg.batch_size
+            )
 
         if checkpoint.agent_step > 0:
             self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
@@ -184,11 +186,7 @@ class PufferTrainer:
                 self._checkpoint_trainer()
             if self.trainer_cfg.evaluate_interval != 0 and self.epoch % self.trainer_cfg.evaluate_interval == 0:
                 self._evaluate_policy()
-            if (
-                self.cfg.agent.analyze_weights_interval != 0
-                and self.epoch % self.cfg.agent.analyze_weights_interval == 0
-            ):
-                self._weight_metrics = self.policy.compute_weight_metrics()
+            self._weights_helper.on_epoch_end(self.epoch, self.policy)
             if self.epoch % self.trainer_cfg.wandb_checkpoint_interval == 0:
                 self._save_policy_to_wandb()
             if (
@@ -594,14 +592,6 @@ class PufferTrainer:
             if "object_use" in r["eval"]
         }
 
-        weight_metrics = {}  # Better name - these are just weight metrics from various components
-        for metrics in self._weight_metrics:
-            name = metrics.get("name", "unknown")
-            for key, value in metrics.items():
-                if key != "name":
-                    metric_key = f"train/{key}/{name}"
-                    weight_metrics[metric_key] = value
-
         if self.wandb_run and self.cfg.wandb.track and self._master:
             self.wandb_run.log(
                 {
@@ -610,7 +600,7 @@ class PufferTrainer:
                     **{f"performance/{k}": v for k, v in performance.items()},
                     **environment,
                     **policy_fitness_metrics,
-                    **weight_metrics,
+                    **self._weights_helper.stats(),
                     **navigation_eval_metrics,
                     **object_use_eval_metrics,
                     "train/agent_step": agent_steps,
@@ -621,7 +611,7 @@ class PufferTrainer:
             )
 
         self._eval_results = []
-        self._weight_metrics = []
+        self._weights_helper.reset()
         self.stats.clear()
 
     def close(self):
