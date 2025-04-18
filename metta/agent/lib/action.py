@@ -33,7 +33,7 @@ class ActionEmbedding(nn_layer_library.Embedding):
     def _forward(self, td: TensorDict):
         B = td['_batch_size_']
         TT = td['_TT_']
-        # td['_num_actions_'] = self.num_actions
+        td['_num_actions_'] = self.num_actions
 
         # get embeddings, unsqueeze the 0'th dimension, then expand to match the batch size
         td[self._name] = self._net(self.active_indices).unsqueeze(0).expand(B * TT, -1, -1).contiguous()
