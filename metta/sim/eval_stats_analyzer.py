@@ -66,7 +66,6 @@ class EvalStatsAnalyzer:
                     policy_fitness = self.policy_fitness(metric_result, metric)
                     policy_fitness_records.extend(policy_fitness)
                 result_dfs.append(metric_result)
-                self.log_result(metric_result, metric, filters)
 
         return result_dfs, policy_fitness_records
 
@@ -84,7 +83,7 @@ class EvalStatsAnalyzer:
                     policy_fitness_df,
                     headers=[self.candidate_policy_uri] + list(policy_fitness_df.keys()),
                     tablefmt="grid",
-                    maxcolwidths=25,
+                    # maxcolwidths=25,
                 )
                 self.logger.info(
                     f"Policy fitness results for candidate policy {self.candidate_policy_uri} "
