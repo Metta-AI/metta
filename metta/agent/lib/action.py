@@ -15,18 +15,10 @@ class ActionEmbedding(nn_layer_library.Embedding):
         # num_actions to be updated at runtime by the size of the active indices
         self._out_tensor_shape = [self.num_actions, self._nn_params['embedding_dim']]
         self.initialization = initialization
+        self.register_buffer('active_indices', torch.tensor([], dtype=torch.long))
         
     def activate_actions(self, strings, device):
-        # each time we run this, we update the metta_agent object's (the policy's) known action strings and associated indices
-
-        # convert the actions_dict into a list of strings
-        # string_list = []
-        # for action_name, max_arg_count in actions_list:
-        #     for i in range(max_arg_count + 1):
-        #         string_list.append(f"{action_name}_{i}")
-
-        # for each action string, if it's not already in the reserved_action_embeds, add it and give it an index
-
+        ''' each time we run this, we update the metta_agent object's (the policy's) known action strings and associated indices'''
         for string in strings:
             if string not in self._reserved_action_embeds:
                 embedding_index = len(self._reserved_action_embeds) + 1 # generate index for this string
