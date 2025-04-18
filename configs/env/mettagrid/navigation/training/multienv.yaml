@@ -6,9 +6,11 @@ game:
   num_agents: ${..num_agents}
 
 envs:
-  - /env/mettagrid/navigation/training/mapfromfile
+  - /env/mettagrid/navigation/training/terrain_from_numpy
   - /env/mettagrid/navigation/training/varied_terrain
+  - /env/mettagrid/navigation/training/cylinder_world
 
 probabilities:
+  - 0.4
   - 0.5
-  - 0.5
+  - 0.1
