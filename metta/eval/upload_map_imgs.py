@@ -1,9 +1,11 @@
-import os
 import argparse
 import mimetypes
-import boto3
+import os
 from pathlib import Path
+
+import boto3
 from botocore.exceptions import ClientError
+
 
 def is_image_file(filename):
     """Check if a file is an image based on its mimetype."""
