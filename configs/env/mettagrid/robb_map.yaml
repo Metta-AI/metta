@@ -27,7 +27,7 @@ game:
   difficulty: ${add:${..progress.last_difficulty},${.difficulty_increment}}
 
   # episode length 
-  max_steps: ${make_integer:${scale:${.difficulty},0,10,100,500,"log"}}
+  max_steps: ${make_integer:${scale:${.difficulty},0,10,100,500,"linear"}}
 
   # scaling the map size as our experimental condition
   min_size: 10
