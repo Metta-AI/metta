@@ -109,10 +109,12 @@ class PolicyStore:
             return [random.choice(prs)]
 
         elif selector_type == "top":
-            if metric not in prs[0].metadata or prs[0].metadata[metric] is None:
+            invalid_scores = [x for x in prs if x.metadata.get(metric, None) is None]
+            # If more than 20% of the policies have no score, return the latest policy
+            if metric not in prs[0].metadata or len(invalid_scores) > len(prs) * 0.2:
                 logger.warning(f"Metric {metric} not found in policy metadata, returning latest policy")
                 return [prs[0]]  # return latest if metric not found
-            top = sorted(prs, key=lambda x: x.metadata.get(metric, 0))[-n:]
+            top = sorted([p for p in prs if p not in invalid_scores], key=lambda x: x.metadata.get(metric, 0))[-n:]
             if len(top) < n:
                 logger.warning(f"Only found {len(top)} policies matching criteria, requested {n}")
 
