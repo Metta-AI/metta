@@ -91,6 +91,7 @@ jobs:
           WANDB_API_KEY: set_but_not_used
           AWS_ACCESS_KEY_ID: set_but_not_used
           AWS_SECRET_ACCESS_KEY: set_but_not_used
+          METTAGRID_REF: 13e0085b0b0964946f1a84f815e0db4104497b77
         run: |
           source venv/bin/activate
           python -m tools.train +hardware=github wandb=off
