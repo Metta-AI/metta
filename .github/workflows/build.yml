@@ -52,7 +52,7 @@ jobs:
 
       - name: Run setup build script
         env:
-          METTAGRID_REF: 13e0085b0b0964946f1a84f815e0db4104497b77
+          METTAGRID_REF: 4fd3f645062081e8fc7262f2424349be4d54b669
         run: |
           source venv/bin/activate
           mkdir -p deps
