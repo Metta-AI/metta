@@ -45,7 +45,7 @@ def create_sweep(sweep_name: str, cfg: OmegaConf) -> None:
     """
     Create a new sweep with the given name.
     """
-    sweep_id = sweep_id_from_name(cfg.wandb.project, sweep_name)
+    sweep_id = sweep_id_from_name(cfg.wandb.project, cfg.wandb.entity, sweep_name)
     if sweep_id is not None:
         logger.info(f"Sweep already exists, skipping creation for: {sweep_name}")
         return

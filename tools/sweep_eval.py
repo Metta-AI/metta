@@ -114,9 +114,9 @@ def main(cfg: OmegaConf) -> int:
         analyzer = hydra.utils.instantiate(cfg.analyzer, eval_stats_db)
         results, _ = analyzer.analyze()
 
-        # Filter by policy name and sum up the mean values over evals
+        # Filter by policy name and average the mean values over evals
         filtered_results = results[sweep_metric_index][results[sweep_metric_index]["policy_name"] == policy_pr.name]
-        eval_metric = filtered_results[f"mean_{cfg.metric}"].sum()
+        eval_metric = filtered_results[f"mean_{cfg.metric}"].mean()
 
         # Get training stats from metadata if available
         train_time = policy_pr.metadata.get("train_time", 0)
