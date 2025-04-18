@@ -7,7 +7,7 @@ game:
   max_steps: 100
   agent:
     rewards:
-      heart: 3
+      heart: 1
       battery: 0
 
   objects:

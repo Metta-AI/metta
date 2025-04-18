@@ -67,7 +67,7 @@ def generate_report_html(cfg: DictConfig) -> str:
             logger.warning(f"No data found for metric: {metric}")
             return "<html><body><h1>No data available</h1></body></html>"
 
-        score_range = (0, 3)
+        score_range = (0, 1)
         RED = "rgb(235, 40, 40)"
         YELLOW = "rgb(225, 210, 80)"
         LIGHT_GREEN = "rgb(175, 230, 80)"
