@@ -23,6 +23,7 @@ class Simulation:
         env: str,
         npc_policy_uri: str,
         device: str,
+        eval_name: str,
         env_overrides: DictConfig = None,
         policy_agents_pct: float = 1.0,
         num_envs: int = 1,
@@ -47,6 +48,7 @@ class Simulation:
         # load candidate policy
         self._policy_pr = policy_pr
         self._run_id = run_id
+        self._eval_name = eval_name
         # load npc policy
         self._npc_pr = None
         if self._npc_policy_uri is None:
@@ -149,7 +151,7 @@ class Simulation:
             game_cfg = OmegaConf.to_container(self._env_cfg.game, resolve=False)
             flattened_env = flatten_config(game_cfg, parent_key="game")
             flattened_env["run_id"] = self._run_id
-            flattened_env["eval_name"] = self._env_name
+            flattened_env["eval_name"] = self._eval_name
             flattened_env["timestamp"] = datetime.now().isoformat()
             flattened_env["npc"] = self._npc_policy_uri
 
@@ -189,7 +191,9 @@ class SimulationSuite:
         self._evals = []
         for _eval_name, eval_cfg in evals.items():
             eval_cfg = OmegaConf.merge(kwargs, eval_cfg)
-            eval = Simulation(policy_store, policy_pr, run_id, env_overrides=env_overrides, **eval_cfg)
+            eval = Simulation(
+                policy_store, policy_pr, run_id, env_overrides=env_overrides, eval_name=_eval_name, **eval_cfg
+            )
             self._evals.append(eval)
 
     def simulate(self):
