@@ -183,7 +183,7 @@ class MettaAgent(nn.Module):
         self.components["_value_"](td)
         return None, td["_value_"], None
 
-    def _convert_action_to_logit_index(self, action, logits):
+    def _convert_action_to_logit_index(self, action):
         """Convert action pairs to logit indices using vectorized operations"""
         orig_shape = action.shape
         action = action.reshape(-1, 2)
@@ -231,7 +231,7 @@ class MettaAgent(nn.Module):
 
         # delete if logic after testing
         if self.convert_to_single_discrete:
-            action_logit_index = self._convert_action_to_logit_index(action, logits) if action is not None else None
+            action_logit_index = self._convert_action_to_logit_index(action) if action is not None else None
             action_logit_index, logprob, entropy, normalized_logits = sample_logits(logits, action_logit_index)
             action = self._convert_logit_index_to_action(action_logit_index, td)
         else:
