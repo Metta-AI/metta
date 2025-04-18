@@ -19,7 +19,7 @@ filtered_mean_reward: ${iir:0.1,${.progress.mean_reward},${.progress.last_mean_r
 game:
   num_agents: ${..num_agents}
   # episode length 
-  max_steps: 200
+  max_steps: 500
 
   difficulty_increase_threshold: 3.0
   should_increase_difficulty: ${gt:${..progress.mean_reward},${.difficulty_increase_threshold}}
