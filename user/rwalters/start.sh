@@ -29,7 +29,7 @@ PID_FILE="training_pids.env"
 echo "Starting control_$RUN_ID training job..."
 python -m tools.train +hardware=pufferbox run=rwalters.control_$RUN_ID \
   trainer.env=/env/mettagrid/robb_map \
-  +trainer.env_overrides.game.max_size=60 > "$LOG_DIR/control_${RUN_ID}_$TIMESTAMP.log" 2>&1 &
+  +trainer.env_overrides.game.difficulty=10 > "$LOG_DIR/control_${RUN_ID}_$TIMESTAMP.log" 2>&1 &
 
 # Save the process ID for the first job
 CONTROL_PID=$!
