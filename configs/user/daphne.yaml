@@ -16,7 +16,7 @@ defaults:
   - _self_
 
 trainer:
-  env: /env/mettagrid/navigation/training/varied_terrain
+  env: /env/mettagrid/navigation/training/mapfromfile
   evaluate_interval: 10
 
 # policy: wandb://run/b.daveey.train.maze.sm.dr.warm.0
@@ -25,10 +25,11 @@ trainer:
 # policy_uri: wandb://run/b.daveey.sm.train.er.new.0
 # policy_uri: wandb://run/daveey.ar.cards.1
 # policy_uri: wandb://run/b.daveey.t.32.instant
-policy_uri: wandb://run/b.daveey.t.8.rdr9.3
+policy_uri:  wandb://run/b.georgedeane.terrain_multienv
+# policy_uri: wandb://run/b.georgedeane.navigation_terrain_training_v2
 # npc_policy_uri: ${trained_policy_uri}
 # eval_db_uri: wandb://artifacts/testing
-eval_db_uri: null
+# eval_db_uri: wandb://artifacts/cylinder_navigation
 
 analyzer:
   eval_stats_uri: ${run_dir}/eval_stats
@@ -36,21 +37,24 @@ analyzer:
   analysis:
     metrics:
       - metric: episode_reward
+  output_path: navigation_results/cylinder.html
 
 eval:
-  num_envs: 10
-  num_episodes: 16
-  max_time_s: 600
-  env: /env/mettagrid/navigation/training/varied_terrain
+  env: /env/mettagrid/navigation/evals/wanderout
 
   policy_uri: ${..policy_uri}
   # npc_policy_uri: ${..npc_policy_uri}
   eval_db_uri: ${..eval_db_uri} #file://daphne/sweep_stats
+  policy_uris:
+    - "wandb://run/b.daphne.navigation_terrain_training_v2"
+    - "wandb://run/b.georgedeane.navigation_terrain_training_v2"
+    - "wandb://run/b.daphne.navigation_terrain_training"
+
 
 wandb:
   checkpoint_interval: 1
 
-run_id: 5
+run_id: 8
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 
