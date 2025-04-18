@@ -4,7 +4,7 @@ import numpy as np
 
 from mettagrid.map.node import Node
 from mettagrid.map.scene import Scene
-from mettagrid.map.utils.random import MaybeSeed
+from mettagrid.map.utils.random import IntDistribution, MaybeSeed, sample_int_distribution
 
 Anchor = Union[
     Literal["top-left"],
@@ -51,15 +51,15 @@ class MazeKruskal(Scene):
 
     def __init__(
         self,
-        room_size: int = 1,
-        wall_size: int = 1,
+        room_size: IntDistribution = 1,
+        wall_size: IntDistribution = 1,
         seed: MaybeSeed = None,
         children: Optional[List[Any]] = None,
     ):
         super().__init__(children=children)
-        self._room_size = room_size
-        self._wall_size = wall_size
         self._rng = np.random.default_rng(seed)
+        self._room_size = sample_int_distribution(room_size, self._rng)
+        self._wall_size = sample_int_distribution(wall_size, self._rng)
 
     def _render(self, node: Node):
         grid = node.grid

@@ -13,81 +13,22 @@ root:
     - limit: 1
       order_by: first
       lock: lock1
-      scene:
-        _target_: mettagrid.map.scenes.convchain.ConvChain
-        receptor_size: 3
-        iterations: 5
-        temperature: 0.1
-        pattern: |
-          |            |
-          |  #### #    |
-          | ### ###   #|
-          |   # ##  # #|
-          | ###    ####|
-          |  ###   ####|
-          |       #####|
-          |     ###### |
-          |      ## #  |
-          |            |
+      scene: /scenes/convchain/blob
 
     - limit: 1
       order_by: first
       lock: lock1
-      scene:
-        _target_: mettagrid.map.scenes.convchain.ConvChain
-        receptor_size: 4
-        iterations: 10
-        temperature: 0.2
-        pattern: |
-          |            |
-          | ## ## # #  |
-          | #   # # #  |
-          | ## ## ###  |
-          |            |
-          | #########  |
-          |         #  |
-          |         #  |
-          |         #  |
-          |            |
+      scene: /scenes/convchain/c_shape
 
     - limit: 1
       order_by: first
       lock: lock1
-      scene:
-        _target_: mettagrid.map.scenes.convchain.ConvChain
-        receptor_size: 4
-        iterations: 10
-        temperature: 0.2
-        pattern: |
-          |            |
-          |  # #   #   |
-          | # # # # #  |
-          |            |
-          |#   #     # |
-          | # #     #  |
-          |  #     #   |
-          | # #   #    |
-          |#   # #     |
-          |            |
+      scene: /scenes/convchain/diagonal
 
     - limit: 1
       order_by: last
       lock: lock1
-      scene:
-        _target_: mettagrid.map.scenes.convchain.ConvChain
-        receptor_size: 3
-        temperature: 1
-        iterations: 10
-        pattern: |
-          |##### #####|
-          |##### #####|
-          |###     ###|
-          |###     ###|
-          |           |
-          |###     ###|
-          |###     ###|
-          |##### #####|
-          |##### #####|
+      scene: /scenes/convchain/dungeon
 
     - where: full
       scene:
