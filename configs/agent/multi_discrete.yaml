@@ -123,7 +123,7 @@ components:
       - action_type_embed_reshaped
       - actor_1_to_type_reshaped
     nn_params:
-      out_features: 7
+      out_features: 1
 
   _action_type_:
     _target_: metta.agent.lib.merge_layer.BatchReshapeLayer
