@@ -13,12 +13,13 @@ def total_metric(metric_field: str, filters: Dict[str, Any]):
         SELECT
             policy_name,
             eval_name,
+            npc,
             AVG(CAST("{metric_field}" AS DOUBLE)) AS mean_{metric_field.replace(".", "_")},
             STDDEV(CAST("{metric_field}" AS DOUBLE)) AS std_{metric_field.replace(".", "_")}
         FROM eval_data
         {where_clause}
-        GROUP BY policy_name, eval_name
-        ORDER BY policy_name, eval_name;"""
+        GROUP BY policy_name, eval_name, npc
+        ORDER BY policy_name, eval_name, npc;"""
 
     return query
 
