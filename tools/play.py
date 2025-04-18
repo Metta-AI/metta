@@ -8,8 +8,8 @@ import hydra
 from omegaconf import OmegaConf
 from rich.logging import RichHandler
 
+import metta.rl.pufferlib.play
 from metta.agent.policy_store import PolicyStore
-from metta.rl import pufferlib
 from metta.util.config import config_from_path
 from metta.util.runtime_configuration import setup_mettagrid_environment
 from metta.util.wandb.wandb_context import WandbContext
@@ -123,7 +123,7 @@ def play(cfg):
 
     with WandbContext(cfg) as wandb_run:
         policy_store = PolicyStore(cfg, wandb_run)
-        pufferlib.play(cfg, policy_store)
+        metta.rl.pufferlib.play.play(cfg, policy_store)
 
 
 if __name__ == "__main__":
