@@ -24,7 +24,7 @@ policy_uri: wandb://run/daveey.t.1.pi.dpm
 # navigation_poisson_train_sampling5 breaks in infinite_cooldown, works great in poisson with short distance
 # navigation_poisson_train_sampling5
 # npc_policy_uri: ${trained_policy_uri}
-# eval_db_uri: wandb://artifacts/navigation_db
+eval_db_uri: wandb://artifacts/navigation_db
 
 analyzer:
   # eval_stats_uri: ${run_dir}/eval_stats
