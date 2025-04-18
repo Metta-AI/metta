@@ -25,15 +25,15 @@ cdef class Swap(MettaActionHandler):
         Agent * actor,
         ActionArg arg):
 
-        cdef GridLocation target_loc = self.env._grid.relative_location(
+        cdef GridLocation target_loc = self._grid.relative_location(
             actor.location,
             <Orientation>actor.orientation
         )
         cdef MettaObject *target
-        target = <MettaObject*>self.env._grid.object_at(target_loc)
+        target = <MettaObject*>self._grid.object_at(target_loc)
         if target == NULL:
             target_loc.layer = GridLayer.Object_Layer
-            target = <MettaObject*>self.env._grid.object_at(target_loc)
+            target = <MettaObject*>self._grid.object_at(target_loc)
         if target == NULL:
             return False
 
@@ -42,5 +42,5 @@ cdef class Swap(MettaActionHandler):
 
         actor.stats.incr(b"swap", self._stats.target[target._type_id])
 
-        self.env._grid.swap_objects(actor.id, target.id)
+        self._grid.swap_objects(actor.id, target.id)
         return True

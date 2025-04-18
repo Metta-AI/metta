@@ -42,7 +42,7 @@ cdef class Attack(MettaActionHandler):
         distance = 1 + (arg - 1) // 3
         offset = -((arg - 1) % 3 - 1)
 
-        cdef GridLocation target_loc = self.env._grid.relative_location(
+        cdef GridLocation target_loc = self._grid.relative_location(
             actor.location,
             <Orientation>actor.orientation,
             distance, offset)
@@ -57,7 +57,7 @@ cdef class Attack(MettaActionHandler):
 
         target_loc.layer = GridLayer.Agent_Layer
         # Because we're looking on the agent layer, we can cast to Agent.
-        cdef Agent * agent_target = <Agent *>self.env._grid.object_at(target_loc)
+        cdef Agent * agent_target = <Agent *>self._grid.object_at(target_loc)
 
         cdef bint was_frozen = False
         if agent_target:
@@ -98,14 +98,14 @@ cdef class Attack(MettaActionHandler):
             return True
 
         target_loc.layer = GridLayer.Object_Layer
-        cdef MettaObject * object_target = <MettaObject *>self.env._grid.object_at(target_loc)
+        cdef MettaObject * object_target = <MettaObject *>self._grid.object_at(target_loc)
         if object_target:
             actor.stats.incr(self._stats.target[object_target._type_id])
             actor.stats.incr(self._stats.target[object_target._type_id], actor.group_name)
             object_target.hp -= 1
             actor.stats.incr(b"damage", ObjectTypeNames[object_target._type_id])
             if object_target.hp <= 0:
-                self.env._grid.remove_object(object_target)
+                self._grid.remove_object(object_target)
                 actor.stats.incr(b"destroyed", ObjectTypeNames[object_target._type_id])
             return True
 
