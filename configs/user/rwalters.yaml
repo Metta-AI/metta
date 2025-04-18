@@ -7,13 +7,14 @@ defaults:
   - _self_
 
 seed: null
-run_id: 20250417.2
+run_id: 20250417.01
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ./train_dir/${oc.env:USER}.local.${run_id}/checkpoints/
 
 trainer:
   env: /env/mettagrid/robb_map
-  evaluate_interval: 200
+  # evaluate_interval must be >= checkpoint_interval = 300 on pufferbox
+  evaluate_interval: ${.checkpoint_interval}
   evaluate: false
 
 # passed to evaluation (and play) 
