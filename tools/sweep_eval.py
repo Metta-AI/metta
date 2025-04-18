@@ -14,6 +14,9 @@ from wandb_carbs import WandbCarbs
 from metta.agent.policy_store import PolicyStore
 from metta.sim.eval_stats_db import EvalStatsDB
 from metta.sim.eval_stats_logger import EvalStatsLogger
+from metta.sim.simulation import SimulationSuite
+from metta.sim.simulation_config import SimulationSuiteConfig
+from metta.util.config import dictconfig_to_dataclass
 from metta.util.runtime_configuration import setup_mettagrid_environment
 from metta.util.wandb.wandb_context import WandbContext
 
@@ -39,7 +42,7 @@ def load_file(run_dir, name):
         return OmegaConf.load(f)
 
 
-@hydra.main(config_path="../configs", config_name="sweep", version_base=None)
+@hydra.main(config_path="../configs", config_name="sweep_job", version_base=None)
 def main(cfg: OmegaConf) -> int:
     setup_mettagrid_environment(cfg)
 
@@ -66,14 +69,9 @@ def main(cfg: OmegaConf) -> int:
         cfg.eval.policy_uri = policy_pr.uri
         cfg.analyzer.policy_uri = policy_pr.uri
 
-        simulation_suite
+        simulation_suite_cfg = dictconfig_to_dataclass(SimulationSuiteConfig, cfg.evals)
 
-        eval = Eval(cfg.eval)
-        
-        hydra.utils.instantiate(
-            cfg.eval, policy_store, policy_pr, cfg.get("run_id", wandb_run.id), cfg_recursive_=False
-        )
-
+        eval = SimulationSuite(simulation_suite_cfg, policy_pr, policy_store)
         # Start evaluation process
         sweep_stats = {}
         start_time = time.time()
@@ -96,7 +94,7 @@ def main(cfg: OmegaConf) -> int:
         eval_time = time.time() - eval_start_time
 
         # Log evaluation stats
-        eval_stats_logger = EvalStatsLogger(cfg, wandb_run)
+        eval_stats_logger = EvalStatsLogger(simulation_suite_cfg, wandb_run)
         eval_stats_logger.log(stats)
 
         # Create eval stats database and analyze results
