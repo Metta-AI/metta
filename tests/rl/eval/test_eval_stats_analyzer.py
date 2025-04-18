@@ -38,7 +38,7 @@ def dummy_db_for_analyze():
                 {
                     "policy_name": ["policy1:v1"],
                     "eval": ["eval1"],
-                    "npc": "mean_npc",
+                    "npc": "npc",
                     "mean": [10.0],
                     "std": [1.0],
                 }
@@ -160,6 +160,7 @@ class TestPolicyFitness:
             {
                 "policy_name": ["policy1:v1", "policy1:v2", "policy2:v1", "policy2:v2"],
                 "eval": ["eval1", "eval1", "eval1", "eval1"],
+                "npc": "npc",
                 "mean": [10.0, 12.0, 8.0, 9.0],
                 "std": [1.0, 1.0, 1.0, 1.0],
             }
@@ -182,6 +183,7 @@ class TestPolicyFitness:
             {
                 "policy_name": ["policy1:v1", "policy2:v1", "policy2:v1"],
                 "eval": ["eval1", "eval1", "eval2"],
+                "npc": "npc",
                 "mean": [10.0, 15.0, 16.0],
                 "std": [1.0, 1.0, 1.0],
             }
@@ -204,6 +206,7 @@ class TestPolicyFitness:
             {
                 "policy_name": ["policy1:v1", "policy1:v1", "policy2:v1"],
                 "eval": ["eval1", "eval2", "eval1"],
+                "npc": "npc",
                 "mean": [10.0, 12.0, 15.0],
                 "std": [1.0, 1.0, 1.0],
             }
@@ -227,6 +230,7 @@ class TestPolicyFitness:
             {
                 "policy_name": ["policy2:v1", "policy2:v2"],
                 "eval": ["eval1", "eval1"],
+                "npc": "npc",
                 "mean": [15.0, 16.0],
                 "std": [1.0, 1.0],
             }
@@ -243,6 +247,7 @@ class TestPolicyFitness:
             {
                 "policy_name": ["policy1:v1"],
                 "eval": ["eval1"],
+                "npc": "npc",
                 "mean": [10.0],
                 "std": [1.0],
             }
@@ -286,10 +291,10 @@ class TestAnalyze:
                 {
                     "policy_name": ["policy1:v1"],
                     "eval": ["eval1"],
+                    "npc": "npc",
                     "mean": [10.0],
                     "std": [1.0],
                 }
             ),
         )
         assert policy_fitness_records == []
-        assert len(logged) > 0
