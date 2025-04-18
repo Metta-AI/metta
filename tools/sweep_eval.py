@@ -114,7 +114,7 @@ def main(cfg: OmegaConf) -> int:
 
         # Filter by policy name and sum up the mean values over evals
         filtered_results = results[sweep_metric_index][results[sweep_metric_index]["policy_name"] == policy_pr.name]
-        eval_metric = filtered_results["mean"].sum()
+        eval_metric = filtered_results[f"mean_{cfg.metric}"].sum()
 
         # Get training stats from metadata if available
         train_time = policy_pr.metadata.get("train_time", 0)

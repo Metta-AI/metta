@@ -90,7 +90,6 @@ def generate_report_html(cfg: DictConfig) -> str:
         if matrix.empty:
             return "<html><body><h1>No data available</h1></body></html>"
 
-
         # create heat‑map snippet
         heatmap_html = create_heatmap_html_snippet(
             matrix,

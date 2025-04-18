@@ -13,7 +13,7 @@ game:
 
   agent:
     rewards:
-      laser: 3
+      laser: 1
 
   map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom

@@ -146,6 +146,8 @@ def create_heatmap_html_snippet(
         [0.5, "rgb(235, 40, 40)"],
         # Yellow
         [0.8, "rgb(225,210,80)"],
+        # Light Green
+        [0.95, "rgb(195,230,80)"],
         # Green
         [1.0, "rgb(20, 230, 80)"],
     ]
