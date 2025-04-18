@@ -138,7 +138,7 @@ class EvalStatsAnalyzer:
         eval_header, npc_header, metric_mean, _ = metric_data.keys()
 
         evals = metric_data[eval_header].unique()
-        npcs = metric_data[npc_header].unique()
+        npcs = metric_data[npc_header]
 
         # use a list to index the metric_data to ensure we return a dataframe
         candidate_data: pd.DataFrame = metric_data.loc[[candidate_uri]].set_index(eval_header)
