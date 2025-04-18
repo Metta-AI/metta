@@ -23,7 +23,8 @@ cdef class MettaActionHandler(ActionHandler):
         self,
         unsigned int actor_id,
         GridObjectId actor_object_id,
-        ActionArg arg)
+        ActionArg arg,
+        unsigned int current_timestep)
 
     cdef bint _handle_action(
         self,

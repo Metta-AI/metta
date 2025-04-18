@@ -37,13 +37,13 @@ cdef class AttackNearest(Attack):
                 if offset == 2:
                     # Sort of a mod 3 operation.
                     offset = -1
-                target_loc = self.env._grid.relative_location(
+                target_loc = self._grid.relative_location(
                     actor.location,
                     <Orientation>actor.orientation,
                     distance, offset)
 
                 target_loc.layer = GridLayer.Agent_Layer
-                agent_target = <Agent *>self.env._grid.object_at(target_loc)
+                agent_target = <Agent *>self._grid.object_at(target_loc)
                 if agent_target:
                     return self._handle_target(actor_id, actor, target_loc)
 
