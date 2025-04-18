@@ -257,8 +257,8 @@ class BatchReshapeLayer(LayerBase):
             return
 
         self._input_source_component = input_source_components
-        # self._out_tensor_shape = self._input_source_component._out_tensor_shape
-        self._out_tensor_shape = [512] # delete after testing
+        self._out_tensor_shape = self._input_source_component._out_tensor_shape
+        # self._out_tensor_shape = [512] # delete after testing
         # the out_tensor_shape is NOT ACCURATE because we don't know the batch size ahead of time!!!
         self._ready = True
 
@@ -271,7 +271,7 @@ class BatchReshapeLayer(LayerBase):
         shape[1] = shape[0]// (B*TT)
         shape[0] = B*TT
         # td[self._name] = tensor.reshape(*shape).squeeze()
-        # td[self._name] = tensor.view(*shape).squeeze()
-        td[self._name] = tensor.view(*shape)[:,0,:] # uncomment after testing
+        td[self._name] = tensor.view(*shape).squeeze()
+        # td[self._name] = tensor.view(*shape)[:,0,:] # uncomment after testing
         return td
 
