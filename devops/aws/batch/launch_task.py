@@ -15,8 +15,8 @@ init(autoreset=True)
 specs = {
     1: {
         "node_gpus": 1,
-        "node_ram_gb": 60,
-        "gpu_cpus": 8,
+        "node_ram_gb": 50,
+        "gpu_cpus": 16,
     },
     4: {
         "node_gpus": 4,
