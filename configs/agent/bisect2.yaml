@@ -87,7 +87,7 @@ components:
     _target_: metta.agent.lib.nn_layer_library.Linear
     input_source: _core_
     nn_params:
-      out_features: 16
+      out_features: 128
     effective_rank: true
 
   # _action_embeds_:
@@ -101,7 +101,7 @@ components:
     _target_: metta.agent.lib.nn_layer_library.Linear
     input_source: _core_
     nn_params:
-      out_features: 2
+      out_features: 8
 
   # embed_reshaped:
   #   _target_: metta.agent.lib.merge_layer.ReshapeLayer # combines the two dims into the squeezed_dim
