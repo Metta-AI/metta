@@ -1,6 +1,8 @@
 #!/bin/bash
 # Script to cancel training jobs started by start_training.sh
 
+# or: ps aux | grep python | grep -v grep | awk '{print $2}' | xargs kill
+
 # Environment variables file containing the PIDs
 PID_FILE="training_pids.env"
 

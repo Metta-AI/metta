@@ -14,7 +14,7 @@ progress:
   last_difficulty: 0.0
 
 # compute the ~10 episode running average 
-filtered_mean_reward: ${iir:0.1,${.mean_reward},${.last_mean_reward}}
+filtered_mean_reward: ${iir:0.1,${.progress.mean_reward},${.progress.last_mean_reward}}
 
 game:
   num_agents: ${..num_agents}
