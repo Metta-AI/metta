@@ -5,6 +5,8 @@
 # Exit immediately if a command exits with a non-zero status
 set -e
 
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+
 # Install base requirements
 echo "Installing metta python requirements..."
 pip install -r requirements.txt
@@ -98,4 +100,4 @@ cd ..
 
 # ========== VS CODE INTEGRATION ==========
 echo "Setting up VSCode integration..."
-source "$(dirname "$0")/sandbox/setup_vscode_workspace.sh"
+source "$SCRIPT_DIR/sandbox/setup_vscode_workspace.sh"
