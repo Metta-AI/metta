@@ -19,6 +19,7 @@ from omegaconf import DictConfig
 
 from metta.eval.db import PolicyEvalDB
 from metta.eval.heatmap import create_heatmap_html_snippet
+from metta.eval.mapviewer import MAP_VIEWER_CSS
 
 logger = logging.getLogger(__name__)
 
@@ -41,16 +42,6 @@ def _upload_to_s3(html: str, s3_path: str):
 # --------------------------------------------------------------------------- #
 # report generator
 # --------------------------------------------------------------------------- #
-_POPOVER_CSS = """
-.popover{
-  position:fixed;z-index:1000;background:#fff;border:1px solid #ddd;border-radius:5px;
-  padding:10px;box-shadow:0 2px 8px rgba(0,0,0,.3);pointer-events:none;opacity:0;
-  transition:opacity .2s;
-}
-.popover-title{font-weight:bold;text-align:center;margin-bottom:8px;border-bottom:1px solid #eee;padding-bottom:5px}
-.popover-img{max-width:100%;max-height:250px;display:block;margin:0 auto}
-"""
-
 _BODY_CSS = """
 body{
   font-family:Arial, sans-serif;margin:0;padding:20px;background:#f8f9fa;
@@ -71,7 +62,7 @@ def _assemble_page(title: str, graphs: List[str]) -> str:
   <meta charset="UTF-8">
   <title>{title}</title>
   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-  <style>{_BODY_CSS}{_POPOVER_CSS}</style>
+  <style>{_BODY_CSS}{MAP_VIEWER_CSS}</style>
 </head>
 <body>
   <div class="container">

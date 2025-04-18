@@ -3,22 +3,14 @@ Return an embeddable HTML snippet that shows a policy‑evaluation heat‑map.
 
 Features
 --------
-* Native Plotly hover box on every cell contains the evaluation‑map picture.
-* An extra pop‑over appears when you hover (or click) an x‑axis label.
-* The 'Overall' column is excluded from both image behaviours.
+* Native Plotly hover box on every cell contains basic data.
+* A dedicated map viewer panel shows maps when hovering over cells or x-axis labels.
+* The 'Overall' column is excluded from map viewer behavior.
 * All IDs are namespaced; multiple snippets can coexist in the same page.
 
 External boiler‑plate (include once per page)
 ---------------------------------------------
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-    <style>
-        .popover{position:fixed;z-index:1000;background:#fff;border:1px solid #ddd;
-                 border-radius:5px;padding:10px;box-shadow:0 2px 8px rgba(0,0,0,.3);
-                 pointer-events:none;opacity:0;transition:opacity .2s}
-        .popover-title{font-weight:bold;text-align:center;margin-bottom:8px;
-                       border-bottom:1px solid #eee;padding-bottom:5px}
-        .popover-img{max-width:100%;max-height:250px;display:block;margin:0 auto}
-    </style>
 """
 
 from __future__ import annotations
@@ -30,6 +22,8 @@ from typing import List, Tuple
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.utils import PlotlyJSONEncoder
+
+from metta.eval.mapviewer import create_map_viewer_html, get_map_viewer_js_functions
 
 
 # --------------------------------------------------------------------------- #
@@ -90,8 +84,6 @@ def _build_figure(
                 "<b>Policy:</b> %{y}"
                 "<br><b>Evaluation:</b> %{x}"
                 "<br><b>Score:</b> %{z:.2f}"
-                "<br><img src='%{customdata}' "
-                "style='width:140px; margin-top:6px;'>"
                 "<extra></extra>"
             ),
         )
@@ -127,7 +119,7 @@ def _build_figure(
 
 
 # --------------------------------------------------------------------------- #
-# public API                                                                  #
+# public API                                                                  #
 # --------------------------------------------------------------------------- #
 def create_heatmap_html_snippet(
     matrix: pd.DataFrame,
@@ -139,7 +131,10 @@ def create_heatmap_html_snippet(
     """
     Return an HTML fragment containing the heat‑map `<div>` plus scoped JS.
 
-    Caller must embed Plotly + the `.popover` CSS (shown in module docstring).
+    Includes a dedicated map viewer panel that displays environment maps
+    when hovering over cells or x-axis labels.
+
+    Caller must embed Plotly + the CSS styles (imported from mapviewer module).
     """
     if matrix.empty:
         return "<p>No data available</p>"
@@ -157,71 +152,110 @@ def create_heatmap_html_snippet(
 
     fig = _build_figure(matrix, metric, colorscale=colorscale, score_range=score_range, height=height, width=width)
     uid = f"heat_{uuid.uuid4().hex[:8]}"
-    pop_id = f"{uid}_pop"
-    tit_id = f"{uid}_title"
-    img_id = f"{uid}_img"
     fig_json = json.dumps(fig, cls=PlotlyJSONEncoder)
+    eval_names_json = json.dumps(matrix.columns.tolist())
 
     # ---------------------------------------------------------------- HTML
     return f"""
+<!-- enable pointer events on axis labels and cells -->
+<style>
+  .xaxislayer-above .xtick text,
+  .yaxislayer-above .ytick text {{
+      pointer-events: all !important;
+      cursor: pointer;
+  }}
+</style>
+
 <div class="heatmap-wrapper">
   <div id="{uid}"></div>
-  <div class="popover" id="{pop_id}">
-      <div class="popover-title" id="{tit_id}"></div>
-      <img class="popover-img" id="{img_id}" alt="Evaluation map">
-  </div>
+  
+  {create_map_viewer_html(uid)}
 </div>
 
 <script>
 (function() {{
-  const fig   = {fig_json};
-  const el    = document.getElementById("{uid}");
-  const pop   = document.getElementById("{pop_id}");
-  const pT    = document.getElementById("{tit_id}");
-  const pImg  = document.getElementById("{img_id}");
-  const imgs  = fig.layout.meta.eval_image_map;
+  const fig = {fig_json};
+  const el = document.getElementById("{uid}");
+  const imgs = fig.layout.meta.eval_image_map;
+  const evalNames = {eval_names_json};
+  
+  // Track if the mouse is over the heatmap
+  let isMouseOverHeatmap = false;
+  el.addEventListener('mouseenter', function() {{
+    isMouseOverHeatmap = true;
+  }});
+  el.addEventListener('mouseleave', function() {{
+    isMouseOverHeatmap = false;
+    setTimeout(() => {{
+      if (!isMouseOverHeatmap && !isMouseOverMap) {{
+        hideMap();
+      }}
+    }}, 100);
+  }});
 
-  let lastMouse = {{clientX:0, clientY:0}};
-  window.addEventListener("mousemove", e => (lastMouse = e));
+  {get_map_viewer_js_functions(uid)}
 
-  Plotly.newPlot(el, fig.data, fig.layout).then(() => attachAxisHover());
+  Plotly.newPlot(el, fig.data, fig.layout)
+        .then(() => {{
+          setTimeout(attachAxisHover, 500); // Ensure DOM is fully rendered
+          attachHeatmapHover();
+        }});
 
   /* ------------------------------------------------ axis‑label hover ----- */
   function attachAxisHover() {{
-    const ticks = el.querySelectorAll(".xtick text");
+    // Get all x-axis tick labels
+    const ticks = el.querySelectorAll(".xaxislayer-above .xtick text");
+    
+    // Enhanced event binding for axis labels
     ticks.forEach((tick, i) => {{
-        const evalName = fig.data[0].x[i];
-        if (evalName === "Overall") return;       // skip
+        if (i >= evalNames.length) return; // Safety check
+        const evalName = evalNames[i];
+        if (evalName.toLowerCase() === "overall") return;  // skip aggregate
+        
+        // Make sure these elements have proper cursor and pointer events
+        tick.style.pointerEvents = "all";
         tick.style.cursor = "pointer";
-        tick.onmouseenter = ev => show(evalName, ev);
-        tick.onmouseleave = hide;
-        tick.onclick      = ev => show(evalName, ev);
+        
+        // Add multiple event handlers for redundancy
+        tick.addEventListener('click', () => showMap(evalName));
+        tick.addEventListener('mouseenter', () => showMap(evalName));
+        tick.addEventListener('mouseover', () => showMap(evalName));
+        
+        // Add a data attribute for easier debugging
+        tick.setAttribute('data-eval-name', evalName);
+    }});
+    
+    // Add a click handler to the entire axis as a fallback
+    const xAxis = el.querySelector('.xaxislayer-above');
+    if (xAxis) {{
+      xAxis.addEventListener('click', function(e) {{
+        // Find the closest tick text element
+        const target = e.target.closest('.xtick text');
+        if (target && target.hasAttribute('data-eval-name')) {{
+          showMap(target.getAttribute('data-eval-name'));
+        }}
+      }});
+    }}
+  }}
+
+  /* ------------------------------------------------ heatmap cell hover --- */
+  function attachHeatmapHover() {{
+    el.on('plotly_hover', function(data) {{
+      const pts = data.points[0];
+      const evalName = pts.x;
+      if (evalName.toLowerCase() === "overall") return;  // skip aggregate
+      showMap(evalName);
+    }});
+    
+    // Only trigger unhover when we're sure we've left both the heatmap and the map viewer
+    el.on('plotly_unhover', function() {{
+      setTimeout(() => {{
+        if (!isMouseOverHeatmap && !isMouseOverMap) {{
+          hideMap();
+        }}
+      }}, 100);
     }});
   }}
-
-  /* ------------------------------------------------ cell hover ----------- */
-  el.on("plotly_hover", d => {{
-      if (!d.points?.length) return;
-      const evalName = d.points[0].x;
-      if (evalName === "Overall") return;
-      show(evalName, d.event || lastMouse);
-  }});
-  el.on("plotly_unhover", hide);
-
-  /* ------------------------------------------------ helpers -------------- */
-  function show(name, ev) {{
-    const url = imgs[name] || "";
-    pT.textContent = name;
-    pImg.src       = url;
-    pImg.style.display = url ? "block" : "none";
-
-    const x = Math.min(ev.clientX+15, innerWidth  - pop.offsetWidth  - 10);
-    const y = Math.min(ev.clientY+15, innerHeight - pop.offsetHeight - 10);
-    pop.style.left = x + "px";
-    pop.style.top  = y + "px";
-    pop.style.opacity = "1";
-  }}
-  function hide() {{ pop.style.opacity = "0"; }}
 }})();
 </script>
 """
