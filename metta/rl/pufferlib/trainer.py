@@ -113,7 +113,7 @@ class PufferTrainer:
 
         actions_names = self.vecenv.driver_env.action_names()
         actions_max_params = self.vecenv.driver_env._c_env.max_action_args()
-        self.policy.activate_actions(actions_names, actions_max_params)
+        self.policy.activate_actions(actions_names, actions_max_params, self.device)
 
         if self.trainer_cfg.compile:
             logger.info("Compiling policy")

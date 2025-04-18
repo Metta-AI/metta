@@ -97,12 +97,12 @@ class MettaAgent(nn.Module):
             component = self.components['_action_param_']
             self._setup_components(component)
 
-        for name, component in self.components.items():
-            if not getattr(component, 'ready', False):
-                raise RuntimeError(f"Component {name} in MettaAgent was never setup. It might not be accessible by other components.")
+        # uncomment after bisection testing
+        # for name, component in self.components.items():
+        #     if not getattr(component, 'ready', False):
+        #         raise RuntimeError(f"Component {name} in MettaAgent was never setup. It might not be accessible by other components.")
 
         self.components = self.components.to(device)
-        self.device = device
 
         self._total_params = sum(p.numel() for p in self.parameters())
         print(f"Total number of parameters in MettaAgent: {self._total_params:,}. Setup complete.")
@@ -135,8 +135,9 @@ class MettaAgent(nn.Module):
             f"in_size: {getattr(component, '_in_tensor_shape', 'None')}, out_size: {getattr(component, '_out_tensor_shape', 'None')}"
         ))
 
-    def activate_actions(self, action_names, action_max_params):
+    def activate_actions(self, action_names, action_max_params, device):
         '''Run this at the beginning of training.'''
+        self.device = device
         self.actions_max_params = action_max_params
         self.active_actions = list(zip(action_names, action_max_params))
         
@@ -146,19 +147,18 @@ class MettaAgent(nn.Module):
         
         # delete if logic after testing
         if self.convert_to_single_discrete:
-            assert False
             # convert the actions_dict into a list of strings
             string_list = []
             for action_name, max_arg_count in self.active_actions:
                 for i in range(max_arg_count + 1):
                     string_list.append(f"{action_name}_{i}")
-            self.components['_action_embeds_'].activate_actions(string_list)
+            self.components['_action_embeds_'].activate_actions(string_list, self.device)
         else:
-            self.components['_action_type_embeds_'].activate_actions(action_names)
+            self.components['_action_type_embeds_'].activate_actions(action_names, self.device)
             param_list = []
             for i in range(max(action_max_params) - 1):
                 param_list.append(str(i))
-            self.components['_action_param_embeds_'].activate_actions(param_list)
+            self.components['_action_param_embeds_'].activate_actions(param_list, self.device)
 
         # Create action_index tensor instead of list
         action_index = []
@@ -232,7 +232,6 @@ class MettaAgent(nn.Module):
 
         # delete if logic after testing
         if self.convert_to_single_discrete:
-            assert False
             action_logit_index = self._convert_action_to_logit_index(action) if action is not None else None
             action_logit_index, logprob, entropy, normalized_logits = sample_logits(logits, action_logit_index)
             action = self._convert_logit_index_to_action(action_logit_index, td)
