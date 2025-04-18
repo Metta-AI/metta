@@ -23,7 +23,7 @@ public:
         return true;
     }
 
-    virtual void update_inventory(InventoryItem item, short amount, float *reward) {
+    virtual void update_inventory(InventoryItem item, short amount) {
         if (amount + this->inventory[item] > 255) {
             amount = 255 - this->inventory[item];
         }
