@@ -11,6 +11,8 @@ NUM_NODES=${NUM_NODES:-1}
 echo "NUM_NODES: $NUM_NODES"
 MASTER_ADDR=${MASTER_ADDR:-localhost}
 echo "MASTER_ADDR: $MASTER_ADDR"
+MASTER_PORT=${MASTER_PORT:-12345}
+echo "MASTER_PORT: $MASTER_PORT"
 NODE_INDEX=${NODE_INDEX:-0}
 echo "NODE_INDEX: $NODE_INDEX"
 
@@ -21,6 +23,7 @@ torchrun \
     --nnodes=$NUM_NODES \
     --nproc-per-node=$NUM_GPUS \
     --master-addr=$MASTER_ADDR \
+    --master-port=$MASTER_PORT \
     --node-rank=$NODE_INDEX \
     tools/train.py \
     wandb.enabled=true \
