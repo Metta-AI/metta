@@ -123,14 +123,14 @@ components:
   #   popped_dim: 1
   #   input_source: actor_1_expanded
 
-  attn:
+  _action_:
     _target_: metta.agent.lib.nn_layer_library.Bilinear
     input_source: 
       - interim_linear
       - actor_1
     nn_params:
-      out_features: 1
+      out_features: 25
 
-  _action_:
-    _target_: metta.agent.lib.merge_layer.BatchReshapeLayer
-    input_source: attn
+  # _action_:
+  #   _target_: metta.agent.lib.merge_layer.BatchReshapeLayer
+  #   input_source: attn
