@@ -4,27 +4,32 @@ defaults:
 
 # a single agent wanders around a square world with 10 rewards to find
 
-# overwritten during training!
+num_agents: 1
+
+# these are overwritten during training
 progress:
   episode_count: 0
   mean_reward: 0.0
-
-num_agents: 1
-
-min_size: 10
+  filtered_mean_reward: 0.0
+  last_difficulty: 0.0
 
 game:
   num_agents: ${..num_agents}
-
   # episode length 
-  max_steps: 2000
+  max_steps: 200
 
-  scaled_count: ${div:${..progress.episode_count},10}
- 
-  max_size: ${add:${..min_size}, ${clamp:${.scaled_count}, ${..min_size}, 60}}
-  # max_size: 60
+  difficulty_increase_threshold: 3.0
+  should_increase_difficulty: ${gt:${..progress.mean_reward},${.difficulty_increase_threshold}}
+  difficulty_increment: ${if:${.should_increase_difficulty},1.0,0.0}
+  difficulty: ${add:${..progress.last_difficulty},${.difficulty_increment}}
 
-  size: ${make_integer:${uniform:${..min_size}, ${.max_size}}}
+  # scaling the map size as our experimental condition
+  min_size: 10
+  max_size: ${scale:${.difficulty},0,10,10,60,"log"}
+
+  # for our experimental control, we will override max_size to always be 60
+
+  size: ${make_integer:${uniform:${.min_size}, ${.max_size}}}
 
   map_builder:
     _target_: mettagrid.config.room.random.Random

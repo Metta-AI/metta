@@ -7,7 +7,7 @@ defaults:
   - _self_
 
 seed: null
-run_id: 20250417.01
+run_id: 20250418.01
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ./train_dir/${oc.env:USER}.local.${run_id}/checkpoints/
 
@@ -31,7 +31,6 @@ analyzer:
   analysis:
     metrics:
       - metric: episode_reward
-
 
 eval:
   num_envs: 10 # evaluate over 10 iterations -- better stats
