@@ -1,10 +1,12 @@
-
 defaults:
   - /env/mettagrid-base/mettagrid@
+  - _self_
 
 game:
   num_agents: 20
-
+  agent:
+    rewards:
+      heart: 0.333
   map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom
     num_rooms: 20

@@ -1,13 +1,13 @@
-
 defaults:
   - /env/mettagrid-base/mettagrid@
+  - _self_
 
 game:
   num_agents: 20
   max_steps: 80
   agent:
     rewards:
-      armor: 3
+      armor: 1
 
   map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom

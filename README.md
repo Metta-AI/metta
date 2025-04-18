@@ -123,16 +123,20 @@ Add `wandb=off` parameter if you're not a member of `metta-research` on wandb, o
 ### Run the evaluation (requires wandb)
 
 ```
-python -m tools.sim run=my_experiment +hardware=macbook
+python -m tools.sim run=my_experiment +hardware=macbook wandb=off
 ```
 
 ### Run the interactive simulation  (requires wandb)
 
 ```
-python -m tools.play run=my_experiment +hardware=macbook
+python -m tools.play run=my_experiment +hardware=macbook wandb=off
 ```
 
-# Evaluating a model 
+If you're a member of `metta-research` on wandb, or you add your own wandb config in `configs/wandb`, you should be able to remove the `wandb=off` command. This is assumed for the rest of the readme.
+
+# Evaluating a model
+
+When you run training, if you have wandb enabled, then you will be able to see in your wandb run page results for the eval suites.
 
 However, this will not apply for anything trained before April 8th.
 

@@ -134,6 +134,12 @@ class PufferTrainer:
             eps=self.trainer_cfg.optimizer.eps,
         )
 
+        self.lr_scheduler = None
+        if self.trainer_cfg.lr_scheduler.enabled:
+            self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+                self.optimizer, T_max=self.trainer_cfg.total_timesteps // self.trainer_cfg.batch_size
+            )
+
         if checkpoint.agent_step > 0:
             self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
 
@@ -154,12 +160,12 @@ class PufferTrainer:
 
         logger.info("Starting training")
 
-        # it doesn't make sense to evaluate more often than checkpointing since we need a saved policy to evaluate
         if (
             self.trainer_cfg.evaluate_interval != 0
             and self.trainer_cfg.evaluate_interval < self.trainer_cfg.checkpoint_interval
         ):
-            self.trainer_cfg.evaluate_interval = self.trainer_cfg.checkpoint_interval
+            # it doesn't make sense to evaluate more often than checkpointing since we need a saved policy to evaluate
+            raise ValueError("evaluate_interval must be at least as large as checkpoint_interval")
 
         logger.info(f"Training on {self.device}")
         while self.agent_step < self.trainer_cfg.total_timesteps:
@@ -228,9 +234,11 @@ class PufferTrainer:
         self.cfg.eval.policy_uri = self.last_pr.uri
         self.cfg.analyzer.policy_uri = self.last_pr.uri
 
-        eval = hydra.utils.instantiate(
-            self.cfg.eval, self.policy_store, self.last_pr, self.cfg.get("run_id", self.wandb_run.id), _recursive_=False
-        )
+        run_id = self.cfg.get("run_id")
+        if run_id is None and self.wandb_run is not None:
+            run_id = self.wandb_run.id
+
+        eval = hydra.utils.instantiate(self.cfg.eval, self.policy_store, self.last_pr, run_id, _recursive_=False)
         stats = eval.simulate()
 
         try:
@@ -243,7 +251,7 @@ class PufferTrainer:
         _, policy_fitness_records = analyzer.analyze()
         self._eval_results = policy_fitness_records
         self._current_eval_score = np.sum(
-            [r["baseline_mean"] for r in self._eval_results if r["metric"] == "episode_reward"]
+            [r["candidate_mean"] for r in self._eval_results if r["metric"] == "episode_reward"]
         )
 
     def _update_l2_init_weight_copy(self):
@@ -489,10 +497,8 @@ class PufferTrainer:
                     break
 
         with profile.train_misc:
-            if self.trainer_cfg.anneal_lr:
-                frac = 1.0 - self.agent_step / self.trainer_cfg.total_timesteps
-                lrnow = frac * self.trainer_cfg.learning_rate
-                self.optimizer.param_groups[0]["lr"] = lrnow
+            if self.lr_scheduler is not None:
+                self.lr_scheduler.step()
 
             y_pred = experience.values_np
             y_true = experience.returns_np
@@ -557,7 +563,9 @@ class PufferTrainer:
     def _generate_and_upload_replay(self):
         if self._master:
             logger.info("Generating and saving a replay to wandb and S3.")
-            self.replay_helper.generate_and_upload_replay(self.epoch)
+            self.replay_helper.generate_and_upload_replay(
+                self.epoch, dry_run=self.trainer_cfg.get("replay_dry_run", False)
+            )
 
     def _process_stats(self):
         for k in list(self.stats.keys()):
@@ -583,11 +591,16 @@ class PufferTrainer:
 
         navigation_score = np.mean([r["candidate_mean"] for r in self._eval_results if "navigation" in r["eval"]])
         object_use_score = np.mean([r["candidate_mean"] for r in self._eval_results if "object_use" in r["eval"]])
+        against_npc_score = np.mean(
+            [r["candidate_mean"] for r in self._eval_results if r["npc_policy_uri"] is not None]
+        )
 
         if not np.isnan(navigation_score):
             overview["navigation_evals"] = navigation_score
         if not np.isnan(object_use_score):
             overview["object_use_evals"] = object_use_score
+        if not np.isnan(against_npc_score):
+            overview["npc_evals"] = against_npc_score
 
         environment = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
 
@@ -607,6 +620,12 @@ class PufferTrainer:
             if "object_use" in r["eval"]
         }
 
+        against_npc_eval_metrics = {
+            f"npc_evals/{r['eval'].split('/')[-1]}:{r['metric']}": r["candidate_mean"]
+            for r in self._eval_results
+            if r["npc_policy_uri"] is not None
+        }
+
         effective_rank_metrics = {
             f"train/effective_rank/{rank['name']}": rank["effective_rank"] for rank in self._effective_rank
         }
@@ -622,6 +641,7 @@ class PufferTrainer:
                     **effective_rank_metrics,
                     **navigation_eval_metrics,
                     **object_use_eval_metrics,
+                    **against_npc_eval_metrics,
                     "train/agent_step": agent_steps,
                     "train/epoch": epoch,
                     "train/learning_rate": learning_rate,
