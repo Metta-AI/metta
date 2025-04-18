@@ -35,15 +35,22 @@ def format_value(value):
     return str(value)
 
 
-def visualize_config(yaml_path, output_filename="agent_config_graph", view=False):
+def visualize_config(yaml_path, output_filename=None, view=False):
     """
     Parses a MettaAgent YAML config and generates a Graphviz visualization.
 
     Args:
         yaml_path (str): Path to the YAML configuration file.
-        output_filename (str): Name for the output file (without extension).
+        output_filename (str, optional): Name for the output file (without extension).
+                                         If None, defaults to {config_name}_agent_config_graph.
         view (bool): If True, attempts to open the generated graph automatically.
     """
+    # Determine default output filename if not provided
+    if output_filename is None:
+        base_name = os.path.basename(yaml_path)
+        config_name, _ = os.path.splitext(base_name)
+        output_filename = f"{config_name}_agent_config_graph"
+
     try:
         with open(yaml_path, "r") as f:
             config = yaml.safe_load(f)
@@ -189,8 +196,8 @@ if __name__ == "__main__":
         "-o",
         "--output",
         type=str,
-        default="agent_config_graph",
-        help="Output filename for the graph (without extension). Default: agent_config_graph",
+        default=None,
+        help="Output filename (without extension). Default: {config_name}_agent_config_graph",
     )
     parser.add_argument("--view", action="store_true", help="Attempt to open the generated graph.")
 
