@@ -40,7 +40,7 @@ analyzer:
   output_path: navigation_results/cylinder.html
 
 eval:
-  env: /env/mettagrid/navigation/evals/wanderout
+  env: /env/mettagrid/navigation/training/multienv
 
   policy_uri: ${..policy_uri}
   # npc_policy_uri: ${..npc_policy_uri}
