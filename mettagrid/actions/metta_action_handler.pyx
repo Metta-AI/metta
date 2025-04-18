@@ -44,7 +44,7 @@ cdef class MettaActionHandler(ActionHandler):
         else:
             actor.stats.incr(self._stats.failure)
             actor.stats.incr(b"action.failure_penalty")
-            self.env._rewards[actor_id] -= actor.action_failure_penalty
+            actor.reward[0] -= actor.action_failure_penalty
             actor.stats.set_once(self._stats.first_use, self.env._current_timestep)
 
         return result

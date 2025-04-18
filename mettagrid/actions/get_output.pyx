@@ -50,7 +50,7 @@ cdef class GetOutput(MettaActionHandler):
             # The actor will destroy anything it can't hold. That's not intentional, so feel free
             # to fix it.
             actor.stats.add(InventoryItemNames[i], b"get", converter.inventory[i])
-            actor.update_inventory(<InventoryItem>i, converter.inventory[i], &self.env._rewards[actor_id])
-            converter.update_inventory(<InventoryItem>i, -converter.inventory[i], NULL)
+            actor.update_inventory(<InventoryItem>i, converter.inventory[i])
+            converter.update_inventory(<InventoryItem>i, -converter.inventory[i])
 
         return True
