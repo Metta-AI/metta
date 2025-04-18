@@ -18,10 +18,12 @@ game:
   # episode length 
   max_steps: 2000
 
-
-  scaled_count: ${div:${..progress.episode_count}, 10}
+  scaled_count: ${div:${..progress.episode_count},10}
+ 
   max_size: ${add:${..min_size}, ${clamp:${.scaled_count}, ${..min_size}, 60}}
-  size: ${make_integer:${uniform:${..min_size},${.max_size}}}
+  # max_size: 60
+
+  size: ${make_integer:${uniform:${..min_size}, ${.max_size}}}
 
   map_builder:
     _target_: mettagrid.config.room.random.Random

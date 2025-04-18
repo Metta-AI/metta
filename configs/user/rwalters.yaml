@@ -16,9 +16,10 @@ trainer:
   evaluate_interval: 200
   evaluate: false
 
-# passed to evaluation (and play)
+# passed to evaluation (and play) 
 # either local or wandb if an aws run
-policy_uri: wandb://run/${.run}
+# policy_uri: wandb://run/${.run}
+policy_uri: ${.trained_policy_uri}
 
 # location of output data for eval
 eval_db_uri: null
