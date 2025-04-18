@@ -40,7 +40,7 @@ cdef class Move(MettaActionHandler):
                 orientation = Orientation.Left
 
         cdef GridLocation old_loc = actor.location
-        cdef GridLocation new_loc = self.env._grid.relative_location(old_loc, orientation)
-        if not self.env._grid.is_empty(new_loc.r, new_loc.c):
+        cdef GridLocation new_loc = self._grid.relative_location(old_loc, orientation)
+        if not self._grid.is_empty(new_loc.r, new_loc.c):
             return 0
-        return self.env._grid.move_object(actor.id, new_loc)
+        return self._grid.move_object(actor.id, new_loc)

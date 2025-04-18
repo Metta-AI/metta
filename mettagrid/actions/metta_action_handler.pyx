@@ -27,9 +27,10 @@ cdef class MettaActionHandler(ActionHandler):
         self,
         unsigned int actor_id,
         GridObjectId actor_object_id,
-        ActionArg arg):
+        ActionArg arg,
+        unsigned int current_timestep):
 
-        cdef Agent *actor = <Agent*>self.env._grid.object(actor_object_id)
+        cdef Agent *actor = <Agent*>self._grid.object(actor_object_id)
 
         if actor.frozen > 0:
             actor.stats.incr(b"status.frozen.ticks")
@@ -45,7 +46,7 @@ cdef class MettaActionHandler(ActionHandler):
             actor.stats.incr(self._stats.failure)
             actor.stats.incr(b"action.failure_penalty")
             actor.reward[0] -= actor.action_failure_penalty
-            actor.stats.set_once(self._stats.first_use, self.env._current_timestep)
+            actor.stats.set_once(self._stats.first_use, current_timestep)
 
         return result
 

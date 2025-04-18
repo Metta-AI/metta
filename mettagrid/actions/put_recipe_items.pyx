@@ -24,12 +24,12 @@ cdef class PutRecipeItems(MettaActionHandler):
         Agent * actor,
         ActionArg arg):
 
-        cdef GridLocation target_loc = self.env._grid.relative_location(
+        cdef GridLocation target_loc = self._grid.relative_location(
             actor.location,
             <Orientation>actor.orientation
         )
         target_loc.layer = GridLayer.Object_Layer
-        cdef MettaObject *target = <MettaObject*>self.env._grid.object_at(target_loc)
+        cdef MettaObject *target = <MettaObject*>self._grid.object_at(target_loc)
         if target == NULL or not target.has_inventory():
             return False
 
