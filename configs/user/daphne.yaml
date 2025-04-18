@@ -11,7 +11,7 @@
 
 defaults:
   - override /agent: simple
-  - override /eval: simple
+  - override /eval: all
   - override /analyzer: eval_analyzer
   - _self_
 
@@ -38,9 +38,6 @@ analyzer:
       - metric: episode_reward
 
 eval:
-  num_envs: 10
-  num_episodes: 16
-  max_time_s: 600
   env: /env/mettagrid/simple
 
   policy_uri: ${..policy_uri}
