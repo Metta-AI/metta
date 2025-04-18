@@ -90,12 +90,12 @@ components:
       out_features: 512
     effective_rank: true
 
-  _action_embeds_:
-    _target_: metta.agent.lib.action.ActionEmbedding
-    input_source: null
-    nn_params:
-      num_embeddings: 100
-      embedding_dim: 32
+  # _action_embeds_:
+  #   _target_: metta.agent.lib.action.ActionEmbedding
+  #   input_source: null
+  #   nn_params:
+  #     num_embeddings: 100
+  #     embedding_dim: 32
 
   # embed_reshaped:
   #   _target_: metta.agent.lib.merge_layer.ReshapeLayer # combines the two dims into the squeezed_dim
@@ -106,10 +106,10 @@ components:
   actor_1_expanded:
     _target_: metta.agent.lib.merge_layer.ExpandLayer
     expand_dim: 1
-    expand_value: null
+    expand_value: 25 # delete to null after testing
     input_source: actor_1
-    dims_source: _action_embeds_
-    source_dim: 1
+    # dims_source: _action_embeds_
+    # source_dim: 1
 
   actor_1_reshaped:
     _target_: metta.agent.lib.merge_layer.ReshapeLayer

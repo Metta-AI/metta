@@ -152,7 +152,8 @@ class MettaAgent(nn.Module):
             for action_name, max_arg_count in self.active_actions:
                 for i in range(max_arg_count + 1):
                     string_list.append(f"{action_name}_{i}")
-            self.components['_action_embeds_'].activate_actions(string_list, self.device)
+            # uncomment after testing
+            # self.components['_action_embeds_'].activate_actions(string_list, self.device)
         else:
             self.components['_action_type_embeds_'].activate_actions(action_names, self.device)
             param_list = []

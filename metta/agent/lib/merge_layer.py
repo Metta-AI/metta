@@ -167,9 +167,9 @@ class ExpandLayer(LayerBase):
         self.expand_dim = expand_dim
         self.expand_value = expand_value
         self.source_dim = source_dim
-        super().__init__(name, **cfg)
+        self.dims_source = dims_source
+        super().__init__(name, input_source, **cfg)
         if dims_source is not None:
-            self.dims_source = dims_source
             self._input_source = [input_source, dims_source]
 
     @property
@@ -184,7 +184,7 @@ class ExpandLayer(LayerBase):
         if isinstance(self._input_source, list):
             self._out_tensor_shape = next(iter(self._input_source_component.values()))._out_tensor_shape
         else:
-            self._out_tensor_shape = self._input_source_component[self._input_source]._out_tensor_shape
+            self._out_tensor_shape = self._input_source_component._out_tensor_shape
 
         if self.dims_source is not None:
             self.expand_value = self._input_source_component[self.dims_source]._out_tensor_shape[self.source_dim - 1] # -1 because _out_tensor_shape doesn't account for batch size
@@ -272,6 +272,6 @@ class BatchReshapeLayer(LayerBase):
         shape[0] = B*TT
         # td[self._name] = tensor.reshape(*shape).squeeze()
         # td[self._name] = tensor.view(*shape).squeeze()
-        td[self._name] = tensor.view(*shape)[:,0,:]
+        td[self._name] = tensor.view(*shape)[:,0,:] # uncomment after testing
         return td
 
