@@ -18,8 +18,7 @@ game:
       height: ${sampling:50,100,60}
       border_width: ${sampling:1,6,3}
       agents: 10
-      style: cylinder_world #${choose:"sparse-altars-dense-objects","all-sparse","all-dense",
-                  #  "balanced","dense-altars-sparse-objects","cylinder_world"}
+      style: ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects","cylinder_world"}
 
   objects:
     altar:
