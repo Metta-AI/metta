@@ -1,17 +1,40 @@
-from typing import Any, List, Optional, TypedDict
+from typing import Any, List, Optional, TypedDict, Union
 
 import hydra
 import numpy as np
 import numpy.typing as npt
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, OmegaConf
 
 from .node import Node
 
+SceneCfg = Union["Scene", DictConfig, str]
+
 
 class TypedChild(TypedDict):
-    scene: "Scene"
+    scene: SceneCfg
     where: Optional[Any]
     # TODO - more props; use dataclasses instead, or structured configs?
+
+
+def config_from_path(config_path: str) -> DictConfig:
+    """Copy-pasted from metta.util.config.config_from_path"""
+    env_cfg = hydra.compose(config_name=config_path)
+    if config_path.startswith("/"):
+        config_path = config_path[1:]
+    path = config_path.split("/")
+    for p in path[:-1]:
+        env_cfg = env_cfg[p]
+    return env_cfg
+
+
+def make_scene(cfg: SceneCfg) -> "Scene":
+    if isinstance(cfg, str):
+        cfg = config_from_path(cfg)
+
+    if isinstance(cfg, Scene):
+        return cfg
+    else:
+        return hydra.utils.instantiate(cfg, _recursive_=False)
 
 
 # Base class for all map scenes.
@@ -50,8 +73,7 @@ class Scene:
             for query in subqueries:
                 areas = node.select_areas(query)
                 for area in areas:
-                    scene = query["scene"]
-                    if not isinstance(scene, Scene):
-                        scene = hydra.utils.instantiate(scene, _recursive_=False)
+                    scene = make_scene(query["scene"])
+
                     child_node = scene.make_node(area.grid)
                     child_node.render()

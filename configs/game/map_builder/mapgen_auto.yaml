@@ -30,40 +30,14 @@ root:
     # The percentage of objects to generate in each area.
     # The percentage will be sampled from the distribution for each room separately.
     room_objects:
-      mine:
-        distribution_type: uniform
-        min: 0.001
-        max: 0.03
-      generator:
-        distribution_type: lognormal
-        p5: 0.0001
-        p95: 0.03
-        max: 0.05 # optional but recommended - lognormal can occasionally generate some very large values
-      altar:
-        distribution_type: lognormal
-        p5: 0.0001
-        p95: 0.05
-        max: 0.05
-      armory:
-        distribution_type: uniform
-        min: 0.001
-        max: 0.03
-      lasery:
-        distribution_type: uniform
-        min: 0.001
-        max: 0.03
-      lab:
-        distribution_type: uniform
-        min: 0.001
-        max: 0.03
-      factory:
-        distribution_type: uniform
-        min: 0.001
-        max: 0.03
-      temple:
-        distribution_type: uniform
-        min: 0.001
-        max: 0.03
+      mine: ["uniform", 0.0005, 0.01]
+      generator: ["lognormal", 0.0001, 0.01, 0.03]
+      altar: ["lognormal", 0.0001, 0.01, 0.03]
+      armory: ["uniform", 0.0005, 0.01]
+      lasery: ["uniform", 0.0005, 0.01]
+      lab: ["uniform", 0.0005, 0.01]
+      factory: ["uniform", 0.0005, 0.01]
+      temple: ["uniform", 0.0005, 0.01]
 
     # Which layout to use? We have two options for now: BSP (binary space partitioning) and a rectangular grid.
     layout:
@@ -73,15 +47,13 @@ root:
 
     # If we go with grid layout, how many rows and columns?
     grid:
-      min_rows: 2
-      max_rows: 4
-      min_columns: 2
-      max_columns: 4
+      rows: ["uniform", 2, 4]
+      columns: ["uniform", 2, 4]
+
 
     # If we go with BSP layout, how many areas?
     bsp:
-      min_area_count: 3
-      max_area_count: 15
+      area_count: ["uniform", 3, 15]
 
     # Should some rooms be symmetric?
     room_symmetry:
@@ -91,84 +63,19 @@ root:
       vertical: 3
       x4: 3
 
-    # Which content to use? We have two options for now: maze and WFC (wave function collapse).
+    # Which content to use? You can list any scenes here. The list will be passed to a RandomScene.
+    # Weights affect the probability of each scene being chosen. Default weight is 1.
     content:
-      # weights for content choice
-      maze: 1
-      wfc: 1
-
-    # If we go with maze layout, how big are walls and cells?
-    maze:
-      min_wall_size: 1
-      max_wall_size: 3
-      min_room_size: 1
-      max_room_size: 3
-
-    # If we go with WFC, which patterns to use?
-    wfc_patterns:
-      - |
-        |####   ####|
-        |####   ####|
-        |####   ####|
-        |           |
-        |           |
-        |####   ####|
-        |####   ####|
-        |####   ####|
-
-      - |
-        |####     #####|
-        |####     #####|
-        |####     #####|
-        |            ##|
-        |            ##|
-        |            ##|
-        |####     #####|
-        |####     #####|
-        |####     #####|
-
-      - |
-        |      |
-        |  ##  |
-        | #### |
-        | ###  |
-        |  ##  |
-        |      |
-        |      |
-
-      - |
-        |          |
-        |   ####   |
-        |  ######  |
-        | ######## |
-        | ######## |
-        |  ######  |
-        |   ####   |
-        |          |
-
-      - |
-        |###   ##   |
-        |##    #### |
-        |#    ## ## |
-        |##    #    |
-        |#    ### ##|
-        |       ### |
-        |   ###     |
-        |   #     # |
-        |   ###   ##|
-        |           |
-
-      - |
-        |##    ###     |
-        |##    ####### |
-        |#    ##    ## |
-        |##    #       |
-        |#    ####   ##|
-        |        ##### |
-        |   ###        |
-        |#    ###### ##|
-        |       ###### |
-        |  ###         |
-        |  ##          |
-        |   ###      ##|
-        |              |
+      - scene: /scenes/wfc/blob
+      - scene: /scenes/wfc/blob2
+      - scene: /scenes/wfc/blob3
+      - scene: /scenes/wfc/blocks
+      - scene: /scenes/wfc/dungeons
+      - scene: /scenes/wfc/mazelike1
+      - scene: /scenes/wfc/mazelike2
+      - scene: /scenes/wfc/simple
+      - scene:
+          _target_: mettagrid.map.scenes.maze.MazeKruskal
+          room_size: ["uniform", 1, 3]
+          wall_size: ["uniform", 1, 3]
+        weight: 4

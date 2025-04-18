@@ -64,7 +64,7 @@ class WFC(Scene):
         self._pattern_size = pattern_size
         self._rng = np.random.default_rng(seed)
         patterns_with_counts = ascii_to_patterns_with_counts(
-            pattern, pattern_size, periodic=periodic_input, symmetry=symmetry
+            self._ascii_pattern, pattern_size, periodic=periodic_input, symmetry=symmetry
         )
 
         self._weights = np.array([p[1] for p in patterns_with_counts], dtype=np.float_)
@@ -145,7 +145,7 @@ class WFCRenderSession:
 
         self.stack = np.zeros((self.width * self.height * self.pattern_count, 3), dtype=np.int_)
         self.stacksize = 0
-        logger.info(f"reset() time: {time.time() - start}")
+        logger.debug(f"reset() time: {time.time() - start}")
 
         self._pick_next_time = 0
         self._pick_next_count = 0
@@ -174,13 +174,17 @@ class WFCRenderSession:
         ok = False
         for i in range(self.scene._attempts):
             logger.info(f"Attempt {i + 1} of {self.scene._attempts}, pattern:\n{self.scene._ascii_pattern}")
+            start_time = time.time()
             self.reset()
             ok = self.attempt_run()
+            attempt_time = time.time() - start_time
             logger.info(
-                f"Attempt {i + 1} time: pick_next_node: {self._pick_next_time}, observe: {self._observe_time}, "
-                f"propagate: {self._propagate_time}"
+                f"Attempt {i + 1} time: {attempt_time:.3f}s "
+                f"(pick_next_node: {self._pick_next_time:.3f}s, "
+                f"observe: {self._observe_time:.3f}s, "
+                f"propagate: {self._propagate_time:.3f}s, "
+                f"pick_next_count: {self._pick_next_count})"
             )
-            logger.info(f"Attempt {i + 1} time: pick_next_count: {self._pick_next_count}")
             if ok:
                 break
             else:
