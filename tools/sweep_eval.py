@@ -5,7 +5,6 @@ import logging
 import os
 import sys
 import time
-
 import hydra
 from omegaconf import DictConfig, OmegaConf
 from rich.logging import RichHandler
@@ -111,7 +110,6 @@ def main(cfg: OmegaConf) -> int:
         # Analyze the evaluation results
         analyzer = hydra.utils.instantiate(cfg.analyzer, eval_stats_db)
         results, _ = analyzer.analyze()
-        pdb.set_trace()
 
         # Filter by policy name and sum up the mean values over evals
         filtered_results = results[sweep_metric_index][results[sweep_metric_index]["policy_name"] == policy_pr.name]
