@@ -4,9 +4,10 @@ from datetime import datetime
 
 import numpy as np
 import torch
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import OmegaConf
 
 from metta.agent.policy_store import PolicyRecord, PolicyStore
+from metta.sim.simulation_config import SimulationConfig, SimulationSuiteConfig
 from metta.sim.vecenv import make_vecenv
 from metta.util.config import config_from_path
 from metta.util.datastruct import flatten_config
@@ -17,36 +18,27 @@ logger = logging.getLogger(__name__)
 class Simulation:
     def __init__(
         self,
-        policy_store: PolicyStore,
+        config: SimulationConfig,
         policy_pr: PolicyRecord,
-        run_id: str,
-        env: str,
-        npc_policy_uri: str,
-        device: str,
-        env_overrides: DictConfig = None,
-        policy_agents_pct: float = 1.0,
-        num_envs: int = 1,
-        num_episodes: int = 1,
-        max_time_s: int = 60,
-        vectorization: str = "serial",
-        **kwargs,
+        policy_store: PolicyStore,
     ) -> None:
-        self._env_cfg = config_from_path(env, env_overrides)
-        self._env_name = env
+        # TODO: Replace with typed EnvConfig
+        self._env_cfg = config_from_path(config.env, config.env_overrides)
+        self._env_name = config.env
 
-        self._npc_policy_uri = npc_policy_uri
-        self._policy_agents_pct = policy_agents_pct
+        self._npc_policy_uri = config.npc_policy_uri
+        self._policy_agents_pct = config.policy_agents_pct
         self._policy_store = policy_store
 
-        self._device = device
+        self._device = config.device
 
-        self._num_envs = num_envs
-        self._min_episodes = num_episodes
-        self._max_time_s = max_time_s
+        self._num_envs = config.num_envs
+        self._min_episodes = config.num_episodes
+        self._max_time_s = config.max_time_s
 
         # load candidate policy
         self._policy_pr = policy_pr
-        self._run_id = run_id
+
         # load npc policy
         self._npc_pr = None
         if self._npc_policy_uri is None:
@@ -59,10 +51,9 @@ class Simulation:
         self._npc_agents_per_env = self._agents_per_env - self._policy_agents_per_env
         self._total_agents = self._num_envs * self._agents_per_env
 
-        self._vecenv = make_vecenv(self._env_cfg, vectorization, num_envs=self._num_envs)
+        self._vecenv = make_vecenv(self._env_cfg, config.vectorization, num_envs=self._num_envs)
 
         # each index is an agent, and we reshape it into a matrix of num_envs x agents_per_env
-        # you can figure out which episode you're in by doing the floor division
         slice_idxs = (
             torch.arange(self._vecenv.num_agents).reshape(self._num_envs, self._agents_per_env).to(device=self._device)
         )
@@ -72,16 +63,14 @@ class Simulation:
         )
 
         self._npc_idxs = []
-        self._npc_idxs = slice_idxs[:, self._policy_agents_per_env :].reshape(self._num_envs * self._npc_agents_per_env)
+        if self._npc_agents_per_env > 0:
+            self._npc_idxs = slice_idxs[:, self._policy_agents_per_env :].reshape(
+                self._num_envs * self._npc_agents_per_env
+            )
 
         self._completed_episodes = 0
         self._total_rewards = np.zeros(self._total_agents)
         self._agent_stats = [{} for a in range(self._total_agents)]
-
-        # Extract policy names
-        logger.info(f"Policy name: {self._policy_pr.name}")
-        if self._npc_pr is not None:
-            logger.info(f"NPC name: {self._npc_pr.name}")
 
         # Create mapping from metta.agent index to policy name
         self._agent_idx_to_policy_name = {}
@@ -92,13 +81,13 @@ class Simulation:
             self._agent_idx_to_policy_name[agent_idx.item()] = self._npc_pr.name
 
     def simulate(self):
-        logger.info(
+        logger.debug(
             f"Simulating policy: {self._policy_pr.name} in {self._env_name} with {self._policy_agents_per_env} agents"
         )
         if self._npc_pr is not None:
-            logger.info(f"Against npc policy: {self._npc_pr.name} with {self._npc_agents_per_env} agents")
+            logger.debug(f"Against npc policy: {self._npc_pr.name} with {self._npc_agents_per_env} agents")
 
-        logger.info(
+        logger.debug(
             f"Simulation settings: {self._num_envs} envs, {self._min_episodes} episodes, {self._max_time_s} seconds"
         )
 
@@ -148,7 +137,6 @@ class Simulation:
             # Convert the environment configuration to a dictionary and flatten it.
             game_cfg = OmegaConf.to_container(self._env_cfg.game, resolve=False)
             flattened_env = flatten_config(game_cfg, parent_key="game")
-            flattened_env["run_id"] = self._run_id
             flattened_env["eval_name"] = self._env_name
             flattened_env["timestamp"] = datetime.now().isoformat()
             flattened_env["npc"] = self._npc_policy_uri
@@ -170,7 +158,7 @@ class Simulation:
                         agent_episode_data[agent_i].update(flattened_env)
 
                     game_stats.append(agent_episode_data)
-        logger.info(f"Evaluation time: {time.time() - start}")
+        logger.debug(f"Simulation time: {time.time() - start}")
         self._vecenv.close()
         return game_stats
 
@@ -178,21 +166,18 @@ class Simulation:
 class SimulationSuite:
     def __init__(
         self,
-        policy_store: PolicyStore,
+        config: SimulationSuiteConfig,
         policy_pr: PolicyRecord,
-        run_id: str,
-        env_overrides: DictConfig = None,
-        evals: DictConfig = None,
-        **kwargs,
+        policy_store: PolicyStore,
     ):
-        self._evals_cfgs = evals
-        self._evals = []
-        for _eval_name, eval_cfg in evals.items():
-            eval_cfg = OmegaConf.merge(kwargs, eval_cfg)
-            eval = Simulation(policy_store, policy_pr, run_id, env_overrides=env_overrides, **eval_cfg)
-            self._evals.append(eval)
+        logger.debug(f"Building Simulation suite from config:{config}")
+        self._simulations = dict()
+
+        for name, sim_config in config.simulations.items():
+            # Create a Simulation object for each config
+            sim = Simulation(config=sim_config, policy_pr=policy_pr, policy_store=policy_store)
+            self._simulations[name] = sim
 
     def simulate(self):
-        return {
-            eval_name: eval.simulate() for eval_name, eval in zip(self._evals_cfgs.keys(), self._evals, strict=False)
-        }
+        # Run all simulations and gather results by name
+        return {name: sim.simulate() for name, sim in self._simulations.items()}

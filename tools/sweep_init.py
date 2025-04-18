@@ -24,7 +24,7 @@ logging.basicConfig(level="INFO", format="%(message)s", datefmt="[%X]", handlers
 logger = logging.getLogger("sweep_init")
 
 
-@hydra.main(config_path="../configs", config_name="sweep", version_base=None)
+@hydra.main(config_path="../configs/tools", config_name="sweep_job", version_base=None)
 def main(cfg: OmegaConf) -> int:
     cfg.wandb.name = cfg.sweep_name
     OmegaConf.register_new_resolver("ss", sweep_space, replace=True)

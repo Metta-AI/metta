@@ -2,13 +2,16 @@ defaults:
   - common
   - agent: simple
   - trainer: puffer
-  - eval: navigation
   - analyzer: eval_analyzer
   - wandb: metta_research
+  - /sim/all@train_job.evals
   - _self_
 
-cmd: eval
-run: ???
+seed: 1
 
-torch_deterministic: true
-vectorization: multiprocessing
+eval_db_uri: null
+
+train_job:
+  evals:
+    eval_db_uri: null
+    run_dir: ${run_dir}

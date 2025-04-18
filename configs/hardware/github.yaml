@@ -2,7 +2,7 @@
 
 defaults:
   # Full fledged evaluation is heavier than we want for Github Actions.
-  - override /eval: smoke_test
+  - /sim/smoke_test@train_job.evals
 
 run: github_test
 device: cpu

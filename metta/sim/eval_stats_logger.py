@@ -5,28 +5,30 @@ import os
 
 import wandb
 
+from metta.sim.simulation_config import SimulationSuiteConfig
+
 logger = logging.getLogger("eval_stats_logger.py")
 
 
 class EvalStatsLogger:
-    def __init__(self, cfg, wandb_run):
-        self._cfg = cfg
+    def __init__(self, config: SimulationSuiteConfig, wandb_run):
+        self._cfg = config
         self._wandb_run = wandb_run
         # We want local stats dir to be the same for train, analysis and eval for a particular run
-        save_dir = (cfg.run_dir).replace("analyze", "train").replace("eval", "train")
+        save_dir = (config.run_dir).replace("analyze", "train").replace("eval", "train")
 
         artifact_name = None
-        if cfg.eval.eval_db_uri is None:
+        if config.eval_db_uri is None:
             json_path = os.path.join(save_dir, "eval_stats")
-        elif cfg.eval.eval_db_uri.startswith("wandb://"):
-            artifact_name = cfg.eval.eval_db_uri.split("/")[-1]
+        elif config.eval_db_uri.startswith("wandb://"):
+            artifact_name = config.eval_db_uri.split("/")[-1]
             json_path = os.path.join(save_dir, "eval_stats")
-        elif cfg.eval.eval_db_uri.startswith("file://"):
-            json_path = cfg.eval.eval_db_uri.split("file://")[1]
+        elif config.eval_db_uri.startswith("file://"):
+            json_path = config.eval_db_uri.split("file://")[1]
         else:
-            if "://" in cfg.eval.eval_db_uri:
-                raise ValueError(f"Invalid eval_db_uri: {cfg.eval.eval_db_uri}")
-            json_path = cfg.eval.eval_db_uri
+            if "://" in config.eval_db_uri:
+                raise ValueError(f"Invalid eval_db_uri: {config.eval_db_uri}")
+            json_path = config.eval_db_uri
 
         self.json_path = json_path if json_path.endswith(".json") else f"{json_path}.json"
         os.makedirs(os.path.dirname(self.json_path), exist_ok=True)

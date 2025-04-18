@@ -66,7 +66,11 @@ def main(cfg: OmegaConf) -> int:
         cfg.eval.policy_uri = policy_pr.uri
         cfg.analyzer.policy_uri = policy_pr.uri
 
-        eval = hydra.utils.instantiate(
+        simulation_suite
+
+        eval = Eval(cfg.eval)
+        
+        hydra.utils.instantiate(
             cfg.eval, policy_store, policy_pr, cfg.get("run_id", wandb_run.id), cfg_recursive_=False
         )
 
