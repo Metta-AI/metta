@@ -13,6 +13,7 @@ from mettagrid.grid_object cimport (
     Layer,
     GridLocation
 )
+from mettagrid.objects.agent cimport Agent
 from mettagrid.observation_encoder cimport ObservationEncoder, ObsType
 from mettagrid.objects.production_handler cimport ProductionHandler, CoolDownHandler
 from mettagrid.objects.constants cimport ObjectTypeNames, ObjectTypeAscii
@@ -89,7 +90,8 @@ cdef class GridEnv:
     def __dealloc__(self):
         del self._grid
 
-    cdef void add_agent(self, GridObject* agent):
+    cdef void add_agent(self, Agent* agent):
+        agent.init(&self._rewards[self._agents.size()])
         self._agents.push_back(agent)
 
     cdef void _compute_observation(
@@ -127,7 +129,7 @@ cdef class GridEnv:
                     self._obs_encoder.encode(obj, agent_ob)
 
     cdef void _compute_observations(self, int[:,:] actions):
-        cdef GridObject *agent
+        cdef Agent *agent
         for idx in range(self._agents.size()):
             agent = self._agents[idx]
             self._compute_observation(
@@ -148,7 +150,7 @@ cdef class GridEnv:
             unsigned int idx
             short action
             ActionArg arg
-            GridObject *agent
+            Agent *agent
             ActionHandler handler
 
         self._rewards[:] = 0
@@ -219,6 +221,9 @@ cdef class GridEnv:
         self._rewards = rewards
         self._episode_rewards_np = np.zeros_like(rewards)
         self._episode_rewards = self._episode_rewards_np
+
+        for i in range(self._agents.size()):
+            self._agents[i].init(&self._rewards[i])
 
     cpdef grid(self):
         return []

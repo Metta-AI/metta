@@ -29,7 +29,7 @@ cdef class AttackNearest(Attack):
         if actor.inventory[InventoryItem.laser] == 0:
             return False
 
-        actor.update_inventory(InventoryItem.laser, -1, &self.env._rewards[actor_id])
+        actor.update_inventory(InventoryItem.laser, -1)
 
         # Scan the space to find the nearest agent. Prefer the middle (offset 0) before the edges (offset -1, 1).
         for distance in range(1, 4):

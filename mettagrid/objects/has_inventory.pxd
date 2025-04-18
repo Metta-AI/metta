@@ -8,5 +8,5 @@ cdef extern from "has_inventory.hpp":
         void init_has_inventory(ObjectConfig cfg)
         bint has_inventory()
         bint inventory_is_accessible()
-        void update_inventory(InventoryItem item, unsigned char amount, float *reward)
+        void update_inventory(InventoryItem item, unsigned char amount)
 

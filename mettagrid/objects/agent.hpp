@@ -24,12 +24,15 @@ public:
     unsigned char agent_id;
     StatsTracker stats;
     float current_resource_reward;
+    float *reward;
 
     Agent(
         GridCoord r, GridCoord c,
         std::string group_name,
         unsigned char group_id,
         ObjectConfig cfg,
+        // Configuration -- rewards that the agent will get for certain
+        // actions or inventory changes.
         std::map<std::string, float> rewards) {
         GridObject::init(ObjectType::AgentT, GridLocation(r, c, GridLayer::Agent_Layer));
         MettaObject::init_mo(cfg);
@@ -52,9 +55,14 @@ public:
         this->action_failure_penalty = rewards["action_failure_penalty"];
         this->color = 0;
         this->current_resource_reward = 0;
+        this->reward = nullptr;
     }
 
-    void update_inventory(InventoryItem item, short amount, float *reward) {
+    void init(float *reward) {
+        this->reward = reward;
+    }
+
+    void update_inventory(InventoryItem item, short amount) {
         int current_amount = this->inventory[static_cast<int>(item)];
         int new_amount = current_amount + amount;
         if (new_amount > this->max_items) {
@@ -73,10 +81,10 @@ public:
             this->stats.add(InventoryItemNames[item], "lost", -delta);
         }
 
-        this->compute_resource_reward(item, reward);
+        this->compute_resource_reward(item);
     }
 
-    inline void compute_resource_reward(InventoryItem item, float *reward) {
+    inline void compute_resource_reward(InventoryItem item) {
         if (this->resource_rewards[static_cast<int>(item)] == 0) {
             return;
         }
@@ -89,7 +97,7 @@ public:
             }
             new_reward += this->resource_rewards[i] * max_val;
         }
-        *reward += (new_reward - this->current_resource_reward);
+        *this->reward += (new_reward - this->current_resource_reward);
         this->current_resource_reward = new_reward;
     }
 

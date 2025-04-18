@@ -87,7 +87,7 @@ public:
         unsigned char initial_items = cfg["initial_items"];
         for (unsigned int i = 0; i < InventoryItem::InventoryCount; i++) {
             if (this->recipe_output[i] > 0) {
-                HasInventory::update_inventory(static_cast<InventoryItem>(i), initial_items, nullptr);
+                HasInventory::update_inventory(static_cast<InventoryItem>(i), initial_items);
             }
         }
     }
@@ -105,7 +105,7 @@ public:
         // Add output to inventory
         for (unsigned int i = 0; i < InventoryItem::InventoryCount; i++) {
             if (this->recipe_output[i] > 0) {
-                HasInventory::update_inventory(static_cast<InventoryItem>(i), this->recipe_output[i], nullptr);
+                HasInventory::update_inventory(static_cast<InventoryItem>(i), this->recipe_output[i]);
             }
         }
 
@@ -129,8 +129,8 @@ public:
         this->maybe_start_converting();
     }
 
-    void update_inventory(InventoryItem item, short amount, float *reward) override {
-        HasInventory::update_inventory(item, amount, reward);
+    void update_inventory(InventoryItem item, short amount) override {
+        HasInventory::update_inventory(item, amount);
         this->maybe_start_converting();
     }
 
