@@ -146,6 +146,7 @@ class MettaAgent(nn.Module):
         
         # delete if logic after testing
         if self.convert_to_single_discrete:
+            assert False
             # convert the actions_dict into a list of strings
             string_list = []
             for action_name, max_arg_count in self.active_actions:
@@ -231,6 +232,7 @@ class MettaAgent(nn.Module):
 
         # delete if logic after testing
         if self.convert_to_single_discrete:
+            assert False
             action_logit_index = self._convert_action_to_logit_index(action) if action is not None else None
             action_logit_index, logprob, entropy, normalized_logits = sample_logits(logits, action_logit_index)
             action = self._convert_logit_index_to_action(action_logit_index, td)
