@@ -22,6 +22,9 @@ TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 # Store PIDs in environment variables file for later use
 PID_FILE="training_pids.env"
 
+# debug
+# python -m tools.train +hardware=pufferbox run=rwalters.test trainer.env=/env/mettagrid/robb_map 
+
 # First training job - control experiment
 echo "Starting control_$RUN_ID training job..."
 python -m tools.train +hardware=pufferbox run=rwalters.control_$RUN_ID \
