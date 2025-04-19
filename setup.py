@@ -28,7 +28,6 @@ ext_modules = [
     build_ext(["mettagrid/grid_object.pyx"]),
     build_ext(["mettagrid/stats_tracker.cpp"]),
     build_ext(["mettagrid/observation_encoder.pyx"]),
-    build_ext(["mettagrid/actions/metta_action_handler.pyx"]),
     build_ext(["mettagrid/actions/attack.pyx"]),
     build_ext(["mettagrid/actions/attack_nearest.pyx"]),
     build_ext(["mettagrid/actions/change_color.pyx"]),
