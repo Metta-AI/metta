@@ -129,7 +129,7 @@ components:
       - interim_linear
       - actor_1
     nn_params:
-      out_features: 25
+      out_features: 10
 
   # _action_:
   #   _target_: metta.agent.lib.merge_layer.BatchReshapeLayer

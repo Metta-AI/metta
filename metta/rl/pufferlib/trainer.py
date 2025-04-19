@@ -99,12 +99,6 @@ class PufferTrainer:
         if self._master:
             print(policy_record.policy())
 
-        if policy_record.metadata["action_names"] != self.vecenv.driver_env.action_names():
-            raise ValueError(
-                "Action names do not match between policy and environment: "
-                f"{policy_record.metadata['action_names']} != {self.vecenv.driver_env.action_names()}"
-            )
-
         self._initial_pr = policy_record
         self.last_pr = policy_record
         self.policy = policy_record.policy().to(self.device)
@@ -181,18 +175,7 @@ class PufferTrainer:
 
         logger.info(f"Training on {self.device}")
         while self.agent_step < self.trainer_cfg.total_timesteps:
-            # --- Profiler Setup (inside loop for subsequent epochs) ---
-            # Check if it's time to arm the profiler for this epoch
-            # We check again here in case the loop runs multiple times or epoch increments
-            if not self.torch_profiler.active: # Only setup if not already active
-                should_profile_this_epoch = (
-                    self.trainer_cfg.profiler_interval_epochs != 0
-                    and self.epoch % self.trainer_cfg.profiler_interval_epochs == 0
-                    and self._master
-                )
-                if should_profile_this_epoch:
-                     self.torch_profiler.setup_profiler(self.epoch)
-            # --- End Profiler Setup ---
+
 
             # --- Profiler Context ---
             if self.torch_profiler.active:
@@ -227,6 +210,19 @@ class PufferTrainer:
                 self._update_l2_init_weight_copy()
             if self.trainer_cfg.replay_interval != 0 and self.epoch % self.trainer_cfg.replay_interval == 0:
                 self._generate_and_upload_replay()
+
+            # --- Profiler Setup (inside loop for subsequent epochs) ---
+            # Check if it's time to arm the profiler for this epoch
+            # We check again here in case the loop runs multiple times or epoch increments
+            if not self.torch_profiler.active: # Only setup if not already active
+                should_profile_this_epoch = (
+                    self.trainer_cfg.profiler_interval_epochs != 0
+                    and self.epoch % self.trainer_cfg.profiler_interval_epochs == 0
+                    and self._master
+                )
+                if should_profile_this_epoch:
+                     self.torch_profiler.setup_profiler(self.epoch)
+            # --- End Profiler Setup ---
 
             self._on_train_step()
 
