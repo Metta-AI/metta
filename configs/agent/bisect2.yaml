@@ -87,7 +87,7 @@ components:
     _target_: metta.agent.lib.nn_layer_library.Linear
     input_source: _core_
     nn_params:
-      out_features: 256
+      out_features: 64
     effective_rank: true
 
   # _action_embeds_:
