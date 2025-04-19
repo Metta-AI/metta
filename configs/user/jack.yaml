@@ -57,4 +57,5 @@ train_job:
 wandb:
   checkpoint_interval: 1
 
-sweep_name: ${oc.env:USER}.local.sweep.${run_id}
+sweep_name: jack.test.sweep.devbox2
+# sweep_name: ${oc.env:USER}.local.sweep.${run_id}

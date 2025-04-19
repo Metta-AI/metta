@@ -66,7 +66,6 @@ def main(cfg: OmegaConf) -> int:
             WandbCarbs._record_failure(wandb_run)
             return 1
 
-        cfg.eval.policy_uri = policy_pr.uri
         cfg.analyzer.policy_uri = policy_pr.uri
 
         simulation_suite_cfg = dictconfig_to_dataclass(SimulationSuiteConfig, cfg.evals)
