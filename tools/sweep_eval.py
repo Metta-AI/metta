@@ -7,6 +7,7 @@ import sys
 import time
 
 import hydra
+import yaml
 from omegaconf import DictConfig, OmegaConf
 from rich.logging import RichHandler
 from wandb_carbs import WandbCarbs
@@ -45,6 +46,8 @@ def load_file(run_dir, name):
 @hydra.main(config_path="../configs", config_name="sweep_job", version_base=None)
 def main(cfg: OmegaConf) -> int:
     setup_mettagrid_environment(cfg)
+    logger.info("Sweep configuration:")
+    logger.info(yaml.dump(OmegaConf.to_container(cfg, resolve=True), default_flow_style=False))
 
     results_path = os.path.join(cfg.run_dir, "sweep_eval_results.yaml")
     start_time = time.time()
