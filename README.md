@@ -92,6 +92,16 @@ This readme provides only a brief overview of research explorations. Visit the [
 
 # Installation
 
+## Installing with conda
+
+Install and initialize conda
+
+```
+brew install --cask miniconda
+conda init "$(basename "${SHELL}")"
+source ~/.zshrc
+```
+
 Create a Conda environment (or use venv)
 
 ```
@@ -108,13 +118,15 @@ conda activate metta
 python -m tools.train run=my_experiment +hardware=macbook wandb=off
 ```
 
-### Run the evaluation
+Add `wandb=off` parameter if you're not a member of `metta-research` on wandb, or add your own wandb config in `configs/wandb`.
+
+### Run the evaluation (requires wandb)
 
 ```
 python -m tools.sim run=my_experiment +hardware=macbook wandb=off
 ```
 
-### Run the interactive simulation
+### Run the interactive simulation  (requires wandb)
 
 ```
 python -m tools.play run=my_experiment +hardware=macbook wandb=off

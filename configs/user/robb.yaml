@@ -1,0 +1,43 @@
+# @package __global__
+
+seed: null
+
+defaults:
+  - override /sweep: fast
+  - override /agent: simple
+  - override /eval: eval
+
+
+policy_uri: wandb://run/b.daveey.sm.train.er.new.0
+npc_policy_uri: null
+eval_db_uri: null
+
+env_overrides:
+  game:
+    max_steps: 100
+
+trainer:
+  env: /env/mettagrid/bases
+  evaluate_interval: 200g
+
+eval:
+  num_envs: 2
+  num_episodes: 2
+  max_time_s: 600
+  env: /env/mettagrid/simple
+  env_overrides: ${env_overrides}
+
+analyzer:
+  eval_stats_uri: ${run_dir}/eval_stats
+  analysis:
+    metrics:
+      - metric: episode_reward
+      - metric: "*.get"
+
+wandb:
+  checkpoint_interval: 1
+
+run_id: 1
+run: ${oc.env:USER}.local.${run_id}
+trained_policy_uri: ${run_dir}/checkpoints
+sweep_name: "${oc.env:USER}.local.sweep.0"
