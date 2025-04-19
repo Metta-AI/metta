@@ -1,11 +1,13 @@
-import numpy as np
-import torch
+from omegaconf import OmegaConf
 from tensordict import TensorDict
 from torch import nn
+import torch
+import numpy as np
+
 
 
 class LayerBase(nn.Module):
-    """The base class for components that make up the Metta agent. All components
+    '''The base class for components that make up the Metta agent. All components
     are required to have a name and an input source, although the input source
     can be None (or null in your YAML). Output size is optional depending on
     your component.
@@ -28,18 +30,20 @@ class LayerBase(nn.Module):
     key with its own name, indicating that its computation has already been
     performed (due to some other run up the DAG) and return. After this check,
     it should check if its input source is not None and recursively call the
-    forward method of the layer above it."""
-
-    def __init__(self, name, input_source=None, output_size=None, nn_params=None, **cfg):
-        if nn_params is None:
-            nn_params = {}
+    forward method of the layer above it.
+    
+    Carefully passing input and output shapes is necessary to setup the agent.
+    self._in_tensor_shape and self._out_tensor_shape are always of type list of
+    list. Note that they do not include the batch dimension (as this is specified
+    in training configs).'''
+    def __init__(self, name, input_source=None, nn_params={}, **cfg):
         super().__init__()
         self._name = name
         self._input_source = input_source
-        self._output_size = output_size
-        self._nn_params = nn_params
         self._net = None
         self._ready = False
+        if not hasattr(self, "_nn_params"):
+            self._nn_params = nn_params
 
     @property
     def ready(self):
@@ -52,14 +56,18 @@ class LayerBase(nn.Module):
         self.__dict__["_input_source_component"] = input_source_component
 
         if self._input_source_component is None:
-            self._input_size = None
-            if self._output_size is None:
-                raise ValueError(f"Either input source or output size must be set for layer {self._name}")
+            self._in_tensor_shape = None
+            if self._out_tensor_shape is None:
+                raise ValueError(f"Either input source or output tensor shape must be set for layer {self._name}")
         else:
-            self._input_size = self._input_source_component._output_size
-
-        if self._output_size is None:
-            self._output_size = self._input_size
+            if isinstance(self._input_source_component, dict):
+                self._in_tensor_shape = []
+                for _, source in self._input_source_component.items():
+                    self._in_tensor_shape.append(source._out_tensor_shape.copy())
+            else:
+                self._in_tensor_shape = self._input_source_component._out_tensor_shape.copy()
+            if not hasattr(self, "_out_tensor_shape"):
+                self._out_tensor_shape = self._in_tensor_shape # if necessary, edit this later in the superclass
 
         self._initialize()
         self._ready = True
@@ -75,7 +83,11 @@ class LayerBase(nn.Module):
             return td
 
         if self._input_source_component is not None:
-            self._input_source_component.forward(td)
+            if isinstance(self._input_source_component, dict):
+                for _, source in self._input_source_component.items():
+                    source.forward(td)
+            else:
+                self._input_source_component.forward(td)
 
         self._forward(td)
 
@@ -87,24 +99,18 @@ class LayerBase(nn.Module):
 
     def clip_weights(self):
         pass
-
     def l2_reg_loss(self):
         pass
-
     def l2_init_loss(self):
         pass
-
     def update_l2_init_weight_copy(self):
         pass
-
-    def compute_effective_rank(self, delta: float = 0.01) -> dict:
+    def effective_rank(self, delta: float = 0.01) -> dict:
         pass
 
-
 class ParamLayer(LayerBase):
-    """This provides a few useful methods for components/nets that have parameters (weights).
-    Superclasses should have input_size and output_size already set."""
-
+    '''This provides a few useful methods for components/nets that have parameters (weights).
+    Superclasses should have input_size and output_size already set.'''
     def __init__(
         self,
         clip_scale=1,
@@ -115,7 +121,7 @@ class ParamLayer(LayerBase):
         initialization="Orthogonal",
         clip_range=None,
         **cfg,
-    ):
+        ):
         self.clip_scale = clip_scale
         self.effective_rank_bool = effective_rank
         self.l2_norm_scale = l2_norm_scale
@@ -133,7 +139,7 @@ class ParamLayer(LayerBase):
         if self.clip_scale > 0:
             self.clip_value = self.global_clip_range * self.largest_weight * self.clip_scale
         else:
-            self.clip_value = 0  # disables clipping (not clip to 0)
+            self.clip_value = 0 # disables clipping (not clip to 0)
 
         self.initial_weights = None
         if self.l2_init_scale != 0:
@@ -143,7 +149,7 @@ class ParamLayer(LayerBase):
         if self.nonlinearity is not None:
             # expecting a string of the form 'nn.ReLU'
             try:
-                _, class_name = self.nonlinearity.split(".")
+                _, class_name = self.nonlinearity.split('.')
                 if class_name not in dir(nn):
                     raise ValueError(f"Unsupported nonlinearity: {self.nonlinearity}")
                 nonlinearity_class = getattr(nn, class_name)
@@ -153,8 +159,8 @@ class ParamLayer(LayerBase):
                 raise ValueError(f"Unsupported nonlinearity: {self.nonlinearity}") from e
 
     def _initialize_weights(self):
-        fan_in = self._input_size
-        fan_out = self._output_size
+        fan_in = self._in_tensor_shape[0]
+        fan_out = self._out_tensor_shape[0]
 
         if self.initialization.lower() == "orthogonal":
             if self.nonlinearity == "nn.Tanh":
@@ -187,37 +193,33 @@ class ParamLayer(LayerBase):
                 self.weight_net.weight.data = self.weight_net.weight.data.clamp(-self.clip_value, self.clip_value)
 
     def l2_reg_loss(self) -> torch.Tensor:
-        """Also known as Weight Decay Loss or L2 Ridge Regularization"""
+        '''Also known as Weight Decay Loss or L2 Ridge Regularization'''
         l2_reg_loss = torch.tensor(0.0, device=self.weight_net.weight.data.device)
         if self.l2_norm_scale != 0 and self.l2_norm_scale is not None:
-            l2_reg_loss = (torch.sum(self.weight_net.weight.data**2)) * self.l2_norm_scale
+            l2_reg_loss = (torch.sum(self.weight_net.weight.data ** 2))*self.l2_norm_scale
         return l2_reg_loss
 
     def l2_init_loss(self) -> torch.Tensor:
-        """Also known as Delta Regularization Loss"""
+        '''Also known as Delta Regularization Loss'''
         l2_init_loss = torch.tensor(0.0, device=self.weight_net.weight.data.device)
         if self.l2_init_scale != 0 and self.l2_init_scale is not None:
             l2_init_loss = torch.sum((self.weight_net.weight.data - self.initial_weights) ** 2) * self.l2_init_scale
         return l2_init_loss
 
     def update_l2_init_weight_copy(self, alpha: float = 0.9):
-        """Potentially useful to prevent catastrophic forgetting. Update the
+        '''Potentially useful to prevent catastrophic forgetting. Update the
         initial weights copy with a weighted average of the previous and
-        current weights."""
+        current weights.'''
         if self.initial_weights is not None:
             self.initial_weights = (self.initial_weights * alpha + self.weight_net.weight.data * (1 - alpha)).clone()
 
     def compute_effective_rank(self, delta: float = 0.01) -> dict:
-        """Computes the effective rank of a matrix based on the given delta value.
+        '''Computes the effective rank of a matrix based on the given delta value.
         Effective rank formula:
         srank_\delta(\Phi) = min{k: sum_{i=1}^k σ_i / sum_{j=1}^d σ_j ≥ 1 - δ}
         See the paper titled 'Implicit Under-Parameterization Inhibits Data-Efficient
-        Deep Reinforcement Learning' by A. Kumar et al."""
-        if (
-            self.weight_net.weight.data.dim() != 2
-            or self.effective_rank_bool is None
-            or self.effective_rank_bool is False
-        ):
+        Deep Reinforcement Learning' by A. Kumar et al.'''
+        if self.weight_net.weight.data.dim() != 2 or self.effective_rank_bool is None or self.effective_rank_bool == False:
             return None
         # Singular value decomposition. We only need the singular value matrix.
         _, S, _ = torch.linalg.svd(self.weight_net.weight.data.detach())
@@ -230,4 +232,4 @@ class ParamLayer(LayerBase):
         threshold = (1 - delta) * total_sum
         effective_rank = torch.where(cumulative_sum >= threshold)[0][0].item() + 1  # Add 1 for 1-based indexing
 
-        return {"name": self._name, "effective_rank": effective_rank}
+        return {'name': self._name, 'effective_rank': effective_rank}

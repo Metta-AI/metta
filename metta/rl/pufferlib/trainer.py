@@ -20,6 +20,7 @@ from metta.rl.pufferlib.experience import Experience
 from metta.rl.pufferlib.kickstarter import Kickstarter
 from metta.rl.pufferlib.profile import Profile
 from metta.rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
+from metta.rl.pufferlib.torch_profiler import TorchProfiler
 from metta.sim.eval_stats_db import EvalStatsDB
 from metta.sim.eval_stats_logger import EvalStatsLogger
 from metta.sim.replay_helper import ReplayHelper
@@ -53,6 +54,7 @@ class PufferTrainer:
             logger.info(f"Setting up distributed training on device {self.device}")
 
         self.profile = Profile()
+        self.torch_profiler = TorchProfiler(cfg.run_dir, wandb_run)
         self.losses = self._make_losses()
         self.stats = defaultdict(list)
         self.wandb_run = wandb_run
@@ -97,17 +99,15 @@ class PufferTrainer:
         if self._master:
             print(policy_record.policy())
 
-        if policy_record.metadata["action_names"] != self.vecenv.driver_env.action_names():
-            raise ValueError(
-                "Action names do not match between policy and environment: "
-                f"{policy_record.metadata['action_names']} != {self.vecenv.driver_env.action_names()}"
-            )
-
         self._initial_pr = policy_record
         self.last_pr = policy_record
         self.policy = policy_record.policy().to(self.device)
         self.policy_record = policy_record
         self.uncompiled_policy = self.policy
+
+        actions_names = self.vecenv.driver_env.action_names()
+        actions_max_params = self.vecenv.driver_env._c_env.max_action_args()
+        self.policy.activate_actions(actions_names, actions_max_params, self.device)
 
         if self.trainer_cfg.compile:
             logger.info("Compiling policy")
@@ -156,7 +156,6 @@ class PufferTrainer:
     def train(self):
         self.train_start = time.time()
         logger.info("Starting training")
-
         if (
             self.trainer_cfg.evaluate_interval != 0
             and self.trainer_cfg.evaluate_interval < self.trainer_cfg.checkpoint_interval
@@ -166,11 +165,16 @@ class PufferTrainer:
 
         logger.info(f"Training on {self.device}")
         while self.agent_step < self.trainer_cfg.total_timesteps:
-            # Collecting experience
-            self._evaluate()
 
-            # Training on collected experience
-            self._train()
+
+            # --- Profiler Context ---
+            if self.torch_profiler.active:
+                with self.torch_profiler: # This will start/stop profiling
+                    self._evaluate()
+                    self._train()
+            else: # Run normally if profiler is not active for this epoch
+                self._evaluate()
+                self._train()
 
             # Processing stats
             self._process_stats()
@@ -196,6 +200,19 @@ class PufferTrainer:
                 self._update_l2_init_weight_copy()
             if self.trainer_cfg.replay_interval != 0 and self.epoch % self.trainer_cfg.replay_interval == 0:
                 self._generate_and_upload_replay()
+
+            # --- Profiler Setup (inside loop for subsequent epochs) ---
+            # Check if it's time to arm the profiler for this epoch
+            # We check again here in case the loop runs multiple times or epoch increments
+            if not self.torch_profiler.active: # Only setup if not already active
+                should_profile_this_epoch = (
+                    self.trainer_cfg.profiler_interval_epochs != 0
+                    and self.epoch % self.trainer_cfg.profiler_interval_epochs == 0
+                    and self._master
+                )
+                if should_profile_this_epoch:
+                     self.torch_profiler.setup_profiler(self.epoch)
+            # --- End Profiler Setup ---
 
             self._on_train_step()
 
@@ -328,6 +345,7 @@ class PufferTrainer:
 
     @pufferlib.utils.profile
     def _train(self):
+
         experience, profile = self.experience, self.profile
         self.losses = self._make_losses()
 
@@ -384,8 +402,8 @@ class PufferTrainer:
                     )
                     lstm_state = (lstm_state[0].detach(), lstm_state[1].detach())
 
-                    if self.device == "cuda":
-                        torch.cuda.synchronize()
+                    # if self.device == "cuda":
+                    #     torch.cuda.synchronize()
 
                 with profile.train_misc:
                     logratio = newlogprob - log_probs.reshape(-1)
@@ -444,18 +462,22 @@ class PufferTrainer:
                         + ks_action_loss
                         + ks_value_loss
                     )
-
+                self.cuda_sync_1()
                 with profile.learn:
                     self.optimizer.zero_grad()
+                    self.cuda_sync_2()
                     loss.backward()
+                    self.cuda_sync_3()
                     torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.trainer_cfg.max_grad_norm)
+                    self.cuda_sync_4()
                     self.optimizer.step()
-
+                    self.cuda_sync_5()
                     if self.cfg.agent.clip_range > 0:
                         self.policy.clip_weights()
+                    self.cuda_sync_6()
 
-                    if self.device == "cuda":
-                        torch.cuda.synchronize()
+                    # if self.device == "cuda":
+                    # #     torch.cuda.synchronize()
 
                 with profile.train_misc:
                     self.losses.policy_loss += pg_loss.item() / total_minibatches
@@ -696,7 +718,30 @@ class PufferTrainer:
         if self.cfg.seed is None:
             self.cfg.seed = np.random.randint(0, 1000000)
         self.vecenv.async_reset(self.cfg.seed)
+    
+    def cuda_sync_1(self):
+        if self.device == 'cuda':
+            torch.cuda.synchronize()
 
+    def cuda_sync_2(self):
+        if self.device == 'cuda':
+            torch.cuda.synchronize()
+
+    def cuda_sync_3(self):
+        if self.device == 'cuda':
+            torch.cuda.synchronize()
+
+    def cuda_sync_4(self):
+        if self.device == 'cuda':
+            torch.cuda.synchronize()
+
+    def cuda_sync_5(self):
+        if self.device == 'cuda':
+            torch.cuda.synchronize()
+
+    def cuda_sync_6(self):
+        if self.device == 'cuda':
+            torch.cuda.synchronize()
 
 class AbortingTrainer(PufferTrainer):
     def __init__(self, *args, **kwargs):

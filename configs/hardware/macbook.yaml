@@ -1,6 +1,6 @@
 # @package __global__
 
-device: cpu
+device: mps
 vectorization: serial
 
 trainer:
