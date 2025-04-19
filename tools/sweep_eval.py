@@ -68,7 +68,7 @@ def main(cfg: OmegaConf) -> int:
 
         cfg.analyzer.policy_uri = policy_pr.uri
 
-        simulation_suite_cfg = dictconfig_to_dataclass(SimulationSuiteConfig, cfg.evals)
+        simulation_suite_cfg = dictconfig_to_dataclass(SimulationSuiteConfig, cfg.sweep_job.evals)
 
         eval = SimulationSuite(simulation_suite_cfg, policy_pr, policy_store)
         # Start evaluation process
