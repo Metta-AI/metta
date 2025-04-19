@@ -3,13 +3,13 @@ from libc.stdio cimport printf
 from omegaconf import OmegaConf
 
 from mettagrid.action_handler cimport ActionArg
-from mettagrid.actions.metta_action_handler cimport MettaActionHandler
+from mettagrid.action_handler cimport ActionHandler
 
 from mettagrid.objects.agent cimport Agent
 
-cdef class ChangeColorAction(MettaActionHandler):
+cdef class ChangeColorAction(ActionHandler):
     def __init__(self, cfg: OmegaConf):
-        MettaActionHandler.__init__(self, cfg, "change_color")
+        ActionHandler.__init__(self, "change_color")
 
     cdef unsigned char max_arg(self):
         return 3

@@ -7,12 +7,12 @@ from mettagrid.objects.agent cimport Agent
 from mettagrid.objects.metta_object cimport MettaObject
 from mettagrid.objects.constants cimport Events, GridLayer, InventoryItem, InventoryItemNames
 from mettagrid.objects.converter cimport Converter
-from mettagrid.actions.metta_action_handler cimport MettaActionHandler
+from mettagrid.action_handler cimport ActionHandler
 
 
-cdef class GetOutput(MettaActionHandler):
+cdef class GetOutput(ActionHandler):
     def __init__(self, cfg: OmegaConf):
-        MettaActionHandler.__init__(self, cfg, "get_output")
+        ActionHandler.__init__(self, "get_output")
 
     cdef unsigned char max_arg(self):
         return 0

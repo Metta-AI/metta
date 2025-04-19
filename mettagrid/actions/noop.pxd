@@ -1,5 +1,5 @@
-from mettagrid.actions.metta_action_handler cimport MettaActionHandler
+from mettagrid.action_handler cimport ActionHandler
 
 
-cdef class Noop(MettaActionHandler):
+cdef class Noop(ActionHandler):
     pass

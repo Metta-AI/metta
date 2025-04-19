@@ -1,5 +1,5 @@
-from mettagrid.actions.metta_action_handler cimport MettaActionHandler
+from mettagrid.action_handler cimport ActionHandler
 
 
-cdef class PutRecipeItems(MettaActionHandler):
+cdef class PutRecipeItems(ActionHandler):
     pass
