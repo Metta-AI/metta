@@ -3,7 +3,7 @@ from libc.stdio cimport printf
 from omegaconf import OmegaConf
 
 from mettagrid.action_handler cimport ActionArg
-from mettagrid.actions.metta_action_handler cimport MettaActionHandler
+from mettagrid.action_handler cimport ActionHandler
 
 from mettagrid.grid_object cimport (
     GridLocation,
@@ -13,9 +13,9 @@ from mettagrid.grid_object cimport (
 )
 from mettagrid.objects.agent cimport Agent
 
-cdef class Move(MettaActionHandler):
+cdef class Move(ActionHandler):
     def __init__(self, cfg: OmegaConf):
-        MettaActionHandler.__init__(self, cfg, "move")
+        ActionHandler.__init__(self, "move")
 
     cdef unsigned char max_arg(self):
         return 1
