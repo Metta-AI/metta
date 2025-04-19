@@ -155,17 +155,6 @@ class PufferTrainer:
     def train(self):
         self.train_start = time.time()
         logger.info("Starting training")
-
-        # --- Profiler Setup ---
-        should_profile_this_epoch = (
-            self.trainer_cfg.profiler_interval_epochs != 0
-            # note, this will also run at the beginning since self.epoch == 0
-            and self.epoch % self.trainer_cfg.profiler_interval_epochs == 0
-            and self._master
-        )
-        if should_profile_this_epoch:
-             self.torch_profiler.setup_profiler(self.epoch)
-
         if (
             self.trainer_cfg.evaluate_interval != 0
             and self.trainer_cfg.evaluate_interval < self.trainer_cfg.checkpoint_interval
