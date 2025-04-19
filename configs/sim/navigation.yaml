@@ -70,5 +70,3 @@ simulations:
     env: env/mettagrid/navigation/evals/walkaround
   wanderout:
     env: env/mettagrid/navigation/evals/wanderout
-
-selector_type: top
