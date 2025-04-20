@@ -1,7 +1,7 @@
 _target_: mettagrid.map.scenes.convchain.ConvChain
-receptor_size: 4
+pattern_size: 4
 iterations: 10
-temperature: 0.2
+temperature: 1
 pattern: |
   |            |
   | ## ## # #  |

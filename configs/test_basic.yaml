@@ -1,5 +1,6 @@
 defaults:
   - game/map_builder: test_basic
+  - _self_
 
 name: "GDY-MettaGrid"
 _target_: mettagrid.mettagrid_env.MettaGridEnv
