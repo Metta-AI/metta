@@ -66,6 +66,10 @@ root:
     # Which content to use? You can list any scenes here. The list will be passed to a RandomScene.
     # Weights affect the probability of each scene being chosen. Default weight is 1.
     content:
+      - scene:
+          _target_: mettagrid.map.scenes.random_scene_from_dir.RandomSceneFromDir
+          dir: /scenes/dcss/wfc
+        weight: 20
       - scene: /scenes/wfc/blob
       - scene: /scenes/wfc/blob2
       - scene: /scenes/wfc/blob3
@@ -78,4 +82,4 @@ root:
           _target_: mettagrid.map.scenes.maze.MazeKruskal
           room_size: ["uniform", 1, 3]
           wall_size: ["uniform", 1, 3]
-        weight: 4
+        weight: 3

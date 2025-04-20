@@ -173,12 +173,12 @@ class WFCRenderSession:
     def run(self):
         ok = False
         for i in range(self.scene._attempts):
-            logger.info(f"Attempt {i + 1} of {self.scene._attempts}, pattern:\n{self.scene._ascii_pattern}")
+            logger.debug(f"Attempt {i + 1} of {self.scene._attempts}, pattern:\n{self.scene._ascii_pattern}")
             start_time = time.time()
             self.reset()
             ok = self.attempt_run()
             attempt_time = time.time() - start_time
-            logger.info(
+            logger.debug(
                 f"Attempt {i + 1} time: {attempt_time:.3f}s "
                 f"(pick_next_node: {self._pick_next_time:.3f}s, "
                 f"observe: {self._observe_time:.3f}s, "
@@ -188,7 +188,7 @@ class WFCRenderSession:
             if ok:
                 break
             else:
-                logger.info(f"Attempt {i + 1} failed")
+                logger.debug(f"Attempt {i + 1} failed")
 
         if not ok:
             raise Exception(f"Failed to generate map with pattern:\n{self.scene._ascii_pattern}")
