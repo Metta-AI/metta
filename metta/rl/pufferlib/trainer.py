@@ -346,7 +346,7 @@ class PufferTrainer:
     def _train(self):
 
         experience, profile = self.experience, self.profile
-        self.losses = self._make_losses()
+        # self.losses = self._make_losses() # Initialize losses later
 
         with profile.train_misc:
             idxs = experience.sort_training_data()
@@ -382,6 +382,20 @@ class PufferTrainer:
 
         # Optimizing the policy and value network
         total_minibatches = experience.num_minibatches * self.trainer_cfg.update_epochs
+
+        # Initialize tensors on the device to accumulate loss components
+        policy_loss_sum = torch.zeros(1, device=self.device)
+        value_loss_sum = torch.zeros(1, device=self.device)
+        entropy_sum = torch.zeros(1, device=self.device)
+        old_approx_kl_sum = torch.zeros(1, device=self.device)
+        approx_kl_sum = torch.zeros(1, device=self.device)
+        clipfrac_sum = torch.zeros(1, device=self.device)
+        l2_reg_loss_sum = torch.zeros(1, device=self.device)
+        l2_init_loss_sum = torch.zeros(1, device=self.device)
+        ks_action_loss_sum = torch.zeros(1, device=self.device)
+        ks_value_loss_sum = torch.zeros(1, device=self.device)
+        final_approx_kl = torch.zeros(1, device=self.device) # For early stopping check
+
         for _epoch in range(self.trainer_cfg.update_epochs):
             lstm_state = None
             teacher_lstm_state = None
@@ -470,23 +484,41 @@ class PufferTrainer:
                         self.policy.clip_weights()
 
                 with profile.train_misc:
+                    # Accumulate loss tensors directly on the device
                     with torch.no_grad():
-                        self.losses.policy_loss += pg_loss.item() / total_minibatches
-                        self.losses.value_loss += v_loss.item() / total_minibatches
-                        self.losses.entropy += entropy_loss.item() / total_minibatches
-                        self.losses.old_approx_kl += old_approx_kl.item() / total_minibatches
-                        self.losses.approx_kl += approx_kl.item() / total_minibatches
-                        self.losses.clipfrac += clipfrac.item() / total_minibatches
-                        self.losses.l2_reg_loss += l2_reg_loss.item() / total_minibatches
-                        self.losses.l2_init_loss += l2_init_loss.item() / total_minibatches
-                        self.losses.ks_action_loss += ks_action_loss.item() / total_minibatches
-                        self.losses.ks_value_loss += ks_value_loss.item() / total_minibatches
+                        policy_loss_sum += pg_loss
+                        value_loss_sum += v_loss
+                        entropy_sum += entropy_loss
+                        old_approx_kl_sum += old_approx_kl
+                        approx_kl_sum += approx_kl
+                        clipfrac_sum += clipfrac
+                        l2_reg_loss_sum += l2_reg_loss
+                        l2_init_loss_sum += l2_init_loss
+                        ks_action_loss_sum += ks_action_loss
+                        ks_value_loss_sum += ks_value_loss
+                        final_approx_kl = approx_kl # Keep track of the last minibatch KL
 
             if self.trainer_cfg.target_kl is not None:
-                if approx_kl > self.trainer_cfg.target_kl:
+                # Use the KL from the last minibatch of the epoch for early stopping check
+                # Note: This check might still cause a sync if the value is needed immediately on CPU.
+                # However, it happens only once per epoch update, not per minibatch.
+                if final_approx_kl.item() > self.trainer_cfg.target_kl:
                     break
 
         with profile.train_misc:
+            # Compute averages and populate self.losses (synchronizes once here)
+            self.losses = self._make_losses() # Re-initialize the loss namespace
+            self.losses.policy_loss = (policy_loss_sum / total_minibatches).item()
+            self.losses.value_loss = (value_loss_sum / total_minibatches).item()
+            self.losses.entropy = (entropy_sum / total_minibatches).item()
+            self.losses.old_approx_kl = (old_approx_kl_sum / total_minibatches).item()
+            self.losses.approx_kl = (approx_kl_sum / total_minibatches).item()
+            self.losses.clipfrac = (clipfrac_sum / total_minibatches).item()
+            self.losses.l2_reg_loss = (l2_reg_loss_sum / total_minibatches).item()
+            self.losses.l2_init_loss = (l2_init_loss_sum / total_minibatches).item()
+            self.losses.ks_action_loss = (ks_action_loss_sum / total_minibatches).item()
+            self.losses.ks_value_loss = (ks_value_loss_sum / total_minibatches).item()
+
             if self.lr_scheduler is not None:
                 self.lr_scheduler.step()
 
