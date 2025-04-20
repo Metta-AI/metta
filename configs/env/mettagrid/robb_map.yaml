@@ -5,7 +5,7 @@ defaults:
 # a single agent wanders around a square world with 10 rewards to find
 # for our experimental control, we will override game.difficulty to always be 10
 
-min_steps_per_info: 50000
+min_steps_per_info: 1000
 
 num_agents: 1
 
@@ -35,7 +35,7 @@ game:
 
   # episode length 
   # max_steps: ${make_integer:${scale:${.difficulty},0,10,100,500,"linear"}}
-  max_steps: 200
+  max_steps: 500
 
   # scaling the map size as our experimental condition
   min_size: 10
