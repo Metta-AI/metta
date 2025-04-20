@@ -440,9 +440,9 @@ class PufferTrainer:
 
                     entropy_loss = entropy.mean()
 
-                    # ks_action_loss, ks_value_loss, teacher_lstm_state = self.kickstarter.loss(
-                    #     self.agent_step, new_normalized_logits, newvalue, obs, teacher_lstm_state
-                    # )
+                    ks_action_loss, ks_value_loss, teacher_lstm_state = self.kickstarter.loss(
+                        self.agent_step, new_normalized_logits, newvalue, obs, teacher_lstm_state
+                    )
 
                     l2_reg_loss = torch.tensor(0.0, device=self.device)
                     if self.trainer_cfg.l2_reg_loss_coef > 0:
@@ -458,38 +458,29 @@ class PufferTrainer:
                         + v_loss * self.trainer_cfg.vf_coef
                         + l2_reg_loss
                         + l2_init_loss
-                        # + ks_action_loss
-                        # + ks_value_loss
+                        + ks_action_loss
+                        + ks_value_loss
                     )
-                self.cuda_sync_1()
                 with profile.learn:
                     self.optimizer.zero_grad()
-                    self.cuda_sync_2()
                     loss.backward()
-                    self.cuda_sync_3()
                     torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.trainer_cfg.max_grad_norm)
-                    self.cuda_sync_4()
                     self.optimizer.step()
-                    self.cuda_sync_5()
                     if self.cfg.agent.clip_range > 0:
                         self.policy.clip_weights()
-                    self.cuda_sync_6()
 
-                    # if self.device == "cuda":
-                    # #     torch.cuda.synchronize()
-
-                #with profile.train_misc:
-                    # Temporarily commented out for performance testing
-                    # self.losses.policy_loss += pg_loss.item() / total_minibatches
-                    # self.losses.value_loss += v_loss.item() / total_minibatches
-                    # self.losses.entropy += entropy_loss.item() / total_minibatches
-                    # self.losses.old_approx_kl += old_approx_kl.item() / total_minibatches
-                    # self.losses.approx_kl += approx_kl.item() / total_minibatches
-                    # self.losses.clipfrac += clipfrac.item() / total_minibatches
-                    # self.losses.l2_reg_loss += l2_reg_loss.item() / total_minibatches
-                    # self.losses.l2_init_loss += l2_init_loss.item() / total_minibatches
-                    # self.losses.ks_action_loss += ks_action_loss.item() / total_minibatches
-                    # self.losses.ks_value_loss += ks_value_loss.item() / total_minibatches
+                with profile.train_misc:
+                    with torch.no_grad():
+                        self.losses.policy_loss += pg_loss.item() / total_minibatches
+                        self.losses.value_loss += v_loss.item() / total_minibatches
+                        self.losses.entropy += entropy_loss.item() / total_minibatches
+                        self.losses.old_approx_kl += old_approx_kl.item() / total_minibatches
+                        self.losses.approx_kl += approx_kl.item() / total_minibatches
+                        self.losses.clipfrac += clipfrac.item() / total_minibatches
+                        self.losses.l2_reg_loss += l2_reg_loss.item() / total_minibatches
+                        self.losses.l2_init_loss += l2_init_loss.item() / total_minibatches
+                        self.losses.ks_action_loss += ks_action_loss.item() / total_minibatches
+                        self.losses.ks_value_loss += ks_value_loss.item() / total_minibatches
 
             if self.trainer_cfg.target_kl is not None:
                 if approx_kl > self.trainer_cfg.target_kl:
@@ -706,30 +697,6 @@ class PufferTrainer:
         if self.cfg.seed is None:
             self.cfg.seed = np.random.randint(0, 1000000)
         self.vecenv.async_reset(self.cfg.seed)
-    
-    def cuda_sync_1(self):
-        if self.device == 'cuda':
-            torch.cuda.synchronize()
-
-    def cuda_sync_2(self):
-        if self.device == 'cuda':
-            torch.cuda.synchronize()
-
-    def cuda_sync_3(self):
-        if self.device == 'cuda':
-            torch.cuda.synchronize()
-
-    def cuda_sync_4(self):
-        if self.device == 'cuda':
-            torch.cuda.synchronize()
-
-    def cuda_sync_5(self):
-        if self.device == 'cuda':
-            torch.cuda.synchronize()
-
-    def cuda_sync_6(self):
-        if self.device == 'cuda':
-            torch.cuda.synchronize()
 
 class AbortingTrainer(PufferTrainer):
     def __init__(self, *args, **kwargs):
