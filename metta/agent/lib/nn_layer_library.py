@@ -3,6 +3,7 @@ from math import prod
 import torch
 import torch.nn as nn
 from tensordict import TensorDict
+from e3nn import o3
 
 from metta.agent.lib.metta_layer import ParamLayer, LayerBase
 
@@ -37,6 +38,68 @@ class Bilinear(LayerBase):
         td[self._name] = self._net(input_1, input_2)
         return td
     
+class BilinearE3nn(LayerBase):
+    def __init__(self, **cfg):
+        # We need to determine the output shape *before* calling super().__init__
+        # if LayerBase uses it to initialize things based on _out_tensor_shape
+        # nn_params = cfg.get('nn_params', {})
+        # self._determined_out_features = nn_params.get('out_features', 0) # Store it temporarily
+        super().__init__(**cfg)
+        # Ensure the output shape is correctly set after super init if needed
+        # self._out_tensor_shape = [self._determined_out_features]
+
+    def _make_net(self):
+        self._out_tensor_shape = [self._nn_params.out_features]
+        # Extract original feature counts
+        self._nn_params['in1_features'] = self._in_tensor_shape[0][0]
+        self._nn_params['in2_features'] = self._in_tensor_shape[1][0]
+        self._nn_params = dict(self._nn_params)
+
+        # in1_features = self._in_tensor_shape[0][0]
+        # in2_features = self._in_tensor_shape[1][0]
+        # out_features = self._determined_out_features # Use the stored value
+
+        # Define Irreps: Treat all features as scalars ('0e')
+        irreps_in1 = o3.Irreps(f"{self._nn_params['in1_features']}x0e")
+        irreps_in2 = o3.Irreps(f"{self._nn_params['in2_features']}x0e")
+        irreps_out = o3.Irreps(f"{self._nn_params['out_features']}x0e")
+
+        # --- Handling Bias ---
+        # nn.Bilinear has an optional bias term. e3nn.o3.FullyConnectedTensorProduct doesn't directly.
+        # Option 1 (Chosen here): Ignore bias. The performance benefit might outweigh the lack of bias.
+        # Option 2: Add bias manually after the layer in _forward.
+        # Option 3: Incorporate bias via constant input features (more complex).
+        # We'll go with Option 1 for simplicity. Check if 'bias' was in your original config.
+        if self._nn_params.get('bias', True): # Default bias is True for nn.Bilinear
+             print(f"Warning: Original nn.Bilinear likely had bias=True. "
+                   f"e3nn.o3.FullyConnectedTensorProduct does not have a direct bias parameter. "
+                   f"Bias term is currently omitted for layer '{self._name}'.")
+
+        # Create the e3nn layer
+        # You might want to expose other e3nn params (shared_weights, internal_weights etc.) via your config
+        return o3.FullyConnectedTensorProduct(
+            irreps_in1=irreps_in1,
+            irreps_in2=irreps_in2,
+            irreps_out=irreps_out
+            # Add other e3nn parameters here if needed, e.g.,
+            # shared_weights=True, # Default
+            # internal_weights=None # Default
+        )
+
+    def _forward(self, td: dict): # Using dict instead of TensorDict for simplicity here
+        # Ensure inputs are standard tensors (e3nn handles the Irreps internally)
+        input_1 = td[self._input_source[0]]
+        input_2 = td[self._input_source[1]]
+
+        # Ensure inputs are 2D: [N, features]
+        if input_1.ndim != 2 or input_2.ndim != 2:
+            raise ValueError(f"Inputs must be 2D [N, features]. Got shapes: {input_1.shape}, {input_2.shape}")
+
+        # Apply the e3nn layer
+        output = self._net(input_1, input_2)
+        td[self._name] = output
+        return td
+
 class Embedding(LayerBase):
     def __init__(self, **cfg):
         super().__init__(**cfg)

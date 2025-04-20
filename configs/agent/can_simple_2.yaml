@@ -111,7 +111,8 @@ components:
     input_source: core_expanded
 
   attn:
-    _target_: metta.agent.lib.nn_layer_library.Bilinear
+    # _target_: metta.agent.lib.nn_layer_library.Bilinear
+    _target_: metta.agent.lib.nn_layer_library.BilinearE3nn
     input_source: 
       - embed_reshaped
       - core_reshaped
