@@ -75,4 +75,4 @@ evals:
   wanderout:
     env: env/mettagrid/navigation/evals/wanderout
 
-selector_type: latest
+selector_type: all
