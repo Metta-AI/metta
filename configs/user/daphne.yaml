@@ -49,7 +49,7 @@ eval:
   # npc_policy_uri: ${..npc_policy_uri}
   eval_db_uri: ${..eval_db_uri} #file://daphne/sweep_stats
   policy_uris:
-    - "wandb://run/b.daphne.varied_terrain_lessactions"
+    - "wandb://run/b.daphne.varied_terrain_lessactions:v42"
     - "wandb://run/b.daphne.varied_terrain_lessactions_big"
     - "wandb://run/b.daphne.terrain_multienv_lessactions"
     - "wandb://run/b.daphne.terrain_multienv_lessactions_big"
