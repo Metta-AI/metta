@@ -13,7 +13,7 @@ game:
     num_rooms: 20
     room:
       _target_: mettagrid.config.room.ascii.Ascii
-      border_width: 1
+      border_width: 10
       uri: "configs/env/mettagrid/maps/navigation/thecube.map"
 
   objects:

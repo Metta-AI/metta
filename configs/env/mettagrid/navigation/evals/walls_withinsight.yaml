@@ -10,7 +10,7 @@ game:
   map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom
     num_rooms: 20
-    border_width: 3
+    border_width: 10
 
     room:
       _target_: mettagrid.config.room.mean_distance.MeanDistance

@@ -3,6 +3,7 @@ defaults:
   - _self_
 
 game:
+  max_steps: 500
   actions:
     attack:
       enabled: false
