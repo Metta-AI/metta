@@ -45,6 +45,6 @@ for i in "${!POLICIES[@]}"; do
         eval=navigation \
         run=navigation$IDX \
         eval.policy_uri=wandb://run/$POLICY_URI \
-        eval_db_uri=wandb://artifacts/navigation_db_borderwidth10 \
+        eval_db_uri=wandb://artifacts/navigation_db \
         # device=cpu
 done
