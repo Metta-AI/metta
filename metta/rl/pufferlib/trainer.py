@@ -440,9 +440,9 @@ class PufferTrainer:
 
                     entropy_loss = entropy.mean()
 
-                    ks_action_loss, ks_value_loss, teacher_lstm_state = self.kickstarter.loss(
-                        self.agent_step, new_normalized_logits, newvalue, obs, teacher_lstm_state
-                    )
+                    # ks_action_loss, ks_value_loss, teacher_lstm_state = self.kickstarter.loss(
+                    #     self.agent_step, new_normalized_logits, newvalue, obs, teacher_lstm_state
+                    # )
 
                     l2_reg_loss = torch.tensor(0.0, device=self.device)
                     if self.trainer_cfg.l2_reg_loss_coef > 0:
@@ -458,8 +458,8 @@ class PufferTrainer:
                         + v_loss * self.trainer_cfg.vf_coef
                         + l2_reg_loss
                         + l2_init_loss
-                        + ks_action_loss
-                        + ks_value_loss
+                        # + ks_action_loss
+                        # + ks_value_loss
                     )
                 self.cuda_sync_1()
                 with profile.learn:
