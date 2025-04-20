@@ -1,242 +1,263 @@
 """
-Generate heatmap visualizations for policy evaluation metrics.
+Return an embeddable HTML snippet that shows a policy‑evaluation heat‑map.
+
+Features
+--------
+* Native Plotly hover box on every cell contains basic data.
+* A dedicated map viewer panel shows maps when hovering over cells or x-axis labels.
+* The 'Overall' column is excluded from map viewer behavior.
+* All IDs are namespaced; multiple snippets can coexist in the same page.
+
+External boiler‑plate (include once per page)
+---------------------------------------------
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
 """
 
-from typing import Optional, Tuple
+from __future__ import annotations
+
+import json
+import uuid
+from typing import List, Tuple
 
 import pandas as pd
 import plotly.graph_objects as go
+from plotly.utils import PlotlyJSONEncoder
+
+from metta.eval.mapviewer import create_map_viewer_html, get_map_viewer_js_functions
 
 
-def format_metric(metric: str) -> str:
-    """Format a metric name for display."""
+# --------------------------------------------------------------------------- #
+# helpers                                                                    #
+# --------------------------------------------------------------------------- #
+def _format_metric(metric: str) -> str:
     return metric.replace("_", " ").capitalize()
 
 
-def build_wandb_url(policy_uri: str, entity="metta-research", project="metta") -> str:
-    """Build a wandb URL from a policy URI."""
-    # Strip prefix and version if present
-    if policy_uri.startswith("wandb://run/"):
-        policy_uri = policy_uri[len("wandb://run/") :]
-    if ":v" in policy_uri:
-        policy_uri = policy_uri.split(":v")[0]
-    return f"https://wandb.ai/{entity}/{project}/runs/{policy_uri}"
+def _wandb_url(uri: str, entity: str = "metta-research", project: str = "metta") -> str:
+    if uri.startswith("wandb://run/"):
+        uri = uri[len("wandb://run/") :]
+    if ":v" in uri:
+        uri = uri.split(":v")[0]
+    return f"https://wandb.ai/{entity}/{project}/runs/{uri}"
 
 
-def create_matrix_visualization(
-    matrix_data: pd.DataFrame,
+# --------------------------------------------------------------------------- #
+# core figure builder                                                         #
+# --------------------------------------------------------------------------- #
+def _build_figure(
+    matrix: pd.DataFrame,
     metric: str,
-    colorscale: str = "RdYlGn",
-    score_range: Optional[Tuple[float, float]] = None,
-    height: int = 600,
-    width: int = 900,
+    *,
+    colorscale,
+    score_range: Tuple[float, float],
+    height: int,
+    width: int,
 ) -> go.Figure:
-    """
-    Create policy-evaluation matrix visualization.
-
-    Args:
-        matrix_data: DataFrame with policies as rows and evaluations as columns
-        metric: Name of the metric being visualized
-        colorscale: Plotly colorscale to use
-        score_range: Optional (min, max) for color scaling
-        height: Figure height in pixels
-        width: Figure width in pixels
-
-    Returns:
-        Plotly figure object
-    """
-    if matrix_data.empty:
-        # Return an empty figure with a message
-        fig = go.Figure()
-        fig.add_annotation(text="No data available for visualization", showarrow=False, font=dict(size=14))
-        fig.update_layout(height=height, width=width)
-        return fig
-
-        return fig
-
-    # Get policy names and evaluation names
-    policy_uris = (
-        matrix_data.pop("policy_uri").tolist() if "policy_uri" in matrix_data.columns else matrix_data.index.tolist()
+    eval_names: List[str] = matrix.columns.tolist()
+    policy_rows: List[str] = (
+        matrix.pop("policy_uri").tolist() if "policy_uri" in matrix.columns else matrix.index.tolist()
     )
-    eval_names = matrix_data.columns.tolist()
 
-    # Calculate aggregates across policies
+    z = [matrix.mean().tolist(), matrix.max().tolist()] + matrix.values.tolist()
+    y_labels = ["Mean", "Max"] + policy_rows
 
-    # Convert the matrix to a list for heatmap
-    # Convert the matrix to a list for heatmap
-    z_values = matrix_data.values.tolist()
+    # ---------------------------------------------------------------- images
+    img_base = "https://softmax-public.s3.amazonaws.com/policydash/evals/img"
+    img_map = {e: f"{img_base}/{e.lower()}.png" for e in eval_names}
+    img_map["Overall"] = ""  # no tooltip image
 
-    # Calculate aggregates across policies
-    mean_values = matrix_data.mean().tolist()
-    max_values = matrix_data.max().tolist()
-    # Add aggregate rows at the beginning so they appear at the bottom
-    # (Plotly heatmaps display first row at the top)
-    z_values = [mean_values, max_values] + z_values
-    # Add aggregate policy names in the same order as z_values
-    policy_uris_with_aggregates = ["Mean", "Max"] + policy_uris
+    # customdata for each cell (same for every row of a given column)
+    customdata = [[img_map[ev] for ev in eval_names] for _ in y_labels]
 
-    # Set score range if not provided
-    if score_range is None:
-        vmin = matrix_data.min().min()
-        vmax = matrix_data.max().max()
-        # Add a small buffer
-        score_range = (vmin * 0.95 if vmin > 0 else vmin * 1.05, vmax * 1.05)
-
-    # Create the heatmap
+    # ---------------------------------------------------------------- chart
     fig = go.Figure(
-        data=go.Heatmap(
-            z=z_values,
+        go.Heatmap(
+            z=z,
+            customdata=customdata,
             x=eval_names,
-            y=policy_uris_with_aggregates,
+            y=y_labels,
             colorscale=colorscale,
             zmin=score_range[0],
             zmax=score_range[1],
             colorbar=dict(title="Score"),
-            hoverongaps=False,
-            hovertemplate="<b>Policy:</b> %{y}<br><b>Evaluation:</b> %{x}<br><b>Score:</b> %{z:.2f}<extra></extra>",
+            hovertemplate=(
+                "<b>Policy:</b> %{y}"
+                "<br><b>Evaluation:</b> %{x}"
+                "<br><b>Score:</b> %{z:.2f}"
+                "<extra></extra>"
+            ),
         )
     )
 
-    # Prepare ticktext with clickable links for regular policies and bold text for aggregates
-    ticktext = []
-    for i, name in enumerate(policy_uris_with_aggregates):
-        if i >= 2:  # Skip the first two rows (aggregates)
-            # Regular policy - make clickable
-            ticktext.append(f'<a href="{build_wandb_url(name)}" target="_blank">{name}</a>')
-        else:
-            # Aggregate row - make bold
-            ticktext.append(f"<b>{name}</b>")
-
-    # Make policy names clickable by converting them to HTML links
+    ticktext = [
+        f"<b>{lbl}</b>" if i < 2 else f'<a href="{_wandb_url(lbl)}">{lbl}</a>' for i, lbl in enumerate(y_labels)
+    ]
     fig.update_layout(
-        yaxis=dict(
-            tickmode="array",
-            tickvals=list(range(len(policy_uris_with_aggregates))),
-            ticktext=ticktext,
-            tickfont=dict(family="Arial", size=12),
-        )
-    )
-
-    # Define consistent border styling
-    border_color = "rgba(0, 0, 0, 0.5)"  # 50% transparent black (gray)
-    border_width = 2
-
-    # Add a box around the aggregates section (Mean/Max rows)
-    fig.add_shape(
-        type="rect",
-        x0=-0.5,  # Left edge
-        x1=len(eval_names) - 0.5,  # Right edge
-        y0=-0.5,  # Top edge
-        y1=1.5,  # Bottom edge (covers 'Mean' and 'Max')
-        line=dict(color=border_color, width=border_width, dash="dash"),
-        fillcolor="rgba(0,0,0,0)",
-        layer="above",
-    )
-
-    # Update layout
-    formatted_metric = format_metric(metric)
-    fig.update_layout(
-        title=f"{formatted_metric} Policy-Evaluation Matrix",
-        xaxis=dict(
-            title="Evaluation",
-            tickangle=-45,
-            showgrid=False,  # Turn off grid lines
-            zeroline=False,
-        ),
-        yaxis_title="Policy",
-        height=height + 50,  # Increase height to accommodate aggregate rows
+        yaxis=dict(tickmode="array", tickvals=list(range(len(y_labels))), ticktext=ticktext),
+        xaxis=dict(tickangle=-45),
+        title=f"{_format_metric(metric)} Policy‑Evaluation Matrix",
+        height=height + 50,
         width=width,
         margin=dict(l=50, r=50, t=50, b=100),
         plot_bgcolor="white",
         showlegend=False,
+        meta=dict(eval_image_map=img_map),
     )
 
-    # Special styling for "Overall" column if present
-    if "Overall" in eval_names:
-        overall_idx = eval_names.index("Overall")
-
-        # Add a box around the "Overall" column
-        fig.add_shape(
-            type="rect",
-            x0=overall_idx - 0.5,
-            x1=overall_idx + 0.5,
-            y0=-0.5,
-            y1=len(policy_uris_with_aggregates) - 0.5,
-            line=dict(color=border_color, width=border_width, dash="dash"),
-            fillcolor="rgba(0, 0, 0, 0)",
-            layer="above",
-        )
-
-        # Custom tick labels for x-axis to make Overall bold
-        ticktext = []
-        for _i, name in enumerate(eval_names):
-            if name == "Overall":
-                ticktext.append(f"<b>{name}</b>")
-            else:
-                ticktext.append(name)
-
-        fig.update_layout(
-            xaxis=dict(
-                title="Evaluation",
-                tickangle=-45,
-                tickmode="array",
-                tickvals=list(range(len(eval_names))),
-                ticktext=ticktext,
-            )
-        )
-
+    # dashed rectangle around aggregates
+    fig.add_shape(
+        type="rect",
+        x0=-0.5,
+        x1=len(eval_names) - 0.5,
+        y0=-0.5,
+        y1=1.5,
+        line=dict(color="rgba(0,0,0,0.45)", width=2, dash="dash"),
+        fillcolor="rgba(0,0,0,0)",
+        layer="above",
+    )
     return fig
 
 
-def save_heatmap_to_html(fig: go.Figure, output_path: str, title: str = "Policy Evaluation Heatmap") -> None:
+# --------------------------------------------------------------------------- #
+# public API                                                                  #
+# --------------------------------------------------------------------------- #
+def create_heatmap_html_snippet(
+    matrix: pd.DataFrame,
+    metric: str,
+    *,
+    height: int = 600,
+    width: int = 900,
+) -> str:
     """
-    Save a Plotly figure as a standalone HTML file.
+    Return an HTML fragment containing the heat‑map `<div>` plus scoped JS.
 
-    Args:
-        fig: Plotly figure object
-        output_path: Path to save the HTML file
-        title: HTML page title
+    Includes a dedicated map viewer panel that displays environment maps
+    when hovering over cells or x-axis labels.
+
+    Caller must embed Plotly + the CSS styles (imported from mapviewer module).
     """
-    with open(output_path, "w") as f:
-        f.write(f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>{title}</title>
-            <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-            <style>
-                body {{
-                    font-family: Arial, sans-serif;
-                    margin: 0;
-                    padding: 20px;
-                    background-color: #f8f9fa;
-                }}
-                .container {{
-                    max-width: 1200px;
-                    margin: 0 auto;
-                    background-color: white;
-                    padding: 20px;
-                    border-radius: 5px;
-                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                }}
-                h1 {{
-                    color: #333;
-                    border-bottom: 1px solid #ddd;
-                    padding-bottom: 10px;
-                }}
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <h1>{title}</h1>
-                <div id="heatmap"></div>
-            </div>
-            <script>
-                var figure = {fig.to_json()};
-                Plotly.newPlot('heatmap', figure.data, figure.layout);
-            </script>
-        </body>
-        </html>
-        """)
+    if matrix.empty:
+        return "<p>No data available</p>"
+
+    score_range = (0, 1)
+    colorscale = [
+        # Red
+        [0.0, "rgb(235, 40, 40)"],
+        [0.5, "rgb(235, 40, 40)"],
+        # Yellow
+        [0.8, "rgb(225,210,80)"],
+        # Light Green
+        [0.95, "rgb(195,230,80)"],
+        # Green
+        [1.0, "rgb(20, 230, 80)"],
+    ]
+
+    fig = _build_figure(matrix, metric, colorscale=colorscale, score_range=score_range, height=height, width=width)
+    uid = f"heat_{uuid.uuid4().hex[:8]}"
+    fig_json = json.dumps(fig, cls=PlotlyJSONEncoder)
+    eval_names_json = json.dumps(matrix.columns.tolist())
+
+    # ---------------------------------------------------------------- HTML
+    return f"""
+<!-- enable pointer events on axis labels and cells -->
+<style>
+  .xaxislayer-above .xtick text,
+  .yaxislayer-above .ytick text {{
+      pointer-events: all !important;
+      cursor: pointer;
+  }}
+</style>
+
+<div class="heatmap-wrapper">
+  <div id="{uid}"></div>
+  
+  {create_map_viewer_html(uid)}
+</div>
+
+<script>
+(function() {{
+  const fig = {fig_json};
+  const el = document.getElementById("{uid}");
+  const imgs = fig.layout.meta.eval_image_map;
+  const evalNames = {eval_names_json};
+  
+  // Track if the mouse is over the heatmap
+  let isMouseOverHeatmap = false;
+  el.addEventListener('mouseenter', function() {{
+    isMouseOverHeatmap = true;
+  }});
+  el.addEventListener('mouseleave', function() {{
+    isMouseOverHeatmap = false;
+    setTimeout(() => {{
+      if (!isMouseOverHeatmap && !isMouseOverMap) {{
+        hideMap();
+      }}
+    }}, 100);
+  }});
+
+  {get_map_viewer_js_functions(uid)}
+
+  Plotly.newPlot(el, fig.data, fig.layout)
+        .then(() => {{
+          setTimeout(attachAxisHover, 500); // Ensure DOM is fully rendered
+          attachHeatmapHover();
+        }});
+
+  /* ------------------------------------------------ axis‑label hover ----- */
+  function attachAxisHover() {{
+    // Get all x-axis tick labels
+    const ticks = el.querySelectorAll(".xaxislayer-above .xtick text");
+    
+    // Enhanced event binding for axis labels
+    ticks.forEach((tick, i) => {{
+        if (i >= evalNames.length) return; // Safety check
+        const evalName = evalNames[i];
+        if (evalName.toLowerCase() === "overall") return;  // skip aggregate
+        
+        // Make sure these elements have proper cursor and pointer events
+        tick.style.pointerEvents = "all";
+        tick.style.cursor = "pointer";
+        
+        // Add multiple event handlers for redundancy
+        tick.addEventListener('click', () => showMap(evalName));
+        tick.addEventListener('mouseenter', () => showMap(evalName));
+        tick.addEventListener('mouseover', () => showMap(evalName));
+        
+        // Add a data attribute for easier debugging
+        tick.setAttribute('data-eval-name', evalName);
+    }});
+    
+    // Add a click handler to the entire axis as a fallback
+    const xAxis = el.querySelector('.xaxislayer-above');
+    if (xAxis) {{
+      xAxis.addEventListener('click', function(e) {{
+        // Find the closest tick text element
+        const target = e.target.closest('.xtick text');
+        if (target && target.hasAttribute('data-eval-name')) {{
+          showMap(target.getAttribute('data-eval-name'));
+        }}
+      }});
+    }}
+  }}
+
+  /* ------------------------------------------------ heatmap cell hover --- */
+  function attachHeatmapHover() {{
+    el.on('plotly_hover', function(data) {{
+      const pts = data.points[0];
+      const evalName = pts.x;
+      if (evalName.toLowerCase() === "overall") return;  // skip aggregate
+      showMap(evalName);
+    }});
+    
+    // Only trigger unhover when we're sure we've left both the heatmap and the map viewer
+    el.on('plotly_unhover', function() {{
+      setTimeout(() => {{
+        if (!isMouseOverHeatmap && !isMouseOverMap) {{
+          hideMap();
+        }}
+      }}, 100);
+    }});
+  }}
+}})();
+</script>
+"""
