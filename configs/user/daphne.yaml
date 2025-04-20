@@ -31,7 +31,7 @@ policy_uri:  wandb://run/b.georgedeane.terrain_multienv
 # eval_db_uri: wandb://artifacts/testing
 #eval_db_uri: wandb://artifacts/navigation_db
 
-eval_db_uri: wandb://artifacts/navigation_db_borderwidth10
+eval_db_uri: wandb://artifacts/navigation_db
 
 analyzer:
   eval_stats_uri: ${run_dir}/eval_stats
@@ -44,7 +44,7 @@ analyzer:
 
 eval:
   env: /env/mettagrid/navigation/evals/cylinder
-  env_overrides:
+  # env_overrides:
     # game:
     #   actions:
     #     attack:
