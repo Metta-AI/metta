@@ -43,7 +43,7 @@ POLICIES=(
     "b.daphne.varied_terrain_lessactions_big"
     "b.daphne.terrain_multienv_lessactions"
     "b.daphne.terrain_multienv_lessactions_big"
-    "terrain_multienv_lessactions"
+    "terrain_multienv_less_actions"
 )
 
 
