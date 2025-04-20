@@ -4,6 +4,7 @@ defaults:
 
 game:
   num_agents: 20
+  max_steps: 1000
   agent:
     rewards:
       heart: 0.333
