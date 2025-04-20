@@ -27,12 +27,11 @@ The `Agent` object represents an individual agent in the environment. Agents can
 
 The `Altar` object allows agents to spend energy to gain rewards. Agents can power the altar by using the `use` action when near it. The altar has a cooldown period between uses.
 
-- Using the heart altar costs `altar.use_cost energy`. So, no matter how much energy you have, you are always dumping the same amount of energy in it and getting the same amount of reward. 
-- After the heart altar is used, it is unable to be used for altar.cooldown timesteps. 
+- Using the heart altar costs `altar.use_cost energy`. So, no matter how much energy you have, you are always dumping the same amount of energy in it and getting the same amount of reward.
+- After the heart altar is used, it is unable to be used for altar.cooldown timesteps.
 - A single use of the heart altar gives you a single unit of reward:
-        if `target._type_id == ObjectType.AltarT:
-            self.env._rewards[actor_id] += 1` 
-    
+  if `target._type_id == ObjectType.AltarT:
+    self.env._rewards[actor_id] += 1`
 
 ### Converter
 
@@ -40,12 +39,12 @@ The `Altar` object allows agents to spend energy to gain rewards. Agents can pow
 
 The `Converter` object allows agents to convert their harvested resources into energy. Agents can use converters by moving to them and taking the `use` action. Each use of a converter provides a specified amount of energy and has a cooldown period.
 
-- Using the converter does not cost any energy. 
-- Using the converter outputs `converter.energy_output.r1`  energy 
-    - see `this.output_energy = cfg[b"energy_output.r1"]` in the Converter cppclass
+- Using the converter does not cost any energy.
+- Using the converter outputs `converter.energy_output.r1` energy
+  - see `this.output_energy = cfg[b"energy_output.r1"]` in the Converter cppclass
 - Using the converter increments resource 2 by one and decrements resource 1 by 1
 - There is currently no use for `converter.energy_output.r2` and `converter.energy_output.r3`
-- After the converter is used, it is unable to be used for `converter.cooldown` timesteps 
+- After the converter is used, it is unable to be used for `converter.cooldown` timesteps
 
 ### Generator
 
@@ -55,7 +54,7 @@ The `Generator` object produces resources that agents can harvest. Agents can ga
 
 - Using the generator costs `generator.use_cost` (currently 0) energy
 - Using the generator once gives one resource 1
-- After the generator is used, it is unable to be used for `generator.cooldown` timesteps 
+- After the generator is used, it is unable to be used for `generator.cooldown` timesteps
 
 ### Wall
 
@@ -92,9 +91,11 @@ The `transfer` action enables agents to share resources with other agents. Agent
 The `use` action allows agents to interact with objects such as altars, converters, and generators. The specific effects of the `use` action depend on the target object and can include converting resources to energy, powering the altar for rewards, or harvesting resources from generators.
 
 ### Swap
+
 The `swap` action allows agents to swap positions with other agents. It is currently not implemented.
 
 ### Tracking the Agent's Last Action
+
 The `track_last_action` property adds the agent's last action to the observation space. It is currently not implemented.
 
 ## Configuration
@@ -102,26 +103,34 @@ The `track_last_action` property adds the agent's last action to the observation
 The MettaGrid environment is highly configurable through the use of YAML configuration files. These files specify the layout of the gridworld, the placement of objects, and various properties of the objects and agents.
 
 **Current settings:**
+
 1. Ore
-   - Base resource obtained from mines. Mines produce one ore when used. No resource requirements for use. 
-   - Reward value: 0.005 per unit (max 2)
-   - Used to create batteries and lasers
+     - Base resource obtained from mines. Mines produce one ore when used. No resource requirements for use.
+     - Reward value: 0.005 per unit (max 2)
+     - Used to create batteries and lasers
 2. Battery
-   - Intermediate resource created from ore at a generator. Generator turns one ore into one battery. 
-   - Reward value: 0.01 per unit (max 2)
-   - Used to create hearts and lasers
+     - Intermediate resource created from ore at a generator. Generator turns one ore into one battery.
+     - Reward value: 0.01 per unit (max 2)
+     - Used to create hearts and lasers
 3. Heart / heart altar
-   - High value reward, requires 3 batteries to be converted into a heart at a heart altar.
+     - High value reward, requires 3 batteries to be converted into a heart at a heart altar.
 4. Laser
-   - Weapon resource created from ore and batteries. Requires 1 ore and 2 batteries. Created at the lasery.
+     - Weapon resource created from ore and batteries. Requires 1 ore and 2 batteries. Created at the lasery.
+
 - Consumed on use. When hitting an unarmored agent: freezes them and steals their whole inventory. When hitting an armoured agent, destroys their armor.
-**Inventory System**
+  **Inventory System**
 - Agents have limited inventory space (default max: 50 items)
 - Resources provide rewards just by being in inventory (up to their max reward value)
 - Resources can be stolen through attacks
-Objects
-Various buildings: Mine, Generator, Armory, Lasery, Altar, Lab, Factory, Temple.
-- HP — hitpoints, the number of times something can be hit before destruction. 
+  Objects
+  Various buildings: Mine, Generator, Armory, Lasery, Altar, Lab, Factory, Temple.
+- HP — hitpoints, the number of times something can be hit before destruction.
 - Cooldown between uses (varies by building)
 - Can be damaged and destroyed by attacks
 
+## Third-party Content
+
+Some sample map patterns in `configs/scenes/dcss` were adapted from the open-source game [Dungeon Crawl Stone Soup (DCSS)](https://github.com/crawl/crawl),
+specifically from the file [`simple.des`](https://github.com/crawl/crawl/blob/master/crawl-ref/source/dat/des/arrival/simple.des).
+
+DCSS is licensed under the [GNU General Public License v2.0](https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html).
