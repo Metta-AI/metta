@@ -39,11 +39,6 @@ POLICIES=(
     "b.daphne.terrain_10k_maps2"
     "b.daveey.s.1.dr.muon.short.r.111"
     "b.daphne.terrain_multienv_april18_sweep.r.2"
-    "b.daphne.varied_terrain_lessactions"
-    "b.daphne.varied_terrain_lessactions_big"
-    "b.daphne.terrain_multienv_lessactions"
-    "b.daphne.terrain_multienv_lessactions_big"
-    "terrain_multienv_less_actions"
 )
 
 
