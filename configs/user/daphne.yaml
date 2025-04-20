@@ -11,7 +11,7 @@
 
 defaults:
   - override /agent: simple
-  - override /eval: navigation
+  - override /eval: all
   - override /analyzer: eval_analyzer
   - _self_
 
