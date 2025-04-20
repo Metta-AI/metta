@@ -19,7 +19,7 @@ game:
       height: 35
       corridor_width: 3
       onlyhearts: true
-      border_width: 10
+      border_width: 1
 
 
   objects:
