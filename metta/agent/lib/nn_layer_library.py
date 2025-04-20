@@ -32,9 +32,11 @@ class Bilinear(LayerBase):
         )
     
     def _forward(self, td: TensorDict):
-        input_1 = td[self._input_source[0]]
-        input_2 = td[self._input_source[1]]
-        td[self._name] = self._net(input_1, input_2)
+        # input_1 = td[self._input_source[0]]
+        # input_1 = td['embed_reshaped']
+        # input_2 = td[self._input_source[1]]
+        # input_2 = td['core_reshaped']
+        td[self._name] = self._net(td['embed_reshaped'], td['core_reshaped'])
         return td
     
 class Embedding(LayerBase):
