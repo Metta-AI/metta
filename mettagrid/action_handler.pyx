@@ -17,7 +17,7 @@ cdef class ActionHandler:
             self._stats.target[t] = self._stats.success + "." + n
             self._stats.target_first_use[t] = self._stats.first_use + "." + n
 
-    cdef void init(self, Grid grid):
+    cdef void init(self, Grid *grid):
         self._grid = grid
 
     cdef bint handle_action(
