@@ -213,6 +213,7 @@
 			"bptt",
 			"coef",
 			"cooldown",
+			"copyto",
 			"cython",
 			"dones",
 			"heavyball",
