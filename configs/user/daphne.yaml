@@ -20,7 +20,7 @@ trainer:
   evaluate_interval: 10
 
 policy_uri:  wandb://run/b.daphne.varied_terrain_lessactions
-eval_db_uri: wandb://artifacts/navigation_db_borderwidth10
+eval_db_uri: wandb://artifacts/navigation_db
 
 analyzer:
   eval_stats_uri: ${run_dir}/eval_stats
