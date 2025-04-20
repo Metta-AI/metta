@@ -29,7 +29,9 @@ policy_uri:  wandb://run/b.daphne.terrain_multienv_lessactions
 # policy_uri: wandb://run/b.georgedeane.navigation_terrain_training_v2
 # npc_policy_uri: ${trained_policy_uri}
 # eval_db_uri: wandb://artifacts/testing
-eval_db_uri: wandb://artifacts/navigation_db
+#eval_db_uri: wandb://artifacts/navigation_db
+
+eval_db_uri: wandb://artifacts/navigation_db_borderwidth10
 
 analyzer:
   eval_stats_uri: ${run_dir}/eval_stats
