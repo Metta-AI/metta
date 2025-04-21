@@ -14,6 +14,9 @@ game:
       border_width: 1
       dir: "terrain_maps_nohearts"
       num_agents: 5
+      generators: true
   objects:
     altar:
       cooldown: 25
+    generators:
+      initial_items: 1
