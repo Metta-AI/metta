@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - "player/**" # Run when any file in player directory changes
+      - "deps/mettagrid/player/**" # Run when any file in player directory changes
       - ".github/workflows/**" # Run when workflow files change
   workflow_dispatch: # Allow manual triggers
 
@@ -26,6 +26,9 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./deps/mettagrid
     steps:
       - name: Checkout
         uses: actions/checkout@v4

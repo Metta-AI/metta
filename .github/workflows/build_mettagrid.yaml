@@ -2,15 +2,20 @@ name: Mettagrid Python Tests
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+
 jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 30 # Prevent hung jobs from consuming resources
+    defaults:
+      run:
+        working-directory: ./deps/mettagrid
     steps:
       - uses: actions/checkout@v4
 
