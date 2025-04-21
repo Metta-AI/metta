@@ -202,7 +202,7 @@ class Als_Bilinear_Rev1(LayerBase):
         scores_reshaped = scores_bmm.permute(0, 2, 1).reshape(-1, 32)
 
         # Add bias
-        biased_scores = scores_reshaped + self._bias) # Shape: [B_TT * num_actions, 32]
+        biased_scores = scores_reshaped + self._bias # Shape: [B_TT * num_actions, 32]
 
         # should biased_scores go through a ReLU?
 
