@@ -11,10 +11,10 @@ envs:
   - /env/mettagrid/navigation/training/cylinder_world
   - /env/mettagrid/navigation/training/labyrinth_world
 
-  
+
 
 probabilities:
-  - 0.25
-  - 0.25
+  # - 0.25
+  - 0.5
   - 0.25
   - 0.25

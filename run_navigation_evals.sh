@@ -32,6 +32,7 @@ POLICIES=(
     "b.daveey.s.1.dr.muon.short.r.111"
     "b.daphne.terrain_multienv_april18_sweep.r.2"
     "b.daphne.terrain_multienv_april18_sweep.r.3"
+    "terrain_multienv_with_labyrinth2"
 )
 
 
