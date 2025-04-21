@@ -9,8 +9,8 @@ description = "A fast grid-based open-ended MARL environment"
 authors = ["David Bloomin <daveey@gmail.com>"]
 license = "MIT"
 readme = "README.md"
-homepage = "https://daveey.github.io"
-repository = "https://github.com/Metta-AI/mettagrid"
+homepage = "https://github.com/Metta-AI/metta/tree/main/deps/mettagrid"
+repository = "https://github.com/Metta-AI/metta"
 keywords = [
     "gridworld",
     "minigrid",
