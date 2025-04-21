@@ -10,6 +10,7 @@ __pycache__
 /wandb
 cython_debug
 deps
+!deps/mettagrid
 outputs
 replays
 stats.profile
