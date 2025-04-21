@@ -149,3 +149,9 @@ python3 -m tools.analyze run=analyze +eval_db_uri=wandb://artifacts/navigation_d
 Currently you need to pass in a policy_uri here, and need to use any policy that is in the navigation db, for example `wandb://run/b.daveey.t.8.rdr9.3`, but that shouldn't be necessary in the future, and we are working on refactoring that
 
 You can do the same process for the object-use eval artifact using: `wandb://artifacts/object_use_db`
+
+# MettaGrid environment
+
+The MettaGrid environment is published as a separate package.
+
+See its [README.md](./deps/mettagrid/README.md) for details.
