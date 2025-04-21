@@ -218,3 +218,43 @@ class Als_Bilinear_Rev1(LayerBase):
 
         td[self._name] = action_logits
         return td
+    
+class Als_Bilinear_Rev2(LayerBase):
+    def __init__(self, **cfg):
+        super().__init__(**cfg)
+
+    def _make_net(self):
+        self.hidden = self._in_tensor_shape[0][0]
+        self.embed_dim = self._in_tensor_shape[1][1]
+
+        self._bilinear = nn.Bilinear(self.hidden, self.embed_dim, self.embed_dim)
+        
+        self._relu = nn.ReLU()
+
+        self._MLP = nn.Sequential(
+            nn.Linear(32, 512), # need to eventually get these from the config
+            nn.ReLU(),
+            nn.Linear(512, 1),
+        )
+
+        return nn.Identity()  # We'll handle the computation in _forward
+    
+    def _forward(self, td: TensorDict):
+        input_1 = td[self._input_source[0]] # _core_
+        input_2 = td[self._input_source[1]] # _action_embeds_
+
+        num_actions = input_2.shape[1] # Get num_actions dynamically
+        input_1_reshaped = input_1.expand(-1, num_actions, -1).reshape(-1, self.hidden)
+        input_2_reshaped = input_2.reshape(-1, self.embed_dim)
+
+        scores = self._bilinear(input_1_reshaped, input_2_reshaped)
+
+        scores = self._relu(scores)
+
+        mlp_output = self._MLP(scores)
+
+        B_TT = input_1.shape[0]
+        action_logits = mlp_output.reshape(B_TT, -1)
+
+        td[self._name] = action_logits
+        return td
