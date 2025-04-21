@@ -1,11 +1,14 @@
 import hashlib
 import numpy as np
 import torch
+from torch import nn
 
 from tensordict import TensorDict
 
 import metta.agent.lib.nn_layer_library as nn_layer_library
 import metta.agent.lib.metta_layer as metta_layer
+from metta.agent.lib.metta_layer import LayerBase
+
 
 class ActionEmbedding(nn_layer_library.Embedding):
     def __init__(self, initialization='max_0_01', **cfg):
@@ -53,13 +56,6 @@ class ActionHash(metta_layer.LayerBase):
         self.register_buffer('dummy_param', torch.zeros(1))
 
     def activate_actions(self, strings, device):
-        # convert the actions_dict into a list of strings
-        # string_list = []
-        # for action_name, max_arg_count in actions_list:
-        #     for i in range(max_arg_count):
-        #         string_list.append(f"{action_name}_{i}")
-                
-        # Use the dummy parameter to get the device
         self.action_embeddings = torch.tensor([
             self.embed_string(s)
             for s in strings
@@ -90,4 +86,83 @@ class ActionHash(metta_layer.LayerBase):
         TT = td['_TT_']
         td['_num_actions_'] = self.num_actions
         td[self._name] = self.action_embeddings.unsqueeze(0).expand(B * TT, -1, -1)
+        return td
+
+class Als_Bilinear_Rev1(LayerBase):
+    def __init__(self, **cfg):
+        super().__init__(**cfg)
+
+    def _make_net(self):
+        self.hidden = self._in_tensor_shape[0][0]
+        self.embed_dim = self._in_tensor_shape[1][1]
+
+        # Initialize learnable parameters
+        self._W1 = nn.Linear(self.hidden, self.embed_dim)
+        self._W2 = nn.Linear(self.hidden, self.embed_dim)
+        self._W3 = nn.Linear(self.hidden, self.embed_dim)
+        self._W4 = nn.Linear(self.hidden, self.embed_dim)
+        self._W5 = nn.Linear(self.hidden, self.embed_dim)
+        self._W6 = nn.Linear(self.hidden, self.embed_dim)
+        self._W7 = nn.Linear(self.hidden, self.embed_dim)
+        self._W8 = nn.Linear(self.hidden, self.embed_dim)
+        
+        # consider initializing with something finite if we get nets that can't get off the ground
+        self._bias = nn.Parameter(torch.zeros(8))
+
+        self._MLP = nn.Sequential(
+            nn.Linear(8, 512), # need to eventually get these from the config
+            nn.ReLU(),
+            nn.Linear(512, 1),
+        )
+
+        return nn.Identity()  # We'll handle the computation in _forward
+    
+    def _forward(self, td: TensorDict):
+        input_1 = td[self._input_source[0]] # _core_
+        input_2 = td[self._input_source[1]] # _action_embeds_
+
+        # Compute Q vectors
+        q_1 = self._W1(input_1)
+        q_2 = self._W2(input_1)
+        q_3 = self._W3(input_1)
+        q_4 = self._W4(input_1)
+        q_5 = self._W5(input_1)
+        q_6 = self._W6(input_1)
+        q_7 = self._W7(input_1)
+        q_8 = self._W8(input_1)
+
+        # Stack Q vectors into a matrix
+        Q = torch.stack([q_1, q_2, q_3, q_4, q_5, q_6, q_7, q_8], dim=1) # Shape: [B*TT, 8, embed_dim]
+
+        # input_2 shape: [B*TT, num_actions, embed_dim]
+        num_actions = input_2.shape[1] # Get num_actions dynamically
+        B_TT = Q.shape[0] # This is B * TT
+
+        # Perform batch matrix multiplication between Q and transposed input_2
+        # Q: [B_TT, 8, embed_dim]
+        # input_2.transpose(1, 2): [B_TT, embed_dim, num_actions]
+        # scores_bmm: [B_TT, 8, num_actions]
+        scores_bmm = torch.bmm(Q, input_2.transpose(1, 2))
+
+        # Permute and reshape to [B_TT * num_actions, 8]
+        # Permute: [B_TT, num_actions, 8]
+        # Reshape: [B_TT * num_actions, 8]
+        scores_reshaped = scores_bmm.permute(0, 2, 1).reshape(-1, 8)
+
+        # Add bias
+        biased_scores = scores_reshaped + self._bias # Shape: [B_TT * num_actions, 8]
+
+        # should biased_scores go through a ReLU?
+
+        # pass scores through MLP
+        mlp_output = self._MLP(biased_scores) # Shape: [B_TT * num_actions, 1]
+
+        # B = td["_batch_size_"]
+        # TT = td["_TT_"] # Not needed if we reshape directly to B
+
+        # Reshape scores from [B*TT*num_actions, 1] to [B, -1] (likely [B, TT*num_actions])
+        # This matches the original code's final reshape operation.
+        action_logits = mlp_output.reshape(B_TT, -1)
+
+        td[self._name] = action_logits
         return td

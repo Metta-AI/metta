@@ -294,3 +294,27 @@ class Identity(LayerBase):
     def _make_net(self):
         return nn.Identity()
 
+class MatrixFromVectors(LayerBase):
+    def __init__(self, **cfg):
+        super().__init__(**cfg)
+
+    def _make_net(self):
+        # Create a matrix by stacking the vectors vertically
+        self._W = nn.Parameter(torch.stack([
+            self._W1.weight, self._W2.weight, self._W3.weight, self._W4.weight,
+            self._W5.weight, self._W6.weight, self._W7.weight, self._W8.weight
+        ], dim=0))
+        return nn.Identity()  # We'll handle the multiplication in _forward
+
+    def _forward(self, td: TensorDict):
+        # Get the input vector e
+        e = td[self._input_source[0]]
+        
+        # Multiply the matrix with vector e
+        # The matrix W has shape [8, input_dim] and e has shape [batch_size, input_dim]
+        # We want to get [batch_size, 8] as output
+        output = torch.matmul(e, self._W.t())
+        
+        td[self._name] = output
+        return td
+
