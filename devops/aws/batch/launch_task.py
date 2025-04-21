@@ -43,12 +43,10 @@ def get_current_commit(repo_path=None):
         return None
 
 
-def is_commit_pushed(commit_hash, repo_path=None):
+def is_commit_pushed(commit_hash):
     """Check if a commit has been pushed to the remote repository."""
     try:
         cmd = ["git", "branch", "-r", "--contains", commit_hash]
-        if repo_path:
-            cmd = ["git", "-C", repo_path, "branch", "-r", "--contains", commit_hash]
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         # If there are any remote branches containing this commit, it has been pushed
         return bool(result.stdout.strip())
@@ -109,7 +107,6 @@ def submit_batch_job(args, task_args):
         print(f"vCPUs per GPU: {args.gpu_cpus}")
         print(f"RAM per Node: {args.node_ram_gb} GB")
         print(f"Git Reference: {args.git_branch or args.git_commit}")
-        print(f"Mettagrid Reference: {args.mettagrid_branch or args.mettagrid_commit}")
         print(f"{'-' * 40}")
         print(f"Command: {args.cmd}")
         if task_args:
@@ -200,7 +197,6 @@ def container_config(args, task_args, job_name):
             {"name": "NUM_GPUS", "value": str(args.node_gpus)},
             {"name": "NUM_WORKERS", "value": str(vcpus_per_gpu)},
             {"name": "GIT_REF", "value": args.git_branch or args.git_commit},
-            {"name": "METTAGRID_REF", "value": args.mettagrid_branch or args.mettagrid_commit},
             {"name": "TASK_ARGS", "value": " ".join(task_args)},
         ]
     )
@@ -256,16 +252,6 @@ def main():
         default=None,
         help="The git commit to use for the task. If not specified, will use the current commit.",
     )
-    parser.add_argument(
-        "--mettagrid-branch",
-        default=None,
-        help="The mettagrid branch to use for the task. If not specified, will use the current commit.",
-    )
-    parser.add_argument(
-        "--mettagrid-commit",
-        default=None,
-        help="The mettagrid commit to use for the task. If not specified, will use the current commit.",
-    )
     parser.add_argument("--gpus", type=int, default=1, help="Number of GPUs per node to use for the task.")
     parser.add_argument("--node-gpus", type=int, default=1, help="Number of GPUs per node to use for the task.")
     parser.add_argument("--gpu-cpus", type=int, help="Number of CPUs per GPU (vCPUs will be 2x this value).")
@@ -290,20 +276,11 @@ def main():
     if args.git_branch is None and args.git_commit is None:
         args.git_commit = get_current_commit()
 
-    if args.mettagrid_branch is None and args.mettagrid_commit is None:
-        args.mettagrid_commit = get_current_commit("deps/mettagrid")
-
     # Check if commits have been pushed
     if not args.skip_push_check:
         # Check if git commit has been pushed
         if args.git_commit and not is_commit_pushed(args.git_commit):
             print(f"Error: Git commit {args.git_commit} has not been pushed to the remote repository.")
-            print("Please push your changes or use --skip-push-check to bypass this check.")
-            sys.exit(1)
-
-        # Check if mettagrid commit has been pushed
-        if args.mettagrid_commit and not is_commit_pushed(args.mettagrid_commit, "deps/mettagrid"):
-            print(f"Error: Mettagrid commit {args.mettagrid_commit} has not been pushed to the remote repository.")
             print("Please push your changes or use --skip-push-check to bypass this check.")
             sys.exit(1)
 

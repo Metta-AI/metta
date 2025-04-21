@@ -3,6 +3,7 @@
 ## Initial Setup
 
 1. Configure AWS SSO and credentials:
+
 ```bash
 # Run the setup script
 python ./devops/aws/setup_sso.py
@@ -81,8 +82,6 @@ cmd.sh launch --run RUN_ID --cmd COMMAND [options]
 # --cmd {train,sweep,evolve}  The command to run (required)
 # --git-branch BRANCH   The git branch to use (default: current commit)
 # --git-commit COMMIT   The git commit to use (default: current commit)
-# --mettagrid-branch BRANCH  The mettagrid branch to use (default: current commit)
-# --mettagrid-commit COMMIT  The mettagrid commit to use (default: current commit)
 # --gpus GPUS           Total number of GPUs to use (default: 4)
 # --node-gpus NODE_GPUS GPUs per node (default: 4)
 # --copies COPIES       Number of job copies to submit (default: 1)
@@ -124,18 +123,11 @@ python -m devops.aws.batch.launch_task \
     --run=b.$USER.run_name \
     --job-queue=metta-batch-jq-custom
 
-# Specify a custom mettagrid branch
+# Use specific git commit
 python -m devops.aws.batch.launch_task \
     --cmd=train \
     --run=b.$USER.run_name \
-    --mettagrid-branch=feature-branch
-
-# Use specific git and mettagrid commits
-python -m devops.aws.batch.launch_task \
-    --cmd=train \
-    --run=b.$USER.run_name \
-    --git-commit=abc123 \
-    --mettagrid-commit=def456
+    --git-commit=abc123
 ```
 
 ### Stopping Jobs
@@ -151,6 +143,7 @@ cmd.sh ce <compute_env_name> stop
 ## Monitoring Jobs
 
 1. Monitor jobs through command line:
+
 ```bash
 # Using cmd.sh
 cmd.sh jobs [<job_queue>="metta-jq"] [--max=10]
@@ -167,7 +160,6 @@ python -m devops.aws.cluster_info
 
 - Jobs are processed on the `metta-jq` queue by default
 - You can specify a different queue using the `--job-queue` parameter with both cmd.sh and the Python launcher
-- You can specify a different mettagrid branch using the `--mettagrid-branch` parameter with both cmd.sh and the Python launcher
 - If no branch is specified, the current commit hash will be used by default
 - While jobs may take time to initialize, multiple jobs can run in parallel
 - Use your username in the run name (e.g., `b.$USER.run_name`) to track your jobs
@@ -175,6 +167,7 @@ python -m devops.aws.cluster_info
 ## Troubleshooting
 
 If you encounter issues:
+
 1. Verify your AWS SSO session is active (`aws s3 ls`)
 2. Check the AWS Batch console for job status and logs
 3. Ensure your run name follows the correct format (`b.$USER.your_run_name`)
@@ -283,4 +276,3 @@ aws batch describe-compute-environments --compute-environments YOUR_COMPUTE_ENV 
 # Check ECS container instances
 aws ecs list-container-instances --cluster YOUR_ECS_CLUSTER --profile stem-root
 ```
-

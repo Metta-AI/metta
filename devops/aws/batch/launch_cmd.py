@@ -42,16 +42,6 @@ def main():
             default=None,
             help="The git commit to use for the task. If not specified, will use the current commit.",
         )
-        parser.add_argument(
-            "--mettagrid-branch",
-            default=None,
-            help="The mettagrid branch to use for the task. If not specified, will use the current commit.",
-        )
-        parser.add_argument(
-            "--mettagrid-commit",
-            default=None,
-            help="The mettagrid commit to use for the task. If not specified, will use the current commit.",
-        )
         parser.add_argument("--gpus", type=int, default=4, help="Number of GPUs per node to use for the task.")
         parser.add_argument("--node-gpus", type=int, default=4, help="Number of GPUs per node to use for the task.")
         parser.add_argument(
@@ -78,9 +68,6 @@ def main():
         # Set default commit values if not specified
         if args.git_branch is None and args.git_commit is None:
             args.git_commit = launch_task.get_current_commit()
-
-        if args.mettagrid_branch is None and args.mettagrid_commit is None:
-            args.mettagrid_commit = launch_task.get_current_commit("deps/mettagrid")
 
         # Submit the job
         for _i in range(args.copies):
