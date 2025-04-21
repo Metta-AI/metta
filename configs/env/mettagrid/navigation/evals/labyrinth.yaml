@@ -4,7 +4,7 @@ defaults:
 
 game:
   num_agents: 20
-  max_steps: 800
+  max_steps: 500
 
   agent:
     rewards:

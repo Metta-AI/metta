@@ -1,0 +1,29 @@
+defaults:
+  - /env/mettagrid-base/mettagrid@
+  - _self_
+
+game:
+  num_agents: 20         # total across the whole map
+
+  map_builder:
+    _target_: mettagrid.config.room.multi_room.MultiRoom
+    num_rooms: 1         # a single big room that the builder fills
+    border_width: 6
+
+    room:
+      _target_: mettagrid.config.room.labyrinth_world.LabyrinthWorld
+      width:  120        # overall map size – adjust if desired
+      height: 120
+      border_width: 2    # inner wall thickness
+      agents: 20         # agents handled globally; value unused here
+
+  objects:
+    altar:
+      cooldown: 255
+  actions:
+    attack:
+      enabled: false
+    swap:
+      enabled: false
+    change_color:
+      enabled: false
