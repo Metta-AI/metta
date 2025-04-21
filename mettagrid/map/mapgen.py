@@ -1,12 +1,11 @@
 # Root map generator, based on nodes.
 import numpy as np
-from omegaconf import DictConfig
 
-from .scene import make_scene
+from .scene import SceneCfg, make_scene
 
 
 class MapGen:
-    def __init__(self, width: int, height: int, root: DictConfig, border_width: int = 1):
+    def __init__(self, width: int, height: int, root: SceneCfg, border_width: int = 1):
         self._width = width
         self._height = height
         self._border_width = border_width
