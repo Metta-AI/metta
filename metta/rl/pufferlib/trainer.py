@@ -568,9 +568,7 @@ class PufferTrainer:
 
         navigation_score = np.mean([r["candidate_mean"] for r in self._eval_results if "navigation" in r["eval"]])
         object_use_score = np.mean([r["candidate_mean"] for r in self._eval_results if "object_use" in r["eval"]])
-        against_npc_score = np.mean(
-            [r["candidate_mean"] for r in self._eval_results if r["npc_policy_uri"] is not None]
-        )
+        against_npc_score = np.mean([r["candidate_mean"] for r in self._eval_results if "npc" in r["eval"]])
 
         if not np.isnan(navigation_score):
             overview["navigation_evals"] = navigation_score
