@@ -227,7 +227,7 @@ class Als_Bilinear_Rev2(LayerBase):
         self.hidden = self._in_tensor_shape[0][0]
         self.embed_dim = self._in_tensor_shape[1][1]
 
-        self._bilinear = nn.Bilinear(self.hidden, self.embed_dim, self.embed_dim)
+        self._bilinear = nn.Bilinear(self.hidden, self.embed_dim, 32)
         
         self._relu = nn.ReLU()
 
@@ -244,7 +244,8 @@ class Als_Bilinear_Rev2(LayerBase):
         input_2 = td[self._input_source[1]] # _action_embeds_
 
         num_actions = input_2.shape[1] # Get num_actions dynamically
-        input_1_reshaped = input_1.expand(-1, num_actions, -1).reshape(-1, self.hidden)
+        # Correctly reshape input_1 by unsqueezing, expanding, and then reshaping
+        input_1_reshaped = input_1.unsqueeze(1).expand(-1, num_actions, -1).reshape(-1, self.hidden)
         input_2_reshaped = input_2.reshape(-1, self.embed_dim)
 
         scores = self._bilinear(input_1_reshaped, input_2_reshaped)

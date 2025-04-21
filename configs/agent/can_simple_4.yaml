@@ -91,7 +91,7 @@ components:
       embedding_dim: 16
 
   _action_:
-    _target_: metta.agent.lib.action.Als_Bilinear_Rev1
+    _target_: metta.agent.lib.action.Als_Bilinear_Rev2
     input_source: 
       - _core_
       - _action_embeds_
