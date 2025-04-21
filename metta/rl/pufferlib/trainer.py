@@ -603,11 +603,6 @@ class PufferTrainer:
             if "npc" in r["eval"]
         }
 
-        effective_rank_metrics = {
-            f"train/effective_rank/{rank['name']}": rank["effective_rank"] for rank in self._effective_rank
-        }
-
-
         if self.wandb_run and self.cfg.wandb.track and self._master:
             self.wandb_run.log(
                 {
