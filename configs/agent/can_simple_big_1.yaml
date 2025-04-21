@@ -127,6 +127,7 @@ components:
   attn_score_2:
     _target_: metta.agent.lib.nn_layer_library.Linear
     input_source: attn_score_1
+    nonlinearity: null
     nn_params:
       out_features: 1
 
