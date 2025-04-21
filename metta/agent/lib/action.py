@@ -105,12 +105,37 @@ class Als_Bilinear_Rev1(LayerBase):
         self._W6 = nn.Linear(self.hidden, self.embed_dim)
         self._W7 = nn.Linear(self.hidden, self.embed_dim)
         self._W8 = nn.Linear(self.hidden, self.embed_dim)
+        self._W9 = nn.Linear(self.hidden, self.embed_dim)
+        self._W10 = nn.Linear(self.hidden, self.embed_dim)
+        self._W11 = nn.Linear(self.hidden, self.embed_dim)
+        self._W12 = nn.Linear(self.hidden, self.embed_dim)
+        self._W13 = nn.Linear(self.hidden, self.embed_dim)
+        self._W14 = nn.Linear(self.hidden, self.embed_dim)
+        self._W15 = nn.Linear(self.hidden, self.embed_dim)
+        self._W16 = nn.Linear(self.hidden, self.embed_dim)
+        self._W17 = nn.Linear(self.hidden, self.embed_dim)
+        self._W18 = nn.Linear(self.hidden, self.embed_dim)
+        self._W19 = nn.Linear(self.hidden, self.embed_dim)
+        self._W20 = nn.Linear(self.hidden, self.embed_dim)
+        self._W21 = nn.Linear(self.hidden, self.embed_dim)
+        self._W22 = nn.Linear(self.hidden, self.embed_dim)
+        self._W23 = nn.Linear(self.hidden, self.embed_dim)
+        self._W24 = nn.Linear(self.hidden, self.embed_dim)
+        self._W25 = nn.Linear(self.hidden, self.embed_dim)
+        self._W26 = nn.Linear(self.hidden, self.embed_dim)
+        self._W27 = nn.Linear(self.hidden, self.embed_dim)
+        self._W28 = nn.Linear(self.hidden, self.embed_dim)
+        self._W29 = nn.Linear(self.hidden, self.embed_dim)
+        self._W30 = nn.Linear(self.hidden, self.embed_dim)
+        self._W31 = nn.Linear(self.hidden, self.embed_dim)
+        self._W32 = nn.Linear(self.hidden, self.embed_dim)
+        
         
         # consider initializing with something finite if we get nets that can't get off the ground
-        self._bias = nn.Parameter(torch.zeros(8))
+        self._bias = nn.Parameter(torch.zeros(32))
 
         self._MLP = nn.Sequential(
-            nn.Linear(8, 512), # need to eventually get these from the config
+            nn.Linear(32, 512), # need to eventually get these from the config
             nn.ReLU(),
             nn.Linear(512, 1),
         )
@@ -130,9 +155,34 @@ class Als_Bilinear_Rev1(LayerBase):
         q_6 = self._W6(input_1)
         q_7 = self._W7(input_1)
         q_8 = self._W8(input_1)
+        q_9 = self._W9(input_1)
+        q_10 = self._W10(input_1)
+        q_11 = self._W11(input_1)
+        q_12 = self._W12(input_1)
+        q_13 = self._W13(input_1)
+        q_14 = self._W14(input_1)
+        q_15 = self._W15(input_1)
+        q_16 = self._W16(input_1)
+        q_17 = self._W17(input_1)
+        q_18 = self._W18(input_1)
+        q_19 = self._W19(input_1)
+        q_20 = self._W20(input_1)
+        q_21 = self._W21(input_1)
+        q_22 = self._W22(input_1)
+        q_23 = self._W23(input_1)
+        q_24 = self._W24(input_1)
+        q_25 = self._W25(input_1)
+        q_26 = self._W26(input_1)
+        q_27 = self._W27(input_1)
+        q_28 = self._W28(input_1)
+        q_29 = self._W29(input_1)
+        q_30 = self._W30(input_1)
+        q_31 = self._W31(input_1)
+        q_32 = self._W32(input_1)
+        
 
         # Stack Q vectors into a matrix
-        Q = torch.stack([q_1, q_2, q_3, q_4, q_5, q_6, q_7, q_8], dim=1) # Shape: [B*TT, 8, embed_dim]
+        Q = torch.stack([q_1, q_2, q_3, q_4, q_5, q_6, q_7, q_8, q_9, q_10, q_11, q_12, q_13, q_14, q_15, q_16, q_17, q_18, q_19, q_20, q_21, q_22, q_23, q_24, q_25, q_26, q_27, q_28, q_29, q_30, q_31, q_32], dim=1) # Shape: [B*TT, 32, embed_dim]
 
         # input_2 shape: [B*TT, num_actions, embed_dim]
         num_actions = input_2.shape[1] # Get num_actions dynamically
@@ -147,10 +197,10 @@ class Als_Bilinear_Rev1(LayerBase):
         # Permute and reshape to [B_TT * num_actions, 8]
         # Permute: [B_TT, num_actions, 8]
         # Reshape: [B_TT * num_actions, 8]
-        scores_reshaped = scores_bmm.permute(0, 2, 1).reshape(-1, 8)
+        scores_reshaped = scores_bmm.permute(0, 2, 1).reshape(-1, 32)
 
         # Add bias
-        biased_scores = scores_reshaped + self._bias # Shape: [B_TT * num_actions, 8]
+        biased_scores = scores_reshaped + self._bias # Shape: [B_TT * num_actions, 32]
 
         # should biased_scores go through a ReLU?
 
