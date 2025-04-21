@@ -87,7 +87,11 @@ def ascii_to_weights_of_all_patterns(source: str, n: int, periodic: bool, symmet
 
 
 class Pattern:
-    """Helper class for handling patterns in the ConvChain and WFC algorithms."""
+    """
+    Helper class for handling patterns in the ConvChain and WFC algorithms.
+
+    Currently this class supports only boolean patterns (walls or empty).
+    """
 
     def __init__(self, field: np.ndarray, x: int, y: int, size: int):
         self.data = np.zeros((size, size), dtype=bool)
