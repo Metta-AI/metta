@@ -77,6 +77,17 @@ class VariedTerrain(Room):
             "blocks": {"count": 8},
             "clumpiness": 5,
         },
+        # New style: maze-like with predominant labyrinth features.
+        "maze": {
+            "hearts_count": 25,  # Altars placed after obstacles; keeps the grid sparse for maze corridors.
+            "large_obstacles": {"size_range": [10, 25], "count": 0},  # Disable large obstacles.
+            "small_obstacles": {"size_range": [3, 6], "count": 0},  # Disable small obstacles.
+            "crosses": {"count": 0},  # No cross obstacles.
+            "labyrinths": {"count": 10},  # Increase labyrinth count to generate more maze segments.
+            "scattered_walls": {"count": 0},  # Avoid adding extra walls that could break up maze consistency.
+            "blocks": {"count": 0},  # No rectangular blocks.
+            "clumpiness": 0,  # Clumpiness is not necessary when only labyrinths are used.
+        },
     }
 
     def __init__(
@@ -91,6 +102,9 @@ class VariedTerrain(Room):
         style: str = "balanced",
     ):
         super().__init__(border_width=border_width, border_object=border_object)
+
+        width = np.random.randint(40, 100)
+        height = np.random.randint(40, 100)
         self._rng = np.random.default_rng(seed)
         self._width = width
         self._height = height
@@ -342,10 +356,8 @@ class VariedTerrain(Room):
 
     def _generate_labyrinth_pattern(self) -> np.ndarray:
         # Choose dimensions between 11 and 13, then clamp to 11 and force odd.
-        h = int(self._rng.integers(11, 14))
-        w = int(self._rng.integers(11, 14))
-        h = 11 if h > 11 else h
-        w = 11 if w > 11 else w
+        h = int(self._rng.integers(11, 26))
+        w = int(self._rng.integers(11, 26))
         if h % 2 == 0:
             h -= 1
         if w % 2 == 0:
@@ -373,18 +385,6 @@ class VariedTerrain(Room):
             else:
                 stack.pop()
 
-        # Apply thickening based on a random probability between 0.3 and 1.0.
-        thick_prob = 0.3 + 0.7 * self._rng.random()
-        maze_thick = maze.copy()
-        for i in range(1, h - 1):
-            for j in range(1, w - 1):
-                if maze[i, j] == "empty":
-                    if self._rng.random() < thick_prob and j + 1 < w:
-                        maze_thick[i, j + 1] = "empty"
-                    if self._rng.random() < thick_prob and i + 1 < h:
-                        maze_thick[i + 1, j] = "empty"
-        maze = maze_thick
-
         # Ensure each border has at least two contiguous empty cells.
         if w > 3 and not self._has_gap(maze[0, 1 : w - 1]):
             maze[0, 1:3] = "empty"
@@ -398,8 +398,20 @@ class VariedTerrain(Room):
         # Scatter hearts in empty cells with 30% probability.
         for i in range(h):
             for j in range(w):
-                if maze[i, j] == "empty" and self._rng.random() < 0.3:
-                    maze[i, j] = "heart"
+                if maze[i, j] == "empty" and self._rng.random() < 0.05:
+                    maze[i, j] = "altar"
+
+            # Apply thickening based on a random probability between 0.3 and 1.0.
+        thick_prob = 0.7 * self._rng.random()
+        maze_thick = maze.copy()
+        for i in range(1, h - 1):
+            for j in range(1, w - 1):
+                if maze[i, j] == "empty":
+                    if self._rng.random() < thick_prob and j + 1 < w:
+                        maze_thick[i, j + 1] = "empty"
+                    if self._rng.random() < thick_prob and i + 1 < h:
+                        maze_thick[i + 1, j] = "empty"
+        maze = maze_thick
         return maze
 
     def _has_gap(self, line: np.ndarray) -> bool:
