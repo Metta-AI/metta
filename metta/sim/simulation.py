@@ -25,6 +25,7 @@ class Simulation:
     """
 
     def __init__(self, config: SimulationConfig, policy_pr: PolicyRecord, policy_store: PolicyStore, name: str = ""):
+        self._config = config
         # TODO: Replace with typed EnvConfig
         self._env_cfg = config_from_path(config.env, config.env_overrides)
         self._env_name = config.env
@@ -84,16 +85,14 @@ class Simulation:
             self._agent_idx_to_policy_name[agent_idx.item()] = self._npc_pr.name
 
     def simulate(self):
-        logger.debug(
-            f"Simulation {self._name} policy: {self._policy_pr.name} "
+        logger.info(
+            f"Simulating {self._name} policy: {self._policy_pr.name} "
             + f"in {self._env_name} with {self._policy_agents_per_env} agents"
         )
         if self._npc_pr is not None:
             logger.debug(f"Against npc policy: {self._npc_pr.name} with {self._npc_agents_per_env} agents")
 
-        logger.debug(
-            f"Simulation settings: {self._num_envs} envs, {self._min_episodes} episodes, {self._max_time_s} seconds"
-        )
+        logger.info(f"Simulation settings: {self._config}")
 
         obs, _ = self._vecenv.reset()
         policy_rnn_state = None
