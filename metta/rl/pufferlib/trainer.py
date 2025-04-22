@@ -271,11 +271,12 @@ class PufferTrainer:
             lstm_h, lstm_c = experience.lstm_h, experience.lstm_c
             e3b_inv = experience.e3b_inv
 
+        iters = 0 # delete after testing
         while not experience.full:
             with profile.env:
-                print(f"Requesting Env {self.epoch}") # delete after testing
+                print(f"Requesting Env at epoch {self.epoch} and iter {iters}") # delete after testing
                 o, r, d, t, info, env_id, mask = self.vecenv.recv()
-                print(f"Received Env {self.epoch}") # delete after testing
+                print(f"Received Env at epoch {self.epoch} and iter {iters}") # delete after testing
 
                 # Zero-copy indexing for contiguous env_id
 
