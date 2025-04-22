@@ -1,5 +1,5 @@
 import random
-from typing import Any, Dict, Optional, TypeVar, Union
+from typing import Any, Dict, TypeVar, Union
 
 import numpy as np
 from omegaconf import OmegaConf
@@ -63,9 +63,7 @@ def oc_equals(a: Any, b: Any) -> bool:
     return a == b
 
 
-def oc_scaled_range(
-    lower_limit: Numeric, upper_limit: Numeric, center: Numeric, *, root: Optional[Dict[str, Numeric]] = None
-) -> Numeric:
+def oc_scaled_range(lower_limit: Numeric, upper_limit: Numeric, center: Numeric, *, _root_: Dict[str, Any]) -> Numeric:
     """
     Generates a value centered around a specified point based on a "sampling" parameter that controls how
     widely the distribution spreads between the limiting values.
@@ -78,8 +76,9 @@ def oc_scaled_range(
         The maximum allowed value (upper boundary).
     center : Numeric
         The center point of the distribution. When sampling=0, this value is returned directly.
-    root : dict, optional
+    _root_ : dict (a named argument provided by OmegaConf)
         A dictionary containing the "sampling" parameter. If None, sampling defaults to 0. Must be between 0 and 1.
+        IMPORTANT: this parameter must be named "_root_" exactly as shown here.
 
     Returns:
     --------
@@ -87,9 +86,10 @@ def oc_scaled_range(
         A value between lower_limit and upper_limit, with distribution controlled by the sampling parameter.
         Returns integer if center is an integer, float otherwise.
     """
+
     # Get sampling parameter from root, defaulting to 0
-    root = root or {}
-    sampling = root.get("sampling", 0)
+    _root_ = _root_ or {}
+    sampling = _root_.get("sampling", 0)
 
     # Fast path: return center when sampling is 0
     if sampling == 0:
