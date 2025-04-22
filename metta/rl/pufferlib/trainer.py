@@ -16,6 +16,7 @@ from omegaconf import OmegaConf
 
 from metta.agent.metta_agent import DistributedMettaAgent
 from metta.agent.policy_store import PolicyStore
+from metta.agent.util.weights_analysis import WeightsMetricsHelper
 from metta.rl.pufferlib.experience import Experience
 from metta.rl.pufferlib.kickstarter import Kickstarter
 from metta.rl.pufferlib.profile import Profile
@@ -67,7 +68,7 @@ class PufferTrainer:
         self.average_reward = 0.0  # Initialize average reward estimate
         self._current_eval_score = None
         self._eval_results = []
-        self._effective_rank = []
+        self._weights_helper = WeightsMetricsHelper(cfg)
         self._make_vecenv()
 
         logger.info("Loading checkpoint")
@@ -196,8 +197,7 @@ class PufferTrainer:
                 self._checkpoint_trainer()
             if self.trainer_cfg.evaluate_interval != 0 and self.epoch % self.trainer_cfg.evaluate_interval == 0:
                 self._evaluate_policy()
-            if self.cfg.agent.effective_rank_interval != 0 and self.epoch % self.cfg.agent.effective_rank_interval == 0:
-                self._effective_rank = self.policy.compute_effective_rank()
+            self._weights_helper.on_epoch_end(self.epoch, self.policy)
             if self.epoch % self.trainer_cfg.wandb_checkpoint_interval == 0:
                 self._save_policy_to_wandb()
             if (
@@ -583,11 +583,14 @@ class PufferTrainer:
 
         navigation_score = np.mean([r["candidate_mean"] for r in self._eval_results if "navigation" in r["eval"]])
         object_use_score = np.mean([r["candidate_mean"] for r in self._eval_results if "object_use" in r["eval"]])
+        against_npc_score = np.mean([r["candidate_mean"] for r in self._eval_results if "npc" in r["eval"]])
 
         if not np.isnan(navigation_score):
             overview["navigation_evals"] = navigation_score
         if not np.isnan(object_use_score):
             overview["object_use_evals"] = object_use_score
+        if not np.isnan(against_npc_score):
+            overview["npc_evals"] = against_npc_score
 
         environment = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
 
@@ -607,8 +610,10 @@ class PufferTrainer:
             if "object_use" in r["eval"]
         }
 
-        effective_rank_metrics = {
-            f"train/effective_rank/{rank['name']}": rank["effective_rank"] for rank in self._effective_rank
+        against_npc_eval_metrics = {
+            f"npc_evals/{r['eval'].split('/')[-1]}:{r['metric']}": r["candidate_mean"]
+            for r in self._eval_results
+            if "npc" in r["eval"]
         }
 
         if self.wandb_run and self.cfg.wandb.track and self._master:
@@ -619,9 +624,10 @@ class PufferTrainer:
                     **{f"performance/{k}": v for k, v in performance.items()},
                     **environment,
                     **policy_fitness_metrics,
-                    **effective_rank_metrics,
+                    **self._weights_helper.stats(),
                     **navigation_eval_metrics,
                     **object_use_eval_metrics,
+                    **against_npc_eval_metrics,
                     "train/agent_step": agent_steps,
                     "train/epoch": epoch,
                     "train/learning_rate": learning_rate,
@@ -630,7 +636,7 @@ class PufferTrainer:
             )
 
         self._eval_results = []
-        self._effective_rank = []
+        self._weights_helper.reset()
         self.stats.clear()
 
     def close(self):

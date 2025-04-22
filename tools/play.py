@@ -8,16 +8,11 @@ from datetime import datetime
 import hydra
 from rich.logging import RichHandler
 
-<<<<<<< HEAD
+import metta.rl.pufferlib.play
 import metta.sim.simulator
 from metta.agent.policy_store import PolicyStore
 from metta.sim.simulation_config import SimulationConfig
 from metta.util.config import dictconfig_to_dataclass
-=======
-import metta.rl.pufferlib.play
-from metta.agent.policy_store import PolicyStore
-from metta.util.config import config_from_path
->>>>>>> origin/main
 from metta.util.runtime_configuration import setup_mettagrid_environment
 from metta.util.wandb.wandb_context import WandbContext
 

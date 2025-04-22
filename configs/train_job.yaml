@@ -2,6 +2,7 @@ defaults:
   - common
   - agent: simple
   - trainer: puffer
+  - eval: navigation
   - analyzer: eval_analyzer
   - wandb: metta_research
   - /sim/all@train_job.evals
