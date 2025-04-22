@@ -8,10 +8,8 @@ game:
 envs:
   - /env/mettagrid/navigation/training/terrain_from_numpy
   - /env/mettagrid/navigation/training/varied_terrain
-  - /env/mettagrid/navigation/training/cylinder_world
 
 
 probabilities:
   - 0.5
-  - 0.45
-  - 0.05
+  - 0.5
