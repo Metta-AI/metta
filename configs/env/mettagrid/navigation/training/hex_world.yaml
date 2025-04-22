@@ -1,0 +1,24 @@
+defaults:
+  - /env/mettagrid-base/mettagrid@
+  - _self_
+
+game:
+  num_agents: 20
+
+  map_builder:
+    _target_: mettagrid.config.room.hex_world.HexWorld
+
+    # Arena dimensions (sampled each episode)
+    width_range:  [60, 160]
+    height_range: [60, 160]
+
+    # Hexagon side length (odd) and corridor gap
+    hex_size_range: [5, 10]
+    gap: 3
+
+    altars_count: 50
+    agents: 20
+
+  objects:
+    altar:
+      cooldown: 100
