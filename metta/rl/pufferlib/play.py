@@ -18,6 +18,7 @@ def play(cfg: OmegaConf, policy_store: PolicyStore):
     policy_actions = policy_record.metadata["action_names"]
     env_actions = env._c_env.action_names()
 
+    # TODO: More substantial fix to this
     assert len(policy_actions) <= len(env_actions), (
         f"Policy actions: {policy_actions} must be a subset of env actions: {env_actions}"
     )
