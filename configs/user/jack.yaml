@@ -41,7 +41,7 @@ sim_job:
   simulation_suite:
     num_episodes: 2
     num_envs: 2
-eval:
+s
   num_episodes: 1
   num_envs: 1
   policy_uri: ${..policy_uri}

@@ -1,6 +1,6 @@
 defaults:
   - override /agent: simple
-  - override /eval: simple
+  - /sim/simple@eval
   - override /analyzer: eval_analyzer
   - _self_
 

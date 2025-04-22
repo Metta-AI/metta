@@ -2,7 +2,7 @@
 
 defaults:
   - override /agent: simple
-  - override /eval: eval
+  - /sim/sim@eval
   - _self_
 
 trainer:
