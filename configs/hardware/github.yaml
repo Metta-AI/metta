@@ -1,8 +1,6 @@
 # @package __global__
 
 defaults:
-  # Full fledged evaluation is heavier than we want for Github Actions.
-  - override /sim/all@train_job.evals: smoke_test
   - _self_
 
 
@@ -29,3 +27,6 @@ trainer:
       max_steps: 2
   # Don't actually try to upload the replay.
   replay_dry_run: true
+
+  # Full fledged evaluation is heavier than we want for Github Actions.
+train_job.evals: /sim/smoke_test
