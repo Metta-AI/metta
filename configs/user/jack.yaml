@@ -17,7 +17,7 @@ env:
     num_agents: 20
     max_steps: 2000
 
-policy_uri: "wandb://run/b.georgedeane.terrain_multienv"
+policy_uri: "wandb://run/jack.puffer.lattice-world"
 analyzer:
   policy_uri: ${..policy_uri}
   view_type: latest
