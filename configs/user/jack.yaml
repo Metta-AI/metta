@@ -7,20 +7,9 @@ defaults:
   - _self_
 
 trainer:
-  env: /env/mettagrid/navigation/training/multienv
+  env: /env/mettagrid/navigation/training/lattice_world
   evaluate_interval: 50
   checkpoint_interval: 50
-  env_overrides:
-    game:
-      actions:
-        attack:
-          enabled: false
-        put_items:
-          enabled: false
-        swap:
-          enabled: false
-        change_color:
-          enabled: false
 
 env:
   semi_compact_obs: true
@@ -28,7 +17,7 @@ env:
     num_agents: 20
     max_steps: 2000
 
-policy_uri: "wandb://run/jack.lattice.aws"
+policy_uri: "wandb://run/b.georgedeane.terrain_multienv"
 analyzer:
   policy_uri: ${..policy_uri}
   view_type: latest
@@ -39,7 +28,7 @@ analyzer:
   output_path: s3://softmax-public/users/jack/policydash/dashboard.html
 
 eval:
-  env: /env/mettagrid/navigation/evals/navigation
+  env: /env/mettagrid/navigation/training/lattice_world
   num_episodes: 1
   num_envs: 1
   policy_uri: ${..policy_uri}

@@ -21,12 +21,12 @@ game:
     rotate:
       enabled: true
     put_items:
-      enabled: false
+      enabled: true
     get_items:
       enabled: true
     attack:
-      enabled: false  
+      enabled: true  
     swap:
-      enabled: false
+      enabled: true
     change_color:
-      enabled: false
+      enabled: true
