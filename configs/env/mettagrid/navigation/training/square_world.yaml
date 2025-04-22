@@ -21,7 +21,7 @@ game:
       square_size_range: [3, 7]
       gap_range:         [3, 8]
 
-      altars_count: 50
+      altars_count: 40
       agents: 1
 
   objects:

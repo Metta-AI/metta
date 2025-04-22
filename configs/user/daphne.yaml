@@ -44,7 +44,7 @@ analyzer:
   output_path: navigation_results/navigation.html
 
 eval:
-  env: /env/mettagrid/navigation/training/cubicle_world
+  env: /env/mettagrid/navigation/training/square_world
 
   policy_uri: ${..policy_uri}
   # npc_policy_uri: ${..npc_policy_uri}
