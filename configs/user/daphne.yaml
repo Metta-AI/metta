@@ -45,18 +45,7 @@ analyzer:
   output_path: navigation_results/navigation.html
 
 eval:
-  env: /env/mettagrid/navigation/evals/walls_withinsight
-  env_overrides:
-    game:
-      actions:
-        attack:
-          enabled: false
-        put_items:
-          enabled: false
-        swap:
-          enabled: false
-        change_color:
-          enabled: false
+  env: /env/mettagrid/navigation/training/varied_terrain
 
   policy_uri: ${..policy_uri}
   # npc_policy_uri: ${..npc_policy_uri}
@@ -70,7 +59,7 @@ eval:
 wandb:
   checkpoint_interval: 1
 
-run_id: 1
+run_id: 2
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 
