@@ -1,0 +1,28 @@
+defaults:
+  - /env/mettagrid-base/mettagrid@
+  - _self_
+
+game:
+  num_agents: 20
+
+  map_builder:
+    _target_: mettagrid.config.room.cross_world.CrossWorld
+    width:  130
+    height: 130
+    border_width: 2
+
+    size_range: [10, 14]   # interior side
+    agents: 20
+
+  objects:
+    altar:
+      cooldown: 255
+
+
+  actions:
+    attack:
+      enabled: false
+    swap:
+      enabled: false
+    change_color:
+      enabled: false

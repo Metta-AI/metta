@@ -24,7 +24,7 @@ policy_uri: wandb://run/b.georgedeane.terrain_multienv
 # navigation_poisson_train_sampling5 breaks in infinite_cooldown, works great in poisson with short distance
 # navigation_poisson_train_sampling5
 # npc_policy_uri: ${trained_policy_uri}
-# eval_db_uri: wandb://artifacts/navigation_constrained_actions
+eval_db_uri: wandb://artifacts/navigation_db
 
 analyzer:
   # eval_stats_uri: ${run_dir}/eval_stats
@@ -43,6 +43,7 @@ eval:
   # npc_policy_uri: ${..npc_policy_uri}
   # eval_db_uri: ${..eval_db_uri} #file://daphne/sweep_stats
   env: /env/mettagrid/navigation/training/labyrinth_world
+
 
 
 run_id: 103

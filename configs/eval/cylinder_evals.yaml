@@ -1,0 +1,56 @@
+_target_: metta.sim.simulation.SimulationSuite
+
+defaults:
+  - eval
+  - _self_
+
+env: null #the env is set in evals:
+
+num_envs: 1
+num_episodes: 1
+
+evals:
+  cylinder_length5:
+    env: env/mettagrid/navigation/evals/cylinder_evals/cylinder_length5
+    policy_agents_pct: 1.0
+  cylinder_length6:
+    env: env/mettagrid/navigation/evals/cylinder_evals/cylinder_length6
+    policy_agents_pct: 1.0
+  cylinder_length7:
+    env: env/mettagrid/navigation/evals/cylinder_evals/cylinder_length7
+    policy_agents_pct: 1.0
+  cylinder_length8:
+    env: env/mettagrid/navigation/evals/cylinder_evals/cylinder_length8
+    policy_agents_pct: 1.0
+  cylinder_length9:
+    env: env/mettagrid/navigation/evals/cylinder_evals/cylinder_length9
+    policy_agents_pct: 1.0
+  cylinder_length10:
+    env: env/mettagrid/navigation/evals/cylinder_evals/cylinder_length10
+    policy_agents_pct: 1.0
+  cylinder_length11:
+    env: env/mettagrid/navigation/evals/cylinder_evals/cylinder_length11
+    policy_agents_pct: 1.0
+  cylinder_length12:
+    env: env/mettagrid/navigation/evals/cylinder_evals/cylinder_length12
+    policy_agents_pct: 1.0
+  cylinder_length13:
+    env: env/mettagrid/navigation/evals/cylinder_evals/cylinder_length13
+    policy_agents_pct: 1.0
+  cylinder_length14:
+    env: env/mettagrid/navigation/evals/cylinder_evals/cylinder_length14
+    policy_agents_pct: 1.0
+  cylinder_length15:
+    env: env/mettagrid/navigation/evals/cylinder_evals/cylinder_length15
+    policy_agents_pct: 1.0
+  cylinder_length16:
+    env: env/mettagrid/navigation/evals/cylinder_evals/cylinder_length16
+    policy_agents_pct: 1.0
+  cylinder_length17:
+    env: env/mettagrid/navigation/evals/cylinder_evals/cylinder_length17
+    policy_agents_pct: 1.0
+  cylinder_length18:
+    env: env/mettagrid/navigation/evals/cylinder_evals/cylinder_length18
+    policy_agents_pct: 1.0
+
+selector_type: top

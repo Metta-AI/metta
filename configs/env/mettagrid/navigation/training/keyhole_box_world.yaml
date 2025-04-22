@@ -1,0 +1,36 @@
+defaults:
+  - /env/mettagrid-base/mettagrid@
+  - _self_
+
+game:
+  num_agents: 20
+
+  map_builder:
+    _target_: mettagrid.config.room.multi_room.MultiRoom
+    num_rooms: 1
+    border_width: 6
+
+    room:
+      _target_: mettagrid.config.room.keyhole_box_world.KeyholeBoxWorld
+      width:  120
+      height: 120
+      border_width: 2
+
+      # optional size tuning
+      size_range: [10, 16]   # interior side lengths
+      pocket_range: [4, 6]   # L‑wall length sampled per box
+
+      agents: 20
+
+  objects:
+    altar:
+      cooldown: 255
+
+
+  actions:
+    attack:
+      enabled: false
+    swap:
+      enabled: false
+    change_color:
+      enabled: false

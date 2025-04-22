@@ -1,0 +1,71 @@
+defaults:
+  - /env/mettagrid-base/mettagrid@   # base env settings
+  - _self_
+
+game:
+  num_agents: 14      
+  max_steps: 450
+
+  map_builder:
+    _target_: mettagrid.config.room.multi_room.RoomList
+    rooms:
+      # ───────────────────────── cylinders ─────────────────────────
+      - _target_: mettagrid.config.room.ascii.Ascii
+        border_width: 1
+        uri: "configs/env/mettagrid/maps/navigation/cylinder_length5.map"
+
+      - _target_: mettagrid.config.room.ascii.Ascii
+        border_width: 1
+        uri: "configs/env/mettagrid/maps/navigation/cylinder_length6.map"
+
+      - _target_: mettagrid.config.room.ascii.Ascii
+        border_width: 1
+        uri: "configs/env/mettagrid/maps/navigation/cylinder_length7.map"
+
+      - _target_: mettagrid.config.room.ascii.Ascii
+        border_width: 1
+        uri: "configs/env/mettagrid/maps/navigation/cylinder_length8.map"
+
+      - _target_: mettagrid.config.room.ascii.Ascii
+        border_width: 1
+        uri: "configs/env/mettagrid/maps/navigation/cylinder_length9.map"
+
+      - _target_: mettagrid.config.room.ascii.Ascii
+        border_width: 1
+        uri: "configs/env/mettagrid/maps/navigation/cylinder_length10.map"
+
+      - _target_: mettagrid.config.room.ascii.Ascii
+        border_width: 1
+        uri: "configs/env/mettagrid/maps/navigation/cylinder_length11.map"
+
+      - _target_: mettagrid.config.room.ascii.Ascii
+        border_width: 1
+        uri: "configs/env/mettagrid/maps/navigation/cylinder_length12.map"
+
+      - _target_: mettagrid.config.room.ascii.Ascii
+        border_width: 1
+        uri: "configs/env/mettagrid/maps/navigation/cylinder_length13.map"
+
+      - _target_: mettagrid.config.room.ascii.Ascii
+        border_width: 1
+        uri: "configs/env/mettagrid/maps/navigation/cylinder_length14.map"
+
+      - _target_: mettagrid.config.room.ascii.Ascii
+        border_width: 1
+        uri: "configs/env/mettagrid/maps/navigation/cylinder_length15.map"
+
+      - _target_: mettagrid.config.room.ascii.Ascii
+        border_width: 1
+        uri: "configs/env/mettagrid/maps/navigation/cylinder_length16.map"
+
+      - _target_: mettagrid.config.room.ascii.Ascii
+        border_width: 1
+        uri: "configs/env/mettagrid/maps/navigation/cylinder_length17.map"
+
+      - _target_: mettagrid.config.room.ascii.Ascii
+        border_width: 1
+        uri: "configs/env/mettagrid/maps/navigation/cylinder_length18.map"
+
+  objects:
+    altar:          # keep long cooldown so hearts stay active
+      cooldown: 255
