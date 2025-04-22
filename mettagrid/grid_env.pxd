@@ -20,7 +20,7 @@ cdef class GridEnv:
         unsigned int _current_timestep
         unsigned int _max_timestep
 
-        list[ActionHandler] _action_handlers
+        vector[ActionHandler*] _action_handlers
         int _num_action_handlers
         vector[unsigned char] _max_action_args
         unsigned char _max_action_arg
@@ -55,7 +55,7 @@ cdef class GridEnv:
         vector[bint] _action_success
 
     cdef void add_agent(self, Agent* agent)
-
+    cdef void init_action_handlers(self, vector[ActionHandler*] action_handlers)
     cdef void _compute_observations(self, int[:,:] actions)
     cdef void _step(self, int[:,:] actions)
 
