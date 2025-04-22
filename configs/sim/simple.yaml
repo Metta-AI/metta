@@ -4,5 +4,4 @@ defaults:
 
 # This is a single simulation, not a suite.
 env: env/mettagrid-base/simple
-  policy_agents_pct: 0.5
-  npc_policy_uri: wandb://run/b.daveey.t.8.rdr9.3
+  policy_agents_pct: 1.0

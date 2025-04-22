@@ -1,8 +1,6 @@
 # @package __global__
 
 defaults:
-  - common
-  - wandb: metta_research
   # Full fledged evaluation is heavier than we want for Github Actions.
   - /sim/smoke_test@train_job.evals
 
