@@ -5,7 +5,7 @@ convert_to_single_discrete: true  # Add this flag to control action conversion b
 
 policy_selector:
   uri: null
-  type: top
+  type: latest
   range: 0
   metric: final.score
   generation: null
