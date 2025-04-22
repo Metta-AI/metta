@@ -28,17 +28,18 @@ env:
     num_agents: 20
     max_steps: 2000
 
+policy_uri: "wandb://run/jack.lattice.aws"
 analyzer:
   policy_uri: ${..policy_uri}
   view_type: latest
   analysis:
     metrics:
       - metric: episode_reward
-  output_path: s3://softmax-public/policydash/dashboard.html
-#  output_path: s3://softmax-public/users/jack/policydash/dashboard.html
+#  output_path: s3://softmax-public/policydash/dashboard.html
+  output_path: s3://softmax-public/users/jack/policydash/dashboard.html
 
 eval:
-#  env: /env/mettagrid/navigation/training/lattice_world
+  env: /env/mettagrid/navigation/evals/navigation
   num_episodes: 1
   num_envs: 1
   policy_uri: ${..policy_uri}
@@ -46,24 +47,7 @@ eval:
   eval_db_uri: wandb://artifacts/navigation_db
   max_time_s: 3
   policy_uris:
-    - "wandb://run/b.daphne.navigation_varied_obstacle_shapes_pretrained.r.1"
-    - "wandb://run/b.daphne.navigation_varied_obstacle_shapes.r.0"
-    - "wandb://run/navigation_poisson_sparser.r.2"
-    - "wandb://run/navigation_infinite_cooldown_sparser_pretrained.r.0"
-    - "wandb://run/navigation_infinite_cooldown_sparser.r.0"
-    - "wandb://run/navigation_poisson_sparser_pretrained.r.6"
-    - "wandb://run/b.daveey.t.64.dr90.1"
-  env_overrides:
-    game:
-      actions:
-        attack:
-          enabled: false
-        put_items:
-          enabled: false
-        swap:
-          enabled: false
-        change_color:
-          enabled: false
+    - "wandb://run/jack.lattice.aws"
 
 wandb:
   checkpoint_interval: 1
