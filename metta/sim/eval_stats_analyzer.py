@@ -66,7 +66,6 @@ class EvalStatsAnalyzer:
                     policy_fitness = self.policy_fitness(metric_result, metric)
                     policy_fitness_records.extend(policy_fitness)
                 result_dfs.append(metric_result)
-                self.log_result(metric_result, metric, filters)
 
         return result_dfs, policy_fitness_records
 
@@ -84,7 +83,7 @@ class EvalStatsAnalyzer:
                     policy_fitness_df,
                     headers=[self.candidate_policy_uri] + list(policy_fitness_df.keys()),
                     tablefmt="grid",
-                    maxcolwidths=25,
+                    # maxcolwidths=25,
                 )
                 self.logger.info(
                     f"Policy fitness results for candidate policy {self.candidate_policy_uri} "
@@ -133,30 +132,27 @@ class EvalStatsAnalyzer:
         baseline_policy_names = self.analysis.baseline_policies or all_policies
 
         # filter by inputted baseline policies if there are, otherwise use all policies as baselines
-        baseline_policies = list(
-            set([self.get_latest_policy(all_policies, b) for b in baseline_policy_names])
-        )
+        baseline_policies = list(set([self.get_latest_policy(all_policies, b) for b in baseline_policy_names]))
 
         metric_data = metric_data.set_index("policy_name")
-        eval_header, metric_mean, _ = metric_data.keys()
+        eval_header, npc_header, metric_mean, _ = metric_data.keys()
 
         evals = metric_data[eval_header].unique()
+        npcs = metric_data[npc_header]
 
         # use a list to index the metric_data to ensure we return a dataframe
         candidate_data: pd.DataFrame = metric_data.loc[[candidate_uri]].set_index(eval_header)
         baseline_data: pd.DataFrame = metric_data.loc[baseline_policies].set_index(eval_header)
 
-        for eval in evals:
+        for eval, npc in zip(evals, npcs, strict=False):
             if eval not in candidate_data.index:
                 self.logger.info(
-                    f"No data found for {eval} in candidate policy {candidate_uri}, "
-                    "cannot compute fitness"
+                    f"No data found for {eval} in candidate policy {candidate_uri}, cannot compute fitness"
                 )
                 continue
             if eval not in baseline_data.index:
                 self.logger.info(
-                    f"No data found for {eval} in baseline policies {baseline_policies}, "
-                    "cannot compute fitness"
+                    f"No data found for {eval} in baseline policies {baseline_policies}, cannot compute fitness"
                 )
                 continue
             candidate_mean = candidate_data.loc[eval][metric_mean]
@@ -171,6 +167,7 @@ class EvalStatsAnalyzer:
                     "candidate_mean": candidate_mean,
                     "baseline_mean": baseline_mean,
                     "fitness": fitness,
+                    "npc_policy_uri": npc,
                 }
             )
 
