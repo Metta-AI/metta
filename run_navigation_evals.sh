@@ -42,8 +42,9 @@ POLICIES=(
     "b.daphne.terrain_varied_cyl_lab"
     "b.daphne.terrain_multienv_altar_resets"
     "b.daphne.terrain_multienv_altar_resets_withgenerators"
-    "terrain_multienv_altar_resets"
+    "terrain_multienv_resets"
     "b.daphne.terrain_multienv_altar_no_resets"
+    "b.daphne.terrain_multienv_april18_sweep.r.7"
 
 )
 
