@@ -2,10 +2,8 @@
 
 # Define the list of policy URIs
 POLICIES=(
-  "b.daphne.terrain_multienv_lessactions"
-  "b.daphne.terrain_multienv_altar_resets_lessactions"
-  "b.daphne.terrain_multienv_altar_resets_withgenerators"
   "b.daphne.varied_terrain_lessactions"
+  "b.daphne.terrain_multienv_singleA_lessactions"
 )
 
 
