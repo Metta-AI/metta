@@ -5,7 +5,7 @@ env_overrides: {}
 
 initial_policy:
   uri: null #wandb://run/b.alex.can_simple_2.12 #wandb://run/alex.local.290 
-  type: top
+  type: latest
   range: 1
   metric: epoch
   filters: {}
