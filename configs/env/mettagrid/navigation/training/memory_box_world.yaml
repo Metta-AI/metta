@@ -3,11 +3,11 @@ defaults:
   - _self_
 
 game:
-  num_agents: 20
+  num_agents: 4
 
   map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom
-    num_rooms: 1
+    num_rooms: 4
     border_width: 6
 
     room:
@@ -20,7 +20,7 @@ game:
       size_range: [9, 14]      # interior side lengths
       corridor_range: [6, 10]  # corridor walls sampled per box
 
-      agents: 20
+      agents: 1
 
   objects:
     altar:
