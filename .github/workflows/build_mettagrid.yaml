@@ -101,7 +101,7 @@ jobs:
       - name: Run tests
         env:
           HYDRA_FULL_ERROR: 1
-          PYTHONPATH: ${{ github.workspace }}
+          PYTHONPATH: ${{ github.workspace }}/deps/mettagrid
         run: |
           source venv/bin/activate
           pytest tests
