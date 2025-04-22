@@ -12,3 +12,4 @@ envs:
   /env/mettagrid/navigation/training/giant_maze_world_varied: 0.30
   /env/mettagrid/navigation/training/cubicle_world: 0.15
   /env/mettagrid/navigation/training/empty_world: 0.1
+  

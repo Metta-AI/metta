@@ -13,3 +13,5 @@ envs:
   /env/mettagrid/navigation/training/hex_world: 0.05
   /env/mettagrid/navigation/training/giant_maze_world_varied: 0.15
   /env/mettagrid/navigation/training/cubicle_world: 0.05
+  /env/mettagrid/navigation/training/memory_box_world: 0.05
+
