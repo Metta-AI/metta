@@ -2,6 +2,7 @@ import hashlib
 import numpy as np
 import torch
 from torch import nn
+import math
 
 from tensordict import TensorDict
 
@@ -257,6 +258,90 @@ class Als_Bilinear_Rev2(LayerBase):
 
         B_TT = input_1.shape[0]
         action_logits = mlp_output.reshape(B_TT, -1)
+
+        td[self._name] = action_logits
+        return td
+
+class Als_Bilinear_Rev3(LayerBase):
+    """
+    Implements a bilinear interaction layer followed by an MLP.
+    This version uses torch.einsum for the bilinear calculation, aiming
+    for efficiency and clarity, avoiding both manual layer stacking (Rev1)
+    and the nn.Bilinear layer (Rev2). It replicates the input reshaping
+    logic from Rev2.
+    """
+    def __init__(self, mlp_hidden_dim=512, bilinear_output_dim=32, **cfg):
+        super().__init__(**cfg)
+        self.mlp_hidden_dim = mlp_hidden_dim
+        self.bilinear_output_dim = bilinear_output_dim
+
+    def _make_net(self):
+        self.hidden = self._in_tensor_shape[0][0] # input_1 dim (_core_)
+        self.embed_dim = self._in_tensor_shape[1][1] # input_2 dim (_action_embeds_)
+
+        # Bilinear parameters
+        self.W = nn.Parameter(torch.Tensor(self.bilinear_output_dim, self.hidden, self.embed_dim))
+        self.bias = nn.Parameter(torch.Tensor(self.bilinear_output_dim))
+        self._init_weights() # Initialize bilinear parameters
+
+        self._relu = nn.ReLU()
+
+        # MLP layers
+        self._MLP = nn.Sequential(
+            nn.Linear(self.bilinear_output_dim, self.mlp_hidden_dim),
+            nn.ReLU(),
+            nn.Linear(self.mlp_hidden_dim, 1),
+        )
+
+        # Initialize MLP layers
+        for layer in self._MLP:
+            if isinstance(layer, nn.Linear):
+                nn.init.kaiming_uniform_(layer.weight, a=math.sqrt(5))
+                if layer.bias is not None:
+                    fan_in, _ = nn.init._calculate_fan_in_and_fan_out(layer.weight)
+                    bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
+                    nn.init.uniform_(layer.bias, -bound, bound)
+
+        return nn.Identity() # Actual computation happens in _forward
+
+    def _init_weights(self):
+        # Initialize bilinear weights and bias using a method similar to nn.Linear
+        # This initialization is derived from the default initialization used
+        # in PyTorch's nn.Bilinear layer.
+        bound = 1 / math.sqrt(self.hidden) if self.hidden > 0 else 0
+        nn.init.uniform_(self.W, -bound, bound)
+        if self.bias is not None:
+             nn.init.uniform_(self.bias, -bound, bound)
+
+    def _forward(self, td: TensorDict):
+        input_1 = td[self._input_source[0]] # Shape: [B*TT, hidden]
+        input_2 = td[self._input_source[1]] # Shape: [B*TT, num_actions, embed_dim]
+
+        B_TT = input_1.shape[0]
+        num_actions = input_2.shape[1]
+
+        # Reshape inputs similar to Rev2 for bilinear calculation
+        # input_1: [B*TT, hidden] -> [B*TT * num_actions, hidden]
+        # input_2: [B*TT, num_actions, embed_dim] -> [B*TT * num_actions, embed_dim]
+        input_1_reshaped = input_1.unsqueeze(1).expand(-1, num_actions, -1).reshape(-1, self.hidden)
+        input_2_reshaped = input_2.reshape(-1, self.embed_dim)
+
+        # Perform bilinear operation using einsum
+        # einsum('n h, k h e, n e -> n k', ...) computes sum_{h,e} x1[n,h] * W[k,h,e] * x2[n,e] for each n, k
+        # N = B_TT * num_actions, K = bilinear_output_dim
+        scores = torch.einsum('n h, k h e, n e -> n k', input_1_reshaped, self.W, input_2_reshaped) # Shape: [N, K]
+
+        # Add bias
+        biased_scores = scores + self.bias.view(1, -1) # Shape: [N, K]
+
+        # Apply activation
+        activated_scores = self._relu(biased_scores) # Shape: [N, K]
+
+        # Pass through MLP
+        mlp_output = self._MLP(activated_scores) # Shape: [N, 1]
+
+        # Reshape MLP output back to sequence and action dimensions
+        action_logits = mlp_output.view(B_TT, num_actions) # Shape: [B*TT, num_actions]
 
         td[self._name] = action_logits
         return td
