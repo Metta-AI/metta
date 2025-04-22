@@ -10,13 +10,14 @@ __pycache__
 /build_debug/
 /build/
 /checkpoints/
+/deps/
+!/deps/mettagrid/
 /deps/mettagrid/dist
 /deps/mettagrid/player/dist
 /deps/mettagrid/player/node_modules
 /deps/mettagrid/multirun
 /wandb
 cython_debug
-deps
 outputs
 replays
 stats.profile
