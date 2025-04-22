@@ -225,7 +225,7 @@ class PufferTrainer:
         if run_id is None and self.wandb_run is not None:
             run_id = self.wandb_run.id
 
-        logger.info(f"Simulating policy: {self.last_pr.uri}")
+        logger.info(f"Simulating policy: {self.last_pr.uri} with config: {self.sim_suite_config}")
         sim = SimulationSuite(config=self.sim_suite_config, policy_pr=self.last_pr, policy_store=self.policy_store)
         stats = sim.simulate()
         logger.info("Simulation complete")

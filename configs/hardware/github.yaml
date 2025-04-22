@@ -28,5 +28,5 @@ trainer:
   # Don't actually try to upload the replay.
   replay_dry_run: true
 
-  # Full fledged evaluation is heavier than we want for Github Actions.
+  # Full fledged evaluation is heavier than we want for Github Actions
 train_job.evals: /sim/smoke_test
