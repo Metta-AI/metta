@@ -2,7 +2,8 @@
 
 defaults:
   # Full fledged evaluation is heavier than we want for Github Actions.
-  - override /sim@train_job.evals: smoke_test
+  - override /sim/all@train_job.evals: smoke_test
+  - _self_
 
 
 run: github_test
