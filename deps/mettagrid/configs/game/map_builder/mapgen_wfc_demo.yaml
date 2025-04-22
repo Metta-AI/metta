@@ -1,0 +1,50 @@
+_target_: mettagrid.map.mapgen.MapGen
+
+width: 200
+height: 100
+
+root:
+  _target_: mettagrid.map.scenes.room_grid.RoomGrid
+  rows: 2
+  columns: 4
+
+  children:
+    - limit: 1
+      lock: lock1
+      order_by: first
+      scene: /scenes/wfc/blocks
+
+    - limit: 1
+      lock: lock1
+      order_by: first
+      scene: /scenes/wfc/dungeons
+
+    - limit: 1
+      lock: lock1
+      order_by: first
+      scene: /scenes/wfc/simple
+
+    - limit: 1
+      lock: lock1
+      order_by: first
+      scene: /scenes/wfc/blob
+
+    - limit: 1
+      lock: lock1
+      order_by: first
+      scene: /scenes/wfc/blob2
+
+    - limit: 1
+      lock: lock1
+      order_by: first
+      scene: /scenes/wfc/blob3
+
+    - limit: 1
+      lock: lock1
+      order_by: first
+      scene: /scenes/wfc/mazelike1
+
+    - limit: 1
+      lock: lock1
+      order_by: first
+      scene: /scenes/wfc/mazelike2
