@@ -43,10 +43,12 @@ POLICIES=(
     # "b.daphne.terrain_multienv_altar_resets"
     # "b.daphne.terrain_multienv_altar_resets_withgenerators"
     # "terrain_multienv_resets"
-    # "b.daphne.terrain_multienv_altar_no_resets"
-    # "b.daphne.terrain_multienv_april18_sweep.r.7"
+    "b.daphne.terrain_multienv_3_singleagent"
+    "b.daphne.terrain_multienv_april18_sweep.r.7"
     "b.daphne.terrain_multienv_altar_no_resets"
-
+    "b.daphne.terrain_multienv_singleA_kitchensink"
+    "b.daphne.terrain_multienv_singleA_altar_resets"
+    "b.daphne.terrain_multienv_singleA_withgenerators"
 
 )
 
