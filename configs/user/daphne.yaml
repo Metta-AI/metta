@@ -32,8 +32,6 @@ analyzer:
   output_path: navigation_results/navigation.html
 
 eval:
-<<<<<<< HEAD
-<<<<<<< HEAD
   env: /env/mettagrid/navigation/evals/navigation
   env_overrides:
     game:
@@ -46,17 +44,6 @@ eval:
           enabled: false
         change_color:
           enabled: false
-  env: /env/mettagrid/navigation/training/varied_terrain
-
-  policy_uri: ${..policy_uri}
-  # npc_policy_uri: ${..npc_policy_uri}
-  eval_db_uri: ${..eval_db_uri} #file://daphne/sweep_stats
-  policy_uris:
-    - "wandb://run/b.daphne.varied_terrain_lessactions:v42"
-    - "wandb://run/b.daphne.varied_terrain_lessactions_big"
-    - "wandb://run/b.daphne.terrain_multienv_lessactions"
-    - "wandb://run/b.daphne.terrain_multienv_lessactions_big"
-    - "wandb://run/terrain_multienv_less_actions"
 
 
 wandb:

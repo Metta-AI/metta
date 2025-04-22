@@ -1,6 +1,6 @@
 _target_: mettagrid.mettagrid_env.MettaGridEnvSet
 
-num_agents: 20
+num_agents: 4
 
 game:
   num_agents: ${..num_agents}
@@ -8,10 +8,8 @@ game:
 envs:
   - /env/mettagrid/navigation/training/terrain_from_numpy_resets
   - /env/mettagrid/navigation/training/varied_terrain_resets
-  - /env/mettagrid/navigation/training/cylinder_world
 
 
 probabilities:
-  - 0.4
   - 0.5
-  - 0.1
+  - 0.5

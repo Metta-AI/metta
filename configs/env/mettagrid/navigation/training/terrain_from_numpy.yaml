@@ -2,7 +2,7 @@ defaults:
   - /env/mettagrid-base/mettagrid@
 
 game:
-  num_agents: 20  #how many agents are in the map x2
+  num_agents: 4  #how many agents are in the map x2
 
   map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom
@@ -13,7 +13,7 @@ game:
       _target_: mettagrid.config.room.terrain_from_numpy.TerrainFromNumpy
       border_width: 1
       dir: "terrain_maps_nohearts"
-      num_agents: 5
+      num_agents: 1
   objects:
     altar:
       cooldown: 1000
