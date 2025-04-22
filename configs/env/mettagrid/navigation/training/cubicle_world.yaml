@@ -1,0 +1,23 @@
+defaults:
+  - /env/mettagrid-base/mettagrid@
+  - _self_
+
+game:
+  num_agents: 20
+
+  map_builder:
+    _target_: mettagrid.config.room.cubicle_world.CubicleWorld
+
+    # Overall environment size sampled each episode
+    width_range:  [60, 160]
+    height_range: [60, 160]
+
+    # Gap (cubicle interior) size between walls
+    gap_range: [4, 14]
+
+    altars_count: 50
+    agents: 20
+
+  objects:
+    altar:
+      cooldown: 100
