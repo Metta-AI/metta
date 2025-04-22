@@ -33,20 +33,6 @@ echo "Stashing pufferlib into $(pwd)"
 git stash
 cd ..
 
-if [ ! -d "mettagrid" ]; then
-  echo "Cloning mettagrid into $(pwd)"
-  git clone https://github.com/Metta-AI/mettagrid.git
-fi
-cd mettagrid
-echo "Fetching mettagrid into $(pwd)"
-git fetch
-
-# Check out the specified reference
-if [ -n "$METTAGRID_REF" ]; then
-  echo "Checking out mettagrid reference: $METTAGRID_REF"
-  git checkout "$METTAGRID_REF"
-fi
-
 echo "Installing mettagrid into $(pwd)"
 pip install -r requirements.txt
 echo "Building mettagrid into $(pwd)"
