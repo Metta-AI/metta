@@ -3,21 +3,26 @@ defaults:
   - _self_
 
 game:
-  num_agents: 20
+  num_agents: 4
 
   map_builder:
-    _target_: mettagrid.config.room.square_world.SquareWorld
+    _target_: mettagrid.config.room.multi_room.MultiRoom
+    num_rooms: 4
+    border_width: 6
 
-    # Overall arena size (sampled each episode)
-    width_range:  [60, 160]
-    height_range: [60, 160]
+    room:
+      _target_: mettagrid.config.room.square_world.SquareWorld
 
-    # Homogeneous square size and corridor width
-    square_size_range: [3, 7]
-    gap_range:         [3, 8]
+      # Overall arena size (sampled each episode)
+      width_range:  [60, 160]
+      height_range: [60, 160]
 
-    altars_count: 50
-    agents: 20
+      # Homogeneous square size and corridor width
+      square_size_range: [3, 7]
+      gap_range:         [3, 8]
+
+      altars_count: 50
+      agents: 1
 
   objects:
     altar:

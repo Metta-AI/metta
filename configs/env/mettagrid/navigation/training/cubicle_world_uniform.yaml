@@ -3,20 +3,25 @@ defaults:
   - _self_
 
 game:
-  num_agents: 20
+  num_agents: 4
 
   map_builder:
-    _target_: mettagrid.config.room.cubicle_world_uniform.CubicleUniformWorld
+    _target_: mettagrid.config.room.multi_room.MultiRoom
+    num_rooms: 4
+    border_width: 6
 
-    # Arena dimensions sampled each episode
-    width_range:  [120, 320]
-    height_range: [120, 320]
+    room:
+      _target_: mettagrid.config.room.cubicle_world_uniform.CubicleUniformWorld
 
-    # Cubicle interior dimensions (gap between walls)
-    gap_range: [4, 14]
+      # Arena dimensions sampled each episode
+      width_range:  [120, 320]
+      height_range: [120, 320]
 
-    altars_count: 50
-    agents: 20
+      # Cubicle interior dimensions (gap between walls)
+      gap_range: [4, 14]
+
+      altars_count: 50
+      agents: 1
 
   objects:
     altar:
