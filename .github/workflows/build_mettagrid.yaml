@@ -19,12 +19,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Download ruff.toml from Metta-AI/metta repository
       - name: Fetch latest ruff.toml
         run: |
-          curl -s https://raw.githubusercontent.com/Metta-AI/metta/main/ruff.toml -o ruff.toml
-          echo "Downloaded ruff.toml from Metta-AI/metta repository"
-          cat ruff.toml
+          cp ../../ruff.toml .
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -38,8 +35,8 @@ jobs:
         with:
           path: |
             ~/.cache/pip
-            venv
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt', '**/setup.py') }}
+            deps/mettagrid/venv
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt', '**/setup.py') }}-mettagrid
           restore-keys: |
             ${{ runner.os }}-pip-
 
@@ -57,7 +54,7 @@ jobs:
         uses: actions/cache@v4
         id: cache-pufferlib
         with:
-          path: ../pufferlib
+          path: deps/pufferlib
           key: ${{ runner.os }}-pufferlib-metta-${{ hashFiles('.github/workflows/python-tests.yml') }}
 
       # Install PufferLib (only if cache miss)
