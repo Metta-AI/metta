@@ -4,7 +4,7 @@ env: /env/mettagrid-base/simple
 env_overrides: {}
 
 initial_policy:
-  uri: wandb://run/b.alex.can_simple_2.12 #wandb://run/alex.local.290 
+  uri: null #wandb://run/b.alex.can_simple_2.12 #wandb://run/alex.local.290 
   type: latest
   range: 1
   metric: epoch
