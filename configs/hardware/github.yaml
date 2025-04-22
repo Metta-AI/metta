@@ -1,7 +1,7 @@
 # @package __global__
 
 defaults:
-  - override /sim@train_job.evals: smoke_test
+  - override /sim/all@train_job.evals: smoke_test   # ← include “all”
   - _self_
 
 
