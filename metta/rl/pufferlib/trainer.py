@@ -23,7 +23,7 @@ from metta.rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.pufferlib.torch_profiler import TorchProfiler
 from metta.sim.eval_stats_db import EvalStatsDB
 from metta.sim.eval_stats_logger import EvalStatsLogger
-from metta.sim.replay_helper import ReplayHelper
+from metta.sim.replay_helper import ReplayHelper    
 from metta.sim.vecenv import make_vecenv
 from metta.util.config import config_from_path
 
@@ -174,7 +174,9 @@ class PufferTrainer:
                     self._evaluate()
                     self._train()
             else: # Run normally if profiler is not active for this epoch
+                print(f"Evaluate {self.epoch}") # delete after testing
                 self._evaluate()
+                print(f"Train {self.epoch}") # delete after testing
                 self._train()
 
             # Processing stats
@@ -187,12 +189,15 @@ class PufferTrainer:
 
             # Checkpointing trainer
             if self.epoch % self.trainer_cfg.checkpoint_interval == 0:
+                print(f"Checkpoint {self.epoch}") # delete after testing
                 self._checkpoint_trainer()
             if self.trainer_cfg.evaluate_interval != 0 and self.epoch % self.trainer_cfg.evaluate_interval == 0:
+                print(f"Evaluate {self.epoch}") # delete after testing
                 self._evaluate_policy()
             if self.cfg.agent.effective_rank_interval != 0 and self.epoch % self.cfg.agent.effective_rank_interval == 0:
                 self._effective_rank = self.policy.compute_effective_rank()
             if self.epoch % self.trainer_cfg.wandb_checkpoint_interval == 0:
+                print(f"Wandb checkpoint {self.epoch}") # delete after testing
                 self._save_policy_to_wandb()
             if (
                 self.cfg.agent.l2_init_weight_update_interval != 0
@@ -200,6 +205,7 @@ class PufferTrainer:
             ):
                 self._update_l2_init_weight_copy()
             if self.trainer_cfg.replay_interval != 0 and self.epoch % self.trainer_cfg.replay_interval == 0:
+                print(f"Replay {self.epoch}") # delete after testing
                 self._generate_and_upload_replay()
 
             # --- Profiler Setup (inside loop for subsequent epochs) ---
@@ -267,7 +273,9 @@ class PufferTrainer:
 
         while not experience.full:
             with profile.env:
+                print(f"Requesting Env {self.epoch}") # delete after testing
                 o, r, d, t, info, env_id, mask = self.vecenv.recv()
+                print(f"Received Env {self.epoch}") # delete after testing
 
                 # Zero-copy indexing for contiguous env_id
 

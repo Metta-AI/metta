@@ -246,32 +246,7 @@ class MettaAgent(nn.Module):
         """Convert logit indices back to action pairs using tensor indexing"""
         if td.get("_TT_", 0) == 1:  # means we are in rollout, not training
             # Use direct tensor indexing on precomputed action_index_tensor
-            return self.action_index_tensor[action_logit_index.reshape(-1)]
-        
-    # def sample_logits_2(logits: Union[torch.Tensor, List[torch.Tensor]],
-    #     action=None):
-
-    #     normalized_logits = [logits - logits.logsumexp(dim=-1, keepdim=True)]
-    #     logits = [logits]
-    #     is_discrete = True
-        
-    #     if action is None:
-    #         action = torch.stack([torch.multinomial(logits_to_probs(l), 1).squeeze() for l in logits])
-    #     else:
-    #         logits_multi_discrete = self.action_index_tensor[logits.reshape(-1)]
-
-    #         batch = logits[0].shape[0]
-    #         action = action.view(batch, -1).T
-
-    #     assert len(logits) == len(action)
-    #     logprob = torch.stack([log_prob(l, a) for l, a in zip(normalized_logits, action)]).T.sum(1)
-    #     logits_entropy = torch.stack([entropy(l) for l in normalized_logits]).T.sum(1)
-
-    #     if is_discrete:
-    #         return action.squeeze(0), logprob.squeeze(0), logits_entropy.squeeze(0), normalized_logits
-
-    #     return action.T, logprob, logits_entropy, normalized_logits
-        
+            return self.action_index_tensor[action_logit_index.reshape(-1)]        
 
     def forward(self, x, state=None, action=None, e3b=None):
         return self.get_action_and_value(x, state, action, e3b)
