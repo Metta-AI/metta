@@ -190,6 +190,7 @@ class SimulationSuite:
         self._evals_cfgs = evals
         self._evals = []
         for _eval_name, eval_cfg in evals.items():
+            logger.info(f"Simulating {_eval_name}")
             eval_cfg = OmegaConf.merge(kwargs, eval_cfg)
             eval = Simulation(
                 policy_store, policy_pr, run_id, env_overrides=env_overrides, eval_name=_eval_name, **eval_cfg
