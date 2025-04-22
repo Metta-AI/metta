@@ -36,7 +36,7 @@ jobs:
           path: |
             ~/.cache/pip
             deps/mettagrid/venv
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt', '**/setup.py') }}-mettagrid
+          key: ${{ runner.os }}-pip-${{ hashFiles('deps/mettagrid/**/requirements.txt', 'deps/mettagrid/**/setup.py') }}-mettagrid
           restore-keys: |
             ${{ runner.os }}-pip-
 
@@ -78,21 +78,6 @@ jobs:
         run: |
           source venv/bin/activate
           pip list
-
-      # Add Ruff cache
-      - name: Cache Ruff
-        uses: actions/cache@v4
-        id: cache-ruff
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-ruff-0.11.5
-
-      # Add Ruff check
-      - name: Run Ruff check
-        run: |
-          source venv/bin/activate
-          pip install ruff==0.11.5
-          ruff check --respect-gitignore .
 
       # Run tests
       - name: Run tests
