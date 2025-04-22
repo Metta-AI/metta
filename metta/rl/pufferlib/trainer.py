@@ -277,6 +277,7 @@ class PufferTrainer:
                 print(f"Requesting Env at epoch {self.epoch} and iter {iters}") # delete after testing
                 o, r, d, t, info, env_id, mask = self.vecenv.recv()
                 print(f"Received Env at epoch {self.epoch} and iter {iters}") # delete after testing
+                iters += 1
 
                 # Zero-copy indexing for contiguous env_id
 
@@ -310,7 +311,7 @@ class PufferTrainer:
                 # TODO: In place-update should be faster. Leaking 7% speed max
                 # Also should be using a cuda tensor to index
                 e3b = e3b_inv[gpu_env_id] if self.use_e3b else None
-
+                print(f"forward pass at epoch {self.epoch} and iter {iters}") # delete after testing
                 h = lstm_h[:, gpu_env_id]
                 c = lstm_c[:, gpu_env_id]
                 actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward, _ = policy(o_device, (h, c), e3b=e3b)
