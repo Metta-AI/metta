@@ -45,7 +45,7 @@ analyzer:
   output_path: navigation_results/navigation.html
 
 eval:
-  env: /env/mettagrid/navigation/training/multienv
+  env: /env/mettagrid/navigation/training/memory_box_world
 
   policy_uri: ${..policy_uri}
   # npc_policy_uri: ${..npc_policy_uri}
