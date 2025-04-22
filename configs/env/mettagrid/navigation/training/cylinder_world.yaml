@@ -6,10 +6,10 @@ defaults:
 sampling: 20
 
 game:
-  num_agents: 20
+  num_agents: 4
   map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom
-    num_rooms: 2
+    num_rooms: 4
     border_width: 6
 
     room:
@@ -17,7 +17,7 @@ game:
       width:  ${sampling:50,100,60}
       height: ${sampling:50,100,60}
       border_width: ${sampling:1,6,3}
-      agents: 10
+      agents: 1
 
   objects:
     altar:

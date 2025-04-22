@@ -25,7 +25,7 @@ trainer:
 # policy_uri: wandb://run/b.daveey.sm.train.er.new.0
 # policy_uri: wandb://run/daveey.ar.cards.1
 # policy_uri: wandb://run/b.daveey.t.32.instant
-policy_uri:  wandb://run/b.georgedeane.terrain_multienv
+policy_uri:  wandb://run/b.daphne.terrain_multienv_altar_resets_withgenerators
 
 # policy_uri: wandb://run/b.daphne.terrain_multienv_lessactions:v40
 # policy_uri: wandb://run/b.georgedeane.navigation_terrain_training_v2
@@ -33,7 +33,7 @@ policy_uri:  wandb://run/b.georgedeane.terrain_multienv
 # eval_db_uri: wandb://artifacts/testing
 #eval_db_uri: wandb://artifacts/navigation_db
 
-eval_db_uri: wandb://artifacts/navigation_db
+# eval_db_uri: wandb://artifacts/navigation_db
 
 analyzer:
   eval_stats_uri: ${run_dir}/eval_stats
@@ -45,7 +45,7 @@ analyzer:
   output_path: navigation_results/navigation.html
 
 eval:
-  env: /env/mettagrid/navigation/training/varied_terrain
+  env: /env/mettagrid/navigation/training/multienv
 
   policy_uri: ${..policy_uri}
   # npc_policy_uri: ${..npc_policy_uri}
