@@ -16,6 +16,13 @@ logger = logging.getLogger(__name__)
 
 
 class Simulation:
+    """
+    A simulation is any process of steping through a Mettagrid environment.
+    Simulations configure things likes how the policies are mapped to the a
+    agents, as well as which environments to run in.
+
+    Simulations are used by training, evaluation and (eventually) play+replay.
+    """
     def __init__(
         self,
         config: SimulationConfig,
