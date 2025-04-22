@@ -1,0 +1,32 @@
+defaults:
+  - /env/mettagrid-base/mettagrid@
+  - _self_
+
+game:
+  num_agents: 20
+  max_steps: 250
+
+  agent:
+    rewards:
+      heart: 0.333
+
+  map_builder:
+    _target_: mettagrid.config.room.multi_room.MultiRoom
+    num_rooms: 20
+    border_width: ${sampling:3,5,4}
+
+    room:
+      _target_: mettagrid.config.room.mean_distance.MeanDistance
+      width: ${sampling:60,100,80}
+      height: ${room.width}
+      mean_distance: ${sampling:60,90,75}
+      border_width: ${sampling:3,5,4}
+
+      agents: 1
+
+      objects:
+        altar: ${sampling:5,10,7}
+
+  objects:
+    altar:
+      cooldown: 255
