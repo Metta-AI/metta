@@ -13,7 +13,7 @@ game:
     height_range: [60, 130]
 
     # How many altars to scatter each episode
-    altars_count_range: [14, 40]
+    altars_count_range: [10, 20]
 
     agents: 20  # passed through to builder
 

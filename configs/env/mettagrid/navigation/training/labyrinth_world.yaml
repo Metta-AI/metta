@@ -12,8 +12,8 @@ game:
 
     room:
       _target_: mettagrid.config.room.labyrinth_world.LabyrinthWorld
-      width:  120        # overall map size – adjust if desired
-      height: 120
+      width:  [50, 120]
+      height: [50, 120]
       border_width: 2    # inner wall thickness
       agents: 20         # agents handled globally; value unused here
 
