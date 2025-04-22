@@ -64,6 +64,9 @@ class PolicyStore:
 
     def policy(self, policy: Union[str, OmegaConf], selector_type: str = "top", n=1, metric="score") -> PolicyRecord:
         if not isinstance(policy, str):
+            # Use the type field from the policy config if it exists
+            if hasattr(policy, "type") and policy.type is not None:
+                selector_type = policy.type
             policy = policy.uri
         prs = self._policy_records(policy, selector_type, n, metric)
         assert len(prs) == 1, f"Expected 1 policy, got {len(prs)}"
@@ -73,6 +76,8 @@ class PolicyStore:
         self, policy: Union[str, OmegaConf], selector_type: str = "top", n=1, metric="score"
     ) -> List[PolicyRecord]:
         if not isinstance(policy, str):
+            if hasattr(policy, "type") and policy.type is not None:
+                selector_type = policy.type
             policy = policy.uri
         return self._policy_records(policy, selector_type, n, metric)
 
