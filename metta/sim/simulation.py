@@ -23,12 +23,8 @@ class Simulation:
 
     Simulations are used by training, evaluation and (eventually) play+replay.
     """
-    def __init__(
-        self,
-        config: SimulationConfig,
-        policy_pr: PolicyRecord,
-        policy_store: PolicyStore,
-        name: str = "")
+
+    def __init__(self, config: SimulationConfig, policy_pr: PolicyRecord, policy_store: PolicyStore, name: str = ""):
         # TODO: Replace with typed EnvConfig
         self._env_cfg = config_from_path(config.env, config.env_overrides)
         self._env_name = config.env
@@ -45,7 +41,6 @@ class Simulation:
 
         # load candidate policy
         self._policy_pr = policy_pr
-        self._run_id = run_id
         self._name = name
         # load npc policy
         self._npc_pr = None
@@ -90,7 +85,8 @@ class Simulation:
 
     def simulate(self):
         logger.debug(
-            f"Simulation {self._name} policy: {self._policy_pr.name} in {self._env_name} with {self._policy_agents_per_env} agents"
+            f"Simulation {self._name} policy: {self._policy_pr.name} "
+            + f"in {self._env_name} with {self._policy_agents_per_env} agents"
         )
         if self._npc_pr is not None:
             logger.debug(f"Against npc policy: {self._npc_pr.name} with {self._npc_agents_per_env} agents")
@@ -145,8 +141,7 @@ class Simulation:
             # Convert the environment configuration to a dictionary and flatten it.
             game_cfg = OmegaConf.to_container(self._env_cfg.game, resolve=False)
             flattened_env = flatten_config(game_cfg, parent_key="game")
-            flattened_env["run_id"] = self._run_id
-            flattened_env["eval_name"] = self.name
+            flattened_env["eval_name"] = self._name
             flattened_env["timestamp"] = datetime.now().isoformat()
             flattened_env["npc"] = self._npc_policy_uri
 

@@ -78,7 +78,7 @@ class PolicyStore:
 
     def _policy_records(self, uri, selector_type="top", n=1, metric="score"):
         if selector_type == "top":
-            logger.warning(f"Top policy selection is not currently supported. Contact jack for questions.")
+            logger.warning("Top policy selection is not currently supported. Contact jack for questions.")
             selector_type = "latest"
         version = None
         if uri.startswith("wandb://"):
