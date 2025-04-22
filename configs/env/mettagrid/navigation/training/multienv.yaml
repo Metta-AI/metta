@@ -1,6 +1,6 @@
 _target_: mettagrid.mettagrid_env.MettaGridEnvSet
 
-num_agents: 20
+num_agents: 10
 
 game:
   num_agents: ${..num_agents}
