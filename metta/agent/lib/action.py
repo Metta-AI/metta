@@ -96,41 +96,41 @@ class Als_Bilinear_Rev1(LayerBase):
         self.hidden = self._in_tensor_shape[0][0]
         self.embed_dim = self._in_tensor_shape[1][1]
 
-        # Initialize learnable parameters
-        self._W1 = nn.Linear(self.hidden, self.embed_dim)
-        self._W2 = nn.Linear(self.hidden, self.embed_dim)
-        self._W3 = nn.Linear(self.hidden, self.embed_dim)
-        self._W4 = nn.Linear(self.hidden, self.embed_dim)
-        self._W5 = nn.Linear(self.hidden, self.embed_dim)
-        self._W6 = nn.Linear(self.hidden, self.embed_dim)
-        self._W7 = nn.Linear(self.hidden, self.embed_dim)
-        self._W8 = nn.Linear(self.hidden, self.embed_dim)
-        self._W9 = nn.Linear(self.hidden, self.embed_dim)
-        self._W10 = nn.Linear(self.hidden, self.embed_dim)
-        self._W11 = nn.Linear(self.hidden, self.embed_dim)
-        self._W12 = nn.Linear(self.hidden, self.embed_dim)
-        self._W13 = nn.Linear(self.hidden, self.embed_dim)
-        self._W14 = nn.Linear(self.hidden, self.embed_dim)
-        self._W15 = nn.Linear(self.hidden, self.embed_dim)
-        self._W16 = nn.Linear(self.hidden, self.embed_dim)
-        self._W17 = nn.Linear(self.hidden, self.embed_dim)
-        self._W18 = nn.Linear(self.hidden, self.embed_dim)
-        self._W19 = nn.Linear(self.hidden, self.embed_dim)
-        self._W20 = nn.Linear(self.hidden, self.embed_dim)
-        self._W21 = nn.Linear(self.hidden, self.embed_dim)
-        self._W22 = nn.Linear(self.hidden, self.embed_dim)
-        self._W23 = nn.Linear(self.hidden, self.embed_dim)
-        self._W24 = nn.Linear(self.hidden, self.embed_dim)
-        self._W25 = nn.Linear(self.hidden, self.embed_dim)
-        self._W26 = nn.Linear(self.hidden, self.embed_dim)
-        self._W27 = nn.Linear(self.hidden, self.embed_dim)
-        self._W28 = nn.Linear(self.hidden, self.embed_dim)
-        self._W29 = nn.Linear(self.hidden, self.embed_dim)
-        self._W30 = nn.Linear(self.hidden, self.embed_dim)
-        self._W31 = nn.Linear(self.hidden, self.embed_dim)
-        self._W32 = nn.Linear(self.hidden, self.embed_dim)
-        
-        
+        # Initialize learnable parameters without bias for the linear layers
+        self._W1 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+        self._W2 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+        self._W3 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+        self._W4 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+        self._W5 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+        self._W6 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+        self._W7 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+        self._W8 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+        self._W9 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+        self._W10 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+        self._W11 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+        self._W12 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+        self._W13 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+        self._W14 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+        self._W15 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+        self._W16 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+        self._W17 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+        self._W18 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+        self._W19 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+        self._W20 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+        self._W21 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+        self._W22 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+        self._W23 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+        self._W24 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+        self._W25 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+        self._W26 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+        self._W27 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+        self._W28 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+        self._W29 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+        self._W30 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+        self._W31 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+        self._W32 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+
+
         # consider initializing with something finite if we get nets that can't get off the ground
         self._bias = nn.Parameter(torch.zeros(32))
 
@@ -196,18 +196,19 @@ class Als_Bilinear_Rev1(LayerBase):
         # scores_bmm: [B_TT, 8, num_actions]
         scores_bmm = torch.bmm(Q, input_2.transpose(1, 2))
 
-        # Permute and reshape to [B_TT * num_actions, 8]
-        # Permute: [B_TT, num_actions, 8]
-        # Reshape: [B_TT * num_actions, 8]
-        scores_reshaped = self._relu(scores_bmm.permute(0, 2, 1).reshape(-1, 32))
+        # Permute and reshape to [B_TT * num_actions, 32]
+        # Permute: [B_TT, num_actions, 32]
+        # Reshape: [B_TT * num_actions, 32]
+        scores_reshaped = scores_bmm.permute(0, 2, 1).reshape(-1, 32)
 
         # Add bias
         biased_scores = scores_reshaped + self._bias # Shape: [B_TT * num_actions, 32]
 
-        # should biased_scores go through a ReLU?
+        # Apply ReLU after bias
+        activated_scores = self._relu(biased_scores)
 
         # pass scores through MLP
-        mlp_output = self._MLP(biased_scores) # Shape: [B_TT * num_actions, 1]
+        mlp_output = self._MLP(activated_scores) # Shape: [B_TT * num_actions, 1]
 
         # B = td["_batch_size_"]
         # TT = td["_TT_"] # Not needed if we reshape directly to B

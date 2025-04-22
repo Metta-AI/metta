@@ -77,6 +77,7 @@ class PolicyStore:
         return self._policy_records(policy, selector_type, n, metric)
 
     def _policy_records(self, uri, selector_type="top", n=1, metric="score"):
+        print(f"selector_type: {selector_type}") #delete after testing
         version = None
         if uri.startswith("wandb://"):
             wandb_uri = uri[len("wandb://") :]
