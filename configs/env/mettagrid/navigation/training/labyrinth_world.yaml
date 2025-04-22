@@ -7,7 +7,7 @@ game:
 
   map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom
-    num_rooms: 4         # a single big room that the builder fills
+    num_rooms: 1         # a single big room that the builder fills
     border_width: 6
 
     room:
@@ -15,7 +15,7 @@ game:
       width:  [50, 120]
       height: [50, 120]
       border_width: 2    # inner wall thickness
-      agents: 1         # agents handled globally; value unused here
+      agents: 4         # agents handled globally; value unused here
 
   objects:
     altar:
