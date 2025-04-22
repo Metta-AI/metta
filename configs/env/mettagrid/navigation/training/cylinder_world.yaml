@@ -22,6 +22,7 @@ game:
   objects:
     altar:
       cooldown: 255
+<<<<<<< HEAD:configs/env/mettagrid/navigation/training/cylinder_world.yaml
 
   actions:
     noop:
@@ -40,3 +41,5 @@ game:
       enabled: false
     change_color:
       enabled: false
+=======
+>>>>>>> bacc28198537078ac65623b5f06796db052b2349:configs/env/mettagrid/navigation/training/style_terrain_generator.yaml
