@@ -3,7 +3,7 @@ defaults:
   - _self_
 
 game:
-  num_agents: 20         # total across the whole map
+  num_agents: 4         # total across the whole map
 
   map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom
@@ -12,10 +12,10 @@ game:
 
     room:
       _target_: mettagrid.config.room.labyrinth_world.LabyrinthWorld
-      width:  120        # overall map size – adjust if desired
-      height: 120
+      width:  [50, 120]
+      height: [50, 120]
       border_width: 2    # inner wall thickness
-      agents: 20         # agents handled globally; value unused here
+      agents: 4         # agents handled globally; value unused here
 
   objects:
     altar:

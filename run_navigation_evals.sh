@@ -16,7 +16,7 @@ POLICIES=(
     # "b.georgedeane.navigation_terrain_training_v2"
     # "terrain_training_multienv2"
     # "b.daphne.cylinder_run"
-    # "b.georgedeane.terrain_multienv"
+    "b.georgedeane.terrain_multienv"
     # "terrain_training_mapfromfile"
     # "b.daphne.terrain_multienv_muon"
     # "terrain_training_multienv_muon"
@@ -33,15 +33,15 @@ POLICIES=(
     # "terrain_multienv_with_labyrinth2"
     # "b.daphne.varied_terrain_sweep.r.2"
     # "b.daphne.varied_terrain_sweep.r.1"
-    # "b.daphne.terrain_varied_cyl_lab_pretrained"
+    "b.daphne.terrain_varied_cyl_lab_pretrained"
     # "b.daphne.terrain_varied_cyl_lab"
     # "b.georgedeane.terrain_multienv_pretrained_varied"
     # "terrain_multienv_with_labyrinth"
     # "b.daphne.terrain_multienv_april18_sweep.r.6"
-    # "b.georgedeane.terrain_multienv_labyrinth_pretrained_DR"
-    # "b.daphne.terrain_varied_cyl_lab"
+    "b.georgedeane.terrain_multienv_labyrinth_pretrained_DR"
+    "b.daphne.terrain_varied_cyl_lab"
     # "b.daphne.terrain_multienv_altar_resets"
-    # "b.daphne.terrain_multienv_altar_resets_withgenerators"
+    "b.daphne.terrain_multienv_altar_resets_withgenerators"
     # "terrain_multienv_resets"
     "b.daphne.terrain_multienv_3_singleagent"
     "b.daphne.terrain_multienv_april18_sweep.r.7"
@@ -49,7 +49,15 @@ POLICIES=(
     "b.daphne.terrain_multienv_singleA_kitchensink"
     "b.daphne.terrain_multienv_singleA_altar_resets"
     "b.daphne.terrain_multienv_singleA_withgenerators"
-
+    "b.georgedeane.terrain_multienv_unsable_pretrained_mb"
+    "b.georgedeane.terrain_multienv_uniform"
+    "b.daphne.terrain_multienv_prioritized_georges_maps"
+    "b.georgdeane.terrain_multienv_stable_pretrained"
+    "b.georgedeane.terrain_multienv_uniform_pretrained"
+    "b.georgedeane.terrain_multienv_fromscratch"
+    "b.daphne.terrain_multienv_prioritized_singleA_50hearts"
+    "b.daphne.terrain_multienv_singleA_50hearts_with_cylinders"
+    "b.daphne.terrain_multienv_singleA_50hearts"
 )
 
 
@@ -63,6 +71,6 @@ for i in "${!POLICIES[@]}"; do
         eval=navigation \
         run=navigation$IDX \
         eval.policy_uri=wandb://run/$POLICY_URI \
-        eval_db_uri=wandb://artifacts/navigation_db \
+        eval_db_uri=wandb://artifacts/navigation_db2 \
         # device=cpu
 done
