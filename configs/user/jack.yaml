@@ -41,9 +41,6 @@ sim_job:
   simulation_suite:
     num_episodes: 2
     num_envs: 2
-s
-  num_episodes: 1
-  num_envs: 1
   policy_uri: ${..policy_uri}
   selector_type: latest
   eval_db_uri: wandb://artifacts/navigation_db
@@ -56,11 +53,6 @@ s
     - "wandb://run/navigation_infinite_cooldown_sparser.r.0"
     - "wandb://run/navigation_poisson_sparser_pretrained.r.6"
     - "wandb://run/b.daveey.t.64.dr90.1"
-
-train_job:
-  evals:
-    num_episodes: 2
-    num_envs: 2
 
 wandb:
   checkpoint_interval: 1

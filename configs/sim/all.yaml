@@ -2,6 +2,9 @@ defaults:
   - sim
   - _self_
 
+num_envs: 1
+num_episodes: 1
+
 simulations:
   emptyspace_withinsight:
     env: env/mettagrid/navigation/evals/emptyspace_withinsight

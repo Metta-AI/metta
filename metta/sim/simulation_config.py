@@ -13,13 +13,13 @@ class SimulationConfig:
     # Required parameters
     env: str
     device: str
+    num_envs: int
+    num_episodes: int
 
     # Optional parameters with defaults
     npc_policy_uri: Optional[str] = None
     env_overrides: Optional[DictConfig] = None
     policy_agents_pct: float = 1.0
-    num_envs: int = 50
-    num_episodes: int = 50
     max_time_s: int = 60
     vectorization: str = "serial"
     eval_db_uri: Optional[str] = None
@@ -42,4 +42,3 @@ class SimulationSuiteConfig(SimulationConfig):
         if getattr(cfg_dict, "env", None) is None:
             cfg_dict["env"] = ""  # Allow for empty env for the simulation suite
         return cfg_dict
-

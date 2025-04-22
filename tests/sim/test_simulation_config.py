@@ -43,9 +43,10 @@ def _build(cfg: Dict, *, allow_extra_keys: bool = False):
 def test_propogate_defaults_and_overrides():
     cfg = {
         "env": ROOT_ENV,
+        "num_envs": 4,
+        "num_episodes": 4,
         "device": DEVICE,
         "run_dir": RUN_DIR,
-        "num_envs": 4,  # suite‑wide default
         "simulations": {
             "a": {"env": CHILD_A},  # inherits device, num_envs is default (50)
             "b": {"env": CHILD_B, "num_envs": 8},  # overrides num_envs
@@ -80,6 +81,8 @@ def test_allow_extra_child_keys(has_extra, allow_extra, should_pass):
 
     cfg = {
         "env": ROOT_ENV,
+        "num_envs": 4,
+        "num_episodes": 4,
         "device": DEVICE,
         "run_dir": RUN_DIR,
         "simulations": {"sim": child_node},
@@ -102,6 +105,8 @@ def test_extra_key_on_suite_rejected_unless_allowed():
     cfg = {
         "env": ROOT_ENV,
         "device": DEVICE,
+        "num_envs": 4,
+        "num_episodes": 4,
         "run_dir": RUN_DIR,
         "suite_only": "secret",
         "simulations": {"sim": {"env": CHILD_A}},
@@ -124,6 +129,8 @@ def test_extra_key_on_suite_rejected_unless_allowed():
 def test_missing_device_always_errors():
     cfg = {
         "env": ROOT_ENV,
+        "num_envs": 4,
+        "num_episodes": 4,
         "run_dir": RUN_DIR,
         "simulations": {"sim": {}},  # required 'device' omitted
     }
@@ -135,6 +142,8 @@ def test_missing_suite_env_is_allowed():
     cfg = {
         "run_dir": RUN_DIR,
         "device": DEVICE,
+        "num_envs": 4,
+        "num_episodes": 4,
         "simulations": {
             "sim": {
                 "env": CHILD_A,
