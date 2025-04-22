@@ -15,9 +15,15 @@ def play(cfg: OmegaConf, policy_store: PolicyStore):
     env = vecenv.envs[0]
     policy_record = policy_store.policy(cfg.policy_uri)
 
-    assert policy_record.metadata["action_names"] == env._c_env.action_names(), (
-        f"Action names do not match: {policy_record.metadata['action_names']} != {env._c_env.action_names()}"
+    policy_actions = policy_record.metadata["action_names"]
+    env_actions = env._c_env.action_names()
+
+    assert len(policy_actions) <= len(env_actions), (
+        f"Policy actions: {policy_actions} must be a subset of env actions: {env_actions}"
     )
+    for i, action in enumerate(policy_actions):
+        assert action == env_actions[i], f"Action {i}: {action} must be at same location in env actions: {env_actions}"
+
     policy = policy_record.policy()
 
     renderer = MettaGridRaylibRenderer(env._c_env, env._env_cfg.game)

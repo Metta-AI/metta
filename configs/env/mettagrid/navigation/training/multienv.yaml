@@ -10,11 +10,12 @@ envs:
   - /env/mettagrid/navigation/training/varied_terrain
   - /env/mettagrid/navigation/training/cylinder_world
   - /env/mettagrid/navigation/training/labyrinth_world
-
+  - /env/mettagrid/navigation/training/lattice_world
 
 
 probabilities:
-  - 0.4
-  - 0.4
+  - 0.3
+  - 0.3
   - 0.1
   - 0.1
+  - 0.2

@@ -7,21 +7,15 @@ defaults:
   - _self_
 
 trainer:
-  env: /env/mettagrid/reward_dr
-  env_overrides:
-    sampling: 0.7
-    game:
-      num_agents: 36
-      max_steps: 1000
+  env: /env/mettagrid/navigation/training/multienv
   evaluate_interval: 50
   checkpoint_interval: 50
 
 env:
   semi_compact_obs: true
   game:
+    num_agents: 20
     max_steps: 2000
-
-policy_uri: wandb://run/b.daveey.t.64.dr90.1
 
 analyzer:
   policy_uri: ${..policy_uri}
@@ -31,7 +25,9 @@ analyzer:
       - metric: episode_reward
   output_path: s3://softmax-public/policydash/dashboard.html
 #  output_path: s3://softmax-public/users/jack/policydash/dashboard.html
+
 eval:
+#  env: /env/mettagrid/navigation/training/lattice_world
   num_episodes: 1
   num_envs: 1
   policy_uri: ${..policy_uri}
@@ -46,6 +42,17 @@ eval:
     - "wandb://run/navigation_infinite_cooldown_sparser.r.0"
     - "wandb://run/navigation_poisson_sparser_pretrained.r.6"
     - "wandb://run/b.daveey.t.64.dr90.1"
+  env_overrides:
+    game:
+      actions:
+        attack:
+          enabled: false
+        put_items:
+          enabled: false
+        swap:
+          enabled: false
+        change_color:
+          enabled: false
 
 wandb:
   checkpoint_interval: 1

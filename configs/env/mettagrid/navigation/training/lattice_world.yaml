@@ -1,0 +1,32 @@
+defaults:
+  - /env/mettagrid-base/mettagrid@
+  - _self_
+
+game:
+  num_agents: 20         # total across the whole map
+
+  map_builder:
+    _target_: mettagrid.config.room.lattice_world.LatticeWorld
+    num_agents: 20       
+
+  objects:
+    altar:
+      cooldown: 255
+
+  actions:
+    noop:
+      enabled: true
+    move:
+      enabled: true
+    rotate:
+      enabled: true
+    put_items:
+      enabled: false
+    get_items:
+      enabled: true
+    attack:
+      enabled: false  
+    swap:
+      enabled: false
+    change_color:
+      enabled: false
