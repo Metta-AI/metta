@@ -6,14 +6,13 @@ game:
 
   map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom
-    num_rooms: 4
+    num_rooms: 2
     border_width: 6
 
     room:
       _target_: mettagrid.config.room.terrain_from_numpy.TerrainFromNumpy
       border_width: 1
       dir: "terrain_maps_nohearts"
-      num_agents: 5
   objects:
     altar:
       cooldown: 100
