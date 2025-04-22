@@ -6,6 +6,7 @@ game:
   num_agents: ${..num_agents}
 
 envs:
+<<<<<<< HEAD
   - /env/mettagrid/navigation/training/terrain_from_numpy
   - /env/mettagrid/navigation/training/varied_terrain
 
@@ -13,3 +14,7 @@ envs:
 probabilities:
   - 0.5
   - 0.5
+=======
+  /env/mettagrid/navigation/training/terrain_from_numpy: 0.5
+  /env/mettagrid/navigation/training/varied_terrain: 0.5
+>>>>>>> 5464e001075b80103672c00ac246bdc3c94bb11e
