@@ -11,8 +11,5 @@ envs:
   /env/mettagrid/navigation/training/cylinder_world: 0.1
   /env/mettagrid/navigation/training/labyrinth_world: 0.1
   /env/mettagrid/navigation/training/hex_world: 0.1
-  /env/mettagrid/navigation/training/giant_maze_world: 0.1
-  /env/mettagrid/navigation/training/giant_maze_world_varied: 0.1
+  /env/mettagrid/navigation/training/giant_maze_world_varied: 0.2
   /env/mettagrid/navigation/training/cubicle_world: 0.1
-  
-
