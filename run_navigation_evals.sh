@@ -20,8 +20,8 @@ POLICIES=(
     "b.daphne.terrain_varied_cyl_lab"
     "b.georgedeane.terrain_multienv"
     "b.daphne.terrain_varied_cyl_lab_pretrained"
-    "b.daphne.terrain_multienv_altar_no_reseets"
-    "terrain_multienv_single_agent"
+    "b.daphne.terrain_multienv_altar_no_resets"
+    "terrain_multienv_3_single_agent"
     "b.daphne.terrain_multienv_singleA_kitchensink"
     "b.daphne.terrain_multienv_singleA_withgenerators"
     "b.daphne.terrain_multienv_singleA_altar_resets"
@@ -33,7 +33,7 @@ POLICIES=(
     "b.daphne.terrain_multienv_kitchensinkwc"
     "b.daphne.terrain_multienv_prioritized_multienv_cylinders2"
     "b.daphne.terrain_multienv_prioritized_george_maps"
-    "b.daphne.terrain_multienv_unstable_pretrained_mb3"
+    "b.georgedeane.terrain_multienv_unstable_pretrained_mb3"
     "b.georgedeane.terrain_multienv_homogenous_pretrained"
     "b.georgedeane.terrain_multienv_stable_pretrained_mb4"
 )
@@ -51,5 +51,5 @@ for i in "${!POLICIES[@]}"; do
         run=navigation$IDX \
         eval.policy_uri=wandb://run/$POLICY_URI \
         eval_db_uri=wandb://artifacts/navigation_db2 \
-        # device=cpu
+        device=cpu
 done
