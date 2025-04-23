@@ -7,10 +7,6 @@ set -e
 
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 
-# Install base requirements
-echo "Installing metta python requirements..."
-pip install -r requirements.txt
-
 # Create and enter deps directory for all external dependencies
 echo "Creating deps directory..."
 mkdir -p deps
@@ -26,8 +22,6 @@ echo "Updating fast_gae..."
 git pull
 echo "Building fast_gae into $(pwd)"
 python setup.py build_ext --inplace
-echo "Installing fast_gae into $(pwd)"
-pip install -e .
 cd ..
 
 # ========== PUFFERLIB ==========
@@ -42,20 +36,12 @@ echo "Checking out metta into $(pwd)"
 git checkout metta
 echo "Updating pufferlib..."
 git pull
-echo "Installing pufferlib into $(pwd)"
-pip install -e .
-echo "Stashing pufferlib into $(pwd)"
-git stash
 cd ..
 
 # ========== METTAGRID ==========
 cd mettagrid
-echo "Installing mettagrid python requirements..."
-pip install -r requirements.txt
 echo "Building mettagrid into $(pwd)"
 python setup.py build_ext --inplace
-echo "Installing mettagrid into $(pwd)"
-pip install -e .
 cd ..
 
 # ========== CARBS ==========
@@ -67,8 +53,6 @@ fi
 cd carbs
 echo "Updating carbs..."
 git pull
-echo "Installing carbs into $(pwd)"
-pip install -e .
 cd ..
 
 # ========== WANDB_CARBS ==========
@@ -79,9 +63,15 @@ fi
 cd wandb_carbs
 echo "Updating wandb_carbs..."
 git pull
-echo "Installing wandb_carbs into $(pwd)"
-pip install -e .
 cd ..
+
+# ========== Metta requirements.txt ==========
+cd "$SCRIPT_DIR/.."
+echo "Installing metta python requirements..."
+pip install -r requirements.txt
+
+echo "Sanity check: trying to import pufferlib"
+python -c "import pufferlib; print('✅ Found pufferlib at', pufferlib.__file__)"
 
 # TODO -- ideally we can find a way to skip this step when we are not on a user's machine
 # for now we are including this here as a convenience because the README and other places

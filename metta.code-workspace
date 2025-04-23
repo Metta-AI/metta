@@ -122,14 +122,17 @@
 		// run:
 		//     conda activate metta
 		//     ln -s "$CONDA_PREFIX/lib/python3.11/site-packages" /var/tmp/metta/conda-site-packages
+		//     ln -s "$(pwd)/deps" /var/tmp/metta/deps
 		//
 		// Then ensure "/var/tmp/metta/conda-site-packages" is included in the extraPaths lists below.
 
 		"python.analysis.extraPaths": [
-			"/var/tmp/metta/conda-site-packages"
+			"/var/tmp/metta/conda-site-packages",
+			"/var/tmp/metta/deps"
 		],
 		"python.autoComplete.extraPaths": [
-			"/var/tmp/metta/conda-site-packages"
+			"/var/tmp/metta/conda-site-packages",
+			"/var/tmp/metta/deps"
 		],
 		"python.analysis.exclude": [
 			"**/deps/pufferlib/**"
