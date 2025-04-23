@@ -11,7 +11,7 @@ game:
     border_width: 6
 
     room:
-      _target_: mettagrid.config.room.cubicle_world_uniform.CubicleUniformWorld
+      _target_: mettagrid.config.room.navigation.cubicle_world_uniform.CubicleUniformWorld
 
       # Arena dimensions sampled each episode
       width_range:  [80, 120]

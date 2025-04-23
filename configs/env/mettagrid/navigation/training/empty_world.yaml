@@ -11,7 +11,7 @@ game:
     border_width: 6
 
     room:
-      _target_: mettagrid.config.room.empty_world.EmptyWorld
+      _target_: mettagrid.config.room.navigation.empty_world.EmptyWorld
 
       # Arena dimensions (sampled per episode)
       width_range:  [60, 180]

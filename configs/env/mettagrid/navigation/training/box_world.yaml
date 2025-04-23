@@ -11,7 +11,7 @@ game:
     border_width: 6
 
     room:
-      _target_: mettagrid.config.room.box_world.BoxWorld
+      _target_: mettagrid.config.room.navigation.box_world.BoxWorld
       width:  120
       height: 120
       border_width: 2

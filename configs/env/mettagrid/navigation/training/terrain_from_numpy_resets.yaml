@@ -10,7 +10,7 @@ game:
     border_width: 6
 
     room:
-      _target_: mettagrid.config.room.terrain_from_numpy.TerrainFromNumpy
+      _target_: mettagrid.config.room.navigation.terrain_from_numpy.TerrainFromNumpy
       border_width: 1
       dir: "terrain_maps_nohearts"
       num_agents: 1

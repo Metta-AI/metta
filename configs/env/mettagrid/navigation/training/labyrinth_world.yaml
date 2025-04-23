@@ -11,7 +11,7 @@ game:
     border_width: 6
 
     room:
-      _target_: mettagrid.config.room.labyrinth_world.LabyrinthWorld
+      _target_: mettagrid.config.room.navigation.labyrinth_world.LabyrinthWorld
       width:  [50, 120]
       height: [50, 120]
       border_width: 2    # inner wall thickness

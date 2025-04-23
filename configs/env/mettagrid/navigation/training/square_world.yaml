@@ -11,7 +11,7 @@ game:
     border_width: 6
 
     room:
-      _target_: mettagrid.config.room.square_world.SquareWorld
+      _target_: mettagrid.config.room.navigation.square_world.SquareWorld
 
       # Overall arena size (sampled each episode)
       width_range:  [60, 160]
