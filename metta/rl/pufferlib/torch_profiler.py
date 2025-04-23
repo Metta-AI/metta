@@ -8,10 +8,25 @@ import torch.profiler
 logger = logging.getLogger(__name__)
 
 class TorchProfiler:
+    '''
+    Creates a torch profiler object that can be used as context wherever
+    traces are needed.
+
+    Profiles are saved as json.gz files locally in
+    train_dir/<your_run>/torch_traces/ and in S3 at
+    torch_traces/<your_run>/. A link to download the S3 file is dropped
+    into wandb under 'torch_traces'. To view traces, go to
+    chrome://tracing (or arc://tracing if you happen to use that browser
+    which is fine) and select 'load'. Navigate traces using WASD on your
+    keyboard.
+
+    Set profiler_interval_epochs in the config to zero to turn it off.
+
+    Future work could include support for TensorBoard.
+    '''
     def __init__(self, master, run_dir, wandb_run, cfg_profiler_interval_epochs):
         self._master = master
         self._cfg_profiler_interval_epochs = cfg_profiler_interval_epochs
-        self._first_profile_epoch = 5 # hardcoding to keep cfgs clean. needs to be greater than pytorch warmup cycles.
         self._run_dir = run_dir
         self._wandb_run = wandb_run
         self._profile_dir = os.path.join(self._run_dir, "torch_traces")
@@ -21,6 +36,10 @@ class TorchProfiler:
         self._active = False
         self._start_epoch = None
         self._profile_filename_base = None
+        # Hardcoding _first_profile_epoch to keep cfgs clean. 
+        # It needs to be greater than pytorch warmup cycles.
+        # We may want to revisit if compiling models under certain modes.
+        self._first_profile_epoch = 5
 
     def on_epoch_end(self, epoch):
         if not self._active:
