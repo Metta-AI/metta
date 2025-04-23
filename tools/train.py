@@ -11,7 +11,7 @@ from torch.distributed.elastic.multiprocessing.errors import record
 
 from metta.agent.policy_store import PolicyStore
 from metta.sim.simulation_config import SimulationSuiteConfig
-from metta.util.config import dictconfig_to_dataclass, setup_metta_environment
+from metta.util.config import dictconfig_to_dataclass, pretty_print_config, setup_metta_environment
 from metta.util.runtime_configuration import setup_mettagrid_environment
 from metta.util.wandb.wandb_context import WandbContext
 
@@ -58,8 +58,8 @@ def train(cfg, wandb_run):
 def main(cfg: OmegaConf) -> int:
     setup_metta_environment(cfg)
     setup_mettagrid_environment(cfg)
+    pretty_print_config(cfg)
 
-    print("trainer started....")
     logger.info(
         f"Training {cfg.run} on "
         + f"{os.environ.get('NODE_INDEX', '0')}: "

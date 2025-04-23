@@ -4,6 +4,7 @@ defaults:
 
 num_envs: 10
 num_episodes: 10
+run_dir: ${run_dir}
 
 simulations:
   object_use/altar_use_free:

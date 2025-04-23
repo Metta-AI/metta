@@ -2,12 +2,11 @@ defaults:
   - sim
   - _self_
 
-env: null #the env is set in evals:
-
 num_envs: 1
 num_episodes: 1
+run_dir: ${run_dir}
 
-evals:
+simulations:
   navigation/emptyspace_withinsight:
     env: env/mettagrid/navigation/evals/emptyspace_withinsight
     policy_agents_pct: 1.0

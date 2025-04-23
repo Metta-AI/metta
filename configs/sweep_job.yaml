@@ -2,9 +2,9 @@ defaults:
   - common
   - wandb: metta_research
   - agent: simple
+  - sim: navigation
   - analyzer: eval_analyzer
   - trainer: puffer
-  - /sim/navigation@sweep_job.evals
   - _self_
 
 cmd: sweep
@@ -20,13 +20,13 @@ num_random_samples: 10
 trainer:
   evaluate_interval: 300
 
-sweep_job:
-  evals:
-    eval_db_uri: null
-    run_dir: ${run_dir}
-    num_envs: 5
-    num_episodes: 5
+sim:
+  num_envs: 5
+  num_episodes: 5
+  eval_db_uri: null
 
+sweep_job:
+  evals: ${sim}
 
 sweep_dir: "${.data_dir}/sweep/${.sweep_name}"
 runs_dir: "${.sweep_dir}/runs"

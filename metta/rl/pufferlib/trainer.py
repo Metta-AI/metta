@@ -157,6 +157,8 @@ class PufferTrainer:
 
         replay_sim_config = SimulationConfig(
             env=self.trainer_cfg.env,
+            num_envs=1,
+            num_episodes=1,
             env_overrides=self.trainer_cfg.env_overrides,
             device=self.device,
             vectorization=self.cfg.vectorization,

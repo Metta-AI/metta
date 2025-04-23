@@ -1,7 +1,7 @@
 defaults:
   - common
   - wandb: metta_research
-  - /sim/simple@replay_job.sim
+  - sim: simple
   - _self_
 
 cmd: play
@@ -12,4 +12,5 @@ torch_deterministic: true
 eval_db_uri: null
 
 replay_job:
+  sim: ${sim}
   policy_uri: ${policy_uri}

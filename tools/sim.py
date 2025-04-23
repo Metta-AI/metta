@@ -9,7 +9,7 @@ from metta.agent.policy_store import PolicyStore
 from metta.sim.eval_stats_logger import EvalStatsLogger
 from metta.sim.simulation import SimulationSuite
 from metta.sim.simulation_config import SimulationSuiteConfig
-from metta.util.config import dictconfig_to_dataclass
+from metta.util.config import dictconfig_to_dataclass, pretty_print_config
 from metta.util.runtime_configuration import setup_mettagrid_environment
 from metta.util.wandb.wandb_context import WandbContext
 
@@ -39,12 +39,10 @@ def simulate_policy(sim_job: SimJob, policy_uri: str, cfg: DictConfig, wandb_run
 @hydra.main(version_base=None, config_path="../configs", config_name="sim_job")
 def main(cfg: DictConfig):
     logger = logging.getLogger("metta.tools.sim")
-    logger.info("cfg: %s", cfg)
     setup_mettagrid_environment(cfg)
+    pretty_print_config(cfg)
     sim_job = dictconfig_to_dataclass(SimJob, cfg.sim_job)
     assert isinstance(sim_job, SimJob)
-    logger.info(f"Sim job: {sim_job}")
-    logger.info(f"Sim job suite: {sim_job.simulation_suite}")
     with WandbContext(cfg) as wandb_run:
         for policy_uri in sim_job.policy_uris:
             simulate_policy(sim_job, policy_uri, cfg, wandb_run)

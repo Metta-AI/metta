@@ -8,7 +8,6 @@ from datetime import datetime
 import hydra
 from rich.logging import RichHandler
 
-import metta.rl.pufferlib.play
 import metta.sim.simulator
 from metta.agent.policy_store import PolicyStore
 from metta.sim.simulation_config import SimulationConfig

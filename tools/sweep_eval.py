@@ -48,6 +48,7 @@ def main(cfg: OmegaConf) -> int:
     setup_mettagrid_environment(cfg)
     logger.info("Sweep configuration:")
     logger.info(yaml.dump(OmegaConf.to_container(cfg, resolve=True), default_flow_style=False))
+    simulation_suite_cfg = dictconfig_to_dataclass(SimulationSuiteConfig, cfg.sweep_job.evals)
 
     results_path = os.path.join(cfg.run_dir, "sweep_eval_results.yaml")
     start_time = time.time()
@@ -70,8 +71,6 @@ def main(cfg: OmegaConf) -> int:
             return 1
 
         cfg.analyzer.policy_uri = policy_pr.uri
-
-        simulation_suite_cfg = dictconfig_to_dataclass(SimulationSuiteConfig, cfg.sweep_job.evals)
 
         eval = SimulationSuite(simulation_suite_cfg, policy_pr, policy_store)
         # Start evaluation process

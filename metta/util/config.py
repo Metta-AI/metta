@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import os
 from dataclasses import MISSING, fields, is_dataclass
@@ -29,6 +30,38 @@ from omegaconf import DictConfig, OmegaConf
 D = TypeVar("D")
 
 
+def pretty_print_config(cfg: Union[DictConfig, Any], indent: int = 2):
+    """
+    Pretty print an OmegaConf configuration using a logger.
+
+    Args:
+        cfg: OmegaConf configuration object or any config object
+        logger: Logger instance (defaults to root logger if None)
+        indent: Number of spaces for indentation (default: 2)
+    """
+    logger = logging.getLogger(__name__)
+    logger.info("Top-Level Keys: %s", cfg.keys())
+
+    # Check if the input is an OmegaConf DictConfig
+    if isinstance(cfg, DictConfig):
+        # Convert to a regular dictionary with resolved values
+        dict_cfg = OmegaConf.to_container(cfg, resolve=True)
+
+        # Convert to formatted JSON string
+        formatted_config = json.dumps(dict_cfg, indent=indent, default=str)
+
+        # Log the formatted config
+        logger.info("Configuration:\n%s", formatted_config)
+    else:
+        # If not an OmegaConf object, try to handle it anyway
+        try:
+            formatted_config = json.dumps(cfg, indent=indent, default=str)
+            logger.info("Configuration (non-OmegaConf):\n%s", formatted_config)
+        except Exception as e:
+            logger.error("Unable to format config of type %s: %s", type(cfg), e)
+            logger.info("Raw config: %s", cfg)
+
+
 def dictconfig_to_dataclass(
     cls: Type[D],
     config: DictConfig | dict,
@@ -48,8 +81,6 @@ def dictconfig_to_dataclass(
     Returns:
         An instance of the dataclass with properly converted types
     """
-    # Handle both parameter names
-
     # Convert DictConfig to dict if needed
     data = OmegaConf.to_container(config, resolve=True) if isinstance(config, DictConfig) else config
     data = data or {}
@@ -133,20 +164,20 @@ def _convert_node(value: Any, ftype: Any, path: str, *, allow_extra: bool) -> An
     # --------------------------- Generic containers ------------------------
     if origin in (list, List) and args:
         if not isinstance(value, list):
-            raise TypeError(f"{path}: expected list, got {type(value).__name__}")
+            raise TypeError(f"{path}: expected list, got {type(value).__name__}: {value}")
         elem_t = args[0]
         return [_convert_node(v, elem_t, f"{path}[{i}]", allow_extra=allow_extra) for i, v in enumerate(value)]
 
     if origin in (tuple, Tuple) and args:
         if not isinstance(value, tuple):
-            raise TypeError(f"{path}: expected tuple, got {type(value).__name__}")
+            raise TypeError(f"{path}: expected tuple, got {type(value).__name__}: {value}")
         # Homogeneous Tuple[T, ...]
         if len(args) == 2 and args[1] is ...:
             elem_t = args[0]
             return tuple(_convert_node(v, elem_t, f"{path}[{i}]", allow_extra=allow_extra) for i, v in enumerate(value))
         # Fixed‑length Tuple[T1, T2, ...]
         if len(args) != len(value):
-            raise TypeError(f"{path}: expected tuple of length {len(args)}, got {len(value)}")
+            raise TypeError(f"{path}: expected tuple of length {len(args)}, got {len(value)}: {value}")
         return tuple(
             _convert_node(v, t, f"{path}[{i}]", allow_extra=allow_extra)
             for i, (v, t) in enumerate(zip(value, args, strict=False))
@@ -155,13 +186,13 @@ def _convert_node(value: Any, ftype: Any, path: str, *, allow_extra: bool) -> An
     if origin in (set, frozenset) and args:
         cls = set if origin is set else frozenset
         if not isinstance(value, cls):
-            raise TypeError(f"{path}: expected {cls.__name__}, got {type(value).__name__}")
+            raise TypeError(f"{path}: expected {cls.__name__}, got {type(value).__name__}: {value}")
         elem_t = args[0]
         return cls(_convert_node(v, elem_t, f"{path}[{i}]", allow_extra=allow_extra) for i, v in enumerate(value))
 
     if origin in (dict, Dict, Mapping, MutableMapping) and len(args) == 2:
         if not isinstance(value, dict):
-            raise TypeError(f"{path}: expected dict, got {type(value).__name__}")
+            raise TypeError(f"{path}: expected dict, got {type(value).__name__}: {value}")
         k_t, v_t = args
         out: dict[Any, Any] = {}
         for k, v in value.items():
@@ -176,17 +207,17 @@ def _convert_node(value: Any, ftype: Any, path: str, *, allow_extra: bool) -> An
 
     if origin is Callable or ftype is Callable:
         if not callable(value):
-            raise TypeError(f"{path}: expected callable, got {type(value).__name__}")
+            raise TypeError(f"{path}: expected callable, got {type(value).__name__}: {value}")
         return value
 
     if isinstance(ftype, type) and issubclass(ftype, Enum):
         if not isinstance(value, ftype):
-            raise TypeError(f"{path}: expected {ftype.__name__}, got {type(value).__name__}")
+            raise TypeError(f"{path}: expected {ftype.__name__}, got {type(value).__name__}: {value}")
         return value
 
     if isinstance(ftype, type):
         if not isinstance(value, ftype):
-            raise TypeError(f"{path}: expected {ftype.__name__}, got {type(value).__name__}")
+            raise TypeError(f"{path}: expected {ftype.__name__}, got {type(value).__name__}: {value}")
         return value
 
     raise TypeError(f"{path}: unsupported annotation {ftype!r}")
@@ -198,7 +229,7 @@ def _convert_node(value: Any, ftype: Any, path: str, *, allow_extra: bool) -> An
 
 
 def _build_dataclass(cls: Type[D], data: Dict[str, Any], path: str, *, allow_extra: bool) -> D:
-    """Build a dataclass instance from a dictionary."""
+    """Build a dataclass instance from a dictionary with improved error reporting."""
     logger = logging.getLogger(__name__)
     if not is_dataclass(cls):
         raise TypeError(f"{path}: {cls.__name__} is not a dataclass")
@@ -214,31 +245,47 @@ def _build_dataclass(cls: Type[D], data: Dict[str, Any], path: str, *, allow_ext
         data = preprocess(dict(data)) or data
 
     # ------------------------------------------------------------------ #
-    # 1.  Extra keys check
-    # NOTE: This is done by the dataclass constructor, but this allows us
-    # to print the right field keys.                               #
+    # 1.  Extra keys check                                               #
+    # NOTE: Dataclasses will also error, but this will give a better     #
+    # error message.                                                     #
     # ------------------------------------------------------------------ #
     field_names = {f.name for f in fields(cls)}
     extra = set(data) - field_names
     if extra:
         if not allow_extra:
-            raise ValueError(f"{path}: unexpected fields {sorted(extra)}")
+            extra_keys_str = ", ".join(f"'{k}'" for k in sorted(extra))
+            allowed_keys_str = ", ".join(f"'{k}'" for k in sorted(field_names))
+            raise ValueError(
+                f"{path}: found unexpected field(s): {extra_keys_str}.\n"
+                f"Allowed fields for {cls.__name__}: {allowed_keys_str}"
+            )
         logger.debug("%s: ignoring extra fields %s", path, sorted(extra))
 
     # ------------------------------------------------------------------ #
-    # 2.  Check for missing required fields
-    # NOTE: This is done by the dataclass constructor, but this allows us
-    # to print the right field keys.
+    # 2.  Check for missing required fields                              #
+    # NOTE: Dataclasses will also error, but this will give a better     #
+    # error message.                                                     #
     # ------------------------------------------------------------------ #
     required_fields = {f.name for f in fields(cls) if f.default is MISSING and f.default_factory is MISSING}
     missing = required_fields - set(data.keys())
     if missing:
-        raise TypeError(
-            f"{path} is missing required fields: {sorted(missing)}. "
-            f"Required fields are: {sorted(required_fields)}. "
-            f"Provided fields were: {sorted(data.keys())}"
-        )
+        missing_keys_str = ", ".join(f"'{k}'" for k in sorted(missing))
+        provided_keys_str = ", ".join(f"'{k}'" for k in sorted(data.keys()))
 
+        # Get parent path to show full context in error message
+        path_parts = path.split(".")
+        parent_path = ".".join(path_parts[:-1]) if len(path_parts) > 1 else ""
+        parent_context = f" (in {parent_path})" if parent_path else ""
+
+        # Fix by pre-formatting the list of required fields
+        required_fields_str = ", ".join(f"'{k}'" for k in sorted(required_fields))
+
+        raise TypeError(
+            f"{path} is missing required field(s): {missing_keys_str}{parent_context}.\n"
+            f"Required fields for {cls.__name__}: {required_fields_str}.\n"
+            f"Provided fields were: {provided_keys_str}\n"
+            f"Check your configuration for '{path}' - it may need additional parameters."
+        )
     # ------------------------------------------------------------------ #
     # 3.  Build field values                                             #
     # ------------------------------------------------------------------ #
@@ -246,10 +293,19 @@ def _build_dataclass(cls: Type[D], data: Dict[str, Any], path: str, *, allow_ext
     kwargs: Dict[str, Any] = {}
     for f in fields(cls):
         if f.name in data:
-            kwargs[f.name] = _convert_node(
-                data[f.name], hints.get(f.name, Any), f"{path}.{f.name}", allow_extra=allow_extra
-            )
-    return cls(**kwargs)
+            try:
+                kwargs[f.name] = _convert_node(
+                    data[f.name], hints.get(f.name, Any), f"{path}.{f.name}", allow_extra=allow_extra
+                )
+            except (TypeError, ValueError) as e:
+                # Enhance error message with more context
+                raise type(e)(f"Error processing field '{f.name}' in {cls.__name__}: {str(e)}") from e
+
+    try:
+        return cls(**kwargs)
+    except TypeError as e:
+        # Improve error message from dataclass constructor
+        raise TypeError(f"Failed to create {cls.__name__} at '{path}': {str(e)}") from e
 
 
 # ---------------------------------------------------------------------------
