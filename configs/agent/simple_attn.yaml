@@ -86,6 +86,12 @@ components:
       out_features: 1
     nonlinearity: null
 
+  actor_1:
+    _target_: metta.agent.lib.nn_layer_library.Linear
+    input_source: _core_
+    nn_params:
+      out_features: 512
+
   _action_embeds_:
     _target_: metta.agent.lib.action.ActionEmbedding
     input_source: null
@@ -96,5 +102,5 @@ components:
   _action_:
     _target_: metta.agent.lib.action.MettaActorSingleHead
     input_source: 
-      - _core_
+      - actor_1
       - _action_embeds_
