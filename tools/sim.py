@@ -38,7 +38,6 @@ def simulate_policy(sim_job: SimJob, policy_uri: str, cfg: DictConfig, wandb_run
 
 @hydra.main(version_base=None, config_path="../configs", config_name="sim_job")
 def main(cfg: DictConfig):
-    logger = logging.getLogger("metta.tools.sim")
     setup_mettagrid_environment(cfg)
     pretty_print_config(cfg)
     sim_job = dictconfig_to_dataclass(SimJob, cfg.sim_job)
