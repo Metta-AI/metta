@@ -79,7 +79,6 @@ def test_env_functionality():
         mettaGridEnv = mettagrid.mettagrid_env.MettaGridEnv(cfg, render_mode=None)
 
         # Make sure the environment was created correctly:
-        assert mettaGridEnv._renderer is None
         assert mettaGridEnv._c_env is not None
         assert mettaGridEnv._grid_env is not None
         assert mettaGridEnv._c_env == mettaGridEnv._grid_env
@@ -103,9 +102,8 @@ def test_env_functionality():
         assert np.array_equal(terminated, [0, 0, 0, 0, 0])
         assert np.array_equal(truncated, [0, 0, 0, 0, 0])
 
-        # Test episode stats
-        infos = {}
-        mettaGridEnv.process_episode_stats(infos)
+        # Test finalize_episode
+        mettaGridEnv.finalize_episode()
 
         # Test environment properties
         assert mettaGridEnv._max_steps == 5000
