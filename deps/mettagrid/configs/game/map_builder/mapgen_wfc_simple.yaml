@@ -3,4 +3,4 @@ _target_: mettagrid.map.mapgen.MapGen
 width: 50
 height: 50
 
-root: /scenes/wfc/blocks
+root: ./configs/scenes/wfc/blocks.yaml

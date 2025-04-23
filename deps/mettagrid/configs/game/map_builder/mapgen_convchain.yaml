@@ -13,22 +13,22 @@ root:
     - limit: 1
       order_by: first
       lock: lock1
-      scene: /scenes/convchain/blob
+      scene: ./configs/scenes/convchain/blob.yaml
 
     - limit: 1
       order_by: first
       lock: lock1
-      scene: /scenes/convchain/c_shape
+      scene: ./configs/scenes/convchain/c_shape.yaml
 
     - limit: 1
       order_by: first
       lock: lock1
-      scene: /scenes/convchain/diagonal
+      scene: ./configs/scenes/convchain/diagonal.yaml
 
     - limit: 1
       order_by: last
       lock: lock1
-      scene: /scenes/convchain/dungeon
+      scene: ./configs/scenes/convchain/dungeon.yaml
 
     - where: full
       scene:

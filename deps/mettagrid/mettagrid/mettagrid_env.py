@@ -12,10 +12,18 @@ from mettagrid.resolvers import register_resolvers
 
 
 class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
-    def __init__(self, env_cfg: DictConfig, render_mode: Optional[str], buf=None, **kwargs):
+    def __init__(
+        self,
+        env_cfg: DictConfig,
+        render_mode: Optional[str],
+        env_map: Optional[np.ndarray] = None,
+        buf=None,
+        **kwargs,
+    ):
         self._render_mode = render_mode
         self._cfg_template = env_cfg
         self._env_cfg = self._get_new_env_cfg()
+        self._env_map = env_map
         self._reset_env()
         self.should_reset = False
         self._renderer = None
@@ -28,11 +36,15 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         return env_cfg
 
     def _reset_env(self):
-        self._map_builder = hydra.utils.instantiate(
-            self._env_cfg.game.map_builder,
-            _recursive_=self._env_cfg.game.recursive_map_builder,
-        )
-        env_map = self._map_builder.build()
+        if self._env_map is None:
+            self._map_builder = hydra.utils.instantiate(
+                self._env_cfg.game.map_builder,
+                _recursive_=self._env_cfg.game.recursive_map_builder,
+            )
+            env_map = self._map_builder.build()
+        else:
+            env_map = self._env_map
+
         map_agents = np.count_nonzero(np.char.startswith(env_map, "agent"))
         assert self._env_cfg.game.num_agents == map_agents, (
             f"Number of agents {self._env_cfg.game.num_agents} does not match number of agents in map {map_agents}"
