@@ -14,8 +14,8 @@ game:
       _target_: mettagrid.config.room.empty_world.EmptyWorld
 
       # Arena dimensions (sampled per episode)
-      width_range:  [60, 130]
-      height_range: [60, 130]
+      width_range:  [60, 180]
+      height_range: [60, 180]
 
       # How many altars to scatter each episode
       altars_count_range: [10, 20]
