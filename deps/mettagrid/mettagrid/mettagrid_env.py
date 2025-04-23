@@ -194,9 +194,16 @@ class MettaGridEnvSet(MettaGridEnv):
         self._probabilities = list(env_cfg.envs.values())
         self._num_agents_global = env_cfg.num_agents
         self._env_cfg = self._get_new_env_cfg()
+        self.check_action_space()
 
         super().__init__(env_cfg, render_mode, buf, **kwargs)
         self._cfg_template = None  # we don't use this with multiple envs, so we clear it to emphasize that fact
+
+    def check_action_space(self):
+        env_cfgs = [config_from_path(env) for env in self._envs]
+        action_spaces = [env_cfg.game.actions for env_cfg in env_cfgs]
+        if not all(action_space == action_spaces[0] for action_space in action_spaces):
+            raise ValueError("All environments must have the same action space.")
 
     def _get_new_env_cfg(self):
         selected_env = np.random.choice(self._envs, p=self._probabilities)
