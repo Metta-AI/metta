@@ -11,4 +11,6 @@ envs:
   /env/mettagrid/navigation/training/empty_world: 0.2
   /env/mettagrid/navigation/training/cubicle_world_uniform: 0.3
   /env/mettagrid/navigation/training/hex_world: 0.15
-  /env/mettagrid/navigation/training/square_world: 0.15
+  /env/mettagrid/navigation/training/square_world: 0.1
+
+  

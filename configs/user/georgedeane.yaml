@@ -17,6 +17,10 @@ trainer:
 # policy_uri: wandb://run/b.daveey.t.32.instant
 #policy_uri: ${trained_policy_uri}
 policy_uri: wandb://run/b.georgedeane.terrain_multienv
+# policy_uri: wandb://run/terrain_training_multienv_april18
+# policy_uri: wandb://run/b.daphne.terrain_multienv_april18
+
+
 # Infinite_cooldown models:
 # navigation_infinite_cooldown_sweep_2g_.r.0 - ok
 # navigation_infinite_cooldown_sweep_2g.r.1 - 9 reward after 400 timesteps
@@ -42,7 +46,7 @@ eval:
   policy_uri: ${..policy_uri}
   # npc_policy_uri: ${..npc_policy_uri}
   # eval_db_uri: ${..eval_db_uri} #file://daphne/sweep_stats
-  env: /env/mettagrid/navigation/training/labyrinth_world
+  env: /env/mettagrid/navigation/training/terrain_all_dense
 
 
 run_id: 103

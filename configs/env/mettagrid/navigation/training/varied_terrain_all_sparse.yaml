@@ -1,4 +1,3 @@
-# Config: Dense Obstacles & Sparse Altars
 defaults:
   - /env/mettagrid-base/mettagrid@
   - _self_
@@ -18,7 +17,7 @@ game:
       height: ${sampling:50,100,60}
       border_width: ${sampling:1,6,3}
       agents: 1
-      style: ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
+      style: all-sparse # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
 
   objects:
     altar:
