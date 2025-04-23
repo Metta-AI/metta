@@ -11,7 +11,7 @@ trainer:
   env_overrides:
     sampling: 0.7
     game:
-      num_agents: 35
+      num_agents: 33
       max_steps: 1000
   evaluate_interval: 50
   checkpoint_interval: 50
