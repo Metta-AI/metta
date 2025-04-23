@@ -82,7 +82,11 @@ class MettaGridRaylibRenderer:
         self.camera_controller = CameraController(self.camera)
 
         self.game_objects = self.env.grid_objects()
-        self.actions = torch.zeros((max(1, self.num_agents), 2), dtype=torch.int32)
+
+        if not isinstance(self.num_agents, int) or self.num_agents <= 1:
+            raise ValueError(f"Expected num_agents to be an integer greater than 1 but got {self.num_agents}")
+
+        self.actions = torch.zeros((self.num_agents, 2), dtype=torch.int32)
         expected_actions_shape = (self.num_agents, 2)
         if self.actions.shape != expected_actions_shape:
             raise ValueError(f"Expected actions shape {expected_actions_shape} but got {self.actions.shape}")
