@@ -12,7 +12,6 @@ eval_db_uri: null
 
 torch_deterministic: true
 
-
 play_job:
   sim: ${sim}
   policy_uri: ${policy_uri}
