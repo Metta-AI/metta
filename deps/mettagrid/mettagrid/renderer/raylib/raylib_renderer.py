@@ -184,7 +184,8 @@ class MettaGridRaylibRenderer:
         # Final validation - ensure actions has the right shape after all processing
         if self.actions.shape != (max(1, self.num_agents), 2):
             raise ValueError(
-                f"After processing, actions has invalid shape {self.actions.shape}, expected ({max(1, self.num_agents)}, 2)"
+                f"After processing, actions has invalid shape {self.actions.shape}, "
+                f"expected ({max(1, self.num_agents)}, 2)"
             )
 
         return self.paused
@@ -377,7 +378,8 @@ class MettaGridRaylibRenderer:
             # Validate action index
             if action_idx >= len(self.action_names) or action_idx < 0:
                 raise ValueError(
-                    f"Invalid action index {action_idx} for agent {agent_id}. Valid range: 0-{len(self.action_names) - 1}"
+                    f"Invalid action index {action_idx} for agent {agent_id}. "
+                    f"Valid range: 0-{len(self.action_names) - 1}"
                 )
 
             attack_color = [
