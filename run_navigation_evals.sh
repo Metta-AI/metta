@@ -17,7 +17,6 @@ POLICIES=(
     # "terrain_training_multienv2"
     # "b.daphne.cylinder_run"
     "b.daphne.terrain_multienv_april18"
-    "b.daphne.terrain_multienv_altar_resets_withgenerators"
     "b.daphne.terrain_varied_cyl_lab"
     "b.georgedeane.terrain_multienv"
     "b.daphne.terrain_varied_cyl_lab_pretrained"
