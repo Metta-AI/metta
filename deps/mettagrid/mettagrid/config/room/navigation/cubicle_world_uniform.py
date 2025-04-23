@@ -38,7 +38,8 @@ class CubicleUniformWorld(Room):
         self.altars_count = altars_count
         self._agents = agents
         self._rng = rng
-
+        self.labels = ["cubicle_uniform"]
+        self.set_size_labels(self.width, self.height)
     # ------------------------------------------------------------------ #
     def _build(self):
         grid = self._generate_grid()

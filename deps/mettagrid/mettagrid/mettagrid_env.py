@@ -19,6 +19,8 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._reset_env()
         self.should_reset = False
         self._renderer = None
+        self.labels = self._env_cfg.get("labels", None)
+
 
         super().__init__(buf)
 
@@ -78,6 +80,8 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         episode_rewards = self._c_env.get_episode_rewards()
         episode_rewards_sum = episode_rewards.sum()
         episode_rewards_mean = episode_rewards_sum / self._num_agents
+
+
         infos.update(
             {
                 "episode/reward.sum": episode_rewards_sum,
@@ -87,6 +91,23 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                 "episode_length": self._c_env.current_timestep(),
             }
         )
+
+        if self._map_builder.labels is not None:
+            for label in self._map_builder.labels:
+                infos.update(
+                    {
+                        f"rewards/map:{label}": episode_rewards_mean,
+                    }
+                )
+
+        if self.labels is not None:
+            for label in self.labels:
+                infos.update(
+                    {
+                        f"rewards/env:{label}": episode_rewards_mean,
+                    }
+                )
+
         stats = self._c_env.get_episode_stats()
 
         infos["episode_rewards"] = episode_rewards
@@ -188,9 +209,16 @@ class MettaGridEnvSet(MettaGridEnv):
         self._probabilities = list(env_cfg.envs.values())
         self._num_agents_global = env_cfg.num_agents
         self._env_cfg = self._get_new_env_cfg()
+        self.check_action_space()
 
         super().__init__(env_cfg, render_mode, buf, **kwargs)
         self._cfg_template = None  # we don't use this with multiple envs, so we clear it to emphasize that fact
+
+    def check_action_space(self):
+        env_cfgs = [config_from_path(env) for env in self._envs]
+        action_spaces = [env_cfg.game.actions for env_cfg in env_cfgs]
+        if not all(action_space == action_spaces[0] for action_space in action_spaces):
+            raise ValueError("All environments must have the same action space.")
 
     def _get_new_env_cfg(self):
         selected_env = np.random.choice(self._envs, p=self._probabilities)

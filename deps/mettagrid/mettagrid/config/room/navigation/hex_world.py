@@ -91,6 +91,8 @@ class HexWorld(Room):
         self.altars_count = altars_count
         self._agents = agents
         self._rng = rng
+        self.labels = ["hex_grid"]
+        self.set_size_labels(self.width, self.height)
 
     # --------------------------------------------------------------- #
     def _build(self):

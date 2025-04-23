@@ -2,12 +2,12 @@
 MemoryBoxWorld (random sizes)
 =============================
 
-• Interior width/height sampled from `size_range` (default 9‑14).  
-• Entrance gap (3 cells) on a random side.  
+• Interior width/height sampled from `size_range` (default 9‑14).
+• Entrance gap (3 cells) on a random side.
 • Two corridor walls whose length is randomly sampled from
-  `corridor_range` **but clipped so they always fit** and always ≥ 6.  
+  `corridor_range` **but clipped so they always fit** and always ≥ 6.
 • A single altar sits in the corner on the same side as the entrance,
-  opposite the gap.  
+  opposite the gap.
 • Boxes are stamped until 10 consecutive placement failures; agents spawn
   outside the boxes.
 • Exactly 20 agents are spawned in every episode.
@@ -43,6 +43,8 @@ class MemoryBoxWorld(Room):
 
         self.smin, self.smax = size_range
         self.cmin, self.cmax = corridor_range
+        self.labels = ["memory_box"]
+        self.set_size_labels(width, height)
 
     # ------------------------------------------------------------------ #
     @property
