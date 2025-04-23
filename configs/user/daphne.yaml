@@ -27,7 +27,9 @@ trainer:
 # policy_uri: wandb://run/b.daveey.t.32.instant
 
 # policy_uri: wandb://run/b.daphne.terrain_multienv_lessactions:v40
-policy_uri: wandb://run/terrain_multienv_3_single_agent
+# policy_uri: wandb://run/terrain_multienv_3_single_agent:v63
+policy_uri: wandb://run/b.daphne.terrain_varied_cyl_lab_pretrained:v0
+
 # npc_policy_uri: ${trained_policy_uri}
 # eval_db_uri: wandb://artifacts/testing
 #eval_db_uri: wandb://artifacts/navigation_db
@@ -44,7 +46,7 @@ analyzer:
   output_path: navigation_results/navigation.html
 
 eval:
-  env: /env/mettagrid/navigation/evals/cylinder
+  env: /env/mettagrid/navigation/evals/thecube
 
   policy_uri: ${..policy_uri}
   # npc_policy_uri: ${..npc_policy_uri}
