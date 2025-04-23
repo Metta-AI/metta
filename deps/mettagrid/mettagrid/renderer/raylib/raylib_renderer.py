@@ -82,7 +82,11 @@ class MettaGridRaylibRenderer:
         self.camera_controller = CameraController(self.camera)
 
         self.game_objects = self.env.grid_objects()
-        self.actions = torch.zeros((self.num_agents, 2), dtype=torch.int32)
+        self.actions = torch.zeros((max(1, self.num_agents), 2), dtype=torch.int32)
+        expected_actions_shape = (self.num_agents, 2)
+        if self.actions.shape != expected_actions_shape:
+            raise ValueError(f"Expected actions shape {expected_actions_shape} but got {self.actions.shape}")
+
         self.observations = None
         self.current_timestep = 0
         self.action_history = [deque(maxlen=10) for _ in range(self.num_agents)]
@@ -112,8 +116,63 @@ class MettaGridRaylibRenderer:
                 obj["total_reward"] = total_rewards[agent_id].item()
 
     def update(self, actions, observations, rewards, total_rewards, current_timestep):
-        self.actions = actions
-        self.observations = observations.permute(0, 3, 1, 2)
+        # Validate input tensor shapes
+        expected_actions_shape = (self.num_agents, 2)
+
+        # Handle single agent case specially - check if actions is a 1D array/tensor
+        # Need to handle both torch.Tensor and numpy.ndarray
+        is_1d = False
+        if isinstance(actions, torch.Tensor):
+            is_1d = actions.dim() == 1
+        elif isinstance(actions, np.ndarray):
+            is_1d = actions.ndim == 1
+        else:
+            raise TypeError(f"Expected actions to be torch.Tensor or numpy.ndarray, got {type(actions)}")
+
+        if self.num_agents == 1 and is_1d:
+            if isinstance(actions, torch.Tensor) and actions.shape != (2,):
+                raise ValueError(f"For single agent, expected actions shape (2,) but got {actions.shape}")
+            elif isinstance(actions, np.ndarray) and actions.shape != (2,):
+                raise ValueError(f"For single agent, expected actions shape (2,) but got {actions.shape}")
+
+            # Convert numpy array to torch tensor if needed
+            if isinstance(actions, np.ndarray):
+                actions = torch.tensor(actions, dtype=torch.int32)
+
+            # Reshape from [2] to [1, 2]
+            self.actions = actions.unsqueeze(0)
+        else:
+            if actions.shape != expected_actions_shape:
+                raise ValueError(f"Expected actions shape {expected_actions_shape} but got {actions.shape}")
+
+            # Convert numpy array to torch tensor if needed
+            if isinstance(actions, np.ndarray):
+                actions = torch.tensor(actions, dtype=torch.int32)
+
+            self.actions = actions
+
+        # Validate observations shape after permutation
+        expected_obs_shape = (self.num_agents, observations.shape[3], observations.shape[1], observations.shape[2])
+
+        # Handle numpy arrays for observations
+        if isinstance(observations, np.ndarray):
+            observations = torch.tensor(observations)
+
+        permuted_obs = observations.permute(0, 3, 1, 2)
+        if permuted_obs.shape != expected_obs_shape:
+            raise ValueError(
+                f"Expected observations shape {expected_obs_shape} after permute but got {permuted_obs.shape}"
+            )
+        self.observations = permuted_obs
+
+        # Validate rewards shape
+        if rewards.shape != (self.num_agents,):
+            raise ValueError(f"Expected rewards shape ({self.num_agents},) but got {rewards.shape}")
+
+        # Validate total_rewards shape
+        if total_rewards.shape != (self.num_agents,):
+            raise ValueError(f"Expected total_rewards shape ({self.num_agents},) but got {total_rewards.shape}")
+
         self.current_timestep = current_timestep
         self.game_objects = self.env.grid_objects()
         self.update_agents(rewards, total_rewards)
@@ -121,6 +180,12 @@ class MettaGridRaylibRenderer:
         if self.selected_agent_idx is not None and self.mind_control:
             self.actions[self.selected_agent_idx][0] = self.action_ids["noop"]
             self.actions[self.selected_agent_idx][1] = 0
+
+        # Final validation - ensure actions has the right shape after all processing
+        if self.actions.shape != (max(1, self.num_agents), 2):
+            raise ValueError(
+                f"After processing, actions has invalid shape {self.actions.shape}, expected ({max(1, self.num_agents)}, 2)"
+            )
 
         return self.paused
 
@@ -284,8 +349,37 @@ class MettaGridRaylibRenderer:
         ray.draw_rectangle_lines(x, y, self.tile_size, self.tile_size, color)
 
     def draw_attacks(self):
+        # Validate the actions tensor shape before processing
+        expected_shape = (max(1, self.num_agents), 2)
+        if self.actions.shape != expected_shape:
+            raise ValueError(
+                f"Invalid actions shape in draw_attacks: expected {expected_shape}, got {self.actions.shape}"
+            )
+
         for agent_id, action in enumerate(self.actions):
+            if agent_id >= len(self.agents) or self.agents[agent_id] is None:
+                continue
+
             agent = self.agents[agent_id]
+
+            # Validate action tensor
+            if action.shape != (2,):
+                raise ValueError(f"Invalid action shape for agent {agent_id}: expected (2,), got {action.shape}")
+
+            # Get action index as integer
+            if isinstance(action, torch.Tensor):
+                action_idx = action[0].item()
+            elif isinstance(action, np.ndarray):
+                action_idx = int(action[0])
+            else:
+                action_idx = int(action[0])
+
+            # Validate action index
+            if action_idx >= len(self.action_names) or action_idx < 0:
+                raise ValueError(
+                    f"Invalid action index {action_idx} for agent {agent_id}. Valid range: 0-{len(self.action_names) - 1}"
+                )
+
             attack_color = [
                 ray.Color(255, 0, 0, 128),
                 ray.Color(0, 255, 0, 128),
@@ -297,7 +391,9 @@ class MettaGridRaylibRenderer:
 
             if agent["agent:frozen"]:
                 continue
-            if self.action_names[action[0]] == "attack_nearest":
+
+            # Now use action_idx to access the action index safely
+            if self.action_names[action_idx] == "attack_nearest":
                 # draw a cone from the agent in the direction it's facing.
                 # make it 3 grid squares long and 3 grid squares wide.
                 # make it red but transparent.
@@ -331,9 +427,17 @@ class MettaGridRaylibRenderer:
                         ray.Vector2(base_x + self.tile_size * 3, base_y + self.tile_size * 1.5),
                     ]
                 ray.draw_triangle(points[0], points[1], points[2], attack_color)
-            if self.action_names[action[0]] == "attack":
-                distance = 1 + (action[1] - 1) // 3
-                offset = -((action[1] - 1) % 3 - 1)
+            if self.action_names[action_idx] == "attack":
+                # Get action value as an integer
+                if isinstance(action, torch.Tensor):
+                    action_value = action[1].item()
+                elif isinstance(action, np.ndarray):
+                    action_value = int(action[1])
+                else:
+                    action_value = int(action[1])
+
+                distance = 1 + (action_value - 1) // 3
+                offset = -((action_value - 1) % 3 - 1)
                 target_loc = self._relative_location(
                     agent["r"], agent["c"], agent["agent:orientation"], distance, offset
                 )
