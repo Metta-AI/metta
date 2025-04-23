@@ -3,6 +3,7 @@ from typing import Any, List, Literal, Optional, Tuple
 
 import numpy as np
 
+from mettagrid.map.mapgen import MapGrid
 from mettagrid.map.node import Node
 from mettagrid.map.scene import Scene
 from mettagrid.map.utils.random import MaybeSeed
@@ -263,7 +264,7 @@ class Surface:
         return (x + self.min_x, self.ys[x])
 
     @staticmethod
-    def from_zone(grid: np.ndarray, zone: Zone, side: Literal["up", "down"]) -> "Surface":
+    def from_zone(grid: MapGrid, zone: Zone, side: Literal["up", "down"]) -> "Surface":
         # Scan the entire zone, starting from the top or bottom, and collect all the y values that are part of
         # the surface.
         min_x = None

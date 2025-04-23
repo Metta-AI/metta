@@ -1,7 +1,7 @@
 _target_: mettagrid.map.mapgen.MapGen
 
-width: ${uniform:20,80,40}
-height: ${uniform:20,80,40}
+width: ${sampling:20,80,40}
+height: ${sampling:20,80,40}
 
 root:
   _target_: mettagrid.map.scenes.room_grid.RoomGrid
