@@ -3,7 +3,7 @@
 # Define the list of policy URIs
 POLICIES=(
   "b.daphne.varied_terrain_lessactions"
-  "b.daphne.terrain_multienv_singleA_lessactions"
+  "b.daphne.terrain_multienv_3_lessactions2"
 )
 
 
@@ -18,5 +18,5 @@ for i in "${!POLICIES[@]}"; do
         run=navigation$IDX \
         eval.policy_uri=wandb://run/$POLICY_URI \
         eval_db_uri=wandb://artifacts/navigation_db2 \
-        # device=cpu
+        device=cpu
 done
