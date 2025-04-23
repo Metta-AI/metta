@@ -21,9 +21,10 @@ from metta.rl.pufferlib.experience import Experience
 from metta.rl.pufferlib.kickstarter import Kickstarter
 from metta.rl.pufferlib.profile import Profile
 from metta.rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
+from metta.rl.pufferlib.torch_profiler import TorchProfiler
 from metta.sim.eval_stats_db import EvalStatsDB
 from metta.sim.eval_stats_logger import EvalStatsLogger
-from metta.sim.replay_helper import ReplayHelper
+from metta.sim.replay_helper import ReplayHelper    
 from metta.sim.vecenv import make_vecenv
 from metta.util.config import config_from_path
 
@@ -54,6 +55,7 @@ class PufferTrainer:
             logger.info(f"Setting up distributed training on device {self.device}")
 
         self.profile = Profile()
+        self.torch_profiler = TorchProfiler(self._master, cfg.run_dir, wandb_run, cfg.trainer.profiler_interval_epochs)
         self.losses = self._make_losses()
         self.stats = defaultdict(list)
         self.wandb_run = wandb_run
@@ -98,17 +100,15 @@ class PufferTrainer:
         if self._master:
             print(policy_record.policy())
 
-        if policy_record.metadata["action_names"] != self.vecenv.driver_env.action_names():
-            raise ValueError(
-                "Action names do not match between policy and environment: "
-                f"{policy_record.metadata['action_names']} != {self.vecenv.driver_env.action_names()}"
-            )
-
         self._initial_pr = policy_record
         self.last_pr = policy_record
         self.policy = policy_record.policy().to(self.device)
         self.policy_record = policy_record
         self.uncompiled_policy = self.policy
+
+        actions_names = self.vecenv.driver_env.action_names()
+        actions_max_params = self.vecenv.driver_env._c_env.max_action_args()
+        # self.policy.activate_actions(actions_names, actions_max_params, self.device)
 
         if self.trainer_cfg.compile:
             logger.info("Compiling policy")
@@ -157,7 +157,6 @@ class PufferTrainer:
     def train(self):
         self.train_start = time.time()
         logger.info("Starting training")
-
         if (
             self.trainer_cfg.evaluate_interval != 0
             and self.trainer_cfg.evaluate_interval < self.trainer_cfg.checkpoint_interval
@@ -167,11 +166,9 @@ class PufferTrainer:
 
         logger.info(f"Training on {self.device}")
         while self.agent_step < self.trainer_cfg.total_timesteps:
-            # Collecting experience
-            self._evaluate()
-
-            # Training on collected experience
-            self._train()
+            with self.torch_profiler:
+                self._evaluate() # aka rollout
+                self._train() # aka update
 
             # Processing stats
             self._process_stats()
@@ -187,6 +184,7 @@ class PufferTrainer:
             if self.trainer_cfg.evaluate_interval != 0 and self.epoch % self.trainer_cfg.evaluate_interval == 0:
                 self._evaluate_policy()
             self._weights_helper.on_epoch_end(self.epoch, self.policy)
+            self.torch_profiler.on_epoch_end(self.epoch)
             if self.epoch % self.trainer_cfg.wandb_checkpoint_interval == 0:
                 self._save_policy_to_wandb()
             if (
@@ -283,7 +281,6 @@ class PufferTrainer:
                 # TODO: In place-update should be faster. Leaking 7% speed max
                 # Also should be using a cuda tensor to index
                 e3b = e3b_inv[gpu_env_id] if self.use_e3b else None
-
                 h = lstm_h[:, gpu_env_id]
                 c = lstm_c[:, gpu_env_id]
                 actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward, _ = policy(o_device, (h, c), e3b=e3b)
@@ -328,6 +325,7 @@ class PufferTrainer:
 
     @pufferlib.utils.profile
     def _train(self):
+
         experience, profile = self.experience, self.profile
         self.losses = self._make_losses()
 
@@ -384,8 +382,8 @@ class PufferTrainer:
                     )
                     lstm_state = (lstm_state[0].detach(), lstm_state[1].detach())
 
-                    if self.device == "cuda":
-                        torch.cuda.synchronize()
+                    # if self.device == "cuda":
+                    #     torch.cuda.synchronize()
 
                 with profile.train_misc:
                     logratio = newlogprob - log_probs.reshape(-1)
@@ -444,30 +442,26 @@ class PufferTrainer:
                         + ks_action_loss
                         + ks_value_loss
                     )
-
                 with profile.learn:
                     self.optimizer.zero_grad()
                     loss.backward()
                     torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.trainer_cfg.max_grad_norm)
                     self.optimizer.step()
-
                     if self.cfg.agent.clip_range > 0:
                         self.policy.clip_weights()
 
-                    if self.device == "cuda":
-                        torch.cuda.synchronize()
-
                 with profile.train_misc:
-                    self.losses.policy_loss += pg_loss.item() / total_minibatches
-                    self.losses.value_loss += v_loss.item() / total_minibatches
-                    self.losses.entropy += entropy_loss.item() / total_minibatches
-                    self.losses.old_approx_kl += old_approx_kl.item() / total_minibatches
-                    self.losses.approx_kl += approx_kl.item() / total_minibatches
-                    self.losses.clipfrac += clipfrac.item() / total_minibatches
-                    self.losses.l2_reg_loss += l2_reg_loss.item() / total_minibatches
-                    self.losses.l2_init_loss += l2_init_loss.item() / total_minibatches
-                    self.losses.ks_action_loss += ks_action_loss.item() / total_minibatches
-                    self.losses.ks_value_loss += ks_value_loss.item() / total_minibatches
+                    with torch.no_grad():
+                        self.losses.policy_loss += pg_loss.item() / total_minibatches
+                        self.losses.value_loss += v_loss.item() / total_minibatches
+                        self.losses.entropy += entropy_loss.item() / total_minibatches
+                        self.losses.old_approx_kl += old_approx_kl.item() / total_minibatches
+                        self.losses.approx_kl += approx_kl.item() / total_minibatches
+                        self.losses.clipfrac += clipfrac.item() / total_minibatches
+                        self.losses.l2_reg_loss += l2_reg_loss.item() / total_minibatches
+                        self.losses.l2_init_loss += l2_init_loss.item() / total_minibatches
+                        self.losses.ks_action_loss += ks_action_loss.item() / total_minibatches
+                        self.losses.ks_value_loss += ks_value_loss.item() / total_minibatches
 
             if self.trainer_cfg.target_kl is not None:
                 if approx_kl > self.trainer_cfg.target_kl:
@@ -690,7 +684,6 @@ class PufferTrainer:
         if self.cfg.seed is None:
             self.cfg.seed = np.random.randint(0, 1000000)
         self.vecenv.async_reset(self.cfg.seed)
-
 
 class AbortingTrainer(PufferTrainer):
     def __init__(self, *args, **kwargs):
