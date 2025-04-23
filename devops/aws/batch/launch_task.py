@@ -15,7 +15,7 @@ init(autoreset=True)
 specs = {
     1: {
         "node_gpus": 1,
-        "node_ram_gb": 60,
+        "node_ram_gb": 50,
         "gpu_cpus": 8,
     },
     4: {
@@ -195,6 +195,7 @@ def container_config(args, task_args, job_name):
         [
             {"name": "RUN_ID", "value": args.run},
             {"name": "HARDWARE", "value": "aws"},
+            {"name": "MASTER_PORT", "value": str(random.randint(10000, 65535))},
             {"name": "CMD", "value": args.cmd},
             {"name": "NUM_GPUS", "value": str(args.node_gpus)},
             {"name": "NUM_WORKERS", "value": str(vcpus_per_gpu)},
