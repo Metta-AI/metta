@@ -19,6 +19,8 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._reset_env()
         self.should_reset = False
         self._renderer = None
+        self.labels = self._env_cfg.get("labels", None)
+
 
         super().__init__(buf)
 
@@ -78,6 +80,8 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         episode_rewards = self._c_env.get_episode_rewards()
         episode_rewards_sum = episode_rewards.sum()
         episode_rewards_mean = episode_rewards_sum / self._num_agents
+
+
         infos.update(
             {
                 "episode/reward.sum": episode_rewards_sum,
@@ -88,11 +92,22 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             }
         )
 
-        infos.update(
-            {
-                f"reward_by_map/{self._map_builder.label}": episode_rewards_mean,
-            }
-        )
+        if self._map_builder.labels is not None:
+            for label in self._map_builder.labels:
+                infos.update(
+                    {
+                        f"rewards/map:{label}": episode_rewards_mean,
+                    }
+                )
+
+        if self.labels is not None:
+            for label in self.labels:
+                infos.update(
+                    {
+                        f"rewards/env:{label}": episode_rewards_mean,
+                    }
+                )
+
         stats = self._c_env.get_episode_stats()
 
         infos["episode_rewards"] = episode_rewards

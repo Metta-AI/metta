@@ -8,10 +8,19 @@ class GameObject:
 
 
 class Room:
-    def __init__(self, border_width: int = 0, border_object: str = "wall"):
+    def __init__(self, border_width: int = 0, border_object: str = "wall", labels: str = None):
         self._border_width = border_width
         self._border_object = border_object
-        self.label = "room"
+        self.labels = labels
+
+    def set_size_labels(self, width: int, height: int):
+        area = width * height
+        if area < 4000:
+            self.labels.append("small")
+        elif area < 6000:
+            self.labels.append("medium")
+        else:
+            self.labels.append("large")
 
     def build(self):
         room = self._build()

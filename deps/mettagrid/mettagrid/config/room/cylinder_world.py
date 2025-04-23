@@ -31,8 +31,8 @@ class CylinderWorld(Room):
         # occupancy mask: False = empty
         self._occ = np.zeros((height, width), dtype=bool)
 
-        self.label = "cylinder_world"
-
+        self.labels = ["cylinder_world"]
+        self.set_size_labels(width, height)
     # ------------------------------------------------------------------ #
     # Public build
     # ------------------------------------------------------------------ #

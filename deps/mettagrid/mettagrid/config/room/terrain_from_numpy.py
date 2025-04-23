@@ -72,6 +72,7 @@ class TerrainFromNumpy(Room):
         self.dir = dir
         self.num_agents = num_agents
         self.generators = generators
+        self.labels = ["terrain"]
         super().__init__(border_width=border_width, border_object=border_object)
 
     def get_valid_positions(self, level):
@@ -103,15 +104,7 @@ class TerrainFromNumpy(Room):
         for pos in positions:
             level[pos] = "agent.agent"
 
-        area = level.shape[0] * level.shape[1]
-
-        if area < 5000:
-            self.label = "np_map_small"
-        elif area < 8000:
-            self.label = "np_map_medium"
-        else:
-            self.label = "np_map_large"
-
+        self.set_size_labels(level.shape[1], level.shape[0])
         num_hearts = area // random.randint(66, 180)
         # Find valid empty spaces surrounded by empty
         valid_positions = self.get_valid_positions(level)

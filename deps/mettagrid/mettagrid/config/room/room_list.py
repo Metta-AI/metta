@@ -17,13 +17,20 @@ class RoomList(Room):
 
         max_height, max_width = 0, 0
 
+        room_labels = []
+
         for room in self._room_configs:
             room_array = room.build()
             max_height = max(max_height, room_array.shape[0])
             max_width = max(max_width, room_array.shape[1])
             rooms.append(room_array)
             # how do we want to account for room lists with different labels?
-            self.label = room.label
+            room_labels.append(room.labels)
+
+        # Find overlapping labels between all rooms
+        common_labels = set.intersection(*[set(labels) for labels in room_labels])
+        self.labels = list(common_labels)
+
 
         # Determine grid dimensions based on number of rooms
         n_rooms = len(rooms)
