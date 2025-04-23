@@ -268,7 +268,7 @@ class PufferTrainer:
 
         while not experience.full:
             with profile.env:
-                o, r, d, t, info, env_id, mask = self.vecenv.recv()           iters += 1
+                o, r, d, t, info, env_id, mask = self.vecenv.recv()
 
                 # Zero-copy indexing for contiguous env_id
 
