@@ -1,5 +1,4 @@
-from mettagrid.actions.attack cimport Attack, ActionConfig
+from mettagrid.actions.attack cimport Attack
 
-cdef extern from "attack_nearest.hpp":
-    cdef cppclass AttackNearest(Attack):
-        AttackNearest(const ActionConfig& cfg)
+cdef class AttackNearest(Attack):
+    pass
