@@ -7,7 +7,8 @@ game:
 
 envs:
   /env/mettagrid/navigation/training/terrain_from_numpy_resets: 0.2
-  /env/mettagrid/navigation/training/varied_terrain_resets: 0.2
+  /env/mettagrid/navigation/training/varied_terrain_resets: 0.1
   /env/mettagrid/navigation/training/varied_terrain: 0.2
   /env/mettagrid/navigation/training/terrain_from_numpy: 0.2
-  /env/mettagrid/navigation/training/terrain_from_numpy_with_generators: 0.2
+  /env/mettagrid/navigation/training/terrain_from_numpy_with_generators: 0.1
+  /env/mettagrid/navigation/training/cylinder_world: 0.2
