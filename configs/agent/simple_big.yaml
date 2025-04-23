@@ -12,7 +12,7 @@ observations:
   obs_key: grid_obs
 
 clip_range: 0 # set to 0 to disable clipping
-effective_rank_interval: 10
+analyze_weights_interval: 300
 l2_init_weight_update_interval: 0
 
 components:
@@ -50,11 +50,13 @@ components:
     _target_: metta.agent.lib.nn_layer_library.Linear
     input_source: obs_flattener
     output_size: 1024
+    analyze_weights: true
 
   encoded_obs:
     _target_: metta.agent.lib.nn_layer_library.Linear
     input_source: fc1
     output_size: 256
+    analyze_weights: true
 
   _core_:
     _target_: metta.agent.lib.lstm.LSTM
@@ -67,6 +69,7 @@ components:
     _target_: metta.agent.lib.nn_layer_library.Linear
     input_source: _core_
     output_size: 2048
+    analyze_weights: true
 
   _value_:
     _target_: metta.agent.lib.nn_layer_library.Linear
@@ -78,6 +81,7 @@ components:
     _target_: metta.agent.lib.nn_layer_library.Linear
     input_source: _core_
     output_size: 1024
+    analyze_weights: true
 
   _action_type_:
     _target_: metta.agent.lib.action.ActionType

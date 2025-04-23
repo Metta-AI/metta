@@ -4,12 +4,16 @@ defaults:
 
 game:
   num_agents: 20
-  max_steps: 200
+  max_steps: 250
+
+  agent:
+    rewards:
+      heart: 0.333
 
   map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom
     num_rooms: 20
-    border_width: 3
+    border_width: 1
 
     room:
       _target_: mettagrid.config.room.mean_distance.MeanDistance

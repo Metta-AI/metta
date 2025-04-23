@@ -5,6 +5,8 @@ import torch
 import numpy as np
 
 
+from metta.agent.util.weights_analysis import analyze_weights
+
 
 class LayerBase(nn.Module):
     '''The base class for components that make up the Metta agent. All components
@@ -105,7 +107,8 @@ class LayerBase(nn.Module):
         pass
     def update_l2_init_weight_copy(self):
         pass
-    def effective_rank(self, delta: float = 0.01) -> dict:
+
+    def compute_weight_metrics(self, delta: float = 0.01) -> dict:
         pass
 
 class ParamLayer(LayerBase):
@@ -114,7 +117,7 @@ class ParamLayer(LayerBase):
     def __init__(
         self,
         clip_scale=1,
-        effective_rank=None,
+        analyze_weights=None,
         l2_norm_scale=None,
         l2_init_scale=None,
         nonlinearity="nn.ReLU",
@@ -123,7 +126,7 @@ class ParamLayer(LayerBase):
         **cfg,
         ):
         self.clip_scale = clip_scale
-        self.effective_rank_bool = effective_rank
+        self.analyze_weights_bool = analyze_weights
         self.l2_norm_scale = l2_norm_scale
         self.l2_init_scale = l2_init_scale
         self.nonlinearity = nonlinearity
@@ -213,23 +216,20 @@ class ParamLayer(LayerBase):
         if self.initial_weights is not None:
             self.initial_weights = (self.initial_weights * alpha + self.weight_net.weight.data * (1 - alpha)).clone()
 
-    def compute_effective_rank(self, delta: float = 0.01) -> dict:
-        '''Computes the effective rank of a matrix based on the given delta value.
-        Effective rank formula:
-        srank_\delta(\Phi) = min{k: sum_{i=1}^k σ_i / sum_{j=1}^d σ_j ≥ 1 - δ}
-        See the paper titled 'Implicit Under-Parameterization Inhibits Data-Efficient
-        Deep Reinforcement Learning' by A. Kumar et al.'''
-        if self.weight_net.weight.data.dim() != 2 or self.effective_rank_bool is None or self.effective_rank_bool == False:
+    def compute_weight_metrics(self, delta: float = 0.01) -> dict:
+        """Compute metrics related to the weight matrix dynamics including:
+        - Singular value statistics
+        - Effective rank
+        - Weight norms
+        - Power law fit metrics
+        """
+        if (
+            self.weight_net.weight.data.dim() != 2
+            or self.analyze_weights_bool is None
+            or self.analyze_weights_bool is False
+        ):
             return None
-        # Singular value decomposition. We only need the singular value matrix.
-        _, S, _ = torch.linalg.svd(self.weight_net.weight.data.detach())
 
-        # Calculate the cumulative sum of singular values
-        total_sum = S.sum()
-        cumulative_sum = torch.cumsum(S, dim=0)
-
-        # Find the smallest k that satisfies the effective rank condition
-        threshold = (1 - delta) * total_sum
-        effective_rank = torch.where(cumulative_sum >= threshold)[0][0].item() + 1  # Add 1 for 1-based indexing
-
-        return {'name': self._name, 'effective_rank': effective_rank}
+        metrics = analyze_weights(self.weight_net.weight.data, delta)
+        metrics["name"] = self._name
+        return metrics

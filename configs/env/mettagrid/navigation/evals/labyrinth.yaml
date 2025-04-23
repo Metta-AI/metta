@@ -4,7 +4,11 @@ defaults:
 
 game:
   num_agents: 20
-  max_steps: 250
+  max_steps: 500
+
+  agent:
+    rewards:
+      heart: 0.333
 
   map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom
@@ -15,6 +19,8 @@ game:
       height: 35
       corridor_width: 3
       onlyhearts: true
+      border_width: 1
+
 
   objects:
     altar:

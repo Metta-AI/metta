@@ -285,11 +285,13 @@ class MettaAgent(nn.Module):
             for component in self.components.values():
                 component.clip_weights()
 
-    def compute_effective_rank(self, delta: float = 0.01) -> List[dict]:
-        '''Effective rank computation is off by default. Set effective_rank to True in the config to turn it on for a given component.'''
-        effective_ranks = []
+    def compute_weight_metrics(self, delta: float = 0.01) -> List[dict]:
+        """Compute weight metrics for all components that have weights enabled for analysis.
+        Returns a list of metric dictionaries, one per component. Set analyze_weights to True in the config to turn it
+        on for a given component."""
+        weight_metrics = []
         for component in self.components.values():
-            rank = component.effective_rank(delta)
-            if rank is not None:
-                effective_ranks.append(rank)
-        return effective_ranks
+            metrics = component.compute_weight_metrics(delta)
+            if metrics is not None:
+                weight_metrics.append(metrics)
+        return weight_metrics
