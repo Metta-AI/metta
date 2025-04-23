@@ -4,7 +4,6 @@ import torch.nn as nn
 
 from metta.agent.lib.metta_layer import LayerBase
 
-# file name test, delete this comment after testing
 
 class LSTM(LayerBase):
     def __init__(self, obs_shape, hidden_size, **cfg):
@@ -29,6 +28,7 @@ class LSTM(LayerBase):
 
         return net
 
+    @torch.compile(disable=True)  # Dynamo doesn't support compiling LSTMs
     def _forward(self, td: TensorDict):
         x = td["x"]
         hidden = td[self._input_source]

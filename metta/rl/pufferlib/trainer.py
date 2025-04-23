@@ -55,7 +55,7 @@ class PufferTrainer:
             logger.info(f"Setting up distributed training on device {self.device}")
 
         self.profile = Profile()
-        self.torch_profiler = TorchProfiler(cfg.run_dir, wandb_run)
+        self.torch_profiler = TorchProfiler(self._master, cfg.run_dir, wandb_run, cfg.trainer.profiler_interval_epochs)
         self.losses = self._make_losses()
         self.stats = defaultdict(list)
         self.wandb_run = wandb_run
@@ -109,8 +109,6 @@ class PufferTrainer:
         actions_names = self.vecenv.driver_env.action_names()
         actions_max_params = self.vecenv.driver_env._c_env.max_action_args()
         self.policy.activate_actions(actions_names, actions_max_params, self.device)
-        print(f"actions_names: {actions_names}") #delete after testing
-        print(f"actions_max_params: {actions_max_params}") #delete after testing
 
         if self.trainer_cfg.compile:
             logger.info("Compiling policy")
@@ -168,16 +166,9 @@ class PufferTrainer:
 
         logger.info(f"Training on {self.device}")
         while self.agent_step < self.trainer_cfg.total_timesteps:
-
-
-            # --- Profiler Context ---
-            if self.torch_profiler.active:
-                with self.torch_profiler: # This will start/stop profiling
-                    self._evaluate()
-                    self._train()
-            else: # Run normally if profiler is not active for this epoch
-                self._evaluate()
-                self._train()
+            with self.torch_profiler:
+                self._evaluate() # aka rollout
+                self._train() # aka update
 
             # Processing stats
             self._process_stats()
@@ -193,6 +184,7 @@ class PufferTrainer:
             if self.trainer_cfg.evaluate_interval != 0 and self.epoch % self.trainer_cfg.evaluate_interval == 0:
                 self._evaluate_policy()
             self._weights_helper.on_epoch_end(self.epoch, self.policy)
+            self.torch_profiler.on_epoch_end(self.epoch)
             if self.epoch % self.trainer_cfg.wandb_checkpoint_interval == 0:
                 self._save_policy_to_wandb()
             if (
@@ -202,19 +194,6 @@ class PufferTrainer:
                 self._update_l2_init_weight_copy()
             if self.trainer_cfg.replay_interval != 0 and self.epoch % self.trainer_cfg.replay_interval == 0:
                 self._generate_and_upload_replay()
-
-            # --- Profiler Setup (inside loop for subsequent epochs) ---
-            # Check if it's time to arm the profiler for this epoch
-            # We check again here in case the loop runs multiple times or epoch increments
-            if not self.torch_profiler.active: # Only setup if not already active
-                should_profile_this_epoch = (
-                    self.trainer_cfg.profiler_interval_epochs != 0
-                    and self.epoch % self.trainer_cfg.profiler_interval_epochs == 0
-                    and self._master
-                )
-                if should_profile_this_epoch:
-                     self.torch_profiler.setup_profiler(self.epoch)
-            # --- End Profiler Setup ---
 
             self._on_train_step()
 
