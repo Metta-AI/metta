@@ -174,9 +174,7 @@ class PufferTrainer:
                     self._evaluate()
                     self._train()
             else: # Run normally if profiler is not active for this epoch
-                print(f"Evaluate {self.epoch}") # delete after testing
                 self._evaluate()
-                print(f"Train {self.epoch}") # delete after testing
                 self._train()
 
             # Processing stats
@@ -189,15 +187,12 @@ class PufferTrainer:
 
             # Checkpointing trainer
             if self.epoch % self.trainer_cfg.checkpoint_interval == 0:
-                print(f"Checkpoint {self.epoch}") # delete after testing
                 self._checkpoint_trainer()
             if self.trainer_cfg.evaluate_interval != 0 and self.epoch % self.trainer_cfg.evaluate_interval == 0:
-                print(f"Evaluate {self.epoch}") # delete after testing
                 self._evaluate_policy()
             if self.cfg.agent.effective_rank_interval != 0 and self.epoch % self.cfg.agent.effective_rank_interval == 0:
                 self._effective_rank = self.policy.compute_effective_rank()
             if self.epoch % self.trainer_cfg.wandb_checkpoint_interval == 0:
-                print(f"Wandb checkpoint {self.epoch}") # delete after testing
                 self._save_policy_to_wandb()
             if (
                 self.cfg.agent.l2_init_weight_update_interval != 0
@@ -205,7 +200,6 @@ class PufferTrainer:
             ):
                 self._update_l2_init_weight_copy()
             if self.trainer_cfg.replay_interval != 0 and self.epoch % self.trainer_cfg.replay_interval == 0:
-                print(f"Replay {self.epoch}") # delete after testing
                 self._generate_and_upload_replay()
 
             # --- Profiler Setup (inside loop for subsequent epochs) ---
@@ -271,13 +265,9 @@ class PufferTrainer:
             lstm_h, lstm_c = experience.lstm_h, experience.lstm_c
             e3b_inv = experience.e3b_inv
 
-        iters = 0 # delete after testing
         while not experience.full:
             with profile.env:
-                print(f"Requesting Env at epoch {self.epoch} and iter {iters}") # delete after testing
-                o, r, d, t, info, env_id, mask = self.vecenv.recv()
-                print(f"Received Env at epoch {self.epoch} and iter {iters}") # delete after testing
-                iters += 1
+                o, r, d, t, info, env_id, mask = self.vecenv.recv()           iters += 1
 
                 # Zero-copy indexing for contiguous env_id
 
@@ -311,7 +301,6 @@ class PufferTrainer:
                 # TODO: In place-update should be faster. Leaking 7% speed max
                 # Also should be using a cuda tensor to index
                 e3b = e3b_inv[gpu_env_id] if self.use_e3b else None
-                print(f"forward pass at epoch {self.epoch} and iter {iters}") # delete after testing
                 h = lstm_h[:, gpu_env_id]
                 c = lstm_c[:, gpu_env_id]
                 actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward, _ = policy(o_device, (h, c), e3b=e3b)
