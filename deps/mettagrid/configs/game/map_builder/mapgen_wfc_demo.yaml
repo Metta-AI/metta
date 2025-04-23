@@ -12,39 +12,39 @@ root:
     - limit: 1
       lock: lock1
       order_by: first
-      scene: /scenes/wfc/blocks
+      scene: ./configs/scenes/wfc/blocks.yaml
 
     - limit: 1
       lock: lock1
       order_by: first
-      scene: /scenes/wfc/dungeons
+      scene: ./configs/scenes/wfc/dungeons.yaml
 
     - limit: 1
       lock: lock1
       order_by: first
-      scene: /scenes/wfc/simple
+      scene: ./configs/scenes/wfc/simple.yaml
 
     - limit: 1
       lock: lock1
       order_by: first
-      scene: /scenes/wfc/blob
+      scene: ./configs/scenes/wfc/blob.yaml
 
     - limit: 1
       lock: lock1
       order_by: first
-      scene: /scenes/wfc/blob2
+      scene: ./configs/scenes/wfc/blob2.yaml
 
     - limit: 1
       lock: lock1
       order_by: first
-      scene: /scenes/wfc/blob3
+      scene: ./configs/scenes/wfc/blob3.yaml
 
     - limit: 1
       lock: lock1
       order_by: first
-      scene: /scenes/wfc/mazelike1
+      scene: ./configs/scenes/wfc/mazelike1.yaml
 
     - limit: 1
       lock: lock1
       order_by: first
-      scene: /scenes/wfc/mazelike2
+      scene: ./configs/scenes/wfc/mazelike2.yaml

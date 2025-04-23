@@ -1,4 +1,4 @@
-from typing import Any, List, Optional, TypedDict, Union
+from typing import Any, List, Optional, TypedDict, Union, cast
 
 import hydra
 import numpy as np
@@ -16,20 +16,9 @@ class TypedChild(TypedDict):
     # TODO - more props; use dataclasses instead, or structured configs?
 
 
-def config_from_path(config_path: str) -> DictConfig:
-    """Copy-pasted from metta.util.config.config_from_path"""
-    env_cfg = hydra.compose(config_name=config_path)
-    if config_path.startswith("/"):
-        config_path = config_path[1:]
-    path = config_path.split("/")
-    for p in path[:-1]:
-        env_cfg = env_cfg[p]
-    return env_cfg
-
-
 def make_scene(cfg: SceneCfg) -> "Scene":
     if isinstance(cfg, str):
-        cfg = config_from_path(cfg)
+        cfg = cast(SceneCfg, OmegaConf.load(cfg))
 
     if isinstance(cfg, Scene):
         return cfg

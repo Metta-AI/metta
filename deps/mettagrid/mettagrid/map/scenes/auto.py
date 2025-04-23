@@ -16,8 +16,7 @@ from mettagrid.map.utils.random import MaybeSeed, sample_int_distribution
 
 
 # Global config for convenience.
-# Never instantiated, used as a duck type for hydra configs.
-# (Not registered as a structured config with Hydra yet.)
+# Never instantiated, used as a duck type for OmegaConf configs.
 @dataclass
 class AutoConfig:
     num_agents: int = 0

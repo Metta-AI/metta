@@ -1,5 +1,0 @@
-save: true
-show: none
-
-target:
-  dir: ../../../mettamap/viewer/public/maps

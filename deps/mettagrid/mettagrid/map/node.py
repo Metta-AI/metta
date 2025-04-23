@@ -4,6 +4,7 @@ from typing import List, Optional
 
 import numpy as np
 import numpy.typing as npt
+from omegaconf import DictConfig, ListConfig
 
 
 @dataclass
@@ -58,9 +59,9 @@ class Node:
                 selected_areas = [self._full_area]
             else:
                 # Type check and handling
-                if isinstance(where, dict) and "tags" in where:
+                if isinstance(where, DictConfig) and "tags" in where:
                     tags = where.get("tags", [])
-                    if isinstance(tags, list):
+                    if isinstance(tags, list) or isinstance(tags, ListConfig):
                         for area in areas:
                             match = True
                             for tag in tags:

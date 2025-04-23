@@ -11,7 +11,7 @@ root:
 
   config:
     # How many agents to generate? These are placed randomly over the map.
-    num_agents: 10
+    num_agents: 0
 
     # These will be placed anywhere, randomly distributed over the entire map.
     # Values are absolute counts. (TODO: make them percentages?)
@@ -70,14 +70,14 @@ root:
           _target_: mettagrid.map.scenes.random_scene_from_dir.RandomSceneFromDir
           dir: /scenes/dcss/wfc
         weight: 20
-      - scene: /scenes/wfc/blob
-      - scene: /scenes/wfc/blob2
-      - scene: /scenes/wfc/blob3
-      - scene: /scenes/wfc/blocks
-      - scene: /scenes/wfc/dungeons
-      - scene: /scenes/wfc/mazelike1
-      - scene: /scenes/wfc/mazelike2
-      - scene: /scenes/wfc/simple
+      - scene: ./configs/scenes/wfc/blob.yaml
+      - scene: ./configs/scenes/wfc/blob2.yaml
+      - scene: ./configs/scenes/wfc/blob3.yaml
+      - scene: ./configs/scenes/wfc/blocks.yaml
+      - scene: ./configs/scenes/wfc/dungeons.yaml
+      - scene: ./configs/scenes/wfc/mazelike1.yaml
+      - scene: ./configs/scenes/wfc/mazelike2.yaml
+      - scene: ./configs/scenes/wfc/simple.yaml
       - scene:
           _target_: mettagrid.map.scenes.maze.MazeKruskal
           room_size: ["uniform", 1, 3]
