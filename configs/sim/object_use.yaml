@@ -1,15 +1,12 @@
-_target_: metta.sim.simulation.SimulationSuite
-
 defaults:
-  - eval
+  - sim
   - _self_
-
-env: null #the env is set in evals:
 
 num_envs: 10
 num_episodes: 10
+run_dir: ${run_dir}
 
-evals:
+simulations:
   object_use/altar_use_free:
     env: env/mettagrid/object_use/evals/altar_use_free
     policy_agents_pct: 1.0
@@ -49,5 +46,3 @@ evals:
   object_use/temple_use_free:
     env: env/mettagrid/object_use/evals/temple_use_free
     policy_agents_pct: 1.0
-
-selector_type: latest

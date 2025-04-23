@@ -24,8 +24,10 @@ logging.basicConfig(level="INFO", format="%(message)s", datefmt="[%X]", handlers
 logger = logging.getLogger("sweep_init")
 
 
-@hydra.main(config_path="../configs", config_name="sweep", version_base=None)
+@hydra.main(config_path="../configs", config_name="sweep_job", version_base=None)
 def main(cfg: OmegaConf) -> int:
+    logger.info("Sweep configuration:")
+    logger.info(yaml.dump(OmegaConf.to_container(cfg, resolve=True), default_flow_style=False))
     cfg.wandb.name = cfg.sweep_name
     OmegaConf.register_new_resolver("ss", sweep_space, replace=True)
     cfg.sweep = config_from_path(cfg.sweep_params, cfg.sweep_params_override)
@@ -43,7 +45,7 @@ def create_sweep(sweep_name: str, cfg: OmegaConf) -> None:
     """
     Create a new sweep with the given name.
     """
-    sweep_id = sweep_id_from_name(cfg.wandb.project, sweep_name)
+    sweep_id = sweep_id_from_name(cfg.wandb.project, cfg.wandb.entity, sweep_name)
     if sweep_id is not None:
         logger.info(f"Sweep already exists, skipping creation for: {sweep_name}")
         return
