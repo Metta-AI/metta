@@ -32,7 +32,7 @@ policy_uri: wandb://run/terrain_multienv_3_single_agent
 # eval_db_uri: wandb://artifacts/testing
 #eval_db_uri: wandb://artifacts/navigation_db
 
-# eval_db_uri: wandb://artifacts/navigation_db
+eval_db_uri: wandb://artifacts/navigation_db2
 
 analyzer:
   eval_stats_uri: ${run_dir}/eval_stats
