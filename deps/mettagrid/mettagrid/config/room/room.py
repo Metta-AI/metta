@@ -11,6 +11,7 @@ class Room:
     def __init__(self, border_width: int = 0, border_object: str = "wall"):
         self._border_width = border_width
         self._border_object = border_object
+        self.label = "room"
 
     def build(self):
         room = self._build()

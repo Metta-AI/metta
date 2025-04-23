@@ -22,6 +22,8 @@ class RoomList(Room):
             max_height = max(max_height, room_array.shape[0])
             max_width = max(max_width, room_array.shape[1])
             rooms.append(room_array)
+            # how do we want to account for room lists with different labels?
+            self.label = room.label
 
         # Determine grid dimensions based on number of rooms
         n_rooms = len(rooms)
