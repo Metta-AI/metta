@@ -30,7 +30,7 @@ POLICIES=(
     "b.daphne.terrain_multienv_prioritized_singleA_50hearts"
     "b.georgedeane.terrain_multienv_uniform"
     "b.georgedeane.terrain_multienv_fromscratch"
-    "b.daphne.terrain_multienv_kitchen_sinkwc"
+    "b.daphne.terrain_multienv_kitchensinkwc"
     "b.daphne.terrain_multienv_prioritized_multienv_cylinders2"
     "b.daphne.terrain_multienv_prioritized_george_maps"
     "b.daphne.terrain_multienv_unstable_pretrained_mb3"
