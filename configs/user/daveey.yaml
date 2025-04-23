@@ -22,8 +22,9 @@ trainer:
 
 # policy_uri: wandb://run/b.daveey.t.1.bl
 # policy_uri: wandb://run/b.daveey.t.16.dr0
-# policy_uri: wandb://run/b.daveey.t.64.dr90.1
-policy_uri: wandb://run/b.daveey.t.4.lra.muon
+
+# policy_uri: wandb://run/b.daveey.t.4.lra.muon
+policy_uri: /tmp/puffer_metta_serial.pt
 
 npc_policy_uri: ${policy_uri}
 # npc_policy_uri: wandb://run/b.daveey.t.16.dr0
@@ -45,7 +46,7 @@ eval:
   num_envs: 10
   num_episodes: 10
   max_time_s: 600
-  # policy_agents_pct: 0.5
+  # policy_agents_pct: 1
 
   policy_uri: ${..policy_uri}
   npc_policy_uri: ${..npc_policy_uri}
@@ -64,7 +65,7 @@ eval:
 wandb:
   checkpoint_interval: 1
 
-run_id: 15
+run_id: 16
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 
