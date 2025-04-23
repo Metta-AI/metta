@@ -94,6 +94,7 @@ class TerrainFromNumpy(Room):
         # TODO: add some way of sampling
         uri = np.random.choice(self.files)
         level = safe_load(f"{self.dir}/{uri}")
+        self.set_size_labels(level.shape[1], level.shape[0])
 
         # remove agents to then repopulate
         agents = level == "agent.agent"
@@ -103,8 +104,7 @@ class TerrainFromNumpy(Room):
         positions = random.sample(valid_positions, self.num_agents)
         for pos in positions:
             level[pos] = "agent.agent"
-
-        self.set_size_labels(level.shape[1], level.shape[0])
+        area = level.shape[0] * level.shape[1]
         num_hearts = area // random.randint(66, 180)
         # Find valid empty spaces surrounded by empty
         valid_positions = self.get_valid_positions(level)

@@ -8,7 +8,7 @@ class GameObject:
 
 
 class Room:
-    def __init__(self, border_width: int = 0, border_object: str = "wall", labels: str = None):
+    def __init__(self, border_width: int = 0, border_object: str = "wall", labels: list = []):
         self._border_width = border_width
         self._border_object = border_object
         self.labels = labels
