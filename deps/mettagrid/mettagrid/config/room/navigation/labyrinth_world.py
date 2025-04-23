@@ -44,6 +44,7 @@ class LabyrinthWorld(Room):
         super().__init__(border_width=border_width, border_object=border_object)
         self._rng = np.random.default_rng(seed)
         # overall map size chosen randomly if not overridden by YAML
+        width, height = np.random.randint(80,120), np.random.randint(80,120)
         self._width = width
         self._height = height
         self._agents = agents
@@ -79,9 +80,9 @@ class LabyrinthWorld(Room):
 
     def _generate_labyrinth(self) -> np.ndarray:
         # --- choose elongated size (smaller) -------------------------- #
-        short = int(self._rng.integers(4, 8))  # 4–7
-        long = int(self._rng.integers(short + 3, short + 8))  # +3–7
-        if self._rng.random() < 0.5:  # horizontal
+        short = int(self._rng.integers(4, 8))                 # 4–7
+        long = int(self._rng.integers(short + 3, short + 12))  # +3–7
+        if self._rng.random() < 0.5:                          # horizontal
             h, w, entrance = short, long, (1, 0)
         else:  # vertical
             h, w, entrance = long, short, (0, 1)
