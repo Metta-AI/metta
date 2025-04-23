@@ -58,7 +58,12 @@ POLICIES=(
     "b.daphne.terrain_multienv_prioritized_singleA_50hearts"
     "b.daphne.terrain_multienv_singleA_50hearts_with_cylinders"
     "b.daphne.terrain_multienv_singleA_50hearts"
+    "b.daphne.terrain_multienv_kitchen_sink2"
+    "b.daphne.terrain_multienv_prioritized_multienv_cylinders"
+    "b.georgedeane.terrain_multienv_unstable_pretrained_mb2"
+    "b.georgedeane.terrain_multienv_unstable_pretraiend_mb2"
 )
+
 
 
 for i in "${!POLICIES[@]}"; do
