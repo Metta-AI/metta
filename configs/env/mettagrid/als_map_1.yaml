@@ -30,20 +30,20 @@ game:
         block: ${sampling:5,50,20}
         wall: ${sampling:5,50,20}
 
-    actions:
-      noop:
-        enabled: true
-      move:
-        enabled: true
-      rotate:
-        enabled: true
-      put_items:
-        enabled: true
-      get_items:
-        enabled: true
-      attack:
-        enabled: false
-      swap:
-        enabled: false
-      change_color:
-        enabled: false
+  actions:
+    noop:
+      enabled: true
+    move:
+      enabled: true
+    rotate:
+      enabled: true
+    put_items:
+      enabled: true
+    get_items:
+      enabled: true
+    attack:
+      enabled: false
+    swap:
+      enabled: false
+    change_color:
+      enabled: false
