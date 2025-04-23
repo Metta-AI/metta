@@ -108,6 +108,7 @@ class MettaAgent(nn.Module):
         logger.info(f"Total number of parameters in MettaAgent: {self._total_params:,}. Setup complete.")
         
     def _setup_components(self, component):
+        # TODO: consider making all input source a list or dict
         if component._input_source is not None:
             if isinstance(component._input_source, omegaconf.listconfig.ListConfig):
                 component._input_source = list(component._input_source)

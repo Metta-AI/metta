@@ -1,6 +1,9 @@
 # see reference_design.yaml for explanation of components
 _target_: metta.agent.metta_agent.MettaAgent
 
+convert_to_single_discrete: true  # Add this flag to control action conversion behavior
+
+# should policy_selector be removed from agent config? it's in trainer.yaml
 policy_selector:
   uri: null
   type: top
@@ -8,16 +11,19 @@ policy_selector:
   metric: final.score
   generation: null
 
+# should be removed from agent config? it's in mettagrid.yaml
 observations:
   obs_key: grid_obs
+  track_last_action: false
 
 clip_range: 0 # set to 0 to disable clipping
 analyze_weights_interval: 300
 l2_init_weight_update_interval: 0
 
 components:
-  #necessary source layers: _obs_, _core_
-  #necessary output layers: _action_type_ and _value_ (and _action_param_ if MultiDiscrete)
+  #necessary layers: _core_, _action_embeds_, _action_, _value_
+  #necessary input_source: _obs_
+
   _obs_:
     _target_: metta.agent.lib.obs_shaper.ObsShaper
     input_source: null
@@ -29,16 +35,16 @@ components:
   cnn1:
     _target_: metta.agent.lib.nn_layer_library.Conv2d
     input_source: obs_normalizer
-    output_size: 64
     nn_params:
+      out_channels: 64
       kernel_size: 5
       stride: 3
 
   cnn2:
     _target_: metta.agent.lib.nn_layer_library.Conv2d
     input_source: cnn1
-    output_size: 64
     nn_params:
+      out_channels: 64
       kernel_size: 3
       stride: 1
 
@@ -49,46 +55,48 @@ components:
   fc1:
     _target_: metta.agent.lib.nn_layer_library.Linear
     input_source: obs_flattener
-    output_size: 1024
-    analyze_weights: true
+    nn_params:
+      out_features: 128
 
   encoded_obs:
     _target_: metta.agent.lib.nn_layer_library.Linear
     input_source: fc1
-    output_size: 256
-    analyze_weights: true
+    nn_params:
+      out_features: 128
 
   _core_:
     _target_: metta.agent.lib.lstm.LSTM
     input_source: encoded_obs
-    output_size: 512
+    output_size: 128
     nn_params:
       num_layers: 2
-
+      
   critic_1:
     _target_: metta.agent.lib.nn_layer_library.Linear
     input_source: _core_
-    output_size: 2048
-    analyze_weights: true
+    nn_params:
+      out_features: 1024
+    nonlinearity: nn.Tanh
+    effective_rank: true
 
   _value_:
     _target_: metta.agent.lib.nn_layer_library.Linear
     input_source: critic_1
-    output_size: 1
+    nn_params:
+      out_features: 1
     nonlinearity: null
 
-  actor_1:
-    _target_: metta.agent.lib.nn_layer_library.Linear
-    input_source: _core_
-    output_size: 1024
-    analyze_weights: true
+  _action_embeds_:
+    _target_: metta.agent.lib.action.ActionEmbedding
+    input_source: null
+    nn_params:
+      num_embeddings: 100
+      embedding_dim: 16
 
-  _action_type_:
-    _target_: metta.agent.lib.action.ActionType
-    input_source: actor_1
-    nonlinearity: null
-
-  _action_param_:
-    _target_: metta.agent.lib.action.ActionParam
-    input_source: actor_1
-    nonlinearity: null
+  _action_:
+    _target_: metta.agent.lib.action.MettaActorBig
+    bilinear_output_dim: 32
+    mlp_hidden_dim: 512
+    input_source: 
+      - _core_
+      - _action_embeds_

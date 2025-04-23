@@ -35,12 +35,11 @@ class ActionEmbedding(nn_layer_library.Embedding):
         self.num_actions = len(self.active_indices)
 
     def _forward(self, td: TensorDict):
-        B = td['_batch_size_']
-        TT = td['_TT_']
+        B_TT = td['_BxTT_']
         td['_num_actions_'] = self.num_actions
 
         # get embeddings, unsqueeze the 0'th dimension, then expand to match the batch size
-        td[self._name] = self._net(self.active_indices).unsqueeze(0).expand(B * TT, -1, -1).contiguous()
+        td[self._name] = self._net(self.active_indices).unsqueeze(0).expand(B_TT, -1, -1).contiguous()
         
         return td
     
@@ -53,8 +52,6 @@ class ActionHash(metta_layer.LayerBase):
         self.embedding_dim = embedding_dim
         self._out_tensor_shape = [self.num_actions, self.embedding_dim]
         self.min_value, self.max_value = min_value, max_value
-        # Add a dummy parameter to track device
-        self.register_buffer('dummy_param', torch.zeros(1))
 
     def activate_actions(self, strings, device):
         self.action_embeddings = torch.tensor([
@@ -83,58 +80,51 @@ class ActionHash(metta_layer.LayerBase):
         return embedding
 
     def _forward(self, td: TensorDict):
-        B = td['_batch_size_']
-        TT = td['_TT_']
+        B_TT = td['_BxTT_']
         td['_num_actions_'] = self.num_actions
-        td[self._name] = self.action_embeddings.unsqueeze(0).expand(B * TT, -1, -1)
+        td[self._name] = self.action_embeddings.unsqueeze(0).expand(B_TT, -1, -1)
         return td
     
-class Als_Bilinear_Rev3(LayerBase):
+class MettaActorBig(LayerBase):
     """
-    Implements a bilinear interaction layer followed by an MLP.
-    This version uses torch.einsum for the bilinear calculation, aiming
-    for efficiency and clarity, avoiding both manual layer stacking (Rev1)
-    and the nn.Bilinear layer (Rev2). It replicates the input reshaping
-    logic from Rev2.
+    Implements a bilinear interaction layer followed by an MLP with a lot of reshaping.
+    It replicates what could be achieved by piecing together a number of other layers which would be more flexible.
     """
     def __init__(self, mlp_hidden_dim=512, bilinear_output_dim=32, **cfg):
         super().__init__(**cfg)
-        self.mlp_hidden_dim = mlp_hidden_dim
+        self.mlp_hidden_dim = mlp_hidden_dim # this is hardcoded for a two layer MLP
         self.bilinear_output_dim = bilinear_output_dim
 
     def _make_net(self):
         self.hidden = self._in_tensor_shape[0][0] # input_1 dim (_core_)
         self.embed_dim = self._in_tensor_shape[1][1] # input_2 dim (_action_embeds_)
 
-        # Bilinear parameters
+        # nn.Bilinear but hand written as nn.Parameters. As of 4-23-25, this is 10x faster than using nn.Bilinear.
         self.W = nn.Parameter(torch.Tensor(self.bilinear_output_dim, self.hidden, self.embed_dim))
         self.bias = nn.Parameter(torch.Tensor(self.bilinear_output_dim))
-        self._init_weights() # Initialize bilinear parameters
+        self._init_weights()
 
         self._relu = nn.ReLU()
 
-        # MLP layers
         self._MLP = nn.Sequential(
             nn.Linear(self.bilinear_output_dim, self.mlp_hidden_dim),
             nn.ReLU(),
             nn.Linear(self.mlp_hidden_dim, 1),
         )
 
-        # Initialize MLP layers
-        for layer in self._MLP:
-            if isinstance(layer, nn.Linear):
-                nn.init.kaiming_uniform_(layer.weight, a=math.sqrt(5))
-                if layer.bias is not None:
-                    fan_in, _ = nn.init._calculate_fan_in_and_fan_out(layer.weight)
-                    bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
-                    nn.init.uniform_(layer.bias, -bound, bound)
+        # # Initialize MLP layers
+        # for layer in self._MLP:
+        #     if isinstance(layer, nn.Linear):
+        #         nn.init.kaiming_uniform_(layer.weight, a=math.sqrt(5))
+        #         if layer.bias is not None:
+        #             fan_in, _ = nn.init._calculate_fan_in_and_fan_out(layer.weight)
+        #             bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
+        #             nn.init.uniform_(layer.bias, -bound, bound)
 
-        return nn.Identity() # Actual computation happens in _forward
+        # return nn.Identity()
 
     def _init_weights(self):
-        # Initialize bilinear weights and bias using a method similar to nn.Linear
-        # This initialization is derived from the default initialization used
-        # in PyTorch's nn.Bilinear layer.
+        '''Kaiming (He) initialization'''
         bound = 1 / math.sqrt(self.hidden) if self.hidden > 0 else 0
         nn.init.uniform_(self.W, -bound, bound)
         if self.bias is not None:
@@ -172,177 +162,324 @@ class Als_Bilinear_Rev3(LayerBase):
 
         td[self._name] = action_logits
         return td
-
-# 
-class Als_Bilinear_Rev1(LayerBase):
+    
+class MettaActorSingleHead(LayerBase):
+    """
+    Implements a bilinear interaction layer followed by an MLP with a lot of reshaping.
+    It replicates what could be achieved by piecing together a number of other layers which would be more flexible.
+    """
     def __init__(self, **cfg):
         super().__init__(**cfg)
 
     def _make_net(self):
-        self.hidden = self._in_tensor_shape[0][0]
-        self.embed_dim = self._in_tensor_shape[1][1]
+        self.hidden = self._in_tensor_shape[0][0] # input_1 dim (_core_)
+        self.embed_dim = self._in_tensor_shape[1][1] # input_2 dim (_action_embeds_)
 
-        # Initialize learnable parameters without bias for the linear layers
-        self._W1 = nn.Linear(self.hidden, self.embed_dim, bias=False)
-        self._W2 = nn.Linear(self.hidden, self.embed_dim, bias=False)
-        self._W3 = nn.Linear(self.hidden, self.embed_dim, bias=False)
-        self._W4 = nn.Linear(self.hidden, self.embed_dim, bias=False)
-        self._W5 = nn.Linear(self.hidden, self.embed_dim, bias=False)
-        self._W6 = nn.Linear(self.hidden, self.embed_dim, bias=False)
-        self._W7 = nn.Linear(self.hidden, self.embed_dim, bias=False)
-        self._W8 = nn.Linear(self.hidden, self.embed_dim, bias=False)
-        self._W9 = nn.Linear(self.hidden, self.embed_dim, bias=False)
-        self._W10 = nn.Linear(self.hidden, self.embed_dim, bias=False)
-        self._W11 = nn.Linear(self.hidden, self.embed_dim, bias=False)
-        self._W12 = nn.Linear(self.hidden, self.embed_dim, bias=False)
-        self._W13 = nn.Linear(self.hidden, self.embed_dim, bias=False)
-        self._W14 = nn.Linear(self.hidden, self.embed_dim, bias=False)
-        self._W15 = nn.Linear(self.hidden, self.embed_dim, bias=False)
-        self._W16 = nn.Linear(self.hidden, self.embed_dim, bias=False)
-        self._W17 = nn.Linear(self.hidden, self.embed_dim, bias=False)
-        self._W18 = nn.Linear(self.hidden, self.embed_dim, bias=False)
-        self._W19 = nn.Linear(self.hidden, self.embed_dim, bias=False)
-        self._W20 = nn.Linear(self.hidden, self.embed_dim, bias=False)
-        self._W21 = nn.Linear(self.hidden, self.embed_dim, bias=False)
-        self._W22 = nn.Linear(self.hidden, self.embed_dim, bias=False)
-        self._W23 = nn.Linear(self.hidden, self.embed_dim, bias=False)
-        self._W24 = nn.Linear(self.hidden, self.embed_dim, bias=False)
-        self._W25 = nn.Linear(self.hidden, self.embed_dim, bias=False)
-        self._W26 = nn.Linear(self.hidden, self.embed_dim, bias=False)
-        self._W27 = nn.Linear(self.hidden, self.embed_dim, bias=False)
-        self._W28 = nn.Linear(self.hidden, self.embed_dim, bias=False)
-        self._W29 = nn.Linear(self.hidden, self.embed_dim, bias=False)
-        self._W30 = nn.Linear(self.hidden, self.embed_dim, bias=False)
-        self._W31 = nn.Linear(self.hidden, self.embed_dim, bias=False)
-        self._W32 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+        # nn.Bilinear but hand written as nn.Parameters. As of 4-23-25, this is 10x faster than using nn.Bilinear.
+        self.W = nn.Parameter(torch.Tensor(1, self.hidden, self.embed_dim))
+        self.bias = nn.Parameter(torch.Tensor(1))
+        self._init_weights()
 
+        # # Initialize MLP layers
+        # for layer in self._MLP:
+        #     if isinstance(layer, nn.Linear):
+        #         nn.init.kaiming_uniform_(layer.weight, a=math.sqrt(5))
+        #         if layer.bias is not None:
+        #             fan_in, _ = nn.init._calculate_fan_in_and_fan_out(layer.weight)
+        #             bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
+        #             nn.init.uniform_(layer.bias, -bound, bound)
 
-        # consider initializing with something finite if we get nets that can't get off the ground
-        self._bias = nn.Parameter(torch.zeros(32))
+        # return nn.Identity()
 
-        self._relu = nn.ReLU()
+    def _init_weights(self):
+        '''Kaiming (He) initialization'''
+        bound = 1 / math.sqrt(self.hidden) if self.hidden > 0 else 0
+        nn.init.uniform_(self.W, -bound, bound)
+        if self.bias is not None:
+             nn.init.uniform_(self.bias, -bound, bound)
 
-        self._MLP = nn.Sequential(
-            nn.Linear(32, 512), # need to eventually get these from the config
-            nn.ReLU(),
-            nn.Linear(512, 1),
-        )
-
-        return nn.Identity()  # We'll handle the computation in _forward
-    
     def _forward(self, td: TensorDict):
-        input_1 = td[self._input_source[0]] # _core_
-        input_2 = td[self._input_source[1]] # _action_embeds_
+        input_1 = td[self._input_source[0]] # Shape: [B*TT, hidden]
+        input_2 = td[self._input_source[1]] # Shape: [B*TT, num_actions, embed_dim]
 
-        # Compute Q vectors
-        q_1 = self._W1(input_1)
-        q_2 = self._W2(input_1)
-        q_3 = self._W3(input_1)
-        q_4 = self._W4(input_1)
-        q_5 = self._W5(input_1)
-        q_6 = self._W6(input_1)
-        q_7 = self._W7(input_1)
-        q_8 = self._W8(input_1)
-        q_9 = self._W9(input_1)
-        q_10 = self._W10(input_1)
-        q_11 = self._W11(input_1)
-        q_12 = self._W12(input_1)
-        q_13 = self._W13(input_1)
-        q_14 = self._W14(input_1)
-        q_15 = self._W15(input_1)
-        q_16 = self._W16(input_1)
-        q_17 = self._W17(input_1)
-        q_18 = self._W18(input_1)
-        q_19 = self._W19(input_1)
-        q_20 = self._W20(input_1)
-        q_21 = self._W21(input_1)
-        q_22 = self._W22(input_1)
-        q_23 = self._W23(input_1)
-        q_24 = self._W24(input_1)
-        q_25 = self._W25(input_1)
-        q_26 = self._W26(input_1)
-        q_27 = self._W27(input_1)
-        q_28 = self._W28(input_1)
-        q_29 = self._W29(input_1)
-        q_30 = self._W30(input_1)
-        q_31 = self._W31(input_1)
-        q_32 = self._W32(input_1)
-        
+        B_TT = input_1.shape[0]
+        num_actions = input_2.shape[1]
 
-        # Stack Q vectors into a matrix
-        Q = torch.stack([q_1, q_2, q_3, q_4, q_5, q_6, q_7, q_8, q_9, q_10, q_11, q_12, q_13, q_14, q_15, q_16, q_17, q_18, q_19, q_20, q_21, q_22, q_23, q_24, q_25, q_26, q_27, q_28, q_29, q_30, q_31, q_32], dim=1) # Shape: [B*TT, 32, embed_dim]
-
-        # input_2 shape: [B*TT, num_actions, embed_dim]
-        num_actions = input_2.shape[1] # Get num_actions dynamically
-        B_TT = Q.shape[0] # This is B * TT
-
-        # Perform batch matrix multiplication between Q and transposed input_2
-        # Q: [B_TT, 8, embed_dim]
-        # input_2.transpose(1, 2): [B_TT, embed_dim, num_actions]
-        # scores_bmm: [B_TT, 8, num_actions]
-        scores_bmm = torch.bmm(Q, input_2.transpose(1, 2))
-
-        # Permute and reshape to [B_TT * num_actions, 32]
-        # Permute: [B_TT, num_actions, 32]
-        # Reshape: [B_TT * num_actions, 32]
-        scores_reshaped = scores_bmm.permute(0, 2, 1).reshape(-1, 32)
-
-        # Add bias
-        biased_scores = scores_reshaped + self._bias # Shape: [B_TT * num_actions, 32]
-
-        # Apply ReLU after bias
-        activated_scores = self._relu(biased_scores)
-
-        # pass scores through MLP
-        mlp_output = self._MLP(activated_scores) # Shape: [B_TT * num_actions, 1]
-
-        # B = td["_batch_size_"]
-        # TT = td["_TT_"] # Not needed if we reshape directly to B
-
-        # Reshape scores from [B*TT*num_actions, 1] to [B, -1] (likely [B, TT*num_actions])
-        # This matches the original code's final reshape operation.
-        action_logits = mlp_output.reshape(B_TT, -1)
-
-        td[self._name] = action_logits
-        return td
-    
-class Als_Bilinear_Rev2(LayerBase):
-    def __init__(self, **cfg):
-        super().__init__(**cfg)
-
-    def _make_net(self):
-        self.hidden = self._in_tensor_shape[0][0]
-        self.embed_dim = self._in_tensor_shape[1][1]
-
-        self._bilinear = nn.Bilinear(self.hidden, self.embed_dim, 32)
-        
-        self._relu = nn.ReLU()
-
-        self._MLP = nn.Sequential(
-            nn.Linear(32, 512), # need to eventually get these from the config
-            nn.ReLU(),
-            nn.Linear(512, 1),
-        )
-
-        return nn.Identity()  # We'll handle the computation in _forward
-    
-    def _forward(self, td: TensorDict):
-        input_1 = td[self._input_source[0]] # _core_
-        input_2 = td[self._input_source[1]] # _action_embeds_
-
-        num_actions = input_2.shape[1] # Get num_actions dynamically
-        # Correctly reshape input_1 by unsqueezing, expanding, and then reshaping
+        # Reshape inputs similar to Rev2 for bilinear calculation
+        # input_1: [B*TT, hidden] -> [B*TT * num_actions, hidden]
+        # input_2: [B*TT, num_actions, embed_dim] -> [B*TT * num_actions, embed_dim]
         input_1_reshaped = input_1.unsqueeze(1).expand(-1, num_actions, -1).reshape(-1, self.hidden)
         input_2_reshaped = input_2.reshape(-1, self.embed_dim)
 
-        scores = self._bilinear(input_1_reshaped, input_2_reshaped)
+        # Perform bilinear operation using einsum
+        # einsum('n h, k h e, n e -> n k', ...) computes sum_{h,e} x1[n,h] * W[k,h,e] * x2[n,e] for each n, k
+        # N = B_TT * num_actions, K = bilinear_output_dim
+        scores = torch.einsum('n h, k h e, n e -> n k', input_1_reshaped, self.W, input_2_reshaped) # Shape: [N, K]
 
-        scores = self._relu(scores)
+        # Add bias
+        biased_scores = scores + self.bias.view(1, -1) # Shape: [N, K]
 
-        mlp_output = self._MLP(scores)
-
-        B_TT = input_1.shape[0]
-        action_logits = mlp_output.reshape(B_TT, -1)
+        action_logits = biased_scores.view(B_TT, num_actions) # Shape: [B*TT, num_actions]
 
         td[self._name] = action_logits
         return td
+
+
+# delete all below before merging
+# class Als_Bilinear_Rev3(LayerBase):
+#     """
+#     Implements a bilinear interaction layer followed by an MLP.
+#     This version uses torch.einsum for the bilinear calculation, aiming
+#     for efficiency and clarity, avoiding both manual layer stacking (Rev1)
+#     and the nn.Bilinear layer (Rev2). It replicates the input reshaping
+#     logic from Rev2.
+#     """
+#     def __init__(self, mlp_hidden_dim=512, bilinear_output_dim=32, **cfg):
+#         super().__init__(**cfg)
+#         self.mlp_hidden_dim = mlp_hidden_dim
+#         self.bilinear_output_dim = bilinear_output_dim
+
+#     def _make_net(self):
+#         self.hidden = self._in_tensor_shape[0][0] # input_1 dim (_core_)
+#         self.embed_dim = self._in_tensor_shape[1][1] # input_2 dim (_action_embeds_)
+
+#         # Bilinear parameters
+#         self.W = nn.Parameter(torch.Tensor(self.bilinear_output_dim, self.hidden, self.embed_dim))
+#         self.bias = nn.Parameter(torch.Tensor(self.bilinear_output_dim))
+#         self._init_weights() # Initialize bilinear parameters
+
+#         self._relu = nn.ReLU()
+
+#         # MLP layers
+#         self._MLP = nn.Sequential(
+#             nn.Linear(self.bilinear_output_dim, self.mlp_hidden_dim),
+#             nn.ReLU(),
+#             nn.Linear(self.mlp_hidden_dim, 1),
+#         )
+
+#         # Initialize MLP layers
+#         for layer in self._MLP:
+#             if isinstance(layer, nn.Linear):
+#                 nn.init.kaiming_uniform_(layer.weight, a=math.sqrt(5))
+#                 if layer.bias is not None:
+#                     fan_in, _ = nn.init._calculate_fan_in_and_fan_out(layer.weight)
+#                     bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
+#                     nn.init.uniform_(layer.bias, -bound, bound)
+
+#         return nn.Identity() # Actual computation happens in _forward
+
+#     def _init_weights(self):
+#         # Initialize bilinear weights and bias using a method similar to nn.Linear
+#         # This initialization is derived from the default initialization used
+#         # in PyTorch's nn.Bilinear layer.
+#         bound = 1 / math.sqrt(self.hidden) if self.hidden > 0 else 0
+#         nn.init.uniform_(self.W, -bound, bound)
+#         if self.bias is not None:
+#              nn.init.uniform_(self.bias, -bound, bound)
+
+#     def _forward(self, td: TensorDict):
+#         input_1 = td[self._input_source[0]] # Shape: [B*TT, hidden]
+#         input_2 = td[self._input_source[1]] # Shape: [B*TT, num_actions, embed_dim]
+
+#         B_TT = input_1.shape[0]
+#         num_actions = input_2.shape[1]
+
+#         # Reshape inputs similar to Rev2 for bilinear calculation
+#         # input_1: [B*TT, hidden] -> [B*TT * num_actions, hidden]
+#         # input_2: [B*TT, num_actions, embed_dim] -> [B*TT * num_actions, embed_dim]
+#         input_1_reshaped = input_1.unsqueeze(1).expand(-1, num_actions, -1).reshape(-1, self.hidden)
+#         input_2_reshaped = input_2.reshape(-1, self.embed_dim)
+
+#         # Perform bilinear operation using einsum
+#         # einsum('n h, k h e, n e -> n k', ...) computes sum_{h,e} x1[n,h] * W[k,h,e] * x2[n,e] for each n, k
+#         # N = B_TT * num_actions, K = bilinear_output_dim
+#         scores = torch.einsum('n h, k h e, n e -> n k', input_1_reshaped, self.W, input_2_reshaped) # Shape: [N, K]
+
+#         # Add bias
+#         biased_scores = scores + self.bias.view(1, -1) # Shape: [N, K]
+
+#         # Apply activation
+#         activated_scores = self._relu(biased_scores) # Shape: [N, K]
+
+#         # Pass through MLP
+#         mlp_output = self._MLP(activated_scores) # Shape: [N, 1]
+
+#         # Reshape MLP output back to sequence and action dimensions
+#         action_logits = mlp_output.view(B_TT, num_actions) # Shape: [B*TT, num_actions]
+
+#         td[self._name] = action_logits
+#         return td
+
+
+# class Als_Bilinear_Rev1(LayerBase):
+#     def __init__(self, **cfg):
+#         super().__init__(**cfg)
+
+#     def _make_net(self):
+#         self.hidden = self._in_tensor_shape[0][0]
+#         self.embed_dim = self._in_tensor_shape[1][1]
+
+#         # Initialize learnable parameters without bias for the linear layers
+#         self._W1 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+#         self._W2 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+#         self._W3 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+#         self._W4 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+#         self._W5 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+#         self._W6 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+#         self._W7 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+#         self._W8 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+#         self._W9 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+#         self._W10 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+#         self._W11 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+#         self._W12 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+#         self._W13 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+#         self._W14 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+#         self._W15 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+#         self._W16 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+#         self._W17 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+#         self._W18 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+#         self._W19 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+#         self._W20 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+#         self._W21 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+#         self._W22 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+#         self._W23 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+#         self._W24 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+#         self._W25 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+#         self._W26 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+#         self._W27 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+#         self._W28 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+#         self._W29 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+#         self._W30 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+#         self._W31 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+#         self._W32 = nn.Linear(self.hidden, self.embed_dim, bias=False)
+
+
+#         # consider initializing with something finite if we get nets that can't get off the ground
+#         self._bias = nn.Parameter(torch.zeros(32))
+
+#         self._relu = nn.ReLU()
+
+#         self._MLP = nn.Sequential(
+#             nn.Linear(32, 512), # need to eventually get these from the config
+#             nn.ReLU(),
+#             nn.Linear(512, 1),
+#         )
+
+#         return nn.Identity()  # We'll handle the computation in _forward
+    
+#     def _forward(self, td: TensorDict):
+#         input_1 = td[self._input_source[0]] # _core_
+#         input_2 = td[self._input_source[1]] # _action_embeds_
+
+#         # Compute Q vectors
+#         q_1 = self._W1(input_1)
+#         q_2 = self._W2(input_1)
+#         q_3 = self._W3(input_1)
+#         q_4 = self._W4(input_1)
+#         q_5 = self._W5(input_1)
+#         q_6 = self._W6(input_1)
+#         q_7 = self._W7(input_1)
+#         q_8 = self._W8(input_1)
+#         q_9 = self._W9(input_1)
+#         q_10 = self._W10(input_1)
+#         q_11 = self._W11(input_1)
+#         q_12 = self._W12(input_1)
+#         q_13 = self._W13(input_1)
+#         q_14 = self._W14(input_1)
+#         q_15 = self._W15(input_1)
+#         q_16 = self._W16(input_1)
+#         q_17 = self._W17(input_1)
+#         q_18 = self._W18(input_1)
+#         q_19 = self._W19(input_1)
+#         q_20 = self._W20(input_1)
+#         q_21 = self._W21(input_1)
+#         q_22 = self._W22(input_1)
+#         q_23 = self._W23(input_1)
+#         q_24 = self._W24(input_1)
+#         q_25 = self._W25(input_1)
+#         q_26 = self._W26(input_1)
+#         q_27 = self._W27(input_1)
+#         q_28 = self._W28(input_1)
+#         q_29 = self._W29(input_1)
+#         q_30 = self._W30(input_1)
+#         q_31 = self._W31(input_1)
+#         q_32 = self._W32(input_1)
+        
+
+#         # Stack Q vectors into a matrix
+#         Q = torch.stack([q_1, q_2, q_3, q_4, q_5, q_6, q_7, q_8, q_9, q_10, q_11, q_12, q_13, q_14, q_15, q_16, q_17, q_18, q_19, q_20, q_21, q_22, q_23, q_24, q_25, q_26, q_27, q_28, q_29, q_30, q_31, q_32], dim=1) # Shape: [B*TT, 32, embed_dim]
+
+#         # input_2 shape: [B*TT, num_actions, embed_dim]
+#         num_actions = input_2.shape[1] # Get num_actions dynamically
+#         B_TT = Q.shape[0] # This is B * TT
+
+#         # Perform batch matrix multiplication between Q and transposed input_2
+#         # Q: [B_TT, 8, embed_dim]
+#         # input_2.transpose(1, 2): [B_TT, embed_dim, num_actions]
+#         # scores_bmm: [B_TT, 8, num_actions]
+#         scores_bmm = torch.bmm(Q, input_2.transpose(1, 2))
+
+#         # Permute and reshape to [B_TT * num_actions, 32]
+#         # Permute: [B_TT, num_actions, 32]
+#         # Reshape: [B_TT * num_actions, 32]
+#         scores_reshaped = scores_bmm.permute(0, 2, 1).reshape(-1, 32)
+
+#         # Add bias
+#         biased_scores = scores_reshaped + self._bias # Shape: [B_TT * num_actions, 32]
+
+#         # Apply ReLU after bias
+#         activated_scores = self._relu(biased_scores)
+
+#         # pass scores through MLP
+#         mlp_output = self._MLP(activated_scores) # Shape: [B_TT * num_actions, 1]
+
+#         # B = td["_batch_size_"]
+#         # TT = td["_TT_"] # Not needed if we reshape directly to B
+
+#         # Reshape scores from [B*TT*num_actions, 1] to [B, -1] (likely [B, TT*num_actions])
+#         # This matches the original code's final reshape operation.
+#         action_logits = mlp_output.reshape(B_TT, -1)
+
+#         td[self._name] = action_logits
+#         return td
+    
+# class Als_Bilinear_Rev2(LayerBase):
+#     def __init__(self, **cfg):
+#         super().__init__(**cfg)
+
+#     def _make_net(self):
+#         self.hidden = self._in_tensor_shape[0][0]
+#         self.embed_dim = self._in_tensor_shape[1][1]
+
+#         self._bilinear = nn.Bilinear(self.hidden, self.embed_dim, 32)
+        
+#         self._relu = nn.ReLU()
+
+#         self._MLP = nn.Sequential(
+#             nn.Linear(32, 512), # need to eventually get these from the config
+#             nn.ReLU(),
+#             nn.Linear(512, 1),
+#         )
+
+#         return nn.Identity()  # We'll handle the computation in _forward
+    
+#     def _forward(self, td: TensorDict):
+#         input_1 = td[self._input_source[0]] # _core_
+#         input_2 = td[self._input_source[1]] # _action_embeds_
+
+#         num_actions = input_2.shape[1] # Get num_actions dynamically
+#         # Correctly reshape input_1 by unsqueezing, expanding, and then reshaping
+#         input_1_reshaped = input_1.unsqueeze(1).expand(-1, num_actions, -1).reshape(-1, self.hidden)
+#         input_2_reshaped = input_2.reshape(-1, self.embed_dim)
+
+#         scores = self._bilinear(input_1_reshaped, input_2_reshaped)
+
+#         scores = self._relu(scores)
+
+#         mlp_output = self._MLP(scores)
+
+#         B_TT = input_1.shape[0]
+#         action_logits = mlp_output.reshape(B_TT, -1)
+
+#         td[self._name] = action_logits
+#         return td
