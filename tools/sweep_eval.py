@@ -7,6 +7,7 @@ import sys
 import time
 
 import hydra
+import yaml
 from omegaconf import DictConfig, OmegaConf
 from rich.logging import RichHandler
 from wandb_carbs import WandbCarbs
@@ -14,6 +15,9 @@ from wandb_carbs import WandbCarbs
 from metta.agent.policy_store import PolicyStore
 from metta.sim.eval_stats_db import EvalStatsDB
 from metta.sim.eval_stats_logger import EvalStatsLogger
+from metta.sim.simulation import SimulationSuite
+from metta.sim.simulation_config import SimulationSuiteConfig
+from metta.util.config import dictconfig_to_dataclass
 from metta.util.runtime_configuration import setup_mettagrid_environment
 from metta.util.wandb.wandb_context import WandbContext
 
@@ -39,9 +43,12 @@ def load_file(run_dir, name):
         return OmegaConf.load(f)
 
 
-@hydra.main(config_path="../configs", config_name="sweep", version_base=None)
+@hydra.main(config_path="../configs", config_name="sweep_job", version_base=None)
 def main(cfg: OmegaConf) -> int:
     setup_mettagrid_environment(cfg)
+    logger.info("Sweep configuration:")
+    logger.info(yaml.dump(OmegaConf.to_container(cfg, resolve=True), default_flow_style=False))
+    simulation_suite_cfg = dictconfig_to_dataclass(SimulationSuiteConfig, cfg.sweep_job.evals)
 
     results_path = os.path.join(cfg.run_dir, "sweep_eval_results.yaml")
     start_time = time.time()
@@ -63,13 +70,9 @@ def main(cfg: OmegaConf) -> int:
             WandbCarbs._record_failure(wandb_run)
             return 1
 
-        cfg.eval.policy_uri = policy_pr.uri
         cfg.analyzer.policy_uri = policy_pr.uri
 
-        eval = hydra.utils.instantiate(
-            cfg.eval, policy_store, policy_pr, cfg.get("run_id", wandb_run.id), cfg_recursive_=False
-        )
-
+        eval = SimulationSuite(simulation_suite_cfg, policy_pr, policy_store)
         # Start evaluation process
         sweep_stats = {}
         start_time = time.time()
@@ -92,7 +95,7 @@ def main(cfg: OmegaConf) -> int:
         eval_time = time.time() - eval_start_time
 
         # Log evaluation stats
-        eval_stats_logger = EvalStatsLogger(cfg, wandb_run)
+        eval_stats_logger = EvalStatsLogger(simulation_suite_cfg, wandb_run)
         eval_stats_logger.log(stats)
 
         # Create eval stats database and analyze results
@@ -112,9 +115,9 @@ def main(cfg: OmegaConf) -> int:
         analyzer = hydra.utils.instantiate(cfg.analyzer, eval_stats_db)
         results, _ = analyzer.analyze()
 
-        # Filter by policy name and sum up the mean values over evals
+        # Filter by policy name and average the mean values over evals
         filtered_results = results[sweep_metric_index][results[sweep_metric_index]["policy_name"] == policy_pr.name]
-        eval_metric = filtered_results[f"mean_{cfg.metric}"].sum()
+        eval_metric = filtered_results[f"mean_{cfg.metric}"].mean()
 
         # Get training stats from metadata if available
         train_time = policy_pr.metadata.get("train_time", 0)
