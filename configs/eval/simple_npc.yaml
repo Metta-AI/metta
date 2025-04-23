@@ -10,7 +10,3 @@ evals:
   simple_solo: #this will be in the title of the wandb eval plot
     env: env/mettagrid-base/simple
     policy_agents_pct: 0
-  simple_npc: #this will be in the title of the wandb eval plot
-    env: env/mettagrid-base/simple
-    policy_agents_pct: 0.5
-    npc_policy_uri: wandb://run/b.daveey.t.8.rdr9.3
