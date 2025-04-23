@@ -186,10 +186,9 @@ class MettaGridRaylibRenderer:
             self.actions[self.selected_agent_idx][1] = 0
 
         # Final validation - ensure actions has the right shape after all processing
-        if self.actions.shape != (max(1, self.num_agents), 2):
+        if self.actions.shape != (self.num_agents, 2):
             raise ValueError(
-                f"After processing, actions has invalid shape {self.actions.shape}, "
-                f"expected ({max(1, self.num_agents)}, 2)"
+                f"After processing, actions has invalid shape {self.actions.shape}, expected ({self.num_agents}, 2)"
             )
 
         return self.paused
@@ -355,7 +354,7 @@ class MettaGridRaylibRenderer:
 
     def draw_attacks(self):
         # Validate the actions tensor shape before processing
-        expected_shape = (max(1, self.num_agents), 2)
+        expected_shape = (self.num_agents, 2)
         if self.actions.shape != expected_shape:
             raise ValueError(
                 f"Invalid actions shape in draw_attacks: expected {expected_shape}, got {self.actions.shape}"
