@@ -7,7 +7,6 @@ set -e
 # - RUN_ID: The run ID for the training job
 # - CMD: The command to run (train, sweep, evolve)
 # - GIT_REF: Git reference (branch or commit) to checkout
-# - METTAGRID_REF: Mettagrid reference (branch or commit) to use
 # - NUM_GPUS: Number of GPUs per node
 # - NUM_WORKERS: Number of workers for training
 # - TASK_ARGS: Additional arguments to pass to the training command
@@ -50,7 +49,6 @@ pip uninstall -y termcolor
 pip install termcolor==2.4.0
 
 # Setup build
-export METTAGRID_REF
 ./devops/setup_build.sh
 
 export NUM_NODES=${AWS_BATCH_JOB_NUM_NODES:-1}

@@ -2,7 +2,6 @@ name: Python Tests
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-
 on:
   push:
     branches: [main]
@@ -13,17 +12,25 @@ jobs:
   test:
     if: github.event.pull_request.draft == false || github.event_name == 'push'
     runs-on: ubuntu-latest
-    timeout-minutes: 10 # Prevent hung jobs from consuming resources
+    timeout-minutes: 30 # Prevent hung jobs from consuming resources
     env:
       CHECKPOINT_PATH: ./train_dir/github_test/checkpoints/
     steps:
       - uses: actions/checkout@v4
+
+      # Download ruff.toml from Metta-AI/metta repository
+      - name: Fetch latest ruff.toml
+        run: |
+          curl -s https://raw.githubusercontent.com/Metta-AI/metta/main/ruff.toml -o ruff.toml
+          echo "Downloaded ruff.toml from Metta-AI/metta repository"
+          cat ruff.toml
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11.7"
 
+      # Cache pip packages
       - name: Cache pip packages
         uses: actions/cache@v4
         id: cache-pip
@@ -31,15 +38,18 @@ jobs:
           path: |
             ~/.cache/pip
             venv
+
           key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt', '**/requirements-dev.txt', '**/setup.py') }}
           restore-keys: |
             ${{ runner.os }}-pip-
 
-      - name: Install pip dependencies
+      # Install dependencies (only if cache miss)
+      - name: Install dependencies
         if: steps.cache-pip.outputs.cache-hit != 'true'
         run: |
           python -m venv venv
           source venv/bin/activate
+          python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
       - name: Cache Git dependencies
@@ -58,11 +68,13 @@ jobs:
           mkdir -p deps
           bash ./devops/setup_build.sh
 
+      # List installed packages for debugging
       - name: List installed packages
         run: |
           source venv/bin/activate
           pip list
 
+      # Add Ruff cache
       - name: Cache Ruff
         uses: actions/cache@v4
         id: cache-ruff
@@ -70,6 +82,7 @@ jobs:
           path: ~/.cache/pip
           key: ${{ runner.os }}-ruff-0.11.5
 
+      # Add Ruff check
       - name: Run Ruff check
         run: |
           source venv/bin/activate
@@ -82,6 +95,18 @@ jobs:
         run: |
           source venv/bin/activate
           pytest tests/ --maxfail=1 --disable-warnings -q
+      
+      # This is left over from merging mettagrid into metta. These
+      # tests should be relocated into /tests.
+      - name: Run mettagrid tests
+        env:
+          HYDRA_FULL_ERROR: 1
+          PYTHONPATH: ${{ github.workspace }}/deps/mettagrid
+        run: |
+          source venv/bin/activate
+          cd deps/mettagrid
+          pytest tests
+          python tests/test_kinship.py
 
       - name: Training smoke test
         id: training
@@ -140,3 +165,4 @@ jobs:
           echo "Listing the contents of the workspace:"
           find train_dir -type f -name "*.py" | sort
           find train_dir -type d | sort
+

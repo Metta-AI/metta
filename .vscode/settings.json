@@ -21,6 +21,7 @@
     "-p",
     "test_*.py"
   ],
+  "python.analysis.typeCheckingMode": "basic",
   "python.testing.pytestEnabled": false,
   "python.testing.unittestEnabled": true,
   "[yaml]": {
