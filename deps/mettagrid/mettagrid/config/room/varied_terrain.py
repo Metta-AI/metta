@@ -94,7 +94,7 @@ class VariedTerrain(Room):
         self,
         width: int,
         height: int,
-        agents: int | dict = 0,
+        agents: int | dict = 1,
         seed: Optional[int] = None,
         border_width: int = 0,
         border_object: str = "wall",
@@ -102,6 +102,8 @@ class VariedTerrain(Room):
         style: str = "balanced",
     ):
         super().__init__(border_width=border_width, border_object=border_object)
+
+        self.label = f"varied_terrain_{style}"
 
         width = np.random.randint(40, 100)
         height = np.random.randint(40, 100)

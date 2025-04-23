@@ -49,6 +49,8 @@ class LabyrinthWorld(Room):
         self._agents = agents
         self._occ = np.zeros((height, width), dtype=bool)
 
+        self.label = "labyrinth_world"
+
     # ------------------------------------------------------------------ #
     # Public build entry
     # ------------------------------------------------------------------ #

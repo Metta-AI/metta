@@ -31,6 +31,8 @@ class CylinderWorld(Room):
         # occupancy mask: False = empty
         self._occ = np.zeros((height, width), dtype=bool)
 
+        self.label = "cylinder_world"
+
     # ------------------------------------------------------------------ #
     # Public build
     # ------------------------------------------------------------------ #
@@ -60,7 +62,7 @@ class CylinderWorld(Room):
                 fails = 0  # reset – we still found room
             else:
                 fails += 1  # try a different size/orientation
-            
+
 
         # Finally, spawn any requested agents on leftover empty cells
         grid = self._place_agents(grid)
