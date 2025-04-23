@@ -19,25 +19,8 @@ trainer:
   env: /env/mettagrid/navigation/training/multienv
   evaluate_interval: 10
 
-<<<<<<< HEAD
 policy_uri:  wandb://run/b.daphne.varied_terrain_lessactions
 eval_db_uri: wandb://artifacts/navigation_db
-=======
-# policy: wandb://run/b.daveey.train.maze.sm.dr.warm.0
-# baselines: wandb://run/b.daveey.train.maze.sm.11x11.0
-
-# policy_uri: wandb://run/b.daveey.sm.train.er.new.0
-# policy_uri: wandb://run/daveey.ar.cards.1
-# policy_uri: wandb://run/b.daveey.t.32.instant
-
-# policy_uri: wandb://run/b.daphne.terrain_multienv_lessactions:v40
-policy_uri: wandb://run/b.georgedeane.terrain_multienv
-# npc_policy_uri: ${trained_policy_uri}
-# eval_db_uri: wandb://artifacts/testing
-#eval_db_uri: wandb://artifacts/navigation_db
-
-# eval_db_uri: wandb://artifacts/navigation_db
->>>>>>> eff0182e6d923068576b62076ab2060f9e00d3b8
 
 analyzer:
   eval_stats_uri: ${run_dir}/eval_stats
@@ -49,30 +32,7 @@ analyzer:
   output_path: navigation_results/navigation.html
 
 eval:
-<<<<<<< HEAD
-  env: /env/mettagrid/navigation/evals/navigation
-  env_overrides:
-    game:
-      actions:
-        attack:
-          enabled: false
-        put_items:
-          enabled: false
-        swap:
-          enabled: false
-        change_color:
-          enabled: false
-=======
-  env: /env/mettagrid/navigation/training/square_world
-
-  policy_uri: ${..policy_uri}
-  # npc_policy_uri: ${..npc_policy_uri}
-  eval_db_uri: ${..eval_db_uri} #file://daphne/sweep_stats
-  policy_uris:
-    - "wandb://run/b.daphne.navigation_terrain_training_v2"
-    - "wandb://run/b.georgedeane.navigation_terrain_training_v2"
-    - "wandb://run/b.daphne.navigation_terrain_training"
->>>>>>> eff0182e6d923068576b62076ab2060f9e00d3b8
+  env: /env/mettagrid/navigation/training/multienv_with_cylinder
 
 
 wandb:
