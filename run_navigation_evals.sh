@@ -2,8 +2,9 @@
 
 # Define the list of policy URIs
 POLICIES=(
-  "b.daphne.varied_terrain_lessactions"
-  "b.daphne.terrain_multienv_3_lessactions2"
+  "b.daphne.terrain_multienv_lessactions"
+#   "b.daphne.varied_terrain_lessactions"
+#   "b.daphne.terrain_multienv_3_lessactions2"
 )
 
 
