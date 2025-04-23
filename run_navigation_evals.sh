@@ -35,7 +35,7 @@ POLICIES=(
     "b.daphne.terrain_multienv_prioritized_george_maps"
     "b.daphne.terrain_multienv_unstable_pretrained_mb3"
     "b.georgedeane.terrain_multienv_homogenous_pretrained"
-    "b.georgedeane.terrain_multienv_stable_pretraiend_mb4"
+    "b.georgedeane.terrain_multienv_stable_pretrained_mb4"
 )
 
 
