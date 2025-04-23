@@ -1,0 +1,7 @@
+_target_: mettagrid.map.load.Load
+
+uri: ???
+
+# Optional scene to render on top of the loaded map.
+extra_root:
+  _target_: mettagrid.map.scenes.make_connected.MakeConnected
