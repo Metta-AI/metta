@@ -79,9 +79,6 @@ def main():
         if args.git_branch is None and args.git_commit is None:
             args.git_commit = launch_task.get_current_commit()
 
-        if args.mettagrid_branch is None and args.mettagrid_commit is None:
-            args.mettagrid_commit = launch_task.get_current_commit("deps/mettagrid")
-
         # Submit the job
         for _i in range(args.copies):
             launch_task.submit_batch_job(args, task_args)
