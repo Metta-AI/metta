@@ -1,8 +1,8 @@
 # @package __global__
 
 defaults:
-  # Full fledged evaluation is heavier than we want for Github Actions.
-  - override /eval: smoke_test
+  - override /sim: smoke_test
+
 
 run: github_test
 device: cpu
