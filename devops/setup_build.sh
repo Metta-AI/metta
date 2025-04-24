@@ -5,6 +5,13 @@
 # Exit immediately if a command exits with a non-zero status
 set -e
 
+# Repository URLs defined as variables
+METTAGRID_REPO="https://github.com/Metta-AI/mettagrid.git"
+FAST_GAE_REPO="https://github.com/Metta-AI/fast_gae.git"
+PUFFERLIB_REPO="https://github.com/Metta-AI/pufferlib.git"
+CARBS_REPO="https://github.com/kywch/carbs.git"
+WANDB_CARBS_REPO="https://github.com/Metta-AI/wandb_carbs.git"
+
 # Check if we're in the correct conda environment
 if [ "$CONDA_DEFAULT_ENV" != "metta" ]; then
     echo "Error: You must be in the 'metta' conda environment to run this script."
@@ -28,21 +35,32 @@ mkdir -p deps
 cd deps
 
 # ========== METTAGRID ==========
+if [ ! -d "mettagrid" ]; then
+  echo "Cloning mettagrid into $(pwd)"
+  git clone $METTAGRID_REPO
+fi
 cd mettagrid
+echo "Ensuring correct remote URL for mettagrid"
+git remote set-url origin $METTAGRID_REPO
+echo "Fetching mettagrid into $(pwd)"
+git fetch
+echo "Checking out main into $(pwd)"
+git checkout main
 echo "Building mettagrid into $(pwd)"
 python setup.py build_ext --inplace
 pip install -e .
 export PYTHONPATH="$PYTHONPATH:$(pwd)"
 echo "Updated PYTHONPATH: $PYTHONPATH"
-
 cd ..
 
 # ========== FAST_GAE ==========
 if [ ! -d "fast_gae" ]; then
   echo "Cloning fast_gae into $(pwd)"
-  git clone https://github.com/Metta-AI/fast_gae.git
+  git clone $FAST_GAE_REPO
 fi
 cd fast_gae
+echo "Ensuring correct remote URL for fast_gae"
+git remote set-url origin $FAST_GAE_REPO
 echo "Fetching fast_gae into $(pwd)"
 git fetch
 echo "Checking out main into $(pwd)"
@@ -54,16 +72,16 @@ python setup.py build_ext --inplace
 pip install -e .
 export PYTHONPATH="$PYTHONPATH:$(pwd)"
 echo "Updated PYTHONPATH: $PYTHONPATH"
-
 cd ..
-
 
 # ========== PUFFERLIB ==========
 if [ ! -d "pufferlib" ]; then
   echo "Cloning pufferlib into $(pwd)"
-  git clone https://github.com/Metta-AI/pufferlib.git
+  git clone $PUFFERLIB_REPO
 fi
 cd pufferlib
+echo "Ensuring correct remote URL for pufferlib"
+git remote set-url origin $PUFFERLIB_REPO
 echo "Fetching pufferlib into $(pwd)"
 git fetch
 echo "Checking out metta into $(pwd)"
@@ -74,16 +92,16 @@ echo "Installing pufferlib (in normal mode)"
 pip install .
 export PYTHONPATH="$PYTHONPATH:$(pwd)"
 echo "Updated PYTHONPATH: $PYTHONPATH"
-
 cd ..
 
 # ========== CARBS ==========
 if [ ! -d "carbs" ]; then
   echo "Cloning carbs into $(pwd)"
-  #git clone https://github.com/imbue-ai/carbs.git
-  git clone https://github.com/kywch/carbs.git
+  git clone $CARBS_REPO
 fi
 cd carbs
+echo "Ensuring correct remote URL for carbs"
+git remote set-url origin $CARBS_REPO
 echo "Fetching carbs into $(pwd)"
 git fetch
 echo "Checking out main branch for carbs"
@@ -93,15 +111,16 @@ git pull || echo "⚠️ Warning: git pull failed, possibly shallow clone or det
 pip install -e .
 export PYTHONPATH="$PYTHONPATH:$(pwd)"
 echo "Updated PYTHONPATH: $PYTHONPATH"
-
 cd ..
 
 # ========== WANDB_CARBS ==========
 if [ ! -d "wandb_carbs" ]; then
   echo "Cloning wandb_carbs into $(pwd)"
-  git clone https://github.com/Metta-AI/wandb_carbs.git
+  git clone $WANDB_CARBS_REPO
 fi
 cd wandb_carbs
+echo "Ensuring correct remote URL for wandb_carbs"
+git remote set-url origin $WANDB_CARBS_REPO
 echo "Fetching wandb_carbs into $(pwd)"
 git fetch
 echo "Checking out main branch for wandb_carbs"
@@ -111,7 +130,6 @@ git pull || echo "⚠️ Warning: git pull failed, possibly shallow clone or det
 pip install -e .
 export PYTHONPATH="$PYTHONPATH:$(pwd)"
 echo "Updated PYTHONPATH: $PYTHONPATH"
-
 cd ..
 
 # ========== SANITY CHECK ==========
@@ -133,11 +151,6 @@ do
     exit 1
   }
 done
-
-
-# TODO -- ideally we can find a way to skip this step when we are not on a user's machine
-# for now we are including this here as a convenience because the README and other places
-# tell people to setup their workspace using ./devops/setup_build.sh
 
 # ========== VS CODE INTEGRATION ==========
 echo "Setting up VSCode integration..."
