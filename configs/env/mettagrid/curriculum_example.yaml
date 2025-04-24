@@ -54,20 +54,20 @@ game:
     objects:
       altar: 10
 
-  actions:
-    noop:
-      enabled: true
-    move:
-      enabled: true
-    rotate:
-      enabled: true
-    put_items:
-      enabled: false
-    get_items:
-      enabled: true
-    attack:
-      enabled: false
-    swap:
-      enabled: false
-    change_color:
-      enabled: false
+  # actions:
+  #   noop:
+  #     enabled: true
+  #   move:
+  #     enabled: true
+  #   rotate:
+  #     enabled: true
+  #   put_items:
+  #     enabled: false
+  #   get_items:
+  #     enabled: true
+  #   attack:
+  #     enabled: false
+  #   swap:
+  #     enabled: false
+  #   change_color:
+  #     enabled: false
