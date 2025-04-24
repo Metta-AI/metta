@@ -1,15 +1,12 @@
-_target_: metta.sim.simulation.SimulationSuite
-
 defaults:
-  - eval
+  - sim
   - _self_
-
-env: null #the env is set in evals:
 
 num_envs: 1
 num_episodes: 1
+run_dir: ${run_dir}
 
-evals:
+simulations:
   navigation/emptyspace_withinsight:
     env: env/mettagrid/navigation/evals/emptyspace_withinsight
     policy_agents_pct: 1.0
@@ -74,5 +71,3 @@ evals:
     env: env/mettagrid/navigation/evals/walkaround
   navigation/wanderout:
     env: env/mettagrid/navigation/evals/wanderout
-
-selector_type: top
