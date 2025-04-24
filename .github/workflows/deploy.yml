@@ -43,6 +43,7 @@ jobs:
       - name: Build TypeScript
         run: |
           cd deps/mettagrid/player
+          npm install
           tsc
 
       - name: Setup Python
