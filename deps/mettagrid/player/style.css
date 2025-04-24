@@ -4,7 +4,8 @@
   padding: 0;
 }
 
-body, html {
+body,
+html {
   overflow: hidden;
   height: 100%;
   background-color: black;
@@ -39,48 +40,107 @@ body {
 
 .scrubber-container {
   position: absolute;
-  bottom: 32px;
-  left: 32px;
-  right: 32px;
-  height: 20px; /* Adjust height as needed */
+  bottom: 0px;
+  left: 0px;
+  right: 0px;
+  height: 64px;
+  background-color: rgba(0.2, 0.2, 0.2, 1.0);
+  display: flex;
+  align-items: center;
+}
+
+.play-button {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  margin-left: 20px;
+  background-color: #ff0000;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 16px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  transition: background-color 0.2s, transform 0.1s;
+  z-index: 2;
+}
+
+.play-button:hover {
+  background-color: #cc0000;
+  transform: scale(1.05);
+}
+
+.play-button:active {
+  transform: scale(0.95);
+}
+
+.play-button.paused::before {
+  content: "❚❚";
+  font-size: 12px;
+  letter-spacing: -2px;
 }
 
 .scrubber {
-  width: 100%;
-  height: 5px; /* Track height */
-  -webkit-appearance: none; /* Remove default styling in WebKit browsers */
+  position: absolute;
+  top: 29px;
+  left: 70px;
+  right: 20px;
+  height: 5px;
+  /* Track height */
+  -webkit-appearance: none;
+  /* Remove default styling in WebKit browsers */
   appearance: none;
-  background: #e0e0e0; /* Track color */
+  background: #e0e0e0;
+  /* Track color */
   outline: none;
-  border-radius: 2.5px; /* Rounded track */
+  border-radius: 2.5px;
+  /* Rounded track */
   overflow: hidden;
-  opacity: 0.7; /* Slightly transparent */
-  transition: opacity .2s; /* Transition effect */
-  cursor: pointer; /* Cursor on hover */
+  opacity: 0.7;
+  /* Slightly transparent */
+  transition: opacity .2s;
+  /* Transition effect */
+  cursor: pointer;
+  /* Cursor on hover */
 }
 
 .scrubber:hover {
-  opacity: 1; /* Full opacity on hover */
+  opacity: 1;
+  /* Full opacity on hover */
 }
 
 .scrubber::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 12px; /* Thumb width */
-  height: 12px; /* Thumb height */
-  background: #ff0000; /* Thumb color (YouTube red) */
-  border-radius: 50%; /* Round thumb */
-  cursor: pointer; /* Cursor on hover */
-  box-shadow: 0 0 2px 0 rgba(0, 0, 0, 0.5); /* Shadow for depth */
+  width: 12px;
+  /* Thumb width */
+  height: 12px;
+  /* Thumb height */
+  background: #ff0000;
+  /* Thumb color (YouTube red) */
+  border-radius: 50%;
+  /* Round thumb */
+  cursor: pointer;
+  /* Cursor on hover */
+  box-shadow: 0 0 2px 0 rgba(0, 0, 0, 0.5);
+  /* Shadow for depth */
 }
 
 .scrubber::-moz-range-thumb {
-  width: 12px; /* Thumb width */
-  height: 12px; /* Thumb height */
-  background: #ff0000; /* Thumb color (YouTube red) */
-  border-radius: 50%; /* Round thumb */
-  cursor: pointer; /* Cursor on hover */
-  box-shadow: 0 0 2px 0 rgba(0, 0, 0, 0.5); /* Shadow for depth */
+  width: 12px;
+  /* Thumb width */
+  height: 12px;
+  /* Thumb height */
+  background: #ff0000;
+  /* Thumb color (YouTube red) */
+  border-radius: 50%;
+  /* Round thumb */
+  cursor: pointer;
+  /* Cursor on hover */
+  box-shadow: 0 0 2px 0 rgba(0, 0, 0, 0.5);
+  /* Shadow for depth */
 }
 
 .scrubber::before {
@@ -88,18 +148,21 @@ body {
   position: absolute;
   top: 0;
   left: 0;
-  height: 5px; /* Match the track height */
-  background: #ff0000; /* Fill color (YouTube red) */
-  z-index: 1; /* Ensure it's below the slider */
-  width: 0; /* Initial width */
-  transition: width 0.2s; /* Smooth transition */
+  height: 5px;
+  /* Match the track height */
+  background: #ff0000;
+  /* Fill color (YouTube red) */
+  z-index: 1;
+  /* Ensure it's below the slider */
+  width: 0;
+  /* Initial width */
+  transition: width 0.2s;
+  /* Smooth transition */
 }
-
-
 
 #info-div {
   padding: 32px;
-  background-color: rgba(0, 0, 0, 0.8);
+  background-color: rgba(0.2, 0.2, 0.2, 1.0);
   color: white;
   font-family: monospace;
   font-size: 12px;
@@ -126,16 +189,24 @@ body {
 }
 
 .modal {
-  display: none; /* Hidden by default */
-  position: fixed; /* Stay in place */
-  z-index: 1000; /* Sit on top */
+  display: none;
+  /* Hidden by default */
+  position: fixed;
+  /* Stay in place */
+  z-index: 1000;
+  /* Sit on top */
   left: 0;
   top: 0;
-  width: 100%; /* Full width */
-  height: 100%; /* Full height */
-  overflow: auto; /* Enable scroll if needed */
-  background-color: rgb(0,0,0); /* Fallback color */
-  background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+  width: 100%;
+  /* Full width */
+  height: 100%;
+  /* Full height */
+  overflow: auto;
+  /* Enable scroll if needed */
+  background-color: rgb(0, 0, 0);
+  /* Fallback color */
+  background-color: rgba(0, 0, 0, 0.4);
+  /* Black w/ opacity */
 }
 
 .modal-content {
