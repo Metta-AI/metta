@@ -41,7 +41,7 @@ install_repo() {
     
     # Print repository structure to help with debugging
     echo "Repository content for $repo_name"
-    ls -la
+    tree -a -L 2
     
     # Check for build files
     echo "Checking for package files in $repo_name:"
