@@ -382,8 +382,8 @@ class PufferTrainer:
                     )
                     lstm_state = (lstm_state[0].detach(), lstm_state[1].detach())
 
-                    # if self.device == "cuda":
-                    #     torch.cuda.synchronize()
+                    if self.device == "cuda":
+                        torch.cuda.synchronize()
 
                 with profile.train_misc:
                     logratio = newlogprob - log_probs.reshape(-1)
