@@ -20,9 +20,14 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DEPS_SOURCE="$PROJECT_ROOT/deps"
 DEPS_SYMLINK="/var/tmp/metta/deps"
 
-if [ -d "$DEPS_SOURCE" ]; then
-  ln -sf "$DEPS_SOURCE" "$DEPS_SYMLINK"
-  echo "Symlink created: $DEPS_SYMLINK -> $DEPS_SOURCE"
+# Remove existing symlink if it exists
+if [ -L "$DEPS_SYMLINK" ]; then
+    rm -f "$DEPS_SYMLINK"
+fi
+
+if [ -d "$DEPS_SOURCE" ] && [ ! -L "$DEPS_SOURCE" ]; then
+    ln -sf "$DEPS_SOURCE" "$DEPS_SYMLINK"
+    echo "Symlink created: $DEPS_SYMLINK -> $DEPS_SOURCE"
 else
-  echo "WARNING: Could not find deps directory at $DEPS_SOURCE"
+    echo "WARNING: Could not find deps directory at $DEPS_SOURCE or it's already a symlink"
 fi
