@@ -648,11 +648,10 @@ function drawObjects(replay: any) {
 function drawActions(replay: any) {
   // Draw actions above the objects.
   for (const gridObject of replay.grid_objects) {
-    const type = gridObject.type;
-    const typeName = replay.object_types[type]
     const x = getAttr(gridObject, "c")
     const y = getAttr(gridObject, "r")
 
+    // Do agent actions.
     if (gridObject["action"] !== undefined) {
       // Draw the action:
       const action = getAttr(gridObject, "action");
@@ -710,14 +709,31 @@ function drawActions(replay: any) {
         );
       }
     }
+
+    // Do building actions.
+    if (getAttr(gridObject, "converting") > 0) {
+      drawer.drawSprite(
+        "actions/converting.png",
+        x * TILE_SIZE,
+        y * TILE_SIZE - 100,
+        [1, 1, 1, 1],
+      );
+    }
+
+    // Do states
+    if (getAttr(gridObject, "agent:frozen") > 0) {
+      drawer.drawSprite(
+        "agents/frozen.png",
+        x * TILE_SIZE,
+        y * TILE_SIZE,
+      );
+    }
   }
 }
 
 function drawInventory(replay: any) {
   // Draw the object's inventory.
   for (const gridObject of replay.grid_objects) {
-    const type = gridObject.type;
-    const typeName = replay.object_types[type]
     const x = getAttr(gridObject, "c")
     const y = getAttr(gridObject, "r")
 
@@ -746,8 +762,6 @@ function drawInventory(replay: any) {
 function drawRewards(replay: any) {
   // Draw the reward on the bottom of the object.
   for (const gridObject of replay.grid_objects) {
-    const type = gridObject.type;
-    const typeName = replay.object_types[type]
     const x = getAttr(gridObject, "c")
     const y = getAttr(gridObject, "r")
     if (gridObject["total_reward"] !== undefined) {
@@ -1047,7 +1061,6 @@ function onFrame() {
 
   if (isPlaying) {
     partialStep += playbackSpeed;
-    console.log("partialStep: ", partialStep);
     if (partialStep >= 1) {
       step = (step + Math.floor(partialStep)) % replay.max_steps;
       partialStep -= Math.floor(partialStep);
