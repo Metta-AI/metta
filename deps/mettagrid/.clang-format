@@ -14,4 +14,3 @@ AlignConsecutiveDeclarations: false
 AlignTrailingComments: true
 AllowAllParametersOfDeclarationOnNextLine: true
 IncludeBlocks: Regroup
----
