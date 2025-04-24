@@ -1,4 +1,4 @@
-defaults:
+*defaults:
   - mettagrid
   - game/map_builder: simple
   - _self_
