@@ -68,7 +68,7 @@ root:
     content:
       - scene:
           _target_: mettagrid.map.scenes.random_scene_from_dir.RandomSceneFromDir
-          dir: /scenes/dcss/wfc
+          dir: ./configs/scenes/dcss/wfc
         weight: 20
       - scene: ./configs/scenes/wfc/blob.yaml
       - scene: ./configs/scenes/wfc/blob2.yaml
