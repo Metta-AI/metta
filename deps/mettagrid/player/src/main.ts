@@ -121,14 +121,24 @@ const AGENT_STYLES = {
 }
 
 const INVENTORY = [
-  "armor",
-  "battery",
-  "blueprint",
-  "heart",
-  "laser",
-  "ore.blue",
-  "ore.green",
-  "ore.red",
+  // Agent inventory.
+  ["agent:inv:armor", "resources/armor.png"],
+  ["agent:inv:battery", "resources/battery.png"],
+  ["agent:inv:blueprint", "resources/blueprint.png"],
+  ["agent:inv:heart", "resources/heart.png"],
+  ["agent:inv:laser", "resources/laser.png"],
+  ["agent:inv:ore.blue", "resources/ore.blue.png"],
+  ["agent:inv:ore.green", "resources/ore.green.png"],
+  ["agent:inv:ore.red", "resources/ore.red.png"],
+  // Building inventory.
+  ["inv:ore.red", "resources/ore.red.png"],
+  ["inv:ore.blue", "resources/ore.blue.png"],
+  ["inv:ore.green", "resources/ore.green.png"],
+  ["inv:battery", "resources/battery.png"],
+  ["inv:heart", "resources/heart.png"],
+  ["inv:armor", "resources/armor.png"],
+  ["inv:laser", "resources/laser.png"],
+  ["inv:blueprint", "resources/blueprint.png"]
 ]
 
 // Interaction state.
@@ -223,7 +233,7 @@ function onMouseDown() {
 
       if (followSelection) {
         // Set the zoom level to 1 as requested when following
-        mapPanel.zoomLevel = 1;
+        mapPanel.zoomLevel = 1/2;
       }
     }
   }
@@ -581,7 +591,11 @@ function drawWalls(replay: any) {
       se = true;
     }
     if (e && s && se) {
-      drawer.drawSprite('objects/wall.fill.png', x * TILE_SIZE + TILE_SIZE / 2, y * TILE_SIZE + TILE_SIZE / 2);
+      drawer.drawSprite(
+        'objects/wall.fill.png',
+        x * TILE_SIZE + TILE_SIZE / 2,
+        y * TILE_SIZE + TILE_SIZE / 2 - 50
+      );
     }
   }
 }
@@ -629,7 +643,9 @@ function drawObjects(replay: any) {
       );
     }
   }
+}
 
+function drawActions(replay: any) {
   // Draw actions above the objects.
   for (const gridObject of replay.grid_objects) {
     const type = gridObject.type;
@@ -695,7 +711,9 @@ function drawObjects(replay: any) {
       }
     }
   }
+}
 
+function drawInventory(replay: any) {
   // Draw the object's inventory.
   for (const gridObject of replay.grid_objects) {
     const type = gridObject.type;
@@ -706,24 +724,26 @@ function drawObjects(replay: any) {
     // Draw the agent's inventory.
     let inventoryX = 0;
     let numItems = 0;
-    for (const item of INVENTORY) {
-      const num = getAttr(gridObject, "agent:inv:" + item);
+    for (const [key, icon] of INVENTORY) {
+      const num = getAttr(gridObject, key);
       numItems += num;
     }
     let advanceX = Math.min(32, TILE_SIZE / numItems);
-    for (const item of INVENTORY) {
-      const num = getAttr(gridObject, "agent:inv:" + item);
+    for (const [key, icon] of INVENTORY) {
+      const num = getAttr(gridObject, key);
       for (let i = 0; i < num; i++) {
         drawer.save()
         drawer.translate(x * TILE_SIZE + inventoryX - TILE_SIZE/2, y * TILE_SIZE - TILE_SIZE/2 + 16);
         drawer.scale(1/8, 1/8);
-        drawer.drawSprite("resources/" + item + ".png", 0, 0);
+        drawer.drawSprite(icon, 0, 0);
         drawer.restore()
         inventoryX += advanceX;
       }
     }
   }
+}
 
+function drawRewards(replay: any) {
   // Draw the reward on the bottom of the object.
   for (const gridObject of replay.grid_objects) {
     const type = gridObject.type;
@@ -746,7 +766,7 @@ function drawObjects(replay: any) {
   }
 }
 
-function drawSelection(selectedObject: any | null, step: number) {
+function drawSelection(selectedObject: any | null) {
   if (selectedObject === null) {
     return;
   }
@@ -840,8 +860,11 @@ function drawMap(panel: PanelInfo) {
 
   drawFloor(replay.map_size);
   drawWalls(replay);
-  drawSelection(selectedGridObject, step);
   drawObjects(replay);
+  drawSelection(selectedGridObject);
+  drawActions(replay);
+  drawInventory(replay);
+  drawRewards(replay);
 
   drawer.restore();
 }
