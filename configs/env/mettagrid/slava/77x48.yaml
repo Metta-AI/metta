@@ -15,4 +15,4 @@ game:
       border_width: 1
       dir: "terrain_maps_nohearts"
       num_agents: 1
-      file: "77x48_808248.npy"
+      file: "77x48_375370.npy"

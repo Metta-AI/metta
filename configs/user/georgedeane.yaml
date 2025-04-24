@@ -1,8 +1,8 @@
 # @package __global__
 
 defaults:
-  - override /agent: simple
   - _self_
+  - override /sim: slava
 
 trainer:
   env: /env/mettagrid/walkaround
@@ -19,14 +19,6 @@ policy_uri: wandb://run/terrain_multienv_3_single_agent
 # b.georgedeane.terrain_multienv
 # policy_uri: wandb://run/terrain_training_multienv_april18
 # policy_uri: wandb://run/b.daphne.terrain_multienv_april18
-
-
-# Infinite_cooldown models:
-# navigation_infinite_cooldown_sweep_2g_.r.0 - ok
-# navigation_infinite_cooldown_sweep_2g.r.1 - 9 reward after 400 timesteps
-# navigation_infinite_cooldown_high_ent_no_initial_heart - ~9, current best
-# navigation_poisson_train_sampling5 breaks in infinite_cooldown, works great in poisson with short distance
-# navigation_poisson_train_sampling5
 # npc_policy_uri: ${trained_policy_uri}
 # eval_db_uri: wandb://artifacts/navigation_constrained_actions
 eval_db_uri: wandb://artifacts/training_nav_db_slava
@@ -40,7 +32,7 @@ analyzer:
   #output_path: evalresults/training_navigation.html
   output_path: s3://softmax-public/policydash/dashboard_navigation_db3.html
 
-eval:
+sim:
   num_envs: 2
   num_episodes: 2
   max_time_s: 600
@@ -48,8 +40,8 @@ eval:
   # policy_uri: ${..policy_uri}
   # npc_policy_uri: ${..npc_policy_uri}
   # eval_db_uri: ${..eval_db_uri} #file://daphne/sweep_stats
-  env: env/mettagrid/slava/48x61
-  # eval_db_uri: wandb://artifacts/navigation_db2
+  env: env/mettagrid/slava/45x45
+  eval_db_uri: wandb://artifacts/navigation_slava_db2
   # ${..eval_db_uri} 
 
   
