@@ -27,7 +27,7 @@ install-tools:
 		brew install clang-format || echo "Failed to install clang-format. Please install manually."; \
 	else \
 		echo "This command only works on macOS. Please install tools manually:"; \
-		echo "  - clang-format: apt-get install clang-format (Linux) or brew install clang-format (macOS)"; \
+		echo "  - clang-format: apt-get install clang-format (Linux)"; \
 	fi
 
 # Format only C/C++ code and skip Cython files entirely
