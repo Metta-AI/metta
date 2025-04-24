@@ -1,0 +1,73 @@
+defaults:
+  - /env/mettagrid-base/mettagrid@
+  - _self_
+
+# a single agent wanders around a square world with 10 rewards to find
+# for our experimental control, we will override game.difficulty to always be 10
+
+min_steps_per_info: 1000
+
+num_agents: 1
+
+# these are overwritten during training
+progress:
+  episode_count: 0
+  mean_reward: 0.0
+  last_mean_reward: 0.0
+  last_difficulty: 0.0
+
+# # compute the ~10 episode running average 
+# filtered_mean_reward: ${iir:0.1,${.progress.mean_reward},${.progress.last_mean_reward}}
+
+game:
+  num_agents: ${..num_agents}
+
+  difficulty_increase_threshold: 5.0
+  should_increase_difficulty: ${gt:${..progress.mean_reward},${.difficulty_increase_threshold}}
+  difficulty_increase_delta: ${if:${.should_increase_difficulty},2.0,0.0}
+
+  difficulty_decrease_threshold: 1.0
+  should_decrease_difficulty: ${lt:${..progress.mean_reward},${.difficulty_decrease_threshold}}
+  difficulty_decrease_delta: ${if:${.should_decrease_difficulty},-1.0,0.0}
+
+  difficulty_change: ${add:${.difficulty_decrease_delta},${.difficulty_increase_delta}}
+  difficulty: ${clamp:${add:${..progress.last_difficulty},${.difficulty_change}}, 0.0, 10.0}
+
+  # episode length 
+  # max_steps: ${make_integer:${scale:${.difficulty},0,10,100,500,"linear"}}
+  max_steps: 500
+
+  # scaling the map size as our experimental condition
+  min_size: 10
+  max_size: ${scale:${.difficulty},0,10,10,60,"log"}
+  size: ${make_integer:${uniform:${.min_size}, ${.max_size}}}
+
+  map_builder:
+    _target_: mettagrid.config.room.random.Random
+
+    border_width: 6
+    width: ${..size}
+    height: ${..size}
+
+    agents: ${..num_agents}
+
+    objects:
+      altar: 10
+
+  actions:
+    noop:
+      enabled: true
+    move:
+      enabled: true
+    rotate:
+      enabled: true
+    put_items:
+      enabled: false
+    get_items:
+      enabled: true
+    attack:
+      enabled: false
+    swap:
+      enabled: false
+    change_color:
+      enabled: false
