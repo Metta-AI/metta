@@ -6,7 +6,6 @@
 set -e
 
 # Repository URLs defined as variables
-METTAGRID_REPO="https://github.com/Metta-AI/mettagrid.git"
 FAST_GAE_REPO="https://github.com/Metta-AI/fast_gae.git"
 PUFFERLIB_REPO="https://github.com/Metta-AI/pufferlib.git"
 CARBS_REPO="https://github.com/kywch/carbs.git"
@@ -35,17 +34,8 @@ mkdir -p deps
 cd deps
 
 # ========== METTAGRID ==========
-if [ ! -d "mettagrid" ]; then
-  echo "Cloning mettagrid into $(pwd)"
-  git clone $METTAGRID_REPO
-fi
+# Note that version control for the mettagrid package has been brought into our monorepo
 cd mettagrid
-echo "Ensuring correct remote URL for mettagrid"
-git remote set-url origin $METTAGRID_REPO
-echo "Fetching mettagrid into $(pwd)"
-git fetch
-echo "Checking out main into $(pwd)"
-git checkout main
 echo "Building mettagrid into $(pwd)"
 python setup.py build_ext --inplace
 pip install -e .
