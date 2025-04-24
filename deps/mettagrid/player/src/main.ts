@@ -81,6 +81,9 @@ const PANEL_BOTTOM_MARGIN = 60;    // bottom margin for panels
 // Map constants.
 const TILE_SIZE = 200;
 
+// Agent defaults.
+const DEFAULT_VISION_SIZE = 11;
+
 let drawer: Drawer;
 
 // Flag to prevent multiple calls to requestAnimationFrame
@@ -465,13 +468,13 @@ function onKeyDown(event: KeyboardEvent) {
 }
 
 // Gets an attribute from a grid object respecting the current step.
-function getAttr(obj: any, attr: string, atStep = -1): any {
+function getAttr(obj: any, attr: string, atStep = -1, defaultValue = 0): any {
   if (atStep == -1) {
     // When step is not defined, use global step.
     atStep = step;
   }
   if (obj[attr] === undefined) {
-    return 0;
+    return defaultValue;
   } else if (obj[attr] instanceof Array) {
     return obj[attr][atStep];
   } else {
@@ -519,9 +522,50 @@ function focusMapOn(panel: PanelInfo, x: number, y: number) {
 
 // Draw the tiles that make up the floor.
 function drawFloor(mapSize: [number, number]) {
+
+  // Compute the visibility map, each agent contributes to the visibility map.
+  const visibilityMap = new Grid(mapSize[0], mapSize[1]);
+
+  // Update the visibility map for a grid object.
+  function updateVisibilityMap(gridObject: any) {
+    const x = getAttr(gridObject, "c");
+    const y = getAttr(gridObject, "r");
+    var visionSize = Math.floor(getAttr(
+      gridObject,
+      "agent:vision_size",
+      step,
+      DEFAULT_VISION_SIZE
+    ) / 2);
+    for (let dx = -visionSize; dx <= visionSize; dx++) {
+      for (let dy = -visionSize; dy <= visionSize; dy++) {
+        visibilityMap.set(
+          x +dx,
+          y + dy,
+          true
+        );
+      }
+    }
+  }
+
+  if (selectedGridObject !== null && selectedGridObject.agent_id !== undefined) {
+    // When there is a selected grid object only update its visibility.
+    updateVisibilityMap(selectedGridObject);
+  } else {
+    // When there is no selected grid object update the visibility map for all agents.
+    for (const gridObject of replay.grid_objects) {
+      const type = gridObject.type;
+      const typeName = replay.object_types[type];
+      if (typeName == "agent") {
+        updateVisibilityMap(gridObject);
+      }
+    }
+  }
+
+  // Draw the floor, darker where there is no visibility.
   for (let x = 0; x < mapSize[0]; x++) {
     for (let y = 0; y < mapSize[1]; y++) {
-      drawer.drawSprite('objects/floor.png', x * TILE_SIZE, y * TILE_SIZE);
+      const color = visibilityMap.get(x, y) ? [1, 1, 1, 1] : [0.75, 0.75, 0.75, 1];
+      drawer.drawSprite('objects/floor.png', x * TILE_SIZE, y * TILE_SIZE, color);
     }
   }
 }
