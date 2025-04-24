@@ -29,7 +29,12 @@ def main(cfg):
         policy_record = policy_store.policy(replay_job.policy_uri)
         replay_helper = ReplayHelper(replay_job.sim, policy_record, wandb_run)
         epoch = policy_record.metadata["epoch"]
-        replay_helper.generate_and_upload_replay(epoch, cfg.run_dir, cfg.run)
+        replay_helper.generate_and_upload_replay(
+            epoch,
+            cfg.run_dir,
+            cfg.run,
+            dry_run=cfg.get("replay_dry_run", False),
+        )
 
         # Only on macos open a browser to the replay
         if platform.system() == "Darwin":
