@@ -13,12 +13,13 @@ class MazePrim(Room):
     def __init__(
         self, width, height, start_pos, end_pos, branching=0.0, seed=None, border_width=0, border_object="wall"
     ):
-        super().__init__(border_width=border_width, border_object=border_object)
+        super().__init__(border_width=border_width, border_object=border_object, labels = ["maze"])
         self._rng = random.Random(seed)
         self._width = width if width % 2 == 1 else width - 1
         self._height = height if height % 2 == 1 else height - 1
         self._start_pos = (set_position(start_pos[0], self._width), set_position(start_pos[1], self._height))
         self._end_pos = (set_position(end_pos[0], self._width), set_position(end_pos[1], self._height))
+        self.set_size_labels(width, height)
 
     def _build(self):
         final_maze = create_grid(self._height, self._width, fill_value=self.WALL)
