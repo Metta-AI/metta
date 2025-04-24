@@ -13,7 +13,7 @@ observations:
   track_last_action: false
 
 clip_range: 0 # set to 0 to disable clipping
-analyze_weights_interval: 0
+analyze_weights_interval: 300
 l2_init_weight_update_interval: 0
 
 components:

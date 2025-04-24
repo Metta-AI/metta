@@ -218,6 +218,7 @@ class ParamLayer(LayerBase):
         """
         if (
             self.weight_net.weight.data.dim() != 2
+            or not hasattr(self, "analyze_weights_bool")
             or self.analyze_weights_bool is None
             or self.analyze_weights_bool is False
         ):
