@@ -24,6 +24,8 @@ from metta.rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
 from metta.sim.eval_stats_db import EvalStatsDB
 from metta.sim.eval_stats_logger import EvalStatsLogger
 from metta.sim.replay_helper import ReplayHelper
+from metta.sim.simulation import SimulationSuite
+from metta.sim.simulation_config import SimulationConfig, SimulationSuiteConfig
 from metta.sim.vecenv import make_vecenv
 from metta.util.config import config_from_path
 
@@ -36,10 +38,13 @@ logger = logging.getLogger(f"trainer-{rank}-{local_rank}")
 
 
 class PufferTrainer:
-    def __init__(self, cfg: OmegaConf, wandb_run, policy_store: PolicyStore, **kwargs):
+    def __init__(
+        self, cfg: OmegaConf, wandb_run, policy_store: PolicyStore, sim_suite_config: SimulationSuiteConfig, **kwargs
+    ):
         self.cfg = cfg
         self.trainer_cfg = cfg.trainer
         self._env_cfg = config_from_path(self.trainer_cfg.env, self.trainer_cfg.env_overrides)
+        self.sim_suite_config = sim_suite_config
 
         self._master = True
         self._world_size = 1
@@ -59,7 +64,7 @@ class PufferTrainer:
         self.wandb_run = wandb_run
         self.policy_store = policy_store
         self.use_e3b = self.trainer_cfg.use_e3b
-        self.eval_stats_logger = EvalStatsLogger(cfg, wandb_run)
+        self.eval_stats_logger = EvalStatsLogger(self.sim_suite_config, wandb_run)
         self.average_reward = 0.0  # Initialize average reward estimate
         self._current_eval_score = None
         self._eval_results = []
@@ -151,7 +156,15 @@ class PufferTrainer:
 
         self.kickstarter = Kickstarter(self.cfg, self.policy_store, self.vecenv.single_action_space)
 
-        self.replay_helper = ReplayHelper(cfg, self._env_cfg, self.last_pr, wandb_run)
+        replay_sim_config = SimulationConfig(
+            env=self.trainer_cfg.env,
+            num_envs=1,
+            num_episodes=1,
+            env_overrides=self.trainer_cfg.env_overrides,
+            device=self.device,
+            vectorization=self.cfg.vectorization,
+        )
+        self.replay_helper = ReplayHelper(replay_sim_config, self.last_pr, wandb_run)
 
         logger.info(f"PufferTrainer initialization complete on device: {self.device}")
 
@@ -227,20 +240,23 @@ class PufferTrainer:
         if not self._master:
             return
 
-        self.cfg.eval.policy_uri = self.last_pr.uri
         self.cfg.analyzer.policy_uri = self.last_pr.uri
 
-        eval = hydra.utils.instantiate(
-            self.cfg.eval, self.policy_store, self.last_pr, self.cfg.get("run_id", self.wandb_run.id), _recursive_=False
-        )
-        stats = eval.simulate()
+        run_id = self.cfg.get("run_id")
+        if run_id is None and self.wandb_run is not None:
+            run_id = self.wandb_run.id
+
+        logger.info(f"Simulating policy: {self.last_pr.uri} with config: {self.sim_suite_config}")
+        sim = SimulationSuite(config=self.sim_suite_config, policy_pr=self.last_pr, policy_store=self.policy_store)
+        stats = sim.simulate()
+        logger.info("Simulation complete")
 
         try:
             self.eval_stats_logger.log(stats)
         except Exception as e:
             logger.error(f"Error logging stats: {e}")
 
-        eval_stats_db = EvalStatsDB.from_uri(self.cfg.eval.eval_db_uri, self.cfg.run_dir, self.wandb_run)
+        eval_stats_db = EvalStatsDB.from_uri(self.sim_suite_config.eval_db_uri, self.cfg.run_dir, self.wandb_run)
         analyzer = hydra.utils.instantiate(self.cfg.analyzer, eval_stats_db)
         _, policy_fitness_records = analyzer.analyze()
         self._eval_results = policy_fitness_records
@@ -557,7 +573,12 @@ class PufferTrainer:
     def _generate_and_upload_replay(self):
         if self._master:
             logger.info("Generating and saving a replay to wandb and S3.")
-            self.replay_helper.generate_and_upload_replay(self.epoch)
+            self.replay_helper.generate_and_upload_replay(
+                self.epoch,
+                self.cfg.run_dir,
+                self.cfg.run,
+                dry_run=self.trainer_cfg.get("replay_dry_run", False),
+            )
 
     def _process_stats(self):
         for k in list(self.stats.keys()):

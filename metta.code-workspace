@@ -9,10 +9,6 @@
 			"path": "deps/fast_gae"
 		},
 		{
-			"name": "mettagrid",
-			"path": "deps/mettagrid"
-		},
-		{
 			"name": "pufferlib",
 			"path": "deps/pufferlib"
 		},
@@ -142,7 +138,10 @@
 			"train_dir": true,
 			"wandb": true,
 			"deps": true,
+			"mettagrid/build": true,
+			"mettagrid/build_debug": true,
 		},
+		"files.excludeGitIgnored": true,
 		"terminal.integrated.profiles.osx": {
 			"metta-0": {
 				"path": "bash",
