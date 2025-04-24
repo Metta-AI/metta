@@ -32,7 +32,6 @@ cdef class GridEnv:
             unsigned short obs_width,
             unsigned short obs_height,
             ObservationEncoder observation_encoder,
-            list[ActionHandler] action_handlers,
             bint track_last_action=False
         ):
         self._obs_width = obs_width
@@ -51,18 +50,6 @@ cdef class GridEnv:
             self._grid_features.push_back(b"last_action")
             self._last_action_arg_obs_idx = self._grid_features.size()
             self._grid_features.push_back(b"last_action_argument")
-
-        self._action_handlers = action_handlers
-        self._num_action_handlers = len(action_handlers)
-        self._max_action_priority = 0
-        self._max_action_arg = 0
-        self._max_action_args.resize(len(action_handlers))
-        for i, handler in enumerate(action_handlers):
-            (<ActionHandler>handler).init(self._grid)
-            max_arg = (<ActionHandler>handler).max_arg()
-            self._max_action_args[i] = max_arg
-            self._max_action_arg = max(self._max_action_arg, max_arg)
-            self._max_action_priority = max(self._max_action_priority, (<ActionHandler>handler)._priority)
 
         self._event_manager.init(self._grid, &self._stats)
         # The order of this needs to match the order in the Events enum
@@ -89,6 +76,29 @@ cdef class GridEnv:
 
     def __dealloc__(self):
         del self._grid
+
+    cdef void init_action_handlers(self, vector[ActionHandler*] action_handlers):
+        """Initializes action_handlers.
+
+        This lives separate from __init__ since
+          * __init__ is a Python function, and so only Python objects can be passed
+          * ActionHandlers are cpp objects, not Python objects
+        """
+        self._action_handlers = action_handlers
+        self._num_action_handlers = action_handlers.size()
+        self._max_action_priority = 0
+        self._max_action_arg = 0
+        self._max_action_args.resize(action_handlers.size())
+        cdef ActionHandler *handler
+        cdef unsigned int i
+        for i in range(action_handlers.size()):
+            handler = action_handlers[i]
+            handler.init(self._grid)
+            max_arg = handler.max_arg()
+            self._max_action_args[i] = max_arg
+            self._max_action_arg = max(self._max_action_arg, max_arg)
+            self._max_action_priority = max(self._max_action_priority, handler.priority)
+
 
     cdef void add_agent(self, Agent* agent):
         agent.init(&self._rewards[self._agents.size()])
@@ -151,7 +161,7 @@ cdef class GridEnv:
             short action
             ActionArg arg
             Agent *agent
-            ActionHandler handler
+            ActionHandler *handler
 
         self._rewards[:] = 0
         self._observations[:, :, :, :] = 0
@@ -169,8 +179,8 @@ cdef class GridEnv:
 
                 arg = actions[idx][1]
                 agent = self._agents[idx]
-                handler = <ActionHandler>self._action_handlers[action]
-                if handler._priority != self._max_action_priority - p:
+                handler = self._action_handlers[action]
+                if handler.priority != self._max_action_priority - p:
                     continue
                 if arg > self._max_action_args[action]:
                     continue
@@ -317,6 +327,6 @@ cdef class GridEnv:
 
     def max_action_args(self):
         return self._max_action_args
-        
+
     def object_type_names(self):
         return ObjectTypeNames
