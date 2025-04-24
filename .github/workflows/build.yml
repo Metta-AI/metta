@@ -69,6 +69,7 @@ jobs:
       - name: Build and install local dependencies
         env:
           CONDA_DEFAULT_ENV: "metta"
+          CONDA_PREFIX: "github"
         run: |
           source venv/bin/activate
           bash ./devops/setup_build.sh
