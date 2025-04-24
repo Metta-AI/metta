@@ -45,7 +45,7 @@ uvicorn>=0.32.1
 # Visualization & Media
 # ==========================
 imageio>=2.36.0
-plotly>=5.18.0
+plotly>=6.0.0
 
 # ==========================
 # Testing & Linting
