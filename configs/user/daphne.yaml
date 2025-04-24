@@ -11,7 +11,6 @@
 
 defaults:
   - override /agent: simple
-  - override /eval: all
   - override /analyzer: eval_analyzer
   - _self_
 
@@ -58,6 +57,8 @@ eval:
 
 
 wandb:
+  enabled: true
+  track: true
   checkpoint_interval: 1
 
 run_id: 3
