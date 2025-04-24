@@ -42,7 +42,7 @@ class CubicleWorld(Room):
         """
         Initialize a CubicleWorld environment.
         """
-        super().__init__(border_width = border_width, border_object=border_object)
+        super().__init__(border_width = border_width, border_object=border_object, labels = ["cubicle_world"])
         rng = np.random.default_rng(seed)
 
         self.width = np.random.randint(width_range[0], width_range[1])

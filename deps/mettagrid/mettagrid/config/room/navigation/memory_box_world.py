@@ -33,7 +33,7 @@ class MemoryBoxWorld(Room):
         border_width: int = 2,
         border_object: str = "wall",
     ):
-        super().__init__(border_width=border_width, border_object=border_object)
+        super().__init__(border_width=border_width, border_object=border_object, labels = ["memory_box"])
         self._rng = np.random.default_rng(seed)
         width, height = np.random.randint(80,120), np.random.randint(80,120)
         self._width, self._height = width, height
@@ -43,7 +43,7 @@ class MemoryBoxWorld(Room):
 
         self.smin, self.smax = size_range
         self.cmin, self.cmax = corridor_range
-        self.set_size_labels(width, height, labels = ["memory_box"])
+        self.set_size_labels(width, height)
 
     # ------------------------------------------------------------------ #
     @property

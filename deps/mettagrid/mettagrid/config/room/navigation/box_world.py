@@ -40,7 +40,7 @@ class BoxWorld(Room):
         border_width: int = 2,
         border_object: str = "wall",
     ):
-        super().__init__(border_width=border_width, border_object=border_object)
+        super().__init__(border_width=border_width, border_object=border_object, labels = ["box_world"])
         self._rng = np.random.default_rng(seed)
         self._width, self._height = np.random.randint(40,100), np.random.randint(40,100)
         self._agents = agents

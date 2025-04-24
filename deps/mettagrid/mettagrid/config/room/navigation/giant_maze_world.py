@@ -34,6 +34,7 @@ class GiantMazeWorld(Room):
         seed: Optional[int] = 42,
         border_width: int = 2,
         border_object: str = "wall",
+        labels: List[str] = ["giant_maze"],
     ):
         super().__init__(border_width=border_width, border_object=border_object)
         self._rng = np.random.default_rng(seed)
@@ -49,7 +50,7 @@ class GiantMazeWorld(Room):
         self.wall_range = wall_range
         self.altars_count = altars_count
         self._agents = agents
-        self.set_size_labels(width, height, labels = ["giant_maze"])
+        self.set_size_labels(width, height)
 
     # --------------------------------------------------------------- #
     # Public builder

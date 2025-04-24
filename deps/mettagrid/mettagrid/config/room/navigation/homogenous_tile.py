@@ -38,7 +38,7 @@ class HomogenousTile(Room):
         seed: int | None = None,
         border_object: str = "wall",
     ):
-        super().__init__(border_object=border_object)
+        super().__init__(border_object=border_object, labels = ["homogenous_tile"])
         rng = np.random.default_rng(seed)
 
         self.width  = int(rng.integers(width_range[0],  width_range[1]  + 1))
@@ -55,7 +55,7 @@ class HomogenousTile(Room):
         self.gap   = 1  # single‑cell corridor
         self._agents = agents
         self._rng = rng
-        self.set_size_labels(self.width, self.height, labels = ["homogenous_tile"])
+        self.set_size_labels(self.width, self.height)
 
     # ------------------------------------------------------------------ #
     def _build(self):

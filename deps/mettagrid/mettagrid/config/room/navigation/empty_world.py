@@ -32,7 +32,7 @@ class EmptyWorld(Room):
         seed: int | None = None,
         border_object: str = "wall",
     ):
-        super().__init__(border_object=border_object)
+        super().__init__(border_object=border_object, labels = ["empty_world"])
         rng = np.random.default_rng(seed)
 
         self.width = int(rng.integers(width_range[0], width_range[1] + 1))
@@ -43,7 +43,7 @@ class EmptyWorld(Room):
 
         self._agents = agents
         self._rng = rng
-        self.set_size_labels(self.width, self.height, labels = ["empty"])
+        self.set_size_labels(self.width, self.height)
 
     # ------------------------------------------------------------------ #
     def _build(self):
