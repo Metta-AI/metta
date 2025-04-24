@@ -50,9 +50,9 @@ for i in "${!POLICIES[@]}"; do
     RANDOM_NUM=$((RANDOM % 1000))
     IDX="${IDX}_${RANDOM_NUM}"
     python3 -m tools.sim \
-        eval=slava \
+        sim=slava \
         run=t_navigation$IDX \
-        eval.policy_uri=wandb://run/$POLICY_URI \
-        eval_db_uri=wandb://artifacts/training_nav_db_slava \
+        policy_uri=wandb://run/$POLICY_URI \
+        +eval_db_uri=wandb://artifacts/training_nav_db_slava \
         device=cpu
 done
