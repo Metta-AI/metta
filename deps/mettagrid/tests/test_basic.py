@@ -12,7 +12,6 @@ def test_dependencies():
         "hydra",
         "matplotlib",
         "pettingzoo",
-        "pynvml",
         "pytest",
         "yaml",
         "raylib",
