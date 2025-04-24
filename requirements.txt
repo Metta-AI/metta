@@ -16,6 +16,7 @@ imageio>=2.36.0
 jmespath>=1.0.1
 matplotlib>=3.9.2
 pettingzoo>=1.24.1
+plotly>=6.0.0
 pynvml>=11.5.3
 pytest>=8.3.3
 PyYAML>=6.0.2
