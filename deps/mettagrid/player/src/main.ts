@@ -821,11 +821,19 @@ function drawSelection(selectedObject: any | null) {
           if (step >= i) {
             // Past trajectory is black.
             color = [0, 0, 0, a];
-            image = "agents/footprints.png";
+            if (selectedObject.agent_id !== undefined) {
+              image = "agents/footprints.png";
+            } else {
+              image = "agents/past_arrow.png";
+            }
           } else {
             // Future trajectory is white.
             color = [a, a, a, a];
-            image = "agents/path.png";
+            if (selectedObject.agent_id !== undefined) {
+              image = "agents/path.png";
+            } else {
+              image = "agents/future_arrow.png";
+            }
           }
 
           if (cx1 > cx0) { // east
