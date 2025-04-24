@@ -1,0 +1,45 @@
+_target_: metta.sim.simulation.SimulationSuite
+
+defaults:
+  - eval
+  - _self_
+
+env: null #the env is set in evals:
+
+num_envs: 1
+num_episodes: 1
+
+evals:
+  navigation/varied_terrain_all_dense_small:
+    env: env/mettagrid/navigation/training/varied_terrain_all_dense_small
+    policy_agents_pct: 1.0
+  navigation/varied_terrain_all_dense_big:
+    env: env/mettagrid/navigation/training/varied_terrain_all_dense_big
+    policy_agents_pct: 1.0
+  navigation/varied_terrain_all_sparse_small:
+    env: env/mettagrid/navigation/training/varied_terrain_all_sparse_small
+    policy_agents_pct: 1.0
+  navigation/varied_terrain_all_sparse_big:
+    env: env/mettagrid/navigation/training/varied_terrain_all_sparse_big
+    policy_agents_pct: 1.0
+  navigation/varied_terrain_balanced_small:
+    env: env/mettagrid/navigation/training/varied_terrain_balanced_small
+    policy_agents_pct: 1.0
+  navigation/varied_terrain_balanced_big:
+    env: env/mettagrid/navigation/training/varied_terrain_balanced_big
+    policy_agents_pct: 1.0
+  navigation/varied_terrain_sparse_altars_dense_objects_small:
+    env: env/mettagrid/navigation/training/varied_terrain_sparse_altars_dense_objects_small
+    policy_agents_pct: 1.0
+  navigation/varied_terrain_sparse_altars_dense_objects_big:
+    env: env/mettagrid/navigation/training/varied_terrain_sparse_altars_dense_objects_big
+    policy_agents_pct: 1.0
+  navigation/varied_terrain_sparse_objects_dense_altars_small:
+    env: env/mettagrid/navigation/training/varied_terrain_sparse_objects_dense_altars_small
+    policy_agents_pct: 1.0
+  navigation/varied_terrain_sparse_objects_dense_altars_big:
+    env: env/mettagrid/navigation/training/varied_terrain_sparse_objects_dense_altars_big
+    policy_agents_pct: 1.0
+ 
+
+selector_type: top

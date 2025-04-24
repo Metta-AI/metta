@@ -5,6 +5,7 @@ defaults:
 sampling: 1
 
 game:
+  max_steps: 1000
   num_agents: 4
   map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom
@@ -13,11 +14,11 @@ game:
 
     room:
       _target_: mettagrid.config.room.navigation.varied_terrain.VariedTerrain
-      width: ${sampling:50,100,60}
-      height: ${sampling:50,100,60}
+      width: 100
+      height: 100
       border_width: ${sampling:1,6,3}
       agents: 1
-      style: balanced # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
+      style: all-sparse # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
 
   objects:
     altar:

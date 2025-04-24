@@ -103,8 +103,6 @@ class VariedTerrain(Room):
     ):
         super().__init__(border_width=border_width, border_object=border_object)
 
-        width = np.random.randint(40, 100)
-        height = np.random.randint(40, 100)
         self._rng = np.random.default_rng(seed)
         self._width = width
         self._height = height
@@ -173,8 +171,10 @@ class VariedTerrain(Room):
         grid = self._place_all_obstacles(grid)
         grid = self._place_scattered_walls(grid)
         grid = self._place_blocks(grid)
+
+        num_hearts = np.count_nonzero(grid == "altar")
         # Place altars.
-        for _ in range(self._hearts_count):
+        for _ in range(self._hearts_count-num_hearts):
             pos = self._choose_random_empty()
             if pos is None:
                 break

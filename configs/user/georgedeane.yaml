@@ -16,7 +16,8 @@ trainer:
 # policy_uri: wandb://run/daveey.ar.cards.1
 # policy_uri: wandb://run/b.daveey.t.32.instant
 #policy_uri: ${trained_policy_uri}
-policy_uri: wandb://run/b.georgedeane.terrain_multienv
+policy_uri: wandb://run/terrain_multienv_3_single_agent
+# b.georgedeane.terrain_multienv
 # policy_uri: wandb://run/terrain_training_multienv_april18
 # policy_uri: wandb://run/b.daphne.terrain_multienv_april18
 
@@ -29,6 +30,7 @@ policy_uri: wandb://run/b.georgedeane.terrain_multienv
 # navigation_poisson_train_sampling5
 # npc_policy_uri: ${trained_policy_uri}
 # eval_db_uri: wandb://artifacts/navigation_constrained_actions
+eval_db_uri: wandb://artifacts/training_nav_db_slava
 
 analyzer:
   # eval_stats_uri: ${run_dir}/eval_stats
@@ -36,17 +38,24 @@ analyzer:
   analysis:
     metrics:
       - metric: episode_reward
-  output_path: evalresults/navigation.html
+  #output_path: evalresults/training_navigation.html
+  output_path: s3://softmax-public/policydash/dashboard_navigation_db3.html
 
 eval:
   num_envs: 2
   num_episodes: 2
   max_time_s: 600
 
-  policy_uri: ${..policy_uri}
+  # policy_uri: ${..policy_uri}
   # npc_policy_uri: ${..npc_policy_uri}
   # eval_db_uri: ${..eval_db_uri} #file://daphne/sweep_stats
-  env: /env/mettagrid/navigation/training/terrain_all_dense
+  env: env/mettagrid/slava/48x61
+  # eval_db_uri: wandb://artifacts/navigation_db2
+  # ${..eval_db_uri} 
+
+  
+  # navigation/training/varied_terrain_all_dense_small
+
 
 
 run_id: 103

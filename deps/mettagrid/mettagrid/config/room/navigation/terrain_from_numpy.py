@@ -55,7 +55,7 @@ class TerrainFromNumpy(Room):
     """
 
     def __init__(
-        self, dir, border_width: int = 0, border_object: str = "wall", num_agents: int = 10, generators: bool = False
+        self, dir, border_width: int = 0, border_object: str = "wall", num_agents: int = 10, generators: bool = False, file: str = None
     ):
         zipped_dir = dir + ".zip"
         lock_path = zipped_dir + ".lock"
@@ -78,6 +78,7 @@ class TerrainFromNumpy(Room):
         self.dir = dir
         self.num_agents = num_agents
         self.generators = generators
+        self.uri = file
         super().__init__(border_width=border_width, border_object=border_object)
 
     def get_valid_positions(self, level):
@@ -97,7 +98,11 @@ class TerrainFromNumpy(Room):
 
     def _build(self):
         # TODO: add some way of sampling
-        uri = np.random.choice(self.files)
+        if self.uri is None:
+            uri = np.random.choice(self.files)
+        else:
+            uri = self.uri
+
         level = safe_load(f"{self.dir}/{uri}")
 
         # remove agents to then repopulate
