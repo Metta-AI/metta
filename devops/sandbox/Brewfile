@@ -1,9 +1,15 @@
+# Developer tools
 brew "awscli"
 brew "bazelisk"
 brew "docker"
+brew "clang-format"  # Added from Makefile
+
+# Applications
 cask "cursor"
 cask "discord"
 cask "miniconda"
+
+# VS Code extensions
 vscode "ktnrg45.vscode-cython"
 vscode "ms-azuretools.vscode-docker"
 vscode "ms-python.debugpy"
