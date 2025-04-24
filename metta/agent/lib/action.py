@@ -39,7 +39,7 @@ class ActionEmbedding(nn_layer_library.Embedding):
         td['_num_actions_'] = self.num_actions
 
         # get embeddings, unsqueeze the 0'th dimension, then expand to match the batch size
-        td[self._name] = self._net(self.active_indices).unsqueeze(0).expand(B_TT, -1, -1).contiguous()
+        td[self._name] = self._net(self.active_indices).unsqueeze(0).expand(B_TT, -1, -1)
         
         return td
     
@@ -137,7 +137,7 @@ class MettaActorBig(LayerBase):
         scores = torch.einsum('n h, k h e, n e -> n k', input_1_reshaped, self.W, input_2_reshaped) # Shape: [N, K]
 
         # Add bias
-        biased_scores = scores + self.bias.view(1, -1) # Shape: [N, K]
+        biased_scores = scores + self.bias.reshape(1, -1) # Shape: [N, K]
 
         # Apply activation
         activated_scores = self._relu(biased_scores) # Shape: [N, K]
@@ -146,7 +146,7 @@ class MettaActorBig(LayerBase):
         mlp_output = self._MLP(activated_scores) # Shape: [N, 1]
 
         # Reshape MLP output back to sequence and action dimensions
-        action_logits = mlp_output.view(B_TT, num_actions) # Shape: [B*TT, num_actions]
+        action_logits = mlp_output.reshape(B_TT, num_actions) # Shape: [B*TT, num_actions]
 
         td[self._name] = action_logits
         return td
@@ -194,9 +194,9 @@ class MettaActorSingleHead(LayerBase):
         scores = torch.einsum('n h, k h e, n e -> n k', input_1_reshaped, self.W, input_2_reshaped) # Shape: [N, K]
 
         # Add bias
-        biased_scores = scores + self.bias.view(1, -1) # Shape: [N, K]
+        biased_scores = scores + self.bias.reshape(1, -1) # Shape: [N, K]
 
-        action_logits = biased_scores.view(B_TT, num_actions) # Shape: [B*TT, num_actions]
+        action_logits = biased_scores.reshape(B_TT, num_actions) # Shape: [B*TT, num_actions]
 
         td[self._name] = action_logits
         return td
