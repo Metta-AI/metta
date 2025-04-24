@@ -74,7 +74,7 @@ def put_image(img, name):
 
 
 # Walk the data dir:
-for root, dirs, files in os.walk("data"):
+for root, _dirs, files in os.walk("data"):
     for file in files:
         if file.endswith(".png"):
             print("Processing", root + "/" + file)
