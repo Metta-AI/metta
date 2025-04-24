@@ -59,7 +59,7 @@ class Node:
                 selected_areas = [self._full_area]
             else:
                 # Type check and handling
-                if isinstance(where, DictConfig) and "tags" in where:
+                if isinstance(where, (DictConfig, dict)) and "tags" in where:
                     tags = where.get("tags", [])
                     if isinstance(tags, list) or isinstance(tags, ListConfig):
                         for area in areas:

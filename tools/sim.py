@@ -1,53 +1,52 @@
+"""Simulation tools for evaluating policies in the Metta environment."""
+
 import logging
+from dataclasses import dataclass
+from typing import List
 
 import hydra
 from omegaconf import DictConfig
 
 from metta.agent.policy_store import PolicyStore
 from metta.sim.eval_stats_logger import EvalStatsLogger
-from metta.sim.simulation import Simulation
+from metta.sim.simulation import SimulationSuite
+from metta.sim.simulation_config import SimulationSuiteConfig
+from metta.util.config import dictconfig_to_dataclass, pretty_print_config
 from metta.util.runtime_configuration import setup_mettagrid_environment
 from metta.util.wandb.wandb_context import WandbContext
 
 
-def simulate(eval: Simulation, cfg: DictConfig, wandb_run):
-    stats = eval.simulate()
-    stats_logger = EvalStatsLogger(cfg, wandb_run)
-    stats_logger.log(stats)
+@dataclass
+class SimJob:
+    simulation_suite: SimulationSuiteConfig
+    policy_uris: List[str]
+    selector_type: str = "latest"
 
 
-def simulate_policy(cfg: DictConfig, wandb_run):
+def simulate_policy(sim_job: SimJob, policy_uri: str, cfg: DictConfig, wandb_run):
     logger = logging.getLogger("metta.tools.sim")
-    with WandbContext(cfg) as wandb_run:
-        policy_store = PolicyStore(cfg, wandb_run)
-        policy_prs = policy_store.policies(cfg.eval.policy_uri, cfg.eval.selector_type)
-        # For each checkpoint of the policy, simulate
-        for pr in policy_prs:
-            logger.info(f"Evaluating policy {pr.uri}")
-
-            wandb_run_id = wandb_run and wandb_run.id
-            eval = hydra.utils.instantiate(
-                cfg.eval, policy_store, pr, cfg.get("run_id", wandb_run_id), cfg_recursive_=False
-            )
-            simulate(eval, cfg, wandb_run)
-            logger.info(f"Evaluation complete for policy {pr.uri}; logging stats")
+    # TODO: Remove dependence on cfg in PolicyStore
+    policy_store = PolicyStore(cfg, wandb_run)
+    policy_prs = policy_store.policies(policy_uri, sim_job.selector_type)
+    # For each checkpoint of the policy, simulate
+    for pr in policy_prs:
+        logger.info(f"Evaluating policy {pr.uri}")
+        sim = SimulationSuite(config=sim_job.simulation_suite, policy_pr=pr, policy_store=policy_store)
+        stats = sim.simulate()
+        stats_logger = EvalStatsLogger(sim_job.simulation_suite, wandb_run)
+        stats_logger.log(stats)
+        logger.info(f"Evaluation complete for policy {pr.uri}; logging stats")
 
 
-def simulate_policies(cfg: DictConfig):
-    with WandbContext(cfg) as wandb_run:
-        for policy_uri in cfg.eval.policy_uris:
-            cfg.eval.policy_uri = policy_uri
-            simulate_policy(cfg, wandb_run)
-
-
-@hydra.main(version_base=None, config_path="../configs", config_name="eval")
+@hydra.main(version_base=None, config_path="../configs", config_name="sim_job")
 def main(cfg: DictConfig):
     setup_mettagrid_environment(cfg)
-    if hasattr(cfg.eval, "policy_uris") and cfg.eval.policy_uris is not None and len(cfg.eval.policy_uris) > 1:
-        simulate_policies(cfg)
-    else:
-        with WandbContext(cfg) as wandb_run:
-            simulate_policy(cfg, wandb_run)
+    pretty_print_config(cfg)
+    sim_job = dictconfig_to_dataclass(SimJob, cfg.sim_job)
+    assert isinstance(sim_job, SimJob)
+    with WandbContext(cfg) as wandb_run:
+        for policy_uri in sim_job.policy_uris:
+            simulate_policy(sim_job, policy_uri, cfg, wandb_run)
 
 
 if __name__ == "__main__":
