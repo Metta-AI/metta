@@ -19,6 +19,10 @@
 		{
 			"name": "wandb_carbs",
 			"path": "deps/wandb_carbs"
+		},
+		{
+			"name": "carbs",
+			"path": "deps/carbs"
 		}
 	],
 	"settings": {

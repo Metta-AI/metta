@@ -39,7 +39,7 @@ sample-factory==2.1.1
 # ==========================
 # Gym / Environments
 # ==========================
-ale-py==0.8.1
+ale-py>=0.8.1
 gymnasium==0.29.1
 shimmy==1.3.0
 
@@ -65,12 +65,3 @@ ruff==0.11.5
 # Configuration & Utilities
 # ==========================
 python-dotenv>=1.1
-
-# ==========================
-# Local libraries
-# ==========================
--e deps/pufferlib
--e deps/fast_gae
--e deps/mettagrid
--e deps/carbs
--e deps/wandb_carbs

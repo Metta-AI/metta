@@ -1,7 +1,9 @@
 name: Python Tests
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+
 on:
   push:
     branches: [main]
@@ -12,93 +14,86 @@ jobs:
   test:
     if: github.event.pull_request.draft == false || github.event_name == 'push'
     runs-on: ubuntu-latest
-    timeout-minutes: 30 # Prevent hung jobs from consuming resources
+    timeout-minutes: 30
     env:
       CHECKPOINT_PATH: ./train_dir/github_test/checkpoints/
     steps:
       - uses: actions/checkout@v4
 
-      # Download ruff.toml from Metta-AI/metta repository
+      # Download Ruff config from canonical repo
       - name: Fetch latest ruff.toml
         run: |
           curl -s https://raw.githubusercontent.com/Metta-AI/metta/main/ruff.toml -o ruff.toml
-          echo "Downloaded ruff.toml from Metta-AI/metta repository"
-          cat ruff.toml
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11.7"
 
-      # Cache pip packages
+      - name: Create and initialize virtualenv
+        run: |
+          python -m venv venv
+          source venv/bin/activate
+          python -m pip install --upgrade pip
+
+      # Cache PyPI wheels
       - name: Cache pip packages
         uses: actions/cache@v4
         id: cache-pip
         with:
           path: |
             ~/.cache/pip
-            venv
-
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt', '**/requirements-dev.txt', '**/setup.py') }}
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-
 
-      # Install dependencies (only if cache miss)
-      - name: Install dependencies
+      - name: Install Python requirements
         if: steps.cache-pip.outputs.cache-hit != 'true'
         run: |
-          python -m venv venv
           source venv/bin/activate
-          python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-
-      - name: Cache Git dependencies
-        uses: actions/cache@v4
-        id: cache-git-deps
-        with:
-          path: deps
-          key: ${{ runner.os }}-git-deps-${{ hashFiles('devops/setup_build.sh') }}
-          restore-keys: |
-            ${{ runner.os }}-git-deps-
-
-      - name: Run setup build script
-        if: steps.cache-git-deps.outputs.cache-hit != 'true'
-        run: |
-          source venv/bin/activate
-          mkdir -p deps
-          bash ./devops/setup_build.sh
-
-      # List installed packages for debugging
-      - name: List installed packages
-        run: |
-          source venv/bin/activate
+          pip install -r requirements.txt
           pip list
 
-      # Add Ruff cache
-      - name: Cache Ruff
+      # Cache compiled extensions for local dependencies
+      - name: Cache compiled local dependencies
         uses: actions/cache@v4
-        id: cache-ruff
+        id: cache-dep-builds
         with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-ruff-0.11.5
+          path: |
+            deps/pufferlib/build
+            deps/pufferlib/**/*.so
+            deps/fast_gae/build
+            deps/fast_gae/**/*.so
+            deps/mettagrid/build
+            deps/mettagrid/**/*.so
+          key: ${{ runner.os }}-dep-builds-${{ hashFiles('devops/setup_build.sh') }}
+          restore-keys: |
+            ${{ runner.os }}-dep-builds-
 
-      # Add Ruff check
+      # Always run setup_build.sh — it will skip rebuilding if outputs exist
+      - name: Build and install local dependencies
+        env:
+          CONDA_DEFAULT_ENV: "metta"
+        run: |
+          source venv/bin/activate
+          bash ./devops/setup_build.sh
+
+      # Run Ruff lint check
       - name: Run Ruff check
         run: |
           source venv/bin/activate
           pip install ruff==0.11.5
           ruff check --respect-gitignore .
 
-      - name: Run Pytest
+      - name: Run tests in /tests
         env:
+          HYDRA_FULL_ERROR: 1
           PYTHONPATH: ${{ github.workspace }}
         run: |
           source venv/bin/activate
           pytest tests/ --maxfail=1 --disable-warnings -q
-      
-      # This is left over from merging mettagrid into metta. These
-      # tests should be relocated into /tests.
-      - name: Run mettagrid tests
+
+      - name: Run tests in /deps/mettagrid/tests
         env:
           HYDRA_FULL_ERROR: 1
           PYTHONPATH: ${{ github.workspace }}/deps/mettagrid
@@ -120,7 +115,6 @@ jobs:
         run: |
           source venv/bin/activate
           python -m tools.train +hardware=github wandb=off
-          # Verify the output path exists
           ls -la $CHECKPOINT_PATH || echo "Warning: Checkpoint directory not created"
 
       - name: Upload training output
@@ -130,7 +124,7 @@ jobs:
           name: train-output
           path: train_dir/
           retention-days: 1
-          if-no-files-found: error # This will fail the workflow if no files are found
+          if-no-files-found: error
 
       - name: Download training output
         if: success()
@@ -165,4 +159,3 @@ jobs:
           echo "Listing the contents of the workspace:"
           find train_dir -type f -name "*.py" | sort
           find train_dir -type d | sort
-
