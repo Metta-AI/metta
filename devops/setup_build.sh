@@ -20,44 +20,56 @@ install_repo() {
     
     echo "========== Installing $repo_name =========="
     
-    if [ ! -d "$repo_name" ]; then
-        echo "Cloning $repo_name into $(pwd)"
-        git clone $repo_url
+    # save any cached build files
+    if [ -d "$repo_name" ]; then
+
+        cd $repo_name
+        echo "Repository content for $repo_name"
+        tree -a -L 2
+        cd ..
+
+        echo "Moving existing repository to cache_$repo_name"
+        mv "$repo_name" "cache_$repo_name"
     fi
-    
+
+    echo "Cloning $repo_name into $(pwd)"
+    git clone $repo_url
     cd $repo_name
-    
-    echo "Ensuring correct remote URL for $repo_name"
-    git remote set-url origin $repo_url
-    
+
     echo "Fetching $repo_name into $(pwd)"
     git fetch
-    
+
     echo "Checking out $branch branch for $repo_name"
     git checkout $branch
-    
-    echo "Updating $repo_name..."
-    git pull || echo "⚠️ Warning: git pull failed, possibly shallow clone or detached HEAD"
-    
 
-    echo "Checking Git status before restore:"
-    git status
-    
-    echo "Attempting to restore all files from Git:"
-    git restore . || echo "⚠️ Warning: git restore failed, trying alternative approach"
-    
-    # If setup.py is still missing, try a hard reset
-    if [ ! -f "setup.py" ]; then
-        echo "setup.py still missing after git restore, trying hard reset"
-        git reset --hard origin/$branch
+    if [ -d "../cache_$repo_name" ]; then
+        echo "Attempting to restore cached build files"
+        
+        # Find and copy all *.so files
+        find "../cache_$repo_name" -name "*.so" -exec cp {} . \;
+        
+        # Copy the build directory if it exists
+        if [ -d "../cache_$repo_name/build" ]; then
+            echo "Restoring build directory"
+            cp -r "../cache_$repo_name/build" .
+        fi
+        
+        # If there's a nested directory with the same name, check for build artifacts there too
+        if [ -d "../cache_$repo_name/$repo_name" ]; then
+            echo "Restoring nested build artifacts"
+            mkdir -p "$repo_name"
+            find "../cache_$repo_name/$repo_name" -name "*.so" -exec cp {} "$repo_name/" \;
+        fi
+        
+        echo "Cached build files restored"
+        
+        # Cleanup the cache directory
+        rm -rf "../cache_$repo_name"
     fi
-    
-    echo "Checking Git status after restore:"
-    git status
-    
+
     echo "Repository content for $repo_name"
     tree -a -L 2
-    
+        
     # Check for build files
     echo "Checking for package files in $repo_name:"
     if [ -f "setup.py" ]; then
