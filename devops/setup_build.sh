@@ -39,7 +39,22 @@ install_repo() {
     echo "Updating $repo_name..."
     git pull || echo "⚠️ Warning: git pull failed, possibly shallow clone or detached HEAD"
     
-    # Print repository structure to help with debugging
+
+    echo "Checking Git status before restore:"
+    git status
+    
+    echo "Attempting to restore all files from Git:"
+    git restore . || echo "⚠️ Warning: git restore failed, trying alternative approach"
+    
+    # If setup.py is still missing, try a hard reset
+    if [ ! -f "setup.py" ]; then
+        echo "setup.py still missing after git restore, trying hard reset"
+        git reset --hard origin/$branch
+    fi
+    
+    echo "Checking Git status after restore:"
+    git status
+    
     echo "Repository content for $repo_name"
     tree -a -L 2
     
