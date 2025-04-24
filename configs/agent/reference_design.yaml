@@ -22,12 +22,10 @@ l2_init_weight_update_interval: 0 # update the copy of initial weights every N e
 # is also necessary but can be set to null. The output_size is necessary unless
 # it is defined by the size of the input source. Do not enter an input_size
 # as it's defined by the input_source's output_size.
-# Necessary sources: _obs_, _core_
-# These interact with the trainer in a special way and use custom classes.
+# Necessary sources: _obs_
 
-# Necessary outputs: _action_type_ and _value_ (and _action_param_ if MultiDiscrete)
-# You must have layers with these names, and their output sizes must correspond
-# to your action and value space. They can otherwise be any class that works
+# Necessary outputs: _core_, _action_embeds_, _action_, and _value_
+# You must have layers with these names. They can otherwise be any class that works
 # with MettaAgent.
 
 # Components are nn.Modules. Linear and Conv modules get extra weight helper
@@ -71,35 +69,35 @@ components:
   cnn1_channels_0-11:
     _target_: metta.agent.lib.nn_layer_library.Conv2d
     input_source: channel_selector_0-11
-    output_size: 64
     clip_scale: 0
     nn_params:
+      out_features: 64
       kernel_size: 5
       stride: 3
     # when defining nn.Modules, put your keyword argements under nn_params.
-    #Do not specify input_size or output_size.
+    # Do not specify the input_size
 
   cnn1_channels_12-22:
     _target_: metta.agent.lib.nn_layer_library.Conv2d
     input_source: channel_selector_12-22
-    output_size: 64
     nn_params:
+      out_features: 64
       kernel_size: 5
       stride: 3
 
   cnn2_channels_0-11:
     _target_: metta.agent.lib.nn_layer_library.Conv2d
     input_source: cnn1_channels_0-11
-    output_size: 64
     nn_params:
+      out_features: 64
       kernel_size: 3
       stride: 1
 
   cnn2_channels_12-22:
     _target_: metta.agent.lib.nn_layer_library.Conv2d
     input_source: cnn1_channels_12-22
-    output_size: 64
     nn_params:
+      out_features: 64
       kernel_size: 3
       stride: 1
 
@@ -127,7 +125,8 @@ components:
   encoded_obs:
     _target_: metta.agent.lib.nn_layer_library.Linear
     input_source: obs_dropout
-    output_size: 128
+    nn_params:
+      out_features: 128
 
   _core_:
     _target_: metta.agent.lib.lstm.LSTM
@@ -140,7 +139,6 @@ components:
   critic_1:
     _target_: metta.agent.lib.nn_layer_library.Linear
     input_source: _core_
-    output_size: 512
     nonlinearity: nn.Tanh
     analyze_weights: true
     l2_norm_scale: 1.0
@@ -148,34 +146,40 @@ components:
     clip_scale: 1.0
     initialization: xavier
     nn_params:
+      out_features: 512
       bias: false
 
   critic_2:
     _target_: metta.agent.lib.nn_layer_library.Linear
     input_source: critic_1
-    output_size: 128
+    nn_params:
+      out_features: 128
 
   critic_3:
     _target_: metta.agent.lib.nn_layer_library.Linear
     input_source: critic_2
-    output_size: 128
+    nn_params:
+      out_features: 128
     analyze_weights: true
 
   _value_:
     _target_: metta.agent.lib.nn_layer_library.Linear
     input_source: critic_3
-    output_size: 1
+    nn_params:
+      out_features: 1
     nonlinearity: null # we don't want a nonlinearity here
 
   actor_1:
     _target_: metta.agent.lib.nn_layer_library.Linear
     input_source: _core_
-    output_size: 512
+    nn_params:
+      out_features: 512
 
   actor_2:
     _target_: metta.agent.lib.nn_layer_library.Linear
     input_source: actor_1
-    output_size: 512
+    nn_params:
+      out_features: 512
 
   _action_type_:
     _target_: metta.agent.lib.action.ActionType

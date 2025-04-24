@@ -21,6 +21,7 @@ from metta.rl.pufferlib.experience import Experience
 from metta.rl.pufferlib.kickstarter import Kickstarter
 from metta.rl.pufferlib.profile import Profile
 from metta.rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
+from metta.rl.pufferlib.torch_profiler import TorchProfiler
 from metta.sim.eval_stats_db import EvalStatsDB
 from metta.sim.eval_stats_logger import EvalStatsLogger
 from metta.sim.replay_helper import ReplayHelper
@@ -59,6 +60,7 @@ class PufferTrainer:
             logger.info(f"Setting up distributed training on device {self.device}")
 
         self.profile = Profile()
+        self.torch_profiler = TorchProfiler(self._master, cfg.run_dir, cfg.trainer.profiler_interval_epochs, wandb_run)
         self.losses = self._make_losses()
         self.stats = defaultdict(list)
         self.wandb_run = wandb_run
@@ -103,17 +105,15 @@ class PufferTrainer:
         if self._master:
             print(policy_record.policy())
 
-        if policy_record.metadata["action_names"] != self.vecenv.driver_env.action_names():
-            raise ValueError(
-                "Action names do not match between policy and environment: "
-                f"{policy_record.metadata['action_names']} != {self.vecenv.driver_env.action_names()}"
-            )
-
         self._initial_pr = policy_record
         self.last_pr = policy_record
         self.policy = policy_record.policy().to(self.device)
         self.policy_record = policy_record
         self.uncompiled_policy = self.policy
+
+        actions_names = self.vecenv.driver_env.action_names()
+        actions_max_params = self.vecenv.driver_env._c_env.max_action_args()
+        self.policy.activate_actions(actions_names, actions_max_params, self.device)
 
         if self.trainer_cfg.compile:
             logger.info("Compiling policy")
@@ -170,7 +170,6 @@ class PufferTrainer:
     def train(self):
         self.train_start = time.time()
         logger.info("Starting training")
-
         if (
             self.trainer_cfg.evaluate_interval != 0
             and self.trainer_cfg.evaluate_interval < self.trainer_cfg.checkpoint_interval
@@ -180,11 +179,9 @@ class PufferTrainer:
 
         logger.info(f"Training on {self.device}")
         while self.agent_step < self.trainer_cfg.total_timesteps:
-            # Collecting experience
-            self._evaluate()
-
-            # Training on collected experience
-            self._train()
+            with self.torch_profiler:
+                self._evaluate() # aka rollout
+                self._train() # aka update
 
             # Processing stats
             self._process_stats()
@@ -200,6 +197,7 @@ class PufferTrainer:
             if self.trainer_cfg.evaluate_interval != 0 and self.epoch % self.trainer_cfg.evaluate_interval == 0:
                 self._evaluate_policy()
             self._weights_helper.on_epoch_end(self.epoch, self.policy)
+            self.torch_profiler.on_epoch_end(self.epoch)
             if self.epoch % self.trainer_cfg.wandb_checkpoint_interval == 0:
                 self._save_policy_to_wandb()
             if (
