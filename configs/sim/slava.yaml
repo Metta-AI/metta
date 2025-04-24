@@ -10,16 +10,40 @@ simulations:
   navigation/45x45:
     env: env/mettagrid/slava/45x45
     policy_agents_pct: 1.0
+  navigation/45x100:
+    env: env/mettagrid/slava/45x100
+    policy_agents_pct: 1.0
+  navigation/48x55:
+    env: env/mettagrid/slava/48x55
+    policy_agents_pct: 1.0
+  navigation/48x61:
+    env: env/mettagrid/slava/48x61
+    policy_agents_pct: 1.0
+  navigation/62x70:
+    env: env/mettagrid/slava/62x70
+    policy_agents_pct: 1.0
   navigation/63x59:
     env: env/mettagrid/slava/63x59
     policy_agents_pct: 1.0
   navigation/63x60:
     env: env/mettagrid/slava/63x60
     policy_agents_pct: 1.0
+  navigation/68x61:
+    env: env/mettagrid/slava/68x61
+    policy_agents_pct: 1.0
   navigation/75x98:
     env: env/mettagrid/slava/75x98
     policy_agents_pct: 1.0
   navigation/75x100:
+    env: env/mettagrid/slava/75x100
+    policy_agents_pct: 1.0
+  navigation/77x48:
+    env: env/mettagrid/slava/77x48
+    policy_agents_pct: 1.0
+  navigation/77x54:
+    env: env/mettagrid/slava/77x54
+    policy_agents_pct: 1.0
+  navigation/81x90:
     env: env/mettagrid/slava/81x90
     policy_agents_pct: 1.0
   navigation/81x91:
@@ -28,11 +52,23 @@ simulations:
   navigation/81x93:
     env: env/mettagrid/slava/81x93
     policy_agents_pct: 1.0
+  navigation/82x86:
+    env: env/mettagrid/slava/82x86
+    policy_agents_pct: 1.0
   navigation/91x52:
     env: env/mettagrid/slava/91x52
     policy_agents_pct: 1.0
+  navigation/96x62:
+    env: env/mettagrid/slava/96x62
+    policy_agents_pct: 1.0
   navigation/96x63:
     env: env/mettagrid/slava/96x63
+    policy_agents_pct: 1.0
+  navigation/98x54:
+    env: env/mettagrid/slava/98x54
+    policy_agents_pct: 1.0
+  navigation/100x94:
+    env: env/mettagrid/slava/100x94
     policy_agents_pct: 1.0
   navigation/100x96:
     env: env/mettagrid/slava/100x96

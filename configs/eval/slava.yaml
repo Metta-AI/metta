@@ -1,0 +1,45 @@
+_target_: metta.sim.simulation.SimulationSuite
+
+defaults:
+  - eval
+  - _self_
+
+env: null #the env is set in evals:
+
+num_envs: 1
+num_episodes: 1
+
+evals:
+  navigation/45x45:
+    env: env/mettagrid/slava/45x45
+    policy_agents_pct: 1.0
+  navigation/63x59:
+    env: env/mettagrid/slava/63x59
+    policy_agents_pct: 1.0
+  navigation/63x60:
+    env: env/mettagrid/slava/63x60
+    policy_agents_pct: 1.0
+  navigation/75x98:
+    env: env/mettagrid/slava/75x98
+    policy_agents_pct: 1.0
+  navigation/75x100:
+    env: env/mettagrid/slava/81x90
+    policy_agents_pct: 1.0
+  navigation/81x91:
+    env: env/mettagrid/slava/81x91
+    policy_agents_pct: 1.0
+  navigation/81x93:
+    env: env/mettagrid/slava/81x93
+    policy_agents_pct: 1.0
+  navigation/91x52:
+    env: env/mettagrid/slava/91x52
+    policy_agents_pct: 1.0
+  navigation/96x63:
+    env: env/mettagrid/slava/96x63
+    policy_agents_pct: 1.0
+  navigation/100x96:
+    env: env/mettagrid/slava/100x96
+    policy_agents_pct: 1.0
+ 
+
+selector_type: top
