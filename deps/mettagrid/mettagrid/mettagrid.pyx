@@ -54,24 +54,35 @@ cdef class MettaGrid(GridEnv):
         if env_cfg.semi_compact_obs:
             obs_encoder = SemiCompactObservationEncoder()
         cdef vector[ActionHandler*] actions
+        action_names = []
         if cfg.actions.put_items.enabled:
             actions.push_back(new PutRecipeItems(cfg.actions.put_items))
+            action_names.append("put_items")
         if cfg.actions.get_items.enabled:
             actions.push_back(new GetOutput(cfg.actions.get_items))
+            action_names.append("get_items")
         if cfg.actions.noop.enabled:
             actions.push_back(new Noop(cfg.actions.noop))
+            action_names.append("noop")
         if cfg.actions.move.enabled:
             actions.push_back(new Move(cfg.actions.move))
+            action_names.append("move")
         if cfg.actions.rotate.enabled:
             actions.push_back(new Rotate(cfg.actions.rotate))
+            action_names.append("rotate")
         if cfg.actions.attack.enabled:
             actions.push_back(new Attack(cfg.actions.attack))
             actions.push_back(new AttackNearest(cfg.actions.attack))
+            action_names.append("attack")
+            action_names.append("attack_nearest")
         if cfg.actions.swap.enabled:
             actions.push_back(new Swap(cfg.actions.swap))
+            action_names.append("swap")
         if cfg.actions.change_color.enabled:
             actions.push_back(new ChangeColorAction(cfg.actions.change_color))
+            action_names.append("change_color")
 
+        print(action_names)
         GridEnv.__init__(
             self,
             cfg.num_agents,
