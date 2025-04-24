@@ -20,11 +20,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Download Ruff config from canonical repo
-      - name: Fetch latest ruff.toml
-        run: |
-          curl -s https://raw.githubusercontent.com/Metta-AI/metta/main/ruff.toml -o ruff.toml
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
