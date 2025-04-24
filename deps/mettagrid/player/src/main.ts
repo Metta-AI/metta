@@ -603,8 +603,8 @@ function drawWalls(replay: any) {
 // Draw all objects on the map (that are not walls).
 function drawObjects(replay: any) {
   for (const gridObject of replay.grid_objects) {
-    const type = gridObject.type;
-    const typeName = replay.object_types[type]
+    const type: number = gridObject.type;
+    const typeName: string = replay.object_types[type];
     if (typeName === "wall") {
       // Walls are drawn in a different way.
       continue;
@@ -634,6 +634,21 @@ function drawObjects(replay: any) {
         y * TILE_SIZE,
         colorFromId(agent_id)
       );
+    } else if (typeName == "altar") {
+      // Alters have a special case as they show their inventory.
+      if (getAttr(gridObject, "inv:heart") > 0) {
+        drawer.drawSprite(
+          "objects/altar.png",
+          x * TILE_SIZE,
+          y * TILE_SIZE
+        );
+      } else {
+        drawer.drawSprite(
+          "objects/altar.empty.png",
+          x * TILE_SIZE,
+          y * TILE_SIZE
+        );
+      }
     } else {
       // Draw other objects.
       drawer.drawSprite(
