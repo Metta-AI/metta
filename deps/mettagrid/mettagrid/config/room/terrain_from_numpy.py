@@ -72,8 +72,7 @@ class TerrainFromNumpy(Room):
         self.dir = dir
         self.num_agents = num_agents
         self.generators = generators
-        self.labels = ["terrain"]
-        super().__init__(border_width=border_width, border_object=border_object)
+        super().__init__(border_width=border_width, border_object=border_object, labels = ["terrain"])
 
     def get_valid_positions(self, level):
         valid_positions = []

@@ -19,7 +19,7 @@ class MeanDistance(Room):
         border_width: int = 0,
         border_object: str = "wall",
     ):
-        super().__init__(border_width=border_width, border_object=border_object)
+        super().__init__(border_width=border_width, border_object=border_object, labels = ["mean_distance"])
         logger = logging.getLogger(__name__)
 
         self._rng = np.random.default_rng(seed)
