@@ -1,0 +1,87 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "player/**" # Run when any file in player directory changes
+      - ".github/workflows/**" # Run when workflow files change
+  workflow_dispatch: # Allow manual triggers
+
+# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Configure concurrency to always run
+concurrency:
+  group: pages-${{ github.ref }}-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Get all history to ensure we don't hit caching issues
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install TypeScript
+        run: npm install -g typescript
+
+      - name: Build TypeScript
+        run: |
+          cd deps/mettagrid/player
+          npm install
+          tsc
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Debug Python
+        run: |
+          which python3
+          python3 --version
+          pip --version
+          echo "Current directory:"
+          pwd
+          echo "Directory contents:"
+          ls -la
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pixie-python
+          pip list
+
+      - name: Generate Atlas
+        run: |
+          cd deps/mettagrid/player
+          echo "Player directory contents:"
+          ls -la
+          python3 tools/gen_atlas.py
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: "./deps/mettagrid/player"
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
