@@ -208,13 +208,13 @@ game:
     noop:
       enabled: true
     move:
-      enabled: false
+      enabled: true
     rotate:
-      enabled: false
+      enabled: true
     put_items:
-      enabled: false
+      enabled: true
     get_items:
-      enabled: false
+      enabled: true
     attack:
       enabled: false
     swap:
