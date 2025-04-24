@@ -103,10 +103,11 @@ class PufferTrainer:
         if self._master:
             print(policy_record.policy())
 
-        if policy_record.metadata["action_names"] != self.vecenv.driver_env.action_names():
+        action_names = self.vecenv.driver_env.action_names()
+        if policy_record.metadata["action_names"] != action_names:
             raise ValueError(
                 "Action names do not match between policy and environment: "
-                f"{policy_record.metadata['action_names']} != {self.vecenv.driver_env.action_names()}"
+                f"{policy_record.metadata['action_names']} != {action_names}"
             )
 
         self._initial_pr = policy_record
@@ -169,13 +170,15 @@ class PufferTrainer:
 
     def train(self):
         self.train_start = time.time()
+        self.steps_start = self.agent_step
+
         logger.info("Starting training")
 
+        # it doesn't make sense to evaluate more often than checkpointing since we need a saved policy to evaluate
         if (
             self.trainer_cfg.evaluate_interval != 0
             and self.trainer_cfg.evaluate_interval < self.trainer_cfg.checkpoint_interval
         ):
-            # it doesn't make sense to evaluate more often than checkpointing since we need a saved policy to evaluate
             raise ValueError("evaluate_interval must be at least as large as checkpoint_interval")
 
         logger.info(f"Training on {self.device}")
@@ -189,9 +192,25 @@ class PufferTrainer:
             # Processing stats
             self._process_stats()
 
+            # log progress
+            steps_per_second = (self.agent_step - self.steps_start) / (time.time() - self.train_start)
+            remaining_steps = self.trainer_cfg.total_timesteps - self.agent_step
+            remaining_time_sec = remaining_steps / steps_per_second
+
+            # Format remaining time in appropriate units
+            if remaining_time_sec < 60:
+                time_str = f"{remaining_time_sec:.0f} sec"
+            elif remaining_time_sec < 3600:
+                time_str = f"{remaining_time_sec / 60:.1f} min"
+            elif remaining_time_sec < 86400:  # Less than a day
+                time_str = f"{remaining_time_sec / 3600:.1f} hours"
+            else:
+                time_str = f"{remaining_time_sec / 86400:.1f} days"
+
             logger.info(
-                f"Epoch {self.epoch} - {self.agent_step} "
-                f"({100.00 * self.agent_step / self.trainer_cfg.total_timesteps:.2f}%)"
+                f"Epoch {self.epoch} - {self.agent_step} [{steps_per_second:.0f}/sec]"
+                f" ({100.00 * self.agent_step / self.trainer_cfg.total_timesteps:.2f}%)"
+                f" - {time_str} remaining"
             )
 
             # Checkpointing trainer
