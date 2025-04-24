@@ -3,7 +3,7 @@ defaults:
   - /env/mettagrid-base/mettagrid@
   - _self_
 
-sampling: 20
+sampling: 1
 
 game:
   num_agents: 4
@@ -14,9 +14,9 @@ game:
 
     room:
       _target_: mettagrid.config.room.navigation.cylinder_world.CylinderWorld
-      width:  ${sampling:50,100,60}
-      height: ${sampling:50,100,60}
-      border_width: ${sampling:1,6,3}
+      width: 60
+      height: 60
+      border_width: 1
       agents: 1
 
   objects:

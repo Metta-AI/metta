@@ -72,11 +72,13 @@ class GiantMazeWorldVaried(GiantMazeWorld):
             seed=int(rng_ext.integers(2**32)),
             border_width=border_width,
             border_object=border_object,
+            labels = ["giant_maze_varied"]
         )
 
         self.branch_prob = float(_sample_num(branch_prob, rng_ext))
         self.branch_scale = float(_sample_num(branch_scale, rng_ext))
         self.max_branch_length = int(_sample_num(max_branch_length, rng_ext))
+        self.set_size_labels(width, height)
 
     # ------------------------------------------------------------------
     # Maze generation with fractal branches

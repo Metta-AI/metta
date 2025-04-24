@@ -19,8 +19,8 @@ class EvalStatsDB:
         self._db = duckdb.connect(database=":memory:")
         self._table_name = "eval_data"
         self._db.register(self._table_name, data)
-        self.available_metrics = self.query(all_fields())
-        logger.info(f"Loaded {len(self.available_metrics)} metrics from {self._table_name}")
+        #self.available_metrics = self.query(all_fields())
+        #logger.info(f"Loaded {len(self.available_metrics)} metrics from {self._table_name}")
 
     @staticmethod
     def _flatten_data_into_records(data) -> List[dict]:

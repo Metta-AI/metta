@@ -5,11 +5,11 @@ SquareWorld
 Creates a regular lattice of *solid‑wall squares* separated by uniform
 corridors:
 
-* **square_size ∈ [3 .. 7]** ─ edge length of every solid square block  
+* **square_size ∈ [3 .. 7]** ─ edge length of every solid square block
 * **gap ∈ [3 .. 6]**         ─ corridor width between squares (and between
   the squares and the outer perimeter)
 
-Both parameters are sampled independently each episode.  
+Both parameters are sampled independently each episode.
 A solid perimeter wall encloses the arena.
 """
 
@@ -37,7 +37,7 @@ class SquareWorld(Room):
         seed: int | None = 42,
         border_object: str = "wall",
     ):
-        super().__init__(border_object=border_object)
+        super().__init__(border_object=border_object, labels = ["square_grid"])
         rng = np.random.default_rng(seed)
 
         self.square_size = rng.integers(square_size_range[0], square_size_range[1] + 1)
@@ -49,6 +49,7 @@ class SquareWorld(Room):
         self.altars_count = altars_count
         self._agents = agents
         self._rng = rng
+        self.set_size_labels(self.width, self.height)
 
     # ------------------------------------------------------------------ #
     def _build(self):

@@ -16,7 +16,6 @@ POLICIES=(
     # "b.georgedeane.navigation_terrain_training_v2"
     # "terrain_training_multienv2"
     # "b.daphne.cylinder_run"
-    "b.georgedeane.terrain_multienv_labyrinth_pretrained"
     "b.georgedeane.terrain_multienv_labyrinth_pretrained_DR"
     "b.daphne.terrain_multienv_april18"
     "b.daphne.terrain_varied_cyl_lab"
@@ -39,6 +38,8 @@ POLICIES=(
     "b.georgedeane.terrain_multienv_unstable_pretrained_mb3"
     "b.georgedeane.terrain_multienv_homogenous_pretrained"
     "b.georgedeane.terrain_multienv_stable_pretrained_mb4"
+    "b.daphne.terrain_multienv_3_no_blocks3"
+    "b.daphne.terrain_multienv_3_no_blocks4"
 )
 
 
@@ -50,9 +51,9 @@ for i in "${!POLICIES[@]}"; do
     RANDOM_NUM=$((RANDOM % 1000))
     IDX="${IDX}_${RANDOM_NUM}"
     python3 -m tools.sim \
-        eval=navigation \
+        sim=navigation \
         run=navigation$IDX \
-        eval.policy_uri=wandb://run/$POLICY_URI \
-        eval_db_uri=wandb://artifacts/navigation_db2 \
+        policy_uri=wandb://run/$POLICY_URI \
+        +eval_db_uri=wandb://artifacts/navigation_db2 \
         device=cpu
 done
