@@ -1,23 +1,27 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MettaScope</title>
-    <link rel="icon" type="image/png" href="data/meta_grid_icon.png">
-    <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MettaScope</title>
+  <link rel="icon" type="image/png" href="data/meta_grid_icon.png">
+  <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
-    <canvas id="global-canvas"></canvas>
-    <div class="scrubber-container">
-        <input id="main-scrubber" type="range" class="scrubber" min="0" max="500" value="0">
+  <canvas id="global-canvas"></canvas>
+  <div class="scrubber-container">
+    <button id="play-button" class="play-button" aria-label="Play/Pause">▶</button>
+    <input id="main-scrubber" type="range" class="scrubber" min="0" max="500" value="0">
+  </div>
+  <div id="modal" class="modal">
+    <div class="modal-content">
+      <h2>Welcome to MettaScope</h2>
+      <p>Please drop a replay file here to see the replay.</p>
     </div>
-    <div id="modal" class="modal">
-        <div class="modal-content">
-            <h2>Welcome to MettaScope</h2>
-            <p>Please drop a replay file here to see the replay.</p>
-        </div>
-    </div>
-    <script type="module" src="dist/main.js"></script>
+  </div>
+  <script type="module" src="dist/main.js"></script>
 </body>
+
 </html>

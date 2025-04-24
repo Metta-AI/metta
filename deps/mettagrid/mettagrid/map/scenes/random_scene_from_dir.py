@@ -13,15 +13,14 @@ RandomSceneCandidate = TypedDict("RandomSceneCandidate", {"scene": Scene, "weigh
 class RandomSceneFromDir(Scene):
     def __init__(
         self,
-        dir: str,  # relative to the scene root (currently configs/ directory because we use Hydra)
+        dir: str,
         seed: MaybeSeed = None,
         children: Optional[list[TypedChild]] = None,
     ):
         super().__init__(children or [])
         self._dir = dir
 
-        files = os.listdir("configs/" + self._dir)
-        files = [f.replace(".yaml", "") for f in files if f.endswith(".yaml")]
+        files = os.listdir(self._dir)
         if not files:
             raise ValueError(f"No files found in {self._dir}")
         self._files = files
