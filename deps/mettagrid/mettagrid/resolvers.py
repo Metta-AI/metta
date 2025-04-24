@@ -17,7 +17,7 @@ def oc_uniform(min_val: Numeric, max_val: Numeric) -> float:
 
 
 def oc_choose(*args: Any) -> Any:
-    return random.choice(args)  
+    return random.choice(args)
 
 
 def oc_divide(a: Numeric, b: Numeric) -> Numeric:

@@ -288,7 +288,7 @@ def test_oc_iir(alpha, new_value, last_value, expected):
 @pytest.mark.parametrize(
     "value,in_min,in_max,out_min,out_max,scale_type,expected",
     [
-        (0.0, 0.0, 1.0, 0.0, 10.0, "linear", 0.0),  
+        (0.0, 0.0, 1.0, 0.0, 10.0, "linear", 0.0),
         (0.5, 0.0, 1.0, 0.0, 10.0, "linear", 5.0),
         (1.0, 0.0, 1.0, 0.0, 10.0, "linear", 10.0),
         (0.5, 0.0, 1.0, 0.0, 1.0, "sigmoid", pytest.approx(0.5, abs=0.1)),
