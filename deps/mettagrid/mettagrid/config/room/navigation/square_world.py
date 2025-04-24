@@ -49,8 +49,7 @@ class SquareWorld(Room):
         self.altars_count = altars_count
         self._agents = agents
         self._rng = rng
-        self.labels = ["square_grid"]
-        self.set_size_labels(self.width, self.height)
+        self.set_size_labels(self.width, self.height, labels = ["square_grid"])
 
     # ------------------------------------------------------------------ #
     def _build(self):

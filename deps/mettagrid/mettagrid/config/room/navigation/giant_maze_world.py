@@ -49,8 +49,7 @@ class GiantMazeWorld(Room):
         self.wall_range = wall_range
         self.altars_count = altars_count
         self._agents = agents
-        self.labels = ["giant_maze"]
-        self.set_size_labels(width, height)
+        self.set_size_labels(width, height, labels = ["giant_maze"])
 
     # --------------------------------------------------------------- #
     # Public builder

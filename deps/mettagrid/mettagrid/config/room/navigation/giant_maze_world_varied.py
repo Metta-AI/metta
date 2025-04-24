@@ -77,8 +77,7 @@ class GiantMazeWorldVaried(GiantMazeWorld):
         self.branch_prob = float(_sample_num(branch_prob, rng_ext))
         self.branch_scale = float(_sample_num(branch_scale, rng_ext))
         self.max_branch_length = int(_sample_num(max_branch_length, rng_ext))
-        self.labels = ["giant_maze_varied"]
-        self.set_size_labels(width, height)
+        self.set_size_labels(width, height, labels = ["giant_maze_varied"])
 
     # ------------------------------------------------------------------
     # Maze generation with fractal branches

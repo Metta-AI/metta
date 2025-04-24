@@ -50,8 +50,7 @@ class LabyrinthWorld(Room):
         self._agents = agents
         self._occ = np.zeros((height, width), dtype=bool)
 
-        self.labels = ["labyrinth_world"]
-        self.set_size_labels(width, height)
+        self.set_size_labels(width, height, labels = ["labyrinth_world"])
 
     # ------------------------------------------------------------------ #
     # Public build entry

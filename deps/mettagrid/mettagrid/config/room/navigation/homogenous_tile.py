@@ -55,8 +55,7 @@ class HomogenousTile(Room):
         self.gap   = 1  # single‑cell corridor
         self._agents = agents
         self._rng = rng
-        self.labels = ["homogenous_tile"]
-        self.set_size_labels(self.width, self.height)
+        self.set_size_labels(self.width, self.height, labels = ["homogenous_tile"])
 
     # ------------------------------------------------------------------ #
     def _build(self):

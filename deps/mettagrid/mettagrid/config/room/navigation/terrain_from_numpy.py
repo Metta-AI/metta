@@ -55,7 +55,7 @@ class TerrainFromNumpy(Room):
     """
 
     def __init__(
-        self, dir, border_width: int = 0, border_object: str = "wall", num_agents: int = 10, generators: bool = False
+        self, dir, border_width: int = 0, border_object: str = "wall", num_agents: int = 10, generators: bool = False, file: str = None
     ):
         zipped_dir = dir + ".zip"
         lock_path = zipped_dir + ".lock"
@@ -72,8 +72,8 @@ class TerrainFromNumpy(Room):
         self.dir = dir
         self.num_agents = num_agents
         self.generators = generators
-        self.labels = ["terrain"]
-        super().__init__(border_width=border_width, border_object=border_object)
+        self.uri = file
+        super().__init__(border_width=border_width, border_object=border_object, labels = ["terrain"])
 
     def get_valid_positions(self, level):
         valid_positions = []
@@ -92,8 +92,11 @@ class TerrainFromNumpy(Room):
 
     def _build(self):
         # TODO: add some way of sampling
-        uri = np.random.choice(self.files)
-        level = safe_load(f"{self.dir}/{uri}")
+        if self.uri is not None:
+            level = safe_load(f"{self.dir}/{self.uri}")
+        else:
+            uri = np.random.choice(self.files)
+            level = safe_load(f"{self.dir}/{uri}")
         self.set_size_labels(level.shape[1], level.shape[0])
 
         # remove agents to then repopulate
@@ -105,7 +108,7 @@ class TerrainFromNumpy(Room):
         for pos in positions:
             level[pos] = "agent.agent"
         area = level.shape[0] * level.shape[1]
-        num_hearts = area // random.randint(66, 180)
+        num_hearts = 50
         # Find valid empty spaces surrounded by empty
         valid_positions = self.get_valid_positions(level)
 

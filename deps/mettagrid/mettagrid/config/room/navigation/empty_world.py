@@ -43,8 +43,7 @@ class EmptyWorld(Room):
 
         self._agents = agents
         self._rng = rng
-        self.labels = ["empty"]
-        self.set_size_labels(self.width, self.height)
+        self.set_size_labels(self.width, self.height, labels = ["empty"])
 
     # ------------------------------------------------------------------ #
     def _build(self):

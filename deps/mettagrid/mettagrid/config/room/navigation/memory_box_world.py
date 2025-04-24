@@ -43,8 +43,7 @@ class MemoryBoxWorld(Room):
 
         self.smin, self.smax = size_range
         self.cmin, self.cmax = corridor_range
-        self.labels = ["memory_box"]
-        self.set_size_labels(width, height)
+        self.set_size_labels(width, height, labels = ["memory_box"])
 
     # ------------------------------------------------------------------ #
     @property
