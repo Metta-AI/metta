@@ -39,12 +39,13 @@ class PatchedDictConfig(DictConfig):
 
 
 class PatchedListConfig(ListConfig):
+    # TODO
     pass
 
 
 def patch_cfg(cfg: Union[DictConfig, ListConfig], source: str) -> Union[PatchedDictConfig, PatchedListConfig]:
     # pick the correct subclass
-    if not isinstance(cfg, DictConfig):
+    if isinstance(cfg, DictConfig):
         target_cls = PatchedDictConfig
     else:
         target_cls = PatchedListConfig
