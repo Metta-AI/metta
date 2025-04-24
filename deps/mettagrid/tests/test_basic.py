@@ -19,10 +19,8 @@ def test_dependencies():
         "rich",
         "scipy",
         "tabulate",
-        "tensordict",
         "termcolor",
         "wandb",
-        "wandb_core",
         "pandas",
         "tqdm",
     ]
