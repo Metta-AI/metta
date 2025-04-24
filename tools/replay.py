@@ -33,7 +33,7 @@ def main(cfg):
             epoch,
             cfg.run_dir,
             cfg.run,
-            dry_run=cfg.get("replay_dry_run", False),
+            dry_run=cfg.trainer.get("replay_dry_run", False),
         )
 
         # Only on macos open a browser to the replay
