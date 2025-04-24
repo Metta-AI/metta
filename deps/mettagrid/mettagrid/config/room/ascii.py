@@ -25,6 +25,7 @@ class Ascii(Room):
         lines = ascii_map.strip().splitlines()
         self._level = np.array([list(line) for line in lines], dtype="U6")
         self._level = np.vectorize(SYMBOLS.get)(self._level)
+        self.set_size_labels(self._level.shape[1], self._level.shape[0])
 
     def _build(self):
         return self._level

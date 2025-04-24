@@ -16,29 +16,31 @@ POLICIES=(
     # "b.georgedeane.navigation_terrain_training_v2"
     # "terrain_training_multienv2"
     # "b.daphne.cylinder_run"
-    # "b.georgedeane.terrain_multienv"
-    # "terrain_training_mapfromfile"
-    # "b.daphne.terrain_multienv_muon"
-    # "terrain_training_multienv_muon"
-    # "b.daphne.terrain_10k_maps2"
-    # "b.georgedeane.terrain_newmaps_pretrained:v41"
-    # "b.daphne.terrain_newmaps"
-    # "terrain_training_10kmaps_april18"
-    # "b.daphne.terrain_10k_maps_april18"
-    # "b.daphne.terrain_multienv_april18"
-    # "terrain_training_multienv_april18"
-    "b.daphne.terrain_10k_maps2"
-    "b.daphne.terrain_multienv_april18_sweep.r.2"
-    "b.daphne.terrain_multienv_april18_sweep.r.3"
-    "terrain_multienv_with_labyrinth2"
-    "b.daphne.varied_terrain_sweep.r.2"
-    "b.daphne.terrain_multienv_april18_sweep.r.4"
-    "b.daphne.varied_terrain_sweep.r.1"
-    "b.daphne.terrain_varied_cyl_lab_pretrained"
+    "b.georgedeane.terrain_multienv_labyrinth_pretrained"
+    "b.georgedeane.terrain_multienv_labyrinth_pretrained_DR"
+    "b.daphne.terrain_multienv_april18"
     "b.daphne.terrain_varied_cyl_lab"
-    "b.georgedeane.terrain_multienv_pretrained_varied"
-    "terrain_multienv_with_labyrinth"
+    "b.georgedeane.terrain_multienv"
+    "b.daphne.terrain_varied_cyl_lab_pretrained"
+    "b.daphne.terrain_multienv_altar_no_resets"
+    "terrain_multienv_3_single_agent"
+    "b.daphne.terrain_multienv_singleA_kitchensink"
+    "b.daphne.terrain_multienv_singleA_withgenerators"
+    "b.daphne.terrain_multienv_singleA_altar_resets"
+    "b.daphne.terrain_multienv_singleA_50hearts"
+    "b.daphne.terrain_multienv_singleA_50hearts_with_cylinders"
+    "b.daphne.terrain_multienv_prioritized_singleA_50hearts"
+    "b.georgedeane.terrain_multienv_uniform"
+    "b.georgedeane.terrain_multienv_fromscratch"
+    "b.daphne.terrain_multienv_kitchensinkwc"
+    "b.daphne.terrain_multienv_prioritized_multienv_cylinders"
+    "b.daphne.terrain_multienv_prioritized_multienv_cylinders2"
+    "b.daphne.terrain_multienv_prioritized_george_maps"
+    "b.georgedeane.terrain_multienv_unstable_pretrained_mb3"
+    "b.georgedeane.terrain_multienv_homogenous_pretrained"
+    "b.georgedeane.terrain_multienv_stable_pretrained_mb4"
 )
+
 
 
 for i in "${!POLICIES[@]}"; do
@@ -51,6 +53,6 @@ for i in "${!POLICIES[@]}"; do
         eval=navigation \
         run=navigation$IDX \
         eval.policy_uri=wandb://run/$POLICY_URI \
-        eval_db_uri=wandb://artifacts/navigation_db \
-        # device=cpu
+        eval_db_uri=wandb://artifacts/navigation_db2 \
+        device=cpu
 done

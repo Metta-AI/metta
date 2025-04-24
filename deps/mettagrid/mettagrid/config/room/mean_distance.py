@@ -27,7 +27,7 @@ class MeanDistance(Room):
         self._height = height
         self._objects = objects
         self._agents = agents
-
+        self.set_size_labels(width, height)
         if mean_distance > width or mean_distance > height:
             logger.warning(
                 f"Mean distance {mean_distance} is greater than room size {width}x{height}. "

@@ -19,6 +19,7 @@ class MazePrim(Room):
         self._height = height if height % 2 == 1 else height - 1
         self._start_pos = (set_position(start_pos[0], self._width), set_position(start_pos[1], self._height))
         self._end_pos = (set_position(end_pos[0], self._width), set_position(end_pos[1], self._height))
+        self.set_size_labels(width, height)
 
     def _build(self):
         final_maze = create_grid(self._height, self._width, fill_value=self.WALL)
