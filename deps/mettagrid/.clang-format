@@ -1,0 +1,17 @@
+---
+Language: Cpp
+BasedOnStyle: Google
+IndentWidth: 4
+ColumnLimit: 120
+AccessModifierOffset: -4
+AllowShortFunctionsOnASingleLine: Empty
+BreakBeforeBraces: Stroustrup
+DerivePointerAlignment: false
+PointerAlignment: Left
+AlignAfterOpenBracket: Align
+AlignConsecutiveAssignments: false
+AlignConsecutiveDeclarations: false
+AlignTrailingComments: true
+AllowAllParametersOfDeclarationOnNextLine: true
+IncludeBlocks: Regroup
+---
