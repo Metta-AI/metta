@@ -19,7 +19,7 @@ class MeanDistance(Room):
         border_width: int = 0,
         border_object: str = "wall",
     ):
-        super().__init__(border_width=border_width, border_object=border_object)
+        super().__init__(border_width=border_width, border_object=border_object, labels = ["mean_distance"])
         logger = logging.getLogger(__name__)
 
         self._rng = np.random.default_rng(seed)
@@ -27,7 +27,7 @@ class MeanDistance(Room):
         self._height = height
         self._objects = objects
         self._agents = agents
-
+        self.set_size_labels(width, height)
         if mean_distance > width or mean_distance > height:
             logger.warning(
                 f"Mean distance {mean_distance} is greater than room size {width}x{height}. "
