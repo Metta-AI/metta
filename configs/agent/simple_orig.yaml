@@ -3,7 +3,6 @@ _target_: metta.agent.metta_agent.MettaAgent
 
 convert_to_single_discrete: true  # Add this flag to control action conversion behavior
 
-# should policy_selector be removed from agent config? it's in trainer.yaml
 policy_selector:
   uri: null
   type: top
@@ -11,19 +10,17 @@ policy_selector:
   metric: final.score
   generation: null
 
-# should be removed from agent config? it's in mettagrid.yaml
 observations:
   obs_key: grid_obs
   track_last_action: false
 
 clip_range: 0 # set to 0 to disable clipping
-analyze_weights_interval: 300
+analyze_weights_interval: 0
 l2_init_weight_update_interval: 0
 
 components:
-  #necessary layers: _core_, _action_embeds_, _action_, _value_
-  #necessary input_source: _obs_
-
+  #necessary source layers: _obs_, _core_
+  #necessary output layers: _action_type_ and _value_ (and _action_param_ if MultiDiscrete)
   _obs_:
     _target_: metta.agent.lib.obs_shaper.ObsShaper
     input_source: null
@@ -91,16 +88,43 @@ components:
     input_source: _core_
     nn_params:
       out_features: 512
+    effective_rank: true
 
   _action_embeds_:
     _target_: metta.agent.lib.action.ActionEmbedding
     input_source: null
     nn_params:
       num_embeddings: 100
-      embedding_dim: 16
+      embedding_dim: 32
+
+  embed_reshaped:
+    _target_: metta.agent.lib.merge_layer.ReshapeLayer # combines the two dims into the squeezed_dim
+    squeezed_dim: 0
+    popped_dim: 1
+    input_source: _action_embeds_
+
+  actor_1_expanded:
+    _target_: metta.agent.lib.merge_layer.ExpandLayer
+    expand_dim: 1
+    expand_value: null
+    input_source: actor_1
+    dims_source: _action_embeds_
+    source_dim: 1
+
+  actor_1_reshaped:
+    _target_: metta.agent.lib.merge_layer.ReshapeLayer
+    squeezed_dim: 0
+    popped_dim: 1
+    input_source: actor_1_expanded
+
+  attn:
+    _target_: metta.agent.lib.nn_layer_library.Bilinear
+    input_source: 
+      - embed_reshaped
+      - actor_1_reshaped
+    nn_params:
+      out_features: 1
 
   _action_:
-    _target_: metta.agent.lib.action.MettaActorSingleHead
-    input_source: 
-      - actor_1
-      - _action_embeds_
+    _target_: metta.agent.lib.merge_layer.BatchReshapeLayer
+    input_source: attn

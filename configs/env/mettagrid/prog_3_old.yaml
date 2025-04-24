@@ -1,9 +1,10 @@
+
 defaults:
-  - /env/mettagrid-base/mettagrid@
-  - _self_
+  - mettagrid
 
 game:
   num_agents: 24
+
   map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom
     num_rooms: ${div:${..num_agents},6}
@@ -29,21 +30,3 @@ game:
 
         wall: ${sampling:1,100,1}
         block: ${sampling:5,50,1}
-
-  actions:
-    noop:
-      enabled: true
-    move:
-      enabled: true
-    rotate:
-      enabled: true
-    put_items:
-      enabled: true
-    get_items:
-      enabled: true
-    attack:
-      enabled: true
-    swap:
-      enabled: true
-    change_color:
-      enabled: true
