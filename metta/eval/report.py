@@ -14,12 +14,15 @@ import tempfile
 from typing import List
 
 import boto3
+import hydra
 from botocore.exceptions import NoCredentialsError
 from omegaconf import DictConfig
 
 from metta.eval.db import PolicyEvalDB
 from metta.eval.heatmap import create_heatmap_html_snippet
 from metta.eval.mapviewer import MAP_VIEWER_CSS
+from metta.sim.eval_stats_db import EvalStatsDB
+from metta.util.wandb.wandb_context import WandbContext
 
 logger = logging.getLogger(__name__)
 
@@ -128,3 +131,14 @@ def generate_report(cfg: DictConfig):
         logger.info("Report written to %s", output_path)
 
     return html_content, output_path
+
+
+def dump_stats(cfg: DictConfig):
+    logger.info(f"Importing data from {cfg.eval.eval_db_uri}")
+    with WandbContext(cfg) as wandb_run:
+        eval_stats_db = EvalStatsDB.from_uri(cfg.eval.eval_db_uri, cfg.run_dir, wandb_run)
+
+    analyzer = hydra.utils.instantiate(cfg.analyzer, eval_stats_db)
+    dfs, _ = analyzer.analyze(include_policy_fitness=False)
+    for df in dfs:
+        print(df)
