@@ -61,7 +61,6 @@ class MettaAgent(nn.Module):
         self.hidden_size = cfg.components._core_.output_size
         self.core_num_layers = cfg.components._core_.nn_params.num_layers
         self.clip_range = cfg.clip_range
-        self.convert_to_single_discrete = cfg.get('convert_to_single_discrete', True)
 
         agent_attributes = {
             'obs_shape': obs_shape,
@@ -86,17 +85,8 @@ class MettaAgent(nn.Module):
 
         component = self.components['_value_']
         self._setup_components(component)
-
-        # delete if logic after testing
-        # if self.convert_to_single_discrete:
         component = self.components['_action_']
         self._setup_components(component)
-        # else:
-        #     component = self.components['_action_type_']
-        #     self._setup_components(component)
-        #     component = self.components['_action_param_']
-            # self._setup_components(component)
-
 
         for name, component in self.components.items():
             if not getattr(component, 'ready', False):
@@ -139,21 +129,11 @@ class MettaAgent(nn.Module):
         # Precompute cumulative sums for faster conversion
         self.cum_action_max_params = torch.tensor([0] + [sum(action_max_params[:i+1]) for i in range(len(action_max_params))], 
                                                  device=self.device)
-        
-        # delete if logic after testing
-        # if self.convert_to_single_discrete:
-            # convert the actions_dict into a list of strings
         string_list = []
         for action_name, max_arg_count in self.active_actions:
             for i in range(max_arg_count + 1):
                 string_list.append(f"{action_name}_{i}")
         self.components['_action_embeds_'].activate_actions(string_list, self.device)
-        # else:
-        #     self.components['_action_type_embeds_'].activate_actions(action_names, self.device)
-        #     param_list = []
-        #     for i in range(max(action_max_params) - 1):
-        #         param_list.append(str(i))
-        #     self.components['_action_param_embeds_'].activate_actions(param_list, self.device)
 
         # Create action_index tensor
         action_index = []
@@ -178,9 +158,36 @@ class MettaAgent(nn.Module):
         td = TensorDict({"x": x, "state": state})
         self.components["_value_"](td)
         return None, td["_value_"], None
+    
+    def get_action_and_value(self, x, state=None, action=None, e3b=None):
+        td = TensorDict({"x": x})
+
+        td["state"] = None
+        if state is not None:
+            state = torch.cat(state, dim=0)
+            td["state"] = state.to(x.device)
+
+        self.components["_value_"](td)
+        value = td["_value_"]
+        state = td["state"]
+        self.components["_action_"](td)
+        logits = td["_action_"]
+
+        if state is not None:
+            split_size = self.core_num_layers
+            state = (state[:split_size], state[split_size:])
+
+        e3b, intrinsic_reward = self._e3b_update(td["_core_"].detach(), e3b)
+
+        action_logit_index = self._convert_action_to_logit_index(action) if action is not None else None
+        action_logit_index, logprob, entropy, normalized_logits = sample_logits(logits, action_logit_index)
+        if action is None:
+            action = self._convert_logit_index_to_action(action_logit_index, td)
+
+        return action, logprob, entropy, value, state, e3b, intrinsic_reward, normalized_logits
 
     def _convert_action_to_logit_index(self, action):
-        """Convert action pairs to logit indices using vectorized operations"""
+        """Convert action pairs (action_type, action_param) to single discretelogit indices using vectorized operations"""
         orig_shape = action.shape
         action = action.reshape(-1, 2)
         
@@ -194,51 +201,10 @@ class MettaAgent(nn.Module):
         # Vectorized addition
         action_logit_index = action_type_numbers + cumulative_sum + action_params
         
-        # b = action_logit_index.unsqueeze(1) # double check this
         return action_logit_index.reshape(*orig_shape[:2], 1)
 
-    
-    def get_action_and_value(self, x, state=None, action=None, e3b=None):
-        td = TensorDict({"x": x})
-
-        td["state"] = None
-        if state is not None:
-            state = torch.cat(state, dim=0)
-            td["state"] = state.to(x.device)
-
-        self.components["_value_"](td)
-        value = td["_value_"]
-        state = td["state"]
-
-        # delete if logic after testing
-        # if self.convert_to_single_discrete:
-        self.components["_action_"](td)
-        logits = td["_action_"]
-        # else:  
-        #     self.components["_action_type_"](td)
-        #     self.components["_action_param_"](td)
-        #     logits = [td["_action_type_"], td["_action_param_"]]
-
-        if state is not None:
-            split_size = self.core_num_layers
-            state = (state[:split_size], state[split_size:])
-
-        e3b, intrinsic_reward = self._e3b_update(td["_core_"].detach(), e3b)
-
-        # delete if logic after testing
-        # if self.convert_to_single_discrete:
-        action_logit_index = self._convert_action_to_logit_index(action) if action is not None else None
-        action_logit_index, logprob, entropy, normalized_logits = sample_logits(logits, action_logit_index)
-        if action is None:
-            action = self._convert_logit_index_to_action(action_logit_index, td)
-        # else:
-        #     action_logit_index, logprob, entropy, normalized_logits = sample_logits(logits, action)
-        #     action = action_logit_index
-
-        return action, logprob, entropy, value, state, e3b, intrinsic_reward, normalized_logits
-
     def _convert_logit_index_to_action(self, action_logit_index, td):
-        """Convert logit indices back to action pairs using tensor indexing"""# means we are in rollout, not training
+        """Convert logit indices back to action pairs using tensor indexing"""
             # direct tensor indexing on precomputed action_index_tensor
         return self.action_index_tensor[action_logit_index.reshape(-1)]        
 

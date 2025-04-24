@@ -24,7 +24,7 @@ class TorchProfiler:
 
     Future work could include support for TensorBoard.
     '''
-    def __init__(self, master, run_dir, wandb_run, cfg_profiler_interval_epochs):
+    def __init__(self, master, run_dir, cfg_profiler_interval_epochs, wandb_run):
         self._master = master
         self._cfg_profiler_interval_epochs = cfg_profiler_interval_epochs
         self._run_dir = run_dir
@@ -36,10 +36,11 @@ class TorchProfiler:
         self._active = False
         self._start_epoch = None
         self._profile_filename_base = None
+        
         # Hardcoding _first_profile_epoch to keep cfgs clean. 
-        # It needs to be greater than pytorch warmup cycles.
-        # We may want to revisit if compiling models under certain modes.
-        self._first_profile_epoch = 5
+        # It just needs to be greater than pytorch warmup cycles.
+        # We may need to revisit if compiling models under "max-autotune".
+        self._first_profile_epoch = 50
 
     def on_epoch_end(self, epoch):
         if not self._active:

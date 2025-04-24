@@ -1,8 +1,5 @@
-from mettagrid.action_handler cimport ActionArg
-from mettagrid.objects.agent cimport Agent
-from mettagrid.action_handler cimport ActionHandler
+from mettagrid.action_handler cimport ActionHandler, ActionConfig
 
-
-cdef class ChangeColorAction(ActionHandler):
-    cdef unsigned char max_arg(self)
-    cdef bint _handle_action(self, unsigned int actor_id, Agent* actor, ActionArg arg)
+cdef extern from "change_color.hpp":
+    cdef cppclass ChangeColorAction(ActionHandler):
+        ChangeColorAction(const ActionConfig& cfg)

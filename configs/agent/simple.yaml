@@ -1,8 +1,6 @@
 # see reference_design.yaml for explanation of components
 _target_: metta.agent.metta_agent.MettaAgent
 
-convert_to_single_discrete: true  # Add this flag to control action conversion behavior
-
 # should policy_selector be removed from agent config? it's in trainer.yaml
 policy_selector:
   uri: null

@@ -25,7 +25,7 @@ class LayerBase(nn.Module):
     only the tensordict. The tensor dict is constructed anew each time the
     metta_agent forward pass is run. The component's `_forward` should read
     from the value at the key name of its input_source. After performing its
-    computation via self.layer or otherwise, it should store its output in the
+    computation via self._net() or otherwise, it should store its output in the
     tensor dict at the key with its own name.
 
     Before doing this, it should first check if the tensordict already has a
@@ -35,9 +35,9 @@ class LayerBase(nn.Module):
     forward method of the layer above it.
     
     Carefully passing input and output shapes is necessary to setup the agent.
-    self._in_tensor_shape and self._out_tensor_shape are always of type list of
-    list. Note that they do not include the batch dimension (as this is specified
-    in training configs).'''
+    self._in_tensor_shape and self._out_tensor_shape are always of type list. 
+    Note that these lists not include the batch dimension so their shape is 
+    one dimension smaller than the actual shape of the tensor.'''
     def __init__(self, name, input_source=None, nn_params={}, **cfg):
         super().__init__()
         self._name = name
@@ -225,6 +225,7 @@ class ParamLayer(LayerBase):
         """
         if (
             self.weight_net.weight.data.dim() != 2
+            or not hasattr(self, "analyze_weights_bool")
             or self.analyze_weights_bool is None
             or self.analyze_weights_bool is False
         ):

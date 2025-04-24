@@ -161,7 +161,8 @@ class MeanMergeLayer(MergeLayerBase):
 
 class ExpandLayer(LayerBase):
     '''Expand a tensor along a specified dimension by either a given value (expand_value)
-      or a value from another tensor (dims_source and input_dim).'''
+      or a value from another tensor (dims_source and input_dim).
+      This layer has not been unit tested.'''
     def __init__(self, name, expand_dim, input_source, expand_value=None, source_dim=None, dims_source=None, **cfg):
         self._ready = False
         self.expand_dim = expand_dim
@@ -212,7 +213,8 @@ class ExpandLayer(LayerBase):
         return td
 
 class ReshapeLayer(LayerBase):
-    '''Multiply two of the dims together, squeezing them into the squeezed_dim.'''
+    '''Multiply two of the dims together, squeezing them into the squeezed_dim.
+    This layer has not been unit tested.'''
     def __init__(self, name, popped_dim, squeezed_dim, **cfg):
         self._ready = False
         self.popped_dim = popped_dim
@@ -246,7 +248,8 @@ class ReshapeLayer(LayerBase):
 
 class BatchReshapeLayer(LayerBase):
     '''Expands at dim 1, sets equal to value at dim 0 div by B. 
-    Then sets dim 0 to B. Finally, squeezes.'''
+    Then sets dim 0 to B. Finally, squeezes.
+    This layer has not been unit tested.'''
     def __init__(self, name, **cfg):
         self._ready = False
         super().__init__(name, **cfg)

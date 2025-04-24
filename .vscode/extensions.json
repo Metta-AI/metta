@@ -5,6 +5,8 @@
     "ms-python.vscode-pylance",
     "ms-python.python",
     "mechatroner.rainbow-csv",
-    "tamasfe.even-better-toml"
+    "tamasfe.even-better-toml",
+    "tcwalther.cython",
+    "ms-vscode.cpptools-extension-pack"
   ]
 }

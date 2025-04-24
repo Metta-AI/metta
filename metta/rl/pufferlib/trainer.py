@@ -24,7 +24,9 @@ from metta.rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.pufferlib.torch_profiler import TorchProfiler
 from metta.sim.eval_stats_db import EvalStatsDB
 from metta.sim.eval_stats_logger import EvalStatsLogger
-from metta.sim.replay_helper import ReplayHelper    
+from metta.sim.replay_helper import ReplayHelper
+from metta.sim.simulation import SimulationSuite
+from metta.sim.simulation_config import SimulationConfig, SimulationSuiteConfig
 from metta.sim.vecenv import make_vecenv
 from metta.util.config import config_from_path
 
@@ -37,10 +39,13 @@ logger = logging.getLogger(f"trainer-{rank}-{local_rank}")
 
 
 class PufferTrainer:
-    def __init__(self, cfg: OmegaConf, wandb_run, policy_store: PolicyStore, **kwargs):
+    def __init__(
+        self, cfg: OmegaConf, wandb_run, policy_store: PolicyStore, sim_suite_config: SimulationSuiteConfig, **kwargs
+    ):
         self.cfg = cfg
         self.trainer_cfg = cfg.trainer
         self._env_cfg = config_from_path(self.trainer_cfg.env, self.trainer_cfg.env_overrides)
+        self.sim_suite_config = sim_suite_config
 
         self._master = True
         self._world_size = 1
@@ -55,13 +60,13 @@ class PufferTrainer:
             logger.info(f"Setting up distributed training on device {self.device}")
 
         self.profile = Profile()
-        self.torch_profiler = TorchProfiler(self._master, cfg.run_dir, wandb_run, cfg.trainer.profiler_interval_epochs)
+        self.torch_profiler = TorchProfiler(self._master, cfg.run_dir, cfg.trainer.profiler_interval_epochs, wandb_run)
         self.losses = self._make_losses()
         self.stats = defaultdict(list)
         self.wandb_run = wandb_run
         self.policy_store = policy_store
         self.use_e3b = self.trainer_cfg.use_e3b
-        self.eval_stats_logger = EvalStatsLogger(cfg, wandb_run)
+        self.eval_stats_logger = EvalStatsLogger(self.sim_suite_config, wandb_run)
         self.average_reward = 0.0  # Initialize average reward estimate
         self._current_eval_score = None
         self._eval_results = []
@@ -150,7 +155,15 @@ class PufferTrainer:
 
         self.kickstarter = Kickstarter(self.cfg, self.policy_store, self.vecenv.single_action_space)
 
-        self.replay_helper = ReplayHelper(cfg, self._env_cfg, self.last_pr, wandb_run)
+        replay_sim_config = SimulationConfig(
+            env=self.trainer_cfg.env,
+            num_envs=1,
+            num_episodes=1,
+            env_overrides=self.trainer_cfg.env_overrides,
+            device=self.device,
+            vectorization=self.cfg.vectorization,
+        )
+        self.replay_helper = ReplayHelper(replay_sim_config, self.last_pr, wandb_run)
 
         logger.info(f"PufferTrainer initialization complete on device: {self.device}")
 
@@ -206,22 +219,23 @@ class PufferTrainer:
         if not self._master:
             return
 
-        self.cfg.eval.policy_uri = self.last_pr.uri
         self.cfg.analyzer.policy_uri = self.last_pr.uri
 
         run_id = self.cfg.get("run_id")
         if run_id is None and self.wandb_run is not None:
             run_id = self.wandb_run.id
 
-        eval = hydra.utils.instantiate(self.cfg.eval, self.policy_store, self.last_pr, run_id, _recursive_=False)
-        stats = eval.simulate()
+        logger.info(f"Simulating policy: {self.last_pr.uri} with config: {self.sim_suite_config}")
+        sim = SimulationSuite(config=self.sim_suite_config, policy_pr=self.last_pr, policy_store=self.policy_store)
+        stats = sim.simulate()
+        logger.info("Simulation complete")
 
         try:
             self.eval_stats_logger.log(stats)
         except Exception as e:
             logger.error(f"Error logging stats: {e}")
 
-        eval_stats_db = EvalStatsDB.from_uri(self.cfg.eval.eval_db_uri, self.cfg.run_dir, self.wandb_run)
+        eval_stats_db = EvalStatsDB.from_uri(self.sim_suite_config.eval_db_uri, self.cfg.run_dir, self.wandb_run)
         analyzer = hydra.utils.instantiate(self.cfg.analyzer, eval_stats_db)
         _, policy_fitness_records = analyzer.analyze()
         self._eval_results = policy_fitness_records
@@ -281,6 +295,7 @@ class PufferTrainer:
                 # TODO: In place-update should be faster. Leaking 7% speed max
                 # Also should be using a cuda tensor to index
                 e3b = e3b_inv[gpu_env_id] if self.use_e3b else None
+
                 h = lstm_h[:, gpu_env_id]
                 c = lstm_c[:, gpu_env_id]
                 actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward, _ = policy(o_device, (h, c), e3b=e3b)
@@ -325,7 +340,6 @@ class PufferTrainer:
 
     @pufferlib.utils.profile
     def _train(self):
-
         experience, profile = self.experience, self.profile
         self.losses = self._make_losses()
 
@@ -442,26 +456,30 @@ class PufferTrainer:
                         + ks_action_loss
                         + ks_value_loss
                     )
+
                 with profile.learn:
                     self.optimizer.zero_grad()
                     loss.backward()
                     torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.trainer_cfg.max_grad_norm)
                     self.optimizer.step()
+
                     if self.cfg.agent.clip_range > 0:
                         self.policy.clip_weights()
 
+                    if self.device == "cuda":
+                        torch.cuda.synchronize()
+
                 with profile.train_misc:
-                    with torch.no_grad():
-                        self.losses.policy_loss += pg_loss.item() / total_minibatches
-                        self.losses.value_loss += v_loss.item() / total_minibatches
-                        self.losses.entropy += entropy_loss.item() / total_minibatches
-                        self.losses.old_approx_kl += old_approx_kl.item() / total_minibatches
-                        self.losses.approx_kl += approx_kl.item() / total_minibatches
-                        self.losses.clipfrac += clipfrac.item() / total_minibatches
-                        self.losses.l2_reg_loss += l2_reg_loss.item() / total_minibatches
-                        self.losses.l2_init_loss += l2_init_loss.item() / total_minibatches
-                        self.losses.ks_action_loss += ks_action_loss.item() / total_minibatches
-                        self.losses.ks_value_loss += ks_value_loss.item() / total_minibatches
+                    self.losses.policy_loss += pg_loss.item() / total_minibatches
+                    self.losses.value_loss += v_loss.item() / total_minibatches
+                    self.losses.entropy += entropy_loss.item() / total_minibatches
+                    self.losses.old_approx_kl += old_approx_kl.item() / total_minibatches
+                    self.losses.approx_kl += approx_kl.item() / total_minibatches
+                    self.losses.clipfrac += clipfrac.item() / total_minibatches
+                    self.losses.l2_reg_loss += l2_reg_loss.item() / total_minibatches
+                    self.losses.l2_init_loss += l2_init_loss.item() / total_minibatches
+                    self.losses.ks_action_loss += ks_action_loss.item() / total_minibatches
+                    self.losses.ks_value_loss += ks_value_loss.item() / total_minibatches
 
             if self.trainer_cfg.target_kl is not None:
                 if approx_kl > self.trainer_cfg.target_kl:
@@ -535,7 +553,10 @@ class PufferTrainer:
         if self._master:
             logger.info("Generating and saving a replay to wandb and S3.")
             self.replay_helper.generate_and_upload_replay(
-                self.epoch, dry_run=self.trainer_cfg.get("replay_dry_run", False)
+                self.epoch,
+                self.cfg.run_dir,
+                self.cfg.run,
+                dry_run=self.trainer_cfg.get("replay_dry_run", False),
             )
 
     def _process_stats(self):
@@ -684,6 +705,7 @@ class PufferTrainer:
         if self.cfg.seed is None:
             self.cfg.seed = np.random.randint(0, 1000000)
         self.vecenv.async_reset(self.cfg.seed)
+
 
 class AbortingTrainer(PufferTrainer):
     def __init__(self, *args, **kwargs):
