@@ -3,7 +3,7 @@ defaults:
   - /env/mettagrid-base/mettagrid@
   - _self_
 
-sampling: 20
+sampling: 1
 
 game:
   num_agents: 4

@@ -1,6 +1,7 @@
 defaults:
   - /env/mettagrid-base/mettagrid@
 
+sampling: 1
 game:
   num_agents: 4  #how many agents are in the map x2
 
