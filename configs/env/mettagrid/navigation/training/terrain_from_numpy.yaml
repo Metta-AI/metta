@@ -14,11 +14,3 @@ game:
       border_width: 1
       dir: "terrain_maps_nohearts"
       num_agents: 1
-  objects:
-    altar:
-      cooldown: 1000
-      input_battery: 3
-      output_heart: 1
-      max_output: 5
-      conversion_ticks: 1
-      initial_items: 1
