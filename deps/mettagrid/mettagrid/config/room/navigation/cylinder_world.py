@@ -22,7 +22,7 @@ class CylinderWorld(Room):
         border_width: int = 0,
         border_object: str = "wall",
     ):
-        super().__init__(border_width=border_width, border_object=border_object)
+        super().__init__(border_width=border_width, border_object=border_object, labels = ["cylinder_world"])
         self._rng = np.random.default_rng(seed)
         width, height = np.random.randint(40, 100), np.random.randint(40, 100)
         self._width, self._height = width, height
@@ -31,7 +31,7 @@ class CylinderWorld(Room):
         # occupancy mask: False = empty
         self._occ = np.zeros((height, width), dtype=bool)
 
-        self.set_size_labels(width, height, labels = ["cylinder_world"])
+        self.set_size_labels(width, height)
     # ------------------------------------------------------------------ #
     # Public build
     # ------------------------------------------------------------------ #
