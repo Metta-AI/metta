@@ -1,0 +1,13 @@
+# Dungeon spaces with right angles. No guarantees that it will be connected.
+_target_: mettagrid.map.scenes.wfc.WFC
+pattern_size: 3
+pattern: |
+  |####     #####|
+  |####     #####|
+  |####     #####|
+  |            ##|
+  |            ##|
+  |            ##|
+  |####     #####|
+  |####     #####|
+  |####     #####|

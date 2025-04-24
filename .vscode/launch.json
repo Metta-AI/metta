@@ -26,7 +26,7 @@
             ],
         },
         {
-            "name": "Sweep: Simulation",
+            "name": "Sweep: Eval",
             "type": "debugpy",
             "request": "launch",
             "module": "tools.sweep_eval",
@@ -91,5 +91,15 @@
                 "+hardware=macbook",
             ],
         },
+        {
+            // This is left over from merging mettagrid into metta. It doesn't
+            // look like it should have been working before the merge, but it
+            // seems probably straightforward to fix.
+            "name": "MettaGrid: PerfTest",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "test_perf",
+            "preLaunchTask": "build_cython_extensions"
+        }
     ],
 }

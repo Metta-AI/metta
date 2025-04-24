@@ -4,7 +4,7 @@ defaults:
 
 game:
   num_agents: 20
-  max_steps: 250
+  max_steps: 500
 
   agent:
     rewards:
@@ -22,6 +22,7 @@ game:
         arm_length: 8
         center_radius: 3
       onlyhearts: true
+      border_width: 1
 
   objects:
     altar:

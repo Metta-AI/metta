@@ -1,0 +1,14 @@
+defaults:
+  - common
+  - agent: simple
+  - trainer: puffer
+  - sim: navigation
+  - analyzer: eval_analyzer
+  - wandb: metta_research
+  - _self_
+
+cmd: analyze
+run: ???
+
+torch_deterministic: true
+vectorization: multiprocessing

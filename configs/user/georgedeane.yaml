@@ -2,7 +2,6 @@
 
 defaults:
   - override /agent: simple
-  - override /eval: eval
   - _self_
 
 trainer:
@@ -16,7 +15,7 @@ trainer:
 # policy_uri: wandb://run/daveey.ar.cards.1
 # policy_uri: wandb://run/b.daveey.t.32.instant
 #policy_uri: ${trained_policy_uri}
-policy_uri: wandb://run/daveey.t.1.pi.dpm
+policy_uri: wandb://run/b.georgedeane.terrain_multienv
 # Infinite_cooldown models:
 # navigation_infinite_cooldown_sweep_2g_.r.0 - ok
 # navigation_infinite_cooldown_sweep_2g.r.1 - 9 reward after 400 timesteps
@@ -24,7 +23,7 @@ policy_uri: wandb://run/daveey.t.1.pi.dpm
 # navigation_poisson_train_sampling5 breaks in infinite_cooldown, works great in poisson with short distance
 # navigation_poisson_train_sampling5
 # npc_policy_uri: ${trained_policy_uri}
-eval_db_uri: wandb://artifacts/navigation_db
+# eval_db_uri: wandb://artifacts/navigation_constrained_actions
 
 analyzer:
   # eval_stats_uri: ${run_dir}/eval_stats
@@ -32,7 +31,7 @@ analyzer:
   analysis:
     metrics:
       - metric: episode_reward
-    output_path: evalresults/navigation_results.html
+  output_path: evalresults/navigation.html
 
 eval:
   num_envs: 2
@@ -42,10 +41,8 @@ eval:
   policy_uri: ${..policy_uri}
   # npc_policy_uri: ${..npc_policy_uri}
   # eval_db_uri: ${..eval_db_uri} #file://daphne/sweep_stats
-  env: /env/mettagrid/navigation/evals/wanderout
+  env: /env/mettagrid/navigation/training/labyrinth_world
 
-wandb:
-  checkpoint_interval: 1
 
 run_id: 103
 run: ${oc.env:USER}.local.${run_id}
