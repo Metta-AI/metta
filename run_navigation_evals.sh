@@ -39,6 +39,8 @@ POLICIES=(
     "b.georgedeane.terrain_multienv_unstable_pretrained_mb3"
     "b.georgedeane.terrain_multienv_homogenous_pretrained"
     "b.georgedeane.terrain_multienv_stable_pretrained_mb4"
+    "b.daphne.terrain_multienv_3_noblocks"
+    "b.daphne.terrain_multienv_3_noblocks2"
 )
 
 
