@@ -3,27 +3,32 @@
 
 #include <map>
 #include <string>
-#include "metta_object.hpp"
+
 #include "constants.hpp"
+#include "metta_object.hpp"
 
 class HasInventory : public MettaObject {
 public:
     vector<unsigned char> inventory;
 
-    void init_has_inventory(ObjectConfig cfg) {
+    void init_has_inventory(ObjectConfig cfg)
+    {
         this->inventory.resize(InventoryItem::InventoryCount);
     }
 
-    virtual bool has_inventory() {
+    virtual bool has_inventory()
+    {
         return true;
     }
 
     // Whether the inventory is accessible to an agent.
-    virtual bool inventory_is_accessible() {
+    virtual bool inventory_is_accessible()
+    {
         return true;
     }
 
-    virtual void update_inventory(InventoryItem item, short amount) {
+    virtual void update_inventory(InventoryItem item, short amount)
+    {
         if (amount + this->inventory[item] > 255) {
             amount = 255 - this->inventory[item];
         }

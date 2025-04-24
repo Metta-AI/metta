@@ -1,21 +1,23 @@
 #ifndef CONVERTER_HPP
 #define CONVERTER_HPP
 
-#include <vector>
-#include <string>
 #include <cassert>
-#include "../grid_object.hpp"
+#include <string>
+#include <vector>
+
 #include "../event.hpp"
-#include "constants.hpp"
-#include "metta_object.hpp"
-#include "has_inventory.hpp"
+#include "../grid_object.hpp"
 #include "agent.hpp"
+#include "constants.hpp"
+#include "has_inventory.hpp"
+#include "metta_object.hpp"
 
 class Converter : public HasInventory {
 private:
     // This should be called any time the converter could start converting. E.g.,
     // when things are added to its input, and when it finishes converting.
-    void maybe_start_converting() {
+    void maybe_start_converting()
+    {
         // We can't start converting if there's no event manager, since we won't
         // be able to schedule the finishing event.
         assert(this->event_manager != nullptr);
@@ -58,14 +60,15 @@ public:
     // the type it produces. This may be clunky in some cases, but the main usage
     // is to make Mines (etc) have a maximum output.
     unsigned short max_output;
-    unsigned char conversion_ticks; // Time to produce output
-    unsigned char cooldown;        // Time to wait after producing before starting again
-    bool converting;               // Currently in production phase
-    bool cooling_down;             // Currently in cooldown phase
+    unsigned char conversion_ticks;  // Time to produce output
+    unsigned char cooldown;          // Time to wait after producing before starting again
+    bool converting;                 // Currently in production phase
+    bool cooling_down;               // Currently in cooldown phase
     unsigned char color;
-    EventManager *event_manager;
+    EventManager* event_manager;
 
-    Converter(GridCoord r, GridCoord c, ObjectConfig cfg, TypeId type_id) {
+    Converter(GridCoord r, GridCoord c, ObjectConfig cfg, TypeId type_id)
+    {
         GridObject::init(type_id, GridLocation(r, c, GridLayer::Object_Layer));
         MettaObject::init_mo(cfg);
         HasInventory::init_has_inventory(cfg);
@@ -94,12 +97,14 @@ public:
 
     Converter(GridCoord r, GridCoord c, ObjectConfig cfg) : Converter(r, c, cfg, ObjectType::GenericConverterT) {}
 
-    void set_event_manager(EventManager *event_manager) {
+    void set_event_manager(EventManager* event_manager)
+    {
         this->event_manager = event_manager;
         this->maybe_start_converting();
     }
 
-    void finish_converting() {
+    void finish_converting()
+    {
         this->converting = false;
 
         // Add output to inventory
@@ -117,24 +122,27 @@ public:
         else if (this->cooldown == 0) {
             // No cooldown, try to start converting again immediately
             this->maybe_start_converting();
-        } else if (this->cooldown < 0) {
+        }
+        else if (this->cooldown < 0) {
             // Negative cooldown means never convert again
             this->cooling_down = true;
         }
-
     }
 
-    void finish_cooldown() {
+    void finish_cooldown()
+    {
         this->cooling_down = false;
         this->maybe_start_converting();
     }
 
-    void update_inventory(InventoryItem item, short amount) override {
+    void update_inventory(InventoryItem item, short amount) override
+    {
         HasInventory::update_inventory(item, amount);
         this->maybe_start_converting();
     }
 
-    void obs(ObsType *obs, const std::vector<unsigned int> &offsets) const override {
+    void obs(ObsType* obs, const std::vector<unsigned int>& offsets) const override
+    {
         obs[offsets[0]] = 1;
         obs[offsets[1]] = this->hp;
         obs[offsets[2]] = this->color;
@@ -144,7 +152,8 @@ public:
         }
     }
 
-    static std::vector<std::string> feature_names(TypeId type_id) {
+    static std::vector<std::string> feature_names(TypeId type_id)
+    {
         std::vector<std::string> names;
         // We use the same feature names for all converters, since this compresses
         // the observation space. At the moment we don't expose the recipe, since

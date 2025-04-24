@@ -1,14 +1,14 @@
 #ifndef EVENT_H
 #define EVENT_H
 
+#include <cassert>
 #include <queue>
 #include <vector>
-#include <cassert>
 using namespace std;
 
+#include "grid.hpp"
 #include "grid_object.hpp"
 #include "stats_tracker.hpp"
-#include "grid.hpp"
 typedef unsigned short EventId;
 typedef int EventArg;
 struct Event {
@@ -17,7 +17,8 @@ struct Event {
     GridObjectId object_id;
     EventArg arg;
 
-    bool operator<(const Event& other) const {
+    bool operator<(const Event& other) const
+    {
         return timestamp > other.timestamp;
     }
 };
@@ -29,7 +30,8 @@ protected:
     EventManager* event_manager;
 
 public:
-    EventHandler(EventManager* em) {
+    EventHandler(EventManager* em)
+    {
         this->event_manager = em;
     }
 
@@ -48,24 +50,28 @@ public:
     StatsTracker* stats;
     vector<EventHandler*> event_handlers;
 
-    EventManager() {
+    EventManager()
+    {
         this->grid = nullptr;
         this->stats = nullptr;
     }
 
-    void init(Grid* grid, StatsTracker* stats) {
+    void init(Grid* grid, StatsTracker* stats)
+    {
         this->grid = grid;
         this->stats = stats;
         this->_current_timestep = 0;
     }
 
-    ~EventManager() {
+    ~EventManager()
+    {
         for (auto handler : this->event_handlers) {
             delete handler;
         }
     }
 
-    void schedule_event(EventId event_id, unsigned int delay, GridObjectId object_id, EventArg arg) {
+    void schedule_event(EventId event_id, unsigned int delay, GridObjectId object_id, EventArg arg)
+    {
         Event event;
         // If the object id is 0, the object has probably not been added to the grid yet. Given
         // our current usage of events, this is an error, since we won't be able to find the object
@@ -78,7 +84,8 @@ public:
         this->_event_queue.push(event);
     }
 
-    void process_events(unsigned int current_timestep) {
+    void process_events(unsigned int current_timestep)
+    {
         this->_current_timestep = current_timestep;
         Event event;
         while (!this->_event_queue.empty()) {
@@ -92,5 +99,4 @@ public:
     }
 };
 
-
-#endif // EVENT_H
+#endif  // EVENT_H

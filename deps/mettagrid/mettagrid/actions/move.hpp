@@ -2,36 +2,37 @@
 #define MOVE_HPP
 
 #include <string>
+
 #include "action_handler.hpp"
 #include "grid_object.hpp"
 #include "objects/agent.hpp"
 
 class Move : public ActionHandler {
 public:
-    Move(const ActionConfig& cfg)
-        : ActionHandler(cfg, "move") {}
+    Move(const ActionConfig& cfg) : ActionHandler(cfg, "move") {}
 
-    unsigned char max_arg() const override {
+    unsigned char max_arg() const override
+    {
         return 1;
     }
 
 protected:
-    bool _handle_action(
-        unsigned int actor_id,
-        Agent* actor,
-        ActionArg arg) override {
-
+    bool _handle_action(unsigned int actor_id, Agent* actor, ActionArg arg) override
+    {
         unsigned short direction = arg;
 
         Orientation orientation = static_cast<Orientation>(actor->orientation);
         if (direction == 1) {
             if (orientation == Orientation::Up) {
                 orientation = Orientation::Down;
-            } else if (orientation == Orientation::Down) {
+            }
+            else if (orientation == Orientation::Down) {
                 orientation = Orientation::Up;
-            } else if (orientation == Orientation::Left) {
+            }
+            else if (orientation == Orientation::Left) {
                 orientation = Orientation::Right;
-            } else if (orientation == Orientation::Right) {
+            }
+            else if (orientation == Orientation::Right) {
                 orientation = Orientation::Left;
             }
         }
@@ -45,4 +46,4 @@ protected:
     }
 };
 
-#endif // MOVE_HPP
+#endif  // MOVE_HPP

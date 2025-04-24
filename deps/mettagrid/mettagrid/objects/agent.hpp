@@ -1,8 +1,9 @@
 #ifndef AGENT_HPP
 #define AGENT_HPP
 
-#include <vector>
 #include <string>
+#include <vector>
+
 #include "../grid_object.hpp"
 #include "../stats_tracker.hpp"
 #include "constants.hpp"
@@ -24,16 +25,13 @@ public:
     unsigned char agent_id;
     StatsTracker stats;
     float current_resource_reward;
-    float *reward;
+    float* reward;
 
-    Agent(
-        GridCoord r, GridCoord c,
-        std::string group_name,
-        unsigned char group_id,
-        ObjectConfig cfg,
-        // Configuration -- rewards that the agent will get for certain
-        // actions or inventory changes.
-        std::map<std::string, float> rewards) {
+    Agent(GridCoord r, GridCoord c, std::string group_name, unsigned char group_id, ObjectConfig cfg,
+          // Configuration -- rewards that the agent will get for certain
+          // actions or inventory changes.
+          std::map<std::string, float> rewards)
+    {
         GridObject::init(ObjectType::AgentT, GridLocation(r, c, GridLayer::Agent_Layer));
         MettaObject::init_mo(cfg);
 
@@ -58,11 +56,13 @@ public:
         this->reward = nullptr;
     }
 
-    void init(float *reward) {
+    void init(float* reward)
+    {
         this->reward = reward;
     }
 
-    void update_inventory(InventoryItem item, short amount) {
+    void update_inventory(InventoryItem item, short amount)
+    {
         int current_amount = this->inventory[static_cast<int>(item)];
         int new_amount = current_amount + amount;
         if (new_amount > this->max_items) {
@@ -77,14 +77,16 @@ public:
 
         if (delta > 0) {
             this->stats.add(InventoryItemNames[item], "gained", delta);
-        } else if (delta < 0) {
+        }
+        else if (delta < 0) {
             this->stats.add(InventoryItemNames[item], "lost", -delta);
         }
 
         this->compute_resource_reward(item);
     }
 
-    inline void compute_resource_reward(InventoryItem item) {
+    inline void compute_resource_reward(InventoryItem item)
+    {
         if (this->resource_rewards[static_cast<int>(item)] == 0) {
             return;
         }
@@ -101,11 +103,13 @@ public:
         this->current_resource_reward = new_reward;
     }
 
-    virtual bool swappable() const override {
+    virtual bool swappable() const override
+    {
         return this->frozen;
     }
 
-    virtual void obs(ObsType* obs, const std::vector<unsigned int> &offsets) const override {
+    virtual void obs(ObsType* obs, const std::vector<unsigned int>& offsets) const override
+    {
         obs[offsets[0]] = 1;
         obs[offsets[1]] = group;
         obs[offsets[2]] = hp;
@@ -118,7 +122,8 @@ public:
         }
     }
 
-    static std::vector<std::string> feature_names() {
+    static std::vector<std::string> feature_names()
+    {
         std::vector<std::string> names;
         names.push_back("agent");
         names.push_back("agent:group");

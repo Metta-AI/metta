@@ -2,20 +2,14 @@
 #define CONSTANTS_HPP
 
 #include <map>
-#include <vector>
 #include <string>
+#include <vector>
 
 #include "../grid_object.hpp"
 
-enum Events {
-    FinishConverting = 0,
-    CoolDown = 1
-};
+enum Events { FinishConverting = 0, CoolDown = 1 };
 
-enum GridLayer {
-    Agent_Layer = 0,
-    Object_Layer = 1
-};
+enum GridLayer { Agent_Layer = 0, Object_Layer = 1 };
 
 // There should be a one-to-one mapping between ObjectType and ObjectTypeNames.
 // ObjectTypeName is mostly used for human-readability, but may be used as a key
@@ -39,33 +33,10 @@ enum ObjectType {
     Count = 11
 };
 
-std::vector<std::string> ObjectTypeNames = {
-    "agent",
-    "wall",
-    "mine",
-    "generator",
-    "altar",
-    "armory",
-    "lasery",
-    "lab",
-    "factory",
-    "temple",
-    "converter"
-};
+std::vector<std::string> ObjectTypeNames = {"agent",  "wall", "mine",    "generator", "altar",    "armory",
+                                            "lasery", "lab",  "factory", "temple",    "converter"};
 
-std::vector<std::string> ObjectTypeAscii = {
-    "A",
-    "#",
-    "g",
-    "c",
-    "a",
-    "r",
-    "l",
-    "b",
-    "f",
-    "t",
-    "v"
-};
+std::vector<std::string> ObjectTypeAscii = {"A", "#", "g", "c", "a", "r", "l", "b", "f", "t", "v"};
 
 enum InventoryItem {
     ore_red = 0,
@@ -80,28 +51,14 @@ enum InventoryItem {
 };
 
 // These should be const, but we run into type inference issues with cython
-std::vector<std::string> InventoryItemNames = {
-    "ore.red",
-    "ore.blue",
-    "ore.green",
-    "battery",
-    "heart",
-    "armor",
-    "laser",
-    "blueprint"
-};
+std::vector<std::string> InventoryItemNames = {"ore.red", "ore.blue", "ore.green", "battery",
+                                               "heart",   "armor",    "laser",     "blueprint"};
 
 std::map<TypeId, GridLayer> ObjectLayers = {
-    {ObjectType::AgentT, GridLayer::Agent_Layer},
-    {ObjectType::WallT, GridLayer::Object_Layer},
-    {ObjectType::MineT, GridLayer::Object_Layer},
-    {ObjectType::GeneratorT, GridLayer::Object_Layer},
-    {ObjectType::AltarT, GridLayer::Object_Layer},
-    {ObjectType::ArmoryT, GridLayer::Object_Layer},
-    {ObjectType::LaseryT, GridLayer::Object_Layer},
-    {ObjectType::LabT, GridLayer::Object_Layer},
-    {ObjectType::FactoryT, GridLayer::Object_Layer},
-    {ObjectType::TempleT, GridLayer::Object_Layer}
-};
+    {ObjectType::AgentT, GridLayer::Agent_Layer},    {ObjectType::WallT, GridLayer::Object_Layer},
+    {ObjectType::MineT, GridLayer::Object_Layer},    {ObjectType::GeneratorT, GridLayer::Object_Layer},
+    {ObjectType::AltarT, GridLayer::Object_Layer},   {ObjectType::ArmoryT, GridLayer::Object_Layer},
+    {ObjectType::LaseryT, GridLayer::Object_Layer},  {ObjectType::LabT, GridLayer::Object_Layer},
+    {ObjectType::FactoryT, GridLayer::Object_Layer}, {ObjectType::TempleT, GridLayer::Object_Layer}};
 
 #endif

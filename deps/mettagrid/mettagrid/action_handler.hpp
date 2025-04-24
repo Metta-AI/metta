@@ -1,9 +1,10 @@
 #ifndef ACTION_HANDLER_HPP
 #define ACTION_HANDLER_HPP
 
-#include <string>
 #include <map>
+#include <string>
 #include <vector>
+
 #include "grid.hpp"
 #include "grid_object.hpp"
 #include "objects/agent.hpp"
@@ -27,8 +28,8 @@ public:
     unsigned char priority;
     Grid* _grid;
 
-    ActionHandler(const ActionConfig& cfg, const std::string& action_name)
-        : priority(0), _action_name(action_name) {
+    ActionHandler(const ActionConfig& cfg, const std::string& action_name) : priority(0), _action_name(action_name)
+    {
         _stats.success = "action." + action_name;
         _stats.failure = "action." + action_name + ".failed";
         _stats.first_use = "action." + action_name + ".first_use";
@@ -39,16 +40,14 @@ public:
         }
     }
 
-    void init(Grid* grid) {
+    void init(Grid* grid)
+    {
         this->_grid = grid;
     }
 
-    bool handle_action(
-        unsigned int actor_id,
-        GridObjectId actor_object_id,
-        ActionArg arg,
-        unsigned int current_timestep) {
-
+    bool handle_action(unsigned int actor_id, GridObjectId actor_object_id, ActionArg arg,
+                       unsigned int current_timestep)
+    {
         Agent* actor = static_cast<Agent*>(_grid->object(actor_object_id));
 
         if (actor->frozen > 0) {
@@ -62,7 +61,8 @@ public:
 
         if (result) {
             actor->stats.incr(_stats.success);
-        } else {
+        }
+        else {
             actor->stats.incr(_stats.failure);
             actor->stats.incr("action.failure_penalty");
             *actor->reward -= actor->action_failure_penalty;
@@ -72,22 +72,21 @@ public:
         return result;
     }
 
-    virtual unsigned char max_arg() const {
+    virtual unsigned char max_arg() const
+    {
         return 0;
     }
 
-    std::string action_name() const {
+    std::string action_name() const
+    {
         return _action_name;
     }
 
 protected:
-    virtual bool _handle_action(
-        unsigned int actor_id,
-        Agent* actor,
-        ActionArg arg) = 0;
+    virtual bool _handle_action(unsigned int actor_id, Agent* actor, ActionArg arg) = 0;
 
     StatNames _stats;
     std::string _action_name;
 };
 
-#endif // ACTION_HANDLER_HPP
+#endif  // ACTION_HANDLER_HPP

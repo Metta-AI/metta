@@ -2,31 +2,27 @@
 #define GET_OUTPUT_HPP
 
 #include <string>
+
 #include "action_handler.hpp"
+#include "grid.hpp"
+#include "grid_object.hpp"
 #include "objects/agent.hpp"
 #include "objects/converter.hpp"
-#include "grid_object.hpp"
-#include "grid.hpp"
 
 class GetOutput : public ActionHandler {
 public:
-    GetOutput(const ActionConfig& cfg)
-        : ActionHandler(cfg, "get_output") {}
+    GetOutput(const ActionConfig& cfg) : ActionHandler(cfg, "get_output") {}
 
-    unsigned char max_arg() const override {
+    unsigned char max_arg() const override
+    {
         return 0;
     }
 
 protected:
-    bool _handle_action(
-        unsigned int actor_id,
-        Agent* actor,
-        ActionArg arg) override {
-
-        GridLocation target_loc = _grid->relative_location(
-            actor->location,
-            static_cast<Orientation>(actor->orientation)
-        );
+    bool _handle_action(unsigned int actor_id, Agent* actor, ActionArg arg) override
+    {
+        GridLocation target_loc =
+            _grid->relative_location(actor->location, static_cast<Orientation>(actor->orientation));
         target_loc.layer = GridLayer::Object_Layer;
         MettaObject* target = static_cast<MettaObject*>(_grid->object_at(target_loc));
         if (target == nullptr || !target->has_inventory()) {
@@ -61,4 +57,4 @@ protected:
     }
 };
 
-#endif // GET_OUTPUT_HPP
+#endif  // GET_OUTPUT_HPP
