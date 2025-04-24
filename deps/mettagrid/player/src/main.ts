@@ -641,6 +641,9 @@ function drawObjects(replay: any) {
       // Draw the action:
       const action = getAttr(gridObject, "action");
       const action_success = getAttr(gridObject, "action_success");
+      if (!action_success || action == null) {
+        continue;
+      }
       const action_name = replay.action_names[action[0]];
       const orientation = getAttr(gridObject, "agent:orientation");
       var rotation = 0;
@@ -911,17 +914,11 @@ function drawTrace(panel: PanelInfo) {
       const action = getAttr(agent, "action", j);
       const action_success = getAttr(agent, "action_success", j);
 
-      if (action_success) {
+      if (action_success && action != null) {
         drawer.drawImage(
           replay.action_images[action[0]],
           j * TRACE_WIDTH, i * TRACE_HEIGHT,
         );
-      } else {
-        // drawer.drawImage(
-        //   replay.action_images[action[0]],
-        //   j * TRACE_WIDTH, i * TRACE_HEIGHT,
-        //   [0.5, 0.5, 0.5, 0.05]
-        // );
       }
 
       const reward = getAttr(agent, "reward", j);
