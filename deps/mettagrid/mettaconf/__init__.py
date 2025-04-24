@@ -14,18 +14,25 @@ class PatchedDictConfig(DictConfig):
             # `key$load` feature is only supported for string keys
             return super()._get_impl(key, default_value, validate_key)
 
+        source_file = self._metadata._source_file  # type: ignore
+
         if key.endswith("$load"):
-            return super()._get_impl(key, default_value, validate_key)
+            val = super()._get_impl(key, default_value, validate_key)
+            if isinstance(val, (ListConfig, DictConfig)):
+                val = patch_cfg(val, source_file)
+            return val
 
         load_key = f"{key}$load"
         load_val = None
         if load_key in self:
-            source_file = self._metadata._source_file  # type: ignore
             load_val = MettaConf.load(os.path.join(os.path.dirname(source_file), self[load_key]))
 
         if load_val is None:
             # no load key, fall back to the default implementation
-            return super()._get_impl(key, default_value, validate_key)
+            val = super()._get_impl(key, default_value, validate_key)
+            if isinstance(val, (ListConfig, DictConfig)):
+                val = patch_cfg(val, source_file)
+            return val
 
         if key not in self:
             # we have `key$load` but no `key`
@@ -35,6 +42,8 @@ class PatchedDictConfig(DictConfig):
         val = super()._get_impl(key, default_value, validate_key)
         val = OmegaConf.merge(load_val, val)
 
+        if isinstance(val, (ListConfig, DictConfig)):
+            val = patch_cfg(val, source_file)
         return val
 
 

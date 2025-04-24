@@ -61,3 +61,23 @@ bar: 6
     assert cfg.mykey.foo == 5
     assert cfg.mykey.bar == 10
     assert cfg.mykey.baz == 11
+
+
+def test_load_nested(tmpdir):
+    f1 = str(tmpdir / "1.yaml")
+    f2 = str(tmpdir / "2.yaml")
+    write_config(
+        f1,
+        """
+a:
+    b$load: ./2.yaml
+        """,
+    )
+    write_config(
+        f2,
+        """
+foo: 5
+        """,
+    )
+    cfg = MettaConf.load(f1)
+    assert cfg.a.b.foo == 5
