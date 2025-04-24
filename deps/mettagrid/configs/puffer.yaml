@@ -9,15 +9,19 @@ track_last_action: false
 sampling: 0
 
 hidden_features:
-  grid_obs: ["agent:energy", "agent:hp"]
+  grid_obs: [
+    "agent:energy",
+    "agent:hp",
+  ]
 
 game:
-  num_agents: 24
+  num_agents: 16
   obs_width: 11
   obs_height: 11
   max_steps: 1000
   tile_size: 16
   no_energy_steps: 500
+  recursive_map_builder: true
 
   agent:
     max_inventory: 50
@@ -27,9 +31,9 @@ game:
     rewards:
       # action_failure_penalty: 0.00001
       action_failure_penalty: 0
-      ore.red: 0.005
+      ore.red: 0.25
       ore.red_max: 5
-      battery: 0.01
+      battery: 0.25
       battery_max: 5
       heart: 1
       heart_max: 100
@@ -193,7 +197,7 @@ game:
 
   map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom
-    num_rooms: ${div:${..num_agents},6}
+    num_rooms: ${div:${..num_agents},4}
     border_width: 6
 
     room:
@@ -202,7 +206,7 @@ game:
       height: 25
       border_width: 0
 
-      agents: 6
+      agents: 4
 
       objects:
         mine: 10
@@ -214,5 +218,5 @@ game:
         factory: 1
         temple: 1
 
-        wall: 20
-        block: 20
+        wall: 40
+
