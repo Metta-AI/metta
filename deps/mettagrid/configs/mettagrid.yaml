@@ -216,7 +216,7 @@ game:
     get_items:
       enabled: true
     attack:
-      enabled: true
+      enabled: false
     swap:
       enabled: false
     change_color:
