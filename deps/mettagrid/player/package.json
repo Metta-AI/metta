@@ -1,0 +1,14 @@
+{
+  "name": "metta-scope",
+  "version": "1.0.0",
+  "description": "MettaScope - a tool for visualizing and analyzing Metta AI's environments",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@webgpu/types": "^0.1.38",
+    "typescript": "^5.2.2"
+  }
+}
