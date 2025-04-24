@@ -14,9 +14,10 @@ def build_ext(srcs, module_name=None):
         module_name = srcs[0].replace("/", ".").replace(".pyx", "").replace(".cpp", "")
     return Extension(
         module_name,
-        srcs,
+        sources=srcs,
+        language="c++",
         define_macros=[("NPY_NO_DEPRECATED_API", "NPY_1_7_API_VERSION")],
-        extra_compile_args=["-std=c++11"],  # Add C++11 flag to fix defaulted function definition error
+        extra_compile_args=["-std=c++11"],
     )
 
 
@@ -48,30 +49,21 @@ ext_modules = [
 
 debug = os.getenv("DEBUG", "0") == "1"
 annotate = os.getenv("ANNOTATE", "0") == "1"
-
-build_dir = "build"
-if debug:
-    build_dir = "build_debug"
-
+build_dir = "build_debug" if debug else "build"
 os.makedirs(build_dir, exist_ok=True)
 
 num_threads = multiprocessing.cpu_count() if sys.platform == "linux" else None
 
 setup(
-    name="metta",
+    name="mettagrid",
     version="0.1",
     packages=find_packages(),
-    nthreads=num_threads,
-    entry_points={
-        "console_scripts": [
-            # If you want to create any executable scripts in your package
-            # For example: 'script_name = module:function'
-        ]
-    },
     include_dirs=[numpy.get_include()],
     ext_modules=cythonize(
         ext_modules,
         build_dir=build_dir,
+        nthreads=num_threads,
+        annotate=debug or annotate,
         compiler_directives={
             "language_level": "3",
             "embedsignature": debug,
@@ -88,6 +80,5 @@ setup(
             "c_string_encoding": "utf-8",
             "c_string_type": "str",
         },
-        annotate=debug or annotate,
     ),
 )
