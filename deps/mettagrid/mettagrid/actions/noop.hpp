@@ -8,16 +8,18 @@
 
 class Noop : public ActionHandler {
 public:
-  Noop(const ActionConfig& cfg) : ActionHandler(cfg, "noop") {}
+    Noop(const ActionConfig& cfg) : ActionHandler(cfg, "noop") {}
 
-  unsigned char max_arg() const override {
-    return 0;
-  }
+    unsigned char max_arg() const override
+    {
+        return 0;
+    }
 
 protected:
-  bool _handle_action(unsigned int actor_id, Agent* actor, ActionArg arg) override {
-    return true;
-  }
+    bool _handle_action(unsigned int actor_id, Agent* actor, ActionArg arg) override
+    {
+        return true;
+    }
 };
 
 #endif  // NOOP_HPP
