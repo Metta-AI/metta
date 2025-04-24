@@ -43,6 +43,10 @@ if [ ! -d "fast_gae" ]; then
   git clone https://github.com/Metta-AI/fast_gae.git
 fi
 cd fast_gae
+echo "Fetching fast_gae into $(pwd)"
+git fetch
+echo "Checking out main into $(pwd)"
+git checkout main
 echo "Updating fast_gae..."
 git pull || echo "⚠️ Warning: git pull failed, possibly shallow clone or detached HEAD"
 echo "Building fast_gae into $(pwd)"
@@ -80,6 +84,10 @@ if [ ! -d "carbs" ]; then
   git clone https://github.com/kywch/carbs.git
 fi
 cd carbs
+echo "Fetching carbs into $(pwd)"
+git fetch
+echo "Checking out main branch for carbs"
+git checkout main
 echo "Updating carbs..."
 git pull || echo "⚠️ Warning: git pull failed, possibly shallow clone or detached HEAD"
 pip install -e .
@@ -94,6 +102,10 @@ if [ ! -d "wandb_carbs" ]; then
   git clone https://github.com/Metta-AI/wandb_carbs.git
 fi
 cd wandb_carbs
+echo "Fetching wandb_carbs into $(pwd)"
+git fetch
+echo "Checking out main branch for wandb_carbs"
+git checkout main
 echo "Updating wandb_carbs..."
 git pull || echo "⚠️ Warning: git pull failed, possibly shallow clone or detached HEAD"
 pip install -e .
