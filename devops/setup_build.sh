@@ -11,6 +11,60 @@ PUFFERLIB_REPO="https://github.com/Metta-AI/pufferlib.git"
 CARBS_REPO="https://github.com/kywch/carbs.git"
 WANDB_CARBS_REPO="https://github.com/Metta-AI/wandb_carbs.git"
 
+# Function to install a repository dependency
+install_repo() {
+    local repo_name=$1
+    local repo_url=$2
+    local branch=$3
+    local build_cmd=$4
+    
+    echo "========== Installing $repo_name =========="
+    
+    if [ ! -d "$repo_name" ]; then
+        echo "Cloning $repo_name into $(pwd)"
+        git clone $repo_url
+    fi
+    
+    cd $repo_name
+    
+    echo "Ensuring correct remote URL for $repo_name"
+    git remote set-url origin $repo_url
+    
+    echo "Fetching $repo_name into $(pwd)"
+    git fetch
+    
+    echo "Checking out $branch branch for $repo_name"
+    git checkout $branch
+    
+    echo "Updating $repo_name..."
+    git pull || echo "⚠️ Warning: git pull failed, possibly shallow clone or detached HEAD"
+    
+    # Print repository structure to help with debugging
+    echo "Repository content for $repo_name"
+    ls -la
+    
+    # Check for build files
+    echo "Checking for package files in $repo_name:"
+    if [ -f "setup.py" ]; then
+        echo "Found setup.py in root directory"
+    elif [ -f "pyproject.toml" ]; then
+        echo "Found pyproject.toml in root directory"
+    else
+        echo "No standard Python package files found in root directory"
+    fi
+    
+    # Always run the build command regardless of structure
+    echo "Building with command: $build_cmd"
+    eval $build_cmd
+    
+    export PYTHONPATH="$PYTHONPATH:$(pwd)"
+    echo "Updated PYTHONPATH: $PYTHONPATH"
+    
+    cd ..
+    echo "Completed installation of $repo_name"
+}
+
+
 # Check if we're in the correct conda environment
 if [ "$CONDA_DEFAULT_ENV" != "metta" ]; then
     echo "Error: You must be in the 'metta' conda environment to run this script."
@@ -43,84 +97,11 @@ export PYTHONPATH="$PYTHONPATH:$(pwd)"
 echo "Updated PYTHONPATH: $PYTHONPATH"
 cd ..
 
-# ========== FAST_GAE ==========
-if [ ! -d "fast_gae" ]; then
-  echo "Cloning fast_gae into $(pwd)"
-  git clone $FAST_GAE_REPO
-fi
-cd fast_gae
-echo "Ensuring correct remote URL for fast_gae"
-git remote set-url origin $FAST_GAE_REPO
-echo "Fetching fast_gae into $(pwd)"
-git fetch
-echo "Checking out main into $(pwd)"
-git checkout main
-echo "Updating fast_gae..."
-git pull || echo "⚠️ Warning: git pull failed, possibly shallow clone or detached HEAD"
-echo "Building fast_gae into $(pwd)"
-python setup.py build_ext --inplace
-pip install -e .
-export PYTHONPATH="$PYTHONPATH:$(pwd)"
-echo "Updated PYTHONPATH: $PYTHONPATH"
-cd ..
-
-# ========== PUFFERLIB ==========
-if [ ! -d "pufferlib" ]; then
-  echo "Cloning pufferlib into $(pwd)"
-  git clone $PUFFERLIB_REPO
-fi
-cd pufferlib
-echo "Ensuring correct remote URL for pufferlib"
-git remote set-url origin $PUFFERLIB_REPO
-echo "Fetching pufferlib into $(pwd)"
-git fetch
-echo "Checking out metta into $(pwd)"
-git checkout metta
-echo "Updating pufferlib..."
-git pull || echo "⚠️ Warning: git pull failed, possibly shallow clone or detached HEAD"
-echo "Installing pufferlib (in normal mode)"
-pip install .
-export PYTHONPATH="$PYTHONPATH:$(pwd)"
-echo "Updated PYTHONPATH: $PYTHONPATH"
-cd ..
-
-# ========== CARBS ==========
-if [ ! -d "carbs" ]; then
-  echo "Cloning carbs into $(pwd)"
-  git clone $CARBS_REPO
-fi
-cd carbs
-echo "Ensuring correct remote URL for carbs"
-git remote set-url origin $CARBS_REPO
-echo "Fetching carbs into $(pwd)"
-git fetch
-echo "Checking out main branch for carbs"
-git checkout main
-echo "Updating carbs..."
-git pull || echo "⚠️ Warning: git pull failed, possibly shallow clone or detached HEAD"
-pip install -e .
-export PYTHONPATH="$PYTHONPATH:$(pwd)"
-echo "Updated PYTHONPATH: $PYTHONPATH"
-cd ..
-
-# ========== WANDB_CARBS ==========
-if [ ! -d "wandb_carbs" ]; then
-  echo "Cloning wandb_carbs into $(pwd)"
-  git clone $WANDB_CARBS_REPO
-fi
-cd wandb_carbs
-echo "Ensuring correct remote URL for wandb_carbs"
-git remote set-url origin $WANDB_CARBS_REPO
-echo "Fetching wandb_carbs into $(pwd)"
-git fetch
-echo "Checking out main branch for wandb_carbs"
-git checkout main
-echo "Updating wandb_carbs..."
-git pull || echo "⚠️ Warning: git pull failed, possibly shallow clone or detached HEAD"
-pip install -e .
-export PYTHONPATH="$PYTHONPATH:$(pwd)"
-echo "Updated PYTHONPATH: $PYTHONPATH"
-cd ..
+# Install other dependencies using the function
+install_repo "fast_gae" $FAST_GAE_REPO "main" "python setup.py build_ext --inplace && pip install -e ."
+install_repo "pufferlib" $PUFFERLIB_REPO "metta" "pip install ."
+install_repo "carbs" $CARBS_REPO "main" "pip install -e ."
+install_repo "wandb_carbs" $WANDB_CARBS_REPO "main" "pip install -e ."
 
 # ========== SANITY CHECK ==========
 echo "Sanity check: verifying all local deps are importable"
