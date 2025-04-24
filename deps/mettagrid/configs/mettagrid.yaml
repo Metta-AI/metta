@@ -208,19 +208,19 @@ game:
     noop:
       enabled: true
     move:
-      enabled: true
+      enabled: false
     rotate:
-      enabled: true
+      enabled: false
     put_items:
-      enabled: true
+      enabled: false
     get_items:
-      enabled: true
+      enabled: false
     attack:
-      enabled: true
+      enabled: false
     swap:
-      enabled: true
+      enabled: false
     change_color:
-      enabled: true
+      enabled: false
 
   reward_sharing:
     groups:
