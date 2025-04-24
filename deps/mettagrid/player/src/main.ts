@@ -994,23 +994,9 @@ function drawTrace(panel: PanelInfo) {
         drawer.restore()
       }
     }
-
   }
 
   drawer.restore();
-}
-
-// Helper function to convert hex color to RGBA array
-function hexToRgba(hex: string): number[] {
-  // Remove the # if present
-  hex = hex.replace('#', '');
-
-  // Parse the hex values
-  const r = parseInt(hex.substring(0, 2), 16) / 255;
-  const g = parseInt(hex.substring(2, 4), 16) / 255;
-  const b = parseInt(hex.substring(4, 6), 16) / 255;
-
-  return [r, g, b, 1.0]; // Full opacity
 }
 
 // Updates the readout of the selected object or replay info.
