@@ -1,15 +1,12 @@
-_target_: metta.sim.simulation.SimulationSuite
-
 defaults:
-  - eval
+  - sim
   - _self_
-
-env: null #the env is set in evals:
 
 num_envs: 1
 num_episodes: 1
+run_dir: ${run_dir}
 
-evals:
+simulations:
   navigation/45x45:
     env: env/mettagrid/slava/45x45
     policy_agents_pct: 1.0
@@ -41,5 +38,3 @@ evals:
     env: env/mettagrid/slava/100x96
     policy_agents_pct: 1.0
  
-
-selector_type: top

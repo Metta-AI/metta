@@ -27,7 +27,7 @@ class CubicleUniformWorld(Room):
         seed: int | None = 42,
         border_object: str = "wall",
     ):
-        super().__init__(border_object=border_object)
+        super().__init__(border_object=border_object, labels = ["cubicle_uniform"])
         rng = np.random.default_rng(seed)
 
         self.width = rng.integers(width_range[0], width_range[1])
@@ -38,7 +38,8 @@ class CubicleUniformWorld(Room):
         self.altars_count = altars_count
         self._agents = agents
         self._rng = rng
-
+        self.labels = ["cubicle_uniform"]
+        self.set_size_labels(self.width, self.height)
     # ------------------------------------------------------------------ #
     def _build(self):
         grid = self._generate_grid()

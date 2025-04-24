@@ -11,12 +11,11 @@
 
 defaults:
   - override /agent: simple
-  - override /eval: all
   - override /analyzer: eval_analyzer
   - _self_
 
 trainer:
-  env: /env/mettagrid/navigation/training/multienv
+  env: /env/mettagrid/navigation/training/multienv_with_cylinder
   evaluate_interval: 10
 
 # policy: wandb://run/b.daveey.train.maze.sm.dr.warm.0
@@ -60,9 +59,11 @@ eval:
 
 
 wandb:
+  enabled: true
+  track: true
   checkpoint_interval: 1
 
-run_id: 2
+run_id: 3
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 

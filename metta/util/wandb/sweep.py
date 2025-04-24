@@ -6,9 +6,9 @@ import wandb
 logger = logging.getLogger("sweep")
 
 
-def sweep_id_from_name(project: str, name: str) -> str:
+def sweep_id_from_name(project: str, entity: str, name: str) -> str:
     api = wandb.Api()
-    sweeps = api.project(project).sweeps()
+    sweeps = api.project(project, entity).sweeps()
     for sweep in sweeps:
         if sweep.name == name:
             return sweep.id

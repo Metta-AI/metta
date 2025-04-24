@@ -27,15 +27,16 @@ from mettagrid.objects.converter cimport Converter
 from mettagrid.objects.constants cimport ObjectLayers, InventoryItemNames, ObjectType, ObjectTypeAscii
 
 # Action imports
-from mettagrid.actions.move import Move
-from mettagrid.actions.rotate import Rotate
-from mettagrid.actions.get_output import GetOutput
-from mettagrid.actions.put_recipe_items import PutRecipeItems
-from mettagrid.actions.attack import Attack
-from mettagrid.actions.attack_nearest import AttackNearest
-from mettagrid.actions.noop import Noop
-from mettagrid.actions.swap import Swap
-from mettagrid.actions.change_color import ChangeColorAction
+from mettagrid.action_handler cimport ActionHandler
+from mettagrid.actions.move cimport Move
+from mettagrid.actions.rotate cimport Rotate
+from mettagrid.actions.get_output cimport GetOutput
+from mettagrid.actions.put_recipe_items cimport PutRecipeItems
+from mettagrid.actions.attack cimport Attack
+from mettagrid.actions.attack_nearest cimport AttackNearest
+from mettagrid.actions.noop cimport Noop
+from mettagrid.actions.swap cimport Swap
+from mettagrid.actions.change_color cimport ChangeColorAction
 
 cdef class MettaGrid(GridEnv):
     cdef:
@@ -52,24 +53,24 @@ cdef class MettaGrid(GridEnv):
         obs_encoder = ObservationEncoder()
         if env_cfg.semi_compact_obs:
             obs_encoder = SemiCompactObservationEncoder()
-        actions = []
+        cdef vector[ActionHandler*] actions
         if cfg.actions.put_items.enabled:
-            actions.append(PutRecipeItems(cfg.actions.put_items))
+            actions.push_back(new PutRecipeItems(cfg.actions.put_items))
         if cfg.actions.get_items.enabled:
-            actions.append(GetOutput(cfg.actions.get_items))
+            actions.push_back(new GetOutput(cfg.actions.get_items))
         if cfg.actions.noop.enabled:
-            actions.append(Noop(cfg.actions.noop))
+            actions.push_back(new Noop(cfg.actions.noop))
         if cfg.actions.move.enabled:
-            actions.append(Move(cfg.actions.move))
+            actions.push_back(new Move(cfg.actions.move))
         if cfg.actions.rotate.enabled:
-            actions.append(Rotate(cfg.actions.rotate))
+            actions.push_back(new Rotate(cfg.actions.rotate))
         if cfg.actions.attack.enabled:
-            actions.append(Attack(cfg.actions.attack))
-            actions.append(AttackNearest(cfg.actions.attack))
+            actions.push_back(new Attack(cfg.actions.attack))
+            actions.push_back(new AttackNearest(cfg.actions.attack))
         if cfg.actions.swap.enabled:
-            actions.append(Swap(cfg.actions.swap))
+            actions.push_back(new Swap(cfg.actions.swap))
         if cfg.actions.change_color.enabled:
-            actions.append(ChangeColorAction(cfg.actions.change_color))
+            actions.push_back(new ChangeColorAction(cfg.actions.change_color))
 
         GridEnv.__init__(
             self,
@@ -80,9 +81,9 @@ cdef class MettaGrid(GridEnv):
             dict(ObjectLayers).values(),
             cfg.obs_width, cfg.obs_height,
             obs_encoder,
-            actions,
             track_last_action=env_cfg.track_last_action
         )
+        self.init_action_handlers(actions)
 
         self._group_rewards_np = np.zeros(len(cfg.groups))
         self._group_rewards = self._group_rewards_np

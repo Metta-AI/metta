@@ -2,7 +2,6 @@
 
 defaults:
   - override /agent: simple
-  - override /eval: eval
   - _self_
 
 trainer:

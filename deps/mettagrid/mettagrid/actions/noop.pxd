@@ -1,5 +1,5 @@
-from mettagrid.action_handler cimport ActionHandler
+from mettagrid.action_handler cimport ActionHandler, ActionConfig
 
-
-cdef class Noop(ActionHandler):
-    pass
+cdef extern from "noop.hpp":
+    cdef cppclass Noop(ActionHandler):
+        Noop(const ActionConfig& cfg)

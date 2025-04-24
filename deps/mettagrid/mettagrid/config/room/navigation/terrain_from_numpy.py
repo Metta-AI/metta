@@ -68,18 +68,12 @@ class TerrainFromNumpy(Room):
                 with zipfile.ZipFile(zipped_dir, "r") as zip_ref:
                     zip_ref.extractall(os.path.dirname(dir))
 
-        # if not os.path.exists(dir) and not os.path.exists(zipped_dir):
-        #     s3_path = f"s3://softmax-public/maps/{zipped_dir}"
-        #     download_from_s3(s3_path, zipped_dir)
-        # if not os.path.exists(dir) and os.path.exists(zipped_dir):
-        #     with zipfile.ZipFile(zipped_dir, "r") as zip_ref:
-        #         zip_ref.extractall(os.path.dirname(dir))
         self.files = os.listdir(dir)
         self.dir = dir
         self.num_agents = num_agents
         self.generators = generators
         self.uri = file
-        super().__init__(border_width=border_width, border_object=border_object)
+        super().__init__(border_width=border_width, border_object=border_object, labels = ["terrain"])
 
     def get_valid_positions(self, level):
         valid_positions = []
@@ -98,12 +92,12 @@ class TerrainFromNumpy(Room):
 
     def _build(self):
         # TODO: add some way of sampling
-        if self.uri is None:
-            uri = np.random.choice(self.files)
+        if self.uri is not None:
+            level = safe_load(f"{self.dir}/{self.uri}")
         else:
-            uri = self.uri
-
-        level = safe_load(f"{self.dir}/{uri}")
+            uri = np.random.choice(self.files)
+            level = safe_load(f"{self.dir}/{uri}")
+        self.set_size_labels(level.shape[1], level.shape[0])
 
         # remove agents to then repopulate
         agents = level == "agent.agent"
@@ -113,9 +107,8 @@ class TerrainFromNumpy(Room):
         positions = random.sample(valid_positions, self.num_agents)
         for pos in positions:
             level[pos] = "agent.agent"
-
         area = level.shape[0] * level.shape[1]
-        num_hearts = area // random.randint(66, 180)
+        num_hearts = 50
         # Find valid empty spaces surrounded by empty
         valid_positions = self.get_valid_positions(level)
 

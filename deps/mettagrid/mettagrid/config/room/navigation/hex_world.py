@@ -16,7 +16,7 @@ Coordinate conventions assume (row, col) indexing.
 """
 
 from __future__ import annotations
-from typing import Sequence
+from typing import Sequence, List
 import numpy as np
 
 from mettagrid.config.room.room import Room
@@ -77,7 +77,7 @@ class HexWorld(Room):
         seed: int | None = None,
         border_object: str = "wall",
     ):
-        super().__init__(border_object=border_object)
+        super().__init__(border_object=border_object, labels = ["hex_grid"])
         rng = np.random.default_rng(seed)
 
         # Sample odd side length for centred doorway
@@ -91,6 +91,7 @@ class HexWorld(Room):
         self.altars_count = altars_count
         self._agents = agents
         self._rng = rng
+        self.set_size_labels(self.width, self.height)
 
     # --------------------------------------------------------------- #
     def _build(self):
