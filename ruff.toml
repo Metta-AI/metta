@@ -41,7 +41,7 @@ select = ["E", "F", "B", "I"]
 # E203: Whitespace before ':' (conflicts with Black)
 # See rule explanation: https://docs.astral.sh/ruff/rules/whitespace-before-colon/
 ignore = [
-    "E203", # Missing module docstring
+    "E203",  # Whitespace before colon
 ]
 
 # Allow auto-fixing for selected rule categories
