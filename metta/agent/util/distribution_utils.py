@@ -60,7 +60,7 @@ def sample_logits(logits: torch.Tensor, action=None):
         # probs shape: [B*T, A]
         probs = logits_to_probs(normalized_logits)
         # Sampled action shape: [B*T, 1], squeeze to [B*T]
-        action = torch.multinomial(probs, 1, replacement=True).squeeze(-1)
+        action = torch.multinomial(probs, 1, replacement=True).squeeze(-1) # change to reshape
     else:
         # Reshape provided action from [B, T, 1] or [B*T] to [B*T]
         action = action.reshape(-1) 
