@@ -16,6 +16,7 @@ imageio>=2.36.0
 jmespath>=1.0.1
 matplotlib>=3.9.2
 pettingzoo>=1.24.1
+pydantic>=2.11.1
 pynvml>=11.5.3
 pytest>=8.3.3
 PyYAML>=6.0.2
@@ -47,5 +48,5 @@ anthropic>=0.49
 python-dotenv>=1.1
 
 # Reporting requirements
-plotly>=5.18.0
+plotly>=6.0.0
 pandas>=2.1.1

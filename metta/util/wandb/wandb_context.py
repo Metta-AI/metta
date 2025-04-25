@@ -4,34 +4,45 @@ import os
 import socket
 
 import pkg_resources
+import requests
 import wandb
 from omegaconf import OmegaConf
 
 logger = logging.getLogger(__name__)
 
 
-def check_wandb_version():
+def check_wandb_version() -> bool:
     try:
         # Get the installed wandb version
-        wandb_version = pkg_resources.get_distribution("wandb").version
+        installed_version = pkg_resources.get_distribution("wandb").version
+        installed_minor = int(installed_version.split(".")[1])
 
-        # Parse the major version number
-        major_version = int(wandb_version.split(".")[0])
+        # Fetch latest version from GitHub API
+        response = requests.get("https://api.github.com/repos/wandb/wandb/releases/latest")
+        if response.status_code == 200:
+            latest_version = response.json()["tag_name"].lstrip("v")
+            required_minor = int(latest_version.split(".")[1])
+            logger.info(f"wandb installed version is {installed_version}, latest version is {latest_version}")
 
-        # Check if the major version is less than 19
-        if major_version < 19:
-            print(f"ERROR: Your wandb version ({wandb_version}) is outdated.")
-            print("Please update to wandb version 19 or later using:")
-            print("    pip install --upgrade wandb")
-            return False
-
-        return True
+            # Check if the installed version meets the required minor version
+            if installed_minor < required_minor:
+                logger.error(f"Your wandb version ({installed_version}) is outdated.")
+                logger.error(f"Required version is 0.{required_minor}.x or later based on latest GitHub release.")
+                logger.error(f"Latest available version is {latest_version}")
+                logger.error("Please update using: pip install --upgrade wandb")
+                return False
+            else:
+                return True
 
     except pkg_resources.DistributionNotFound:
-        print("ERROR: wandb package is not installed.")
-        print("Please install wandb using:")
-        print("    pip install wandb")
+        logger.error("wandb package is not installed.")
+        logger.error("Please install wandb using: pip install wandb")
         return False
+
+    except requests.RequestException as e:
+        logger.warning(f"Could not check latest version for wandb package from GitHub: {e}")
+
+    return True
 
 
 class WandbContext:
@@ -47,8 +58,7 @@ class WandbContext:
         self.wandb_host = "api.wandb.ai"
         self.wandb_port = 443
 
-        if not check_wandb_version():
-            logger.warning("Please upgrade wandb to >= 19")
+        check_wandb_version()
 
     def __enter__(self) -> wandb.apis.public.Run:
         if not self.cfg.wandb.enabled:
@@ -66,40 +76,34 @@ class WandbContext:
             return None
 
         cfg = copy.deepcopy(self.cfg)
+        logger.info(f"Initializing W&B run with timeout={self.timeout}s")
 
         try:
-            logger.info(f"Initializing W&B run with timeout={self.timeout}s")
+            self.run = wandb.init(
+                id=self.run_id,
+                job_type=self.job_type,
+                project=self.cfg.wandb.project,
+                entity=self.cfg.wandb.entity,
+                config=OmegaConf.to_container(cfg, resolve=False),
+                group=self.cfg.wandb.group,
+                allow_val_change=True,
+                name=self.name,
+                monitor_gym=True,
+                save_code=True,
+                resume=self.resume,
+                tags=["user:" + os.environ.get("METTA_USER", "unknown")],
+                settings=wandb.Settings(quiet=True, init_timeout=self.timeout),
+            )
 
-            try:
-                self.run = wandb.init(
-                    id=self.run_id,
-                    job_type=self.job_type,
-                    project=self.cfg.wandb.project,
-                    entity=self.cfg.wandb.entity,
-                    config=OmegaConf.to_container(cfg, resolve=False),
-                    group=self.cfg.wandb.group,
-                    allow_val_change=True,
-                    name=self.name,
-                    monitor_gym=True,
-                    save_code=True,
-                    resume=self.resume,
-                    tags=["user:" + os.environ.get("METTA_USER", "unknown")],
-                    settings=wandb.Settings(quiet=True, init_timeout=self.timeout),
-                )
+            # Save config and set up file syncing only if wandb init succeeded
+            OmegaConf.save(cfg, os.path.join(self.data_dir, "config.yaml"))
+            wandb.save(os.path.join(self.data_dir, "*.log"), base_path=self.data_dir, policy="live")
+            wandb.save(os.path.join(self.data_dir, "*.yaml"), base_path=self.data_dir, policy="live")
+            logger.info(f"Successfully initialized W&B run: {self.run.name} ({self.run.id})")
 
-                # Save config and set up file syncing only if wandb init succeeded
-                OmegaConf.save(cfg, os.path.join(self.data_dir, "config.yaml"))
-                wandb.save(os.path.join(self.data_dir, "*.log"), base_path=self.data_dir, policy="live")
-                wandb.save(os.path.join(self.data_dir, "*.yaml"), base_path=self.data_dir, policy="live")
-                logger.info(f"Successfully initialized W&B run: {self.run.name} ({self.run.id})")
-
-            except TimeoutError:
-                logger.warning(f"W&B initialization timed out after {self.timeout}s")
-                logger.info("Continuing without W&B logging")
-                self.run = None
-
-        except wandb.errors.CommError as e:
-            logger.error(f"W&B initialization failed: {str(e)}")
+        except (TimeoutError, wandb.errors.CommError) as e:
+            error_type = "timeout" if isinstance(e, TimeoutError) else "communication"
+            logger.warning(f"W&B initialization failed due to {error_type} error: {str(e)}")
             logger.info("Continuing without W&B logging")
             self.run = None
 

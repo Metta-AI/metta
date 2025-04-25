@@ -1,55 +1,82 @@
+from __future__ import annotations
+
 import os
-from typing import Any, List, Optional, Union
+from typing import (
+    Any,
+    Type,
+    TypeVar,
+    Union,
+)
 
 import boto3
 import hydra
 import wandb
 from botocore.exceptions import ClientError, NoCredentialsError
-from omegaconf import DictConfig, ListConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf
+from pydantic import BaseModel, ValidationError
 
-
-def config_from_path(
-    config_path: str, overrides: Optional[Union[DictConfig, dict[str, Any]]] = None
-) -> Union[DictConfig, ListConfig]:
+T = TypeVar("T")
+class Config(BaseModel):
     """
-    Load a configuration from a specified path, optionally with overrides.
-
-    Args:
-        config_path: Path to the configuration file
-        overrides: Optional configuration overrides to merge with the loaded config
-
-    Returns:
-        The loaded and potentially merged configuration (either DictConfig or ListConfig)
+    Pydantic-backed config base.
+    - extra keys are ignored
+    - you can do `MyConfig(cfg_node)` where cfg_node is a DictConfig or dict
+    - .dictconfig()  → OmegaConf.DictConfig
+    - .yaml()        → YAML string
     """
-    # Start with a DictConfig from hydra.compose
-    env_cfg: Union[DictConfig, ListConfig] = hydra.compose(config_name=config_path)
 
+    class Config:
+        extra = "forbid"
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        # allow `Config(DictConfig)` or `Config(dict)` as shorthand for .from_dictconfig(...)
+        if len(args) == 1 and not kwargs and isinstance(args[0], (DictConfig, dict)):
+            raw = args[0]
+            data = OmegaConf.to_container(raw, resolve=True) if isinstance(raw, DictConfig) else dict(raw)
+            try:
+                super().__init__(**data)
+            except ValidationError:
+                # re-raise so traceback points here
+                raise
+        else:
+            # normal BaseModel __init__(**kwargs)
+            super().__init__(*args, **kwargs)
+
+    @classmethod
+    def from_dictconfig(cls: Type[T], cfg: Union[DictConfig, dict]) -> T:
+        """
+        Explicit constructor from a DictConfig or plain dict.
+        """
+        raw = cfg
+        data = OmegaConf.to_container(raw, resolve=True) if isinstance(raw, DictConfig) else dict(raw)
+        return cls.parse_obj(data)
+
+    def dictconfig(self) -> DictConfig:
+        """
+        Convert this model back to an OmegaConf DictConfig.
+        """
+        return OmegaConf.create(self.dict())
+
+    def yaml(self) -> str:
+        """
+        Render this model as a YAML string.
+        """
+        return OmegaConf.to_yaml(self.dictconfig())
+
+
+def config_from_path(config_path: str, overrides: DictConfig = None) -> DictConfig:
+    if config_path is None:
+        raise ValueError("Config path cannot be None")
+
+    env_cfg = hydra.compose(config_name=config_path)
     if config_path.startswith("/"):
         config_path = config_path[1:]
-
-    path_components: List[str] = config_path.split("/")
-
-    # Navigate through nested config structure
-    for p in path_components[:-1]:
-        # Type checking for safe access
-        if isinstance(env_cfg, DictConfig):
-            env_cfg = env_cfg[p]
-        elif isinstance(env_cfg, ListConfig):
-            # Try to convert p to int for list access, or raise a meaningful error
-            try:
-                idx = int(p)
-                env_cfg = env_cfg[idx]
-            except ValueError as err:
-                raise TypeError(f"Cannot use string key '{p}' with ListConfig - must be an integer index") from err
-        else:
-            raise TypeError(f"Unexpected config type: {type(env_cfg)}")
-
-    # Handle the original edge case with special error message
-    if overrides is not None and overrides != {}:
-        if isinstance(env_cfg, DictConfig) and env_cfg.get("_target_") == "mettagrid.mettagrid_env.MettaGridEnvSet":
+    for p in config_path.split("/")[:-1]:
+        env_cfg = env_cfg[p]
+    if overrides not in [None, {}]:
+        if env_cfg._target_ == "mettagrid.mettagrid_env.MettaGridEnvSet":
             raise NotImplementedError("Cannot parse overrides when using multienv_mettagrid")
         env_cfg = OmegaConf.merge(env_cfg, overrides)
-
     return env_cfg
 
 
@@ -78,14 +105,6 @@ def check_wandb_credentials() -> bool:
 
 
 def setup_metta_environment(cfg: DictConfig, require_aws: bool = True, require_wandb: bool = True):
-    """
-    Set up the environment for metta, checking for required credentials.
-
-    Args:
-        cfg: The configuration object
-        require_aws: Whether to require AWS credentials
-        require_wandb: Whether to require W&B credentials
-    """
     if require_aws:
         # Check that AWS is good to go.
         if not check_aws_credentials():
@@ -95,9 +114,8 @@ def setup_metta_environment(cfg: DictConfig, require_aws: bool = True, require_w
             print("python ./devops/aws/setup_sso.py")
             print("Alternatively, set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in your environment.")
             exit(1)
-
     if cfg.wandb.track and require_wandb:
-        # Check that AWS is good to go.
+        # Check that W&B is good to go.
         if not check_wandb_credentials():
             print("W&B is not configured, please install:")
             print("pip install wandb")
