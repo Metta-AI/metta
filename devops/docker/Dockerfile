@@ -1,7 +1,7 @@
 FROM mettaai/metta-base:latest
 
 RUN pip install boto3 chex hydra-core matplotlib pettingzoo
-RUN pip install rich scipy tabulate torchrl
+RUN pip install rich scipy tabulate
 
 # Use ARG to create a build-time variable
 ARG CACHE_DATE
