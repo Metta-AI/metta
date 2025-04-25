@@ -5,10 +5,108 @@
 # Exit immediately if a command exits with a non-zero status
 set -e
 
+# Repository URLs defined as variables
+FAST_GAE_REPO="https://github.com/Metta-AI/fast_gae.git"
+PUFFERLIB_REPO="https://github.com/Metta-AI/pufferlib.git"
+CARBS_REPO="https://github.com/kywch/carbs.git"
+WANDB_CARBS_REPO="https://github.com/Metta-AI/wandb_carbs.git"
+
+# Function to install a repository dependency
+install_repo() {
+    local repo_name=$1
+    local repo_url=$2
+    local branch=$3
+    local build_cmd=$4
+    
+    echo "========== Installing $repo_name =========="
+    
+    # save any cached build files
+    if [ -d "$repo_name" ]; then
+
+        cd $repo_name
+        echo "Repository content for $repo_name"
+        tree -a -L 2
+        cd ..
+
+        echo "Moving existing repository to cache_$repo_name"
+        mv "$repo_name" "cache_$repo_name"
+    fi
+
+    echo "Cloning $repo_name into $(pwd)"
+    git clone $repo_url
+    cd $repo_name
+
+    echo "Fetching $repo_name into $(pwd)"
+    git fetch
+
+    echo "Checking out $branch branch for $repo_name"
+    git checkout $branch
+
+    if [ -d "../cache_$repo_name" ]; then
+        echo "Attempting to restore cached build files"
+        
+        # Find and copy all *.so files
+        find "../cache_$repo_name" -name "*.so" -exec cp {} . \;
+        
+        # Copy the build directory if it exists
+        if [ -d "../cache_$repo_name/build" ]; then
+            echo "Restoring build directory"
+            cp -r "../cache_$repo_name/build" .
+        fi
+        
+        # If there's a nested directory with the same name, check for build artifacts there too
+        if [ -d "../cache_$repo_name/$repo_name" ]; then
+            echo "Restoring nested build artifacts"
+            mkdir -p "$repo_name"
+            find "../cache_$repo_name/$repo_name" -name "*.so" -exec cp {} "$repo_name/" \;
+        fi
+        
+        echo "Cached build files restored"
+        
+        # Cleanup the cache directory
+        rm -rf "../cache_$repo_name"
+    fi
+
+    echo "Repository content for $repo_name"
+    tree -a -L 2
+        
+    # Check for build files
+    echo "Checking for package files in $repo_name:"
+    if [ -f "setup.py" ]; then
+        echo "Found setup.py in root directory"
+    elif [ -f "pyproject.toml" ]; then
+        echo "Found pyproject.toml in root directory"
+    else
+        echo "No standard Python package files found in root directory"
+    fi
+    
+    # Always run the build command regardless of structure
+    echo "Building with command: $build_cmd"
+    eval $build_cmd
+    
+    export PYTHONPATH="$PYTHONPATH:$(pwd)"
+    echo "Updated PYTHONPATH: $PYTHONPATH"
+    
+    cd ..
+    echo "Completed installation of $repo_name"
+}
+
+
+# Check if we're in the correct conda environment
+if [ "$CONDA_DEFAULT_ENV" != "metta" ] && [ -z "$CI" ]; then
+    echo "Error: You must be in the 'metta' conda environment to run this script."
+    echo "Please activate the correct environment with: \"conda activate metta\""
+    exit 1
+fi
+
+echo "Upgrading pip..."
+python -m pip install --upgrade pip
+
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 
-# Install base requirements
-echo "Installing metta python requirements..."
+# ========== Main Project ==========
+cd "$SCRIPT_DIR/.."
+echo "Installing main project requirements..."
 pip install -r requirements.txt
 
 # Create and enter deps directory for all external dependencies
@@ -16,77 +114,46 @@ echo "Creating deps directory..."
 mkdir -p deps
 cd deps
 
-# ========== FAST_GAE ==========
-if [ ! -d "fast_gae" ]; then
-  echo "Cloning fast_gae into $(pwd)"
-  git clone https://github.com/Metta-AI/fast_gae.git
-fi
-cd fast_gae
-echo "Updating fast_gae..."
-git pull
-echo "Building fast_gae into $(pwd)"
-python setup.py build_ext --inplace
-echo "Installing fast_gae into $(pwd)"
-pip install -e .
-cd ..
-
-# ========== PUFFERLIB ==========
-if [ ! -d "pufferlib" ]; then
-  echo "Cloning pufferlib into $(pwd)"
-  git clone https://github.com/Metta-AI/pufferlib.git
-fi
-cd pufferlib
-echo "Fetching pufferlib into $(pwd)"
-git fetch
-echo "Checking out metta into $(pwd)"
-git checkout metta
-echo "Updating pufferlib..."
-git pull
-echo "Installing pufferlib into $(pwd)"
-pip install -e .
-echo "Stashing pufferlib into $(pwd)"
-git stash
-cd ..
-
 # ========== METTAGRID ==========
+# Note that version control for the mettagrid package has been brought into our monorepo
 cd mettagrid
-echo "Installing mettagrid python requirements..."
-pip install -r requirements.txt
 echo "Building mettagrid into $(pwd)"
 python setup.py build_ext --inplace
-echo "Installing mettagrid into $(pwd)"
 pip install -e .
+export PYTHONPATH="$PYTHONPATH:$(pwd)"
+echo "Updated PYTHONPATH: $PYTHONPATH"
 cd ..
 
-# ========== CARBS ==========
-if [ ! -d "carbs" ]; then
-  echo "Cloning carbs into $(pwd)"
-  #git clone https://github.com/imbue-ai/carbs.git
-  git clone https://github.com/kywch/carbs.git
+# Install other dependencies using the function
+install_repo "fast_gae" $FAST_GAE_REPO "main" "python setup.py build_ext --inplace && pip install -e ."
+install_repo "pufferlib" $PUFFERLIB_REPO "metta" "pip install ."
+install_repo "carbs" $CARBS_REPO "main" "pip install -e ."
+install_repo "wandb_carbs" $WANDB_CARBS_REPO "main" "pip install -e ."
+
+# ========== SANITY CHECK ==========
+echo "Sanity check: verifying all local deps are importable"
+
+# Add this right before the wandb_carbs check in your script
+python -c "import sys; print('Python path:', sys.path); from carbs import CARBS; print('CARBS import worked')"
+
+for dep in \
+  "pufferlib" \
+  "fast_gae" \
+  "mettagrid" \
+  "carbs" \
+  "wandb_carbs"
+do
+  echo "Checking import for $dep..."
+  python -c "import $dep; print('✅ Found {} at {}'.format('$dep', __import__('$dep').__file__))" || {
+    echo "❌ Failed to import $dep"
+    exit 1
+  }
+done
+
+if [ -z "$CI" ]; then
+    # ========== VS CODE INTEGRATION ==========
+    echo "Setting up VSCode integration..."
+    source "$SCRIPT_DIR/sandbox/setup_vscode_workspace.sh"
+
+    echo "✅ setup_build.sh completed successfully!"
 fi
-cd carbs
-echo "Updating carbs..."
-git pull
-echo "Installing carbs into $(pwd)"
-pip install -e .
-cd ..
-
-# ========== WANDB_CARBS ==========
-if [ ! -d "wandb_carbs" ]; then
-  echo "Cloning wandb_carbs into $(pwd)"
-  git clone https://github.com/Metta-AI/wandb_carbs.git
-fi
-cd wandb_carbs
-echo "Updating wandb_carbs..."
-git pull
-echo "Installing wandb_carbs into $(pwd)"
-pip install -e .
-cd ..
-
-# TODO -- ideally we can find a way to skip this step when we are not on a user's machine
-# for now we are including this here as a convenience because the README and other places
-# tell people to setup their workspace using ./devops/setup_build.sh
-
-# ========== VS CODE INTEGRATION ==========
-echo "Setting up VSCode integration..."
-source "$SCRIPT_DIR/sandbox/setup_vscode_workspace.sh"
