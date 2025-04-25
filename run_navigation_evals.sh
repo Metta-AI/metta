@@ -40,6 +40,7 @@ POLICIES=(
     "b.georgedeane.terrain_multienv_stable_pretrained_mb4"
     "b.daphne.terrain_multienv_3_no_blocks3"
     "b.daphne.terrain_multienv_3_no_blocks4"
+    "b.georgedeane.terrain_extra_hard"
 )
 
 
