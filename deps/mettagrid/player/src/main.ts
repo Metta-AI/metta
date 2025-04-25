@@ -114,7 +114,7 @@ const infoPanel = new PanelInfo("info");
 // Get the modal element
 const modal = document.getElementById('modal');
 
-const COLORS = [
+const COLORS: [string, [number, number, number, number]][] = [
   ["red", [1, 0, 0, 1]],
   ["green", [0, 1, 0, 1]],
   ["blue", [0, 0, 1, 1]],
@@ -209,7 +209,6 @@ function onMouseDown() {
     if (isDoubleClick && mapPanel.inside(mousePos) && selectedGridObject !== null) {
       // Toggle followSelection on double-click
       followSelection = !followSelection;
-
       if (followSelection) {
         // Set the zoom level to 1 as requested when following
         mapPanel.zoomLevel = 1/2;
@@ -411,6 +410,23 @@ async function loadReplayText(replayData: any) {
     }
   }
 
+  // Create object image mapping for faster access.
+  // Example: 3 -> ["objects/altar.png", "objects/altar.empty.png"]
+  // Example: 1 -> ["objects/wall.png", "objects/wall.png"]
+  replay.object_images = []
+  for (let i = 0; i < replay.object_types.length; i++) {
+    const typeName = replay.object_types[i];
+    var image = "objects/" + typeName + ".png";
+    if (!drawer.hasImage(image)) {
+      image = "objects/unknown.png";
+    }
+    var imageEmpty = "objects/" + typeName + ".empty.png";
+    if (!drawer.hasImage(imageEmpty)) {
+      imageEmpty = image;
+    }
+    replay.object_images.push([image, imageEmpty]);
+  }
+
   // Create resource inventory mapping for faster access.
   // Example: "inv:heart" -> ["resources/heart.png", [1, 1, 1, 1]]
   // Example: "inv:ore.red" -> ["resources/ore.red.png", [1, 1, 1, 1]]
@@ -419,7 +435,7 @@ async function loadReplayText(replayData: any) {
   replay.resource_inventory = new Map();
   for (const key of replay.all_keys) {
     if (key.startsWith("inv:") || key.startsWith("agent:inv:")) {
-      var image = key
+      var image: string = key;
       image = removePrefix(image, "inv:")
       image = removePrefix(image, "agent:inv:");
       var color = [1, 1, 1, 1]; // Default to white.
@@ -519,6 +535,16 @@ function colorFromId(agentId: number) {
     n * Math.SQRT2 % 1.0,
     1.0
   ]
+}
+
+// Checks to see of object has any inventory.
+function hasInventory(obj: any) {
+  for (const [key, [icon, color]] of replay.resource_inventory) {
+    if (getAttr(obj, key) > 0) {
+      return true;
+    }
+  }
+  return false;
 }
 
 // Make the panel focus on the full map, used at the start of the replay.
@@ -705,28 +731,23 @@ function drawObjects(replay: any) {
         y * TILE_SIZE,
         colorFromId(agent_id)
       );
-    } else if (typeName == "altar") {
-      // Alters have a special case as they show their inventory.
-      if (getAttr(gridObject, "inv:heart") > 0) {
+    } else {
+      // Draw regular objects.
+      if (hasInventory(gridObject)) {
+        // object.png
         drawer.drawSprite(
-          "objects/altar.png",
+          replay.object_images[type][0],
           x * TILE_SIZE,
           y * TILE_SIZE
         );
       } else {
+        // object.empty.png
         drawer.drawSprite(
-          "objects/altar.empty.png",
+          replay.object_images[type][1],
           x * TILE_SIZE,
           y * TILE_SIZE
         );
       }
-    } else {
-      // Draw other objects.
-      drawer.drawSprite(
-        "objects/" + typeName + ".png",
-        x * TILE_SIZE,
-        y * TILE_SIZE
-      );
     }
   }
 }
