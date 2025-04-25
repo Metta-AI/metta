@@ -26,9 +26,9 @@ POLICIES=(
     # "b.daphne.terrain_multienv_singleA_kitchensink"
     # "b.daphne.terrain_multienv_singleA_withgenerators"
     # "b.daphne.terrain_multienv_singleA_altar_resets"
-     "b.daphne.terrain_multienv_singleA_50hearts"
-     "b.georgedeane.terrain_multienv_uniform"
-    "b.georgedeane.terrain_multienv_fromscratch"
+    # "b.daphne.terrain_multienv_singleA_50hearts"
+    # "b.georgedeane.terrain_multienv_uniform"
+    # "b.georgedeane.terrain_multienv_fromscratch"
     # "b.daphne.terrain_multienv_kitchensinkwc"
     # "b.daphne.terrain_multienv_prioritized_multienv_cylinders"
     "b.daphne.terrain_multienv_prioritized_multienv_cylinders2"
@@ -44,11 +44,12 @@ POLICIES=(
 	 "b.daphne.terrain_varied_cyl_lab_pretrained"
 	 "b.georgedeane.terrain_multienv_unstable_pretrained_mb3"
 
-    #  "b.georgedeane.terrain_massive_empty_world_pretrained"
-    #  "b.georgedeane.terrain_easy_world_pretrained"
-    #  "b.georgedeane.terrain_memory_world_pretrained"
-    #  "b.georgedeane.terrain_extra_hard"
-    #  "b.georgedeane.terrain_multienv_stable_pretrained_mb4"
+     "b.georgedeane.terrain_massive_empty_world_pretrained"
+     "b.georgedeane.terrain_easy_world_pretrained"
+     "b.georgedeane.terrain_memory_world_pretrained"
+     "b.georgedeane.terrain_extra_hard"
+     "b.georgedeane.terrain_multienv_stable_pretrained_mb4"
+     
  )
 
 for i in "${!POLICIES[@]}"; do
@@ -61,7 +62,7 @@ for i in "${!POLICIES[@]}"; do
         sim=memory \
         run=memory$IDX \
         policy_uri=wandb://run/$POLICY_URI \
-        +eval_db_uri=wandb://artifacts/memory_db \
+        +eval_db_uri=wandb://artifacts/memory_db4 \
         device=cpu
 done
 
