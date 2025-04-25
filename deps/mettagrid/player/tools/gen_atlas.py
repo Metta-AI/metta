@@ -10,7 +10,7 @@ ATLAS_SIZE = 1024 * 8
 atlas_image = pixie.Image(ATLAS_SIZE, ATLAS_SIZE)
 images = {}
 heights = [0] * atlas_image.width
-padding = 8
+padding = 32
 
 
 def put_image(img, name):
@@ -33,7 +33,6 @@ def put_image(img, name):
     bottom_line = img.sub_image(0, img.height - 1, img.width, 1)
     left_line = img.sub_image(0, 0, 1, img.height)
     right_line = img.sub_image(img.width - 1, 0, 1, img.height)
-
     for p in range(padding):
         h = padded_img.height - p - 1
         w = padded_img.width - p - 1
@@ -41,6 +40,17 @@ def put_image(img, name):
         padded_img.draw(bottom_line, pixie.translate(padding, h))
         padded_img.draw(left_line, pixie.translate(p, padding))
         padded_img.draw(right_line, pixie.translate(w, padding))
+    # Now duplicate each of the corner pixels to the edges of the image.
+    top_left = img.get_color(0, 0)
+    top_right = img.get_color(img.width - 1, 0)
+    bottom_left = img.get_color(0, img.height - 1)
+    bottom_right = img.get_color(img.width - 1, img.height - 1)
+    for x in range(padding):
+        for y in range(padding):
+            padded_img.set_color(x, y, top_left)
+            padded_img.set_color(padded_img.width - 1 - x, y, top_right)
+            padded_img.set_color(x, padded_img.height - 1 - y, bottom_left)
+            padded_img.set_color(padded_img.width - 1 - x, padded_img.height - 1 - y, bottom_right)
 
     # Find the lowest value in the heights array
     min_height = atlas_image.height
