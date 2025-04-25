@@ -1,3 +1,5 @@
+"""Simulation tools for evaluating policies in the Metta environment."""
+
 import logging
 from typing import List
 
