@@ -11,6 +11,8 @@ class GameObject:
 
 class Room:
     def __init__(self, border_width: int = 0, border_object: str = "wall", labels: Optional[list] = None):
+        if labels is None:
+            labels = []
         self._border_width = border_width
         self._border_object = border_object
         self.labels = labels or []

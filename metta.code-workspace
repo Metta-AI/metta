@@ -194,23 +194,6 @@
 				],
 				"overrideName": true,
 				"name": "metta-4",
-			},
-			"build-mettagrid": {
-				"path": "/bin/zsh",
-				"args": [
-					"-c",
-					"cd deps/mettagrid && ",
-					"conda activate metta && ",
-					"python setup.py build_ext --inplace && ",
-					"/bin/zsh"
-				],
-				"cwd": "${workspaceFolder}/deps/mettagrid",
-				"env": {
-					"DEBUG": "1",
-					"ANNOTATE": "1"
-				},
-				"overrideName": true,
-				"name": "build-mettagrid"
 			}
 		},
 		"terminal.integrated.cwd": "${workspaceFolder}",
