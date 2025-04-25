@@ -7,7 +7,7 @@ on:
     paths:
       - "player/**" # Run when any file in player directory changes
       - ".github/workflows/**" # Run when workflow files change
-  workflow_dispatch: # Allow manual triggers
+  workflow_dispatch: {} # Allow manual triggers
 
 # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
@@ -21,7 +21,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build-and-deploy:
+  deploy-mettascope:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

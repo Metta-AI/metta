@@ -1,0 +1,55 @@
+name: py-test
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+    branches: [master]
+  push:
+    branches: [master]
+  workflow_dispatch: {}
+
+jobs:
+  py-test:
+    if: github.event.pull_request.draft == false || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: ./.github/workflows/py-setup.yml
+
+      - name: Setup Git dependencies
+        run: |
+          source venv/bin/activate
+          mkdir -p deps
+          bash ./devops/setup_build.sh
+
+      - name: List installed packages
+        run: |
+          source venv/bin/activate
+          pip list
+
+      - name: Run Pytest on core tests
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          source venv/bin/activate
+          pytest tests/ --maxfail=1 --disable-warnings -q
+
+      - name: Run Pytest on mettagrid tests
+        env:
+          HYDRA_FULL_ERROR: 1
+          PYTHONPATH: ${{ github.workspace }}/deps/mettagrid
+        run: |
+          source venv/bin/activate
+          cd deps/mettagrid
+          pytest tests
+          python tests/test_kinship.py

@@ -1,0 +1,30 @@
+name: Python Setup
+on:
+  workflow_call:
+
+jobs:
+  py-setup:
+    runs-on: ubuntu-latest
+    outputs:
+      venv-path: venv
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11.7"
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            venv
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt', '**/setup.py') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m venv venv
+          source venv/bin/activate
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi

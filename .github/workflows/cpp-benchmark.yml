@@ -1,0 +1,87 @@
+name: cpp-benchmark
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+    branches: [master]
+    paths:
+      - 'deps/mettagrid/**'
+  push:
+    branches: [master]
+    paths:
+      - 'deps/mettagrid/**'
+  workflow_dispatch: {}
+
+jobs:
+  cpp-benchmark:
+    if: github.event.pull_request.draft == false || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      checks: write
+      pull-requests: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup C++
+        uses: ./.github/workflows/cpp-setup.yml
+
+      - name: Build and run benchmarks
+        run: |
+          make check-bench-tools
+          mkdir -p benchmark_output
+          # Redirect benchmark output to JSON
+          for bench_exec in $(find build/benchmarks -type f -executable); do
+            echo "Running benchmark $$bench_exec..."
+            $$bench_exec --benchmark_format=json > benchmark_output/$(basename $$bench_exec).json
+          done
+
+      - name: Install Bencher CLI
+        uses: bencherdev/bencher@main
+
+      - name: Validate Bencher Token
+        env:
+          BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Bencher token length: ${#BENCHER_API_TOKEN}"
+          echo "Bencher token SHA256: $(echo -n "$BENCHER_API_TOKEN" | sha256sum)"
+
+      - name: Upload to Bencher (main branch)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        env:
+          BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for file in benchmark_output/*.json; do
+            bencher run \
+              --project mettagrid-sv3f5i2k \
+              --token "$BENCHER_API_TOKEN" \
+              --branch master \
+              --testbed ubuntu-latest \
+              --adapter google_benchmark \
+              --github-actions "$GITHUB_TOKEN" \
+              --file "$file" > /dev/null
+          done
+
+      - name: Upload to Bencher (PR branch)
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for file in benchmark_output/*.json; do
+            bencher run \
+              --project mettagrid-sv3f5i2k \
+              --token "$BENCHER_API_TOKEN" \
+              --branch "$GITHUB_HEAD_REF" \
+              --testbed ubuntu-latest \
+              --adapter google_benchmark \
+              --github-actions "$GITHUB_TOKEN" \
+              --file "$file" > /dev/null
+          done

@@ -1,0 +1,99 @@
+name: py-benchmark
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+    branches: [master]
+    paths:
+      - '**.py'
+      - 'requirements.txt'
+      - 'setup.py'
+      - 'tests/**'
+      - 'benchmarks/**'
+      - 'deps/mettagrid/tests/**'
+      - 'deps/mettagrid/benchmarks/**'
+  push:
+    branches: [master]
+    paths:
+      - '**.py'
+      - 'requirements.txt'
+      - 'setup.py'
+      - 'tests/**'
+      - 'benchmarks/**'
+      - 'deps/mettagrid/tests/**'
+      - 'deps/mettagrid/benchmarks/**'
+  workflow_dispatch: {}
+
+
+jobs:
+  py-benchmark:
+    if: github.event.pull_request.draft == false || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      checks: write
+      pull-requests: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: ./.github/workflows/py-setup.yml
+
+      - name: Build C extensions (if needed)
+        run: |
+          source venv/bin/activate
+          python setup.py build_ext --inplace
+
+      - name: Run Python benchmarks
+        env:
+          HYDRA_FULL_ERROR: 1
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          source venv/bin/activate
+          pytest tests --benchmark-json=benchmark_results.json
+
+      - name: Install Bencher CLI
+        uses: bencherdev/bencher@main
+
+      - name: Validate Bencher Token
+        env:
+          BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Bencher token length: ${#BENCHER_API_TOKEN}"
+          echo "Bencher token SHA256: $(echo -n "$BENCHER_API_TOKEN" | sha256sum)"
+
+      - name: Upload to Bencher (main branch)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        env:
+          BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          bencher run \
+            --project mettagrid-sv3f5i2k \
+            --token "$BENCHER_API_TOKEN" \
+            --branch master \
+            --testbed ubuntu-latest \
+            --adapter python_pytest \
+            --github-actions "$GITHUB_TOKEN" \
+            --file benchmark_results.json > /dev/null
+
+      - name: Upload to Bencher (PR branch or manual)
+        if: (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) || github.event_name == 'workflow_dispatch'
+        env:
+          BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          bencher run \
+            --project mettagrid-sv3f5i2k \
+            --token "$BENCHER_API_TOKEN" \
+            --branch "${GITHUB_HEAD_REF:-manual-run}" \
+            --testbed ubuntu-latest \
+            --adapter python_pytest \
+            --github-actions "$GITHUB_TOKEN" \
+            --file benchmark_results.json > /dev/null

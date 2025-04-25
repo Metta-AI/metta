@@ -1,0 +1,35 @@
+name: py-lint
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+    branches: [master]
+    paths:
+      - '**.py'
+      - 'requirements.txt'
+  workflow_dispatch: {}
+
+jobs:
+  py-lint:
+    if: github.event.pull_request.draft == false || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: ./.github/workflows/py-setup.yml
+
+      - name: Install Ruff
+        run: |
+          source venv/bin/activate
+          pip install ruff==0.11.5
+
+      - name: Run Ruff linter
+        run: |
+          source venv/bin/activate
+          ruff check --respect-gitignore --exit-non-zero-on-fix .

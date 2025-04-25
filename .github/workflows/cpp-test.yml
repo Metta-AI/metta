@@ -1,0 +1,25 @@
+name: cpp-test
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+    branches: [master]
+    paths:
+      - 'deps/mettagrid/**'
+  workflow_dispatch: {}
+
+jobs:
+  cpp-test:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup C++
+        uses: ./.github/workflows/cpp-setup.yml
+
+      - name: Build and run tests
+        run: |
+          make check-test-tools
+          make test
