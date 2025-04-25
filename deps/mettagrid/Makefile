@@ -117,7 +117,18 @@ $(BUILD_TEST_DIR):
 	@mkdir -p $(BUILD_TEST_DIR)
 
 # Find all test source files
+
 TEST_SOURCES := $(wildcard $(TEST_DIR)/*.cpp $(TEST_DIR)/**/*.cpp)
+
+# Create build objects with preserved directory structure
+define make-test-object
+$(BUILD_TEST_DIR)/$(patsubst $(TEST_DIR)/%.cpp,%.o,$1): $1
+	@mkdir -p $$(dir $$@)
+	$$(CXX) $$(CXXFLAGS) -c $$< -o $$@
+endef
+
+$(foreach src,$(TEST_SOURCES),$(eval $(call make-test-object,$(src))))
+
 TEST_OBJECTS := $(patsubst $(TEST_DIR)/%.cpp,$(BUILD_TEST_DIR)/%.o,$(TEST_SOURCES))
 TEST_EXECUTABLES := $(patsubst $(BUILD_TEST_DIR)/%.o,$(BUILD_TEST_DIR)/%,$(TEST_OBJECTS))
 
