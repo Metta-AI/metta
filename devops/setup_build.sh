@@ -93,7 +93,7 @@ install_repo() {
 
 
 # Check if we're in the correct conda environment
-if [ "$CONDA_DEFAULT_ENV" != "metta" ]; then
+if [ "$CONDA_DEFAULT_ENV" != "metta" ] && [ -z "$CI" ]; then
     echo "Error: You must be in the 'metta' conda environment to run this script."
     echo "Please activate the correct environment with: \"conda activate metta\""
     exit 1
@@ -150,8 +150,10 @@ do
   }
 done
 
-# ========== VS CODE INTEGRATION ==========
-echo "Setting up VSCode integration..."
-source "$SCRIPT_DIR/sandbox/setup_vscode_workspace.sh"
+if [ -z "$CI" ]; then
+    # ========== VS CODE INTEGRATION ==========
+    echo "Setting up VSCode integration..."
+    source "$SCRIPT_DIR/sandbox/setup_vscode_workspace.sh"
 
-echo "✅ setup_build.sh completed successfully!"
+    echo "✅ setup_build.sh completed successfully!"
+fi

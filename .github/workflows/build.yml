@@ -65,9 +65,6 @@ jobs:
 
       # Always run setup_build.sh — it will skip rebuilding if outputs exist
       - name: Build and install local dependencies
-        env:
-          CONDA_DEFAULT_ENV: "metta"
-          CONDA_PREFIX: "github"
         run: |
           source venv/bin/activate
           bash ./devops/setup_build.sh
