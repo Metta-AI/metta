@@ -140,7 +140,7 @@ class MettaAgent(nn.Module):
         self.components["_value_"](td)
         return None, td["_value_"], None
 
-    def get_action_and_value(self, x, state=None, action=None, e3b=None):
+    def get_action_and_value(self, x, state=None, action=None, e3b=None, is_inference=False):
         td = TensorDict({"x": x})
 
         td["state"] = None
@@ -162,12 +162,19 @@ class MettaAgent(nn.Module):
             state = (state[:split_size], state[split_size:])
 
         e3b, intrinsic_reward = self._e3b_update(td["_core_"].detach(), e3b)
-        action, logprob, entropy, normalized_logits = sample_logits(logits, action)
+        action, logprob, entropy, normalized_logits = sample_logits(logits, action, verbose=is_inference)
 
         return action, logprob, entropy, value, state, e3b, intrinsic_reward, normalized_logits
 
     def forward(self, x, state=None, action=None, e3b=None):
         return self.get_action_and_value(x, state, action, e3b)
+
+    def inference(self, obs, state=None):
+        """Simplified API for inference only"""
+        action, _, _, _, new_state, _, _, _ = self.get_action_and_value(obs, state, is_inference=True)
+        print(f"inference returns action with shape {action.shape}")
+
+        return action, new_state
 
     def _e3b_update(self, phi, e3b):
         intrinsic_reward = None

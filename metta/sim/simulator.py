@@ -34,8 +34,33 @@ class Simulator:
         """Get the actions for the current timestep"""
         with torch.no_grad():
             obs = torch.as_tensor(self.obs).to(device=self.device)
-            actions, _, _, _, self.policy_rnn_state, _, _, _ = self.policy(obs, self.policy_rnn_state)
-        return actions
+            # actions, _, _, _, self.policy_rnn_state, _, _, _ = self.policy(obs, self.policy_rnn_state)
+            actions, self.policy_rnn_state = self.policy.inference(obs, self.policy_rnn_state)
+
+            # TODO - fix inference and then remove this patch
+
+            # Ensure actions have the correct shape: (num_agents, 2)
+            expected_shape = (self.num_agents, 2)
+            if actions.shape != expected_shape:
+                # Debug message (can be removed in production)
+                print(f"Reshaping actions from {actions.shape} to {expected_shape}")
+
+                if actions.numel() == expected_shape[0] * expected_shape[1]:
+                    print("Case 1: If we have a flat tensor with correct total elements")
+                    actions = actions.reshape(expected_shape)
+                elif actions.dim() == 1 and actions.size(0) == 2:
+                    print("Case 2: If we have a 1D tensor of length 2 (single action)")
+                    actions = actions.reshape(expected_shape)
+                    # Expand single action to all agents if needed
+                    actions = actions.unsqueeze(0).expand(self.num_agents, -1)
+                else:
+                    print("Case 3: Other unexpected shapes")
+                    # Create a default action tensor if needed
+                    actions = torch.zeros(expected_shape, dtype=actions.dtype, device=actions.device)
+            else:
+                print(f"actions {actions.shape} had the expected shape {expected_shape}")
+
+            return actions
 
     def step(self, actions):
         """Step the simulator forward one timestep"""

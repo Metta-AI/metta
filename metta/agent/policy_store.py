@@ -43,7 +43,15 @@ class PolicyRecord:
     def policy(self) -> nn.Module:
         if self._policy is None:
             pr = self._policy_store._load_from_uri(self.uri)
-            self._policy = pr.policy()
+            policy_obj = pr.policy()
+
+            # Validate that policy_obj is a MettaAgent or compatible class
+            from metta.agent.metta_agent import MettaAgent
+
+            if not isinstance(policy_obj, MettaAgent):
+                raise TypeError(f"Expected policy to be a MettaAgent, got {type(policy_obj).__name__}")
+
+            self._policy = policy_obj
             self._local_path = pr.local_path()
         return self._policy
 
