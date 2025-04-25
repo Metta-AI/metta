@@ -1,1 +1,6 @@
-+hardware: macbook
+# @package __global__
+
+run: andre_local_5
+
+trainer:
+  replay_interval: 10
