@@ -1,0 +1,27 @@
+defaults:
+  - /env/mettagrid-base/mettagrid@
+  - _self_
+
+game:
+  num_agents: 4
+
+  map_builder:
+    _target_: mettagrid.config.room.multi_room.MultiRoom
+    num_rooms: 4
+    border_width: 6
+
+    room:
+      _target_: mettagrid.config.room.navigation.empty_world.EmptyWorld
+
+      # Arena dimensions (sampled per episode)
+      width_range:  [200, 300]
+      height_range: [200, 300]
+
+      # How many altars to scatter each episode
+      altars_count_range: [30, 40]
+
+      agents: 1  # passed through to builder
+
+  objects:
+    altar:
+      cooldown: 100
