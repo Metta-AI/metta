@@ -5,8 +5,6 @@ Covered
 -------
 * suite‑level defaults propagate into children
 * child‑level overrides win
-* four permutations of (extra‑key × allow_extra_keys)
-* unknown key on the *suite* node raises unless allow_extra_keys=True
 * missing required keys always raise  (allow_missing removed)
 """
 
@@ -14,9 +12,9 @@ from typing import Dict
 
 import pytest
 from omegaconf import OmegaConf
+from pydantic import ValidationError
 
 from metta.sim.simulation_config import SimulationSuiteConfig
-from metta.util.config import dictconfig_to_dataclass
 
 # ---------------------------------------------------------------------------
 # constants
@@ -26,13 +24,9 @@ ROOT_ENV, CHILD_A, CHILD_B = "env/root", "env/a", "env/b"
 DEVICE, RUN_DIR = "cpu", "./runs/test"
 
 
-def _build(cfg: Dict, *, allow_extra_keys: bool = False):
+def _build(cfg: Dict):
     """Helper around ``dictconfig_to_dataclass``."""
-    return dictconfig_to_dataclass(
-        SimulationSuiteConfig,
-        OmegaConf.create(cfg),
-        allow_extra_keys=allow_extra_keys,
-    )
+    return SimulationSuiteConfig(OmegaConf.create(cfg))
 
 
 # ---------------------------------------------------------------------------
@@ -66,15 +60,13 @@ def test_propogate_defaults_and_overrides():
 
 
 @pytest.mark.parametrize(
-    "has_extra, allow_extra, should_pass",
+    "has_extra, should_pass",
     [
-        (False, False, True),
-        (False, True, True),
-        (True, True, True),  # extra tolerated
-        (True, False, False),  # extra rejected
+        (False, True),
+        (True, False),
     ],
 )
-def test_allow_extra_child_keys(has_extra, allow_extra, should_pass):
+def test_allow_extra_child_keys(has_extra, should_pass):
     child_node = {"env": CHILD_A}
     if has_extra:
         child_node["foo"] = "bar"  # <- unknown key
@@ -89,36 +81,11 @@ def test_allow_extra_child_keys(has_extra, allow_extra, should_pass):
     }
 
     if should_pass:
-        suite = _build(cfg, allow_extra_keys=allow_extra)
+        suite = _build(cfg)
         assert suite.simulations["sim"].device == DEVICE
     else:
         with pytest.raises(ValueError):
-            _build(cfg, allow_extra_keys=allow_extra)
-
-
-# ---------------------------------------------------------------------------
-# allow_extra – suite node
-# ---------------------------------------------------------------------------
-
-
-def test_extra_key_on_suite_rejected_unless_allowed():
-    cfg = {
-        "env": ROOT_ENV,
-        "device": DEVICE,
-        "num_envs": 4,
-        "num_episodes": 4,
-        "run_dir": RUN_DIR,
-        "suite_only": "secret",
-        "simulations": {"sim": {"env": CHILD_A}},
-    }
-
-    # default → error
-    with pytest.raises(ValueError):
-        _build(cfg)
-
-    # allowed
-    suite = _build(cfg, allow_extra_keys=True)
-    assert suite.simulations["sim"].env == CHILD_A
+            _build(cfg)
 
 
 # ---------------------------------------------------------------------------
@@ -134,7 +101,7 @@ def test_missing_device_always_errors():
         "run_dir": RUN_DIR,
         "simulations": {"sim": {}},  # required 'device' omitted
     }
-    with pytest.raises(TypeError):
+    with pytest.raises(ValidationError):
         _build(cfg)
 
 

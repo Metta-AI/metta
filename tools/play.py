@@ -9,7 +9,6 @@ import hydra
 import metta.sim.simulator
 from metta.agent.policy_store import PolicyStore
 from metta.sim.simulation_config import SimulationConfig
-from metta.util.config import dictconfig_to_dataclass
 from metta.util.runtime_configuration import setup_mettagrid_environment
 from metta.util.wandb.wandb_context import WandbContext
 
@@ -32,7 +31,7 @@ def play(cfg):
 
     with WandbContext(cfg) as wandb_run:
         policy_store = PolicyStore(cfg, wandb_run)
-        play_job = dictconfig_to_dataclass(PlayJob, cfg.play_job)
+        play_job = PlayJob(cfg.play_job)
         metta.sim.simulator.play(play_job.sim, policy_store, play_job.policy_uri)
 
 
