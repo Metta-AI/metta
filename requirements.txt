@@ -15,6 +15,7 @@ fastapi>=0.115.5
 imageio>=2.36.0
 jmespath>=1.0.1
 matplotlib>=3.9.2
+moto[s3]>=5.1.4
 pettingzoo>=1.24.1
 pynvml>=11.5.3
 pytest>=8.3.3

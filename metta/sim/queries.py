@@ -22,7 +22,7 @@ def total_metric(metric_field: str, filters: Dict[str, Any]):
         ORDER BY policy_name, eval_name, npc;"""
 
     return query
-
+p
 
 def build_where_clause(filters: Dict[str, Any]) -> str:
     """Build WHERE clause from a filters dictionary."""
