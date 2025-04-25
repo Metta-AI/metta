@@ -2,7 +2,6 @@ import logging
 import os
 import signal  # Aggressively exit on ctrl+c
 import sys
-from dataclasses import dataclass
 
 import hydra
 
@@ -19,7 +18,6 @@ logging.basicConfig(level="INFO")
 logger = logging.getLogger(__name__)
 
 
-@dataclass
 class PlayJob:
     sim: SimulationConfig
     policy_uri: str
