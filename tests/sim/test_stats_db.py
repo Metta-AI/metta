@@ -1,8 +1,4 @@
 """tests/sim/test_stats_db.py
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Integration-style tests for the new StatsDB schema.
-
-Requires Moto for the S3 round-trip.
 """
 from __future__ import annotations
 
@@ -41,32 +37,6 @@ def sample_rollout():
     }
     return meta, agents, metrics
 
-
-# --------------------------------------------------------------------------- #
-# 1. Basic insert / aggregate test                                            #
-# --------------------------------------------------------------------------- #
-def test_policy_env_stats_aggregation(sample_rollout):
-    meta, agents, metrics = sample_rollout
-    db = StatsDB(":memory:")
-    rid = db.log_rollout(meta, agents, metrics)
-
-    # check raw tables
-    df_raw = db.query("SELECT COUNT(*) AS n FROM rollout_metrics")
-    assert df_raw.iloc[0]["n"] == 4  # 2 agents × 2 metrics
-
-    # check aggregate table
-    df_agg = db.query("SELECT * FROM policy_environment_stats")
-    assert len(df_agg) == 2  # two different metrics
-
-    # episode_reward aggregate should be (0.8, 0.6)
-    er = df_agg[df_agg["metric"] == "episode_reward"].iloc[0]
-    assert pytest.approx(er["mean"], rel=1e-6) == 0.7
-    assert er["n"] == 2
-
-
-# --------------------------------------------------------------------------- #
-# 2. S3 round-trip using Moto                                                 #
-# --------------------------------------------------------------------------- #
 @mock_aws
 def test_stats_db_roundtrip_s3(sample_rollout):
     meta, agents, metrics = sample_rollout
@@ -78,7 +48,7 @@ def test_stats_db_roundtrip_s3(sample_rollout):
         # 1. create DB & write data
         local_db = tmpdir_path / "stats.duckdb"
         db = StatsDB(local_db)
-        _ = db.log_rollout(meta, agents, metrics)
+        rid = db.log_rollout(meta, agents, metrics)
         db.close()
 
         # 2. mock S3 bucket + upload
@@ -93,10 +63,43 @@ def test_stats_db_roundtrip_s3(sample_rollout):
         dl_path = download_dir / "stats.duckdb"
         s3.download_file(bucket, key, str(dl_path))
 
-        # 4. open & verify aggregate still there
+        # 4. open & verify data integrity directly from tables
         db2 = StatsDB(dl_path)
-        df = db2.query("SELECT metric, mean, n FROM policy_environment_stats WHERE metric='episode_reward'")
-        assert len(df) == 1
-        assert pytest.approx(df.iloc[0]["mean"], rel=1e-6) == 0.7
-        assert df.iloc[0]["n"] == 2
+        
+        # Check rollouts table
+        rollouts_df = db2.query("SELECT * FROM rollouts WHERE rollout_id = ?", rid)
+        assert len(rollouts_df) == 1
+        assert rollouts_df.iloc[0]["env_name"] == "mettagrid.nav_easy"
+        assert rollouts_df.iloc[0]["agent_steps"] == 512
+        
+        # Check rollout_agents table
+        agents_df = db2.query("SELECT * FROM rollout_agents WHERE rollout_id = ?", rid)
+        assert len(agents_df) == 2
+        assert set(agents_df["agent_id"].tolist()) == {0, 1}
+        
+        # Check rollout_agent_metrics table
+        metrics_df = db2.query("""
+            SELECT agent_id, metric, value 
+            FROM rollout_agent_metrics 
+            WHERE rollout_id = ? AND metric = 'episode_reward'
+            ORDER BY agent_id
+        """, rid)
+        
+        assert len(metrics_df) == 2
+        assert metrics_df.iloc[0]["agent_id"] == 0
+        assert metrics_df.iloc[0]["value"] == 0.8
+        assert metrics_df.iloc[1]["agent_id"] == 1
+        assert metrics_df.iloc[1]["value"] == 0.6
+        
+        # Verify the average episode_reward across both agents is 0.7
+        avg_reward_df = db2.query("""
+            SELECT AVG(value) as mean, COUNT(*) as n
+            FROM rollout_agent_metrics
+            WHERE rollout_id = ? AND metric = 'episode_reward'
+        """, rid)
+        
+        assert len(avg_reward_df) == 1
+        assert pytest.approx(avg_reward_df.iloc[0]["mean"], rel=1e-6) == 0.7
+        assert avg_reward_df.iloc[0]["n"] == 2
+        
         db2.close()

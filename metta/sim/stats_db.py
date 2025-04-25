@@ -1,12 +1,8 @@
 """metta/sim/stats_db.py
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 DuckDB wrapper for logging raw rollout data.
-
-Schema
-------
-rollouts              – one row per learner rollout/batch
-rollout_agents        – map (rollout, agent) → policy
-rollout_agent_metrics – per-agent, per-metric facts
+For now, used for training data, with the intention of switching over
+to this for EvalStatsDB as well.
 """
 
 from __future__ import annotations
@@ -26,33 +22,44 @@ logger = logging.getLogger(__name__)
 # SQL schema                                                                  #
 # --------------------------------------------------------------------------- #
 _SCHEMA_SQL = """
+CREATE SEQUENCE IF NOT EXISTS rollout_id_seq;
+
+-- (Rollout) → Metadata
 CREATE TABLE IF NOT EXISTS rollouts (
-    rollout_id     BIGINT  PRIMARY KEY AUTOINCREMENT,
-    env_name       TEXT    NOT NULL,
-    map_w          INT,
-    map_h          INT,
-    epoch          INT,
-    batch_idx      INT,
-    agent_steps    INT     NOT NULL,
-    created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    metadata_json  JSON
+    rollout_id BIGINT DEFAULT nextval('rollout_id_seq'),
+    env_name   TEXT NOT NULL,
+    map_w      INT,
+    map_h      INT,
+    epoch      INT,
+    batch_idx  INT,
+    agent_steps INT  NOT NULL,
+    created_at  TIMESTAMP,
+    metadata_json JSON
 );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_rollouts_rollout_id
+    ON rollouts(rollout_id);
 
+-- (Rollout, Agent) → Policy
 CREATE TABLE IF NOT EXISTS rollout_agents (
-    rollout_id   BIGINT NOT NULL REFERENCES rollouts(rollout_id) ON DELETE CASCADE,
-    agent_id     INT    NOT NULL,
-    policy_uri   TEXT   NOT NULL,
-    version      INT    NOT NULL,
-    PRIMARY KEY (rollout_id, agent_id)
+    rollout_id BIGINT NOT NULL,
+    agent_id   INT    NOT NULL,
+    policy_uri TEXT   NOT NULL,
+    version    INT    NOT NULL
 );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_rollout_agents_pk
+    ON rollout_agents (rollout_id, agent_id);
 
+-- (Rollout, Agent, Metric) → Value
 CREATE TABLE IF NOT EXISTS rollout_agent_metrics (
-    rollout_id   BIGINT NOT NULL REFERENCES rollouts(rollout_id) ON DELETE CASCADE,
-    agent_id     INT    NOT NULL,
-    metric       TEXT   NOT NULL,
-    value        DOUBLE NOT NULL
+    rollout_id BIGINT NOT NULL,
+    agent_id   INT    NOT NULL,
+    metric     TEXT   NOT NULL,
+    value      DOUBLE NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_ram_metric ON rollout_agent_metrics(metric);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_rollout_agent_metrics_pk
+    ON rollout_agent_metrics (rollout_id, agent_id, metric);
+CREATE INDEX IF NOT EXISTS idx_ram_metric
+    ON rollout_agent_metrics (metric);
 """
 
 
@@ -67,14 +74,20 @@ class StatsDB:
     # --------------------------------------------------------------------- #
     def __init__(self, db_path: str | pathlib.Path = ":memory:") -> None:
         self._conn = duckdb.connect(database=str(db_path))
-        # activate foreign-keys – DuckDB syntax omits “ON”
-        self._conn.execute("PRAGMA foreign_keys")
-        self._conn.execute(_SCHEMA_SQL)
+        self._run_schema(_SCHEMA_SQL)
         logger.info("StatsDB initialised at %s", db_path)
 
     # --------------------------------------------------------------------- #
     # simple helpers                                                        #
     # --------------------------------------------------------------------- #
+    def _run_schema(self, schema_sql: str) -> None:
+        for stmt in filter(None, (s.strip() for s in schema_sql.split(";"))):
+            try:
+                self._conn.execute(stmt)
+            except duckdb.NotImplementedException as e:
+                logger.error("DuckDB failed on: %s\n%s", stmt, e)
+                raise
+
     def query(self, sql: str, *params) -> pd.DataFrame:
         return self._conn.execute(sql, params).fetchdf()
 
@@ -85,13 +98,19 @@ class StatsDB:
     # --------------------------------------------------------------------- #
     # insert helpers                                                        #
     # --------------------------------------------------------------------- #
-    RolloutMeta   = Mapping[str, Any]
-    AgentMap      = Mapping[int, tuple[str, int]]       # agent_id → (policy_uri, version)
-    MetricRows    = Mapping[int, Mapping[str, float]]   # agent_id → {metric: value}
+    RolloutMeta = Mapping[str, Any]
+    AgentMap = Mapping[int, tuple[str, int]]  # agent_id → (policy_uri, version)
+    MetricRows = Mapping[int, Mapping[str, float]]  # agent_id → {metric: value}
 
     def insert_rollout(self, meta: RolloutMeta) -> int:
-        cols, vals = zip(*meta.items())
-        sql = f"INSERT INTO rollouts ({', '.join(cols)}) VALUES ({', '.join(['?']*len(cols))})"
+        # Add created_at if not provided
+        if "created_at" not in meta:
+            meta_with_timestamp = {**meta, "created_at": time.strftime("%Y-%m-%d %H:%M:%S")}
+        else:
+            meta_with_timestamp = meta
+
+        cols, vals = zip(*meta_with_timestamp.items(), strict=False)
+        sql = f"INSERT INTO rollouts ({', '.join(cols)}) VALUES ({', '.join(['?'] * len(cols))}) RETURNING rollout_id"
         cur = self._conn.execute(sql, vals)
         return cur.fetchone()[0]
 
@@ -100,11 +119,7 @@ class StatsDB:
         self._conn.executemany("INSERT INTO rollout_agents VALUES (?,?,?,?)", rows)
 
     def insert_metrics(self, rid: int, metrics: MetricRows) -> None:
-        rows = [
-            (rid, aid, metric, val)
-            for aid, m in metrics.items()
-            for metric, val in m.items()
-        ]
+        rows = [(rid, aid, metric, val) for aid, m in metrics.items() for metric, val in m.items()]
         self._conn.executemany("INSERT INTO rollout_agent_metrics VALUES (?,?,?,?)", rows)
 
     # convenience ---------------------------------------------------------- #
@@ -115,11 +130,17 @@ class StatsDB:
         metrics: MetricRows,
     ) -> int:
         """Atomically insert meta + agents + metrics."""
-        with self._conn.transaction():
+        # Use manual transaction management instead of context manager
+        try:
+            self._conn.execute("BEGIN TRANSACTION")
             rid = self.insert_rollout(meta)
             self.insert_agents(rid, agents)
             self.insert_metrics(rid, metrics)
-        return rid
+            self._conn.execute("COMMIT")
+            return rid
+        except Exception as e:
+            self._conn.execute("ROLLBACK")
+            raise e
 
     # --------------------------------------------------------------------- #
     # snapshot utilities                                                    #
