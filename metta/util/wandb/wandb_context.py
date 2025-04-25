@@ -58,8 +58,7 @@ class WandbContext:
         self.wandb_host = "api.wandb.ai"
         self.wandb_port = 443
 
-        if not check_wandb_version():
-            logger.warning("Please upgrade wandb to >= 19")
+        check_wandb_version()
 
     def __enter__(self) -> wandb.apis.public.Run:
         if not self.cfg.wandb.enabled:
@@ -77,40 +76,34 @@ class WandbContext:
             return None
 
         cfg = copy.deepcopy(self.cfg)
+        logger.info(f"Initializing W&B run with timeout={self.timeout}s")
 
         try:
-            logger.info(f"Initializing W&B run with timeout={self.timeout}s")
+            self.run = wandb.init(
+                id=self.run_id,
+                job_type=self.job_type,
+                project=self.cfg.wandb.project,
+                entity=self.cfg.wandb.entity,
+                config=OmegaConf.to_container(cfg, resolve=False),
+                group=self.cfg.wandb.group,
+                allow_val_change=True,
+                name=self.name,
+                monitor_gym=True,
+                save_code=True,
+                resume=self.resume,
+                tags=["user:" + os.environ.get("METTA_USER", "unknown")],
+                settings=wandb.Settings(quiet=True, init_timeout=self.timeout),
+            )
 
-            try:
-                self.run = wandb.init(
-                    id=self.run_id,
-                    job_type=self.job_type,
-                    project=self.cfg.wandb.project,
-                    entity=self.cfg.wandb.entity,
-                    config=OmegaConf.to_container(cfg, resolve=False),
-                    group=self.cfg.wandb.group,
-                    allow_val_change=True,
-                    name=self.name,
-                    monitor_gym=True,
-                    save_code=True,
-                    resume=self.resume,
-                    tags=["user:" + os.environ.get("METTA_USER", "unknown")],
-                    settings=wandb.Settings(quiet=True, init_timeout=self.timeout),
-                )
+            # Save config and set up file syncing only if wandb init succeeded
+            OmegaConf.save(cfg, os.path.join(self.data_dir, "config.yaml"))
+            wandb.save(os.path.join(self.data_dir, "*.log"), base_path=self.data_dir, policy="live")
+            wandb.save(os.path.join(self.data_dir, "*.yaml"), base_path=self.data_dir, policy="live")
+            logger.info(f"Successfully initialized W&B run: {self.run.name} ({self.run.id})")
 
-                # Save config and set up file syncing only if wandb init succeeded
-                OmegaConf.save(cfg, os.path.join(self.data_dir, "config.yaml"))
-                wandb.save(os.path.join(self.data_dir, "*.log"), base_path=self.data_dir, policy="live")
-                wandb.save(os.path.join(self.data_dir, "*.yaml"), base_path=self.data_dir, policy="live")
-                logger.info(f"Successfully initialized W&B run: {self.run.name} ({self.run.id})")
-
-            except TimeoutError:
-                logger.warning(f"W&B initialization timed out after {self.timeout}s")
-                logger.info("Continuing without W&B logging")
-                self.run = None
-
-        except wandb.errors.CommError as e:
-            logger.error(f"W&B initialization failed: {str(e)}")
+        except (TimeoutError, wandb.errors.CommError) as e:
+            error_type = "timeout" if isinstance(e, TimeoutError) else "communication"
+            logger.warning(f"W&B initialization failed due to {error_type} error: {str(e)}")
             logger.info("Continuing without W&B logging")
             self.run = None
 
