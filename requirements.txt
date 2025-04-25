@@ -28,6 +28,7 @@ tqdm>=4.67.1
 pettingzoo>=1.24.1
 tensordict>=0.7.2
 wandb==0.19.9
+einops>=0.8.1
 
 # ==========================
 # Gym / Environments
@@ -51,8 +52,9 @@ plotly>=5.18.0
 # Testing & Linting
 # ==========================
 pytest>=8.3.3
-pytest-cov==6.1.1
-ruff==0.11.5
+pytest-cov>=6.1.1
+pytest-benchmark>=5.1.0
+ruff>=0.11.5
 
 # ==========================
 # Configuration & Utilities
