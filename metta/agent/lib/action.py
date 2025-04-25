@@ -21,16 +21,16 @@ class ActionEmbedding(nn_layer_library.Embedding):
         self.initialization = initialization
         self.register_buffer('active_indices', torch.tensor([], dtype=torch.long))
         
-    def activate_actions(self, strings, device):
+    def activate_actions(self, full_action_names, device):
         ''' each time we run this, we update the metta_agent object's (the policy's) known action strings and associated indices'''
-        for string in strings:
+        for string in full_action_names:
             if string not in self._reserved_action_embeds:
                 embedding_index = len(self._reserved_action_embeds) + 1 # generate index for this string
                 self._reserved_action_embeds[string] = embedding_index # update this component's known embeddings
 
         self.active_indices = torch.tensor([
             self._reserved_action_embeds[name]
-            for name in strings
+            for name in full_action_names
         ], device=device)
         self.num_actions = len(self.active_indices)
 
@@ -53,10 +53,10 @@ class ActionHash(metta_layer.LayerBase):
         self._out_tensor_shape = [self.num_actions, self.embedding_dim]
         self.min_value, self.max_value = min_value, max_value
 
-    def activate_actions(self, strings, device):
+    def activate_actions(self, full_action_names, device):
         self.action_embeddings = torch.tensor([
             self.embed_string(s)
-            for s in strings
+            for s in full_action_names
         ], dtype=torch.float32, device=device)
 
         self.num_actions = self.action_embeddings.size(0)

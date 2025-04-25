@@ -129,11 +129,11 @@ class MettaAgent(nn.Module):
         # Precompute cumulative sums for faster conversion
         self.cum_action_max_params = torch.tensor([0] + [sum(action_max_params[:i+1]) for i in range(len(action_max_params))], 
                                                  device=self.device)
-        string_list = []
+        full_action_names = []
         for action_name, max_arg_count in self.active_actions:
             for i in range(max_arg_count + 1):
-                string_list.append(f"{action_name}_{i}")
-        self.components['_action_embeds_'].activate_actions(string_list, self.device)
+                full_action_names.append(f"{action_name}_{i}")
+        self.components['_action_embeds_'].activate_actions(full_action_names, self.device)
 
         # Create action_index tensor
         action_index = []
