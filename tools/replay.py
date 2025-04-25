@@ -1,6 +1,5 @@
 # Generate a graphical trace of multiple runs.
 
-from dataclasses import dataclass
 
 import hydra
 
