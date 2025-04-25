@@ -21,7 +21,7 @@ class EvalStatsAnalyzer:
         metric_configs = {}
         metrics = []
         for cfg in self.analysis.metrics:
-            metric_configs[cfg] = ['episode_reward'] #fnmatch.filter(self.stats_db.available_metrics, cfg.metric)
+            metric_configs[cfg] = fnmatch.filter(self.stats_db.available_metrics, cfg.metric)
             metrics.extend(metric_configs[cfg])
         self.metric_configs = metric_configs
         self.analysis.metrics = metrics
