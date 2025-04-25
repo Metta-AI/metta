@@ -7,7 +7,6 @@ import torch
 from metta.agent.util.distribution_utils import (
     sample_logits_main,
     sample_logits_new,
-    sample_logits_patched,
 )
 
 
@@ -161,7 +160,14 @@ class BaseTestSampleLogits:
         )
 
     def test_single_element_list_shape(self):
-        """Check the shape of actions when we have one agent and one batch."""
+        """
+        Check the shape of actions when we have one agent and one batch.
+
+        This test was failing on single batch / single agent calls to forward because of shape issues.
+
+        Fixed by switching from `.squeeze()` to `.reshape(logits[0].shape[0])`
+
+        """
         assert self.sample_logits_func is not None, "sample_logits_func must be defined in subclass"
 
         # Create a list with a single tensor of shape (1, 9)
@@ -180,18 +186,11 @@ class BaseTestSampleLogits:
         )
 
 
-# Subclass for sample_logits_main
+# Subclass for sample_logits_patched
 class TestSampleLogitsMain(BaseTestSampleLogits):
     """Test the sample_logits_main function."""
 
     sample_logits_func = staticmethod(sample_logits_main)
-
-
-# Subclass for sample_logits_patched
-class TestSampleLogitsPatched(BaseTestSampleLogits):
-    """Test the sample_logits_patched function."""
-
-    sample_logits_func = staticmethod(sample_logits_patched)
 
 
 # Subclass for sample_logits_new
@@ -253,7 +252,7 @@ def benchmark_implementation(func, data, action=None, num_runs=100):
 def run_benchmark_all_implementations(data, action=None, num_runs=100):
     """Run benchmark and return comparative results."""
     funcs = {
-        "sample_logits_patched": sample_logits_patched,
+        "sample_logits_main": sample_logits_main,
         "sample_logits_new": sample_logits_new,
     }
 
@@ -298,7 +297,7 @@ def test_benchmark_comparison(benchmark_data):
 def test_sample_action_consistency(benchmark_data):
     """Verify that all sample_logits implementations produce consistent actions."""
     funcs = {
-        "sample_logits_patched": sample_logits_patched,
+        "sample_logits_main": sample_logits_main,
         "sample_logits_new": sample_logits_new,
     }
 
