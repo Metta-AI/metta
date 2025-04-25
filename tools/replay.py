@@ -1,5 +1,7 @@
 # Generate a graphical trace of multiple runs.
 
+import platform
+import webbrowser
 
 import hydra
 
@@ -26,9 +28,18 @@ def main(cfg):
         replay_job = ReplayJob(cfg.replay_job)
         policy_record = policy_store.policy(replay_job.policy_uri)
         replay_helper = ReplayHelper(replay_job.sim, policy_record, wandb_run)
-        replay_path = f"{cfg.run_dir}/replays/replay.json.z"
-        replay_helper.generate_replay(replay_path)
-        print(f"Replay saved to {replay_path}")
+        epoch = policy_record.metadata.get("epoch", 0)
+        replay_helper.generate_and_upload_replay(
+            epoch,
+            cfg.run_dir,
+            cfg.run,
+            dry_run=cfg.trainer.get("replay_dry_run", False),
+        )
+
+        # Only on macos open a browser to the replay
+        if platform.system() == "Darwin":
+            replay_url = f"https://softmax-public.s3.us-east-1.amazonaws.com/replays/{cfg.run}/replay.{epoch}.json.z"
+            webbrowser.open(f"https://metta-ai.github.io/metta/?replayUrl={replay_url}")
 
 
 if __name__ == "__main__":
