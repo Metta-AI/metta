@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import logging
 import os
 from dataclasses import MISSING, fields, is_dataclass
@@ -26,101 +25,55 @@ import hydra
 import wandb
 from botocore.exceptions import ClientError, NoCredentialsError
 from omegaconf import DictConfig, OmegaConf
+from pydantic import BaseModel, ValidationError
 
-D = TypeVar("D")
-
-
-def pretty_print_config(cfg: Union[DictConfig, Any], indent: int = 2):
+T = TypeVar("T")
+class Config(BaseModel):
     """
-    Pretty print an OmegaConf configuration using a logger.
-
-    Args:
-        cfg: OmegaConf configuration object or any config object
-        logger: Logger instance (defaults to root logger if None)
-        indent: Number of spaces for indentation (default: 2)
+    Pydantic-backed config base.
+    - extra keys are ignored
+    - you can do `MyConfig(cfg_node)` where cfg_node is a DictConfig or dict
+    - .dictconfig()  → OmegaConf.DictConfig
+    - .yaml()        → YAML string
     """
-    logger = logging.getLogger(__name__)
-    logger.info("Top-Level Keys: %s", cfg.keys())
 
-    # Check if the input is an OmegaConf DictConfig
-    if isinstance(cfg, DictConfig):
-        # Convert to a regular dictionary with resolved values
-        dict_cfg = OmegaConf.to_container(cfg, resolve=True)
+    class Config:
+        extra = "forbid"
 
-        # Convert to formatted JSON string
-        formatted_config = json.dumps(dict_cfg, indent=indent, default=str)
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        # allow `Config(DictConfig)` or `Config(dict)` as shorthand for .from_dictconfig(...)
+        if len(args) == 1 and not kwargs and isinstance(args[0], (DictConfig, dict)):
+            raw = args[0]
+            data = OmegaConf.to_container(raw, resolve=True) if isinstance(raw, DictConfig) else dict(raw)
+            try:
+                super().__init__(**data)
+            except ValidationError:
+                # re-raise so traceback points here
+                raise
+        else:
+            # normal BaseModel __init__(**kwargs)
+            super().__init__(*args, **kwargs)
 
-        # Log the formatted config
-        logger.info("Configuration:\n%s", formatted_config)
-    else:
-        # If not an OmegaConf object, try to handle it anyway
-        try:
-            formatted_config = json.dumps(cfg, indent=indent, default=str)
-            logger.info("Configuration (non-OmegaConf):\n%s", formatted_config)
-        except Exception as e:
-            logger.error("Unable to format config of type %s: %s", type(cfg), e)
-            logger.info("Raw config: %s", cfg)
+    @classmethod
+    def from_dictconfig(cls: Type[T], cfg: Union[DictConfig, dict]) -> T:
+        """
+        Explicit constructor from a DictConfig or plain dict.
+        """
+        raw = cfg
+        data = OmegaConf.to_container(raw, resolve=True) if isinstance(raw, DictConfig) else dict(raw)
+        return cls.parse_obj(data)
 
+    def dictconfig(self) -> DictConfig:
+        """
+        Convert this model back to an OmegaConf DictConfig.
+        """
+        return OmegaConf.create(self.dict())
 
-def dictconfig_to_dataclass(
-    cls: Type[D],
-    config: DictConfig | dict,
-    *,
-    allow_extra_keys: bool = False,
-) -> D:
-    """
-    Convert a Hydra DictConfig (or plain dict) into a fully‑typed dataclass
-    `cls`, applying any preprocessing hooks encountered during the build,
-    then validate it.
-
-    Args:
-        cls: The dataclass type to convert to
-        config: A DictConfig or dict to convert
-        allow_extra_keys: If True, ignore extra fields in the config not present in the dataclass
-
-    Returns:
-        An instance of the dataclass with properly converted types
-    """
-    # Convert DictConfig to dict if needed
-    data = OmegaConf.to_container(config, resolve=True) if isinstance(config, DictConfig) else config
-    data = data or {}
-
-    # Build and validate the dataclass
-    obj = _build_dataclass(cls, data, cls.__name__, allow_extra=allow_extra_keys)
-    validate_dataclass(obj, cls)
-    return obj
-
-
-def propagate_cfg(
-    parent: Mapping[str, object],
-    children: MutableMapping[str, Mapping[str, object]] | list[Mapping[str, object]],
-    cls: Type,
-) -> None:
-    """
-    Copy every field that belongs to `cls` from `parent` into each element
-    of *children* **unless the child already set a non‑None value**.
-
-    Pre‑condition: this is called on raw (OmegaConf‑compatible) dicts,
-    *before* they're turned into dataclass instances.
-    """
-    # the fields we're allowed to propagate
-    shared = {f.name for f in fields(cls)}
-
-    # normalize children into an iterable of mutable mappings
-    if isinstance(children, Mapping):  # Dict[str, child]
-        it = children.values()
-    else:  # List[child]
-        it = children
-
-    for child in it:
-        for key in shared:
-            if key not in parent:  # nothing to propagate
-                continue
-            # child already set an explicit value → leave it alone
-            if key in child and child[key] is not None:
-                continue
-            # otherwise inject the parent's value
-            child[key] = parent[key]
+    def yaml(self) -> str:
+        """
+        Render this model as a YAML string.
+        """
+        return OmegaConf.to_yaml(self.dictconfig())
 
 
 # ---------------------------------------------------------------------------
