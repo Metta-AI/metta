@@ -12,6 +12,7 @@ class Linear(ParamLayer):
 
     def _make_net(self):
         self._out_tensor_shape = [self._nn_params.out_features]
+        assert len(self._in_tensor_shape) == 1, "_input_tensor_shape for Linear should be 1d (ignoring batch dimension)"
         return nn.Linear(
             self._in_tensor_shape[0],
             **self._nn_params
@@ -51,12 +52,7 @@ class Embedding(LayerBase):
             with torch.no_grad():
                 max_abs_value = torch.max(torch.abs(net.weight))
                 net.weight.mul_(weight_limit / max_abs_value)
-        elif self.initialization.lower() == 'max_1':
-            nn.init.uniform_(net.weight, a=-1, b=1)
-        elif self.initialization.lower() == 'max_0_1':
-            nn.init.uniform_(net.weight, a=-1, b=1)
-        elif self.initialization.lower() == 'max_0_01':
-            nn.init.uniform_(net.weight, a=-0.01, b=0.01)
+                
         return net
 
 class Conv2d(ParamLayer):
