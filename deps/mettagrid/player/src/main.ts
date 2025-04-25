@@ -81,6 +81,9 @@ const PANEL_BOTTOM_MARGIN = 60;    // bottom margin for panels
 // Map constants.
 const TILE_SIZE = 200;
 
+// Agent defaults.
+const DEFAULT_VISION_SIZE = 11;
+
 let drawer: Drawer;
 
 // Flag to prevent multiple calls to requestAnimationFrame
@@ -111,24 +114,10 @@ const infoPanel = new PanelInfo("info");
 // Get the modal element
 const modal = document.getElementById('modal');
 
-// Constants
-const AGENT_STYLES = {
-  "body": 4,
-  "eyes": 4,
-  "horns": 4,
-  "hair": 4,
-  "mouth": 4,
-}
-
-const INVENTORY = [
-  "armor",
-  "battery",
-  "blueprint",
-  "heart",
-  "laser",
-  "ore.blue",
-  "ore.green",
-  "ore.red",
+const COLORS: [string, [number, number, number, number]][] = [
+  ["red", [1, 0, 0, 1]],
+  ["green", [0, 1, 0, 1]],
+  ["blue", [0, 0, 1, 1]],
 ]
 
 // Interaction state.
@@ -220,10 +209,9 @@ function onMouseDown() {
     if (isDoubleClick && mapPanel.inside(mousePos) && selectedGridObject !== null) {
       // Toggle followSelection on double-click
       followSelection = !followSelection;
-
       if (followSelection) {
         // Set the zoom level to 1 as requested when following
-        mapPanel.zoomLevel = 1;
+        mapPanel.zoomLevel = 1/2;
       }
     }
   }
@@ -359,6 +347,16 @@ function expandSequence(sequence: any[], numSteps: number): any[] {
   return expanded;
 }
 
+// Remove a prefix from a string.
+function removePrefix(str: string, prefix: string) {
+  return str.startsWith(prefix) ? str.slice(prefix.length) : str;
+}
+
+// Remove a suffix from a string.
+function removeSuffix(str: string, suffix: string) {
+  return str.endsWith(suffix) ? str.slice(0, -suffix.length) : str;
+}
+
 // Load the replay text.
 async function loadReplayText(replayData: any) {
   replay = JSON.parse(replayData);
@@ -398,10 +396,68 @@ async function loadReplayText(replayData: any) {
     }
   }
 
-  // Create all image mappings for faster access.
+  // Create action image mappings for faster access.
   replay.action_images = [];
   for (const actionName of replay.action_names) {
     replay.action_images.push("trace/" + actionName + ".png");
+  }
+
+  // Create a list of all keys objects can have.
+  replay.all_keys = new Set();
+  for (const gridObject of replay.grid_objects) {
+    for (const key in gridObject) {
+      replay.all_keys.add(key);
+    }
+  }
+
+  // Create object image mapping for faster access.
+  // Example: 3 -> ["objects/altar.png", "objects/altar.empty.png"]
+  // Example: 1 -> ["objects/wall.png", "objects/wall.png"]
+  replay.object_images = []
+  for (let i = 0; i < replay.object_types.length; i++) {
+    const typeName = replay.object_types[i];
+    var image = "objects/" + typeName + ".png";
+    if (!drawer.hasImage(image)) {
+      image = "objects/unknown.png";
+    }
+    var imageEmpty = "objects/" + typeName + ".empty.png";
+    if (!drawer.hasImage(imageEmpty)) {
+      imageEmpty = image;
+    }
+    replay.object_images.push([image, imageEmpty]);
+  }
+
+  // Create resource inventory mapping for faster access.
+  // Example: "inv:heart" -> ["resources/heart.png", [1, 1, 1, 1]]
+  // Example: "inv:ore.red" -> ["resources/ore.red.png", [1, 1, 1, 1]]
+  // Example: "agent:inv:heart.blue" -> ["resources/heart.png", [0, 0, 1, 1]]
+  // Example: "inv:cat_food.red" -> ["resources/unknown.png", [1, 0, 0, 1]]
+  replay.resource_inventory = new Map();
+  for (const key of replay.all_keys) {
+    if (key.startsWith("inv:") || key.startsWith("agent:inv:")) {
+      var image: string = key;
+      image = removePrefix(image, "inv:")
+      image = removePrefix(image, "agent:inv:");
+      var color = [1, 1, 1, 1]; // Default to white.
+      for (const [colorName, colorValue] of COLORS) {
+        if (image.endsWith(colorName)) {
+          if(drawer.hasImage("resources/" + image + ".png")) {
+            // Use the resource.color.png with white color.
+            break;
+          } else {
+            // Use the resource.png with specific color.
+            image = removeSuffix(image, "." + colorName);
+            color = colorValue as number[];
+            if (!drawer.hasImage("resources/" + image + ".png")) {
+              // Use the unknown.png with specific color.
+              image = "unknown";
+            }
+          }
+        }
+      }
+      image = "resources/" + image + ".png";
+      replay.resource_inventory.set(key, [image, color]);
+    }
   }
 
   console.log("post replay: ", replay);
@@ -455,13 +511,13 @@ function onKeyDown(event: KeyboardEvent) {
 }
 
 // Gets an attribute from a grid object respecting the current step.
-function getAttr(obj: any, attr: string, atStep = -1): any {
+function getAttr(obj: any, attr: string, atStep = -1, defaultValue = 0): any {
   if (atStep == -1) {
     // When step is not defined, use global step.
     atStep = step;
   }
   if (obj[attr] === undefined) {
-    return 0;
+    return defaultValue;
   } else if (obj[attr] instanceof Array) {
     return obj[attr][atStep];
   } else {
@@ -479,6 +535,16 @@ function colorFromId(agentId: number) {
     n * Math.SQRT2 % 1.0,
     1.0
   ]
+}
+
+// Checks to see of object has any inventory.
+function hasInventory(obj: any) {
+  for (const [key, [icon, color]] of replay.resource_inventory) {
+    if (getAttr(obj, key) > 0) {
+      return true;
+    }
+  }
+  return false;
 }
 
 // Make the panel focus on the full map, used at the start of the replay.
@@ -509,9 +575,50 @@ function focusMapOn(panel: PanelInfo, x: number, y: number) {
 
 // Draw the tiles that make up the floor.
 function drawFloor(mapSize: [number, number]) {
+
+  // Compute the visibility map, each agent contributes to the visibility map.
+  const visibilityMap = new Grid(mapSize[0], mapSize[1]);
+
+  // Update the visibility map for a grid object.
+  function updateVisibilityMap(gridObject: any) {
+    const x = getAttr(gridObject, "c");
+    const y = getAttr(gridObject, "r");
+    var visionSize = Math.floor(getAttr(
+      gridObject,
+      "agent:vision_size",
+      step,
+      DEFAULT_VISION_SIZE
+    ) / 2);
+    for (let dx = -visionSize; dx <= visionSize; dx++) {
+      for (let dy = -visionSize; dy <= visionSize; dy++) {
+        visibilityMap.set(
+          x +dx,
+          y + dy,
+          true
+        );
+      }
+    }
+  }
+
+  if (selectedGridObject !== null && selectedGridObject.agent_id !== undefined) {
+    // When there is a selected grid object only update its visibility.
+    updateVisibilityMap(selectedGridObject);
+  } else {
+    // When there is no selected grid object update the visibility map for all agents.
+    for (const gridObject of replay.grid_objects) {
+      const type = gridObject.type;
+      const typeName = replay.object_types[type];
+      if (typeName == "agent") {
+        updateVisibilityMap(gridObject);
+      }
+    }
+  }
+
+  // Draw the floor, darker where there is no visibility.
   for (let x = 0; x < mapSize[0]; x++) {
     for (let y = 0; y < mapSize[1]; y++) {
-      drawer.drawSprite('objects/floor.png', x * TILE_SIZE, y * TILE_SIZE);
+      const color = visibilityMap.get(x, y) ? [1, 1, 1, 1] : [0.75, 0.75, 0.75, 1];
+      drawer.drawSprite('objects/floor.png', x * TILE_SIZE, y * TILE_SIZE, color);
     }
   }
 }
@@ -581,7 +688,11 @@ function drawWalls(replay: any) {
       se = true;
     }
     if (e && s && se) {
-      drawer.drawSprite('objects/wall.fill.png', x * TILE_SIZE + TILE_SIZE / 2, y * TILE_SIZE + TILE_SIZE / 2);
+      drawer.drawSprite(
+        'objects/wall.fill.png',
+        x * TILE_SIZE + TILE_SIZE / 2,
+        y * TILE_SIZE + TILE_SIZE / 2 - 50
+      );
     }
   }
 }
@@ -589,8 +700,8 @@ function drawWalls(replay: any) {
 // Draw all objects on the map (that are not walls).
 function drawObjects(replay: any) {
   for (const gridObject of replay.grid_objects) {
-    const type = gridObject.type;
-    const typeName = replay.object_types[type]
+    const type: number = gridObject.type;
+    const typeName: string = replay.object_types[type];
     if (typeName === "wall") {
       // Walls are drawn in a different way.
       continue;
@@ -621,22 +732,33 @@ function drawObjects(replay: any) {
         colorFromId(agent_id)
       );
     } else {
-      // Draw other objects.
-      drawer.drawSprite(
-        "objects/" + typeName + ".png",
-        x * TILE_SIZE,
-        y * TILE_SIZE
-      );
+      // Draw regular objects.
+      if (hasInventory(gridObject)) {
+        // object.png
+        drawer.drawSprite(
+          replay.object_images[type][0],
+          x * TILE_SIZE,
+          y * TILE_SIZE
+        );
+      } else {
+        // object.empty.png
+        drawer.drawSprite(
+          replay.object_images[type][1],
+          x * TILE_SIZE,
+          y * TILE_SIZE
+        );
+      }
     }
   }
+}
 
+function drawActions(replay: any) {
   // Draw actions above the objects.
   for (const gridObject of replay.grid_objects) {
-    const type = gridObject.type;
-    const typeName = replay.object_types[type]
     const x = getAttr(gridObject, "c")
     const y = getAttr(gridObject, "r")
 
+    // Do agent actions.
     if (gridObject["action"] !== undefined) {
       // Draw the action:
       const action = getAttr(gridObject, "action");
@@ -694,40 +816,63 @@ function drawObjects(replay: any) {
         );
       }
     }
-  }
 
+    // Do building actions.
+    if (getAttr(gridObject, "converting") > 0) {
+      drawer.drawSprite(
+        "actions/converting.png",
+        x * TILE_SIZE,
+        y * TILE_SIZE - 100,
+        [1, 1, 1, 1],
+      );
+    }
+
+    // Do states
+    if (getAttr(gridObject, "agent:frozen") > 0) {
+      drawer.drawSprite(
+        "agents/frozen.png",
+        x * TILE_SIZE,
+        y * TILE_SIZE,
+      );
+    }
+  }
+}
+
+function drawInventory(replay: any) {
   // Draw the object's inventory.
   for (const gridObject of replay.grid_objects) {
-    const type = gridObject.type;
-    const typeName = replay.object_types[type]
     const x = getAttr(gridObject, "c")
     const y = getAttr(gridObject, "r")
 
-    // Draw the agent's inventory.
+    // Sum up the objects inventory, in case we need to condense it.
     let inventoryX = 0;
     let numItems = 0;
-    for (const item of INVENTORY) {
-      const num = getAttr(gridObject, "agent:inv:" + item);
+    for (const [key, [icon, color]] of replay.resource_inventory) {
+      const num = getAttr(gridObject, key);
       numItems += num;
     }
+    // Draw the actual inventory icons.
     let advanceX = Math.min(32, TILE_SIZE / numItems);
-    for (const item of INVENTORY) {
-      const num = getAttr(gridObject, "agent:inv:" + item);
+    for (const [key, [icon, color]] of replay.resource_inventory) {
+      const num = getAttr(gridObject, key);
       for (let i = 0; i < num; i++) {
-        drawer.save()
-        drawer.translate(x * TILE_SIZE + inventoryX - TILE_SIZE/2, y * TILE_SIZE - TILE_SIZE/2 + 16);
-        drawer.scale(1/8, 1/8);
-        drawer.drawSprite("resources/" + item + ".png", 0, 0);
-        drawer.restore()
+        drawer.drawSprite(
+          icon,
+          x * TILE_SIZE + inventoryX - TILE_SIZE/2,
+          y * TILE_SIZE - TILE_SIZE/2 + 16,
+          color,
+          1/8,
+          0
+        );
         inventoryX += advanceX;
       }
     }
   }
+}
 
+function drawRewards(replay: any) {
   // Draw the reward on the bottom of the object.
   for (const gridObject of replay.grid_objects) {
-    const type = gridObject.type;
-    const typeName = replay.object_types[type]
     const x = getAttr(gridObject, "c")
     const y = getAttr(gridObject, "r")
     if (gridObject["total_reward"] !== undefined) {
@@ -746,7 +891,7 @@ function drawObjects(replay: any) {
   }
 }
 
-function drawSelection(selectedObject: any | null, step: number) {
+function drawSelection(selectedObject: any | null) {
   if (selectedObject === null) {
     return;
   }
@@ -772,11 +917,19 @@ function drawSelection(selectedObject: any | null, step: number) {
           if (step >= i) {
             // Past trajectory is black.
             color = [0, 0, 0, a];
-            image = "agents/footprints.png";
+            if (selectedObject.agent_id !== undefined) {
+              image = "agents/footprints.png";
+            } else {
+              image = "agents/past_arrow.png";
+            }
           } else {
             // Future trajectory is white.
             color = [a, a, a, a];
-            image = "agents/path.png";
+            if (selectedObject.agent_id !== undefined) {
+              image = "agents/path.png";
+            } else {
+              image = "agents/future_arrow.png";
+            }
           }
 
           if (cx1 > cx0) { // east
@@ -840,8 +993,11 @@ function drawMap(panel: PanelInfo) {
 
   drawFloor(replay.map_size);
   drawWalls(replay);
-  drawSelection(selectedGridObject, step);
   drawObjects(replay);
+  drawSelection(selectedGridObject);
+  drawActions(replay);
+  drawInventory(replay);
+  drawRewards(replay);
 
   drawer.restore();
 }
@@ -934,23 +1090,9 @@ function drawTrace(panel: PanelInfo) {
         drawer.restore()
       }
     }
-
   }
 
   drawer.restore();
-}
-
-// Helper function to convert hex color to RGBA array
-function hexToRgba(hex: string): number[] {
-  // Remove the # if present
-  hex = hex.replace('#', '');
-
-  // Parse the hex values
-  const r = parseInt(hex.substring(0, 2), 16) / 255;
-  const g = parseInt(hex.substring(2, 4), 16) / 255;
-  const b = parseInt(hex.substring(4, 6), 16) / 255;
-
-  return [r, g, b, 1.0]; // Full opacity
 }
 
 // Updates the readout of the selected object or replay info.
@@ -1024,7 +1166,6 @@ function onFrame() {
 
   if (isPlaying) {
     partialStep += playbackSpeed;
-    console.log("partialStep: ", partialStep);
     if (partialStep >= 1) {
       step = (step + Math.floor(partialStep)) % replay.max_steps;
       partialStep -= Math.floor(partialStep);
