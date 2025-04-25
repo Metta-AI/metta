@@ -25,7 +25,7 @@ install_repo() {
 
         cd $repo_name
         echo "Repository content for $repo_name"
-        ls -a -L 2
+        ls -al
         cd ..
 
         echo "Moving existing repository to cache_$repo_name"
@@ -68,7 +68,7 @@ install_repo() {
     fi
 
     echo "Repository content for $repo_name"
-    ls -a -L 2
+    ls -al
         
     # Check for build files
     echo "Checking for package files in $repo_name:"
