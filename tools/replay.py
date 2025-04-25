@@ -28,7 +28,7 @@ def main(cfg):
         replay_job = ReplayJob(cfg.replay_job)
         policy_record = policy_store.policy(replay_job.policy_uri)
         replay_helper = ReplayHelper(replay_job.sim, policy_record, wandb_run)
-        epoch = policy_record.metadata["epoch"]
+        epoch = policy_record.metadata.get("epoch", 0)
         replay_helper.generate_and_upload_replay(
             epoch,
             cfg.run_dir,

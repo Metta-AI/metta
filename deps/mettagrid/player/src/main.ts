@@ -114,15 +114,10 @@ const infoPanel = new PanelInfo("info");
 // Get the modal element
 const modal = document.getElementById('modal');
 
-// Constants
-const AGENT_STYLES = {
-  "body": 4,
-  "eyes": 4,
-  "horns": 4,
-  "hair": 4,
-  "mouth": 4,
-}
-
+// Current inventory icons supported by the player.
+// It maps inventory states to icon names.
+// If you add new inventory states, you need to also add new icon resources to
+// the resources folder.
 const INVENTORY = [
   // Agent inventory.
   ["agent:inv:armor", "resources/armor.png"],
