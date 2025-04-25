@@ -4,6 +4,7 @@ import signal  # Aggressively exit on ctrl+c
 import sys
 
 import hydra
+from rich.logging import RichHandler
 
 import metta.sim.simulator
 from metta.agent.policy_store import PolicyStore
