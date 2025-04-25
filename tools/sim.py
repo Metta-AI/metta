@@ -1,23 +1,21 @@
 """Simulation tools for evaluating policies in the Metta environment."""
 
 import logging
-from dataclasses import dataclass
 from typing import List
 
 import hydra
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
 from metta.agent.policy_store import PolicyStore
 from metta.sim.eval_stats_logger import EvalStatsLogger
 from metta.sim.simulation import SimulationSuite
 from metta.sim.simulation_config import SimulationSuiteConfig
-from metta.util.config import dictconfig_to_dataclass, pretty_print_config
+from metta.util.config import Config
 from metta.util.runtime_configuration import setup_mettagrid_environment
 from metta.util.wandb.wandb_context import WandbContext
 
 
-@dataclass
-class SimJob:
+class SimJob(Config):
     simulation_suite: SimulationSuiteConfig
     policy_uris: List[str]
     selector_type: str = "latest"
@@ -41,8 +39,9 @@ def simulate_policy(sim_job: SimJob, policy_uri: str, cfg: DictConfig, wandb_run
 @hydra.main(version_base=None, config_path="../configs", config_name="sim_job")
 def main(cfg: DictConfig):
     setup_mettagrid_environment(cfg)
-    pretty_print_config(cfg)
-    sim_job = dictconfig_to_dataclass(SimJob, cfg.sim_job)
+    logger = logging.getLogger("metta.tools.sim")
+    logger.info(f"Sim job config: {OmegaConf.to_yaml(cfg, resolve=True)}")
+    sim_job = SimJob(cfg.sim_job)
     assert isinstance(sim_job, SimJob)
     with WandbContext(cfg) as wandb_run:
         for policy_uri in sim_job.policy_uris:
