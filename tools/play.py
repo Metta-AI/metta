@@ -8,6 +8,7 @@ import hydra
 import metta.sim.simulator
 from metta.agent.policy_store import PolicyStore
 from metta.sim.simulation_config import SimulationConfig
+from metta.util.config import Config
 from metta.util.runtime_configuration import setup_mettagrid_environment
 from metta.util.wandb.wandb_context import WandbContext
 
@@ -18,7 +19,7 @@ logging.basicConfig(level="INFO")
 logger = logging.getLogger(__name__)
 
 
-class PlayJob:
+class PlayJob(Config):
     sim: SimulationConfig
     policy_uri: str
 
