@@ -7,11 +7,13 @@ from torch.distributions.utils import logits_to_probs
 def log_prob(logits, value):
     """
     Compute log probability of a value given logits.
+
     Args:
-    logits: Unnormalized log probabilities
-    value: The value to compute probability for
+        logits: Unnormalized log probabilities
+        value: The value to compute probability for
+
     Returns:
-    Log probability of the value
+        Log probability of the value
     """
     # Convert value to long type (integer) and add an extra dimension at the end
     # Example: [1, 2] -> [[1], [2]]
@@ -41,10 +43,12 @@ def log_prob(logits, value):
 def entropy(logits):
     """
     Compute entropy of a categorical distribution given logits.
+
     Args:
-    logits: Unnormalized log probabilities
+        logits: Unnormalized log probabilities
+
     Returns:
-    Entropy of the distribution
+        Entropy of the distribution
     """
     # Get the minimum representable value for the data type (to prevent -inf values)
     min_real = torch.finfo(logits.dtype).min
@@ -71,11 +75,13 @@ def entropy(logits):
 def sample_logits(logits: Union[torch.Tensor, List[torch.Tensor]], action=None, verbose=False):
     """
     Sample actions from logits and compute log probabilities and entropy.
+
     Args:
-    logits: Unnormalized log probabilities, either a single tensor or a list of tensors
-    action: Optional pre-specified actions to compute probabilities for
+        logits: Unnormalized log probabilities, either a single tensor or a list of tensors
+        action: Optional pre-specified actions to compute probabilities for
+
     Returns:
-    Tuple of (action, log_probability, entropy, normalized_logits)
+        Tuple of (action, log_probability, entropy, normalized_logits)
     """
     # Normalize each logits tensor by subtracting the logsumexp (log of sum of exponentials)
     # This converts raw logits to log probabilities (normalization in log space)
