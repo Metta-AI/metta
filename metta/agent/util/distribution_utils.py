@@ -142,3 +142,83 @@ def sample_logits(logits: Union[torch.Tensor, List[torch.Tensor]], action=None, 
     # 3. Entropies (which use a non-standard entropy formula)
     # 4. Normalized logits (the log probabilities for each logits tensor)
     return action.T, logprob, logits_entropy, normalized_logits
+
+
+def faster_sample_logits(logits: Union[torch.Tensor, List[torch.Tensor]], action=None, verbose=False):
+    """
+    Sample actions from logits and compute log probabilities and entropy.
+    Optimized for speed.
+
+    Args:
+    logits: Unnormalized log probabilities, either a single tensor or a list of tensors
+    action: Optional pre-specified actions to compute probabilities for
+    Returns:
+    Tuple of (action, log_probability, entropy, normalized_logits)
+    """
+    # Convert single tensor to list for consistent handling
+    if isinstance(logits, torch.Tensor):
+        logits = [logits]
+
+    # Fast normalization - subtract logsumexp once per logit tensor
+    normalized_logits = []
+    for logit in logits:
+        # In-place subtraction when possible is faster
+        normalized_logit = logit - logit.logsumexp(dim=-1, keepdim=True)
+        normalized_logits.append(normalized_logit)
+
+    batch_size = normalized_logits[0].shape[0]
+    num_logits = len(normalized_logits)
+
+    if action is None:
+        # Pre-allocate action tensor with correct shape
+        device = normalized_logits[0].device
+        action = torch.empty((batch_size, num_logits), dtype=torch.long, device=device)
+
+        # Debug output if requested
+        if verbose:
+            print(f"logits has len {num_logits}")
+            lgt = logits[0]
+            print(f"logits[0] {lgt}, has shape {lgt.shape}")
+            # Faster exp calculation directly on normalized logits
+            lgt_prob = torch.exp(normalized_logits[0])
+            print(f"logits_to_probs(logit): {lgt_prob}")
+
+        # Faster sampling directly into pre-allocated tensor
+        for i, logit in enumerate(normalized_logits):
+            # Direct exp is faster than calling separate function
+            probs = torch.exp(logit)
+            # Directly sample and place in pre-allocated tensor
+            action[:, i] = torch.multinomial(probs, 1).flatten()
+
+        if verbose:
+            print(f"action has shape {action.shape}")
+    else:
+        # Fast reshape of provided action if needed
+        if action.dim() == 1:
+            if len(logits) == 1:
+                # Single logit case
+                action = action.view(batch_size, 1)
+            else:
+                # Multiple logits case
+                action = action.view(batch_size, -1)
+
+    # Fast computation of log probabilities and entropy
+    # Pre-allocate tensors
+    logprob = torch.zeros(batch_size, device=normalized_logits[0].device)
+    logits_entropy = torch.zeros(batch_size, device=normalized_logits[0].device)
+
+    # Loop with direct computations instead of function calls
+    for i, logit in enumerate(normalized_logits):
+        # Extract actions for this logit
+        act_i = action[:, i].unsqueeze(-1)
+
+        # Directly gather log probs - faster than separate function
+        logprob_i = torch.gather(logit, -1, act_i).squeeze(-1)
+        logprob.add_(logprob_i)  # In-place addition is faster
+
+        # Direct entropy calculation - faster than separate function
+        probs = torch.exp(logit)
+        entropy_i = -torch.sum(probs * logit, dim=-1)
+        logits_entropy.add_(entropy_i)  # In-place addition is faster
+
+    return action, logprob, logits_entropy, normalized_logits
