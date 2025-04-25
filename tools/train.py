@@ -1,22 +1,33 @@
+import logging
 import os
-import signal  # Aggressively exit on ctrl+c
 import sys
 
 import hydra
 import torch.distributed as dist
 from omegaconf import OmegaConf
+from rich.logging import RichHandler
 from torch.distributed.elastic.multiprocessing.errors import record
 
 from metta.agent.policy_store import PolicyStore
-from metta.util.config import setup_metta_environment
-from metta.util.logging import rich_logger
+from metta.sim.simulation_config import SimulationSuiteConfig
+from metta.util.config import Config, setup_metta_environment
 from metta.util.runtime_configuration import setup_mettagrid_environment
 from metta.util.wandb.wandb_context import WandbContext
 
-signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
+# Configure rich colored logging
+logging.basicConfig(
+    level="INFO", format="%(processName)s %(message)s", datefmt="[%X]", handlers=[RichHandler(rich_tracebacks=True)]
+)
+
+logger = logging.getLogger("train")
 
 
-def train_with_cfg(logger, cfg, wandb_run):
+# TODO: populate this more
+class TrainJob(Config):
+    evals: SimulationSuiteConfig
+
+
+def train(cfg, wandb_run):
     overrides_path = os.path.join(cfg.run_dir, "train_config_overrides.yaml")
     if os.path.exists(overrides_path):
         logger.info(f"Loading train config overrides from {overrides_path}")
@@ -32,21 +43,21 @@ def train_with_cfg(logger, cfg, wandb_run):
         with open(os.path.join(cfg.run_dir, "config.yaml"), "w") as f:
             OmegaConf.save(cfg, f)
 
+    train_job = TrainJob(cfg.train_job)
+
     policy_store = PolicyStore(cfg, wandb_run)
-    trainer = hydra.utils.instantiate(cfg.trainer, cfg, wandb_run, policy_store)
+    trainer = hydra.utils.instantiate(cfg.trainer, cfg, wandb_run, policy_store, train_job.evals)
     trainer.train()
     trainer.close()
 
 
 @record
-@hydra.main(config_path="../configs", config_name="train", version_base=None)
-def train(cfg: OmegaConf) -> int:
-    logger = rich_logger(__name__)
-
+@hydra.main(config_path="../configs", config_name="train_job", version_base=None)
+def main(cfg: OmegaConf) -> int:
     setup_metta_environment(cfg)
     setup_mettagrid_environment(cfg)
+    logger.info(f"Train job config: {OmegaConf.to_yaml(cfg, resolve=True)}")
 
-    print("trainer started....")
     logger.info(
         f"Training {cfg.run} on "
         + f"{os.environ.get('NODE_INDEX', '0')}: "
@@ -62,13 +73,13 @@ def train(cfg: OmegaConf) -> int:
     logger.info(f"Training {cfg.run} on {cfg.device}")
     if os.environ.get("RANK", "0") == "0":
         with WandbContext(cfg, job_type="train") as wandb_run:
-            train_with_cfg(logger, cfg, wandb_run)
+            train(cfg, wandb_run)
     else:
-        train_with_cfg(logger, cfg, None)
+        train(cfg, None)
 
     if dist.is_initialized():
         dist.destroy_process_group()
 
 
 if __name__ == "__main__":
-    sys.exit(train())
+    sys.exit(main())
