@@ -114,29 +114,10 @@ const infoPanel = new PanelInfo("info");
 // Get the modal element
 const modal = document.getElementById('modal');
 
-// Current inventory icons supported by the player.
-// It maps inventory states to icon names.
-// If you add new inventory states, you need to also add new icon resources to
-// the resources folder.
-const INVENTORY = [
-  // Agent inventory.
-  ["agent:inv:armor", "resources/armor.png"],
-  ["agent:inv:battery", "resources/battery.png"],
-  ["agent:inv:blueprint", "resources/blueprint.png"],
-  ["agent:inv:heart", "resources/heart.png"],
-  ["agent:inv:laser", "resources/laser.png"],
-  ["agent:inv:ore.blue", "resources/ore.blue.png"],
-  ["agent:inv:ore.green", "resources/ore.green.png"],
-  ["agent:inv:ore.red", "resources/ore.red.png"],
-  // Building inventory.
-  ["inv:ore.red", "resources/ore.red.png"],
-  ["inv:ore.blue", "resources/ore.blue.png"],
-  ["inv:ore.green", "resources/ore.green.png"],
-  ["inv:battery", "resources/battery.png"],
-  ["inv:heart", "resources/heart.png"],
-  ["inv:armor", "resources/armor.png"],
-  ["inv:laser", "resources/laser.png"],
-  ["inv:blueprint", "resources/blueprint.png"]
+const COLORS = [
+  ["red", [1, 0, 0, 1]],
+  ["green", [0, 1, 0, 1]],
+  ["blue", [0, 0, 1, 1]],
 ]
 
 // Interaction state.
@@ -367,6 +348,16 @@ function expandSequence(sequence: any[], numSteps: number): any[] {
   return expanded;
 }
 
+// Remove a prefix from a string.
+function removePrefix(str: string, prefix: string) {
+  return str.startsWith(prefix) ? str.slice(prefix.length) : str;
+}
+
+// Remove a suffix from a string.
+function removeSuffix(str: string, suffix: string) {
+  return str.endsWith(suffix) ? str.slice(0, -suffix.length) : str;
+}
+
 // Load the replay text.
 async function loadReplayText(replayData: any) {
   replay = JSON.parse(replayData);
@@ -406,10 +397,51 @@ async function loadReplayText(replayData: any) {
     }
   }
 
-  // Create all image mappings for faster access.
+  // Create action image mappings for faster access.
   replay.action_images = [];
   for (const actionName of replay.action_names) {
     replay.action_images.push("trace/" + actionName + ".png");
+  }
+
+  // Create a list of all keys objects can have.
+  replay.all_keys = new Set();
+  for (const gridObject of replay.grid_objects) {
+    for (const key in gridObject) {
+      replay.all_keys.add(key);
+    }
+  }
+
+  // Create resource inventory mapping for faster access.
+  // Example: "inv:heart" -> ["resources/heart.png", [1, 1, 1, 1]]
+  // Example: "inv:ore.red" -> ["resources/ore.red.png", [1, 1, 1, 1]]
+  // Example: "agent:inv:heart.blue" -> ["resources/heart.png", [0, 0, 1, 1]]
+  // Example: "inv:cat_food.red" -> ["resources/unknown.png", [1, 0, 0, 1]]
+  replay.resource_inventory = new Map();
+  for (const key of replay.all_keys) {
+    if (key.startsWith("inv:") || key.startsWith("agent:inv:")) {
+      var image = key
+      image = removePrefix(image, "inv:")
+      image = removePrefix(image, "agent:inv:");
+      var color = [1, 1, 1, 1]; // Default to white.
+      for (const [colorName, colorValue] of COLORS) {
+        if (image.endsWith(colorName)) {
+          if(drawer.hasImage("resources/" + image + ".png")) {
+            // Use the resource.color.png with white color.
+            break;
+          } else {
+            // Use the resource.png with specific color.
+            image = removeSuffix(image, "." + colorName);
+            color = colorValue as number[];
+            if (!drawer.hasImage("resources/" + image + ".png")) {
+              // Use the unknown.png with specific color.
+              image = "unknown";
+            }
+          }
+        }
+      }
+      image = "resources/" + image + ".png";
+      replay.resource_inventory.set(key, [image, color]);
+    }
   }
 
   console.log("post replay: ", replay);
@@ -791,22 +823,26 @@ function drawInventory(replay: any) {
     const x = getAttr(gridObject, "c")
     const y = getAttr(gridObject, "r")
 
-    // Draw the agent's inventory.
+    // Sum up the objects inventory, in case we need to condense it.
     let inventoryX = 0;
     let numItems = 0;
-    for (const [key, icon] of INVENTORY) {
+    for (const [key, [icon, color]] of replay.resource_inventory) {
       const num = getAttr(gridObject, key);
       numItems += num;
     }
+    // Draw the actual inventory icons.
     let advanceX = Math.min(32, TILE_SIZE / numItems);
-    for (const [key, icon] of INVENTORY) {
+    for (const [key, [icon, color]] of replay.resource_inventory) {
       const num = getAttr(gridObject, key);
       for (let i = 0; i < num; i++) {
-        drawer.save()
-        drawer.translate(x * TILE_SIZE + inventoryX - TILE_SIZE/2, y * TILE_SIZE - TILE_SIZE/2 + 16);
-        drawer.scale(1/8, 1/8);
-        drawer.drawSprite(icon, 0, 0);
-        drawer.restore()
+        drawer.drawSprite(
+          icon,
+          x * TILE_SIZE + inventoryX - TILE_SIZE/2,
+          y * TILE_SIZE - TILE_SIZE/2 + 16,
+          color,
+          1/8,
+          0
+        );
         inventoryX += advanceX;
       }
     }
