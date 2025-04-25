@@ -58,8 +58,7 @@ class WandbContext:
         self.wandb_host = "api.wandb.ai"
         self.wandb_port = 443
 
-        if not check_wandb_version():
-            logger.warning("Please upgrade wandb to >= 19")
+        check_wandb_version()
 
     def __enter__(self) -> wandb.apis.public.Run:
         if not self.cfg.wandb.enabled:
