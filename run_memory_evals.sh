@@ -26,7 +26,7 @@ POLICIES=(
     # "b.daphne.terrain_multienv_singleA_kitchensink"
     # "b.daphne.terrain_multienv_singleA_withgenerators"
     # "b.daphne.terrain_multienv_singleA_altar_resets"
-    # "b.daphne.terrain_multienv_singleA_50hearts"
+     "b.daphne.terrain_multienv_singleA_50hearts"
      "b.georgedeane.terrain_multienv_uniform"
     "b.georgedeane.terrain_multienv_fromscratch"
     # "b.daphne.terrain_multienv_kitchensinkwc"
