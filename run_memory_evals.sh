@@ -19,7 +19,7 @@ POLICIES=(
     # "b.georgedeane.terrain_multienv_labyrinth_pretrained_DR"
     # "b.daphne.terrain_multienv_april18"
     # "b.daphne.terrain_varied_cyl_lab"
-    # "b.georgedeane.terrain_multienv"
+    "b.georgedeane.terrain_multienv"
     # "b.daphne.terrain_varied_cyl_lab_pretrained"
     # "b.daphne.terrain_multienv_altar_no_resets"
     # "terrain_multienv_3_single_agent"
@@ -27,27 +27,29 @@ POLICIES=(
     # "b.daphne.terrain_multienv_singleA_withgenerators"
     # "b.daphne.terrain_multienv_singleA_altar_resets"
     # "b.daphne.terrain_multienv_singleA_50hearts"
-    # "b.daphne.terrain_multienv_singleA_50hearts_with_cylinders"
-    # "b.daphne.terrain_multienv_prioritized_singleA_50hearts"
-    # "b.georgedeane.terrain_multienv_uniform"
-    # "b.georgedeane.terrain_multienv_fromscratch"
+     "b.georgedeane.terrain_multienv_uniform"
+    "b.georgedeane.terrain_multienv_fromscratch"
     # "b.daphne.terrain_multienv_kitchensinkwc"
     # "b.daphne.terrain_multienv_prioritized_multienv_cylinders"
-    # "b.daphne.terrain_multienv_prioritized_multienv_cylinders2"
+    "b.daphne.terrain_multienv_prioritized_multienv_cylinders2"
     # "b.daphne.terrain_multienv_prioritized_george_maps"
-    # "b.georgedeane.terrain_multienv_unstable_pretrained_mb3"
+    "b.georgedeane.terrain_multienv_unstable_pretrained_mb3"
     # "b.georgedeane.terrain_multienv_homogenous_pretrained"
-    # "b.georgedeane.terrain_multienv_stable_pretrained_mb4"
+    "b.georgedeane.terrain_multienv_stable_pretrained_mb4"
     # "b.daphne.terrain_multienv_3_no_blocks3"
      "b.daphne.terrain_multienv_3_no_blocks4"
      "terrain_multienv_3_single_agent"
 	 "b.daphne.terrain_multienv_prioritized_multienv_cylinders2"
-# 	 "b.daphne.terrain_multienv_prioritized_multienv_cylinders"
-# 	 "b.daphne.terrain_varied_cyl_lab_pretrained"
-# 	 "b.georgedeane.terrain_multienv_unstable_pretrained_mb3"
-# )
+	 "b.daphne.terrain_multienv_prioritized_multienv_cylinders"
+	 "b.daphne.terrain_varied_cyl_lab_pretrained"
+	 "b.georgedeane.terrain_multienv_unstable_pretrained_mb3"
 
-
+    #  "b.georgedeane.terrain_massive_empty_world_pretrained"
+    #  "b.georgedeane.terrain_easy_world_pretrained"
+    #  "b.georgedeane.terrain_memory_world_pretrained"
+    #  "b.georgedeane.terrain_extra_hard"
+    #  "b.georgedeane.terrain_multienv_stable_pretrained_mb4"
+ )
 
 for i in "${!POLICIES[@]}"; do
     POLICY_URI=${POLICIES[$i]}
@@ -62,3 +64,4 @@ for i in "${!POLICIES[@]}"; do
         +eval_db_uri=wandb://artifacts/memory_db \
         device=cpu
 done
+
