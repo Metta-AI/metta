@@ -25,7 +25,7 @@ install_repo() {
 
         cd $repo_name
         echo "Repository content for $repo_name"
-        tree -a -L 2
+        ls -al
         cd ..
 
         echo "Moving existing repository to cache_$repo_name"
@@ -68,7 +68,7 @@ install_repo() {
     fi
 
     echo "Repository content for $repo_name"
-    tree -a -L 2
+    ls -al
         
     # Check for build files
     echo "Checking for package files in $repo_name:"
@@ -94,9 +94,8 @@ install_repo() {
 
 # Check if we're in the correct conda environment
 if [ "$CONDA_DEFAULT_ENV" != "metta" ] && [ -z "$CI" ]; then
-    echo "Error: You must be in the 'metta' conda environment to run this script."
+    echo "WARNING: You must be in the 'metta' conda environment to run this script."
     echo "Please activate the correct environment with: \"conda activate metta\""
-    exit 1
 fi
 
 echo "Upgrading pip..."

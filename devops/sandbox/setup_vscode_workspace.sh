@@ -3,11 +3,12 @@
 # ========== VS CODE INTEGRATION ==========
 echo "Creating symlinks for VS Code IntelliSense..."
 
+mkdir -p "/var/tmp/metta"
+
 # Link site-packages for IntelliSense support
 if [ -n "$CONDA_PREFIX" ]; then
   SITE_PACKAGES_PATH="$CONDA_PREFIX/lib/python3.11/site-packages"
   SYMLINK_PATH="/var/tmp/metta/conda-site-packages"
-  mkdir -p "/var/tmp/metta"
   ln -sf "$SITE_PACKAGES_PATH" "$SYMLINK_PATH"
   echo "Symlink created: $SYMLINK_PATH -> $SITE_PACKAGES_PATH"
 else
