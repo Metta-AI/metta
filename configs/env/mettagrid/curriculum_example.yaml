@@ -17,17 +17,17 @@ progress:
   last_difficulty: 0.0
 
 # # compute the ~10 episode running average 
-# filtered_mean_reward: ${iir:0.1,${.progress.mean_reward},${.progress.last_mean_reward}}
+filtered_mean_reward: ${iir:0.1,${.progress.mean_reward},${.progress.last_mean_reward}}
 
 game:
   num_agents: ${..num_agents}
 
-  difficulty_increase_threshold: 7.0
-  should_increase_difficulty: ${gt:${..progress.mean_reward},${.difficulty_increase_threshold}}
-  difficulty_increase_delta: ${if:${.should_increase_difficulty},0.5,0.0}
+  difficulty_increase_threshold: 0.7
+  should_increase_difficulty: ${gt:${..progress.filtered_mean_reward},${.difficulty_increase_threshold}}
+  difficulty_increase_delta: ${if:${.should_increase_difficulty},0.1,0.0}
 
-  difficulty_decrease_threshold: 3.0
-  should_decrease_difficulty: ${lt:${..progress.mean_reward},${.difficulty_decrease_threshold}}
+  difficulty_decrease_threshold: 0.3
+  should_decrease_difficulty: ${lt:${..progress.filtered_mean_reward},${.difficulty_decrease_threshold}}
   difficulty_decrease_delta: ${if:${.should_decrease_difficulty},-1.0,0.0}
 
   difficulty_change: ${add:${.difficulty_decrease_delta},${.difficulty_increase_delta}}
@@ -35,10 +35,10 @@ game:
 
   # episode length 
   # max_steps: ${make_integer:${scale:${.difficulty},0,10,100,500,"linear"}}
-  max_steps: 200
+  max_steps: 100
 
   # scaling the map size as our experimental condition
-  min_size: 10
+  min_size: 2
   max_size: ${scale:${.difficulty},0,10,10,60,"log"}
   size: ${make_integer:${uniform:${.min_size}, ${.max_size}}}
 
@@ -52,7 +52,7 @@ game:
     agents: ${..num_agents}
 
     objects:
-      altar: 10
+      altar: 1
 
   # actions:
   #   noop:
