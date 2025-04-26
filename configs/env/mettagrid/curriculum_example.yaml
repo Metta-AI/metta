@@ -22,11 +22,11 @@ progress:
 game:
   num_agents: ${..num_agents}
 
-  difficulty_increase_threshold: 5.0
+  difficulty_increase_threshold: 7.0
   should_increase_difficulty: ${gt:${..progress.mean_reward},${.difficulty_increase_threshold}}
-  difficulty_increase_delta: ${if:${.should_increase_difficulty},2.0,0.0}
+  difficulty_increase_delta: ${if:${.should_increase_difficulty},0.5,0.0}
 
-  difficulty_decrease_threshold: 1.0
+  difficulty_decrease_threshold: 3.0
   should_decrease_difficulty: ${lt:${..progress.mean_reward},${.difficulty_decrease_threshold}}
   difficulty_decrease_delta: ${if:${.should_decrease_difficulty},-1.0,0.0}
 
@@ -35,7 +35,7 @@ game:
 
   # episode length 
   # max_steps: ${make_integer:${scale:${.difficulty},0,10,100,500,"linear"}}
-  max_steps: 500
+  max_steps: 200
 
   # scaling the map size as our experimental condition
   min_size: 10
