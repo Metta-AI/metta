@@ -11,6 +11,7 @@ root:
   children:
   - scene:
       _target_: mettagrid.map.scenes.simplex_sampler.SimplexSampler
+      children: []
       layers:
       - sampling_function : mettagrid.map.scenes.simsam_functions.arbitrary_tilted_lattice     # arbitrary tilted lattice-like terrain
         saturation: ${choose:1.9,2.0,2.1,2.2,2.3,2.4,2.5,3.0,4.0}

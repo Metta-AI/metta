@@ -11,6 +11,7 @@ root:
   children:
   - scene:
       _target_: mettagrid.map.scenes.simplex_sampler.SimplexSampler
+      children: []
       layers:
       - sampling_function : mettagrid.map.scenes.simsam_functions.spiral   # spiral sampler
         saturation: ${choose:1,2,3,4,5}

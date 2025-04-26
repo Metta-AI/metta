@@ -11,6 +11,7 @@ root:
   children:
   - scene:
       _target_: mettagrid.map.scenes.simplex_sampler.SimplexSampler
+      children: []
       layers: # list of layers with sampling functions that will be combined to produce terrain grid
       - sampling_function : mettagrid.map.scenes.simsam_functions.xy_noise # first function, yaml files contain simple strings of addresses. Later im simplex_sampler, hydra will initialize them into actual Callable functions
         saturation: 2.7182818 # values for each parameter is either fixed

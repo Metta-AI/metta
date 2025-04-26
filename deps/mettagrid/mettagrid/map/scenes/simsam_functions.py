@@ -142,9 +142,9 @@ def arbitrary_tilted_lattice(
     line2 = math.floor(alpha_tangent * x - y)
     if line1 % line1_wavelength < line1_thickness or line2 % line2_wavelength < line2_thickness:
         if line1 % line1_wavelength < line1_thickness:
-            xi, yi = x_zoom * line1, y_zoom * (line2 - line2 % line2_wavelength)
+            xi, yi = (x_zoom * line1, y_zoom * (line2 - (line2 % line2_wavelength)))
         else:
-            xi, yi = x_zoom * (line1 - line1 * line1_wavelength), y_zoom * line2
+            xi, yi = (x_zoom * (line1 - (line1 % line1_wavelength)), y_zoom * line2)
     else:
         xi, yi = 0, 0
 
@@ -175,11 +175,11 @@ def arbitrary_tilted_napkin(
         if line1 % line1_wavelength < line1_thickness:
             xi, yi = (
                 x_zoom * line1,
-                y_zoom * (line1 - line1 % line1_wavelength),
+                y_zoom * (line1 - (line1 % line1_wavelength)),
             )  # line2 arguments were swapped for line1 by a mistake
         else:
             xi, yi = (
-                x_zoom * (line2 - line2 * line2_wavelength),
+                x_zoom * (line2 - (line2 % line2_wavelength)),
                 y_zoom * line2,
             )  # line1 arguments were swapped for line2 by a mistake
     else:

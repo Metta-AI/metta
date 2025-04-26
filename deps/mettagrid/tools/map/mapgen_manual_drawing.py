@@ -18,7 +18,7 @@ h = 150
 
 for i in range(1):
     register_resolvers()
-    config = OmegaConf.load("mettagrid/configs/game/map_builder/mapgen_simsam_symmetry.yaml")
+    config = OmegaConf.load("mettagrid/configs/game/map_builder/mapgen_simsam_arbitrary_tilted_lattice.yaml")
 
     if OmegaConf.select(config, "root") is not None:
         root = config.root

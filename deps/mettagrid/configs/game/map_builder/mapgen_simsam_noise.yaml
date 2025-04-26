@@ -11,6 +11,7 @@ root:
   children:
   - scene:
       _target_: mettagrid.map.scenes.simplex_sampler.SimplexSampler
+      children: []
       layers:
       - sampling_function : mettagrid.map.scenes.simsam_functions.squeezed_noise   # random noise
         saturation: ${uniform:1.0,2.0}
