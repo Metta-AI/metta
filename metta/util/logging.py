@@ -15,17 +15,12 @@ def remap_io(logs_path: str):
     stderr = open(stderr_log_path, "a")
     sys.stderr = stderr
     sys.stdout = stdout
-    logger.remove()  # Remove default handler
-    logger.remove()  # Remove default handler
-    # logger.add(
-    #     sys.stdout, colorize=True,
-    #     format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | "
-    #            "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - "
-    #            "<level>{message}</level>")
+    logger.remove()
 
 
 def restore_io():
     sys.stderr = sys.__stderr__
+    sys.stdout = sys.__stdout__
 
 
 # Create a custom formatter that supports milliseconds
@@ -34,15 +29,12 @@ class MillisecondFormatter(logging.Formatter):
         created = datetime.fromtimestamp(record.created)
         # Convert microseconds to milliseconds (keep only 3 digits)
         msec = created.microsecond // 1000
-
         if datefmt:
             # Replace %f with just 3 digits for milliseconds
             datefmt = datefmt.replace("%f", f"{msec:03d}")
         else:
             datefmt = "[%H:%M:%S.%03d]"
-            return created.strftime(datefmt) % msec
-
-        return created.strftime(datefmt)
+        return created.strftime(datefmt) % msec
 
 
 # Create a custom handler that always shows the timestamp
@@ -53,16 +45,30 @@ class AlwaysShowTimeRichHandler(RichHandler):
         super().emit(record)
 
 
-# Configure rich colored logging
-handler = AlwaysShowTimeRichHandler(rich_tracebacks=True)
-formatter = MillisecondFormatter("%(message)s", datefmt="[%H:%M:%S.%f]")
-handler.setFormatter(formatter)
+def get_log_level(provided_level=None):
+    """
+    Determine log level based on priority:
+    1. Environment variable LOG_LEVEL
+    2. Provided level parameter
+    3. Default to INFO
+    """
+    # Check environment variable first
+    env_level = os.environ.get("LOG_LEVEL")
+    if env_level:
+        return env_level.upper()
 
-logging.basicConfig(level="DEBUG", handlers=[handler])
+    # Check provided level next
+    if provided_level:
+        return provided_level.upper()
+
+    # Default to INFO
+    return "INFO"
 
 
-# Create a function to reset logging to Rich after Hydra takes over
-def rich_logger(name: str) -> logging.Logger:
+def setup_mettagrid_logger(name: str, level=None) -> logging.Logger:
+    # Get the appropriate log level based on priority
+    log_level = get_log_level(level)
+
     # Remove all handlers from the root logger
     root_logger = logging.getLogger()
     for handler in root_logger.handlers[:]:
@@ -75,6 +81,6 @@ def rich_logger(name: str) -> logging.Logger:
     root_logger.addHandler(rich_handler)
 
     # Set the level
-    root_logger.setLevel(logging.DEBUG)
+    root_logger.setLevel(getattr(logging, log_level))
 
     return logging.getLogger(name)
