@@ -10,6 +10,7 @@ fi
 # Check if dependencies are already installed
 if [ -n "$DEPS_INSTALLED" ]; then
     echo "Dependencies already installed. Skipping checkout and build!"
+    echo "You can force reinstall by running \"devops/setup_build\""
     exit 0
 fi
 
@@ -125,7 +126,7 @@ cd ..
 
 # Install dependencies using the function
 install_repo "fast_gae" $FAST_GAE_REPO "main" "python setup.py build_ext --inplace && pip install -e ."
-install_repo "pufferlib" $PUFFERLIB_REPO "metta" "pip install ."
+install_repo "pufferlib" $PUFFERLIB_REPO "metta" "pip install ." # pufferlib has problems with editable installation
 install_repo "carbs" $CARBS_REPO "main" "pip install -e ."
 install_repo "wandb_carbs" $WANDB_CARBS_REPO "main" "pip install -e ."
 
