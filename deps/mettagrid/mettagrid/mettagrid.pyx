@@ -3,7 +3,7 @@ from types import SimpleNamespace
 import numpy as np
 cimport numpy as cnp
 import gymnasium as gym
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, ListConfig
 
 # C/C++ imports
 from libc.stdio cimport printf
@@ -46,7 +46,7 @@ cdef class MettaGrid(GridEnv):
         cnp.ndarray _group_rewards_np
         double[:] _group_rewards
 
-    def __init__(self, env_cfg: OmegaConf, map: np.ndarray):
+    def __init__(self, env_cfg: DictConfig | ListConfig, map: np.ndarray):
         cfg = OmegaConf.create(env_cfg.game)
         self._cfg = cfg
 

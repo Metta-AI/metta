@@ -1,43 +1,45 @@
 from __future__ import annotations
 
 import os
-from typing import (
-    Any,
-    Type,
-    TypeVar,
-    Union,
-)
+from typing import Any, Optional, Type, TypeVar, Union
 
 import boto3
 import hydra
 import wandb
 from botocore.exceptions import ClientError, NoCredentialsError
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, ListConfig, OmegaConf
 from pydantic import BaseModel, ValidationError
 
 T = TypeVar("T")
+
+
 class Config(BaseModel):
     """
     Pydantic-backed config base.
     - extra keys are ignored
     - you can do `MyConfig(cfg_node)` where cfg_node is a DictConfig or dict
-    - .dictconfig()  → OmegaConf.DictConfig
-    - .yaml()        → YAML string
+    - .dictconfig() → OmegaConf.DictConfig
+    - .yaml() → YAML string
     """
 
-    class Config:
-        extra = "forbid"
+    model_config = {"extra": "forbid"}
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         # allow `Config(DictConfig)` or `Config(dict)` as shorthand for .from_dictconfig(...)
         if len(args) == 1 and not kwargs and isinstance(args[0], (DictConfig, dict)):
             raw = args[0]
             data = OmegaConf.to_container(raw, resolve=True) if isinstance(raw, DictConfig) else dict(raw)
-            try:
-                super().__init__(**data)
-            except ValidationError:
-                # re-raise so traceback points here
-                raise
+            # Ensure data is a proper dict with string keys
+            if isinstance(data, dict):
+                # Convert any non-string keys to strings to avoid Pylance errors
+                string_keyed_data = {str(k): v for k, v in data.items()}
+                try:
+                    super().__init__(**string_keyed_data)
+                except ValidationError:
+                    # re-raise so traceback points here
+                    raise
+            else:
+                raise TypeError("Data must be convertible to a dictionary")
         else:
             # normal BaseModel __init__(**kwargs)
             super().__init__(*args, **kwargs)
@@ -48,14 +50,24 @@ class Config(BaseModel):
         Explicit constructor from a DictConfig or plain dict.
         """
         raw = cfg
-        data = OmegaConf.to_container(raw, resolve=True) if isinstance(raw, DictConfig) else dict(raw)
-        return cls.parse_obj(data)
+        # Convert to dict and ensure string keys
+        data_container = OmegaConf.to_container(raw, resolve=True) if isinstance(raw, DictConfig) else raw
+
+        if not isinstance(data_container, dict):
+            raise TypeError("Configuration must be convertible to a dictionary")
+
+        # Ensure all keys are strings
+        data = {str(k): v for k, v in data_container.items()}
+
+        # Use direct initialization instead of model_validate to avoid Pylance issues
+        return cls(**data)
 
     def dictconfig(self) -> DictConfig:
         """
         Convert this model back to an OmegaConf DictConfig.
         """
-        return OmegaConf.create(self.dict())
+        # Use model_dump() in Pydantic v2
+        return OmegaConf.create(self.model_dump())
 
     def yaml(self) -> str:
         """
@@ -64,7 +76,7 @@ class Config(BaseModel):
         return OmegaConf.to_yaml(self.dictconfig())
 
 
-def config_from_path(config_path: str, overrides: DictConfig = None) -> DictConfig:
+def config_from_path(config_path: str, overrides: Optional[DictConfig | ListConfig] = None) -> DictConfig | ListConfig:
     if config_path is None:
         raise ValueError("Config path cannot be None")
 
@@ -104,7 +116,7 @@ def check_wandb_credentials() -> bool:
         return False
 
 
-def setup_metta_environment(cfg: DictConfig, require_aws: bool = True, require_wandb: bool = True):
+def setup_metta_environment(cfg: ListConfig | DictConfig, require_aws: bool = True, require_wandb: bool = True):
     if require_aws:
         # Check that AWS is good to go.
         if not check_aws_credentials():
