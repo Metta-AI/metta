@@ -50,11 +50,11 @@ def sample_logits(logits: Union[torch.Tensor, List[torch.Tensor]], action=None):
     """
     normalized_logits = [logit - logit.logsumexp(dim=-1, keepdim=True) for logit in logits]
 
+    B = logits[0].shape[0]
     if action is None:
-        action = torch.stack([torch.multinomial(logits_to_probs(logit), 1).squeeze() for logit in logits])
+        action = torch.stack([torch.multinomial(logits_to_probs(logit), 1).reshape(B) for logit in logits])
     else:
-        batch = logits[0].shape[0]
-        action = action.view(batch, -1).T
+        action = action.view(B, -1).T
 
     assert len(logits) == len(action)
 
