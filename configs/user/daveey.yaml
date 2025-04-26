@@ -7,7 +7,7 @@ defaults:
   - _self_
 
 trainer:
-  env: /env/mettagrid-base/simple
+  env: /env/mettagrid/simple
   evaluate_interval: 200
   optimizer:
     type: muon
@@ -42,7 +42,7 @@ analyzer:
       - metric: "heart.get"
 
 eval:
-  env: /env/mettagrid-base/puffer
+  env: /env/mettagrid/puffer
   eval_db_uri: ${run_dir}/eval_stats
   num_envs: 10
   num_episodes: 10

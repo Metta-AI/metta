@@ -1,5 +1,5 @@
 defaults:
-  - /env/mettagrid-base/mettagrid@
+  - /env/mettagrid/mettagrid@
 
 sampling: 1
 game:

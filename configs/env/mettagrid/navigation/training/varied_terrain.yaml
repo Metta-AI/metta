@@ -1,6 +1,6 @@
 # Config: Dense Obstacles & Sparse Altars
 defaults:
-  - /env/mettagrid-base/mettagrid@
+  - /env/mettagrid/mettagrid@
   - _self_
 
 sampling: 1

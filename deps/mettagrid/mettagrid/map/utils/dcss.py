@@ -1,9 +1,9 @@
 import logging
 import urllib.request
-from pathlib import Path
 
 from omegaconf import OmegaConf
 
+from mettagrid.config.utils import scenes_root
 from mettagrid.map.utils.make_scene_config import (
     make_convchain_config_from_pattern,
     make_wfc_config_from_pattern,
@@ -76,7 +76,7 @@ def get_maps():
 
 def generate_scenes_from_dcss_maps():
     maps = get_maps()
-    dir = Path("configs/scenes/dcss")
+    dir = scenes_root / "dcss"
     for map_entry in maps:
         name = map_entry["name"]
         pattern = map_entry["map"]

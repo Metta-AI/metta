@@ -8,9 +8,9 @@ import time
 from datetime import datetime
 from typing import cast, get_args
 
-import hydra
 from omegaconf import DictConfig, OmegaConf
 
+from mettagrid.config.utils import simple_instantiate
 from mettagrid.map.utils.show import ShowMode, show_map
 from mettagrid.map.utils.storable_map import StorableMap
 
@@ -28,7 +28,7 @@ def make_map(cfg_path: str, overrides: DictConfig | None = None):
 
     # Generate and measure time taken
     start = time.time()
-    map_builder = hydra.utils.instantiate(cfg, _recursive_=False)
+    map_builder = simple_instantiate(cfg)
     grid = map_builder.build()
     gen_time = time.time() - start
     logger.info(f"Time taken to build map: {gen_time}s")
