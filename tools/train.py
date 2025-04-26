@@ -46,8 +46,6 @@ def train(cfg, wandb_run):
     train_job = TrainJob(cfg.train_job)
 
     policy_store = PolicyStore(cfg, wandb_run)
-    logger.info(f"Train job config: {OmegaConf.to_yaml(cfg, resolve=True)}")
-    logger.info(f"Train job config.trainer: {OmegaConf.to_yaml(cfg.trainer, resolve=True)}")
     trainer = hydra.utils.instantiate(cfg.trainer, cfg, wandb_run, policy_store, train_job.evals)
 
     trainer.train()
