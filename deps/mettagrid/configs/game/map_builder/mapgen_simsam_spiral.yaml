@@ -1,0 +1,32 @@
+_target_: mettagrid.map.mapgen.MapGen
+
+width: ${int:${uniform:20,101}}
+height: ${int:${uniform:20,101}}
+
+root:
+  _target_: mettagrid.map.scenes.room_grid.RoomGrid
+  rows: 3
+  columns: 3
+
+  children:
+  - scene:
+      _target_: mettagrid.map.scenes.simplex_sampler.SimplexSampler
+      layers:
+      - sampling_function : mettagrid.map.scenes.simsam_functions.spiral   # spiral sampler
+        saturation: ${choose:1,2,3,4,5}
+        function_parameters:
+          zoom: ${uniform:0.01,0.2}                       # global scaling
+          squeeze: ${triangular:1,1,3}                       # ellipticity
+          angle_theta: ${uniform:0,1}                             # tilt angle
+          P: ${triangular:-10,0,10}                         # thickness and direction of the spiral
+          xc: ${triangular:-0.6,0.0,0.6}                # x off-center
+          yc: ${triangular:-0.6,0.0,0.6}                # y off-center
+      - sampling_function : mettagrid.map.scenes.simsam_functions.xy_noise   # random noise
+        saturation: ${uniform:0.0,0.5}
+        function_parameters:
+          x_zoom: ${uniform:0.01,0.5}                       # scaling along x
+          y_zoom: ${uniform:0.01,0.5}                       # scaling along y
+
+      cutoff: ${uniform:0.15,0.40}                          # global cutoff threshold less number -> less walls
+      force_seed: 0 # 0 will use random seeds, any other integer will force the seed. Requires all above parameters to be fixed to produce identical results
+

@@ -1,0 +1,29 @@
+_target_: mettagrid.map.mapgen.MapGen
+
+width: ${int:${uniform:20,101}}
+height: ${int:${uniform:20,101}}
+
+root:
+  _target_: mettagrid.map.scenes.room_grid.RoomGrid
+  rows: 3
+  columns: 3
+
+  children:
+  - scene:
+      _target_: mettagrid.map.scenes.simplex_sampler.SimplexSampler
+      layers:
+      - sampling_function : mettagrid.map.scenes.simsam_functions.squeezed_noise   # random noise
+        saturation: ${uniform:1.0,2.0}
+        function_parameters:
+          zoom: ${uniform:0.1,1.25}                                 # global scaling
+          squeeze: ${uniform:1,10}                                  # how squeezed the result is
+          angle_theta: ${uniform:0,1}                               # angle theta in 2pi radians: 0.25 is 90degrees, 0.125 is 45deg
+      - sampling_function : mettagrid.map.scenes.simsam_functions.squeezed_noise   # random noise
+        saturation: ${uniform:0.0,0.5}
+        function_parameters:
+          zoom: ${uniform:0.01,2.5}                                 # global scaling
+          squeeze: ${uniform:1,10}                                  # how squeezed the result is
+          angle_theta: ${uniform:0,1}                               # angle theta in 2pi radians: 0.25 is 90degrees, 0.125 is 45deg
+
+      cutoff: ${uniform:0.15,0.40}    # global cutoff threshold less number -> less walls
+      force_seed: 0 # 0 will use random seeds, any other integer will force the seed. Requires all above parameters to be fixed to produce identical results

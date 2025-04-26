@@ -28,3 +28,4 @@ wandb-core>=0.17.0b11
 pandas>=2.2.3
 tqdm>=4.67.1
 pytest-cov==6.1.1
+opensimplex>=0.4.5.1
