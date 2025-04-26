@@ -26,11 +26,11 @@ class SimplexSampler(Scene):
 
     def __init__(
         self,
-        seed: MaybeSeed = None,
-        children: list[Any] = [],  # it has something to do with Slava's implementation of recursive generation
+        children: list[Any],  # it has something to do with Slava's implementation of recursive generation
         # probably parameters for deeper layers, he should know better
-        layers: list[Layer] = [],  # layers of sampling functions each of which dictate how generated noise is sampled.
+        layers: list[Layer],  # layers of sampling functions each of which dictate how generated noise is sampled.
         # All of them are then combined to produce the end result
+        seed: MaybeSeed = None,
         cutoff: float = 0.27,  # final step parameter that dictates at which point the whole map will be cut off to
         # walls and empty spaces. Can be between 0 and 1
         force_seed: int = 0,  # Option to use fixed seed.
