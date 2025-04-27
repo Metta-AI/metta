@@ -16,7 +16,7 @@ def log_prob(logits, value):
     value = value.long().unsqueeze(-1)
     value, log_pmf = torch.broadcast_tensors(value, logits)
     value = value[..., :1]
-    return log_pmf.gather(-1, value).squeeze(-1)
+    return log_pmf.gather(-1, value).squeeze(-1) # replace w reshape
 
 
 def entropy(logits):

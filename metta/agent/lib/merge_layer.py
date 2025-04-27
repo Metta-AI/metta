@@ -35,8 +35,10 @@ class MergeLayerBase(LayerBase):
 
         self.dims = []
         self.processed_lengths = []
-        for src_cfg in self.sources_full_list:
-            source_name = src_cfg['source_name']
+        # for src_cfg in self.sources_full_list:
+        for src_cfg in self._sources:
+            # source_name = src_cfg['source_name']
+            source_name = src_cfg['name']
             
             processed_size = self.input_source_components[source_name]._out_tensor_shape.copy()
             self._in_tensor_shape.append(processed_size)
@@ -73,8 +75,10 @@ class MergeLayerBase(LayerBase):
 
     def forward(self, td: TensorDict):
         outputs = []
+        # TODO: do this without a for loop or dictionary lookup for perf
         for src_cfg in self.sources_full_list:
-            source_name = src_cfg['source_name']
+            # source_name = src_cfg['source_name']
+            source_name = src_cfg['name']
             self.input_source_components[source_name].forward(td)
             src_tensor = td[source_name]
 

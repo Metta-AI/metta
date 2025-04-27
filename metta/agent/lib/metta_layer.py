@@ -38,10 +38,11 @@ class LayerBase(nn.Module):
     self._in_tensor_shape and self._out_tensor_shape are always of type list. 
     Note that these lists not include the batch dimension so their shape is 
     one dimension smaller than the actual shape of the tensor.'''
-    def __init__(self, name, input_source=None, nn_params={}, **cfg):
+    def __init__(self, name, sources=None, nn_params={}, **cfg):
         super().__init__()
         self._name = name
-        self._input_source = input_source
+        # self._input_source = input_source
+        self._sources = sources
         self._net = None
         self._ready = False
         if not hasattr(self, "_nn_params"):
@@ -51,13 +52,16 @@ class LayerBase(nn.Module):
     def ready(self):
         return self._ready
 
-    def setup(self, input_source_component=None):
+    def setup(self, source_components=None):
         if self._ready:
             return
 
-        self.__dict__["_input_source_component"] = input_source_component
+        self.__dict__["_source_components"] = source_components
 
-        if self._input_source_component is None:
+# rename _input_source_component
+# make tensor shapes as list
+
+        if self._source_components is None:
             self._in_tensor_shape = None
             if self._out_tensor_shape is None:
                 raise ValueError(f"Either input source or output tensor shape must be set for layer {self._name}")

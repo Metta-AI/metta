@@ -98,25 +98,43 @@ class MettaAgent(nn.Module):
         logger.info(f"Total number of parameters in MettaAgent: {self._total_params:,}. Setup complete.")
         
     def _setup_components(self, component):
-        # TODO: consider making all input source a list or dict
-        if component._input_source is not None:
+
+        # if component._input_source is not None:
+        #     if isinstance(component._input_source, omegaconf.listconfig.ListConfig):
+        #         component._input_source = list(component._input_source)
+
+        #     if isinstance(component._input_source, list):
+        #         for input_source in component._input_source:
+        #             self._setup_components(self.components[input_source])
+        #     else:
+        #         self._setup_components(self.components[component._input_source])
+
+        # if component._input_source is not None:
+        #     if isinstance(component._input_source, list):
+        #         input_source_components = {}
+        #         for name in component._input_source:
+        #             input_source_components[name] = self.components[name]
+        #         component.setup(input_source_components)
+        #     else:
+        #         component.setup(self.components[component._input_source])
+        # else:
+        #     component.setup()
+        if component._sources is not None:
             if isinstance(component._input_source, omegaconf.listconfig.ListConfig):
-                component._input_source = list(component._input_source)
+                component._sources = list(component._sources)
+            else: # delete after testing
+                print("_sources isn't a list") 
+                breakpoint() 
 
-            if isinstance(component._input_source, list):
-                for input_source in component._input_source:
-                    self._setup_components(self.components[input_source])
-            else:
-                self._setup_components(self.components[component._input_source])
+            for source in component._sources:
+                self._setup_components(self.components[source["name"]])
 
-        if component._input_source is not None:
-            if isinstance(component._input_source, list):
-                input_source_components = {}
-                for name in component._input_source:
-                    input_source_components[name] = self.components[name]
-                component.setup(input_source_components)
-            else:
-                component.setup(self.components[component._input_source])
+        if component._sources is not None:
+            # if isinstance(component._input_source, list):
+            _source_components = {}
+            for source in component._sources:
+                _source_components[source["name"]] = self.components[source["name"]]
+                component.setup(_source_components)
         else:
             component.setup()
 

@@ -33,8 +33,10 @@ class Bilinear(LayerBase):
         )
     
     def _forward(self, td: TensorDict):
-        input_1 = td[self._input_source[0]]
-        input_2 = td[self._input_source[1]]
+        # input_1 = td[self._input_source[0]]
+        # input_2 = td[self._input_source[1]]
+        input_1 = td[self._sources[0]["name"]]
+        input_2 = td[self._sources[1]["name"]]
         td[self._name] = self._net(input_1, input_2)
         return td
 
