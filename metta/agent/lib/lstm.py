@@ -18,7 +18,7 @@ class LSTM(LayerBase):
         self.num_layers = self._nn_params['num_layers']
 
     def _make_net(self):
-        net = nn.LSTM(self._in_tensor_shape[0], self.hidden_size, **self._nn_params)
+        net = nn.LSTM(self._in_tensor_shapes[0], self.hidden_size, **self._nn_params)
 
         for name, param in net.named_parameters():
             if "bias" in name:
@@ -52,9 +52,9 @@ class LSTM(LayerBase):
 
         if state is not None:
             assert state[0].shape[1] == state[1].shape[1] == B
-        assert hidden.shape == (B*TT, self._in_tensor_shape[0])
+        assert hidden.shape == (B*TT, self._in_tensor_shapes[0])
 
-        hidden = hidden.reshape(B, TT, self._in_tensor_shape[0])
+        hidden = hidden.reshape(B, TT, self._in_tensor_shapes[0])
         hidden = hidden.transpose(0, 1)
 
         hidden, state = self._net(hidden, state)

@@ -98,6 +98,8 @@ class MettaAgent(nn.Module):
         logger.info(f"Total number of parameters in MettaAgent: {self._total_params:,}. Setup complete.")
         
     def _setup_components(self, component):
+        ''' _input_source is a list of dicts. It must always have a "name" and that name should be the same
+        one used above '''
 
         # if component._input_source is not None:
         #     if isinstance(component._input_source, omegaconf.listconfig.ListConfig):

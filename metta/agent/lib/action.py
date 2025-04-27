@@ -96,8 +96,8 @@ class MettaActorBig(LayerBase):
         self.bilinear_output_dim = bilinear_output_dim
 
     def _make_net(self):
-        self.hidden = self._in_tensor_shape[0][0] # input_1 dim
-        self.embed_dim = self._in_tensor_shape[1][1] # input_2 dim (_action_embeds_)
+        self.hidden = self._in_tensor_shapes[0][0] # input_1 dim
+        self.embed_dim = self._in_tensor_shapes[1][1] # input_2 dim (_action_embeds_)
 
         # nn.Bilinear but hand written as nn.Parameters. As of 4-23-25, this is 10x faster than using nn.Bilinear.
         self.W = nn.Parameter(torch.Tensor(self.bilinear_output_dim, self.hidden, self.embed_dim))
@@ -160,8 +160,8 @@ class MettaActorSingleHead(LayerBase):
         super().__init__(**cfg)
 
     def _make_net(self):
-        self.hidden = self._in_tensor_shape[0][0] # input_1 dim 
-        self.embed_dim = self._in_tensor_shape[1][1] # input_2 dim (_action_embeds_)
+        self.hidden = self._in_tensor_shapes[0][0] # input_1 dim 
+        self.embed_dim = self._in_tensor_shapes[1][1] # input_2 dim (_action_embeds_)
 
         # nn.Bilinear but hand written as nn.Parameters. As of 4-23-25, this is 10x faster than using nn.Bilinear.
         self.W = nn.Parameter(torch.Tensor(1, self.hidden, self.embed_dim))

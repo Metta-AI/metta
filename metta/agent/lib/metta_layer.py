@@ -62,18 +62,18 @@ class LayerBase(nn.Module):
 # make tensor shapes as list
 
         if self._source_components is None:
-            self._in_tensor_shape = None
+            self._in_tensor_shapes = None
             if self._out_tensor_shape is None:
                 raise ValueError(f"Either input source or output tensor shape must be set for layer {self._name}")
         else:
             if isinstance(self._input_source_component, dict):
-                self._in_tensor_shape = []
+                self._in_tensor_shapes = []
                 for _, source in self._input_source_component.items():
-                    self._in_tensor_shape.append(source._out_tensor_shape.copy())
+                    self._in_tensor_shapes.append(source._out_tensor_shape.copy())
             else:
-                self._in_tensor_shape = self._input_source_component._out_tensor_shape.copy()
+                self._in_tensor_shapes = self._input_source_component._out_tensor_shape.copy()
             if not hasattr(self, "_out_tensor_shape"):
-                self._out_tensor_shape = self._in_tensor_shape # if necessary, edit this later in the superclass
+                self._out_tensor_shape = self._in_tensor_shapes # if necessary, edit this later in the superclass
 
         self._initialize()
         self._ready = True
@@ -166,7 +166,7 @@ class ParamLayer(LayerBase):
                 raise ValueError(f"Unsupported nonlinearity: {self.nonlinearity}") from e
 
     def _initialize_weights(self):
-        fan_in = self._in_tensor_shape[0]
+        fan_in = self._in_tensor_shapes[0]
         fan_out = self._out_tensor_shape[0]
 
         if self.initialization.lower() == "orthogonal":
