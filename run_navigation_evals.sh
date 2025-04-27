@@ -62,5 +62,5 @@ for i in "${!POLICIES[@]}"; do
         sim=navigation \
         run=navigation$IDX \
         policy_uri=wandb://run/$POLICY_URI \
-        +eval_db_uri=wandb://artifacts/navigation_db \
+        +eval_db_uri=wandb://artifacts/navigation_db
 done
