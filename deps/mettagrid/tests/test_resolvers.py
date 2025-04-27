@@ -26,6 +26,7 @@ from mettagrid.resolvers import (
     oc_scaled_range,
     oc_subtract,
     oc_to_odd_min3,
+    oc_triangular,
     oc_uniform,
     register_resolvers,
 )
@@ -87,6 +88,26 @@ def test_uniform_resolver():
         for _ in range(20):  # Run multiple times to ensure range is respected
             val = oc_uniform(min_val, max_val)
             assert min_val <= val <= max_val
+
+
+def test_triangular_resolver():
+    """Test the triangular resolver generates values within range and closer to mode"""
+    # Set seed for reproducibility
+    np.random.seed(42)
+
+    # Test multiple ranges
+    ranges = [(10, 11, 20), (0, 0.8324354, 1.0), (-10, 0.0, 10)]
+    for min_val, mode, max_val in ranges:
+        close, far = 0, 0
+        left_line, right_line = mode - (mode - min_val) / 2, mode + (max_val - mode) / 2
+        for _ in range(100):  # Run multiple times to ensure range is respected
+            val = oc_triangular(min_val, mode, max_val)
+            assert min_val <= val <= max_val # within range
+            if val >= left_line and val <= right_line:
+                close += 1
+            else:
+                far += 1
+        assert close > far # closer to mode on average (P=0.00015 for false positive at N=100)
 
 
 def test_choose_resolver():
