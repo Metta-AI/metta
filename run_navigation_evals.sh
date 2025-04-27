@@ -44,6 +44,9 @@ POLICIES=(
     "b.georgedeane.easy_world_pretrained"
     "b.georgedeane.memory_world_pretrained"
     "b.georgedeane.terrain_extra_hard"
+    "b.daphne.terrain_multienv_3_sweep.r.1"
+    "b.daphne.terrain_multienv_3_sweep.r.0"
+    "b.daphne.terrain_multienv_3_sweep_fsr.0"
 
 )
 
@@ -59,6 +62,5 @@ for i in "${!POLICIES[@]}"; do
         sim=navigation \
         run=navigation$IDX \
         policy_uri=wandb://run/$POLICY_URI \
-        +eval_db_uri=wandb://artifacts/navigation_db2 \
-        device=cpu
+        +eval_db_uri=wandb://artifacts/navigation_db \
 done
