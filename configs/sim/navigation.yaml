@@ -2,8 +2,8 @@ defaults:
   - sim
   - _self_
 
-num_envs: 10
-num_episodes: 10
+num_envs: 1
+num_episodes: 1
 run_dir: ${run_dir}
 
 simulations:
