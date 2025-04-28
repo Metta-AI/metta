@@ -3,7 +3,7 @@ from types import SimpleNamespace
 import numpy as np
 cimport numpy as cnp
 import gymnasium as gym
-from omegaconf import DictConfig, ListConfig
+from omegaconf import DictConfig, ListConfig, OmegaConf
 
 # C/C++ imports
 from libc.stdio cimport printf
