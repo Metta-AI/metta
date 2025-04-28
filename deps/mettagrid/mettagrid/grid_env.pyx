@@ -16,7 +16,7 @@ from mettagrid.grid_object cimport (
 from mettagrid.objects.agent cimport Agent
 from mettagrid.observation_encoder cimport ObservationEncoder, ObsType
 from mettagrid.objects.production_handler cimport ProductionHandler, CoolDownHandler
-from mettagrid.objects.constants cimport ObjectTypeNames, ObjectTypeAscii
+from mettagrid.objects.constants cimport ObjectTypeNames, ObjectTypeAscii, InventoryItemNames
 
 # Constants
 obs_np_type = np.uint8
@@ -330,3 +330,6 @@ cdef class GridEnv:
 
     def object_type_names(self):
         return ObjectTypeNames
+
+    def inventory_item_names(self):
+        return InventoryItemNames
