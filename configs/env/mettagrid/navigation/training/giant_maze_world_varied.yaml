@@ -3,33 +3,38 @@ defaults:
   - _self_
 
 game:
-  num_agents: 4
+  num_agents: 20
 
   map_builder:
-    _target_: mettagrid.config.room.multi_room.MultiRoom
-    num_rooms: 4
+    _target_: mettagrid.config.room.giant_maze_world_varied.GiantMazeWorldVaried
+
+    # Map dimensions sampled 200–400 (inclusive)
+    width:  [80, 200]
+    height: [80, 200]
+
+    # Main corridor width sampling range
+    corridor_range: [2, 19]
+
+    # Fractal‑branch parameters
+    branch_prob: [0, 0.3]        # sampled chance each episode
+    branch_scale: [0, 0.3]        # sampled branch width factor
+    max_branch_length: 40  #[10, 40]     # sampled branch length
+
+    wall_range:   [1, 5]    # wall thicknessg
+    altars_count: 80
     border_width: 6
-
-    room:
-      _target_: mettagrid.config.room.navigation.giant_maze_world_varied.GiantMazeWorldVaried
-
-      # Map dimensions sampled 200–400 (inclusive)
-      width:  [100, 200]
-      height: [100, 200]
-
-      # Main corridor width sampling range
-      corridor_range: [2, 9]
-
-      # Fractal‑branch parameters
-      branch_prob: [0, 0.5]        # sampled chance each episode
-      branch_scale: [0, 0.2]        # sampled branch width factor
-      max_branch_length: 40  #[10, 40]     # sampled branch length
-
-      wall_range:   [1, 5]    # wall thickness
-      altars_count: 50
-      border_width: 6
-      agents: 1
+    agents: 20
 
   objects:
     altar:
       cooldown: 100
+  
+  # actions:
+  #   attack:
+  #     enabled: false
+  #   swap:
+  #     enabled: false
+  #   change_color:
+  #     enabled: false
+  #   put_items:
+  #     enabled: false

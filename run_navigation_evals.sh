@@ -30,6 +30,7 @@ POLICIES=(
     "b.georgedeane.terrain_multienv_unstable_pretrained_mb3"
     # "b.georgedeane.terrain_multienv_homogenous_pretrained"
     "b.georgedeane.terrain_multienv_stable_pretrained_mb4"
+<<<<<<< HEAD
     # "b.daphne.terrain_multienv_3_no_blocks3"
      "b.daphne.terrain_multienv_3_no_blocks4"
      "terrain_multienv_3_single_agent"
@@ -43,6 +44,15 @@ POLICIES=(
      "b.georgedeane.terrain_memory_world_pretrained"
      "b.georgedeane.terrain_extra_hard"
      "b.georgedeane.terrain_multienv_stable_pretrained_mb4"
+=======
+    "b.daphne.terrain_multienv_3_no_blocks3"
+    "b.daphne.terrain_multienv_3_no_blocks4"
+    "b.georgedeane.terrain_extra_hard"
+    "b.georgedeane.easy_world_pretrained"
+    "b.georgedeane.memory_world_pretrained"
+    "b.georgedeane.terrain_extra_hard"
+    "b.georgedeane.terrain_extra_hard:v1"
+>>>>>>> 0026b19df21a873b7efcc3b52367af8a96032934
 )
 
 for i in "${!POLICIES[@]}"; do
@@ -55,6 +65,10 @@ for i in "${!POLICIES[@]}"; do
         sim=navigation \
         run=navigation$IDX \
         policy_uri=wandb://run/$POLICY_URI \
+<<<<<<< HEAD
         +eval_db_uri=wandb://artifacts/navigation_db4 \
         device=cpu
+=======
+        +eval_db_uri=wandb://artifacts/navigation_db
+>>>>>>> 0026b19df21a873b7efcc3b52367af8a96032934
 done

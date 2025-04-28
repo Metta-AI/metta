@@ -33,7 +33,7 @@ policy_uri: wandb://run/b.daphne.terrain_varied_cyl_lab_pretrained:v0
 # eval_db_uri: wandb://artifacts/testing
 #eval_db_uri: wandb://artifacts/navigation_db
 
-eval_db_uri: wandb://artifacts/navigation_db2
+eval_db_uri: wandb://artifacts/navigation_db
 
 analyzer:
   eval_stats_uri: ${run_dir}/eval_stats
