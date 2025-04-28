@@ -168,6 +168,9 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     def object_type_names(self):
         return self._c_env.object_type_names()
 
+    def inventory_item_names(self):
+        return self._c_env.inventory_item_names()
+
     def close(self):
         pass
 
