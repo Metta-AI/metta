@@ -44,10 +44,7 @@ POLICIES=(
     "b.georgedeane.easy_world_pretrained"
     "b.georgedeane.memory_world_pretrained"
     "b.georgedeane.terrain_extra_hard"
-    "b.daphne.terrain_multienv_3_sweep.r.1"
-    "b.daphne.terrain_multienv_3_sweep.r.0"
-    "b.daphne.terrain_multienv_3_sweep_fsr.0"
-
+    "b.georgedeane.terrain_extra_hard:v1"
 )
 
 
