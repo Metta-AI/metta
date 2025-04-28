@@ -25,7 +25,6 @@ DEVICE, RUN_DIR = "cpu", "./runs/test"
 
 
 def _build(cfg: Dict):
-    """Helper around ``dictconfig_to_dataclass``."""
     return SimulationSuiteConfig(OmegaConf.create(cfg))
 
 
