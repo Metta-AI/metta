@@ -763,57 +763,65 @@ function drawActions(replay: any) {
       // Draw the action:
       const action = getAttr(gridObject, "action");
       const action_success = getAttr(gridObject, "action_success");
-      if (!action_success || action == null) {
-        continue;
-      }
-      const action_name = replay.action_names[action[0]];
-      const orientation = getAttr(gridObject, "agent:orientation");
-      var rotation = 0;
-      if (orientation == 0) {
-        rotation = Math.PI / 2; // North
-      } else if (orientation == 1) {
-        rotation = -Math.PI / 2; // South
-      } else if (orientation == 2) {
-        rotation = Math.PI; // West
-      } else if (orientation == 3) {
-        rotation = 0; // East
-      }
-      if (action_name == "attack") {
-        drawer.drawSprite(
-          "actions/attack" + (action[1] + 1) + ".png",
-          x * TILE_SIZE,
-          y * TILE_SIZE,
-          [1, 1, 1, 1],
-          1,
-          rotation
-        );
-      } else if (action_name == "put_recipe_items") {
-        drawer.drawSprite(
-          "actions/put_recipe_items.png",
-          x * TILE_SIZE,
-          y * TILE_SIZE,
-          [1, 1, 1, 1],
-          1,
-          rotation
-        );
-      } else if (action_name == "get_output") {
-        drawer.drawSprite(
-          "actions/get_output.png",
-          x * TILE_SIZE,
-          y * TILE_SIZE,
-          [1, 1, 1, 1],
-          1,
-          rotation
-        );
-      } else if (action_name == "swap") {
-        drawer.drawSprite(
-          "actions/swap.png",
-          x * TILE_SIZE,
-          y * TILE_SIZE,
-          [1, 1, 1, 1],
-          1,
-          rotation
-        );
+      if (action_success && action != null) {
+        const action_name = replay.action_names[action[0]];
+        const orientation = getAttr(gridObject, "agent:orientation");
+        var rotation = 0;
+        if (orientation == 0) {
+          rotation = Math.PI / 2; // North
+        } else if (orientation == 1) {
+          rotation = -Math.PI / 2; // South
+        } else if (orientation == 2) {
+          rotation = Math.PI; // West
+        } else if (orientation == 3) {
+          rotation = 0; // East
+        }
+        if (action_name == "attack") {
+          drawer.drawSprite(
+            "actions/attack" + (action[1] + 1) + ".png",
+            x * TILE_SIZE,
+            y * TILE_SIZE,
+            [1, 1, 1, 1],
+            1,
+            rotation
+          );
+        } else if (action_name == "attack_nearest") {
+          drawer.drawSprite(
+            "actions/attack_nearest.png",
+            x * TILE_SIZE,
+            y * TILE_SIZE,
+            [1, 1, 1, 1],
+            1,
+            rotation
+          );
+        } else if (action_name == "put_recipe_items") {
+          drawer.drawSprite(
+            "actions/put_recipe_items.png",
+            x * TILE_SIZE,
+            y * TILE_SIZE,
+            [1, 1, 1, 1],
+            1,
+            rotation
+          );
+        } else if (action_name == "get_output") {
+          drawer.drawSprite(
+            "actions/get_output.png",
+            x * TILE_SIZE,
+            y * TILE_SIZE,
+            [1, 1, 1, 1],
+            1,
+            rotation
+          );
+        } else if (action_name == "swap") {
+          drawer.drawSprite(
+            "actions/swap.png",
+            x * TILE_SIZE,
+            y * TILE_SIZE,
+            [1, 1, 1, 1],
+            1,
+            rotation
+          );
+        }
       }
     }
 
@@ -824,6 +832,9 @@ function drawActions(replay: any) {
         x * TILE_SIZE,
         y * TILE_SIZE - 100,
         [1, 1, 1, 1],
+        1,
+        // Apply the gentle rotation.
+        -step * 0.1
       );
     }
 
@@ -899,8 +910,12 @@ function drawSelection(selectedObject: any | null) {
   const x = getAttr(selectedObject, "c")
   const y = getAttr(selectedObject, "r")
   drawer.drawSprite("selection.png", x * TILE_SIZE, y * TILE_SIZE);
+}
 
-  // If object has a trajectory, draw the path it took through the map.
+function drawTrajectory(selectedObject: any | null) {
+  if (selectedObject === null) {
+    return;
+  }
   if (selectedObject.c.length > 0 || selectedObject.r.length > 0) {
 
     // Draw both past and future trajectories.
@@ -993,6 +1008,7 @@ function drawMap(panel: PanelInfo) {
 
   drawFloor(replay.map_size);
   drawWalls(replay);
+  drawTrajectory(selectedGridObject);
   drawObjects(replay);
   drawSelection(selectedGridObject);
   drawActions(replay);
@@ -1077,17 +1093,23 @@ function drawTrace(panel: PanelInfo) {
         );
       }
 
+      if (getAttr(agent, "agent:frozen", j) > 0) {
+        drawer.drawImage(
+          "trace/frozen.png",
+          j * TRACE_WIDTH, i * TRACE_HEIGHT,
+        );
+      }
+
       const reward = getAttr(agent, "reward", j);
       // If there is reward, draw a star.
       if (reward > 0) {
-        drawer.save()
-        drawer.translate(j * TRACE_WIDTH - 32, i * TRACE_HEIGHT + 256 - 32)
-        drawer.scale(0.5, 0.5)
-        drawer.drawImage(
-          "reward.png",
-          0, 0,
+        drawer.drawSprite(
+          "resources/reward.png",
+          j * TRACE_WIDTH - 16,
+          i * TRACE_HEIGHT + 256 - 32,
+          [1.0, 1.0, 1.0, 1.0],
+          1/8
         );
-        drawer.restore()
       }
     }
   }
