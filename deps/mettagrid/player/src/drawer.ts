@@ -601,6 +601,10 @@ class Drawer {
     );
   }
 
+  hasImage(imageName: string): boolean {
+    return this.atlasData?.[imageName] !== undefined;
+  }
+
   // Draws an image from the atlas with its top-right corner at (x, y).
   drawImage(imageName: string, x: number, y: number, color: number[] = [1, 1, 1, 1]): void {
     if (!this.ready) {

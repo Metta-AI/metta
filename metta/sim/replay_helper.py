@@ -107,7 +107,7 @@ class ReplayHelper:
         link = f"https://{s3_bucket}.s3.us-east-1.amazonaws.com/{replay_url}"
 
         # Log the link to WandB
-        player_url = "https://metta-ai.github.io/mettagrid/?replayUrl=" + link
+        player_url = "https://metta-ai.github.io/metta/?replayUrl=" + link
         link_summary = {"replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {epoch})</a>')}
         self.wandb_run.log(link_summary)
 

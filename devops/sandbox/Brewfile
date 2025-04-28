@@ -2,7 +2,9 @@
 brew "awscli"
 brew "bazelisk"
 brew "docker"
-brew "clang-format"  # Added from Makefile
+brew "clang-format"
+brew "googletest"
+brew "google-benchmark"
 
 # Applications
 cask "cursor"
