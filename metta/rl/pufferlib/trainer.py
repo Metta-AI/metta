@@ -23,8 +23,7 @@ from metta.rl.pufferlib.profile import Profile
 from metta.rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
 from metta.sim.eval_stats_db import EvalStatsDB
 from metta.sim.eval_stats_logger import EvalStatsLogger
-from metta.sim.replay_helper import ReplayHelper
-from metta.sim.simulation import SimulationSuite
+from metta.sim.simulation import Simulation, SimulationSuite
 from metta.sim.simulation_config import SimulationConfig, SimulationSuiteConfig
 from metta.sim.vecenv import make_vecenv
 from metta.util.config import config_from_path
@@ -155,7 +154,7 @@ class PufferTrainer:
 
         self.kickstarter = Kickstarter(self.cfg, self.policy_store, self.vecenv.single_action_space)
 
-        replay_sim_config = SimulationConfig(
+        self.replay_sim_config = SimulationConfig(
             env=self.trainer_cfg.env,
             num_envs=1,
             num_episodes=1,
@@ -163,7 +162,6 @@ class PufferTrainer:
             device=self.device,
             vectorization=self.cfg.vectorization,
         )
-        self.replay_helper = ReplayHelper(replay_sim_config, self.last_pr, wandb_run)
 
         logger.info(f"PufferTrainer initialization complete on device: {self.device}")
 
@@ -554,12 +552,11 @@ class PufferTrainer:
     def _generate_and_upload_replay(self):
         if self._master:
             logger.info("Generating and saving a replay to wandb and S3.")
-            self.replay_helper.generate_and_upload_replay(
-                self.epoch,
-                self.cfg.run_dir,
-                self.cfg.run,
-                dry_run=self.trainer_cfg.get("replay_dry_run", False),
+            self.replay_sim_config.replay_path = (
+                f"s3://softmax-public/replays/{self.cfg.run}/replay.{self.epoch}.json.z"
             )
+            replay_simulator = Simulation(self.replay_sim_config, self.last_pr, self.wandb_run)
+            replay_simulator.simulate(epoch=self.epoch)
 
     def _process_stats(self):
         for k in list(self.stats.keys()):

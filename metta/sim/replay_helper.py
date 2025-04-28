@@ -52,7 +52,6 @@ class ReplayHelper:
                 grid_object[key].append([step, value])
 
     def log_step(self, actions: np.ndarray, rewards: np.ndarray):
-        self.step += 1
         self.total_rewards += rewards
         for i, grid_object in enumerate(self.env.grid_objects.values()):
             if len(self.grid_objects) <= i:
@@ -69,6 +68,7 @@ class ReplayHelper:
                 self._add_sequence_key(
                     self.grid_objects[i], "total_reward", self.step, self.total_rewards[agent_id].item()
                 )
+        self.step += 1
 
     def write_replay(self, replay_path: str, epoch: int = 0):
         self.replay["max_steps"] = self.step
@@ -104,4 +104,5 @@ class ReplayHelper:
         if self.wandb_run is not None:
             player_url = "https://metta-ai.github.io/metta/?replayUrl=" + s3_url(replay_url)
             link_summary = {"replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {epoch})</a>')}
-            self.wandb_run.log(link_summary)
+            if self.wandb_run is not None:
+                self.wandb_run.log(link_summary)
