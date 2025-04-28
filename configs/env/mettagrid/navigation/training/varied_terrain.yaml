@@ -13,9 +13,19 @@ game:
     border_width: 6
 
     room:
+<<<<<<< HEAD
       _target_: mettagrid.config.room.navigation.varied_terrain.VariedTerrain
       width: 60
       height: 60
       border_width: 1
       agents: 1
       style: ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
+=======
+      _target_: mettagrid.config.room.varied_terrain.VariedTerrain
+      width: ${sampling:50,100,60}
+      height: ${sampling:50,100,60}
+      border_width: ${sampling:1,6,3}
+      agents: 1
+      style: ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
+
+>>>>>>> f993a547484a8eefb3e649d8e31e3322b6c8f9bd

@@ -12,15 +12,17 @@ from mettagrid.resolvers import register_resolvers
 
 
 class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
-    def __init__(self, env_cfg: DictConfig, render_mode: Optional[str], buf=None, **kwargs):
+    def __init__(
+        self, env_cfg: DictConfig, render_mode: Optional[str], env_map: Optional[np.ndarray] = None, buf=None, **kwargs
+    ):
         self._render_mode = render_mode
         self._cfg_template = env_cfg
         self._env_cfg = self._get_new_env_cfg()
         self._reset_env()
         self.should_reset = False
         self._renderer = None
+        self._map_builder = None
         self.labels = self._env_cfg.get("labels", None)
-
 
         super().__init__(buf)
 
@@ -81,7 +83,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         episode_rewards_sum = episode_rewards.sum()
         episode_rewards_mean = episode_rewards_sum / self._num_agents
 
-
         infos.update(
             {
                 "episode/reward.sum": episode_rewards_sum,
@@ -92,7 +93,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             }
         )
 
-        if self._map_builder.labels is not None:
+        if self._map_builder is not None and self._map_builder.labels is not None:
             for label in self._map_builder.labels:
                 infos.update(
                     {
@@ -211,7 +212,7 @@ class MettaGridEnvSet(MettaGridEnv):
         self._env_cfg = self._get_new_env_cfg()
         self.check_action_space()
 
-        super().__init__(env_cfg, render_mode, buf, **kwargs)
+        super().__init__(env_cfg, render_mode=render_mode, buf=buf, **kwargs)
         self._cfg_template = None  # we don't use this with multiple envs, so we clear it to emphasize that fact
 
     def check_action_space(self):

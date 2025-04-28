@@ -38,7 +38,7 @@ class VariedTerrain(Room):
             "clumpiness": 0,
         },
         "balanced": {
-            "hearts_count": 100,
+            "hearts_count": 75,
             "large_obstacles": {"size_range": [10, 25], "count": 6},
             "small_obstacles": {"size_range": [3, 6], "count": 6},
             "crosses": {"count": 4},
@@ -48,7 +48,7 @@ class VariedTerrain(Room):
             "clumpiness": 1,
         },
         "dense-altars-sparse-objects": {
-            "hearts_count": 100,
+            "hearts_count": 75,
             "large_obstacles": {"size_range": [10, 25], "count": 4},
             "small_obstacles": {"size_range": [3, 6], "count": 5},
             "crosses": {"count": 3},
@@ -68,7 +68,7 @@ class VariedTerrain(Room):
             "clumpiness": 2,
         },
         "all-dense": {
-            "hearts_count": 100,
+            "hearts_count": 75,
             "large_obstacles": {"size_range": [10, 25], "count": 12},
             "small_obstacles": {"size_range": [3, 6], "count": 15},
             "crosses": {"count": 8},
@@ -176,7 +176,8 @@ class VariedTerrain(Room):
         grid = self._place_scattered_walls(grid)
         grid = self._place_blocks(grid)
         # Place altars.
-        for _ in range(self._hearts_count):
+        num_altars = np.where(grid == "altar", 1, 0).sum()
+        for _ in range(self._hearts_count - num_altars):
             pos = self._choose_random_empty()
             if pos is None:
                 break

@@ -10,21 +10,16 @@ def test_dependencies():
     """Test that all required dependencies can be imported."""
     dependencies = [
         "hydra",
-        "jmespath",
         "matplotlib",
         "pettingzoo",
-        "pynvml",
         "pytest",
         "yaml",
         "raylib",
         "rich",
         "scipy",
         "tabulate",
-        "tensordict",
-        "torchrl",
         "termcolor",
         "wandb",
-        "wandb_core",
         "pandas",
         "tqdm",
     ]

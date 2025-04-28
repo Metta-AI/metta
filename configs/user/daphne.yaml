@@ -10,8 +10,6 @@
 #navigation_poisson_sparser_pretrained.r.6
 
 defaults:
-  - override /agent: simple
-  - override /analyzer: eval_analyzer
   - _self_
 
 trainer:
@@ -45,7 +43,7 @@ analyzer:
   output_path: navigation_results/navigation.html
 
 eval:
-  env: /env/mettagrid/navigation/evals/thecube
+  env: /env/mettagrid/navigation/training/varied_terrain_all_dense
 
   policy_uri: ${..policy_uri}
   # npc_policy_uri: ${..npc_policy_uri}

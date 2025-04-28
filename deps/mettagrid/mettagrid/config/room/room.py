@@ -1,3 +1,5 @@
+from typing import Optional
+
 import numpy as np
 
 
@@ -8,10 +10,10 @@ class GameObject:
 
 
 class Room:
-    def __init__(self, border_width: int = 0, border_object: str = "wall", labels: list = []):
+    def __init__(self, border_width: int = 0, border_object: str = "wall", labels: Optional[list] = None):
         self._border_width = border_width
         self._border_object = border_object
-        self.labels = labels
+        self.labels = labels or []
 
     def set_size_labels(self, width: int, height: int):
         area = width * height

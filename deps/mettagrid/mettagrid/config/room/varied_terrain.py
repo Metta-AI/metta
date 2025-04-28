@@ -101,12 +101,15 @@ class VariedTerrain(Room):
         occupancy_threshold: float = 0.66,  # maximum fraction of grid cells to occupy
         style: str = "balanced",
     ):
-        super().__init__(border_width=border_width, border_object=border_object)
+        super().__init__(border_width=border_width, border_object=border_object, labels = [style])
 
         width = np.random.randint(40, 100)
         height = np.random.randint(40, 100)
 
+<<<<<<< HEAD
         self.labels = [style]
+=======
+>>>>>>> f993a547484a8eefb3e649d8e31e3322b6c8f9bd
         self.set_size_labels(width, height)
         self._rng = np.random.default_rng(seed)
         self._width = width
