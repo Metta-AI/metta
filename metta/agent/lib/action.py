@@ -257,7 +257,7 @@ class MettaActorBig2(LayerBase):
 
         # Concatenate the biased scores with the corresponding input representation
 
-        biased_scores_cat_hidden = torch.cat([biased_scores, input_1], dim=-1)  # Shape: [N, K + hidden]
+        biased_scores_cat_hidden = torch.cat([biased_scores, input_1_reshaped], dim=-1)  # Shape: [N, K + hidden]
 
         # Apply activation
         activated_scores = self._relu(biased_scores_cat_hidden) # Shape: [N, K + hidden]
