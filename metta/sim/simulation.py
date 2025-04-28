@@ -82,7 +82,6 @@ class Simulation:
                 self._num_envs * self._npc_agents_per_env
             )
 
-        self._completed_episodes = 0
         self._agent_stats = [{} for a in range(self._total_agents)]
 
         # Create mapping from metta.agent index to policy name
@@ -95,9 +94,8 @@ class Simulation:
 
         # Initialize replay helpers array and episode counters if replay is enabled
         self._replay_helpers = None
-        self._episode_counters = None
+        self._episode_counters = np.zeros(self._num_envs, dtype=int)
         if config.replay_path is not None:
-            self._episode_counters = np.zeros(self._num_envs, dtype=int)
             self._replay_helpers = []
             for env_idx in range(self._num_envs):
                 self._replay_helpers.append(self._create_replay_helper(env_idx))
@@ -170,7 +168,7 @@ class Simulation:
         env_dones = [False] * self._num_envs
 
         # set of episodes that parallelize the environments
-        while self._completed_episodes < self._min_episodes and time.time() - start < self._max_time_s:
+        while (self._episode_counters < self._min_episodes).any() and time.time() - start < self._max_time_s:
             with torch.no_grad():
                 obs = torch.as_tensor(obs).to(device=self._device)
                 # observations that correspond to policy agent
@@ -229,15 +227,15 @@ class Simulation:
                 # (1) episode *just* finished
                 if done_now[env_idx] and not env_dones[env_idx]:
                     env_dones[env_idx] = True
-                    self._completed_episodes += 1
+
                     if self._replay_helpers is not None:
                         path = self._get_replay_path(env_idx, self._episode_counters[env_idx])
                         self._replay_helpers[env_idx].write_replay(path, epoch=self._episode_counters[env_idx])
-                        self._episode_counters[env_idx] += 1
+                    self._episode_counters[env_idx] += 1
 
-                # (2) environment auto-reset by VecEnv → new episode begins
+                # (2) environment has auto-reset → new episode has started -------------
                 elif not done_now[env_idx] and env_dones[env_idx]:
-                    env_dones[env_idx] = False
+                    env_dones[env_idx] = False  # <-- lets us log steps again
                     if self._replay_helpers is not None:
                         self._replay_helpers[env_idx] = self._create_replay_helper(env_idx)
 

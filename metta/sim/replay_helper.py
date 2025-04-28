@@ -75,8 +75,8 @@ class ReplayHelper:
 
         # Trim value changes to make them more compact.
         for grid_object in self.grid_objects:
-            for key, changes in grid_object.items():
-                if len(changes) == 1:
+            for key, changes in list(grid_object.items()):
+                if isinstance(changes, list) and len(changes) == 1:
                     grid_object[key] = changes[0][1]
 
         replay_data = json.dumps(self.replay)  # Convert to JSON string

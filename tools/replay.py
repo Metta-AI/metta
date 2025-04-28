@@ -32,6 +32,8 @@ def main(cfg):
         sim = Simulation(replay_job.sim, policy_record, policy_store, wandb_run=wandb_run)
         sim.simulate()
         # Only on macos open a browser to the replay
+        # TODO: This wont be quite the right URL if num_episodes >1  num_envs > 1
+        # see Simulation._get_replay_path()
         if platform.system() == "Darwin":
             webbrowser.open(f"https://metta-ai.github.io/metta/?replayUrl={s3_url(replay_job.sim.replay_path)}")
 
