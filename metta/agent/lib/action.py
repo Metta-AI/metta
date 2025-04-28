@@ -223,7 +223,7 @@ class MettaActorBig2(LayerBase):
         self._relu = nn.ReLU()
 
         self._MLP = nn.Sequential(
-            nn.Linear(self.bilinear_output_dim, self.mlp_hidden_dim),
+            nn.Linear(self.bilinear_output_dim + self.hidden, self.mlp_hidden_dim),
             nn.ReLU(),
             nn.Linear(self.mlp_hidden_dim, 1),
         )
@@ -256,11 +256,11 @@ class MettaActorBig2(LayerBase):
         biased_scores = scores + self.bias.reshape(1, -1) # Shape: [N, K]
 
         # Concatenate the biased scores with the corresponding input representation
-        input_1_repeated = input_1_reshaped  # Shape: [N, hidden]
-        biased_scores_and_input = torch.cat([biased_scores, input_1_repeated], dim=-1)  # Shape: [N, K + hidden]
+
+        biased_scores_cat_hidden = torch.cat([biased_scores, input_1], dim=-1)  # Shape: [N, K + hidden]
 
         # Apply activation
-        activated_scores = self._relu(biased_scores) # Shape: [N, K]
+        activated_scores = self._relu(biased_scores_cat_hidden) # Shape: [N, K + hidden]
 
         # Pass through MLP
         mlp_output = self._MLP(activated_scores) # Shape: [N, 1]
