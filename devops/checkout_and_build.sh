@@ -131,5 +131,6 @@ install_repo "carbs" $CARBS_REPO "main" "pip install -e ."
 install_repo "wandb_carbs" $WANDB_CARBS_REPO "main" "pip install -e ."
 
 # Mark dependencies as installed
+cd ..
 touch "deps/.built"
 echo "Dependencies successfully installed and cached!"
