@@ -42,14 +42,13 @@ class ReplayHelper:
         replay = {
             "version": 1,
             "action_names": simulator.env.action_names(),
-            "object_types": [],
+            "object_types": simulator.env.object_type_names(),
+            "inventory_items": simulator.env.inventory_item_names(),
             "map_size": [simulator.env.map_width, simulator.env.map_height],
             "num_agents": simulator.num_agents,
             "max_steps": simulator.num_steps,
             "grid_objects": grid_objects,
         }
-
-        replay["object_types"] = simulator.env.object_type_names()
 
         step = 0
         while not simulator.done():
