@@ -19,7 +19,7 @@ def log_prob(logits, value):
     return log_pmf.gather(-1, value).squeeze(-1) # replace w reshape
 
 
-def entropy(logits):
+def entropy(log_sftmx_logits):
     """
     Compute entropy of a categorical distribution given logits.
     
@@ -29,9 +29,10 @@ def entropy(logits):
     Returns:
         Entropy of the distribution
     """
-    min_real = torch.finfo(logits.dtype).min
-    logits = torch.clamp(logits, min=min_real)
-    p_log_p = logits * logits_to_probs(logits)
+    min_real = torch.finfo(log_sftmx_logits.dtype).min
+    log_sftmx_logits = torch.clamp(log_sftmx_logits, min=min_real)
+    # logits_to_probs is just softmax. softmax(log(softmax(logits) = softmax(logits)
+    p_log_p = log_sftmx_logits * logits_to_probs(log_sftmx_logits)
     return -p_log_p.sum(-1)
 
 
@@ -53,12 +54,12 @@ def sample_logits(logits: torch.Tensor, action=None):
 
     # Normalize logits for numerical stability
     # Shape: [B*T, A]
-    normalized_logits = logits - logits.logsumexp(dim=-1, keepdim=True)
+    log_sftmx_logits = logits - logits.logsumexp(dim=-1, keepdim=True)
 
     if action is None:
         # Sample action if not provided
         # probs shape: [B*T, A]
-        probs = logits_to_probs(normalized_logits)
+        probs = logits_to_probs(log_sftmx_logits)
         # Sampled action shape: [B*T, 1], squeeze to [B*T]
         B = logits[0].shape[0]
         action = torch.multinomial(probs, 1, replacement=True).reshape(B, -1)
@@ -69,13 +70,13 @@ def sample_logits(logits: torch.Tensor, action=None):
     # Ensure action has the expected shape [B*T]
     assert action.shape == logits.shape[:-1], f"Action shape mismatch: expected {logits.shape[:-1]}, got {action.shape}"
 
-    # Calculate log probability for the action
+    # Calculate log probability for the action selected
     # Shape: [B*T]
-    logprob = log_prob(normalized_logits, action)
+    logprob_act = log_prob(log_sftmx_logits, action)
 
     # Calculate entropy of the distribution
     # Shape: [B*T]
-    logits_entropy = entropy(normalized_logits)
+    logits_entropy = entropy(log_sftmx_logits)
 
     # Return shapes: [B*T], [B*T], [B*T], [B*T, A]
-    return action, logprob, logits_entropy, normalized_logits
+    return action, logprob_act, logits_entropy, log_sftmx_logits

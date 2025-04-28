@@ -65,8 +65,8 @@ class LayerBase(nn.Module):
 
         if self._source_components is None:
             self._in_tensor_shapes = None
-            if self._out_tensor_shape is None:
-                raise ValueError(f"Either input source or output tensor shape must be set for layer {self._name}")
+            # if self._out_tensor_shape is None:
+            #     raise ValueError(f"Either input source or output tensor shape must be set for layer {self._name}")
         else:
             if isinstance(self._source_components, dict):
                 self._in_tensor_shapes = []

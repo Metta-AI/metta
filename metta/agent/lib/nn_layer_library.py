@@ -45,6 +45,9 @@ class Embedding(LayerBase):
         super().__init__(**cfg)
 
     def _make_net(self):
+        # output shape [0] is the number of indices used in the forward pass which can change
+        # no child layer should be sensitive to this dimension
+        self._out_tensor_shape = [0, self._nn_params['embedding_dim']]
         net = nn.Embedding(
             **self._nn_params
         )

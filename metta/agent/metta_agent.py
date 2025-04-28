@@ -207,11 +207,11 @@ class MettaAgent(nn.Module):
         e3b, intrinsic_reward = self._e3b_update(td["_core_"].detach(), e3b)
 
         action_logit_index = self._convert_action_to_logit_index(action) if action is not None else None
-        action_logit_index, logprob, entropy, normalized_logits = sample_logits(logits, action_logit_index)
+        action_logit_index, logprob_act, entropy, log_sftmx_logits = sample_logits(logits, action_logit_index)
         if action is None:
             action = self._convert_logit_index_to_action(action_logit_index, td)
 
-        return action, logprob, entropy, value, state, e3b, intrinsic_reward, normalized_logits
+        return action, logprob_act, entropy, value, state, e3b, intrinsic_reward, log_sftmx_logits
 
     def _convert_action_to_logit_index(self, action):
         """Convert action pairs (action_type, action_param) to single discretelogit indices using vectorized operations"""

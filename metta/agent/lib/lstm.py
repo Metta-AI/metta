@@ -14,10 +14,11 @@ class LSTM(LayerBase):
         super().__init__(**cfg)
         self._obs_shape = list(obs_shape) # make sure no Omegaconf types are used in forward passes
         self.hidden_size = hidden_size
-        self._out_tensor_shape = [hidden_size]
+        # self._out_tensor_shape = [hidden_size] # delete this
         self.num_layers = self._nn_params['num_layers']
 
     def _make_net(self):
+        self._out_tensor_shape = [self.hidden_size]
         net = nn.LSTM(self._in_tensor_shapes[0][0], self.hidden_size, **self._nn_params)
 
         for name, param in net.named_parameters():

@@ -190,21 +190,17 @@ components:
     nn_params:
       out_features: 512
 
-  actor_2:
-    _target_: metta.agent.lib.nn_layer_library.Linear
-    sources:
-      - name: actor_1
+  _action_embeds_:
+    _target_: metta.agent.lib.action.ActionEmbedding
+    input_source: null
     nn_params:
-      out_features: 512
+      num_embeddings: 100
+      embedding_dim: 16
 
-  _action_type_:
-    _target_: metta.agent.lib.action.ActionType
+  _action_:
+    _target_: metta.agent.lib.action.MettaActorBig
+    bilinear_output_dim: 32
+    mlp_hidden_dim: 512
     sources:
       - name: actor_1
-    nonlinearity: null # we don't want a nonlinearity here because we'll use a softmax on the action space
-
-  _action_param_:
-    _target_: metta.agent.lib.action.ActionParam
-    sources:
-      - name: actor_1
-    nonlinearity: null
+      - name: _action_embeds_
