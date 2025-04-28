@@ -1,7 +1,7 @@
 FROM mettaai/metta-base:latest
 
 RUN pip install boto3 chex hydra-core matplotlib pettingzoo
-RUN pip install rich scipy tabulate torchrl
+RUN pip install rich scipy tabulate
 
 # Use ARG to create a build-time variable
 ARG CACHE_DATE
@@ -19,7 +19,6 @@ RUN pip install -r requirements.txt
 WORKDIR /workspace/metta/deps/
 RUN git clone https://github.com/Metta-AI/fast_gae.git
 RUN git clone --depth=1 --branch=metta https://github.com/Metta-AI/pufferlib.git
-RUN git clone https://github.com/Metta-AI/mettagrid.git
 RUN git clone https://github.com/kywch/carbs.git
 RUN git clone https://github.com/Metta-AI/wandb_carbs.git
 

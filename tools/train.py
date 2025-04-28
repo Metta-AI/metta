@@ -9,7 +9,8 @@ from rich.logging import RichHandler
 from torch.distributed.elastic.multiprocessing.errors import record
 
 from metta.agent.policy_store import PolicyStore
-from metta.util.config import setup_metta_environment
+from metta.sim.simulation_config import SimulationSuiteConfig
+from metta.util.config import Config, setup_metta_environment
 from metta.util.runtime_configuration import setup_mettagrid_environment
 from metta.util.wandb.wandb_context import WandbContext
 
@@ -19,6 +20,11 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger("train")
+
+
+# TODO: populate this more
+class TrainJob(Config):
+    evals: SimulationSuiteConfig
 
 
 def train(cfg, wandb_run):
@@ -37,19 +43,21 @@ def train(cfg, wandb_run):
         with open(os.path.join(cfg.run_dir, "config.yaml"), "w") as f:
             OmegaConf.save(cfg, f)
 
+    train_job = TrainJob(cfg.train_job)
+
     policy_store = PolicyStore(cfg, wandb_run)
-    trainer = hydra.utils.instantiate(cfg.trainer, cfg, wandb_run, policy_store)
+    trainer = hydra.utils.instantiate(cfg.trainer, cfg, wandb_run, policy_store, train_job.evals)
     trainer.train()
     trainer.close()
 
 
 @record
-@hydra.main(config_path="../configs", config_name="train", version_base=None)
+@hydra.main(config_path="../configs", config_name="train_job", version_base=None)
 def main(cfg: OmegaConf) -> int:
     setup_metta_environment(cfg)
     setup_mettagrid_environment(cfg)
+    logger.info(f"Train job config: {OmegaConf.to_yaml(cfg, resolve=True)}")
 
-    print("trainer started....")
     logger.info(
         f"Training {cfg.run} on "
         + f"{os.environ.get('NODE_INDEX', '0')}: "

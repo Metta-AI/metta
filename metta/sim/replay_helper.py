@@ -6,9 +6,9 @@ import zlib
 
 import boto3
 import wandb
-from omegaconf import OmegaConf
 
 from metta.agent.policy_store import PolicyRecord
+from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulator import Simulator
 from metta.util.wandb.wandb_context import WandbContext
 
@@ -16,9 +16,8 @@ from metta.util.wandb.wandb_context import WandbContext
 class ReplayHelper:
     """Helper class for generating and uploading replays."""
 
-    def __init__(self, cfg: OmegaConf, env_cfg: OmegaConf, policy_record: PolicyRecord, wandb_run: WandbContext):
-        self.cfg = cfg
-        self.env_cfg = env_cfg
+    def __init__(self, config: SimulationConfig, policy_record: PolicyRecord, wandb_run: WandbContext):
+        self.config = config
         self.policy_record = policy_record
         self.wandb_run = wandb_run
 
@@ -36,7 +35,7 @@ class ReplayHelper:
 
     def generate_replay(self, replay_path: str):
         """Generate a replay and save it to a file."""
-        simulator = Simulator(self.cfg, self.env_cfg, self.policy_record)
+        simulator = Simulator(self.config, self.policy_record)
 
         grid_objects = []
 
@@ -108,15 +107,15 @@ class ReplayHelper:
         link = f"https://{s3_bucket}.s3.us-east-1.amazonaws.com/{replay_url}"
 
         # Log the link to WandB
-        player_url = "https://metta-ai.github.io/mettagrid/?replayUrl=" + link
+        player_url = "https://metta-ai.github.io/metta/?replayUrl=" + link
         link_summary = {"replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {epoch})</a>')}
         self.wandb_run.log(link_summary)
 
-    def generate_and_upload_replay(self, epoch: int, dry_run: bool = False):
+    def generate_and_upload_replay(self, epoch: int, run_dir: str, run: str, dry_run: bool = False):
         """Generate a replay and upload it to S3 and log the link to WandB."""
-        replay_path = f"{self.cfg.run_dir}/replays/replay.{epoch}.json.z"
+        replay_path = f"{run_dir}/replays/replay.{epoch}.json.z"
         self.generate_replay(replay_path)
 
-        replay_url = f"replays/{self.cfg.run}/replay.{epoch}.json.z"
+        replay_url = f"replays/{run}/replay.{epoch}.json.z"
         if not dry_run:
             self.upload_replay(replay_path, replay_url, epoch)

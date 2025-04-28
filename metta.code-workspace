@@ -9,16 +9,16 @@
 			"path": "deps/fast_gae"
 		},
 		{
-			"name": "mettagrid",
-			"path": "deps/mettagrid"
-		},
-		{
 			"name": "pufferlib",
 			"path": "deps/pufferlib"
 		},
 		{
 			"name": "wandb_carbs",
 			"path": "deps/wandb_carbs"
+		},
+		{
+			"name": "carbs",
+			"path": "deps/carbs"
 		}
 	],
 	"settings": {
@@ -122,14 +122,17 @@
 		// run:
 		//     conda activate metta
 		//     ln -s "$CONDA_PREFIX/lib/python3.11/site-packages" /var/tmp/metta/conda-site-packages
+		//     ln -s "$(pwd)/deps" /var/tmp/metta/deps
 		//
 		// Then ensure "/var/tmp/metta/conda-site-packages" is included in the extraPaths lists below.
 
 		"python.analysis.extraPaths": [
-			"/var/tmp/metta/conda-site-packages"
+			"/var/tmp/metta/conda-site-packages",
+			"/var/tmp/metta/deps"
 		],
 		"python.autoComplete.extraPaths": [
-			"/var/tmp/metta/conda-site-packages"
+			"/var/tmp/metta/conda-site-packages",
+			"/var/tmp/metta/deps"
 		],
 		"python.analysis.exclude": [
 			"**/deps/pufferlib/**"
@@ -142,7 +145,10 @@
 			"train_dir": true,
 			"wandb": true,
 			"deps": true,
+			"mettagrid/build": true,
+			"mettagrid/build_debug": true,
 		},
+		"files.excludeGitIgnored": true,
 		"terminal.integrated.profiles.osx": {
 			"metta-0": {
 				"path": "bash",
@@ -188,23 +194,6 @@
 				],
 				"overrideName": true,
 				"name": "metta-4",
-			},
-			"build-mettagrid": {
-				"path": "/bin/zsh",
-				"args": [
-					"-c",
-					"cd deps/mettagrid && ",
-					"conda activate metta && ",
-					"python setup.py build_ext --inplace && ",
-					"/bin/zsh"
-				],
-				"cwd": "${workspaceFolder}/deps/mettagrid",
-				"env": {
-					"DEBUG": "1",
-					"ANNOTATE": "1"
-				},
-				"overrideName": true,
-				"name": "build-mettagrid"
 			}
 		},
 		"terminal.integrated.cwd": "${workspaceFolder}",

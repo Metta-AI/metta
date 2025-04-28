@@ -1,23 +1,77 @@
+from __future__ import annotations
+
 import os
+from typing import (
+    Any,
+    Type,
+    TypeVar,
+    Union,
+)
 
 import boto3
 import hydra
 import wandb
 from botocore.exceptions import ClientError, NoCredentialsError
 from omegaconf import DictConfig, OmegaConf
+from pydantic import BaseModel, ValidationError
+
+T = TypeVar("T")
+class Config(BaseModel):
+    """
+    Pydantic-backed config base.
+    - extra keys are ignored
+    - you can do `MyConfig(cfg_node)` where cfg_node is a DictConfig or dict
+    - .dictconfig()  → OmegaConf.DictConfig
+    - .yaml()        → YAML string
+    """
+
+    class Config:
+        extra = "forbid"
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        # allow `Config(DictConfig)` or `Config(dict)` as shorthand for .from_dictconfig(...)
+        if len(args) == 1 and not kwargs and isinstance(args[0], (DictConfig, dict)):
+            raw = args[0]
+            data = OmegaConf.to_container(raw, resolve=True) if isinstance(raw, DictConfig) else dict(raw)
+            try:
+                super().__init__(**data)
+            except ValidationError:
+                # re-raise so traceback points here
+                raise
+        else:
+            # normal BaseModel __init__(**kwargs)
+            super().__init__(*args, **kwargs)
+
+    @classmethod
+    def from_dictconfig(cls: Type[T], cfg: Union[DictConfig, dict]) -> T:
+        """
+        Explicit constructor from a DictConfig or plain dict.
+        """
+        raw = cfg
+        data = OmegaConf.to_container(raw, resolve=True) if isinstance(raw, DictConfig) else dict(raw)
+        return cls.parse_obj(data)
+
+    def dictconfig(self) -> DictConfig:
+        """
+        Convert this model back to an OmegaConf DictConfig.
+        """
+        return OmegaConf.create(self.dict())
+
+    def yaml(self) -> str:
+        """
+        Render this model as a YAML string.
+        """
+        return OmegaConf.to_yaml(self.dictconfig())
 
 
 def config_from_path(config_path: str, overrides: DictConfig = None) -> DictConfig:
     if config_path is None:
-        # Handle the None case appropriately
-        # For example, return a default configuration or raise a more informative error
         raise ValueError("Config path cannot be None")
 
     env_cfg = hydra.compose(config_name=config_path)
     if config_path.startswith("/"):
         config_path = config_path[1:]
-    path = config_path.split("/")
-    for p in path[:-1]:
+    for p in config_path.split("/")[:-1]:
         env_cfg = env_cfg[p]
     if overrides not in [None, {}]:
         if env_cfg._target_ == "mettagrid.mettagrid_env.MettaGridEnvSet":

@@ -1,6 +1,7 @@
 defaults:
   - /env/mettagrid-base/mettagrid@
 
+sampling: 1
 game:
   num_agents: 4  #how many agents are in the map x2
 
@@ -10,15 +11,7 @@ game:
     border_width: 6
 
     room:
-      _target_: mettagrid.config.room.terrain_from_numpy.TerrainFromNumpy
+      _target_: mettagrid.config.room.navigation.terrain_from_numpy.TerrainFromNumpy
       border_width: 1
       dir: "terrain_maps_nohearts"
       num_agents: 1
-  objects:
-    altar:
-      cooldown: 1000
-      input_battery: 3
-      output_heart: 1
-      max_output: 5
-      conversion_ticks: 1
-      initial_items: 1

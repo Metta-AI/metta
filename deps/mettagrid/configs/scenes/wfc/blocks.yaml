@@ -1,0 +1,12 @@
+# Randomly sized rectangular blocks.
+_target_: mettagrid.map.scenes.wfc.WFC
+pattern_size: 3
+pattern: |
+  |####   ####|
+  |####   ####|
+  |####   ####|
+  |           |
+  |           |
+  |####   ####|
+  |####   ####|
+  |####   ####|

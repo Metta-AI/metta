@@ -1,4 +1,5 @@
 name: Python Tests
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -13,7 +14,7 @@ jobs:
   test:
     if: github.event.pull_request.draft == false || github.event_name == 'push'
     runs-on: ubuntu-latest
-    timeout-minutes: 10 # Prevent hung jobs from consuming resources
+    timeout-minutes: 30
     env:
       CHECKPOINT_PATH: ./train_dir/github_test/checkpoints/
     steps:
@@ -24,64 +25,74 @@ jobs:
         with:
           python-version: "3.11.7"
 
-      - name: Cache pip packages
+      - name: Create and initialize virtualenv
+        run: |
+          python -m venv venv
+          source venv/bin/activate
+          python -m pip install --upgrade pip
+
+      - name: Download cached pip packages
         uses: actions/cache@v4
         id: cache-pip
         with:
           path: |
             ~/.cache/pip
-            venv
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt', '**/requirements-dev.txt', '**/setup.py') }}
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-
 
-      - name: Install pip dependencies
+      - name: Install Python requirements
         if: steps.cache-pip.outputs.cache-hit != 'true'
         run: |
-          python -m venv venv
           source venv/bin/activate
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-
-      - name: Cache Git dependencies
-        uses: actions/cache@v4
-        id: cache-git-deps
-        with:
-          path: deps
-          key: ${{ runner.os }}-git-deps-${{ hashFiles('devops/setup_build.sh') }}
-          restore-keys: |
-            ${{ runner.os }}-git-deps-
-
-      - name: Run setup build script
-        if: steps.cache-git-deps.outputs.cache-hit != 'true'
-        run: |
-          source venv/bin/activate
-          mkdir -p deps
-          bash ./devops/setup_build.sh
-
-      - name: List installed packages
-        run: |
-          source venv/bin/activate
+          pip install -r requirements.txt
           pip list
 
-      - name: Cache Ruff
+      - name: Download cached compiled local dependencies
         uses: actions/cache@v4
-        id: cache-ruff
+        id: cache-dep-builds
         with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-ruff-0.11.5
+          path: |
+            deps/pufferlib/build
+            deps/pufferlib/**/*.so
+            deps/fast_gae/build
+            deps/fast_gae/**/*.so
+            deps/mettagrid/build
+            deps/mettagrid/**/*.so
+          key: ${{ runner.os }}-dep-builds-${{ hashFiles('devops/setup_build.sh') }}
+          restore-keys: |
+            ${{ runner.os }}-dep-builds-
 
+      # Always run setup_build.sh — it will skip rebuilding if outputs exist
+      - name: Build and install local dependencies
+        run: |
+          source venv/bin/activate
+          bash ./devops/setup_build.sh
+
+      # Run Ruff lint check
       - name: Run Ruff check
         run: |
           source venv/bin/activate
           pip install ruff==0.11.5
           ruff check --respect-gitignore .
 
-      - name: Run Pytest
+      - name: Run tests in /tests
         env:
+          HYDRA_FULL_ERROR: 1
           PYTHONPATH: ${{ github.workspace }}
         run: |
           source venv/bin/activate
           pytest tests/ --maxfail=1 --disable-warnings -q
+
+      - name: Run tests in /deps/mettagrid/tests
+        env:
+          HYDRA_FULL_ERROR: 1
+          PYTHONPATH: ${{ github.workspace }}/deps/mettagrid
+        run: |
+          source venv/bin/activate
+          cd deps/mettagrid
+          pytest tests
+          python tests/test_kinship.py
 
       - name: Training smoke test
         id: training
@@ -95,7 +106,6 @@ jobs:
         run: |
           source venv/bin/activate
           python -m tools.train +hardware=github wandb=off
-          # Verify the output path exists
           ls -la $CHECKPOINT_PATH || echo "Warning: Checkpoint directory not created"
 
       - name: Upload training output
@@ -105,7 +115,7 @@ jobs:
           name: train-output
           path: train_dir/
           retention-days: 1
-          if-no-files-found: error # This will fail the workflow if no files are found
+          if-no-files-found: error
 
       - name: Download training output
         if: success()

@@ -1,0 +1,240 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body,
+html {
+  overflow: hidden;
+  height: 100%;
+  background-color: black;
+  /* Prevent touch zooming */
+  touch-action: none;
+  -ms-touch-action: none;
+  /* Prevent content selection */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+canvas {
+  display: block;
+  /* Prevent default touch behaviors */
+  touch-action: none;
+  -ms-touch-action: none;
+  /* Prevent content selection */
+  user-select: none;
+  -webkit-user-select: none;
+  /* Ensure proper rendering */
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  /* Prevent default scaling */
+  transform-origin: top left;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  height: 100vh;
+}
+
+.scrubber-container {
+  position: absolute;
+  bottom: 0px;
+  left: 0px;
+  right: 0px;
+  height: 64px;
+  background-color: rgba(0.2, 0.2, 0.2, 1.0);
+  display: flex;
+  align-items: center;
+}
+
+.play-button {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  margin-left: 20px;
+  background-color: #ff0000;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 16px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  transition: background-color 0.2s, transform 0.1s;
+  z-index: 2;
+}
+
+.play-button:hover {
+  background-color: #cc0000;
+  transform: scale(1.05);
+}
+
+.play-button:active {
+  transform: scale(0.95);
+}
+
+.play-button.paused::before {
+  content: "❚❚";
+  font-size: 12px;
+  letter-spacing: -2px;
+}
+
+.scrubber {
+  position: absolute;
+  top: 29px;
+  left: 70px;
+  right: 20px;
+  height: 5px;
+  /* Track height */
+  -webkit-appearance: none;
+  /* Remove default styling in WebKit browsers */
+  appearance: none;
+  background: #e0e0e0;
+  /* Track color */
+  outline: none;
+  border-radius: 2.5px;
+  /* Rounded track */
+  overflow: hidden;
+  opacity: 0.7;
+  /* Slightly transparent */
+  transition: opacity .2s;
+  /* Transition effect */
+  cursor: pointer;
+  /* Cursor on hover */
+}
+
+.scrubber:hover {
+  opacity: 1;
+  /* Full opacity on hover */
+}
+
+.scrubber::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  /* Thumb width */
+  height: 12px;
+  /* Thumb height */
+  background: #ff0000;
+  /* Thumb color (YouTube red) */
+  border-radius: 50%;
+  /* Round thumb */
+  cursor: pointer;
+  /* Cursor on hover */
+  box-shadow: 0 0 2px 0 rgba(0, 0, 0, 0.5);
+  /* Shadow for depth */
+}
+
+.scrubber::-moz-range-thumb {
+  width: 12px;
+  /* Thumb width */
+  height: 12px;
+  /* Thumb height */
+  background: #ff0000;
+  /* Thumb color (YouTube red) */
+  border-radius: 50%;
+  /* Round thumb */
+  cursor: pointer;
+  /* Cursor on hover */
+  box-shadow: 0 0 2px 0 rgba(0, 0, 0, 0.5);
+  /* Shadow for depth */
+}
+
+.scrubber::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 5px;
+  /* Match the track height */
+  background: #ff0000;
+  /* Fill color (YouTube red) */
+  z-index: 1;
+  /* Ensure it's below the slider */
+  width: 0;
+  /* Initial width */
+  transition: width 0.2s;
+  /* Smooth transition */
+}
+
+#info-div {
+  padding: 32px;
+  background-color: rgba(0.2, 0.2, 0.2, 1.0);
+  color: white;
+  font-family: monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow: auto;
+}
+
+#trace-canvas {
+  position: absolute;
+  top: 0px;
+  right: 0px;
+  width: 100px;
+  height: 100px;
+}
+
+#trace-handle {
+  position: absolute;
+  top: 0px;
+  right: 0px;
+  width: 10px;
+  height: 10px;
+  background-color: red;
+  cursor: col-resize;
+}
+
+.modal {
+  display: none;
+  /* Hidden by default */
+  position: fixed;
+  /* Stay in place */
+  z-index: 1000;
+  /* Sit on top */
+  left: 0;
+  top: 0;
+  width: 100%;
+  /* Full width */
+  height: 100%;
+  /* Full height */
+  overflow: auto;
+  /* Enable scroll if needed */
+  background-color: rgb(0, 0, 0);
+  /* Fallback color */
+  background-color: rgba(0, 0, 0, 0.4);
+  /* Black w/ opacity */
+}
+
+.modal-content {
+  background-color: #404040;
+  margin: 15% auto;
+  padding: 20px;
+  max-width: 500px;
+  text-align: center;
+  border-radius: 20px;
+  font-family: sans-serif;
+  line-height: 72px;
+  color: white;
+}
+
+.error .modal-content {
+  background-color: #700707
+}
+
+.close-button {
+  color: #aaa;
+  float: right;
+  font-size: 28px;
+  font-weight: bold;
+}
+
+.close-button:hover,
+.close-button:focus {
+  color: black;
+  text-decoration: none;
+  cursor: pointer;
+}
