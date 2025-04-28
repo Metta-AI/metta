@@ -1,4 +1,5 @@
 import logging
+import os
 import time
 from datetime import datetime
 
@@ -7,6 +8,7 @@ import torch
 from omegaconf import OmegaConf
 
 from metta.agent.policy_store import PolicyRecord, PolicyStore
+from metta.sim.replay_helper import ReplayHelper
 from metta.sim.simulation_config import SimulationConfig, SimulationSuiteConfig
 from metta.sim.vecenv import make_vecenv
 from metta.util.config import config_from_path
@@ -24,8 +26,16 @@ class Simulation:
     Simulations are used by training, evaluation and (eventually) play+replay.
     """
 
-    def __init__(self, config: SimulationConfig, policy_pr: PolicyRecord, policy_store: PolicyStore, name: str = ""):
+    def __init__(
+        self,
+        config: SimulationConfig,
+        policy_pr: PolicyRecord,
+        policy_store: PolicyStore,
+        name: str = "",
+        wandb_run=None,
+    ):
         self._config = config
+        self._wandb_run = wandb_run
         # TODO: Replace with typed EnvConfig
         self._env_cfg = config_from_path(config.env, config.env_overrides)
         self._env_name = config.env
@@ -73,7 +83,6 @@ class Simulation:
             )
 
         self._completed_episodes = 0
-        self._total_rewards = np.zeros(self._total_agents)
         self._agent_stats = [{} for a in range(self._total_agents)]
 
         # Create mapping from metta.agent index to policy name
@@ -83,6 +92,62 @@ class Simulation:
 
         for agent_idx in self._npc_idxs:
             self._agent_idx_to_policy_name[agent_idx.item()] = self._npc_pr.name
+
+        # Initialize replay helpers array and episode counters if replay is enabled
+        self._replay_helpers = None
+        self._episode_counters = None
+        if config.replay_path is not None:
+            self._episode_counters = np.zeros(self._num_envs, dtype=int)
+            self._replay_helpers = []
+            for env_idx in range(self._num_envs):
+                self._replay_helpers.append(self._create_replay_helper(env_idx))
+
+    def _create_replay_helper(self, env_idx):
+        """Create a new replay helper for the specified environment index."""
+        return ReplayHelper(
+            config=self._config,
+            env=self._vecenv.envs[env_idx],
+            policy_record=self._policy_pr,
+            wandb_run=self._wandb_run,
+        )
+
+    def _get_replay_path(self, env_idx, episode_count):
+        """Generate a unique replay path for the given environment and episode."""
+        base_path = self._config.replay_path
+
+        if self._config.num_envs == 1 and self._config.num_episodes == 1:
+            return base_path
+
+        if base_path.startswith("s3://"):
+            # Parse S3 path into bucket and key parts
+            s3_parts = base_path[5:].split("/", 1)
+            bucket = s3_parts[0]
+
+            if len(s3_parts) > 1:
+                key_parts = s3_parts[1].rsplit("/", 1)
+                if len(key_parts) > 1:
+                    prefix = key_parts[0]
+                    filename = key_parts[1]
+                else:
+                    prefix = ""
+                    filename = key_parts[0]
+
+                # Add environment and episode identifiers to filename
+                new_filename = f"ep{episode_count}_env{env_idx}_{filename}"
+
+                if prefix:
+                    return f"s3://{bucket}/{prefix}/{new_filename}"
+                else:
+                    return f"s3://{bucket}/{new_filename}"
+            else:
+                return f"s3://{bucket}/ep{episode_count}_env{env_idx}_replay.dat"
+        else:
+            # For local paths
+            directory, filename = os.path.split(base_path)
+            if not filename:
+                filename = "replay.dat"
+            new_filename = f"ep{episode_count}_env{env_idx}_{filename}"
+            return os.path.join(directory, new_filename)
 
     def simulate(self):
         logger.info(
@@ -101,11 +166,14 @@ class Simulation:
         game_stats = []
         start = time.time()
 
+        # Track environment completion status
+        env_dones = [False] * self._num_envs
+
         # set of episodes that parallelize the environments
         while self._completed_episodes < self._min_episodes and time.time() - start < self._max_time_s:
             with torch.no_grad():
                 obs = torch.as_tensor(obs).to(device=self._device)
-                # observavtions that correspond to policy agent
+                # observations that correspond to policy agent
                 my_obs = obs[self._policy_idxs]
 
                 # Parallelize across opponents
@@ -131,11 +199,47 @@ class Simulation:
                 )
 
             actions = actions.view(self._num_envs * self._agents_per_env, -1)
+            actions_np = actions.cpu().numpy()
 
-            obs, rewards, dones, truncated, infos = self._vecenv.step(actions.cpu().numpy())
+            # Step the environment
+            obs, rewards, dones, truncated, infos = self._vecenv.step(actions_np)
 
-            self._total_rewards += rewards
-            self._completed_episodes += sum([e.done for e in self._vecenv.envs])
+            # Handle replay logging if enabled
+            if self._replay_helpers is not None:
+                actions_per_env = actions_np.reshape(self._num_envs, self._agents_per_env, -1)
+                rewards_per_env = rewards.reshape(self._num_envs, self._agents_per_env)
+
+                for env_idx in range(self._num_envs):
+                    # Only log steps for active environments
+                    if not env_dones[env_idx]:
+                        self._replay_helpers[env_idx].log_step(
+                            actions_per_env[env_idx].squeeze(), rewards_per_env[env_idx]
+                        )
+
+            # ------------------------------------------------------------------
+            # Episode bookkeeping (per-environment finite-state machine)
+            # ------------------------------------------------------------------
+            # Vector-env returns per-agent flags; collapse to one flag per env
+            done_now = np.logical_or(
+                dones.reshape(self._num_envs, self._agents_per_env).all(axis=1),
+                truncated.reshape(self._num_envs, self._agents_per_env).all(axis=1),
+            )
+
+            for env_idx in range(self._num_envs):
+                # (1) episode *just* finished
+                if done_now[env_idx] and not env_dones[env_idx]:
+                    env_dones[env_idx] = True
+                    self._completed_episodes += 1
+                    if self._replay_helpers is not None:
+                        path = self._get_replay_path(env_idx, self._episode_counters[env_idx])
+                        self._replay_helpers[env_idx].write_replay(path, epoch=self._episode_counters[env_idx])
+                        self._episode_counters[env_idx] += 1
+
+                # (2) environment auto-reset by VecEnv → new episode begins
+                elif not done_now[env_idx] and env_dones[env_idx]:
+                    env_dones[env_idx] = False
+                    if self._replay_helpers is not None:
+                        self._replay_helpers[env_idx] = self._create_replay_helper(env_idx)
 
             # Convert the environment configuration to a dictionary and flatten it.
             game_cfg = OmegaConf.to_container(self._env_cfg.game, resolve=False)
@@ -161,7 +265,8 @@ class Simulation:
                         agent_episode_data[agent_i].update(flattened_env)
 
                     game_stats.append(agent_episode_data)
-        logger.debug(f"Simulation time: {time.time() - start}")
+
+        logger.info(f"Simulation time: {time.time() - start}")
         self._vecenv.close()
         return game_stats
 
@@ -172,13 +277,17 @@ class SimulationSuite:
         config: SimulationSuiteConfig,
         policy_pr: PolicyRecord,
         policy_store: PolicyStore,
+        wandb_run=None,
     ):
         logger.debug(f"Building Simulation suite from config:{config}")
         self._simulations = dict()
+        self._wandb_run = wandb_run
 
         for name, sim_config in config.simulations.items():
-            # Create a Simulation object for each config
-            sim = Simulation(config=sim_config, policy_pr=policy_pr, policy_store=policy_store, name=name)
+            # Create a Simulation object for each config and pass wandb_run directly
+            sim = Simulation(
+                config=sim_config, policy_pr=policy_pr, policy_store=policy_store, name=name, wandb_run=wandb_run
+            )
             self._simulations[name] = sim
 
     def simulate(self):

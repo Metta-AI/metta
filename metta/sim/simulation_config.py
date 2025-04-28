@@ -20,7 +20,8 @@ class SimulationConfig(Config):
     max_time_s: int = 60
     vectorization: str = "serial"
     eval_db_uri: Optional[str] = None
-
+    # Path to save replay, can be a local path or s3:// URL
+    replay_path: Optional[str] = None
 
 class SimulationSuiteConfig(SimulationConfig):
     """A suite of named simulations, with suite-level defaults injected."""

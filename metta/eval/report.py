@@ -13,33 +13,17 @@ import shutil
 import tempfile
 from typing import List
 
-import boto3
 import hydra
-from botocore.exceptions import NoCredentialsError
 from omegaconf import DictConfig
 
 from metta.eval.db import PolicyEvalDB
 from metta.eval.heatmap import create_heatmap_html_snippet
 from metta.eval.mapviewer import MAP_VIEWER_CSS
 from metta.sim.eval_stats_db import EvalStatsDB
+from metta.util.file import upload_to_s3
 from metta.util.wandb.wandb_context import WandbContext
 
 logger = logging.getLogger(__name__)
-
-
-# --------------------------------------------------------------------------- #
-# S3 util
-# --------------------------------------------------------------------------- #
-def _upload_to_s3(html: str, s3_path: str):
-    if not s3_path.startswith("s3://"):
-        raise ValueError("S3 path must start with s3://")
-
-    bucket, key = s3_path[5:].split("/", 1)
-    try:
-        boto3.client("s3").put_object(Body=html, Bucket=bucket, Key=key, ContentType="text/html")
-    except NoCredentialsError as e:
-        logger.error("AWS credentials not found; run setup_sso.py")
-        raise e
 
 
 # --------------------------------------------------------------------------- #
@@ -122,7 +106,7 @@ def generate_report(cfg: DictConfig):
         output_path = f"{base}_{safe_name}{ext}"
 
     if output_path.startswith("s3://"):
-        _upload_to_s3(html_content, output_path)
+        upload_to_s3(html_content, output_path, "text/html")
         logger.info("Report uploaded to %s", output_path)
     else:
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
