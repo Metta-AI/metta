@@ -104,5 +104,4 @@ class ReplayHelper:
         if self.wandb_run is not None:
             player_url = "https://metta-ai.github.io/metta/?replayUrl=" + s3_url(replay_url)
             link_summary = {"replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {epoch})</a>')}
-            if self.wandb_run is not None:
-                self.wandb_run.log(link_summary)
+            self.wandb_run.log(link_summary)
