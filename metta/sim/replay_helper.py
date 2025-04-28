@@ -72,7 +72,6 @@ class ReplayHelper:
 
     def write_replay(self, replay_path: str, epoch: int = 0):
         self.replay["max_steps"] = self.step
-
         # Trim value changes to make them more compact.
         for grid_object in self.grid_objects:
             for key, changes in list(grid_object.items()):
