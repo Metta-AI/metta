@@ -120,8 +120,8 @@ class MettaActorBig(LayerBase):
              nn.init.uniform_(self.bias, -bound, bound)
 
     def _forward(self, td: TensorDict):
-        input_1 = td[self._input_source[0]] # Shape: [B*TT, hidden]
-        input_2 = td[self._input_source[1]] # Shape: [B*TT, num_actions, embed_dim]
+        input_1 = td[self._sources[0]["name"]] # Shape: [B*TT, hidden]
+        input_2 = td[self._sources[1]["name"]] # Shape: [B*TT, num_actions, embed_dim]
 
         B_TT = input_1.shape[0]
         num_actions = input_2.shape[1]
@@ -176,8 +176,8 @@ class MettaActorSingleHead(LayerBase):
              nn.init.uniform_(self.bias, -bound, bound)
 
     def _forward(self, td: TensorDict):
-        input_1 = td[self._input_source[0]] # Shape: [B*TT, hidden]
-        input_2 = td[self._input_source[1]] # Shape: [B*TT, num_actions, embed_dim]
+        input_1 = td[self._sources[0]["name"]] # Shape: [B*TT, hidden]
+        input_2 = td[self._sources[1]["name"]] # Shape: [B*TT, num_actions, embed_dim]
 
         B_TT = input_1.shape[0]
         num_actions = input_2.shape[1]

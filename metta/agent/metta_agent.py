@@ -124,8 +124,13 @@ class MettaAgent(nn.Module):
         # else:
         #     component.setup()
         if component._sources is not None:
-            if isinstance(component._input_source, omegaconf.listconfig.ListConfig):
-                component._sources = list(component._sources)
+
+            # delete the block below after testing
+            if isinstance(component._sources, omegaconf.listconfig.ListConfig):
+                print("_sources hasn't been converted from omegaconf list") 
+                breakpoint() 
+            elif isinstance(component._sources, List):
+                pass
             else: # delete after testing
                 print("_sources isn't a list") 
                 breakpoint() 

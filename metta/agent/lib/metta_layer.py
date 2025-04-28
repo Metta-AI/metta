@@ -43,6 +43,9 @@ class LayerBase(nn.Module):
         self._name = name
         # self._input_source = input_source
         self._sources = sources
+        if self._sources is not None:
+            # convert from omegaconf's list class
+            self._sources = list(self._sources)
         self._net = None
         self._ready = False
         if not hasattr(self, "_nn_params"):

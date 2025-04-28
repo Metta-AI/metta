@@ -13,25 +13,25 @@ class MergeLayerBase(LayerBase):
 
         # redefine _input_source to only be the names so MettaAgent can find the components
         # it's ugly but it maintains consistency in the YAML config
-        self.sources_full_list = self._input_source
-        self._input_source = []
-        for src_cfg in self.sources_full_list:
-            self._input_source.append(src_cfg['source_name'])
+        # self.sources_full_list = self._input_source
+        # self._input_source = []
+        # for src_cfg in self.sources_full_list:
+        #     self._input_source.append(src_cfg['source_name'])
 
     @property
     def ready(self):
         return self._ready
 
-    def setup(self, input_source_components=None):
+    def setup(self, _source_components=None):
         if self._ready:
             return
 
-        self.input_source_components = input_source_components
+        self._source_components = _source_components
 
         # NOTE: in and out tensor shapes do not include batch sizes
         # however, all other sizes do, including processed_lengths
-        self._in_tensor_shape = []
-        self._out_tensor_shape = []
+        self._in_tensor_shapes = []
+        # self._out_tensor_shape = [] # delete this
 
         self.dims = []
         self.processed_lengths = []
@@ -40,8 +40,8 @@ class MergeLayerBase(LayerBase):
             # source_name = src_cfg['source_name']
             source_name = src_cfg['name']
             
-            processed_size = self.input_source_components[source_name]._out_tensor_shape.copy()
-            self._in_tensor_shape.append(processed_size)
+            processed_size = self._source_components[source_name]._out_tensor_shape.copy()
+            self._in_tensor_shapes.append(processed_size)
 
             processed_size = processed_size[0]
             if src_cfg.get('slice') is not None:
@@ -76,10 +76,10 @@ class MergeLayerBase(LayerBase):
     def forward(self, td: TensorDict):
         outputs = []
         # TODO: do this without a for loop or dictionary lookup for perf
-        for src_cfg in self.sources_full_list:
+        for src_cfg in self._sources:
             # source_name = src_cfg['source_name']
             source_name = src_cfg['name']
-            self.input_source_components[source_name].forward(td)
+            self._source_components[source_name].forward(td)
             src_tensor = td[source_name]
 
             if '_slice_params' in src_cfg:
@@ -105,7 +105,7 @@ class ConcatMergeLayer(MergeLayerBase):
         cat_dim_length = 0
         for size in self.processed_lengths:
             cat_dim_length += size
-        self._out_tensor_shape = self._in_tensor_shape[0].copy()
+        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
         self._out_tensor_shape[self._merge_dim - 1] = cat_dim_length # the -1 is to account for batch size
 
     def _merge(self, outputs, td):
@@ -118,10 +118,10 @@ class AddMergeLayer(MergeLayerBase):
     '''Combines tensors by adding their elements along a specified dimension,
     keeping the same shape.'''
     def _setup_merge_layer(self):
-        if not all(s == self._in_tensor_shape[0] for s in self._in_tensor_shape):
+        if not all(s == self._in_tensor_shapes[0] for s in self._in_tensor_shapes):
             raise ValueError(f"For 'add', all source sizes must match. Got sizes: {self.sizes}")
         self._merge_dim = self.dims[0]
-        self._out_tensor_shape = self._in_tensor_shape[0]
+        self._out_tensor_shape = self._in_tensor_shapes[0]
 
     def _merge(self, outputs, td):
         merged = outputs[0]
@@ -133,10 +133,10 @@ class AddMergeLayer(MergeLayerBase):
 
 class SubtractMergeLayer(MergeLayerBase):
     def _setup_merge_layer(self):
-        if not all(s == self._in_tensor_shape[0] for s in self._in_tensor_shape):
+        if not all(s == self._in_tensor_shapes[0] for s in self._in_tensor_shapes):
             raise ValueError(f"For 'subtract', all source sizes must match. Got sizes: {self.sizes}")
         self._merge_dim = self.dims[0]
-        self._out_tensor_shape = self._in_tensor_shape[0]
+        self._out_tensor_shape = self._in_tensor_shapes[0]
 
     def _merge(self, outputs, td):
         if len(outputs) != 2:
@@ -149,10 +149,10 @@ class SubtractMergeLayer(MergeLayerBase):
 class MeanMergeLayer(MergeLayerBase):
     '''Angrily takes the average, keeping the same shape.'''
     def _setup_merge_layer(self):
-        if not all(s == self._in_tensor_shape[0] for s in self._in_tensor_shape):
+        if not all(s == self._in_tensor_shapes[0] for s in self._in_tensor_shapes):
             raise ValueError(f"For 'mean', all source sizes must match. Got sizes: {self.sizes}")
         self._merge_dim = self.dims[0]
-        self._out_tensor_shape = self._in_tensor_shape[0]
+        self._out_tensor_shape = self._in_tensor_shapes[0]
 
     def _merge(self, outputs, td):
         merged = outputs[0]

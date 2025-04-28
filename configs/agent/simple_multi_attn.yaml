@@ -11,6 +11,6 @@ components:
     _target_: metta.agent.lib.action.MettaActorBig
     bilinear_output_dim: 32
     mlp_hidden_dim: 512
-    input_source: 
-      - _core_
-      - _action_embeds_
+    sources:
+      - name: _core_
+      - name: _action_embeds_
