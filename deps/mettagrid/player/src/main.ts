@@ -361,19 +361,6 @@ function removeSuffix(str: string, suffix: string) {
 async function loadReplayText(replayData: any) {
   replay = JSON.parse(replayData);
 
-  replay.object_types = [
-    "agent",
-    "wall",
-    "mine",
-    "generator",
-    "altar",
-    "armory",
-    "lasery",
-    "lab",
-    "factory",
-    "temple",
-    "converter"
-  ]
 
   console.log("pre replay: ", replay);
 
