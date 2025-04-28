@@ -1,18 +1,16 @@
-# Mettagrid has been merged into metta, but we still want to be able to
-# build and publish it separately.
-[build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
 
-[tool.poetry]
+[build-system]
+requires = ["setuptools>=64", "wheel", "cython>=3.0.0", "numpy>=1.21.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
 name = "mettagrid"
 version = "0.1.6"
 description = "A fast grid-based open-ended MARL environment"
-authors = ["David Bloomin <daveey@gmail.com>"]
-license = "MIT"
+authors = [{ name = "David Bloomin", email = "daveey@gmail.com" }]
+license = { text = "MIT" }
 readme = "README.md"
-homepage = "https://daveey.github.io"
-repository = "https://github.com/Metta-AI/mettagrid"
+urls = { Homepage = "https://daveey.github.io", Repository = "https://github.com/Metta-AI/mettagrid" }
 keywords = [
     "gridworld",
     "minigrid",
@@ -21,24 +19,15 @@ keywords = [
     "environment",
     "gym",
 ]
-include = [
-    "**/*.py",
-    "**/*.pyx",
-    "**/*.pxd",
-    "**/*.hpp",
-    "**/*.cpp",
-    "**/*.so",
-    "LICENSE",
-    "README.md",
-]
+requires-python = ">=3.10,<4.0"
+dependencies = ["numpy>=1.21.0", "cython>=3.0.11"]
 
-[tool.poetry.dependencies]
-python = ">=3.10,<4.0"
-numpy = "^1.21.0"
-cython = "^3.0.11"
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["mettagrid*"]
 
-[tool.poetry.dev-dependencies]
-pytest = "^6.2.4"
+[tool.setuptools.package-data]
+"mettagrid" = ["*.pyx", "*.pxd", "*.hpp", "*.cpp", "*.so"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
