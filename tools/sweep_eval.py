@@ -17,7 +17,6 @@ from metta.sim.eval_stats_db import EvalStatsDB
 from metta.sim.eval_stats_logger import EvalStatsLogger
 from metta.sim.simulation import SimulationSuite
 from metta.sim.simulation_config import SimulationSuiteConfig
-from metta.util.config import dictconfig_to_dataclass
 from metta.util.runtime_configuration import setup_mettagrid_environment
 from metta.util.wandb.wandb_context import WandbContext
 
@@ -48,7 +47,7 @@ def main(cfg: OmegaConf) -> int:
     setup_mettagrid_environment(cfg)
     logger.info("Sweep configuration:")
     logger.info(yaml.dump(OmegaConf.to_container(cfg, resolve=True), default_flow_style=False))
-    simulation_suite_cfg = dictconfig_to_dataclass(SimulationSuiteConfig, cfg.sweep_job.evals)
+    simulation_suite_cfg = SimulationSuiteConfig(cfg.sweep_job.evals)
 
     results_path = os.path.join(cfg.run_dir, "sweep_eval_results.yaml")
     start_time = time.time()
