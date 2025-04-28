@@ -98,8 +98,10 @@ class MettaAgent(nn.Module):
         logger.info(f"Total number of parameters in MettaAgent: {self._total_params:,}. Setup complete.")
         
     def _setup_components(self, component):
-        ''' _input_source is a list of dicts. It must always have a "name" and that name should be the same
-        one used above '''
+        ''' _sources is a list of dicts albeit many layers simply have one element. 
+        It must always have a "name" and that name should be the same as the relevant key in self.components. 
+        source_components is a dict of components that are sources for the current component. The keys
+        are the names of the source components.'''
 
         # if component._input_source is not None:
         #     if isinstance(component._input_source, omegaconf.listconfig.ListConfig):
@@ -133,10 +135,10 @@ class MettaAgent(nn.Module):
 
         if component._sources is not None:
             # if isinstance(component._input_source, list):
-            _source_components = {}
+            source_components = {}
             for source in component._sources:
-                _source_components[source["name"]] = self.components[source["name"]]
-                component.setup(_source_components)
+                source_components[source["name"]] = self.components[source["name"]]
+                component.setup(source_components)
         else:
             component.setup()
 

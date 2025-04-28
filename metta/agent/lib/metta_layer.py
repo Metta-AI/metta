@@ -53,26 +53,29 @@ class LayerBase(nn.Module):
         return self._ready
 
     def setup(self, source_components=None):
+        '''_in_tensor_shapes is a list of lists. Each sublist contains the shapes of the input tensors for each source component.
+        _out_tensor_shape is a list of the shape of the output tensor.'''
         if self._ready:
             return
 
         self.__dict__["_source_components"] = source_components
-
-# rename _input_source_component
-# make tensor shapes as list
 
         if self._source_components is None:
             self._in_tensor_shapes = None
             if self._out_tensor_shape is None:
                 raise ValueError(f"Either input source or output tensor shape must be set for layer {self._name}")
         else:
-            if isinstance(self._input_source_component, dict):
+            if isinstance(self._source_components, dict):
                 self._in_tensor_shapes = []
-                for _, source in self._input_source_component.items():
+                for _, source in self._source_components.items():
                     self._in_tensor_shapes.append(source._out_tensor_shape.copy())
             else:
-                self._in_tensor_shapes = self._input_source_component._out_tensor_shape.copy()
+                print("source_components isn't a dict when it should be")
+                breakpoint() # delete this and if logic
+                self._in_tensor_shapes = self._source_components._out_tensor_shape.copy()
             if not hasattr(self, "_out_tensor_shape"):
+                print("out_tensor_shape isn't set")
+                breakpoint() # delete this and if logic
                 self._out_tensor_shape = self._in_tensor_shapes # if necessary, edit this later in the superclass
 
         self._initialize()
@@ -88,19 +91,22 @@ class LayerBase(nn.Module):
         if self._name in td:
             return td
 
-        if self._input_source_component is not None:
-            if isinstance(self._input_source_component, dict):
-                for _, source in self._input_source_component.items():
+        if self._source_components is not None:
+            if isinstance(self._source_components, dict):
+                for _, source in self._source_components.items():
                     source.forward(td)
             else:
-                self._input_source_component.forward(td)
+                print("_sounce_components isn't a dict when it should be")
+                breakpoint() # delete this and if logic
 
         self._forward(td)
 
         return td
 
     def _forward(self, td: TensorDict):
-        td[self._name] = self._net(td[self._input_source])
+        '''Components that have more than one input sources must have their own _forward() method.'''
+        # td[self._name] = self._net(td[self._input_source])
+        td[self._name] = self._net(td[self._sources[0]["name"]])
         return td
 
     def clip_weights(self):
