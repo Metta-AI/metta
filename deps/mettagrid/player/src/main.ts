@@ -1087,16 +1087,16 @@ function drawTrace(panel: PanelInfo) {
       const action_success = getAttr(agent, "action_success", j);
 
       if (action_success && action != null) {
-        drawer.drawImage(
+        drawer.drawSprite(
           replay.action_images[action[0]],
-          j * TRACE_WIDTH, i * TRACE_HEIGHT,
+          j * TRACE_WIDTH + TRACE_WIDTH/2, i * TRACE_HEIGHT + TRACE_HEIGHT/2,
         );
       }
 
       if (getAttr(agent, "agent:frozen", j) > 0) {
-        drawer.drawImage(
+        drawer.drawSprite(
           "trace/frozen.png",
-          j * TRACE_WIDTH, i * TRACE_HEIGHT,
+          j * TRACE_WIDTH + TRACE_WIDTH/2, i * TRACE_HEIGHT + TRACE_HEIGHT/2,
         );
       }
 
