@@ -2,7 +2,7 @@ import torch
 from torch.distributions.utils import logits_to_probs
 
 
-def log_prob(logits, value):
+def get_action_log_prob(log_sftmx_logits, sampled_action):
     """
     Compute log probability of a value given logits.
     
@@ -13,10 +13,10 @@ def log_prob(logits, value):
     Returns:
         Log probability of the specific action selection
     """
-    value = value.long().unsqueeze(-1)
-    value, log_pmf = torch.broadcast_tensors(value, logits)
-    value = value[..., :1]
-    return log_pmf.gather(-1, value).squeeze(-1) # replace w reshape
+    sampled_action = sampled_action.long().unsqueeze(-1)
+    sampled_action, log_pmf = torch.broadcast_tensors(sampled_action, log_sftmx_logits)
+    sampled_action = sampled_action[..., :1]
+    return log_pmf.gather(-1, sampled_action).squeeze(-1) # replace w reshape
 
 
 def entropy(log_sftmx_logits):
@@ -72,11 +72,11 @@ def sample_logits(logits: torch.Tensor, action=None):
 
     # Calculate log probability for the action selected
     # Shape: [B*T]
-    logprob_act = log_prob(log_sftmx_logits, action)
+    act_logprob = get_action_log_prob(log_sftmx_logits, action)
 
     # Calculate entropy of the distribution
     # Shape: [B*T]
     logits_entropy = entropy(log_sftmx_logits)
 
     # Return shapes: [B*T], [B*T], [B*T], [B*T, A]
-    return action, logprob_act, logits_entropy, log_sftmx_logits
+    return action, act_logprob, logits_entropy, log_sftmx_logits
