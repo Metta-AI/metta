@@ -8,7 +8,7 @@ if [ "$SKIP_BUILD" = "1" ]; then
 fi
 
 # Check if dependencies are already installed
-if [ -n "$DEPS_INSTALLED" ]; then
+if [ -f "deps/.built" ]; then
     echo "Dependencies already installed. Skipping checkout and build!"
     echo "You can force reinstall by running \"devops/setup_build\""
     exit 0
@@ -131,5 +131,5 @@ install_repo "carbs" $CARBS_REPO "main" "pip install -e ."
 install_repo "wandb_carbs" $WANDB_CARBS_REPO "main" "pip install -e ."
 
 # Mark dependencies as installed
-export DEPS_INSTALLED=true
+touch "deps/.built"
 echo "Dependencies successfully installed and cached!"

@@ -5,8 +5,8 @@
 # Exit immediately if a command exits with a non-zero status
 set -e
 
-# Clear the DEPS_INSTALLED environment variable to ensure fresh checkout/build
-export DEPS_INSTALLED=""
+# Clear the deps built flag to ensure fresh checkout/build
+rm -f deps/.built
 
 # Check if we're in the correct conda environment
 if [ "$CONDA_DEFAULT_ENV" != "metta" ] && [ -z "$CI" ]; then
