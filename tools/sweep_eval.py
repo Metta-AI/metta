@@ -38,10 +38,6 @@ def load_file(run_dir, name):
 
 
 class SweepEvalJob(Config):
-    """
-    Configuration for sweep evaluation jobs.
-    """
-
     evals: SimulationSuiteConfig
 
     def __init__(self, *args, **kwargs):
@@ -56,11 +52,7 @@ def main(cfg: DictConfig | ListConfig) -> int:
 
     logger.info("Sweep configuration:")
     logger.info(yaml.dump(OmegaConf.to_container(cfg, resolve=True), default_flow_style=False))
-
-    # TODO -- something like this???
-    sweep_eval_job = SweepEvalJob(cfg.train_job)
-
-    simulation_suite_cfg = dictconfig_to_dataclass(SimulationSuiteConfig, cfg.sweep_job.evals)
+    simulation_suite_cfg = SimulationSuiteConfig(cfg.sweep_job.evals)
 
     results_path = os.path.join(cfg.run_dir, "sweep_eval_results.yaml")
     start_time = time.time()
