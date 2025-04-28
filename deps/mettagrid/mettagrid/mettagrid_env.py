@@ -217,7 +217,7 @@ class MettaGridEnvSet(MettaGridEnv):
         self._env_cfg = self._get_new_env_cfg()
         self.check_action_space()
 
-        super().__init__(env_cfg, render_mode, buf, **kwargs)
+        super().__init__(env_cfg, render_mode=render_mode, buf=buf, **kwargs)
         self._cfg_template = None  # we don't use this with multiple envs, so we clear it to emphasize that fact
 
     def check_action_space(self):
