@@ -28,65 +28,45 @@ class VariedTerrain(Room):
     # These counts are intentionally moderate.
     STYLE_PARAMETERS = {
         "all-sparse": {
-            "hearts_count": 25,
-            "large_obstacles": {"size_range": [10, 25], "count": 2},
-            "small_obstacles": {"size_range": [3, 6], "count": 2},
-            "crosses": {"count": 0},
-            "labyrinths": {"count": 0},
-            "scattered_walls": {"count": 5},
-            "blocks": {"count": 0},
-            "clumpiness": 0,
+            "hearts_count": 15,
+            "large_obstacles": {"size_range": [10, 25], "count": [0,2]},
+            "small_obstacles": {"size_range": [3, 6], "count": [0,2]},
+            "crosses": {"count": [0,2]},
+            "labyrinths": {"count": [0,2]},
+            "scattered_walls": {"count": [0,2]},
+            "blocks": {"count": [0,2]},
+            "clumpiness": [0,2],
         },
         "balanced": {
             "hearts_count": 75,
-            "large_obstacles": {"size_range": [10, 25], "count": 6},
-            "small_obstacles": {"size_range": [3, 6], "count": 6},
-            "crosses": {"count": 4},
-            "labyrinths": {"count": 3},
-            "scattered_walls": {"count": 20},
-            "blocks": {"count": 3},
-            "clumpiness": 1,
-        },
-        "dense-altars-sparse-objects": {
-            "hearts_count": 75,
-            "large_obstacles": {"size_range": [10, 25], "count": 4},
-            "small_obstacles": {"size_range": [3, 6], "count": 5},
-            "crosses": {"count": 3},
-            "labyrinths": {"count": 3},
-            "scattered_walls": {"count": 10},
-            "blocks": {"count": 3},
-            "clumpiness": 1,
+            "large_obstacles": {"size_range": [10, 25], "count": [3,7]},
+            "small_obstacles": {"size_range": [3, 6], "count": [3,7]},
+            "crosses": {"count": [3,7]},
+            "labyrinths": {"count": [3,7]},
+            "scattered_walls": {"count": [3,7]},
+            "blocks": {"count": [3,7    ]},
+            "clumpiness": [1,3],
         },
         "sparse-altars-dense-objects": {
             "hearts_count": 25,
-            "large_obstacles": {"size_range": [10, 25], "count": 10},
-            "small_obstacles": {"size_range": [3, 6], "count": 15},
-            "crosses": {"count": 8},
-            "labyrinths": {"count": 6},
-            "scattered_walls": {"count": 40},
-            "blocks": {"count": 5},
-            "clumpiness": 2,
+            "large_obstacles": {"size_range": [10, 25], "count": [8,15]},
+            "small_obstacles": {"size_range": [3, 6], "count": [8,15]},
+            "crosses": {"count": [7,15]},
+            "labyrinths": {"count": [6,15]},
+            "scattered_walls": {"count": [40,60]},
+            "blocks": {"count": [5,15]},
+            "clumpiness": [2,6],
         },
-        "all-dense": {
-            "hearts_count": 75,
-            "large_obstacles": {"size_range": [10, 25], "count": 12},
-            "small_obstacles": {"size_range": [3, 6], "count": 15},
-            "crosses": {"count": 8},
-            "labyrinths": {"count": 8},
-            "scattered_walls": {"count": 35},
-            "blocks": {"count": 8},
-            "clumpiness": 5,
-        },
-        # New style: maze-like with predominant labyrinth features.
+    # New style: maze-like with predominant labyrinth features.
         "maze": {
             "hearts_count": 25,  # Altars placed after obstacles; keeps the grid sparse for maze corridors.
-            "large_obstacles": {"size_range": [10, 25], "count": 0},  # Disable large obstacles.
-            "small_obstacles": {"size_range": [3, 6], "count": 0},  # Disable small obstacles.
-            "crosses": {"count": 0},  # No cross obstacles.
-            "labyrinths": {"count": 10},  # Increase labyrinth count to generate more maze segments.
-            "scattered_walls": {"count": 0},  # Avoid adding extra walls that could break up maze consistency.
-            "blocks": {"count": 0},  # No rectangular blocks.
-            "clumpiness": 0,  # Clumpiness is not necessary when only labyrinths are used.
+            "large_obstacles": {"size_range": [10, 25], "count": [0,2]},  # Disable large obstacles.
+            "small_obstacles": {"size_range": [3, 6], "count": [0,2]},  # Disable small obstacles.
+            "crosses": {"count": [0,2]},  # No cross obstacles.
+            "labyrinths": {"count": [10,20]},  # Increase labyrinth count to generate more maze segments.
+            "scattered_walls": {"count": [0,2]},  # Avoid adding extra walls that could break up maze consistency.
+            "blocks": {"count": [0,2]},  # No rectangular blocks.
+            "clumpiness": [0,2],  # Clumpiness is not necessary when only labyrinths are used.
         },
     }
 
@@ -103,8 +83,8 @@ class VariedTerrain(Room):
     ):
         super().__init__(border_width=border_width, border_object=border_object, labels = [style])
 
-        width = np.random.randint(40, 100)
-        height = np.random.randint(40, 100)
+        width = np.random.randint(70, 120)
+        height = np.random.randint(70, 120)
 
         self.set_size_labels(width, height)
         self._rng = np.random.default_rng(seed)
@@ -135,6 +115,7 @@ class VariedTerrain(Room):
         allowed_fraction = 0.3
 
         def clamp_count(base_count, avg_size):
+            base_count = self._rng.integers(base_count[0], base_count[1])
             scaled = int(base_count * scale)
             max_allowed = int((allowed_fraction * area) / avg_size)
             return min(scaled, max_allowed) if scaled > 0 else 0
@@ -154,7 +135,6 @@ class VariedTerrain(Room):
         }
         self._blocks = {"count": clamp_count(base_params["blocks"]["count"], avg_sizes["blocks"])}
         self._hearts_count = base_params["hearts_count"]
-        self._clumpiness = base_params["clumpiness"]
 
     def _build(self) -> np.ndarray:
         # Prepare agent symbols.
@@ -398,10 +378,10 @@ class VariedTerrain(Room):
         if h > 3 and not self._has_gap(maze[1 : h - 1, w - 1]):
             maze[1:3, w - 1] = "empty"
 
-        # Scatter hearts in empty cells with 30% probability.
+        # Scatter hearts in empty cells with 1% probability.
         for i in range(h):
             for j in range(w):
-                if maze[i, j] == "empty" and self._rng.random() < 0.05:
+                if maze[i, j] == "empty" and self._rng.random() < 0.03:
                     maze[i, j] = "altar"
 
             # Apply thickening based on a random probability between 0.3 and 1.0.

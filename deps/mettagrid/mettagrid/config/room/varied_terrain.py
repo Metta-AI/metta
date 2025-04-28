@@ -38,22 +38,12 @@ class VariedTerrain(Room):
             "clumpiness": 0,
         },
         "balanced": {
-            "hearts_count": 100,
+            "hearts_count": 75,
             "large_obstacles": {"size_range": [10, 25], "count": 6},
             "small_obstacles": {"size_range": [3, 6], "count": 6},
             "crosses": {"count": 4},
             "labyrinths": {"count": 3},
             "scattered_walls": {"count": 20},
-            "blocks": {"count": 3},
-            "clumpiness": 1,
-        },
-        "dense-altars-sparse-objects": {
-            "hearts_count": 100,
-            "large_obstacles": {"size_range": [10, 25], "count": 4},
-            "small_obstacles": {"size_range": [3, 6], "count": 5},
-            "crosses": {"count": 3},
-            "labyrinths": {"count": 3},
-            "scattered_walls": {"count": 10},
             "blocks": {"count": 3},
             "clumpiness": 1,
         },
@@ -106,10 +96,6 @@ class VariedTerrain(Room):
         width = np.random.randint(40, 100)
         height = np.random.randint(40, 100)
 
-<<<<<<< HEAD
-        self.labels = [style]
-=======
->>>>>>> f993a547484a8eefb3e649d8e31e3322b6c8f9bd
         self.set_size_labels(width, height)
         self._rng = np.random.default_rng(seed)
         self._width = width
