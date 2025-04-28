@@ -555,8 +555,9 @@ class PufferTrainer:
             self.replay_sim_config.replay_path = (
                 f"s3://softmax-public/replays/{self.cfg.run}/replay.{self.epoch}.json.z"
             )
+            dry_run = self.trainer_cfg.get("replay_dry_run", False)
             replay_simulator = Simulation(self.replay_sim_config, self.last_pr, self.wandb_run)
-            replay_simulator.simulate(epoch=self.epoch)
+            replay_simulator.simulate(epoch=self.epoch, dry_run=dry_run)
 
     def _process_stats(self):
         for k in list(self.stats.keys()):

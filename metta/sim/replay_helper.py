@@ -71,7 +71,7 @@ class ReplayHelper:
                 )
         self.step += 1
 
-    def write_replay(self, replay_path: str, epoch: int = 0):
+    def write_replay(self, replay_path: str, epoch: int = 0, dry_run: bool = False):
         self.replay["max_steps"] = self.step
         # Trim value changes to make them more compact.
         for grid_object in self.grid_objects:
@@ -85,7 +85,7 @@ class ReplayHelper:
 
         # Make sure the directory exist
         if replay_path.startswith("s3://"):
-            self._write_to_s3(compressed_data, replay_path, epoch)
+            self._write_to_s3(compressed_data, replay_path, epoch, dry_run)
         else:
             self._write_to_file(compressed_data, replay_path)
 
@@ -96,7 +96,7 @@ class ReplayHelper:
         with open(replay_path, "wb") as f:
             f.write(replay_data)
 
-    def _write_to_s3(self, replay_data: bytes, replay_url: str, epoch: int):
+    def _write_to_s3(self, replay_data: bytes, replay_url: str, epoch: int, dry_run: bool):
         """Upload the replay to S3 and log the link to WandB."""
         upload_to_s3(replay_data, replay_url, "application/x-compress")
         logger = logging.getLogger(__name__)

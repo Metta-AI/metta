@@ -147,7 +147,7 @@ class Simulation:
             new_filename = f"ep{episode_count}_env{env_idx}_{filename}"
             return os.path.join(directory, new_filename)
 
-    def simulate(self, epoch: int = 0):
+    def simulate(self, epoch: int = 0, dry_run: bool = False):
         logger.info(
             f"Simulating {self._name} policy: {self._policy_pr.name} "
             + f"in {self._env_name} with {self._policy_agents_per_env} agents"
@@ -230,7 +230,7 @@ class Simulation:
 
                     if self._replay_helpers is not None:
                         path = self._get_replay_path(env_idx, self._episode_counters[env_idx])
-                        self._replay_helpers[env_idx].write_replay(path, epoch=epoch)
+                        self._replay_helpers[env_idx].write_replay(path, epoch=epoch, dry_run=dry_run)
                     self._episode_counters[env_idx] += 1
 
                 # (2) environment has auto-reset → new episode has started -------------
