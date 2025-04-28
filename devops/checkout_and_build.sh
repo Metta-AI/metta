@@ -96,9 +96,6 @@ install_repo() {
     echo "Building with command: $build_cmd"
     eval $build_cmd
     
-    export PYTHONPATH="$PYTHONPATH:$(pwd)"
-    echo "Updated PYTHONPATH: $PYTHONPATH"
-    
     cd ..
     echo "Completed installation of $repo_name"
 }
@@ -120,8 +117,6 @@ cd mettagrid
 echo "Building mettagrid into $(pwd)"
 python setup.py build_ext --inplace
 pip install -e .
-export PYTHONPATH="$PYTHONPATH:$(pwd)"
-echo "Updated PYTHONPATH: $PYTHONPATH"
 cd ..
 
 # Install dependencies using the function
