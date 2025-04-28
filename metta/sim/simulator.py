@@ -5,7 +5,7 @@ from metta.agent.policy_store import PolicyRecord, PolicyStore
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.vecenv import make_vecenv
 from metta.util.config import config_from_path
-from mettagrid.renderer.raylib.raylib_renderer import MettaGridRaylibRenderer
+from mettagrid.mettagrid.renderer.raylib.raylib_renderer import MettaGridRaylibRenderer
 
 
 # TODO: Merge with Simulation
