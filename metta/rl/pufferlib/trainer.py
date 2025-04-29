@@ -12,7 +12,7 @@ import torch.distributed as dist
 import wandb
 from fast_gae import fast_gae
 from heavyball import ForeachMuon
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, ListConfig
 
 from metta.agent.metta_agent import DistributedMettaAgent
 from metta.agent.policy_store import PolicyStore
@@ -38,7 +38,12 @@ logger = logging.getLogger(f"trainer-{rank}-{local_rank}")
 
 class PufferTrainer:
     def __init__(
-        self, cfg: OmegaConf, wandb_run, policy_store: PolicyStore, sim_suite_config: SimulationSuiteConfig, **kwargs
+        self,
+        cfg: DictConfig | ListConfig,
+        wandb_run,
+        policy_store: PolicyStore,
+        sim_suite_config: SimulationSuiteConfig,
+        **kwargs,
     ):
         self.cfg = cfg
         self.trainer_cfg = cfg.trainer
