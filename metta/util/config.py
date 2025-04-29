@@ -81,12 +81,16 @@ def config_from_path(config_path: str, overrides: Optional[DictConfig | ListConf
         raise ValueError("Config path cannot be None")
 
     env_cfg = hydra.compose(config_name=config_path)
+
+    # when hydra loads a config, it "prefixes" the keys with the path of the config file.
+    # We don't want that prefix, so we remove it.
     if config_path.startswith("/"):
         config_path = config_path[1:]
     for p in config_path.split("/")[:-1]:
         env_cfg = env_cfg[p]
+
     if overrides not in [None, {}]:
-        if env_cfg._target_ == "mettagrid.mettagrid_env.MettaGridEnvSet":
+        if env_cfg._target_.endswith(".MettaGridEnvSet"):
             raise NotImplementedError("Cannot parse overrides when using multienv_mettagrid")
         env_cfg = OmegaConf.merge(env_cfg, overrides)
     return env_cfg

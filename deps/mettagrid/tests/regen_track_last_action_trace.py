@@ -1,19 +1,20 @@
-import hydra
 import numpy as np
 from regen_env_trace import header, render_obs_to_string, render_to_string
 
 import mettagrid
 import mettagrid.mettagrid_env
+from mettagrid.config.utils import get_test_basic_cfg
 
 
-@hydra.main(version_base=None, config_path="../configs", config_name="test_basic")
-def main(cfg):
+def main():
     output = ""
 
     output += header("Last Action Tracker:")
     np.random.seed(123)
+
+    cfg = get_test_basic_cfg()
     cfg.track_last_action = True
-    env = mettagrid.mettagrid_env.MettaGridEnv(render_mode=None, **cfg)
+    env = mettagrid.mettagrid_env.MettaGridEnv(render_mode=None, env_cfg=cfg)
     env.reset()
 
     actions = [
