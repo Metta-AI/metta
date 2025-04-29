@@ -373,9 +373,10 @@ class PufferTrainer:
         # Optimizing the policy and value network
         total_minibatches = experience.num_minibatches * self.trainer_cfg.update_epochs
         for _epoch in range(self.trainer_cfg.update_epochs):
-            lstm_state = PolicyState()
-            teacher_lstm_state = []
             for mb in range(experience.num_minibatches):
+                lstm_state = PolicyState()
+                teacher_lstm_state = []
+
                 with profile.train_misc:
                     obs = experience.b_obs[mb]
                     obs = obs.to(self.device, non_blocking=True)
