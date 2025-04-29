@@ -11,7 +11,7 @@ from tensordict import TensorDict
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 
-from metta.agent.util.distribution_utils import sample_logits
+from metta.agent.policy_state import PolicyState
 
 logger = logging.getLogger("metta_agent")
 
@@ -140,12 +140,12 @@ class MettaAgent(nn.Module):
         self.components["_value_"](td)
         return None, td["_value_"], None
 
-    def get_action_and_value(self, x, state=None, action=None, e3b=None):
+    def forward(self, x, state: PolicyState, action=None):
         td = TensorDict({"x": x})
 
         td["state"] = None
-        if state is not None:
-            state = torch.cat(state, dim=0)
+        if state.lstm_h is not None:
+            state = torch.cat([state.lstm_h, state.lstm_c], dim=0)
             td["state"] = state.to(x.device)
 
         self.components["_value_"](td)
@@ -154,29 +154,12 @@ class MettaAgent(nn.Module):
 
         logits = [td["_action_type_"], td["_action_param_"]]
         value = td["_value_"]
-        state = td["state"]
 
-        # Convert state back to tuple to pass back to trainer
-        if state is not None:
-            split_size = self.core_num_layers
-            state = (state[:split_size], state[split_size:])
+        split_size = self.core_num_layers
+        state.lstm_h = td["state"][:split_size]
+        state.lstm_c = td["state"][split_size:]
 
-        e3b, intrinsic_reward = self._e3b_update(td["_core_"].detach(), e3b)
-        action, logprob, entropy, normalized_logits = sample_logits(logits, action)
-
-        return action, logprob, entropy, value, state, e3b, intrinsic_reward, normalized_logits
-
-    def forward(self, x, state=None, action=None, e3b=None):
-        return self.get_action_and_value(x, state, action, e3b)
-
-    def _e3b_update(self, phi, e3b):
-        intrinsic_reward = None
-        if e3b is not None:
-            u = phi.unsqueeze(1) @ e3b
-            intrinsic_reward = u @ phi.unsqueeze(2)
-            e3b = 0.99 * e3b - (u.mT @ u) / (1 + intrinsic_reward)
-            intrinsic_reward = intrinsic_reward.squeeze()
-        return e3b, intrinsic_reward
+        return logits, value
 
     def l2_reg_loss(self) -> torch.Tensor:
         """L2 regularization loss is on by default although setting l2_norm_coeff to 0 effectively turns it off.

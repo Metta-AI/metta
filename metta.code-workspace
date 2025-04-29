@@ -217,6 +217,7 @@
 			"PYTHONPATH",
 			"raylib",
 			"relu",
+			"tensorclass",
 			"tensordict",
 			"timestep",
 			"timesteps",
