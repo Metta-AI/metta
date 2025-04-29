@@ -12,7 +12,7 @@ from carbs import (
     LogSpace,
     Param,
 )
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, ListConfig, OmegaConf
 from wandb_carbs import Pow2WandbCarbs
 
 logger = logging.getLogger("sweep_rollout")
@@ -25,7 +25,7 @@ _carbs_space = {
 }
 
 
-def carbs_params_from_cfg(cfg: OmegaConf):
+def carbs_params_from_cfg(cfg: DictConfig | ListConfig):
     param_spaces = []
     pow2_params = set()
     params = _fully_qualified_parameters(cfg.sweep)
@@ -86,7 +86,7 @@ def _fully_qualified_parameters(nested_dict, prefix=""):
 
 
 class MettaCarbs(Pow2WandbCarbs):
-    def __init__(self, cfg: OmegaConf, run):
+    def __init__(self, cfg: DictConfig | ListConfig, run):
         self.cfg = cfg
         carbs_params, pow2_params = carbs_params_from_cfg(cfg)
         self.generation = 0
