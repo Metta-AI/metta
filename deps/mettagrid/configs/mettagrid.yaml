@@ -16,7 +16,7 @@ game:
   obs_width: 11
   obs_height: 11
   tile_size: 16
-  max_steps: 1000
+  max_steps: 1500
   no_energy_steps: 500
 
   # default for the old map builder; new mettagrid.map.mapgen requires false
