@@ -1,4 +1,4 @@
-from typing import Any, List, Optional
+from typing import Any, Optional
 
 from mettagrid.map.node import Node
 from mettagrid.map.scene import Scene
@@ -23,7 +23,7 @@ class RoomGrid(Scene):
 
     The right wall is there because rooms are equally sized, and there's some extra space on the right.
 
-    By default, each room will be tagged with "room_{row}_{col}". If layout is provided,
+    By default, each room will be tagged with "room" and "room_{row}_{col}". If layout is provided,
     the tags will be taken from the layout instead; and in this case rows and columns will
     be inferred from the layout.
     """
@@ -32,10 +32,10 @@ class RoomGrid(Scene):
         self,
         rows: Optional[int] = None,
         columns: Optional[int] = None,
-        layout: Optional[List[List[str]]] = None,
+        layout: Optional[list[list[str]]] = None,
         border_width: int = 1,
         border_object: str = "wall",
-        children: Optional[List[Any]] = None,
+        children: Optional[list[Any]] = None,
     ):
         super().__init__(children=children)
         self._layout = layout
@@ -52,11 +52,11 @@ class RoomGrid(Scene):
         self._border_width = border_width
         self._border_object = border_object
 
-    def _tag(self, row: int, col: int) -> str:
+    def _tags(self, row: int, col: int) -> list[str]:
         if self._layout is not None:
-            return self._layout[row][col]
+            return [self._layout[row][col]]
         else:
-            return f"room_{row}_{col}"
+            return ["room", f"room_{row}_{col}"]
 
     def _render(self, node: Node):
         room_width = (node.width - self._border_width * (self._columns - 1)) // self._columns
@@ -70,4 +70,4 @@ class RoomGrid(Scene):
                 x = col * (room_width + self._border_width)
                 y = row * (room_height + self._border_width)
                 node.grid[y : y + room_height, x : x + room_width] = "empty"
-                node.make_area(x, y, room_width, room_height, tags=[self._tag(row, col)])
+                node.make_area(x, y, room_width, room_height, tags=self._tags(row, col))
