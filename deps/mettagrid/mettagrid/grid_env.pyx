@@ -167,7 +167,10 @@ cdef class GridEnv:
         self._observations[:, :, :, :] = 0
 
         # Clear the success flags.
-        # Note: we can't do self._action_success[:] = False, because it's a vector.
+        # Note: we can't do self._action_success[:] = False for very strange reason!
+        # It's a vector but cython still complies but it fails in some unrelated place instead.
+        # Its either memory corruption or cython dynamic-compiled type issue.
+        # Very spooky beware, if you change this:
         for i in range(self._action_success.size()):
             self._action_success[i] = 0
 
