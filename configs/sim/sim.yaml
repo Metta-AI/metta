@@ -1,4 +1,4 @@
 device: ${device}
 vectorization: ${vectorization}
 eval_db_uri: ${eval_db_uri}
-env: env/mettagrid-base/simple
+env: env/mettagrid/simple
