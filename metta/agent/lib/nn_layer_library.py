@@ -95,6 +95,7 @@ class MaxPool1d(LayerBase):
         super().__init__(**cfg)
 
     def _make_net(self):
+        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
         return nn.MaxPool1d(
             self._in_tensor_shapes[0][0],
             **self._nn_params
@@ -105,6 +106,7 @@ class MaxPool2d(LayerBase):
         super().__init__(**cfg)
 
     def _make_net(self):
+        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
         return nn.MaxPool2d(
             self._in_tensor_shapes[0][0],
             **self._nn_params
@@ -115,6 +117,7 @@ class AdaptiveAvgPool1d(LayerBase):
         super().__init__(**cfg)
 
     def _make_net(self):
+        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
         return nn.AdaptiveAvgPool1d(
             self._in_tensor_shapes[0][0],
             **self._nn_params
@@ -125,6 +128,7 @@ class AdaptiveAvgPool2d(LayerBase):
         super().__init__(**cfg)
 
     def _make_net(self):
+        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
         return nn.AdaptiveAvgPool2d(
             self._in_tensor_shapes[0][0],
             **self._nn_params
@@ -135,6 +139,7 @@ class AdaptiveMaxPool1d(LayerBase):
         super().__init__(**cfg)
 
     def _make_net(self):
+        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
         return nn.AdaptiveMaxPool1d(
             self._in_tensor_shapes[0][0],
             **self._nn_params
@@ -145,6 +150,7 @@ class AdaptiveMaxPool2d(LayerBase):
         super().__init__(**cfg)
 
     def _make_net(self):
+        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
         return nn.AdaptiveMaxPool2d(
             self._in_tensor_shapes[0][0],
             **self._nn_params
@@ -155,6 +161,7 @@ class AvgPool1d(LayerBase):
         super().__init__(**cfg)
 
     def _make_net(self):
+        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
         return nn.AvgPool1d(
             self._in_tensor_shapes[0][0],
             **self._nn_params
@@ -165,6 +172,7 @@ class AvgPool2d(LayerBase):
         super().__init__(**cfg)
 
     def _make_net(self):
+        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
         return nn.AvgPool2d(
             self._in_tensor_shapes[0][0],
             **self._nn_params
@@ -175,6 +183,7 @@ class Dropout(LayerBase):
         super().__init__(**cfg)
 
     def _make_net(self):
+        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
         return nn.Dropout(
             **self._nn_params
         )
@@ -184,6 +193,7 @@ class Dropout2d(LayerBase):
         super().__init__(**cfg)
 
     def _make_net(self):
+        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
         return nn.Dropout2d(
             **self._nn_params
         )
@@ -193,6 +203,7 @@ class AlphaDropout(LayerBase):
         super().__init__(**cfg)
 
     def _make_net(self):
+        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
         return nn.AlphaDropout(
             **self._nn_params
         )
@@ -202,6 +213,7 @@ class BatchNorm1d(LayerBase):
         super().__init__(**cfg)
 
     def _make_net(self):
+        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
         return nn.BatchNorm1d(
             self._in_tensor_shapes[0][0],
             **self._nn_params
@@ -212,6 +224,7 @@ class BatchNorm2d(LayerBase):
         super().__init__(**cfg)
 
     def _make_net(self):
+        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
         return nn.BatchNorm2d(
             self._in_tensor_shapes[0][0],
             **self._nn_params
@@ -230,4 +243,5 @@ class Identity(LayerBase):
         super().__init__(**cfg)
 
     def _make_net(self):
+        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
         return nn.Identity()

@@ -76,10 +76,10 @@ class LayerBase(nn.Module):
                 print("source_components isn't a dict when it should be")
                 breakpoint() # delete this and if logic
                 self._in_tensor_shapes = self._source_components._out_tensor_shape.copy()
-            if not hasattr(self, "_out_tensor_shape"):
-                print("out_tensor_shape isn't set")
-                breakpoint() # delete this and if logic
-                self._out_tensor_shape = self._in_tensor_shapes # if necessary, edit this later in the superclass
+            # if not hasattr(self, "_out_tensor_shape"):
+            #     print("out_tensor_shape isn't set")
+            #     breakpoint() # delete this and if logic
+            #     self._out_tensor_shape = self._in_tensor_shapes # if necessary, edit this later in the superclass
 
         self._initialize()
         self._ready = True
@@ -175,7 +175,7 @@ class ParamLayer(LayerBase):
                 raise ValueError(f"Unsupported nonlinearity: {self.nonlinearity}") from e
 
     def _initialize_weights(self):
-        fan_in = self._in_tensor_shapes[0]
+        fan_in = self._in_tensor_shapes[0][0]
         fan_out = self._out_tensor_shape[0]
 
         if self.initialization.lower() == "orthogonal":

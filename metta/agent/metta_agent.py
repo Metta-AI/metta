@@ -143,6 +143,7 @@ class MettaAgent(nn.Module):
             source_components = {}
             for source in component._sources:
                 source_components[source["name"]] = self.components[source["name"]]
+            for source in component._sources:
                 component.setup(source_components)
         else:
             component.setup()

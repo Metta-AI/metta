@@ -32,7 +32,7 @@ class LSTM(LayerBase):
     @torch.compile(disable=True)  # Dynamo doesn't support compiling LSTMs
     def _forward(self, td: TensorDict):
         x = td["x"]
-        hidden = td[self._input_source]
+        hidden = td[self._sources[0]["name"]]
         state = td["state"]
 
         if state is not None:

@@ -74,7 +74,7 @@ components:
       - name: channel_selector_0-11
     clip_scale: 0
     nn_params:
-      out_features: 64
+      out_channels: 64
       kernel_size: 5
       stride: 3
     # when defining nn.Modules, put your keyword argements under nn_params.
@@ -85,7 +85,7 @@ components:
     sources:
       - name: channel_selector_12-22
     nn_params:
-      out_features: 64
+      out_channels: 64
       kernel_size: 5
       stride: 3
 
@@ -94,7 +94,7 @@ components:
     sources:
       - name: cnn1_channels_0-11
     nn_params:
-      out_features: 64
+      out_channels: 64
       kernel_size: 3
       stride: 1
 
@@ -103,7 +103,7 @@ components:
     sources:
       - name: cnn1_channels_12-22
     nn_params:
-      out_features: 64
+      out_channels: 64
       kernel_size: 3
       stride: 1
 
