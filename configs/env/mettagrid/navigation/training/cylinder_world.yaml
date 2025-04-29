@@ -1,6 +1,6 @@
 # Config: choose any style, including the new "cylinder_world"
 defaults:
-  - /env/mettagrid-base/mettagrid@
+  - /env/mettagrid/mettagrid@
   - _self_
 
 sampling: 1

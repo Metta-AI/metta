@@ -1,6 +1,6 @@
 num_workers: ???
 
-env: /env/mettagrid-base/simple
+env: /env/mettagrid/simple
 env_overrides: {}
 
 initial_policy:
