@@ -387,7 +387,8 @@ class PufferTrainer:
 
                 with profile.train_forward:
                     logits, newvalue = self.policy(obs, lstm_state, action=atn)
-                    lstm_state = PolicyState(lstm_h=lstm_state.lstm_h.detach(), lstm_c=lstm_state.lstm_c.detach())
+                    lstm_state.lstm_h.detach_()
+                    lstm_state.lstm_c.detach_()
                     _, newlogprob, entropy, new_normalized_logits = sample_logits(logits)
                     if self.device == "cuda":
                         torch.cuda.synchronize()
