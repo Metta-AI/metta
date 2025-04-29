@@ -18,6 +18,14 @@ class Linear(ParamLayer):
             **self._nn_params
         )
     
+class ReLU(LayerBase):
+    def __init__(self, **cfg):
+        super().__init__(**cfg)
+
+    def _make_net(self):
+        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
+        return nn.ReLU()
+    
 class Bilinear(LayerBase):
     def __init__(self, **cfg):
         super().__init__(**cfg)
