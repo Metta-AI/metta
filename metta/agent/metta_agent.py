@@ -141,13 +141,12 @@ class MettaAgent(nn.Module):
         self.components["_value_"](td)
         return None, td["_value_"], None
 
-    def forward(self, x, state=None, action=None):
+    def forward(self, x, state: PolicyState, action=None):
         td = TensorDict({"x": x})
 
         td["state"] = None
-        if state is not None:
-            state = torch.cat(state, dim=0)
-            td["state"] = state.to(x.device)
+        if state.lstm_h is not None:
+            td["state"] = torch.cat([state.lstm_h, state.lstm_c], dim=0).to(x.device)
 
         self.components["_value_"](td)
         self.components["_action_type_"](td)
@@ -155,12 +154,11 @@ class MettaAgent(nn.Module):
 
         logits = [td["_action_type_"], td["_action_param_"]]
         value = td["_value_"]
-        state = td["state"]
 
         # Convert state back to tuple to pass back to trainer
-        if state is not None:
-            split_size = self.core_num_layers
-            state = (state[:split_size], state[split_size:])
+        split_size = self.core_num_layers
+        state.lstm_h = td["state"][:split_size]
+        state.lstm_c = td["state"][split_size:]
 
         action, logprob, entropy, normalized_logits = sample_logits(logits, action)
 
