@@ -3,12 +3,12 @@ defaults:
   - _self_
 
 game:
-  num_agents: 120 #how many agents are in the map x2
-  max_steps: 80
+  num_agents: 160 #how many agents are in the map x2
+  max_steps: 85
 
   agent:
     rewards:
-      heart: 1
+      heart: 1.0
 
   map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom
@@ -16,7 +16,7 @@ game:
     room:
       _target_: mettagrid.config.room.ascii.Ascii
       border_width: 1
-      uri: "configs/env/mettagrid/maps/kinship/spine_maze_extended.map"
+      uri: "configs/env/mettagrid/maps/multiagent/radial_diffusion.map"
 
   objects:
     altar:

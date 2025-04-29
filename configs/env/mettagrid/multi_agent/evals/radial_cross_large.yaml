@@ -4,11 +4,11 @@ defaults:
 
 game:
   num_agents: 80 #how many agents are in the map x2
-  max_steps: 25
+  max_steps: 50
 
   agent:
     rewards:
-      heart: 1
+      heart: 1.0
 
   map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom
@@ -16,7 +16,7 @@ game:
     room:
       _target_: mettagrid.config.room.ascii.Ascii
       border_width: 1
-      uri: "configs/env/mettagrid/maps/kinship/radial_cross.map"
+      uri: "configs/env/mettagrid/maps/multiagent/radial_cross_large.map"
 
   objects:
     altar:
