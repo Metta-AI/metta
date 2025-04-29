@@ -2,6 +2,7 @@ defaults:
   - common
   - wandb: metta_research
   - sim: simple
+  - /sim/simple@replay_job.sim
   - _self_
 
 cmd: play
@@ -13,4 +14,3 @@ eval_db_uri: null
 
 replay_job:
   policy_uri: ${policy_uri}
-  sim: ${sim}

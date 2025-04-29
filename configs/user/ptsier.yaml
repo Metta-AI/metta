@@ -10,22 +10,9 @@ trainer:
       num_agents: 36
       max_steps: 1000
 
-# policy: wandb://run/b.daveey.train.maze.sm.dr.warm.0
-# baselines: wandb://run/b.daveey.train.maze.sm.11x11.0
-
-# policy_uri: wandb://run/b.daveey.t.1.bl
-# policy_uri: wandb://run/b.daveey.t.16.dr0
-
-# policy_uri: wandb://run/b.daveey.t.4.lra.muon
 policy_uri: wandb://run/b.daveey.t.1.lra.dr.muon
-# policy_uri: ${trained_policy_uri}
-# policy_uri: /tmp/puffer_metta_serial.pt
 
 npc_policy_uri: ${policy_uri}
-# npc_policy_uri: wandb://run/b.daveey.t.16.dr0
-# policy_uri: ${trained_policy_uri}
-# npc_policy_uri: ${trained_policy_uri}
-# eval_db_uri: wandb://artifacts/daveey_eval_testing
 
 analyzer:
   policy_uri: ${..policy_uri}
