@@ -135,11 +135,6 @@ class MettaAgent(nn.Module):
     def total_params(self):
         return self._total_params
 
-    def get_value(self, x, state=None):
-        td = TensorDict({"x": x, "state": state})
-        self.components["_value_"](td)
-        return None, td["_value_"], None
-
     def forward(self, x, state: PolicyState, action=None):
         td = TensorDict(
             {
