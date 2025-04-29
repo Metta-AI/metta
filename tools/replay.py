@@ -30,7 +30,9 @@ def main(cfg):
         policy_record = policy_store.policy(replay_job.policy_uri)
         replay_job.sim.replay_path = f"s3://softmax-public/replays/local/{cfg.run}/replay.json.z"
         sim = Simulation(replay_job.sim, policy_record, policy_store, wandb_run=wandb_run)
-        sim.simulate()
+        sim.simulate(
+            dry_run=cfg.trainer.get("replay_dry_run", False),
+        )
         # Only on macos open a browser to the replay
         # TODO: This wont be quite the right URL if num_episodes >1  num_envs > 1
         # see Simulation._get_replay_path()
