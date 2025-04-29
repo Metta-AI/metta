@@ -16,6 +16,3 @@ simulations:
   memory/hard:
     env: env/mettagrid/memory/evals/hard
     policy_agents_pct: 1.0
-  memory/in_view:
-    env: env/mettagrid/memory/evals/in_view
-    policy_agents_pct: 1.0
