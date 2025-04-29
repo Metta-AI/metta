@@ -22,21 +22,41 @@ class RoomGrid(Scene):
     Outer walls are drawn for the sake of the example readability. (They'll usually be provided by the container node.)
 
     The right wall is there because rooms are equally sized, and there's some extra space on the right.
+
+    By default, each room will be tagged with "room_{row}_{col}". If layout is provided,
+    the tags will be taken from the layout instead; and in this case rows and columns will
+    be inferred from the layout.
     """
 
     def __init__(
         self,
-        rows: int,
-        columns: int,
+        rows: Optional[int] = None,
+        columns: Optional[int] = None,
+        layout: Optional[List[List[str]]] = None,
         border_width: int = 1,
         border_object: str = "wall",
         children: Optional[List[Any]] = None,
     ):
         super().__init__(children=children)
-        self._rows = rows
-        self._columns = columns
+        self._layout = layout
+        if layout is None:
+            assert rows is not None and columns is not None, "Either layout or rows and columns must be provided"
+            self._rows = rows
+            self._columns = columns
+        else:
+            for row in layout:
+                assert len(row) == len(layout[0]), "All rows must have the same number of columns"
+            self._rows = len(layout)
+            self._columns = len(layout[0])
+
         self._border_width = border_width
         self._border_object = border_object
+
+    def _tag(self, row: int, col: int) -> str:
+        if self._layout is not None:
+            return self._layout[row][col]
+        else:
+            return f"room_{row}_{col}"
 
     def _render(self, node: Node):
         room_width = (node.width - self._border_width * (self._columns - 1)) // self._columns
@@ -50,4 +70,4 @@ class RoomGrid(Scene):
                 x = col * (room_width + self._border_width)
                 y = row * (room_height + self._border_width)
                 node.grid[y : y + room_height, x : x + room_width] = "empty"
-                node.make_area(x, y, room_width, room_height, tags=["room"])
+                node.make_area(x, y, room_width, room_height, tags=[self._tag(row, col)])
