@@ -1,6 +1,7 @@
 # @package __global__
 
-run: andre_local_5
+run: andre_aws_22
+policy_uri: wandb://run/andre_aws_22
 
 trainer:
   replay_interval: 10
