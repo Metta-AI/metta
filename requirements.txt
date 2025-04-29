@@ -9,10 +9,12 @@ numpy==1.26.4
 # ==========================
 boto3>=1.35.69
 colorama>=0.4.6
-duckdb>=1.2.0
+duckdb>=1.2.2
 heavyball>=1.7.2
 hydra-core>=1.3.2
 matplotlib>=3.9.2
+moto[s3]>=5.1.4
+pettingzoo>=1.24.1
 pydantic>=2.11.1
 PyYAML>=6.0.2
 raylib>=5.5.0.1

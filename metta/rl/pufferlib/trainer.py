@@ -26,6 +26,7 @@ from metta.sim.eval_stats_logger import EvalStatsLogger
 from metta.sim.replay_helper import ReplayHelper
 from metta.sim.simulation import SimulationSuite
 from metta.sim.simulation_config import SimulationConfig, SimulationSuiteConfig
+from metta.sim.stats_db import StatsDB
 from metta.sim.vecenv import make_vecenv
 from metta.util.config import config_from_path
 
@@ -65,6 +66,7 @@ class PufferTrainer:
         self.policy_store = policy_store
         self.use_e3b = self.trainer_cfg.use_e3b
         self.eval_stats_logger = EvalStatsLogger(self.sim_suite_config, wandb_run)
+        self.training_stats_db = StatsDB()
         self.average_reward = 0.0  # Initialize average reward estimate
         self._current_eval_score = None
         self._eval_results = []
@@ -181,7 +183,7 @@ class PufferTrainer:
         logger.info(f"Training on {self.device}")
         while self.agent_step < self.trainer_cfg.total_timesteps:
             # Collecting experience
-            self._evaluate()
+            self._rollout()
 
             # Training on collected experience
             self._train()
@@ -252,7 +254,7 @@ class PufferTrainer:
         pass
 
     @pufferlib.utils.profile
-    def _evaluate(self):
+    def _rollout(self):
         experience, profile = self.experience, self.profile
 
         with profile.eval_misc:
@@ -339,6 +341,43 @@ class PufferTrainer:
         experience.ptr = 0
         experience.step = 0
         return self.stats, infos
+
+    @pufferlib.utils.profile
+    def _record_rollout(
+        self,
+        raw_env_info: list[dict],
+        epoch: int,
+        batch_idx: int,
+        agent_steps: int,
+    ):
+        meta = dict(
+            env_name=self.env_name,  # e.g. "MettaNavigation-v0"
+            map_w=self.env_cfg.game.map_width,
+            map_h=self.env_cfg.game.map_height,
+            epoch=epoch,
+            batch_idx=batch_idx,
+            agent_steps=agent_steps,  # total env steps in this rollout
+            metadata_json={
+                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                "run_dir": self.run_dir,
+            },
+        )
+
+        # PolicyRecord gives uri + numeric version; fall back to 0 if not versioned.
+        agents: StatsDB.AgentMap = {
+            agent_id: (pr.uri, pr.version or 0) for agent_id, pr in self._agent_idx_to_pr.items()
+        }
+
+        # flatten your env-specific stats ⇢ {agent_id: {metric: value}}
+        metrics: StatsDB.MetricRows = {}
+        for agent_id, info in enumerate(raw_env_info):
+            metrics[agent_id] = {
+                "episode_reward": info["episode_reward"],
+                "diamonds": info.get("diamonds_harvested", 0),
+                # add as many fields as you like – schema is open
+            }
+
+        self.training_stats_db.log_rollout(meta, agents, metrics)
 
     @pufferlib.utils.profile
     def _train(self):
