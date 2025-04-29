@@ -2,6 +2,14 @@
 
 # Define the list of policy URIs
 POLICIES=(
+    "b.daphne.terrain_prioritized_styles_pretrained_r"
+    "b.daphne.terrain_prioritized_styles2"
+    "terrain_prioritized_styles_pretrained_mpmc"
+    "terrain_prioritized_styles_pretrained"
+    "b.terrain_prioritized_styles_nb"
+    "b.terrain_prioritized_styles_pretrained_nb"
+    "b.terrain_prioritized_styles"
+    "b.terrain_prioritized_styles_pretrained"
     "b.georgedeane.terrain_multienv"
      "b.daphne.terrain_multienv_3_no_blocks3"
      "terrain_multienv_3_single_agent"
