@@ -1,12 +1,12 @@
 import wandb
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, ListConfig
 from rich.table import Table
 
 from .dashboard import DashboardComponent, b2, c1
 
 
 class WanDb(DashboardComponent):
-    def __init__(self, wandb_cfg: OmegaConf):
+    def __init__(self, wandb_cfg: DictConfig | ListConfig):
         super().__init__()
         self.wandb_cfg = wandb_cfg
 
