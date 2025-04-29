@@ -749,7 +749,6 @@ def get_job_instance_id(job_id_or_name):
     """Get the instance ID of the instance running a job."""
     batch = get_boto3_client("batch")
     ecs = get_boto3_client("ecs")
-    ec2 = get_boto3_client("ec2")
 
     try:
         # First try to get the job by ID
@@ -857,12 +856,20 @@ def ssm_to_job(job_id_or_name, instance_only=False):
         if instance_only:
             # Connect directly to the instance as root
             print(f"Connecting directly to the instance {instance_id} as root...")
-            ssm_cmd = f"aws ssm start-session --target {instance_id} --document-name AWS-StartInteractiveCommand --parameters 'command=sudo su -'"
+            ssm_cmd = (
+                f"aws ssm start-session --target {instance_id} "
+                "--document-name AWS-StartInteractiveCommand "
+                "--parameters 'command=sudo su -'"
+            )
             subprocess.run(ssm_cmd, shell=True)
         else:
             # Retrieve container ID
             print(f"Finding container on instance {instance_id}...")
-            container_cmd = f"aws ssm start-session --target {instance_id} --document-name AWS-StartInteractiveCommand --parameters 'command=sudo docker ps | grep metta'"
+            container_cmd = (
+                f"aws ssm start-session --target {instance_id} "
+                "--document-name AWS-StartInteractiveCommand "
+                "--parameters 'command=sudo docker ps | grep metta'"
+            )
             container_id_output = subprocess.check_output(container_cmd, shell=True).decode().strip()
 
             # Split output into lines and skip header
@@ -870,12 +877,20 @@ def ssm_to_job(job_id_or_name, instance_only=False):
             if len(container_lines) > 1:  # Skip header line
                 container_id = container_lines[1].split()[0]  # First column is container ID
                 print(f"Connecting to container {container_id} on instance {instance_id}...")
-                exec_cmd = f"aws ssm start-session --target {instance_id} --document-name AWS-StartInteractiveCommand --parameters 'command=sudo docker exec -it {container_id} /bin/bash'"
+                exec_cmd = (
+                    f"aws ssm start-session --target {instance_id} "
+                    "--document-name AWS-StartInteractiveCommand "
+                    f"--parameters 'command=sudo docker exec -it {container_id} /bin/bash'"
+                )
                 subprocess.run(exec_cmd, shell=True)
             else:
                 print(f"No container running the 'mettaai/metta' image found on the instance {instance_id}.")
                 print("Connecting to the instance directly as root...")
-                ssm_cmd = f"aws ssm start-session --target {instance_id} --document-name AWS-StartInteractiveCommand --parameters 'command=sudo su -'"
+                ssm_cmd = (
+                    f"aws ssm start-session --target {instance_id} "
+                    "--document-name AWS-StartInteractiveCommand "
+                    "--parameters 'command=sudo su -'"
+                )
                 subprocess.run(ssm_cmd, shell=True)
 
         return True
@@ -885,11 +900,13 @@ def ssm_to_job(job_id_or_name, instance_only=False):
             print(f"SSM connection to {instance_id} timed out. Please check the instance status and IAM permissions.")
         elif "AccessDeniedException" in str(e):
             print(
-                f"SSM connection to {instance_id} was denied. Please check if the instance has the required IAM permissions "
-                "and if the SSM agent is running."
+                f"SSM connection to {instance_id} was denied. Please check if "
+                "the instance has the required IAM permissions and if the SSM "
+                "agent is running."
             )
         else:
             print(
-                f"An error occurred while connecting to {instance_id}. Please check the instance status and SSM configuration."
+                f"An error occurred while connecting to {instance_id}. Please "
+                "check the instance status and SSM configuration."
             )
         return False
