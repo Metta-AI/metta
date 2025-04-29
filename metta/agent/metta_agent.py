@@ -141,7 +141,7 @@ class MettaAgent(nn.Module):
         self.components["_value_"](td)
         return None, td["_value_"], None
 
-    def get_action_and_value(self, x, state=None, action=None, e3b=None):
+    def forward(self, x, state=None, action=None):
         td = TensorDict({"x": x})
 
         td["state"] = None
@@ -162,13 +162,9 @@ class MettaAgent(nn.Module):
             split_size = self.core_num_layers
             state = (state[:split_size], state[split_size:])
 
-        e3b, intrinsic_reward = self._e3b_update(td["_core_"].detach(), e3b)
         action, logprob, entropy, normalized_logits = sample_logits(logits, action)
 
-        return action, logprob, entropy, value, state, e3b, intrinsic_reward, normalized_logits
-
-    def forward(self, x, state=None, action=None, e3b=None):
-        return self.get_action_and_value(x, state, action, e3b)
+        return action, logprob, entropy, value, state, 0, 0, normalized_logits
 
     def forward_new(self, x, state: PolicyState, action=None):
         td = TensorDict(
