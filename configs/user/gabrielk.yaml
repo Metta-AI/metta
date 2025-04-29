@@ -1,45 +1,51 @@
 # @package __global__
 
-seed: null
-
 defaults:
-  - override /hardware: aws
-  - override /env/mettagrid@env: simple
-  - override /agent: resnet
+  - override /agent: simple
+  - override /analyzer: eval_analyzer
   - _self_
 
-# policy: file://.train_dir/gabrielk.local.train.simple/checkpoints/model_0000.pt
-# baselines: file://.train_dir/gabrielk.local.train.simple/checkpoints/model_0000.pt
 
-# evaluator:
-#   policy:
-#     uri: ${...policy_uri}
-# baselines:
-#   uri: ${...baseline_uri}
-
-policy_uri: file://./train_dir/gabrielk.local.train.resnet/checkpoints/model_0000.pt
-baseline_uri: file://./train_dir/gabrielk.local.train.simple/checkpoints/model_0000.pt
-
-env:
-  game:
-    max_steps: 100
+device: cuda
+vectorization: multiprocessing
 
 trainer:
-  evaluate_interval: 2
+  num_workers: 8 # num cores
+  async_factor: 1
+  zero_copy: True
+  # checkpoint_interval: 300
+  env: /env/mettagrid-base/simple
+  env_overrides:
+    sampling: 0.7
+    game:
+      num_agents: 36
+      max_steps: 511 # 512 - 1
 
-evaluator:
-  policy:
-    uri: ${...policy_uri}
-  baselines:
-    uri: ${...baseline_uri}
+analyzer:
+  eval_stats_uri: ${run_dir}/eval_stats
+  policy_uri: ${..policy_uri}
+  analysis:
+    metrics:
+      - metric: episode_reward
+  output_path: navigation_results/navigation.html
 
-wandb:
-  enabled: false
-  track: false
-  checkpoint_interval: 1
+eval:
+  env: /env/mettagrid/navigation/training/varied_terrain
 
-sweep:
-  metric: action.use
+  policy_uri: ${..policy_uri}
+  eval_db_uri: ${..eval_db_uri}
+  policy_uris:
+    - "wandb://run/b.daphne.navigation_terrain_training_v2"
+    - "wandb://run/b.georgedeane.navigation_terrain_training_v2"
+    - "wandb://run/b.daphne.navigation_terrain_training"
 
-cmd: ???
-run: ${oc.env:USER}.local.${cmd}.simple
+# wandb:
+#   checkpoint_interval: 1
+
+run_id: 1
+run: ${oc.env:USER}.local.${run_id}
+trained_policy_uri: ${run_dir}/checkpoints
+
+sweep_params: "sweep/fast"
+sweep_name: "${oc.env:USER}.local.sweep.${run_id}"
+seed: null

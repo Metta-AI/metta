@@ -1,0 +1,7 @@
+defaults:
+  - puffer
+  - _self_
+
+batch_size: 147456 # 288 (agents (36 * 8)) * 512
+minibatch_size: 4608 # 147456 / 16
+bptt_horizon: 512

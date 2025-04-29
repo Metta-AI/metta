@@ -181,9 +181,11 @@ class PufferTrainer:
         logger.info(f"Training on {self.device}")
         while self.agent_step < self.trainer_cfg.total_timesteps:
             # Collecting experience
+            self.policy.eval()
             self._evaluate()
 
             # Training on collected experience
+            self.policy.train()
             self._train()
 
             # Processing stats
@@ -263,7 +265,7 @@ class PufferTrainer:
 
         while not experience.full:
             with profile.env:
-                o, r, d, t, info, env_id, mask = self.vecenv.recv()
+                o, r, _, d, info, env_id, mask = self.vecenv.recv()
 
                 # Zero-copy indexing for contiguous env_id
 
