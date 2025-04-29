@@ -1,10 +1,12 @@
 import time
 
-import hydra
 import numpy as np
 import pandas as pd
 from omegaconf import OmegaConf
 from tqdm import tqdm
+
+from mettagrid.config.utils import get_cfg
+from mettagrid.mettagrid_env import MettaGridEnv
 
 global actions
 global env
@@ -32,17 +34,21 @@ actions = {}
 env = {}
 
 
-@hydra.main(version_base=None, config_path="../configs", config_name="simple")
-def main(cfg):
+def main():
     # Run with c profile
     from cProfile import run
 
     global env
 
+    from mettagrid.resolvers import register_resolvers
+
+    register_resolvers()
+
+    cfg = get_cfg("benchmark")
     print(OmegaConf.to_yaml(cfg))
 
     cfg.game.max_steps = 999999999
-    env = hydra.utils.instantiate(cfg, cfg, render_mode="human", _recursive_=False)
+    env = MettaGridEnv(cfg, render_mode="human", _recursive_=False)
     env.reset()
     global actions
     # num_agents = cfg.game.num_agents

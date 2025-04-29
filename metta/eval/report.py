@@ -118,9 +118,9 @@ def generate_report(cfg: DictConfig):
 
 
 def dump_stats(cfg: DictConfig):
-    logger.info(f"Importing data from {cfg.eval.eval_db_uri}")
+    logger.info(f"Importing data from {cfg.sim.eval_db_uri}")
     with WandbContext(cfg) as wandb_run:
-        eval_stats_db = EvalStatsDB.from_uri(cfg.eval.eval_db_uri, cfg.run_dir, wandb_run)
+        eval_stats_db = EvalStatsDB.from_uri(cfg.sim.eval_db_uri, cfg.run_dir, wandb_run)
 
     analyzer = hydra.utils.instantiate(cfg.analyzer, eval_stats_db)
     dfs, _ = analyzer.analyze(include_policy_fitness=False)
