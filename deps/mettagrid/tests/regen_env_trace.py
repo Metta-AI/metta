@@ -1,8 +1,8 @@
-import hydra
 import numpy as np
 
 import mettagrid
 import mettagrid.mettagrid_env
+from mettagrid.config.utils import get_test_basic_cfg
 
 
 def dump_agents(env, show_team=False, agent_id=None):
@@ -91,13 +91,14 @@ def header(message):
     return "=" * 80 + "\n" + message + "\n" + "=" * 80 + "\n"
 
 
-@hydra.main(version_base=None, config_path="../configs", config_name="test_basic")
-def main(cfg):
+def main():
     output = ""
 
     output += header("Basic level:")
     np.random.seed(123)
-    env = mettagrid.mettagrid_env.MettaGridEnv(render_mode=None, **cfg)
+
+    cfg = get_test_basic_cfg()
+    env = mettagrid.mettagrid_env.MettaGridEnv(cfg, render_mode=None)
     env.reset()
 
     r = 0

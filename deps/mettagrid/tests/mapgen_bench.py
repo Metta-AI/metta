@@ -1,7 +1,5 @@
 import time
 
-import hydra
-
 from mettagrid.map.mapgen import MapGen
 
 
@@ -15,13 +13,12 @@ def bench_scene_gen(scene: str):
     print(f"{scene} {width}x{height}: {time_taken:.3f}s")
 
 
-@hydra.main(version_base=None, config_path="../configs", config_name="test_basic")  # unused
-def main(cfg):
-    bench_scene_gen("/scenes/wfc/blob")
-    bench_scene_gen("/scenes/wfc/simple")
-    bench_scene_gen("/scenes/convchain/blob")
-    bench_scene_gen("/scenes/convchain/c_shape")
-    bench_scene_gen("/scenes/convchain/diagonal")
+def main():
+    bench_scene_gen("wfc/blob.yaml")
+    bench_scene_gen("wfc/simple.yaml")
+    bench_scene_gen("convchain/blob.yaml")
+    bench_scene_gen("convchain/c_shape.yaml")
+    bench_scene_gen("convchain/diagonal.yaml")
 
 
 if __name__ == "__main__":

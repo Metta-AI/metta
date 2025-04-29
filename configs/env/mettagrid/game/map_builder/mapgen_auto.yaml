@@ -68,16 +68,16 @@ root:
     content:
       - scene:
           _target_: mettagrid.map.scenes.random_scene_from_dir.RandomSceneFromDir
-          dir: ./configs/scenes/dcss/wfc
+          dir: /dcss/wfc
         weight: 20
-      - scene: ./configs/scenes/wfc/blob.yaml
-      - scene: ./configs/scenes/wfc/blob2.yaml
-      - scene: ./configs/scenes/wfc/blob3.yaml
-      - scene: ./configs/scenes/wfc/blocks.yaml
-      - scene: ./configs/scenes/wfc/dungeons.yaml
-      - scene: ./configs/scenes/wfc/mazelike1.yaml
-      - scene: ./configs/scenes/wfc/mazelike2.yaml
-      - scene: ./configs/scenes/wfc/simple.yaml
+      - scene: /wfc/blob.yaml
+      - scene: /wfc/blob2.yaml
+      - scene: /wfc/blob3.yaml
+      - scene: /wfc/blocks.yaml
+      - scene: /wfc/dungeons.yaml
+      - scene: /wfc/mazelike1.yaml
+      - scene: /wfc/mazelike2.yaml
+      - scene: /wfc/simple.yaml
       - scene:
           _target_: mettagrid.map.scenes.maze.MazeKruskal
           room_size: ["uniform", 1, 3]
