@@ -43,14 +43,18 @@ protected:
         // collect resources from a converter that's in the middle of processing a queue.
         continue;
       }
-      // The actor will destroy anything it can't hold. That's not intentional, so feel free
-      // to fix it.
-      actor->stats.add(InventoryItemNames[i], "get", converter->inventory[i]);
-      actor->update_inventory(static_cast<InventoryItem>(i), converter->inventory[i]);
-      converter->update_inventory(static_cast<InventoryItem>(i), -converter->inventory[i]);
+      // Only take resources if the converter has some.
+      if (converter->inventory[i] > 0) {
+        // The actor will destroy anything it can't hold. That's not intentional, so feel free
+        // to fix it.
+        actor->stats.add(InventoryItemNames[i], "get", converter->inventory[i]);
+        actor->update_inventory(static_cast<InventoryItem>(i), converter->inventory[i]);
+        converter->update_inventory(static_cast<InventoryItem>(i), -converter->inventory[i]);
+        return true;
+      }
     }
 
-    return true;
+    return false;
   }
 };
 

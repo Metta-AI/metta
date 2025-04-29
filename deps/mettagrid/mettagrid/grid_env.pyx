@@ -173,6 +173,8 @@ cdef class GridEnv:
         for p in range(self._max_action_priority + 1):
             for idx in range(self._agents.size()):
                 action = actions[idx][0]
+                # Clear the success flag, as we can continue early.
+                self._action_success[idx] = False
                 if action < 0 or action >= self._num_action_handlers:
                     printf("Invalid action: %d\n", action)
                     continue
