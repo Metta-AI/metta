@@ -213,8 +213,7 @@ class MettaAgent(nn.Module):
         return action, logprob_act, entropy, value, state, e3b, intrinsic_reward, log_sftmx_logits
 
     def _convert_action_to_logit_index(self, action):
-        """Convert action pairs (action_type, action_param) to single discretelogit indices using vectorized operations"""
-        orig_shape = action.shape
+        """Convert action pairs (action_type, action_param) to single discrete action logit indices using vectorized operations"""
         action = action.reshape(-1, 2)
         
         # Extract action components 
@@ -227,7 +226,7 @@ class MettaAgent(nn.Module):
         # Vectorized addition
         action_logit_index = action_type_numbers + cumulative_sum + action_params
         
-        return action_logit_index.reshape(*orig_shape[:2], 1)
+        return action_logit_index.reshape(-1, 1)
 
     def _convert_logit_index_to_action(self, action_logit_index, td):
         """Convert logit indices back to action pairs using tensor indexing"""
