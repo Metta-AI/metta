@@ -51,7 +51,6 @@ sim:
   max_time_s: 600
   # policy_agents_pct: 1
 
-  npc_policy_uri: ${..npc_policy_uri}
   # env: /env/mettagrid/reward_dr
   # env_overrides:
   #   # sampling: 0.7
