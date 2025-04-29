@@ -5,7 +5,7 @@ import gymnasium as gym
 import hydra
 import numpy as np
 import torch
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, ListConfig, OmegaConf
 import omegaconf
 from pufferlib.environment import PufferEnv
 from tensordict import TensorDict
