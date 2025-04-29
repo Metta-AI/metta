@@ -1,4 +1,4 @@
-_target_: metta.util.mettagrid_env_set.MettaGridEnvSet
+_target_: metta.env.mettagrid_env_set.MettaGridEnvSet
 
 num_agents: 24
 
