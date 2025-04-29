@@ -35,6 +35,15 @@ export class PanelInfo {
     return m.inverse().transform(point);
   }
 
+  // Make the panel focus on a specific position in the panel.
+  focusPos(x: number, y: number) {
+    this.panPos = new Vec2f(
+      -x,
+      -y
+    );
+    this.zoomLevel = 1;
+  }
+
   // Update the pan and zoom level based on the mouse position and scroll delta.
   updatePanAndZoom(): boolean {
 
@@ -69,7 +78,7 @@ export class PanelInfo {
 }
 
 // Constants
-const MIN_ZOOM_LEVEL = 0.05;
+const MIN_ZOOM_LEVEL = 0.025;
 const MAX_ZOOM_LEVEL = 2.0;
 
 const SPLIT_DRAG_THRESHOLD = 10;  // pixels to detect split dragging
@@ -539,25 +548,10 @@ function focusFullMap(panel: PanelInfo) {
   if (replay === null) {
     return;
   }
-  const mapWidth = replay.map_size[0] * TILE_SIZE;
-  const mapHeight = replay.map_size[1] * TILE_SIZE;
-  const panelWidth = panel.width;
-  const panelHeight = panel.height;
-  const zoomLevel = Math.min(panelWidth / mapWidth, panelHeight / mapHeight);
-  panel.panPos = new Vec2f(
-    (panelWidth - mapWidth * zoomLevel) / 2,
-    (panelHeight - mapHeight * zoomLevel) / 2
-  );
-  panel.zoomLevel = zoomLevel;
-}
-
-// Make the panel focus on a specific agent.
-function focusMapOn(panel: PanelInfo, x: number, y: number) {
-  panel.panPos = new Vec2f(
-    -x * TILE_SIZE + panel.width / 2,
-    -y * TILE_SIZE + panel.height / 2
-  );
-  panel.zoomLevel = 1;
+  const width = replay.map_size[0] * TILE_SIZE;
+  const height = replay.map_size[1] * TILE_SIZE;
+  panel.focusPos(width / 2, height / 2);
+  panel.zoomLevel = Math.min(panel.width / width, panel.height / height);
 }
 
 // Draw the tiles that make up the floor.
@@ -678,7 +672,7 @@ function drawWalls(replay: any) {
       drawer.drawSprite(
         'objects/wall.fill.png',
         x * TILE_SIZE + TILE_SIZE / 2,
-        y * TILE_SIZE + TILE_SIZE / 2 - 50
+        y * TILE_SIZE + TILE_SIZE / 2 - 42
       );
     }
   }
@@ -1015,6 +1009,13 @@ function drawTrace(panel: PanelInfo) {
 
   const localMousePos = panel.transformPoint(mousePos);
 
+  if (followSelection && selectedGridObject !== null) {
+    panel.focusPos(
+      step * TRACE_WIDTH + TRACE_WIDTH/2,
+      getAttr(selectedGridObject, "agent_id") * TRACE_HEIGHT + TRACE_HEIGHT/2
+    );
+  }
+
   if (mousePressed &&panel.inside(mousePos)) {
     if (localMousePos != null) {
       const mapX = localMousePos.x();
@@ -1025,7 +1026,10 @@ function drawTrace(panel: PanelInfo) {
           followSelection = true;
           selectedGridObject = replay.agents[agentId];
           console.log("selectedGridObject on a trace: ", selectedGridObject);
-          focusMapOn(mapPanel, getAttr(selectedGridObject, "c"), getAttr(selectedGridObject, "r"));
+          panel.focusPos(
+            getAttr(selectedGridObject, "c") * TILE_SIZE,
+            getAttr(selectedGridObject, "r") * TILE_SIZE
+          );
           step = Math.floor(mapX / TRACE_WIDTH);
           scrubber.value = step.toString();
         }
