@@ -83,9 +83,14 @@ class ReplayHelper:
         replay_bytes = replay_data.encode("utf-8")  # Encode to bytes
         compressed_data = zlib.compress(replay_bytes)  # Compress the bytes
 
+        if dry_run:
+            logger = logging.getLogger(__name__)
+            logger.info(f"Dry run: Would write replay to {replay_path}")
+            return
+
         # Make sure the directory exist
         if replay_path.startswith("s3://"):
-            self._write_to_s3(compressed_data, replay_path, epoch, dry_run)
+            self._write_to_s3(compressed_data, replay_path, epoch)
         else:
             self._write_to_file(compressed_data, replay_path)
 
@@ -96,7 +101,7 @@ class ReplayHelper:
         with open(replay_path, "wb") as f:
             f.write(replay_data)
 
-    def _write_to_s3(self, replay_data: bytes, replay_url: str, epoch: int, dry_run: bool):
+    def _write_to_s3(self, replay_data: bytes, replay_url: str, epoch: int):
         """Upload the replay to S3 and log the link to WandB."""
         upload_to_s3(replay_data, replay_url, "application/x-compress")
         logger = logging.getLogger(__name__)
