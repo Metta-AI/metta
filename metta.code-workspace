@@ -197,34 +197,6 @@
 			}
 		},
 		"terminal.integrated.cwd": "${workspaceFolder}",
-		"terminal.integrated.splitCwd": "workspaceRoot",
-		"cSpell.words": [
-			"bptt",
-			"coef",
-			"cooldown",
-			"dones",
-			"heavyball",
-			"kickstarter",
-			"Kruskal",
-			"lasery",
-			"lexsort",
-			"metta",
-			"mettagrid",
-			"minibatch",
-			"minibatches",
-			"pufferlib",
-			"pytest",
-			"PYTHONPATH",
-			"raylib",
-			"relu",
-			"tensordict",
-			"timestep",
-			"timesteps",
-			"truncateds",
-			"vecenv",
-			"venv",
-			"vloss",
-			"wandb"
-		]
+		"terminal.integrated.splitCwd": "workspaceRoot"
 	}
 }
