@@ -16,9 +16,12 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._render_mode = render_mode
         self._cfg_template = env_cfg
         self._env_cfg = self._get_new_env_cfg()
-        self._reset_env()
         self.should_reset = False
         self._renderer = None
+        self._map_builder = None
+        self._reset_env()
+
+        self.labels = self._env_cfg.get("labels", None)
 
         super().__init__(buf)
 
