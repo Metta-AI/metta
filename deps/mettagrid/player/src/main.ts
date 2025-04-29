@@ -69,7 +69,7 @@ export class PanelInfo {
 }
 
 // Constants
-const MIN_ZOOM_LEVEL = 0.05;
+const MIN_ZOOM_LEVEL = 0.025;
 const MAX_ZOOM_LEVEL = 2.0;
 
 const SPLIT_DRAG_THRESHOLD = 10;  // pixels to detect split dragging
@@ -678,7 +678,7 @@ function drawWalls(replay: any) {
       drawer.drawSprite(
         'objects/wall.fill.png',
         x * TILE_SIZE + TILE_SIZE / 2,
-        y * TILE_SIZE + TILE_SIZE / 2 - 50
+        y * TILE_SIZE + TILE_SIZE / 2 - 42
       );
     }
   }
