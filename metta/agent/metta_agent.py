@@ -6,6 +6,7 @@ import hydra
 import numpy as np
 import torch
 from omegaconf import OmegaConf
+from metta.agent.policy_state import PolicyState
 from pufferlib.environment import PufferEnv
 from tensordict import TensorDict
 from torch import nn
@@ -168,6 +169,30 @@ class MettaAgent(nn.Module):
 
     def forward(self, x, state=None, action=None, e3b=None):
         return self.get_action_and_value(x, state, action, e3b)
+
+    def forward_new(self, x, state: PolicyState, action=None):
+        td = TensorDict(
+            {
+                "x": x,
+                "state": None,
+            }
+        )
+
+        if state.lstm_h is not None:
+            td["state"] = torch.cat([state.lstm_h, state.lstm_c], dim=0).to(x.device)
+
+        self.components["_value_"](td)
+        self.components["_action_type_"](td)
+        self.components["_action_param_"](td)
+
+        logits = [td["_action_type_"], td["_action_param_"]]
+        value = td["_value_"]
+
+        split_size = self.core_num_layers
+        state.lstm_h = td["state"][:split_size]
+        state.lstm_c = td["state"][split_size:]
+
+        return logits, value
 
     def _e3b_update(self, phi, e3b):
         intrinsic_reward = None
