@@ -13,7 +13,7 @@ def analyze_graph(G: nx.DiGraph) -> None:
     n = G.number_of_nodes()
     m = G.number_of_edges()
 
-    print("Graph Analysis:")
+    print("\nGraph Analysis:")
     print(f"  Nodes: {n}")
     print(f"  Edges: {m}")
     print(f"  Density: {nx.density(G):.4f}")
@@ -50,6 +50,7 @@ def analyze_graph(G: nx.DiGraph) -> None:
     print(f"  Average out-degree: {sum(out_degrees) / n:.2f}")
     print(f"  Max in-degree: {max(in_degrees)}")
     print(f"  Max out-degree: {max(out_degrees)}")
+    print()
 
 
 def analyze_nodes(G: nx.DiGraph) -> Dict:

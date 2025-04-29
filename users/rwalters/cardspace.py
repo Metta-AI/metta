@@ -169,11 +169,6 @@ def main():
     sinks_input = input(f"Number of sink nodes (exit points) [{default_sinks}]: ")
     n_sinks = int(sinks_input) if sinks_input.strip() else default_sinks
 
-    # Ask if node factory analysis should be displayed
-    default_show_factories = "y"
-    show_factories_input = input(f"\nShow node factory analysis? (y/n) [{default_show_factories}]: ")
-    show_factories = show_factories_input.lower() in ["", "y", "yes"] if show_factories_input else True
-
     # Create GraphConfig
 
     if graph_type == GraphType.PREFERENTIAL_ATTACHMENT:
@@ -208,9 +203,8 @@ def main():
     # Assign colors and visualize
     node_colors = assign_random_node_colors(graph, num_colors)
 
-    # Analyze node factories if requested
-    if show_factories:
-        analyze_nodes(graph)
+    # Analyze node factories
+    analyze_nodes(graph)
 
     # Use the enhanced visualization from the imported library
     # Instead of the previous visualize_graph function

@@ -248,6 +248,71 @@ def ensure_sinks(G: nx.DiGraph, n: int) -> nx.DiGraph:
     return G
 
 
+def remove_direct_entry_exit_links(G: nx.DiGraph) -> nx.DiGraph:
+    """
+    Remove any direct links from entry (source) nodes to exit (sink) nodes.
+
+    Args:
+        G: NetworkX directed graph
+
+    Returns:
+        Modified NetworkX DiGraph with no direct source-to-sink connections
+    """
+    # Find source and sink nodes
+    sources = [node for node in G.nodes() if G.in_degree(node) == 0]
+    sinks = [node for node in G.nodes() if G.out_degree(node) == 0]
+
+    # Find and remove direct source-to-sink edges
+    edges_to_remove = []
+    for source in sources:
+        for sink in sinks:
+            if G.has_edge(source, sink):
+                edges_to_remove.append((source, sink))
+
+    if edges_to_remove:
+        print(f"Removing {len(edges_to_remove)} direct source-to-sink edges: {edges_to_remove}")
+        G.remove_edges_from(edges_to_remove)
+    else:
+        print("No direct source-to-sink edges found")
+
+    return G
+
+
+def ensure_no_isolated_nodes(G: nx.DiGraph) -> nx.DiGraph:
+    """
+    Ensure there are no isolated nodes (nodes with no incoming or outgoing edges).
+
+    Args:
+        G: NetworkX directed graph
+
+    Returns:
+        Modified NetworkX DiGraph with no isolated nodes
+    """
+    # Find isolated nodes (nodes with degree 0)
+    isolated_nodes = [node for node in G.nodes() if G.in_degree(node) + G.out_degree(node) == 0]
+
+    if not isolated_nodes:
+        print("No isolated nodes found")
+        return G
+
+    print(f"Found {len(isolated_nodes)} isolated nodes: {isolated_nodes}")
+
+    # Connect each isolated node to at least one other node
+    for node in isolated_nodes:
+        other_nodes = [n for n in G.nodes() if n != node]
+        if other_nodes:
+            # Add an incoming and outgoing edge to/from a random node
+            target = random.choice(other_nodes)
+            G.add_edge(node, target)
+            print(f"Added edge from isolated node {node} to {target}")
+
+            source = random.choice(other_nodes)
+            G.add_edge(source, node)
+            print(f"Added edge from {source} to isolated node {node}")
+
+    return G
+
+
 class GraphType(Enum):
     RANDOM = "random"
     ERDOS_RENYI = "erdos_renyi"
@@ -266,6 +331,8 @@ class GraphConfig:
     allow_self_loops: bool = False
     n_sources: Optional[int] = None
     n_sinks: Optional[int] = None
+    allow_isolated_nodes: bool = False  # New parameter
+    allow_direct_entry_exit: bool = False  # New parameter
 
     def __post_init__(self):
         """Validate configuration parameters"""
@@ -334,4 +401,41 @@ def generate_graph_from_config(config: GraphConfig) -> nx.DiGraph:
     if config.n_sinks is not None:
         G = ensure_sinks(G, config.n_sinks)
 
+    # Remove direct links from entry to exit unless explicitly allowed
+    if not config.allow_direct_entry_exit:
+        G = remove_direct_entry_exit_links(G)
+
+    # Ensure no isolated nodes unless explicitly allowed
+    if not config.allow_isolated_nodes:
+        G = ensure_no_isolated_nodes(G)
+
     return G
+
+
+# Example usage
+if __name__ == "__main__":
+    # Example: Create a random directed graph with 10 nodes, 20 edges, 2 sources, and 2 sinks
+    config = GraphConfig(
+        graph_type=GraphType.RANDOM,
+        n_nodes=10,
+        n_edges=20,
+        n_sources=2,
+        n_sinks=2,
+        m_per_node=0,  # ignored for GraphType.RANDOM,
+        allow_self_loops=False,
+        allow_isolated_nodes=False,
+        allow_direct_entry_exit=False,
+    )
+
+    G = generate_graph_from_config(config)
+    print(f"Final graph has {G.number_of_nodes()} nodes and {G.number_of_edges()} edges")
+
+    # Check for isolated nodes
+    isolated = [node for node in G.nodes() if G.in_degree(node) + G.out_degree(node) == 0]
+    print(f"Isolated nodes: {isolated}")
+
+    # Check for direct entry-exit links
+    sources = [node for node in G.nodes() if G.in_degree(node) == 0]
+    sinks = [node for node in G.nodes() if G.out_degree(node) == 0]
+    direct_links = [(s, t) for s in sources for t in sinks if G.has_edge(s, t)]
+    print(f"Direct source-to-sink links: {direct_links}")

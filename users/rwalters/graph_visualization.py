@@ -3,7 +3,6 @@ from typing import Any, Dict, List, Optional, Set
 
 import matplotlib.pyplot as plt
 import networkx as nx
-from matplotlib.lines import Line2D  # Import Line2D directly
 
 
 def generate_distinct_colors(n: int) -> List[str]:
@@ -121,8 +120,8 @@ def visualize_graph(
     # Node shapes (circle for regular nodes, square for sources, diamond for sinks)
     node_shapes = {
         "regular": "o",
-        "source": "s",  # square
-        "sink": "d",  # diamond
+        "source": "d",  # diamond
+        "sink": "$\heartsuit$",  # heart
     }
 
     # Draw nodes by type (sources, sinks, regular) to use different shapes
@@ -135,43 +134,38 @@ def visualize_graph(
 
     # Draw regular nodes (circles)
     for node in regular_nodes:
-        # Find this node's index in the original node list
-        node_idx = node_list.index(node)
-        # Draw this single node with its color
         nx.draw_networkx_nodes(
             G,
             pos,
-            nodelist=[node],  # Just this one node
-            node_size=int(base_size),  # Cast to int for Pylance
-            node_color=node_color_list[node_idx],  # Single color string for this node
+            nodelist=[node],
+            node_size=int(base_size),
+            node_color="grey",
             node_shape=node_shapes["regular"],
         )
 
     # Draw source nodes (squares)
     for node in sources:
-        # Find this node's index in the original node list
-        node_idx = node_list.index(node)
-        # Draw this single node with its color
+        # node_idx = node_list.index(node)
+        # node_color = node_color_list[node_idx]
         nx.draw_networkx_nodes(
             G,
             pos,
-            nodelist=[node],  # Just this one node
-            node_size=int(large_size),  # Cast to int for Pylance
-            node_color=node_color_list[node_idx],  # Single color string for this node
+            nodelist=[node],
+            node_size=int(large_size),
+            node_color="white",  # Fill color
+            edgecolors="black",  # Border color
+            linewidths=1.0,  # Optional: thicker border
             node_shape=node_shapes["source"],
         )
 
     # Draw sink nodes (diamonds)
     for node in sinks:
-        # Find this node's index in the original node list
-        node_idx = node_list.index(node)
-        # Draw this single node with its color
         nx.draw_networkx_nodes(
             G,
             pos,
-            nodelist=[node],  # Just this one node
-            node_size=int(large_size),  # Cast to int for Pylance
-            node_color=node_color_list[node_idx],  # Single color string for this node
+            nodelist=[node],
+            node_size=int(large_size),
+            node_color="red",
             node_shape=node_shapes["sink"],
         )
 
@@ -186,53 +180,19 @@ def visualize_graph(
 
     nx.draw_networkx_labels(G, pos, labels=node_labels)
 
-    # Draw edges with slight curvature for better visibility
-    nx.draw_networkx_edges(
-        G, pos, width=1.0, alpha=0.7, arrowsize=15, edge_color="gray", connectionstyle="arc3, rad=0.1"
-    )
-
-    # Add a legend if requested
-    if show_legend and color_attribute is not None and color_map is not None:
-        legend_handles = []
-
-        # Create legend entries for attribute values
-        for value, color in color_map.items():
-            legend_handles.append(
-                Line2D([0], [0], marker="o", color="w", markerfacecolor=color, markersize=10, label=str(value))
-            )
-
-        # Add source/sink legend entries with corresponding shapes
-        if sources:
-            legend_handles.append(
-                Line2D(
-                    [0],
-                    [0],
-                    marker=node_shapes["source"],
-                    color="w",
-                    markerfacecolor="gray",
-                    markersize=12,
-                    label="Entry Point (Source)",
-                )
-            )
-        if sinks:
-            legend_handles.append(
-                Line2D(
-                    [0],
-                    [0],
-                    marker=node_shapes["sink"],
-                    color="w",
-                    markerfacecolor="gray",
-                    markersize=12,
-                    label="Exit Point (Sink)",
-                )
-            )
-
-        if legend_handles:
-            plt.legend(
-                handles=legend_handles,
-                loc="upper right",
-                title=f"Node Information ({color_attribute})" if color_attribute else "Node Information",
-            )
+    # Draw each edge individually with its own color
+    for u, v in G.edges():
+        sink_color = node_colors.get(v, "lightblue")
+        nx.draw_networkx_edges(
+            G,
+            pos,
+            edgelist=[(u, v)],
+            edge_color=sink_color,
+            width=1.0,
+            alpha=0.7,
+            arrowsize=15,
+            connectionstyle="arc3, rad=0.1",
+        )
 
     plt.title(title)
     plt.axis("off")
