@@ -28,7 +28,7 @@ class Simulator:
         self.env = self.vecenv.envs[0]
         self.policy_record = policy_record
         self.policy = self.policy_record.policy()
-        self.policy_state = PolicyState.create()
+        self.policy_state = PolicyState()
         self.rewards = np.zeros(self.vecenv.num_agents)
         self.total_rewards = np.zeros(self.vecenv.num_agents)
         self.num_agents = self.vecenv.num_agents
@@ -83,7 +83,7 @@ def play(config: SimulationConfig, policy_record: PolicyRecord):
     policy = policy_record.policy()
 
     renderer = MettaGridRaylibRenderer(env._c_env, env._env_cfg.game)
-    policy_state = PolicyState.create()
+    policy_state = PolicyState()
 
     rewards = np.zeros(vecenv.num_agents)
     total_rewards = np.zeros(vecenv.num_agents)

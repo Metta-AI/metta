@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 import pufferlib.models
 import pufferlib.pytorch
 import torch
@@ -99,3 +101,20 @@ class Policy(nn.Module):
         logits = [dec(hidden) for dec in self.actor]
         value = self.value(hidden)
         return logits, value
+
+
+def load_policy(path: str, device: str = "cpu"):
+    weights = torch.load(path, map_location=device, weights_only=True)
+    num_actions, hidden_size = weights["policy.actor.0.weight"].shape
+    num_action_args, _ = weights["policy.actor.1.weight"].shape
+    cnn_channels, obs_channels, _, _ = weights["policy.network.0.weight"].shape
+    env = SimpleNamespace(
+        single_action_space=SimpleNamespace(nvec=[num_actions, num_action_args]),
+        single_observation_space=SimpleNamespace(shape=[obs_channels, 11, 11]),
+    )
+    policy = Policy(env, cnn_channels=cnn_channels, hidden_size=hidden_size)
+    policy = Recurrent(env, policy)
+
+    policy.load_state_dict(weights)
+
+    return policy

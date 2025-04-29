@@ -16,11 +16,3 @@ class PolicyState(TensorDict):
                 "hidden": hidden,
             }
         )
-
-    @classmethod
-    def create(cls):
-        return cls(
-            lstm_h=None,
-            lstm_c=None,
-            hidden=None,
-        )

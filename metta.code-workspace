@@ -212,6 +212,8 @@
 			"mettagrid",
 			"minibatch",
 			"minibatches",
+			"newlogprob",
+			"nvec",
 			"pufferlib",
 			"pytest",
 			"PYTHONPATH",
