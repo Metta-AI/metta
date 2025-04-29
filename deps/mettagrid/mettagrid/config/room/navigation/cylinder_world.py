@@ -18,7 +18,7 @@ class CylinderWorld(Room):
         width: int,
         height: int,
         agents: int | dict = 0,
-        seed: Optional[int] = None,
+        seed: Optional[int] = 42,
         border_width: int = 0,
         border_object: str = "wall",
     ):
@@ -44,7 +44,6 @@ class CylinderWorld(Room):
     def _build_cylinder_world(self) -> np.ndarray:
         """
         Keep adding cylinders until *no* size/orientation fits anywhere.
-
         Strategy: restart the attempt with a fresh random cylinder after every
         successful placement. Stop only after ``max_consecutive_fail`` failed
         attempts *in a row* (i.e. we tried many random sizes/orientations
