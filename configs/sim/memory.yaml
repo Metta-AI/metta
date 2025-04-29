@@ -1,0 +1,18 @@
+defaults:
+  - sim
+  - _self_
+
+num_envs: 1
+num_episodes: 1
+run_dir: ${run_dir}
+
+simulations:
+  navigation/memory_easy:
+    env: env/mettagrid/memory/evals/memory_easy
+    policy_agents_pct: 1.0
+  navigation/memory_medium:
+    env: env/mettagrid/memory/evals/memory_medium
+    policy_agents_pct: 1.0
+  navigation/memory_hard:
+    env: env/mettagrid/memory/evals/memory_hard
+    policy_agents_pct: 1.0
