@@ -55,7 +55,8 @@ class TerrainFromNumpy(Room):
     """
 
     def __init__(
-        self, dir, border_width: int = 0, border_object: str = "wall", num_agents: int = 10, generators: bool = False, file: str | None = None
+        self, dir, border_width: int = 0, border_object: str = "wall", num_agents: int = 10,
+            generators: bool = False, file: str | None = None
     ):
         zipped_dir = dir + ".zip"
         lock_path = zipped_dir + ".lock"
