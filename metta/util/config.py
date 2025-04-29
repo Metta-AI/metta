@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import os
-from typing import Any, Optional, Type, TypeVar, Union
+from typing import Any, Dict, Optional, TypeVar, cast
 
 import boto3
 import hydra
 import wandb
 from botocore.exceptions import ClientError, NoCredentialsError
 from omegaconf import DictConfig, ListConfig, OmegaConf
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel
 
 T = TypeVar("T")
 
@@ -25,42 +25,11 @@ class Config(BaseModel):
     model_config = {"extra": "forbid"}
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
-        # allow `Config(DictConfig)` or `Config(dict)` as shorthand for .from_dictconfig(...)
         if len(args) == 1 and not kwargs and isinstance(args[0], (DictConfig, dict)):
-            raw = args[0]
-            data = OmegaConf.to_container(raw, resolve=True) if isinstance(raw, DictConfig) else dict(raw)
-            # Ensure data is a proper dict with string keys
-            if isinstance(data, dict):
-                # Convert any non-string keys to strings to avoid Pylance errors
-                string_keyed_data = {str(k): v for k, v in data.items()}
-                try:
-                    super().__init__(**string_keyed_data)
-                except ValidationError:
-                    # re-raise so traceback points here
-                    raise
-            else:
-                raise TypeError("Data must be convertible to a dictionary")
+            super().__init__(**self.prepare_dict(args[0]))
         else:
             # normal BaseModel __init__(**kwargs)
             super().__init__(*args, **kwargs)
-
-    @classmethod
-    def from_dictconfig(cls: Type[T], cfg: Union[DictConfig, dict]) -> T:
-        """
-        Explicit constructor from a DictConfig or plain dict.
-        """
-        raw = cfg
-        # Convert to dict and ensure string keys
-        data_container = OmegaConf.to_container(raw, resolve=True) if isinstance(raw, DictConfig) else raw
-
-        if not isinstance(data_container, dict):
-            raise TypeError("Configuration must be convertible to a dictionary")
-
-        # Ensure all keys are strings
-        data = {str(k): v for k, v in data_container.items()}
-
-        # Use direct initialization instead of model_validate to avoid Pylance issues
-        return cls(**data)
 
     def dictconfig(self) -> DictConfig:
         """
@@ -74,6 +43,16 @@ class Config(BaseModel):
         Render this model as a YAML string.
         """
         return OmegaConf.to_yaml(self.dictconfig())
+
+    def prepare_dict(self, raw) -> Dict[str, Any]:
+        """Prepare a dictionary config from various input formats and validate keys."""
+        data = OmegaConf.to_container(raw, resolve=True) if isinstance(raw, DictConfig) else dict(raw)
+        # Ensure data is a proper dict with string keys
+        if isinstance(data, dict):
+            assert all(isinstance(k, str) for k in data.keys()), "All dictionary keys must be strings"
+            return cast(Dict[str, Any], data)
+        else:
+            raise TypeError("Data must be convertible to a dictionary")
 
 
 def config_from_path(config_path: str, overrides: Optional[DictConfig | ListConfig] = None) -> DictConfig | ListConfig:
