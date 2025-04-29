@@ -4,7 +4,7 @@
 import os
 
 import pyray as ray
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, ListConfig, OmegaConf
 from raylib import colors, rl
 
 
@@ -13,9 +13,7 @@ class ObjectRenderer:
         module_path = os.path.dirname(__file__)
         sprites_dir = os.path.join(module_path, "../assets/")
         sprite_sheet_path = os.path.join(sprites_dir, sprite_sheet)
-        assert os.path.exists(sprite_sheet_path), (
-            f"Sprite sheet {sprite_sheet_path} does not exist"
-        )
+        assert os.path.exists(sprite_sheet_path), f"Sprite sheet {sprite_sheet_path} does not exist"
         self.sprite_sheet = rl.LoadTexture(sprite_sheet_path.encode())
         self.tile_size = tile_size
 
@@ -37,17 +35,13 @@ class ObjectRenderer:
             self.tile_size,
         )
 
-        rl.DrawTexturePro(
-            self.sprite_sheet, src_rect, dest_rect, (0, 0), 0, colors.WHITE
-        )
+        rl.DrawTexturePro(self.sprite_sheet, src_rect, dest_rect, (0, 0), 0, colors.WHITE)
 
 
 class AgentRenderer(ObjectRenderer):
-    def __init__(self, cfg: OmegaConf):
+    def __init__(self, cfg: DictConfig | ListConfig):
         super().__init__("monsters.png", 16)
-        self._cfgs = DictConfig(
-            {**{c.id: OmegaConf.merge(cfg.agent, c.props) for c in cfg.groups.values()}}
-        )
+        self._cfgs = DictConfig({**{c.id: OmegaConf.merge(cfg.agent, c.props) for c in cfg.groups.values()}})
         self.sprites = {c.id: c.sprite for c in cfg.groups.values()}
 
         self.obs_width = 11  # Assuming these values, adjust if necessary
@@ -72,9 +66,7 @@ class AgentRenderer(ObjectRenderer):
 
     def draw_hp_bar(self, obj, render_tile_size):
         x = obj["c"] * render_tile_size
-        y = (
-            obj["r"] * render_tile_size - 4
-        )  # 4 pixels above the agent, below energy bar
+        y = obj["r"] * render_tile_size - 4  # 4 pixels above the agent, below energy bar
         width = render_tile_size
         height = 3  # 3 pixels tall
 
