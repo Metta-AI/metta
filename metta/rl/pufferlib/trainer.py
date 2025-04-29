@@ -294,12 +294,11 @@ class PufferTrainer:
                 d = torch.as_tensor(d)
 
             with profile.eval_forward, torch.no_grad():
-                h = lstm_h[:, gpu_env_id]
-                c = lstm_c[:, gpu_env_id]
-                logits, value = policy(o_device, PolicyState(lstm_h=h, lstm_c=c))
+                state = PolicyState(lstm_h=lstm_h[:, gpu_env_id], lstm_c=lstm_c[:, gpu_env_id])
+                logits, value = policy(o_device, state)
                 actions, logprob, _, _ = sample_logits(logits)
-                lstm_h[:, gpu_env_id] = h
-                lstm_c[:, gpu_env_id] = c
+                lstm_h[:, gpu_env_id] = state.lstm_h
+                lstm_c[:, gpu_env_id] = state.lstm_c
 
                 if self.device == "cuda":
                     torch.cuda.synchronize()
