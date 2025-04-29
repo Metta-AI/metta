@@ -45,7 +45,7 @@ analyzer:
   output_path: navigation_results/navigation.html
 
 sim:
-  env: /env/mettagrid/navigation/evals/wanderout
+  env: /env/mettagrid/kinship/spine_maze_extended
   eval_db_uri: ${..eval_db_uri}
 
 

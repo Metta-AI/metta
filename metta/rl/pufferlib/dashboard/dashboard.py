@@ -3,7 +3,7 @@ import time
 from threading import Thread
 
 import rich
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, ListConfig
 from rich.console import Console
 from rich.live import Live
 from rich.table import Table
@@ -12,7 +12,7 @@ from metta.util.logging import remap_io, restore_io
 
 
 class Dashboard(Thread):
-    def __init__(self, cfg: OmegaConf, delay=1, components=None):
+    def __init__(self, cfg: DictConfig | ListConfig, delay=1, components=None):
         super().__init__()
         self.cfg = cfg
         self.delay = delay

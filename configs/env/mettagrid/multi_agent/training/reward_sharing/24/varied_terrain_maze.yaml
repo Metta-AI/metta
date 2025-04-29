@@ -38,3 +38,5 @@ game:
         height: ${sampling:50,100,60}
         border_width: ${sampling:1,6,3}
         agents: 6
+        style: maze # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
+        team: team_4
