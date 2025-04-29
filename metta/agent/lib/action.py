@@ -399,7 +399,21 @@ class MettaActorBig4(LayerBase):
 
         # Stage 3: contract the embedding dimension with the action embedding to obtain the bilinear scores.
         # Resulting shape: [N, K]
-        scores = torch.einsum('n k e, n e -> n k', intermediate, input_2_reshaped)
+        # scores = torch.einsum('n k e, n e -> n k', intermediate, input_2_reshaped)
+
+        # Compute Cosine Similarity instead of dot product
+        dot_product = torch.einsum('n k e, n e -> n k', intermediate, input_2_reshaped)
+
+        # L2 norm of intermediate vectors (shape: [N, K])
+        intermediate_norm = torch.linalg.norm(intermediate, dim=-1)
+        # L2 norm of input_2 vectors (shape: [N])
+        input_2_norm = torch.linalg.norm(input_2_reshaped, dim=-1)
+
+        # Ensure norms are not zero to avoid division by zero
+        epsilon = 1e-8
+        norm_product = intermediate_norm * input_2_norm.unsqueeze(1) + epsilon # Unsqueeze input_2_norm to broadcast [N, 1] * [N, K] -> [N, K]
+
+        scores = dot_product / norm_product # Shape: [N, K]
 
         # Add bias
         biased_scores = scores + self.bias.reshape(1, -1) # Shape: [N, K]

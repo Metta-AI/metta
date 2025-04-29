@@ -215,7 +215,17 @@ class BatchNorm2d(LayerBase):
             self._in_tensor_shape[0],
             **self._nn_params
         )
+    
+class LayerNorm(LayerBase):
+    def __init__(self, **cfg):
+        super().__init__(**cfg)
 
+    def _make_net(self):
+        return nn.LayerNorm(
+            self._in_tensor_shape[0],
+            **self._nn_params
+        )
+    
 class Flatten(LayerBase):
     def __init__(self, **cfg):
         super().__init__(**cfg)
