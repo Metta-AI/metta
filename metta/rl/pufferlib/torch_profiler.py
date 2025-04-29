@@ -43,6 +43,7 @@ class TorchProfiler:
         self._first_profile_epoch = 50
 
     def on_epoch_end(self, epoch):
+        should_profile_this_epoch = False
         if not self._active:
             should_profile_this_epoch = (
                 self._cfg_profiler_interval_epochs != 0
