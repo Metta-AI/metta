@@ -37,6 +37,9 @@ protected:
       return false;
     }
 
+    // Actions is only successful if we take at least one item.
+    bool items_taken = false;
+
     for (size_t i = 0; i < InventoryItem::InventoryCount; i++) {
       if (converter->recipe_output[i] == 0) {
         // We only want to take things the converter can produce. Otherwise it's a pain to
@@ -50,11 +53,11 @@ protected:
         actor->stats.add(InventoryItemNames[i], "get", converter->inventory[i]);
         actor->update_inventory(static_cast<InventoryItem>(i), converter->inventory[i]);
         converter->update_inventory(static_cast<InventoryItem>(i), -converter->inventory[i]);
-        return true;
+        items_taken = true;
       }
     }
 
-    return false;
+    return items_taken;
   }
 };
 
