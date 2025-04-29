@@ -373,7 +373,7 @@ class PufferTrainer:
         # Optimizing the policy and value network
         total_minibatches = experience.num_minibatches * self.trainer_cfg.update_epochs
         for _epoch in range(self.trainer_cfg.update_epochs):
-            lstm_state = None
+            lstm_state = PolicyState()
             teacher_lstm_state = None
             for mb in range(experience.num_minibatches):
                 with profile.train_misc:
@@ -386,10 +386,10 @@ class PufferTrainer:
                     ret = experience.b_returns[mb]
 
                 with profile.train_forward:
-                    _, newlogprob, entropy, newvalue, lstm_state, _, _, new_normalized_logits = self.policy(
+                    _, newlogprob, entropy, newvalue, _, _, _, new_normalized_logits = self.policy(
                         obs, state=lstm_state, action=atn
                     )
-                    lstm_state = (lstm_state[0].detach(), lstm_state[1].detach())
+                    lstm_state = PolicyState(lstm_h=lstm_state.lstm_h.detach(), lstm_c=lstm_state.lstm_c.detach())
 
                     if self.device == "cuda":
                         torch.cuda.synchronize()
