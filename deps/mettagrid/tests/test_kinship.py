@@ -1,11 +1,12 @@
-import hydra
 import numpy as np
 
+from mettagrid.config.utils import get_test_basic_cfg
 from mettagrid.mettagrid_c import MettaGrid
 
 
-@hydra.main(version_base=None, config_path="../configs", config_name="test_basic")
-def main(cfg):
+def main():
+    cfg = get_test_basic_cfg()
+
     map = np.array([["A", "a", "A"], [" ", " ", " "], ["A", " ", "A"]])
     cfg.game.num_agents = 4
     cfg.game.map_builder.width = 3
