@@ -1,10 +1,5 @@
 # @package __global__
 
-defaults:
-  - override /agent: simple
-  - override /eval: simple_solo
-  - override /analyzer: eval_analyzer
-  - _self_
 
 trainer:
   env: /env/mettagrid/simple
@@ -41,27 +36,6 @@ analyzer:
       - metric: episode_reward
       - metric: "heart.get"
 
-eval:
-  env: /env/mettagrid/puffer
-  eval_db_uri: ${run_dir}/eval_stats
-  num_envs: 10
-  num_episodes: 10
-  max_time_s: 600
-  # policy_agents_pct: 1
-
-  policy_uri: ${..policy_uri}
-  npc_policy_uri: ${..npc_policy_uri}
-  # eval_db_uri: ${..eval_db_uri} #file://daphne/sweep_stats
-  # env: /env/mettagrid/reward_dr
-  # env_overrides:
-  #   # sampling: 0.7
-  #   game:
-  #     num_agents: 16
-  #     max_steps: 1000
-  #     map_builder:
-  #       room:
-  #         agents: 4
-  #       num_rooms: 4
 
 wandb:
   checkpoint_interval: 1
