@@ -1,21 +1,24 @@
-import hydra
 import numpy as np
 from regen_env_trace import dump_agents, header, render_obs_to_string, render_to_string
 
 import mettagrid
 import mettagrid.mettagrid_env
+from mettagrid.config.utils import get_test_basic_cfg
 
 
-@hydra.main(version_base=None, config_path="../configs", config_name="test_basic")
-def main(cfg):
+def main():
+    cfg = get_test_basic_cfg()
+
     output = ""
 
     output += header("Kinship:")
     np.random.seed(123)
+
+    cfg = get_test_basic_cfg()
     cfg.game.map_builder.agents = 20
     cfg.game.map_builder.objects.altar = 10
     cfg.game.num_agents = 20
-    env = mettagrid.mettagrid_env.MettaGridEnv(render_mode=None, **cfg)
+    env = mettagrid.mettagrid_env.MettaGridEnv(render_mode=None, env_cfg=cfg)
     env.reset()
 
     actions = [

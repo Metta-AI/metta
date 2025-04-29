@@ -1,6 +1,10 @@
 import os
 import subprocess
 
+from mettagrid.config.utils import mettagrid_configs_root
+
+map_root = str(mettagrid_configs_root / "maps")
+
 
 def test_gen_basic():
     subprocess.check_call(
@@ -10,7 +14,7 @@ def test_gen_basic():
             "tools.map.gen",
             "--show-mode",
             "ascii",
-            "./configs/game/map_builder/mapgen_simple.yaml",
+            f"{map_root}/maze.yaml",
         ]
     )
 
@@ -39,7 +43,7 @@ def test_save(tmpdir):
             tmpdir,
             "--show-mode",
             "ascii",
-            "./configs/game/map_builder/mapgen_simple.yaml",
+            f"{map_root}/maze.yaml",
         ]
     )
     files = os.listdir(tmpdir)
@@ -57,7 +61,7 @@ def test_save_exact_file(tmpdir):
             tmpdir + "/map.yaml",
             "--show-mode",
             "ascii",
-            "./configs/game/map_builder/mapgen_simple.yaml",
+            f"{map_root}/maze.yaml",
         ]
     )
     files = os.listdir(tmpdir)
@@ -76,7 +80,7 @@ def test_save_multiple(tmpdir):
             tmpdir,
             "--show-mode",
             "none",
-            "./configs/game/map_builder/mapgen_maze.yaml",
+            f"{map_root}/maze.yaml",
             "--count",
             str(count),
         ]
@@ -97,7 +101,7 @@ def test_view(tmpdir):
             tmpdir + "/map.yaml",
             "--show-mode",
             "none",
-            "./configs/game/map_builder/mapgen_simple.yaml",
+            f"{map_root}/maze.yaml",
         ]
     )
     subprocess.check_call(
@@ -124,7 +128,7 @@ def test_view_random(tmpdir):
             "none",
             "--count",
             "3",
-            "./configs/game/map_builder/mapgen_simple.yaml",
+            f"{map_root}/maze.yaml",
         ],
     )
     view_output = subprocess.check_output(
