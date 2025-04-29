@@ -198,7 +198,7 @@ components:
       embedding_dim: 16
 
   _action_:
-    _target_: metta.agent.lib.action.MettaActorBig
+    _target_: metta.agent.lib.actor.MettaActorBig
     bilinear_output_dim: 32
     mlp_hidden_dim: 512
     sources:
