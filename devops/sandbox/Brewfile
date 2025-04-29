@@ -5,6 +5,7 @@ brew "docker"
 brew "clang-format"
 brew "googletest"
 brew "google-benchmark"
+cask "session-manager-plugin"
 
 # Applications
 cask "cursor"
