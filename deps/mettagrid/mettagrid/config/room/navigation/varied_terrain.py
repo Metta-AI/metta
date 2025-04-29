@@ -279,7 +279,7 @@ class VariedTerrain(Room):
             return grid
         chosen_flat = self._rng.choice(empty_flat, size=num_to_place, replace=False)
         r_coords, c_coords = np.unravel_index(chosen_flat, grid.shape)
-        grid[r_coords, c_coords] = "block"
+        grid[r_coords, c_coords] = "wall"
         self._occupancy[r_coords, c_coords] = True
         return grid
 
