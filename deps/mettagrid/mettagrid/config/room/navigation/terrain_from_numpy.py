@@ -74,6 +74,7 @@ class TerrainFromNumpy(Room):
         self.num_agents = num_agents
         self.generators = generators
         self.uri = file
+        self.team = team
         super().__init__(border_width=border_width, border_object=border_object, labels = ["terrain"])
 
     def get_valid_positions(self, level):

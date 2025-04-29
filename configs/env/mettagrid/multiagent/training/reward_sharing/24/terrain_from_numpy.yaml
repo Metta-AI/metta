@@ -1,5 +1,5 @@
 defaults:
-  - /env/mettagrid-base/mettagrid@
+  - /env/mettagrid/mettagrid@
 
 sampling: 1
 game:
@@ -7,7 +7,6 @@ game:
 
   map_builder:
     _target_: mettagrid.config.room.multi_room.RoomList
-    num_rooms: 4
     border_width: 6
 
     rooms:

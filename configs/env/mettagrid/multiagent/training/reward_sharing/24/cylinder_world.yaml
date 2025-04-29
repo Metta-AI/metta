@@ -1,15 +1,14 @@
 # Config: choose any style, including the new "cylinder_world"
 defaults:
-  - /env/mettagrid-base/mettagrid@
+  - /env/mettagrid/mettagrid@
   - _self_
 
 sampling: 1
 
 game:
-  num_agents: 48
+  num_agents: 24
   map_builder:
     _target_: mettagrid.config.room.multi_room.RoomList
-    num_rooms: 4
     border_width: 6
 
     rooms:
@@ -17,23 +16,23 @@ game:
         width: 60
         height: 60
         border_width: 1
-        agents: 12
+        agents: 6
         team: team_1
       - _target_: mettagrid.config.room.navigation.cylinder_world.CylinderWorld
         width: 60
         height: 60
         border_width: 1
-        agents: 12
+        agents: 6
         team: team_2
       - _target_: mettagrid.config.room.navigation.cylinder_world.CylinderWorld
         width: 60
         height: 60
         border_width: 1
-        agents: 12
+        agents: 6
         team: team_3
       - _target_: mettagrid.config.room.navigation.cylinder_world.CylinderWorld
         width: 60
         height: 60
         border_width: 1
-        agents: 12
+        agents: 6
         team: team_4
