@@ -15,9 +15,7 @@ from heavyball import ForeachMuon
 from omegaconf import OmegaConf
 
 from metta.agent.metta_agent import DistributedMettaAgent
-from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyStore
-from metta.agent.util.distribution_utils import sample_logits
 from metta.agent.util.weights_analysis import WeightsMetricsHelper
 from metta.rl.pufferlib.experience import Experience
 from metta.rl.pufferlib.kickstarter import Kickstarter
@@ -65,6 +63,7 @@ class PufferTrainer:
         self.stats = defaultdict(list)
         self.wandb_run = wandb_run
         self.policy_store = policy_store
+        self.use_e3b = self.trainer_cfg.use_e3b
         self.eval_stats_logger = EvalStatsLogger(self.sim_suite_config, wandb_run)
         self.average_reward = 0.0  # Initialize average reward estimate
         self._current_eval_score = None
@@ -260,6 +259,7 @@ class PufferTrainer:
             policy = self.policy
             infos = defaultdict(list)
             lstm_h, lstm_c = experience.lstm_h, experience.lstm_c
+            e3b_inv = experience.e3b_inv
 
         while not experience.full:
             with profile.env:
@@ -294,11 +294,18 @@ class PufferTrainer:
                 d = torch.as_tensor(d)
 
             with profile.eval_forward, torch.no_grad():
-                state = PolicyState(lstm_h=lstm_h[:, gpu_env_id], lstm_c=lstm_c[:, gpu_env_id])
-                logits, value = policy(o_device, state)
-                actions, logprob, _, _ = sample_logits(logits)
-                lstm_h[:, gpu_env_id] = state.lstm_h
-                lstm_c[:, gpu_env_id] = state.lstm_c
+                # TODO: In place-update should be faster. Leaking 7% speed max
+                # Also should be using a cuda tensor to index
+                e3b = e3b_inv[gpu_env_id] if self.use_e3b else None
+
+                h = lstm_h[:, gpu_env_id]
+                c = lstm_c[:, gpu_env_id]
+                actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward, _ = policy(o_device, (h, c), e3b=e3b)
+                lstm_h[:, gpu_env_id] = h
+                lstm_c[:, gpu_env_id] = c
+                if self.use_e3b:
+                    e3b_inv[env_id] = next_e3b
+                    r += intrinsic_reward.cpu()
 
                 if self.device == "cuda":
                     torch.cuda.synchronize()
@@ -373,8 +380,8 @@ class PufferTrainer:
         # Optimizing the policy and value network
         total_minibatches = experience.num_minibatches * self.trainer_cfg.update_epochs
         for _epoch in range(self.trainer_cfg.update_epochs):
-            lstm_state = PolicyState()
-            teacher_lstm_state = []
+            lstm_state = None
+            teacher_lstm_state = None
             for mb in range(experience.num_minibatches):
                 with profile.train_misc:
                     obs = experience.b_obs[mb]
@@ -386,9 +393,11 @@ class PufferTrainer:
                     ret = experience.b_returns[mb]
 
                 with profile.train_forward:
-                    logits, newvalue = self.policy(obs, lstm_state, action=atn)
-                    lstm_state = PolicyState(lstm_h=lstm_state.lstm_h.detach(), lstm_c=lstm_state.lstm_c.detach())
-                    _, newlogprob, entropy, new_normalized_logits = sample_logits(logits)
+                    _, newlogprob, entropy, newvalue, lstm_state, _, _, new_normalized_logits = self.policy(
+                        obs, state=lstm_state, action=atn
+                    )
+                    lstm_state = (lstm_state[0].detach(), lstm_state[1].detach())
+
                     if self.device == "cuda":
                         torch.cuda.synchronize()
 
@@ -428,6 +437,10 @@ class PufferTrainer:
 
                     entropy_loss = entropy.mean()
 
+                    ks_action_loss, ks_value_loss, teacher_lstm_state = self.kickstarter.loss(
+                        self.agent_step, new_normalized_logits, newvalue, obs, teacher_lstm_state
+                    )
+
                     l2_reg_loss = torch.tensor(0.0, device=self.device)
                     if self.trainer_cfg.l2_reg_loss_coef > 0:
                         l2_reg_loss = self.trainer_cfg.l2_reg_loss_coef * self.policy.l2_reg_loss().to(self.device)
@@ -442,6 +455,8 @@ class PufferTrainer:
                         + v_loss * self.trainer_cfg.vf_coef
                         + l2_reg_loss
                         + l2_init_loss
+                        + ks_action_loss
+                        + ks_value_loss
                     )
 
                 with profile.learn:
@@ -465,6 +480,8 @@ class PufferTrainer:
                     self.losses.clipfrac += clipfrac.item() / total_minibatches
                     self.losses.l2_reg_loss += l2_reg_loss.item() / total_minibatches
                     self.losses.l2_init_loss += l2_init_loss.item() / total_minibatches
+                    self.losses.ks_action_loss += ks_action_loss.item() / total_minibatches
+                    self.losses.ks_value_loss += ks_value_loss.item() / total_minibatches
 
             if self.trainer_cfg.target_kl is not None:
                 if approx_kl > self.trainer_cfg.target_kl:
