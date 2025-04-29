@@ -41,7 +41,6 @@ class LayerBase(nn.Module):
     def __init__(self, name, sources=None, nn_params={}, **cfg):
         super().__init__()
         self._name = name
-        # self._input_source = input_source
         self._sources = sources
         if self._sources is not None:
             # convert from omegaconf's list class
@@ -62,24 +61,11 @@ class LayerBase(nn.Module):
             return
 
         self.__dict__["_source_components"] = source_components
-
-        if self._source_components is None:
-            self._in_tensor_shapes = None
-            # if self._out_tensor_shape is None:
-            #     raise ValueError(f"Either input source or output tensor shape must be set for layer {self._name}")
-        else:
-            if isinstance(self._source_components, dict):
-                self._in_tensor_shapes = []
-                for _, source in self._source_components.items():
-                    self._in_tensor_shapes.append(source._out_tensor_shape.copy())
-            else:
-                print("source_components isn't a dict when it should be")
-                breakpoint() # delete this and if logic
-                self._in_tensor_shapes = self._source_components._out_tensor_shape.copy()
-            # if not hasattr(self, "_out_tensor_shape"):
-            #     print("out_tensor_shape isn't set")
-            #     breakpoint() # delete this and if logic
-            #     self._out_tensor_shape = self._in_tensor_shapes # if necessary, edit this later in the superclass
+        self._in_tensor_shapes = None
+        if self._source_components is not None:
+            self._in_tensor_shapes = []
+            for _, source in self._source_components.items():
+                self._in_tensor_shapes.append(source._out_tensor_shape.copy())
 
         self._initialize()
         self._ready = True
@@ -94,13 +80,10 @@ class LayerBase(nn.Module):
         if self._name in td:
             return td
 
+        # recursively call the forward method of the source components
         if self._source_components is not None:
-            if isinstance(self._source_components, dict):
-                for _, source in self._source_components.items():
-                    source.forward(td)
-            else:
-                print("_sounce_components isn't a dict when it should be")
-                breakpoint() # delete this and if logic
+            for _, source in self._source_components.items():
+                source.forward(td)
 
         self._forward(td)
 
@@ -108,7 +91,7 @@ class LayerBase(nn.Module):
 
     def _forward(self, td: TensorDict):
         '''Components that have more than one input sources must have their own _forward() method.'''
-        # td[self._name] = self._net(td[self._input_source])
+        # get the input tensor from the source component by calling its forward method (which recursively calls _forward() on its source components)
         td[self._name] = self._net(td[self._sources[0]["name"]])
         return td
 

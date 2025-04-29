@@ -102,51 +102,18 @@ class MettaAgent(nn.Module):
         It must always have a "name" and that name should be the same as the relevant key in self.components. 
         source_components is a dict of components that are sources for the current component. The keys
         are the names of the source components.'''
-
-        # if component._input_source is not None:
-        #     if isinstance(component._input_source, omegaconf.listconfig.ListConfig):
-        #         component._input_source = list(component._input_source)
-
-        #     if isinstance(component._input_source, list):
-        #         for input_source in component._input_source:
-        #             self._setup_components(self.components[input_source])
-        #     else:
-        #         self._setup_components(self.components[component._input_source])
-
-        # if component._input_source is not None:
-        #     if isinstance(component._input_source, list):
-        #         input_source_components = {}
-        #         for name in component._input_source:
-        #             input_source_components[name] = self.components[name]
-        #         component.setup(input_source_components)
-        #     else:
-        #         component.setup(self.components[component._input_source])
-        # else:
-        #     component.setup()
+        # recursively setup all source components
         if component._sources is not None:
-
-            # delete the block below after testing
-            if isinstance(component._sources, omegaconf.listconfig.ListConfig):
-                print("_sources hasn't been converted from omegaconf list") 
-                breakpoint() 
-            elif isinstance(component._sources, List):
-                pass
-            else: # delete after testing
-                print("_sources isn't a list") 
-                breakpoint() 
-
             for source in component._sources:
                 self._setup_components(self.components[source["name"]])
 
+        # setup the current component and pass in the source components
+        source_components = None
         if component._sources is not None:
-            # if isinstance(component._input_source, list):
             source_components = {}
             for source in component._sources:
                 source_components[source["name"]] = self.components[source["name"]]
-            for source in component._sources:
-                component.setup(source_components)
-        else:
-            component.setup()
+        component.setup(source_components)
 
     def activate_actions(self, action_names, action_max_params, device):
         '''Run this at the beginning of training.'''
@@ -230,7 +197,7 @@ class MettaAgent(nn.Module):
 
     def _convert_logit_index_to_action(self, action_logit_index, td):
         """Convert logit indices back to action pairs using tensor indexing"""
-            # direct tensor indexing on precomputed action_index_tensor
+        # direct tensor indexing on precomputed action_index_tensor
         return self.action_index_tensor[action_logit_index.reshape(-1)]        
 
     def forward(self, x, state=None, action=None, e3b=None):

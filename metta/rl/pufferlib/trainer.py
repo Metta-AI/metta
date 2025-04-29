@@ -119,6 +119,8 @@ class PufferTrainer:
             logger.info("Compiling policy")
             self.policy = torch.compile(self.policy, mode=self.trainer_cfg.compile_mode)
 
+        self.kickstarter = Kickstarter(self.cfg, self.policy_store, actions_names, actions_max_params)
+
         if dist.is_initialized():
             logger.info(f"Initializing DistributedDataParallel on device {self.device}")
             # Store the original policy for cleanup purposes
@@ -152,8 +154,6 @@ class PufferTrainer:
             wandb_run.define_metric("train/agent_step")
             for k in ["0verview", "env", "losses", "performance", "train"]:
                 wandb_run.define_metric(f"{k}/*", step_metric="train/agent_step")
-
-        self.kickstarter = Kickstarter(self.cfg, self.policy_store, self.vecenv.single_action_space)
 
         replay_sim_config = SimulationConfig(
             env=self.trainer_cfg.env,

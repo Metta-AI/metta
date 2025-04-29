@@ -4,10 +4,10 @@ seed: null
 
 defaults:
   # - override /env/mettagrid@env: simple
-  - override /agent: simple
+  # - override /agent: reference_design
   - _self_
 
-# policy_uri: wandb://run/b.alex.embed.e11c.01
+policy_uri: wandb://run/alex.local.411
 npc_policy_uri: null
 eval_db_uri: null
 
@@ -41,7 +41,7 @@ wandb:
   track: true
   checkpoint_interval: 1
 
-run_id: 409
+run_id: 411
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 sweep_name: "${oc.env:USER}.local.sweep.${run_id}"

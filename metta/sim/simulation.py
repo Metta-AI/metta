@@ -57,6 +57,14 @@ class Simulation:
 
         self._vecenv = make_vecenv(self._env_cfg, config.vectorization, num_envs=self._num_envs)
 
+        # tell the policy which actions are available for this environment
+        actions_names = self._vecenv.driver_env.action_names()
+        actions_max_params = self._vecenv.driver_env._c_env.max_action_args()
+        self._policy_pr.policy().activate_actions(actions_names, actions_max_params, self._device)
+        if self._npc_pr is not None:
+            # tell the npc policy which actions are available for this environment
+            self._npc_pr.policy().activate_actions(actions_names, actions_max_params, self._device)
+
         # each index is an agent, and we reshape it into a matrix of num_envs x agents_per_env
         slice_idxs = (
             torch.arange(self._vecenv.num_agents).reshape(self._num_envs, self._agents_per_env).to(device=self._device)

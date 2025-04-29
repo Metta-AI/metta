@@ -2,7 +2,7 @@ import torch
 
 
 class Kickstarter:
-    def __init__(self, cfg, policy_store, single_action_space):
+    def __init__(self, cfg, policy_store, action_names, action_max_params):
         self.device = cfg.device
         self.teacher_cfgs = cfg.trainer.kickstart.additional_teachers
 
@@ -27,7 +27,8 @@ class Kickstarter:
         self.compile_mode = cfg.trainer.compile_mode
         self.policy_store = policy_store
         self.kickstart_steps = cfg.trainer.kickstart.kickstart_steps
-        self.spaces = len(single_action_space.nvec)
+        self.action_names = action_names
+        self.action_max_params = action_max_params
 
         self._load_policies()
 
@@ -38,6 +39,7 @@ class Kickstarter:
             policy = policy_record.policy()
             policy.action_loss_coef = teacher_cfg["action_loss_coef"]
             policy.value_loss_coef = teacher_cfg["value_loss_coef"]
+            policy.activate_actions(self.action_names, self.action_max_params, self.device)
             if self.compile:
                 policy = torch.compile(policy, mode=self.compile_mode)
             self.teachers.append(policy)
@@ -56,10 +58,7 @@ class Kickstarter:
             teacher_value, teacher_normalized_logits, teacher_lstm_state[i] = self._forward(
                 teacher, o, teacher_lstm_state[i]
             )
-
-            for i in range(self.spaces):
-                ks_action_loss -= (teacher_normalized_logits[i].exp() * student_normalized_logits[i]).sum(dim=-1).mean()
-
+            ks_action_loss -= (teacher_normalized_logits.exp() * student_normalized_logits).sum(dim=-1).mean()
             ks_action_loss *= teacher.action_loss_coef
 
             ks_value_loss += ((teacher_value.squeeze() - student_value) ** 2).mean() * teacher.value_loss_coef

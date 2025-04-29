@@ -11,13 +11,6 @@ class MergeLayerBase(LayerBase):
         self._ready = False
         super().__init__(name, **cfg)
 
-        # redefine _input_source to only be the names so MettaAgent can find the components
-        # it's ugly but it maintains consistency in the YAML config
-        # self.sources_full_list = self._input_source
-        # self._input_source = []
-        # for src_cfg in self.sources_full_list:
-        #     self._input_source.append(src_cfg['source_name'])
-
     @property
     def ready(self):
         return self._ready
@@ -31,13 +24,10 @@ class MergeLayerBase(LayerBase):
         # NOTE: in and out tensor shapes do not include batch sizes
         # however, all other sizes do, including processed_lengths
         self._in_tensor_shapes = []
-        # self._out_tensor_shape = [] # delete this
 
         self.dims = []
         self.processed_lengths = []
-        # for src_cfg in self.sources_full_list:
         for src_cfg in self._sources:
-            # source_name = src_cfg['source_name']
             source_name = src_cfg['name']
             
             processed_size = self._source_components[source_name]._out_tensor_shape.copy()
@@ -77,7 +67,6 @@ class MergeLayerBase(LayerBase):
         outputs = []
         # TODO: do this without a for loop or dictionary lookup for perf
         for src_cfg in self._sources:
-            # source_name = src_cfg['source_name']
             source_name = src_cfg['name']
             self._source_components[source_name].forward(td)
             src_tensor = td[source_name]
@@ -167,32 +156,29 @@ class ExpandLayer(LayerBase):
     '''Expand a tensor along a specified dimension by either a given value (expand_value)
       or a value from another tensor (dims_source and input_dim).
       This layer has not been unit tested.'''
-    def __init__(self, name, expand_dim, input_source, expand_value=None, source_dim=None, dims_source=None, **cfg):
+    def __init__(self, name, expand_dim, sources, expand_value=None, source_dim=None, dims_source=None, **cfg):
+        super().__init__(name, sources, **cfg)
         self._ready = False
         self.expand_dim = expand_dim
         self.expand_value = expand_value
         self.source_dim = source_dim
         self.dims_source = dims_source
-        super().__init__(name, input_source, **cfg)
         if dims_source is not None:
-            self._input_source = [input_source, dims_source]
+            self._sources = [sources[0], dims_source]
 
     @property
     def ready(self):
         return self._ready
 
-    def setup(self, input_source_components=None):
+    def setup(self, _source_components=None):
         if self._ready:
             return
 
-        self._input_source_component = input_source_components
-        if isinstance(self._input_source, list):
-            self._out_tensor_shape = next(iter(self._input_source_component.values()))._out_tensor_shape
-        else:
-            self._out_tensor_shape = self._input_source_component._out_tensor_shape
+        self._source_components = _source_components
+        self._out_tensor_shape = next(iter(self._source_components.values()))._out_tensor_shape.copy()
 
         if self.dims_source is not None:
-            self.expand_value = self._input_source_component[self.dims_source]._out_tensor_shape[self.source_dim - 1] # -1 because _out_tensor_shape doesn't account for batch size
+            self.expand_value = self._source_components[self.dims_source]._out_tensor_shape[self.source_dim - 1] # -1 because _out_tensor_shape doesn't account for batch size
         
         if self.expand_dim > 0:
             self._out_tensor_shape.insert(self.expand_dim - 1, self.expand_value) # -1 because _out_tensor_shape doesn't account for batch size
@@ -202,10 +188,7 @@ class ExpandLayer(LayerBase):
         self._ready = True
         
     def _forward(self, td: TensorDict):
-        if isinstance(self._input_source, list):   
-            tensor = td[self._input_source[0]]
-        else:
-            tensor = td[self._input_source]
+        tensor = td[self._sources[0]["name"]]
 
         if self.dims_source is not None:
             self.expand_value = td[self.dims_source].size(self.source_dim)
@@ -225,12 +208,12 @@ class ReshapeLayer(LayerBase):
         self.squeezed_dim = squeezed_dim
         super().__init__(name, **cfg)
 
-    def setup(self, input_source_components=None):
+    def setup(self, _source_components=None):
         if self._ready:
             return
 
-        self._input_source_component = input_source_components
-        self._out_tensor_shape = self._input_source_component._out_tensor_shape
+        self._source_components = _source_components
+        self._out_tensor_shape = next(iter(self._source_components.values()))._out_tensor_shape.copy()
         if self.squeezed_dim == 0 or self.popped_dim == 0:
             # we are involving the batch size, which we don't have ahead of time 
             self._out_tensor_shape.pop(self.popped_dim - 1)
@@ -242,7 +225,7 @@ class ReshapeLayer(LayerBase):
         self._ready = True
 
     def _forward(self, td: TensorDict):
-        tensor = td[self._input_source]
+        tensor = td[self._sources[0]["name"]]
         shape = list(tensor.shape)
         compressed_size = shape[self.squeezed_dim] * shape[self.popped_dim]
         shape.pop(self.popped_dim)
@@ -258,17 +241,17 @@ class BatchReshapeLayer(LayerBase):
         self._ready = False
         super().__init__(name, **cfg)
 
-    def setup(self, input_source_components=None):
+    def setup(self, _source_components=None):
         if self._ready:
             return
 
-        self._input_source_component = input_source_components
-        self._out_tensor_shape = self._input_source_component._out_tensor_shape
+        self._source_components = _source_components
+        self._out_tensor_shape = next(iter(self._source_components.values()))._out_tensor_shape.copy()
         # the out_tensor_shape is NOT ACCURATE because we don't know the batch size ahead of time.
         self._ready = True
 
     def _forward(self, td: TensorDict):
-        tensor = td[self._input_source]
+        tensor = td[self._sources[0]["name"]]
         B_TT = td['_BxTT_']
         shape = list(tensor.shape)
         shape.insert(1, 0)

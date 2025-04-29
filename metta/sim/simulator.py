@@ -72,6 +72,11 @@ def play(config: SimulationConfig, policy_store: PolicyStore, policy_uri: str):
     )
     policy = policy_record.policy()
 
+    # tell the policy which actions are available for this environment
+    actions_names = env._c_env.action_names()
+    actions_max_params = env._c_env.max_action_args()
+    policy.activate_actions(actions_names, actions_max_params, device)
+
     renderer = MettaGridRaylibRenderer(env._c_env, env._env_cfg.game)
     policy_rnn_state = None
 
