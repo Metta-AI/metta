@@ -48,17 +48,19 @@ class Embedding(LayerBase):
         # output shape [0] is the number of indices used in the forward pass which can change
         # no child layer should be sensitive to this dimension
         self._out_tensor_shape = [0, self._nn_params['embedding_dim']]
+        
         net = nn.Embedding(
             **self._nn_params
         )
-        if self.initialization.lower() == 'orthogonal':
-            weight_limit = 0.1
-            nn.init.orthogonal_(net.weight)
-            with torch.no_grad():
-                max_abs_value = torch.max(torch.abs(net.weight))
-                net.weight.mul_(weight_limit / max_abs_value)
+
+        weight_limit = 0.1
+        nn.init.orthogonal_(net.weight)
+        with torch.no_grad():
+            max_abs_value = torch.max(torch.abs(net.weight))
+            net.weight.mul_(weight_limit / max_abs_value)
                 
         return net
+    
 
 class Conv2d(ParamLayer):
     def __init__(self, **cfg):
@@ -73,6 +75,7 @@ class Conv2d(ParamLayer):
     
     def _set_conv_dims(self):
         ''' Calculate flattened width and height. This allows us to change obs width and height.'''
+        assert len(self._in_tensor_shapes[0]) == 3, "Conv2d input tensor shape must be 3d (ignoring batch dimension)"
         self._input_height = self._in_tensor_shapes[0][1]
         self._input_width = self._in_tensor_shapes[0][2]
 

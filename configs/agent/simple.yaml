@@ -89,7 +89,7 @@ components:
       embedding_dim: 16
 
   _action_:
-    _target_: metta.agent.lib.action.MettaActorSingleHead
+    _target_: metta.agent.lib.actor.MettaActorSingleHead
     input_source: 
       - actor_1
       - _action_embeds_

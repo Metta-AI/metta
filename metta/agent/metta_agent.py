@@ -155,9 +155,7 @@ class MettaAgent(nn.Module):
         self.active_actions = list(zip(action_names, action_max_params))
         
         # Precompute cumulative sums for faster conversion
-        self.cum_action_max_params = torch.tensor([0] + [sum(action_max_params[:i+1]) for i in range(len(action_max_params))], 
-                                                 device=self.device)
-        torch.cumsum(torch.tensor([0] + action_max_params, device=self.device), dim=0)
+        self.cum_action_max_params = torch.cumsum(torch.tensor([0] + action_max_params, device=self.device), dim=0)
         
         full_action_names = []
         for action_name, max_param in self.active_actions:
