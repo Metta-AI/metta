@@ -200,6 +200,7 @@
 		"terminal.integrated.splitCwd": "workspaceRoot",
 		"cSpell.words": [
 			"bptt",
+			"clipfrac",
 			"coef",
 			"cooldown",
 			"dones",
@@ -208,6 +209,7 @@
 			"Kruskal",
 			"lasery",
 			"lexsort",
+			"logratio",
 			"metta",
 			"mettagrid",
 			"minibatch",
@@ -224,6 +226,7 @@
 			"timestep",
 			"timesteps",
 			"truncateds",
+			"unclipped",
 			"vecenv",
 			"venv",
 			"vloss",
