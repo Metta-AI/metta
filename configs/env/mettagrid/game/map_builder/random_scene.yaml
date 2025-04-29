@@ -8,7 +8,7 @@ root:
   _target_: mettagrid.map.scenes.random_scene.RandomScene
 
   candidates:
-    - scene: ./configs/scenes/convchain/dungeon.yaml
+    - scene: /convchain/dungeon.yaml
       weight: 2
-    - scene: ./configs/scenes/convchain/blob.yaml
+    - scene: /convchain/blob.yaml
       weight: 1
