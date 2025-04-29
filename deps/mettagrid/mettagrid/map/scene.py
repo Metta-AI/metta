@@ -1,9 +1,10 @@
 from typing import Any, List, Optional, TypedDict, Union, cast
 
-import hydra
 import numpy as np
 import numpy.typing as npt
 from omegaconf import DictConfig, OmegaConf
+
+from mettagrid.config.utils import scenes_root, simple_instantiate
 
 from .node import Node
 
@@ -18,12 +19,18 @@ class TypedChild(TypedDict):
 
 def make_scene(cfg: SceneCfg) -> "Scene":
     if isinstance(cfg, str):
-        cfg = cast(SceneCfg, OmegaConf.load(cfg))
+        if cfg.startswith("/"):
+            cfg = cfg[1:]
+        cfg = cast(SceneCfg, OmegaConf.load(f"{scenes_root}/{cfg}"))
 
     if isinstance(cfg, Scene):
+        # already an instance, maybe recursive=True was enabled
         return cfg
+    elif isinstance(cfg, DictConfig):
+        # hydra-style dict with `_target_` key
+        return simple_instantiate(cfg)
     else:
-        return hydra.utils.instantiate(cfg, _recursive_=False)
+        raise ValueError(f"Invalid scene config: {cfg}")
 
 
 # Base class for all map scenes.

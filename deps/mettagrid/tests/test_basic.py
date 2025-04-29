@@ -1,9 +1,3 @@
-import pytest
-from hydra import compose, initialize, utils
-
-from mettagrid.resolvers import register_resolvers
-
-
 @pytest.fixture(scope="module")
 def hydra_setup():
     """Initialize Hydra configuration."""

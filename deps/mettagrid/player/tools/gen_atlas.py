@@ -10,7 +10,7 @@ ATLAS_SIZE = 1024 * 8
 atlas_image = pixie.Image(ATLAS_SIZE, ATLAS_SIZE)
 images = {}
 heights = [0] * atlas_image.width
-padding = 32
+padding = 64
 
 
 def put_image(img, name):
