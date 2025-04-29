@@ -757,7 +757,7 @@ function drawActions(replay: any) {
         } else if (orientation == 3) {
           rotation = 0; // East
         }
-        if (action_name == "attack") {
+        if (action_name == "attack" && action[1] >= 0 && action[1] <= 8) {
           drawer.drawSprite(
             "actions/attack" + (action[1] + 1) + ".png",
             x * TILE_SIZE,
