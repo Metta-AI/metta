@@ -80,6 +80,7 @@ def generate_report_html(cfg: DictConfig) -> str:
     metric = cfg.analyzer.metric
     view_type = cfg.analyzer.view_type
     policy_uri = cfg.analyzer.policy_uri
+    num_output_policies = cfg.analyzer.num_output_policies
 
     tmp_dir = tempfile.mkdtemp()
     db_path = os.path.join(tmp_dir, "policy_metrics.sqlite")
@@ -89,7 +90,9 @@ def generate_report_html(cfg: DictConfig) -> str:
         db = PolicyEvalDB(db_path)
         db.import_from_eval_stats(cfg)
 
-        matrix = db.get_matrix_data(metric, view_type=view_type, policy_uri=policy_uri)
+        matrix = db.get_matrix_data(
+            metric, view_type=view_type, policy_uri=policy_uri, num_output_policies=num_output_policies
+        )
         if matrix.empty:
             return "<html><body><h1>No data available</h1></body></html>"
 

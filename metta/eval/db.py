@@ -244,7 +244,13 @@ class PolicyEvalDB:
             logger.error(f"Import failed, transaction rolled back: {e}")
             raise
 
-    def get_matrix_data(self, metric: str, view_type: str = "latest", policy_uri: str = None) -> pd.DataFrame:
+    def get_matrix_data(
+        self,
+        metric: str,
+        view_type: str = "latest",
+        policy_uri: str | None = None,
+        num_output_policies: int | None = None,
+    ) -> pd.DataFrame:
         """
         Get matrix data for the specified metric.
 
@@ -256,6 +262,7 @@ class PolicyEvalDB:
                 - "policy_versions": All versions of a specific policy, sorted by version
                 - "chronological": All policies and versions, sorted by creation date
             policy_uri: Required for "policy_versions" view_type
+            num_output_policies: Optional number of policies to output
 
         Returns:
             DataFrame with policies as rows and evaluations as columns
@@ -374,5 +381,9 @@ class PolicyEvalDB:
                 sorted_policies = sorted(policies, key=version_key)
                 matrix = matrix.reindex(sorted_policies)
         # For chronological view, we don't need to re-sort as it's already sorted in the SQL query
+
+        # Limit the number of policies
+        if num_output_policies:
+            matrix = matrix.head(num_output_policies)
 
         return matrix
