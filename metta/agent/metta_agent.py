@@ -5,7 +5,7 @@ import gymnasium as gym
 import hydra
 import numpy as np
 import torch
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, ListConfig, OmegaConf
 from pufferlib.environment import PufferEnv
 from tensordict import TensorDict
 from torch import nn
@@ -16,7 +16,7 @@ from metta.agent.util.distribution_utils import sample_logits
 logger = logging.getLogger("metta_agent")
 
 
-def make_policy(env: PufferEnv, cfg: OmegaConf):
+def make_policy(env: PufferEnv, cfg: ListConfig | DictConfig):
     obs_space = gym.spaces.Dict(
         {
             "grid_obs": env.single_observation_space,

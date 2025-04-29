@@ -1,4 +1,4 @@
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, ListConfig
 
 from metta.rl.carbs.carbs_controller import CarbsController
 from metta.rl.pufferlib.dashboard.carbs import Carbs
@@ -23,7 +23,7 @@ def train_dashboard(trainer: PufferTrainer, logs_path: str):
     )
 
 
-def sweep_dashboard(cfg: OmegaConf, carbs_controller: CarbsController, logs_path: str):
+def sweep_dashboard(cfg: DictConfig | ListConfig, carbs_controller: CarbsController, logs_path: str):
     return Dashboard(
         cfg,
         components=[
