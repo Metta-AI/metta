@@ -166,6 +166,11 @@ cdef class GridEnv:
         self._rewards[:] = 0
         self._observations[:, :, :, :] = 0
 
+        # Clear the success flags.
+        # Note: we can't do self._action_success[:] = False, because it's a vector.
+        for i in range(self._action_success.size()):
+            self._action_success[i] = 0
+
         self._current_timestep += 1
         self._event_manager.process_events(self._current_timestep)
 
@@ -173,8 +178,6 @@ cdef class GridEnv:
         for p in range(self._max_action_priority + 1):
             for idx in range(self._agents.size()):
                 action = actions[idx][0]
-                # Clear the success flag, as we can continue early.
-                self._action_success[idx] = False
                 if action < 0 or action >= self._num_action_handlers:
                     printf("Invalid action: %d\n", action)
                     continue
