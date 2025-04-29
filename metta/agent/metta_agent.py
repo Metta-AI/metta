@@ -141,12 +141,15 @@ class MettaAgent(nn.Module):
         return None, td["_value_"], None
 
     def forward(self, x, state: PolicyState, action=None):
-        td = TensorDict({"x": x})
+        td = TensorDict(
+            {
+                "x": x,
+                "state": None,
+            }
+        )
 
-        td["state"] = None
         if state.lstm_h is not None:
-            state = torch.cat([state.lstm_h, state.lstm_c], dim=0)
-            td["state"] = state.to(x.device)
+            td["state"] = torch.cat([state.lstm_h, state.lstm_c], dim=0).to(x.device)
 
         self.components["_value_"](td)
         self.components["_action_type_"](td)
