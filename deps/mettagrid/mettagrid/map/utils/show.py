@@ -1,8 +1,8 @@
 from typing import Any, Literal, cast
 
 import numpy as np
-from omegaconf import OmegaConf
 
+from mettagrid.config.utils import get_cfg
 from mettagrid.map.utils.storable_map import StorableMap, grid_to_ascii
 from mettagrid.mettagrid_env import MettaGridEnv
 
@@ -16,7 +16,7 @@ def show_map(storable_map: StorableMap, mode: ShowMode | None):
     if mode == "raylib":
         num_agents = np.count_nonzero(np.char.startswith(storable_map.grid, "agent"))
 
-        env_cfg = OmegaConf.load("configs/mettagrid.yaml")
+        env_cfg = get_cfg("show_map")
         env_cfg.game.num_agents = num_agents
 
         env = MettaGridEnv(cast(Any, env_cfg), env_map=storable_map.grid, render_mode="none")

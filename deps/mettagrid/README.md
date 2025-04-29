@@ -31,7 +31,7 @@ The `Altar` object allows agents to spend energy to gain rewards. Agents can pow
 - After the heart altar is used, it is unable to be used for altar.cooldown timesteps.
 - A single use of the heart altar gives you a single unit of reward:
   if `target._type_id == ObjectType.AltarT:
-    self.env._rewards[actor_id] += 1`
+  self.env._rewards[actor_id] += 1`
 
 ### Converter
 
@@ -127,10 +127,3 @@ The MettaGrid environment is highly configurable through the use of YAML configu
 - HP — hitpoints, the number of times something can be hit before destruction.
 - Cooldown between uses (varies by building)
 - Can be damaged and destroyed by attacks
-
-## Third-party Content
-
-Some sample map patterns in `configs/scenes/dcss` were adapted from the open-source game [Dungeon Crawl Stone Soup (DCSS)](https://github.com/crawl/crawl),
-specifically from the file [`simple.des`](https://github.com/crawl/crawl/blob/master/crawl-ref/source/dat/des/arrival/simple.des).
-
-DCSS is licensed under the [GNU General Public License v2.0](https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html).

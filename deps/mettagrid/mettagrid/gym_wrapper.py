@@ -1,7 +1,6 @@
 from typing import Any
 
 import gymnasium as gym
-import hydra
 import numpy as np
 import torch
 from gymnasium.spaces import Discrete
@@ -103,14 +102,3 @@ class RaylibRendererWrapper(gym.Wrapper):
         self.rewards = np.zeros(self.env.num_agents)
 
         return self._obs, infos
-
-
-def make(name: str, render_mode: str | None = None, overrides: list[str] | None = None):
-    with hydra.initialize(config_path="../configs"):
-        cfg = hydra.compose(config_name=name, overrides=overrides)
-
-    env = hydra.utils.instantiate(cfg, _recursive_=False, env_cfg=cfg, render_mode=render_mode)
-    if render_mode == "human":
-        env = RaylibRendererWrapper(env, cfg)
-
-    return env

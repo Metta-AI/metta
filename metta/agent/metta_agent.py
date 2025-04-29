@@ -17,14 +17,13 @@ from metta.agent.util.distribution_utils import sample_logits
 
 logger = logging.getLogger("metta_agent")
 
-def make_policy(env: PufferEnv, cfg: OmegaConf):
-    obs_space = gym.spaces.Dict({
-        "grid_obs": env.single_observation_space,
-        "global_vars": gym.spaces.Box(
-            low=-np.inf, high=np.inf,
-            shape=[ 0 ],
-            dtype=np.int32)
-    })
+def make_policy(env: PufferEnv, cfg: ListConfig | DictConfig):
+    obs_space = gym.spaces.Dict(
+        {
+            "grid_obs": env.single_observation_space,
+            "global_vars": gym.spaces.Box(low=-np.inf, high=np.inf, shape=[0], dtype=np.int32),
+        }
+    )
     return hydra.utils.instantiate(
         cfg.agent,
         obs_shape=env.single_observation_space.shape,

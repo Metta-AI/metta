@@ -15,6 +15,10 @@
 		{
 			"name": "wandb_carbs",
 			"path": "deps/wandb_carbs"
+		},
+		{
+			"name": "carbs",
+			"path": "deps/carbs"
 		}
 	],
 	"settings": {
@@ -118,14 +122,17 @@
 		// run:
 		//     conda activate metta
 		//     ln -s "$CONDA_PREFIX/lib/python3.11/site-packages" /var/tmp/metta/conda-site-packages
+		//     ln -s "$(pwd)/deps" /var/tmp/metta/deps
 		//
 		// Then ensure "/var/tmp/metta/conda-site-packages" is included in the extraPaths lists below.
 
 		"python.analysis.extraPaths": [
-			"/var/tmp/metta/conda-site-packages"
+			"/var/tmp/metta/conda-site-packages",
+			"/var/tmp/metta/deps"
 		],
 		"python.autoComplete.extraPaths": [
-			"/var/tmp/metta/conda-site-packages"
+			"/var/tmp/metta/conda-site-packages",
+			"/var/tmp/metta/deps"
 		],
 		"python.analysis.exclude": [
 			"**/deps/pufferlib/**"
@@ -187,54 +194,9 @@
 				],
 				"overrideName": true,
 				"name": "metta-4",
-			},
-			"build-mettagrid": {
-				"path": "/bin/zsh",
-				"args": [
-					"-c",
-					"cd deps/mettagrid && ",
-					"conda activate metta && ",
-					"python setup.py build_ext --inplace && ",
-					"/bin/zsh"
-				],
-				"cwd": "${workspaceFolder}/deps/mettagrid",
-				"env": {
-					"DEBUG": "1",
-					"ANNOTATE": "1"
-				},
-				"overrideName": true,
-				"name": "build-mettagrid"
 			}
 		},
 		"terminal.integrated.cwd": "${workspaceFolder}",
-		"terminal.integrated.splitCwd": "workspaceRoot",
-		"cSpell.words": [
-			"bptt",
-			"coef",
-			"cooldown",
-			"dones",
-			"heavyball",
-			"kickstarter",
-			"Kruskal",
-			"lasery",
-			"lexsort",
-			"metta",
-			"mettagrid",
-			"minibatch",
-			"minibatches",
-			"pufferlib",
-			"pytest",
-			"PYTHONPATH",
-			"raylib",
-			"relu",
-			"tensordict",
-			"timestep",
-			"timesteps",
-			"truncateds",
-			"vecenv",
-			"venv",
-			"vloss",
-			"wandb"
-		]
+		"terminal.integrated.splitCwd": "workspaceRoot"
 	}
 }
