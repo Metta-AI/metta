@@ -12,7 +12,7 @@ scenes_root = mettagrid_configs_root / "scenes"
 
 
 # proxy to hydra.utils.instantiate
-# mettagrid doesn't use hydra anymore, but it still needs this function
+# mettagrid doesn't load configs through hydra anymore, but it still needs this function
 def simple_instantiate(cfg: DictConfig, recursive: bool = False):
     return hydra.utils.instantiate(cfg, _recursive_=recursive)
 
