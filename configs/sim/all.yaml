@@ -59,16 +59,16 @@ simulations:
     env: env/mettagrid/memory/evals/hard
     policy_agents_pct: 1.0
   multiagent/radial_cross:
-    env: env/mettagrid/multiagent/radial_cross
+    env: env/mettagrid/multiagent/evals/radial_cross
     policy_agents_pct: 1.0
   multiagent/radial_cross_large:
-    env: env/mettagrid/multiagent/radial_cross_large
+    env: env/mettagrid/multiagent/evals/radial_cross_large
     policy_agents_pct: 1.0
   multiagent/radial_diffusion:
-    env: env/mettagrid/multiagent/radial_diffusion
+    env: env/mettagrid/multiagent/evals/radial_diffusion
     policy_agents_pct: 1.0
   multiagent/spine_maze_extended:
-    env: env/mettagrid/multiagent/spine_maze_extended
+    env: env/mettagrid/multiagent/evals/spine_maze_extended
     policy_agents_pct: 1.0
 
 
