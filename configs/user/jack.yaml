@@ -12,6 +12,9 @@ policy_uri: wandb://run/jack.lattice
 trained_policy_uri: ${run_dir}/checkpoints
 eval_db_uri: wandb://artifacts/jack_db_testing
 
+trainer:
+  evaluate_interval: 10
+
 analyzer:
   policy_uri: ${..policy_uri}
   view_type: latest
