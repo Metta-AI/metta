@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 class Simulation:
     """
-    A simulation is any process of steping through a Mettagrid environment.
+    A simulation is any process of stepping through a Mettagrid environment.
     Simulations configure things likes how the policies are mapped to the a
     agents, as well as which environments to run in.
 
@@ -107,7 +107,7 @@ class Simulation:
         while self._completed_episodes < self._min_episodes and time.time() - start < self._max_time_s:
             with torch.no_grad():
                 obs = torch.as_tensor(obs).to(device=self._device)
-                # observavtions that correspond to policy agent
+                # observations that correspond to policy agent
                 my_obs = obs[self._policy_idxs]
 
                 # Parallelize across opponents

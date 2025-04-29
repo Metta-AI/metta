@@ -15,11 +15,11 @@ import os
 import random
 import sys
 import warnings
-from typing import List, Union
+from typing import List, Optional, Union
 
 import torch
 import wandb
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, ListConfig
 from torch import nn
 from wandb.sdk import wandb_run
 
@@ -56,14 +56,16 @@ class PolicyRecord:
 
 
 class PolicyStore:
-    def __init__(self, cfg: OmegaConf, wandb_run: wandb_run.Run):
+    def __init__(self, cfg: ListConfig | DictConfig, wandb_run: wandb_run.Run):
         self._cfg = cfg
         self._device = cfg.device
         self._wandb_run = wandb_run
         self._cached_prs = {}
         self._made_codebase_backwards_compatible = False
 
-    def policy(self, policy: Union[str, OmegaConf], selector_type: str = "top", n=1, metric="score") -> PolicyRecord:
+    def policy(
+        self, policy: Union[str, ListConfig | DictConfig], selector_type: str = "top", n=1, metric="score"
+    ) -> PolicyRecord:
         if not isinstance(policy, str):
             policy = policy.uri
         prs = self._policy_records(policy, selector_type, n, metric)
@@ -71,7 +73,7 @@ class PolicyStore:
         return prs[0]
 
     def policies(
-        self, policy: Union[str, OmegaConf], selector_type: str = "top", n=1, metric="score"
+        self, policy: Union[str, ListConfig | DictConfig], selector_type: str = "top", n=1, metric="score"
     ) -> List[PolicyRecord]:
         if not isinstance(policy, str):
             policy = policy.uri
@@ -198,7 +200,7 @@ class PolicyStore:
 
         return [self._load_from_file(path, metadata_only=True) for path in paths]
 
-    def _prs_from_wandb_artifact(self, uri: str, version: str = None) -> List[PolicyRecord]:
+    def _prs_from_wandb_artifact(self, uri: str, version: Optional[str] = None) -> List[PolicyRecord]:
         entity, project, artifact_type, name = uri.split("/")
         path = f"{entity}/{project}/{name}"
         if not wandb.Api().artifact_collection_exists(type=artifact_type, name=path):
@@ -215,12 +217,12 @@ class PolicyStore:
             PolicyRecord(self, name=a.name, uri="wandb://" + a.qualified_name, metadata=a.metadata) for a in artifacts
         ]
 
-    def _prs_from_wandb_sweep(self, sweep_name: str, version: str = None) -> List[PolicyRecord]:
+    def _prs_from_wandb_sweep(self, sweep_name: str, version: Optional[str] = None) -> List[PolicyRecord]:
         return self._prs_from_wandb_artifact(
             f"{self._cfg.wandb.entity}/{self._cfg.wandb.project}/sweep_model/{sweep_name}", version
         )
 
-    def _prs_from_wandb_run(self, run_id: str, version: str = None) -> List[PolicyRecord]:
+    def _prs_from_wandb_run(self, run_id: str, version: Optional[str] = None) -> List[PolicyRecord]:
         return self._prs_from_wandb_artifact(
             f"{self._cfg.wandb.entity}/{self._cfg.wandb.project}/model/{run_id}", version
         )
