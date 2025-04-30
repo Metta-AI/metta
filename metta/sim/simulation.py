@@ -199,20 +199,19 @@ class Simulation:
             actions = actions.view(self._num_envs * self._agents_per_env, -1)
             actions_np = actions.cpu().numpy()
 
+            if self._replay_helpers is not None:
+                actions_per_env = actions_np.reshape(self._num_envs, self._agents_per_env, -1)
+                for env_idx in range(self._num_envs):
+                    if not env_dones[env_idx]:
+                        self._replay_helpers[env_idx].log_pre_step(actions_per_env[env_idx].squeeze())
             # Step the environment
             obs, rewards, dones, truncated, infos = self._vecenv.step(actions_np)
 
-            # Handle replay logging if enabled
             if self._replay_helpers is not None:
-                actions_per_env = actions_np.reshape(self._num_envs, self._agents_per_env, -1)
                 rewards_per_env = rewards.reshape(self._num_envs, self._agents_per_env)
-
                 for env_idx in range(self._num_envs):
-                    # Only log steps for active environments
                     if not env_dones[env_idx]:
-                        self._replay_helpers[env_idx].log_step(
-                            actions_per_env[env_idx].squeeze(), rewards_per_env[env_idx]
-                        )
+                        self._replay_helpers[env_idx].log_post_step(rewards_per_env[env_idx])
 
             # ------------------------------------------------------------------
             # Episode bookkeeping (per-environment finite-state machine)

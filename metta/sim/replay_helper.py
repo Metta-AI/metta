@@ -52,8 +52,31 @@ class ReplayHelper:
             if grid_object[key][-1][1] != value:
                 grid_object[key].append([step, value])
 
-    def log_step(self, actions: np.ndarray, rewards: np.ndarray):
+    def log_pre_step(self, actions: np.ndarray):
+        for i, grid_object in enumerate(self.env.grid_objects.values()):
+            if len(self.grid_objects) <= i:
+                self.grid_objects.append({})
+            for key, value in grid_object.items():
+                self._add_sequence_key(self.grid_objects[i], key, self.step, value)
+            if "agent_id" in grid_object:
+                agent_id = grid_object["agent_id"]
+                self._add_sequence_key(self.grid_objects[i], "action", self.step, actions[agent_id].tolist())
+
+    def log_post_step(self, rewards: np.ndarray):
         self.total_rewards += rewards
+        for i, grid_object in enumerate(self.env.grid_objects.values()):
+            if "agent_id" in grid_object:
+                agent_id = grid_object["agent_id"]
+                self._add_sequence_key(
+                    self.grid_objects[i], "action_success", self.step, bool(self.env.action_success[agent_id])
+                )
+                self._add_sequence_key(self.grid_objects[i], "reward", self.step, rewards[agent_id].item())
+                self._add_sequence_key(
+                    self.grid_objects[i], "total_reward", self.step, self.total_rewards[agent_id].item()
+                )
+        self.step += 1
+
+    def log_step(self, actions: np.ndarray, rewards: np.ndarray):
         for i, grid_object in enumerate(self.env.grid_objects.values()):
             if len(self.grid_objects) <= i:
                 self.grid_objects.append({})
@@ -69,7 +92,6 @@ class ReplayHelper:
                 self._add_sequence_key(
                     self.grid_objects[i], "total_reward", self.step, self.total_rewards[agent_id].item()
                 )
-        self.step += 1
 
     def write_replay(self, replay_path: str, epoch: int = 0, dry_run: bool = False):
         self.replay["max_steps"] = self.step
