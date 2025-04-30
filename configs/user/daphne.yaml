@@ -45,7 +45,7 @@ analyzer:
   output_path: navigation_results/navigation.html
 
 sim:
-  env: /env/mettagrid/multiagent/training/reward_sharing/48/multienv
+  env: /env/mettagrid/multiagent/evals/spine_maze_extended
   eval_db_uri: ${..eval_db_uri}
 
 

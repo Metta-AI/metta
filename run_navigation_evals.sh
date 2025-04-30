@@ -20,6 +20,11 @@ POLICIES=(
      "b.daphne.terrain_varied_cyl_lab_pretrained"
      "b.daphne.terrain_prioritized_styles"
      "b.daphne.terrain_prioritized_styles_pretrained"
+     "george_memory_pretrained"
+     "b.daphne.terrain_multiagent_48_norewardsharing"
+     "b.daphne.terrain_multiagent_24_norewardsharing"
+     "b.daphne.terrain_multiagent_24_rewardsharing"
+     "b.daphne.terrain_multiagent_48_rewardsharing"
 )
 
 for i in "${!POLICIES[@]}"; do
