@@ -116,7 +116,7 @@ class PolicyStore:
         elif selector_type == "top":
             if metric not in prs[0].metadata:
                 # check if the metric is in eval_scores
-                if metric in prs[0].metadata["eval_scores"]:
+                if "eval_scores" in prs[0].metadata and metric in prs[0].metadata["eval_scores"]:
                     policy_scores = {p: p.metadata["eval_scores"].get(metric, None) for p in prs}
                 else:
                     logger.warning(f"Metric {metric} not found in policy metadata, returning latest policy")
