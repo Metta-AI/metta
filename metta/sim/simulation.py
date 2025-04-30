@@ -7,7 +7,9 @@ import numpy as np
 import torch
 from omegaconf import OmegaConf
 
+from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore
+from metta.agent.util.distribution_utils import sample_logits
 from metta.sim.replay_helper import ReplayHelper
 from metta.sim.simulation_config import SimulationConfig, SimulationSuiteConfig
 from metta.sim.vecenv import make_vecenv
@@ -158,8 +160,8 @@ class Simulation:
         logger.info(f"Simulation settings: {self._config}")
 
         obs, _ = self._vecenv.reset()
-        policy_rnn_state = None
-        npc_rnn_state = None
+        policy_state = PolicyState()
+        npc_state = PolicyState()
 
         game_stats = []
         start = time.time()
@@ -176,22 +178,22 @@ class Simulation:
 
                 # Parallelize across opponents
                 policy = self._policy_pr.policy()  # policy to evaluate
-                policy_actions, _, _, _, policy_rnn_state, _, _, _ = policy(my_obs, policy_rnn_state)
+                logits, _ = policy(my_obs, policy_state)
+                policy_actions, _, _, _ = sample_logits(logits)
 
                 # Iterate opponent policies
                 if self._npc_pr is not None:
                     npc_obs = obs[self._npc_idxs]
-                    npc_rnn_state = npc_rnn_state
-
                     npc_policy = self._npc_pr.policy()
-                    npc_action, _, _, _, npc_rnn_state, _, _, _ = npc_policy(npc_obs, npc_rnn_state)
+                    npc_logits, _ = npc_policy(npc_obs, npc_state)
+                    npc_actions, _, _, _ = sample_logits(npc_logits)
 
             actions = policy_actions
             if self._npc_agents_per_env > 0:
                 actions = torch.cat(
                     [
                         policy_actions.view(self._num_envs, self._policy_agents_per_env, -1),
-                        npc_action.view(self._num_envs, self._npc_agents_per_env, -1),
+                        npc_actions.view(self._num_envs, self._npc_agents_per_env, -1),
                     ],
                     dim=1,
                 )
@@ -287,6 +289,7 @@ class SimulationSuite:
             )
             self._simulations[name] = sim
 
-    def simulate(self):
+    # TODO: epoch and dry_run are replay-specific parameters we could probably handle better
+    def simulate(self, epoch: int = 0, dry_run: bool = False):
         # Run all simulations and gather results by name
-        return {name: sim.simulate() for name, sim in self._simulations.items()}
+        return {name: sim.simulate(epoch, dry_run) for name, sim in self._simulations.items()}

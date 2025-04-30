@@ -11,7 +11,7 @@ import logging
 import os
 import shutil
 import tempfile
-from typing import List
+from typing import List, Literal
 
 import hydra
 from omegaconf import DictConfig
@@ -65,6 +65,8 @@ def generate_report_html(cfg: DictConfig) -> str:
     view_type = cfg.analyzer.view_type
     policy_uri = cfg.analyzer.policy_uri
 
+    num_output_policies: int | Literal["all"] = cfg.analyzer.get("num_output_policies", 20)
+
     tmp_dir = tempfile.mkdtemp()
     db_path = os.path.join(tmp_dir, "policy_metrics.sqlite")
     logger.info("Working db path: %s", db_path)
@@ -73,7 +75,9 @@ def generate_report_html(cfg: DictConfig) -> str:
         db = PolicyEvalDB(db_path)
         db.import_from_eval_stats(cfg)
 
-        matrix = db.get_matrix_data(metric, view_type=view_type, policy_uri=policy_uri)
+        matrix = db.get_matrix_data(
+            metric, view_type=view_type, policy_uri=policy_uri, num_output_policies=num_output_policies
+        )
         if matrix.empty:
             return "<html><body><h1>No data available</h1></body></html>"
 
