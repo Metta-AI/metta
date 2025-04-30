@@ -41,7 +41,7 @@ export class PanelInfo {
       -x,
       -y
     );
-    this.zoomLevel = 1;
+    this.zoomLevel = 1/2;
   }
 
   // Update the pan and zoom level based on the mouse position and scroll delta.
@@ -93,6 +93,11 @@ const TILE_SIZE = 200;
 // Agent defaults.
 const DEFAULT_VISION_SIZE = 11;
 
+// Trace constants.
+const INVENTORY_PADDING = 16;
+const TRACE_HEIGHT = 256
+const TRACE_WIDTH = 32
+
 let drawer: Drawer;
 
 // Flag to prevent multiple calls to requestAnimationFrame
@@ -137,6 +142,7 @@ let lastMousePos = new Vec2f(0, 0);
 let scrollDelta = 0;
 let lastClickTime = 0; // For double-click detection
 let followSelection = false; // Flag to follow selected entity
+let followTraceSelection = false; // Flag to follow trace selection
 
 let traceSplit = DEFAULT_TRACE_SPLIT;
 let traceDragging = false;
@@ -221,6 +227,7 @@ function onMouseDown() {
       if (followSelection) {
         // Set the zoom level to 1 as requested when following
         mapPanel.zoomLevel = 1/2;
+        followTraceSelection = true;
       }
     }
   }
@@ -478,6 +485,7 @@ function onKeyDown(event: KeyboardEvent) {
   if (event.key == "Escape") {
     selectedGridObject = null;
     followSelection = false; // Also stop following when selection is cleared
+    followTraceSelection = false;
   }
   // '[' and ']' to scrub forward and backward.
   if (event.key == "[") {
@@ -837,14 +845,14 @@ function drawInventory(replay: any) {
     const y = getAttr(gridObject, "r")
 
     // Sum up the objects inventory, in case we need to condense it.
-    let inventoryX = 0;
+    let inventoryX = INVENTORY_PADDING;
     let numItems = 0;
     for (const [key, [icon, color]] of replay.resource_inventory) {
       const num = getAttr(gridObject, key);
       numItems += num;
     }
     // Draw the actual inventory icons.
-    let advanceX = Math.min(32, TILE_SIZE / numItems);
+    let advanceX = Math.min(32, (TILE_SIZE - INVENTORY_PADDING*2) / numItems);
     for (const [key, [icon, color]] of replay.resource_inventory) {
       const num = getAttr(gridObject, key);
       for (let i = 0; i < num; i++) {
@@ -1004,12 +1012,9 @@ function drawTrace(panel: PanelInfo) {
     return;
   }
 
-  const TRACE_HEIGHT = 256
-  const TRACE_WIDTH = 32
-
   const localMousePos = panel.transformPoint(mousePos);
 
-  if (followSelection && selectedGridObject !== null) {
+  if (followTraceSelection && selectedGridObject !== null) {
     panel.focusPos(
       step * TRACE_WIDTH + TRACE_WIDTH/2,
       getAttr(selectedGridObject, "agent_id") * TRACE_HEIGHT + TRACE_HEIGHT/2
@@ -1026,7 +1031,7 @@ function drawTrace(panel: PanelInfo) {
           followSelection = true;
           selectedGridObject = replay.agents[agentId];
           console.log("selectedGridObject on a trace: ", selectedGridObject);
-          panel.focusPos(
+          mapPanel.focusPos(
             getAttr(selectedGridObject, "c") * TILE_SIZE,
             getAttr(selectedGridObject, "r") * TILE_SIZE
           );
@@ -1067,7 +1072,7 @@ function drawTrace(panel: PanelInfo) {
   drawer.drawSolidRect(
     step * TRACE_WIDTH, 0,
     TRACE_WIDTH, fullSize.y(),
-    [1.0, 1.0, 1.0, 0.5] // White with 50% opacity
+    [0.5, 0.5, 0.5, 0.5] // White with 50% opacity
   );
 
   // Draw agent traces
@@ -1081,6 +1086,12 @@ function drawTrace(panel: PanelInfo) {
         drawer.drawSprite(
           replay.action_images[action[0]],
           j * TRACE_WIDTH + TRACE_WIDTH/2, i * TRACE_HEIGHT + TRACE_HEIGHT/2,
+        );
+      } else if (action != null) {
+        drawer.drawSprite(
+          replay.action_images[action[0]],
+          j * TRACE_WIDTH + TRACE_WIDTH/2, i * TRACE_HEIGHT + TRACE_HEIGHT/2,
+          [0.01, 0.01, 0.01, 0.01],
         );
       }
 
@@ -1096,7 +1107,7 @@ function drawTrace(panel: PanelInfo) {
       if (reward > 0) {
         drawer.drawSprite(
           "resources/reward.png",
-          j * TRACE_WIDTH - 16,
+          j * TRACE_WIDTH + TRACE_WIDTH/2,
           i * TRACE_HEIGHT + 256 - 32,
           [1.0, 1.0, 1.0, 1.0],
           1/8

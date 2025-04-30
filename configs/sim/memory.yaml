@@ -2,10 +2,6 @@ defaults:
   - sim
   - _self_
 
-num_envs: 1
-num_episodes: 1
-run_dir: ${run_dir}
-
 simulations:
   memory/easy:
     env: env/mettagrid/memory/evals/easy

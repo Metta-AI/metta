@@ -32,7 +32,7 @@ from devops.aws.batch.compute_environment import (
     list_compute_environments,
     stop_compute_environment,
 )
-from devops.aws.batch.job import get_job_info, list_jobs, ssh_to_job, stop_job
+from devops.aws.batch.job import get_job_info, list_jobs, ssm_to_job, stop_job
 from devops.aws.batch.job_logs import get_job_logs
 from devops.aws.batch.job_queue import get_job_queue_info, list_job_queues
 
@@ -130,7 +130,7 @@ def main():
             print("Error: Job ID is required for ssh command")
             sys.exit(1)
 
-        if not ssh_to_job(args.arg2, instance_only=args.instance):
+        if not ssm_to_job(args.arg2, instance_only=args.instance):
             sys.exit(1)
         return
 
@@ -319,7 +319,7 @@ def main():
             if not resource_id:
                 print("Error: Job ID is required for ssh command")
                 sys.exit(1)
-            if not ssh_to_job(resource_id, instance_only=args.instance):
+            if not ssm_to_job(resource_id, instance_only=args.instance):
                 sys.exit(1)
         elif command == "launch":
             print("The launch command is now handled directly by the cmd.sh script.")
