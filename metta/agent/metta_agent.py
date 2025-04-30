@@ -6,13 +6,13 @@ import hydra
 import numpy as np
 import torch
 from omegaconf import DictConfig, ListConfig, OmegaConf
-import omegaconf
 from pufferlib.environment import PufferEnv
 from tensordict import TensorDict
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 
 
+from metta.agent.policy_state import PolicyState
 from metta.agent.util.distribution_utils import sample_logits
 
 logger = logging.getLogger("metta_agent")
@@ -145,19 +145,17 @@ class MettaAgent(nn.Module):
     @property
     def total_params(self):
         return self._total_params
-
-    def get_value(self, x, state=None):
-        td = TensorDict({"x": x, "state": state})
-        self.components["_value_"](td)
-        return None, td["_value_"], None
     
-    def get_action_and_value(self, x, state=None, action=None, e3b=None):
-        td = TensorDict({"x": x})
+    def forward(self, x, state: PolicyState, action=None):
+        td = TensorDict(
+            {
+                "x": x,
+                "state": None,
+            }
+        )
 
-        td["state"] = None
-        if state is not None:
-            state = torch.cat(state, dim=0)
-            td["state"] = state.to(x.device)
+        if state.lstm_h is not None:
+            td["state"] = torch.cat([state.lstm_h, state.lstm_c], dim=0).to(x.device)
 
         self.components["_value_"](td)
         value = td["_value_"]
@@ -165,11 +163,9 @@ class MettaAgent(nn.Module):
         self.components["_action_"](td)
         logits = td["_action_"]
 
-        if state is not None:
-            split_size = self.core_num_layers
-            state = (state[:split_size], state[split_size:])
-
-        e3b, intrinsic_reward = self._e3b_update(td["_core_"].detach(), e3b)
+        split_size = self.core_num_layers
+        state.lstm_h = td["state"][:split_size]
+        state.lstm_c = td["state"][split_size:]
 
         action_logit_index = self._convert_action_to_logit_index(action) if action is not None else None
         action_logit_index, logprob_act, entropy, log_sftmx_logits = sample_logits(logits, action_logit_index)
@@ -198,18 +194,6 @@ class MettaAgent(nn.Module):
         """Convert logit indices back to action pairs using tensor indexing"""
         # direct tensor indexing on precomputed action_index_tensor
         return self.action_index_tensor[action_logit_index.reshape(-1)]        
-
-    def forward(self, x, state=None, action=None, e3b=None):
-        return self.get_action_and_value(x, state, action, e3b)
-
-    def _e3b_update(self, phi, e3b):
-        intrinsic_reward = None
-        if e3b is not None:
-            u = phi.unsqueeze(1) @ e3b
-            intrinsic_reward = u @ phi.unsqueeze(2)
-            e3b = 0.99*e3b - (u.mT @ u) / (1 + intrinsic_reward)
-            intrinsic_reward = intrinsic_reward.squeeze()
-        return e3b, intrinsic_reward
 
     def l2_reg_loss(self) -> torch.Tensor:
         '''L2 regularization loss is on by default although setting l2_norm_coeff to 0 effectively turns it off. Adjust it by setting l2_norm_scale in your component config to a multiple of the global loss value or 0 to turn it off.'''
