@@ -73,11 +73,7 @@ class PufferTrainer:
         self.eval_stats_logger = EvalStatsLogger(self.sim_suite_config, wandb_run)
         self.average_reward = 0.0  # Initialize average reward estimate
         self._current_eval_score = None
-        self.navigation_score = None
-        self.multiagent_score = None
-        self.memory_score = None
-        self.object_use_score = None
-        self.against_npc_score = None
+        self.eval_scores = None
         self._eval_results = []
         self._weights_helper = WeightsMetricsHelper(cfg)
         self._make_vecenv()
@@ -253,11 +249,15 @@ class PufferTrainer:
         _, policy_fitness_records = analyzer.analyze()
         self._eval_results = policy_fitness_records
 
-        self.navigation_score = np.mean([r["candidate_mean"] for r in self._eval_results if "navigation" in r["eval"]])
-        self.object_use_score = np.mean([r["candidate_mean"] for r in self._eval_results if "object_use" in r["eval"]])
-        self.against_npc_score = np.mean([r["candidate_mean"] for r in self._eval_results if "npc" in r["eval"]])
-        self.memory_score = np.mean([r["candidate_mean"] for r in self._eval_results if "memory" in r["eval"]])
-        self.multiagent_score = np.mean([r["candidate_mean"] for r in self._eval_results if "multiagent" in r["eval"]])
+        self.eval_scores = {
+            "navigation_score": np.mean([r["candidate_mean"] for r in self._eval_results if "navigation" in r["eval"]]),
+            "object_use_score": np.mean(
+                np.mean([r["candidate_mean"] for r in self._eval_results if "object_use" in r["eval"]])
+            ),
+            "against_npc_score": np.mean([r["candidate_mean"] for r in self._eval_results if "npc" in r["eval"]]),
+            "memory_score": np.mean([r["candidate_mean"] for r in self._eval_results if "memory" in r["eval"]]),
+            "multiagent_score": np.mean([r["candidate_mean"] for r in self._eval_results if "multiagent" in r["eval"]]),
+        }
 
         self._current_eval_score = np.sum(
             [r["candidate_mean"] for r in self._eval_results if r["metric"] == "episode_reward"]
@@ -542,11 +542,7 @@ class PufferTrainer:
                 "initial_uri": self._initial_pr.uri,
                 "train_time": time.time() - self.train_start,
                 "score": self._current_eval_score,
-                "navigation_score": self.navigation_score,
-                "object_use_score": self.object_use_score,
-                "against_npc_score": self.against_npc_score,
-                "memory_score": self.memory_score,
-                "multiagent_score": self.multiagent_score,
+                "eval_scores": self.eval_scores,
             },
         )
         # this is hacky, but otherwise the initial_pr points
