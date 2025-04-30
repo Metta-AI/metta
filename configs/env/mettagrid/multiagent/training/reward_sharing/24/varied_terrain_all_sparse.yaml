@@ -1,0 +1,41 @@
+defaults:
+  - /env/mettagrid/mettagrid@
+  - _self_
+
+sampling: 1
+
+game:
+  num_agents: 24
+  map_builder:
+    _target_: mettagrid.config.room.multi_room.RoomList
+    border_width: 6
+
+    rooms:
+      - _target_: mettagrid.config.room.navigation.varied_terrain.VariedTerrain
+        width: ${sampling:50,100,60}
+        height: ${sampling:50,100,60}
+        border_width: ${sampling:1,6,3}
+        agents: 6
+        style: all-sparse # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
+        team: team_1
+      - _target_: mettagrid.config.room.navigation.varied_terrain.VariedTerrain
+        width: ${sampling:50,100,60}
+        height: ${sampling:50,100,60}
+        border_width: ${sampling:1,6,3}
+        agents: 6
+        style: all-sparse # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
+        team: team_2
+      - _target_: mettagrid.config.room.navigation.varied_terrain.VariedTerrain
+        width: ${sampling:50,100,60}
+        height: ${sampling:50,100,60}
+        border_width: ${sampling:1,6,3}
+        agents: 6
+        style: all-sparse # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
+        team: team_3
+      - _target_: mettagrid.config.room.navigation.varied_terrain.VariedTerrain
+        width: ${sampling:50,100,60}
+        height: ${sampling:50,100,60}
+        border_width: ${sampling:1,6,3}
+        agents: 6
+        style: all-sparse # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
+        team: team_4
