@@ -5,7 +5,7 @@ Database interface for storing and querying policy evaluation metrics.
 import logging
 import os
 import sqlite3
-from typing import Dict, List, Tuple
+from typing import Dict, List, Literal, Tuple
 
 import hydra
 import pandas as pd
@@ -249,7 +249,7 @@ class PolicyEvalDB:
         metric: str,
         view_type: str = "latest",
         policy_uri: str | None = None,
-        num_output_policies: int | None = None,
+        num_output_policies: int | Literal["all"] = "all",
     ) -> pd.DataFrame:
         """
         Get matrix data for the specified metric.
@@ -383,7 +383,7 @@ class PolicyEvalDB:
         # For chronological view, we don't need to re-sort as it's already sorted in the SQL query
 
         # Limit the number of policies
-        if num_output_policies:
+        if num_output_policies != "all":
             matrix = matrix.head(num_output_policies)
 
         return matrix

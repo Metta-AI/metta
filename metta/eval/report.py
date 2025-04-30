@@ -11,7 +11,7 @@ import logging
 import os
 import shutil
 import tempfile
-from typing import List
+from typing import List, Literal
 
 import boto3
 import hydra
@@ -80,7 +80,8 @@ def generate_report_html(cfg: DictConfig) -> str:
     metric = cfg.analyzer.metric
     view_type = cfg.analyzer.view_type
     policy_uri = cfg.analyzer.policy_uri
-    num_output_policies = cfg.analyzer.num_output_policies
+
+    num_output_policies: int | Literal["all"] = cfg.analyzer.get("num_output_policies", 20)
 
     tmp_dir = tempfile.mkdtemp()
     db_path = os.path.join(tmp_dir, "policy_metrics.sqlite")
