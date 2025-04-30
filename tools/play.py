@@ -34,8 +34,8 @@ def main(cfg) -> int:
         policy_store = PolicyStore(cfg, wandb_run)
 
         play_job = PlayJob(cfg.play_job)
-
-        metta.sim.simulator.play(play_job.sim, policy_store, play_job.policy_uri)
+        policy_record = policy_store.policy(play_job.policy_uri)
+        metta.sim.simulator.play(play_job.sim, policy_record)
 
     return 0
 
