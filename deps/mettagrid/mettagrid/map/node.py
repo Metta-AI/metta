@@ -89,12 +89,18 @@ class Node:
         limit = query.get("limit")
         if limit is not None and limit < len(selected_areas):
             order_by = query.get("order_by", "random")
+            offset = query.get("offset")
             if order_by == "random":
+                assert offset is None, "offset is not supported for random order"
                 selected_areas = random.sample(selected_areas, k=limit)
             elif order_by == "first":
-                selected_areas = selected_areas[:limit]
+                offset = offset or 0
+                selected_areas = selected_areas[offset : offset + limit]
             elif order_by == "last":
-                selected_areas = selected_areas[-limit:]
+                if not offset:
+                    selected_areas = selected_areas[-limit:]
+                else:
+                    selected_areas = selected_areas[-limit - offset : -offset]
             else:
                 raise ValueError(f"Invalid order_by value: {order_by}")
 

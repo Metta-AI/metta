@@ -159,7 +159,7 @@ class MettaAgent(nn.Module):
 
         self.components["_value_"](td)
         value = td["_value_"]
-        state = td["state"]
+        # state = td["state"]
         self.components["_action_"](td)
         logits = td["_action_"]
 
@@ -172,7 +172,7 @@ class MettaAgent(nn.Module):
         if action is None:
             action = self._convert_logit_index_to_action(action_logit_index, td)
 
-        return action, logprob_act, entropy, value, state, e3b, intrinsic_reward, log_sftmx_logits
+        return action, logprob_act, entropy, value, log_sftmx_logits
 
     def _convert_action_to_logit_index(self, action):
         """Convert action pairs (action_type, action_param) to single discrete action logit indices using vectorized operations"""

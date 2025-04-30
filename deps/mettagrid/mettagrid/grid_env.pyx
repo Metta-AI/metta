@@ -166,6 +166,10 @@ cdef class GridEnv:
         self._rewards[:] = 0
         self._observations[:, :, :, :] = 0
 
+        # Clear the success flags.
+        for i in range(self._action_success.size()):
+            self._action_success[i] = 0
+
         self._current_timestep += 1
         self._event_manager.process_events(self._current_timestep)
 
