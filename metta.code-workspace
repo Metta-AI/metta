@@ -197,6 +197,40 @@
 			}
 		},
 		"terminal.integrated.cwd": "${workspaceFolder}",
-		"terminal.integrated.splitCwd": "workspaceRoot"
+		"terminal.integrated.splitCwd": "workspaceRoot",
+		"cSpell.words": [
+			"bptt",
+			"clipfrac",
+			"coef",
+			"cooldown",
+			"dones",
+			"heavyball",
+			"kickstarter",
+			"Kruskal",
+			"lasery",
+			"lexsort",
+			"logratio",
+			"metta",
+			"mettagrid",
+			"minibatch",
+			"minibatches",
+			"newlogprob",
+			"nvec",
+			"pufferlib",
+			"pytest",
+			"PYTHONPATH",
+			"raylib",
+			"relu",
+			"tensorclass",
+			"tensordict",
+			"timestep",
+			"timesteps",
+			"truncateds",
+			"unclipped",
+			"vecenv",
+			"venv",
+			"vloss",
+			"wandb"
+		]
 	}
 }
