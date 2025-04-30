@@ -33,7 +33,6 @@ class SimulationSuiteConfig(SimulationConfig):
     env: Optional[str] = None
 
     @model_validator(mode="before")
-    @classmethod
     def propagate_defaults(cls, values: dict) -> dict:
         # collect any suite-level overrides that are present & non-None
         suite_defaults = {
