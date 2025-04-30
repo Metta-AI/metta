@@ -1,0 +1,32 @@
+defaults:
+  - /env/mettagrid/mettagrid@
+
+sampling: 1
+game:
+  num_agents: 24    #how many agents are in the map x2
+
+  map_builder:
+    _target_: mettagrid.config.room.multi_room.RoomList
+    border_width: 6
+
+    rooms:
+      - _target_: mettagrid.config.room.navigation.terrain_from_numpy.TerrainFromNumpy
+        border_width: 1
+        dir: "terrain_maps_nohearts"
+        num_agents: 6
+        team: team_1
+      - _target_: mettagrid.config.room.navigation.terrain_from_numpy.TerrainFromNumpy
+        border_width: 1
+        dir: "terrain_maps_nohearts"
+        num_agents: 6
+        team: team_2
+      - _target_: mettagrid.config.room.navigation.terrain_from_numpy.TerrainFromNumpy
+        border_width: 1
+        dir: "terrain_maps_nohearts"
+        num_agents: 6
+        team: team_3
+      - _target_: mettagrid.config.room.navigation.terrain_from_numpy.TerrainFromNumpy
+        border_width: 1
+        dir: "terrain_maps_nohearts"
+        num_agents: 6
+        team: team_4

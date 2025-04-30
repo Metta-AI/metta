@@ -73,6 +73,7 @@ class PufferTrainer:
         self.eval_stats_logger = EvalStatsLogger(self.sim_suite_config, wandb_run)
         self.average_reward = 0.0  # Initialize average reward estimate
         self._current_eval_score = None
+        self.eval_scores = None
         self._eval_results = []
         self._weights_helper = WeightsMetricsHelper(cfg)
         self._make_vecenv()
@@ -279,6 +280,22 @@ class PufferTrainer:
 
             # Calculate the evaluation score
             if self._eval_results:
+                self.eval_scores = {
+                    "navigation_score": np.mean(
+                        [r["candidate_mean"] for r in self._eval_results if "navigation" in r["eval"]]
+                    ),
+                    "object_use_score": np.mean(
+                        np.mean([r["candidate_mean"] for r in self._eval_results if "object_use" in r["eval"]])
+                    ),
+                    "against_npc_score": np.mean(
+                        [r["candidate_mean"] for r in self._eval_results if "npc" in r["eval"]]
+                    ),
+                    "memory_score": np.mean([r["candidate_mean"] for r in self._eval_results if "memory" in r["eval"]]),
+                    "multiagent_score": np.mean(
+                        [r["candidate_mean"] for r in self._eval_results if "multiagent" in r["eval"]]
+                    ),
+                }
+
                 self._current_eval_score = np.sum(
                     [r["candidate_mean"] for r in self._eval_results if r["metric"] == "episode_reward"]
                 )
@@ -569,6 +586,7 @@ class PufferTrainer:
                 "initial_uri": self._initial_pr.uri,
                 "train_time": time.time() - self.train_start,
                 "score": self._current_eval_score,
+                "eval_scores": self.eval_scores,
             },
         )
         # this is hacky, but otherwise the initial_pr points
@@ -620,6 +638,8 @@ class PufferTrainer:
         navigation_score = np.mean([r["candidate_mean"] for r in self._eval_results if "navigation" in r["eval"]])
         object_use_score = np.mean([r["candidate_mean"] for r in self._eval_results if "object_use" in r["eval"]])
         against_npc_score = np.mean([r["candidate_mean"] for r in self._eval_results if "npc" in r["eval"]])
+        memory_score = np.mean([r["candidate_mean"] for r in self._eval_results if "memory" in r["eval"]])
+        multiagent_score = np.mean([r["candidate_mean"] for r in self._eval_results if "multiagent" in r["eval"]])
 
         if not np.isnan(navigation_score):
             overview["navigation_evals"] = navigation_score
@@ -627,6 +647,10 @@ class PufferTrainer:
             overview["object_use_evals"] = object_use_score
         if not np.isnan(against_npc_score):
             overview["npc_evals"] = against_npc_score
+        if not np.isnan(memory_score):
+            overview["memory_evals"] = memory_score
+        if not np.isnan(multiagent_score):
+            overview["multiagent_evals"] = multiagent_score
 
         environment = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
 
@@ -652,6 +676,18 @@ class PufferTrainer:
             if "npc" in r["eval"]
         }
 
+        memory_eval_metrics = {
+            f"memory_evals/{r['eval'].split('/')[-1]}:{r['metric']}": r["candidate_mean"]
+            for r in self._eval_results
+            if "memory" in r["eval"]
+        }
+
+        multiagent_eval_metrics = {
+            f"multiagent_evals/{r['eval'].split('/')[-1]}:{r['metric']}": r["candidate_mean"]
+            for r in self._eval_results
+            if "multiagent" in r["eval"]
+        }
+
         if self.wandb_run and self.cfg.wandb.track and self._master:
             self.wandb_run.log(
                 {
@@ -664,6 +700,8 @@ class PufferTrainer:
                     **navigation_eval_metrics,
                     **object_use_eval_metrics,
                     **against_npc_eval_metrics,
+                    **memory_eval_metrics,
+                    **multiagent_eval_metrics,
                     "train/agent_step": agent_steps,
                     "train/epoch": epoch,
                     "train/learning_rate": learning_rate,
