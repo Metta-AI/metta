@@ -1,6 +1,3 @@
-import numpy as np
-import gymnasium as gym
-
 from libcpp.string cimport string
 from libcpp.vector cimport vector
 from libcpp.map cimport map
@@ -14,9 +11,6 @@ from mettagrid.objects.converter cimport Converter
 from mettagrid.objects.wall cimport Wall
 
 cdef class ObservationEncoder:
-    cpdef obs_np_type(self):
-        return np.uint8
-    
     cdef init(self, unsigned int obs_width, unsigned int obs_height):
         self._obs_width = obs_width
         self._obs_height = obs_height
@@ -57,14 +51,3 @@ cdef class ObservationEncoder:
 
     cdef vector[string] feature_names(self):
         return self._feature_names
-    
-    cpdef observation_space(self):
-        type_info = np.iinfo(self.obs_np_type())
-
-        return gym.spaces.Box(
-                    low=type_info.min, high=type_info.max,
-                    shape=(
-                        len(self.feature_names()),
-                        self._obs_height, self._obs_width),
-            dtype=self.obs_np_type()
-        )

@@ -164,7 +164,7 @@ cdef class MettaGrid(GridEnv):
 
     cpdef grid_objects(self):
         cdef GridObject *obj
-        cdef ObsType[:] obj_data = np.zeros(len(self.grid_features()), dtype=self._obs_encoder.obs_np_type())
+        cdef ObsType[:] obj_data = np.zeros(len(self.grid_features()), dtype=np.uint8)
         cdef unsigned int obj_id, i
         cdef ObservationEncoder obs_encoder = self._obs_encoder
         cdef vector[unsigned int] offsets
