@@ -6,7 +6,7 @@ defaults:
   - _self_
   
 game:
-  num_agents: 1
+  num_agents: 4
   # Enough time to pick one direction, but not to dilly-dally.
   max_steps: 25
   
@@ -35,7 +35,7 @@ game:
         # Put the agents in the middle
         - scene:
             _target_: mettagrid.map.scenes.random.Random
-            agents: 1
+            agents: 4
           where:
             tags:
               - agents
