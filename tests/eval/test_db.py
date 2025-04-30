@@ -282,6 +282,17 @@ def test_get_matrix_data_chronological(sample_db):
         assert eval_name in matrix.columns
 
 
+def test_get_matrix_data_num_output_policies(sample_db):
+    """Test get_matrix_data with 'num_output_policies' set"""
+
+    all_matrix = sample_db.get_matrix_data("episode_reward", view_type="all")
+    filtered_matrix = sample_db.get_matrix_data("episode_reward", view_type="all", num_output_policies=2)
+
+    assert len(all_matrix) == 6
+    assert len(filtered_matrix) == 2
+    assert filtered_matrix.index.equals(all_matrix.index[:2])
+
+
 def test_get_matrix_data_empty_result(sample_db):
     """Test get_matrix_data when no data is found for the specified metric."""
     matrix = sample_db.get_matrix_data("nonexistent_metric")
