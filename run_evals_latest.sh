@@ -38,14 +38,14 @@ for i in "${!POLICIES[@]}"; do
         run=navigation$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         +eval_db_uri=wandb://artifacts/navigation_db \
-        +sim_job.selector_type=latest
+        ++sim_job.selector_type=latest
 
     python3 -m tools.sim \
         sim=multiagent \
         run=multiagent$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         +eval_db_uri=wandb://artifacts/multiagent_db \
-        +sim_job.selector_type=latest
+        ++sim_job.selector_type=latest
 
 
     python3 -m tools.sim \
@@ -53,5 +53,5 @@ for i in "${!POLICIES[@]}"; do
         run=memory$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         +eval_db_uri=wandb://artifacts/memory_db \
-        +sim_job.selector_type=latest
+        ++sim_job.selector_type=latest
 done
