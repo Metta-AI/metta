@@ -182,7 +182,7 @@ def submit_batch_job(args, task_args):
     batch = session.client("batch")
 
     random_id = "".join(random.choices(string.ascii_lowercase + string.digits, k=5))
-    job_name = args.run.replace(".", "_") + "_" + random_id
+    job_name = args.job_name if args.job_name else args.run.replace(".", "_") + "_" + random_id
     job_queue = args.job_queue
     job_definition = "metta-batch-train-jd"
 
@@ -230,6 +230,7 @@ def main():
     parser = argparse.ArgumentParser(description="Launch an AWS Batch task with a wandb key.")
     parser.add_argument("--cluster", default="metta")
     parser.add_argument("--run", required=True)
+    parser.add_argument("--job-name", help="The job name. If not specified, will use run id with random suffix.")
     parser.add_argument("--cmd", required=True, choices=["train", "sweep", "evolve"])
     parser.add_argument("--git-branch", default="origin/main")
     parser.add_argument("--git-commit", default=None)
