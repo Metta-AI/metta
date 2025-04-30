@@ -246,6 +246,13 @@ class PufferTrainer:
         analyzer = hydra.utils.instantiate(self.cfg.analyzer, eval_stats_db)
         _, policy_fitness_records = analyzer.analyze()
         self._eval_results = policy_fitness_records
+
+        self.navigation_score = np.mean([r["candidate_mean"] for r in self._eval_results if "navigation" in r["eval"]])
+        self.object_use_score = np.mean([r["candidate_mean"] for r in self._eval_results if "object_use" in r["eval"]])
+        self.against_npc_score = np.mean([r["candidate_mean"] for r in self._eval_results if "npc" in r["eval"]])
+        self.memory_score = np.mean([r["candidate_mean"] for r in self._eval_results if "memory" in r["eval"]])
+        self.multiagent_score = np.mean([r["candidate_mean"] for r in self._eval_results if "multiagent" in r["eval"]])
+
         self._current_eval_score = np.sum(
             [r["candidate_mean"] for r in self._eval_results if r["metric"] == "episode_reward"]
         )
@@ -540,6 +547,11 @@ class PufferTrainer:
                 "initial_uri": self._initial_pr.uri,
                 "train_time": time.time() - self.train_start,
                 "score": self._current_eval_score,
+                "navigation_score": self.navigation_score,
+                "object_use_score": self.object_use_score,
+                "against_npc_score": self.against_npc_score,
+                "memory_score": self.memory_score,
+                "multiagent_score": self.multiagent_score,
             },
         )
         # this is hacky, but otherwise the initial_pr points
@@ -593,6 +605,7 @@ class PufferTrainer:
         against_npc_score = np.mean([r["candidate_mean"] for r in self._eval_results if "npc" in r["eval"]])
         memory_score = np.mean([r["candidate_mean"] for r in self._eval_results if "memory" in r["eval"]])
         multiagent_score = np.mean([r["candidate_mean"] for r in self._eval_results if "multiagent" in r["eval"]])
+
         if not np.isnan(navigation_score):
             overview["navigation_evals"] = navigation_score
         if not np.isnan(object_use_score):
