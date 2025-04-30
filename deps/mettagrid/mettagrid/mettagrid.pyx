@@ -46,13 +46,11 @@ cdef class MettaGrid(GridEnv):
         cnp.ndarray _group_rewards_np
         double[:] _group_rewards
 
-    def __init__(self, env_cfg: DictConfig | ListConfig, map: np.ndarray):
-        cfg = OmegaConf.create(env_cfg.game)
+    def __init__(self, cfg: DictConfig, map: np.ndarray):
         self._cfg = cfg
 
-        obs_encoder = ObservationEncoder()
-        if env_cfg.semi_compact_obs:
-            obs_encoder = SemiCompactObservationEncoder()
+        obs_encoder = SemiCompactObservationEncoder()
+
         cdef vector[ActionHandler*] actions
         if cfg.actions.put_items.enabled:
             actions.push_back(new PutRecipeItems(cfg.actions.put_items))
@@ -81,7 +79,7 @@ cdef class MettaGrid(GridEnv):
             dict(ObjectLayers).values(),
             cfg.obs_width, cfg.obs_height,
             obs_encoder,
-            track_last_action=env_cfg.track_last_action
+            track_last_action=False
         )
         self.init_action_handlers(actions)
 

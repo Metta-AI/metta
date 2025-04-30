@@ -69,8 +69,6 @@ def config_from_path(config_path: str, overrides: Optional[DictConfig | ListConf
         env_cfg = env_cfg[p]
 
     if overrides not in [None, {}]:
-        if env_cfg._target_.endswith(".MettaGridEnvSet"):
-            raise NotImplementedError("Cannot parse overrides when using multienv_mettagrid")
         env_cfg = OmegaConf.merge(env_cfg, overrides)
     return env_cfg
 

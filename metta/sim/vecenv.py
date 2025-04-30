@@ -6,7 +6,7 @@ from omegaconf import DictConfig, ListConfig
 
 
 def make_env_func(cfg: DictConfig, buf=None, render_mode="rgb_array"):
-    return hydra.utils.instantiate(cfg, cfg, render_mode=render_mode, buf=buf)
+    return hydra.utils.instantiate(cfg, render_mode=render_mode, buf=buf, _recursive_=False)
 
 
 def make_vecenv(

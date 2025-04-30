@@ -1,86 +1,53 @@
-import copy
 from typing import Any, Dict, Optional
 
 import gymnasium as gym
+import hydra
 import numpy as np
 import pufferlib
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 
-from mettagrid.config.utils import simple_instantiate
 from mettagrid.mettagrid_c import MettaGrid  # pylint: disable=E0611
 from mettagrid.resolvers import register_resolvers
 
 
 class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     def __init__(
-        self, env_cfg: DictConfig, render_mode: Optional[str], env_map: Optional[np.ndarray] = None, buf=None, **kwargs
+        self,
+        curriculum: DictConfig,
+        game: DictConfig,
+        render_mode: Optional[str],
+        buf=None,
+        **kwargs,
     ):
         self._render_mode = render_mode
-        self._cfg_template = env_cfg
-        self._env_cfg = self._get_new_env_cfg()
-        self._env_map = env_map
-        self.should_reset = False
+        self._curriculum = hydra.utils.instantiate(curriculum, game_cfg_template=game, _recursive_=False)
         self._renderer = None
-        self._map_builder = None
         self._reset_env()
-
-        self.labels = self._env_cfg.get("labels", None)
 
         super().__init__(buf)
 
-    def _get_new_env_cfg(self):
-        env_cfg = OmegaConf.create(copy.deepcopy(self._cfg_template))
-        OmegaConf.resolve(env_cfg)
-        return env_cfg
-
     def _reset_env(self):
-        if self._env_map is None:
-            self._map_builder = simple_instantiate(
-                self._env_cfg.game.map_builder,
-                recursive=self._env_cfg.game.get("recursive_map_builder", True),
-            )
-            env_map = self._map_builder.build()
-        else:
-            env_map = self._env_map
-
-        map_agents = np.count_nonzero(np.char.startswith(env_map, "agent"))
-        assert self._env_cfg.game.num_agents == map_agents, (
-            f"Number of agents {self._env_cfg.game.num_agents} does not match number of agents in map {map_agents}"
-        )
-
-        self._c_env = MettaGrid(self._env_cfg, env_map)
+        self._task = self._curriculum.get_task()
+        self._c_env = MettaGrid(self._task.game_cfg(), self._task.level_map())
         self._grid_env = self._c_env
         self._num_agents = self._c_env.num_agents()
-
-        env = self._grid_env
-
-        self._env = env
-        # self._env = RewardTracker(self._env)
-        # self._env = FeatureMasker(self._env, self._cfg.hidden_features)
+        self._env = self._grid_env
+        self._should_reset = False
 
     def reset(self, seed=None, options=None):
-        self._env_cfg = self._get_new_env_cfg()
         self._reset_env()
-
         self._c_env.set_buffers(self.observations, self.terminals, self.truncations, self.rewards)
-
-        # obs, infos = self._env.reset(**kwargs)
-        # return obs, infos
-        obs, infos = self._c_env.reset()
-        self.should_reset = False
-        return obs, infos
+        return self._c_env.reset()
 
     def step(self, actions):
         self.actions[:] = np.array(actions).astype(np.uint32)
         self._c_env.step(self.actions)
 
-        if self._env_cfg.normalize_rewards:
-            self.rewards -= self.rewards.mean()
-
         infos = {}
         if self.terminals.all() or self.truncations.all():
             self.process_episode_stats(infos)
-            self.should_reset = True
+            self._task.complete(infos)
+            self._should_reset = True
 
         return self.observations, self.rewards, self.terminals, self.truncations, infos
 
@@ -99,21 +66,22 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             }
         )
 
-        if self._map_builder is not None and self._map_builder.labels is not None:
-            for label in self._map_builder.labels:
-                infos.update(
-                    {
-                        f"rewards/map:{label}": episode_rewards_mean,
-                    }
-                )
+        # xcxc
+        # if self._map_builder is not None and self._map_builder.labels is not None:
+        #     for label in self._map_builder.labels:
+        #         infos.update(
+        #             {
+        #                 f"rewards/map:{label}": episode_rewards_mean,
+        #             }
+        #         )
 
-        if self.labels is not None:
-            for label in self.labels:
-                infos.update(
-                    {
-                        f"rewards/env:{label}": episode_rewards_mean,
-                    }
-                )
+        # if self.labels is not None:
+        #     for label in self.labels:
+        #         infos.update(
+        #             {
+        #                 f"rewards/env:{label}": episode_rewards_mean,
+        #             }
+        #         )
 
         stats = self._c_env.get_episode_stats()
 
@@ -130,7 +98,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     @property
     def _max_steps(self):
-        return self._env_cfg.game.max_steps
+        return self._task.game_cfg().max_steps
 
     @property
     def single_observation_space(self):
@@ -159,7 +127,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     @property
     def done(self):
-        return self.should_reset
+        return self._should_reset
 
     @property
     def grid_features(self):
