@@ -8,6 +8,7 @@ from omegaconf import DictConfig, ListConfig, OmegaConf
 from torch.distributed.elastic.multiprocessing.errors import record
 
 from metta.agent.policy_store import PolicyStore
+from metta.sim.map_preview import upload_map_preview
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.util.config import Config, setup_metta_environment
 from metta.util.logging import setup_mettagrid_logger
@@ -42,6 +43,12 @@ def train(cfg, wandb_run, logger: Logger):
     train_job = TrainJob(cfg.train_job)
 
     policy_store = PolicyStore(cfg, wandb_run)
+
+    upload_map_preview(cfg, wandb_run, logger)
+
+    if "dry_run" in cfg and cfg.dry_run:
+        return
+
     trainer = hydra.utils.instantiate(cfg.trainer, cfg, wandb_run, policy_store, train_job.evals)
     trainer.train()
     trainer.close()
