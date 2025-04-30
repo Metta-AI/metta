@@ -39,7 +39,7 @@ resource "tailscale_acl" "acl" {
         app = {
           "tailscale.com/app-connectors" = [
             {
-              name       = "AWS-EFS-2",
+              name       = "AWS-EFS",
               connectors = ["tag:efs-proxy"],
               domains = [
                 # add one entry per region where you have mount-targets
