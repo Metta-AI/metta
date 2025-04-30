@@ -70,8 +70,7 @@ cdef class GridEnv:
             np.zeros(max_agents, dtype=np.int8),
             np.zeros(max_agents, dtype=np.float32)
         )
-
-
+        self._reward_multiplier = 1.0
         self._action_success = vector[bint](max_agents)
 
     def __dealloc__(self):
@@ -171,6 +170,12 @@ cdef class GridEnv:
             self._action_success[i] = 0
 
         self._current_timestep += 1
+
+        # Update reward multiplier using IIR filter
+        # Using time constant = max_timestep / 3 as suggested
+        cdef float decay_factor = 3.0 / self._max_timestep if self._max_timestep > 0 else 0.01
+        self._reward_multiplier = max(0.1, self._reward_multiplier * (1.0 - decay_factor))
+
         self._event_manager.process_events(self._current_timestep)
 
         cdef unsigned char p
@@ -191,6 +196,10 @@ cdef class GridEnv:
                 self._action_success[idx] = handler.handle_action(idx, agent.id, arg, self._current_timestep)
 
         self._compute_observations(actions)
+
+        # Apply reward multiplier to all rewards
+        for i in range(self._rewards.shape[0]):
+            self._rewards[i] *= self._reward_multiplier
 
         for i in range(self._episode_rewards.shape[0]):
             self._episode_rewards[i] += self._rewards[i]

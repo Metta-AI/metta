@@ -43,6 +43,8 @@ cdef class GridEnv:
         cnp.ndarray _truncations_np
         char[:] _truncations
         cnp.ndarray _rewards_np
+
+        float _reward_multiplier
         float[:] _rewards
         cnp.ndarray _episode_rewards_np
         float[:] _episode_rewards
