@@ -1,163 +1,87 @@
-"""metta/sim/stats_db.py
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-DuckDB wrapper for logging raw rollout data.
-For now, used for training data, with the intention of switching over
-to this for EvalStatsDB as well.
+"""
+Run-level statistics helper – used by Simulation **and** by analysis code.
+Depends only on standard libs + boto3 + wandb + duckdb + mettagrid.env_stats_db
 """
 
 from __future__ import annotations
+import shutil, tempfile, json
+from pathlib import Path
+from typing import Dict, Tuple
 
-import contextlib
-import logging
-import pathlib
-import time
-from typing import Any, Mapping
+import duckdb, boto3, wandb
 
-import duckdb
-import pandas as pd
-
-logger = logging.getLogger(__name__)
-
-# --------------------------------------------------------------------------- #
-# SQL schema                                                                  #
-# --------------------------------------------------------------------------- #
-_SCHEMA_SQL = """
-CREATE SEQUENCE IF NOT EXISTS rollout_id_seq;
-
--- (Rollout) → Metadata
-CREATE TABLE IF NOT EXISTS rollouts (
-    rollout_id BIGINT DEFAULT nextval('rollout_id_seq'),
-    env_name   TEXT NOT NULL,
-    map_w      INT,
-    map_h      INT,
-    epoch      INT,
-    batch_idx  INT,
-    agent_steps INT  NOT NULL,
-    created_at  TIMESTAMP,
-    metadata_json JSON
-);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_rollouts_rollout_id
-    ON rollouts(rollout_id);
-
--- (Rollout, Agent) → Policy
-CREATE TABLE IF NOT EXISTS rollout_agents (
-    rollout_id BIGINT NOT NULL,
-    agent_id   INT    NOT NULL,
-    policy_uri TEXT   NOT NULL,
-    version    INT    NOT NULL
-);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_rollout_agents_pk
-    ON rollout_agents (rollout_id, agent_id);
-
--- (Rollout, Agent, Metric) → Value
-CREATE TABLE IF NOT EXISTS rollout_agent_metrics (
-    rollout_id BIGINT NOT NULL,
-    agent_id   INT    NOT NULL,
-    metric     TEXT   NOT NULL,
-    value      DOUBLE NOT NULL
-);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_rollout_agent_metrics_pk
-    ON rollout_agent_metrics (rollout_id, agent_id, metric);
-CREATE INDEX IF NOT EXISTS idx_ram_metric
-    ON rollout_agent_metrics (metric);
-"""
+from mettagrid.stats_writer import SCHEMA
 
 
-# --------------------------------------------------------------------------- #
-# public API                                                                  #
-# --------------------------------------------------------------------------- #
 class StatsDB:
-    """DuckDB wrapper with helpers for common inserts."""
+    # ---------------- core init ---------------------------------------- #
+    def __init__(self, path: str | Path, *, read_only: bool = False):
+        self.path = Path(path)
+        self.conn = duckdb.connect(str(self.path), read_only=read_only)
+        if not read_only:  # create tables on first write
+            for stmt in filter(None, (s.strip() for s in _SCHEMA.split(";"))):
+                self.conn.execute(stmt)
+            self.conn.execute(  # plus run-level mapping
+                "CREATE TABLE IF NOT EXISTS agent_policy ("
+                "  agent_id INT, policy_uri TEXT, policy_ver INT,"
+                "  PRIMARY KEY(agent_id)"
+                ")"
+            )
 
-    # --------------------------------------------------------------------- #
-    # construction / schema                                                 #
-    # --------------------------------------------------------------------- #
-    def __init__(self, db_path: str | pathlib.Path = ":memory:") -> None:
-        self._conn = duckdb.connect(database=str(db_path))
-        self._run_schema(_SCHEMA_SQL)
-        logger.info("StatsDB initialised at %s", db_path)
+    # ---------------- merge shards ------------------------------------ #
+    @staticmethod
+    def merge_worker_dbs(stats_dir: Path, agent_map: Dict[int, Tuple[str, int]]) -> Path:
+        dst = stats_dir / "stats.duckdb"
+        db = StatsDB(dst)  # RW
+        for shard in stats_dir.rglob("stats_*.duckdb"):
+            db.conn.execute(f"ATTACH DATABASE '{shard}' AS src")
+            db.conn.execute(
+                "INSERT INTO episodes SELECT nextval('episode_id_seq'), * EXCLUDE(episode_id) FROM src.episodes"
+            )
+            db.conn.execute("INSERT INTO episode_agent_metrics SELECT * FROM src.episode_agent_metrics")
+            db.conn.execute("DETACH DATABASE src")
+        # add / overwrite agent-policy mapping once
+        rows = [(aid, uri, ver) for aid, (uri, ver) in agent_map.items()]
+        db.conn.executemany("INSERT OR REPLACE INTO agent_policy VALUES (?,?,?)", rows)
+        db.conn.close()
+        return dst
 
-    # --------------------------------------------------------------------- #
-    # simple helpers                                                        #
-    # --------------------------------------------------------------------- #
-    def _run_schema(self, schema_sql: str) -> None:
-        for stmt in filter(None, (s.strip() for s in schema_sql.split(";"))):
-            try:
-                self._conn.execute(stmt)
-            except duckdb.NotImplementedException as e:
-                logger.error("DuckDB failed on: %s\n%s", stmt, e)
-                raise
+    # ---------------- export helpers ---------------------------------- #
+    @staticmethod
+    def export_db(db_path: Path, uri: str) -> None:
+        if uri.startswith("s3://"):
+            bucket, key = uri[5:].split("/", 1)
+            boto3.client("s3").upload_file(str(db_path), bucket, key)
+            return
+        if uri.startswith("wandb://"):
+            art_name = uri[8:]
+            tmp = Path(tempfile.mkdtemp())
+            duckdb.connect().execute(f"EXPORT DATABASE '{db_path}' TO '{tmp}' (FORMAT PARQUET)")
+            with wandb.init(job_type="stats_db_upload") as run:
+                art = wandb.Artifact(art_name, type="stats_db")
+                art.add_dir(tmp)
+                run.log_artifact(art).wait()
+            shutil.rmtree(tmp)
+            return
+        Path(uri).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(db_path, uri)
 
-    def query(self, sql: str, *params) -> pd.DataFrame:
-        return self._conn.execute(sql, params).fetchdf()
+    # ---------------- open read-only from URI ------------------------- #
+    @classmethod
+    def from_uri(cls, uri: str, cache: str = "/tmp/metta_stats") -> "StatsDB":
+        if uri.startswith("s3://"):
+            bucket, key = uri[5:].split("/", 1)
+            local = Path(cache) / Path(key).name
+            if not local.exists():
+                local.parent.mkdir(parents=True, exist_ok=True)
+                boto3.client("s3").download_file(bucket, key, str(local))
+            return cls(local, read_only=True)
 
-    @property
-    def conn(self) -> duckdb.DuckDBPyConnection:
-        return self._conn
+        if uri.startswith("wandb://"):
+            art = wandb.Api().artifact(uri[8:], type="stats_db")
+            art_dir = Path(art.download())
+            tmp_db = Path(tempfile.mkdtemp()) / "stats.duckdb"
+            duckdb.connect(tmp_db).execute(f"IMPORT DATABASE '{art_dir}' (FORMAT PARQUET)")
+            return cls(tmp_db, read_only=True)
 
-    # --------------------------------------------------------------------- #
-    # insert helpers                                                        #
-    # --------------------------------------------------------------------- #
-    RolloutMeta = Mapping[str, Any]
-    AgentMap = Mapping[int, tuple[str, int]]  # agent_id → (policy_uri, version)
-    MetricRows = Mapping[int, Mapping[str, float]]  # agent_id → {metric: value}
-
-    def insert_rollout(self, meta: RolloutMeta) -> int:
-        # Add created_at if not provided
-        if "created_at" not in meta:
-            meta_with_timestamp = {**meta, "created_at": time.strftime("%Y-%m-%d %H:%M:%S")}
-        else:
-            meta_with_timestamp = meta
-
-        cols, vals = zip(*meta_with_timestamp.items(), strict=False)
-        sql = f"INSERT INTO rollouts ({', '.join(cols)}) VALUES ({', '.join(['?'] * len(cols))}) RETURNING rollout_id"
-        cur = self._conn.execute(sql, vals)
-        return cur.fetchone()[0]
-
-    def insert_agents(self, rid: int, agents: AgentMap) -> None:
-        rows = [(rid, aid, uri, ver) for aid, (uri, ver) in agents.items()]
-        self._conn.executemany("INSERT INTO rollout_agents VALUES (?,?,?,?)", rows)
-
-    def insert_metrics(self, rid: int, metrics: MetricRows) -> None:
-        rows = [(rid, aid, metric, val) for aid, m in metrics.items() for metric, val in m.items()]
-        self._conn.executemany("INSERT INTO rollout_agent_metrics VALUES (?,?,?,?)", rows)
-
-    # convenience ---------------------------------------------------------- #
-    def log_rollout(
-        self,
-        meta: RolloutMeta,
-        agents: AgentMap,
-        metrics: MetricRows,
-    ) -> int:
-        """Atomically insert meta + agents + metrics."""
-        # Use manual transaction management instead of context manager
-        try:
-            self._conn.execute("BEGIN TRANSACTION")
-            rid = self.insert_rollout(meta)
-            self.insert_agents(rid, agents)
-            self.insert_metrics(rid, metrics)
-            self._conn.execute("COMMIT")
-            return rid
-        except Exception as e:
-            self._conn.execute("ROLLBACK")
-            raise e
-
-    # --------------------------------------------------------------------- #
-    # snapshot utilities                                                    #
-    # --------------------------------------------------------------------- #
-    def export_parquet(self, directory: str | pathlib.Path) -> None:
-        path = pathlib.Path(directory)
-        path.mkdir(parents=True, exist_ok=True)
-        t0 = time.perf_counter()
-        self._conn.execute(f"EXPORT DATABASE '{path}' (FORMAT PARQUET)")
-        logger.info("Exported StatsDB parquet snapshot to %s in %.2fs", path, time.perf_counter() - t0)
-
-    def close(self) -> None:
-        self._conn.close()
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *_):
-        with contextlib.suppress(Exception):
-            self.close()
+        return cls(Path(uri), read_only=True)

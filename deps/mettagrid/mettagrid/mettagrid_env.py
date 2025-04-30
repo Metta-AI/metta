@@ -8,8 +8,8 @@ from omegaconf import DictConfig, OmegaConf
 
 from mettagrid.config.utils import simple_instantiate
 from mettagrid.mettagrid_c import MettaGrid  # pylint: disable=E0611
-from mettagrid.mettagrid_stats_writer import MettaGridStatsWriter
 from mettagrid.resolvers import register_resolvers
+from mettagrid.stats_writer import MettaGridStatsWriter
 
 
 class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
