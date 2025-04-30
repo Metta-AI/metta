@@ -44,7 +44,7 @@ ext_modules = [
     build_ext(["mettagrid/objects/metta_object.pyx"]),
     build_ext(["mettagrid/objects/production_handler.pyx"]),
     build_ext(["mettagrid/objects/wall.pyx"]),
-    build_ext(["mettagrid/mettagrid.pyx"], "mettagrid.mettagrid_c"),
+    build_ext(["mettagrid/mettagrid.pyx"], module_name="mettagrid.mettagrid_c"),
 ]
 
 debug = os.getenv("DEBUG", "0") == "1"
@@ -56,9 +56,11 @@ num_threads = multiprocessing.cpu_count() if sys.platform == "linux" else None
 
 setup(
     name="mettagrid",
-    version="0.1",
+    version="0.1.6",  # match pyproject.toml
     packages=find_packages(),
     include_dirs=[numpy.get_include()],
+    package_data={"mettagrid": ["*.so"]},
+    zip_safe=False,
     ext_modules=cythonize(
         ext_modules,
         build_dir=build_dir,
