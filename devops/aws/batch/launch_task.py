@@ -231,7 +231,9 @@ def main():
     parser.add_argument("--cluster", default="metta")
     parser.add_argument("--run", required=True)
     parser.add_argument("--job-name", help="The job name. If not specified, will use run id with random suffix.")
-    parser.add_argument("--cmd", required=True, choices=["train", "sweep", "evolve"])
+    parser.add_argument(
+        "--cmd", required=True, choices=["train", "sweep", "evolve", "sandbox"], help="The command to run."
+    )
     parser.add_argument("--git-branch", default="origin/main")
     parser.add_argument("--git-commit", default=None)
     parser.add_argument("--gpus", type=int, default=1)
