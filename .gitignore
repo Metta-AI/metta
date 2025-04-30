@@ -36,3 +36,5 @@ sweep_id
 personal/
 wandb/
 deps/.built
+terrain_maps_nohearts*
+.idea
