@@ -48,8 +48,7 @@ def train(cfg, wandb_run):
 
     policy_store = PolicyStore(cfg, wandb_run)
 
-    if "map_preview" in cfg and cfg.map_preview:
-        upload_map_preview(cfg, wandb_run, logger)
+    upload_map_preview(cfg, wandb_run, logger)
 
     if "dry_run" in cfg and cfg.dry_run:
         return
