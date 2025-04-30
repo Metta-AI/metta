@@ -1,12 +1,13 @@
-import hydra
 import pufferlib
 import pufferlib.utils
 import pufferlib.vector
 from omegaconf import DictConfig, ListConfig
 
+from mettagrid.mettagrid.mettagrid_env import MettaGridEnv
+
 
 def make_env_func(cfg: DictConfig, buf=None, render_mode="rgb_array"):
-    return hydra.utils.instantiate(cfg, render_mode=render_mode, buf=buf, _recursive_=False)
+    return MettaGridEnv(cfg, buf=buf, render_mode=render_mode)
 
 
 def make_vecenv(

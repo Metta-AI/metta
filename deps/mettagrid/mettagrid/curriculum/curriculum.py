@@ -1,10 +1,12 @@
+import copy
 import logging
 import random
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 import numpy as np
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
+from metta.util.config import config_from_path
 from mettagrid.config.utils import simple_instantiate
 
 logger = logging.getLogger(__name__)
@@ -31,17 +33,6 @@ class Curriculum:
 
     def complete_task(self, id: str, score: float):
         raise NotImplementedError("Subclasses must implement this method")
-
-
-class RandomCurriculum(Curriculum):
-    def __init__(self, tasks: List[Task]):
-        self.tasks = tasks
-
-    def get_task(self) -> Task:
-        return random.choice(self.tasks)
-
-    def complete_task(self, id: str, score: float):
-        pass
 
 
 class MettaGridTask(Task):
@@ -73,13 +64,30 @@ class MettaGridTask(Task):
 
 
 class MettaGridCurriculum(Curriculum):
-    def __init__(self, game_cfg_template: DictConfig):
-        self.game_cfg_template = game_cfg_template
+    def __init__(self, game: DictConfig, sampling: float = 0):
+        self._cfg_template = game
+        self._sampling = sampling
 
     def get_task(self) -> MettaGridTask:
-        # env_cfg = OmegaConf.create(copy.deepcopy(self._cfg_template))
-        # OmegaConf.resolve(env_cfg)
-        # return env_cfg
-        logger.info(f"Creating MettaGridTask with game_cfg_template: {self.game_cfg_template}")
+        cfg = OmegaConf.create(copy.deepcopy(self._cfg_template))
+        OmegaConf.resolve(cfg)
+        return MettaGridTask("default", self, cfg)
 
-        return MettaGridTask("default", self, self.game_cfg_template)
+    def complete_task(self, id: str, score: float):
+        logger.info(f"Completing task {id} with score {score}")
+
+
+class MultiEnvCurriculum(Curriculum):
+    def __init__(self, tasks: Dict[str, float], game: DictConfig, **kwargs):
+        overrides = DictConfig({"game": game})
+        self._tasks = {t: MettaGridCurriculum(config_from_path(t, overrides).game) for t in tasks.keys()}
+        self._task_weights = tasks
+
+    def get_task(self) -> Task:
+        task_id = random.choices(list(self._tasks.keys()), weights=list(self._task_weights.values()))[0]
+        task_cfg = self._tasks[task_id].get_task().game_cfg()
+        logger.info(f"Selected task {task_id} with max_steps {task_cfg.max_steps}")
+        return MettaGridTask(task_id, self, task_cfg)
+
+    def complete_task(self, id: str, score: float):
+        logger.info(f"Completing task {id} with score {score}")

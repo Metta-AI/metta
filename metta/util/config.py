@@ -55,7 +55,7 @@ class Config(BaseModel):
             raise TypeError("Data must be convertible to a dictionary")
 
 
-def config_from_path(config_path: str, overrides: Optional[DictConfig | ListConfig] = None) -> DictConfig | ListConfig:
+def config_from_path(config_path: str, overrides: Optional[DictConfig] = None) -> DictConfig:
     if config_path is None:
         raise ValueError("Config path cannot be None")
 

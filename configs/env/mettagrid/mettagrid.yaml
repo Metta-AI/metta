@@ -1,15 +1,7 @@
-name: "GDY-MettaGrid"
-_target_: mettagrid.mettagrid_env.MettaGridEnv
-
-report_stats_interval: 100
-semi_compact_obs: true
-track_last_action: false
-
 curriculum:
   _target_: mettagrid.curriculum.curriculum.MettaGridCurriculum
-
-hidden_features:
-  grid_obs: ["agent:energy", "agent:hp"]
+  game: ${..game}
+  sampling: 0
 
 game:
   num_agents: ???

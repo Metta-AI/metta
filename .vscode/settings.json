@@ -12,7 +12,32 @@
     "replays": true,
     "train_dir": true,
     "outputs": true,
-    ".pytest_cache": true
+    ".pytest_cache": true,
+    "**/.git": true,
+    "**/.DS_Store": true,
+    "**/node_modules": true,
+    "**/.idea": true,
+    "**/.vscode": true,
+    "**/*.pyc": true,
+    "**/*.pyo": true,
+    "**/*.pyd": true,
+    "**/*.so": true,
+    "**/*.dylib": true,
+    "**/*.dll": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/bower_components": true,
+    "**/*.code-search": true,
+    "**/.git": true,
+    "**/.DS_Store": true,
+    "**/__pycache__": true,
+    "**/*.pyc": true,
+    "**/*.pyo": true,
+    "**/*.pyd": true,
+    "**/*.so": true,
+    "**/*.dylib": true,
+    "**/*.dll": true
   },
   "python.testing.unittestArgs": [
     "-v",

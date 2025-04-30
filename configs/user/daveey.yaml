@@ -4,10 +4,20 @@ defaults:
   - _self_
 
 trainer:
-  env: /env/mettagrid/simple
+  # env: /env/mettagrid/multienv_mettagrid
+  env: /env/mettagrid/navigation/training/multienv_with_cylinder
+  env_overrides:
+    game:
+      max_steps: 13
   evaluate_interval: 200
   optimizer:
     type: muon
+
+sim:
+  env: /env/mettagrid/navigation/training/multienv_with_cylinder
+  env_overrides:
+    game:
+      max_steps: 13
 
 
   # env_overrides:
@@ -30,7 +40,7 @@ npc_policy_uri: ${policy_uri}
 # npc_policy_uri: wandb://run/b.daveey.t.16.dr0
 # policy_uri: ${trained_policy_uri}
 # npc_policy_uri: ${trained_policy_uri}
-# eval_db_uri: wandb://artifacts/daveey_eval_testing
+eval_db_uri: wandb://artifacts/daveey_eval_testing
 
 analyzer:
   policy_uri: ${..policy_uri}
@@ -40,27 +50,6 @@ analyzer:
       - metric: episode_reward
       - metric: "heart.get"
 
-eval:
-  env: /env/mettagrid/puffer
-  eval_db_uri: ${run_dir}/eval_stats
-  num_envs: 10
-  num_episodes: 10
-  max_time_s: 600
-  # policy_agents_pct: 1
-
-  policy_uri: ${..policy_uri}
-  npc_policy_uri: ${..npc_policy_uri}
-  # eval_db_uri: ${..eval_db_uri} #file://daphne/sweep_stats
-  # env: /env/mettagrid/reward_dr
-  # env_overrides:
-  #   # sampling: 0.7
-  #   game:
-  #     num_agents: 16
-  #     max_steps: 1000
-  #     map_builder:
-  #       room:
-  #         agents: 4
-  #       num_rooms: 4
 
 wandb:
   checkpoint_interval: 1

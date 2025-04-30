@@ -1,12 +1,14 @@
-_target_: mettagrid.mettagrid_env.MettaGridEnvSet
+defaults:
+  - /env/mettagrid/mettagrid@
+  - _self_
 
-num_agents: 4
-sampling: 1
+curriculum:
+  _target_: mettagrid.curriculum.curriculum.MultiEnvCurriculum
+  tasks:
+    /env/mettagrid/navigation/training/terrain_from_numpy: 0.5
+    /env/mettagrid/navigation/training/varied_terrain: 0.4
+    /env/mettagrid/navigation/training/cylinder_world: 0.1
 
 game:
-  num_agents: ${..num_agents}
+  num_agents: 4
 
-envs:
-  /env/mettagrid/navigation/training/terrain_from_numpy: 0.5
-  /env/mettagrid/navigation/training/varied_terrain: 0.4
-  /env/mettagrid/navigation/training/cylinder_world: 0.1

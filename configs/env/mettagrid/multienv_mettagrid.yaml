@@ -1,11 +1,15 @@
-_target_: metta.env.mettagrid_env_set.MettaGridEnvSet
+defaults:
+  - mettagrid
+  - _self_
 
-num_agents: 24
+curriculum:
+  _target_: mettagrid.curriculum.curriculum.MultiEnvCurriculum
+  tasks:
+    /env/mettagrid/simple: 0.5
+    /env/mettagrid/teams: 0.25
+    /env/mettagrid/bases: 0.25
 
 game:
-  num_agents: ${..num_agents}
+  num_agents: 24
+  max_steps: 10
 
-envs:
-  /env/mettagrid/simple: 0.5
-  /env/mettagrid/teams: 0.25
-  /env/mettagrid/bases: 0.25

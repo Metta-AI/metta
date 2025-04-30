@@ -13,14 +13,12 @@ from mettagrid.resolvers import register_resolvers
 class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     def __init__(
         self,
-        curriculum: DictConfig,
-        game: DictConfig,
+        env_cfg: DictConfig,
         render_mode: Optional[str],
         buf=None,
-        **kwargs,
     ):
         self._render_mode = render_mode
-        self._curriculum = hydra.utils.instantiate(curriculum, game_cfg_template=game, _recursive_=False)
+        self._curriculum = hydra.utils.instantiate(env_cfg.curriculum, _recursive_=False)
         self._renderer = None
         self._reset_env()
 
