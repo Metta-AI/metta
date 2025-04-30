@@ -71,7 +71,4 @@ simulations:
     env: env/mettagrid/navigation/evals/walkaround
   navigation/wanderout:
     env: env/mettagrid/navigation/evals/wanderout
-  navigation/quantity:
-    env: env/mettagrid/memory/evals/quantity_1
-
 # selector_type: "latest"
