@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 
-DIR="/Volumes/metta-efs"
+# TODO - update with the actual EFS endpoint
 ENDPOINT="fs-0959f49bf925f0023.efs.us-east-1.amazonaws.com"
+DIR="/Volumes/metta-efs"
 REGION="us-east-1"
 
 sudo mkdir -p "$DIR"
