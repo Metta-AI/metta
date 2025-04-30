@@ -33,8 +33,6 @@ wandb:
   track: true
 
 env:
-  # clean this up
-  semi_compact_obs: true
   game:
     max_steps: 2000
 
