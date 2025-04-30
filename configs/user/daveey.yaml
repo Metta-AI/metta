@@ -1,6 +1,9 @@
 # @package __global__
 
 defaults:
+  - override /sim: simple
+#   - override /eval: simple_solo
+#   - override /analyzer: eval_analyzer
   - _self_
 
 trainer:
@@ -34,29 +37,49 @@ sim:
 # policy_uri: wandb://run/b.daveey.t.1.bl
 # policy_uri: wandb://run/b.daveey.t.16.dr0
 
-# policy_uri: wandb://run/b.daveey.t.4.lra.muon
-policy_uri: wandb://run/b.daveey.t.1.lra.dr.muon
-# policy_uri: /tmp/puffer_metta_serial.pt
+# policy_uri: wandb://run/b.daveey.dr9.muon.latest
+# policy_uri: wandb://run/b.daveey.t.1.lra.dr.muon
+policy_uri: puffer:///tmp/puffer_metta.pt
 
 npc_policy_uri: ${policy_uri}
 # npc_policy_uri: wandb://run/b.daveey.t.16.dr0
 # policy_uri: ${trained_policy_uri}
 # npc_policy_uri: ${trained_policy_uri}
-eval_db_uri: wandb://artifacts/daveey_eval_testing
+# eval_db_uri: wandb://artifacts/daveey_eval_testing
+
+eval_db_uri: ${run_dir}/eval_stats
 
 analyzer:
   policy_uri: ${..policy_uri}
-  eval_stats_uri: ${run_dir}/eval_stats
+  view_type: latest
   analysis:
     metrics:
       - metric: episode_reward
       - metric: "heart.get"
 
 
+sim:
+  env: /env/mettagrid/puffer
+  num_envs: 1
+  num_episodes: 1
+  max_time_s: 600
+  # policy_agents_pct: 1
+
+  # env: /env/mettagrid/reward_dr
+  # env_overrides:
+  #   # sampling: 0.7
+  #   game:
+  #     num_agents: 16
+  #     max_steps: 1000
+  #     map_builder:
+  #       room:
+  #         agents: 4
+  #       num_rooms: 4
+
 wandb:
   checkpoint_interval: 1
 
-run_id: 16
+run_id: 17
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 

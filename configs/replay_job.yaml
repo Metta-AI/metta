@@ -12,5 +12,6 @@ torch_deterministic: true
 eval_db_uri: null
 
 replay_job:
+  sim: ${sim}
   policy_uri: ${policy_uri}
   sim: ${sim}
