@@ -32,57 +32,56 @@ install_repo() {
     
     echo "========== Installing $repo_name =========="
     
-    # save any cached build files
-    if [ -d "$repo_name" ]; then
-
+    if [ -d "$repo_name" ] && [ -d "$repo_name/.git" ]; then
+        echo "Repository $repo_name already exists, updating instead of cloning"
         cd $repo_name
-        echo "Repository content for $repo_name"
-        ls -al
-        cd ..
-
-        echo "Moving existing repository to cache_$repo_name"
-        mv "$repo_name" "cache_$repo_name"
-    fi
-
-    echo "Cloning $repo_name into $(pwd)"
-    git clone $repo_url
-    cd $repo_name
-
-    echo "Fetching $repo_name into $(pwd)"
-    git fetch
-
-    echo "Checking out $branch branch for $repo_name"
-    git checkout $branch
-
-    if [ -d "../cache_$repo_name" ]; then
-        echo "Attempting to restore cached build files"
-        
-        # Find and copy all *.so files
-        find "../cache_$repo_name" -name "*.so" -exec cp {} . \;
-        
-        # Copy the build directory if it exists
-        if [ -d "../cache_$repo_name/build" ]; then
-            echo "Restoring build directory"
-            cp -r "../cache_$repo_name/build" .
+        echo "Current branch: $(git branch --show-current)"
+        echo "Fetching updates for $repo_name"
+        git fetch
+        echo "Checking out $branch branch for $repo_name"
+        git checkout $branch
+        echo "Pulling latest changes"
+        git pull origin $branch
+    else
+        # Repository doesn't exist or isn't a git repo, clone it
+        if [ -d "$repo_name" ]; then
+            echo "Directory $repo_name exists but is not a git repository"
+            echo "Moving existing directory to cache_$repo_name"
+            mv "$repo_name" "cache_$repo_name"
         fi
         
-        # If there's a nested directory with the same name, check for build artifacts there too
-        if [ -d "../cache_$repo_name/$repo_name" ]; then
-            echo "Restoring nested build artifacts"
-            mkdir -p "$repo_name"
-            find "../cache_$repo_name/$repo_name" -name "*.so" -exec cp {} "$repo_name/" \;
+        echo "Cloning $repo_name from $repo_url"
+        git clone $repo_url
+        cd $repo_name
+        echo "Checking out $branch branch for $repo_name"
+        git checkout $branch
+        
+        # Restore build artifacts if we had a cached version
+        if [ -d "../cache_$repo_name" ]; then
+            echo "Attempting to restore cached build files"
+            # Find and copy all *.so files
+            find "../cache_$repo_name" -name "*.so" -exec cp {} . \;
+            # Copy the build directory if it exists
+            if [ -d "../cache_$repo_name/build" ]; then
+                echo "Restoring build directory"
+                cp -r "../cache_$repo_name/build" .
+            fi
+            # If there's a nested directory with the same name, check for build artifacts there too
+            if [ -d "../cache_$repo_name/$repo_name" ]; then
+                echo "Restoring nested build artifacts"
+                mkdir -p "$repo_name"
+                find "../cache_$repo_name/$repo_name" -name "*.so" -exec cp {} "$repo_name/" \;
+            fi
+            echo "Cached build files restored"
+            # Cleanup the cache directory
+            rm -rf "../cache_$repo_name"
         fi
-        
-        echo "Cached build files restored"
-        
-        # Cleanup the cache directory
-        rm -rf "../cache_$repo_name"
     fi
-
+    
     echo "Repository content for $repo_name"
     ls -al
-        
-    # Check for build files
+    
+    # Check for package files
     echo "Checking for package files in $repo_name:"
     if [ -f "setup.py" ]; then
         echo "Found setup.py in root directory"
@@ -92,7 +91,7 @@ install_repo() {
         echo "No standard Python package files found in root directory"
     fi
     
-    # Always run the build command regardless of structure
+    # Run the build command
     echo "Building with command: $build_cmd"
     eval $build_cmd
     
