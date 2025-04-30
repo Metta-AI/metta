@@ -143,6 +143,7 @@ class MettaGridCurriculum(Curriculum):
         """
         cfg = OmegaConf.create(copy.deepcopy(self._cfg_template))
         OmegaConf.resolve(cfg)
+        logger.info(f"Creating task with config with frozen_duration {cfg.agent.freeze_duration}")
         return MettaGridTask("default", self, cfg)
 
     def complete_task(self, id: str, score: float):

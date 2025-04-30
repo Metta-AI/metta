@@ -9,6 +9,7 @@ trainer:
   env_overrides:
     game:
       max_steps: 13
+      sampling: 0.7
   evaluate_interval: 200
   optimizer:
     type: muon
@@ -16,6 +17,7 @@ trainer:
 sim:
   env: /env/mettagrid/navigation/training/multienv_with_cylinder
   env_overrides:
+    sampling: 0.7
     game:
       max_steps: 13
 
