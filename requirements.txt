@@ -26,7 +26,7 @@ tqdm>=4.67.1
 # Machine Learning / RL
 # ==========================
 pettingzoo>=1.24.1
-tensordict>=0.7.2
+tensordict>=0.6.2
 wandb==0.19.9
 
 # ==========================
