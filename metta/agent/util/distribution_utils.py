@@ -68,9 +68,7 @@ def sample_logits_old(logits: Union[torch.Tensor, List[torch.Tensor]], action=No
 
 
 @torch.jit.script
-def sample_logits(
-    logits: List[Tensor], provided_actions: Optional[Tensor] = None
-) -> Tuple[Tensor, Tensor, Tensor, List[Tensor]]:
+def sample_logits(logits: List[Tensor], action: Optional[Tensor] = None) -> Tuple[Tensor, Tensor, Tensor, List[Tensor]]:
     """
     Sample actions from a list of unnormalized logits and compute associated log-probabilities and entropy.
 
@@ -88,7 +86,7 @@ def sample_logits(
         logits:
             List of unnormalized logits (pre-softmax), one per action component.
             Each tensor has shape [batch_size, num_classes_i], where num_classes_i can vary per component.
-        provided_actions:
+        action:
             Optional tensor of shape [A, B, num_components], where A x B = batch_size
             If provided, these actions will be used instead of sampling.
 
@@ -108,7 +106,7 @@ def sample_logits(
     device = logits[0].device
 
     # Step 2: Determine the actions to evaluate
-    if provided_actions is None:
+    if action is None:
         # If no actions are provided, sample from each logit independently
 
         # Create tensor to hold sampled actions, shape: [num_components, batch_size]
@@ -119,7 +117,7 @@ def sample_logits(
             output_action[i] = torch.multinomial(probs, 1).squeeze(-1)
     else:
         # If actions are provided, reshape them to [num_components, batch_size]
-        output_action = provided_actions.view(batch_size, -1).T
+        output_action = action.view(batch_size, -1).T
 
     # Step 3: Compute log-probabilities for each selected action component
     joint_logprob = torch.zeros(batch_size, device=device)

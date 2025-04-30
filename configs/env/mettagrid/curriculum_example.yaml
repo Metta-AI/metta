@@ -7,7 +7,9 @@ defaults:
 
 min_steps_per_info: 1000
 
-num_agents: 1
+# put these at root
+num_agents_per_room: 1
+num_repeated_rooms: 9 # MultiRoom seems to want perfect squares?
 
 # these are overwritten during training
 progress:
@@ -20,7 +22,7 @@ progress:
 filtered_mean_reward: ${iir:0.1,${.progress.mean_reward},${.progress.last_mean_reward}}
 
 game:
-  num_agents: ${..num_agents}
+  num_agents: ${multiply:${..num_agents_per_room}, ${..num_repeated_rooms}}
 
   difficulty_increase_threshold: 7.0
   should_increase_difficulty: ${gt:${..filtered_mean_reward},${.difficulty_increase_threshold}}
@@ -35,7 +37,7 @@ game:
 
   # episode length 
   # max_steps: ${make_integer:${scale:${.difficulty},0,10,100,500,"linear"}}
-  max_steps: 500
+  max_steps: 400
 
   # scaling the map size as our experimental condition
   min_size: 10
@@ -43,16 +45,19 @@ game:
   size: ${make_integer:${uniform:${.min_size}, ${.max_size}}}
 
   map_builder:
-    _target_: mettagrid.config.room.random.Random
-
+    _target_: mettagrid.config.room.multi_room.MultiRoom
+    num_rooms: ${...num_repeated_rooms}
     border_width: 6
-    width: ${..size}
-    height: ${..size}
 
-    agents: ${..num_agents}
+    room:
+      _target_: mettagrid.config.room.random.Random
+      border_width: 6
+      width: ${...size}
+      height: ${...size}
+      agents: ${....num_agents_per_room}
 
-    objects:
-      altar: 10
+      objects:
+        altar: 10
 
   # actions:
   #   noop:
