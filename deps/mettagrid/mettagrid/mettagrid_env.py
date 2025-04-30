@@ -8,14 +8,14 @@ import time
 from typing import Any, Dict, Optional, Union
 
 import gymnasium as gym
-import hydra
 import numpy as np
 import numpy.typing as npt
 import pufferlib
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
 # Import with explicit comment about the pylint disable
-from mettagrid.mettagrid_c import MettaGrid  # C extension module
+from mettagrid.config.utils import simple_instantiate
+from mettagrid.mettagrid_c import MettaGrid  # pylint: disable=E0611
 
 
 def get_or_0(accessor_fn):
@@ -40,7 +40,14 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     rewards: np.ndarray
     actions: np.ndarray
 
-    def __init__(self, cfg: Union[DictConfig, ListConfig], render_mode: Optional[str], buf=None, **kwargs):
+    def __init__(
+        self,
+        cfg: Union[DictConfig, ListConfig],
+        render_mode: Optional[str],
+        env_map: Optional[np.ndarray] = None,
+        buf=None,
+        **kwargs,
+    ):
         """
         Initialize a MettaGridEnv.
 
@@ -54,9 +61,14 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self.last_episode_info: Dict[str, Any] = {}
         self.start_time = None
 
-        self._render_mode = render_mode
         self._original_cfg = cfg
+        self._render_mode = render_mode
+        self._renderer = None
+        self._env_map = env_map
+        self._map_builder = None
+
         self.active_cfg = self._resolve_original_cfg()
+        self.labels = OmegaConf.select(self.active_cfg, "labels", default=None)
 
         self.initialize_episode()
         super().__init__(buf)
@@ -115,13 +127,16 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         """Initialize a new episode."""
 
         # Instantiate map builder
-        self._map_builder = hydra.utils.instantiate(
-            self.active_cfg.game.map_builder,
-            _recursive_=self.active_cfg.game.recursive_map_builder,
-        )
+        if self._env_map is None:
+            self._map_builder = simple_instantiate(
+                self.active_cfg.game.map_builder,
+                recursive=self.active_cfg.game.get("recursive_map_builder", True),
+            )
+            env_map = self._map_builder.build()
+        else:
+            env_map = self._env_map
 
-        # Build map and verify agent count
-        env_map = self._map_builder.build()
+        # verify agent count
         map_agents = np.count_nonzero(np.char.startswith(env_map, "agent"))
         game_agents = get_or_0(lambda: self.active_cfg.game.num_agents)
         if game_agents != map_agents:
@@ -168,29 +183,40 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         # N.B. most of these are just for plots, but we are also using this as our memory space
         # for progress tracking. Please do not remove fields that are marked for this purpose!
-        self.last_episode_info.update(
-            {
-                "episode/reward.sum": rewards_sum,
-                "episode/reward.mean": rewards_mean,  # [progress tracking]
-                "episode/reward.min": rewards.min(),
-                "episode/reward.max": rewards.max(),
-                "episode/totals_steps": self._c_env.current_timestep(),
-                "episode/duration_sec": episode_duration,
-                "episode/timestamp": current_time,
-                "game": stats["game"],
-                "game/difficulty": get_or_0(lambda: self.active_cfg.game.difficulty),  # [progress tracking]
-                "game/max_steps": get_or_0(lambda: self.active_cfg.game.max_steps),
-                "game/min_size": get_or_0(lambda: self.active_cfg.game.min_size),
-                "game/max_size": get_or_0(lambda: self.active_cfg.game.max_size),
-                "game/width": get_or_0(lambda: self.active_cfg.game.map_builder["width"]),
-                "game/height": get_or_0(lambda: self.active_cfg.game.map_builder["height"]),
-                "progress/episode_count": get_or_0(lambda: self.active_cfg.progress.episode_count),
-                "progress/mean_reward": get_or_0(lambda: self.active_cfg.progress.mean_reward),  # [progress tracking]
-                "progress/last_mean_reward": get_or_0(lambda: self.active_cfg.progress.last_mean_reward),
-                "progress/last_difficulty": get_or_0(lambda: self.active_cfg.progress.last_difficulty),
-                "agent": agent_stats,
-            }
-        )
+        update_dict = {
+            "episode/reward.sum": rewards_sum,
+            "episode/reward.mean": rewards_mean,  # [progress tracking]
+            "episode/reward.min": rewards.min(),
+            "episode/reward.max": rewards.max(),
+            "episode/totals_steps": self._c_env.current_timestep(),
+            "episode/duration_sec": episode_duration,
+            "episode/timestamp": current_time,
+            "game": stats["game"],
+            "game/difficulty": get_or_0(lambda: self.active_cfg.game.difficulty),  # [progress tracking]
+            "game/max_steps": get_or_0(lambda: self.active_cfg.game.max_steps),
+            "game/min_size": get_or_0(lambda: self.active_cfg.game.min_size),
+            "game/max_size": get_or_0(lambda: self.active_cfg.game.max_size),
+            "game/width": get_or_0(lambda: self.active_cfg.game.map_builder["width"]),
+            "game/height": get_or_0(lambda: self.active_cfg.game.map_builder["height"]),
+            "progress/episode_count": get_or_0(lambda: self.active_cfg.progress.episode_count),
+            "progress/mean_reward": get_or_0(lambda: self.active_cfg.progress.mean_reward),  # [progress tracking]
+            "progress/last_mean_reward": get_or_0(lambda: self.active_cfg.progress.last_mean_reward),
+            "progress/last_difficulty": get_or_0(lambda: self.active_cfg.progress.last_difficulty),
+            "agent": agent_stats,
+        }
+
+        # Add map labels if they exist
+        if self._map_builder is not None and self._map_builder.labels is not None:
+            for label in self._map_builder.labels:
+                update_dict[f"rewards/map:{label}"] = rewards_mean
+
+        # Add environment labels if they exist
+        if self.labels is not None:
+            for label in self.labels:
+                update_dict[f"rewards/env:{label}"] = rewards_mean
+
+        # Do a single update with the complete dictionary
+        self.last_episode_info.update(update_dict)
 
         # we back the property self.done with this value because
         # it is accessed thousands of times per step!
@@ -214,6 +240,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         # resolve a new map
         self.active_cfg = self._resolve_original_cfg()
+        self.labels = OmegaConf.select(self.active_cfg, "labels", default=None)
 
         self.initialize_episode()
         self._c_env.set_buffers(self.observations, self.terminals, self.truncations, self.rewards)
@@ -301,6 +328,12 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         """Number of agents in the environment."""
         return self._num_agents
 
+    def render(self):
+        if self._renderer is None:
+            return None
+
+        return self._renderer.render(self._c_env.current_timestep(), self._c_env.grid_objects())
+
     @property
     def done(self):
         # cache this property value because it is accessed many times per step
@@ -349,6 +382,9 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     def object_type_names(self):
         """Names of object types in the environment."""
         return self._c_env.object_type_names()
+
+    def inventory_item_names(self):
+        return self._c_env.inventory_item_names()
 
     def close(self):
         """Close the environment."""
