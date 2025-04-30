@@ -16,8 +16,7 @@ from mettagrid.grid_env cimport GridEnv
 from mettagrid.grid_object cimport GridObject
 from mettagrid.observation_encoder cimport (
     ObsType,
-    ObservationEncoder,
-    SemiCompactObservationEncoder
+    ObservationEncoder
 )
 
 # Object imports
