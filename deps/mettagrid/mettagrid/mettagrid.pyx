@@ -51,8 +51,6 @@ cdef class MettaGrid(GridEnv):
         self._cfg = cfg
 
         obs_encoder = ObservationEncoder()
-        if env_cfg.semi_compact_obs:
-            obs_encoder = SemiCompactObservationEncoder()
         cdef vector[ActionHandler*] actions
         if cfg.actions.put_items.enabled:
             actions.push_back(new PutRecipeItems(cfg.actions.put_items))
