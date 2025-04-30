@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - "player/**" # Run when any file in player directory changes
+      - "deps/mettagrid/player/**" # Run when any file in player directory changes
       - ".github/workflows/**" # Run when workflow files change
   workflow_dispatch: {} # Allow manual triggers
 
