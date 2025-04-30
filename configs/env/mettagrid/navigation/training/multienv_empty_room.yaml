@@ -1,0 +1,11 @@
+_target_: mettagrid.mettagrid_env.MettaGridEnvSet
+
+num_agents: 4
+
+game:
+  num_agents: ${..num_agents}
+
+envs:
+  env/mettagrid/navigation/training/varied_terrain: 0.33
+  env/mettagrid/navigation/training/terrain_from_numpy: 0.33
+  env/mettagrid/navigation/training/empty_room: 0.34
