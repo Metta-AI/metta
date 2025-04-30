@@ -4,7 +4,7 @@ defaults:
   - _self_
 
 # Basic config variables
-run_id: 21
+run_id: 23
 run: ${oc.env:USER}.local.${run_id}
 data_dir: ./train_dir
 run_dir: ${data_dir}/${run}

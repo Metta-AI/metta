@@ -76,23 +76,6 @@ class ReplayHelper:
                 )
         self.step += 1
 
-    def log_step(self, actions: np.ndarray, rewards: np.ndarray):
-        for i, grid_object in enumerate(self.env.grid_objects.values()):
-            if len(self.grid_objects) <= i:
-                self.grid_objects.append({})
-            for key, value in grid_object.items():
-                self._add_sequence_key(self.grid_objects[i], key, self.step, value)
-            if "agent_id" in grid_object:
-                agent_id = grid_object["agent_id"]
-                self._add_sequence_key(self.grid_objects[i], "action", self.step, actions[agent_id].tolist())
-                self._add_sequence_key(
-                    self.grid_objects[i], "action_success", self.step, bool(self.env.action_success[agent_id])
-                )
-                self._add_sequence_key(self.grid_objects[i], "reward", self.step, rewards[agent_id].item())
-                self._add_sequence_key(
-                    self.grid_objects[i], "total_reward", self.step, self.total_rewards[agent_id].item()
-                )
-
     def write_replay(self, replay_path: str, epoch: int = 0, dry_run: bool = False):
         self.replay["max_steps"] = self.step
         # Trim value changes to make them more compact.
