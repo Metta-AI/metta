@@ -1,18 +1,10 @@
+from typing import Optional
+
 import torch
-from tensordict import TensorDict, tensorclass
+from tensordict import TensorClass
 
 
-@tensorclass
-class PolicyState(TensorDict):
-    lstm_h: torch.Tensor
-    lstm_c: torch.Tensor
-    hidden: torch.Tensor
-
-    def __init__(self, lstm_h=None, lstm_c=None, hidden=None):
-        super().__init__(
-            {
-                "lstm_h": lstm_h,
-                "lstm_c": lstm_c,
-                "hidden": hidden,
-            }
-        )
+class PolicyState(TensorClass):
+    lstm_h: Optional[torch.Tensor] = None
+    lstm_c: Optional[torch.Tensor] = None
+    hidden: Optional[torch.Tensor] = None
