@@ -7,14 +7,14 @@ import hydra
 
 from metta.agent.policy_store import PolicyStore
 from metta.sim.replay_helper import ReplayHelper
-from metta.sim.simulation_config import SimulationConfig
+from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.util.config import Config, setup_metta_environment
 from metta.util.runtime_configuration import setup_mettagrid_environment
 from metta.util.wandb.wandb_context import WandbContext
 
 
 class ReplayJob(Config):
-    sim: SimulationConfig
+    sim: SimulationSuiteConfig
     policy_uri: str
 
 
@@ -27,7 +27,7 @@ def main(cfg):
         policy_store = PolicyStore(cfg, wandb_run)
         replay_job = ReplayJob(cfg.replay_job)
         policy_record = policy_store.policy(replay_job.policy_uri)
-        replay_helper = ReplayHelper(replay_job.sim, policy_record, wandb_run)
+        replay_helper = ReplayHelper(list(replay_job.sim.simulations.values())[0], policy_record, wandb_run)
         epoch = policy_record.metadata.get("epoch", 0)
         replay_helper.generate_and_upload_replay(
             epoch,
