@@ -1,0 +1,20 @@
+name: 'Label stale pull requests'
+on:
+  schedule:
+    - cron: '0 0 * * *'  # Runs at midnight every day
+  workflow_dispatch:
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/stale@v9
+        with:
+          days-before-stale: 3
+          days-before-close: -1  # Negative value means don't close automatically
+          stale-pr-label: 'stale'
+          stale-pr-message: 'This PR has been marked as stale due to 3 days of inactivity.'
+          remove-stale-when-updated: true
