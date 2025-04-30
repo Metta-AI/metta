@@ -8,7 +8,13 @@ import sys
 import boto3
 
 from metta.util.colorama import blue, bold, cyan, green, red, use_colors, yellow
-from metta.util.git import get_current_branch, has_unstaged_changes, is_commit_pushed
+from metta.util.git import (
+    get_branch_commit,
+    get_current_branch,
+    get_current_commit,
+    has_unstaged_changes,
+    is_commit_pushed,
+)
 
 
 def get_specs():
@@ -36,6 +42,9 @@ def container_config(args, task_args, job_name):
     total_vcpus = vcpus_per_gpu * args.node_gpus
     memory_mb = args.node_ram_gb * 1024
 
+    # Determine the git reference to use (commit or branch)
+    git_ref = args.git_commit if args.git_commit else args.git_branch
+
     env_vars = [
         {"name": "HYDRA_FULL_ERROR", "value": "1"},
         {"name": "WANDB_API_KEY", "value": wandb_key},
@@ -55,13 +64,13 @@ def container_config(args, task_args, job_name):
         {"name": "CMD", "value": args.cmd},
         {"name": "NUM_GPUS", "value": str(args.node_gpus)},
         {"name": "NUM_WORKERS", "value": str(vcpus_per_gpu)},
-        {"name": "GIT_REF", "value": args.git_branch or args.git_commit},
+        {"name": "GIT_REF", "value": git_ref},
         {"name": "TASK_ARGS", "value": " ".join(task_args)},
     ]
 
     entrypoint_cmd = [
         "git fetch",
-        f"git checkout {args.git_branch or args.git_commit}",
+        f"git checkout {git_ref}",
         "./devops/aws/batch/entrypoint.sh",
     ]
 
@@ -135,6 +144,9 @@ def validate_batch_job(args, task_args, job_name, job_queue, job_definition, req
         print(yellow("Commit or stash your changes, or use --skip-validation to bypass this check."))
         return False
 
+    # Get the git reference
+    git_ref = args.git_commit if args.git_commit else args.git_branch
+
     # Display job details
     print(f"\n{divider}")
     print(bold("Job will be submitted with the following details:"))
@@ -149,7 +161,7 @@ def validate_batch_job(args, task_args, job_name, job_queue, job_definition, req
     print(f"Total GPUs: {args.gpus}")
     print(f"vCPUs per GPU: {args.gpu_cpus}")
     print(f"RAM per Node: {args.node_ram_gb} GB")
-    print(f"Git Reference: {args.git_branch or args.git_commit}")
+    print(f"Git Reference: {git_ref}")
     print(f"{'-' * 40}")
     print(f"Command: {args.cmd}")
     if task_args:
@@ -234,8 +246,12 @@ def main():
     parser.add_argument(
         "--cmd", required=True, choices=["train", "sweep", "evolve", "sandbox"], help="The command to run."
     )
-    parser.add_argument("--git-branch", default="origin/main")
-    parser.add_argument("--git-commit", default=None)
+
+    # Git reference group - default is to use current commit
+    git_group = parser.add_mutually_exclusive_group()
+    git_group.add_argument("--git-branch", help="Use the HEAD of a specific git branch instead of current commit")
+    git_group.add_argument("--git-commit", help="Use a specific git commit hash")
+
     parser.add_argument("--gpus", type=int, default=1)
     parser.add_argument("--node-gpus", type=int, default=1)
     parser.add_argument("--gpu-cpus", type=int)
@@ -259,30 +275,48 @@ def main():
     if args.gpu_cpus is None:
         args.gpu_cpus = specs[args.node_gpus]["gpu_cpus"]
 
-    # If a commit hash is specified, it takes precedence over branch
-    if args.git_commit:
-        args.git_branch = None
-
-        # Validate that the commit is pushed
-        if not args.skip_push_check and not is_commit_pushed(args.git_commit):
-            print(red(f"Error: Git commit {args.git_commit} has not been pushed."))
-            print("Please push or use --skip-push-check to bypass.")
+    # Use current commit hash by default if neither commit nor branch is specified
+    if not args.git_commit and not args.git_branch:
+        args.git_commit = get_current_commit()
+        if not args.git_commit:
+            print(red("Error: Could not get current commit hash. Ensure you're in a git repository."))
             sys.exit(1)
-    else:
-        # We're using a branch (either specified or default to origin/main)
-        # Check if we're on a different branch locally
+        print(green(f"Using current commit: {args.git_commit}"))
+
+    # If a branch is specified, look up its current commit on origin
+    elif args.git_branch:
+        original_branch_ref = args.git_branch
+        # Ensure branch has origin/ prefix if not already
+        if not args.git_branch.startswith("origin/") and not args.git_branch.startswith("refs/"):
+            args.git_branch = f"origin/{args.git_branch}"
+
+        # Get the current commit for this branch
+        branch_commit = get_branch_commit(args.git_branch)
+        if not branch_commit:
+            print(red(f"Error: Failed to get commit for branch '{args.git_branch}'"))
+            sys.exit(1)
+
+        print(green(f"Using commit {branch_commit} from branch {original_branch_ref}"))
+        args.git_commit = branch_commit
+
+        # Let user know we're using the commit, not the branch reference
+        print(yellow("Converting branch reference to specific commit hash for stability."))
+
+        # Check if we're on a different branch locally (just as a warning)
         current_branch = get_current_branch()
-        if current_branch and current_branch != args.git_branch.replace("origin/", "") and not args.skip_validation:
+        clean_branch_name = original_branch_ref.replace("origin/", "")
+        if current_branch and current_branch != clean_branch_name and not args.skip_validation:
             print(
                 yellow(
-                    f"Warning: You are currently on branch '{current_branch}' "
-                    f"but submitting a job for '{args.git_branch}'."
+                    f"Note: You are currently on branch '{current_branch}' but submitted a job based on '{original_branch_ref}'."
                 )
             )
-            response = input("Continue anyway? (y/N): ")
-            if response.lower() not in ["y", "yes"]:
-                print(yellow("Job submission cancelled due to branch mismatch."))
-                sys.exit(1)
+
+    # Validate that the commit is pushed
+    if not args.skip_push_check and not is_commit_pushed(args.git_commit):
+        print(red(f"Error: Git commit {args.git_commit} has not been pushed."))
+        print("Please push your commit or use --skip-push-check to bypass.")
+        sys.exit(1)
 
     for _ in range(args.copies):
         submit_batch_job(args, task_args)

@@ -1,4 +1,3 @@
-# Create a new file: metta/util/github.py
 import subprocess
 
 
@@ -48,3 +47,23 @@ def has_unstaged_changes(repo_path=None):
         return bool(result.stdout.strip())
     except subprocess.CalledProcessError:
         return False
+
+
+def get_branch_commit(branch_name, repo_path=None):
+    """Get the latest commit hash on a branch, including remote branches."""
+    try:
+        # Make sure we have the latest remote data
+        fetch_cmd = ["git", "fetch", "--quiet"]
+        if repo_path:
+            fetch_cmd = ["git", "-C", repo_path, "fetch", "--quiet"]
+        subprocess.run(fetch_cmd, check=True)
+
+        # Get the commit hash for the branch
+        rev_cmd = ["git", "rev-parse", branch_name]
+        if repo_path:
+            rev_cmd = ["git", "-C", repo_path, "rev-parse", branch_name]
+
+        result = subprocess.run(rev_cmd, capture_output=True, text=True, check=True)
+        return result.stdout.strip()
+    except subprocess.CalledProcessError:
+        return None
