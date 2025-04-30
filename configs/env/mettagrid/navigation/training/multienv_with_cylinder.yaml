@@ -7,6 +7,7 @@ game:
   num_agents: ${..num_agents}
 
 envs:
-  /env/mettagrid/navigation/training/terrain_from_numpy: 0.5
+  /env/mettagrid/navigation/training/terrain_from_numpy: 0.4
   /env/mettagrid/navigation/training/varied_terrain: 0.4
   /env/mettagrid/navigation/training/cylinder_world: 0.1
+  /env/mettagrid/maps/diversity/left_or_right: 0.1
