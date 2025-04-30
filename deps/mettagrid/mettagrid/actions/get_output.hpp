@@ -37,20 +37,27 @@ protected:
       return false;
     }
 
+    // Actions is only successful if we take at least one item.
+    bool items_taken = false;
+
     for (size_t i = 0; i < InventoryItem::InventoryCount; i++) {
       if (converter->recipe_output[i] == 0) {
         // We only want to take things the converter can produce. Otherwise it's a pain to
         // collect resources from a converter that's in the middle of processing a queue.
         continue;
       }
-      // The actor will destroy anything it can't hold. That's not intentional, so feel free
-      // to fix it.
-      actor->stats.add(InventoryItemNames[i], "get", converter->inventory[i]);
-      actor->update_inventory(static_cast<InventoryItem>(i), converter->inventory[i]);
-      converter->update_inventory(static_cast<InventoryItem>(i), -converter->inventory[i]);
+      // Only take resources if the converter has some.
+      if (converter->inventory[i] > 0) {
+        // The actor will destroy anything it can't hold. That's not intentional, so feel free
+        // to fix it.
+        actor->stats.add(InventoryItemNames[i], "get", converter->inventory[i]);
+        actor->update_inventory(static_cast<InventoryItem>(i), converter->inventory[i]);
+        converter->update_inventory(static_cast<InventoryItem>(i), -converter->inventory[i]);
+        items_taken = true;
+      }
     }
 
-    return true;
+    return items_taken;
   }
 };
 
