@@ -14,9 +14,15 @@ from mettagrid.resolvers import (
     oc_clamp,
     oc_divide,
     oc_equals,
+    oc_greater_than,
+    oc_greater_than_or_equal,
     oc_if,
+    oc_iir,
+    oc_less_than,
+    oc_less_than_or_equal,
     oc_make_integer,
     oc_multiply,
+    oc_scale,
     oc_scaled_range,
     oc_subtract,
     oc_to_odd_min3,
@@ -208,6 +214,91 @@ class TestBasicResolvers:
         assert oc_to_odd_min3(value) == expected
 
 
+class TestComparisonResolvers:
+    """Tests for comparison resolver functionality"""
+
+    @pytest.mark.parametrize(
+        "a,b,expected",
+        [
+            (5, 3, True),
+            (3, 5, False),
+            (4, 4, False),
+        ],
+    )
+    def test_greater_than(self, a, b, expected):
+        """Test greater than resolver with various inputs"""
+        assert oc_greater_than(a, b) is expected
+
+    @pytest.mark.parametrize(
+        "a,b,expected",
+        [
+            (3, 5, True),
+            (5, 3, False),
+            (4, 4, False),
+        ],
+    )
+    def test_less_than(self, a, b, expected):
+        """Test less than resolver with various inputs"""
+        assert oc_less_than(a, b) is expected
+
+    @pytest.mark.parametrize(
+        "a,b,expected",
+        [
+            (5, 5, True),
+            (6, 5, True),
+            (4, 5, False),
+        ],
+    )
+    def test_greater_than_or_equal(self, a, b, expected):
+        """Test greater than or equal resolver with various inputs"""
+        assert oc_greater_than_or_equal(a, b) is expected
+
+    @pytest.mark.parametrize(
+        "a,b,expected",
+        [
+            (5, 5, True),
+            (4, 5, True),
+            (6, 5, False),
+        ],
+    )
+    def test_less_than_or_equal(self, a, b, expected):
+        """Test less than or equal resolver with various inputs"""
+        assert oc_less_than_or_equal(a, b) is expected
+
+
+class TestAdvancedResolvers:
+    """Tests for advanced resolver functionality"""
+
+    @pytest.mark.parametrize(
+        "alpha,new_value,last_value,expected",
+        [
+            (0.9, 10.0, 5.0, pytest.approx(9.5)),  # 0.9*10 + 0.1*5
+            (0.5, 8.0, 4.0, pytest.approx(6.0)),  # 0.5*8 + 0.5*4
+            (1.0, 7.0, 3.0, pytest.approx(7.0)),  # 1.0*7 + 0.0*3
+            (0.0, 7.0, 3.0, pytest.approx(3.0)),  # 0.0*7 + 1.0*3
+        ],
+    )
+    def test_iir(self, alpha, new_value, last_value, expected):
+        """Test Infinite Impulse Response filter with various inputs"""
+        assert oc_iir(alpha, new_value, last_value) == expected
+
+    @pytest.mark.parametrize(
+        "value,in_min,in_max,out_min,out_max,scale_type,expected",
+        [
+            (0.0, 0.0, 1.0, 0.0, 10.0, "linear", 0.0),
+            (0.5, 0.0, 1.0, 0.0, 10.0, "linear", 5.0),
+            (1.0, 0.0, 1.0, 0.0, 10.0, "linear", 10.0),
+            (0.5, 0.0, 1.0, 0.0, 1.0, "sigmoid", pytest.approx(0.5, abs=0.1)),
+            (0.5, 0.0, 1.0, 1.0, 100.0, "exp", pytest.approx(24.76, abs=0.5)),
+            (0.5, 0.0, 1.0, 1.0, 100.0, "log", pytest.approx(74.26, abs=0.5)),
+        ],
+    )
+    def test_scale(self, value, in_min, in_max, out_min, out_max, scale_type, expected):
+        """Test value scaling with different types and ranges"""
+        result = oc_scale(value, in_min, in_max, out_min, out_max, scale_type)
+        assert result == expected
+
+
 class TestScaledRange:
     """Tests for the sampling (scaled range) resolver"""
 
@@ -305,9 +396,6 @@ class TestConfigIntegration:
 
     def test_sampling_resolver_random(self, omega_conf_with_sampling):
         """Test the sampling resolver in random mode"""
-
-        print(f"On entry - {omega_conf_with_sampling}")
-
         # Change to random mode and set seed
         np.random.seed(42)
 
@@ -316,11 +404,12 @@ class TestConfigIntegration:
         omega_conf_with_sampling.param1 = "${sampling:1,100,50}"
         omega_conf_with_sampling.param2 = "${sampling:1,100,25}"
 
+        # Debug prints
+        print(f"On entry - {omega_conf_with_sampling}")
         print(f"after overwrite - {omega_conf_with_sampling}")
 
         # Resolve and check
         OmegaConf.resolve(omega_conf_with_sampling)
-
         print(f"after resolve - {omega_conf_with_sampling}")
 
         resolved = OmegaConf.to_container(omega_conf_with_sampling)
@@ -332,7 +421,6 @@ class TestConfigIntegration:
         from typing import Dict, cast
 
         resolved_dict = cast(Dict[str, Any], resolved)
-
         print(f"resolved_dict - {resolved_dict}")
 
         # Values should now be randomized, but within range
