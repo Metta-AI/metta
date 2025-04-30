@@ -32,11 +32,15 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         return env_cfg
 
     def _reset_env(self):
-        self._map_builder = hydra.utils.instantiate(
-            self._env_cfg.game.map_builder,
-            _recursive_=self._env_cfg.game.recursive_map_builder,
-        )
-        env_map = self._map_builder.build()
+        if self._env_map is None:
+            self._map_builder = simple_instantiate(
+                self._env_cfg.game.map_builder,
+                recursive=self._env_cfg.game.get("recursive_map_builder", True),
+            )
+            env_map = self._map_builder.build()
+        else:
+            env_map = self._env_map
+
         map_agents = np.count_nonzero(np.char.startswith(env_map, "agent"))
         assert self._env_cfg.game.num_agents == map_agents, (
             f"Number of agents {self._env_cfg.game.num_agents} does not match number of agents in map {map_agents}"
