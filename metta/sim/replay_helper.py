@@ -56,6 +56,7 @@ class ReplayHelper:
 
             actions_array = actions.cpu().numpy()
 
+            # Add pre simulation data, position, hp, etc.
             for i, grid_object in enumerate(simulator.grid_objects()):
                 if len(grid_objects) <= i:
                     # Add new grid object.
@@ -66,6 +67,13 @@ class ReplayHelper:
                 if "agent_id" in grid_object:
                     agent_id = grid_object["agent_id"]
                     self._add_sequence_key(grid_objects[i], "action", step, actions_array[agent_id].tolist())
+
+            simulator.step(actions)
+
+            # Add post simulation data, like action success.
+            for i, grid_object in enumerate(simulator.grid_objects()):
+                if "agent_id" in grid_object:
+                    agent_id = grid_object["agent_id"]
                     self._add_sequence_key(
                         grid_objects[i], "action_success", step, bool(simulator.env.action_success[agent_id])
                     )
@@ -73,8 +81,6 @@ class ReplayHelper:
                     self._add_sequence_key(
                         grid_objects[i], "total_reward", step, simulator.total_rewards[agent_id].item()
                     )
-
-            simulator.step(actions)
 
             step += 1
 
