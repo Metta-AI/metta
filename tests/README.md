@@ -2,15 +2,15 @@
 
 Follow generic best practices. With help from our friend Claude, here are some generic points
 * Tests should be independent and idempotent. Tests shouldn't pass or fail based on other tests.
-* Tests should be focussed. Test one thing per test.
+* Tests should be focused. Test one thing per test.
 * Tests should be fast and efficient.
 * Tests should cover edge cases and boundary conditions, not just the happy path.
 * External dependencies should be appropriately mocked, so your test can be focused on what it's testing.
 * Tests should be readable by humans.
 
 In addition to these generic points, here are some other thoughts:
-* If you need to fix a bug or a regression, you should probably write a test that would have caught it.
-* Unit tests are better because they're faster. Integration tests are better because they're more comprehensive.
+* If you need to fix a bug or a regression, you should first try to reproduce the bug as a test, and then fix it. Second best is to fix it and then write a test that would have caught it.
+* Unit tests are better because they're faster. Integration tests are better because they're more directly connected to usage (e.g., actually training).
 * LLMs should be writing most of your tests, but you should review them to make sure they're covering what they should be.
 
 # Testing Structure
