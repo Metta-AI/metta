@@ -1,4 +1,9 @@
+from typing import List
+
 import torch
+
+from metta.agent.policy_state import PolicyState
+from metta.agent.util.distribution_utils import sample_logits
 
 
 class Kickstarter:
@@ -42,20 +47,18 @@ class Kickstarter:
                 policy = torch.compile(policy, mode=self.compile_mode)
             self.teachers.append(policy)
 
-    def loss(self, agent_step, student_normalized_logits, student_value, o, teacher_lstm_state=None):
+    def loss(self, agent_step, student_normalized_logits, student_value, o, teacher_lstm_state: List[PolicyState]):
         ks_value_loss = torch.tensor(0.0, device=self.device)
         ks_action_loss = torch.tensor(0.0, device=self.device)
 
         if not self.enabled or agent_step > self.kickstart_steps:
-            return ks_action_loss, ks_value_loss, teacher_lstm_state
+            return ks_action_loss, ks_value_loss
 
-        if teacher_lstm_state is None:
-            teacher_lstm_state = [None for _ in range(len(self.teachers))]
+        if len(teacher_lstm_state) == 0:
+            teacher_lstm_state = [PolicyState() for _ in range(len(self.teachers))]
 
         for i, teacher in enumerate(self.teachers):
-            teacher_value, teacher_normalized_logits, teacher_lstm_state[i] = self._forward(
-                teacher, o, teacher_lstm_state[i]
-            )
+            teacher_value, teacher_normalized_logits = self._forward(teacher, o, teacher_lstm_state[i])
 
             for i in range(self.spaces):
                 ks_action_loss -= (teacher_normalized_logits[i].exp() * student_normalized_logits[i]).sum(dim=-1).mean()
@@ -64,12 +67,9 @@ class Kickstarter:
 
             ks_value_loss += ((teacher_value.squeeze() - student_value) ** 2).mean() * teacher.value_loss_coef
 
-        return ks_action_loss, ks_value_loss, teacher_lstm_state
+        return ks_action_loss, ks_value_loss
 
-    def _forward(self, teacher, o, teacher_lstm_state):
-        # teacher e3b?
-        _, _, _, teacher_value, teacher_lstm_state, next_e3b, intrinsic_reward, teacher_normalized_logits = teacher(
-            o, teacher_lstm_state, e3b=None
-        )
-
-        return teacher_value, teacher_normalized_logits, teacher_lstm_state
+    def _forward(self, teacher, o, teacher_lstm_state: PolicyState):
+        logits, value = teacher(o, teacher_lstm_state)
+        _, _, _, norm_logits = sample_logits(logits)
+        return value, norm_logits
