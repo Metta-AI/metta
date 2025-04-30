@@ -80,17 +80,19 @@ class VariedTerrain(Room):
         border_object: str = "wall",
         occupancy_threshold: float = 0.66,  # maximum fraction of grid cells to occupy
         style: str = "balanced",
+        team: str| None = None,
     ):
         super().__init__(border_width=border_width, border_object=border_object, labels = [style])
 
-        width = np.random.randint(70, 120)
-        height = np.random.randint(70, 120)
+        width = np.random.randint(40, 100)
+        height = np.random.randint(40, 100)
 
         self.set_size_labels(width, height)
         self._rng = np.random.default_rng(seed)
         self._width = width
         self._height = height
         self._agents = agents
+        self._team = team
         self._occupancy_threshold = occupancy_threshold
 
         if style not in self.STYLE_PARAMETERS:
@@ -138,12 +140,11 @@ class VariedTerrain(Room):
 
     def _build(self) -> np.ndarray:
         # Prepare agent symbols.
-        if isinstance(self._agents, int):
-            agents = ["agent.agent"] * self._agents
-        elif isinstance(self._agents, dict):
-            agents = ["agent." + agent for agent, na in self._agents.items() for _ in range(na)]
+        if self._team is None:
+            if isinstance(self._agents, int):
+                agents = ["agent.agent"] * self._agents
         else:
-            agents = []
+            agents = ["agent." + self._team] * self._agents
 
         # Create an empty grid.
         grid = np.full((self._height, self._width), "empty", dtype=object)

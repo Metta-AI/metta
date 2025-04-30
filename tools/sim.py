@@ -20,6 +20,7 @@ class SimJob(Config):
     simulation_suite: SimulationSuiteConfig
     policy_uris: List[str]
     selector_type: str = "latest"
+    metric: str = "score"
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -28,7 +29,7 @@ class SimJob(Config):
 def simulate_policy(sim_job: SimJob, policy_uri: str, cfg: DictConfig, wandb_run, logger: Logger):
     # TODO: Remove dependence on cfg in PolicyStore
     policy_store = PolicyStore(cfg, wandb_run)
-    policy_prs = policy_store.policies(policy_uri, sim_job.selector_type)
+    policy_prs = policy_store.policies(policy_uri, sim_job.selector_type, n=1, metric=sim_job.metric)
     # For each checkpoint of the policy, simulate
     for pr in policy_prs:
         logger.info(f"Evaluating policy {pr.uri}")
