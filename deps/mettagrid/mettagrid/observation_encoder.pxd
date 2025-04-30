@@ -14,9 +14,4 @@ cdef class ObservationEncoder:
     cdef encode(self, GridObject *obj, ObsType[:] obs)
     cdef _encode(self, GridObject *obj, ObsType[:] obs, vector[unsigned int] offsets)
     cdef vector[string] feature_names(self)
-    cpdef observation_space(self)
-    cpdef obs_np_type(self)
-
-cdef class SemiCompactObservationEncoder(ObservationEncoder):
-    pass
 
