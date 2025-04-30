@@ -1,7 +1,6 @@
 import copy
 from typing import Any, Dict, Optional
 
-import hydra
 import gymnasium as gym
 import numpy as np
 import pufferlib
