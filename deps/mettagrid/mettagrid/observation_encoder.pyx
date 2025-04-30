@@ -1,6 +1,3 @@
-import numpy as np
-import gymnasium as gym
-
 from libcpp.string cimport string
 from libcpp.vector cimport vector
 from libcpp.map cimport map
@@ -14,9 +11,6 @@ from mettagrid.objects.converter cimport Converter
 from mettagrid.objects.wall cimport Wall
 
 cdef class ObservationEncoder:
-    cpdef obs_np_type(self):
-        return np.uint8
-    
     cdef init(self, unsigned int obs_width, unsigned int obs_height):
         self._obs_width = obs_width
         self._obs_height = obs_height
@@ -24,7 +18,6 @@ cdef class ObservationEncoder:
     def __init__(self) -> None:
         self._offsets.resize(ObjectType.Count)
         self._type_feature_names.resize(ObjectType.Count)
-        features = []
 
         self._type_feature_names[ObjectType.AgentT] = Agent.feature_names()
         self._type_feature_names[ObjectType.WallT] = Wall.feature_names()
@@ -34,38 +27,7 @@ cdef class ObservationEncoder:
         # remove these types from code.
         for type_id in [ObjectType.AltarT, ObjectType.ArmoryT, ObjectType.FactoryT, ObjectType.GeneratorT, ObjectType.LabT, ObjectType.LaseryT, ObjectType.MineT, ObjectType.TempleT]:
             self._type_feature_names[type_id] = Converter.feature_names(type_id)
-
-        for type_id in range(ObjectType.Count):
-            for i in range(len(self._type_feature_names[type_id])):
-                self._offsets[type_id].push_back(len(features))
-                features.append(self._type_feature_names[type_id][i])
-        self._feature_names = features
-
-    cdef encode(self, GridObject *obj, ObsType[:] obs):
-        self._encode(obj, obs, self._offsets[obj._type_id])
-
-    cdef _encode(self, GridObject *obj, ObsType[:] obs, vector[unsigned int] offsets):
-        obj.obs(&obs[0], offsets)
-
-    cdef vector[string] feature_names(self):
-        return self._feature_names
-    
-    cpdef observation_space(self):
-        type_info = np.iinfo(self.obs_np_type())
-
-        return gym.spaces.Box(
-                    low=type_info.min, high=type_info.max,
-                    shape=(
-                        len(self.feature_names()),
-                        self._obs_height, self._obs_width),
-            dtype=self.obs_np_type()
-        )
-
-cdef class SemiCompactObservationEncoder(ObservationEncoder):
-    def __init__(self) -> None:
-        super().__init__()
-        self._offsets.resize(ObjectType.Count)
-        self._type_feature_names.resize(ObjectType.Count)
+        
         # Generate an offset for each unique feature name.
         cdef map[string, int] features
         cdef vector[string] feature_names
@@ -77,6 +39,15 @@ cdef class SemiCompactObservationEncoder(ObservationEncoder):
         # Set the offset for each feature, using the global offsets.
         for type_id in range(ObjectType.Count):
             for i in range(len(self._type_feature_names[type_id])):
-                self._offsets[type_id][i] = features[self._type_feature_names[type_id][i]]
+                self._offsets[type_id].push_back(features[self._type_feature_names[type_id][i]])
 
         self._feature_names = feature_names
+
+    cdef encode(self, GridObject *obj, ObsType[:] obs):
+        self._encode(obj, obs, self._offsets[obj._type_id])
+
+    cdef _encode(self, GridObject *obj, ObsType[:] obs, vector[unsigned int] offsets):
+        obj.obs(&obs[0], offsets)
+
+    cdef vector[string] feature_names(self):
+        return self._feature_names

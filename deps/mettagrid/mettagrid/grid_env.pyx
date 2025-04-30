@@ -327,7 +327,6 @@ cdef class GridEnv:
 
     @property
     def observation_space(self):
-        space = self._obs_encoder.observation_space()
         return gym.spaces.Box(
             0,
             255,
