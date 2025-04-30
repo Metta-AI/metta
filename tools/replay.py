@@ -17,6 +17,8 @@ from metta.util.wandb.wandb_context import WandbContext
 class ReplayJob(Config):
     sim: SimulationSuiteConfig
     policy_uri: str
+    selector_type: str
+    metric: str
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -33,7 +35,9 @@ def main(cfg):
     with WandbContext(cfg) as wandb_run:
         policy_store = PolicyStore(cfg, wandb_run)
         replay_job = ReplayJob(cfg.replay_job)
-        policy_record = policy_store.policy(replay_job.policy_uri)
+        policy_record = policy_store.policy(
+            replay_job.policy_uri, selector_type=replay_job.selector_type, metric=replay_job.metric
+        )
         replay_helper = ReplayHelper(list(replay_job.sim.simulations.values())[0], policy_record, wandb_run)
         epoch = policy_record.metadata.get("epoch", 0)
         replay_helper.generate_and_upload_replay(
