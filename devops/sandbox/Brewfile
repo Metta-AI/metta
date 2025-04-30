@@ -5,6 +5,7 @@ brew "docker"
 brew "clang-format"
 brew "googletest"
 brew "google-benchmark"
+brew "amazon-efs-utils"
 
 # Applications
 cask "cursor"
