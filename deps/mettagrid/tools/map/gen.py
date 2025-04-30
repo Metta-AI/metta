@@ -13,6 +13,9 @@ from omegaconf import DictConfig, OmegaConf
 from mettagrid.config.utils import simple_instantiate
 from mettagrid.map.utils.show import ShowMode, show_map
 from mettagrid.map.utils.storable_map import StorableMap
+from mettagrid.resolvers import register_resolvers
+
+register_resolvers()
 
 # Aggressively exit on ctrl+c
 signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))

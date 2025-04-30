@@ -5,7 +5,10 @@ from typing import get_args
 from mettagrid.map.load_random import get_random_map_uri
 from mettagrid.map.utils.show import ShowMode, show_map
 from mettagrid.map.utils.storable_map import StorableMap
-from tools.map.gen import uri_is_file
+from mettagrid.resolvers import register_resolvers
+from mettagrid.tools.map.gen import uri_is_file
+
+register_resolvers()
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
