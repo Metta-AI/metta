@@ -99,12 +99,7 @@ class BaseTestSampleLogits:
         actions = torch.tensor([0, 1, 2][:batch_size])
 
         # Sample with provided actions
-        # For TorchScript implementation, we need to pass provided_actions instead of action
-        # This adapter method handles the difference in parameter naming
-        if self.sample_logits_func == sample_logits:
-            action, logprob, ent, normalized = self.sample_logits_func([batch_logits], provided_actions=actions)
-        else:
-            action, logprob, ent, normalized = self.sample_logits_func([batch_logits], action=actions)
+        action, logprob, _ent, _normalized = self.sample_logits_func([batch_logits], action=actions)
 
         # Flatten output if needed
         assert torch.equal(action.view(-1), actions)
@@ -132,10 +127,7 @@ class BaseTestSampleLogits:
 
         # Sample with provided actions
         # Adapt for TorchScript implementation parameter naming
-        if self.sample_logits_func == sample_logits:
-            action, logprob, ent, normalized = self.sample_logits_func([logits1, logits2], provided_actions=actions)
-        else:
-            action, logprob, ent, normalized = self.sample_logits_func([logits1, logits2], action=actions)
+        action, _logprob, _ent, _normalized = self.sample_logits_func([logits1, logits2], action=actions)
 
         # Handle potential action reshaping during sampling
         # Convert to flat format for comparison regardless of internal representation
@@ -234,22 +226,12 @@ def benchmark_data():
     }
 
 
-# Adapter function to handle different parameter naming for the TorchScript implementation
-def sample_logits_adapter(logits, action=None):
-    """Adapter to bridge parameter naming differences between implementations."""
-    return sample_logits(logits, provided_actions=action)
-
-
 # Functions to benchmark all three implementations
 def benchmark_implementation(func, data, action=None, num_runs=100):
     """Benchmark a specific implementation."""
     start_time = time.time()
     for _ in range(num_runs):
-        # Use the adapter function for the TorchScript implementation
-        if func == sample_logits:
-            result = sample_logits_adapter(data, action=action)
-        else:
-            result = func(data, action=action)
+        result = func(data, action=action)
     total_time = time.time() - start_time
     return total_time / num_runs, result
 
@@ -303,7 +285,7 @@ def test_sample_action_consistency(benchmark_data):
     """Verify that all sample_logits implementations produce consistent actions."""
     funcs = {
         "sample_logits_old": sample_logits_old,
-        "sample_logits_torchscript": sample_logits_adapter,  # Add the adapter for TorchScript implementation
+        "sample_logits_torchscript": sample_logits,
     }
 
     test_cases = [
