@@ -5,6 +5,7 @@ import networkx as nx
 
 from .graph_analysis import analyze_graph, analyze_nodes
 from .graph_generation import GraphConfig, GraphType, generate_graph_from_config
+from .graph_solver import ResourceGraphSolver
 from .graph_visualization import visualize_graph as visualize_graph_enhanced
 
 
@@ -19,16 +20,16 @@ def get_orb_colors(n: int) -> Dict[str, str]:
         Dictionary mapping color names to hex codes
     """
     colors = {
-        "Red": "#FF0000",
-        "Orange": "#FF7F00",
-        "Yellow": "#FFFF00",
-        "Green": "#00FF00",
-        "Blue": "#0000FF",
-        "Indigo": "#4B0082",
-        "Violet": "#8B00FF",
-        "Pink": "#FF69B4",
-        "Cyan": "#00FFFF",
+        "Red": "#de1616",
+        "Orange": "#ff9900",
+        "Green": "#1e7536",
+        "Blue": "#2532e8",
+        "Indigo": "#9b0ecf",
+        "Teal": "#2dedad",
+        "Mustard": "#d1cb0d",
+        "Pink": "#bd376c",
         "Magenta": "#FF00FF",
+        "Yellow": "#FFFF00",
     }
 
     if n <= 0 or n > len(colors):
@@ -104,8 +105,8 @@ def main():
     print("Please enter the graph parameters (press Enter for defaults):")
 
     # Get node count
-    default_nodes = 20
-    nodes_input = input(f"Number of factories [{default_nodes}]: ")
+    default_nodes = 12
+    nodes_input = input(f"Number of map objects [{default_nodes}]: ")
     n_nodes = int(nodes_input) if nodes_input.strip() else default_nodes
 
     # Get edge count
@@ -114,7 +115,7 @@ def main():
     n_edges = int(edges_input) if edges_input.strip() else default_edges
 
     # Get number of colors
-    default_colors = 5
+    default_colors = 3
     colors_input = input(f"Number of orb colors (1-10) [{default_colors}]: ")
     num_colors = int(colors_input) if colors_input.strip() else default_colors
     num_colors = max(1, min(10, num_colors))  # Ensure between 1 and 10
@@ -152,7 +153,7 @@ def main():
     print("4. Shell layout")
     print("5. Kamada-Kawai layout")
 
-    default_layout = 1
+    default_layout = 2
     layout_input = input(f"Select layout (1-5) [{default_layout}]: ")
     layout_choice = int(layout_input) if layout_input.strip() else default_layout
 
@@ -204,7 +205,18 @@ def main():
     node_colors = assign_random_node_colors(graph, num_colors)
 
     # Analyze node factories
-    analyze_nodes(graph)
+    node_descriptions = analyze_nodes(graph)
+
+    # solve the game
+    solver = ResourceGraphSolver.from_node_descriptions(node_descriptions)
+    plan = solver.solve({"Heart": 1})
+
+    print("\n=== Solution ===")
+    if plan:
+        for step in plan:
+            print(step)
+    else:
+        print("❌ No plan found.")
 
     # Use the enhanced visualization from the imported library
     # Instead of the previous visualize_graph function

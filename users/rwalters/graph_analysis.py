@@ -55,84 +55,68 @@ def analyze_graph(G: nx.DiGraph) -> None:
 
 def analyze_nodes(G: nx.DiGraph) -> Dict:
     """
-    Analyze each node as a 'factory' that transforms input colors to output colors.
+    Analyze each node as a 'factory', 'generator', or 'altar' based on graph structure.
 
     Args:
         G: NetworkX directed graph with color attributes on nodes
 
     Returns:
-        Dictionary of node factories
+        Dictionary mapping node IDs to descriptions including type and input/output colors.
     """
-    # Ensure we have color attributes
     if not nx.get_node_attributes(G, "color"):
         print("Error: Graph nodes don't have color attributes.")
         return {}
 
-    # Get color and color name attributes
     _node_hex_colors = nx.get_node_attributes(G, "color")
     node_color_names = nx.get_node_attributes(G, "color_name")
 
     node_descriptions = {}
 
     for node in G.nodes():
-        # Get input edges (predecessors)
         predecessors = list(G.predecessors(node))
-        input_colors = [node_color_names[pred] for pred in predecessors]
-
-        # Count input colors
-        input_color_counts = {}
-        for color in input_colors:
-            input_color_counts[color] = input_color_counts.get(color, 0) + 1
-
-        # Get output edges (successors)
         successors = list(G.successors(node))
+
+        input_colors = [node_color_names[pred] for pred in predecessors]
         output_colors = [node_color_names[succ] for succ in successors]
 
-        # Count output colors
-        output_color_counts = {}
-        for color in output_colors:
-            output_color_counts[color] = output_color_counts.get(color, 0) + 1
+        input_color_counts = {c: input_colors.count(c) for c in set(input_colors)}
+        output_color_counts = {c: output_colors.count(c) for c in set(output_colors)}
 
-        # Create node description
-        desc = {
+        # Determine node type
+        if not input_color_counts and output_color_counts:
+            node_type = "generator"
+        elif input_color_counts and not output_color_counts:
+            node_type = "altar"
+        else:
+            # Allow a more nuanced factory vs. generator distinction later
+            node_type = "factory"
+
+        node_descriptions[node] = {
             "node": node,
             "node_color": node_color_names[node],
             "input_colors": input_color_counts,
             "output_colors": output_color_counts,
+            "node_type": node_type,
         }
 
-        node_descriptions[node] = desc
-
-    # Collect and print orb generators
+    # Print report
     print("=== ORB GENERATORS ===")
-    for _node, desc in node_descriptions.items():
-        # Check if this is an orb generator (no inputs but has outputs)
-        if not desc["input_colors"] and desc["output_colors"]:
-            output_color_counts = desc["output_colors"]
-            output_str = " + ".join([f"{count} {color}" for color, count in output_color_counts.items()])
-            print(f"Orb Generator: {output_str}")
+    for node, desc in node_descriptions.items():
+        if desc["node_type"] == "generator":
+            output_str = " + ".join(f"{v} {k}" for k, v in desc["output_colors"].items())
+            print(f"[{node}] Generator: {output_str}")
 
-    # Collect and print factories
     print("\n=== FACTORIES ===")
-    for _node, desc in node_descriptions.items():
-        # Check if this is a factory (has both inputs and outputs)
-        if desc["input_colors"] and desc["output_colors"]:
-            input_color_counts = desc["input_colors"]
-            output_color_counts = desc["output_colors"]
+    for node, desc in node_descriptions.items():
+        if desc["node_type"] == "factory":
+            input_str = " + ".join(f"{v} {k}" for k, v in desc["input_colors"].items())
+            output_str = " + ".join(f"{v} {k}" for k, v in desc["output_colors"].items())
+            print(f"[{node}] Orb Factory: ({input_str}) → ({output_str})")
 
-            input_str = " + ".join([f"{count} {color}" for color, count in input_color_counts.items()])
-            output_str = " + ".join([f"{count} {color}" for color, count in output_color_counts.items()])
-
-            print(f"Factory: ({input_str}) → ({output_str})")
-
-    # Collect and print heart altars
     print("\n=== HEART ALTARS ===")
-    for _node, desc in node_descriptions.items():
-        # Check if this is a heart altar (has inputs but no outputs)
-        if desc["input_colors"] and not desc["output_colors"]:
-            input_color_counts = desc["input_colors"]
-            input_str = " + ".join([f"{count} {color}" for color, count in input_color_counts.items()])
-
-            print(f"Heart Altar: {input_str} → Heart")
+    for node, desc in node_descriptions.items():
+        if desc["node_type"] == "altar":
+            input_str = " + ".join(f"{v} {k}" for k, v in desc["input_colors"].items())
+            print(f"[{node}] Heart Altar: {input_str} → Heart")
 
     return node_descriptions

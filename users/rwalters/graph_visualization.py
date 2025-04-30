@@ -3,6 +3,79 @@ from typing import Any, Dict, List, Optional, Set
 
 import matplotlib.pyplot as plt
 import networkx as nx
+import numpy as np
+
+
+def draw_segmented_edges(
+    G,
+    pos,
+    node_color_names,
+    light_grey="#cccccc",
+    arrow_length=0.03,
+    dot_size=30,
+    node_size=500,  # Approx base node size used in drawing
+):
+    # Estimate node radius in data coordinates
+    # This factor maps node size (area in pt²) to a visual radius
+    node_radius = node_size / 20000.0
+
+    for u, v in G.edges():
+        x0, y0 = pos[u]
+        x1, y1 = pos[v]
+
+        # Vector from u to v
+        dx, dy = x1 - x0, y1 - y0
+        dist = np.hypot(dx, dy)
+
+        if dist == 0:
+            continue  # skip degenerate edge
+
+        # Unit direction vector
+        ux, uy = dx / dist, dy / dist
+
+        # Adjust start and end to stop at node boundary
+        shrink = node_radius
+        x0_adj = x0 + ux * shrink
+        y0_adj = y0 + uy * shrink
+        x1_adj = x1 - ux * shrink
+        y1_adj = y1 - uy * shrink
+
+        # Compute segment points (25%, 75%)
+        x_mid1 = x0_adj + 0.25 * (x1_adj - x0_adj)
+        y_mid1 = y0_adj + 0.25 * (y1_adj - y0_adj)
+        x_mid2 = x0_adj + 0.75 * (x1_adj - x0_adj)
+        y_mid2 = y0_adj + 0.75 * (y1_adj - y0_adj)
+
+        # Get colors
+        src_color = node_color_names.get(v, "lightblue")
+        dst_color = node_color_names.get(u, "lightblue")
+
+        # Draw 3 segments
+        plt.plot([x0_adj, x_mid1], [y0_adj, y_mid1], color=src_color, linewidth=1.5, alpha=0.7)
+        plt.plot([x_mid1, x_mid2], [y_mid1, y_mid2], color=light_grey, linewidth=1.5, alpha=0.7)
+        plt.plot([x_mid2, x1_adj], [y_mid2, y1_adj], color=dst_color, linewidth=1.5, alpha=0.7)
+
+        # Start dot at adjusted source
+        plt.scatter([x0_adj], [y0_adj], s=dot_size, color=src_color, edgecolors="black", zorder=3)
+
+        # Arrowhead slightly before end (short vector)
+        arrow_backoff = 0.05  # smaller value = arrow closer to end
+        arrow_start_x = x1_adj - ux * arrow_backoff
+        arrow_start_y = y1_adj - uy * arrow_backoff
+        arrow_dx = ux * arrow_backoff
+        arrow_dy = uy * arrow_backoff
+        plt.arrow(
+            arrow_start_x,
+            arrow_start_y,
+            arrow_dx,
+            arrow_dy,
+            head_width=0.01,
+            head_length=0.02,
+            fc=dst_color,
+            ec=dst_color,
+            length_includes_head=True,
+            zorder=3,
+        )
 
 
 def generate_distinct_colors(n: int) -> List[str]:
@@ -101,13 +174,13 @@ def visualize_graph(
         # Map nodes to colors
         node_colors = {node: color_map[attr_values[node]] for node in G.nodes() if node in attr_values}
         # Default color for nodes without the attribute
-        node_color_list = [node_colors.get(node, "lightblue") for node in G.nodes()]
+        _node_color_list = [node_colors.get(node, "lightblue") for node in G.nodes()]
 
         # Store colors as node attributes for reference
         nx.set_node_attributes(G, {node: {"color": color} for node, color in node_colors.items()})
     else:
         # Default color if no attribute is specified
-        node_color_list = ["lightblue" for _ in G.nodes()]
+        _node_color_list = ["lightblue" for _ in G.nodes()]
 
     # Identify source and sink nodes
     sources = [node for node in G.nodes() if G.in_degree(node) == 0]
@@ -130,7 +203,7 @@ def visualize_graph(
     # For each type of node (regular, source, sink), draw nodes individually
 
     # Get the order of nodes in the original list for color mapping
-    node_list = list(G.nodes())
+    _node_list = list(G.nodes())
 
     # Draw regular nodes (circles)
     for node in regular_nodes:
@@ -139,7 +212,7 @@ def visualize_graph(
             pos,
             nodelist=[node],
             node_size=int(base_size),
-            node_color="grey",
+            node_color="#eeeeee",
             node_shape=node_shapes["regular"],
         )
 
@@ -180,21 +253,12 @@ def visualize_graph(
 
     nx.draw_networkx_labels(G, pos, labels=node_labels)
 
-    # Draw each edge individually with its own color
-    for u, v in G.edges():
-        sink_color = node_colors.get(v, "lightblue")
-        nx.draw_networkx_edges(
-            G,
-            pos,
-            edgelist=[(u, v)],
-            edge_color=sink_color,
-            width=1.0,
-            alpha=0.7,
-            arrowsize=15,
-            connectionstyle="arc3, rad=0.1",
-        )
+    assert color_map is not None
+    node_color_names = {
+        node: color_map.get(attr_values[node], "lightblue") for node in G.nodes() if node in attr_values
+    }
+    draw_segmented_edges(G, pos, node_color_names)
 
-    plt.title(title)
     plt.axis("off")
     plt.tight_layout()
     plt.show()

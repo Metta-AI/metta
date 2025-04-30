@@ -166,11 +166,13 @@ def ensure_sources(G: nx.DiGraph, n: int) -> nx.DiGraph:
         for i in range(excess):
             node_to_modify = sorted_sources[i]
 
-            # Find a potential target node (that won't create a cycle)
-            potential_targets = [n for n in G.nodes() if n != node_to_modify and not nx.has_path(G, node_to_modify, n)]
-
+            potential_targets = sorted(
+                [n for n in G.nodes() if n != node_to_modify and not nx.has_path(G, node_to_modify, n)],
+                key=lambda x: G.in_degree(x) + G.out_degree(x),
+                reverse=True,  # prefer well-connected nodes
+            )
             if potential_targets:
-                target = random.choice(potential_targets)
+                target = potential_targets[0]  # highest degree node
                 G.add_edge(target, node_to_modify)
                 print(f"Added edge from {target} to {node_to_modify} to remove a source")
             else:
@@ -370,6 +372,34 @@ class GraphConfig:
             raise ValueError(f"Invalid number of sinks: {self.n_sinks}. Must be between 0 and {self.n_nodes}")
 
 
+def repair_sources_and_sinks(G: nx.DiGraph, config: GraphConfig, max_attempts: int = 5) -> nx.DiGraph:
+    for attempt in range(max_attempts):
+        if config.n_sources is not None:
+            G = ensure_sources(G, config.n_sources)
+
+        if config.n_sinks is not None:
+            G = ensure_sinks(G, config.n_sinks)
+
+        # Check if constraints satisfied
+        actual_sources = [n for n in G.nodes if G.in_degree(n) == 0]
+        actual_sinks = [n for n in G.nodes if G.out_degree(n) == 0]
+
+        if (config.n_sources is None or len(actual_sources) == config.n_sources) and (
+            config.n_sinks is None or len(actual_sinks) == config.n_sinks
+        ):
+            return G  # Success!
+
+        print(
+            f"⚠️ Repair attempt {attempt + 1}: expected {config.n_sources} sources, {config.n_sinks} sinks;"
+            f" got {len(actual_sources)} sources, {len(actual_sinks)} sinks"
+        )
+
+    raise RuntimeError(
+        f"Failed to satisfy source/sink constraints after {max_attempts} repair attempts: "
+        f"{len(actual_sources)} sources, {len(actual_sinks)} sinks"
+    )
+
+
 def generate_graph_from_config(config: GraphConfig) -> nx.DiGraph:
     """
     Generate a directed graph based on a GraphConfig object.
@@ -401,13 +431,14 @@ def generate_graph_from_config(config: GraphConfig) -> nx.DiGraph:
     if config.n_sinks is not None:
         G = ensure_sinks(G, config.n_sinks)
 
-    # Remove direct links from entry to exit unless explicitly allowed
+    # Mutate the graph structure
     if not config.allow_direct_entry_exit:
         G = remove_direct_entry_exit_links(G)
 
-    # Ensure no isolated nodes unless explicitly allowed
     if not config.allow_isolated_nodes:
         G = ensure_no_isolated_nodes(G)
+
+    G = repair_sources_and_sinks(G, config)
 
     return G
 
