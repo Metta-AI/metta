@@ -72,13 +72,13 @@ class PolicyStore:
         return prs[0]
 
     def policies(
-        self, policy: Union[str, ListConfig | DictConfig], selector_type: str = "top", n=1, metric="score"
+        self, policy: Union[str, ListConfig | DictConfig], selector_type: str = "top", n: int =1, metric: str = "score"
     ) -> List[PolicyRecord]:
         if not isinstance(policy, str):
             policy = policy.uri
-        return self._policy_records(policy, selector_type, n, metric)
+        return self._policy_records(policy, selector_type, n=n, metric=metric)
 
-    def _policy_records(self, uri, selector_type="top", n=1, metric="score"):
+    def _policy_records(self, uri, selector_type="top", n=1, metric: str = "score"):
         version = None
         if uri.startswith("wandb://"):
             wandb_uri = uri[len("wandb://") :]
