@@ -1,5 +1,5 @@
 defaults:
-  - /env/mettagrid-base/mettagrid@
+  - /env/mettagrid/mettagrid@
   - _self_
 
 # a single agent wanders around a square world with 10 rewards to find
