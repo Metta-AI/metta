@@ -35,3 +35,5 @@ stderr.log
 sweep_id
 personal/
 wandb/
+terrain_maps_nohearts*
+.idea

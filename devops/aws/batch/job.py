@@ -745,11 +745,10 @@ def launch_job(job_queue=None):
     return False
 
 
-def get_job_ip(job_id_or_name):
-    """Get the public IP address of the instance running a job."""
+def get_job_instance_id(job_id_or_name):
+    """Get the instance ID of the instance running a job."""
     batch = get_boto3_client("batch")
     ecs = get_boto3_client("ecs")
-    ec2 = get_boto3_client("ec2")
 
     try:
         # First try to get the job by ID
@@ -801,7 +800,7 @@ def get_job_ip(job_id_or_name):
 
         # Check if it's a multi-node job
         if "nodeProperties" in job:
-            print(f"Error: Job '{job['jobId']}' is a multi-node job. SSH is not supported for multi-node jobs.")
+            print(f"Error: Job '{job['jobId']}' is a multi-node job. SSM is not supported for multi-node jobs.")
             return None
 
         # Get the task ARN and cluster
@@ -830,75 +829,84 @@ def get_job_ip(job_id_or_name):
         )
         ec2_instance_id = container_instance_desc["containerInstances"][0]["ec2InstanceId"]
 
-        # Get the public IP address
-        instances = ec2.describe_instances(InstanceIds=[ec2_instance_id])
-        if "PublicIpAddress" in instances["Reservations"][0]["Instances"][0]:
-            public_ip = instances["Reservations"][0]["Instances"][0]["PublicIpAddress"]
-            return public_ip
-        else:
-            print(f"No public IP address found for job '{job['jobId']}'")
-            return None
+        return ec2_instance_id
 
     except Exception as e:
-        print(f"Error retrieving job IP: {str(e)}")
+        print(f"Error retrieving job instance ID: {str(e)}")
         return None
 
 
-def ssh_to_job(job_id_or_name, instance_only=False):
-    """Connect to the instance running a job via SSH.
+def ssm_to_job(job_id_or_name, instance_only=False):
+    """Connect to the instance running a job via SSM.
 
     Args:
         job_id_or_name: The job ID or name to connect to
         instance_only: If True, connect directly to the instance without attempting to connect to the container
     """
 
-    # Get the IP address of the job
-    ip = get_job_ip(job_id_or_name)
-    if not ip:
+    # Get the instance ID of the job
+    instance_id = get_job_instance_id(job_id_or_name)
+    if not instance_id:
         return False
 
     try:
-        # Establish SSH connection and check if it's successful
-        print(f"Checking SSH connection to {ip}...")
-        ssh_check_cmd = f"ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 {ip} 'echo Connected'"
-        ssh_check_output = subprocess.check_output(ssh_check_cmd, shell=True).decode().strip()
-        if ssh_check_output != "Connected":
-            raise subprocess.CalledProcessError(1, "SSH connection check failed")
+        # Start SSM session
+        print(f"Starting SSM session to instance {instance_id}...")
 
         if instance_only:
-            # Connect directly to the instance
-            print(f"Connecting directly to the instance at {ip}...")
-            ssh_cmd = f"ssh -o StrictHostKeyChecking=no -t {ip}"
-            subprocess.run(ssh_cmd, shell=True)
+            # Connect directly to the instance as root
+            print(f"Connecting directly to the instance {instance_id} as root...")
+            ssm_cmd = (
+                f"aws ssm start-session --target {instance_id} "
+                "--document-name AWS-StartInteractiveCommand "
+                "--parameters 'command=sudo su -'"
+            )
+            subprocess.run(ssm_cmd, shell=True)
         else:
             # Retrieve container ID
-            print(f"Finding container on {ip}...")
-            container_cmd = f"ssh -o StrictHostKeyChecking=no -t {ip} \"docker ps | grep 'metta'\""
+            print(f"Finding container on instance {instance_id}...")
+            container_cmd = (
+                f"aws ssm start-session --target {instance_id} "
+                "--document-name AWS-StartInteractiveCommand "
+                "--parameters 'command=sudo docker ps | grep metta'"
+            )
             container_id_output = subprocess.check_output(container_cmd, shell=True).decode().strip()
 
-            if container_id_output:
-                container_id = container_id_output.split()[0]
-                print(f"Connecting to container {container_id} on {ip}...")
-                exec_cmd = f'ssh -o StrictHostKeyChecking=no -t {ip} "docker exec -it {container_id} /bin/bash"'
+            # Split output into lines and skip header
+            container_lines = container_id_output.split("\n")
+            if len(container_lines) > 1:  # Skip header line
+                container_id = container_lines[1].split()[0]  # First column is container ID
+                print(f"Connecting to container {container_id} on instance {instance_id}...")
+                exec_cmd = (
+                    f"aws ssm start-session --target {instance_id} "
+                    "--document-name AWS-StartInteractiveCommand "
+                    f"--parameters 'command=sudo docker exec -it {container_id} /bin/bash'"
+                )
                 subprocess.run(exec_cmd, shell=True)
             else:
-                print(f"No container running the 'mettaai/metta' image found on the instance {ip}.")
-                print("Connecting to the instance directly...")
-                ssh_cmd = f"ssh -o StrictHostKeyChecking=no -t {ip}"
-                subprocess.run(ssh_cmd, shell=True)
+                print(f"No container running the 'mettaai/metta' image found on the instance {instance_id}.")
+                print("Connecting to the instance directly as root...")
+                ssm_cmd = (
+                    f"aws ssm start-session --target {instance_id} "
+                    "--document-name AWS-StartInteractiveCommand "
+                    "--parameters 'command=sudo su -'"
+                )
+                subprocess.run(ssm_cmd, shell=True)
 
         return True
     except subprocess.CalledProcessError as e:
         print(f"Error: {str(e)}")
         if "Connection timed out" in str(e):
-            print(f"SSH connection to {ip} timed out. Please check the instance status and network connectivity.")
-        elif "Connection refused" in str(e):
+            print(f"SSM connection to {instance_id} timed out. Please check the instance status and IAM permissions.")
+        elif "AccessDeniedException" in str(e):
             print(
-                f"SSH connection to {ip} was refused. Please check if the instance is running and accepts SSH "
-                "connections."
+                f"SSM connection to {instance_id} was denied. Please check if "
+                "the instance has the required IAM permissions and if the SSM "
+                "agent is running."
             )
         else:
             print(
-                f"An error occurred while connecting to {ip}. Please check the instance status and SSH configuration."
+                f"An error occurred while connecting to {instance_id}. Please "
+                "check the instance status and SSM configuration."
             )
         return False
