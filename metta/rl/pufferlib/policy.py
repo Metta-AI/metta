@@ -132,7 +132,7 @@ class PufferAgentWrapper(nn.Module):
         logprob -> logprob_act
         hidden -> logits then, after sample_logits(), log_sftmx_logits
         '''
-        hidden, critic, state, e3b, intrinsic_reward = self.policy(obs, state) # using names from LSTMWrapper
+        hidden, critic, state, e3b, intrinsic_reward = self.policy(obs, state) # using variable names from LSTMWrapper
         action, logprob, logits_entropy = sample_logits(hidden, action)
         return action, logprob, logits_entropy, critic, hidden
     
