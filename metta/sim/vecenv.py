@@ -1,17 +1,17 @@
 import pufferlib
 import pufferlib.utils
 import pufferlib.vector
-from omegaconf import DictConfig, ListConfig
 
+from mettagrid.mettagrid.curriculum.curriculum import Curriculum
 from mettagrid.mettagrid.mettagrid_env import MettaGridEnv
 
 
-def make_env_func(cfg: DictConfig, buf=None, render_mode="rgb_array"):
-    return MettaGridEnv(cfg, buf=buf, render_mode=render_mode)
+def make_env_func(curriculum: Curriculum, buf=None, render_mode="rgb_array"):
+    return MettaGridEnv(curriculum=curriculum, buf=buf, render_mode=render_mode)
 
 
 def make_vecenv(
-    env_cfg: DictConfig | ListConfig,
+    curriculum: Curriculum,
     vectorization: str,
     num_envs=1,
     batch_size=None,
@@ -30,7 +30,7 @@ def make_vecenv(
         raise ValueError("Invalid --vector (serial/multiprocessing/ray).")
 
     vecenv_args = dict(
-        env_kwargs=dict(cfg=env_cfg, render_mode=render_mode),
+        env_kwargs=dict(curriculum=curriculum, render_mode=render_mode),
         num_envs=num_envs,
         num_workers=num_workers,
         batch_size=batch_size or num_envs,

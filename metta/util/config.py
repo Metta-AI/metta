@@ -69,8 +69,11 @@ def config_from_path(config_path: str, overrides: Optional[DictConfig] = None) -
         cfg = cfg[p]
 
     if overrides not in [None, {}]:
+        # Allow overrides that are not in the config.
+        OmegaConf.set_struct(cfg, False)
         cfg = OmegaConf.merge(cfg, overrides)
-    return cfg
+        OmegaConf.set_struct(cfg, True)
+    return cast(DictConfig, cfg)
 
 
 def check_aws_credentials() -> bool:
