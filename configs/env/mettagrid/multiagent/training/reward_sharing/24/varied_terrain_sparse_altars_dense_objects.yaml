@@ -6,6 +6,10 @@ sampling: 1
 
 game:
   num_agents: 24
+
+  agent:
+    max_inventory: 5
+
   map_builder:
     _target_: mettagrid.config.room.multi_room.RoomList
     border_width: 6

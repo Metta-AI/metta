@@ -84,8 +84,8 @@ class VariedTerrain(Room):
     ):
         super().__init__(border_width=border_width, border_object=border_object, labels = [style])
 
-        width = np.random.randint(40, 100)
-        height = np.random.randint(40, 100)
+        width = np.random.randint(35, 90)
+        height = np.random.randint(35, 90)
 
         self.set_size_labels(width, height)
         self._rng = np.random.default_rng(seed)
