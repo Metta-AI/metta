@@ -9,7 +9,7 @@ min_steps_per_info: 1000
 
 # put these at root
 num_agents_per_room: 1
-num_repeated_rooms: 36 # MultiRoom seems to want perfect squares?
+num_repeated_rooms: 64 # MultiRoom seems to want perfect squares?
 
 # these are overwritten during training
 progress:
@@ -47,11 +47,11 @@ game:
   map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom
     num_rooms: ${...num_repeated_rooms}
-    border_width: 6
+    border_width: 3
 
     room:
       _target_: mettagrid.config.room.random.Random
-      border_width: 6
+      border_width: 3 
       width: ${...size}
       height: ${...size}
       agents: ${....num_agents_per_room}
