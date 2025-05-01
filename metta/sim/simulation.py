@@ -1,6 +1,6 @@
 """
 Runs a vectorised batch of MettaGrid environments, maps candidate & NPC
-policies onto agents, records optional replays, merges the per-env DuckDB
+policies onto agents, optionally records replays, merges the per-env DuckDB
 shards produced by `MettaGridStatsWriter`, and finally exports a single
 canonical DB to `eval_stats_uri` (local file, S3, or WandB).
 """
@@ -13,7 +13,7 @@ import time
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Dict, List, Tuple
 
 import numpy as np
 import torch
@@ -37,14 +37,14 @@ logger = logging.getLogger(__name__)
 # --------------------------------------------------------------------------- #
 class Simulation:
     """
-    Wraps one vectorised batch of MettaGrid environments.
+    One vectorised batch of MettaGrid envs.
 
     Responsibilities
     ----------------
     1. Map candidate & NPC policies to agents.
-    2. Step the vec-env until a target episode/time budget is met.
-    3. Optionally emit per-step replays (`ReplayHelper`).
-    4. Merge the worker DuckDB shards → one DB and export it.
+    2. Run until an episode or time budget is met.
+    3. Optionally emit replays (`ReplayHelper`).
+    4. Merge worker DuckDB shards → one DB and export it.
     """
 
     # ------------------------------------------------------------------ #
@@ -98,12 +98,12 @@ class Simulation:
         )
 
         # ---------------- replay helpers ------------------------------- #
-        self._replay_helpers: list[ReplayHelper] | None = None
+        self._replay_helpers: List[ReplayHelper] | None = None
         self._episode_counters = np.zeros(self._num_envs, dtype=int)
         if config.replay_path:
             self._replay_helpers = [self._create_replay_helper(e) for e in range(self._num_envs)]
 
-        # Mapping agent-idx → policy-name
+        # Map agent-idx → policy-name (used in per-agent stats)
         self._agent_idx_to_policy_name = {
             **{i.item(): self._policy_pr.name for i in self._policy_idxs},
             **(
@@ -143,6 +143,9 @@ class Simulation:
         fname = fname or "replay.dat"
         return os.path.join(directory, f"ep{episode_count}_env{env_idx}_{fname}")
 
+    # ------------------------------------------------------------------ #
+    #   merge shards + export                                            #
+    # ------------------------------------------------------------------ #
     def _finalise_stats(self) -> None:
         agent_map: Dict[int, Tuple[str, int]] = {
             idx.item(): (self._policy_pr.uri, self._policy_pr.version) for idx in self._policy_idxs
@@ -152,8 +155,12 @@ class Simulation:
 
         merged_db = StatsDB.merge_worker_dbs(self._stats_dir, agent_map)
         logger.info(
-            "Merged %d DuckDB shards for '%s' → %s", len(list(self._stats_dir.glob("*.duckdb"))), self._name, merged_db
+            "Merged %d DuckDB shards for '%s' → %s",
+            len(list(self._stats_dir.glob("*.duckdb"))),
+            self._name,
+            merged_db,
         )
+
         if self._config.eval_stats_uri:
             StatsDB.export_db(merged_db, self._config.eval_stats_uri)
             logger.info("Exported stats DB → %s", self._config.eval_stats_uri)
@@ -161,7 +168,7 @@ class Simulation:
     # ------------------------------------------------------------------ #
     #   main loop                                                        #
     # ------------------------------------------------------------------ #
-    def simulate(self, *, epoch: int = 0, dry_run: bool = False) -> list[dict]:
+    def simulate(self, *, epoch: int = 0, dry_run: bool = False) -> List[dict]:
         logger.info(
             "Simulating '%s' – policy=%s  env=%s  policy_agents/env=%d",
             self._name,
@@ -171,18 +178,21 @@ class Simulation:
         )
         if self._npc_pr:
             logger.debug(
-                "           against NPC policy=%s (%d npc agents/env)", self._npc_pr.name, self._npc_agents_per_env
+                "           against NPC policy=%s (%d npc agents/env)",
+                self._npc_pr.name,
+                self._npc_agents_per_env,
             )
 
         obs, _ = self._vecenv.reset()
         policy_state = PolicyState()
         npc_state = PolicyState()
 
-        game_stats: list[dict] = []
+        game_stats: List[dict] = []
         env_dones = [False] * self._num_envs
         t0 = time.time()
 
         while (self._episode_counters < self._min_episodes).any() and (time.time() - t0) < self._max_time_s:
+            # ---------- forward pass / action sampling ---------------- #
             with torch.no_grad():
                 obs_t = torch.as_tensor(obs, device=self._device)
                 pol_logits, _ = self._policy_pr.policy()(obs_t[self._policy_idxs], policy_state)
@@ -192,6 +202,7 @@ class Simulation:
                     npc_logits, _ = self._npc_pr.policy()(obs_t[self._npc_idxs], npc_state)
                     npc_actions, *_ = sample_logits(npc_logits)
 
+            # stitch [policy | npc] actions → vec-env layout
             actions_t = pol_actions
             if self._npc_agents_per_env:
                 actions_t = torch.cat(
@@ -204,37 +215,44 @@ class Simulation:
 
             actions_np = actions_t.cpu().numpy()
 
+            # ---------- pre-step replay logging ----------------------- #
             if self._replay_helpers:
                 act_env = actions_np.reshape(self._num_envs, self._agents_per_env, -1)
                 for e in range(self._num_envs):
                     if not env_dones[e]:
                         self._replay_helpers[e].log_pre_step(act_env[e].squeeze())
 
+            # ---------- env.step -------------------------------------- #
             obs, rewards, dones, truncated, infos = self._vecenv.step(actions_np)
 
+            # ---------- post-step replay logging ---------------------- #
             if self._replay_helpers:
                 rew_env = rewards.reshape(self._num_envs, self._agents_per_env)
                 for e in range(self._num_envs):
                     if not env_dones[e]:
                         self._replay_helpers[e].log_post_step(rew_env[e])
 
+            # ---------- episode / env-reset FSM ----------------------- #
             done_now = np.logical_or(
                 dones.reshape(self._num_envs, self._agents_per_env).all(axis=1),
                 truncated.reshape(self._num_envs, self._agents_per_env).all(axis=1),
             )
 
             for e in range(self._num_envs):
+                # episode finished
                 if done_now[e] and not env_dones[e]:
                     env_dones[e] = True
                     if self._replay_helpers:
                         path = self._get_replay_path(e, self._episode_counters[e])
                         self._replay_helpers[e].write_replay(path, epoch=epoch, dry_run=dry_run)
                     self._episode_counters[e] += 1
+                # env auto-reset → start new episode
                 elif not done_now[e] and env_dones[e]:
                     env_dones[e] = False
                     if self._replay_helpers:
                         self._replay_helpers[e] = self._create_replay_helper(e)
 
+            # ---------- per-agent stats bundling ---------------------- #
             game_cfg = OmegaConf.to_container(self._env_cfg.game, resolve=False)
             flat_env = flatten_config(game_cfg, parent_key="game")
             flat_env.update(
@@ -258,6 +276,7 @@ class Simulation:
                         data.update(flat_env)
                     game_stats.append(ep_data)
 
+        # ---------- teardown ----------------------------------------- #
         self._vecenv.close()
         self._finalise_stats()
         logger.info(
@@ -288,5 +307,5 @@ class SimulationSuite:
             for n, cfg in config.simulations.items()
         }
 
-    def simulate(self, *, epoch: int = 0, dry_run: bool = False) -> Dict[str, list]:
+    def simulate(self, *, epoch: int = 0, dry_run: bool = False) -> Dict[str, List[dict]]:
         return {n: sim.simulate(epoch=epoch, dry_run=dry_run) for n, sim in self._sims.items()}
