@@ -115,6 +115,7 @@ game:
       cooldown: ${sampling:0, 100, 50}
       initial_items: 1
 
+
     generator.red:
       hp: 30
       input_ore.red: 1
