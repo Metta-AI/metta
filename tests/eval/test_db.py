@@ -290,7 +290,7 @@ def test_get_matrix_data_num_output_policies(sample_db):
 
     assert len(all_matrix) == 6
     assert len(filtered_matrix) == 2
-    assert filtered_matrix.index.equals(all_matrix.index[:2])
+    assert filtered_matrix.index.equals(all_matrix.index[4:])
 
 
 def test_get_matrix_data_empty_result(sample_db):

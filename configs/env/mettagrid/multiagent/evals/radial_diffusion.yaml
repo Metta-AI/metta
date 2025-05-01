@@ -1,0 +1,23 @@
+defaults:
+  - /env/mettagrid/mettagrid@
+  - _self_
+
+game:
+  num_agents: 160 #how many agents are in the map x2
+  max_steps: 85
+
+  agent:
+    rewards:
+      heart: 1.0
+
+  map_builder:
+    _target_: mettagrid.config.room.multi_room.MultiRoom
+    num_rooms: 20
+    room:
+      _target_: mettagrid.config.room.ascii.Ascii
+      border_width: 1
+      uri: "configs/env/mettagrid/maps/multiagent/radial_diffusion.map"
+
+  objects:
+    altar:
+      cooldown: 255

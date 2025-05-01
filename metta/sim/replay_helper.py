@@ -13,7 +13,7 @@ from metta.agent.policy_store import PolicyRecord
 from metta.sim.simulation_config import SimulationConfig
 from metta.util.file import s3_url, upload_to_s3
 from metta.util.wandb.wandb_context import WandbContext
-from mettagrid.mettagrid.mettagrid_env import MettaGridEnv
+from mettagrid.mettagrid_env import MettaGridEnv
 
 
 class ReplayHelper:
