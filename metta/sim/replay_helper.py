@@ -12,7 +12,7 @@ import wandb
 from metta.agent.policy_store import PolicyRecord
 from metta.sim.simulation_config import SimulationConfig
 from metta.util.file import s3_url, upload_to_s3
-from metta.util.wandb.wandb_context import WandbContext
+from metta.util.wandb.wandb_context import WandbRun
 from mettagrid.mettagrid_env import MettaGridEnv
 
 
@@ -20,7 +20,7 @@ class ReplayHelper:
     """Helper class for generating and uploading replays."""
 
     def __init__(
-        self, config: SimulationConfig, env: MettaGridEnv, policy_record: PolicyRecord, wandb_run: WandbContext
+        self, config: SimulationConfig, env: MettaGridEnv, policy_record: PolicyRecord, wandb_run: WandbRun | None
     ):
         self.config = config
         self.policy_record = policy_record
