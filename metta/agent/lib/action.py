@@ -1,6 +1,6 @@
 import torch
 
-from einops import rearrange
+from einops import repeat
 from tensordict import TensorDict
 
 import metta.agent.lib.nn_layer_library as nn_layer_library
@@ -36,5 +36,5 @@ class ActionEmbedding(nn_layer_library.Embedding):
         td['_num_actions_'] = self.num_actions
 
         # get embeddings then expand to match the batch size
-        td[self._name] = rearrange(self._net(self.active_indices), 'a, e -> b a e', b=B_TT)        
+        td[self._name] = repeat(self._net(self.active_indices), 'a e -> b a e', b=B_TT)
         return td
