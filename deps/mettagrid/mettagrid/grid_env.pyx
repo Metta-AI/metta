@@ -14,7 +14,7 @@ from mettagrid.grid_object cimport (
     GridLocation
 )
 from mettagrid.objects.agent cimport Agent
-from mettagrid.observation_encoder cimport ObservationEncoder, ObsType
+from mettagrid.observation_encoder cimport ObsType
 from mettagrid.objects.production_handler cimport ProductionHandler, CoolDownHandler
 from mettagrid.objects.constants cimport ObjectTypeNames, ObjectTypeAscii, InventoryItemNames
 
@@ -30,29 +30,19 @@ cdef class GridEnv:
             unsigned int max_timestep,
             vector[Layer] layer_for_type_id,
             unsigned short obs_width,
-            unsigned short obs_height,
-            bint track_last_action=False
+            unsigned short obs_height
         ):
         self._obs_width = obs_width
         self._obs_height = obs_height
-        self._middle_x = obs_width // 2
-        self._middle_y = obs_height // 2
         self._max_timestep = max_timestep
         self._current_timestep = 0
         self._grid = new Grid(map_width, map_height, layer_for_type_id)
         self._grid_features = self._obs_encoder.feature_names()
 
-        if self._track_last_action:
-            self._last_action_obs_idx = self._grid_features.size()
-            self._grid_features.push_back(b"last_action")
-            self._last_action_arg_obs_idx = self._grid_features.size()
-            self._grid_features.push_back(b"last_action_argument")
-
         self._event_manager.init(self._grid, &self._stats)
         # The order of this needs to match the order in the Events enum
         self._event_manager.event_handlers.push_back(new ProductionHandler(&self._event_manager))
         self._event_manager.event_handlers.push_back(new CoolDownHandler(&self._event_manager))
-        self._track_last_action = track_last_action
 
         self.set_buffers(
             np.zeros(
@@ -146,11 +136,6 @@ cdef class GridEnv:
                 self._obs_height,
                 self._observations[idx]
             )
-
-        if self._track_last_action:
-            for idx in range(self._agents.size()):
-                self._observations[idx][22][self._middle_y][self._middle_x] = actions[idx][0]
-                self._observations[idx][23][self._middle_y][self._middle_x] = actions[idx][1]
 
     cdef void _step(self, int[:,:] actions):
         cdef:
@@ -257,9 +242,6 @@ cdef class GridEnv:
     cpdef unsigned int num_agents(self):
         return self._agents.size()
 
-    cpdef tuple observation_shape(self):
-        return (len(self.grid_features()), self.obs_height, self.obs_width)
-
     cpdef observe(
         self,
         GridObjectId observer_id,
@@ -290,23 +272,12 @@ cdef class GridEnv:
             "game": self._stats.stats(),
         }
 
-    cpdef tuple get_buffers(self):
-        return (self._observations_np, self._terminals_np, self._truncations_np, self._rewards_np)
-
     cpdef cnp.ndarray render_ascii(self):
         cdef GridObject *obj
         grid = np.full((self._grid.height, self._grid.width), " ", dtype=np.str_)
         for obj_id in range(1, self._grid.objects.size()):
             obj = self._grid.object(obj_id)
             grid[obj.location.r, obj.location.c] = ObjectTypeAscii[obj._type_id]
-        return grid
-
-    cpdef cnp.ndarray grid_objects_types(self):
-        cdef GridObject *obj
-        grid = np.zeros((self._grid.height, self._grid.width), dtype=np.uint8)
-        for obj_id in range(1, self._grid.objects.size()):
-            obj = self._grid.object(obj_id)
-            grid[obj.location.r, obj.location.c] = obj._type_id + 1
         return grid
 
     @property
