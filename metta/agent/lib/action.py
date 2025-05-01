@@ -1,5 +1,6 @@
 import torch
 
+from einops import rearrange
 from tensordict import TensorDict
 
 import metta.agent.lib.nn_layer_library as nn_layer_library
@@ -34,7 +35,6 @@ class ActionEmbedding(nn_layer_library.Embedding):
         B_TT = td['_BxTT_']
         td['_num_actions_'] = self.num_actions
 
-        # get embeddings, unsqueeze the 0'th dimension, then expand to match the batch size
-        td[self._name] = self._net(self.active_indices).unsqueeze(0).expand(B_TT, -1, -1)
-        
+        # get embeddings then expand to match the batch size
+        td[self._name] = rearrange(self._net(self.active_indices), 'a, e -> b a e', b=B_TT)        
         return td

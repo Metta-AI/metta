@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import math
 
+from einops import repeat, rearrange
 from tensordict import TensorDict
 
 from metta.agent.lib.metta_layer import LayerBase
@@ -42,21 +43,22 @@ class MettaActorBig(LayerBase):
              nn.init.uniform_(self.bias, -bound, bound)
 
     def _forward(self, td: TensorDict):
-        input_1 = td[self._sources[0]["name"]] # Shape: [B*TT, hidden]
-        input_2 = td[self._sources[1]["name"]] # Shape: [B*TT, num_actions, embed_dim]
+        hidden = td[self._sources[0]["name"]] # Shape: [B*TT, hidden]
+        action_embeds = td[self._sources[1]["name"]] # Shape: [B*TT, num_actions, embed_dim]
 
-        B_TT = input_1.shape[0]
-        num_actions = input_2.shape[1]
+        B_TT = hidden.shape[0]
+        num_actions = action_embeds.shape[1]
 
         # input_1: [B*TT, hidden] -> [B*TT * num_actions, hidden]
         # input_2: [B*TT, num_actions, embed_dim] -> [B*TT * num_actions, embed_dim]
-        input_1_reshaped = input_1.unsqueeze(1).expand(-1, num_actions, -1).reshape(-1, self.hidden)
-        input_2_reshaped = input_2.reshape(-1, self.embed_dim)
+        hidden_reshaped = repeat(hidden, 'b h -> b a h', a=num_actions) # shape: [B*TT, num_actions, hidden]
+        hidden_reshaped = rearrange(hidden_reshaped, 'b a h -> (b a) h') # shape: [N, H]
+        action_embeds_reshaped = rearrange(action_embeds, 'b a e -> (b a) e') # shape: [N, E]
 
         # Perform bilinear operation  h W e -> k for each B * num_actions = N
-        query = torch.einsum('n h, k h e -> n k e', input_1_reshaped, self.W) # Shape: [N, K, E]
+        query = torch.einsum('n h, k h e -> n k e', hidden_reshaped, self.W) # Shape: [N, K, E]
         query = self._tanh(query)
-        scores = torch.einsum('n k e, n e -> n k', query, input_2_reshaped) # Shape: [N, K]
+        scores = torch.einsum('n k e, n e -> n k', query, action_embeds_reshaped) # Shape: [N, K]
 
         biased_scores = scores + self.bias.reshape(1, -1) # Shape: [N, K]
 
@@ -105,8 +107,9 @@ class MettaActorSingleHead(LayerBase):
         # Reshape inputs similar to Rev2 for bilinear calculation
         # input_1: [B*TT, hidden] -> [B*TT * num_actions, hidden]
         # input_2: [B*TT, num_actions, embed_dim] -> [B*TT * num_actions, embed_dim]
-        hidden_reshaped = hidden.unsqueeze(1).expand(-1, num_actions, -1).reshape(-1, self.hidden)
-        action_embeds_reshaped = action_embeds.reshape(-1, self.embed_dim)
+        hidden_reshaped = repeat(hidden, 'b h -> b a h', a=num_actions) # shape: [B*TT, num_actions, hidden]
+        hidden_reshaped = rearrange(hidden_reshaped, 'b a h -> (b a) h') # shape: [N, H]
+        action_embeds_reshaped = rearrange(action_embeds, 'b a e -> (b a) e') # shape: [N, E]
 
         # Perform bilinear operation using einsum
         # Perform bilinear operation  h W e -> k for each B * num_actions = N
