@@ -1,5 +1,4 @@
 # This is a modified `sample.yaml` config with sampling removed, for benchmark_env_perf.py script.
-
 game:
   num_agents: 24
 

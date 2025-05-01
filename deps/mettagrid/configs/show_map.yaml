@@ -1,5 +1,4 @@
 # This config is used by `tools.map.view` script.
-
 game:
   # no map_builder, tools.utils.view passes the map directly
 

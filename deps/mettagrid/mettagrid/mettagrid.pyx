@@ -1,8 +1,5 @@
-from types import SimpleNamespace
-
 import numpy as np
 cimport numpy as cnp
-import gymnasium as gym
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
 # C/C++ imports
@@ -23,7 +20,7 @@ from mettagrid.observation_encoder cimport (
 from mettagrid.objects.agent cimport Agent
 from mettagrid.objects.wall cimport Wall
 from mettagrid.objects.converter cimport Converter
-from mettagrid.objects.constants cimport ObjectLayers, InventoryItemNames, ObjectType, ObjectTypeAscii
+from mettagrid.objects.constants cimport ObjectLayers, InventoryItemNames, ObjectType
 
 # Action imports
 from mettagrid.action_handler cimport ActionHandler
@@ -74,8 +71,7 @@ cdef class MettaGrid(GridEnv):
             map.shape[0],
             cfg.max_steps,
             dict(ObjectLayers).values(),
-            cfg.obs_width, cfg.obs_height,
-            track_last_action=False
+            cfg.obs_width, cfg.obs_height
         )
         self.init_action_handlers(actions)
 
@@ -149,10 +145,6 @@ cdef class MettaGrid(GridEnv):
                     converter.set_event_manager(&self._event_manager)
                     converter = NULL
 
-
-
-    cpdef list[str] grid_features(self):
-        return self._grid_features
 
     def render(self):
         grid = self.render_ascii()
