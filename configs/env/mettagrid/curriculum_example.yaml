@@ -9,7 +9,7 @@ min_steps_per_info: 1000
 
 # put these at root
 num_agents_per_room: 1
-num_repeated_rooms: 64 # MultiRoom seems to want perfect squares?
+num_repeated_rooms: 81 # MultiRoom seems to want perfect squares?
 
 # these are overwritten during training
 progress:
