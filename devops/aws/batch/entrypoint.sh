@@ -42,13 +42,10 @@ else
   echo "No git reference specified, using current branch"
 fi
 
-# Install dependencies
-pip install -r requirements.txt
-
 pip uninstall -y termcolor
 pip install termcolor==2.4.0
 
-# Setup build
+# Setup build (installs requirements)
 ./devops/setup_build.sh
 
 export NUM_NODES=${AWS_BATCH_JOB_NUM_NODES:-1}
@@ -75,4 +72,4 @@ echo "Additional args: $TASK_ARGS"
 # Run the training command
 ./devops/$CMD.sh run=$RUN_ID +hardware=$HARDWARE trainer.num_workers=$NUM_WORKERS $TASK_ARGS
 
-echo "=== Batch job complete ==="
+echo "=== Batch job complete ===" 
