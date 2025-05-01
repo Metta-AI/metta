@@ -308,7 +308,8 @@ def main():
         if current_branch and current_branch != clean_branch_name and not args.skip_validation:
             print(
                 yellow(
-                    f"Note: You are currently on branch '{current_branch}' but submitted a job based on '{original_branch_ref}'."
+                    f"Note: You are currently on branch '{current_branch}' but submitted "
+                    f"a job based on '{original_branch_ref}'."
                 )
             )
 
