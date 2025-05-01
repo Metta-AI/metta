@@ -1,31 +1,27 @@
 #!/usr/bin/env python3
 import json
-import logging
 import os
 import sys
 import time
+from logging import Logger
 
 import hydra
 import wandb
 import wandb_carbs
 import yaml
-from omegaconf import DictConfig, OmegaConf
-from rich.logging import RichHandler
+from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from metta.rl.carbs.metta_carbs import MettaCarbs, carbs_params_from_cfg
 from metta.util.config import config_from_path
 from metta.util.efs_lock import efs_lock
+from metta.util.logging import setup_mettagrid_logger
 from metta.util.wandb.sweep import generate_run_id_for_sweep, sweep_id_from_name
 from metta.util.wandb.wandb_context import WandbContext
 
-# Configure rich colored logging to stderr instead of stdout
-logging.basicConfig(level="INFO", format="%(message)s", datefmt="[%X]", handlers=[RichHandler(rich_tracebacks=True)])
-
-logger = logging.getLogger("sweep_init")
-
 
 @hydra.main(config_path="../configs", config_name="sweep_job", version_base=None)
-def main(cfg: OmegaConf) -> int:
+def main(cfg: DictConfig | ListConfig) -> int:
+    logger = setup_mettagrid_logger("sweep_eval")
     logger.info("Sweep configuration:")
     logger.info(yaml.dump(OmegaConf.to_container(cfg, resolve=True), default_flow_style=False))
     cfg.wandb.name = cfg.sweep_name
@@ -35,13 +31,15 @@ def main(cfg: OmegaConf) -> int:
     is_master = os.environ.get("NODE_INDEX", "0") == "0"
     if is_master:
         with efs_lock(cfg.sweep_dir + "/lock", timeout=300):
-            create_sweep(cfg.sweep_name, cfg)
-        create_run(cfg.sweep_name, cfg)
+            create_sweep(cfg.sweep_name, cfg, logger)
+        create_run(cfg.sweep_name, cfg, logger)
     else:
-        wait_for_run(cfg.sweep_name, cfg, cfg.dist_cfg_path)
+        wait_for_run(cfg.sweep_name, cfg, cfg.dist_cfg_path, logger)
+
+    return 0
 
 
-def create_sweep(sweep_name: str, cfg: OmegaConf) -> None:
+def create_sweep(sweep_name: str, cfg: DictConfig | ListConfig, logger: Logger) -> None:
     """
     Create a new sweep with the given name.
     """
@@ -66,7 +64,7 @@ def create_sweep(sweep_name: str, cfg: OmegaConf) -> None:
     )
 
 
-def create_run(sweep_name: str, cfg: OmegaConf) -> str:
+def create_run(sweep_name: str, cfg: DictConfig | ListConfig, logger: Logger) -> str:
     """
     Create a new run for an existing sweep.
     Returns the run ID.
@@ -104,11 +102,11 @@ def create_run(sweep_name: str, cfg: OmegaConf) -> str:
 
             suggestion = carbs.suggest()
             logger.info("Generated CARBS suggestion: ")
-            logger.info("\n" + "-" * 10 + "\n" + yaml.dump(suggestion, default_flow_style=False) + "\n" + "-" * 10)
+            logger.info(f"\n{'-' * 10}\n{yaml.dump(suggestion, default_flow_style=False)}\n{'-' * 10}")
             _log_file(run_dir, wandb_run, "carbs_suggestion.yaml", suggestion)
 
             train_cfg = OmegaConf.create({key: cfg[key] for key in cfg.sweep.keys()})
-            _apply_carbs_suggestion(train_cfg, suggestion)
+            apply_carbs_suggestion(train_cfg, suggestion)
             save_path = os.path.join(run_dir, "train_config_overrides.yaml")
             OmegaConf.save(train_cfg, save_path)
             logger.info(f"Saved train config overrides to {save_path}")
@@ -131,7 +129,7 @@ def create_run(sweep_name: str, cfg: OmegaConf) -> str:
     return run_name
 
 
-def wait_for_run(sweep_name: str, cfg: OmegaConf, path: str) -> None:
+def wait_for_run(sweep_name: str, cfg: DictConfig | ListConfig, path: str, logger: Logger) -> None:
     """
     Wait for a run to exist.
     """
@@ -145,20 +143,24 @@ def wait_for_run(sweep_name: str, cfg: OmegaConf, path: str) -> None:
     logger.info(f"Run ID: {run} ready")
 
 
-def _apply_carbs_suggestion(config: OmegaConf, suggestion: DictConfig):
+def apply_carbs_suggestion(config: DictConfig | ListConfig, suggestion: DictConfig):
+    """Apply suggestions to a configuration object using dotted path notation.
+
+    Args:
+        config: The configuration object to modify
+        suggestion: The suggestions to apply
+    """
+    from omegaconf import OmegaConf
+
     for key, value in suggestion.items():
         if key == "suggestion_uuid":
             continue
-        new_cfg_param = config
-        key_parts = key.split(".")
-        for k in key_parts[:-1]:
-            if k in new_cfg_param:
-                new_cfg_param = new_cfg_param[k]
-            else:
-                new_cfg_param[k] = {}
-                new_cfg_param = new_cfg_param[k]
-        param_name = key_parts[-1]
-        new_cfg_param[param_name] = value
+
+        # Convert key to string if it's not already
+        str_key = str(key) if not isinstance(key, str) else key
+
+        # Use OmegaConf.update with the string key
+        OmegaConf.update(config, str_key, value)
 
 
 def _log_file(run_dir: str, wandb_run, name: str, data):
