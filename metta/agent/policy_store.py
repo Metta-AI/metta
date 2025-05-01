@@ -73,13 +73,13 @@ class PolicyStore:
         return prs[0]
 
     def policies(
-        self, policy: Union[str, ListConfig | DictConfig], selector_type: str = "top", n=1, metric="score"
+        self, policy: Union[str, ListConfig | DictConfig], selector_type: str = "top", n: int = 1, metric: str = "score"
     ) -> List[PolicyRecord]:
         if not isinstance(policy, str):
             policy = policy.uri
-        return self._policy_records(policy, selector_type, n, metric)
+        return self._policy_records(policy, selector_type, n=n, metric=metric)
 
-    def _policy_records(self, uri, selector_type="top", n=1, metric="score"):
+    def _policy_records(self, uri, selector_type="top", n=1, metric: str = "score"):
         version = None
         if uri.startswith("wandb://"):
             wandb_uri = uri[len("wandb://") :]
@@ -114,12 +114,22 @@ class PolicyStore:
             return [random.choice(prs)]
 
         elif selector_type == "top":
-            invalid_scores = [x for x in prs if x.metadata.get(metric, None) is None]
+            if metric not in prs[0].metadata:
+                # check if the metric is in eval_scores
+                if "eval_scores" in prs[0].metadata and metric in prs[0].metadata["eval_scores"]:
+                    policy_scores = {p: p.metadata["eval_scores"].get(metric, None) for p in prs}
+                else:
+                    logger.warning(f"Metric {metric} not found in policy metadata, returning latest policy")
+                    return [prs[0]]  #
+            else:
+                policy_scores = {p: p.metadata.get(metric, None) for p in prs}
+
+            policies_with_scores = [p for p, s in policy_scores.items() if s is not None]
             # If more than 20% of the policies have no score, return the latest policy
-            if metric not in prs[0].metadata or len(invalid_scores) > len(prs) * 0.2:
-                logger.warning(f"Metric {metric} not found in policy metadata, returning latest policy")
+            if len(policies_with_scores) < len(prs) * 0.8:
+                logger.warning("Too many invalid scores, returning latest policy")
                 return [prs[0]]  # return latest if metric not found
-            top = sorted([p for p in prs if p not in invalid_scores], key=lambda x: x.metadata.get(metric, 0))[-n:]
+            top = sorted(policies_with_scores, key=lambda p: policy_scores[p])[-n:]
             if len(top) < n:
                 logger.warning(f"Only found {len(top)} policies matching criteria, requested {n}")
 

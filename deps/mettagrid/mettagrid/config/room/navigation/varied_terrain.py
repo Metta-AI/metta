@@ -29,44 +29,44 @@ class VariedTerrain(Room):
     STYLE_PARAMETERS = {
         "all-sparse": {
             "hearts_count": 15,
-            "large_obstacles": {"size_range": [10, 25], "count": [0,2]},
-            "small_obstacles": {"size_range": [3, 6], "count": [0,2]},
-            "crosses": {"count": [0,2]},
-            "labyrinths": {"count": [0,2]},
-            "scattered_walls": {"count": [0,2]},
-            "blocks": {"count": [0,2]},
-            "clumpiness": [0,2],
+            "large_obstacles": {"size_range": [10, 25], "count": [0, 2]},
+            "small_obstacles": {"size_range": [3, 6], "count": [0, 2]},
+            "crosses": {"count": [0, 2]},
+            "labyrinths": {"count": [0, 2]},
+            "scattered_walls": {"count": [0, 2]},
+            "blocks": {"count": [0, 2]},
+            "clumpiness": [0, 2],
         },
         "balanced": {
             "hearts_count": 75,
-            "large_obstacles": {"size_range": [10, 25], "count": [3,7]},
-            "small_obstacles": {"size_range": [3, 6], "count": [3,7]},
-            "crosses": {"count": [3,7]},
-            "labyrinths": {"count": [3,7]},
-            "scattered_walls": {"count": [3,7]},
-            "blocks": {"count": [3,7    ]},
-            "clumpiness": [1,3],
+            "large_obstacles": {"size_range": [10, 25], "count": [3, 7]},
+            "small_obstacles": {"size_range": [3, 6], "count": [3, 7]},
+            "crosses": {"count": [3, 7]},
+            "labyrinths": {"count": [3, 7]},
+            "scattered_walls": {"count": [3, 7]},
+            "blocks": {"count": [3, 7]},
+            "clumpiness": [1, 3],
         },
         "sparse-altars-dense-objects": {
             "hearts_count": 25,
-            "large_obstacles": {"size_range": [10, 25], "count": [8,15]},
-            "small_obstacles": {"size_range": [3, 6], "count": [8,15]},
-            "crosses": {"count": [7,15]},
-            "labyrinths": {"count": [6,15]},
-            "scattered_walls": {"count": [40,60]},
-            "blocks": {"count": [5,15]},
-            "clumpiness": [2,6],
+            "large_obstacles": {"size_range": [10, 25], "count": [8, 15]},
+            "small_obstacles": {"size_range": [3, 6], "count": [8, 15]},
+            "crosses": {"count": [7, 15]},
+            "labyrinths": {"count": [6, 15]},
+            "scattered_walls": {"count": [40, 60]},
+            "blocks": {"count": [5, 15]},
+            "clumpiness": [2, 6],
         },
-    # New style: maze-like with predominant labyrinth features.
+        # New style: maze-like with predominant labyrinth features.
         "maze": {
             "hearts_count": 25,  # Altars placed after obstacles; keeps the grid sparse for maze corridors.
-            "large_obstacles": {"size_range": [10, 25], "count": [0,2]},  # Disable large obstacles.
-            "small_obstacles": {"size_range": [3, 6], "count": [0,2]},  # Disable small obstacles.
-            "crosses": {"count": [0,2]},  # No cross obstacles.
-            "labyrinths": {"count": [10,20]},  # Increase labyrinth count to generate more maze segments.
-            "scattered_walls": {"count": [0,2]},  # Avoid adding extra walls that could break up maze consistency.
-            "blocks": {"count": [0,2]},  # No rectangular blocks.
-            "clumpiness": [0,2],  # Clumpiness is not necessary when only labyrinths are used.
+            "large_obstacles": {"size_range": [10, 25], "count": [0, 2]},  # Disable large obstacles.
+            "small_obstacles": {"size_range": [3, 6], "count": [0, 2]},  # Disable small obstacles.
+            "crosses": {"count": [0, 2]},  # No cross obstacles.
+            "labyrinths": {"count": [10, 20]},  # Increase labyrinth count to generate more maze segments.
+            "scattered_walls": {"count": [0, 2]},  # Avoid adding extra walls that could break up maze consistency.
+            "blocks": {"count": [0, 2]},  # No rectangular blocks.
+            "clumpiness": [0, 2],  # Clumpiness is not necessary when only labyrinths are used.
         },
     }
 
@@ -80,17 +80,19 @@ class VariedTerrain(Room):
         border_object: str = "wall",
         occupancy_threshold: float = 0.66,  # maximum fraction of grid cells to occupy
         style: str = "balanced",
+        team: str | None = None,
     ):
-        super().__init__(border_width=border_width, border_object=border_object, labels = [style])
+        super().__init__(border_width=border_width, border_object=border_object, labels=[style])
 
-        width = np.random.randint(70, 120)
-        height = np.random.randint(70, 120)
+        width = np.random.randint(40, 100)
+        height = np.random.randint(40, 100)
 
         self.set_size_labels(width, height)
         self._rng = np.random.default_rng(seed)
         self._width = width
         self._height = height
         self._agents = agents
+        self._team = team
         self._occupancy_threshold = occupancy_threshold
 
         if style not in self.STYLE_PARAMETERS:
@@ -138,12 +140,11 @@ class VariedTerrain(Room):
 
     def _build(self) -> np.ndarray:
         # Prepare agent symbols.
-        if isinstance(self._agents, int):
-            agents = ["agent.agent"] * self._agents
-        elif isinstance(self._agents, dict):
-            agents = ["agent." + agent for agent, na in self._agents.items() for _ in range(na)]
+        if self._team is None:
+            if isinstance(self._agents, int):
+                agents = ["agent.agent"] * self._agents
         else:
-            agents = []
+            agents = ["agent." + self._team] * self._agents
 
         # Create an empty grid.
         grid = np.full((self._height, self._width), "empty", dtype=object)

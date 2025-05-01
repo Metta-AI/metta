@@ -21,17 +21,19 @@ class CylinderWorld(Room):
         seed: Optional[int] = 42,
         border_width: int = 0,
         border_object: str = "wall",
+        team: str | None = None,
     ):
-        super().__init__(border_width=border_width, border_object=border_object, labels = ["cylinder_world"])
+        super().__init__(border_width=border_width, border_object=border_object, labels=["cylinder_world"])
         self._rng = np.random.default_rng(seed)
         width, height = np.random.randint(40, 100), np.random.randint(40, 100)
         self._width, self._height = width, height
         self._agents = agents
-
+        self._team = team
         # occupancy mask: False = empty
         self._occ = np.zeros((height, width), dtype=bool)
 
         self.set_size_labels(width, height)
+
     # ------------------------------------------------------------------ #
     # Public build
     # ------------------------------------------------------------------ #
@@ -60,7 +62,6 @@ class CylinderWorld(Room):
                 fails = 0  # reset – we still found room
             else:
                 fails += 1  # try a different size/orientation
-
 
         # Finally, spawn any requested agents on leftover empty cells
         grid = self._place_agents(grid)
@@ -93,10 +94,10 @@ class CylinderWorld(Room):
     # Agents placement (simplified)
     # ------------------------------------------------------------------ #
     def _place_agents(self, grid):
-        if isinstance(self._agents, int):
+        if self._team is None:
             agents = ["agent.agent"] * self._agents
         else:
-            agents = ["agent." + a for a, n in self._agents.items() for _ in range(n)]
+            agents = ["agent." + self._team] * self._agents
         for a in agents:
             pos = self._rand_empty()
             if pos:
