@@ -1,0 +1,11 @@
+
+_target_: mettagrid.curriculum.curriculum.Curriculum
+
+tasks:
+  /env/mettagrid/navigation/training/terrain_from_numpy: 0.5
+  /env/mettagrid/navigation/training/varied_terrain: 0.5
+
+env_overrides:
+  game:
+    num_agents: 4
+

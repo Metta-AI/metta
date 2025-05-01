@@ -59,18 +59,18 @@ def config_from_path(config_path: str, overrides: Optional[DictConfig] = None) -
     if config_path is None:
         raise ValueError("Config path cannot be None")
 
-    env_cfg = hydra.compose(config_name=config_path)
+    cfg = hydra.compose(config_name=config_path)
 
     # when hydra loads a config, it "prefixes" the keys with the path of the config file.
     # We don't want that prefix, so we remove it.
     if config_path.startswith("/"):
         config_path = config_path[1:]
     for p in config_path.split("/")[:-1]:
-        env_cfg = env_cfg[p]
+        cfg = cfg[p]
 
     if overrides not in [None, {}]:
-        env_cfg = OmegaConf.merge(env_cfg, overrides)
-    return env_cfg
+        cfg = OmegaConf.merge(cfg, overrides)
+    return cfg
 
 
 def check_aws_credentials() -> bool:

@@ -1,6 +1,6 @@
 num_workers: ???
 
-env: /env/mettagrid/simple
+curriculum: /env/mettagrid/curriculum/simple
 env_overrides: {}
 
 initial_policy:

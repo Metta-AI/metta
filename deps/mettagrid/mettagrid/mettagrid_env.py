@@ -1,24 +1,27 @@
+import logging
 from typing import Any, Dict, Optional
 
 import gymnasium as gym
-import hydra
 import numpy as np
 import pufferlib
-from omegaconf import DictConfig
 
+from mettagrid.mettagrid.config.utils import simple_instantiate
+from mettagrid.mettagrid.curriculum.curriculum import Curriculum
 from mettagrid.mettagrid_c import MettaGrid  # pylint: disable=E0611
 from mettagrid.resolvers import register_resolvers
+
+logger = logging.getLogger("mettagrid")
 
 
 class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     def __init__(
         self,
-        env_cfg: DictConfig,
+        curriculum: Curriculum,
         render_mode: Optional[str],
         buf=None,
     ):
         self._render_mode = render_mode
-        self._curriculum = hydra.utils.instantiate(env_cfg.curriculum, _recursive_=False)
+        self._curriculum = curriculum
         self._renderer = None
         self._reset_env()
 
@@ -26,7 +29,17 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     def _reset_env(self):
         self._task = self._curriculum.get_task()
-        self._c_env = MettaGrid(self._task.game_cfg(), self._task.level_map())
+        game_cfg = self._task.env_cfg().game
+        map_builder = simple_instantiate(
+            game_cfg.map_builder,
+            recursive=game_cfg.get("recursive_map_builder", True),
+        )
+        game_map = map_builder.build()
+        map_agents = np.count_nonzero(np.char.startswith(game_map, "agent"))
+        assert game_cfg.num_agents == map_agents, f"Map has {map_agents} agents, expected {game_cfg.num_agents}"
+
+        logger.info(f"Resetting environment with {game_cfg.agent.freeze_duration} freeze duration")
+        self._c_env = MettaGrid(game_cfg, game_map)
         self._grid_env = self._c_env
         self._num_agents = self._c_env.num_agents()
         self._env = self._grid_env
@@ -44,7 +57,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         infos = {}
         if self.terminals.all() or self.truncations.all():
             self.process_episode_stats(infos)
-            self._task.complete(infos)
+            self._task.complete(infos["episode_rewards"].sum())
             self._should_reset = True
 
         return self.observations, self.rewards, self.terminals, self.truncations, infos

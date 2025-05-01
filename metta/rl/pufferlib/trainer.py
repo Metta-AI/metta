@@ -12,7 +12,7 @@ import torch.distributed as dist
 import wandb
 from fast_gae import fast_gae
 from heavyball import ForeachMuon
-from omegaconf import DictConfig, ListConfig
+from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from metta.agent.metta_agent import DistributedMettaAgent
 from metta.agent.policy_state import PolicyState
@@ -74,6 +74,10 @@ class PufferTrainer:
         self._current_eval_score = None
         self._eval_results = []
         self._weights_helper = WeightsMetricsHelper(cfg)
+        env_overrides = OmegaConf.create({"env_overrides": self.trainer_cfg.env_overrides})
+        curriculum_cfg = config_from_path(self.trainer_cfg.curriculum, env_overrides)
+        self._curriculum = hydra.utils.instantiate(curriculum_cfg)
+
         self._make_vecenv()
 
         logger.info("Loading checkpoint")
@@ -161,10 +165,10 @@ class PufferTrainer:
         self.kickstarter = Kickstarter(self.cfg, self.policy_store, self.vecenv.single_action_space)
 
         replay_sim_config = SimulationConfig(
-            env=self.trainer_cfg.env,
+            env="/env/mettagrid/mettagrid",
             num_envs=1,
             num_episodes=1,
-            env_overrides=self.trainer_cfg.env_overrides,
+            env_overrides=self._curriculum.get_task().env_cfg(),
             device=self.device,
             vectorization=self.cfg.vectorization,
         )
@@ -683,14 +687,16 @@ class PufferTrainer:
 
     def _make_vecenv(self):
         """Create a vectorized environment."""
-        env_cfg = config_from_path(self.trainer_cfg.env, self.trainer_cfg.env_overrides)
-        self.target_batch_size = self.trainer_cfg.forward_pass_minibatch_target_size // env_cfg.game.num_agents
+
+        num_agents = self._curriculum.get_task().env_cfg().game.num_agents
+
+        self.target_batch_size = self.trainer_cfg.forward_pass_minibatch_target_size // num_agents
         if self.target_batch_size < 2:  # pufferlib bug requires batch size >= 2
             self.target_batch_size = 2
         self.batch_size = (self.target_batch_size // self.trainer_cfg.num_workers) * self.trainer_cfg.num_workers
 
         self.vecenv = make_vecenv(
-            env_cfg,
+            self._curriculum,
             self.cfg.vectorization,
             num_envs=self.batch_size * self.trainer_cfg.async_factor,
             batch_size=self.batch_size,

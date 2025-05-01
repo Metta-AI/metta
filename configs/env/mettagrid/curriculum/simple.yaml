@@ -1,0 +1,11 @@
+
+_target_: mettagrid.curriculum.curriculum.SamplingCurriculum
+
+env_cfg_template: /env/mettagrid/simple
+sampling: 0
+
+env_overrides:
+  game:
+    num_agents: 24
+    max_steps: 10
+
