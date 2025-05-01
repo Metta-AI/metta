@@ -29,18 +29,24 @@ class Simulator:
         self.num_steps = num_steps
         self.dones = np.zeros(self.vecenv.num_agents)
         self.trunc = np.zeros(self.vecenv.num_agents)
+        self.time_steps = torch.zeros((self.num_agents, 1), dtype=torch.long, device=self.device)
+
 
     def actions(self):
         """Get the actions for the current timestep"""
         with torch.no_grad():
             obs = torch.as_tensor(self.obs).to(device=self.device)
-            actions, _, _, _, self.policy_rnn_state, _, _, _ = self.policy(obs, self.policy_rnn_state)
+            self.policy.eval()
+            actions, _, _, _, self.policy_rnn_state, _, _, _ = self.policy(obs, self.policy_rnn_state, time_steps=self.time_steps)
         return actions
 
     def step(self, actions):
         """Step the simulator forward one timestep"""
         (self.obs, self.rewards, self.dones, self.trunc, self.infos) = self.vecenv.step(actions.cpu().numpy())
         self.total_rewards += self.rewards
+        self.time_steps +=1
+        self.time_steps[self.dones | self.trunc] = 0
+        self.time_steps[self.trunc] = 0
 
     def done(self):
         """Check if the episode is done"""
@@ -77,13 +83,16 @@ def play(config: SimulationConfig, policy_store: PolicyStore, policy_uri: str):
 
     rewards = np.zeros(vecenv.num_agents)
     total_rewards = np.zeros(vecenv.num_agents)
+    time_steps = torch.zeros((vecenv.num_agents, 1), dtype=torch.long, device=torch.device(device))
 
     while True:
         with torch.no_grad():
             obs = torch.as_tensor(obs).to(device=device)
 
             # Parallelize across opponents
-            actions, _, _, _, policy_rnn_state, _, _, _ = policy(obs, policy_rnn_state)
+            policy.eval()
+            actions, _, _, _, policy_rnn_state, _, _, _ = policy(obs, policy_rnn_state, time_steps=time_steps)
+            time_steps += 1
             if actions.dim() == 0:  # scalar tensor like tensor(2)
                 actions = torch.tensor([actions.item()])
 

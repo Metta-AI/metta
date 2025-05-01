@@ -2,6 +2,23 @@ defaults:
   - puffer
   - _self_
 
-batch_size: 147456 # 288 (agents (36 * 8)) * 512
-minibatch_size: 4608 # 147456 / 16
+forward_pass_minibatch_target_size: 288 # 288 (agents (36 * 8))
+batch_size: 147456 # 288 * 512
+minibatch_size: 36864 #18432 # 147456 / 8
 bptt_horizon: 512
+update_epochs: 3
+
+
+clip_coef: 0.1
+ent_coef: 0.0002
+gae_lambda: 0.9
+gamma: 0.97
+vf_coef: 2.0
+average_reward: false
+
+optimizer:
+  type: adam
+  beta1: 0.967
+  beta2: 0.9999
+  eps: 1e-12
+  learning_rate: 0.0003

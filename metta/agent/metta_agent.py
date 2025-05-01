@@ -1,5 +1,5 @@
 import logging
-from typing import List, Tuple, Union
+from typing import List, Tuple, Union, Optional
 
 import gymnasium as gym
 import hydra
@@ -140,13 +140,16 @@ class MettaAgent(nn.Module):
         self.components["_value_"](td)
         return None, td["_value_"], None
 
-    def get_action_and_value(self, x, state=None, action=None, e3b=None):
+    def get_action_and_value(self, x, state=None, action=None, e3b=None, time_steps: Optional[torch.Tensor]=None):
         td = TensorDict({"x": x})
 
         td["state"] = None
         if state is not None:
             state = torch.cat(state, dim=0)
             td["state"] = state.to(x.device)
+        
+        if time_steps is not None:
+            td["time_steps"] = time_steps
 
         self.components["_value_"](td)
         self.components["_action_type_"](td)
@@ -166,8 +169,8 @@ class MettaAgent(nn.Module):
 
         return action, logprob, entropy, value, state, e3b, intrinsic_reward, normalized_logits
 
-    def forward(self, x, state=None, action=None, e3b=None):
-        return self.get_action_and_value(x, state, action, e3b)
+    def forward(self, x, state=None, action=None, e3b=None, time_steps: Optional[torch.Tensor]=None):
+        return self.get_action_and_value(x, state, action, e3b, time_steps)
 
     def _e3b_update(self, phi, e3b):
         intrinsic_reward = None

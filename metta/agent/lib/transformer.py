@@ -1,13 +1,14 @@
+import os
 from functools import lru_cache
 
 import torch
-import torch.functional as F
 import torch.nn as nn
-from agent.lib.attention import AttentionBlock
-from agent.lib.metta_layer import LayerBase
 from tensordict import TensorDict
 from torch import Tensor
 from torch.nn.attention.flex_attention import BlockMask, create_block_mask
+
+from metta.agent.lib.attention import AttentionBlock
+from metta.agent.lib.metta_layer import LayerBase
 
 
 class FFBlock(nn.Module):
@@ -123,6 +124,10 @@ def _create_block_mask(seq_len: int) -> BlockMask:
     return create_block_mask(causal, B=None, H=None, Q_LEN=seq_len, KV_LEN=seq_len)
 
 
+_compile = os.name == 'posix'
+_flex_attention = os.name == 'posix'
+
+
 class TransformerCore(LayerBase):
     def __init__(self, obs_shape, hidden_size: int, **cfg):
         super().__init__(**cfg)
@@ -136,10 +141,7 @@ class TransformerCore(LayerBase):
 
         self.activation = nn.ReLU()
         self.glu = False
-        self.gtrxl_gate = False
-
-        self._kv_cache_batch_size = -1
-        self._kv_cache_position = 0
+        self.gtrxl_gate = self._nn_params.get("gtrxl_gate", False)
 
     def _initialize(self):
         layers = []
@@ -157,20 +159,9 @@ class TransformerCore(LayerBase):
         self.layers = nn.ModuleList(layers)
         self.layer_norm = nn.LayerNorm(self.hidden_size)
 
-    def create_kv_cache(self, batch_size: int, device: torch.device, dtype: torch.dtype = torch.float32):
-        self._kv_cache_batch_size = batch_size
+    def ensure_kv_cache(self, batch_size: int, device: torch.device, dtype: torch.dtype = torch.float32):
         for layer in self.layers:
-            layer.attention.init_kv_cache(batch_size, self.context_size, device, dtype)
-
-    def _create_time_steps(self, device: torch.device):
-        if self.training:
-            return torch.arange(self.context_size, dtype=torch.long, device=device)[None, :]
-        else:
-            time_steps = torch.full((1, 1), self._kv_cache_position, device=device)
-            self._kv_cache_position += 1
-            if self._kv_cache_position >= self.context_size:
-                self._kv_cache_position = 0
-            return time_steps
+            layer.attention.ensure_kv_cache(batch_size, self.context_size, device, dtype)
 
     def _forward(self, td: TensorDict) -> TensorDict:
         hidden = td[self._input_source]
@@ -189,29 +180,24 @@ class TransformerCore(LayerBase):
             raise ValueError("Invalid input tensor shape", x.shape)
 
         hidden = hidden.reshape(B, TT, self._input_size)
+        time_steps = td.get("time_steps")
 
-        block_mask: BlockMask | None = None
         if self.training:
             assert TT == self.context_size
-            block_mask = _create_block_mask(self.context_size)
-        
-        if self._kv_cache_batch_size != B:
-            # lazily create a KV cache to match the batch size
-            self.create_kv_cache(B, hidden.device, hidden.dtype)
-
-        time_steps = td["time_steps"]
-        if time_steps is None:
-            time_steps = self._create_time_steps(hidden.device)
-
-        # cloned because of torch compile
-        hidden = self._inner_forward(hidden.clone(), time_steps, block_mask)
+            block_mask = _create_block_mask(self.context_size) if _flex_attention else None
+            if time_steps is None:
+                time_steps = torch.arange(self.context_size, dtype=torch.long, device=hidden.device)[None, :]
+            self._inner_forward(hidden.clone(), time_steps, block_mask)
+        else:
+            self.ensure_kv_cache(B, hidden.device, hidden.dtype)
+            self._inner_forward(hidden.clone(), time_steps, None)
 
         hidden = hidden.reshape(B * TT, self.hidden_size)
 
         td[self._name] = hidden
         return td
 
-    @torch.compile(mode="max-autotune")
+    @torch.compile(mode="max-autotune", dynamic=False, fullgraph=True, disable=not _compile)
     def _inner_forward(self, hidden: torch.Tensor, time_steps: torch.Tensor, block_mask: BlockMask | None) -> torch.Tensor:
         for layer in self.layers:
             hidden = layer(hidden, time_steps, block_mask)

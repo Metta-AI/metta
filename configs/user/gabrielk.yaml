@@ -1,18 +1,20 @@
 # @package __global__
 
 defaults:
-  - override /agent: simple
+  - override /agent: transformer
   - override /analyzer: eval_analyzer
+  - override /trainer: transformer
   - _self_
 
 
 device: cuda
-vectorization: multiprocessing
+# vectorization: multiprocessing
+vectorization: serial
 
 trainer:
   num_workers: 8 # num cores
   async_factor: 1
-  zero_copy: True
+  zero_copy: true
   # checkpoint_interval: 300
   env: /env/mettagrid-base/simple
   env_overrides:
@@ -39,10 +41,11 @@ eval:
     - "wandb://run/b.georgedeane.navigation_terrain_training_v2"
     - "wandb://run/b.daphne.navigation_terrain_training"
 
-# wandb:
-#   checkpoint_interval: 1
+wandb:
+  enabled: false
+  track: false
 
-run_id: 1
+run_id: 18
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 

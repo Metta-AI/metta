@@ -165,6 +165,8 @@ class PufferTrainer:
         )
         self.replay_helper = ReplayHelper(replay_sim_config, self.last_pr, wandb_run)
 
+        self.time_steps = torch.zeros((self.vecenv.num_agents, 1), dtype=torch.long, device=torch.device(self.device))
+
         logger.info(f"PufferTrainer initialization complete on device: {self.device}")
 
     def train(self):
@@ -265,7 +267,7 @@ class PufferTrainer:
 
         while not experience.full:
             with profile.env:
-                o, r, _, d, info, env_id, mask = self.vecenv.recv()
+                o, r, d, t, info, env_id, mask = self.vecenv.recv()
 
                 # Zero-copy indexing for contiguous env_id
 
@@ -294,17 +296,26 @@ class PufferTrainer:
                 o_device = o.to(self.device, non_blocking=True)
                 r = torch.as_tensor(r)
                 d = torch.as_tensor(d)
+                t = torch.as_tensor(t)
 
             with profile.eval_forward, torch.no_grad():
                 # TODO: In place-update should be faster. Leaking 7% speed max
                 # Also should be using a cuda tensor to index
                 e3b = e3b_inv[gpu_env_id] if self.use_e3b else None
 
-                h = lstm_h[:, gpu_env_id]
-                c = lstm_c[:, gpu_env_id]
-                actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward, _ = policy(o_device, (h, c), e3b=e3b)
-                lstm_h[:, gpu_env_id] = h
-                lstm_c[:, gpu_env_id] = c
+                state = None
+                if lstm_h is not None and lstm_c is not None:
+                    h = lstm_h[:, gpu_env_id]
+                    c = lstm_c[:, gpu_env_id]
+                    state = (h, c)
+                
+                actions, logprob, _, value, state, next_e3b, intrinsic_reward, _ = policy(o_device, state, e3b=e3b, time_steps=self.time_steps)
+                
+                if lstm_h is not None and lstm_c is not None:
+                    h, c = state
+                    lstm_h[:, gpu_env_id] = h
+                    lstm_c[:, gpu_env_id] = c
+                
                 if self.use_e3b:
                     e3b_inv[env_id] = next_e3b
                     r += intrinsic_reward.cpu()
@@ -313,6 +324,10 @@ class PufferTrainer:
                     torch.cuda.synchronize()
 
             with profile.eval_misc:
+                self.time_steps += 1
+                self.time_steps[d] = 0
+                self.time_steps[t] = 0
+
                 value = value.flatten()
                 actions = actions.cpu().numpy()
                 mask = torch.as_tensor(mask)  # * policy.mask)
@@ -340,6 +355,7 @@ class PufferTrainer:
         # TODO: Better way to enable multiple collects
         experience.ptr = 0
         experience.step = 0
+        # assert self.time_steps[0, 0] == 0
         return self.stats, infos
 
     @pufferlib.utils.profile
@@ -398,7 +414,8 @@ class PufferTrainer:
                     _, newlogprob, entropy, newvalue, lstm_state, _, _, new_normalized_logits = self.policy(
                         obs, state=lstm_state, action=atn
                     )
-                    lstm_state = (lstm_state[0].detach(), lstm_state[1].detach())
+                    if lstm_state is not None:
+                        lstm_state = (lstm_state[0].detach(), lstm_state[1].detach())
 
                     if self.device == "cuda":
                         torch.cuda.synchronize()

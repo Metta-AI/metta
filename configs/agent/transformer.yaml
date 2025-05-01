@@ -64,10 +64,11 @@ components:
     input_source: encoded_obs
     output_size: 128
     nn_params:
-      num_layers: 3
+      num_layers: 2
       num_heads: 8
       ffn_size: 128
       context_size: 512
+      gtrxl_gate: true
 
   critic_1:
     _target_: metta.agent.lib.nn_layer_library.Linear

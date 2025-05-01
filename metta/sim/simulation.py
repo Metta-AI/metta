@@ -97,9 +97,15 @@ class Simulation:
         obs, _ = self._vecenv.reset()
         policy_rnn_state = None
         npc_rnn_state = None
+        time_steps = torch.zeros((self._vecenv.num_agents, 1), dtype=torch.long, device=self._device)
+        time_step = 0
 
         game_stats = []
         start = time.time()
+
+        self._policy_pr.policy().eval()
+        if self._npc_pr is not None:
+            self._npc_pr.policy().eval()
 
         # set of episodes that parallelize the environments
         while self._completed_episodes < self._min_episodes and time.time() - start < self._max_time_s:
@@ -107,18 +113,20 @@ class Simulation:
                 obs = torch.as_tensor(obs).to(device=self._device)
                 # observavtions that correspond to policy agent
                 my_obs = obs[self._policy_idxs]
+                policy_time_steps = time_steps[self._policy_idxs]
 
                 # Parallelize across opponents
                 policy = self._policy_pr.policy()  # policy to evaluate
-                policy_actions, _, _, _, policy_rnn_state, _, _, _ = policy(my_obs, policy_rnn_state)
+                policy_actions, _, _, _, policy_rnn_state, _, _, _ = policy(my_obs, policy_rnn_state, time_steps=policy_time_steps)
 
                 # Iterate opponent policies
                 if self._npc_pr is not None:
                     npc_obs = obs[self._npc_idxs]
+                    npc_time_steps = time_steps[self._npc_idxs]
                     npc_rnn_state = npc_rnn_state
 
                     npc_policy = self._npc_pr.policy()
-                    npc_action, _, _, _, npc_rnn_state, _, _, _ = npc_policy(npc_obs, npc_rnn_state)
+                    npc_action, _, _, _, npc_rnn_state, _, _, _ = npc_policy(npc_obs, npc_rnn_state, time_steps=npc_time_steps)
 
             actions = policy_actions
             if self._npc_agents_per_env > 0:
@@ -133,6 +141,9 @@ class Simulation:
             actions = actions.view(self._num_envs * self._agents_per_env, -1)
 
             obs, rewards, dones, truncated, infos = self._vecenv.step(actions.cpu().numpy())
+            time_steps += 1
+            time_steps[dones] = 0
+            time_steps[truncated] = 0
 
             self._total_rewards += rewards
             self._completed_episodes += sum([e.done for e in self._vecenv.envs])

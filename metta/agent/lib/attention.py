@@ -126,7 +126,10 @@ class AttentionBlock(nn.Module):
             dtype=self.dtype,
         )
 
-    def init_kv_cache(self, batch_size: int, context_size: int, device: torch.device, dtype: torch.dtype):
+    def ensure_kv_cache(self, batch_size: int, context_size: int, device: torch.device, dtype: torch.dtype):
+        if self.has_kv_cache and self.key_cache.shape[0] == batch_size:
+            return
+        
         shape = (batch_size, context_size, self.num_heads, self.head_dim)
         key_cache = torch.zeros(shape, device=device, dtype=dtype)
         value_cache = torch.zeros(shape, device=device, dtype=dtype)
@@ -158,7 +161,7 @@ class AttentionBlock(nn.Module):
         if self.has_kv_cache and not self.training:
             key, value = self.update_kv_cache(time_steps, key, value)
 
-        if self.training:
+        if block_mask is not None:
             # TODO: macos likely can not use flex attention
             # inference can't use flex attention because of the block mask, there is a work around but it's not worth it imo
             x = flex_attention_wrapper(query, key, value, block_mask=block_mask)
