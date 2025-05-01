@@ -33,28 +33,35 @@ for i in "${!POLICIES[@]}"; do
     echo "Running full sequence eval for policy $POLICY_URI"
     RANDOM_NUM=$((RANDOM % 1000))
     IDX="${IDX}_${RANDOM_NUM}"
-    python3 -m tools.sim \
-        sim=navigation \
-        run=navigation$IDX \
-        policy_uri=wandb://run/$POLICY_URI \
-        +eval_db_uri=wandb://artifacts/navigation_db \
-        ++sim_job.selector_type=top \
-        ++sim_job.metric=navigation_score
+    # python3 -m tools.sim \
+    #     sim=navigation \
+    #     run=navigation$IDX \
+    #     policy_uri=wandb://run/$POLICY_URI \
+    #     +eval_db_uri=wandb://artifacts/navigation_db \
+    #     ++sim_job.selector_type=top \
+    #     ++sim_job.metric=navigation_score
+
+    # python3 -m tools.sim \
+    #     sim=multiagent \
+    #     run=multiagent$IDX \
+    #     policy_uri=wandb://run/$POLICY_URI \
+    #     +eval_db_uri=wandb://artifacts/multiagent_db \
+    #     ++sim_job.selector_type=top \
+    #     ++sim_job.metric=multiagent_score
+
+
+    # python3 -m tools.sim \
+    #     sim=memory \
+    #     run=memory$IDX \
+    #     policy_uri=wandb://run/$POLICY_URI \
+    #     +eval_db_uri=wandb://artifacts/memory_db \
+    #     ++sim_job.selector_type=top \
+    #     ++sim_job.metric=memory_score
 
     python3 -m tools.sim \
-        sim=multiagent \
-        run=multiagent$IDX \
+        sim=cards \
+        run=cards$IDX \
         policy_uri=wandb://run/$POLICY_URI \
-        +eval_db_uri=wandb://artifacts/multiagent_db \
-        ++sim_job.selector_type=top \
-        ++sim_job.metric=multiagent_score
-
-
-    python3 -m tools.sim \
-        sim=memory \
-        run=memory$IDX \
-        policy_uri=wandb://run/$POLICY_URI \
-        +eval_db_uri=wandb://artifacts/memory_db \
-        ++sim_job.selector_type=top \
-        ++sim_job.metric=memory_score
+        +eval_db_uri=wandb://artifacts/cards_db \
+        ++sim_job.selector_type=latest
 done

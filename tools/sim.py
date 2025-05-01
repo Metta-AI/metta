@@ -20,7 +20,7 @@ class SimJob(Config):
     simulation_suite: SimulationSuiteConfig
     policy_uris: List[str]
     selector_type: str = "latest"
-    metric: str = "score"
+    metric: str | None= "score"
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
