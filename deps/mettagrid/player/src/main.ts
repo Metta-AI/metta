@@ -426,7 +426,7 @@ async function loadReplayText(replayData: any) {
   for (let i = 0; i < replay.object_types.length; i++) {
     const typeName = replay.object_types[i];
     var image = "objects/" + typeName + ".png";
-    if (!drawer.hasImage(image) && typeName != "agent" && typeName != "wall") {
+    if (!drawer.hasImage(image)) {
       console.warn("Object not supported: ", typeName);
       image = "objects/unknown.png";
     }
