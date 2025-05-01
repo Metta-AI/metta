@@ -17,7 +17,6 @@ def upload_map_preview(cfg: DictConfig | ListConfig, wandb_run: wandb_run.Run, l
 
     sim = cfg.sim
 
-    """Generate a minimal replay for mettascope."""
     env_cfg = config_from_path(sim.env)
     vecenv = make_vecenv(env_cfg, sim.vectorization, num_envs=1, render_mode="human")
     env = vecenv.envs[0]
