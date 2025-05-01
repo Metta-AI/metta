@@ -8,19 +8,17 @@ game:
     rewards:
       heart: 0.333
   map_builder:
-
     _target_: mettagrid.config.room.multi_room.MultiRoom
     num_rooms: 4
     room:
       _target_: mettagrid.config.room.ascii.Ascii
       border_width: 1
-      uri: "configs/env/mettagrid/maps/card_evals/depletable_single_use.map"
+      uri: "configs/env/mettagrid/maps/card_evals/find_the_best.map"
 
   objects:
-   
     altar:
       hp: 30
-      input_battery: 1
+      input_battery: 3
       output_heart: 1
       max_output: 3
       conversion_ticks: 1
@@ -33,7 +31,7 @@ game:
       color: 0
       max_output: 3
       conversion_ticks: 1
-      cooldown: 255
+      cooldown: ${sampling:0, 8, 5}
       initial_items: 0
 
     mine.green:
@@ -42,7 +40,7 @@ game:
       color: 0
       max_output: 3
       conversion_ticks: 1
-      cooldown: 255
+      cooldown: ${sampling:0, 8, 5}
       initial_items: 1
 
     mine.blue:
@@ -51,7 +49,7 @@ game:
       color: 0
       max_output: 3
       conversion_ticks: 1
-      cooldown: 255
+      cooldown: ${sampling:0, 8, 5}
       initial_items: 1
 
     generator.red:
@@ -61,7 +59,7 @@ game:
       color: 0
       max_output: 2
       conversion_ticks: 1
-      cooldown: 255
+      cooldown: ${sampling:0, 8, 5}
       initial_items: 0
 
     generator.green:
@@ -71,9 +69,9 @@ game:
       color: 0
       max_output: 1
       conversion_ticks: 1
-      cooldown: 255
+      cooldown: ${sampling:0, 8, 5}
       initial_items: 0
-      
+
     generator.blue:
       hp: 30
       input_ore.blue: 1
@@ -81,5 +79,5 @@ game:
       color: 0
       max_output: 1
       conversion_ticks: 1
-      cooldown: 255
+      cooldown: ${sampling:0, 8, 5}
       initial_items: 0
