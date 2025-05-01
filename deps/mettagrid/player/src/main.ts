@@ -47,7 +47,7 @@ export class PanelInfo {
   // Update the pan and zoom level based on the mouse position and scroll delta.
   updatePanAndZoom(): boolean {
 
-    if (mousePressed) {
+    if (mouseClick) {
       this.isPanning = true;
     }
     if (!mouseDown) {
@@ -136,7 +136,8 @@ const COLORS: [string, [number, number, number, number]][] = [
 
 // Interaction state.
 let mouseDown = false;
-let mousePressed = false;
+let mouseClick = false;
+let mouseDoubleClick = false;
 let mousePos = new Vec2f(0, 0);
 let lastMousePos = new Vec2f(0, 0);
 let scrollDelta = 0;
@@ -206,9 +207,9 @@ function onResize() {
 // Handle mouse down events.
 function onMouseDown() {
   lastMousePos = mousePos;
-  mousePressed = true;
+  mouseClick = true;
   const currentTime = new Date().getTime();
-  const isDoubleClick = currentTime - lastClickTime < 300; // 300ms threshold for double-click
+  mouseDoubleClick = currentTime - lastClickTime < 300; // 300ms threshold for double-click
   lastClickTime = currentTime;
 
   if (Math.abs(mousePos.x() - mapPanel.width) < SPLIT_DRAG_THRESHOLD) {
@@ -219,17 +220,6 @@ function onMouseDown() {
     console.log("Started info dragging")
   } else {
     mouseDown = true;
-
-    // If it's a double click in the map panel and we have a selected object
-    if (isDoubleClick && mapPanel.inside(mousePos) && selectedGridObject !== null) {
-      // Toggle followSelection on double-click
-      followSelection = !followSelection;
-      if (followSelection) {
-        // Set the zoom level to 1 as requested when following
-        mapPanel.zoomLevel = 1/2;
-        followTraceSelection = true;
-      }
-    }
   }
 
   requestFrame();
@@ -963,14 +953,11 @@ function drawMap(panel: PanelInfo) {
 
   const localMousePos = panel.transformPoint(mousePos);
 
-  // If we're following a selection, center the map on it
-  if (followSelection && selectedGridObject !== null) {
-    const x = getAttr(selectedGridObject, "c");
-    const y = getAttr(selectedGridObject, "r");
-    panel.panPos = new Vec2f(-x * TILE_SIZE, -y * TILE_SIZE);
-  }
+  if (mouseClick) {
+    // Reset the follow flags.
+    followSelection = false;
+    followTraceSelection = false;
 
-  if (mouseDown) {
     if (localMousePos != null) {
       const gridMousePos = new Vec2f(
         Math.round(localMousePos.x() / TILE_SIZE),
@@ -982,15 +969,25 @@ function drawMap(panel: PanelInfo) {
         return x === gridMousePos.x() && y === gridMousePos.y();
       });
       if (gridObject !== undefined) {
-        // If this is a single click (not a double-click) and we're selecting a new object,
-        // stop following the previous selection
-        if (gridObject !== selectedGridObject) {
-          followSelection = false;
-        }
         selectedGridObject = gridObject;
-        console.log("selectedGridObject: ", selectedGridObject);
+        console.log("selectedGridObject on map:", selectedGridObject);
+
+        if (mouseDoubleClick) {
+          // Toggle followSelection on double-click
+          followSelection = true;
+          followTraceSelection = true;
+          mapPanel.zoomLevel = 1/2;
+          tracePanel.zoomLevel = 1;
+        }
       }
     }
+  }
+
+  // If we're following a selection, center the map on it
+  if (followSelection && selectedGridObject !== null) {
+    const x = getAttr(selectedGridObject, "c");
+    const y = getAttr(selectedGridObject, "r");
+    panel.panPos = new Vec2f(-x * TILE_SIZE, -y * TILE_SIZE);
   }
 
   drawer.save();
@@ -1026,7 +1023,7 @@ function drawTrace(panel: PanelInfo) {
     );
   }
 
-  if (mousePressed &&panel.inside(mousePos)) {
+  if (mouseClick &&panel.inside(mousePos)) {
     if (localMousePos != null) {
       const mapX = localMousePos.x();
       if (mapX > 0 && mapX < replay.max_steps * TRACE_WIDTH &&
@@ -1035,13 +1032,18 @@ function drawTrace(panel: PanelInfo) {
         if (agentId >= 0 && agentId < replay.num_agents) {
           followSelection = true;
           selectedGridObject = replay.agents[agentId];
-          console.log("selectedGridObject on a trace: ", selectedGridObject);
+          console.log("selectedGridObject on a trace:", selectedGridObject);
           mapPanel.focusPos(
             getAttr(selectedGridObject, "c") * TILE_SIZE,
             getAttr(selectedGridObject, "r") * TILE_SIZE
           );
           step = Math.floor(mapX / TRACE_WIDTH);
           scrubber.value = step.toString();
+
+          if (mouseDoubleClick) {
+            followTraceSelection = true;
+            panel.zoomLevel = 1;
+          }
         }
       }
     }
@@ -1203,7 +1205,8 @@ function onFrame() {
     requestFrame();
   }
 
-  mousePressed = false;
+  mouseClick = false;
+  mouseDoubleClick = false;
 }
 
 function preventDefaults(event: Event) {
