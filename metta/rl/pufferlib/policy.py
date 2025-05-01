@@ -1,5 +1,7 @@
 from types import SimpleNamespace
 
+
+from pufferlib.cleanrl import sample_logits
 import pufferlib.models
 import pufferlib.pytorch
 import torch
@@ -118,3 +120,22 @@ def load_policy(path: str, device: str = "cpu"):
     policy.load_state_dict(weights)
 
     return policy
+
+class PufferAgentWrapper(nn.Module):
+    def __init__(self, policy: Policy):
+        super().__init__()
+        self.policy = policy
+
+    def forward(self, obs: torch.Tensor, state, action=None):
+        '''Uses variable names from LSTMWrapper. Translating for Metta:
+        critic -> value
+        logprob -> logprob_act
+        hidden -> logits then, after sample_logits(), log_sftmx_logits
+        '''
+        hidden, critic, state, e3b, intrinsic_reward = self.policy(obs, state) # using names from LSTMWrapper
+        action, logprob, logits_entropy = sample_logits(hidden, action)
+        return action, logprob, logits_entropy, critic, hidden
+    
+    def activate_actions(self, actions_names, actions_max_params, device):
+        # TODO: this could implement a check that policy's action space matches the environment's
+        pass

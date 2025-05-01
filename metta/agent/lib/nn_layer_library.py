@@ -26,6 +26,14 @@ class ReLU(LayerBase):
         self._out_tensor_shape = self._in_tensor_shapes[0].copy()
         return nn.ReLU()
     
+class LayerNorm(LayerBase):
+    def __init__(self, **cfg):
+        super().__init__(**cfg)
+
+    def _make_net(self):
+        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
+        return nn.LayerNorm(self._in_tensor_shapes[0][0], **self._nn_params)
+    
 class Bilinear(LayerBase):
     def __init__(self, **cfg):
         super().__init__(**cfg)

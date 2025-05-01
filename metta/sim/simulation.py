@@ -8,7 +8,6 @@ from omegaconf import OmegaConf
 
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore
-from metta.agent.util.distribution_utils import sample_logits
 from metta.sim.simulation_config import SimulationConfig, SimulationSuiteConfig
 from metta.sim.vecenv import make_vecenv
 from metta.util.config import config_from_path
@@ -120,15 +119,13 @@ class Simulation:
 
                 # Parallelize across opponents
                 policy = self._policy_pr.policy()  # policy to evaluate
-                logits, _ = policy(my_obs, policy_state)
-                policy_actions, _, _, _ = sample_logits(logits)
+                policy_actions, _, _, _, _ = policy(my_obs, policy_state)
 
                 # Iterate opponent policies
                 if self._npc_pr is not None:
                     npc_obs = obs[self._npc_idxs]
                     npc_policy = self._npc_pr.policy()
-                    npc_logits, _ = npc_policy(npc_obs, npc_state)
-                    npc_actions, _, _, _ = sample_logits(npc_logits)
+                    npc_actions, _, _, _, _ = npc_policy(npc_obs, npc_state)
 
             actions = policy_actions
             if self._npc_agents_per_env > 0:

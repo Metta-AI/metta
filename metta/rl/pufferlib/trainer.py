@@ -17,7 +17,6 @@ from omegaconf import DictConfig, ListConfig
 from metta.agent.metta_agent import DistributedMettaAgent
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyStore
-from metta.agent.util.distribution_utils import sample_logits
 from metta.agent.util.weights_analysis import WeightsMetricsHelper
 from metta.rl.pufferlib.experience import Experience
 from metta.rl.pufferlib.kickstarter import Kickstarter
@@ -294,8 +293,7 @@ class PufferTrainer:
 
             with profile.eval_forward, torch.no_grad():
                 state = PolicyState(lstm_h=lstm_h[:, gpu_env_id], lstm_c=lstm_c[:, gpu_env_id])
-                logits, value = policy(o_device, state)
-                actions, logprob, _, _ = sample_logits(logits)
+                actions, logprob, _, value, _ = policy(o_device, state)
                 lstm_h[:, gpu_env_id] = state.lstm_h
                 lstm_c[:, gpu_env_id] = state.lstm_c
 
@@ -385,8 +383,7 @@ class PufferTrainer:
                     ret = experience.b_returns[mb]
 
                 with profile.train_forward:
-                    logits, newvalue = self.policy(obs, lstm_state, action=atn)
-                    _, newlogprob, entropy, new_normalized_logits = sample_logits(logits, action=atn)
+                    _, newlogprob, entropy, newvalue, new_normalized_logits = self.policy(obs, lstm_state, action=atn)
                     if self.device == "cuda":
                         torch.cuda.synchronize()
 

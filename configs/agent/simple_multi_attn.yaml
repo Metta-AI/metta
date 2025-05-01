@@ -68,10 +68,15 @@ components:
     nn_params:
       num_layers: 2
 
+  core_layer_norm:
+    _target_: metta.agent.lib.nn_layer_library.LayerNorm
+    sources:
+      - name: _core_
+
   core_relu:
     _target_: metta.agent.lib.nn_layer_library.ReLU
     sources:
-      - name: _core_
+      - name: core_layer_norm
 
   critic_1:
     _target_: metta.agent.lib.nn_layer_library.Linear

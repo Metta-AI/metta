@@ -3,7 +3,6 @@ from typing import List
 import torch
 
 from metta.agent.policy_state import PolicyState
-from metta.agent.util.distribution_utils import sample_logits
 
 
 class Kickstarter:
@@ -71,6 +70,5 @@ class Kickstarter:
         return ks_action_loss, ks_value_loss
 
     def _forward(self, teacher, o, teacher_lstm_state: PolicyState):
-        logits, value = teacher(o, teacher_lstm_state)
-        _, _, _, norm_logits = sample_logits(logits)
+        _, _, _, value, norm_logits = teacher(o, teacher_lstm_state)
         return value, norm_logits

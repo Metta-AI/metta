@@ -5,7 +5,6 @@ import torch
 
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord
-from metta.agent.util.distribution_utils import sample_logits
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.vecenv import make_vecenv
 from metta.util.config import config_from_path
@@ -40,8 +39,7 @@ class Simulator:
         """Get the actions for the current timestep"""
         with torch.no_grad():
             obs = torch.as_tensor(self.obs).to(device=self.device)
-            logits, value = self.policy(obs, self.policy_state)
-            actions, _, _, _ = sample_logits(logits)
+            actions, _, _, _, _ = self.policy(obs, self.policy_state)
         return actions
 
     def step(self, actions):
@@ -98,8 +96,7 @@ def play(config: SimulationConfig, policy_record: PolicyRecord):
             obs = torch.as_tensor(obs).to(device=device)
 
             # Parallelize across opponents
-            logits, _ = policy(obs, policy_state)
-            actions, _, _, _ = sample_logits(logits)
+            actions, _, _, _, _ = policy(obs, policy_state)
             if actions.dim() == 0:  # scalar tensor like tensor(2)
                 actions = torch.tensor([actions.item()])
 
