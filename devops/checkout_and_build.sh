@@ -7,7 +7,14 @@ if [ "$SKIP_BUILD" = "1" ]; then
     exit 0
 fi
 
-# Check if dependencies are already installed
+#
+# Check if dependencies are already installed based on the presence of 
+# deps/.built (an empty file). If this file is found we will exit early.
+# 
+# If we build the deps we will `touch "deps/.built"` at the end of this
+# script. The `devops/setup_build` script removes this file so that the
+# dependencies are reinstalled.
+#
 if [ -f "deps/.built" ]; then
     echo "Dependencies already installed. Skipping checkout and build!"
     echo "You can force reinstall by running \"devops/setup_build\""
@@ -56,7 +63,7 @@ install_repo() {
         echo "Checking out $branch branch for $repo_name"
         git checkout $branch
         
-        # Restore build artifacts if we had a cached version
+        # Restore build artifacts if we stored them before cloning
         if [ -d "../cache_$repo_name" ]; then
             echo "Attempting to restore cached build files"
             # Find and copy all *.so files
