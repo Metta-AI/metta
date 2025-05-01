@@ -114,10 +114,11 @@ class PolicyStore:
             return [random.choice(prs)]
 
         elif selector_type == "top":
-            if metric not in prs[0].metadata:
+            metadata = prs[0].metadata
+            if metric not in metadata and "eval_scores" in metadata:
                 # check if the metric is in eval_scores
-                if "eval_scores" in prs[0].metadata and metric in prs[0].metadata["eval_scores"]:
-                    policy_scores = {p: p.metadata["eval_scores"].get(metric, None) for p in prs}
+                if metadata["eval_scores"] is not None and metric in metadata["eval_scores"]:
+                    policy_scores = {p: p.metadata.get("eval_scores", {}).get(metric, None) for p in prs}
                 else:
                     logger.warning(f"Metric {metric} not found in policy metadata, returning latest policy")
                     return [prs[0]]  #
