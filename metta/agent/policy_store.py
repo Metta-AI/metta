@@ -138,7 +138,7 @@ class PolicyStore:
             logger.info(f"{'Policy':<40} | {metric:<20}")
             logger.info("-" * 62)
             for pr in top:
-                logger.info(f"{pr.name:<40} | {pr.metadata.get(metric, 0):<20.4f}")
+                logger.info(f"{pr.name:<40} | {policy_scores[pr]:<20.4f}")
 
             return top[-n:]
         else:
