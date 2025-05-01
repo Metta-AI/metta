@@ -16,8 +16,7 @@ from mettagrid.grid_env cimport GridEnv
 from mettagrid.grid_object cimport GridObject
 from mettagrid.observation_encoder cimport (
     ObsType,
-    ObservationEncoder,
-    SemiCompactObservationEncoder
+    ObservationEncoder
 )
 
 # Object imports
@@ -49,8 +48,7 @@ cdef class MettaGrid(GridEnv):
     def __init__(self, cfg: DictConfig, map: np.ndarray):
         self._cfg = cfg
 
-        obs_encoder = SemiCompactObservationEncoder()
-
+        obs_encoder = ObservationEncoder()
         cdef vector[ActionHandler*] actions
         if cfg.actions.put_items.enabled:
             actions.push_back(new PutRecipeItems(cfg.actions.put_items))
@@ -165,7 +163,7 @@ cdef class MettaGrid(GridEnv):
 
     cpdef grid_objects(self):
         cdef GridObject *obj
-        cdef ObsType[:] obj_data = np.zeros(len(self.grid_features()), dtype=self._obs_encoder.obs_np_type())
+        cdef ObsType[:] obj_data = np.zeros(len(self.grid_features()), dtype=np.uint8)
         cdef unsigned int obj_id, i
         cdef ObservationEncoder obs_encoder = self._obs_encoder
         cdef vector[unsigned int] offsets

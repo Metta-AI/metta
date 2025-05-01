@@ -1,6 +1,6 @@
 """Simulation tools for evaluating policies in the Metta environment."""
 
-import logging
+from logging import Logger
 from typing import List
 
 import hydra
@@ -11,6 +11,7 @@ from metta.sim.eval_stats_logger import EvalStatsLogger
 from metta.sim.simulation import SimulationSuite
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.util.config import Config
+from metta.util.logging import setup_mettagrid_logger
 from metta.util.runtime_configuration import setup_mettagrid_environment
 from metta.util.wandb.wandb_context import WandbContext
 
@@ -19,13 +20,16 @@ class SimJob(Config):
     simulation_suite: SimulationSuiteConfig
     policy_uris: List[str]
     selector_type: str = "latest"
+    metric: str = "score"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
 
-def simulate_policy(sim_job: SimJob, policy_uri: str, cfg: DictConfig, wandb_run):
-    logger = logging.getLogger("metta.tools.sim")
+def simulate_policy(sim_job: SimJob, policy_uri: str, cfg: DictConfig, wandb_run, logger: Logger):
     # TODO: Remove dependence on cfg in PolicyStore
     policy_store = PolicyStore(cfg, wandb_run)
-    policy_prs = policy_store.policies(policy_uri, sim_job.selector_type)
+    policy_prs = policy_store.policies(policy_uri, sim_job.selector_type, n=1, metric=sim_job.metric)
     # For each checkpoint of the policy, simulate
     for pr in policy_prs:
         logger.info(f"Evaluating policy {pr.uri}")
@@ -39,13 +43,15 @@ def simulate_policy(sim_job: SimJob, policy_uri: str, cfg: DictConfig, wandb_run
 @hydra.main(version_base=None, config_path="../configs", config_name="sim_job")
 def main(cfg: DictConfig):
     setup_mettagrid_environment(cfg)
-    logger = logging.getLogger("metta.tools.sim")
+
+    logger = setup_mettagrid_logger("metta.tools.sim")
     logger.info(f"Sim job config: {OmegaConf.to_yaml(cfg, resolve=True)}")
+
     sim_job = SimJob(cfg.sim_job)
     assert isinstance(sim_job, SimJob)
     with WandbContext(cfg) as wandb_run:
         for policy_uri in sim_job.policy_uris:
-            simulate_policy(sim_job, policy_uri, cfg, wandb_run)
+            simulate_policy(sim_job, policy_uri, cfg, wandb_run, logger)
 
 
 if __name__ == "__main__":
