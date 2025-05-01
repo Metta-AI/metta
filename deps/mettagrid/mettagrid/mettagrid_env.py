@@ -2,25 +2,29 @@ import copy
 from typing import Any, Dict, Optional
 
 import gymnasium as gym
-import hydra
 import numpy as np
 import pufferlib
 from omegaconf import DictConfig, OmegaConf
 
+from mettagrid.config.utils import simple_instantiate
 from mettagrid.mettagrid_c import MettaGrid  # pylint: disable=E0611
 from mettagrid.resolvers import register_resolvers
 
 
 class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
-    def __init__(self, env_cfg: DictConfig, render_mode: Optional[str], buf=None, **kwargs):
+    def __init__(
+        self, env_cfg: DictConfig, render_mode: Optional[str], env_map: Optional[np.ndarray] = None, buf=None, **kwargs
+    ):
         self._render_mode = render_mode
         self._cfg_template = env_cfg
         self._env_cfg = self._get_new_env_cfg()
-        self._reset_env()
+        self._env_map = env_map
         self.should_reset = False
         self._renderer = None
-        self.labels = self._env_cfg.get("labels", None)
+        self._map_builder = None
+        self._reset_env()
 
+        self.labels = self._env_cfg.get("labels", None)
 
         super().__init__(buf)
 
@@ -30,11 +34,15 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         return env_cfg
 
     def _reset_env(self):
-        self._map_builder = hydra.utils.instantiate(
-            self._env_cfg.game.map_builder,
-            _recursive_=self._env_cfg.game.recursive_map_builder,
-        )
-        env_map = self._map_builder.build()
+        if self._env_map is None:
+            self._map_builder = simple_instantiate(
+                self._env_cfg.game.map_builder,
+                recursive=self._env_cfg.game.get("recursive_map_builder", True),
+            )
+            env_map = self._map_builder.build()
+        else:
+            env_map = self._env_map
+
         map_agents = np.count_nonzero(np.char.startswith(env_map, "agent"))
         assert self._env_cfg.game.num_agents == map_agents, (
             f"Number of agents {self._env_cfg.game.num_agents} does not match number of agents in map {map_agents}"
@@ -81,7 +89,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         episode_rewards_sum = episode_rewards.sum()
         episode_rewards_mean = episode_rewards_sum / self._num_agents
 
-
         infos.update(
             {
                 "episode/reward.sum": episode_rewards_sum,
@@ -92,7 +99,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             }
         )
 
-        if self._map_builder.labels is not None:
+        if self._map_builder is not None and self._map_builder.labels is not None:
             for label in self._map_builder.labels:
                 infos.update(
                     {
@@ -189,67 +196,11 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     def object_type_names(self):
         return self._c_env.object_type_names()
 
+    def inventory_item_names(self):
+        return self._c_env.inventory_item_names()
+
     def close(self):
         pass
-
-
-class MettaGridEnvSet(MettaGridEnv):
-    """
-    This is a wrapper around MettaGridEnv that allows for multiple environments to be used for training.
-    """
-
-    def __init__(
-        self,
-        env_cfg: DictConfig,
-        render_mode: str,
-        buf=None,
-        **kwargs,
-    ):
-        self._envs = list(env_cfg.envs.keys())
-        self._probabilities = list(env_cfg.envs.values())
-        self._num_agents_global = env_cfg.num_agents
-        self._env_cfg = self._get_new_env_cfg()
-        self.check_action_space()
-
-        super().__init__(env_cfg, render_mode, buf, **kwargs)
-        self._cfg_template = None  # we don't use this with multiple envs, so we clear it to emphasize that fact
-
-    def check_action_space(self):
-        env_cfgs = [config_from_path(env) for env in self._envs]
-        action_spaces = [env_cfg.game.actions for env_cfg in env_cfgs]
-        if not all(action_space == action_spaces[0] for action_space in action_spaces):
-            raise ValueError("All environments must have the same action space.")
-
-    def _get_new_env_cfg(self):
-        selected_env = np.random.choice(self._envs, p=self._probabilities)
-        env_cfg = config_from_path(selected_env)
-        if self._num_agents_global != env_cfg.game.num_agents:
-            raise ValueError(
-                "For MettaGridEnvSet, the number of agents must be the same for all environments. "
-                f"Global: {self._num_agents_global}, Env: {env_cfg.game.num_agents}"
-            )
-        env_cfg = OmegaConf.create(env_cfg)
-        OmegaConf.resolve(env_cfg)
-        return env_cfg
-
-
-def make_env_from_cfg(cfg_path: str, *args, **kwargs):
-    cfg = OmegaConf.load(cfg_path)
-    env = MettaGridEnv(cfg, *args, **kwargs)
-    return env
-
-
-def config_from_path(config_path: str) -> DictConfig:
-    env_cfg = hydra.compose(config_name=config_path)
-
-    # when hydra loads a config, it "prefixes" the keys with the path of the config file.
-    # We don't want that prefix, so we remove it.
-    if config_path.startswith("/"):
-        config_path = config_path[1:]
-    path = config_path.split("/")
-    for p in path[:-1]:
-        env_cfg = env_cfg[p]
-    return env_cfg
 
 
 # Ensure resolvers are registered when this module is imported

@@ -1,7 +1,7 @@
 # @package __global__
 
 defaults:
-  - override /agent: simple
+  # - override /agent: simple
   - _self_
 
 trainer:
@@ -15,7 +15,12 @@ trainer:
 # policy_uri: wandb://run/daveey.ar.cards.1
 # policy_uri: wandb://run/b.daveey.t.32.instant
 #policy_uri: ${trained_policy_uri}
-policy_uri: wandb://run/b.georgedeane.terrain_multienv
+policy_uri: wandb://run/b.georgedeane.terrain_extra_hard
+# b.daphne.terrain_varied_cyl_lab_pretrained:v0
+# policy_uri: wandb://run/terrain_training_multienv_april18
+# policy_uri: wandb://run/b.daphne.terrain_multienv_april18
+
+
 # Infinite_cooldown models:
 # navigation_infinite_cooldown_sweep_2g_.r.0 - ok
 # navigation_infinite_cooldown_sweep_2g.r.1 - 9 reward after 400 timesteps
@@ -23,7 +28,7 @@ policy_uri: wandb://run/b.georgedeane.terrain_multienv
 # navigation_poisson_train_sampling5 breaks in infinite_cooldown, works great in poisson with short distance
 # navigation_poisson_train_sampling5
 # npc_policy_uri: ${trained_policy_uri}
-# eval_db_uri: wandb://artifacts/navigation_constrained_actions
+eval_db_uri: wandb://artifacts/memory_db
 
 analyzer:
   # eval_stats_uri: ${run_dir}/eval_stats
@@ -31,17 +36,17 @@ analyzer:
   analysis:
     metrics:
       - metric: episode_reward
-  output_path: evalresults/navigation.html
+  output_path: evalresults/memory_db.html
 
-eval:
+sim:
   num_envs: 2
   num_episodes: 2
   max_time_s: 600
 
-  policy_uri: ${..policy_uri}
+  # policy_uri: ${..policy_uri}
   # npc_policy_uri: ${..npc_policy_uri}
   # eval_db_uri: ${..eval_db_uri} #file://daphne/sweep_stats
-  env: /env/mettagrid/navigation/training/labyrinth_world
+  env: /env/mettagrid/navigation/training/empty_world
 
 
 run_id: 103

@@ -2,8 +2,6 @@ defaults:
   - sim
   - _self_
 
-# This is a single simulation, not a suite.
-env: env/mettagrid-base/simple
-policy_agents_pct: 1.0
-num_envs: 1
-num_episodes: 1
+simulations:
+  simple:
+    env: env/mettagrid/simple

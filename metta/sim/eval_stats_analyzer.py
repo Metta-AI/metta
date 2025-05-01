@@ -1,33 +1,33 @@
 import fnmatch
 import logging
+from typing import List, Tuple
 
 import numpy as np
 import pandas as pd
-from omegaconf import DictConfig, ListConfig
+from omegaconf import ListConfig
 from tabulate import tabulate
 
+from metta.eval.analysis_config import AnalysisConfig, Metric
 from metta.sim.eval_stats_db import EvalStatsDB
 from metta.sim.queries import total_metric
 
 
 class EvalStatsAnalyzer:
-    def __init__(self, stats_db: EvalStatsDB, analysis: DictConfig, policy_uri: str, **kwargs):
+    def __init__(self, stats_db: EvalStatsDB, analysis: AnalysisConfig, policy_uri: str):
         self.logger = logging.getLogger(__name__)
         self.analysis = analysis
         self.stats_db = stats_db
         self.candidate_policy_uri = policy_uri
-        self.global_filters = analysis.get("filters", {})
+        self.global_filters = analysis.filters
 
-        metric_configs = {}
-        metrics = []
+        metric_configs: List[Tuple[Metric, List[str]]] = []
         for cfg in self.analysis.metrics:
-            metric_configs[cfg] = fnmatch.filter(self.stats_db.available_metrics, cfg.metric)
-            metrics.extend(metric_configs[cfg])
+            cur_metrics = fnmatch.filter(self.stats_db.available_metrics, cfg.metric)
+            metric_configs.append((cfg, cur_metrics))
         self.metric_configs = metric_configs
-        self.analysis.metrics = metrics
 
-    def _filters(self, item):
-        local_filters = item.get("filters", {})
+    def _filters(self, item: Metric):
+        local_filters = item.filters
 
         if len(self.global_filters) == 0:
             return local_filters
@@ -52,10 +52,10 @@ class EvalStatsAnalyzer:
         result_table = tabulate(result, headers=list(result.keys()), tablefmt="grid", maxcolwidths=25)
         self.logger.info(f"Results for {metric} with filters {filters}:\n{result_table}")
 
-    def _analyze_metrics(self, metric_configs, include_policy_fitness=True):
+    def _analyze_metrics(self, metric_configs: List[Tuple[Metric, List[str]]], include_policy_fitness=True):
         result_dfs = []
         policy_fitness_records = []
-        for cfg, metrics in metric_configs.items():
+        for cfg, metrics in metric_configs:
             filters = self._filters(cfg)
             for metric in metrics:
                 metric_result = self.stats_db.query(total_metric(metric, filters))
@@ -70,7 +70,7 @@ class EvalStatsAnalyzer:
         return result_dfs, policy_fitness_records
 
     def analyze(self, include_policy_fitness=True):
-        if all(len(self.metric_configs[cfg]) == 0 for cfg in self.metric_configs):
+        if all(len(m) == 0 for (cfg, m) in self.metric_configs):
             self.logger.info(f"No metrics to analyze yet for {self.candidate_policy_uri}")
             return [], []
 

@@ -2,53 +2,35 @@ defaults:
   - sim
   - _self_
 
-num_envs: 1
-num_episodes: 1
-run_dir: ${run_dir}
-
 simulations:
   navigation/emptyspace_withinsight:
     env: env/mettagrid/navigation/evals/emptyspace_withinsight
-    policy_agents_pct: 1.0
   navigation/emptyspace_outofsight:
     env: env/mettagrid/navigation/evals/emptyspace_outofsight
-    policy_agents_pct: 1.0
   navigation/emptyspace_sparse:
     env: env/mettagrid/navigation/evals/emptyspace_sparse
-    policy_agents_pct: 1.0
   navigation/walls_withinsight:
     env: env/mettagrid/navigation/evals/walls_withinsight
-    policy_agents_pct: 1.0
   navigation/walls_outofsight:
     env: env/mettagrid/navigation/evals/walls_outofsight
-    policy_agents_pct: 1.0
   navigation/walls_sparse:
     env: env/mettagrid/navigation/evals/walls_sparse
-    policy_agents_pct: 1.0
   navigation/cylinder:
     env: env/mettagrid/navigation/evals/cylinder
-    policy_agents_pct: 1.0
   navigation/obstacles0:
     env: env/mettagrid/navigation/evals/obstacles0
-    policy_agents_pct: 1.0
   navigation/obstacles1:
     env: env/mettagrid/navigation/evals/obstacles1
-    policy_agents_pct: 1.0
   navigation/obstacles2:
     env: env/mettagrid/navigation/evals/obstacles2
-    policy_agents_pct: 1.0
   navigation/obstacles3:
     env: env/mettagrid/navigation/evals/obstacles3
-    policy_agents_pct: 1.0
   navigation/corridors:
     env: env/mettagrid/navigation/evals/corridors
-    policy_agents_pct: 1.0
   navigation/labyrinth:
     env: env/mettagrid/navigation/evals/labyrinth
-    policy_agents_pct: 1.0
   navigation/radialmaze:
     env: env/mettagrid/navigation/evals/radialmaze
-    policy_agents_pct: 1.0
   navigation/cylinder_easy:
     env: env/mettagrid/navigation/evals/cylinder_easy
   navigation/honeypot:
@@ -71,3 +53,4 @@ simulations:
     env: env/mettagrid/navigation/evals/walkaround
   navigation/wanderout:
     env: env/mettagrid/navigation/evals/wanderout
+# selector_type: "latest"

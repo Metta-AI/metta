@@ -15,15 +15,16 @@ import os
 import random
 import sys
 import warnings
-from typing import List, Union
+from typing import List, Optional, Union
 
 import torch
 import wandb
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, ListConfig
 from torch import nn
-from wandb.sdk import wandb_run
 
 from metta.agent.metta_agent import make_policy
+from metta.rl.pufferlib.policy import load_policy
+from metta.util.wandb.wandb_context import WandbRun
 
 logger = logging.getLogger("policy_store")
 
@@ -42,7 +43,7 @@ class PolicyRecord:
 
     def policy(self) -> nn.Module:
         if self._policy is None:
-            pr = self._policy_store._load_from_uri(self.uri)
+            pr = self._policy_store.load_from_uri(self.uri)
             self._policy = pr.policy()
             self._local_path = pr.local_path()
         return self._policy
@@ -55,14 +56,16 @@ class PolicyRecord:
 
 
 class PolicyStore:
-    def __init__(self, cfg: OmegaConf, wandb_run: wandb_run.Run):
+    def __init__(self, cfg: ListConfig | DictConfig, wandb_run: WandbRun | None):
         self._cfg = cfg
         self._device = cfg.device
         self._wandb_run = wandb_run
         self._cached_prs = {}
         self._made_codebase_backwards_compatible = False
 
-    def policy(self, policy: Union[str, OmegaConf], selector_type: str = "top", n=1, metric="score") -> PolicyRecord:
+    def policy(
+        self, policy: Union[str, ListConfig | DictConfig], selector_type: str = "top", n=1, metric="score"
+    ) -> PolicyRecord:
         if not isinstance(policy, str):
             policy = policy.uri
         prs = self._policy_records(policy, selector_type, n, metric)
@@ -70,13 +73,13 @@ class PolicyStore:
         return prs[0]
 
     def policies(
-        self, policy: Union[str, OmegaConf], selector_type: str = "top", n=1, metric="score"
+        self, policy: Union[str, ListConfig | DictConfig], selector_type: str = "top", n: int = 1, metric: str = "score"
     ) -> List[PolicyRecord]:
         if not isinstance(policy, str):
             policy = policy.uri
-        return self._policy_records(policy, selector_type, n, metric)
+        return self._policy_records(policy, selector_type, n=n, metric=metric)
 
-    def _policy_records(self, uri, selector_type="top", n=1, metric="score"):
+    def _policy_records(self, uri, selector_type="top", n=1, metric: str = "score"):
         version = None
         if uri.startswith("wandb://"):
             wandb_uri = uri[len("wandb://") :]
@@ -93,6 +96,8 @@ class PolicyStore:
 
         elif uri.startswith("file://"):
             prs = self._prs_from_path(uri[len("file://") :])
+        elif uri.startswith("puffer://"):
+            prs = self._prs_from_puffer(uri[len("puffer://") :])
         else:
             prs = self._prs_from_path(uri)
 
@@ -109,12 +114,22 @@ class PolicyStore:
             return [random.choice(prs)]
 
         elif selector_type == "top":
-            invalid_scores = [x for x in prs if x.metadata.get(metric, None) is None]
+            if metric not in prs[0].metadata:
+                # check if the metric is in eval_scores
+                if "eval_scores" in prs[0].metadata and metric in prs[0].metadata["eval_scores"]:
+                    policy_scores = {p: p.metadata["eval_scores"].get(metric, None) for p in prs}
+                else:
+                    logger.warning(f"Metric {metric} not found in policy metadata, returning latest policy")
+                    return [prs[0]]  #
+            else:
+                policy_scores = {p: p.metadata.get(metric, None) for p in prs}
+
+            policies_with_scores = [p for p, s in policy_scores.items() if s is not None]
             # If more than 20% of the policies have no score, return the latest policy
-            if metric not in prs[0].metadata or len(invalid_scores) > len(prs) * 0.2:
-                logger.warning(f"Metric {metric} not found in policy metadata, returning latest policy")
+            if len(policies_with_scores) < len(prs) * 0.8:
+                logger.warning("Too many invalid scores, returning latest policy")
                 return [prs[0]]  # return latest if metric not found
-            top = sorted([p for p in prs if p not in invalid_scores], key=lambda x: x.metadata.get(metric, 0))[-n:]
+            top = sorted(policies_with_scores, key=lambda p: policy_scores[p])[-n:]
             if len(top) < n:
                 logger.warning(f"Only found {len(top)} policies matching criteria, requested {n}")
 
@@ -195,7 +210,7 @@ class PolicyStore:
 
         return [self._load_from_file(path, metadata_only=True) for path in paths]
 
-    def _prs_from_wandb_artifact(self, uri: str, version: str = None) -> List[PolicyRecord]:
+    def _prs_from_wandb_artifact(self, uri: str, version: Optional[str] = None) -> List[PolicyRecord]:
         entity, project, artifact_type, name = uri.split("/")
         path = f"{entity}/{project}/{name}"
         if not wandb.Api().artifact_collection_exists(type=artifact_type, name=path):
@@ -212,23 +227,30 @@ class PolicyStore:
             PolicyRecord(self, name=a.name, uri="wandb://" + a.qualified_name, metadata=a.metadata) for a in artifacts
         ]
 
-    def _prs_from_wandb_sweep(self, sweep_name: str, version: str = None) -> List[PolicyRecord]:
+    def _prs_from_wandb_sweep(self, sweep_name: str, version: Optional[str] = None) -> List[PolicyRecord]:
         return self._prs_from_wandb_artifact(
             f"{self._cfg.wandb.entity}/{self._cfg.wandb.project}/sweep_model/{sweep_name}", version
         )
 
-    def _prs_from_wandb_run(self, run_id: str, version: str = None) -> List[PolicyRecord]:
+    def _prs_from_wandb_run(self, run_id: str, version: Optional[str] = None) -> List[PolicyRecord]:
         return self._prs_from_wandb_artifact(
             f"{self._cfg.wandb.entity}/{self._cfg.wandb.project}/model/{run_id}", version
         )
 
-    def _load_from_uri(self, uri: str):
+    def _prs_from_puffer(self, path: str) -> List[PolicyRecord]:
+        return [self._load_from_puffer(path)]
+
+    def load_from_uri(self, uri: str) -> PolicyRecord:
         if uri.startswith("wandb://"):
             return self._load_wandb_artifact(uri[len("wandb://") :])
-        elif uri.startswith("file://"):
+        if uri.startswith("file://"):
             return self._load_from_file(uri[len("file://") :])
-        else:
+        if uri.startswith("puffer://"):
+            return self._load_from_puffer(uri[len("puffer://") :])
+        if "://" not in uri:
             return self._load_from_file(uri)
+
+        raise ValueError(f"Invalid URI: {uri}")
 
     def _make_codebase_backwards_compatible(self):
         """
@@ -276,6 +298,24 @@ class PolicyStore:
                 submodule_name = f"{module_name}.{attr_name}"
                 if submodule_name in sys.modules:
                     modules_queue.append(submodule_name)
+
+    def _load_from_puffer(self, path: str, metadata_only: bool = False) -> PolicyRecord:
+        policy = load_policy(path, self._device)
+        name = os.path.basename(path)
+        pr = PolicyRecord(
+            self,
+            name,
+            "puffer://" + name,
+            {
+                "action_names": [],
+                "agent_step": 0,
+                "epoch": 0,
+                "generation": 0,
+                "train_time": 0,
+            },
+        )
+        pr._policy = policy
+        return pr
 
     def _load_from_file(self, path: str, metadata_only: bool = False) -> PolicyRecord:
         if path in self._cached_prs:

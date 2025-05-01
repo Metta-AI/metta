@@ -6,17 +6,9 @@ defaults:
   - _self_
 
 trainer:
-  env: /env/mettagrid/bases
   evaluate_interval: 200
-  env_overrides:
-    # sampling: 0.7
-    game:
-      num_agents: 36
-      max_steps: 1000
   evaluate: false
 
-policy_uri: wandb://run/sasmith.converter.queues.5
-# npc_policy_uri: ${trained_policy_uri}
 eval_db_uri: wandb://artifacts/testing
 
 analyzer:
@@ -32,18 +24,11 @@ eval:
   max_time_s: 600
   env: /env/mettagrid/cognitive_evals/navigating_obstacles
 
-  policy_uri: ${..policy_uri}
-  # npc_policy_uri: ${..npc_policy_uri}
-  eval_db_uri: ${..eval_db_uri}
-
 wandb:
-  enabled: false
-  track: false
-  checkpoint_interval: 1
+  enabled: true
+  track: true
 
 env:
-  # clean this up
-  semi_compact_obs: true
   game:
     max_steps: 2000
 
@@ -53,6 +38,6 @@ sweep:
   metric: action.use
 
 seed: null
-run_id: 20250408.2
+run_id: 20250501.1
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ./train_dir/${oc.env:USER}.local.train.${run_id}/checkpoints

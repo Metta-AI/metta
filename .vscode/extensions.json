@@ -2,11 +2,16 @@
   "recommendations": [
     "charliermarsh.ruff",
     "streetsidesoftware.code-spell-checker",
-    "ms-python.vscode-pylance",
     "ms-python.python",
+    "ms-python.vscode-pylance",
     "mechatroner.rainbow-csv",
     "tamasfe.even-better-toml",
-    "tcwalther.cython",
-    "ms-vscode.cpptools-extension-pack"
+    "ktnrg45.vscode-cython",
+    "ms-azuretools.vscode-docker",
+    "ms-python.debugpy",
+    "ms-vscode-remote.remote-containers",
+    "ms-vscode.cmake-tools",
+    "ms-vscode.cpptools-extension-pack",
+    "twxs.cmake"
   ]
 }

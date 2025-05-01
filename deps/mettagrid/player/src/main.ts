@@ -35,6 +35,15 @@ export class PanelInfo {
     return m.inverse().transform(point);
   }
 
+  // Make the panel focus on a specific position in the panel.
+  focusPos(x: number, y: number) {
+    this.panPos = new Vec2f(
+      -x,
+      -y
+    );
+    this.zoomLevel = 1/2;
+  }
+
   // Update the pan and zoom level based on the mouse position and scroll delta.
   updatePanAndZoom(): boolean {
 
@@ -69,7 +78,7 @@ export class PanelInfo {
 }
 
 // Constants
-const MIN_ZOOM_LEVEL = 0.05;
+const MIN_ZOOM_LEVEL = 0.025;
 const MAX_ZOOM_LEVEL = 2.0;
 
 const SPLIT_DRAG_THRESHOLD = 10;  // pixels to detect split dragging
@@ -83,6 +92,11 @@ const TILE_SIZE = 200;
 
 // Agent defaults.
 const DEFAULT_VISION_SIZE = 11;
+
+// Trace constants.
+const INVENTORY_PADDING = 16;
+const TRACE_HEIGHT = 256
+const TRACE_WIDTH = 32
 
 let drawer: Drawer;
 
@@ -128,6 +142,7 @@ let lastMousePos = new Vec2f(0, 0);
 let scrollDelta = 0;
 let lastClickTime = 0; // For double-click detection
 let followSelection = false; // Flag to follow selected entity
+let followTraceSelection = false; // Flag to follow trace selection
 
 let traceSplit = DEFAULT_TRACE_SPLIT;
 let traceDragging = false;
@@ -212,6 +227,7 @@ function onMouseDown() {
       if (followSelection) {
         // Set the zoom level to 1 as requested when following
         mapPanel.zoomLevel = 1/2;
+        followTraceSelection = true;
       }
     }
   }
@@ -361,19 +377,6 @@ function removeSuffix(str: string, suffix: string) {
 async function loadReplayText(replayData: any) {
   replay = JSON.parse(replayData);
 
-  replay.object_types = [
-    "agent",
-    "wall",
-    "mine",
-    "generator",
-    "altar",
-    "armory",
-    "lasery",
-    "lab",
-    "factory",
-    "temple",
-    "converter"
-  ]
 
   console.log("pre replay: ", replay);
 
@@ -482,6 +485,7 @@ function onKeyDown(event: KeyboardEvent) {
   if (event.key == "Escape") {
     selectedGridObject = null;
     followSelection = false; // Also stop following when selection is cleared
+    followTraceSelection = false;
   }
   // '[' and ']' to scrub forward and backward.
   if (event.key == "[") {
@@ -552,25 +556,10 @@ function focusFullMap(panel: PanelInfo) {
   if (replay === null) {
     return;
   }
-  const mapWidth = replay.map_size[0] * TILE_SIZE;
-  const mapHeight = replay.map_size[1] * TILE_SIZE;
-  const panelWidth = panel.width;
-  const panelHeight = panel.height;
-  const zoomLevel = Math.min(panelWidth / mapWidth, panelHeight / mapHeight);
-  panel.panPos = new Vec2f(
-    (panelWidth - mapWidth * zoomLevel) / 2,
-    (panelHeight - mapHeight * zoomLevel) / 2
-  );
-  panel.zoomLevel = zoomLevel;
-}
-
-// Make the panel focus on a specific agent.
-function focusMapOn(panel: PanelInfo, x: number, y: number) {
-  panel.panPos = new Vec2f(
-    -x * TILE_SIZE + panel.width / 2,
-    -y * TILE_SIZE + panel.height / 2
-  );
-  panel.zoomLevel = 1;
+  const width = replay.map_size[0] * TILE_SIZE;
+  const height = replay.map_size[1] * TILE_SIZE;
+  panel.focusPos(width / 2, height / 2);
+  panel.zoomLevel = Math.min(panel.width / width, panel.height / height);
 }
 
 // Draw the tiles that make up the floor.
@@ -691,7 +680,7 @@ function drawWalls(replay: any) {
       drawer.drawSprite(
         'objects/wall.fill.png',
         x * TILE_SIZE + TILE_SIZE / 2,
-        y * TILE_SIZE + TILE_SIZE / 2 - 50
+        y * TILE_SIZE + TILE_SIZE / 2 - 42
       );
     }
   }
@@ -763,57 +752,65 @@ function drawActions(replay: any) {
       // Draw the action:
       const action = getAttr(gridObject, "action");
       const action_success = getAttr(gridObject, "action_success");
-      if (!action_success || action == null) {
-        continue;
-      }
-      const action_name = replay.action_names[action[0]];
-      const orientation = getAttr(gridObject, "agent:orientation");
-      var rotation = 0;
-      if (orientation == 0) {
-        rotation = Math.PI / 2; // North
-      } else if (orientation == 1) {
-        rotation = -Math.PI / 2; // South
-      } else if (orientation == 2) {
-        rotation = Math.PI; // West
-      } else if (orientation == 3) {
-        rotation = 0; // East
-      }
-      if (action_name == "attack") {
-        drawer.drawSprite(
-          "actions/attack" + (action[1] + 1) + ".png",
-          x * TILE_SIZE,
-          y * TILE_SIZE,
-          [1, 1, 1, 1],
-          1,
-          rotation
-        );
-      } else if (action_name == "put_recipe_items") {
-        drawer.drawSprite(
-          "actions/put_recipe_items.png",
-          x * TILE_SIZE,
-          y * TILE_SIZE,
-          [1, 1, 1, 1],
-          1,
-          rotation
-        );
-      } else if (action_name == "get_output") {
-        drawer.drawSprite(
-          "actions/get_output.png",
-          x * TILE_SIZE,
-          y * TILE_SIZE,
-          [1, 1, 1, 1],
-          1,
-          rotation
-        );
-      } else if (action_name == "swap") {
-        drawer.drawSprite(
-          "actions/swap.png",
-          x * TILE_SIZE,
-          y * TILE_SIZE,
-          [1, 1, 1, 1],
-          1,
-          rotation
-        );
+      if (action_success && action != null) {
+        const action_name = replay.action_names[action[0]];
+        const orientation = getAttr(gridObject, "agent:orientation");
+        var rotation = 0;
+        if (orientation == 0) {
+          rotation = Math.PI / 2; // North
+        } else if (orientation == 1) {
+          rotation = -Math.PI / 2; // South
+        } else if (orientation == 2) {
+          rotation = Math.PI; // West
+        } else if (orientation == 3) {
+          rotation = 0; // East
+        }
+        if (action_name == "attack" && action[1] >= 0 && action[1] <= 8) {
+          drawer.drawSprite(
+            "actions/attack" + (action[1] + 1) + ".png",
+            x * TILE_SIZE,
+            y * TILE_SIZE,
+            [1, 1, 1, 1],
+            1,
+            rotation
+          );
+        } else if (action_name == "attack_nearest") {
+          drawer.drawSprite(
+            "actions/attack_nearest.png",
+            x * TILE_SIZE,
+            y * TILE_SIZE,
+            [1, 1, 1, 1],
+            1,
+            rotation
+          );
+        } else if (action_name == "put_recipe_items") {
+          drawer.drawSprite(
+            "actions/put_recipe_items.png",
+            x * TILE_SIZE,
+            y * TILE_SIZE,
+            [1, 1, 1, 1],
+            1,
+            rotation
+          );
+        } else if (action_name == "get_output") {
+          drawer.drawSprite(
+            "actions/get_output.png",
+            x * TILE_SIZE,
+            y * TILE_SIZE,
+            [1, 1, 1, 1],
+            1,
+            rotation
+          );
+        } else if (action_name == "swap") {
+          drawer.drawSprite(
+            "actions/swap.png",
+            x * TILE_SIZE,
+            y * TILE_SIZE,
+            [1, 1, 1, 1],
+            1,
+            rotation
+          );
+        }
       }
     }
 
@@ -824,6 +821,9 @@ function drawActions(replay: any) {
         x * TILE_SIZE,
         y * TILE_SIZE - 100,
         [1, 1, 1, 1],
+        1,
+        // Apply the gentle rotation.
+        -step * 0.1
       );
     }
 
@@ -845,14 +845,14 @@ function drawInventory(replay: any) {
     const y = getAttr(gridObject, "r")
 
     // Sum up the objects inventory, in case we need to condense it.
-    let inventoryX = 0;
+    let inventoryX = INVENTORY_PADDING;
     let numItems = 0;
     for (const [key, [icon, color]] of replay.resource_inventory) {
       const num = getAttr(gridObject, key);
       numItems += num;
     }
     // Draw the actual inventory icons.
-    let advanceX = Math.min(32, TILE_SIZE / numItems);
+    let advanceX = Math.min(32, (TILE_SIZE - INVENTORY_PADDING*2) / numItems);
     for (const [key, [icon, color]] of replay.resource_inventory) {
       const num = getAttr(gridObject, key);
       for (let i = 0; i < num; i++) {
@@ -899,8 +899,12 @@ function drawSelection(selectedObject: any | null) {
   const x = getAttr(selectedObject, "c")
   const y = getAttr(selectedObject, "r")
   drawer.drawSprite("selection.png", x * TILE_SIZE, y * TILE_SIZE);
+}
 
-  // If object has a trajectory, draw the path it took through the map.
+function drawTrajectory(selectedObject: any | null) {
+  if (selectedObject === null) {
+    return;
+  }
   if (selectedObject.c.length > 0 || selectedObject.r.length > 0) {
 
     // Draw both past and future trajectories.
@@ -993,6 +997,7 @@ function drawMap(panel: PanelInfo) {
 
   drawFloor(replay.map_size);
   drawWalls(replay);
+  drawTrajectory(selectedGridObject);
   drawObjects(replay);
   drawSelection(selectedGridObject);
   drawActions(replay);
@@ -1007,10 +1012,14 @@ function drawTrace(panel: PanelInfo) {
     return;
   }
 
-  const TRACE_HEIGHT = 256
-  const TRACE_WIDTH = 32
-
   const localMousePos = panel.transformPoint(mousePos);
+
+  if (followTraceSelection && selectedGridObject !== null) {
+    panel.focusPos(
+      step * TRACE_WIDTH + TRACE_WIDTH/2,
+      getAttr(selectedGridObject, "agent_id") * TRACE_HEIGHT + TRACE_HEIGHT/2
+    );
+  }
 
   if (mousePressed &&panel.inside(mousePos)) {
     if (localMousePos != null) {
@@ -1022,7 +1031,10 @@ function drawTrace(panel: PanelInfo) {
           followSelection = true;
           selectedGridObject = replay.agents[agentId];
           console.log("selectedGridObject on a trace: ", selectedGridObject);
-          focusMapOn(mapPanel, getAttr(selectedGridObject, "c"), getAttr(selectedGridObject, "r"));
+          mapPanel.focusPos(
+            getAttr(selectedGridObject, "c") * TILE_SIZE,
+            getAttr(selectedGridObject, "r") * TILE_SIZE
+          );
           step = Math.floor(mapX / TRACE_WIDTH);
           scrubber.value = step.toString();
         }
@@ -1060,7 +1072,7 @@ function drawTrace(panel: PanelInfo) {
   drawer.drawSolidRect(
     step * TRACE_WIDTH, 0,
     TRACE_WIDTH, fullSize.y(),
-    [1.0, 1.0, 1.0, 0.5] // White with 50% opacity
+    [0.5, 0.5, 0.5, 0.5] // White with 50% opacity
   );
 
   // Draw agent traces
@@ -1071,23 +1083,35 @@ function drawTrace(panel: PanelInfo) {
       const action_success = getAttr(agent, "action_success", j);
 
       if (action_success && action != null) {
-        drawer.drawImage(
+        drawer.drawSprite(
           replay.action_images[action[0]],
-          j * TRACE_WIDTH, i * TRACE_HEIGHT,
+          j * TRACE_WIDTH + TRACE_WIDTH/2, i * TRACE_HEIGHT + TRACE_HEIGHT/2,
+        );
+      } else if (action != null) {
+        drawer.drawSprite(
+          replay.action_images[action[0]],
+          j * TRACE_WIDTH + TRACE_WIDTH/2, i * TRACE_HEIGHT + TRACE_HEIGHT/2,
+          [0.01, 0.01, 0.01, 0.01],
+        );
+      }
+
+      if (getAttr(agent, "agent:frozen", j) > 0) {
+        drawer.drawSprite(
+          "trace/frozen.png",
+          j * TRACE_WIDTH + TRACE_WIDTH/2, i * TRACE_HEIGHT + TRACE_HEIGHT/2,
         );
       }
 
       const reward = getAttr(agent, "reward", j);
       // If there is reward, draw a star.
       if (reward > 0) {
-        drawer.save()
-        drawer.translate(j * TRACE_WIDTH - 32, i * TRACE_HEIGHT + 256 - 32)
-        drawer.scale(0.5, 0.5)
-        drawer.drawImage(
-          "reward.png",
-          0, 0,
+        drawer.drawSprite(
+          "resources/reward.png",
+          j * TRACE_WIDTH + TRACE_WIDTH/2,
+          i * TRACE_HEIGHT + 256 - 32,
+          [1.0, 1.0, 1.0, 1.0],
+          1/8
         );
-        drawer.restore()
       }
     }
   }

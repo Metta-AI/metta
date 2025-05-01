@@ -1,0 +1,14 @@
+defaults:
+  - sim
+  - _self_
+
+simulations:
+  memory/easy:
+    env: env/mettagrid/memory/evals/easy
+    policy_agents_pct: 1.0
+  memory/medium:
+    env: env/mettagrid/memory/evals/medium
+    policy_agents_pct: 1.0
+  memory/hard:
+    env: env/mettagrid/memory/evals/hard
+    policy_agents_pct: 1.0

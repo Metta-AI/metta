@@ -17,7 +17,7 @@ analyzer:
       - metric: episode_reward
 
 eval:
-  env: /env/mettagrid-base/simple
+  env: /env/mettagrid/simple
   policy_uri: ${..policy_uri}
   eval_db_uri: ${..eval_db_uri} #file://daphne/sweep_stats
 
