@@ -7,10 +7,11 @@ import os
 import sqlite3
 from typing import Dict, List, Literal, Tuple
 
-import hydra
 import pandas as pd
 from omegaconf import DictConfig
 
+from metta.eval.analysis_config import AnalyzerConfig, Metric
+from metta.sim.eval_stats_analyzer import EvalStatsAnalyzer
 from metta.sim.eval_stats_db import EvalStatsDB
 from metta.util.wandb.wandb_context import WandbContext
 
@@ -91,7 +92,7 @@ class PolicyEvalDB:
         finally:
             cursor.close()
 
-    def _execute(self, sql: str, params: Tuple = None):
+    def _execute(self, sql: str, params: Tuple | None = None):
         cursor = self.conn.cursor()
         try:
             cursor.execute(sql, params or ())
@@ -112,7 +113,7 @@ class PolicyEvalDB:
             logger.error(f"Query: {sql}")
             raise
 
-    def query(self, sql: str, params: Tuple = None) -> pd.DataFrame:
+    def query(self, sql: str, params: Tuple | None = None) -> pd.DataFrame:
         return pd.read_sql_query(sql, self.conn, params=params)
 
     def parse_versioned_uri(self, uri: str) -> Tuple[str, str]:
@@ -142,22 +143,22 @@ class PolicyEvalDB:
     ## Data Loading
     ##
 
-    def _construct_metric_to_df_map(self, cfg: DictConfig, dfs: list) -> Dict[str, pd.DataFrame]:
-        metrics = [m.metric for m in cfg.analyzer.analysis.metrics]
-
+    def _construct_metric_to_df_map(self, metrics: List[Metric], dfs: List[pd.DataFrame]) -> Dict[str, pd.DataFrame]:
         if len(metrics) != len(dfs):
             raise ValueError(f"Mismatch between metrics ({len(metrics)}) and dataframes ({len(dfs)})")
 
-        metric_to_df = {}
+        metric_to_df: Dict[str, pd.DataFrame] = {}
         for metric, df in zip(metrics, dfs, strict=False):
-            metric_to_df[metric] = df
+            metric_to_df[metric.metric] = df
 
         return metric_to_df
 
     def short_name(self, name: str) -> str:
         return name.split("/")[-1]
 
-    def import_from_eval_stats(self, cfg: DictConfig):
+    def import_from_eval_stats(
+        self, analyzer_cfg: AnalyzerConfig, omegaconf_cfg: DictConfig
+    ):  # TODO: remove omegaconf_cfg
         """
         Expected dataframe schema for each metric:
         - policy_uri: String identifier for the policy
@@ -165,13 +166,15 @@ class PolicyEvalDB:
         - mean_{metric}: Float value representing the mean of the metric for this policy in this eval
         - std_{metric}: Float value representing the standard deviation of the metric
         """
-        logger.info(f"Importing data from {cfg.eval_db_uri}")
-        with WandbContext(cfg) as wandb_run:
-            eval_stats_db = EvalStatsDB.from_uri(cfg.eval_db_uri, cfg.run_dir, wandb_run)
+        assert analyzer_cfg.eval_db_uri is not None, "eval_db_uri is required"
 
-        analyzer = hydra.utils.instantiate(cfg.analyzer, eval_stats_db)
+        logger.info(f"Importing data from {analyzer_cfg.eval_db_uri}")
+        with WandbContext(omegaconf_cfg) as wandb_run:
+            eval_stats_db = EvalStatsDB.from_uri(analyzer_cfg.eval_db_uri, omegaconf_cfg.run_dir, wandb_run)
+
+        analyzer = EvalStatsAnalyzer(eval_stats_db, analyzer_cfg.analysis, analyzer_cfg.policy_uri)
         dfs, _ = analyzer.analyze(include_policy_fitness=False)
-        metric_to_df = self._construct_metric_to_df_map(cfg, dfs)
+        metric_to_df = self._construct_metric_to_df_map(analyzer_cfg.analysis.metrics, dfs)
 
         # Track policies and evaluation metrics we've already created
         created_policies = set()
@@ -247,7 +250,7 @@ class PolicyEvalDB:
     def get_matrix_data(
         self,
         metric: str,
-        view_type: str = "latest",
+        view_type: Literal["latest", "policy_versions", "chronological", "all"] = "latest",
         policy_uri: str | None = None,
         num_output_policies: int | Literal["all"] = "all",
     ) -> pd.DataFrame:

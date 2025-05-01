@@ -3,7 +3,6 @@ import os
 import time
 from collections import defaultdict
 
-import hydra
 import numpy as np
 import pufferlib
 import pufferlib.utils
@@ -19,10 +18,12 @@ from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyStore
 from metta.agent.util.distribution_utils import sample_logits
 from metta.agent.util.weights_analysis import WeightsMetricsHelper
+from metta.eval.analysis_config import AnalyzerConfig
 from metta.rl.pufferlib.experience import Experience
 from metta.rl.pufferlib.kickstarter import Kickstarter
 from metta.rl.pufferlib.profile import Profile
 from metta.rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
+from metta.sim.eval_stats_analyzer import EvalStatsAnalyzer
 from metta.sim.eval_stats_db import EvalStatsDB
 from metta.sim.eval_stats_logger import EvalStatsLogger
 from metta.sim.simulation import Simulation, SimulationSuite
@@ -262,7 +263,8 @@ class PufferTrainer:
             logger.error(f"Error logging stats: {e}")
 
         eval_stats_db = EvalStatsDB.from_uri(self.sim_suite_config.eval_db_uri, self.cfg.run_dir, self.wandb_run)
-        analyzer = hydra.utils.instantiate(self.cfg.analyzer, eval_stats_db)
+        analyzer_cfg = AnalyzerConfig(self.cfg.analyzer)
+        analyzer = EvalStatsAnalyzer(eval_stats_db, analyzer_cfg.analysis, analyzer_cfg.policy_uri)
         _, policy_fitness_records = analyzer.analyze()
         self._eval_results = policy_fitness_records
 
