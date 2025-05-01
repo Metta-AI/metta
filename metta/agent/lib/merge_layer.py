@@ -260,3 +260,27 @@ class BatchReshapeLayer(LayerBase):
         td[self._name] = tensor.view(*shape).squeeze()
         return td
 
+class CenterPixelLayer(LayerBase):
+    '''Returns the center pixel of a tensor shaped as (B, C, H, W).
+    H and W must be odd.'''
+    def __init__(self, name, **cfg):
+        super().__init__(name, **cfg)
+
+    def setup(self, _source_components=None):
+        if self._ready:
+            return
+
+        self._source_components = _source_components
+        self._out_tensor_shape = next(iter(self._source_components.values()))._out_tensor_shape.copy()
+        del self._out_tensor_shape[-2:]
+
+        self._ready = True
+
+    def _forward(self, td: TensorDict):
+        tensor = td[self._sources[0]["name"]]
+        B, C, H, W = tensor.shape
+        center_h = H // 2
+        center_w = W // 2
+        td[self._name] = tensor[:, :, center_h, center_w]
+        return td
+
