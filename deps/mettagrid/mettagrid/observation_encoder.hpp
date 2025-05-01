@@ -50,11 +50,6 @@ public:
         }
     }
 
-    void init(unsigned int obs_width, unsigned int obs_height) {
-        _obs_width = obs_width;
-        _obs_height = obs_height;
-    }
-
     void encode(const GridObject* obj, ObsType* obs) {
         encode(obj, obs, _offsets[obj->_type_id]);
     }
@@ -72,8 +67,6 @@ public:
     }
 
 private:
-    unsigned int _obs_width;
-    unsigned int _obs_height;
     std::vector<std::vector<unsigned int>> _offsets;
     std::vector<std::vector<std::string>> _type_feature_names;
     std::vector<std::string> _feature_names;

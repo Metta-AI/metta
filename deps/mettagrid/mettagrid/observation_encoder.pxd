@@ -6,7 +6,6 @@ from mettagrid.grid_object cimport GridObject, ObsType
 cdef extern from "observation_encoder.hpp":
     cdef cppclass ObservationEncoder:
         ObservationEncoder() except +
-        void init(unsigned int obs_width, unsigned int obs_height)
         void encode(const GridObject* obj, ObsType* obs)
         void encode(const GridObject* obj, ObsType* obs, const vector[unsigned int]& offsets)
         const vector[string]& feature_names()

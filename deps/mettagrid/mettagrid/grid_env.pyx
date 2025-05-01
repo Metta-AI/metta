@@ -40,7 +40,6 @@ cdef class GridEnv:
         self._max_timestep = max_timestep
         self._current_timestep = 0
         self._grid = new Grid(map_width, map_height, layer_for_type_id)
-        self._obs_encoder.init(self._obs_width, self._obs_height)
         self._grid_features = self._obs_encoder.feature_names()
 
         if self._track_last_action:
