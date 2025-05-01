@@ -31,8 +31,6 @@ cdef class GridEnv:
 
         unsigned short _obs_width
         unsigned short _obs_height
-        unsigned short _middle_x
-        unsigned short _middle_y
 
         vector[Agent*] _agents
 

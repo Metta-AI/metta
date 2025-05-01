@@ -72,8 +72,7 @@ cdef class MettaGrid(GridEnv):
             map.shape[0],
             cfg.max_steps,
             dict(ObjectLayers).values(),
-            cfg.obs_width, cfg.obs_height,
-            track_last_action=env_cfg.track_last_action
+            cfg.obs_width, cfg.obs_height
         )
         self.init_action_handlers(actions)
 
