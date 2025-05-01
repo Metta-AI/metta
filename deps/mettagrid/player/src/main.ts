@@ -1090,7 +1090,7 @@ function drawTrace(panel: PanelInfo) {
       const action = getAttr(agent, "action", j);
       const action_success = getAttr(agent, "action_success", j);
 
-      if (action_success && action != null) {
+      if (action_success && action != null && action[0] > 0 && action[0] < replay.action_images.length) {
         drawer.drawSprite(
           replay.action_images[action[0]],
           j * TRACE_WIDTH + TRACE_WIDTH/2, i * TRACE_HEIGHT + TRACE_HEIGHT/2,
