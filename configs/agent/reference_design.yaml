@@ -9,7 +9,6 @@ policy_selector:
 
 observations:
   obs_key: grid_obs
-  track_last_action: false
 
 clip_range: 3.0 # clip weights greater or less than this value * largest weight in layer * clip_scale
 analyze_weights_interval: 300 # compute weight metrics every N epochs and log to wandb, add analyze_weights: true to the layer to enable
