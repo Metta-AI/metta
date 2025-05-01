@@ -30,7 +30,7 @@ class StatsDB:
 
     # ---------------- merge shards ------------------------------------ #
     @staticmethod
-    def merge_worker_dbs(stats_dir: Path, agent_map: Dict[int, Tuple[str, int]]) -> Path:
+    def merge_env_dbs(stats_dir: Path, agent_map: Dict[int, Tuple[str, int]]) -> Path:
         dst = stats_dir / "stats.duckdb"
         db = StatsDB(dst)  # RW
         for shard in stats_dir.rglob("stats_*.duckdb"):
