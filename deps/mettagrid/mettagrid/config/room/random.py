@@ -17,7 +17,7 @@ class Random(Room):
         border_width: int = 0,
         border_object: str = "wall",
     ):
-        super().__init__(border_width=border_width, border_object=border_object, labels = ["random"])
+        super().__init__(border_width=border_width, border_object=border_object, labels=["random"])
         self._rng = np.random.default_rng(seed)
         assert isinstance(width, int), f"width must be an int, got '{width}'"
         assert isinstance(height, int), f"height must be an int, got {type(height)}"

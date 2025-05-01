@@ -1,0 +1,14 @@
+_target_: metta.env.mettagrid_env_set.MettaGridEnvSet
+
+num_agents: 48
+
+game:
+  num_agents: ${..num_agents}
+
+envs:
+  - /env/mettagrid/multiagent/training/no_reward_sharing/48/terrain_from_numpy
+  - /env/mettagrid/multiagent/training/no_reward_sharing/48/varied_terrain_all_sparse
+  - /env/mettagrid/multiagent/training/no_reward_sharing/48/varied_terrain_balanced
+  - /env/mettagrid/multiagent/training/no_reward_sharing/48/varied_terrain_maze
+  - /env/mettagrid/multiagent/training/no_reward_sharing/48/varied_terrain_sparse_altars_dense_objects
+  - /env/mettagrid/multiagent/training/no_reward_sharing/48/cylinder_world
