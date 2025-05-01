@@ -1,0 +1,21 @@
+defaults:
+  - /env/mettagrid/mettagrid@
+
+game:
+  num_agents: 8  #how many agents are in the map x2
+  max_steps: 180
+  agent:
+    rewards:
+      heart: 0.333
+  map_builder:
+
+    _target_: mettagrid.config.room.multi_room.MultiRoom
+    num_rooms: 4
+    room:
+      _target_: mettagrid.config.room.ascii.Ascii
+      border_width: 1
+      uri: "configs/env/mettagrid/maps/memory/memory_ultra_hard.map"
+
+  objects:
+    altar:
+      cooldown: 255
