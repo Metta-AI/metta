@@ -31,7 +31,6 @@ class RoomList(Room):
         common_labels = set.intersection(*[set(labels) for labels in room_labels])
         self.labels = list(common_labels)
 
-
         # Determine grid dimensions based on number of rooms
         n_rooms = len(rooms)
 

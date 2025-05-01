@@ -23,7 +23,7 @@ class CylinderWorld(Room):
         border_object: str = "wall",
         team: str | None = None,
     ):
-        super().__init__(border_width=border_width, border_object=border_object, labels = ["cylinder_world"])
+        super().__init__(border_width=border_width, border_object=border_object, labels=["cylinder_world"])
         self._rng = np.random.default_rng(seed)
         width, height = np.random.randint(40, 100), np.random.randint(40, 100)
         self._width, self._height = width, height
@@ -33,6 +33,7 @@ class CylinderWorld(Room):
         self._occ = np.zeros((height, width), dtype=bool)
 
         self.set_size_labels(width, height)
+
     # ------------------------------------------------------------------ #
     # Public build
     # ------------------------------------------------------------------ #
@@ -61,7 +62,6 @@ class CylinderWorld(Room):
                 fails = 0  # reset – we still found room
             else:
                 fails += 1  # try a different size/orientation
-
 
         # Finally, spawn any requested agents on leftover empty cells
         grid = self._place_agents(grid)
