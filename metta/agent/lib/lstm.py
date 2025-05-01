@@ -1,21 +1,21 @@
-from tensordict import TensorDict
 import torch
 import torch.nn as nn
+from tensordict import TensorDict
 
 from metta.agent.lib.metta_layer import LayerBase
 
 
 class LSTM(LayerBase):
     def __init__(self, obs_shape, hidden_size, **cfg):
-        '''Taken from models.py.
+        """Taken from models.py.
         Wraps your policy with an LSTM without letting you shoot yourself in the
-        foot with bad transpose and shape operations. This saves much pain.'''
+        foot with bad transpose and shape operations. This saves much pain."""
 
         super().__init__(**cfg)
-        self._obs_shape = list(obs_shape) # make sure no Omegaconf types are used in forward passes
+        self._obs_shape = list(obs_shape)  # make sure no Omegaconf types are used in forward passes
         self.hidden_size = hidden_size
         # self._out_tensor_shape = [hidden_size] # delete this
-        self.num_layers = self._nn_params['num_layers']
+        self.num_layers = self._nn_params["num_layers"]
 
     def _make_net(self):
         self._out_tensor_shape = [self.hidden_size]
@@ -23,9 +23,9 @@ class LSTM(LayerBase):
 
         for name, param in net.named_parameters():
             if "bias" in name:
-                nn.init.constant_(param, 1) # Joseph originally had this as 0
+                nn.init.constant_(param, 1)  # Joseph originally had this as 0
             elif "weight" in name:
-                nn.init.orthogonal_(param, 1.0) # torch's default is uniform
+                nn.init.orthogonal_(param, 1.0)  # torch's default is uniform
 
         return net
 
@@ -53,7 +53,7 @@ class LSTM(LayerBase):
 
         if state is not None:
             assert state[0].shape[1] == state[1].shape[1] == B
-        assert hidden.shape == (B*TT, self._in_tensor_shapes[0][0])
+        assert hidden.shape == (B * TT, self._in_tensor_shapes[0][0])
 
         hidden = hidden.reshape(B, TT, self._in_tensor_shapes[0][0])
         hidden = hidden.transpose(0, 1)
@@ -61,7 +61,7 @@ class LSTM(LayerBase):
         hidden, state = self._net(hidden, state)
 
         hidden = hidden.transpose(0, 1)
-        hidden = hidden.reshape(B*TT, self.hidden_size)
+        hidden = hidden.reshape(B * TT, self.hidden_size)
 
         if state is not None:
             state = tuple(s.detach() for s in state)

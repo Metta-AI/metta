@@ -1,8 +1,8 @@
 import torch
-import omegaconf
 from tensordict import TensorDict
 
 from metta.agent.lib.metta_layer import LayerBase
+
 # ##ObservationNormalization
 # These are approximate maximum values for each feature. Ideally they would be defined closer to their source,
 # but here we are. If you add / remove a feature, you should add / remove the corresponding normalization.
@@ -51,22 +51,22 @@ OBS_NORMALIZATIONS = {
     "swappable": 1,
 }
 
+
 class ObservationNormalizer(LayerBase):
     def __init__(self, grid_features, **cfg):
         self._grid_features = grid_features
         super().__init__(**cfg)
 
     def _initialize(self):
-
         num_objects = len(self._grid_features)
 
         obs_norm = torch.tensor([OBS_NORMALIZATIONS[k] for k in self._grid_features], dtype=torch.float32)
         obs_norm = obs_norm.view(1, num_objects, 1, 1)
 
-        self.register_buffer('obs_norm', obs_norm)
+        self.register_buffer("obs_norm", obs_norm)
 
         self._out_tensor_shape = self._in_tensor_shapes[0].copy()
 
     def _forward(self, td: TensorDict):
-        td[self._name] = td[self._sources[0]['name']] / self.obs_norm
+        td[self._name] = td[self._sources[0]["name"]] / self.obs_norm
         return td

@@ -1,15 +1,13 @@
-from omegaconf import OmegaConf
+import numpy as np
+import torch
 from tensordict import TensorDict
 from torch import nn
-import torch
-import numpy as np
-
 
 from metta.agent.util.weights_analysis import analyze_weights
 
 
 class LayerBase(nn.Module):
-    '''The base class for components that make up the Metta agent. All components
+    """The base class for components that make up the Metta agent. All components
     are required to have a name and an input source, although the input source
     can be None (or null in your YAML). Output size is optional depending on
     your component.
@@ -33,12 +31,13 @@ class LayerBase(nn.Module):
     performed (due to some other run up the DAG) and return. After this check,
     it should check if its input source is not None and recursively call the
     forward method of the layer above it.
-    
+
     Carefully passing input and output shapes is necessary to setup the agent.
-    self._in_tensor_shape and self._out_tensor_shape are always of type list. 
-    Note that these lists not include the batch dimension so their shape is 
-    one dimension smaller than the actual shape of the tensor.'''
-    def __init__(self, name, sources=None, nn_params={}, **cfg):
+    self._in_tensor_shape and self._out_tensor_shape are always of type list.
+    Note that these lists not include the batch dimension so their shape is
+    one dimension smaller than the actual shape of the tensor."""
+
+    def __init__(self, name, sources=None, nn_params=None, **cfg):
         super().__init__()
         self._name = name
         self._sources = sources
@@ -48,15 +47,15 @@ class LayerBase(nn.Module):
         self._net = None
         self._ready = False
         if not hasattr(self, "_nn_params"):
-            self._nn_params = nn_params
+            self._nn_params = nn_params if nn_params is not None else {}
 
     @property
     def ready(self):
         return self._ready
 
     def setup(self, source_components=None):
-        '''_in_tensor_shapes is a list of lists. Each sublist contains the shapes of the input tensors for each source component.
-        _out_tensor_shape is a list of the shape of the output tensor.'''
+        """_in_tensor_shapes is a list of lists. Each sublist contains the shapes of the input tensors for each source
+        component._out_tensor_shape is a list of the shape of the output tensor."""
         if self._ready:
             return
 
@@ -90,26 +89,32 @@ class LayerBase(nn.Module):
         return td
 
     def _forward(self, td: TensorDict):
-        '''Components that have more than one input sources must have their own _forward() method.'''
-        # get the input tensor from the source component by calling its forward method (which recursively calls _forward() on its source components)
+        """Components that have more than one input sources must have their own _forward() method."""
+        # get the input tensor from the source component by calling its forward method (which recursively calls
+        # _forward() on its source components)
         td[self._name] = self._net(td[self._sources[0]["name"]])
         return td
 
     def clip_weights(self):
         pass
+
     def l2_reg_loss(self):
         pass
+
     def l2_init_loss(self):
         pass
+
     def update_l2_init_weight_copy(self):
         pass
 
     def compute_weight_metrics(self, delta: float = 0.01) -> dict:
         pass
 
+
 class ParamLayer(LayerBase):
-    '''This provides a few useful methods for components/nets that have parameters (weights).
-    Superclasses should have input_size and output_size already set.'''
+    """This provides a few useful methods for components/nets that have parameters (weights).
+    Superclasses should have input_size and output_size already set."""
+
     def __init__(
         self,
         clip_scale=1,
@@ -120,7 +125,7 @@ class ParamLayer(LayerBase):
         initialization="Orthogonal",
         clip_range=None,
         **cfg,
-        ):
+    ):
         self.clip_scale = clip_scale
         self.analyze_weights_bool = analyze_weights
         self.l2_norm_scale = l2_norm_scale
@@ -138,7 +143,7 @@ class ParamLayer(LayerBase):
         if self.clip_scale > 0:
             self.clip_value = self.global_clip_range * self.largest_weight * self.clip_scale
         else:
-            self.clip_value = 0 # disables clipping (not clip to 0)
+            self.clip_value = 0  # disables clipping (not clip to 0)
 
         self.initial_weights = None
         if self.l2_init_scale != 0:
@@ -148,7 +153,7 @@ class ParamLayer(LayerBase):
         if self.nonlinearity is not None:
             # expecting a string of the form 'nn.ReLU'
             try:
-                _, class_name = self.nonlinearity.split('.')
+                _, class_name = self.nonlinearity.split(".")
                 if class_name not in dir(nn):
                     raise ValueError(f"Unsupported nonlinearity: {self.nonlinearity}")
                 nonlinearity_class = getattr(nn, class_name)
@@ -192,23 +197,23 @@ class ParamLayer(LayerBase):
                 self.weight_net.weight.data = self.weight_net.weight.data.clamp(-self.clip_value, self.clip_value)
 
     def l2_reg_loss(self) -> torch.Tensor:
-        '''Also known as Weight Decay Loss or L2 Ridge Regularization'''
+        """Also known as Weight Decay Loss or L2 Ridge Regularization"""
         l2_reg_loss = torch.tensor(0.0, device=self.weight_net.weight.data.device)
         if self.l2_norm_scale != 0 and self.l2_norm_scale is not None:
-            l2_reg_loss = (torch.sum(self.weight_net.weight.data ** 2))*self.l2_norm_scale
+            l2_reg_loss = (torch.sum(self.weight_net.weight.data**2)) * self.l2_norm_scale
         return l2_reg_loss
 
     def l2_init_loss(self) -> torch.Tensor:
-        '''Also known as Delta Regularization Loss'''
+        """Also known as Delta Regularization Loss"""
         l2_init_loss = torch.tensor(0.0, device=self.weight_net.weight.data.device)
         if self.l2_init_scale != 0 and self.l2_init_scale is not None:
             l2_init_loss = torch.sum((self.weight_net.weight.data - self.initial_weights) ** 2) * self.l2_init_scale
         return l2_init_loss
 
     def update_l2_init_weight_copy(self, alpha: float = 0.9):
-        '''Potentially useful to prevent catastrophic forgetting. Update the
+        """Potentially useful to prevent catastrophic forgetting. Update the
         initial weights copy with a weighted average of the previous and
-        current weights.'''
+        current weights."""
         if self.initial_weights is not None:
             self.initial_weights = (self.initial_weights * alpha + self.weight_net.weight.data * (1 - alpha)).clone()
 

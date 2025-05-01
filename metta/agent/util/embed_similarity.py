@@ -1,9 +1,7 @@
-import numpy as np
-import torch
-from sklearn.metrics.pairwise import cosine_similarity, euclidean_distances
-from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
+import numpy as np
 import seaborn as sns
+from sklearn.metrics.pairwise import cosine_similarity, euclidean_distances
 
 # # --- The code to drop into the action.py file's forward pass ---
 
@@ -36,11 +34,11 @@ import seaborn as sns
 # --- Step 1: Load your embeddings ---
 # Assuming 'your_embeddings_file.npy' exists from the previous step
 try:
-    embeddings_array = np.load('agent/util/embedding_output.npy')
+    embeddings_array = np.load("agent/util/embedding_output.npy")
     print(f"Loaded embeddings with shape: {embeddings_array.shape}")
     # Make sure it matches the expected (25, 16)
     if embeddings_array.shape != (25, 16):
-         print(f"Warning: Loaded shape {embeddings_array.shape} doesn't match expected (25, 16)")
+        print(f"Warning: Loaded shape {embeddings_array.shape} doesn't match expected (25, 16)")
 except FileNotFoundError:
     print("Error: Embedding file not found. Please ensure 'your_embeddings_file.npy' exists.")
     # Create dummy data for demonstration if file not found
@@ -49,7 +47,7 @@ except FileNotFoundError:
 
 
 # Make sure we have something to work with
-if 'embeddings_array' in locals() and embeddings_array.size > 0:
+if "embeddings_array" in locals() and embeddings_array.size > 0:
     num_embeddings, embedding_dimension = embeddings_array.shape
 
     # --- Calculate Pairwise Similarity/Distance Matrices ---
@@ -62,25 +60,26 @@ if 'embeddings_array' in locals() and embeddings_array.size > 0:
 
     # Plotting Cosine Similarity Heatmap
     plt.figure(figsize=(10, 8))
-    sns.heatmap(cosine_sim_matrix, cmap='viridis', annot=False) # annot=True if you want numbers (maybe too crowded for 25x25)
-    plt.title('Cosine Similarity Between All Embeddings')
-    plt.xlabel('Embedding Index')
-    plt.ylabel('Embedding Index')
+    sns.heatmap(
+        cosine_sim_matrix, cmap="viridis", annot=False
+    )  # annot=True if you want numbers (maybe too crowded for 25x25)
+    plt.title("Cosine Similarity Between All Embeddings")
+    plt.xlabel("Embedding Index")
+    plt.ylabel("Embedding Index")
     plt.show()
 
     # Plotting Euclidean Distance Heatmap
     plt.figure(figsize=(10, 8))
-    sns.heatmap(euclidean_dist_matrix, cmap='magma_r', annot=False) # '_r' reverses the map (lower distance = brighter)
-    plt.title('Euclidean Distance Between All Embeddings')
-    plt.xlabel('Embedding Index')
-    plt.ylabel('Embedding Index')
+    sns.heatmap(euclidean_dist_matrix, cmap="magma_r", annot=False)  # '_r' reverses the map (lower distance = brighter)
+    plt.title("Euclidean Distance Between All Embeddings")
+    plt.xlabel("Embedding Index")
+    plt.ylabel("Embedding Index")
     plt.show()
-
 
     # --- NEW: Technique 2 - Sorted Neighbor Lists ---
     print("\nGenerating sorted neighbor lists (Top 5)...")
 
-    n_neighbors = 5 # How many neighbors to show (excluding self)
+    n_neighbors = 5  # How many neighbors to show (excluding self)
 
     print("\n--- Top Neighbors by Cosine Similarity (Higher is Better) ---")
     # Argsort gives the indices that would sort the array.
@@ -89,12 +88,11 @@ if 'embeddings_array' in locals() and embeddings_array.size > 0:
 
     for i in range(num_embeddings):
         neighbors = []
-        for j in range(1, n_neighbors + 1): # Start from 1 to skip self (index 0 is always the item itself)
+        for j in range(1, n_neighbors + 1):  # Start from 1 to skip self (index 0 is always the item itself)
             neighbor_idx = cosine_neighbor_indices[i, j]
             similarity = cosine_sim_matrix[i, neighbor_idx]
             neighbors.append(f"Idx {neighbor_idx} ({similarity:.3f})")
         print(f"Index {i}: {', '.join(neighbors)}")
-
 
     print("\n--- Top Neighbors by Euclidean Distance (Lower is Better) ---")
     # Argsort sorts ascendingly, which is perfect for distance (lower is better)
@@ -102,7 +100,7 @@ if 'embeddings_array' in locals() and embeddings_array.size > 0:
 
     for i in range(num_embeddings):
         neighbors = []
-        for j in range(1, n_neighbors + 1): # Start from 1 to skip self
+        for j in range(1, n_neighbors + 1):  # Start from 1 to skip self
             neighbor_idx = euclidean_neighbor_indices[i, j]
             distance = euclidean_dist_matrix[i, neighbor_idx]
             neighbors.append(f"Idx {neighbor_idx} ({distance:.3f})")
