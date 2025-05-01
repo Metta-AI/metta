@@ -11,6 +11,8 @@ from omegaconf import DictConfig, ListConfig, OmegaConf
 from wandb_carbs import WandbCarbs
 
 from metta.agent.policy_store import PolicyStore
+from metta.eval.analysis_config import AnalyzerConfig
+from metta.sim.eval_stats_analyzer import EvalStatsAnalyzer
 from metta.sim.eval_stats_db import EvalStatsDB
 from metta.sim.eval_stats_logger import EvalStatsLogger
 from metta.sim.simulation import SimulationSuite
@@ -108,7 +110,8 @@ def main(cfg: DictConfig | ListConfig) -> int:
         sweep_metric_index = metric_idxs[0]
 
         # Analyze the evaluation results
-        analyzer = hydra.utils.instantiate(cfg.analyzer, eval_stats_db)
+        analyzer_cfg = AnalyzerConfig(cfg.analyzer)
+        analyzer = EvalStatsAnalyzer(eval_stats_db, analyzer_cfg.analysis, analyzer_cfg.policy_uri)
         results, _ = analyzer.analyze()
 
         # Filter by policy name and average the mean values over evals

@@ -3,7 +3,6 @@ import os
 import time
 from collections import defaultdict
 
-import hydra
 import numpy as np
 import pufferlib
 import pufferlib.utils
@@ -19,14 +18,15 @@ from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyStore
 from metta.agent.util.distribution_utils import sample_logits
 from metta.agent.util.weights_analysis import WeightsMetricsHelper
+from metta.eval.analysis_config import AnalyzerConfig
 from metta.rl.pufferlib.experience import Experience
 from metta.rl.pufferlib.kickstarter import Kickstarter
 from metta.rl.pufferlib.profile import Profile
 from metta.rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
+from metta.sim.eval_stats_analyzer import EvalStatsAnalyzer
 from metta.sim.eval_stats_db import EvalStatsDB
 from metta.sim.eval_stats_logger import EvalStatsLogger
-from metta.sim.replay_helper import ReplayHelper
-from metta.sim.simulation import SimulationSuite
+from metta.sim.simulation import Simulation, SimulationSuite
 from metta.sim.simulation_config import SimulationConfig, SimulationSuiteConfig
 from metta.sim.vecenv import make_vecenv
 from metta.util.config import config_from_path
@@ -163,7 +163,7 @@ class PufferTrainer:
 
         self.kickstarter = Kickstarter(self.cfg, self.policy_store, self.vecenv.single_action_space)
 
-        replay_sim_config = SimulationConfig(
+        self.replay_sim_config = SimulationConfig(
             env=self.trainer_cfg.env,
             num_envs=1,
             num_episodes=1,
@@ -171,7 +171,6 @@ class PufferTrainer:
             device=self.device,
             vectorization=self.cfg.vectorization,
         )
-        self.replay_helper = ReplayHelper(replay_sim_config, self.last_pr, wandb_run)
 
         logger.info(f"PufferTrainer initialization complete on device: {self.device}")
 
@@ -264,7 +263,8 @@ class PufferTrainer:
             logger.error(f"Error logging stats: {e}")
 
         eval_stats_db = EvalStatsDB.from_uri(self.sim_suite_config.eval_db_uri, self.cfg.run_dir, self.wandb_run)
-        analyzer = hydra.utils.instantiate(self.cfg.analyzer, eval_stats_db)
+        analyzer_cfg = AnalyzerConfig(self.cfg.analyzer)
+        analyzer = EvalStatsAnalyzer(eval_stats_db, analyzer_cfg.analysis, analyzer_cfg.policy_uri)
         _, policy_fitness_records = analyzer.analyze()
         self._eval_results = policy_fitness_records
 
@@ -581,12 +581,14 @@ class PufferTrainer:
     def _generate_and_upload_replay(self):
         if self._master:
             logger.info("Generating and saving a replay to wandb and S3.")
-            self.replay_helper.generate_and_upload_replay(
-                self.epoch,
-                self.cfg.run_dir,
-                self.cfg.run,
-                dry_run=self.trainer_cfg.get("replay_dry_run", False),
+            self.replay_sim_config.replay_path = (
+                f"s3://softmax-public/replays/{self.cfg.run}/replay.{self.epoch}.json.z"
             )
+            dry_run = self.trainer_cfg.get("replay_dry_run", False)
+            replay_simulator = Simulation(
+                self.replay_sim_config, self.last_pr, self.policy_store, wandb_run=self.wandb_run
+            )
+            replay_simulator.simulate(epoch=self.epoch, dry_run=dry_run)
 
     def _process_stats(self):
         for k in list(self.stats.keys()):

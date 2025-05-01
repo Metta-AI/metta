@@ -10,7 +10,6 @@ policy_selector:
 
 observations:
   obs_key: grid_obs
-  track_last_action: false
 
 clip_range: 0 # set to 0 to disable clipping
 analyze_weights_interval: 300

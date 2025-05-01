@@ -6,7 +6,30 @@ import socket
 import time
 from contextlib import contextmanager
 
+import boto3
+from botocore.exceptions import NoCredentialsError
+
 logger = logging.getLogger(__name__)
+
+
+def upload_to_s3(data: str | bytes, s3_path: str, content_type: str):
+    if not s3_path.startswith("s3://"):
+        raise ValueError("S3 path must start with s3://")
+
+    bucket, key = s3_path[5:].split("/", 1)
+    try:
+        boto3.client("s3").put_object(Body=data, Bucket=bucket, Key=key, ContentType=content_type)
+    except NoCredentialsError as e:
+        logger.error("AWS credentials not found; run setup_sso.py")
+        raise e
+
+
+def s3_url(s3_path: str):
+    if not s3_path.startswith("s3://"):
+        raise ValueError("S3 path must start with s3://")
+
+    bucket, key = s3_path[5:].split("/", 1)
+    return f"https://{bucket}.s3.us-east-1.amazonaws.com/{key}"
 
 
 class EfsLock:
