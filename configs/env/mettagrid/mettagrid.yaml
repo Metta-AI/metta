@@ -1,17 +1,3 @@
-<<<<<<< HEAD
-=======
-name: "GDY-MettaGrid"
-_target_: mettagrid.mettagrid_env.MettaGridEnv
-
-report_stats_interval: 100
-normalize_rewards: false
-
-sampling: 0
-
-hidden_features:
-  grid_obs: ["agent:energy", "agent:hp"]
-
->>>>>>> origin/main
 game:
   num_agents: ???
   obs_width: 11
