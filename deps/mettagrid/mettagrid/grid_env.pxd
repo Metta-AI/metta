@@ -86,7 +86,6 @@ cdef class GridEnv:
     cpdef list[str] grid_features(self)
     cpdef list[str] action_names(self)
     cpdef unsigned int num_agents(self)
-    cpdef tuple observation_shape(self)
 
     cpdef tuple[cnp.ndarray, dict] reset(self)
     cpdef tuple[cnp.ndarray, cnp.ndarray, cnp.ndarray, cnp.ndarray, dict] step(self, cnp.ndarray actions)
@@ -109,6 +108,4 @@ cdef class GridEnv:
     cpdef dict get_episode_stats(self)
     cpdef get_episode_rewards(self)
 
-    cpdef tuple get_buffers(self)
     cpdef cnp.ndarray render_ascii(self)
-    cpdef cnp.ndarray grid_objects_types(self)

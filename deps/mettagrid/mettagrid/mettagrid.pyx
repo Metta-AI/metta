@@ -151,10 +151,6 @@ cdef class MettaGrid(GridEnv):
                     converter = NULL
 
 
-
-    cpdef list[str] grid_features(self):
-        return self._grid_features
-
     def render(self):
         grid = self.render_ascii()
         for r in grid:

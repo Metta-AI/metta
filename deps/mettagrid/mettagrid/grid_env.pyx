@@ -257,9 +257,6 @@ cdef class GridEnv:
     cpdef unsigned int num_agents(self):
         return self._agents.size()
 
-    cpdef tuple observation_shape(self):
-        return (len(self.grid_features()), self.obs_height, self.obs_width)
-
     cpdef observe(
         self,
         GridObjectId observer_id,
@@ -290,23 +287,12 @@ cdef class GridEnv:
             "game": self._stats.stats(),
         }
 
-    cpdef tuple get_buffers(self):
-        return (self._observations_np, self._terminals_np, self._truncations_np, self._rewards_np)
-
     cpdef cnp.ndarray render_ascii(self):
         cdef GridObject *obj
         grid = np.full((self._grid.height, self._grid.width), " ", dtype=np.str_)
         for obj_id in range(1, self._grid.objects.size()):
             obj = self._grid.object(obj_id)
             grid[obj.location.r, obj.location.c] = ObjectTypeAscii[obj._type_id]
-        return grid
-
-    cpdef cnp.ndarray grid_objects_types(self):
-        cdef GridObject *obj
-        grid = np.zeros((self._grid.height, self._grid.width), dtype=np.uint8)
-        for obj_id in range(1, self._grid.objects.size()):
-            obj = self._grid.object(obj_id)
-            grid[obj.location.r, obj.location.c] = obj._type_id + 1
         return grid
 
     @property
