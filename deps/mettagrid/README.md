@@ -94,10 +94,6 @@ The `use` action allows agents to interact with objects such as altars, converte
 
 The `swap` action allows agents to swap positions with other agents. It is currently not implemented.
 
-### Tracking the Agent's Last Action
-
-The `track_last_action` property adds the agent's last action to the observation space. It is currently not implemented.
-
 ## Configuration
 
 The MettaGrid environment is highly configurable through the use of YAML configuration files. These files specify the layout of the gridworld, the placement of objects, and various properties of the objects and agents.
