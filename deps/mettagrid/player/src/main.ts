@@ -377,9 +377,6 @@ function removeSuffix(str: string, suffix: string) {
 async function loadReplayText(replayData: any) {
   replay = JSON.parse(replayData);
 
-
-  console.log("pre replay: ", replay);
-
   // Go through each grid object and expand its key sequence.
   for (const gridObject of replay.grid_objects) {
     for (const key in gridObject) {
@@ -471,7 +468,7 @@ async function loadReplayText(replayData: any) {
     }
   }
 
-  console.log("post replay: ", replay);
+  console.info("replay: ", replay);
 
   // Set the scrubber max value to the max steps.
   scrubber.max = (replay.max_steps - 1).toString();
