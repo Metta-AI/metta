@@ -40,6 +40,7 @@ ext_modules = [
     build_ext(["mettagrid/actions/get_output.pyx"]),
     build_ext(["mettagrid/objects/agent.pyx"]),
     build_ext(["mettagrid/objects/constants.pyx"]),
+    build_ext(["mettagrid/objects/has_inventory.pyx"]),
     build_ext(["mettagrid/objects/converter.pyx"]),
     build_ext(["mettagrid/objects/metta_object.pyx"]),
     build_ext(["mettagrid/objects/production_handler.pyx"]),
