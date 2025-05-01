@@ -3,7 +3,6 @@ import os
 import time
 from collections import defaultdict
 
-import hydra
 import numpy as np
 import pufferlib
 import pufferlib.utils
@@ -12,19 +11,22 @@ import torch.distributed as dist
 import wandb
 from fast_gae import fast_gae
 from heavyball import ForeachMuon
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, ListConfig
 
 from metta.agent.metta_agent import DistributedMettaAgent
+from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyStore
+from metta.agent.util.distribution_utils import sample_logits
 from metta.agent.util.weights_analysis import WeightsMetricsHelper
+from metta.eval.analysis_config import AnalyzerConfig
 from metta.rl.pufferlib.experience import Experience
 from metta.rl.pufferlib.kickstarter import Kickstarter
 from metta.rl.pufferlib.profile import Profile
 from metta.rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
+from metta.sim.eval_stats_analyzer import EvalStatsAnalyzer
 from metta.sim.eval_stats_db import EvalStatsDB
 from metta.sim.eval_stats_logger import EvalStatsLogger
-from metta.sim.replay_helper import ReplayHelper
-from metta.sim.simulation import SimulationSuite
+from metta.sim.simulation import Simulation, SimulationSuite
 from metta.sim.simulation_config import SimulationConfig, SimulationSuiteConfig
 from metta.sim.vecenv import make_vecenv
 from metta.util.config import config_from_path
@@ -39,7 +41,12 @@ logger = logging.getLogger(f"trainer-{rank}-{local_rank}")
 
 class PufferTrainer:
     def __init__(
-        self, cfg: OmegaConf, wandb_run, policy_store: PolicyStore, sim_suite_config: SimulationSuiteConfig, **kwargs
+        self,
+        cfg: DictConfig | ListConfig,
+        wandb_run,
+        policy_store: PolicyStore,
+        sim_suite_config: SimulationSuiteConfig,
+        **kwargs,
     ):
         self.cfg = cfg
         self.trainer_cfg = cfg.trainer
@@ -63,10 +70,10 @@ class PufferTrainer:
         self.stats = defaultdict(list)
         self.wandb_run = wandb_run
         self.policy_store = policy_store
-        self.use_e3b = self.trainer_cfg.use_e3b
         self.eval_stats_logger = EvalStatsLogger(self.sim_suite_config, wandb_run)
         self.average_reward = 0.0  # Initialize average reward estimate
         self._current_eval_score = None
+        self.eval_scores = None
         self._eval_results = []
         self._weights_helper = WeightsMetricsHelper(cfg)
         self._make_vecenv()
@@ -103,10 +110,11 @@ class PufferTrainer:
         if self._master:
             print(policy_record.policy())
 
-        if policy_record.metadata["action_names"] != self.vecenv.driver_env.action_names():
+        action_names = self.vecenv.driver_env.action_names()
+        if policy_record.metadata["action_names"] != action_names:
             raise ValueError(
                 "Action names do not match between policy and environment: "
-                f"{policy_record.metadata['action_names']} != {self.vecenv.driver_env.action_names()}"
+                f"{policy_record.metadata['action_names']} != {action_names}"
             )
 
         self._initial_pr = policy_record
@@ -155,7 +163,7 @@ class PufferTrainer:
 
         self.kickstarter = Kickstarter(self.cfg, self.policy_store, self.vecenv.single_action_space)
 
-        replay_sim_config = SimulationConfig(
+        self.replay_sim_config = SimulationConfig(
             env=self.trainer_cfg.env,
             num_envs=1,
             num_episodes=1,
@@ -163,19 +171,20 @@ class PufferTrainer:
             device=self.device,
             vectorization=self.cfg.vectorization,
         )
-        self.replay_helper = ReplayHelper(replay_sim_config, self.last_pr, wandb_run)
 
         logger.info(f"PufferTrainer initialization complete on device: {self.device}")
 
     def train(self):
         self.train_start = time.time()
+        self.steps_start = self.agent_step
+
         logger.info("Starting training")
 
+        # it doesn't make sense to evaluate more often than checkpointing since we need a saved policy to evaluate
         if (
             self.trainer_cfg.evaluate_interval != 0
             and self.trainer_cfg.evaluate_interval < self.trainer_cfg.checkpoint_interval
         ):
-            # it doesn't make sense to evaluate more often than checkpointing since we need a saved policy to evaluate
             raise ValueError("evaluate_interval must be at least as large as checkpoint_interval")
 
         logger.info(f"Training on {self.device}")
@@ -189,9 +198,25 @@ class PufferTrainer:
             # Processing stats
             self._process_stats()
 
+            # log progress
+            steps_per_second = (self.agent_step - self.steps_start) / (time.time() - self.train_start)
+            remaining_steps = self.trainer_cfg.total_timesteps - self.agent_step
+            remaining_time_sec = remaining_steps / steps_per_second
+
+            # Format remaining time in appropriate units
+            if remaining_time_sec < 60:
+                time_str = f"{remaining_time_sec:.0f} sec"
+            elif remaining_time_sec < 3600:
+                time_str = f"{remaining_time_sec / 60:.1f} min"
+            elif remaining_time_sec < 86400:  # Less than a day
+                time_str = f"{remaining_time_sec / 3600:.1f} hours"
+            else:
+                time_str = f"{remaining_time_sec / 86400:.1f} days"
+
             logger.info(
-                f"Epoch {self.epoch} - {self.agent_step} "
-                f"({100.00 * self.agent_step / self.trainer_cfg.total_timesteps:.2f}%)"
+                f"Epoch {self.epoch} - {self.agent_step} [{steps_per_second:.0f}/sec]"
+                f" ({100.00 * self.agent_step / self.trainer_cfg.total_timesteps:.2f}%)"
+                f" - {time_str} remaining"
             )
 
             # Checkpointing trainer
@@ -238,9 +263,21 @@ class PufferTrainer:
             logger.error(f"Error logging stats: {e}")
 
         eval_stats_db = EvalStatsDB.from_uri(self.sim_suite_config.eval_db_uri, self.cfg.run_dir, self.wandb_run)
-        analyzer = hydra.utils.instantiate(self.cfg.analyzer, eval_stats_db)
+        analyzer_cfg = AnalyzerConfig(self.cfg.analyzer)
+        analyzer = EvalStatsAnalyzer(eval_stats_db, analyzer_cfg.analysis, analyzer_cfg.policy_uri)
         _, policy_fitness_records = analyzer.analyze()
         self._eval_results = policy_fitness_records
+
+        self.eval_scores = {
+            "navigation_score": np.mean([r["candidate_mean"] for r in self._eval_results if "navigation" in r["eval"]]),
+            "object_use_score": np.mean(
+                np.mean([r["candidate_mean"] for r in self._eval_results if "object_use" in r["eval"]])
+            ),
+            "against_npc_score": np.mean([r["candidate_mean"] for r in self._eval_results if "npc" in r["eval"]]),
+            "memory_score": np.mean([r["candidate_mean"] for r in self._eval_results if "memory" in r["eval"]]),
+            "multiagent_score": np.mean([r["candidate_mean"] for r in self._eval_results if "multiagent" in r["eval"]]),
+        }
+
         self._current_eval_score = np.sum(
             [r["candidate_mean"] for r in self._eval_results if r["metric"] == "episode_reward"]
         )
@@ -259,7 +296,6 @@ class PufferTrainer:
             policy = self.policy
             infos = defaultdict(list)
             lstm_h, lstm_c = experience.lstm_h, experience.lstm_c
-            e3b_inv = experience.e3b_inv
 
         while not experience.full:
             with profile.env:
@@ -294,18 +330,11 @@ class PufferTrainer:
                 d = torch.as_tensor(d)
 
             with profile.eval_forward, torch.no_grad():
-                # TODO: In place-update should be faster. Leaking 7% speed max
-                # Also should be using a cuda tensor to index
-                e3b = e3b_inv[gpu_env_id] if self.use_e3b else None
-
-                h = lstm_h[:, gpu_env_id]
-                c = lstm_c[:, gpu_env_id]
-                actions, logprob, _, value, (h, c), next_e3b, intrinsic_reward, _ = policy(o_device, (h, c), e3b=e3b)
-                lstm_h[:, gpu_env_id] = h
-                lstm_c[:, gpu_env_id] = c
-                if self.use_e3b:
-                    e3b_inv[env_id] = next_e3b
-                    r += intrinsic_reward.cpu()
+                state = PolicyState(lstm_h=lstm_h[:, gpu_env_id], lstm_c=lstm_c[:, gpu_env_id])
+                logits, value = policy(o_device, state)
+                actions, logprob, _, _ = sample_logits(logits)
+                lstm_h[:, gpu_env_id] = state.lstm_h
+                lstm_c[:, gpu_env_id] = state.lstm_c
 
                 if self.device == "cuda":
                     torch.cuda.synchronize()
@@ -380,8 +409,8 @@ class PufferTrainer:
         # Optimizing the policy and value network
         total_minibatches = experience.num_minibatches * self.trainer_cfg.update_epochs
         for _epoch in range(self.trainer_cfg.update_epochs):
-            lstm_state = None
-            teacher_lstm_state = None
+            lstm_state = PolicyState()
+            teacher_lstm_state = []
             for mb in range(experience.num_minibatches):
                 with profile.train_misc:
                     obs = experience.b_obs[mb]
@@ -393,11 +422,8 @@ class PufferTrainer:
                     ret = experience.b_returns[mb]
 
                 with profile.train_forward:
-                    _, newlogprob, entropy, newvalue, lstm_state, _, _, new_normalized_logits = self.policy(
-                        obs, state=lstm_state, action=atn
-                    )
-                    lstm_state = (lstm_state[0].detach(), lstm_state[1].detach())
-
+                    logits, newvalue = self.policy(obs, lstm_state, action=atn)
+                    _, newlogprob, entropy, new_normalized_logits = sample_logits(logits, action=atn)
                     if self.device == "cuda":
                         torch.cuda.synchronize()
 
@@ -437,7 +463,7 @@ class PufferTrainer:
 
                     entropy_loss = entropy.mean()
 
-                    ks_action_loss, ks_value_loss, teacher_lstm_state = self.kickstarter.loss(
+                    ks_action_loss, ks_value_loss = self.kickstarter.loss(
                         self.agent_step, new_normalized_logits, newvalue, obs, teacher_lstm_state
                     )
 
@@ -535,6 +561,7 @@ class PufferTrainer:
                 "initial_uri": self._initial_pr.uri,
                 "train_time": time.time() - self.train_start,
                 "score": self._current_eval_score,
+                "eval_scores": self.eval_scores,
             },
         )
         # this is hacky, but otherwise the initial_pr points
@@ -554,12 +581,14 @@ class PufferTrainer:
     def _generate_and_upload_replay(self):
         if self._master:
             logger.info("Generating and saving a replay to wandb and S3.")
-            self.replay_helper.generate_and_upload_replay(
-                self.epoch,
-                self.cfg.run_dir,
-                self.cfg.run,
-                dry_run=self.trainer_cfg.get("replay_dry_run", False),
+            self.replay_sim_config.replay_path = (
+                f"s3://softmax-public/replays/{self.cfg.run}/replay.{self.epoch}.json.z"
             )
+            dry_run = self.trainer_cfg.get("replay_dry_run", False)
+            replay_simulator = Simulation(
+                self.replay_sim_config, self.last_pr, self.policy_store, wandb_run=self.wandb_run
+            )
+            replay_simulator.simulate(epoch=self.epoch, dry_run=dry_run)
 
     def _process_stats(self):
         for k in list(self.stats.keys()):
@@ -586,6 +615,8 @@ class PufferTrainer:
         navigation_score = np.mean([r["candidate_mean"] for r in self._eval_results if "navigation" in r["eval"]])
         object_use_score = np.mean([r["candidate_mean"] for r in self._eval_results if "object_use" in r["eval"]])
         against_npc_score = np.mean([r["candidate_mean"] for r in self._eval_results if "npc" in r["eval"]])
+        memory_score = np.mean([r["candidate_mean"] for r in self._eval_results if "memory" in r["eval"]])
+        multiagent_score = np.mean([r["candidate_mean"] for r in self._eval_results if "multiagent" in r["eval"]])
 
         if not np.isnan(navigation_score):
             overview["navigation_evals"] = navigation_score
@@ -593,6 +624,10 @@ class PufferTrainer:
             overview["object_use_evals"] = object_use_score
         if not np.isnan(against_npc_score):
             overview["npc_evals"] = against_npc_score
+        if not np.isnan(memory_score):
+            overview["memory_evals"] = memory_score
+        if not np.isnan(multiagent_score):
+            overview["multiagent_evals"] = multiagent_score
 
         environment = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
 
@@ -618,6 +653,18 @@ class PufferTrainer:
             if "npc" in r["eval"]
         }
 
+        memory_eval_metrics = {
+            f"memory_evals/{r['eval'].split('/')[-1]}:{r['metric']}": r["candidate_mean"]
+            for r in self._eval_results
+            if "memory" in r["eval"]
+        }
+
+        multiagent_eval_metrics = {
+            f"multiagent_evals/{r['eval'].split('/')[-1]}:{r['metric']}": r["candidate_mean"]
+            for r in self._eval_results
+            if "multiagent" in r["eval"]
+        }
+
         if self.wandb_run and self.cfg.wandb.track and self._master:
             self.wandb_run.log(
                 {
@@ -630,6 +677,8 @@ class PufferTrainer:
                     **navigation_eval_metrics,
                     **object_use_eval_metrics,
                     **against_npc_eval_metrics,
+                    **memory_eval_metrics,
+                    **multiagent_eval_metrics,
                     "train/agent_step": agent_steps,
                     "train/epoch": epoch,
                     "train/learning_rate": learning_rate,

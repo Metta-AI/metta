@@ -1,29 +1,25 @@
 #!/usr/bin/env python3
 import fnmatch
 import json
-import logging
 import os
 import sys
 import time
 
 import hydra
 import yaml
-from omegaconf import DictConfig, OmegaConf
-from rich.logging import RichHandler
+from omegaconf import DictConfig, ListConfig, OmegaConf
 from wandb_carbs import WandbCarbs
 
 from metta.agent.policy_store import PolicyStore
+from metta.eval.analysis_config import AnalyzerConfig
+from metta.sim.eval_stats_analyzer import EvalStatsAnalyzer
 from metta.sim.eval_stats_db import EvalStatsDB
 from metta.sim.eval_stats_logger import EvalStatsLogger
 from metta.sim.simulation import SimulationSuite
 from metta.sim.simulation_config import SimulationSuiteConfig
+from metta.util.logging import setup_mettagrid_logger
 from metta.util.runtime_configuration import setup_mettagrid_environment
 from metta.util.wandb.wandb_context import WandbContext
-
-# Configure rich colored logging to stderr instead of stdout
-logging.basicConfig(level="INFO", format="%(message)s", datefmt="[%X]", handlers=[RichHandler(rich_tracebacks=True)])
-
-logger = logging.getLogger("sweep_eval")
 
 
 def log_file(run_dir, name, data, wandb_run):
@@ -43,11 +39,14 @@ def load_file(run_dir, name):
 
 
 @hydra.main(config_path="../configs", config_name="sweep_job", version_base=None)
-def main(cfg: OmegaConf) -> int:
+def main(cfg: DictConfig | ListConfig) -> int:
     setup_mettagrid_environment(cfg)
+
+    logger = setup_mettagrid_logger("sweep_eval")
+
     logger.info("Sweep configuration:")
     logger.info(yaml.dump(OmegaConf.to_container(cfg, resolve=True), default_flow_style=False))
-    simulation_suite_cfg = SimulationSuiteConfig(cfg.sweep_job.evals)
+    simulation_suite_cfg = SimulationSuiteConfig(**cfg.sweep_job.evals)
 
     results_path = os.path.join(cfg.run_dir, "sweep_eval_results.yaml")
     start_time = time.time()
@@ -111,7 +110,8 @@ def main(cfg: OmegaConf) -> int:
         sweep_metric_index = metric_idxs[0]
 
         # Analyze the evaluation results
-        analyzer = hydra.utils.instantiate(cfg.analyzer, eval_stats_db)
+        analyzer_cfg = AnalyzerConfig(cfg.analyzer)
+        analyzer = EvalStatsAnalyzer(eval_stats_db, analyzer_cfg.analysis, analyzer_cfg.policy_uri)
         results, _ = analyzer.analyze()
 
         # Filter by policy name and average the mean values over evals

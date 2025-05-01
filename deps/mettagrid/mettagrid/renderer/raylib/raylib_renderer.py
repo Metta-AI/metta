@@ -9,7 +9,7 @@ import numpy as np
 import pyray as ray
 import torch
 from cffi import FFI
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, ListConfig
 from raylib import colors, rl
 
 from mettagrid.mettagrid_env import MettaGridEnv
@@ -30,7 +30,7 @@ from mettagrid.renderer.raylib.object_render import (
 
 
 class MettaGridRaylibRenderer:
-    def __init__(self, env: MettaGridEnv, cfg: OmegaConf):
+    def __init__(self, env: MettaGridEnv, cfg: DictConfig | ListConfig):
         self.cfg = cfg
         self.env = env
         self.grid_width = env.map_width()
