@@ -21,10 +21,10 @@ import torch
 import wandb
 from omegaconf import DictConfig, ListConfig
 from torch import nn
-from wandb.sdk import wandb_run
 
 from metta.agent.metta_agent import make_policy
 from metta.rl.pufferlib.policy import load_policy
+from metta.util.wandb.wandb_context import WandbRun
 
 logger = logging.getLogger("policy_store")
 
@@ -56,7 +56,7 @@ class PolicyRecord:
 
 
 class PolicyStore:
-    def __init__(self, cfg: ListConfig | DictConfig, wandb_run: wandb_run.Run):
+    def __init__(self, cfg: ListConfig | DictConfig, wandb_run: WandbRun | None):
         self._cfg = cfg
         self._device = cfg.device
         self._wandb_run = wandb_run
