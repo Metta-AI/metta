@@ -80,12 +80,7 @@ def _build_figure(
             zmin=score_range[0],
             zmax=score_range[1],
             colorbar=dict(title="Score"),
-            hovertemplate=(
-                "<b>Policy:</b> %{y}"
-                "<br><b>Evaluation:</b> %{x}"
-                "<br><b>Score:</b> %{z:.2f}"
-                "<extra></extra>"
-            ),
+            hovertemplate=("<b>Policy:</b> %{y}<br><b>Evaluation:</b> %{x}<br><b>Score:</b> %{z:.2f}<extra></extra>"),
         )
     )
 
