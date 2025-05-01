@@ -7,7 +7,7 @@ import pufferlib
 from omegaconf import DictConfig, OmegaConf
 
 from mettagrid.config.utils import simple_instantiate
-from mettagrid.mettagrid_c import MettaGrid  # pylint: disable=E0611
+from mettagrid.grid_env import GridEnv as MettaGrid  # pylint: disable=E0611
 from mettagrid.resolvers import register_resolvers
 
 
