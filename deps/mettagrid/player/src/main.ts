@@ -402,7 +402,13 @@ async function loadReplayText(replayData: any) {
   // Create action image mappings for faster access.
   replay.action_images = [];
   for (const actionName of replay.action_names) {
-    replay.action_images.push("trace/" + actionName + ".png");
+    let path = "trace/" + actionName + ".png";
+    if (drawer.hasImage(path)) {
+      replay.action_images.push(path);
+    } else {
+      console.warn("Action not supported: ", path);
+      replay.action_images.push("trace/unknown.png");
+    }
   }
 
   // Create a list of all keys objects can have.
@@ -420,7 +426,8 @@ async function loadReplayText(replayData: any) {
   for (let i = 0; i < replay.object_types.length; i++) {
     const typeName = replay.object_types[i];
     var image = "objects/" + typeName + ".png";
-    if (!drawer.hasImage(image)) {
+    if (!drawer.hasImage(image) && typeName != "agent" && typeName != "wall") {
+      console.warn("Object not supported: ", typeName);
       image = "objects/unknown.png";
     }
     var imageEmpty = "objects/" + typeName + ".empty.png";
@@ -438,27 +445,28 @@ async function loadReplayText(replayData: any) {
   replay.resource_inventory = new Map();
   for (const key of replay.all_keys) {
     if (key.startsWith("inv:") || key.startsWith("agent:inv:")) {
-      var image: string = key;
-      image = removePrefix(image, "inv:")
-      image = removePrefix(image, "agent:inv:");
+      var type: string = key;
+      type = removePrefix(type, "inv:")
+      type = removePrefix(type, "agent:inv:");
       var color = [1, 1, 1, 1]; // Default to white.
       for (const [colorName, colorValue] of COLORS) {
-        if (image.endsWith(colorName)) {
-          if(drawer.hasImage("resources/" + image + ".png")) {
+        if (type.endsWith(colorName)) {
+          if(drawer.hasImage("resources/" + type + ".png")) {
             // Use the resource.color.png with white color.
             break;
           } else {
             // Use the resource.png with specific color.
-            image = removeSuffix(image, "." + colorName);
+            type = removeSuffix(type, "." + colorName);
             color = colorValue as number[];
-            if (!drawer.hasImage("resources/" + image + ".png")) {
+            if (!drawer.hasImage("resources/" + type + ".png")) {
               // Use the unknown.png with specific color.
-              image = "unknown";
+              console.warn("Resource not supported: ", type);
+              type = "unknown";
             }
           }
         }
       }
-      image = "resources/" + image + ".png";
+      image = "resources/" + type + ".png";
       replay.resource_inventory.set(key, [image, color]);
     }
   }
@@ -1087,7 +1095,7 @@ function drawTrace(panel: PanelInfo) {
           replay.action_images[action[0]],
           j * TRACE_WIDTH + TRACE_WIDTH/2, i * TRACE_HEIGHT + TRACE_HEIGHT/2,
         );
-      } else if (action != null) {
+      } else if (action != null && action[0] > 0 && action[0] < replay.action_images.length) {
         drawer.drawSprite(
           replay.action_images[action[0]],
           j * TRACE_WIDTH + TRACE_WIDTH/2, i * TRACE_HEIGHT + TRACE_HEIGHT/2,
