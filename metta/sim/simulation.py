@@ -1,13 +1,20 @@
 """
+<<<<<<< HEAD
 Runs a vectorised batch of MettaGrid environments, merges the per-env shard
 DBs written by `MettaGridStatsWriter`, and exports a single canonical DB to
 `eval_stats_uri` (file / S3 / WandB).
 
 The only stats dependency is `mettagrid.stats_db`.  No mettagrid code imports
 from metta.
-"""
+=======
+Simulations are how mettagrid envs are run. Its main reponsibilities include:
 
-from __future__ import annotations
+* Mapping policies to agents
+* Running a vectorised batch of MettaGrid environments
+* Merging the per-env shard DBs written by MettaGridStatsWriter
+* Exporting a single canonical DB to eval_stats_uri (file / S3 / WandB)
+>>>>>>> e6febb77 (cp)
+"""
 
 import logging
 import os
@@ -24,7 +31,10 @@ from omegaconf import OmegaConf
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore
 from metta.agent.util.distribution_utils import sample_logits
+<<<<<<< HEAD
 from metta.sim.replay_helper import ReplayHelper
+=======
+>>>>>>> e6febb77 (cp)
 from metta.sim.simulation_config import SimulationConfig, SimulationSuiteConfig
 from metta.sim.stats_db import StatsDB
 from metta.sim.vecenv import make_vecenv
@@ -34,10 +44,8 @@ from metta.util.datastruct import flatten_config
 logger = logging.getLogger(__name__)
 
 
-# --------------------------------------------------------------------------- #
-#   Single simulation                                                         #
-# --------------------------------------------------------------------------- #
 class Simulation:
+<<<<<<< HEAD
     """
     A simulation is any process of stepping through a MettaGrid environment.
 
@@ -77,6 +85,38 @@ class Simulation:
 
         self._npc_pr = self._policy_store.policy(self._npc_policy_uri) if self._npc_policy_uri else None
         self._policy_agents_pct = config.policy_agents_pct if self._npc_pr else 1.0
+=======
+    def __init__(self, config: SimulationConfig, policy_pr: PolicyRecord, policy_store: PolicyStore, name: str = ""):
+        self._config = config
+        # TODO: Replace with typed EnvConfig
+        self._env_cfg = config_from_path(config.env, config.env_overrides)
+        self._env_name = config.env
+
+        self._npc_policy_uri = config.npc_policy_uri
+        self._policy_agents_pct = config.policy_agents_pct
+        self._policy_store = policy_store
+
+        self._device = config.device
+
+        self._num_envs = config.num_envs
+        self._min_episodes = config.num_episodes
+        self._max_time_s = config.max_time_s
+
+        # Setup stats writer path
+        self._stats_dir = Path(config.run_dir) / "stats" / (name or "default")
+        self._stats_dir.mkdir(parents=True, exist_ok=True)
+        self._env_cfg["stats_writer_path"] = str(self._stats_dir / f"stats_{uuid.uuid4().hex[:8]}.duckdb")
+
+        # load candidate policy
+        self._policy_pr = policy_pr
+        self._name = name
+        # load npc policy
+        self._npc_pr = None
+        if self._npc_policy_uri is None:
+            self._policy_agents_pct = 1.0
+        else:
+            self._npc_pr = self._policy_store.policy(self._npc_policy_uri)
+>>>>>>> e6febb77 (cp)
 
         # -------- vec-env & agent bookkeeping -------------------------- #
         self._device = config.device
@@ -86,6 +126,7 @@ class Simulation:
 
         self._vecenv = make_vecenv(self._env_cfg, config.vectorization, num_envs=self._num_envs)
         self._agents_per_env = self._env_cfg.game.num_agents
+<<<<<<< HEAD
 
         # Pre-compute slices (policy vs NPC) into the flattened agent axis
         slice_mat = torch.arange(self._vecenv.num_agents).reshape(self._num_envs, self._agents_per_env).to(self._device)
@@ -148,6 +189,31 @@ class Simulation:
     # -- stats DB merge/export ----------------------------------------- #
     def _finalise_stats(self) -> None:
         """Merge worker DuckDB shards → single DB, optionally export."""
+=======
+        self._policy_agents_per_env = max(1, int(self._agents_per_env * self._policy_agents_pct))
+        self._npc_agents_per_env = self._agents_per_env - self._policy_agents_per_env
+        self._total_agents = self._num_envs * self._agents_per_env
+
+        self._vecenv = make_vecenv(self._env_cfg, config.vectorization, num_envs=self._num_envs)
+
+        # each index is an agent, and we reshape it into a matrix of num_envs x agents_per_env
+        slice_idxs = (
+            torch.arange(self._vecenv.num_agents).reshape(self._num_envs, self._agents_per_env).to(device=self._device)
+        )
+
+        self._policy_idxs = slice_idxs[:, : self._policy_agents_per_env].reshape(
+            self._policy_agents_per_env * self._num_envs
+        )
+
+        self._npc_idxs = []
+        if self._npc_agents_per_env > 0:
+            self._npc_idxs = slice_idxs[:, self._policy_agents_per_env :].reshape(
+                self._num_envs * self._npc_agents_per_env
+            )
+
+    def _finalise_stats(self) -> None:
+        # Build agent-policy mapping
+>>>>>>> e6febb77 (cp)
         agent_map: Dict[int, Tuple[str, int]] = {
             idx.item(): (self._policy_pr.uri, self._policy_pr.version) for idx in self._policy_idxs
         }
@@ -162,6 +228,7 @@ class Simulation:
         if self._config.eval_stats_uri:
             StatsDB.export_db(merged_db, self._config.eval_stats_uri)
             logger.info("Exported stats DB → %s", self._config.eval_stats_uri)
+<<<<<<< HEAD
 
     # ------------------------------------------------------------------ #
     #   main loop                                                        #
@@ -179,10 +246,24 @@ class Simulation:
                 "           against NPC policy=%s (%d npc agents/env)", self._npc_pr.name, self._npc_agents_per_env
             )
 
+=======
+
+    def simulate(self):
+        logger.info(
+            f"Simulating {self._name} policy: {self._policy_pr.name} "
+            + f"in {self._env_name} with {self._policy_agents_per_env} agents"
+        )
+        if self._npc_pr is not None:
+            logger.debug(f"Against npc policy: {self._npc_pr.name} with {self._npc_agents_per_env} agents")
+
+        logger.info(f"Simulation settings: {self._config}")
+
+>>>>>>> e6febb77 (cp)
         obs, _ = self._vecenv.reset()
         policy_state = PolicyState()
         npc_state = PolicyState()
 
+<<<<<<< HEAD
         game_stats: list[dict] = []
         env_dones = [False] * self._num_envs
         t0 = time.time()
@@ -300,11 +381,58 @@ class SimulationSuite:
     and aggregates the results keyed by simulation-name.
     """
 
+=======
+        completed_episodes = 0
+        start = time.time()
+
+        # set of episodes that parallelize the environments
+        while completed_episodes < self._min_episodes and time.time() - start < self._max_time_s:
+            with torch.no_grad():
+                obs = torch.as_tensor(obs).to(device=self._device)
+                # observations that correspond to policy agent
+                my_obs = obs[self._policy_idxs]
+
+                # Parallelize across opponents
+                policy = self._policy_pr.policy()  # policy to evaluate
+                logits, _ = policy(my_obs, policy_state)
+                policy_actions, _, _, _ = sample_logits(logits)
+
+                # Iterate opponent policies
+                if self._npc_pr is not None:
+                    npc_obs = obs[self._npc_idxs]
+                    npc_policy = self._npc_pr.policy()
+                    npc_logits, _ = npc_policy(npc_obs, npc_state)
+                    npc_actions, _, _, _ = sample_logits(npc_logits)
+
+            actions = policy_actions
+            if self._npc_agents_per_env > 0:
+                actions = torch.cat(
+                    [
+                        policy_actions.view(self._num_envs, self._policy_agents_per_env, -1),
+                        npc_actions.view(self._num_envs, self._npc_agents_per_env, -1),
+                    ],
+                    dim=1,
+                )
+
+            actions = actions.view(self._num_envs * self._agents_per_env, -1)
+
+            obs, _, dones, _, _ = self._vecenv.step(actions.cpu().numpy())
+            completed_episodes += sum([e.done for e in self._vecenv.envs])
+
+        logger.debug(f"Simulation time: {time.time() - start}")
+        self._vecenv.close()
+        self._finalise_stats()
+        logger.info("Simulation %s finished after %d episodes.", self._name, completed_episodes)
+
+
+class SimulationSuite:
+>>>>>>> e6febb77 (cp)
     def __init__(
         self,
         config: SimulationSuiteConfig,
         policy_pr: PolicyRecord,
         policy_store: PolicyStore,
+<<<<<<< HEAD
         *,
         wandb_run=None,
     ):
@@ -317,3 +445,17 @@ class SimulationSuite:
     # Replay-specific `epoch` / `dry_run` bubbled through for caller convenience
     def simulate(self, *, epoch: int = 0, dry_run: bool = False) -> Dict[str, list]:
         return {n: sim.simulate(epoch=epoch, dry_run=dry_run) for n, sim in self._sims.items()}
+=======
+    ):
+        logger.debug(f"Building Simulation suite from config:{config}")
+        self._simulations = dict()
+
+        for name, sim_config in config.simulations.items():
+            # Create a Simulation object for each config
+            sim = Simulation(config=sim_config, policy_pr=policy_pr, policy_store=policy_store, name=name)
+            self._simulations[name] = sim
+
+    def simulate(self):
+        # Run all simulations and gather results by name
+        return {name: sim.simulate() for name, sim in self._simulations.items()}
+>>>>>>> e6febb77 (cp)
