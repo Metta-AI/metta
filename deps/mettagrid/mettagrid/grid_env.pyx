@@ -31,7 +31,6 @@ cdef class GridEnv:
             vector[Layer] layer_for_type_id,
             unsigned short obs_width,
             unsigned short obs_height,
-            ObservationEncoder observation_encoder,
             bint track_last_action=False
         ):
         self._obs_width = obs_width
@@ -41,9 +40,7 @@ cdef class GridEnv:
         self._max_timestep = max_timestep
         self._current_timestep = 0
         self._grid = new Grid(map_width, map_height, layer_for_type_id)
-        self._obs_encoder = observation_encoder
-        self._obs_encoder.init(self._obs_width, self._obs_height)
-        self._grid_features = observation_encoder.feature_names()
+        self._grid_features = self._obs_encoder.feature_names()
 
         if self._track_last_action:
             self._last_action_obs_idx = self._grid_features.size()
@@ -136,7 +133,7 @@ cdef class GridEnv:
                     obs_r = object_loc.r + obs_height_r - observer_r
                     obs_c = object_loc.c + obs_width_r - observer_c
                     agent_ob = observation[obs_r, obs_c, :]
-                    self._obs_encoder.encode(obj, agent_ob)
+                    self._obs_encoder.encode(obj, &agent_ob[0])
 
     cdef void _compute_observations(self, int[:,:] actions):
         cdef Agent *agent
@@ -318,7 +315,6 @@ cdef class GridEnv:
 
     @property
     def observation_space(self):
-        space = self._obs_encoder.observation_space()
         return gym.spaces.Box(
             0,
             255,
