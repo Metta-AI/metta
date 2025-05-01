@@ -8,7 +8,7 @@ game:
 
   agent:
     rewards:
-      heart: 1.0
+      heart: 0.333
 
   map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom
