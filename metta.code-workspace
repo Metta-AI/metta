@@ -144,7 +144,6 @@
 		"files.exclude": {
 			"train_dir": true,
 			"wandb": true,
-			"deps": true,
 			"mettagrid/build": true,
 			"mettagrid/build_debug": true,
 		},

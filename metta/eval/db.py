@@ -382,8 +382,9 @@ class PolicyEvalDB:
                 matrix = matrix.reindex(sorted_policies)
         # For chronological view, we don't need to re-sort as it's already sorted in the SQL query
 
-        # Limit the number of policies
+        # Limit the number of policies. We take the tail because the policies are sorted by score,
+        # and we want the highest scoring policies.
         if num_output_policies != "all":
-            matrix = matrix.head(num_output_policies)
+            matrix = matrix.tail(num_output_policies)
 
         return matrix

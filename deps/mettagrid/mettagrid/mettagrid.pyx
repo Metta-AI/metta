@@ -48,7 +48,6 @@ cdef class MettaGrid(GridEnv):
     def __init__(self, cfg: DictConfig, map: np.ndarray):
         self._cfg = cfg
 
-        obs_encoder = ObservationEncoder()
         cdef vector[ActionHandler*] actions
         if cfg.actions.put_items.enabled:
             actions.push_back(new PutRecipeItems(cfg.actions.put_items))
@@ -76,7 +75,6 @@ cdef class MettaGrid(GridEnv):
             cfg.max_steps,
             dict(ObjectLayers).values(),
             cfg.obs_width, cfg.obs_height,
-            obs_encoder,
             track_last_action=False
         )
         self.init_action_handlers(actions)
@@ -179,11 +177,13 @@ cdef class MettaGrid(GridEnv):
                 "c": obj.location.c,
                 "layer": obj.location.layer
             }
-            offsets.resize(obs_encoder._type_feature_names[obj._type_id].size())
+            # We want observations written to our vector, rather than "normal" observation
+            # space, so we need to build our own offsets.
+            offsets.resize(obs_encoder.type_feature_names()[obj._type_id].size())
             for i in range(offsets.size()):
                 offsets[i] = i
-            obs_encoder._encode(obj, obj_data, offsets)
-            for i, name in enumerate(obs_encoder._type_feature_names[obj._type_id]):
+            obs_encoder.encode(obj, &obj_data[0], offsets)
+            for i, name in enumerate(obs_encoder.type_feature_names()[obj._type_id]):
                 objects[obj_id][name] = obj_data[i]
 
         for agent_idx in range(self._agents.size()):

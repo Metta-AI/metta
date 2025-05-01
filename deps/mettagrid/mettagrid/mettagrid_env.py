@@ -107,7 +107,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         for n, v in infos["agent"].items():
             infos["agent"][n] = v / self._num_agents
 
-
     @property
     def _max_steps(self):
         return self._task.game_cfg().max_steps
@@ -181,6 +180,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     def close(self):
         pass
+
 
 # Ensure resolvers are registered when this module is imported
 register_resolvers()
