@@ -14,7 +14,7 @@ from mettagrid.grid_object cimport (
     GridLocation
 )
 from mettagrid.objects.agent cimport Agent
-from mettagrid.observation_encoder cimport ObservationEncoder, ObsType
+from mettagrid.observation_encoder cimport ObsType
 from mettagrid.objects.production_handler cimport ProductionHandler, CoolDownHandler
 from mettagrid.objects.constants cimport ObjectTypeNames, ObjectTypeAscii, InventoryItemNames
 
