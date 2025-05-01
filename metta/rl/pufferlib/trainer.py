@@ -159,7 +159,7 @@ class PufferTrainer:
             for k in ["0verview", "env", "losses", "performance", "train"]:
                 wandb_run.define_metric(f"{k}/*", step_metric="train/agent_step")
 
-        replay_sim_config = SimulationConfig(
+        self.replay_sim_config = SimulationConfig(
             env=self.trainer_cfg.env,
             num_envs=1,
             num_episodes=1,
