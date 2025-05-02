@@ -10,7 +10,7 @@ data_dir: ./train_dir
 run_dir: ${data_dir}/${run}
 policy_uri: wandb://run/b.daphne.navigation_multiagent_24_rewardsharing_maxinv
 trained_policy_uri: ${run_dir}/checkpoints
-eval_db_uri: wandb://artifacts/stats_db/navigation
+eval_db_uri: wandb://artifacts/jack_new_stats_db
 
 trainer:
   evaluate_interval: 10
@@ -32,5 +32,10 @@ analyzer:
 
 wandb:
   checkpoint_interval: 1
+
+sim_job:
+  policy_uris:
+  - wandb://run/b.daphne.navigation_multiagent_24_rewardsharing_maxinv
+  - wandb://run/b.daphne.navigation_multiagent_24_norewardsharing_maxinv
 
 sweep_name: ${oc.env:USER}.local.sweep.${run_id}

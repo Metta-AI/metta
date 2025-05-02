@@ -1,6 +1,5 @@
 """Simulation tools for evaluating policies in the Metta environment."""
 
-import logging
 from logging import Logger
 from pathlib import Path
 from typing import List
@@ -9,7 +8,6 @@ import hydra
 from omegaconf import DictConfig, OmegaConf
 
 from metta.agent.policy_store import PolicyStore
-from metta.sim.eval_stats_logger import EvalStatsLogger
 from metta.sim.simulation import SimulationSuite
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.sim.stats_db import StatsDB
@@ -21,7 +19,7 @@ from metta.util.wandb.wandb_context import WandbContext
 
 class SimJob(Config):
     simulation_suite: SimulationSuiteConfig
-    policy_uris: List[str]
+    policy_uris: List[str]<<<<<<< HEAD
     selector_type: str = "top"
     dry_run: bool = False
     replay_dir: str = "s3://softmax-public/replays/evals"
@@ -34,6 +32,8 @@ def simulate_policy(sim_job: SimJob, policy_uri: str, cfg: DictConfig, wandb_run
     # TODO: institutionalize this better?
     metric = sim_job.simulation_suite.name + "_score"
     policy_prs = policy_store.policies(policy_uri, sim_job.selector_type, n=1, metric=metric)
+
+    
     # For each checkpoint of the policy, simulate
 
     for pr in policy_prs:
@@ -69,7 +69,7 @@ def simulate_policy(sim_job: SimJob, policy_uri: str, cfg: DictConfig, wandb_run
         sim.simulate()
 
         # Export merged stats if an eval_stats_uri is provided
-        if eval_stats_uri:
+        
             # Process each simulation's merged DB
             for sim_name in suite_config.simulations:
                 merged_db_path = stats_dir / sim_name / "stats.duckdb"

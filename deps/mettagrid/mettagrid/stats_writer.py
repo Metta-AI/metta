@@ -19,16 +19,17 @@ SCHEMA = """
 CREATE SEQUENCE IF NOT EXISTS episode_id_seq;
 
 CREATE TABLE IF NOT EXISTS episodes (
-    episode_id  BIGINT DEFAULT nextval('episode_id_seq') PRIMARY KEY,
-    env_name    TEXT,
-    seed        INT,
-    map_w       INT,
-    map_h       INT,
-    step_count  INT,
-    started_at  TIMESTAMP,
-    finished_at TIMESTAMP,
-    metadata    JSON
+    episode_id     BIGINT DEFAULT nextval('episode_id_seq') PRIMARY KEY,
+    env_name       TEXT,
+    seed           INT,
+    map_w          INT,
+    map_h          INT,
+    step_count     INT,
+    started_at     TIMESTAMPTZ,
+    finished_at    TIMESTAMPTZ,
+    metadata       JSON
 );
+
 
 CREATE TABLE IF NOT EXISTS episode_agent_metrics (
     episode_id BIGINT,
