@@ -114,7 +114,7 @@ class PolicyStore:
             return [random.choice(prs)]
 
         elif selector_type == "top":
-            metadata = prs[0].metadata
+            metadata = prs[0].metadata #check the latest metadata, to see whether this policy has the metric in metadata
             if metric not in metadata and "eval_scores" in metadata:
                 # check if the metric is in eval_scores
                 if metadata["eval_scores"] is not None and metric in metadata["eval_scores"]:
