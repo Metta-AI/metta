@@ -121,11 +121,6 @@ SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 # ========== Main Project ==========
 cd "$SCRIPT_DIR/.."
 
-# Create and enter deps directory for all external dependencies
-echo "Creating deps directory..."
-mkdir -p deps
-cd deps
-
 pip install -e mettagrid
 
 # Install dependencies using the function
