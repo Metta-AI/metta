@@ -22,8 +22,6 @@ class SimulationConfig(Config):
     max_time_s: int = 60
     vectorization: str = "serial"
     eval_db_uri: Optional[str] = None
-    # Path to save replay, can be a local path or s3:// URL
-    replay_path: Optional[str] = None
 
 
 class SimulationSuiteConfig(SimulationConfig):
@@ -34,8 +32,6 @@ class SimulationSuiteConfig(SimulationConfig):
     simulations: Dict[str, SimulationConfig]
     # —— don't need env bc all the simulations will specify ——
     env: Optional[str] = None
-    # If set, we will set up replay paths for all simulations in this directory
-    replay_dir: Optional[str] = None
 
     @model_validator(mode="before")
     def propagate_defaults(cls, values: dict) -> dict:
@@ -50,19 +46,3 @@ class SimulationSuiteConfig(SimulationConfig):
             merged[name] = {**suite_defaults, **sim_cfg}
         values["simulations"] = merged
         return values
-
-    def propagate_replay_paths(self):
-        """
-        Projects the suite-level replay_dir to individual simulation replay_paths.
-        Note that those individual simulation replaypaths also can get converted
-        into separate paths for each env and episode.
-        """
-        if self.replay_dir is None:
-            return
-
-        for name, sim_config in self.simulations.items():
-            if sim_config.replay_path is None:  # Only set if not already specified
-                if self.replay_dir.startswith("s3://"):
-                    sim_config.replay_path = f"{self.replay_dir.rstrip('/')}/{name}/replay.json.z"
-                else:
-                    sim_config.replay_path = os.path.join(self.replay_dir, name, "replay.json.z")

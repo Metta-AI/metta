@@ -20,6 +20,7 @@ class ReplayJob(Config):
     policy_uri: str
     selector_type: str
     metric: str
+    replay_dir: str = "s3://softmax-public/replays/local"
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -38,13 +39,15 @@ def main(cfg):
         replay_job = ReplayJob(cfg.replay_job)
         policy_record = policy_store.policy(replay_job.policy_uri)
 
-        for name, sim in replay_job.sim.simulations.items():
-            sim.replay_path = f"s3://softmax-public/replays/local/{cfg.run}/{name}/replay.json"
-        sim_suite = SimulationSuite(replay_job.sim, policy_record, policy_store, wandb_run=wandb_run)
-        sim_suite.simulate(dry_run=cfg.trainer.get("replay_dry_run", False))
+        replay_dir = f"{replay_job.replay_dir}/{cfg.run}"
+        if cfg.trainer.get("replay_dry_run", False):
+            replay_dir = None
+
+        sim_suite = SimulationSuite(
+            replay_job.sim, policy_record, policy_store, wandb_run=wandb_run, replay_dir=replay_dir
+        )
+        sim_suite.simulate()
         # Only on macos open a browser to the replay
-        # TODO: This wont be quite the right URL if num_episodes >1  num_envs > 1
-        # see Simulation._get_replay_path()
         first_sim_path = list(replay_job.sim.simulations.values())[0].replay_path
         if platform.system() == "Darwin":
             webbrowser.open(f"https://metta-ai.github.io/metta/?replayUrl={s3_url(first_sim_path)}")
