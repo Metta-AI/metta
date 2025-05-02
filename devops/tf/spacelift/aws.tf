@@ -48,3 +48,8 @@ resource "spacelift_aws_integration" "softmax" {
   name     = local.aws_integration_name
   role_arn = aws_iam_role.spacelift.arn
 }
+
+import {
+  to = aws_iam_role.spacelift
+  id = local.iam_role_name
+}
