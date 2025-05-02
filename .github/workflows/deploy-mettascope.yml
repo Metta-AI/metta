@@ -1,5 +1,4 @@
 name: Deploy to GitHub Pages
-
 on:
   push:
     branches:
@@ -36,42 +35,47 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: 'npm'
+          cache-dependency-path: 'deps/mettagrid/player/package-lock.json'
 
-      - name: Install TypeScript
-        run: npm install -g typescript
-
-      - name: Build TypeScript
+      - name: Install and build TypeScript
         run: |
           cd deps/mettagrid/player
-          npm install
-          tsc
+          npm ci
+          npx tsc
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
-      - name: Debug Python
-        run: |
-          which python3
-          python3 --version
-          pip --version
-          echo "Current directory:"
-          pwd
-          echo "Directory contents:"
-          ls -la
+          cache: 'pip'
 
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           pip install pixie-python
+
+      - name: Debug Output
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          echo "=== Python Environment ==="
+          which python3
+          python3 --version
+          pip --version
           pip list
+          
+          echo "=== Directory Structure ==="
+          echo "Current directory: $(pwd)"
+          ls -la
+          
+          echo "=== Player Directory ==="
+          cd deps/mettagrid/player
+          echo "Player directory: $(pwd)"
+          ls -la
 
       - name: Generate Atlas
         run: |
           cd deps/mettagrid/player
-          echo "Player directory contents:"
-          ls -la
           python3 tools/gen_atlas.py
 
       - name: Setup Pages
@@ -81,7 +85,7 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           path: "./deps/mettagrid/player"
-
+          
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
