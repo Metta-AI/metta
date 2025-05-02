@@ -4,8 +4,15 @@ on:
     types: [opened, synchronize, ready_for_review]
     branches: [main]
   workflow_dispatch: {}
-  repository_dispatch:
-    types: [run-cpp-test]
+  workflow_call:
+    inputs:
+      ref:
+        required: false
+        type: string
+      skip_file_check:
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   cpp-test:

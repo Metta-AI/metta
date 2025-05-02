@@ -28,44 +28,35 @@ jobs:
           patterns: 'deps/mettagrid/,*.cpp,*.cxx,*.cc,*.h,*.hpp,*.pyx,*.pxd'
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-  # Trigger lint workflow
-  trigger-lint:
+  # Run lint workflow
+  call-lint:
     needs: check-files
     if: needs.check-files.outputs.has_relevant_changes == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Trigger cpp-lint workflow
-        uses: peter-evans/repository-dispatch@v2
-        with:
-          event-type: run-cpp-lint
-          token: ${{ secrets.GITHUB_TOKEN }}
-          client-payload: '{"ref": "${{ github.ref }}", "sha": "${{ github.sha }}", "source": "cpp-checks"}'
-
-  # Trigger test workflow
-  trigger-test:
+    uses: ./.github/workflows/cpp-lint.yml
+    with:
+      ref: ${{ github.ref }}
+      skip_file_check: true
+    secrets: inherit
+  
+  # Run test workflow
+  call-test:
     needs: check-files
     if: needs.check-files.outputs.has_relevant_changes == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Trigger cpp-test workflow
-        uses: peter-evans/repository-dispatch@v2
-        with:
-          event-type: run-cpp-test
-          token: ${{ secrets.GITHUB_TOKEN }}
-          client-payload: '{"ref": "${{ github.ref }}", "sha": "${{ github.sha }}", "source": "cpp-checks"}'
-
-  # Trigger benchmark workflow
-  trigger-benchmark:
+    uses: ./.github/workflows/cpp-test.yml
+    with:
+      ref: ${{ github.ref }}
+      skip_file_check: true
+    secrets: inherit
+  
+  # Run benchmark workflow
+  call-benchmark:
     needs: check-files
     if: needs.check-files.outputs.has_relevant_changes == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Trigger cpp-benchmark workflow
-        uses: peter-evans/repository-dispatch@v2
-        with:
-          event-type: run-cpp-benchmark
-          token: ${{ secrets.GITHUB_TOKEN }}
-          client-payload: '{"ref": "${{ github.ref }}", "sha": "${{ github.sha }}", "source": "cpp-checks"}'
+    uses: ./.github/workflows/cpp-benchmark.yml
+    with:
+      ref: ${{ github.ref }}
+      skip_file_check: true
+    secrets: inherit
 
   # This job runs if no relevant files changed
   skip-checks:
