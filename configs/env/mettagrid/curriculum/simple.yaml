@@ -6,5 +6,5 @@ sampling: 0
 
 env_overrides:
   game:
-    num_agents: 24[]
+    num_agents: 24
 
