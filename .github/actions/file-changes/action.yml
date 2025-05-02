@@ -1,5 +1,5 @@
 name: 'PR File Changes Checker'
-description: 'Checks if files matching a pattern have been changed in a pull request'
+description: 'Checks if files matching a pattern have been changed in a pull request or push'
 inputs:
   patterns:
     description: 'File patterns to check for changes, comma-separated (e.g., "deps/mettagrid/,*.cpp,*.pyx")'
@@ -29,12 +29,12 @@ runs:
       with:
         github-token: ${{ inputs.github-token }}
         script: |
-          console.log('Starting file check for PR #' + context.issue.number);
-          console.log('Searching for patterns: ' + '${{ inputs.patterns }}');
+          const eventName = context.eventName;
+          console.log(`Event type: ${eventName}`);
           
           // Parse the comma-separated patterns
           const patterns = '${{ inputs.patterns }}'.split(',').map(p => p.trim()).filter(p => p !== '');
-          console.log(`Parsed ${patterns.length} patterns to check`);
+          console.log(`Parsed ${patterns.length} patterns to check: ${patterns.join(', ')}`);
           
           // Parse specific files to check
           const specificFiles = '${{ inputs.specific_files }}'.split(',').map(f => f.trim()).filter(f => f !== '');
@@ -44,31 +44,57 @@ runs:
           const directoryPaths = '${{ inputs.directory_paths }}'.split(',').map(d => d.trim()).filter(d => d !== '');
           console.log(`Parsed ${directoryPaths.length} directory paths to check`);
           
+          let changedFiles = [];
+          
           try {
-            console.log('Fetching changed files...');
-            const { data: changedFiles } = await github.rest.pulls.listFiles({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: context.issue.number,
-            });
+            // Different approach based on event type
+            if (eventName === 'pull_request') {
+              console.log(`Fetching changed files for PR #${context.payload.pull_request.number}...`);
+              const { data: prFiles } = await github.rest.pulls.listFiles({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: context.payload.pull_request.number,
+              });
+              changedFiles = prFiles;
+            } 
+            else if (eventName === 'push') {
+              console.log('Push event detected. Fetching commit information...');
+              // For push events, get the list of files from the latest commit
+              const { data: commits } = await github.rest.repos.compareCommits({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                base: context.payload.before,
+                head: context.payload.after,
+              });
+              changedFiles = commits.files || [];
+            }
+            else if (eventName === 'workflow_dispatch') {
+              console.log('Manual workflow dispatch. Assuming all patterns match.');
+              core.setOutput('has_relevant_changes', true);
+              return;
+            }
             
-            console.log('Found ' + changedFiles.length + ' changed files in total');
+            console.log(`Found ${changedFiles.length} changed files in total`);
             
             // Log all changed files for debugging
             changedFiles.forEach(file => {
-              console.log(`Changed file: ${file.filename}`);
+              const filename = file.filename || file.path || '';
+              console.log(`Changed file: ${filename}`);
             });
             
             const hasRelevantChanges = changedFiles.some(file => {
+              const filename = file.filename || file.path || '';
+              if (!filename) return false;
+              
               // Check if the file matches any specific file
-              if (specificFiles.some(specificFile => file.filename === specificFile)) {
-                console.log(`File ${file.filename} matched specific file check`);
+              if (specificFiles.some(specificFile => filename === specificFile)) {
+                console.log(`File ${filename} matched specific file check`);
                 return true;
               }
               
               // Check if the file matches any directory path
-              if (directoryPaths.some(directory => file.filename.includes(directory))) {
-                console.log(`File ${file.filename} matched directory path check`);
+              if (directoryPaths.some(directory => filename.includes(directory))) {
+                console.log(`File ${filename} matched directory path check`);
                 return true;
               }
               
@@ -81,19 +107,19 @@ runs:
                     .replace(/\*/g, '.*');    // Convert * to regex equivalent
                   
                   const regex = new RegExp(regexPattern);
-                  const result = regex.test(file.filename);
+                  const result = regex.test(filename);
                   
                   if (result) {
-                    console.log(`File ${file.filename} matched pattern ${pattern}`);
+                    console.log(`File ${filename} matched pattern ${pattern}`);
                   }
                   
                   return result;
                 } else {
                   // Simple substring match
-                  const result = file.filename.includes(pattern);
+                  const result = filename.includes(pattern);
                   
                   if (result) {
-                    console.log(`File ${file.filename} matched pattern ${pattern}`);
+                    console.log(`File ${filename} matched pattern ${pattern}`);
                   }
                   
                   return result;
@@ -109,4 +135,3 @@ runs:
             console.log(error);
             core.setFailed(`Action failed with error: ${error}`);
           }
-    
