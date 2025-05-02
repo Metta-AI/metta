@@ -68,7 +68,9 @@ def sample_logits_old(logits: Union[torch.Tensor, List[torch.Tensor]], action=No
 
 
 @torch.jit.script
-def sample_logits(logits: List[Tensor], action: Optional[Tensor] = None) -> Tuple[Tensor, Tensor, Tensor, List[Tensor]]:
+def sample_logits(
+    logits: Tensor | List[Tensor], action: Optional[Tensor] = None
+) -> Tuple[Tensor, Tensor, Tensor, List[Tensor]]:
     """
     Sample actions from a list of unnormalized logits and compute associated log-probabilities and entropy.
 
@@ -97,6 +99,10 @@ def sample_logits(logits: List[Tensor], action: Optional[Tensor] = None) -> Tupl
             - joint_entropy: Tensor of shape [batch_size], sum of entropies across all logits
             - normalized_logits: List of log-softmaxed tensors (same shape as input logits)
     """
+
+    if not isinstance(logits, list):
+        logits = [logits]
+
     # Step 1: Normalize logits into log-probabilities for numerical stability and sampling
     normalized_logits = [F.log_softmax(logit, dim=-1) for logit in logits]  # i.e. log probs
     softmaxed_logits = [logit.exp() for logit in normalized_logits]  # i.e. probs
