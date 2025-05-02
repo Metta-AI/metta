@@ -115,19 +115,20 @@ let lastMousePos = new Vec2f(0, 0);
 let scrollDelta = 0;
 let lastClickTime = 0; // For double-click detection
 
-let followSelection = false; // Flag to follow selected entity
-let followTraceSelection = false; // Flag to follow trace selection
-
+// Split between trace and info panels.
 let traceSplit = Common.DEFAULT_TRACE_SPLIT;
 let traceDragging = false;
 let infoSplit = Common.DEFAULT_INFO_SPLIT
 let infoDragging = false;
+
 // Replay data and player state.
 let replay: any = null;
-let step = 0;
 let selectedGridObject: any = null;
+let followSelection = false; // Flag to follow selected entity
+let followTraceSelection = false; // Flag to follow trace selection
 
 // Playback state
+let step = 0;
 let isPlaying = false;
 let partialStep = 0
 let playbackSpeed = 0.1;
