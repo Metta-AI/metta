@@ -468,6 +468,58 @@ async function loadReplayText(replayData: any) {
   requestFrame();
 }
 
+// Update all URL parameters without creating browser history entries
+function updateUrlParams() {
+  // Get current URL params
+  const urlParams = new URLSearchParams(window.location.search);
+
+  // Update step when its not zero:
+  if (step !== 0) {
+    urlParams.set('step', step.toString());
+  } else {
+    urlParams.delete('step');
+  }
+
+  // Handle selected object
+  if (selectedGridObject !== null) {
+    // Find the index of the selected object
+    const selectedObjectIndex = replay.grid_objects.indexOf(selectedGridObject);
+    if (selectedObjectIndex !== -1) {
+      urlParams.set('selectedObjectId', (selectedObjectIndex + 1).toString());
+
+      // Remove map position parameters when an object is selected
+      urlParams.delete('mapPanX');
+      urlParams.delete('mapPanY');
+    }
+  } else {
+    // No selected object
+    urlParams.delete('selectedObjectId');
+
+    // Include map position if available
+    if (mapPanel && mapPanel.panPos) {
+      urlParams.set('mapPanX', Math.round(mapPanel.panPos.x()).toString());
+      urlParams.set('mapPanY', Math.round(mapPanel.panPos.y()).toString());
+    }
+  }
+
+  // Handle play state - only include when true
+  if (isPlaying) {
+    urlParams.set('play', 'true');
+  } else {
+    urlParams.delete('play');
+  }
+
+  // Include map zoom level
+  if (mapPanel.zoomLevel != 1) {
+    // Only include zoom to 3 decimal places.
+    urlParams.set('mapZoom', mapPanel.zoomLevel.toFixed(3));
+  }
+
+  // Replace current state without creating history entry
+  const newUrl = window.location.pathname + '?' + urlParams.toString();
+  history.replaceState(null, '', newUrl);
+}
+
 // Centralized function to update the step and handle all related updates
 function updateStep(newStep: number, skipScrubberUpdate = false) {
   // Update the step variable
@@ -477,12 +529,6 @@ function updateStep(newStep: number, skipScrubberUpdate = false) {
   if (!skipScrubberUpdate) {
     scrubber.value = step.toString();
   }
-
-  // Update the URL
-  const urlParams = new URLSearchParams(window.location.search);
-  urlParams.set('step', newStep.toString());
-  const newUrl = window.location.pathname + '?' + urlParams.toString();
-  history.replaceState(null, '', newUrl);
 
   // Update trace panel position
   tracePanel.panPos.setX(-step * 32);
@@ -1212,6 +1258,9 @@ function onFrame() {
   drawer.flush();
   console.log("Flushed drawer.");
 
+  // Update URL parameters with current state once per frame
+  updateUrlParams();
+
   if (isPlaying) {
     partialStep += playbackSpeed;
     if (partialStep >= 1) {
@@ -1276,6 +1325,7 @@ function onPlayButtonClick() {
   } else {
     playButton.classList.remove('paused');
   }
+
   requestFrame();
 }
 
