@@ -9,7 +9,7 @@ from mettagrid.mettagrid_env import MettaGridEnv
 
 
 @pytest.fixture(scope="module")
-def hydra_setup():
+def cfg():
     # Initialize Hydra with the correct relative path
     with initialize(version_base=None, config_path="../configs"):
         # Load the default config
@@ -17,15 +17,15 @@ def hydra_setup():
         yield cfg
 
 
-def test_mettagrid_env_init(hydra_setup):
+def test_mettagrid_env_init(cfg):
     """Test that the MettaGridEnv can be initialized properly."""
-    env = MettaGridEnv(env_cfg=hydra_setup, render_mode=None)
+    env = MettaGridEnv(env_cfg=cfg, render_mode=None)
     assert env is not None, "Failed to initialize MettaGridEnv"
 
 
-def test_mettagrid_env_reset(hydra_setup):
+def test_mettagrid_env_reset(cfg):
     """Test that the MettaGridEnv can be reset multiple times without memory leaks."""
-    env = MettaGridEnv(env_cfg=hydra_setup, render_mode=None)
+    env = MettaGridEnv(env_cfg=cfg, render_mode=None)
     # Reset the environment multiple times
     for _ in range(10):
         observation = env.reset()
@@ -38,7 +38,7 @@ def get_memory_usage():
     return process.memory_info().rss / (1024 * 1024)  # Convert to MB
 
 
-def test_mettagrid_env_no_memory_leaks(hydra_setup):
+def test_mettagrid_env_no_memory_leaks(cfg):
     """
     Test that the MettaGridEnv can be reset multiple times without memory leaks.
 
@@ -58,7 +58,7 @@ def test_mettagrid_env_no_memory_leaks(hydra_setup):
 
     for i in range(num_iterations):
         # Create the environment
-        env = MettaGridEnv(env_cfg=hydra_setup, render_mode=None)
+        env = MettaGridEnv(env_cfg=cfg, render_mode=None)
 
         # Reset the environment multiple times
         for _ in range(5):

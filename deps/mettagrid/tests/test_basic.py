@@ -1,17 +1,21 @@
-@pytest.fixture(scope="module")
-def hydra_setup():
-    """Initialize Hydra configuration."""
-    with initialize(version_base=None, config_path="../configs"):
-        cfg = compose(config_name="simple")
-        cfg.game.max_steps = 999999999
-        yield cfg
+import pytest
+from omegaconf import OmegaConf
+
+from mettagrid.config.utils import get_cfg
+from mettagrid.mettagrid_env import MettaGridEnv
+from mettagrid.resolvers import register_resolvers
 
 
 @pytest.fixture
-def environment(hydra_setup):
+def environment(cfg):
     """Create and initialize the environment."""
+
     register_resolvers()
-    env = utils.instantiate(hydra_setup, hydra_setup, render_mode=None, recursive=False)
+
+    cfg = get_cfg("benchmark")
+    print(OmegaConf.to_yaml(cfg))
+
+    env = MettaGridEnv(cfg, render_mode="human", _recursive_=False)
     env.reset()
     yield env
     # Cleanup after test

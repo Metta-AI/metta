@@ -1,5 +1,4 @@
 import pytest
-from hydra import compose, initialize
 
 from mettagrid.map.mapgen import MapGen
 
@@ -11,16 +10,6 @@ SCENE_PARAMS = [
     "/scenes/convchain/c_shape",
     "/scenes/convchain/diagonal",
 ]
-
-
-# Fixture to initialize Hydra before tests
-@pytest.fixture(scope="module")
-def hydra_setup():
-    # Initialize Hydra with the correct relative path
-    with initialize(version_base=None, config_path="../configs"):
-        # Load the default config
-        cfg = compose(config_name="test_basic")
-        yield cfg
 
 
 # Parametrized test that will run for each scene
