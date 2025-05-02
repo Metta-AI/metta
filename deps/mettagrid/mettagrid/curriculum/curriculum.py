@@ -60,7 +60,7 @@ class Task:
 
     def add_parent(self, parent_curriculum: "Curriculum", parent_id: str):
         self._curriculums.append((parent_curriculum, parent_id))
-        self._name = f"{parent_id}.{self._name}"
+        self._name = f"{parent_id}:{self._name}"
 
 
 class SingleTaskCurriculum(Curriculum):

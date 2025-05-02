@@ -86,7 +86,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         infos.update(
             {
-                f"rewards/task:{self._task.name}": episode_rewards_mean,
+                f"rewards/task:{self._task.name()}": episode_rewards_mean,
             }
         )
 
