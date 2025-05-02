@@ -102,7 +102,7 @@ jobs:
               --threshold-upper-boundary 0.99 \
               --thresholds-reset \
               --testbed ubuntu-latest \
-              --adapter google_benchmark \
+              --adapter cpp_google \
               --github-actions "$GITHUB_TOKEN" \
               --file "$file" > /dev/null
           done
@@ -123,7 +123,7 @@ jobs:
               --start-point-clone-thresholds \
               --start-point-reset \
               --testbed ubuntu-latest \
-              --adapter google_benchmark \
+              --adapter cpp_google \
               --github-actions "$GITHUB_TOKEN" \
               --file "$file" > /dev/null
           done
