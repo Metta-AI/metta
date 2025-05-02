@@ -28,6 +28,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Get main branch head SHA
+        id: get-main-sha
+        run: |
+          echo "MAIN_SHA=$(git rev-parse origin/main)" >> $GITHUB_OUTPUT
+
       - name: Setup C++
         uses: ./.github/actions/cpp-setup
 
@@ -63,12 +68,17 @@ jobs:
               --project mettagrid-sv3f5i2k \
               --token "$BENCHER_API_TOKEN" \
               --branch main \
+              --threshold-measure latency \
+              --threshold-test t_test \
+              --threshold-max-sample-size 64 \
+              --threshold-upper-boundary 0.99 \
+              --thresholds-reset \
               --testbed ubuntu-latest \
               --adapter google_benchmark \
               --github-actions "$GITHUB_TOKEN" \
               --file "$file" > /dev/null
           done
-      
+
       - name: Upload to Bencher (PR Performance Changes)
         if: github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
         env:
@@ -80,8 +90,8 @@ jobs:
               --project mettagrid-sv3f5i2k \
               --token "$BENCHER_API_TOKEN" \
               --branch "$GITHUB_HEAD_REF" \
-              --start-point "$GITHUB_BASE_REF" \
-              --start-point-hash '${{ github.event.pull_request.base.sha }}' \
+              --start-point "main" \
+              --start-point-hash "${{ steps.get-main-sha.outputs.MAIN_SHA }}" \
               --start-point-clone-thresholds \
               --start-point-reset \
               --testbed ubuntu-latest \

@@ -41,6 +41,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Get main branch head SHA
+        id: get-main-sha
+        run: |
+          echo "MAIN_SHA=$(git rev-parse origin/main)" >> $GITHUB_OUTPUT
+
       - name: Setup Python
         uses: ./.github/actions/py-setup
 
@@ -138,8 +143,8 @@ jobs:
             --project mettagrid-sv3f5i2k \
             --token "$BENCHER_API_TOKEN" \
             --branch "$GITHUB_HEAD_REF" \
-            --start-point "$GITHUB_BASE_REF" \
-            --start-point-hash '${{ github.event.pull_request.base.sha }}' \
+            --start-point "main" \
+            --start-point-hash "${{ steps.get-main-sha.outputs.MAIN_SHA }}" \
             --start-point-clone-thresholds \
             --start-point-reset \
             --testbed ubuntu-latest \
