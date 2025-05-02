@@ -35,8 +35,3 @@ resource "spacelift_aws_integration_attachment" "aws_integrations" {
 
 # Note: stack-specific secrets are configured manually in the Spacelift UI.
 # (In stack settings, under "Environment variables", add the variables one by one when needed.)
-
-import {
-  to = spacelift_stack.stacks["shared-efs"]
-  id = "efs"
-}
