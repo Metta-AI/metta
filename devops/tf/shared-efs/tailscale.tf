@@ -1,11 +1,10 @@
 resource "tailscale_tailnet_key" "efs_proxy" {
-  reusable            = false # we only need this once, when EC2 instance is created
-  preauthorized       = true
-  expiry              = 3600
-  recreate_if_invalid = "always"
-  description         = "EFS proxy key"
-  tags                = ["tag:efs-proxy"]
-  depends_on          = [tailscale_acl.acl] # won't work until the tag is mentioned in ACL
+  reusable      = false # we only need this once, when EC2 instance is created
+  preauthorized = true
+  expiry        = 3600
+  description   = "EFS proxy key"
+  tags          = ["tag:efs-proxy"]
+  depends_on    = [tailscale_acl.acl] # won't work until the tag is mentioned in ACL
 }
 
 # TODO: there can be only one ACL per tailnet. So after we add more terraform
