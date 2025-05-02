@@ -38,5 +38,5 @@ resource "spacelift_aws_integration_attachment" "aws_integrations" {
 
 import {
   to = spacelift_stack.stacks["shared-efs"]
-  id = "shared-efs"
+  id = "efs"
 }
