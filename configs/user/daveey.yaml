@@ -11,6 +11,7 @@ trainer:
   curriculum: /env/mettagrid/curriculum/all
 
   env_overrides:
+    sampling: 0.7
     game:
       max_steps: 13
 
@@ -67,7 +68,7 @@ sim:
 wandb:
   checkpoint_interval: 1
 
-run_id: 17
+run_id: 18
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 

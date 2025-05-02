@@ -26,7 +26,7 @@ class Curriculum:
         else:
             # If this is an environment rather than a curriculum, we need to wrap it in a curriculum
             # but we have to sample it first.
-            task = SamplingCurriculum(config_path, cfg.sampling, env_overrides).get_task()
+            task = SamplingCurriculum(config_path, env_overrides).get_task()
             return SingleTaskCurriculum(task.id(), task.env_cfg())
 
 
@@ -107,12 +107,10 @@ class LowRewardCurriculum(RandomCurriculum):
 
 
 class SamplingCurriculum(Curriculum):
-    def __init__(self, env_cfg_template: str, sampling: float = 0, env_overrides: Optional[DictConfig] = None):
+    def __init__(self, env_cfg_template: str, env_overrides: Optional[DictConfig] = None):
         self._cfg_template = config_from_path(env_cfg_template, env_overrides)
-        self._sampling = sampling
 
     def get_task(self) -> Task:
         cfg = OmegaConf.create(copy.deepcopy(self._cfg_template))
-        cfg.sampling = self._sampling
         OmegaConf.resolve(cfg)
-        return Task(f"sample({self._sampling})", self, cfg)
+        return Task(f"sample({self._cfg_template.sampling})", self, cfg)
