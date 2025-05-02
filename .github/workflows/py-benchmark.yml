@@ -83,6 +83,7 @@ jobs:
           source venv/bin/activate
           cd deps/mettagrid
           pytest --benchmark-json=mettagrid_benchmark_results.json
+          mv mettagrid_benchmark_results.json ../..
 
       - name: Combine benchmark results
         if: github.event_name != 'pull_request' || steps.check_files.outputs.has_relevant_changes == 'true'
