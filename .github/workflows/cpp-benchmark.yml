@@ -56,6 +56,7 @@ jobs:
       - name: Build and run benchmarks
         if: steps.check_files.outputs.has_relevant_changes == 'true' || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         run: |
+          cd deps/mettagrid
           make check-bench-tools
           mkdir -p benchmark_output
           # Redirect benchmark output to JSON
