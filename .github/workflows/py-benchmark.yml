@@ -59,6 +59,7 @@ jobs:
         if: github.event_name != 'pull_request' || steps.check_files.outputs.has_relevant_changes == 'true'
         id: get-main-sha
         run: |
+          git fetch origin main
           echo "MAIN_SHA=$(git rev-parse origin/main)" >> $GITHUB_OUTPUT
 
       - name: Setup Python

@@ -47,6 +47,7 @@ jobs:
         if: steps.check_files.outputs.has_relevant_changes == 'true' || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         id: get-main-sha
         run: |
+          git fetch origin main
           echo "MAIN_SHA=$(git rev-parse origin/main)" >> $GITHUB_OUTPUT
           
       - name: Setup C++
