@@ -4,6 +4,7 @@ tasks:
   /env/mettagrid/navigation/training/varied_terrain: 0.4
   /env/mettagrid/navigation/training/cylinder_world: 0.1
 
+env_overrides:
 game:
   num_agents: 4
 
