@@ -1,5 +1,6 @@
 import * as Common from './common.js';
 import { ui, state, html, ctx } from './common.js';
+import { focusFullMap, requestFrame } from './drawing.js';
 
 // Gets an attribute from a grid object respecting the current step.
 export function getAttr(obj: any, attr: string, atStep = -1, defaultValue = 0): any {
@@ -218,6 +219,6 @@ async function loadReplayText(replayData: any) {
   html.scrubber.max = (state.replay.max_steps - 1).toString();
 
   Common.closeModal();
-  // focusFullMap(mapPanel);
-  // requestFrame();
+  focusFullMap(ui.mapPanel);
+  requestFrame();
 }
