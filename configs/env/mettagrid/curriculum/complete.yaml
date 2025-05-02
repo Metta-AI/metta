@@ -1,0 +1,11 @@
+
+_target_: mettagrid.curriculum.curriculum.RandomCurriculum
+
+tasks:
+  /env/mettagrid/curriculum/simple: 5
+  /env/mettagrid/curriculum/navigation_with_cylinder: 3
+
+env_overrides:
+  game:
+    num_agents: 4
+
