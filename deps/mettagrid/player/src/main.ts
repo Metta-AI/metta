@@ -12,13 +12,10 @@ export class PanelInfo {
   public isPanning: boolean = false;
   public panPos: Vec2f = new Vec2f(0, 0);
   public zoomLevel: number = 1;
-  public canvas: HTMLCanvasElement;
   public div: HTMLDivElement | null;
 
   constructor(name: string) {
     this.name = name;
-    this.canvas = document.createElement('canvas');
-    this.canvas.setAttribute('id', name + '-canvas');
     this.div = null;
   }
 
