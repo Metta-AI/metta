@@ -10,6 +10,11 @@ on:
     branches: [main]
   workflow_dispatch: {}
 
+# Set default permissions that will be inherited by called workflows
+permissions:
+  checks: write
+  pull-requests: write
+
 jobs:
   # First job: check if any C++ files have changed
   check-files:
@@ -52,6 +57,9 @@ jobs:
   call-benchmark:
     needs: check-files
     if: needs.check-files.outputs.has_relevant_changes == 'true'
+    permissions:
+      checks: write
+      pull-requests: write
     uses: ./.github/workflows/cpp-benchmark.yml
     with:
       ref: ${{ github.ref }}
