@@ -53,7 +53,7 @@ annotate = os.getenv("ANNOTATE", "0") == "1"
 build_dir = "build_debug" if debug else "build"
 os.makedirs(build_dir, exist_ok=True)
 
-num_threads = multiprocessing.cpu_count() if sys.platform == "linux" else None
+num_threads = multiprocessing.cpu_count() if sys.platform == "linux" else 1
 
 setup(
     name="mettagrid",

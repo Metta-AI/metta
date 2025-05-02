@@ -29,10 +29,11 @@ include = ["mettagrid*"]
 [tool.setuptools.package-data]
 "mettagrid" = ["*.pyx", "*.pxd", "*.hpp", "*.cpp", "*.so"]
 
+# Configuring pytest here causes us to ignore metta/conftest.py
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-python_files = "test_*.py"
-python_functions = "test_*"
-python_classes = "Test*"
-addopts = "--cov=mettagrid --cov-report=term"
-filterwarnings = ["ignore::DeprecationWarning:wandb.analytics.sentry"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+python_classes = ["Test*"]
+addopts = "--cov=deps/mettagrid --cov-report=term"
