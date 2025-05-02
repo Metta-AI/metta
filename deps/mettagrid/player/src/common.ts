@@ -27,3 +27,13 @@ export const COLORS: [string, [number, number, number, number]][] = [
   ["green", [0, 1, 0, 1]],
   ["blue", [0, 0, 1, 1]],
 ];
+
+export const ui = {
+  mouseDown: false,
+  mouseClick: false,
+  mouseDoubleClick: false,
+  mousePos: new Vec2f(0, 0),
+  lastMousePos: new Vec2f(0, 0),
+  scrollDelta: 0,
+  lastClickTime: 0, // For double-click detection
+};

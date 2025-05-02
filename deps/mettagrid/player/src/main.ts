@@ -2,6 +2,7 @@ import { Vec2f, Mat3f } from './vector_math.js';
 import { Grid } from './grid.js';
 import { Drawer } from './drawer.js';
 import * as Common from './common.js';
+import { ui } from './common.js';
 
 export class PanelInfo {
   public x: number = 0;
@@ -45,30 +46,30 @@ export class PanelInfo {
   // Update the pan and zoom level based on the mouse position and scroll delta.
   updatePanAndZoom(): boolean {
 
-    if (mouseClick) {
+    if (ui.mouseClick) {
       this.isPanning = true;
     }
-    if (!mouseDown) {
+    if (!ui.mouseDown) {
       this.isPanning = false;
     }
 
-    if (this.isPanning && mousePos.sub(lastMousePos).length() > 1) {
-      const lastMousePoint = this.transformPoint(lastMousePos);
-      const newMousePoint = this.transformPoint(mousePos);
+    if (this.isPanning && ui.mousePos.sub(ui.lastMousePos).length() > 1) {
+      const lastMousePoint = this.transformPoint(ui.lastMousePos);
+      const newMousePoint = this.transformPoint(ui.mousePos);
       this.panPos = this.panPos.add(newMousePoint.sub(lastMousePoint));
-      lastMousePos = mousePos;
+      ui.lastMousePos = ui.mousePos;
       return true;
     }
 
-    if (scrollDelta !== 0) {
-      const oldMousePoint = this.transformPoint(mousePos);
-      this.zoomLevel = this.zoomLevel + scrollDelta / Common.SCROLL_ZOOM_FACTOR;
+    if (ui.scrollDelta !== 0) {
+      const oldMousePoint = this.transformPoint(ui.mousePos);
+      this.zoomLevel = this.zoomLevel + ui.scrollDelta / Common.SCROLL_ZOOM_FACTOR;
       this.zoomLevel = Math.max(Math.min(this.zoomLevel, Common.MAX_ZOOM_LEVEL), Common.MIN_ZOOM_LEVEL);
-      const newMousePoint = this.transformPoint(mousePos);
+      const newMousePoint = this.transformPoint(ui.mousePos);
       if (oldMousePoint != null && newMousePoint != null) {
         this.panPos = this.panPos.add(newMousePoint.sub(oldMousePoint));
       }
-      scrollDelta = 0;
+      ui.scrollDelta = 0;
       return true;
     }
     return false;
@@ -106,14 +107,6 @@ const infoPanel = new PanelInfo("info");
 // Get the modal element
 const modal = document.getElementById('modal');
 
-// Interaction state.
-let mouseDown = false;
-let mouseClick = false;
-let mouseDoubleClick = false;
-let mousePos = new Vec2f(0, 0);
-let lastMousePos = new Vec2f(0, 0);
-let scrollDelta = 0;
-let lastClickTime = 0; // For double-click detection
 
 // Split between trace and info panels.
 let traceSplit = Common.DEFAULT_TRACE_SPLIT;
@@ -180,20 +173,20 @@ function onResize() {
 
 // Handle mouse down events.
 function onMouseDown() {
-  lastMousePos = mousePos;
-  mouseClick = true;
+  ui.lastMousePos = ui.mousePos;
+  ui.mouseClick = true;
   const currentTime = new Date().getTime();
-  mouseDoubleClick = currentTime - lastClickTime < 300; // 300ms threshold for double-click
-  lastClickTime = currentTime;
+  ui.mouseDoubleClick = currentTime - ui.lastClickTime < 300; // 300ms threshold for double-click
+  ui.lastClickTime = currentTime;
 
-  if (Math.abs(mousePos.x() - mapPanel.width) < Common.SPLIT_DRAG_THRESHOLD) {
+  if (Math.abs(ui.mousePos.x() - mapPanel.width) < Common.SPLIT_DRAG_THRESHOLD) {
     traceDragging = true
     console.log("Started trace dragging")
-  } else if (mousePos.x() > mapPanel.width && Math.abs(mousePos.y() - infoPanel.height) < Common.SPLIT_DRAG_THRESHOLD) {
+  } else if (ui.mousePos.x() > mapPanel.width && Math.abs(ui.mousePos.y() - infoPanel.height) < Common.SPLIT_DRAG_THRESHOLD) {
     infoDragging = true
     console.log("Started info dragging")
   } else {
-    mouseDown = true;
+    ui.mouseDown = true;
   }
 
   requestFrame();
@@ -201,7 +194,7 @@ function onMouseDown() {
 
 // Handle mouse up events.
 function onMouseUp() {
-  mouseDown = false;
+  ui.mouseDown = false;
   traceDragging = false;
   infoDragging = false;
   requestFrame();
@@ -209,26 +202,26 @@ function onMouseUp() {
 
 // Handle mouse move events.
 function onMouseMove(event: MouseEvent) {
-  mousePos = new Vec2f(event.clientX, event.clientY);
+  ui.mousePos = new Vec2f(event.clientX, event.clientY);
 
   // If mouse is close to a panels edge change cursor to edge changer.
   document.body.style.cursor = "default";
 
-  if (Math.abs(mousePos.x() - mapPanel.width) < Common.SPLIT_DRAG_THRESHOLD) {
+  if (Math.abs(ui.mousePos.x() - mapPanel.width) < Common.SPLIT_DRAG_THRESHOLD) {
     document.body.style.cursor = "ew-resize";
   }
 
-  if (mousePos.x() > mapPanel.width &&
-    Math.abs(mousePos.y() - infoPanel.height) < Common.SPLIT_DRAG_THRESHOLD
+  if (ui.mousePos.x() > mapPanel.width &&
+    Math.abs(ui.mousePos.y() - infoPanel.height) < Common.SPLIT_DRAG_THRESHOLD
   ) {
     document.body.style.cursor = "ns-resize";
   }
 
   if (traceDragging) {
-    traceSplit = mousePos.x() / window.innerWidth
+    traceSplit = ui.mousePos.x() / window.innerWidth
     onResize();
   } else if (infoDragging) {
-    infoSplit = mousePos.y() / window.innerHeight
+    infoSplit = ui.mousePos.y() / window.innerHeight
     onResize()
   }
   requestFrame();
@@ -236,7 +229,7 @@ function onMouseMove(event: MouseEvent) {
 
 // Handle scroll events.
 function onScroll(event: WheelEvent) {
-  scrollDelta = event.deltaY;
+  ui.scrollDelta = event.deltaY;
   requestFrame();
 }
 
@@ -1017,9 +1010,9 @@ function drawMap(panel: PanelInfo) {
     return;
   }
 
-  const localMousePos = panel.transformPoint(mousePos);
+  const localMousePos = panel.transformPoint(ui.mousePos);
 
-  if (mouseClick) {
+  if (ui.mouseClick) {
     // Reset the follow flags.
     followSelection = false;
     followTraceSelection = false;
@@ -1038,7 +1031,7 @@ function drawMap(panel: PanelInfo) {
         selectedGridObject = gridObject;
         console.log("selectedGridObject on map:", selectedGridObject);
 
-        if (mouseDoubleClick) {
+        if (ui.mouseDoubleClick) {
           // Toggle followSelection on double-click
           followSelection = true;
           followTraceSelection = true;
@@ -1080,7 +1073,7 @@ function drawTrace(panel: PanelInfo) {
     return;
   }
 
-  const localMousePos = panel.transformPoint(mousePos);
+  const localMousePos = panel.transformPoint(ui.mousePos);
 
   if (followTraceSelection && selectedGridObject !== null) {
     panel.focusPos(
@@ -1089,7 +1082,7 @@ function drawTrace(panel: PanelInfo) {
     );
   }
 
-  if (mouseClick &&panel.inside(mousePos)) {
+  if (ui.mouseClick &&panel.inside(ui.mousePos)) {
     if (localMousePos != null) {
       const mapX = localMousePos.x();
       if (mapX > 0 && mapX < replay.max_steps * Common.TRACE_WIDTH &&
@@ -1106,7 +1099,7 @@ function drawTrace(panel: PanelInfo) {
           // Update the step to the clicked step.
           updateStep(Math.floor(mapX / Common.TRACE_WIDTH));
 
-          if (mouseDoubleClick) {
+          if (ui.mouseDoubleClick) {
             followTraceSelection = true;
             panel.zoomLevel = 1;
           }
@@ -1246,13 +1239,13 @@ function onFrame() {
   drawer.clear();
 
   var fullUpdate = true;
-  if (mapPanel.inside(mousePos)) {
+  if (mapPanel.inside(ui.mousePos)) {
     if (mapPanel.updatePanAndZoom()) {
       fullUpdate = false;
     }
   }
 
-  if (tracePanel.inside(mousePos)) {
+  if (tracePanel.inside(ui.mousePos)) {
     if (tracePanel.updatePanAndZoom()) {
       fullUpdate = false;
     }
@@ -1280,8 +1273,8 @@ function onFrame() {
     requestFrame();
   }
 
-  mouseClick = false;
-  mouseDoubleClick = false;
+  ui.mouseClick = false;
+  ui.mouseDoubleClick = false;
 }
 
 function preventDefaults(event: Event) {
