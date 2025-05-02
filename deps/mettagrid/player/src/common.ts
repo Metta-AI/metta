@@ -105,18 +105,3 @@ export function closeModal() {
     modal.style.display = 'none';
   }
 }
-
-
-// Flag to prevent multiple calls to requestAnimationFrame
-let frameRequested = false;
-
-// Function to safely request animation frame
-export function requestFrame() {
-  if (!frameRequested) {
-    frameRequested = true;
-    requestAnimationFrame((time) => {
-      frameRequested = false;
-      onFrame();
-    });
-  }
-}

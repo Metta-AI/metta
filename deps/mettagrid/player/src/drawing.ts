@@ -4,7 +4,21 @@ import * as Common from './common.js';
 import { ui, state, html, ctx } from './common.js';
 import { getAttr } from './replay.js';
 import { PanelInfo } from './panels.js';
-import { updateStep } from './main.js';
+import { updateStep, onFrame } from './main.js';
+
+// Flag to prevent multiple calls to requestAnimationFrame
+let frameRequested = false;
+
+// Function to safely request animation frame
+export function requestFrame() {
+  if (!frameRequested) {
+    frameRequested = true;
+    requestAnimationFrame((time) => {
+      frameRequested = false;
+      onFrame();
+    });
+  }
+}
 
 // Generate a color from an agent id.
 function colorFromId(agentId: number) {
