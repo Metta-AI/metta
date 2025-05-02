@@ -42,28 +42,33 @@ jobs:
             
             core.setOutput('has_relevant_changes', hasRelevantChanges);
       
-      - name: Set relevant changes for push events
-        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
-        run: echo "HAS_RELEVANT_CHANGES=true" >> $GITHUB_ENV
+      - name: Set early exit flag
+        id: set_early_exit
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" && "${{ steps.check_files.outputs.has_relevant_changes }}" != "true" ]]; then
+            echo "EARLY_EXIT=true" >> $GITHUB_ENV
+          else
+            echo "EARLY_EXIT=false" >> $GITHUB_ENV
+          fi
       
       - name: Skip testing (no relevant changes)
-        if: github.event_name == 'pull_request' && steps.check_files.outputs.has_relevant_changes != 'true'
+        if: env.EARLY_EXIT == 'true'
         run: |
           echo "No Python files, requirements.txt, or deps/mettagrid changes detected. Skipping integration test."
           echo "This check passes automatically when no relevant files are changed."
         
       - name: Setup Python
-        if: github.event_name != 'pull_request' || steps.check_files.outputs.has_relevant_changes == 'true'
+        if: env.EARLY_EXIT == 'false'
         uses: ./.github/actions/py-setup
         
       - name: List installed packages
-        if: github.event_name != 'pull_request' || steps.check_files.outputs.has_relevant_changes == 'true'
+        if: env.EARLY_EXIT == 'false'
         run: |
           source venv/bin/activate
           pip list
           
       - name: Training smoke test
-        if: github.event_name != 'pull_request' || steps.check_files.outputs.has_relevant_changes == 'true'
+        if: env.EARLY_EXIT == 'false'
         env:
           HYDRA_FULL_ERROR: 1
           PYTHONPATH: ${{ github.workspace }}
@@ -76,7 +81,7 @@ jobs:
           ls -la $CHECKPOINT_PATH || echo "Warning: Checkpoint directory not created"
           
       - name: Upload training output
-        if: success() && (github.event_name != 'pull_request' || steps.check_files.outputs.has_relevant_changes == 'true')
+        if: success() && env.EARLY_EXIT == 'false'
         uses: actions/upload-artifact@v4
         with:
           name: train-output
@@ -85,21 +90,21 @@ jobs:
           if-no-files-found: error
           
       - name: Download training output
-        if: success() && (github.event_name != 'pull_request' || steps.check_files.outputs.has_relevant_changes == 'true')
+        if: success() && env.EARLY_EXIT == 'false'
         uses: actions/download-artifact@v4
         with:
           name: train-output
           path: train_dir/
           
       - name: Verify training artifacts
-        if: success() && (github.event_name != 'pull_request' || steps.check_files.outputs.has_relevant_changes == 'true')
+        if: success() && env.EARLY_EXIT == 'false'
         run: |
           source venv/bin/activate
           ls -la train_dir/
           ls -la $CHECKPOINT_PATH || echo "Checkpoint directory not found!"
           
       - name: Replay smoke test
-        if: github.event_name != 'pull_request' || steps.check_files.outputs.has_relevant_changes == 'true'
+        if: env.EARLY_EXIT == 'false'
         env:
           HYDRA_FULL_ERROR: 1
           PYTHONPATH: ${{ github.workspace }}
@@ -111,7 +116,7 @@ jobs:
           python -m tools.replay +hardware=github wandb=off
           
       - name: Debug on failure
-        if: failure() && (github.event_name != 'pull_request' || steps.check_files.outputs.has_relevant_changes == 'true')
+        if: failure() && env.EARLY_EXIT == 'false'
         run: |
           source venv/bin/activate
           echo "Listing the contents of the workspace:"
