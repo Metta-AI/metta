@@ -1,15 +1,19 @@
-import copy
-from typing import Any, Dict, Optional
+# mettagrid/mettagrid_env.py
+from __future__ import annotations
 
-import gymnasium as gym
+import logging
+from typing import Optional
+
+import gym
 import numpy as np
 import pufferlib
 from omegaconf import DictConfig, OmegaConf
 
 from mettagrid.config.utils import simple_instantiate
 from mettagrid.mettagrid_c import MettaGrid  # pylint: disable=E0611
-from mettagrid.resolvers import register_resolvers
 from mettagrid.stats_writer import MettaGridStatsWriter
+
+logger = logging.getLogger(__name__)
 
 
 class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
@@ -26,15 +30,10 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._reset_env()
         self.labels = self._env_cfg.get("labels", None)
 
-        # ------------------------------------------------------------------
-        # Stats writer setup (one per *env instance*)
-        # ------------------------------------------------------------------
-        self.stats_writer: Optional[MettaGridStatsWriter]
-        writer_path = self._env_cfg.get("stats_writer_path", None)
+        self.stats_writer: Optional[MettaGridStatsWriter] = None
+        writer_path = self._env_cfg.get("stats_writer_path")
         if writer_path:
             self.stats_writer = MettaGridStatsWriter(writer_path)
-        else:
-            self.stats_writer = None
 
         super().__init__(buf)
 
@@ -77,18 +76,18 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         if self.stats_writer:
             self._episode_id = self.stats_writer.start_episode(
                 env_name=self._env_cfg.name,
-                seed=seed or 0,
+                seed=self._env_cfg.seed,
                 map_w=self.map_width,
                 map_h=self.map_height,
                 meta=OmegaConf.to_container(self._env_cfg, resolve=False),
             )
-        else:
-            self._episode_id = None
 
-        # obs, infos = self._env.reset(**kwargs)
-        # return obs, infos
+    # ---------------------------------------------------------------------- #
+    # Gym API                                                                #
+    # ---------------------------------------------------------------------- #
+    def reset(self, *, seed=None, options=None):
+        self._reset_env()
         obs, infos = self._c_env.reset()
-        self.should_reset = False
         return obs, infos
 
     def step(self, actions):
@@ -155,82 +154,12 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                 for k, v in agent_stats.items():
                     self.stats_writer.log_metric(agent_idx, k, float(v))
             self.stats_writer.end_episode(step_count=self._c_env.current_timestep())
-            self._episode_id = None
+        self._episode_id = None
 
     @property
     def _max_steps(self):
         return self._env_cfg.game.max_steps
 
-    @property
-    def single_observation_space(self):
-        return self._env.observation_space
-
-    @property
-    def single_action_space(self):
-        return self._env.action_space
-
-    def action_names(self):
-        return self._env.action_names()
-
-    @property
-    def player_count(self):
-        return self._num_agents
-
-    @property
-    def num_agents(self):
-        return self._num_agents
-
-    def render(self):
-        if self._renderer is None:
-            return None
-
-        return self._renderer.render(self._c_env.current_timestep(), self._c_env.grid_objects())
-
-    @property
-    def done(self):
-        return self.should_reset
-
-    @property
-    def grid_features(self):
-        return self._env.grid_features()
-
-    @property
-    def global_features(self):
-        return []
-
-    @property
-    def render_mode(self):
-        return self._render_mode
-
-    @property
-    def map_width(self):
-        return self._c_env.map_width()
-
-    @property
-    def map_height(self):
-        return self._c_env.map_height()
-
-    @property
-    def grid_objects(self):
-        return self._c_env.grid_objects()
-
-    @property
-    def max_action_args(self):
-        return self._c_env.max_action_args()
-
-    @property
-    def action_success(self):
-        return np.asarray(self._c_env.action_success())
-
-    def object_type_names(self):
-        return self._c_env.object_type_names()
-
-    def inventory_item_names(self):
-        return self._c_env.inventory_item_names()
-
-    def close(self):
-        pass
-
-
-# Ensure resolvers are registered when this module is imported
-register_resolvers()
+    def __del__(self):
+        if getattr(self, "stats_writer", None):
+            self.stats_writer.close()

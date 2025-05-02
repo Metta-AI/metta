@@ -1,147 +1,199 @@
-"""
-Run-level statistics helper – used by Simulation **and** by analysis code.
-Depends only on standard libs + boto3 + wandb + duckdb + mettagrid.stats_writer
-"""
-
+# metta/sim/stats_db.py
 from __future__ import annotations
 
 import shutil
-import tempfile
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Any, Dict, Iterable, Tuple
 
-import boto3
 import duckdb
-import wandb
-
-from mettagrid.stats_writer import SCHEMA
 
 
 class StatsDB:
-    # ---------------- core init ---------------------------------------- #
-    def __init__(self, path: str | Path, *, read_only: bool = False):
-        self.path = Path(path)
-        self.conn = duckdb.connect(str(self.path), read_only=read_only)
-        if not read_only:  # create tables on first write
-            for stmt in filter(None, (s.strip() for s in SCHEMA.split(";"))):
-                self.conn.execute(stmt)
-            self.conn.execute(  # plus run-level mapping
-                "CREATE TABLE IF NOT EXISTS episode_agent_policy ("
-                "  episode_id BIGINT, "
-                "  agent_id INT, "
-                "  policy_uri TEXT, "
-                "  policy_ver INT, "
-                "  PRIMARY KEY(episode_id, agent_id)"
-                ")"
-            )
+    """Light OO-wrapper around a single DuckDB file used for Metta statistics."""
 
-    # ---------------- merge shards ------------------------------------ #
-    @staticmethod
-    def merge_worker_dbs(stats_dir: Path, episode_agent_map: Dict[Tuple[int, int], Tuple[str, int]]) -> Path:
-        dst = stats_dir / "stats.duckdb"
-        db = StatsDB(dst)  # RW
-        for shard in stats_dir.rglob("stats_*.duckdb"):
-            db.conn.execute(f"ATTACH DATABASE '{shard}' AS src")
+    # --------------------------------------------------------------------- #
+    # Construction / basic helpers                                          #
+    # --------------------------------------------------------------------- #
 
-            # Get next episode_id sequence value to start from
-            (next_episode_id,) = db.conn.execute("SELECT nextval('episode_id_seq')").fetchone()
+    def __init__(self, path: str | Path, mode: str = "rwc") -> None:
+        """
+        Args
+        ----
+        path : target *.duckdb* file
+        mode : "r"  (read-only),
+               "rwc" (read-write, create if missing – default)
+        """
+        self.path = Path(path).expanduser().resolve()
+        read_only = mode == "r"
+        self.con = duckdb.connect(str(self.path), read_only=read_only)
+        if not read_only:
+            self._ensure_schema()
 
-            # Find the max episode_id in episodes table if it exists
-            try:
-                (max_id,) = db.conn.execute("SELECT COALESCE(MAX(episode_id), 0) FROM episodes").fetchone()
-                if max_id >= next_episode_id:
-                    # Reset sequence to start from max_id + 1
-                    db.conn.execute(f"ALTER SEQUENCE episode_id_seq RESTART WITH {max_id + 1}")
-            except Exception:
-                # Table might not exist yet
-                pass
+    # Support `with StatsDB(path) as db:`
+    def __enter__(self) -> "StatsDB":
+        return self
 
-            # Insert episodes with new IDs and keep track of ID mapping
-            db.conn.execute(
-                "CREATE TEMPORARY TABLE episode_id_map AS "
-                "SELECT e.episode_id as old_id, nextval('episode_id_seq') as new_id "
-                "FROM src.episodes e"
-            )
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        self.close()
 
-            # Insert episodes with new IDs
-            db.conn.execute(
-                "INSERT INTO episodes "
-                "SELECT m.new_id, e.env_name, e.seed, e.map_w, e.map_h, e.step_count, e.started_at, e.finished_at, e.metadata "
-                "FROM src.episodes e "
-                "JOIN episode_id_map m ON e.episode_id = m.old_id"
-            )
+    def close(self) -> None:
+        self.con.close()
 
-            # Insert metrics with updated episode IDs
-            db.conn.execute(
-                "INSERT INTO episode_agent_metrics "
-                "SELECT m.new_id, eam.agent_id, eam.metric, eam.value "
-                "FROM src.episode_agent_metrics eam "
-                "JOIN episode_id_map m ON eam.episode_id = m.old_id"
-            )
+    # ------------------------------------------------------------------ #
+    # Schema                                                             #
+    # ------------------------------------------------------------------ #
 
-            # Store the mapping for use below when adding policies
-            id_mapping = db.conn.execute("SELECT old_id, new_id FROM episode_id_map").fetchall()
+    def _ensure_schema(self) -> None:
+        if self.con.sql(
+            "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='main' AND table_name='episode_stats'"
+        ).fetchone()[0]:
+            return  # already present
 
-            # Drop temporary table
-            db.conn.execute("DROP TABLE episode_id_map")
+        self.con.execute(
+            """
+            CREATE SEQUENCE IF NOT EXISTS episode_id_seq;
 
-            db.conn.execute("DETACH DATABASE src")
+            CREATE TABLE episode_stats (
+                episode_id  INTEGER PRIMARY KEY DEFAULT nextval('episode_id_seq'),
+                sim_name    TEXT,
+                reward      DOUBLE,
+                steps       INTEGER,
+                elapsed_ms  INTEGER
+            );
 
-            # Update the episode_agent_map with the new episode IDs
-            updated_map = {}
-            for (old_episode_id, agent_id), policy_info in episode_agent_map.items():
-                # Find if this old_episode_id was in the current shard
-                for old_id, new_id in id_mapping:
-                    if old_id == old_episode_id:
-                        updated_map[(new_id, agent_id)] = policy_info
-                        break
+            CREATE TABLE episode_agent_metrics (
+                episode_id  INTEGER,
+                agent_idx   INTEGER,
+                reward      DOUBLE,
+                hits        INTEGER,
+                PRIMARY KEY (episode_id, agent_idx)
+            );
 
-            # Add policy mappings for episodes from this shard
-            if updated_map:
-                rows = [(episode_id, agent_id, uri, ver) for (episode_id, agent_id), (uri, ver) in updated_map.items()]
-                db.conn.executemany("INSERT OR REPLACE INTO episode_agent_policy VALUES (?,?,?,?)", rows)
+            CREATE TABLE agent_metadata (
+                policy_key TEXT PRIMARY KEY,
+                policy_version TEXT,
+                num_params  BIGINT
+            );
+            """
+        )
 
-        db.conn.close()
-        return dst
+    # ------------------------------------------------------------------ #
+    # Public API                                                         #
+    # ------------------------------------------------------------------ #
 
-    # ---------------- export helpers ---------------------------------- #
-    @staticmethod
-    def export_db(db_path: Path, uri: str) -> None:
-        if uri.startswith("s3://"):
-            bucket, key = uri[5:].split("/", 1)
-            boto3.client("s3").upload_file(str(db_path), bucket, key)
+    def insert_episode_stats(self, rows: Iterable[Tuple[Any, ...]]) -> None:
+        self.con.executemany("INSERT INTO episode_stats (sim_name,reward,steps,elapsed_ms) VALUES (?,?,?,?)", rows)
+
+    def insert_episode_agent_metrics(self, rows: Iterable[Tuple[Any, ...]]) -> None:
+        self.con.executemany(
+            "INSERT INTO episode_agent_metrics (episode_id,agent_idx,reward,hits) VALUES (?,?,?,?)",
+            rows,
+        )
+
+    def upsert_agent_metadata(self, rows: Dict[int, Tuple[str, str | None]]) -> None:
+        self.con.executemany(
+            """
+            INSERT OR REPLACE INTO agent_metadata (policy_key,policy_version,num_params)
+            VALUES (?,?,?)
+            """,
+            [(k, v or None, None) for k, (k, v) in rows.items()],
+        )
+
+    # ------------------------------------------------------------------ #
+    # Merging                                                            #
+    # ------------------------------------------------------------------ #
+
+    def merge_in(self, other: "StatsDB") -> None:
+        """Append everything from *other* into *self* (in-place)."""
+        if self.path.samefile(other.path):
             return
-        if uri.startswith("wandb://"):
-            art_name = uri[8:]
-            tmp = Path(tempfile.mkdtemp())
-            duckdb.connect().execute(f"EXPORT DATABASE '{db_path}' TO '{tmp}' (FORMAT PARQUET)")
-            with wandb.init(job_type="stats_db_upload") as run:
-                art = wandb.Artifact(art_name, type="stats_db")
-                art.add_dir(tmp)
-                run.log_artifact(art).wait()
-            shutil.rmtree(tmp)
-            return
-        Path(uri).parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(db_path, uri)
 
-    # ---------------- open read-only from URI ------------------------- #
-    @classmethod
-    def from_uri(cls, uri: str) -> "StatsDB":
-        """Load a database from a URI."""
-        if uri.startswith("s3://"):
-            bucket, key = uri[5:].split("/", 1)
-            # Download to temporary file
-            tmp_file = Path(tempfile.mktemp(suffix=".duckdb"))
-            boto3.client("s3").download_file(bucket, key, str(tmp_file))
-            return cls(tmp_file)  # Not read-only
+        # 1. current max id
+        (offset,) = self.con.execute("SELECT COALESCE(MAX(episode_id),0) FROM episode_stats").fetchone()
+        offset += 1
 
-        if uri.startswith("wandb://"):
-            # Use wandb API to download the artifact to a temporary directory
-            art = wandb.Api().artifact(uri[8:], type="stats_db")
-            art_dir = Path(art.download())
-            tmp_db = Path(tempfile.mktemp(suffix=".duckdb"))
-            duckdb.connect(str(tmp_db)).execute(f"IMPORT DATABASE '{art_dir}' (FORMAT PARQUET)")
-            return cls(tmp_db)  # Not read-only
+        # 2. bring other in
+        self.con.execute(f"ATTACH '{other.path}' AS other")
 
-        # Local file
-        return cls(Path(uri))  # Not read-only
+        # 3. temp map: other ids → new ids
+        self.con.execute(
+            """
+            CREATE TEMP TABLE _id_map AS
+            SELECT  episode_id              AS old_id,
+                    ROW_NUMBER() OVER () + ? AS new_id
+            FROM    other.episode_stats
+            """,
+            (offset,),
+        )
+
+        # 4. copy / rewrite
+        self.con.execute(
+            """
+            INSERT INTO episode_stats
+            SELECT  m.new_id,
+                    es.sim_name, es.reward, es.steps, es.elapsed_ms
+            FROM    other.episode_stats es
+            JOIN    _id_map m ON es.episode_id = m.old_id
+            """
+        )
+
+        self.con.execute(
+            """
+            INSERT INTO episode_agent_metrics
+            SELECT  m.new_id,
+                    eam.agent_idx, eam.reward, eam.hits
+            FROM    other.episode_agent_metrics eam
+            JOIN    _id_map m ON eam.episode_id = m.old_id
+            """
+        )
+
+        self.con.execute("INSERT OR REPLACE INTO agent_metadata SELECT * FROM other.agent_metadata")
+
+        # 5. detach & clean
+        self.con.execute("DETACH other")
+        self.con.execute("DROP TABLE _id_map")
+
+        # bump seq
+        (max_id,) = self.con.execute("SELECT MAX(episode_id) FROM episode_stats").fetchone()
+        self.con.execute(f"ALTER SEQUENCE episode_id_seq RESTART WITH {max_id + 1}")
+
+    # ------------------------------------------------------------------ #
+    # Static helpers                                                     #
+    # ------------------------------------------------------------------ #
+
+    @staticmethod
+    def merge_worker_dbs(dir_with_shards: str | Path, agent_map: Dict[int, Tuple[str, str | None]]) -> "StatsDB":
+        """
+        Combine all *.duckdb* shards found in *dir_with_shards* into a new
+        `merged.duckdb` living in the same folder; returns the opened
+        StatsDB for further use.
+        """
+        dir_with_shards = Path(dir_with_shards).expanduser().resolve()
+        merged_path = dir_with_shards / "merged.duckdb"
+        if merged_path.exists():
+            merged_path.unlink()
+
+        merged = StatsDB(merged_path, mode="rwc")
+        for shard in dir_with_shards.glob("*.duckdb"):
+            if shard.name == "merged.duckdb":
+                continue
+            merged.merge_in(StatsDB(shard, mode="r"))
+
+        # metadata upsert
+        merged.upsert_agent_metadata(agent_map)
+        return merged
+
+    @staticmethod
+    def export_db(src: "StatsDB" | str | Path, dest: str | Path) -> None:
+        """Copy the DuckDB file to *dest* (local path or s3://bucket/key)."""
+        src_path = Path(src.path if isinstance(src, StatsDB) else src).expanduser().resolve()
+        dest = str(dest)
+        if dest.startswith("s3://"):
+            import boto3
+
+            bucket, key = dest[5:].split("/", 1)
+            boto3.client("s3").upload_file(str(src_path), bucket, key)
+        else:
+            dest_path = Path(dest).expanduser().resolve()
+            dest_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(src_path, dest_path)

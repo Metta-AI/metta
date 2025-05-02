@@ -54,6 +54,18 @@ class PolicyRecord:
     def local_path(self):
         return self._local_path
 
+    def key_and_version(self) -> tuple[str, str | None]:
+        if ":" in self.uri:
+            parts = self.uri.rsplit(":", 1)
+            return parts[0], (parts[1] if len(parts) > 1 else None)
+        return self.uri, None
+
+    def key(self) -> str:
+        return self.key_and_version()[0]
+
+    def version(self) -> str | None:
+        return self.key_and_version()[1]
+
 
 class PolicyStore:
     def __init__(self, cfg: ListConfig | DictConfig, wandb_run: WandbRun | None):

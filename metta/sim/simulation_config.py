@@ -1,7 +1,7 @@
 # metta/sim/simulation_config.py
 
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Literal, Optional
 
 from pydantic import model_validator
 
@@ -17,16 +17,11 @@ class SimulationConfig(Config):
     num_envs: int
     num_episodes: int
 
-    # Where individual stats are written
-    # If not provided, stats are written to a temporary directory
-    stats_dir: Optional[Path] = None
-
     npc_policy_uri: Optional[str] = None
     env_overrides: Optional[dict] = None
     policy_agents_pct: float = 1.0
     max_time_s: int = 60
     vectorization: str = "serial"
-    eval_db_uri: Optional[str] = None
 
 
 class SimulationSuiteConfig(SimulationConfig):
