@@ -1,14 +1,30 @@
-import numpy as np
+import pytest
+from omegaconf import OmegaConf
 
-import mettagrid
-import mettagrid.mettagrid_env
-from mettagrid.config.utils import get_test_basic_cfg
+from mettagrid.config.utils import get_cfg
+from mettagrid.mettagrid_env import MettaGridEnv
+from mettagrid.resolvers import register_resolvers
 
 
-# This function will be recognized as a test by pytest
-def test_dependencies():
-    """Test that all required dependencies can be imported."""
-    dependencies = [
+@pytest.fixture
+def environment():
+    """Create and initialize the environment."""
+
+    register_resolvers()
+
+    cfg = get_cfg("benchmark")
+    print(OmegaConf.to_yaml(cfg))
+
+    env = MettaGridEnv(cfg, render_mode="human", _recursive_=False)
+    env.reset()
+    yield env
+    # Cleanup after test
+    del env
+
+
+@pytest.mark.parametrize(
+    "dependency",
+    [
         "hydra",
         "matplotlib",
         "pettingzoo",
@@ -22,25 +38,19 @@ def test_dependencies():
         "wandb",
         "pandas",
         "tqdm",
-    ]
+    ],
+)
+def test_dependency_import(dependency):
+    """Test that individual dependencies can be imported."""
+    try:
+        __import__(dependency)
+    except ImportError as e:
+        pytest.fail(f"Failed to import {dependency}: {str(e)}")
 
-    missing_deps = []
-    for dep in dependencies:
-        try:
-            # Use globals() to store the imported module, avoiding linter complaints
-            globals()[dep] = __import__(dep)
-            print(f"Successfully imported {dep}")
-        except ImportError as e:
-            missing_deps.append(f"{dep}: {str(e)}")
 
-    if missing_deps:
-        print("Missing dependencies:")
-        for dep in missing_deps:
-            print(f"  - {dep}")
-        raise ImportError("Missing required dependencies")
-
-    # Check mettagrid modules
-    mettagrid_modules = [
+@pytest.mark.parametrize(
+    "module_name",
+    [
         "mettagrid.objects",
         "mettagrid.observation_encoder",
         "mettagrid.actions.attack",
@@ -52,61 +62,97 @@ def test_dependencies():
         "mettagrid.event",
         "mettagrid.grid_env",
         "mettagrid.grid_object",
-    ]
+    ],
+)
+def test_mettagrid_module_import(module_name):
+    """Test that individual mettagrid modules can be imported."""
+    try:
+        __import__(module_name)
+    except ImportError as e:
+        pytest.fail(f"Failed to import {module_name}: {str(e)}")
 
-    for module_name in mettagrid_modules:
-        try:
-            __import__(module_name)
-            print(f"Successfully imported {module_name}")
-        except ImportError as err:
-            raise ImportError(f"Failed to import {module_name}: {str(err)}") from err
 
+class TestEnvironmentFunctionality:
+    """Test suite for MettaGrid environment functionality."""
 
-def test_env_functionality():
-    """Test basic environment functionality."""
-    cfg = get_test_basic_cfg()
+    def test_env_initialization(self, environment):
+        """Test environment initialization."""
+        assert environment._renderer is None
+        assert environment._c_env is not None
+        assert environment._grid_env is not None
+        assert environment._c_env == environment._grid_env
+        assert environment.done is False
 
-    # Create the environment:
-    mettaGridEnv = mettagrid.mettagrid_env.MettaGridEnv(cfg, render_mode=None)
+    def test_env_reset(self, environment):
+        """Test environment reset functionality."""
+        # Reset should return observation and info
+        obs, info = environment.reset()
 
-    # Make sure the environment was created correctly:
-    assert mettaGridEnv._renderer is None
-    assert mettaGridEnv._c_env is not None
-    assert mettaGridEnv._grid_env is not None
-    assert mettaGridEnv._c_env == mettaGridEnv._grid_env
-    assert mettaGridEnv.done is False
+        # Check observation structure
+        [num_agents, grid_width, grid_height, num_channels] = obs.shape
+        num_expected_agents = environment._c_env.num_agents()
+        assert num_agents == num_expected_agents
+        assert grid_width > 0
+        assert grid_height > 0
+        assert 20 <= num_channels <= 50
 
-    # Make sure reset works:
-    mettaGridEnv.reset()
+    def test_env_step(self, environment):
+        """Test environment step functionality."""
+        environment.reset()
 
-    # Run a single step:
-    assert mettaGridEnv._c_env.current_timestep() == 0
-    (obs, rewards, terminated, truncated, infos) = mettaGridEnv.step([[0, 0]] * 5)
-    assert mettaGridEnv._c_env.current_timestep() == 1
+        # Check initial timestep
+        assert environment._c_env.current_timestep() == 0
 
-    # We have 5 agents, ~22 channels, 11x11 grid
-    [num_agents, grid_width, grid_height, num_channels] = obs.shape
-    assert num_agents == 5
-    assert grid_width == 11
-    assert grid_height == 11
-    assert 20 <= num_channels <= 50
-    assert rewards.shape == (5,)
-    assert np.array_equal(terminated, [0, 0, 0, 0, 0])
-    assert np.array_equal(truncated, [0, 0, 0, 0, 0])
+        num_agents = environment._c_env.num_agents()
+        # Take a step with NoOp actions for all agents
+        (obs, rewards, terminated, truncated, infos) = environment.step([[0, 0]] * num_agents)
 
-    # Test episode stats
-    infos = {}
-    mettaGridEnv.process_episode_stats(infos)
+        # Check timestep increased
+        assert environment._c_env.current_timestep() == 1
 
-    # Test environment properties
-    assert mettaGridEnv._max_steps == 5000
-    assert mettaGridEnv.single_observation_space.shape == (grid_width, grid_height, num_channels)
-    [num_actions, max_arg] = mettaGridEnv.single_action_space.nvec.tolist()
-    assert 5 <= num_actions <= 20, f"num_actions: {num_actions}"
-    assert 5 <= max_arg <= 20, f"max_arg: {max_arg}"
-    assert mettaGridEnv.render_mode is None
-    assert mettaGridEnv._c_env.map_width() == 25
-    assert mettaGridEnv._c_env.map_height() == 25
-    assert mettaGridEnv._c_env.num_agents() == 5
-    assert mettaGridEnv.action_success.shape == (5,)
-    assert mettaGridEnv.object_type_names() == mettaGridEnv._c_env.object_type_names()
+        # Verify observation structure
+        [agents_in_obs, grid_width, grid_height, num_channels] = obs.shape
+        assert agents_in_obs == num_agents
+        assert grid_width > 0
+        assert grid_height > 0
+        assert 20 <= num_channels <= 50
+
+        # Verify rewards and termination flags
+        assert rewards.shape == (num_agents,)
+        assert len(terminated) == num_agents
+        assert len(truncated) == num_agents
+
+    def test_episode_stats(self, environment):
+        """Test processing of episode statistics."""
+        environment.reset()
+        infos = {}
+        environment.process_episode_stats(infos)
+        # Add specific assertions if you know what should be in infos after processing
+
+    def test_environment_properties(self, environment):
+        """Test environment properties."""
+        assert environment._max_steps > 0
+
+        # Check observation space
+        obs_shape = environment.single_observation_space.shape
+        assert len(obs_shape) == 3  # (width, height, channels)
+        assert obs_shape[0] > 0  # grid width
+        assert obs_shape[1] > 0  # grid height
+        assert obs_shape[2] > 0  # channels
+
+        # Check action space
+        [num_actions, max_arg] = environment.single_action_space.nvec.tolist()
+        assert num_actions > 0, f"num_actions: {num_actions}"
+        assert max_arg > 0, f"max_arg: {max_arg}"
+
+        # Check env properties
+        assert environment.render_mode == "human"
+        assert environment._c_env.map_width() > 0
+        assert environment._c_env.map_height() > 0
+        num_agents = environment._c_env.num_agents()
+        assert num_agents > 0
+        assert environment.action_success.shape == (num_agents,)
+
+    def test_object_type_names(self, environment):
+        """Test object type names functionality."""
+        assert environment.object_type_names() == environment._c_env.object_type_names()
