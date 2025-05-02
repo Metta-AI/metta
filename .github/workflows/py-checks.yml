@@ -30,7 +30,7 @@ jobs:
         id: check_files_py
         uses: ./.github/actions/file-changes
         with:
-          patterns: '*.py'
+          patterns: '**/*.py'
           specific_files: 'requirements.txt,setup.py'
           github-token: ${{ secrets.GITHUB_TOKEN }}
 

@@ -21,8 +21,6 @@ jobs:
       github.event_name == 'workflow_call'
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    permissions:
-      contents: read
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

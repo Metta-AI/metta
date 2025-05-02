@@ -24,8 +24,6 @@ jobs:
     timeout-minutes: 45
     env:
       CHECKPOINT_PATH: ./train_dir/github_test/checkpoints/
-    permissions:
-      contents: read
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
