@@ -80,13 +80,18 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             for label in self._map_builder.labels:
                 infos.update(
                     {
-                        f"rewards/map:{label}": episode_rewards_mean,
+                        f"map/{label}/reward/mean": episode_rewards_mean,
+                        f"map/{label}/reward/max": episode_rewards.max(),
+                        f"map/{label}/reward/min": episode_rewards.min(),
                     }
                 )
 
         infos.update(
             {
-                f"rewards/task:{self._task.name()}": episode_rewards_mean,
+                f"task/{self._task.name()}/episodes": 1,
+                f"task/{self._task.name()}/reward/mean": episode_rewards_mean,
+                f"task/{self._task.name()}/reward/max": episode_rewards.max(),
+                f"task/{self._task.name()}/reward/min": episode_rewards.min(),
             }
         )
 
