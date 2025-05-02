@@ -11,6 +11,7 @@ sudo mkdir -p "$DIR"
 if ! mount | grep -q "$DIR"; then
     echo "Mounting EFS..."
     sudo mount -t efs -o tls -o region="$REGION" "$ENDPOINT": "$DIR"
+    echo "Mounted EFS at $DIR."
 else
     echo "EFS already mounted at $DIR."
     echo "Run 'sudo umount $DIR' to unmount."
