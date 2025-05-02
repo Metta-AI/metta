@@ -18,6 +18,7 @@ def seed_everything(seed, torch_deterministic):
     if seed is not None:
         torch.manual_seed(seed)
     torch.backends.cudnn.deterministic = torch_deterministic
+    torch.backends.cudnn.benchmark = True
 
 
 def setup_mettagrid_environment(cfg):
