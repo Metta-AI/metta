@@ -52,18 +52,27 @@ jobs:
         run: |
           echo "Finding all open Dependabot PRs..."
           # Get all open PRs created by Dependabot
-          DEPENDABOT_PRS=$(gh pr list --repo $REPO --author "dependabot[bot]" --state open --json number --jq '.[].number')
+          DEPENDABOT_PRS=$(gh pr list --repo "$REPO" --author "dependabot[bot]" --state open --json number --jq '.[].number')
+
           if [ -z "$DEPENDABOT_PRS" ]; then
             echo "No open Dependabot PRs found."
             exit 0
           fi
+
           echo "Found open Dependabot PRs: $DEPENDABOT_PRS"
-          # Process each PR
+
           for PR_NUMBER in $DEPENDABOT_PRS; do
+            echo "Checking assignees for PR #$PR_NUMBER"
+            ASSIGNEE_COUNT=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json assignees --jq '.assignees | length')
+
+            if [ "$ASSIGNEE_COUNT" -gt 0 ]; then
+              echo "Skipping PR #$PR_NUMBER (already assigned)"
+              continue
+            fi
+
             echo "Processing Dependabot PR #$PR_NUMBER"
-            # Use the PR assignment action for each PR
             ./.github/actions/pr-assignment/run.sh "$PR_NUMBER" "$POSSIBLE_ASSIGNEES" "$POSSIBLE_REVIEWERS" "$FORCED_ASSIGNEES" "$FORCED_REVIEWERS" "$FORCED_LABELS"
-            # Small delay to avoid API rate limits
             sleep 2
           done
-          echo "All Dependabot PRs processed."
+
+          echo "All eligible Dependabot PRs processed."
