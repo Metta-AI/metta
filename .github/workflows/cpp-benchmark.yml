@@ -63,7 +63,6 @@ jobs:
         if: env.EARLY_EXIT == 'false'
         run: |
           cd deps/mettagrid
-          make check-bench-tools
           mkdir -p benchmark_output
           # Redirect benchmark output to JSON
           for bench_exec in $(find build/benchmarks -type f -executable); do
@@ -99,7 +98,7 @@ jobs:
           ls -al
           cd deps/mettagrid/benchmark_output
           ls -al
-          for file *.json; do
+          for file in *.json; do
             bencher run \
               --project mettagrid-sv3f5i2k \
               --token "$BENCHER_API_TOKEN" \
@@ -124,7 +123,7 @@ jobs:
           ls -al
           cd deps/mettagrid/benchmark_output
           ls -al
-          for file *.json; do
+          for file in *.json; do
             bencher run \
               --project mettagrid-sv3f5i2k \
               --token "$BENCHER_API_TOKEN" \
