@@ -1,0 +1,38 @@
+name: cpp-lint
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+    branches: [main]
+    paths:
+      - '**.cpp'
+      - '**.h'
+      - '**.hpp'
+  workflow_dispatch: {}
+
+jobs:
+  cpp-lint:
+    if: github.event.pull_request.draft == false || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup C++
+        uses: ./.github/actions/cpp-setup
+
+      - name: Install clang-format
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-format
+
+      - name: Run clang-format check
+        run: |
+          echo "Checking C++ formatting..."
+          find . -type f \( -name "*.cpp" -o -name "*.h" -o -name "*.hpp" \) \
+            -not -path "*/build/*" -not -path "*/venv/*" \
+            -exec clang-format --dry-run --Werror {} +
