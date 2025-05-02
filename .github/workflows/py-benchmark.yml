@@ -45,29 +45,34 @@ jobs:
             
             core.setOutput('has_relevant_changes', hasRelevantChanges);
             
-      - name: Set relevant changes for push events
-        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
-        run: echo "HAS_RELEVANT_CHANGES=true" >> $GITHUB_ENV
+      - name: Set early exit flag
+        id: set_early_exit
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" && "${{ steps.check_files.outputs.has_relevant_changes }}" != "true" ]]; then
+            echo "EARLY_EXIT=true" >> $GITHUB_ENV
+          else
+            echo "EARLY_EXIT=false" >> $GITHUB_ENV
+          fi
             
       - name: Skip benchmarking (no relevant changes)
-        if: github.event_name == 'pull_request' && steps.check_files.outputs.has_relevant_changes != 'true'
+        if: env.EARLY_EXIT == 'true'
         run: |
           echo "No Python files or benchmark-related files were changed. Skipping benchmarks."
           echo "This check passes automatically when no relevant files are changed."
 
       - name: Get main branch head SHA
-        if: github.event_name != 'pull_request' || steps.check_files.outputs.has_relevant_changes == 'true'
+        if: env.EARLY_EXIT == 'false'
         id: get-main-sha
         run: |
           git fetch origin main
           echo "MAIN_SHA=$(git rev-parse origin/main)" >> $GITHUB_OUTPUT
 
       - name: Setup Python
-        if: github.event_name != 'pull_request' || steps.check_files.outputs.has_relevant_changes == 'true'
+        if: env.EARLY_EXIT == 'false'
         uses: ./.github/actions/py-setup
 
       - name: Run Main Python benchmarks
-        if: github.event_name != 'pull_request' || steps.check_files.outputs.has_relevant_changes == 'true'
+        if: env.EARLY_EXIT == 'false'
         env:
           HYDRA_FULL_ERROR: 1
           PYTHONPATH: ${{ github.workspace }}
@@ -76,7 +81,7 @@ jobs:
           pytest --benchmark-json=main_benchmark_results.json
 
       - name: Run Mettagrid Python benchmarks
-        if: github.event_name != 'pull_request' || steps.check_files.outputs.has_relevant_changes == 'true'
+        if: env.EARLY_EXIT == 'false'
         env:
           HYDRA_FULL_ERROR: 1
           PYTHONPATH: ${{ github.workspace }}
@@ -87,7 +92,7 @@ jobs:
           mv mettagrid_benchmark_results.json ../..
 
       - name: Combine benchmark results
-        if: github.event_name != 'pull_request' || steps.check_files.outputs.has_relevant_changes == 'true'
+        if: env.EARLY_EXIT == 'false'
         run: |
           source venv/bin/activate
           python - <<EOF
@@ -111,7 +116,7 @@ jobs:
           main_results = safe_load_json('main_benchmark_results.json')
           
           # Read mettagrid benchmark results if file exists
-          mettagrid_path = 'deps/mettagrid/mettagrid_benchmark_results.json'
+          mettagrid_path = 'mettagrid_benchmark_results.json'
           mettagrid_results = safe_load_json(mettagrid_path)
           
           # Check if we have any valid results to work with
@@ -143,11 +148,11 @@ jobs:
           EOF
 
       - name: Install Bencher CLI
-        if: github.event_name != 'pull_request' || steps.check_files.outputs.has_relevant_changes == 'true'
+        if: env.EARLY_EXIT == 'false'
         uses: bencherdev/bencher@main
 
       - name: Validate Bencher Token
-        if: github.event_name != 'pull_request' || steps.check_files.outputs.has_relevant_changes == 'true'
+        if: env.EARLY_EXIT == 'false'
         env:
           BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -162,7 +167,7 @@ jobs:
           echo "Bencher token SHA256: $(echo -n "$BENCHER_API_TOKEN" | sha256sum)"
 
       - name: Upload to Bencher (Main Branch Baseline)
-        if: (github.event_name != 'pull_request' || steps.check_files.outputs.has_relevant_changes == 'true') && github.ref == 'refs/heads/main'
+        if: env.EARLY_EXIT == 'false' && github.ref == 'refs/heads/main'
         env:
           BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -182,7 +187,7 @@ jobs:
             --file combined_benchmark_results.json > /dev/null
 
       - name: Upload to Bencher (PR Performance Changes)
-        if: github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork && steps.check_files.outputs.has_relevant_changes == 'true'
+        if: env.EARLY_EXIT == 'false' && github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
         env:
           BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

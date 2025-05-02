@@ -1,15 +1,12 @@
 name: py-lint
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review]
     branches: [main]
   workflow_dispatch: {}
-
 jobs:
   py-lint:
     if: github.event.pull_request.draft == false || github.event_name == 'workflow_dispatch'
@@ -17,9 +14,10 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
+        
       - name: Check for Python file changes
         id: check_files
+        if: github.event_name == 'pull_request'
         uses: actions/github-script@v6
         with:
           script: |
@@ -34,31 +32,40 @@ jobs:
             });
             
             core.setOutput('has_relevant_changes', hasRelevantChanges);
-
+      
+      - name: Set early exit flag
+        id: set_early_exit
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" && "${{ steps.check_files.outputs.has_relevant_changes }}" != "true" ]]; then
+            echo "EARLY_EXIT=true" >> $GITHUB_ENV
+          else
+            echo "EARLY_EXIT=false" >> $GITHUB_ENV
+          fi
+      
       - name: Setup Python
-        if: steps.check_files.outputs.has_relevant_changes == 'true' || github.event_name == 'workflow_dispatch'
+        if: env.EARLY_EXIT == 'false'
         uses: ./.github/actions/py-setup
-
+        
       - name: Install Ruff
-        if: steps.check_files.outputs.has_relevant_changes == 'true' || github.event_name == 'workflow_dispatch'
+        if: env.EARLY_EXIT == 'false'
         run: |
           source venv/bin/activate
           pip install ruff==0.11.5
-
+          
       - name: Run Ruff linter
-        if: steps.check_files.outputs.has_relevant_changes == 'true' || github.event_name == 'workflow_dispatch'
+        if: env.EARLY_EXIT == 'false'
         run: |
           source venv/bin/activate
           ruff format --check .
-
+          
       - name: Run Ruff formatting
-        if: steps.check_files.outputs.has_relevant_changes == 'true' || github.event_name == 'workflow_dispatch'
+        if: env.EARLY_EXIT == 'false'
         run: |
           source venv/bin/activate
           ruff check --respect-gitignore --exit-non-zero-on-fix .
-
+          
       - name: Skip linting (no relevant changes)
-        if: steps.check_files.outputs.has_relevant_changes != 'true' && github.event_name != 'workflow_dispatch'
+        if: env.EARLY_EXIT == 'true'
         run: |
           echo "No Python files or requirements.txt were changed. Skipping linting."
           echo "This check passes automatically when no Python files are changed."
