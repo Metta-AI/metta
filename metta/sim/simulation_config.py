@@ -9,6 +9,7 @@ from metta.util.config import Config
 
 class SimulationConfig(Config):
     """Configuration for a single simulation run."""
+
     env: str
     device: str
     num_envs: int
@@ -20,24 +21,25 @@ class SimulationConfig(Config):
     max_time_s: int = 60
     vectorization: str = "serial"
     eval_db_uri: Optional[str] = None
+    # Path to save replay, can be a local path or s3:// URL
+    replay_path: Optional[str] = None
 
 
 class SimulationSuiteConfig(SimulationConfig):
     """A suite of named simulations, with suite-level defaults injected."""
+
     run_dir: str
     simulations: Dict[str, SimulationConfig]
 
-    # —— don't need env bc all the simulations will specify —— 
+    # —— don't need env bc all the simulations will specify ——
     env: Optional[str] = None
 
     @model_validator(mode="before")
-    def _propagate_defaults(cls, values: dict) -> dict:
+    def propagate_defaults(cls, values: dict) -> dict:
         # collect any suite-level overrides that are present & non-None
         suite_defaults = {
-            k: v for k, v in values.items()
-            if k in ("env", "device", "num_envs", "num_episodes") and v is not None
+            k: v for k, v in values.items() if k in ("env", "device", "num_envs", "num_episodes") and v is not None
         }
-
         raw_sims = values.get("simulations", {}) or {}
         merged: Dict[str, dict] = {}
         for name, sim_cfg in raw_sims.items():
@@ -45,5 +47,3 @@ class SimulationSuiteConfig(SimulationConfig):
             merged[name] = {**suite_defaults, **sim_cfg}
         values["simulations"] = merged
         return values
-
-

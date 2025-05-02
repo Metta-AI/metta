@@ -1,0 +1,32 @@
+defaults:
+  - sim
+  - _self_
+
+simulations:
+  cards/depletable_single_use:
+    env: env/mettagrid/cards/evals/depletable_single_use
+    policy_agents_pct: 1.0
+  cards/find_the_best:
+    env: env/mettagrid/cards/evals/find_the_best
+    policy_agents_pct: 1.0
+  cards/multi_battery_altar_distractors:
+    env: env/mettagrid/cards/evals/multi_battery_altar_distractors
+    policy_agents_pct: 1.0
+  cards/multi_battery_altar:
+    env: env/mettagrid/cards/evals/multi_battery_altar
+    policy_agents_pct: 1.0
+  cards/ore_combinator_double:
+    env: env/mettagrid/cards/evals/ore_combinator_double
+    policy_agents_pct: 1.0
+  cards/ore_combinator_single:
+    env: env/mettagrid/cards/evals/ore_combinator_simple
+    policy_agents_pct: 1.0
+  cards/sequential_ore:
+    env: env/mettagrid/cards/evals/sequential_ore
+    policy_agents_pct: 1.0
+  cards/simple_chain_distractors:
+    env: env/mettagrid/cards/evals/simple_chain_distractors
+    policy_agents_pct: 1.0
+  cards/simple_chain:
+    env: env/mettagrid/cards/evals/simple_chain
+    policy_agents_pct: 1.0

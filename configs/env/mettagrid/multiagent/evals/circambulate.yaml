@@ -1,20 +1,22 @@
 defaults:
   - /env/mettagrid/mettagrid@
+  - _self_
 
 game:
-  num_agents: 24 #how many agents are in the map x2
-  max_steps: 100
+  num_agents: 80 #how many agents are in the map x2
+  max_steps: 50
+
   agent:
     rewards:
       heart: 0.333
-  map_builder:
 
+  map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom
-    num_rooms: 12
+    num_rooms: 20
     room:
       _target_: mettagrid.config.room.ascii.Ascii
       border_width: 1
-      uri: "configs/env/mettagrid/maps/memory/quantity_1.map"
+      uri: "configs/env/mettagrid/maps/multiagent/circambulate.map"
 
   objects:
     altar:

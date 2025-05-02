@@ -5,6 +5,7 @@ from omegaconf.omegaconf import OmegaConf
 from metta.util.config import config_from_path
 from mettagrid.mettagrid_env import MettaGridEnv
 
+
 class MettaGridEnvSet(MettaGridEnv):
     """
     This is a wrapper around MettaGridEnv that allows for multiple environments to be used for training
@@ -160,6 +161,7 @@ class MettaGridEnvSet(MettaGridEnv):
             "beta": self._beta,
             "episode_count": self._episode_count,
         }
+
 
 # class MettaGridEnvSet(MettaGridEnv):
 #     """

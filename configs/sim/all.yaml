@@ -41,18 +41,28 @@ simulations:
   memory/hard:
     env: env/mettagrid/memory/evals/hard
     policy_agents_pct: 1.0
-  multiagent/radial_cross:
+  multiagent/spreading_across:
     env: env/mettagrid/multiagent/evals/radial_cross
     policy_agents_pct: 1.0
-  multiagent/radial_cross_large:
-    env: env/mettagrid/multiagent/evals/radial_cross_large
-    policy_agents_pct: 1.0
-  multiagent/radial_diffusion:
+  multiagent/spreading_diffusion:
     env: env/mettagrid/multiagent/evals/radial_diffusion
     policy_agents_pct: 1.0
-  multiagent/spine_maze_extended:
+  multiagent/spreading_maze:
     env: env/mettagrid/multiagent/evals/spine_maze_extended
     policy_agents_pct: 1.0
+  multiagent/spreading_circambulate:
+    env: env/mettagrid/multiagent/evals/circambulate
+    policy_agents_pct: 1.0
+  multiagent/spreading_corridor:
+    env: env/mettagrid/multiagent/evals/corridor
+    policy_agents_pct: 1.0
+  multiagent/nonuniform_fork:
+    env: env/mettagrid/multiagent/evals/fork
+    policy_agents_pct: 1.0
+  simple_npc:
+    env: env/mettagrid/simple
+    policy_agents_pct: 0.5
+    npc_policy_uri: wandb://run/b.alex.robust.npc.s.s.004
 
 
 

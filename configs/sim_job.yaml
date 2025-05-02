@@ -1,7 +1,7 @@
 defaults:
   - common
   - wandb: metta_research
-  - sim: navigation
+  - sim: cards
   - _self_
 
 cmd: sim
@@ -14,4 +14,5 @@ sim_job:
   simulation_suite: ${sim}
   policy_uris:
     - ${policy_uri}
-  selector_type: top
+  selector_type: latest
+  metric: score

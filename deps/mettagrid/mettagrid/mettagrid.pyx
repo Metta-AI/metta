@@ -1,8 +1,5 @@
-from types import SimpleNamespace
-
 import numpy as np
 cimport numpy as cnp
-import gymnasium as gym
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
 # C/C++ imports
@@ -16,15 +13,14 @@ from mettagrid.grid_env cimport GridEnv
 from mettagrid.grid_object cimport GridObject
 from mettagrid.observation_encoder cimport (
     ObsType,
-    ObservationEncoder,
-    SemiCompactObservationEncoder
+    ObservationEncoder
 )
 
 # Object imports
 from mettagrid.objects.agent cimport Agent
 from mettagrid.objects.wall cimport Wall
 from mettagrid.objects.converter cimport Converter
-from mettagrid.objects.constants cimport ObjectLayers, InventoryItemNames, ObjectType, ObjectTypeAscii
+from mettagrid.objects.constants cimport ObjectLayers, InventoryItemNames, ObjectType
 
 # Action imports
 from mettagrid.action_handler cimport ActionHandler
@@ -50,9 +46,6 @@ cdef class MettaGrid(GridEnv):
         cfg = OmegaConf.create(env_cfg.game)
         self._cfg = cfg
 
-        obs_encoder = ObservationEncoder()
-        if env_cfg.semi_compact_obs:
-            obs_encoder = SemiCompactObservationEncoder()
         cdef vector[ActionHandler*] actions
         if cfg.actions.put_items.enabled:
             actions.push_back(new PutRecipeItems(cfg.actions.put_items))
@@ -79,9 +72,7 @@ cdef class MettaGrid(GridEnv):
             map.shape[0],
             cfg.max_steps,
             dict(ObjectLayers).values(),
-            cfg.obs_width, cfg.obs_height,
-            obs_encoder,
-            track_last_action=env_cfg.track_last_action
+            cfg.obs_width, cfg.obs_height
         )
         self.init_action_handlers(actions)
 
@@ -156,10 +147,6 @@ cdef class MettaGrid(GridEnv):
                     converter = NULL
 
 
-
-    cpdef list[str] grid_features(self):
-        return self._grid_features
-
     def render(self):
         grid = self.render_ascii()
         for r in grid:
@@ -167,7 +154,7 @@ cdef class MettaGrid(GridEnv):
 
     cpdef grid_objects(self):
         cdef GridObject *obj
-        cdef ObsType[:] obj_data = np.zeros(len(self.grid_features()), dtype=self._obs_encoder.obs_np_type())
+        cdef ObsType[:] obj_data = np.zeros(len(self.grid_features()), dtype=np.uint8)
         cdef unsigned int obj_id, i
         cdef ObservationEncoder obs_encoder = self._obs_encoder
         cdef vector[unsigned int] offsets
@@ -183,11 +170,13 @@ cdef class MettaGrid(GridEnv):
                 "c": obj.location.c,
                 "layer": obj.location.layer
             }
-            offsets.resize(obs_encoder._type_feature_names[obj._type_id].size())
+            # We want observations written to our vector, rather than "normal" observation
+            # space, so we need to build our own offsets.
+            offsets.resize(obs_encoder.type_feature_names()[obj._type_id].size())
             for i in range(offsets.size()):
                 offsets[i] = i
-            obs_encoder._encode(obj, obj_data, offsets)
-            for i, name in enumerate(obs_encoder._type_feature_names[obj._type_id]):
+            obs_encoder.encode(obj, &obj_data[0], offsets)
+            for i, name in enumerate(obs_encoder.type_feature_names()[obj._type_id]):
                 objects[obj_id][name] = obj_data[i]
 
         for agent_idx in range(self._agents.size()):
