@@ -7,6 +7,7 @@ if [ "$SKIP_BUILD" = "1" ]; then
     exit 0
 fi
 
+# Make sure we're on the latest commit
 git pull
 
 #
