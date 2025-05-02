@@ -1,24 +1,17 @@
 name: cpp-benchmark
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review]
     branches: [main]
-    paths:
-      - 'deps/mettagrid/**'
   push:
     branches: [main]
-    paths:
-      - 'deps/mettagrid/**'
   workflow_dispatch: {}
-
 jobs:
   cpp-benchmark:
-    if: github.event.pull_request.draft == false || github.event_name == 'push'
+    if: github.event.pull_request.draft == false || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -27,38 +20,65 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
+        
+      - name: Check for C++ file changes
+        id: check_files
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const { data: changedFiles } = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+            
+            const hasRelevantChanges = changedFiles.some(file => {
+              return file.filename.includes('deps/mettagrid/');
+            });
+            
+            core.setOutput('has_relevant_changes', hasRelevantChanges);
+      
+      - name: Set relevant changes for push events
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        run: echo "HAS_RELEVANT_CHANGES=true" >> $GITHUB_ENV
+      
       - name: Get main branch head SHA
+        if: steps.check_files.outputs.has_relevant_changes == 'true' || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         id: get-main-sha
         run: |
           echo "MAIN_SHA=$(git rev-parse origin/main)" >> $GITHUB_OUTPUT
-
+          
       - name: Setup C++
+        if: steps.check_files.outputs.has_relevant_changes == 'true' || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         uses: ./.github/actions/cpp-setup
-
+        
       - name: Build and run benchmarks
+        if: steps.check_files.outputs.has_relevant_changes == 'true' || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         run: |
           make check-bench-tools
           mkdir -p benchmark_output
           # Redirect benchmark output to JSON
           for bench_exec in $(find build/benchmarks -type f -executable); do
-            echo "Running benchmark $$bench_exec..."
-            $$bench_exec --benchmark_format=json > benchmark_output/$(basename $$bench_exec).json
+            echo "Running benchmark $bench_exec..."
+            $bench_exec --benchmark_format=json > benchmark_output/$(basename $bench_exec).json
           done
-
+          
       - name: Install Bencher CLI
+        if: steps.check_files.outputs.has_relevant_changes == 'true' || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         uses: bencherdev/bencher@main
-
+        
       - name: Validate Bencher Token
+        if: steps.check_files.outputs.has_relevant_changes == 'true' || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         env:
           BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "Bencher token length: ${#BENCHER_API_TOKEN}"
           echo "Bencher token SHA256: $(echo -n "$BENCHER_API_TOKEN" | sha256sum)"
-
+          
       - name: Upload to Bencher (Main Branch Baseline)
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && (steps.check_files.outputs.has_relevant_changes == 'true' || github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         env:
           BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -78,9 +98,9 @@ jobs:
               --github-actions "$GITHUB_TOKEN" \
               --file "$file" > /dev/null
           done
-
+          
       - name: Upload to Bencher (PR Performance Changes)
-        if: github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
+        if: github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork && steps.check_files.outputs.has_relevant_changes == 'true'
         env:
           BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -99,3 +119,9 @@ jobs:
               --github-actions "$GITHUB_TOKEN" \
               --file "$file" > /dev/null
           done
+          
+      - name: Skip benchmarking (no relevant changes)
+        if: github.event_name == 'pull_request' && steps.check_files.outputs.has_relevant_changes != 'true'
+        run: |
+          echo "No files in deps/mettagrid were changed. Skipping benchmarks."
+          echo "This check passes automatically when no relevant files are changed."

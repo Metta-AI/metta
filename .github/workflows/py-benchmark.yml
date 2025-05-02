@@ -1,34 +1,14 @@
 name: py-benchmark
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review]
     branches: [main]
-    paths:
-      - '**.py'
-      - 'requirements.txt'
-      - 'setup.py'
-      - 'tests/**'
-      - 'benchmarks/**'
-      - 'deps/mettagrid/tests/**'
-      - 'deps/mettagrid/benchmarks/**'
   push:
     branches: [main]
-    paths:
-      - '**.py'
-      - 'requirements.txt'
-      - 'setup.py'
-      - 'tests/**'
-      - 'benchmarks/**'
-      - 'deps/mettagrid/tests/**'
-      - 'deps/mettagrid/benchmarks/**'
   workflow_dispatch: {}
-
-
 jobs:
   py-benchmark:
     if: github.event.pull_request.draft == false || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
@@ -41,15 +21,52 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Check for Python file changes
+        id: check_files
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const { data: changedFiles } = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+            
+            const hasRelevantChanges = changedFiles.some(file => {
+              return file.filename.endsWith('.py') || 
+                     file.filename === 'requirements.txt' ||
+                     file.filename === 'setup.py' ||
+                     file.filename.includes('tests/') ||
+                     file.filename.includes('benchmarks/') ||
+                     file.filename.includes('deps/mettagrid/tests/') ||
+                     file.filename.includes('deps/mettagrid/benchmarks/');
+            });
+            
+            core.setOutput('has_relevant_changes', hasRelevantChanges);
+            
+      - name: Set relevant changes for push events
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        run: echo "HAS_RELEVANT_CHANGES=true" >> $GITHUB_ENV
+            
+      - name: Skip benchmarking (no relevant changes)
+        if: github.event_name == 'pull_request' && steps.check_files.outputs.has_relevant_changes != 'true'
+        run: |
+          echo "No Python files or benchmark-related files were changed. Skipping benchmarks."
+          echo "This check passes automatically when no relevant files are changed."
+
       - name: Get main branch head SHA
+        if: github.event_name != 'pull_request' || steps.check_files.outputs.has_relevant_changes == 'true'
         id: get-main-sha
         run: |
           echo "MAIN_SHA=$(git rev-parse origin/main)" >> $GITHUB_OUTPUT
 
       - name: Setup Python
+        if: github.event_name != 'pull_request' || steps.check_files.outputs.has_relevant_changes == 'true'
         uses: ./.github/actions/py-setup
 
       - name: Run Main Python benchmarks
+        if: github.event_name != 'pull_request' || steps.check_files.outputs.has_relevant_changes == 'true'
         env:
           HYDRA_FULL_ERROR: 1
           PYTHONPATH: ${{ github.workspace }}
@@ -58,6 +75,7 @@ jobs:
           pytest --benchmark-json=main_benchmark_results.json
 
       - name: Run Mettagrid Python benchmarks
+        if: github.event_name != 'pull_request' || steps.check_files.outputs.has_relevant_changes == 'true'
         env:
           HYDRA_FULL_ERROR: 1
           PYTHONPATH: ${{ github.workspace }}
@@ -67,6 +85,7 @@ jobs:
           pytest --benchmark-json=mettagrid_benchmark_results.json
 
       - name: Combine benchmark results
+        if: github.event_name != 'pull_request' || steps.check_files.outputs.has_relevant_changes == 'true'
         run: |
           source venv/bin/activate
           python - <<EOF
@@ -103,9 +122,11 @@ jobs:
           EOF
 
       - name: Install Bencher CLI
+        if: github.event_name != 'pull_request' || steps.check_files.outputs.has_relevant_changes == 'true'
         uses: bencherdev/bencher@main
 
       - name: Validate Bencher Token
+        if: github.event_name != 'pull_request' || steps.check_files.outputs.has_relevant_changes == 'true'
         env:
           BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -114,10 +135,10 @@ jobs:
           echo "Bencher token SHA256: $(echo -n "$BENCHER_API_TOKEN" | sha256sum)"
 
       - name: Upload to Bencher (Main Branch Baseline)
+        if: (github.event_name != 'pull_request' || steps.check_files.outputs.has_relevant_changes == 'true') && github.ref == 'refs/heads/main'
         env:
           BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        if: github.ref == 'refs/heads/main'
         run: |
           bencher run \
             --project mettagrid-sv3f5i2k \
@@ -134,10 +155,10 @@ jobs:
             --file combined_benchmark_results.json > /dev/null
 
       - name: Upload to Bencher (PR Performance Changes)
+        if: github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork && steps.check_files.outputs.has_relevant_changes == 'true'
         env:
           BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        if: github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
         run: |
           bencher run \
             --project mettagrid-sv3f5i2k \
