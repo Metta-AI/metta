@@ -74,7 +74,7 @@ class PufferTrainer:
         self.eval_stats_logger = EvalStatsLogger(self.sim_suite_config, wandb_run)
         self.average_reward = 0.0  # Initialize average reward estimate
         self._current_eval_score = None
-        self.eval_scores = None
+        self.eval_scores = {}
         self._eval_results = []
         self._weights_helper = WeightsMetricsHelper(cfg)
         self._make_vecenv()
