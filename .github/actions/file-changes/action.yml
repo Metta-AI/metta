@@ -21,7 +21,6 @@ runs:
   steps:
     - name: Check for file changes
       id: check_files
-      if: github.event_name == 'pull_request'
       uses: actions/github-script@v6
       with:
         github-token: ${{ inputs.github-token }}
@@ -101,20 +100,9 @@ runs:
             console.log('Has relevant changes matching pattern: ' + hasRelevantChanges);
             core.setOutput('has_relevant_changes', hasRelevantChanges);
             
-            // If not a pull request, set a default value
-            if (github.event_name !== 'pull_request') {
-              console.log('Not running in pull request context, setting default value: true');
-              core.setOutput('has_relevant_changes', true);
-            }
           } catch (error) {
             console.log('Error occurred while checking files:');
             console.log(error);
             core.setFailed(`Action failed with error: ${error}`);
           }
     
-    - name: Set default if not PR
-      if: github.event_name != 'pull_request'
-      shell: bash
-      run: |
-        echo "::set-output name=has_relevant_changes::true"
-        echo "Not a pull request, setting has_relevant_changes=true by default"
