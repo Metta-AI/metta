@@ -107,13 +107,6 @@ const infoPanel = new PanelInfo("info");
 // Get the modal element
 const modal = document.getElementById('modal');
 
-
-// Split between trace and info panels.
-let traceSplit = Common.DEFAULT_TRACE_SPLIT;
-let traceDragging = false;
-let infoSplit = Common.DEFAULT_INFO_SPLIT
-let infoDragging = false;
-
 // Replay data and player state.
 let replay: any = null;
 let selectedGridObject: any = null;
@@ -136,23 +129,23 @@ function onResize() {
 
   // Make sure traceSplit and infoSplit are not too small or too large.
   const a = 0.025;
-  traceSplit = Math.max(a, Math.min(traceSplit, 1 - a));
-  infoSplit = Math.max(a, Math.min(infoSplit, 1 - a));
+  ui.traceSplit = Math.max(a, Math.min(ui.traceSplit, 1 - a));
+  ui.infoSplit = Math.max(a, Math.min(ui.infoSplit, 1 - a));
 
   mapPanel.x = 0;
   mapPanel.y = 0;
-  mapPanel.width = mapWidth * traceSplit;
+  mapPanel.width = mapWidth * ui.traceSplit;
   mapPanel.height = mapHeight - Common.PANEL_BOTTOM_MARGIN;
 
-  tracePanel.x = mapWidth * traceSplit;
-  tracePanel.y = mapHeight * infoSplit;
-  tracePanel.width = mapWidth * (1 - traceSplit);
-  tracePanel.height = mapHeight * (1 - infoSplit) - Common.PANEL_BOTTOM_MARGIN;
+  tracePanel.x = mapWidth * ui.traceSplit;
+  tracePanel.y = mapHeight * ui.infoSplit;
+  tracePanel.width = mapWidth * (1 - ui.traceSplit);
+  tracePanel.height = mapHeight * (1 - ui.infoSplit) - Common.PANEL_BOTTOM_MARGIN;
 
-  infoPanel.x = mapWidth * traceSplit;
+  infoPanel.x = mapWidth * ui.traceSplit;
   infoPanel.y = 0;
-  infoPanel.width = mapWidth * (1 - traceSplit);
-  infoPanel.height = mapHeight * infoSplit
+  infoPanel.width = mapWidth * (1 - ui.traceSplit);
+  infoPanel.height = mapHeight * ui.infoSplit
   if (infoPanel.div === null) {
     infoPanel.div = document.createElement("div");
     infoPanel.div.id = infoPanel.name + "-div";
@@ -180,10 +173,10 @@ function onMouseDown() {
   ui.lastClickTime = currentTime;
 
   if (Math.abs(ui.mousePos.x() - mapPanel.width) < Common.SPLIT_DRAG_THRESHOLD) {
-    traceDragging = true
+    ui.traceDragging = true
     console.log("Started trace dragging")
   } else if (ui.mousePos.x() > mapPanel.width && Math.abs(ui.mousePos.y() - infoPanel.height) < Common.SPLIT_DRAG_THRESHOLD) {
-    infoDragging = true
+    ui.infoDragging = true
     console.log("Started info dragging")
   } else {
     ui.mouseDown = true;
@@ -195,8 +188,8 @@ function onMouseDown() {
 // Handle mouse up events.
 function onMouseUp() {
   ui.mouseDown = false;
-  traceDragging = false;
-  infoDragging = false;
+  ui.traceDragging = false;
+  ui.infoDragging = false;
   requestFrame();
 }
 
@@ -217,11 +210,11 @@ function onMouseMove(event: MouseEvent) {
     document.body.style.cursor = "ns-resize";
   }
 
-  if (traceDragging) {
-    traceSplit = ui.mousePos.x() / window.innerWidth
+  if (ui.traceDragging) {
+    ui.traceSplit = ui.mousePos.x() / window.innerWidth
     onResize();
-  } else if (infoDragging) {
-    infoSplit = ui.mousePos.y() / window.innerHeight
+  } else if (ui.infoDragging) {
+    ui.infoSplit = ui.mousePos.y() / window.innerHeight
     onResize()
   }
   requestFrame();

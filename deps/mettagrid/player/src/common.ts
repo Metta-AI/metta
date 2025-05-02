@@ -29,6 +29,7 @@ export const COLORS: [string, [number, number, number, number]][] = [
 ];
 
 export const ui = {
+  // Mouse events
   mouseDown: false,
   mouseClick: false,
   mouseDoubleClick: false,
@@ -36,4 +37,10 @@ export const ui = {
   lastMousePos: new Vec2f(0, 0),
   scrollDelta: 0,
   lastClickTime: 0, // For double-click detection
+
+  // Split between trace and info panels.
+  traceSplit: DEFAULT_TRACE_SPLIT,
+  traceDragging: false,
+  infoSplit: DEFAULT_INFO_SPLIT,
+  infoDragging: false,
 };
