@@ -2,14 +2,11 @@ defaults:
   - /env/mettagrid/mettagrid@
   - _self_
 
-# a single agent wanders around a square world with 10 rewards to find
-# for our experimental control, we will override game.difficulty to always be 10
 
 min_steps_per_info: 1000
 
-# put these at root
 num_agents_per_room: 1
-num_repeated_rooms: 81 # MultiRoom seems to want perfect squares?
+num_repeated_rooms: 49 # use a perfect square
 
 # these are overwritten during training
 progress:
@@ -24,11 +21,11 @@ filtered_mean_reward: ${iir:0.1,${.progress.mean_reward},${.progress.last_mean_r
 game:
   num_agents: ${multiply:${..num_agents_per_room}, ${..num_repeated_rooms}}
 
-  difficulty_increase_threshold: 7.0
+  difficulty_increase_threshold: 5.0
   should_increase_difficulty: ${gt:${..filtered_mean_reward},${.difficulty_increase_threshold}}
   difficulty_increase_delta: ${if:${.should_increase_difficulty},0.1,0.0}
 
-  difficulty_decrease_threshold: 3.0
+  difficulty_decrease_threshold: 2.0
   should_decrease_difficulty: ${lt:${..filtered_mean_reward},${.difficulty_decrease_threshold}}
   difficulty_decrease_delta: ${if:${.should_decrease_difficulty},-0.2,0.0}
 

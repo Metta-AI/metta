@@ -194,14 +194,12 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             "game": stats["game"],
             "game/difficulty": get_or_0(lambda: self.active_cfg.game.difficulty),  # [progress tracking]
             "game/max_steps": get_or_0(lambda: self.active_cfg.game.max_steps),
-            "game/min_size": get_or_0(lambda: self.active_cfg.game.min_size),
-            "game/max_size": get_or_0(lambda: self.active_cfg.game.max_size),
-            "game/width": get_or_0(lambda: self.active_cfg.game.map_builder["width"]),
-            "game/height": get_or_0(lambda: self.active_cfg.game.map_builder["height"]),
+            "game/width": get_or_0(lambda: self.active_cfg.game.map_builder.room["width"]),
             "progress/episode_count": get_or_0(lambda: self.active_cfg.progress.episode_count),
             "progress/mean_reward": get_or_0(lambda: self.active_cfg.progress.mean_reward),  # [progress tracking]
             "progress/last_mean_reward": get_or_0(lambda: self.active_cfg.progress.last_mean_reward),
             "progress/last_difficulty": get_or_0(lambda: self.active_cfg.progress.last_difficulty),
+            "progress/filtered_mean_reward": get_or_0(lambda: self.active_cfg.filtered_mean_reward),
             "agent": agent_stats,
         }
 
