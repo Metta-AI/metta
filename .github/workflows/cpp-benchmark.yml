@@ -59,48 +59,32 @@ jobs:
         if: env.EARLY_EXIT == 'false'
         uses: ./.github/actions/cpp-setup
         
-      - name: Build and run benchmarks
+      - name: Build and run benchmarks with JSON output
         if: env.EARLY_EXIT == 'false'
         run: |
           cd deps/mettagrid
+          
+          # Create output directory (just in case it's not created by the Makefile)
           mkdir -p benchmark_output
-
-          # Find executables with more detailed output
-          echo "DEBUG: Searching for benchmark executables:"
-          find_result=$(find build/benchmarks -type f -executable 2>/dev/null)
-          if [ -z "$find_result" ]; then
-            echo "DEBUG: No executable files found in build/benchmarks"
-          else
-            echo "DEBUG: Found executables:"
-            echo "$find_result"
-          fi
           
-          # Check benchmark directory structure
-          echo "DEBUG: Full benchmark directory structure:"
-          find build -name benchmarks -type d -exec find {} -type f -ls \;
+          # Build and run benchmarks with JSON output
+          echo "Running benchmarks with JSON output..."
+          make bench-json
           
-          # Run benchmarks with additional error checking
-          echo "DEBUG: Attempting to run benchmarks:"
-          for bench_exec in $(find build/benchmarks -type f -executable 2>/dev/null); do
-            echo "DEBUG: Found benchmark executable: $bench_exec"
-            echo "Running benchmark $bench_exec..."
-            
-            # Run with error checking
-            if ! $bench_exec --benchmark_format=json > benchmark_output/$(basename $bench_exec).json 2>benchmark_output/$(basename $bench_exec).error.log; then
-              echo "DEBUG: Error running benchmark $bench_exec - check error log"
-              echo "DEBUG: Error output:"
-              cat benchmark_output/$(basename $bench_exec).error.log
-            else
-              echo "DEBUG: Successfully generated JSON for $bench_exec"
-              echo "DEBUG: Output file size: $(stat -c %s benchmark_output/$(basename $bench_exec).json) bytes"
-              echo "DEBUG: First few lines of output:"
-              head -n 10 benchmark_output/$(basename $bench_exec).json
-            fi
-          done
-    
-          # Check what files were created
-          echo "DEBUG: Listing benchmark_output directory after execution:"
+          # Verify benchmark output files exist
+          echo "Benchmark output files:"
           ls -la benchmark_output/
+          
+          # Show file size to verify content
+          echo "Checking JSON file sizes:"
+          du -h benchmark_output/*.json
+          
+          # Optional: Check first few lines of each JSON file to verify format
+          echo "First few lines of JSON output:"
+          for json_file in benchmark_output/*.json; do
+            echo "=== $json_file ==="
+            head -n 10 "$json_file"
+          done
           
       - name: Install Bencher CLI
         if: env.EARLY_EXIT == 'false'
