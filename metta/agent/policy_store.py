@@ -140,7 +140,7 @@ class PolicyStore:
             for pr in top:
                 logger.info(f"{pr.name:<40} | {policy_scores[pr]:<20.4f}")
 
-            return top[-n:]
+            return top
         else:
             raise ValueError(f"Invalid selector type {selector_type}")
 
