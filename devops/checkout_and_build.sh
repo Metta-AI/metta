@@ -10,6 +10,13 @@ fi
 # Make sure we're on the latest commit
 git pull
 
+# ========== METTAGRID ==========
+cd mettagrid
+echo "Building mettagrid into $(pwd)"
+python setup.py build_ext --inplace
+pip install -e .
+cd ..
+
 #
 # Check if dependencies are already installed based on the presence of
 # deps/.built (an empty file). If this file is found we will exit early.
@@ -120,13 +127,7 @@ echo "Creating deps directory..."
 mkdir -p deps
 cd deps
 
-# ========== METTAGRID ==========
-# Note that version control for the mettagrid package has been brought into our monorepo
-cd mettagrid
-echo "Building mettagrid into $(pwd)"
-python setup.py build_ext --inplace
-pip install -e .
-cd ..
+
 
 # Install dependencies using the function
 install_repo "fast_gae" $FAST_GAE_REPO "main" "python setup.py build_ext --inplace && pip install -e ."
