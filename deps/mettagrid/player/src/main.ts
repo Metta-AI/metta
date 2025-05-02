@@ -47,7 +47,7 @@ export class PanelInfo {
   // Update the pan and zoom level based on the mouse position and scroll delta.
   updatePanAndZoom(): boolean {
 
-    if (mousePressed) {
+    if (mouseClick) {
       this.isPanning = true;
     }
     if (!mouseDown) {
@@ -136,7 +136,8 @@ const COLORS: [string, [number, number, number, number]][] = [
 
 // Interaction state.
 let mouseDown = false;
-let mousePressed = false;
+let mouseClick = false;
+let mouseDoubleClick = false;
 let mousePos = new Vec2f(0, 0);
 let lastMousePos = new Vec2f(0, 0);
 let scrollDelta = 0;
@@ -206,9 +207,9 @@ function onResize() {
 // Handle mouse down events.
 function onMouseDown() {
   lastMousePos = mousePos;
-  mousePressed = true;
+  mouseClick = true;
   const currentTime = new Date().getTime();
-  const isDoubleClick = currentTime - lastClickTime < 300; // 300ms threshold for double-click
+  mouseDoubleClick = currentTime - lastClickTime < 300; // 300ms threshold for double-click
   lastClickTime = currentTime;
 
   if (Math.abs(mousePos.x() - mapPanel.width) < SPLIT_DRAG_THRESHOLD) {
@@ -219,17 +220,6 @@ function onMouseDown() {
     console.log("Started info dragging")
   } else {
     mouseDown = true;
-
-    // If it's a double click in the map panel and we have a selected object
-    if (isDoubleClick && mapPanel.inside(mousePos) && selectedGridObject !== null) {
-      // Toggle followSelection on double-click
-      followSelection = !followSelection;
-      if (followSelection) {
-        // Set the zoom level to 1 as requested when following
-        mapPanel.zoomLevel = 1/2;
-        followTraceSelection = true;
-      }
-    }
   }
 
   requestFrame();
@@ -478,11 +468,74 @@ async function loadReplayText(replayData: any) {
   requestFrame();
 }
 
+// Update all URL parameters without creating browser history entries
+function updateUrlParams() {
+  // Get current URL params
+  const urlParams = new URLSearchParams(window.location.search);
+
+  // Update step when its not zero:
+  if (step !== 0) {
+    urlParams.set('step', step.toString());
+  } else {
+    urlParams.delete('step');
+  }
+
+  // Handle selected object
+  if (selectedGridObject !== null) {
+    // Find the index of the selected object
+    const selectedObjectIndex = replay.grid_objects.indexOf(selectedGridObject);
+    if (selectedObjectIndex !== -1) {
+      urlParams.set('selectedObjectId', (selectedObjectIndex + 1).toString());
+      // Remove map position parameters when an object is selected
+      urlParams.delete('mapPanX');
+      urlParams.delete('mapPanY');
+    }
+  } else {
+    // Include map position
+    urlParams.set('mapPanX', Math.round(mapPanel.panPos.x()).toString());
+    urlParams.set('mapPanY', Math.round(mapPanel.panPos.y()).toString());
+    // Remove selected object when there is no selection
+    urlParams.delete('selectedObjectId');
+  }
+
+  // Include map zoom level
+  if (mapPanel.zoomLevel != 1) {
+    // Only include zoom to 3 decimal places.
+    urlParams.set('mapZoom', mapPanel.zoomLevel.toFixed(3));
+  }
+
+  // Handle play state - only include when true
+  if (isPlaying) {
+    urlParams.set('play', 'true');
+  } else {
+    urlParams.delete('play');
+  }
+
+  // Replace current state without creating history entry
+  const newUrl = window.location.pathname + '?' + urlParams.toString();
+  history.replaceState(null, '', newUrl);
+}
+
+// Centralized function to update the step and handle all related updates
+function updateStep(newStep: number, skipScrubberUpdate = false) {
+  // Update the step variable
+  step = newStep;
+
+  // Update the scrubber value (unless told to skip)
+  if (!skipScrubberUpdate) {
+    scrubber.value = step.toString();
+  }
+
+  // Update trace panel position
+  tracePanel.panPos.setX(-step * 32);
+
+  // Request a new frame
+  requestFrame();
+}
+
 // Handle scrubber change events.
 function onScrubberChange() {
-  step = parseInt(scrubber.value);
-  console.log("step: ", step);
-  requestFrame();
+  updateStep(parseInt(scrubber.value), true);
 }
 
 // Handle key down events.
@@ -494,14 +547,10 @@ function onKeyDown(event: KeyboardEvent) {
   }
   // '[' and ']' to scrub forward and backward.
   if (event.key == "[") {
-    step = Math.max(step - 1, 0);
-    scrubber.value = step.toString();
-    tracePanel.panPos.setX(-step * 32);
+    updateStep(Math.max(step - 1, 0));
   }
   if (event.key == "]") {
-    step = Math.min(step + 1, replay.max_steps - 1);
-    scrubber.value = step.toString();
-    tracePanel.panPos.setX(-step * 32);
+    updateStep(Math.min(step + 1, replay.max_steps - 1));
   }
   // '<' and '>' control the playback speed.
   if (event.key == ",") {
@@ -963,14 +1012,11 @@ function drawMap(panel: PanelInfo) {
 
   const localMousePos = panel.transformPoint(mousePos);
 
-  // If we're following a selection, center the map on it
-  if (followSelection && selectedGridObject !== null) {
-    const x = getAttr(selectedGridObject, "c");
-    const y = getAttr(selectedGridObject, "r");
-    panel.panPos = new Vec2f(-x * TILE_SIZE, -y * TILE_SIZE);
-  }
+  if (mouseClick) {
+    // Reset the follow flags.
+    followSelection = false;
+    followTraceSelection = false;
 
-  if (mouseDown) {
     if (localMousePos != null) {
       const gridMousePos = new Vec2f(
         Math.round(localMousePos.x() / TILE_SIZE),
@@ -982,15 +1028,25 @@ function drawMap(panel: PanelInfo) {
         return x === gridMousePos.x() && y === gridMousePos.y();
       });
       if (gridObject !== undefined) {
-        // If this is a single click (not a double-click) and we're selecting a new object,
-        // stop following the previous selection
-        if (gridObject !== selectedGridObject) {
-          followSelection = false;
-        }
         selectedGridObject = gridObject;
-        console.log("selectedGridObject: ", selectedGridObject);
+        console.log("selectedGridObject on map:", selectedGridObject);
+
+        if (mouseDoubleClick) {
+          // Toggle followSelection on double-click
+          followSelection = true;
+          followTraceSelection = true;
+          mapPanel.zoomLevel = 1/2;
+          tracePanel.zoomLevel = 1;
+        }
       }
     }
+  }
+
+  // If we're following a selection, center the map on it
+  if (followSelection && selectedGridObject !== null) {
+    const x = getAttr(selectedGridObject, "c");
+    const y = getAttr(selectedGridObject, "r");
+    panel.panPos = new Vec2f(-x * TILE_SIZE, -y * TILE_SIZE);
   }
 
   drawer.save();
@@ -1026,7 +1082,7 @@ function drawTrace(panel: PanelInfo) {
     );
   }
 
-  if (mousePressed &&panel.inside(mousePos)) {
+  if (mouseClick &&panel.inside(mousePos)) {
     if (localMousePos != null) {
       const mapX = localMousePos.x();
       if (mapX > 0 && mapX < replay.max_steps * TRACE_WIDTH &&
@@ -1035,13 +1091,18 @@ function drawTrace(panel: PanelInfo) {
         if (agentId >= 0 && agentId < replay.num_agents) {
           followSelection = true;
           selectedGridObject = replay.agents[agentId];
-          console.log("selectedGridObject on a trace: ", selectedGridObject);
+          console.log("selectedGridObject on a trace:", selectedGridObject);
           mapPanel.focusPos(
             getAttr(selectedGridObject, "c") * TILE_SIZE,
             getAttr(selectedGridObject, "r") * TILE_SIZE
           );
-          step = Math.floor(mapX / TRACE_WIDTH);
-          scrubber.value = step.toString();
+          // Update the step to the clicked step.
+          updateStep(Math.floor(mapX / TRACE_WIDTH));
+
+          if (mouseDoubleClick) {
+            followTraceSelection = true;
+            panel.zoomLevel = 1;
+          }
         }
       }
     }
@@ -1193,17 +1254,21 @@ function onFrame() {
   drawer.flush();
   console.log("Flushed drawer.");
 
+  // Update URL parameters with current state once per frame
+  updateUrlParams();
+
   if (isPlaying) {
     partialStep += playbackSpeed;
     if (partialStep >= 1) {
-      step = (step + Math.floor(partialStep)) % replay.max_steps;
+      const nextStep = (step + Math.floor(partialStep)) % replay.max_steps;
       partialStep -= Math.floor(partialStep);
-      scrubber.value = step.toString();
+      updateStep(nextStep);
     }
     requestFrame();
   }
 
-  mousePressed = false;
+  mouseClick = false;
+  mouseDoubleClick = false;
 }
 
 function preventDefaults(event: Event) {
@@ -1219,12 +1284,6 @@ function handleDrop(event: DragEvent) {
     const file = dt.files[0];
     readFile(file);
   }
-}
-
-// Function to get URL parameters
-function getUrlParameter(name: string): string | null {
-  const urlParams = new URLSearchParams(window.location.search);
-  return urlParams.get(name);
 }
 
 // Show the modal
@@ -1262,6 +1321,67 @@ function onPlayButtonClick() {
   } else {
     playButton.classList.remove('paused');
   }
+
+  requestFrame();
+}
+
+// Parse URL parameters, and modify the map and trace panels accordingly.
+async function parseUrlParams() {
+
+  const urlParams = new URLSearchParams(window.location.search);
+
+    // Load the replay.
+  const replayUrl = urlParams.get('replayUrl');
+  if (replayUrl) {
+    console.log("Loading replay from URL: ", replayUrl);
+    await fetchReplay(replayUrl);
+    focusFullMap(mapPanel);
+  } else {
+    showModal(
+      "info",
+      "Welcome to MettaScope",
+      "Please drop a replay file here to see the replay."
+    );
+  }
+
+  // Set the current step.
+  if (urlParams.get('step') !== null) {
+    const initialStep = parseInt(urlParams.get('step') || "0");
+    console.info("Step via query parameter:", initialStep);
+    updateStep(initialStep, false);
+  }
+
+  // Set the playing state.
+  if (urlParams.get('play') !== null) {
+    isPlaying = urlParams.get('play') === "true";
+    console.info("Playing state via query parameter:", isPlaying);
+  }
+
+  // Set selected object.
+  if (urlParams.get('selectedObjectId') !== null) {
+    const selectedObjectId = parseInt(urlParams.get('selectedObjectId') || "-1") - 1;
+    if (selectedObjectId >= 0 && selectedObjectId < replay.grid_objects.length) {
+      selectedGridObject = replay.grid_objects[selectedObjectId];
+      followSelection = true;
+      followTraceSelection = true;
+      mapPanel.zoomLevel = 1/2;
+      tracePanel.zoomLevel = 1;
+      console.info("Selected object via query parameter:", selectedGridObject);
+    } else {
+      console.warn("Invalid selectedObjectId:", selectedObjectId);
+    }
+  }
+
+  // Set the map pan and zoom.
+  if (urlParams.get('mapPanX') !== null && urlParams.get('mapPanY') !== null) {
+    const mapPanX = parseInt(urlParams.get('mapPanX') || "0");
+    const mapPanY = parseInt(urlParams.get('mapPanY') || "0");
+    mapPanel.panPos = new Vec2f(mapPanX, mapPanY);
+  }
+  if (urlParams.get('mapZoom') !== null) {
+    mapPanel.zoomLevel = parseFloat(urlParams.get('mapZoom') || "1");
+  }
+
   requestFrame();
 }
 
@@ -1303,17 +1423,7 @@ window.addEventListener('load', async () => {
     console.log("Drawer initialized successfully.");
   }
 
-  const replayUrl = getUrlParameter('replayUrl');
-  if (replayUrl) {
-    console.log("Loading replay from URL: ", replayUrl);
-    await fetchReplay(replayUrl);
-    focusFullMap(mapPanel);
-  } else {
-    showModal(
-      "info",
-      "Welcome to MettaScope",
-      "Please drop a replay file here to see the replay."
-    );
-  }
+  await parseUrlParams();
+
   requestFrame();
 });
