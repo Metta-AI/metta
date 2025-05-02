@@ -54,6 +54,7 @@ update_epochs: 1
 cpu_offload: false
 compile: false
 compile_mode: reduce-overhead
+profiler_interval_epochs: 10000
 
 forward_pass_minibatch_target_size: 2048
 async_factor: 2

@@ -1,0 +1,124 @@
+name: training-integration-test
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+jobs:
+  training-integration-test:
+    if: github.event.pull_request.draft == false || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CHECKPOINT_PATH: ./train_dir/github_test/checkpoints/
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Check for Python file changes
+        id: check_files
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const { data: changedFiles } = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+            
+            const hasRelevantChanges = changedFiles.some(file => {
+              return file.filename.endsWith('.py') ||
+                     file.filename === 'requirements.txt' ||
+                     file.filename.includes('/deps/mettagrid/');
+            });
+            
+            core.setOutput('has_relevant_changes', hasRelevantChanges);
+      
+      - name: Set early exit flag
+        id: set_early_exit
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" && "${{ steps.check_files.outputs.has_relevant_changes }}" != "true" ]]; then
+            echo "EARLY_EXIT=true" >> $GITHUB_ENV
+          else
+            echo "EARLY_EXIT=false" >> $GITHUB_ENV
+          fi
+      
+      - name: Skip testing (no relevant changes)
+        if: env.EARLY_EXIT == 'true'
+        run: |
+          echo "No Python files, requirements.txt, or deps/mettagrid changes detected. Skipping integration test."
+          echo "This check passes automatically when no relevant files are changed."
+        
+      - name: Setup Python
+        if: env.EARLY_EXIT == 'false'
+        uses: ./.github/actions/py-setup
+        
+      - name: List installed packages
+        if: env.EARLY_EXIT == 'false'
+        run: |
+          source venv/bin/activate
+          pip list
+          
+      - name: Training smoke test
+        if: env.EARLY_EXIT == 'false'
+        env:
+          HYDRA_FULL_ERROR: 1
+          PYTHONPATH: ${{ github.workspace }}
+          WANDB_API_KEY: set_but_not_used
+          AWS_ACCESS_KEY_ID: set_but_not_used
+          AWS_SECRET_ACCESS_KEY: set_but_not_used
+        run: |
+          source venv/bin/activate
+          python -m tools.train +hardware=github wandb=off
+          ls -la $CHECKPOINT_PATH || echo "Warning: Checkpoint directory not created"
+          
+      - name: Upload training output
+        if: success() && env.EARLY_EXIT == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: train-output
+          path: train_dir/
+          retention-days: 1
+          if-no-files-found: error
+          
+      - name: Download training output
+        if: success() && env.EARLY_EXIT == 'false'
+        uses: actions/download-artifact@v4
+        with:
+          name: train-output
+          path: train_dir/
+          
+      - name: Verify training artifacts
+        if: success() && env.EARLY_EXIT == 'false'
+        run: |
+          source venv/bin/activate
+          ls -la train_dir/
+          ls -la $CHECKPOINT_PATH || echo "Checkpoint directory not found!"
+          
+      - name: Replay smoke test
+        if: env.EARLY_EXIT == 'false'
+        env:
+          HYDRA_FULL_ERROR: 1
+          PYTHONPATH: ${{ github.workspace }}
+          WANDB_API_KEY: set_but_not_used
+          AWS_ACCESS_KEY_ID: set_but_not_used
+          AWS_SECRET_ACCESS_KEY: set_but_not_used
+        run: |
+          source venv/bin/activate
+          python -m tools.replay +hardware=github wandb=off
+          
+      - name: Debug on failure
+        if: failure() && env.EARLY_EXIT == 'false'
+        run: |
+          source venv/bin/activate
+          echo "Listing the contents of the workspace:"
+          find train_dir -type f -name "*.py" | sort
+          find train_dir -type d | sort

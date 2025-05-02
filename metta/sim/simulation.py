@@ -9,7 +9,6 @@ from omegaconf import OmegaConf
 
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore
-from metta.agent.util.distribution_utils import sample_logits
 from metta.sim.replay_helper import ReplayHelper
 from metta.sim.simulation_config import SimulationConfig, SimulationSuiteConfig
 from metta.sim.vecenv import make_vecenv
@@ -68,6 +67,14 @@ class Simulation:
         self._total_agents = self._num_envs * self._agents_per_env
 
         self._vecenv = make_vecenv(self._env_cfg, config.vectorization, num_envs=self._num_envs)
+
+        # tell the policy which actions are available for this environment
+        actions_names = self._vecenv.driver_env.action_names()
+        actions_max_params = self._vecenv.driver_env._c_env.max_action_args()
+        self._policy_pr.policy().activate_actions(actions_names, actions_max_params, self._device)
+        if self._npc_pr is not None:
+            # tell the npc policy which actions are available for this environment
+            self._npc_pr.policy().activate_actions(actions_names, actions_max_params, self._device)
 
         # each index is an agent, and we reshape it into a matrix of num_envs x agents_per_env
         slice_idxs = (
@@ -183,8 +190,7 @@ class Simulation:
 
                 # Parallelize across opponents
                 policy = self._policy_pr.policy()  # policy to evaluate
-                logits, _ = policy(my_obs, policy_state, time_steps=policy_time_steps)
-                policy_actions, _, _, _ = sample_logits(logits)
+                policy_actions, _, _, _, _ = policy(my_obs, policy_state, time_steps=policy_time_steps)
 
                 # Iterate opponent policies
                 if self._npc_pr is not None:
@@ -192,8 +198,7 @@ class Simulation:
                     npc_time_steps = time_steps[self._npc_idxs]
 
                     npc_policy = self._npc_pr.policy()
-                    npc_logits, _ = npc_policy(npc_obs, npc_state, time_steps=npc_time_steps)
-                    npc_actions, _, _, _ = sample_logits(npc_logits)
+                    npc_actions, _, _, _, _ = npc_policy(npc_obs, npc_state, time_steps=policy_time_steps)
 
             actions = policy_actions
             if self._npc_agents_per_env > 0:
