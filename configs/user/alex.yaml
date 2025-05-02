@@ -4,12 +4,12 @@ seed: null
 
 defaults:
   # - override /env/mettagrid@env: simple
-  - override /agent: robust_puffer
+  # - override /agent: robust_puffer
   - _self_
 
-policy_uri: wandb://run/alex.local.411
+policy_uri: puffer:///tmp/puffer_metta.pt
 npc_policy_uri: null
-eval_db_uri: null
+eval_db_uri: null # ${run_dir}/eval_stats
 
 env_overrides:
   game:
@@ -29,9 +29,12 @@ eval:
   max_time_s: 60
 
 analyzer:
+  policy_uri: ${..policy_uri}
+  view_type: latest
   analysis:
     metrics:
-      - metric: "action.use.altar.agent"
+      - metric: episode_reward
+      - metric: "heart.get"
 
 sweep:
   metric: "action.use.altar.agent"
