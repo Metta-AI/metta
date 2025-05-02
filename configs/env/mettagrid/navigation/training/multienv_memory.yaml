@@ -9,4 +9,4 @@ game:
 envs:
   - /env/mettagrid/memory/training/easy
   - /env/mettagrid/memory/training/medium
-  -  /env/mettagrid/memory/training/hard
+  - /env/mettagrid/memory/training/hard
