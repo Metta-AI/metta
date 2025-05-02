@@ -122,6 +122,9 @@ cdef class GridEnv:
 
         self._action_success.resize(max_agents)
 
+        # Set up action handlers. This would be cleaner in a separate function. We're leaving
+        # it inline since we're moving to reduce cython, and don't want to have to add more
+        # Python functions just now (which this would need to be, since we'd be passing the cfg).
         cdef vector[ActionHandler*] actions
         if cfg.actions.put_items.enabled:
             actions.push_back(new PutRecipeItems(cfg.actions.put_items))
@@ -152,6 +155,7 @@ cdef class GridEnv:
             g.id: g.get("group_reward_pct", 0) for g in cfg.groups.values()
         }
 
+        # Initialize objects from the map.
         cdef Agent *agent
         cdef Converter *converter = NULL
         cdef string group_name
