@@ -3,7 +3,7 @@ name: cpp-test
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review]
-    branches: [master]
+    branches: [main]
     paths:
       - 'deps/mettagrid/**'
   workflow_dispatch: {}

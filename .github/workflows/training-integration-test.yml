@@ -7,9 +7,9 @@ concurrency:
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review]
-    branches: [master]
+    branches: [main]
   push:
-    branches: [master]
+    branches: [main]
   workflow_dispatch: {}
 
 jobs:
