@@ -1,13 +1,14 @@
 # Developer tools
 tap "withgraphite/tap"
+brew "amazon-efs-utils"
 brew "awscli"
 brew "bazelisk"
-brew "docker"
-brew "withgraphite/tap/graphite"
 brew "clang-format"
+brew "docker"
 brew "googletest"
 brew "google-benchmark"
 cask "session-manager-plugin"
+brew "withgraphite/tap/graphite"
 
 # Applications
 cask "cursor"
