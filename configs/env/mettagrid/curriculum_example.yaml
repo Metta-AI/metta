@@ -21,7 +21,7 @@ filtered_mean_reward: ${iir:0.1,${.progress.mean_reward},${.progress.last_mean_r
 game:
   num_agents: ${multiply:${..num_agents_per_room}, ${..num_repeated_rooms}}
 
-  difficulty_increase_threshold: 5.0
+  difficulty_increase_threshold: 4.0
   should_increase_difficulty: ${gt:${..filtered_mean_reward},${.difficulty_increase_threshold}}
   difficulty_increase_delta: ${if:${.should_increase_difficulty},0.1,0.0}
 
@@ -34,7 +34,7 @@ game:
 
   # episode length 
   # max_steps: ${make_integer:${scale:${.difficulty},0,10,100,500,"linear"}}
-  max_steps: 400
+  max_steps: 300
 
   # scaling the map size as our experimental condition
   min_size: 10
