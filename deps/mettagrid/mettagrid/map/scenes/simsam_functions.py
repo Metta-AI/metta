@@ -49,6 +49,7 @@ import math
 import numpy as np
 
 
+# simple function to generate additional noise, scaled simply along x and y axes
 def xy_noise(
     x: int,
     y: int,
@@ -57,11 +58,11 @@ def xy_noise(
     x_zoom: float = 0.1,
     y_zoom: float = 0.1,
 ) -> tuple[float, float]:
-    # simple function to generate additional noise, scaled simply along x and y axes
-
     return (x * x_zoom, y * y_zoom)
 
 
+# function used in "noise" generator
+# generates additional noise, but scaled globally, tilted arbitrary at angle theta and squeezed
 def squeezed_noise(
     x: int,
     y: int,
@@ -71,8 +72,6 @@ def squeezed_noise(
     squeeze: float = 1.5,
     angle_theta: float = 0.25,
 ) -> tuple[float, float]:
-    # function used in "noise" generator
-    # generates additional noise, but scaled globally, tilted arbitrary at angle theta and squeezed
     shift_from_center_for_x = 0
     shift_from_center_for_y = 0
     alpha = 2 * math.pi * angle_theta
@@ -92,6 +91,7 @@ def squeezed_noise(
     return (xi, yi)
 
 
+# function used in "spiral" generator. Samples noise in a spiral pattern around an arbitrary point
 def spiral(
     x: int,
     y: int,
@@ -104,7 +104,6 @@ def spiral(
     xc: float = 0.0,  # x off-center
     yc: float = 0.0,  # y off-center
 ) -> tuple[float, float]:
-    # function used in "spiral" generator
     alpha = 2 * math.pi * angle_theta
     cs = math.cos(alpha)
     sn = math.sin(alpha)
@@ -116,12 +115,16 @@ def spiral(
     xi = (xi - (0.5 + xc) * width) * zoom / squeeze
     yi = (yi - (0.5 + yc) * height) * zoom * squeeze
     distance = math.sqrt(xi**2 + yi**2)
-    a = distance * P  # the angle of rotation is proportional to the distance from center and P
+    # the angle of rotation is proportional to the distance from center and P
+    a = distance * P
     xi, yi = xi * math.cos(a) - yi * math.sin(a), yi * math.cos(a) + xi * math.sin(a)
 
     return (xi, yi)
 
 
+# function used in "arbitrary_tilted_lattice" generator
+# Places wall sections randomly in a global lattice pattern
+# The background (not a global lattice) is set to be sampled from the same spot
 def arbitrary_tilted_lattice(
     x: int,
     y: int,
@@ -135,7 +138,6 @@ def arbitrary_tilted_lattice(
     line1_thickness: int = 1,
     line2_thickness: int = 1,
 ) -> tuple[float, float]:
-    # function used in "arbitrary_tilted_lattice" generator
     alpha = 2 * math.pi * angle_theta
     alpha_tangent = math.tan(alpha)
     line1 = math.floor(x + alpha_tangent * y)
@@ -146,11 +148,15 @@ def arbitrary_tilted_lattice(
         else:
             xi, yi = (x_zoom * (line1 - (line1 % line1_wavelength)), y_zoom * line2)
     else:
-        xi, yi = 0, 0
+        xi, yi = -13, 17  # random location away from the direction of the main change
 
     return (xi, yi)
 
 
+# function used in "arbitrary_tilted_napkin" generator
+# During my attempts to modify "the lattice" function I've made a few mistakes
+# As a result, it produced an interesting pattern. I don't know why exactly, but it works
+# it generates a lot of repeating or similar sections of walls and intersections. Infinite backrooms, but for agents
 def arbitrary_tilted_napkin(
     x: int,
     y: int,
@@ -164,30 +170,34 @@ def arbitrary_tilted_napkin(
     line1_thickness: int = 1,
     line2_thickness: int = 1,
 ) -> tuple[float, float]:
-    # function used in "arbitrary_tilted_napkin" generator
-    # During my attempts to modify "the lattice" function I've made a few mistakes
-    # As a result, it produced an interesting pattern. I don't know why, but it works
     alpha = 2 * math.pi * angle_theta
     alpha_tangent = math.tan(alpha)
     line1 = math.floor(x + alpha_tangent * y)
     line2 = math.floor(alpha_tangent * x - y)
     if line1 % line1_wavelength < line1_thickness or line2 % line2_wavelength < line2_thickness:
+        # line2 arguments were swapped for line1 by a mistake
         if line1 % line1_wavelength < line1_thickness:
             xi, yi = (
                 x_zoom * line1,
                 y_zoom * (line1 - (line1 % line1_wavelength)),
-            )  # line2 arguments were swapped for line1 by a mistake
+            )
+        # line1 arguments were swapped for line2 by a mistake
         else:
             xi, yi = (
                 x_zoom * (line2 - (line2 % line2_wavelength)),
                 y_zoom * line2,
-            )  # line1 arguments were swapped for line2 by a mistake
+            )
     else:
-        xi, yi = 0, 0
+        xi, yi = -13, 17  # random location away from the direction of the main change
 
     return (xi, yi)
 
 
+# function used in "the_sphere" and "the_what" generator
+# I don't know how to easily describe what this function does internally on a high level
+# it's several complicated functions used almost randomly with a lot of excess parameters to produce high variety
+# But it generates interesting shapes in the end
+# Just like the previous "napkin" function, this one was made by accident during "radial_symmetry" development
 def the_sphere(
     x: int,
     y: int,
@@ -206,11 +216,6 @@ def the_sphere(
     bx: float = 0.0,
     by: float = 0.0,
 ) -> tuple[float, float]:
-    # function used in "the_sphere" and "the_what" generator
-    # I don't know how to easily describe what this function does internally on a high level
-    # it's several complicated functions used almost randomly with a lot of excess parameters to produce high variety
-    # But it generates interesting shapes in the end
-    # Just like the previous "napkin" function, this one was made by accident during "symmetry" development
     xi = (x - (0.5 + xc) * width) * 0.05
     yi = (y - (0.5 + yc) * height) * 0.05
     alpha = 2 * math.pi * angle_theta
@@ -226,6 +231,8 @@ def the_sphere(
     return (xi * x_zoom, yi * y_zoom)
 
 
+# function used in "cross_curse" generator
+# generates a stretched sampling pattern along 2 perpendicular axes
 def cross_curse(
     x: int,
     y: int,
@@ -239,7 +246,6 @@ def cross_curse(
     xc: float = 0.0,
     yc: float = 0.0,
 ) -> tuple[float, float]:
-    # function used in "cross_curse" generator
     alpha = 2 * math.pi * angle_theta
     cs = math.cos(alpha)
     sn = math.sin(alpha)
@@ -249,12 +255,15 @@ def cross_curse(
         (cs * (xi - (0.5 + xc) * width) + sn * (yi - (0.5 + yc) * height)),
         (-sn * (xi - (0.5 + xc) * width) + cs * (yi - (0.5 + yc) * height)),
     )
-
+    # x_pow**x_pow is a discovered way to roughly preserve the scale of a map features between various powers of x
     xi, yi = 8 * xi**x_pow / x_pow**x_pow, 8 * yi**y_pow / y_pow**y_pow
 
     return (xi * x_zoom, yi * y_zoom)
 
 
+# function used in "radial_symmetry" generator
+# Generates radially symmetric pattern by sampling in polar coordinates several times faster than usual
+# Could be used to generate ~symmetric maps for several teams of agents
 def radial_symmetry(
     x: int,
     y: int,
@@ -267,7 +276,6 @@ def radial_symmetry(
     xc: float = 0.0,
     yc: float = 0.0,
 ) -> tuple[float, float]:
-    # function used in "symmetry" generator
     alpha = 2 * math.pi * angle_theta
     cs = math.cos(alpha)
     sn = math.sin(alpha)
@@ -275,8 +283,8 @@ def radial_symmetry(
         (cs * (x - 0.5 * width + xc * width) + sn * (y - 0.5 * height + yc * height)),
         (-sn * (x - 0.5 * width + xc * width) + cs * (y - 0.5 * height + yc * height)),
     )
-
-    beta = (symmetry - 1) * math.atan2((yi), (xi))  # I don't know why it works properly with (symmetry-1)
+    # I don't know why it works properly with (symmetry-1) and not just symmetry
+    beta = (symmetry - 1) * math.atan2((yi), (xi))
     csb = math.cos(beta)
     snb = math.sin(beta)
     xi, yi = (csb * xi - snb * yi), (snb * xi + csb * yi)
