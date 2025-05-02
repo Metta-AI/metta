@@ -23,10 +23,10 @@ resource "aws_security_group" "proxy" {
 
   # allow incoming EFS traffic
   ingress {
-    from_port   = 2049
-    to_port     = 2049
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    from_port       = 2049
+    to_port         = 2049
+    protocol        = "tcp"
+    security_groups = [aws_security_group.proxy.id]
   }
 
   # direct WireGuard paths
@@ -35,14 +35,6 @@ resource "aws_security_group" "proxy" {
     from_port   = 41641
     to_port     = 41641
     protocol    = "udp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  # allow ssh
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
 }
