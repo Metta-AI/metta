@@ -21,23 +21,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         
-      - name: Check for C++ file changes
+      - name: Check for C++ and Cython file changes
         id: check_files
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v6
+        uses: ./.github/actions/file-changes
         with:
-          script: |
-            const { data: changedFiles } = await github.rest.pulls.listFiles({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: context.issue.number,
-            });
-            
-            const hasRelevantChanges = changedFiles.some(file => {
-              return file.filename.includes('deps/mettagrid/');
-            });
-            
-            core.setOutput('has_relevant_changes', hasRelevantChanges);
+          patterns: 'deps/mettagrid/,*.cpp,*.cxx,*.cc,*.h,*.hpp,*.pyx,*.pxd'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set early exit flag
         id: set_early_exit

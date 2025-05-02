@@ -1,0 +1,120 @@
+name: 'PR File Changes Checker'
+description: 'Checks if files matching a pattern have been changed in a pull request'
+inputs:
+  patterns:
+    description: 'File patterns to check for changes, comma-separated (e.g., "deps/mettagrid/,*.cpp,*.pyx")'
+    required: true
+  specific_files:
+    description: 'Comma-separated list of specific files to check (e.g., "requirements.txt,setup.py")'
+    required: false
+    default: ''
+  directory_paths:
+    description: 'Comma-separated list of directory paths to check (e.g., "tests/,benchmarks/")'
+    required: false
+    default: ''
+outputs:
+  has_relevant_changes:
+    description: 'Boolean indicating if files matching the pattern were changed'
+    value: ${{ steps.check_files.outputs.has_relevant_changes }}
+runs:
+  using: "composite"
+  steps:
+    - name: Check for file changes
+      id: check_files
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        github-token: ${{ inputs.github-token }}
+        script: |
+          console.log('Starting file check for PR #' + context.issue.number);
+                      console.log('Searching for patterns: ' + '${{ inputs.patterns }}');
+            
+            // Parse the comma-separated patterns
+            const patterns = '${{ inputs.patterns }}'.split(',').map(p => p.trim()).filter(p => p !== '');
+            console.log(`Parsed ${patterns.length} patterns to check`);
+            
+            // Parse specific files to check
+            const specificFiles = '${{ inputs.specific_files }}'.split(',').map(f => f.trim()).filter(f => f !== '');
+            console.log(`Parsed ${specificFiles.length} specific files to check`);
+            
+            // Parse directory paths to check
+            const directoryPaths = '${{ inputs.directory_paths }}'.split(',').map(d => d.trim()).filter(d => d !== '');
+            console.log(`Parsed ${directoryPaths.length} directory paths to check`);
+            
+          try {
+            console.log('Fetching changed files...');
+            const { data: changedFiles } = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+            
+            console.log('Found ' + changedFiles.length + ' changed files in total');
+            
+            // Log all changed files for debugging
+            changedFiles.forEach(file => {
+              console.log(`Changed file: ${file.filename}`);
+            });
+            
+            const hasRelevantChanges = changedFiles.some(file => {
+              // Check if the file matches any specific file
+              if (specificFiles.some(specificFile => file.filename === specificFile)) {
+                console.log(`File ${file.filename} matched specific file check`);
+                return true;
+              }
+              
+              // Check if the file matches any directory path
+              if (directoryPaths.some(directory => file.filename.includes(directory))) {
+                console.log(`File ${file.filename} matched directory path check`);
+                return true;
+              }
+              
+              // Check if the file matches any of our patterns
+              return patterns.some(pattern => {
+                // Handle glob-like patterns with * (simple implementation)
+                if (pattern.includes('*')) {
+                  const regexPattern = pattern
+                    .replace(/\./g, '\\.')    // Escape dots
+                    .replace(/\*/g, '.*');    // Convert * to regex equivalent
+                  
+                  const regex = new RegExp(regexPattern);
+                  const result = regex.test(file.filename);
+                  
+                  if (result) {
+                    console.log(`File ${file.filename} matched pattern ${pattern}`);
+                  }
+                  
+                  return result;
+                } else {
+                  // Simple substring match
+                  const result = file.filename.includes(pattern);
+                  
+                  if (result) {
+                    console.log(`File ${file.filename} matched pattern ${pattern}`);
+                  }
+                  
+                  return result;
+                }
+              });
+            });
+            
+            console.log('Has relevant changes matching pattern: ' + hasRelevantChanges);
+            core.setOutput('has_relevant_changes', hasRelevantChanges);
+            
+            // If not a pull request, set a default value
+            if (github.event_name !== 'pull_request') {
+              console.log('Not running in pull request context, setting default value: true');
+              core.setOutput('has_relevant_changes', true);
+            }
+          } catch (error) {
+            console.log('Error occurred while checking files:');
+            console.log(error);
+            core.setFailed(`Action failed with error: ${error}`);
+          }
+    
+    - name: Set default if not PR
+      if: github.event_name != 'pull_request'
+      shell: bash
+      run: |
+        echo "::set-output name=has_relevant_changes::true"
+        echo "Not a pull request, setting has_relevant_changes=true by default"

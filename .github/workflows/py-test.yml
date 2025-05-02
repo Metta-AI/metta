@@ -22,24 +22,13 @@ jobs:
         
       - name: Check for Python file changes
         id: check_files
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v6
+        uses: ./.github/actions/file-changes
         with:
-          script: |
-            const { data: changedFiles } = await github.rest.pulls.listFiles({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: context.issue.number,
-            });
+          patterns: '*.py'
+          specific_files: 'requirements.txt,setup.py'
+          directory_paths: 'tests/,benchmarks/,deps/mettagrid/tests/,deps/mettagrid/benchmarks/'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
             
-            const hasRelevantChanges = changedFiles.some(file => {
-              return file.filename.endsWith('.py') ||
-                file.filename === 'requirements.txt' ||
-                file.filename.includes('/deps/mettagrid/');
-            });
-            
-            core.setOutput('has_relevant_changes', hasRelevantChanges);
-      
       - name: Set early exit flag
         id: set_early_exit
         run: |
