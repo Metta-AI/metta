@@ -6,7 +6,7 @@ import hydra
 
 import metta.sim.simulator
 from metta.agent.policy_store import PolicyStore
-from metta.sim.simulation_config import SimulationConfig
+from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.util.config import Config
 from metta.util.logging import setup_mettagrid_logger
 from metta.util.runtime_configuration import setup_mettagrid_environment
@@ -16,7 +16,7 @@ signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
 
 
 class PlayJob(Config):
-    sim: SimulationConfig
+    sim: SimulationSuiteConfig
     policy_uri: str
 
     def __init__(self, *args, **kwargs):
@@ -35,7 +35,7 @@ def main(cfg) -> int:
 
         play_job = PlayJob(cfg.play_job)
         policy_record = policy_store.policy(play_job.policy_uri)
-        metta.sim.simulator.play(play_job.sim, policy_record)
+        metta.sim.simulator.play(list(play_job.sim.simulations.values())[0], policy_record)
 
     return 0
 
