@@ -486,20 +486,22 @@ function updateUrlParams() {
     const selectedObjectIndex = replay.grid_objects.indexOf(selectedGridObject);
     if (selectedObjectIndex !== -1) {
       urlParams.set('selectedObjectId', (selectedObjectIndex + 1).toString());
-
       // Remove map position parameters when an object is selected
       urlParams.delete('mapPanX');
       urlParams.delete('mapPanY');
     }
   } else {
-    // No selected object
+    // Include map position
+    urlParams.set('mapPanX', Math.round(mapPanel.panPos.x()).toString());
+    urlParams.set('mapPanY', Math.round(mapPanel.panPos.y()).toString());
+    // Remove selected object when there is no selection
     urlParams.delete('selectedObjectId');
+  }
 
-    // Include map position if available
-    if (mapPanel && mapPanel.panPos) {
-      urlParams.set('mapPanX', Math.round(mapPanel.panPos.x()).toString());
-      urlParams.set('mapPanY', Math.round(mapPanel.panPos.y()).toString());
-    }
+  // Include map zoom level
+  if (mapPanel.zoomLevel != 1) {
+    // Only include zoom to 3 decimal places.
+    urlParams.set('mapZoom', mapPanel.zoomLevel.toFixed(3));
   }
 
   // Handle play state - only include when true
@@ -507,12 +509,6 @@ function updateUrlParams() {
     urlParams.set('play', 'true');
   } else {
     urlParams.delete('play');
-  }
-
-  // Include map zoom level
-  if (mapPanel.zoomLevel != 1) {
-    // Only include zoom to 3 decimal places.
-    urlParams.set('mapZoom', mapPanel.zoomLevel.toFixed(3));
   }
 
   // Replace current state without creating history entry
