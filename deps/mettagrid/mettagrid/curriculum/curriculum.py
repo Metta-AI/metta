@@ -95,14 +95,22 @@ class LowRewardCurriculum(RandomCurriculum):
     def __init__(self, tasks: Dict[str, float], env_overrides: DictConfig):
         super().__init__(tasks, env_overrides)
         self._reward_averages = {task_id: 0.0 for task_id in tasks.keys()}
+        self._reward_maxes = {task_id: 0.0 for task_id in tasks.keys()}
         self._alpha = 0.01  # Smoothing factor for moving average
 
     def complete_task(self, id: str, score: float):
         # Update moving average for the completed task
         old_average = self._reward_averages[id]
         self._reward_averages[id] = (1 - self._alpha) * self._reward_averages[id] + self._alpha * score
-        logger.debug(f"Updated reward average for task {id} from {old_average:.3f} to {self._reward_averages[id]:.3f}")
-        self._task_weights = {t: 1.0 / (self._reward_averages[t] + 1e-6) for t in self._curriculums.keys()}
+        logger.debug(
+            f"Updated task {id} "
+            + f"reward mean({old_average:.3f} -> {self._reward_averages[id]:.3f}), "
+            + f"max({self._reward_maxes[id]:.3f})"
+        )
+        self._reward_maxes[id] = max(self._reward_maxes[id], score)
+        self._task_weights = {
+            t: self._reward_maxes[t] / (self._reward_averages[t] + 1e-6) for t in self._curriculums.keys()
+        }
         super().complete_task(id, score)
 
 
