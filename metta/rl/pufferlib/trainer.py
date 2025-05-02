@@ -349,7 +349,7 @@ class PufferTrainer:
                 else:
                     state = PolicyState()
                 
-                actions, logprob, _, value, _ = policy(o_device, state, time_steps=self.time_steps)
+                actions, logprob, _, value, _ = policy(o_device, state, time_steps=self.time_steps[gpu_env_id])
                 
                 if lstm_h is not None and lstm_c is not None:
                     lstm_h[:, gpu_env_id] = state.lstm_h
@@ -360,6 +360,12 @@ class PufferTrainer:
 
             with profile.eval_misc:
                 self.time_steps += 1
+                dones = d | t
+                if contiguous_env_ids:
+                    self.time_steps[gpu_env_id][dones] = 0
+                else:
+                    self.time_steps[gpu_env_id[dones]] = 0
+
                 self.time_steps[d] = 0
                 self.time_steps[t] = 0
 

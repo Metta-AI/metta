@@ -102,20 +102,13 @@ def play(config: SimulationConfig, policy_record: PolicyRecord):
             obs = torch.as_tensor(obs).to(device=device)
 
             # Parallelize across opponents
-<<<<<<< HEAD
-<<<<<<< HEAD
+
             policy.eval()
-            actions, _, _, _, policy_rnn_state, _, _, _ = policy(obs, policy_rnn_state, time_steps=time_steps)
-            time_steps += 1
-=======
-            logits, _ = policy(obs, policy_state)
-            actions, _, _, _ = sample_logits(logits)
->>>>>>> origin/main
-=======
             actions, _, _, _, _ = policy(obs, policy_state)
->>>>>>> origin/main
             if actions.dim() == 0:  # scalar tensor like tensor(2)
                 actions = torch.tensor([actions.item()])
+            
+            time_steps += 1
 
         renderer.update(
             actions.cpu().numpy(),
