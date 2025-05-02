@@ -20,13 +20,13 @@ class Curriculum:
 
     @staticmethod
     def from_config_path(config_path: str, env_overrides: Optional[DictConfig] = None) -> "Curriculum":
-        cfg = config_from_path(config_path, env_overrides)
+        cfg = config_from_path(config_path, OmegaConf.create({"env_overrides": env_overrides}))
         if "_target_" in cfg:
             return hydra.utils.instantiate(cfg)
         else:
             # If this is an environment rather than a curriculum, we need to wrap it in a curriculum
             # but we have to sample it first.
-            task = SamplingCurriculum(config_path, cfg.sampling).get_task()
+            task = SamplingCurriculum(config_path, cfg.sampling, env_overrides).get_task()
             return SingleTaskCurriculum(task.id(), task.env_cfg())
 
 
