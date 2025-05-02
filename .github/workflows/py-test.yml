@@ -24,7 +24,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Python
-        uses: ./.github/workflows/py-setup.yml
+        uses: ./.github/actions/py-setup.yml
 
       - name: Setup Git dependencies
         run: |
