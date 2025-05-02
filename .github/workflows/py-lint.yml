@@ -29,8 +29,12 @@ jobs:
           source venv/bin/activate
           pip install ruff==0.11.5
 
-      - name: Run Ruff linter and formatting
+      - name: Run Ruff linter
+        run: |
+          source venv/bin/activate
+          ruff format --check .
+
+      - name: Run Ruff formatting
         run: |
           source venv/bin/activate
           ruff check --respect-gitignore --exit-non-zero-on-fix .
-          ruff format --check .
