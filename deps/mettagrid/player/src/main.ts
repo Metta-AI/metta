@@ -1,6 +1,8 @@
 import { Vec2f, Mat3f } from './vector_math.js';
 import { Grid } from './grid.js';
 import { Drawer } from './drawer.js';
+import * as Common from './common.js';
+import { INVENTORY_PADDING, TILE_SIZE, TRACE_WIDTH } from './common.js';
 
 export class PanelInfo {
   public x: number = 0;
@@ -64,8 +66,8 @@ export class PanelInfo {
 
     if (scrollDelta !== 0) {
       const oldMousePoint = this.transformPoint(mousePos);
-      this.zoomLevel = this.zoomLevel + scrollDelta / SCROLL_ZOOM_FACTOR;
-      this.zoomLevel = Math.max(Math.min(this.zoomLevel, MAX_ZOOM_LEVEL), MIN_ZOOM_LEVEL);
+      this.zoomLevel = this.zoomLevel + scrollDelta / Common.SCROLL_ZOOM_FACTOR;
+      this.zoomLevel = Math.max(Math.min(this.zoomLevel, Common.MAX_ZOOM_LEVEL), Common.MIN_ZOOM_LEVEL);
       const newMousePoint = this.transformPoint(mousePos);
       if (oldMousePoint != null && newMousePoint != null) {
         this.panPos = this.panPos.add(newMousePoint.sub(oldMousePoint));
@@ -77,26 +79,6 @@ export class PanelInfo {
   }
 }
 
-// Constants
-const MIN_ZOOM_LEVEL = 0.025;
-const MAX_ZOOM_LEVEL = 2.0;
-
-const SPLIT_DRAG_THRESHOLD = 10;  // pixels to detect split dragging
-const SCROLL_ZOOM_FACTOR = 1000;  // divisor for scroll delta to zoom conversion
-const DEFAULT_TRACE_SPLIT = 0.80;  // default horizontal split ratio
-const DEFAULT_INFO_SPLIT = 0.25;   // default vertical split ratio
-const PANEL_BOTTOM_MARGIN = 60;    // bottom margin for panels
-
-// Map constants.
-const TILE_SIZE = 200;
-
-// Agent defaults.
-const DEFAULT_VISION_SIZE = 11;
-
-// Trace constants.
-const INVENTORY_PADDING = 16;
-const TRACE_HEIGHT = 256
-const TRACE_WIDTH = 32
 
 let drawer: Drawer;
 
@@ -128,12 +110,6 @@ const infoPanel = new PanelInfo("info");
 // Get the modal element
 const modal = document.getElementById('modal');
 
-const COLORS: [string, [number, number, number, number]][] = [
-  ["red", [1, 0, 0, 1]],
-  ["green", [0, 1, 0, 1]],
-  ["blue", [0, 0, 1, 1]],
-]
-
 // Interaction state.
 let mouseDown = false;
 let mouseClick = false;
@@ -142,12 +118,13 @@ let mousePos = new Vec2f(0, 0);
 let lastMousePos = new Vec2f(0, 0);
 let scrollDelta = 0;
 let lastClickTime = 0; // For double-click detection
+
 let followSelection = false; // Flag to follow selected entity
 let followTraceSelection = false; // Flag to follow trace selection
 
-let traceSplit = DEFAULT_TRACE_SPLIT;
+let traceSplit = Common.DEFAULT_TRACE_SPLIT;
 let traceDragging = false;
-let infoSplit = DEFAULT_INFO_SPLIT
+let infoSplit = Common.DEFAULT_INFO_SPLIT
 let infoDragging = false;
 // Replay data and player state.
 let replay: any = null;
@@ -175,12 +152,12 @@ function onResize() {
   mapPanel.x = 0;
   mapPanel.y = 0;
   mapPanel.width = mapWidth * traceSplit;
-  mapPanel.height = mapHeight - PANEL_BOTTOM_MARGIN;
+  mapPanel.height = mapHeight - Common.PANEL_BOTTOM_MARGIN;
 
   tracePanel.x = mapWidth * traceSplit;
   tracePanel.y = mapHeight * infoSplit;
   tracePanel.width = mapWidth * (1 - traceSplit);
-  tracePanel.height = mapHeight * (1 - infoSplit) - PANEL_BOTTOM_MARGIN;
+  tracePanel.height = mapHeight * (1 - infoSplit) - Common.PANEL_BOTTOM_MARGIN;
 
   infoPanel.x = mapWidth * traceSplit;
   infoPanel.y = 0;
@@ -212,10 +189,10 @@ function onMouseDown() {
   mouseDoubleClick = currentTime - lastClickTime < 300; // 300ms threshold for double-click
   lastClickTime = currentTime;
 
-  if (Math.abs(mousePos.x() - mapPanel.width) < SPLIT_DRAG_THRESHOLD) {
+  if (Math.abs(mousePos.x() - mapPanel.width) < Common.SPLIT_DRAG_THRESHOLD) {
     traceDragging = true
     console.log("Started trace dragging")
-  } else if (mousePos.x() > mapPanel.width && Math.abs(mousePos.y() - infoPanel.height) < SPLIT_DRAG_THRESHOLD) {
+  } else if (mousePos.x() > mapPanel.width && Math.abs(mousePos.y() - infoPanel.height) < Common.SPLIT_DRAG_THRESHOLD) {
     infoDragging = true
     console.log("Started info dragging")
   } else {
@@ -240,11 +217,13 @@ function onMouseMove(event: MouseEvent) {
   // If mouse is close to a panels edge change cursor to edge changer.
   document.body.style.cursor = "default";
 
-  if (Math.abs(mousePos.x() - mapPanel.width) < SPLIT_DRAG_THRESHOLD) {
+  if (Math.abs(mousePos.x() - mapPanel.width) < Common.SPLIT_DRAG_THRESHOLD) {
     document.body.style.cursor = "ew-resize";
   }
 
-  if (mousePos.x() > mapPanel.width && Math.abs(mousePos.y() - infoPanel.height) < SPLIT_DRAG_THRESHOLD) {
+  if (mousePos.x() > mapPanel.width &&
+    Math.abs(mousePos.y() - infoPanel.height) < Common.SPLIT_DRAG_THRESHOLD
+  ) {
     document.body.style.cursor = "ns-resize";
   }
 
@@ -436,7 +415,7 @@ async function loadReplayText(replayData: any) {
       type = removePrefix(type, "inv:")
       type = removePrefix(type, "agent:inv:");
       var color = [1, 1, 1, 1]; // Default to white.
-      for (const [colorName, colorValue] of COLORS) {
+      for (const [colorName, colorValue] of Common.COLORS) {
         if (type.endsWith(colorName)) {
           if(drawer.hasImage("resources/" + type + ".png")) {
             // Use the resource.color.png with white color.
@@ -610,8 +589,8 @@ function focusFullMap(panel: PanelInfo) {
   if (replay === null) {
     return;
   }
-  const width = replay.map_size[0] * TILE_SIZE;
-  const height = replay.map_size[1] * TILE_SIZE;
+  const width = replay.map_size[0] * Common.TILE_SIZE;
+  const height = replay.map_size[1] * Common.TILE_SIZE;
   panel.focusPos(width / 2, height / 2);
   panel.zoomLevel = Math.min(panel.width / width, panel.height / height);
 }
@@ -630,7 +609,7 @@ function drawFloor(mapSize: [number, number]) {
       gridObject,
       "agent:vision_size",
       step,
-      DEFAULT_VISION_SIZE
+      Common.DEFAULT_VISION_SIZE
     ) / 2);
     for (let dx = -visionSize; dx <= visionSize; dx++) {
       for (let dy = -visionSize; dy <= visionSize; dy++) {
@@ -661,7 +640,7 @@ function drawFloor(mapSize: [number, number]) {
   for (let x = 0; x < mapSize[0]; x++) {
     for (let y = 0; y < mapSize[1]; y++) {
       const color = visibilityMap.get(x, y) ? [1, 1, 1, 1] : [0.75, 0.75, 0.75, 1];
-      drawer.drawSprite('objects/floor.png', x * TILE_SIZE, y * TILE_SIZE, color);
+      drawer.drawSprite('objects/floor.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE, color);
     }
   }
 }
@@ -707,7 +686,7 @@ function drawWalls(replay: any) {
     if (n || w || e || s) {
       suffix = (n ? "n" : "") + (w ? "w" : "") + (s ? "s" : "") + (e ? "e" : "");
     }
-    drawer.drawSprite('objects/wall.' + suffix + '.png', x * TILE_SIZE, y * TILE_SIZE);
+    drawer.drawSprite('objects/wall.' + suffix + '.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE);
   }
 
   // Draw the wall in-fill following the adjacency map.
@@ -733,8 +712,8 @@ function drawWalls(replay: any) {
     if (e && s && se) {
       drawer.drawSprite(
         'objects/wall.fill.png',
-        x * TILE_SIZE + TILE_SIZE / 2,
-        y * TILE_SIZE + TILE_SIZE / 2 - 42
+        x * Common.TILE_SIZE + Common.TILE_SIZE / 2,
+        y * Common.TILE_SIZE + Common.TILE_SIZE / 2 - 42
       );
     }
   }
@@ -770,8 +749,8 @@ function drawObjects(replay: any) {
 
       drawer.drawSprite(
         "agents/agent." + suffix + ".png",
-        x * TILE_SIZE,
-        y * TILE_SIZE,
+        x * Common.TILE_SIZE,
+        y * Common.TILE_SIZE,
         colorFromId(agent_id)
       );
     } else {
@@ -780,15 +759,15 @@ function drawObjects(replay: any) {
         // object.png
         drawer.drawSprite(
           replay.object_images[type][0],
-          x * TILE_SIZE,
-          y * TILE_SIZE
+          x * Common.TILE_SIZE,
+          y * Common.TILE_SIZE
         );
       } else {
         // object.empty.png
         drawer.drawSprite(
           replay.object_images[type][1],
-          x * TILE_SIZE,
-          y * TILE_SIZE
+          x * Common.TILE_SIZE,
+          y * Common.TILE_SIZE
         );
       }
     }
@@ -899,21 +878,21 @@ function drawInventory(replay: any) {
     const y = getAttr(gridObject, "r")
 
     // Sum up the objects inventory, in case we need to condense it.
-    let inventoryX = INVENTORY_PADDING;
+    let inventoryX = Common.INVENTORY_PADDING;
     let numItems = 0;
     for (const [key, [icon, color]] of replay.resource_inventory) {
       const num = getAttr(gridObject, key);
       numItems += num;
     }
     // Draw the actual inventory icons.
-    let advanceX = Math.min(32, (TILE_SIZE - INVENTORY_PADDING*2) / numItems);
+    let advanceX = Math.min(32, (Common.TILE_SIZE - Common.INVENTORY_PADDING*2) / numItems);
     for (const [key, [icon, color]] of replay.resource_inventory) {
       const num = getAttr(gridObject, key);
       for (let i = 0; i < num; i++) {
         drawer.drawSprite(
           icon,
-          x * TILE_SIZE + inventoryX - TILE_SIZE/2,
-          y * TILE_SIZE - TILE_SIZE/2 + 16,
+          x * Common.TILE_SIZE + inventoryX - Common.TILE_SIZE/2,
+          y * Common.TILE_SIZE - Common.TILE_SIZE/2 + 16,
           color,
           1/8,
           0
@@ -932,10 +911,13 @@ function drawRewards(replay: any) {
     if (gridObject["total_reward"] !== undefined) {
       const totalReward = getAttr(gridObject, "total_reward");
       let rewardX = 0;
-      let advanceX = Math.min(32, TILE_SIZE / totalReward);
+      let advanceX = Math.min(32, Common.TILE_SIZE / totalReward);
       for (let i = 0; i < totalReward; i++) {
         drawer.save()
-        drawer.translate(x * TILE_SIZE + rewardX - TILE_SIZE/2, y * TILE_SIZE + TILE_SIZE/2 - 16);
+        drawer.translate(
+          x * Common.TILE_SIZE + rewardX - Common.TILE_SIZE/2,
+          y * Common.TILE_SIZE + Common.TILE_SIZE/2 - 16
+        );
         drawer.scale(1/8, 1/8);
         drawer.drawSprite("resources/reward.png", 0, 0);
         drawer.restore()
@@ -952,7 +934,7 @@ function drawSelection(selectedObject: any | null) {
 
   const x = getAttr(selectedObject, "c")
   const y = getAttr(selectedObject, "r")
-  drawer.drawSprite("selection.png", x * TILE_SIZE, y * TILE_SIZE);
+  drawer.drawSprite("selection.png", x * Common.TILE_SIZE, y * Common.TILE_SIZE);
 }
 
 function drawTrajectory(selectedObject: any | null) {
@@ -1077,17 +1059,17 @@ function drawTrace(panel: PanelInfo) {
 
   if (followTraceSelection && selectedGridObject !== null) {
     panel.focusPos(
-      step * TRACE_WIDTH + TRACE_WIDTH/2,
-      getAttr(selectedGridObject, "agent_id") * TRACE_HEIGHT + TRACE_HEIGHT/2
+      step * Common.TRACE_WIDTH + Common.TRACE_WIDTH/2,
+      getAttr(selectedGridObject, "agent_id") * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT/2
     );
   }
 
   if (mouseClick &&panel.inside(mousePos)) {
     if (localMousePos != null) {
       const mapX = localMousePos.x();
-      if (mapX > 0 && mapX < replay.max_steps * TRACE_WIDTH &&
-        localMousePos.y() > 0 && localMousePos.y() < replay.num_agents * TRACE_HEIGHT) {
-        const agentId = Math.floor(localMousePos.y() / TRACE_HEIGHT);
+      if (mapX > 0 && mapX < replay.max_steps * Common.TRACE_WIDTH &&
+        localMousePos.y() > 0 && localMousePos.y() < replay.num_agents * Common.TRACE_HEIGHT) {
+        const agentId = Math.floor(localMousePos.y() / Common.TRACE_HEIGHT);
         if (agentId >= 0 && agentId < replay.num_agents) {
           followSelection = true;
           selectedGridObject = replay.agents[agentId];
@@ -1097,7 +1079,7 @@ function drawTrace(panel: PanelInfo) {
             getAttr(selectedGridObject, "r") * TILE_SIZE
           );
           // Update the step to the clicked step.
-          updateStep(Math.floor(mapX / TRACE_WIDTH));
+          updateStep(Math.floor(mapX / Common.TRACE_WIDTH));
 
           if (mouseDoubleClick) {
             followTraceSelection = true;
@@ -1111,7 +1093,10 @@ function drawTrace(panel: PanelInfo) {
   drawer.save();
   drawer.setScissorRect(panel.x, panel.y, panel.width, panel.height);
 
-  const fullSize = new Vec2f(replay.max_steps * TRACE_WIDTH, replay.num_agents * TRACE_HEIGHT);
+  const fullSize = new Vec2f(
+    replay.max_steps * Common.TRACE_WIDTH,
+    replay.num_agents * Common.TRACE_HEIGHT
+  );
 
   // Draw background
   drawer.drawSolidRect(
@@ -1129,15 +1114,15 @@ function drawTrace(panel: PanelInfo) {
 
     // Draw selection rectangle
     drawer.drawSolidRect(
-      0, agentId * TRACE_HEIGHT, fullSize.x(), TRACE_HEIGHT,
+      0, agentId * Common.TRACE_HEIGHT, fullSize.x(), Common.TRACE_HEIGHT,
       [.3, .3, .3, 1]
     );
   }
 
   // Draw current step line that goes through all of the traces
   drawer.drawSolidRect(
-    step * TRACE_WIDTH, 0,
-    TRACE_WIDTH, fullSize.y(),
+    step * Common.TRACE_WIDTH, 0,
+    Common.TRACE_WIDTH, fullSize.y(),
     [0.5, 0.5, 0.5, 0.5] // White with 50% opacity
   );
 
@@ -1151,12 +1136,14 @@ function drawTrace(panel: PanelInfo) {
       if (action_success && action != null && action[0] > 0 && action[0] < replay.action_images.length) {
         drawer.drawSprite(
           replay.action_images[action[0]],
-          j * TRACE_WIDTH + TRACE_WIDTH/2, i * TRACE_HEIGHT + TRACE_HEIGHT/2,
+          j * Common.TRACE_WIDTH + Common.TRACE_WIDTH/2,
+          i * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT/2,
         );
       } else if (action != null && action[0] > 0 && action[0] < replay.action_images.length) {
         drawer.drawSprite(
           replay.action_images[action[0]],
-          j * TRACE_WIDTH + TRACE_WIDTH/2, i * TRACE_HEIGHT + TRACE_HEIGHT/2,
+          j * Common.TRACE_WIDTH + Common.TRACE_WIDTH/2,
+          i * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT/2,
           [0.01, 0.01, 0.01, 0.01],
         );
       }
@@ -1164,7 +1151,8 @@ function drawTrace(panel: PanelInfo) {
       if (getAttr(agent, "agent:frozen", j) > 0) {
         drawer.drawSprite(
           "trace/frozen.png",
-          j * TRACE_WIDTH + TRACE_WIDTH/2, i * TRACE_HEIGHT + TRACE_HEIGHT/2,
+          j * Common.TRACE_WIDTH + Common.TRACE_WIDTH/2,
+          i * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT/2,
         );
       }
 
@@ -1173,8 +1161,8 @@ function drawTrace(panel: PanelInfo) {
       if (reward > 0) {
         drawer.drawSprite(
           "resources/reward.png",
-          j * TRACE_WIDTH + TRACE_WIDTH/2,
-          i * TRACE_HEIGHT + 256 - 32,
+          j * Common.TRACE_WIDTH + Common.TRACE_WIDTH/2,
+          i * Common.TRACE_HEIGHT + 256 - 32,
           [1.0, 1.0, 1.0, 1.0],
           1/8
         );
