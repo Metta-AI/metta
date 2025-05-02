@@ -85,7 +85,7 @@ class RandomCurriculum(Curriculum):
         task_id = random.choices(list(self._curriculums.keys()), weights=list(self._task_weights.values()))[0]
         task = self._curriculums[task_id].get_task()
         task.add_parent(self, task_id)
-        logger.info(f"Task selected: {task.name()}")
+        logger.debug(f"Task selected: {task.name()}")
         return task
 
 
@@ -101,7 +101,7 @@ class LowRewardCurriculum(RandomCurriculum):
         # Update moving average for the completed task
         old_average = self._reward_averages[id]
         self._reward_averages[id] = (1 - self._alpha) * self._reward_averages[id] + self._alpha * score
-        logger.info(f"Updated reward average for task {id} from {old_average:.3f} to {self._reward_averages[id]:.3f}")
+        logger.debug(f"Updated reward average for task {id} from {old_average:.3f} to {self._reward_averages[id]:.3f}")
         self._task_weights = {t: 1.0 / (self._reward_averages[t] + 1e-6) for t in self._curriculums.keys()}
         super().complete_task(id, score)
 
