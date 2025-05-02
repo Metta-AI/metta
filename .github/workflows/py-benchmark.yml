@@ -44,18 +44,58 @@ jobs:
       - name: Setup Python
         uses: ./.github/actions/py-setup
 
-      - name: Build C extensions (if needed)
-        run: |
-          source venv/bin/activate
-          python setup.py build_ext --inplace
-
-      - name: Run Python benchmarks
+      - name: Run Main Python benchmarks
         env:
           HYDRA_FULL_ERROR: 1
           PYTHONPATH: ${{ github.workspace }}
         run: |
           source venv/bin/activate
-          pytest tests --benchmark-json=benchmark_results.json
+          pytest --benchmark-json=main_benchmark_results.json
+
+      - name: Run Mettagrid Python benchmarks
+        env:
+          HYDRA_FULL_ERROR: 1
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          source venv/bin/activate
+          cd deps/mettagrid
+          pytest --benchmark-json=mettagrid_benchmark_results.json
+
+      - name: Combine benchmark results
+        run: |
+          source venv/bin/activate
+          python - <<EOF
+          import json
+          import os
+          
+          # Read main benchmark results
+          with open('main_benchmark_results.json', 'r') as f:
+              main_results = json.load(f)
+              
+          # Read mettagrid benchmark results if file exists
+          mettagrid_results = {}
+          if os.path.exists('deps/mettagrid/mettagrid_benchmark_results.json'):
+              with open('deps/mettagrid/mettagrid_benchmark_results.json', 'r') as f:
+                  mettagrid_results = json.load(f)
+          
+          # Combine results
+          combined_results = main_results.copy()
+          
+          # If mettagrid results exist, add its benchmarks to the combined results
+          if mettagrid_results:
+              # Add benchmark entries
+              if "benchmarks" in mettagrid_results and "benchmarks" in combined_results:
+                  combined_results["benchmarks"].extend(mettagrid_results["benchmarks"])
+              
+              # Merge other fields as needed
+              for key in mettagrid_results:
+                  if key != "benchmarks" and key not in combined_results:
+                      combined_results[key] = mettagrid_results[key]
+          
+          # Write combined results
+          with open('combined_benchmark_results.json', 'w') as f:
+              json.dump(combined_results, f, indent=2)
+          EOF
 
       - name: Install Bencher CLI
         uses: bencherdev/bencher@main
@@ -68,18 +108,41 @@ jobs:
           echo "Bencher token length: ${#BENCHER_API_TOKEN}"
           echo "Bencher token SHA256: $(echo -n "$BENCHER_API_TOKEN" | sha256sum)"
 
-      - name: Upload to Bencher
+      - name: Upload to Bencher (Main Branch Baseline)
         env:
           BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BRANCH_NAME: ${{ github.ref == 'refs/heads/main' ? 'master' : (GITHUB_HEAD_REF != '' ? GITHUB_HEAD_REF : 'manual-run') }}
-        if: github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork) || github.event_name == 'workflow_dispatch'
+        if: github.ref == 'refs/heads/main'
         run: |
           bencher run \
             --project mettagrid-sv3f5i2k \
             --token "$BENCHER_API_TOKEN" \
-            --branch "$BRANCH_NAME" \
+            --branch main \
+            --testbed ubuntu-latest \
+            --threshold-measure latency \
+            --threshold-test t_test \
+            --threshold-max-sample-size 64 \
+            --threshold-upper-boundary 0.99 \
+            --thresholds-reset \
+            --adapter python_pytest \
+            --github-actions "$GITHUB_TOKEN" \
+            --file combined_benchmark_results.json > /dev/null
+
+      - name: Upload to Bencher (PR Performance Changes)
+        env:
+          BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        if: github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
+        run: |
+          bencher run \
+            --project mettagrid-sv3f5i2k \
+            --token "$BENCHER_API_TOKEN" \
+            --branch "$GITHUB_HEAD_REF" \
+            --start-point "$GITHUB_BASE_REF" \
+            --start-point-hash '${{ github.event.pull_request.base.sha }}' \
+            --start-point-clone-thresholds \
+            --start-point-reset \
             --testbed ubuntu-latest \
             --adapter python_pytest \
             --github-actions "$GITHUB_TOKEN" \
-            --file benchmark_results.json > /dev/null
+            --file combined_benchmark_results.json > /dev/null
