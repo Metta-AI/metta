@@ -1,12 +1,10 @@
 import { Vec2f, Mat3f } from './vector_math.js';
 import { Context3d } from './context3d.js';
 import * as Common from './common.js';
-import { ui, state, html, ctx,requestFrame } from './common.js';
+import { ui, state, html, ctx } from './common.js';
 import { fetchReplay, readFile } from './replay.js';
-import { focusFullMap, updateReadout, drawMap, drawTrace } from './drawing.js';
+import { focusFullMap, updateReadout, drawMap, drawTrace, requestFrame } from './drawing.js';
 import { PanelInfo } from './panels.js';
-
-// Get the html elements we will use.
 
 // Handle resize events.
 function onResize() {
