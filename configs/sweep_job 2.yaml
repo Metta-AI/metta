@@ -1,0 +1,32 @@
+defaults:
+  - common
+  - wandb: metta_research
+  - agent: simple
+  - sim: navigation
+  - analyzer: eval_analyzer
+  - trainer: puffer
+  - _self_
+
+cmd: sweep
+sweep_name: ???
+sweep_params: "sweep/full"
+sweep_params_override: {}
+sweep: ???
+
+# metric: heart.get
+metric: episode_reward
+num_random_samples: 10
+
+trainer:
+  evaluate_interval: 300
+
+sim:
+  num_envs: 5
+  num_episodes: 5
+  eval_db_uri: null
+
+sweep_job:
+  evals: ${sim}
+
+sweep_dir: "${.data_dir}/sweep/${.sweep_name}"
+runs_dir: "${.sweep_dir}/runs"

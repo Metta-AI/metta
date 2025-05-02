@@ -1,0 +1,10 @@
+# This is meant as a smoke test, rather than a full evaluation.
+
+defaults:
+  - sim
+  - _self_
+
+
+simulations:
+  emptyspace_withinsight:
+    env: env/mettagrid/navigation/evals/emptyspace_withinsight
