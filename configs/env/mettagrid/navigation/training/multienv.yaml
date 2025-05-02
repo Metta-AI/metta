@@ -12,4 +12,4 @@ envs:
   - /env/mettagrid/navigation/training/varied_terrain_all_sparse
   - /env/mettagrid/navigation/training/varied_terrain_balanced
   - /env/mettagrid/navigation/training/varied_terrain_maze
-  - /env/mettagrid/navigation/training/varied_terrain_sparse_objects_dense_altars
+  - /env/mettagrid/navigation/training/varied_terrain_sparse_altars_dense_objects
