@@ -1,7 +1,7 @@
 from libc.stdio cimport printf
 from libcpp.vector cimport vector
 from libcpp.string cimport string
-
+from libcpp.map cimport map
 import numpy as np
 cimport numpy as cnp
 import gymnasium as gym
@@ -15,7 +15,6 @@ from mettagrid.grid cimport Grid
 from mettagrid.grid_object cimport (
     GridObject,
     GridObjectId,
-    Layer,
     GridLocation
 )
 from mettagrid.objects.agent cimport Agent
@@ -46,6 +45,11 @@ obs_np_type = np.uint8
 
 cdef class GridEnv:
     cdef:
+        object _cfg
+        map[unsigned int, float] _group_reward_pct
+        map[unsigned int, unsigned int] _group_sizes
+        cnp.ndarray _group_rewards_np
+        double[:] _group_rewards
         Grid *_grid
         EventManager _event_manager
         unsigned int _current_timestep
