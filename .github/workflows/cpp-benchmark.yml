@@ -64,11 +64,43 @@ jobs:
         run: |
           cd deps/mettagrid
           mkdir -p benchmark_output
-          # Redirect benchmark output to JSON
-          for bench_exec in $(find build/benchmarks -type f -executable); do
+
+          # Find executables with more detailed output
+          echo "DEBUG: Searching for benchmark executables:"
+          find_result=$(find build/benchmarks -type f -executable 2>/dev/null)
+          if [ -z "$find_result" ]; then
+            echo "DEBUG: No executable files found in build/benchmarks"
+          else
+            echo "DEBUG: Found executables:"
+            echo "$find_result"
+          fi
+          
+          # Check benchmark directory structure
+          echo "DEBUG: Full benchmark directory structure:"
+          find build -name benchmarks -type d -exec find {} -type f -ls \;
+          
+          # Run benchmarks with additional error checking
+          echo "DEBUG: Attempting to run benchmarks:"
+          for bench_exec in $(find build/benchmarks -type f -executable 2>/dev/null); do
+            echo "DEBUG: Found benchmark executable: $bench_exec"
             echo "Running benchmark $bench_exec..."
-            $bench_exec --benchmark_format=json > benchmark_output/$(basename $bench_exec).json
+            
+            # Run with error checking
+            if ! $bench_exec --benchmark_format=json > benchmark_output/$(basename $bench_exec).json 2>benchmark_output/$(basename $bench_exec).error.log; then
+              echo "DEBUG: Error running benchmark $bench_exec - check error log"
+              echo "DEBUG: Error output:"
+              cat benchmark_output/$(basename $bench_exec).error.log
+            else
+              echo "DEBUG: Successfully generated JSON for $bench_exec"
+              echo "DEBUG: Output file size: $(stat -c %s benchmark_output/$(basename $bench_exec).json) bytes"
+              echo "DEBUG: First few lines of output:"
+              head -n 10 benchmark_output/$(basename $bench_exec).json
+            fi
           done
+    
+    # Check what files were created
+    echo "DEBUG: Listing benchmark_output directory after execution:"
+    ls -la benchmark_output/
           
       - name: Install Bencher CLI
         if: env.EARLY_EXIT == 'false'
@@ -95,24 +127,27 @@ jobs:
           BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          ls -al
           cd deps/mettagrid/benchmark_output
           ls -al
-          for file in *.json; do
-            bencher run \
-              --project mettagrid-sv3f5i2k \
-              --token "$BENCHER_API_TOKEN" \
-              --branch main \
-              --threshold-measure latency \
-              --threshold-test t_test \
-              --threshold-max-sample-size 64 \
-              --threshold-upper-boundary 0.99 \
-              --thresholds-reset \
-              --testbed ubuntu-latest \
-              --adapter cpp_google \
-              --github-actions "$GITHUB_TOKEN" \
-              --file "$file" > /dev/null
-          done
+          if ls *.json 1> /dev/null 2>&1; then
+            for file in *.json; do
+              bencher run \
+                --project mettagrid-sv3f5i2k \
+                --token "$BENCHER_API_TOKEN" \
+                --branch main \
+                --threshold-measure latency \
+                --threshold-test t_test \
+                --threshold-max-sample-size 64 \
+                --threshold-upper-boundary 0.99 \
+                --thresholds-reset \
+                --testbed ubuntu-latest \
+                --adapter cpp_google \
+                --github-actions "$GITHUB_TOKEN" \
+                --file "$file" > /dev/null
+            done
+          else
+            echo "NO TEST RESULTS FOUND"
+          fi
           
       - name: Upload to Bencher (PR Performance Changes)
         if: env.EARLY_EXIT == 'false' && github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
@@ -120,23 +155,26 @@ jobs:
           BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          ls -al
           cd deps/mettagrid/benchmark_output
           ls -al
-          for file in *.json; do
-            bencher run \
-              --project mettagrid-sv3f5i2k \
-              --token "$BENCHER_API_TOKEN" \
-              --branch "$GITHUB_HEAD_REF" \
-              --start-point "main" \
-              --start-point-hash "${{ steps.get-main-sha.outputs.MAIN_SHA }}" \
-              --start-point-clone-thresholds \
-              --start-point-reset \
-              --testbed ubuntu-latest \
-              --adapter cpp_google \
-              --github-actions "$GITHUB_TOKEN" \
-              --file "$file" > /dev/null
-          done
+          if ls *.json 1> /dev/null 2>&1; then
+            for file in *.json; do
+              bencher run \
+                --project mettagrid-sv3f5i2k \
+                --token "$BENCHER_API_TOKEN" \
+                --branch "$GITHUB_HEAD_REF" \
+                --start-point "main" \
+                --start-point-hash "${{ steps.get-main-sha.outputs.MAIN_SHA }}" \
+                --start-point-clone-thresholds \
+                --start-point-reset \
+                --testbed ubuntu-latest \
+                --adapter cpp_google \
+                --github-actions "$GITHUB_TOKEN" \
+                --file "$file" > /dev/null
+            done
+          else
+            echo "NO TEST RESULTS FOUND"
+          fi
           
       - name: Skip benchmarking (no relevant changes)
         if: env.EARLY_EXIT == 'true'
