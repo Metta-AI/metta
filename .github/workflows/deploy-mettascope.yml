@@ -4,9 +4,9 @@ on:
   push:
     branches:
       - main
-  pull_request:
-    types: [opened, synchronize, ready_for_review]
-    branches: [main]
+    paths:
+      - "deps/mettagrid/player/**" # Run when any file in player directory changes
+      - ".github/workflows/**" # Run when workflow files change
   workflow_dispatch: {}
 
 # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
@@ -15,9 +15,9 @@ permissions:
   pages: write
   id-token: write
 
-# Configure concurrency to ensure only one deployment runs at a time
+# Configure concurrency to always run
 concurrency:
-  group: pages-${{ github.workflow }}-${{ github.ref }}
+  group: pages-${{ github.ref }}-${{ github.sha }}
   cancel-in-progress: false
 
 jobs:
@@ -32,31 +32,10 @@ jobs:
         with:
           fetch-depth: 0 # Get all history to ensure we don't hit caching issues
       
-      - name: Check for player file changes
-        id: check_files
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v6
-        with:
-          script: |
-            const { data: changedFiles } = await github.rest.pulls.listFiles({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: context.issue.number,
-            });
-            
-            const hasRelevantChanges = changedFiles.some(file => {
-              return file.filename.includes('deps/mettagrid/player/') || 
-                     file.filename.includes('.github/workflows/');
-            });
-            
-            core.setOutput('has_relevant_changes', hasRelevantChanges);
-      
       - name: Set relevant changes for push/dispatch events
-        if: github.event_name != 'pull_request'
         run: echo "HAS_RELEVANT_CHANGES=true" >> $GITHUB_ENV
       
       - name: Setup Node.js
-        if: github.event_name != 'pull_request' || steps.check_files.outputs.has_relevant_changes == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: "20"
@@ -64,50 +43,36 @@ jobs:
           cache-dependency-path: 'deps/mettagrid/player/package-lock.json'
       
       - name: Install and build TypeScript
-        if: github.event_name != 'pull_request' || steps.check_files.outputs.has_relevant_changes == 'true'
         run: |
           cd deps/mettagrid/player
           npm ci
           npx tsc
       
       - name: Setup Python
-        if: github.event_name != 'pull_request' || steps.check_files.outputs.has_relevant_changes == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: 'pip'
       
       - name: Install Python dependencies
-        if: github.event_name != 'pull_request' || steps.check_files.outputs.has_relevant_changes == 'true'
         run: |
           python -m pip install --upgrade pip
           pip install pixie-python
       
       - name: Generate Atlas
-        if: github.event_name != 'pull_request' || steps.check_files.outputs.has_relevant_changes == 'true'
         run: |
           cd deps/mettagrid/player
           python3 tools/gen_atlas.py
       
-      # Only deploy on push to main or manual workflow dispatch, not on PRs
       - name: Setup Pages
-        if: (github.event_name != 'pull_request' || steps.check_files.outputs.has_relevant_changes == 'true') && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         uses: actions/configure-pages@v4
       
       - name: Upload artifact
-        if: (github.event_name != 'pull_request' || steps.check_files.outputs.has_relevant_changes == 'true') && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         uses: actions/upload-pages-artifact@v3
         with:
           path: "./deps/mettagrid/player"
       
       - name: Deploy to GitHub Pages
         id: deployment
-        if: (github.event_name != 'pull_request' || steps.check_files.outputs.has_relevant_changes == 'true') && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         uses: actions/deploy-pages@v4
 
-      - name: Skip deployment (no relevant changes)
-        if: github.event_name == 'pull_request' && steps.check_files.outputs.has_relevant_changes != 'true'
-        run: |
-          echo "No files in deps/mettagrid/player/ or .github/workflows/ were changed."
-          echo "Skipping deployment - this check passes automatically."
-          
