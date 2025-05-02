@@ -21,8 +21,8 @@ from metta.agent.util.weights_analysis import WeightsMetricsHelper
 from metta.eval.analysis_config import AnalyzerConfig
 from metta.rl.pufferlib.experience import Experience
 from metta.rl.pufferlib.kickstarter import Kickstarter
-from metta.rl.pufferlib.torch_profiler import TorchProfiler
 from metta.rl.pufferlib.profile import Profile
+from metta.rl.pufferlib.torch_profiler import TorchProfiler
 from metta.rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
 from metta.sim.eval_stats_analyzer import EvalStatsAnalyzer
 from metta.sim.eval_stats_db import EvalStatsDB
