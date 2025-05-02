@@ -567,10 +567,10 @@ function focusFullMap(panel: PanelInfo) {
 }
 
 // Draw the tiles that make up the floor.
-function drawFloor(mapSize: [number, number]) {
+function drawFloor() {
 
   // Compute the visibility map, each agent contributes to the visibility map.
-  const visibilityMap = new Grid(mapSize[0], mapSize[1]);
+  const visibilityMap = new Grid(state.replay.map_size[0], state.replay.map_size[1]);
 
   // Update the visibility map for a grid object.
   function updateVisibilityMap(gridObject: any) {
@@ -608,8 +608,8 @@ function drawFloor(mapSize: [number, number]) {
   }
 
   // Draw the floor, darker where there is no visibility.
-  for (let x = 0; x < mapSize[0]; x++) {
-    for (let y = 0; y < mapSize[1]; y++) {
+  for (let x = 0; x < state.replay.map_size[0]; x++) {
+    for (let y = 0; y < state.replay.map_size[1]; y++) {
       const color = visibilityMap.get(x, y) ? [1, 1, 1, 1] : [0.75, 0.75, 0.75, 1];
       drawer.drawSprite('objects/floor.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE, color);
     }
@@ -1037,7 +1037,7 @@ function drawMap(panel: PanelInfo) {
   drawer.scale(panel.zoomLevel, panel.zoomLevel);
   drawer.translate(panel.panPos.x(), panel.panPos.y());
 
-  drawFloor(state.replay.map_size);
+  drawFloor();
   drawWalls();
   drawTrajectory();
   drawObjects();
