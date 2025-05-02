@@ -31,7 +31,6 @@ jobs:
       - name: Setup Git dependencies (Cython build)
         run: |
           source venv/bin/activate
-          mkdir -p deps
           bash ./devops/setup_build.sh
 
       - name: List installed packages
