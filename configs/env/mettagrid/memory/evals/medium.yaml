@@ -14,7 +14,7 @@ game:
     room:
       _target_: mettagrid.config.room.ascii.Ascii
       border_width: 1
-      uri: "configs/env/mettagrid/maps/memory/memory_medium_eval.map"
+      uri: "configs/env/mettagrid/maps/memory/memory_medium.map"
 
   objects:
     altar:
