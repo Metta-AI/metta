@@ -1,7 +1,12 @@
 name: Dependabot PR Assignment
+
 on:
-  pull_request:
-    types: [opened]
+  # Schedule to run 3 hours after Dependabot's weekly run on Monday
+  schedule:
+    # Run every Monday at 12:00 UTC (3 hours after Dependabot runs at 09:00 UTC)
+    - cron: '0 12 * * 1'
+  
+  # Keep manual trigger option
   workflow_dispatch:
     inputs:
       process-all:
@@ -12,36 +17,29 @@ on:
         description: 'Process specific PR number (leave empty to process all)'
         required: false
         type: string
+
 jobs:
-  check-dependabot-single:
+  process-dependabot-prs:
     runs-on: ubuntu-latest
-    # Run for single Dependabot PRs or if specific PR is provided
-    if: (github.actor == 'dependabot[bot]' && github.event_name == 'pull_request') || (github.event_name == 'workflow_dispatch' && github.event.inputs.specific-pr != '')
     permissions:
       pull-requests: write
       contents: read
     steps:
       - uses: actions/checkout@v4
-      - name: Assign and request reviews for specific PR
+      
+      - name: Process specific PR if provided
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.specific-pr != ''
         uses: ./.github/actions/pr-assignment
         with:
-          pr-number: ${{ github.event.pull_request.number || github.event.inputs.specific-pr }}
+          pr-number: ${{ github.event.inputs.specific-pr }}
           possible-assignees: ${{ vars.DEPENDABOT_ASSIGNEES || '' }}
           possible-reviewers: ${{ vars.DEPENDABOT_REVIEWERS || '' }}
           forced-assignees: ${{ vars.DEPENDABOT_FORCED_ASSIGNEES || '' }}
           forced-reviewers: ${{ vars.DEPENDABOT_FORCED_REVIEWERS || '' }}
           forced-labels: ${{ vars.DEPENDABOT_FORCED_LABELS || '' }}
-          
-  process-all-dependabot:
-    runs-on: ubuntu-latest
-    # Only run for manual workflow dispatch with process-all=true and no specific PR
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.process-all == 'true' && github.event.inputs.specific-pr == ''
-    permissions:
-      pull-requests: write
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-      - name: Find and process all open Dependabot PRs
+      
+      - name: Process all open Dependabot PRs
+        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.specific-pr == '')
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -53,26 +51,19 @@ jobs:
           FORCED_LABELS: ${{ vars.DEPENDABOT_FORCED_LABELS || '' }}
         run: |
           echo "Finding all open Dependabot PRs..."
-          
           # Get all open PRs created by Dependabot
           DEPENDABOT_PRS=$(gh pr list --repo $REPO --author "dependabot[bot]" --state open --json number --jq '.[].number')
-          
           if [ -z "$DEPENDABOT_PRS" ]; then
             echo "No open Dependabot PRs found."
             exit 0
           fi
-          
           echo "Found open Dependabot PRs: $DEPENDABOT_PRS"
-          
           # Process each PR
           for PR_NUMBER in $DEPENDABOT_PRS; do
             echo "Processing Dependabot PR #$PR_NUMBER"
-            
             # Use the PR assignment action for each PR
             ./.github/actions/pr-assignment/run.sh "$PR_NUMBER" "$POSSIBLE_ASSIGNEES" "$POSSIBLE_REVIEWERS" "$FORCED_ASSIGNEES" "$FORCED_REVIEWERS" "$FORCED_LABELS"
-            
             # Small delay to avoid API rate limits
             sleep 2
           done
-          
           echo "All Dependabot PRs processed."
