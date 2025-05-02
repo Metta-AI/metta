@@ -1,34 +1,14 @@
 name: py-benchmark
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review]
     branches: [main]
-    paths:
-      - '**.py'
-      - 'requirements.txt'
-      - 'setup.py'
-      - 'tests/**'
-      - 'benchmarks/**'
-      - 'deps/mettagrid/tests/**'
-      - 'deps/mettagrid/benchmarks/**'
   push:
     branches: [main]
-    paths:
-      - '**.py'
-      - 'requirements.txt'
-      - 'setup.py'
-      - 'tests/**'
-      - 'benchmarks/**'
-      - 'deps/mettagrid/tests/**'
-      - 'deps/mettagrid/benchmarks/**'
   workflow_dispatch: {}
-
-
 jobs:
   py-benchmark:
     if: github.event.pull_request.draft == false || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
@@ -41,26 +21,112 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Check for Python file changes
+        id: check_files
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const { data: changedFiles } = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+            
+            const hasRelevantChanges = changedFiles.some(file => {
+              return file.filename.endsWith('.py') || 
+                     file.filename === 'requirements.txt' ||
+                     file.filename === 'setup.py' ||
+                     file.filename.includes('tests/') ||
+                     file.filename.includes('benchmarks/') ||
+                     file.filename.includes('deps/mettagrid/tests/') ||
+                     file.filename.includes('deps/mettagrid/benchmarks/');
+            });
+            
+            core.setOutput('has_relevant_changes', hasRelevantChanges);
+            
+      - name: Set relevant changes for push events
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        run: echo "HAS_RELEVANT_CHANGES=true" >> $GITHUB_ENV
+            
+      - name: Skip benchmarking (no relevant changes)
+        if: github.event_name == 'pull_request' && steps.check_files.outputs.has_relevant_changes != 'true'
+        run: |
+          echo "No Python files or benchmark-related files were changed. Skipping benchmarks."
+          echo "This check passes automatically when no relevant files are changed."
+
+      - name: Get main branch head SHA
+        if: github.event_name != 'pull_request' || steps.check_files.outputs.has_relevant_changes == 'true'
+        id: get-main-sha
+        run: |
+          echo "MAIN_SHA=$(git rev-parse origin/main)" >> $GITHUB_OUTPUT
+
       - name: Setup Python
+        if: github.event_name != 'pull_request' || steps.check_files.outputs.has_relevant_changes == 'true'
         uses: ./.github/actions/py-setup
 
-      - name: Build C extensions (if needed)
-        run: |
-          source venv/bin/activate
-          python setup.py build_ext --inplace
-
-      - name: Run Python benchmarks
+      - name: Run Main Python benchmarks
+        if: github.event_name != 'pull_request' || steps.check_files.outputs.has_relevant_changes == 'true'
         env:
           HYDRA_FULL_ERROR: 1
           PYTHONPATH: ${{ github.workspace }}
         run: |
           source venv/bin/activate
-          pytest tests --benchmark-json=benchmark_results.json
+          pytest --benchmark-json=main_benchmark_results.json
+
+      - name: Run Mettagrid Python benchmarks
+        if: github.event_name != 'pull_request' || steps.check_files.outputs.has_relevant_changes == 'true'
+        env:
+          HYDRA_FULL_ERROR: 1
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          source venv/bin/activate
+          cd deps/mettagrid
+          pytest --benchmark-json=mettagrid_benchmark_results.json
+
+      - name: Combine benchmark results
+        if: github.event_name != 'pull_request' || steps.check_files.outputs.has_relevant_changes == 'true'
+        run: |
+          source venv/bin/activate
+          python - <<EOF
+          import json
+          import os
+          
+          # Read main benchmark results
+          with open('main_benchmark_results.json', 'r') as f:
+              main_results = json.load(f)
+              
+          # Read mettagrid benchmark results if file exists
+          mettagrid_results = {}
+          if os.path.exists('deps/mettagrid/mettagrid_benchmark_results.json'):
+              with open('deps/mettagrid/mettagrid_benchmark_results.json', 'r') as f:
+                  mettagrid_results = json.load(f)
+          
+          # Combine results
+          combined_results = main_results.copy()
+          
+          # If mettagrid results exist, add its benchmarks to the combined results
+          if mettagrid_results:
+              # Add benchmark entries
+              if "benchmarks" in mettagrid_results and "benchmarks" in combined_results:
+                  combined_results["benchmarks"].extend(mettagrid_results["benchmarks"])
+              
+              # Merge other fields as needed
+              for key in mettagrid_results:
+                  if key != "benchmarks" and key not in combined_results:
+                      combined_results[key] = mettagrid_results[key]
+          
+          # Write combined results
+          with open('combined_benchmark_results.json', 'w') as f:
+              json.dump(combined_results, f, indent=2)
+          EOF
 
       - name: Install Bencher CLI
+        if: github.event_name != 'pull_request' || steps.check_files.outputs.has_relevant_changes == 'true'
         uses: bencherdev/bencher@main
 
       - name: Validate Bencher Token
+        if: github.event_name != 'pull_request' || steps.check_files.outputs.has_relevant_changes == 'true'
         env:
           BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -68,18 +134,41 @@ jobs:
           echo "Bencher token length: ${#BENCHER_API_TOKEN}"
           echo "Bencher token SHA256: $(echo -n "$BENCHER_API_TOKEN" | sha256sum)"
 
-      - name: Upload to Bencher
+      - name: Upload to Bencher (Main Branch Baseline)
+        if: (github.event_name != 'pull_request' || steps.check_files.outputs.has_relevant_changes == 'true') && github.ref == 'refs/heads/main'
         env:
           BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BRANCH_NAME: ${{ github.ref == 'refs/heads/main' ? 'master' : (GITHUB_HEAD_REF != '' ? GITHUB_HEAD_REF : 'manual-run') }}
-        if: github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork) || github.event_name == 'workflow_dispatch'
         run: |
           bencher run \
             --project mettagrid-sv3f5i2k \
             --token "$BENCHER_API_TOKEN" \
-            --branch "$BRANCH_NAME" \
+            --branch main \
+            --testbed ubuntu-latest \
+            --threshold-measure latency \
+            --threshold-test t_test \
+            --threshold-max-sample-size 64 \
+            --threshold-upper-boundary 0.99 \
+            --thresholds-reset \
+            --adapter python_pytest \
+            --github-actions "$GITHUB_TOKEN" \
+            --file combined_benchmark_results.json > /dev/null
+
+      - name: Upload to Bencher (PR Performance Changes)
+        if: github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork && steps.check_files.outputs.has_relevant_changes == 'true'
+        env:
+          BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          bencher run \
+            --project mettagrid-sv3f5i2k \
+            --token "$BENCHER_API_TOKEN" \
+            --branch "$GITHUB_HEAD_REF" \
+            --start-point "main" \
+            --start-point-hash "${{ steps.get-main-sha.outputs.MAIN_SHA }}" \
+            --start-point-clone-thresholds \
+            --start-point-reset \
             --testbed ubuntu-latest \
             --adapter python_pytest \
             --github-actions "$GITHUB_TOKEN" \
-            --file benchmark_results.json > /dev/null
+            --file combined_benchmark_results.json > /dev/null
