@@ -5,7 +5,7 @@ resource "tailscale_tailnet_key" "efs_proxy" {
   recreate_if_invalid = "always"
   description         = "EFS proxy key"
   tags                = ["tag:efs-proxy"]
-  depends_on          = [tailscale_acl.acl]
+  depends_on          = [tailscale_acl.acl] # won't work until the tag is mentioned in ACL
 }
 
 # TODO: there can be only one ACL per tailnet. So after we add more terraform
