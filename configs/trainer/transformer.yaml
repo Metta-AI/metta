@@ -4,9 +4,9 @@ defaults:
 
 forward_pass_minibatch_target_size: 288 # 288 (agents (36 * 8))
 batch_size: 147456 # 288 * 512
-minibatch_size: 36864 #18432 # 147456 / 8
+minibatch_size: 18432 # 147456 / 8
 bptt_horizon: 512
-update_epochs: 3
+update_epochs: 1
 
 
 clip_coef: 0.1

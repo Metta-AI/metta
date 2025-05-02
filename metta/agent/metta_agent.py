@@ -139,13 +139,14 @@ class MettaAgent(nn.Module):
         td = TensorDict(
             {
                 "x": x,
-                "state": None,
-                "time_steps": time_steps
             }
         )
 
-        if state.lstm_h is not None:
+        if state.lstm_h is not None and state.lstm_c is not None:
             td["state"] = torch.cat([state.lstm_h, state.lstm_c], dim=0).to(x.device)
+
+        if time_steps is not None:
+            td["time_steps"] = time_steps
 
         self.components["_value_"](td)
         self.components["_action_type_"](td)
@@ -154,9 +155,10 @@ class MettaAgent(nn.Module):
         logits = [td["_action_type_"], td["_action_param_"]]
         value = td["_value_"]
 
-        split_size = self.core_num_layers
-        state.lstm_h = td["state"][:split_size]
-        state.lstm_c = td["state"][split_size:]
+        if state.lstm_h is not None and state.lstm_c is not None:
+            split_size = self.core_num_layers
+            state.lstm_h = td["state"][:split_size]
+            state.lstm_c = td["state"][split_size:]
 
         return logits, value
 

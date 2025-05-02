@@ -160,27 +160,18 @@ class Simulation:
         logger.info(f"Simulation settings: {self._config}")
 
         obs, _ = self._vecenv.reset()
-<<<<<<< HEAD
-        policy_rnn_state = None
-        npc_rnn_state = None
         time_steps = torch.zeros((self._vecenv.num_agents, 1), dtype=torch.long, device=self._device)
-        time_step = 0
-=======
         policy_state = PolicyState()
         npc_state = PolicyState()
->>>>>>> origin/main
 
         game_stats = []
         start = time.time()
 
-<<<<<<< HEAD
         self._policy_pr.policy().eval()
         if self._npc_pr is not None:
             self._npc_pr.policy().eval()
-=======
         # Track environment completion status
         env_dones = [False] * self._num_envs
->>>>>>> origin/main
 
         # set of episodes that parallelize the environments
         while (self._episode_counters < self._min_episodes).any() and time.time() - start < self._max_time_s:
@@ -192,27 +183,17 @@ class Simulation:
 
                 # Parallelize across opponents
                 policy = self._policy_pr.policy()  # policy to evaluate
-<<<<<<< HEAD
-                policy_actions, _, _, _, policy_rnn_state, _, _, _ = policy(my_obs, policy_rnn_state, time_steps=policy_time_steps)
-=======
-                logits, _ = policy(my_obs, policy_state)
+                logits, _ = policy(my_obs, policy_state, time_steps=policy_time_steps)
                 policy_actions, _, _, _ = sample_logits(logits)
->>>>>>> origin/main
 
                 # Iterate opponent policies
                 if self._npc_pr is not None:
                     npc_obs = obs[self._npc_idxs]
-<<<<<<< HEAD
                     npc_time_steps = time_steps[self._npc_idxs]
-                    npc_rnn_state = npc_rnn_state
 
                     npc_policy = self._npc_pr.policy()
-                    npc_action, _, _, _, npc_rnn_state, _, _, _ = npc_policy(npc_obs, npc_rnn_state, time_steps=npc_time_steps)
-=======
-                    npc_policy = self._npc_pr.policy()
-                    npc_logits, _ = npc_policy(npc_obs, npc_state)
+                    npc_logits, _ = npc_policy(npc_obs, npc_state, time_steps=npc_time_steps)
                     npc_actions, _, _, _ = sample_logits(npc_logits)
->>>>>>> origin/main
 
             actions = policy_actions
             if self._npc_agents_per_env > 0:
@@ -227,12 +208,6 @@ class Simulation:
             actions = actions.view(self._num_envs * self._agents_per_env, -1)
             actions_np = actions.cpu().numpy()
 
-<<<<<<< HEAD
-            obs, rewards, dones, truncated, infos = self._vecenv.step(actions.cpu().numpy())
-            time_steps += 1
-            time_steps[dones] = 0
-            time_steps[truncated] = 0
-=======
             if self._replay_helpers is not None:
                 actions_per_env = actions_np.reshape(self._num_envs, self._agents_per_env, -1)
                 for env_idx in range(self._num_envs):
@@ -240,7 +215,9 @@ class Simulation:
                         self._replay_helpers[env_idx].log_pre_step(actions_per_env[env_idx].squeeze())
             # Step the environment
             obs, rewards, dones, truncated, infos = self._vecenv.step(actions_np)
->>>>>>> origin/main
+            time_steps += 1
+            time_steps[dones] = 0
+            time_steps[truncated] = 0
 
             if self._replay_helpers is not None:
                 rewards_per_env = rewards.reshape(self._num_envs, self._agents_per_env)

@@ -139,12 +139,13 @@ class PufferTrainer:
         self.epoch = checkpoint.epoch
 
         assert self.trainer_cfg.optimizer.type in ("adam", "muon")
-        opt_cls = torch.optim.Adam if self.trainer_cfg.optimizer.type == "adam" else ForeachMuon
+        opt_cls = torch.optim.AdamW if self.trainer_cfg.optimizer.type == "adam" else ForeachMuon
         self.optimizer = opt_cls(
             self.policy.parameters(),
             lr=self.trainer_cfg.optimizer.learning_rate,
             betas=(self.trainer_cfg.optimizer.beta1, self.trainer_cfg.optimizer.beta2),
             eps=self.trainer_cfg.optimizer.eps,
+            weight_decay=2e-6
         )
 
         self.lr_scheduler = None
@@ -335,11 +336,17 @@ class PufferTrainer:
                 t = torch.as_tensor(t)
 
             with profile.eval_forward, torch.no_grad():
-                state = PolicyState(lstm_h=lstm_h[:, gpu_env_id], lstm_c=lstm_c[:, gpu_env_id])
-                logits, value = policy(o_device, state)
+                if lstm_h is not None and lstm_c is not None:
+                    state = PolicyState(lstm_h=lstm_h[:, gpu_env_id], lstm_c=lstm_c[:, gpu_env_id])
+                else:
+                    state = PolicyState()
+                
+                logits, value = policy(o_device, state, time_steps=self.time_steps)
                 actions, logprob, _, _ = sample_logits(logits)
-                lstm_h[:, gpu_env_id] = state.lstm_h
-                lstm_c[:, gpu_env_id] = state.lstm_c
+                
+                if lstm_h is not None and lstm_c is not None:
+                    lstm_h[:, gpu_env_id] = state.lstm_h
+                    lstm_c[:, gpu_env_id] = state.lstm_c
 
                 if self.device == "cuda":
                     torch.cuda.synchronize()
@@ -353,7 +360,7 @@ class PufferTrainer:
                 actions = actions.cpu().numpy()
                 mask = torch.as_tensor(mask)  # * policy.mask)
                 o = o if self.trainer_cfg.cpu_offload else o_device
-                self.experience.store(o, value, actions, logprob, r, d, cpu_env_id, mask)
+                self.experience.store(o, value, actions, logprob, r, t, cpu_env_id, mask)
 
                 for i in info:
                     for k, v in pufferlib.utils.unroll_nested_dict(i):

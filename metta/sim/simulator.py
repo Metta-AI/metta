@@ -42,7 +42,7 @@ class Simulator:
         """Get the actions for the current timestep"""
         with torch.no_grad():
             obs = torch.as_tensor(self.obs).to(device=self.device)
-            logits, value = self.policy(obs, self.policy_state)
+            logits, value = self.policy(obs, self.policy_state, time_steps=self.time_steps)
             actions, _, _, _ = sample_logits(logits)
         return actions
 
@@ -51,7 +51,7 @@ class Simulator:
         (self.obs, self.rewards, self.dones, self.trunc, self.infos) = self.vecenv.step(actions.cpu().numpy())
         self.total_rewards += self.rewards
         self.time_steps +=1
-        self.time_steps[self.dones | self.trunc] = 0
+        self.time_steps[self.dones] = 0
         self.time_steps[self.trunc] = 0
 
     def done(self):

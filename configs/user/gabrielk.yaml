@@ -12,40 +12,40 @@ device: cuda
 vectorization: serial
 
 trainer:
-  num_workers: 8 # num cores
+  num_workers: 8 #8 # num cores
   async_factor: 1
   zero_copy: true
   # checkpoint_interval: 300
-  env: /env/mettagrid-base/simple
+  # env: /env/mettagrid/simple
   env_overrides:
     sampling: 0.7
     game:
       num_agents: 36
       max_steps: 511 # 512 - 1
 
-analyzer:
-  eval_stats_uri: ${run_dir}/eval_stats
-  policy_uri: ${..policy_uri}
-  analysis:
-    metrics:
-      - metric: episode_reward
-  output_path: navigation_results/navigation.html
+# analyzer:
+#   eval_stats_uri: ${run_dir}/eval_stats
+#   policy_uri: ${..policy_uri}
+#   analysis:
+#     metrics:
+#       - metric: episode_reward
+#   output_path: navigation_results/navigation.html
 
-eval:
-  env: /env/mettagrid/navigation/training/varied_terrain
+# eval:
+#   env: /env/mettagrid/navigation/training/varied_terrain
 
-  policy_uri: ${..policy_uri}
-  eval_db_uri: ${..eval_db_uri}
-  policy_uris:
-    - "wandb://run/b.daphne.navigation_terrain_training_v2"
-    - "wandb://run/b.georgedeane.navigation_terrain_training_v2"
-    - "wandb://run/b.daphne.navigation_terrain_training"
+#   policy_uri: ${..policy_uri}
+#   eval_db_uri: ${..eval_db_uri}
+#   policy_uris:
+#     - "wandb://run/b.daphne.navigation_terrain_training_v2"
+#     - "wandb://run/b.georgedeane.navigation_terrain_training_v2"
+#     - "wandb://run/b.daphne.navigation_terrain_training"
 
-wandb:
-  enabled: false
-  track: false
+# wandb:
+#   enabled: false
+#   track: false
 
-run_id: 18
+run_id: 25
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 
