@@ -1,0 +1,79 @@
+name: cpp-checks
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  # First job: check if any C++ files have changed
+  check-files:
+    if: github.event.pull_request.draft == false || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    outputs:
+      has_relevant_changes: ${{ steps.check_files.outputs.has_relevant_changes }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Check for C++ and Cython file changes
+        id: check_files
+        uses: ./.github/actions/file-changes
+        with:
+          patterns: 'deps/mettagrid/,*.cpp,*.cxx,*.cc,*.h,*.hpp,*.pyx,*.pxd'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  # Trigger lint workflow
+  trigger-lint:
+    needs: check-files
+    if: needs.check-files.outputs.has_relevant_changes == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger cpp-lint workflow
+        uses: peter-evans/repository-dispatch@v2
+        with:
+          event-type: run-cpp-lint
+          token: ${{ secrets.GITHUB_TOKEN }}
+          client-payload: '{"ref": "${{ github.ref }}", "sha": "${{ github.sha }}", "source": "cpp-checks"}'
+
+  # Trigger test workflow
+  trigger-test:
+    needs: check-files
+    if: needs.check-files.outputs.has_relevant_changes == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger cpp-test workflow
+        uses: peter-evans/repository-dispatch@v2
+        with:
+          event-type: run-cpp-test
+          token: ${{ secrets.GITHUB_TOKEN }}
+          client-payload: '{"ref": "${{ github.ref }}", "sha": "${{ github.sha }}", "source": "cpp-checks"}'
+
+  # Trigger benchmark workflow
+  trigger-benchmark:
+    needs: check-files
+    if: needs.check-files.outputs.has_relevant_changes == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger cpp-benchmark workflow
+        uses: peter-evans/repository-dispatch@v2
+        with:
+          event-type: run-cpp-benchmark
+          token: ${{ secrets.GITHUB_TOKEN }}
+          client-payload: '{"ref": "${{ github.ref }}", "sha": "${{ github.sha }}", "source": "cpp-checks"}'
+
+  # This job runs if no relevant files changed
+  skip-checks:
+    needs: check-files
+    if: needs.check-files.outputs.has_relevant_changes != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skip tests and linting
+        run: |
+          echo "No C++ files were changed. Skipping tests, linting, and benchmarks."
+          echo "This check passes automatically when no relevant C++ files are changed."

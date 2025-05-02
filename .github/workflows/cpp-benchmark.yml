@@ -9,9 +9,16 @@ on:
   push:
     branches: [main]
   workflow_dispatch: {}
+  repository_dispatch:
+    types: [run-cpp-benchmark]
+
 jobs:
   cpp-benchmark:
-    if: github.event.pull_request.draft == false || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    if: >-
+      github.event.pull_request.draft == false || 
+      github.event_name == 'push' || 
+      github.event_name == 'workflow_dispatch' || 
+      github.event_name == 'repository_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -20,9 +27,13 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.client_payload.ref || github.ref }}
         
+      # Skip file change check if triggered from cpp-checks workflow
       - name: Check for C++ and Cython file changes
         id: check_files
+        if: github.event_name != 'repository_dispatch'
         uses: ./.github/actions/file-changes
         with:
           patterns: 'deps/mettagrid/,*.cpp,*.cxx,*.cc,*.h,*.hpp,*.pyx,*.pxd'
@@ -30,6 +41,7 @@ jobs:
 
       - name: Set early exit flag
         id: set_early_exit
+        if: github.event_name != 'repository_dispatch'
         run: |
           if [[ "${{ github.event_name }}" == "pull_request" && "${{ steps.check_files.outputs.has_relevant_changes }}" != "true" ]]; then
             echo "EARLY_EXIT=true" >> $GITHUB_ENV
@@ -37,6 +49,12 @@ jobs:
             echo "EARLY_EXIT=false" >> $GITHUB_ENV
           fi
       
+      # Always run if triggered from cpp-checks
+      - name: Set early exit flag for repository_dispatch
+        if: github.event_name == 'repository_dispatch'
+        run: |
+          echo "EARLY_EXIT=false" >> $GITHUB_ENV
+          
       - name: Get main branch head SHA
         if: env.EARLY_EXIT == 'false'
         id: get-main-sha
