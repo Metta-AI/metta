@@ -23,7 +23,7 @@ from metta.util.wandb.wandb_context import WandbContext
 def main(cfg: DictConfig | ListConfig) -> int:
     logger = setup_mettagrid_logger("sweep_eval")
     logger.info("Sweep configuration:")
-    logger.info(yaml.dump(Om    egaConf.to_container(cfg, resolve=True), default_flow_style=False))
+    logger.info(yaml.dump(OmegaConf.to_container(cfg, resolve=True), default_flow_style=False))
     cfg.wandb.name = cfg.sweep_name
     OmegaConf.register_new_resolver("ss", sweep_space, replace=True)
     cfg.sweep = config_from_path(cfg.sweep_params, cfg.sweep_params_override)
