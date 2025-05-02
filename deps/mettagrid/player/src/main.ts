@@ -1,6 +1,8 @@
 import { Vec2f, Mat3f } from './vector_math.js';
 import { Grid } from './grid.js';
 import { Drawer } from './drawer.js';
+import * as Common from './common.js';
+import { ui, state } from './common.js';
 
 export class PanelInfo {
   public x: number = 0;
@@ -11,13 +13,10 @@ export class PanelInfo {
   public isPanning: boolean = false;
   public panPos: Vec2f = new Vec2f(0, 0);
   public zoomLevel: number = 1;
-  public canvas: HTMLCanvasElement;
   public div: HTMLDivElement | null;
 
   constructor(name: string) {
     this.name = name;
-    this.canvas = document.createElement('canvas');
-    this.canvas.setAttribute('id', name + '-canvas');
     this.div = null;
   }
 
@@ -47,56 +46,36 @@ export class PanelInfo {
   // Update the pan and zoom level based on the mouse position and scroll delta.
   updatePanAndZoom(): boolean {
 
-    if (mouseClick) {
+    if (ui.mouseClick) {
       this.isPanning = true;
     }
-    if (!mouseDown) {
+    if (!ui.mouseDown) {
       this.isPanning = false;
     }
 
-    if (this.isPanning && mousePos.sub(lastMousePos).length() > 1) {
-      const lastMousePoint = this.transformPoint(lastMousePos);
-      const newMousePoint = this.transformPoint(mousePos);
+    if (this.isPanning && ui.mousePos.sub(ui.lastMousePos).length() > 1) {
+      const lastMousePoint = this.transformPoint(ui.lastMousePos);
+      const newMousePoint = this.transformPoint(ui.mousePos);
       this.panPos = this.panPos.add(newMousePoint.sub(lastMousePoint));
-      lastMousePos = mousePos;
+      ui.lastMousePos = ui.mousePos;
       return true;
     }
 
-    if (scrollDelta !== 0) {
-      const oldMousePoint = this.transformPoint(mousePos);
-      this.zoomLevel = this.zoomLevel + scrollDelta / SCROLL_ZOOM_FACTOR;
-      this.zoomLevel = Math.max(Math.min(this.zoomLevel, MAX_ZOOM_LEVEL), MIN_ZOOM_LEVEL);
-      const newMousePoint = this.transformPoint(mousePos);
+    if (ui.scrollDelta !== 0) {
+      const oldMousePoint = this.transformPoint(ui.mousePos);
+      this.zoomLevel = this.zoomLevel + ui.scrollDelta / Common.SCROLL_ZOOM_FACTOR;
+      this.zoomLevel = Math.max(Math.min(this.zoomLevel, Common.MAX_ZOOM_LEVEL), Common.MIN_ZOOM_LEVEL);
+      const newMousePoint = this.transformPoint(ui.mousePos);
       if (oldMousePoint != null && newMousePoint != null) {
         this.panPos = this.panPos.add(newMousePoint.sub(oldMousePoint));
       }
-      scrollDelta = 0;
+      ui.scrollDelta = 0;
       return true;
     }
     return false;
   }
 }
 
-// Constants
-const MIN_ZOOM_LEVEL = 0.025;
-const MAX_ZOOM_LEVEL = 2.0;
-
-const SPLIT_DRAG_THRESHOLD = 10;  // pixels to detect split dragging
-const SCROLL_ZOOM_FACTOR = 1000;  // divisor for scroll delta to zoom conversion
-const DEFAULT_TRACE_SPLIT = 0.80;  // default horizontal split ratio
-const DEFAULT_INFO_SPLIT = 0.25;   // default vertical split ratio
-const PANEL_BOTTOM_MARGIN = 60;    // bottom margin for panels
-
-// Map constants.
-const TILE_SIZE = 200;
-
-// Agent defaults.
-const DEFAULT_VISION_SIZE = 11;
-
-// Trace constants.
-const INVENTORY_PADDING = 16;
-const TRACE_HEIGHT = 256
-const TRACE_WIDTH = 32
 
 let drawer: Drawer;
 
@@ -128,37 +107,6 @@ const infoPanel = new PanelInfo("info");
 // Get the modal element
 const modal = document.getElementById('modal');
 
-const COLORS: [string, [number, number, number, number]][] = [
-  ["red", [1, 0, 0, 1]],
-  ["green", [0, 1, 0, 1]],
-  ["blue", [0, 0, 1, 1]],
-]
-
-// Interaction state.
-let mouseDown = false;
-let mouseClick = false;
-let mouseDoubleClick = false;
-let mousePos = new Vec2f(0, 0);
-let lastMousePos = new Vec2f(0, 0);
-let scrollDelta = 0;
-let lastClickTime = 0; // For double-click detection
-let followSelection = false; // Flag to follow selected entity
-let followTraceSelection = false; // Flag to follow trace selection
-
-let traceSplit = DEFAULT_TRACE_SPLIT;
-let traceDragging = false;
-let infoSplit = DEFAULT_INFO_SPLIT
-let infoDragging = false;
-// Replay data and player state.
-let replay: any = null;
-let step = 0;
-let selectedGridObject: any = null;
-
-// Playback state
-let isPlaying = false;
-let partialStep = 0
-let playbackSpeed = 0.1;
-
 // Handle resize events.
 function onResize() {
   // Adjust for high DPI displays.
@@ -169,23 +117,23 @@ function onResize() {
 
   // Make sure traceSplit and infoSplit are not too small or too large.
   const a = 0.025;
-  traceSplit = Math.max(a, Math.min(traceSplit, 1 - a));
-  infoSplit = Math.max(a, Math.min(infoSplit, 1 - a));
+  ui.traceSplit = Math.max(a, Math.min(ui.traceSplit, 1 - a));
+  ui.infoSplit = Math.max(a, Math.min(ui.infoSplit, 1 - a));
 
   mapPanel.x = 0;
   mapPanel.y = 0;
-  mapPanel.width = mapWidth * traceSplit;
-  mapPanel.height = mapHeight - PANEL_BOTTOM_MARGIN;
+  mapPanel.width = mapWidth * ui.traceSplit;
+  mapPanel.height = mapHeight - Common.PANEL_BOTTOM_MARGIN;
 
-  tracePanel.x = mapWidth * traceSplit;
-  tracePanel.y = mapHeight * infoSplit;
-  tracePanel.width = mapWidth * (1 - traceSplit);
-  tracePanel.height = mapHeight * (1 - infoSplit) - PANEL_BOTTOM_MARGIN;
+  tracePanel.x = mapWidth * ui.traceSplit;
+  tracePanel.y = mapHeight * ui.infoSplit;
+  tracePanel.width = mapWidth * (1 - ui.traceSplit);
+  tracePanel.height = mapHeight * (1 - ui.infoSplit) - Common.PANEL_BOTTOM_MARGIN;
 
-  infoPanel.x = mapWidth * traceSplit;
+  infoPanel.x = mapWidth * ui.traceSplit;
   infoPanel.y = 0;
-  infoPanel.width = mapWidth * (1 - traceSplit);
-  infoPanel.height = mapHeight * infoSplit
+  infoPanel.width = mapWidth * (1 - ui.traceSplit);
+  infoPanel.height = mapHeight * ui.infoSplit;
   if (infoPanel.div === null) {
     infoPanel.div = document.createElement("div");
     infoPanel.div.id = infoPanel.name + "-div";
@@ -206,20 +154,20 @@ function onResize() {
 
 // Handle mouse down events.
 function onMouseDown() {
-  lastMousePos = mousePos;
-  mouseClick = true;
+  ui.lastMousePos = ui.mousePos;
+  ui.mouseClick = true;
   const currentTime = new Date().getTime();
-  mouseDoubleClick = currentTime - lastClickTime < 300; // 300ms threshold for double-click
-  lastClickTime = currentTime;
+  ui.mouseDoubleClick = currentTime - ui.lastClickTime < 300; // 300ms threshold for double-click
+  ui.lastClickTime = currentTime;
 
-  if (Math.abs(mousePos.x() - mapPanel.width) < SPLIT_DRAG_THRESHOLD) {
-    traceDragging = true
+  if (Math.abs(ui.mousePos.x() - mapPanel.width) < Common.SPLIT_DRAG_THRESHOLD) {
+    ui.traceDragging = true
     console.log("Started trace dragging")
-  } else if (mousePos.x() > mapPanel.width && Math.abs(mousePos.y() - infoPanel.height) < SPLIT_DRAG_THRESHOLD) {
-    infoDragging = true
+  } else if (ui.mousePos.x() > mapPanel.width && Math.abs(ui.mousePos.y() - infoPanel.height) < Common.SPLIT_DRAG_THRESHOLD) {
+    ui.infoDragging = true
     console.log("Started info dragging")
   } else {
-    mouseDown = true;
+    ui.mouseDown = true;
   }
 
   requestFrame();
@@ -227,32 +175,34 @@ function onMouseDown() {
 
 // Handle mouse up events.
 function onMouseUp() {
-  mouseDown = false;
-  traceDragging = false;
-  infoDragging = false;
+  ui.mouseDown = false;
+  ui.traceDragging = false;
+  ui.infoDragging = false;
   requestFrame();
 }
 
 // Handle mouse move events.
 function onMouseMove(event: MouseEvent) {
-  mousePos = new Vec2f(event.clientX, event.clientY);
+  ui.mousePos = new Vec2f(event.clientX, event.clientY);
 
   // If mouse is close to a panels edge change cursor to edge changer.
   document.body.style.cursor = "default";
 
-  if (Math.abs(mousePos.x() - mapPanel.width) < SPLIT_DRAG_THRESHOLD) {
+  if (Math.abs(ui.mousePos.x() - mapPanel.width) < Common.SPLIT_DRAG_THRESHOLD) {
     document.body.style.cursor = "ew-resize";
   }
 
-  if (mousePos.x() > mapPanel.width && Math.abs(mousePos.y() - infoPanel.height) < SPLIT_DRAG_THRESHOLD) {
+  if (ui.mousePos.x() > mapPanel.width &&
+    Math.abs(ui.mousePos.y() - infoPanel.height) < Common.SPLIT_DRAG_THRESHOLD
+  ) {
     document.body.style.cursor = "ns-resize";
   }
 
-  if (traceDragging) {
-    traceSplit = mousePos.x() / window.innerWidth
+  if (ui.traceDragging) {
+    ui.traceSplit = ui.mousePos.x() / window.innerWidth
     onResize();
-  } else if (infoDragging) {
-    infoSplit = mousePos.y() / window.innerHeight
+  } else if (ui.infoDragging) {
+    ui.infoSplit = ui.mousePos.y() / window.innerHeight
     onResize()
   }
   requestFrame();
@@ -260,7 +210,7 @@ function onMouseMove(event: MouseEvent) {
 
 // Handle scroll events.
 function onScroll(event: WheelEvent) {
-  scrollDelta = event.deltaY;
+  ui.scrollDelta = event.deltaY;
   requestFrame();
 }
 
@@ -365,53 +315,53 @@ function removeSuffix(str: string, suffix: string) {
 
 // Load the replay text.
 async function loadReplayText(replayData: any) {
-  replay = JSON.parse(replayData);
+  state.replay = JSON.parse(replayData);
 
   // Go through each grid object and expand its key sequence.
-  for (const gridObject of replay.grid_objects) {
+  for (const gridObject of state.replay.grid_objects) {
     for (const key in gridObject) {
       if (gridObject[key] instanceof Array) {
-        gridObject[key] = expandSequence(gridObject[key], replay.max_steps);
+        gridObject[key] = expandSequence(gridObject[key], state.replay.max_steps);
       }
     }
   }
 
   // Find all agents for faster access.
-  replay.agents = [];
-  for (let i = 0; i < replay.num_agents; i++) {
-    for (const gridObject of replay.grid_objects) {
+  state.replay.agents = [];
+  for (let i = 0; i < state.replay.num_agents; i++) {
+    for (const gridObject of state.replay.grid_objects) {
       if (gridObject["agent_id"] == i) {
-        replay.agents.push(gridObject);
+        state.replay.agents.push(gridObject);
       }
     }
   }
 
   // Create action image mappings for faster access.
-  replay.action_images = [];
-  for (const actionName of replay.action_names) {
+  state.replay.action_images = [];
+  for (const actionName of state.replay.action_names) {
     let path = "trace/" + actionName + ".png";
     if (drawer.hasImage(path)) {
-      replay.action_images.push(path);
+      state.replay.action_images.push(path);
     } else {
       console.warn("Action not supported: ", path);
-      replay.action_images.push("trace/unknown.png");
+      state.replay.action_images.push("trace/unknown.png");
     }
   }
 
   // Create a list of all keys objects can have.
-  replay.all_keys = new Set();
-  for (const gridObject of replay.grid_objects) {
+  state.replay.all_keys = new Set();
+  for (const gridObject of state.replay.grid_objects) {
     for (const key in gridObject) {
-      replay.all_keys.add(key);
+      state.replay.all_keys.add(key);
     }
   }
 
   // Create object image mapping for faster access.
   // Example: 3 -> ["objects/altar.png", "objects/altar.empty.png"]
   // Example: 1 -> ["objects/wall.png", "objects/wall.png"]
-  replay.object_images = []
-  for (let i = 0; i < replay.object_types.length; i++) {
-    const typeName = replay.object_types[i];
+  state.replay.object_images = []
+  for (let i = 0; i < state.replay.object_types.length; i++) {
+    const typeName = state.replay.object_types[i];
     var image = "objects/" + typeName + ".png";
     if (!drawer.hasImage(image)) {
       console.warn("Object not supported: ", typeName);
@@ -421,7 +371,7 @@ async function loadReplayText(replayData: any) {
     if (!drawer.hasImage(imageEmpty)) {
       imageEmpty = image;
     }
-    replay.object_images.push([image, imageEmpty]);
+    state.replay.object_images.push([image, imageEmpty]);
   }
 
   // Create resource inventory mapping for faster access.
@@ -429,14 +379,14 @@ async function loadReplayText(replayData: any) {
   // Example: "inv:ore.red" -> ["resources/ore.red.png", [1, 1, 1, 1]]
   // Example: "agent:inv:heart.blue" -> ["resources/heart.png", [0, 0, 1, 1]]
   // Example: "inv:cat_food.red" -> ["resources/unknown.png", [1, 0, 0, 1]]
-  replay.resource_inventory = new Map();
-  for (const key of replay.all_keys) {
+  state.replay.resource_inventory = new Map();
+  for (const key of state.replay.all_keys) {
     if (key.startsWith("inv:") || key.startsWith("agent:inv:")) {
       var type: string = key;
       type = removePrefix(type, "inv:")
       type = removePrefix(type, "agent:inv:");
       var color = [1, 1, 1, 1]; // Default to white.
-      for (const [colorName, colorValue] of COLORS) {
+      for (const [colorName, colorValue] of Common.COLORS) {
         if (type.endsWith(colorName)) {
           if(drawer.hasImage("resources/" + type + ".png")) {
             // Use the resource.color.png with white color.
@@ -454,14 +404,14 @@ async function loadReplayText(replayData: any) {
         }
       }
       image = "resources/" + type + ".png";
-      replay.resource_inventory.set(key, [image, color]);
+      state.replay.resource_inventory.set(key, [image, color]);
     }
   }
 
-  console.info("replay: ", replay);
+  console.info("replay: ", state.replay);
 
   // Set the scrubber max value to the max steps.
-  scrubber.max = (replay.max_steps - 1).toString();
+  scrubber.max = (state.replay.max_steps - 1).toString();
 
   closeModal();
   focusFullMap(mapPanel);
@@ -474,16 +424,16 @@ function updateUrlParams() {
   const urlParams = new URLSearchParams(window.location.search);
 
   // Update step when its not zero:
-  if (step !== 0) {
-    urlParams.set('step', step.toString());
+  if (state.step !== 0) {
+    urlParams.set('step', state.step.toString());
   } else {
     urlParams.delete('step');
   }
 
   // Handle selected object
-  if (selectedGridObject !== null) {
+  if (state.selectedGridObject !== null) {
     // Find the index of the selected object
-    const selectedObjectIndex = replay.grid_objects.indexOf(selectedGridObject);
+    const selectedObjectIndex = state.replay.grid_objects.indexOf(state.selectedGridObject);
     if (selectedObjectIndex !== -1) {
       urlParams.set('selectedObjectId', (selectedObjectIndex + 1).toString());
       // Remove map position parameters when an object is selected
@@ -505,7 +455,7 @@ function updateUrlParams() {
   }
 
   // Handle play state - only include when true
-  if (isPlaying) {
+  if (state.isPlaying) {
     urlParams.set('play', 'true');
   } else {
     urlParams.delete('play');
@@ -519,15 +469,15 @@ function updateUrlParams() {
 // Centralized function to update the step and handle all related updates
 function updateStep(newStep: number, skipScrubberUpdate = false) {
   // Update the step variable
-  step = newStep;
+  state.step = newStep;
 
   // Update the scrubber value (unless told to skip)
   if (!skipScrubberUpdate) {
-    scrubber.value = step.toString();
+    scrubber.value = state.step.toString();
   }
 
   // Update trace panel position
-  tracePanel.panPos.setX(-step * 32);
+  tracePanel.panPos.setX(-state.step * 32);
 
   // Request a new frame
   requestFrame();
@@ -541,25 +491,25 @@ function onScrubberChange() {
 // Handle key down events.
 function onKeyDown(event: KeyboardEvent) {
   if (event.key == "Escape") {
-    selectedGridObject = null;
-    followSelection = false; // Also stop following when selection is cleared
-    followTraceSelection = false;
+    state.selectedGridObject = null;
+    state.followSelection = false; // Also stop following when selection is cleared
+    state.followTraceSelection = false;
   }
   // '[' and ']' to scrub forward and backward.
   if (event.key == "[") {
-    updateStep(Math.max(step - 1, 0));
+    updateStep(Math.max(state.step - 1, 0));
   }
   if (event.key == "]") {
-    updateStep(Math.min(step + 1, replay.max_steps - 1));
+    updateStep(Math.min(state.step + 1, state.replay.max_steps - 1));
   }
   // '<' and '>' control the playback speed.
   if (event.key == ",") {
-    playbackSpeed = Math.max(playbackSpeed * 0.9, 0.01);
-    console.log("playbackSpeed: ", playbackSpeed);
+    state.playbackSpeed = Math.max(state.playbackSpeed * 0.9, 0.01);
+    console.log("playbackSpeed: ", state.playbackSpeed);
   }
   if (event.key == ".") {
-    playbackSpeed = Math.min(playbackSpeed * 1.1, 1000);
-    console.log("playbackSpeed: ", playbackSpeed);
+    state.playbackSpeed = Math.min(state.playbackSpeed * 1.1, 1000);
+    console.log("playbackSpeed: ", state.playbackSpeed);
   }
   // If space make it press the play button.
   if (event.key == " ") {
@@ -572,7 +522,7 @@ function onKeyDown(event: KeyboardEvent) {
 function getAttr(obj: any, attr: string, atStep = -1, defaultValue = 0): any {
   if (atStep == -1) {
     // When step is not defined, use global step.
-    atStep = step;
+    atStep = state.step;
   }
   if (obj[attr] === undefined) {
     return defaultValue;
@@ -597,7 +547,7 @@ function colorFromId(agentId: number) {
 
 // Checks to see of object has any inventory.
 function hasInventory(obj: any) {
-  for (const [key, [icon, color]] of replay.resource_inventory) {
+  for (const [key, [icon, color]] of state.replay.resource_inventory) {
     if (getAttr(obj, key) > 0) {
       return true;
     }
@@ -607,11 +557,11 @@ function hasInventory(obj: any) {
 
 // Make the panel focus on the full map, used at the start of the replay.
 function focusFullMap(panel: PanelInfo) {
-  if (replay === null) {
+  if (state.replay === null) {
     return;
   }
-  const width = replay.map_size[0] * TILE_SIZE;
-  const height = replay.map_size[1] * TILE_SIZE;
+  const width = state.replay.map_size[0] * Common.TILE_SIZE;
+  const height = state.replay.map_size[1] * Common.TILE_SIZE;
   panel.focusPos(width / 2, height / 2);
   panel.zoomLevel = Math.min(panel.width / width, panel.height / height);
 }
@@ -629,8 +579,8 @@ function drawFloor(mapSize: [number, number]) {
     var visionSize = Math.floor(getAttr(
       gridObject,
       "agent:vision_size",
-      step,
-      DEFAULT_VISION_SIZE
+      state.step,
+      Common.DEFAULT_VISION_SIZE
     ) / 2);
     for (let dx = -visionSize; dx <= visionSize; dx++) {
       for (let dy = -visionSize; dy <= visionSize; dy++) {
@@ -643,14 +593,14 @@ function drawFloor(mapSize: [number, number]) {
     }
   }
 
-  if (selectedGridObject !== null && selectedGridObject.agent_id !== undefined) {
+  if (state.selectedGridObject !== null && state.selectedGridObject.agent_id !== undefined) {
     // When there is a selected grid object only update its visibility.
-    updateVisibilityMap(selectedGridObject);
+    updateVisibilityMap(state.selectedGridObject);
   } else {
     // When there is no selected grid object update the visibility map for all agents.
-    for (const gridObject of replay.grid_objects) {
+    for (const gridObject of state.replay.grid_objects) {
       const type = gridObject.type;
-      const typeName = replay.object_types[type];
+      const typeName = state.replay.object_types[type];
       if (typeName == "agent") {
         updateVisibilityMap(gridObject);
       }
@@ -661,18 +611,18 @@ function drawFloor(mapSize: [number, number]) {
   for (let x = 0; x < mapSize[0]; x++) {
     for (let y = 0; y < mapSize[1]; y++) {
       const color = visibilityMap.get(x, y) ? [1, 1, 1, 1] : [0.75, 0.75, 0.75, 1];
-      drawer.drawSprite('objects/floor.png', x * TILE_SIZE, y * TILE_SIZE, color);
+      drawer.drawSprite('objects/floor.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE, color);
     }
   }
 }
 
 // Draw the walls, based on the adjacency map, and fill any holes.
-function drawWalls(replay: any) {
+function drawWalls() {
   // Construct wall adjacency map.
-  var wallMap = new Grid(replay.map_size[0], replay.map_size[1]);
-  for (const gridObject of replay.grid_objects) {
+  var wallMap = new Grid(state.replay.map_size[0], state.replay.map_size[1]);
+  for (const gridObject of state.replay.grid_objects) {
     const type = gridObject.type;
-    const typeName = replay.object_types[type];
+    const typeName = state.replay.object_types[type];
     if (typeName !== "wall") {
       continue;
     }
@@ -682,9 +632,9 @@ function drawWalls(replay: any) {
   }
 
   // Draw the walls following the adjacency map.
-  for (const gridObject of replay.grid_objects) {
+  for (const gridObject of state.replay.grid_objects) {
     const type = gridObject.type;
-    const typeName = replay.object_types[type];
+    const typeName = state.replay.object_types[type];
     if (typeName !== "wall") {
       continue;
     }
@@ -707,13 +657,13 @@ function drawWalls(replay: any) {
     if (n || w || e || s) {
       suffix = (n ? "n" : "") + (w ? "w" : "") + (s ? "s" : "") + (e ? "e" : "");
     }
-    drawer.drawSprite('objects/wall.' + suffix + '.png', x * TILE_SIZE, y * TILE_SIZE);
+    drawer.drawSprite('objects/wall.' + suffix + '.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE);
   }
 
   // Draw the wall in-fill following the adjacency map.
-  for (const gridObject of replay.grid_objects) {
+  for (const gridObject of state.replay.grid_objects) {
     const type = gridObject.type;
-    const typeName = replay.object_types[type];
+    const typeName = state.replay.object_types[type];
     if (typeName !== "wall") {
       continue;
     }
@@ -733,18 +683,18 @@ function drawWalls(replay: any) {
     if (e && s && se) {
       drawer.drawSprite(
         'objects/wall.fill.png',
-        x * TILE_SIZE + TILE_SIZE / 2,
-        y * TILE_SIZE + TILE_SIZE / 2 - 42
+        x * Common.TILE_SIZE + Common.TILE_SIZE / 2,
+        y * Common.TILE_SIZE + Common.TILE_SIZE / 2 - 42
       );
     }
   }
 }
 
 // Draw all objects on the map (that are not walls).
-function drawObjects(replay: any) {
-  for (const gridObject of replay.grid_objects) {
+function drawObjects() {
+  for (const gridObject of state.replay.grid_objects) {
     const type: number = gridObject.type;
-    const typeName: string = replay.object_types[type];
+    const typeName: string = state.replay.object_types[type];
     if (typeName === "wall") {
       // Walls are drawn in a different way.
       continue;
@@ -770,8 +720,8 @@ function drawObjects(replay: any) {
 
       drawer.drawSprite(
         "agents/agent." + suffix + ".png",
-        x * TILE_SIZE,
-        y * TILE_SIZE,
+        x * Common.TILE_SIZE,
+        y * Common.TILE_SIZE,
         colorFromId(agent_id)
       );
     } else {
@@ -779,25 +729,25 @@ function drawObjects(replay: any) {
       if (hasInventory(gridObject)) {
         // object.png
         drawer.drawSprite(
-          replay.object_images[type][0],
-          x * TILE_SIZE,
-          y * TILE_SIZE
+          state.replay.object_images[type][0],
+          x * Common.TILE_SIZE,
+          y * Common.TILE_SIZE
         );
       } else {
         // object.empty.png
         drawer.drawSprite(
-          replay.object_images[type][1],
-          x * TILE_SIZE,
-          y * TILE_SIZE
+          state.replay.object_images[type][1],
+          x * Common.TILE_SIZE,
+          y * Common.TILE_SIZE
         );
       }
     }
   }
 }
 
-function drawActions(replay: any) {
+function drawActions() {
   // Draw actions above the objects.
-  for (const gridObject of replay.grid_objects) {
+  for (const gridObject of state.replay.grid_objects) {
     const x = getAttr(gridObject, "c")
     const y = getAttr(gridObject, "r")
 
@@ -807,7 +757,7 @@ function drawActions(replay: any) {
       const action = getAttr(gridObject, "action");
       const action_success = getAttr(gridObject, "action_success");
       if (action_success && action != null) {
-        const action_name = replay.action_names[action[0]];
+        const action_name = state.replay.action_names[action[0]];
         const orientation = getAttr(gridObject, "agent:orientation");
         var rotation = 0;
         if (orientation == 0) {
@@ -822,8 +772,8 @@ function drawActions(replay: any) {
         if (action_name == "attack" && action[1] >= 0 && action[1] <= 8) {
           drawer.drawSprite(
             "actions/attack" + (action[1] + 1) + ".png",
-            x * TILE_SIZE,
-            y * TILE_SIZE,
+            x * Common.TILE_SIZE,
+            y * Common.TILE_SIZE,
             [1, 1, 1, 1],
             1,
             rotation
@@ -831,8 +781,8 @@ function drawActions(replay: any) {
         } else if (action_name == "attack_nearest") {
           drawer.drawSprite(
             "actions/attack_nearest.png",
-            x * TILE_SIZE,
-            y * TILE_SIZE,
+            x * Common.TILE_SIZE,
+            y * Common.TILE_SIZE,
             [1, 1, 1, 1],
             1,
             rotation
@@ -840,8 +790,8 @@ function drawActions(replay: any) {
         } else if (action_name == "put_recipe_items") {
           drawer.drawSprite(
             "actions/put_recipe_items.png",
-            x * TILE_SIZE,
-            y * TILE_SIZE,
+            x * Common.TILE_SIZE,
+            y * Common.TILE_SIZE,
             [1, 1, 1, 1],
             1,
             rotation
@@ -849,8 +799,8 @@ function drawActions(replay: any) {
         } else if (action_name == "get_output") {
           drawer.drawSprite(
             "actions/get_output.png",
-            x * TILE_SIZE,
-            y * TILE_SIZE,
+            x * Common.TILE_SIZE,
+            y * Common.TILE_SIZE,
             [1, 1, 1, 1],
             1,
             rotation
@@ -858,8 +808,8 @@ function drawActions(replay: any) {
         } else if (action_name == "swap") {
           drawer.drawSprite(
             "actions/swap.png",
-            x * TILE_SIZE,
-            y * TILE_SIZE,
+            x * Common.TILE_SIZE,
+            y * Common.TILE_SIZE,
             [1, 1, 1, 1],
             1,
             rotation
@@ -872,12 +822,12 @@ function drawActions(replay: any) {
     if (getAttr(gridObject, "converting") > 0) {
       drawer.drawSprite(
         "actions/converting.png",
-        x * TILE_SIZE,
-        y * TILE_SIZE - 100,
+        x * Common.TILE_SIZE,
+        y * Common.TILE_SIZE - 100,
         [1, 1, 1, 1],
         1,
         // Apply the gentle rotation.
-        -step * 0.1
+        -state.step * 0.1
       );
     }
 
@@ -885,35 +835,35 @@ function drawActions(replay: any) {
     if (getAttr(gridObject, "agent:frozen") > 0) {
       drawer.drawSprite(
         "agents/frozen.png",
-        x * TILE_SIZE,
-        y * TILE_SIZE,
+        x * Common.TILE_SIZE,
+        y * Common.TILE_SIZE,
       );
     }
   }
 }
 
-function drawInventory(replay: any) {
+function drawInventory() {
   // Draw the object's inventory.
-  for (const gridObject of replay.grid_objects) {
+  for (const gridObject of state.replay.grid_objects) {
     const x = getAttr(gridObject, "c")
     const y = getAttr(gridObject, "r")
 
     // Sum up the objects inventory, in case we need to condense it.
-    let inventoryX = INVENTORY_PADDING;
+    let inventoryX = Common.INVENTORY_PADDING;
     let numItems = 0;
-    for (const [key, [icon, color]] of replay.resource_inventory) {
+    for (const [key, [icon, color]] of state.replay.resource_inventory) {
       const num = getAttr(gridObject, key);
       numItems += num;
     }
     // Draw the actual inventory icons.
-    let advanceX = Math.min(32, (TILE_SIZE - INVENTORY_PADDING*2) / numItems);
-    for (const [key, [icon, color]] of replay.resource_inventory) {
+    let advanceX = Math.min(32, (Common.TILE_SIZE - Common.INVENTORY_PADDING*2) / numItems);
+    for (const [key, [icon, color]] of state.replay.resource_inventory) {
       const num = getAttr(gridObject, key);
       for (let i = 0; i < num; i++) {
         drawer.drawSprite(
           icon,
-          x * TILE_SIZE + inventoryX - TILE_SIZE/2,
-          y * TILE_SIZE - TILE_SIZE/2 + 16,
+          x * Common.TILE_SIZE + inventoryX - Common.TILE_SIZE/2,
+          y * Common.TILE_SIZE - Common.TILE_SIZE/2 + 16,
           color,
           1/8,
           0
@@ -924,18 +874,21 @@ function drawInventory(replay: any) {
   }
 }
 
-function drawRewards(replay: any) {
+function drawRewards() {
   // Draw the reward on the bottom of the object.
-  for (const gridObject of replay.grid_objects) {
+  for (const gridObject of state.replay.grid_objects) {
     const x = getAttr(gridObject, "c")
     const y = getAttr(gridObject, "r")
     if (gridObject["total_reward"] !== undefined) {
       const totalReward = getAttr(gridObject, "total_reward");
       let rewardX = 0;
-      let advanceX = Math.min(32, TILE_SIZE / totalReward);
+      let advanceX = Math.min(32, Common.TILE_SIZE / totalReward);
       for (let i = 0; i < totalReward; i++) {
         drawer.save()
-        drawer.translate(x * TILE_SIZE + rewardX - TILE_SIZE/2, y * TILE_SIZE + TILE_SIZE/2 - 16);
+        drawer.translate(
+          x * Common.TILE_SIZE + rewardX - Common.TILE_SIZE/2,
+          y * Common.TILE_SIZE + Common.TILE_SIZE/2 - 16
+        );
         drawer.scale(1/8, 1/8);
         drawer.drawSprite("resources/reward.png", 0, 0);
         drawer.restore()
@@ -945,37 +898,37 @@ function drawRewards(replay: any) {
   }
 }
 
-function drawSelection(selectedObject: any | null) {
-  if (selectedObject === null) {
+function drawSelection() {
+  if (state.selectedGridObject === null) {
     return;
   }
 
-  const x = getAttr(selectedObject, "c")
-  const y = getAttr(selectedObject, "r")
-  drawer.drawSprite("selection.png", x * TILE_SIZE, y * TILE_SIZE);
+  const x = getAttr(state.selectedGridObject, "c")
+  const y = getAttr(state.selectedGridObject, "r")
+  drawer.drawSprite("selection.png", x * Common.TILE_SIZE, y * Common.TILE_SIZE);
 }
 
-function drawTrajectory(selectedObject: any | null) {
-  if (selectedObject === null) {
+function drawTrajectory() {
+  if (state.selectedGridObject === null) {
     return;
   }
-  if (selectedObject.c.length > 0 || selectedObject.r.length > 0) {
+  if (state.selectedGridObject.c.length > 0 || state.selectedGridObject.r.length > 0) {
 
     // Draw both past and future trajectories.
-    for (let i = 1; i < replay.max_steps; i++) {
-      const cx0 = getAttr(selectedObject, "c", i - 1);
-      const cy0 = getAttr(selectedObject, "r", i - 1);
-      const cx1 = getAttr(selectedObject, "c", i);
-      const cy1 = getAttr(selectedObject, "r", i);
+    for (let i = 1; i < state.replay.max_steps; i++) {
+      const cx0 = getAttr(state.selectedGridObject, "c", i - 1);
+      const cy0 = getAttr(state.selectedGridObject, "r", i - 1);
+      const cx1 = getAttr(state.selectedGridObject, "c", i);
+      const cy1 = getAttr(state.selectedGridObject, "r", i);
       if (cx0 !== cx1 || cy0 !== cy1) {
-        const a = 1 - Math.abs(i - step) / 200;
+        const a = 1 - Math.abs(i - state.step) / 200;
         if (a > 0) {
           let color = [0, 0, 0, a];
           let image = "";
-          if (step >= i) {
+          if (state.step >= i) {
             // Past trajectory is black.
             color = [0, 0, 0, a];
-            if (selectedObject.agent_id !== undefined) {
+            if (state.selectedGridObject.agent_id !== undefined) {
               image = "agents/footprints.png";
             } else {
               image = "agents/past_arrow.png";
@@ -983,7 +936,7 @@ function drawTrajectory(selectedObject: any | null) {
           } else {
             // Future trajectory is white.
             color = [a, a, a, a];
-            if (selectedObject.agent_id !== undefined) {
+            if (state.selectedGridObject.agent_id !== undefined) {
               image = "agents/path.png";
             } else {
               image = "agents/future_arrow.png";
@@ -991,13 +944,41 @@ function drawTrajectory(selectedObject: any | null) {
           }
 
           if (cx1 > cx0) { // east
-            drawer.drawSprite(image, cx0 * TILE_SIZE, cy0 * TILE_SIZE + 60, color, 1, 0);
+            drawer.drawSprite(
+              image,
+              cx0 * Common.TILE_SIZE,
+              cy0 * Common.TILE_SIZE + 60,
+              color,
+              1,
+              0
+            );
           } else if (cx1 < cx0) { // west
-            drawer.drawSprite(image, cx0 * TILE_SIZE, cy0 * TILE_SIZE + 60, color, 1, Math.PI);
+            drawer.drawSprite(
+              image,
+              cx0 * Common.TILE_SIZE,
+              cy0 * Common.TILE_SIZE + 60,
+              color,
+              1,
+              Math.PI
+            );
           } else if (cy1 > cy0) { // south
-            drawer.drawSprite(image, cx0 * TILE_SIZE, cy0 * TILE_SIZE + 60, color, 1, -Math.PI / 2);
+            drawer.drawSprite(
+              image,
+              cx0 * Common.TILE_SIZE,
+              cy0 * Common.TILE_SIZE + 60,
+              color,
+              1,
+              -Math.PI / 2
+            );
           } else if (cy1 < cy0) { // north
-            drawer.drawSprite(image, cx0 * TILE_SIZE, cy0 * TILE_SIZE + 60, color, 1, Math.PI / 2);
+            drawer.drawSprite(
+              image,
+              cx0 * Common.TILE_SIZE,
+              cy0 * Common.TILE_SIZE + 60,
+              color,
+              1,
+              Math.PI / 2
+            );
           }
         }
       }
@@ -1006,36 +987,36 @@ function drawTrajectory(selectedObject: any | null) {
 }
 
 function drawMap(panel: PanelInfo) {
-  if (replay === null || drawer === null || drawer.ready === false) {
+  if (state.replay === null || drawer === null || drawer.ready === false) {
     return;
   }
 
-  const localMousePos = panel.transformPoint(mousePos);
+  const localMousePos = panel.transformPoint(ui.mousePos);
 
-  if (mouseClick) {
+  if (ui.mouseClick) {
     // Reset the follow flags.
-    followSelection = false;
-    followTraceSelection = false;
+    state.followSelection = false;
+    state.followTraceSelection = false;
 
     if (localMousePos != null) {
       const gridMousePos = new Vec2f(
-        Math.round(localMousePos.x() / TILE_SIZE),
-        Math.round(localMousePos.y() / TILE_SIZE)
+        Math.round(localMousePos.x() / Common.TILE_SIZE),
+        Math.round(localMousePos.y() / Common.TILE_SIZE)
       );
-      const gridObject = replay.grid_objects.find((obj: any) => {
+      const gridObject = state.replay.grid_objects.find((obj: any) => {
         const x: number = getAttr(obj, "c");
         const y: number = getAttr(obj, "r");
         return x === gridMousePos.x() && y === gridMousePos.y();
       });
       if (gridObject !== undefined) {
-        selectedGridObject = gridObject;
-        console.log("selectedGridObject on map:", selectedGridObject);
+        state.selectedGridObject = gridObject;
+        console.log("selectedGridObject on map:", state.selectedGridObject);
 
-        if (mouseDoubleClick) {
+        if (ui.mouseDoubleClick) {
           // Toggle followSelection on double-click
-          followSelection = true;
-          followTraceSelection = true;
-          mapPanel.zoomLevel = 1/2;
+          state.followSelection = true;
+          state.followTraceSelection = true;
+          panel.zoomLevel = 1/2;
           tracePanel.zoomLevel = 1;
         }
       }
@@ -1043,10 +1024,10 @@ function drawMap(panel: PanelInfo) {
   }
 
   // If we're following a selection, center the map on it
-  if (followSelection && selectedGridObject !== null) {
-    const x = getAttr(selectedGridObject, "c");
-    const y = getAttr(selectedGridObject, "r");
-    panel.panPos = new Vec2f(-x * TILE_SIZE, -y * TILE_SIZE);
+  if (state.followSelection && state.selectedGridObject !== null) {
+    const x = getAttr(state.selectedGridObject, "c");
+    const y = getAttr(state.selectedGridObject, "r");
+    panel.panPos = new Vec2f(-x * Common.TILE_SIZE, -y * Common.TILE_SIZE);
   }
 
   drawer.save();
@@ -1056,51 +1037,51 @@ function drawMap(panel: PanelInfo) {
   drawer.scale(panel.zoomLevel, panel.zoomLevel);
   drawer.translate(panel.panPos.x(), panel.panPos.y());
 
-  drawFloor(replay.map_size);
-  drawWalls(replay);
-  drawTrajectory(selectedGridObject);
-  drawObjects(replay);
-  drawSelection(selectedGridObject);
-  drawActions(replay);
-  drawInventory(replay);
-  drawRewards(replay);
+  drawFloor(state.replay.map_size);
+  drawWalls();
+  drawTrajectory();
+  drawObjects();
+  drawSelection();
+  drawActions();
+  drawInventory();
+  drawRewards();
 
   drawer.restore();
 }
 
 function drawTrace(panel: PanelInfo) {
-  if (replay === null || drawer === null || drawer.ready === false) {
+  if (state.replay === null || drawer === null || drawer.ready === false) {
     return;
   }
 
-  const localMousePos = panel.transformPoint(mousePos);
+  const localMousePos = panel.transformPoint(ui.mousePos);
 
-  if (followTraceSelection && selectedGridObject !== null) {
+  if (state.followTraceSelection && state.selectedGridObject !== null) {
     panel.focusPos(
-      step * TRACE_WIDTH + TRACE_WIDTH/2,
-      getAttr(selectedGridObject, "agent_id") * TRACE_HEIGHT + TRACE_HEIGHT/2
+      state.step * Common.TRACE_WIDTH + Common.TRACE_WIDTH/2,
+      getAttr(state.selectedGridObject, "agent_id") * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT/2
     );
   }
 
-  if (mouseClick &&panel.inside(mousePos)) {
+  if (ui.mouseClick &&panel.inside(ui.mousePos)) {
     if (localMousePos != null) {
       const mapX = localMousePos.x();
-      if (mapX > 0 && mapX < replay.max_steps * TRACE_WIDTH &&
-        localMousePos.y() > 0 && localMousePos.y() < replay.num_agents * TRACE_HEIGHT) {
-        const agentId = Math.floor(localMousePos.y() / TRACE_HEIGHT);
-        if (agentId >= 0 && agentId < replay.num_agents) {
-          followSelection = true;
-          selectedGridObject = replay.agents[agentId];
-          console.log("selectedGridObject on a trace:", selectedGridObject);
+      if (mapX > 0 && mapX < state.replay.max_steps * Common.TRACE_WIDTH &&
+        localMousePos.y() > 0 && localMousePos.y() < state.replay.num_agents * Common.TRACE_HEIGHT) {
+        const agentId = Math.floor(localMousePos.y() / Common.TRACE_HEIGHT);
+        if (agentId >= 0 && agentId < state.replay.num_agents) {
+          state.followSelection = true;
+          state.selectedGridObject = state.replay.agents[agentId];
+          console.log("selectedGridObject on a trace:", state.selectedGridObject);
           mapPanel.focusPos(
-            getAttr(selectedGridObject, "c") * TILE_SIZE,
-            getAttr(selectedGridObject, "r") * TILE_SIZE
+            getAttr(state.selectedGridObject, "c") * Common.TILE_SIZE,
+            getAttr(state.selectedGridObject, "r") * Common.TILE_SIZE
           );
           // Update the step to the clicked step.
-          updateStep(Math.floor(mapX / TRACE_WIDTH));
+          updateStep(Math.floor(mapX / Common.TRACE_WIDTH));
 
-          if (mouseDoubleClick) {
-            followTraceSelection = true;
+          if (ui.mouseDoubleClick) {
+            state.followTraceSelection = true;
             panel.zoomLevel = 1;
           }
         }
@@ -1111,7 +1092,10 @@ function drawTrace(panel: PanelInfo) {
   drawer.save();
   drawer.setScissorRect(panel.x, panel.y, panel.width, panel.height);
 
-  const fullSize = new Vec2f(replay.max_steps * TRACE_WIDTH, replay.num_agents * TRACE_HEIGHT);
+  const fullSize = new Vec2f(
+    state.replay.max_steps * Common.TRACE_WIDTH,
+    state.replay.num_agents * Common.TRACE_HEIGHT
+  );
 
   // Draw background
   drawer.drawSolidRect(
@@ -1124,39 +1108,41 @@ function drawTrace(panel: PanelInfo) {
   drawer.translate(panel.panPos.x(), panel.panPos.y());
 
   // Draw rectangle around the selected agent
-  if (selectedGridObject !== null && selectedGridObject.agent_id !== undefined) {
-    const agentId = selectedGridObject.agent_id;
+  if (state.selectedGridObject !== null && state.selectedGridObject.agent_id !== undefined) {
+    const agentId = state.selectedGridObject.agent_id;
 
     // Draw selection rectangle
     drawer.drawSolidRect(
-      0, agentId * TRACE_HEIGHT, fullSize.x(), TRACE_HEIGHT,
+      0, agentId * Common.TRACE_HEIGHT, fullSize.x(), Common.TRACE_HEIGHT,
       [.3, .3, .3, 1]
     );
   }
 
   // Draw current step line that goes through all of the traces
   drawer.drawSolidRect(
-    step * TRACE_WIDTH, 0,
-    TRACE_WIDTH, fullSize.y(),
+    state.step * Common.TRACE_WIDTH, 0,
+    Common.TRACE_WIDTH, fullSize.y(),
     [0.5, 0.5, 0.5, 0.5] // White with 50% opacity
   );
 
   // Draw agent traces
-  for (let i = 0; i < replay.num_agents; i++) {
-    const agent = replay.agents[i];
-    for (let j = 0; j < replay.max_steps; j++) {
+  for (let i = 0; i < state.replay.num_agents; i++) {
+    const agent = state.replay.agents[i];
+    for (let j = 0; j < state.replay.max_steps; j++) {
       const action = getAttr(agent, "action", j);
       const action_success = getAttr(agent, "action_success", j);
 
-      if (action_success && action != null && action[0] > 0 && action[0] < replay.action_images.length) {
+      if (action_success && action != null && action[0] > 0 && action[0] < state.replay.action_images.length) {
         drawer.drawSprite(
-          replay.action_images[action[0]],
-          j * TRACE_WIDTH + TRACE_WIDTH/2, i * TRACE_HEIGHT + TRACE_HEIGHT/2,
+          state.replay.action_images[action[0]],
+          j * Common.TRACE_WIDTH + Common.TRACE_WIDTH/2,
+          i * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT/2,
         );
-      } else if (action != null && action[0] > 0 && action[0] < replay.action_images.length) {
+      } else if (action != null && action[0] > 0 && action[0] < state.replay.action_images.length) {
         drawer.drawSprite(
-          replay.action_images[action[0]],
-          j * TRACE_WIDTH + TRACE_WIDTH/2, i * TRACE_HEIGHT + TRACE_HEIGHT/2,
+          state.replay.action_images[action[0]],
+          j * Common.TRACE_WIDTH + Common.TRACE_WIDTH/2,
+          i * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT/2,
           [0.01, 0.01, 0.01, 0.01],
         );
       }
@@ -1164,7 +1150,8 @@ function drawTrace(panel: PanelInfo) {
       if (getAttr(agent, "agent:frozen", j) > 0) {
         drawer.drawSprite(
           "trace/frozen.png",
-          j * TRACE_WIDTH + TRACE_WIDTH/2, i * TRACE_HEIGHT + TRACE_HEIGHT/2,
+          j * Common.TRACE_WIDTH + Common.TRACE_WIDTH/2,
+          i * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT/2,
         );
       }
 
@@ -1173,8 +1160,8 @@ function drawTrace(panel: PanelInfo) {
       if (reward > 0) {
         drawer.drawSprite(
           "resources/reward.png",
-          j * TRACE_WIDTH + TRACE_WIDTH/2,
-          i * TRACE_HEIGHT + 256 - 32,
+          j * Common.TRACE_WIDTH + Common.TRACE_WIDTH/2,
+          i * Common.TRACE_HEIGHT + 256 - 32,
           [1.0, 1.0, 1.0, 1.0],
           1/8
         );
@@ -1188,27 +1175,27 @@ function drawTrace(panel: PanelInfo) {
 // Updates the readout of the selected object or replay info.
 function updateReadout() {
   var readout = ""
-  if (selectedGridObject !== null) {
-    if (followSelection) {
+  if (state.selectedGridObject !== null) {
+    if (state.followSelection) {
       readout += "FOLLOWING SELECTION (double-click to unfollow)\n\n";
     }
-    for (const key in selectedGridObject) {
-      var value = getAttr(selectedGridObject, key);
+    for (const key in state.selectedGridObject) {
+      var value = getAttr(state.selectedGridObject, key);
       if (key == "type") {
-        value = replay.object_types[value] + " (" + value + ")";
+        value = state.replay.object_types[value] + " (" + value + ")";
       }
       readout += key + ": " + value + "\n";
     }
   } else {
-    readout += "Step: " + step + "\n";
-    readout += "Map size: " + replay.map_size[0] + "x" + replay.map_size[1] + "\n";
-    readout += "Num agents: " + replay.num_agents + "\n";
-    readout += "Max steps: " + replay.max_steps + "\n";
+    readout += "Step: " + state.step + "\n";
+    readout += "Map size: " + state.replay.map_size[0] + "x" + state.replay.map_size[1] + "\n";
+    readout += "Num agents: " + state.replay.num_agents + "\n";
+    readout += "Max steps: " + state.replay.max_steps + "\n";
 
     var objectTypeCounts = new Map<string, number>();
-    for (const gridObject of replay.grid_objects) {
+    for (const gridObject of state.replay.grid_objects) {
       const type = gridObject.type;
-      const typeName = replay.object_types[type];
+      const typeName = state.replay.object_types[type];
       objectTypeCounts.set(typeName, (objectTypeCounts.get(typeName) || 0) + 1);
     }
     for (const [key, value] of objectTypeCounts.entries()) {
@@ -1222,7 +1209,7 @@ function updateReadout() {
 
 // Draw a frame.
 function onFrame() {
-  if (replay === null || drawer === null || drawer.ready === false) {
+  if (state.replay === null || drawer === null || drawer.ready === false) {
     return;
   }
 
@@ -1233,13 +1220,13 @@ function onFrame() {
   drawer.clear();
 
   var fullUpdate = true;
-  if (mapPanel.inside(mousePos)) {
+  if (mapPanel.inside(ui.mousePos)) {
     if (mapPanel.updatePanAndZoom()) {
       fullUpdate = false;
     }
   }
 
-  if (tracePanel.inside(mousePos)) {
+  if (tracePanel.inside(ui.mousePos)) {
     if (tracePanel.updatePanAndZoom()) {
       fullUpdate = false;
     }
@@ -1257,18 +1244,18 @@ function onFrame() {
   // Update URL parameters with current state once per frame
   updateUrlParams();
 
-  if (isPlaying) {
-    partialStep += playbackSpeed;
-    if (partialStep >= 1) {
-      const nextStep = (step + Math.floor(partialStep)) % replay.max_steps;
-      partialStep -= Math.floor(partialStep);
+  if (state.isPlaying) {
+    state.partialStep += state.playbackSpeed;
+    if (state.partialStep >= 1) {
+      const nextStep = (state.step + Math.floor(state.partialStep)) % state.replay.max_steps;
+      state.partialStep -= Math.floor(state.partialStep);
       updateStep(nextStep);
     }
     requestFrame();
   }
 
-  mouseClick = false;
-  mouseDoubleClick = false;
+  ui.mouseClick = false;
+  ui.mouseDoubleClick = false;
 }
 
 function preventDefaults(event: Event) {
@@ -1314,9 +1301,9 @@ function closeModal() {
 
 // Handle play button click
 function onPlayButtonClick() {
-  isPlaying = !isPlaying;
+  state.isPlaying = !state.isPlaying;
 
-  if (isPlaying) {
+  if (state.isPlaying) {
     playButton.classList.add('paused');
   } else {
     playButton.classList.remove('paused');
@@ -1353,20 +1340,20 @@ async function parseUrlParams() {
 
   // Set the playing state.
   if (urlParams.get('play') !== null) {
-    isPlaying = urlParams.get('play') === "true";
-    console.info("Playing state via query parameter:", isPlaying);
+    state.isPlaying = urlParams.get('play') === "true";
+    console.info("Playing state via query parameter:", state.isPlaying);
   }
 
   // Set selected object.
   if (urlParams.get('selectedObjectId') !== null) {
     const selectedObjectId = parseInt(urlParams.get('selectedObjectId') || "-1") - 1;
-    if (selectedObjectId >= 0 && selectedObjectId < replay.grid_objects.length) {
-      selectedGridObject = replay.grid_objects[selectedObjectId];
-      followSelection = true;
-      followTraceSelection = true;
+    if (selectedObjectId >= 0 && selectedObjectId < state.replay.grid_objects.length) {
+      state.selectedGridObject = state.replay.grid_objects[selectedObjectId];
+      state.followSelection = true;
+      state.followTraceSelection = true;
       mapPanel.zoomLevel = 1/2;
       tracePanel.zoomLevel = 1;
-      console.info("Selected object via query parameter:", selectedGridObject);
+      console.info("Selected object via query parameter:", state.selectedGridObject);
     } else {
       console.warn("Invalid selectedObjectId:", selectedObjectId);
     }
