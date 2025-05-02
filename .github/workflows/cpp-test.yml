@@ -1,25 +1,59 @@
 name: cpp-test
-
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review]
     branches: [main]
-    paths:
-      - 'deps/mettagrid/**'
   workflow_dispatch: {}
-
 jobs:
   cpp-test:
-    if: github.event.pull_request.draft == false
+    if: github.event.pull_request.draft == false || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
+        
+      - name: Check for C++ file changes
+        id: check_files
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const { data: changedFiles } = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+            
+            const hasRelevantChanges = changedFiles.some(file => {
+              return (file.filename.endsWith('.cpp') ||
+                file.filename.endsWith('.h') ||
+                file.filename.endsWith('.hpp')) &&
+                file.filename.includes('deps/mettagrid/');
+            });
+            
+            core.setOutput('has_relevant_changes', hasRelevantChanges);
+      
+      - name: Set early exit flag
+        id: set_early_exit
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" && "${{ steps.check_files.outputs.has_relevant_changes }}" != "true" ]]; then
+            echo "EARLY_EXIT=true" >> $GITHUB_ENV
+          else
+            echo "EARLY_EXIT=false" >> $GITHUB_ENV
+          fi
+      
       - name: Setup C++
+        if: env.EARLY_EXIT == 'false'
         uses: ./.github/actions/cpp-setup
-
+        
       - name: Build and run tests
+        if: env.EARLY_EXIT == 'false'
         run: |
           cd deps/mettagrid
           make test
+          
+      - name: Skip tests (no relevant changes)
+        if: env.EARLY_EXIT == 'true'
+        run: |
+          echo "No C++ files in deps/mettagrid were changed. Skipping tests."
+          echo "This check passes automatically when no relevant C++ files are changed."
