@@ -98,9 +98,9 @@ jobs:
             fi
           done
     
-    # Check what files were created
-    echo "DEBUG: Listing benchmark_output directory after execution:"
-    ls -la benchmark_output/
+          # Check what files were created
+          echo "DEBUG: Listing benchmark_output directory after execution:"
+          ls -la benchmark_output/
           
       - name: Install Bencher CLI
         if: env.EARLY_EXIT == 'false'
