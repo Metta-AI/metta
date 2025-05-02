@@ -18,7 +18,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Check for changes
+      - name: Check for Python file changes
         id: check_files
         uses: actions/github-script@v6
         with:
