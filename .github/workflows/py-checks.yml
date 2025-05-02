@@ -35,12 +35,13 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
   # This job runs if no relevant files changed
-  skip-checks:
+  skip-checks-py:
     needs: check-files-py
     if: needs.check-files-py.outputs.has_relevant_changes != 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Skip tests and linting
+        id: skip_checks_py
         run: |
           echo "No Python files were changed. Skipping tests, linting, and benchmarks."
           echo "This check passes automatically when no relevant Python files are changed."
