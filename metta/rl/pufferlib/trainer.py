@@ -3,6 +3,7 @@ import os
 import time
 from collections import defaultdict
 
+import hydra
 import numpy as np
 import pufferlib
 import pufferlib.utils
