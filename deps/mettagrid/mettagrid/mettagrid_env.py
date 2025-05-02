@@ -30,11 +30,11 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     def _reset_env(self):
         self._task = self._curriculum.get_task()
         game_cfg = self._task.env_cfg().game
-        map_builder = simple_instantiate(
+        self._map_builder = simple_instantiate(
             game_cfg.map_builder,
             recursive=game_cfg.get("recursive_map_builder", True),
         )
-        game_map = map_builder.build()
+        game_map = self._map_builder.build()
         map_agents = np.count_nonzero(np.char.startswith(game_map, "agent"))
         assert game_cfg.num_agents == map_agents, f"Map has {map_agents} agents, expected {game_cfg.num_agents}"
 
@@ -56,7 +56,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         infos = {}
         if self.terminals.all() or self.truncations.all():
             self.process_episode_stats(infos)
-            self._task.complete(infos["episode_rewards"].sum())
+            self._task.complete(infos["episode_rewards"].mean())
             self._should_reset = True
 
         return self.observations, self.rewards, self.terminals, self.truncations, infos
@@ -76,22 +76,19 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             }
         )
 
-        # xcxc
-        # if self._map_builder is not None and self._map_builder.labels is not None:
-        #     for label in self._map_builder.labels:
-        #         infos.update(
-        #             {
-        #                 f"rewards/map:{label}": episode_rewards_mean,
-        #             }
-        #         )
+        if self._map_builder is not None and self._map_builder.labels is not None:
+            for label in self._map_builder.labels:
+                infos.update(
+                    {
+                        f"rewards/map:{label}": episode_rewards_mean,
+                    }
+                )
 
-        # if self.labels is not None:
-        #     for label in self.labels:
-        #         infos.update(
-        #             {
-        #                 f"rewards/env:{label}": episode_rewards_mean,
-        #             }
-        #         )
+        infos.update(
+            {
+                f"rewards/task:{self._task.name}": episode_rewards_mean,
+            }
+        )
 
         stats = self._c_env.get_episode_stats()
 
