@@ -1,14 +1,13 @@
-_target_: metta.env.mettagrid_env_set.MettaGridEnvSet
+_target_: mettagrid.curriculum.curriculum.LowRewardCurriculum
 
-num_agents: 24
+tasks:
+  /env/mettagrid/multiagent/training/reward_sharing/24/terrain_from_numpy: 0.5
+  /env/mettagrid/multiagent/training/reward_sharing/24/varied_terrain_all_sparse: 0.5
+  /env/mettagrid/multiagent/training/reward_sharing/24/varied_terrain_balanced: 0.5
+  /env/mettagrid/multiagent/training/reward_sharing/24/varied_terrain_maze: 0.5
+  /env/mettagrid/multiagent/training/reward_sharing/24/varied_terrain_sparse_altars_dense_objects: 0.5
+  /env/mettagrid/multiagent/training/reward_sharing/24/cylinder_world: 0.5
 
-game:
-  num_agents: ${..num_agents}
-
-envs:
-  - /env/mettagrid/multiagent/training/reward_sharing/24/terrain_from_numpy
-  - /env/mettagrid/multiagent/training/reward_sharing/24/varied_terrain_all_sparse
-  - /env/mettagrid/multiagent/training/reward_sharing/24/varied_terrain_balanced
-  - /env/mettagrid/multiagent/training/reward_sharing/24/varied_terrain_maze
-  - /env/mettagrid/multiagent/training/reward_sharing/24/varied_terrain_sparse_altars_dense_objects
-  - /env/mettagrid/multiagent/training/reward_sharing/24/cylinder_world
+env_overrides:
+  game:
+    num_agents: 24
