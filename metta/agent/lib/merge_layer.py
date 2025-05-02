@@ -6,33 +6,33 @@ from metta.agent.lib.metta_layer import LayerBase
 
 
 class MergeLayerBase(LayerBase):
-    def __init__(self, name, sources, **cfg):
-        super().__init__(name)
-        self.sources_list = list(sources)
-        self.default_dim = -1
+    def __init__(self, name, **cfg):
         self._ready = False
-
-        self.input_source = []
-        for src_cfg in self.sources_list:
-            self.input_source.append(src_cfg["source_name"])
+        super().__init__(name, **cfg)
 
     @property
     def ready(self):
         return self._ready
 
-    def setup(self, input_source_components=None):
+    def setup(self, _source_components=None):
         if self._ready:
             return
 
-        self.input_source_components = input_source_components
+        self._source_components = _source_components
 
-        self.sizes = []
+        # NOTE: in and out tensor shapes do not include batch sizes
+        # however, all other sizes do, including processed_lengths
+        self._in_tensor_shapes = []
+
         self.dims = []
-        for src_cfg in self.sources_list:
-            source_name = src_cfg["source_name"]
-            full_source_size = self.input_source_components[source_name]._output_size
+        self.processed_lengths = []
+        for src_cfg in self._sources:
+            source_name = src_cfg["name"]
 
-            processed_size = full_source_size
+            processed_size = self._source_components[source_name]._out_tensor_shape.copy()
+            self._in_tensor_shapes.append(processed_size)
+
+            processed_size = processed_size[0]
             if src_cfg.get("slice") is not None:
                 slice_range = src_cfg["slice"]
                 if isinstance(slice_range, omegaconf.listconfig.ListConfig):
@@ -41,13 +41,18 @@ class MergeLayerBase(LayerBase):
                     raise ValueError(f"'slice' must be a two-element list/tuple for source {source_name}.")
 
                 start, end = slice_range
-                slice_dim = src_cfg.get("dim", self.default_dim)
+                slice_dim = src_cfg.get("dim", None)
+                if slice_dim is None:
+                    raise ValueError(
+                        f"Slice 'dim' must be specified for {source_name}. If a vector, use dim=1 (0 is batch size)."
+                    )
                 length = end - start
                 src_cfg["_slice_params"] = {"start": start, "length": length, "dim": slice_dim}
                 processed_size = length
 
-            self.sizes.append(processed_size)
-            self.dims.append(src_cfg.get("dim", self.default_dim))
+            self.processed_lengths.append(processed_size)
+
+            self.dims.append(src_cfg.get("dim", 1))  # check if default dim is good to have or will cause problems
 
         self._setup_merge_layer()
         self._ready = True
@@ -57,9 +62,10 @@ class MergeLayerBase(LayerBase):
 
     def forward(self, td: TensorDict):
         outputs = []
-        for src_cfg in self.sources_list:
-            source_name = src_cfg["source_name"]
-            self.input_source_components[source_name].forward(td)
+        # TODO: do this without a for loop or dictionary lookup for perf
+        for src_cfg in self._sources:
+            source_name = src_cfg["name"]
+            self._source_components[source_name].forward(td)
             src_tensor = td[source_name]
 
             if "_slice_params" in src_cfg:
@@ -74,11 +80,20 @@ class MergeLayerBase(LayerBase):
 
 
 class ConcatMergeLayer(MergeLayerBase):
+    """Concatenates tensors along a specified dimension. For vectors, use dim=1.
+    Using this for observations can concat channels (dim=1) with their
+    associated fields (). But concattenating widths and heights (dim=2 or dim=3) would
+    lead to different shapes of the field of view."""
+
     def _setup_merge_layer(self):
         if not all(d == self.dims[0] for d in self.dims):
             raise ValueError(f"For 'concat', all sources must have the same 'dim'. Got dims: {self.dims}")
         self._merge_dim = self.dims[0]
-        self._output_size = sum(self.sizes)
+        cat_dim_length = 0
+        for size in self.processed_lengths:
+            cat_dim_length += size
+        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
+        self._out_tensor_shape[self._merge_dim - 1] = cat_dim_length  # the -1 is to account for batch size
 
     def _merge(self, outputs, td):
         merged = torch.cat(outputs, dim=self._merge_dim)
@@ -87,10 +102,14 @@ class ConcatMergeLayer(MergeLayerBase):
 
 
 class AddMergeLayer(MergeLayerBase):
+    """Combines tensors by adding their elements along a specified dimension,
+    keeping the same shape."""
+
     def _setup_merge_layer(self):
-        if not all(s == self.sizes[0] for s in self.sizes):
+        if not all(s == self._in_tensor_shapes[0] for s in self._in_tensor_shapes):
             raise ValueError(f"For 'add', all source sizes must match. Got sizes: {self.sizes}")
-        self._output_size = self.sizes[0]
+        self._merge_dim = self.dims[0]
+        self._out_tensor_shape = self._in_tensor_shapes[0]
 
     def _merge(self, outputs, td):
         merged = outputs[0]
@@ -102,9 +121,10 @@ class AddMergeLayer(MergeLayerBase):
 
 class SubtractMergeLayer(MergeLayerBase):
     def _setup_merge_layer(self):
-        if not all(s == self.sizes[0] for s in self.sizes):
+        if not all(s == self._in_tensor_shapes[0] for s in self._in_tensor_shapes):
             raise ValueError(f"For 'subtract', all source sizes must match. Got sizes: {self.sizes}")
-        self._output_size = self.sizes[0]
+        self._merge_dim = self.dims[0]
+        self._out_tensor_shape = self._in_tensor_shapes[0]
 
     def _merge(self, outputs, td):
         if len(outputs) != 2:
@@ -115,10 +135,13 @@ class SubtractMergeLayer(MergeLayerBase):
 
 
 class MeanMergeLayer(MergeLayerBase):
+    """Angrily takes the average, keeping the same shape."""
+
     def _setup_merge_layer(self):
-        if not all(s == self.sizes[0] for s in self.sizes):
+        if not all(s == self._in_tensor_shapes[0] for s in self._in_tensor_shapes):
             raise ValueError(f"For 'mean', all source sizes must match. Got sizes: {self.sizes}")
-        self._output_size = self.sizes[0]
+        self._merge_dim = self.dims[0]
+        self._out_tensor_shape = self._in_tensor_shapes[0]
 
     def _merge(self, outputs, td):
         merged = outputs[0]
@@ -126,4 +149,150 @@ class MeanMergeLayer(MergeLayerBase):
             merged = merged + tensor
         merged = merged / len(outputs)
         td[self._name] = merged
+        return td
+
+
+class ExpandLayer(LayerBase):
+    """Expand a tensor along a specified dimension by either a given value (expand_value)
+    or a value from another tensor (dims_source and input_dim).
+    This layer has not been unit tested."""
+
+    def __init__(self, name, expand_dim, sources, expand_value=None, source_dim=None, dims_source=None, **cfg):
+        super().__init__(name, sources, **cfg)
+        self._ready = False
+        self.expand_dim = expand_dim
+        self.expand_value = expand_value
+        self.source_dim = source_dim
+        self.dims_source = dims_source
+        if dims_source is not None:
+            self._sources = [sources[0], dims_source]
+
+    @property
+    def ready(self):
+        return self._ready
+
+    def setup(self, _source_components=None):
+        if self._ready:
+            return
+
+        self._source_components = _source_components
+        self._out_tensor_shape = next(iter(self._source_components.values()))._out_tensor_shape.copy()
+
+        if self.dims_source is not None:
+            self.expand_value = self._source_components[self.dims_source]._out_tensor_shape[
+                self.source_dim - 1
+            ]  # -1 because _out_tensor_shape doesn't account for batch size
+
+        if self.expand_dim > 0:
+            self._out_tensor_shape.insert(
+                self.expand_dim - 1, self.expand_value
+            )  # -1 because _out_tensor_shape doesn't account for batch size
+        else:
+            raise ValueError("Expand dim must be greater than 0. 0 is the batch dimension.")
+
+        self._ready = True
+
+    def _forward(self, td: TensorDict):
+        tensor = td[self._sources[0]["name"]]
+
+        if self.dims_source is not None:
+            self.expand_value = td[self.dims_source].size(self.source_dim)
+
+        expanded = tensor.unsqueeze(self.expand_dim)
+        expand_shape = [-1] * expanded.dim()
+        expand_shape[self.expand_dim] = self.expand_value
+        td[self._name] = expanded.expand(*expand_shape).contiguous()
+        return td
+
+
+class ReshapeLayer(LayerBase):
+    """Multiply two of the dims together, squeezing them into the squeezed_dim.
+    This layer has not been unit tested."""
+
+    def __init__(self, name, popped_dim, squeezed_dim, **cfg):
+        self._ready = False
+        self.popped_dim = popped_dim
+        self.squeezed_dim = squeezed_dim
+        super().__init__(name, **cfg)
+
+    def setup(self, _source_components=None):
+        if self._ready:
+            return
+
+        self._source_components = _source_components
+        self._out_tensor_shape = next(iter(self._source_components.values()))._out_tensor_shape.copy()
+        if self.squeezed_dim == 0 or self.popped_dim == 0:
+            # we are involving the batch size, which we don't have ahead of time
+            self._out_tensor_shape.pop(self.popped_dim - 1)
+        else:
+            compressed_size = (
+                self._out_tensor_shape[self.popped_dim - 1] * self._out_tensor_shape[self.squeezed_dim - 1]
+            )
+            self._out_tensor_shape[self.squeezed_dim - 1] = compressed_size
+            self._out_tensor_shape.pop(self.popped_dim - 1)
+
+        self._ready = True
+
+    def _forward(self, td: TensorDict):
+        tensor = td[self._sources[0]["name"]]
+        shape = list(tensor.shape)
+        compressed_size = shape[self.squeezed_dim] * shape[self.popped_dim]
+        shape.pop(self.popped_dim)
+        shape[self.squeezed_dim] = compressed_size
+        td[self._name] = tensor.view(*shape)
+        return td
+
+
+class BatchReshapeLayer(LayerBase):
+    """Expands at dim 1, sets equal to value at dim 0 div by B.
+    Then sets dim 0 to B. Finally, squeezes.
+    This layer has not been unit tested."""
+
+    def __init__(self, name, **cfg):
+        self._ready = False
+        super().__init__(name, **cfg)
+
+    def setup(self, _source_components=None):
+        if self._ready:
+            return
+
+        self._source_components = _source_components
+        self._out_tensor_shape = next(iter(self._source_components.values()))._out_tensor_shape.copy()
+        # the out_tensor_shape is NOT ACCURATE because we don't know the batch size ahead of time.
+        self._ready = True
+
+    def _forward(self, td: TensorDict):
+        tensor = td[self._sources[0]["name"]]
+        B_TT = td["_BxTT_"]
+        shape = list(tensor.shape)
+        shape.insert(1, 0)
+        shape[1] = shape[0] // (B_TT)
+        shape[0] = B_TT
+        td[self._name] = tensor.view(*shape).squeeze()
+        return td
+
+
+class CenterPixelLayer(LayerBase):
+    """Returns the center pixel of a tensor shaped as (B, C, H, W).
+    H and W must be odd."""
+
+    def __init__(self, name, **cfg):
+        super().__init__(name, **cfg)
+
+    def setup(self, _source_components=None):
+        if self._ready:
+            return
+
+        self._source_components = _source_components
+        self._out_tensor_shape = next(iter(self._source_components.values()))._out_tensor_shape.copy()
+        del self._out_tensor_shape[-2:]
+
+        self._ready = True
+
+    def _forward(self, td: TensorDict):
+        tensor = td[self._sources[0]["name"]]
+        B, C, H, W = tensor.shape
+        center_h = H // 2
+        center_w = W // 2
+        td[self._name] = tensor[:, :, center_h, center_w]
         return td
