@@ -119,7 +119,9 @@ jobs:
           BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          ls -al
           cd deps/mettagrid
+          ls -al
           for file in benchmark_output/*.json; do
             bencher run \
               --project mettagrid-sv3f5i2k \
