@@ -12,7 +12,6 @@ resource "spacelift_stack" "stacks" {
   for_each     = { for stack in local.stacks : stack.name => stack }
   name         = each.value.name
   space_id     = "root"
-  namespace    = "Metta-AI"
   repository   = "metta"
   branch       = "main"
   project_root = "devops/tf/${each.value.name}"
