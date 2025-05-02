@@ -7,7 +7,7 @@ import pufferlib
 from omegaconf import DictConfig, OmegaConf
 
 from mettagrid.config.utils import simple_instantiate
-from mettagrid.grid_env import GridEnv as MettaGrid  # pylint: disable=E0611
+from mettagrid.grid_env import GridEnv
 from mettagrid.resolvers import register_resolvers
 
 
@@ -48,7 +48,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             f"Number of agents {self._env_cfg.game.num_agents} does not match number of agents in map {map_agents}"
         )
 
-        self._c_env = MettaGrid(self._env_cfg, env_map)
+        self._c_env = GridEnv(self._env_cfg, env_map)
         self._grid_env = self._c_env
         self._num_agents = self._c_env.num_agents()
 
