@@ -207,6 +207,18 @@ benchmark: check-bench-tools $(BENCH_EXECUTABLES)
 		$$bench; \
 	done
 
+
+# Add this new target for JSON benchmark output
+bench-json: check-bench-tools $(BENCH_EXECUTABLES)
+	@echo "Running all benchmarks with JSON output..."
+	@mkdir -p benchmark_output
+	@for bench in $(BENCH_EXECUTABLES); do \
+		echo "Running $$bench with JSON output..."; \
+		$$bench --benchmark_format=json > benchmark_output/$$(basename $$bench).json || \
+		echo "Error running $$bench with JSON format"; \
+	done
+	@echo "JSON outputs created in benchmark_output directory"
+
 #-----------------------
 # Other targets
 #-----------------------
