@@ -5,27 +5,27 @@ from torch.distributions.utils import logits_to_probs
 def get_action_log_prob(log_sftmx_logits, sampled_action):
     """
     Compute log probability of a value given logits.
-    
+
     Args:
         logits: Unnormalized log probabilities
         value: The specific action selection to compute probability for
-        
+
     Returns:
         Log probability of the specific action selection
     """
     sampled_action = sampled_action.long().unsqueeze(-1)
     sampled_action, log_pmf = torch.broadcast_tensors(sampled_action, log_sftmx_logits)
     sampled_action = sampled_action[..., :1]
-    return log_pmf.gather(-1, sampled_action).squeeze(-1) # replace w reshape
+    return log_pmf.gather(-1, sampled_action).squeeze(-1)  # replace w reshape
 
 
 def entropy(log_sftmx_logits):
     """
     Compute entropy of a categorical distribution given logits.
-    
+
     Args:
         logits: Unnormalized log probabilities
-        
+
     Returns:
         Entropy of the distribution
     """
@@ -66,7 +66,7 @@ def sample_logits(logits: torch.Tensor, action=None):
         # action = torch.multinomial(probs, 1, replacement=True).squeeze(-1)
     else:
         # Reshape provided action from [B, T, 1] or [B*T] to [B*T]
-        action = action.reshape(-1) 
+        action = action.reshape(-1)
 
     # Ensure action has the expected shape [B*T]
     assert action.shape == logits.shape[:-1], f"Action shape mismatch: expected {logits.shape[:-1]}, got {action.shape}"

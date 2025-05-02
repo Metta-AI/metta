@@ -185,8 +185,8 @@ class PufferTrainer:
 
         logger.info(f"Training on {self.device}")
         while self.agent_step < self.trainer_cfg.total_timesteps:
-            self._evaluate() # aka rollout
-            self._train() # aka update
+            self._evaluate()  # aka rollout
+            self._train()  # aka update
 
             # Processing stats
             self._process_stats()
