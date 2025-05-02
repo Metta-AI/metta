@@ -12,6 +12,10 @@ inputs:
     description: 'Comma-separated list of directory paths to check (e.g., "tests/,benchmarks/")'
     required: false
     default: ''
+  github-token:
+    description: 'GitHub token for accessing the API'
+    required: true
+    default: ${{ github.token }}
 outputs:
   has_relevant_changes:
     description: 'Boolean indicating if files matching the pattern were changed'
