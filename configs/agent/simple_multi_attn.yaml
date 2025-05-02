@@ -3,6 +3,7 @@ _target_: metta.agent.metta_agent.MettaAgent
 
 observations:
   obs_key: grid_obs
+  track_last_action: false
 
 clip_range: 0 # set to 0 to disable clipping
 analyze_weights_interval: 300
@@ -67,10 +68,15 @@ components:
     nn_params:
       num_layers: 2
 
+  core_layer_norm:
+    _target_: metta.agent.lib.nn_layer_library.LayerNorm
+    sources:
+      - name: _core_
+
   core_relu:
     _target_: metta.agent.lib.nn_layer_library.ReLU
     sources:
-      - name: _core_
+      - name: core_layer_norm
 
   critic_1:
     _target_: metta.agent.lib.nn_layer_library.Linear
@@ -89,13 +95,6 @@ components:
       out_features: 1
     nonlinearity: null
 
-  actor_1:
-    _target_: metta.agent.lib.nn_layer_library.Linear
-    sources:
-      - name: core_relu
-    nn_params:
-      out_features: 512
-
   _action_embeds_:
     _target_: metta.agent.lib.action.ActionEmbedding
     sources:
@@ -105,7 +104,9 @@ components:
       embedding_dim: 16
 
   _action_:
-    _target_: metta.agent.lib.actor.MettaActorSingleHead
+    _target_: metta.agent.lib.actor.MettaActorBig
+    bilinear_output_dim: 32
+    mlp_hidden_dim: 512
     sources:
-      - name: actor_1
+      - name: core_relu
       - name: _action_embeds_
