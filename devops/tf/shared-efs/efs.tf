@@ -1,13 +1,8 @@
-# Create EFS - will be imported
+# create EFS
 resource "aws_efs_file_system" "efs" {
   tags = {
-    # Name = "MettaTest"
+    Name = "Shared"
   }
-}
-
-import {
-  to = aws_efs_file_system.efs
-  id = "..." # Enter EFS ID here
 }
 
 # allow access to EFS
