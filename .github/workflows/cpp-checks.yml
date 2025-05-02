@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   # First job: check if any C++ files have changed
-  check-files:
+  check-files-cpp:
     if: github.event.pull_request.draft == false || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     outputs:
@@ -27,7 +27,7 @@ jobs:
         uses: actions/checkout@v4
         
       - name: Check for C++ and Cython file changes
-        id: check_files
+        id: check_cpp_files
         uses: ./.github/actions/file-changes
         with:
           patterns: 'deps/mettagrid/,*.cpp,*.cxx,*.cc,*.h,*.hpp,*.pyx,*.pxd'
@@ -35,8 +35,8 @@ jobs:
 
   # This job runs if no relevant files changed
   skip-checks:
-    needs: check-files
-    if: needs.check-files.outputs.has_relevant_changes != 'true'
+    needs: check-files-cpp
+    if: needs.check-files-cpp.outputs.has_relevant_changes != 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Skip tests and linting
@@ -46,8 +46,8 @@ jobs:
 
   # Run lint workflow
   call-lint:
-    needs: check-files
-    if: needs.check-files.outputs.has_relevant_changes == 'true'
+    needs: check-files-cpp
+    if: needs.check-files-cpp.outputs.has_relevant_changes == 'true'
     uses: ./.github/workflows/cpp-lint.yml
     with:
       ref: ${{ github.ref }}
@@ -56,8 +56,8 @@ jobs:
   
   # Run test workflow
   call-test:
-    needs: check-files
-    if: needs.check-files.outputs.has_relevant_changes == 'true'
+    needs: check-files-cpp
+    if: needs.check-files-cpp.outputs.has_relevant_changes == 'true'
     uses: ./.github/workflows/cpp-test.yml
     with:
       ref: ${{ github.ref }}
@@ -66,8 +66,8 @@ jobs:
   
   # Run benchmark workflow
   call-benchmark:
-    needs: check-files
-    if: needs.check-files.outputs.has_relevant_changes == 'true'
+    needs: check-files-cpp
+    if: needs.check-files-cpp.outputs.has_relevant_changes == 'true'
     permissions:
       checks: write
       pull-requests: write
