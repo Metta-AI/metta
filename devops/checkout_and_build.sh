@@ -14,7 +14,6 @@ git pull
 cd mettagrid
 echo "Building mettagrid into $(pwd)"
 python setup.py build_ext --inplace
-pip install -e .
 cd ..
 
 #
@@ -127,7 +126,7 @@ echo "Creating deps directory..."
 mkdir -p deps
 cd deps
 
-
+pip install -e mettagrid
 
 # Install dependencies using the function
 install_repo "fast_gae" $FAST_GAE_REPO "main" "python setup.py build_ext --inplace && pip install -e ."
