@@ -341,7 +341,7 @@ class PolicyStore:
             if metadata_only:
                 pr._policy = None
                 pr._local_path = None
-            logger.info(f"Loaded policy from {path} with metadata {pr.metadata}")
+            logger.debug(f"Loaded policy from {path} with metadata {pr.metadata}")
             return pr
 
     def _load_wandb_artifact(self, qualified_name: str):

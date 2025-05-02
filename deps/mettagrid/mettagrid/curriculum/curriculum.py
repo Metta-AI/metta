@@ -24,7 +24,10 @@ class Curriculum:
         if "_target_" in cfg:
             return hydra.utils.instantiate(cfg)
         else:
-            return SamplingCurriculum(config_path, cfg.sampling, env_overrides)
+            # If this is an environment rather than a curriculum, we need to wrap it in a curriculum
+            # but we have to sample it first.
+            task = SamplingCurriculum(config_path, 0, env_overrides).get_task()
+            return SingleTaskCurriculum(task.id(), task.env_cfg())
 
 
 class Task:
@@ -45,7 +48,8 @@ class Task:
     def is_complete(self):
         return self._is_complete
 
-    def env_cfg(self) -> Optional[DictConfig]:
+    def env_cfg(self) -> DictConfig:
+        assert self._env_cfg is not None, "Task has no environment configuration"
         return self._env_cfg
 
     def id(self) -> str:

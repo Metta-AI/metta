@@ -108,7 +108,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     @property
     def _max_steps(self):
-        return self._task.game_cfg().max_steps
+        return self._task.env_cfg().game.max_steps
 
     @property
     def single_observation_space(self):

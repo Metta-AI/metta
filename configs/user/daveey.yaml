@@ -28,7 +28,7 @@ trainer:
 
 # policy_uri: wandb://run/b.daveey.dr9.muon.latest
 # policy_uri: wandb://run/b.daveey.t.1.lra.dr.muon
-policy_uri: puffer:///tmp/puffer_metta.pt
+# policy_uri: puffer:///tmp/puffer_metta.pt
 
 npc_policy_uri: ${policy_uri}
 # npc_policy_uri: wandb://run/b.daveey.t.16.dr0

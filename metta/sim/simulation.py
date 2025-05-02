@@ -5,7 +5,7 @@ from datetime import datetime
 
 import numpy as np
 import torch
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, OmegaConf
 
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore
@@ -13,8 +13,8 @@ from metta.agent.util.distribution_utils import sample_logits
 from metta.sim.replay_helper import ReplayHelper
 from metta.sim.simulation_config import SimulationConfig, SimulationSuiteConfig
 from metta.sim.vecenv import make_vecenv
-from metta.util.config import config_from_path
 from metta.util.datastruct import flatten_config
+from mettagrid.mettagrid.curriculum.curriculum import Curriculum
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +39,9 @@ class Simulation:
         self._config = config
         self._wandb_run = wandb_run
         # TODO: Replace with typed EnvConfig
-        self._env_cfg = config_from_path(config.env, config.env_overrides)
+        self._curriculum = Curriculum.from_config_path(config.env, DictConfig(config.env_overrides))
+        self._task = self._curriculum.get_task()
+        self._env_cfg = self._task.env_cfg()
         self._env_name = config.env
 
         self._npc_policy_uri = config.npc_policy_uri
@@ -67,7 +69,7 @@ class Simulation:
         self._npc_agents_per_env = self._agents_per_env - self._policy_agents_per_env
         self._total_agents = self._num_envs * self._agents_per_env
 
-        self._vecenv = make_vecenv(self._env_cfg, config.vectorization, num_envs=self._num_envs)
+        self._vecenv = make_vecenv(self._curriculum, config.vectorization, num_envs=self._num_envs)
 
         # each index is an agent, and we reshape it into a matrix of num_envs x agents_per_env
         slice_idxs = (
