@@ -12,9 +12,3 @@ simulations:
   memory/hard:
     env: env/mettagrid/memory/evals/hard
     policy_agents_pct: 1.0
-  memory/mini_zop:
-    env: env/mettagrid/memory/evals/mini_zop
-    policy_agents_pct: 1.0
-  memory/ultra_hard:
-    env: env/mettagrid/memory/evals/ultra_hard
-    policy_agents_pct: 1.0
