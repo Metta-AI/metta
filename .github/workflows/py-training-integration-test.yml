@@ -9,10 +9,7 @@ on:
       ref:
         required: false
         type: string
-      skip_file_check:
-        required: false
-        type: boolean
-        default: false
+
 jobs:
   training-integration-test:
     if: >-
@@ -29,36 +26,13 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref || github.ref }}
-        
-      # We'll keep the file check but never early exit when called from py-checks
-      - name: Check for Python file changes
-        id: check_files
-        uses: ./.github/actions/file-changes
-        with:
-          patterns: '*.py'
-          specific_files: 'requirements.txt,setup.py'
-          directory_paths: 'tests/,benchmarks/,deps/mettagrid/tests/,deps/mettagrid/benchmarks/'
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-      
-      # Only check for early exit when not called from py-checks and no files changed
-      - name: Set early exit flag
-        id: set_early_exit
-        run: |
-          # Always run this test, regardless of file changes
-          echo "EARLY_EXIT=false" >> $GITHUB_ENV
-      
-      - name: Setup Python
-        if: env.EARLY_EXIT == 'false'
-        uses: ./.github/actions/py-setup
-        
+             
       - name: List installed packages
-        if: env.EARLY_EXIT == 'false'
         run: |
           source venv/bin/activate
           pip list
           
       - name: Training smoke test
-        if: env.EARLY_EXIT == 'false'
         env:
           HYDRA_FULL_ERROR: 1
           PYTHONPATH: ${{ github.workspace }}
@@ -71,7 +45,7 @@ jobs:
           ls -la $CHECKPOINT_PATH || echo "Warning: Checkpoint directory not created"
           
       - name: Upload training output
-        if: success() && env.EARLY_EXIT == 'false'
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: train-output
@@ -80,21 +54,20 @@ jobs:
           if-no-files-found: error
           
       - name: Download training output
-        if: success() && env.EARLY_EXIT == 'false'
+        if: success()
         uses: actions/download-artifact@v4
         with:
           name: train-output
           path: train_dir/
           
       - name: Verify training artifacts
-        if: success() && env.EARLY_EXIT == 'false'
+        if: success()
         run: |
           source venv/bin/activate
           ls -la train_dir/
           ls -la $CHECKPOINT_PATH || echo "Checkpoint directory not found!"
           
       - name: Replay smoke test
-        if: env.EARLY_EXIT == 'false'
         env:
           HYDRA_FULL_ERROR: 1
           PYTHONPATH: ${{ github.workspace }}
@@ -106,7 +79,7 @@ jobs:
           python -m tools.replay +hardware=github wandb=off
           
       - name: Debug on failure
-        if: failure() && env.EARLY_EXIT == 'false'
+        if: failure()
         run: |
           source venv/bin/activate
           echo "Listing the contents of the workspace:"
