@@ -54,6 +54,13 @@ def run_brew_bundle(force=False, no_fail=False):
         raise
 
 
+def setup_efs():
+    """Setup EFS."""
+    print("Setting up EFS...")
+    run_command(["sudo", "bash", str(Path(__file__).parent / "setup_efs.sh")])
+    print("EFS configured. Run './mount_efs.sh' to mount EFS.")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Setup developer machine with Homebrew and required packages")
     parser.add_argument("--brew-force", action="store_true", help="Let Homebrew take over existing installations")
@@ -62,6 +69,7 @@ def main():
 
     install_homebrew()
     run_brew_bundle(force=args.brew_force, no_fail=args.brew_no_fail)
+    setup_efs()
     print("Machine setup complete!")
 
 
