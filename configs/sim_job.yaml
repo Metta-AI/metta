@@ -14,5 +14,5 @@ sim_job:
   simulation_suite: ${sim}
   policy_uris:
     - ${policy_uri}
-  selector_type: latest
+  selector_type: top
   metric: navigation_score

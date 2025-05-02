@@ -3,11 +3,11 @@
 # Usage function for better help messages
 usage() {
   echo "Usage: $0 -r RUN_NAME [-w WANDB_PATH] [additional Hydra overrides]"
-  echo "  -r RUN_NAME     Your run name (e.g., b.rwalters.64r)"
+  echo "  -r RUN_NAME     Your run name (e.g., b.$USER.test_run)"
   echo "  -w WANDB_PATH   Optional: Full wandb path if different from auto-generated"
   echo ""
   echo "  Any additional arguments will be passed directly to the Python commands"
-  echo "  Example: $0 -r b.rwalters.81r +hardware=macbook"
+  echo "  Example: $0 -r b.$USER.test_run +hardware=macbook"
   exit 1
 }
 
@@ -73,7 +73,7 @@ fi
 
 # Step 3: Analyze and update dashboard
 echo "Step 3: Analyzing results and updating dashboard..."
-ANALYZE_CMD="python3 -m tools.analyze +eval_db_uri=wandb://artifacts/navigation_db ++sim_job.selector_type=latest ++analyzer.output_path=s3://softmax-public/policydash/dashboard.html run=analyze ++analyzer.num_output_policies=\"all\" $ADDITIONAL_ARGS"
+ANALYZE_CMD="python3 -m tools.analyze run=analyze +eval_db_uri=wandb://artifacts/navigation_db analyzer.output_path=s3://softmax-public/policydash/dashboard.html +analyzer.num_output_policies=\"all\" $ADDITIONAL_ARGS"
 echo "Executing: $ANALYZE_CMD"
 eval $ANALYZE_CMD
 
