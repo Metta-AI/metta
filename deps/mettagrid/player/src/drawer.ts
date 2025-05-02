@@ -11,6 +11,7 @@ interface AtlasData {
  * Mesh class responsible for managing vertex data
  */
 class Mesh {
+  private name: string;
   private device: GPUDevice;
   private vertexBuffer: GPUBuffer | null = null;
   private indexBuffer: GPUBuffer | null = null;
@@ -28,7 +29,8 @@ class Mesh {
   public scissorEnabled: boolean = false;
   public scissorRect: [number, number, number, number] = [0, 0, 0, 0]; // x, y, width, height
 
-  constructor(device: GPUDevice, maxQuads: number = 1024 * 16) {
+  constructor(name: string, device: GPUDevice, maxQuads: number = 1024 * 8) {
+    this.name = name;
     this.device = device;
     this.maxQuads = maxQuads;
 
@@ -93,7 +95,7 @@ class Mesh {
 
   // Resize the maximum number of quads the mesh can hold.
   resizeMaxQuads(newMaxQuads: number): void {
-    console.log("Resizing max quads from", this.maxQuads, "to", newMaxQuads);
+    console.info("Resizing max ", this.name," quads from", this.maxQuads, "to", newMaxQuads);
 
     if (newMaxQuads <= this.maxQuads) {
       console.warn("New max quads must be larger than current max quads");
@@ -301,7 +303,7 @@ class Drawer {
     }
 
     // Otherwise, create a new mesh
-    const newMesh = new Mesh(this.device);
+    const newMesh = new Mesh(name, this.device);
     newMesh.createBuffers();
     this.meshes.set(name, newMesh);
     this.currentMesh = newMesh;
