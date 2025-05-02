@@ -9,6 +9,7 @@ from omegaconf import DictConfig, OmegaConf
 from mettagrid.config.utils import simple_instantiate
 from mettagrid.mettagrid_c import MettaGrid  # pylint: disable=E0611
 from mettagrid.resolvers import register_resolvers
+from mettagrid.stats_writer import MettaGridStatsWriter
 
 
 class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
@@ -23,8 +24,17 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._renderer = None
         self._map_builder = None
         self._reset_env()
-
         self.labels = self._env_cfg.get("labels", None)
+
+        # ------------------------------------------------------------------
+        # Stats writer setup (one per *env instance*)
+        # ------------------------------------------------------------------
+        self.stats_writer: Optional[MettaGridStatsWriter]
+        writer_path = self._env_cfg.get("stats_writer_path", None)
+        if writer_path:
+            self.stats_writer = MettaGridStatsWriter(writer_path)
+        else:
+            self.stats_writer = None
 
         super().__init__(buf)
 
@@ -63,6 +73,17 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._reset_env()
 
         self._c_env.set_buffers(self.observations, self.terminals, self.truncations, self.rewards)
+
+        if self.stats_writer:
+            self._episode_id = self.stats_writer.start_episode(
+                env_name=self._env_cfg.name,
+                seed=seed or 0,
+                map_w=self.map_width,
+                map_h=self.map_height,
+                meta=OmegaConf.to_container(self._env_cfg, resolve=False),
+            )
+        else:
+            self._episode_id = None
 
         # obs, infos = self._env.reset(**kwargs)
         # return obs, infos
@@ -127,6 +148,14 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                 infos["agent"][n] = infos["agent"].get(n, 0) + v
         for n, v in infos["agent"].items():
             infos["agent"][n] = v / self._num_agents
+
+        if self.stats_writer and self._episode_id is not None:
+            for agent_idx, agent_stats in enumerate(stats["agent"]):
+                self.stats_writer.log_metric(agent_idx, "reward", float(episode_rewards[agent_idx]))
+                for k, v in agent_stats.items():
+                    self.stats_writer.log_metric(agent_idx, k, float(v))
+            self.stats_writer.end_episode(step_count=self._c_env.current_timestep())
+            self._episode_id = None
 
     @property
     def _max_steps(self):
