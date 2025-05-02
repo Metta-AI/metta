@@ -21,14 +21,6 @@ resource "aws_security_group" "proxy" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # allow incoming EFS traffic
-  ingress {
-    from_port       = 2049
-    to_port         = 2049
-    protocol        = "tcp"
-    security_groups = [aws_security_group.proxy.id]
-  }
-
   # direct WireGuard paths
   # (optional? o3 marked this as optional)
   ingress {
