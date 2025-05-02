@@ -38,7 +38,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         map_agents = np.count_nonzero(np.char.startswith(game_map, "agent"))
         assert game_cfg.num_agents == map_agents, f"Map has {map_agents} agents, expected {game_cfg.num_agents}"
 
-        logger.info(f"Resetting environment with {game_cfg.agent.freeze_duration} freeze duration")
         self._c_env = MettaGrid(game_cfg, game_map)
         self._grid_env = self._c_env
         self._num_agents = self._c_env.num_agents()

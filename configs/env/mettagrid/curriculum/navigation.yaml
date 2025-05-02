@@ -1,5 +1,5 @@
 
-_target_: mettagrid.curriculum.curriculum.RandomCurriculum
+_target_: mettagrid.curriculum.curriculum.LowRewardCurriculum
 
 tasks:
   /env/mettagrid/navigation/training/terrain_from_numpy: 0.5
