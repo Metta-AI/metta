@@ -1,6 +1,6 @@
 import { Vec2f, Mat3f } from './vector_math.js';
 import { Grid } from './grid.js';
-import { Drawer } from './drawer.js';
+import { Context3d } from './context3d.js';
 import * as Common from './common.js';
 import { ui, state } from './common.js';
 
@@ -77,7 +77,7 @@ export class PanelInfo {
 }
 
 
-let drawer: Drawer;
+let ctx: Context3d;
 
 // Flag to prevent multiple calls to requestAnimationFrame
 let frameRequested = false;
@@ -340,7 +340,7 @@ async function loadReplayText(replayData: any) {
   state.replay.action_images = [];
   for (const actionName of state.replay.action_names) {
     let path = "trace/" + actionName + ".png";
-    if (drawer.hasImage(path)) {
+    if (ctx.hasImage(path)) {
       state.replay.action_images.push(path);
     } else {
       console.warn("Action not supported: ", path);
@@ -363,12 +363,12 @@ async function loadReplayText(replayData: any) {
   for (let i = 0; i < state.replay.object_types.length; i++) {
     const typeName = state.replay.object_types[i];
     var image = "objects/" + typeName + ".png";
-    if (!drawer.hasImage(image)) {
+    if (!ctx.hasImage(image)) {
       console.warn("Object not supported: ", typeName);
       image = "objects/unknown.png";
     }
     var imageEmpty = "objects/" + typeName + ".empty.png";
-    if (!drawer.hasImage(imageEmpty)) {
+    if (!ctx.hasImage(imageEmpty)) {
       imageEmpty = image;
     }
     state.replay.object_images.push([image, imageEmpty]);
@@ -388,14 +388,14 @@ async function loadReplayText(replayData: any) {
       var color = [1, 1, 1, 1]; // Default to white.
       for (const [colorName, colorValue] of Common.COLORS) {
         if (type.endsWith(colorName)) {
-          if(drawer.hasImage("resources/" + type + ".png")) {
+          if(ctx.hasImage("resources/" + type + ".png")) {
             // Use the resource.color.png with white color.
             break;
           } else {
             // Use the resource.png with specific color.
             type = removeSuffix(type, "." + colorName);
             color = colorValue as number[];
-            if (!drawer.hasImage("resources/" + type + ".png")) {
+            if (!ctx.hasImage("resources/" + type + ".png")) {
               // Use the unknown.png with specific color.
               console.warn("Resource not supported: ", type);
               type = "unknown";
@@ -611,7 +611,7 @@ function drawFloor() {
   for (let x = 0; x < state.replay.map_size[0]; x++) {
     for (let y = 0; y < state.replay.map_size[1]; y++) {
       const color = visibilityMap.get(x, y) ? [1, 1, 1, 1] : [0.75, 0.75, 0.75, 1];
-      drawer.drawSprite('objects/floor.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE, color);
+      ctx.drawSprite('objects/floor.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE, color);
     }
   }
 }
@@ -657,7 +657,7 @@ function drawWalls() {
     if (n || w || e || s) {
       suffix = (n ? "n" : "") + (w ? "w" : "") + (s ? "s" : "") + (e ? "e" : "");
     }
-    drawer.drawSprite('objects/wall.' + suffix + '.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE);
+    ctx.drawSprite('objects/wall.' + suffix + '.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE);
   }
 
   // Draw the wall in-fill following the adjacency map.
@@ -681,7 +681,7 @@ function drawWalls() {
       se = true;
     }
     if (e && s && se) {
-      drawer.drawSprite(
+      ctx.drawSprite(
         'objects/wall.fill.png',
         x * Common.TILE_SIZE + Common.TILE_SIZE / 2,
         y * Common.TILE_SIZE + Common.TILE_SIZE / 2 - 42
@@ -718,7 +718,7 @@ function drawObjects() {
 
       const agent_id = gridObject["agent_id"];
 
-      drawer.drawSprite(
+      ctx.drawSprite(
         "agents/agent." + suffix + ".png",
         x * Common.TILE_SIZE,
         y * Common.TILE_SIZE,
@@ -728,14 +728,14 @@ function drawObjects() {
       // Draw regular objects.
       if (hasInventory(gridObject)) {
         // object.png
-        drawer.drawSprite(
+        ctx.drawSprite(
           state.replay.object_images[type][0],
           x * Common.TILE_SIZE,
           y * Common.TILE_SIZE
         );
       } else {
         // object.empty.png
-        drawer.drawSprite(
+        ctx.drawSprite(
           state.replay.object_images[type][1],
           x * Common.TILE_SIZE,
           y * Common.TILE_SIZE
@@ -770,7 +770,7 @@ function drawActions() {
           rotation = 0; // East
         }
         if (action_name == "attack" && action[1] >= 0 && action[1] <= 8) {
-          drawer.drawSprite(
+          ctx.drawSprite(
             "actions/attack" + (action[1] + 1) + ".png",
             x * Common.TILE_SIZE,
             y * Common.TILE_SIZE,
@@ -779,7 +779,7 @@ function drawActions() {
             rotation
           );
         } else if (action_name == "attack_nearest") {
-          drawer.drawSprite(
+          ctx.drawSprite(
             "actions/attack_nearest.png",
             x * Common.TILE_SIZE,
             y * Common.TILE_SIZE,
@@ -788,7 +788,7 @@ function drawActions() {
             rotation
           );
         } else if (action_name == "put_recipe_items") {
-          drawer.drawSprite(
+          ctx.drawSprite(
             "actions/put_recipe_items.png",
             x * Common.TILE_SIZE,
             y * Common.TILE_SIZE,
@@ -797,7 +797,7 @@ function drawActions() {
             rotation
           );
         } else if (action_name == "get_output") {
-          drawer.drawSprite(
+          ctx.drawSprite(
             "actions/get_output.png",
             x * Common.TILE_SIZE,
             y * Common.TILE_SIZE,
@@ -806,7 +806,7 @@ function drawActions() {
             rotation
           );
         } else if (action_name == "swap") {
-          drawer.drawSprite(
+          ctx.drawSprite(
             "actions/swap.png",
             x * Common.TILE_SIZE,
             y * Common.TILE_SIZE,
@@ -820,7 +820,7 @@ function drawActions() {
 
     // Do building actions.
     if (getAttr(gridObject, "converting") > 0) {
-      drawer.drawSprite(
+      ctx.drawSprite(
         "actions/converting.png",
         x * Common.TILE_SIZE,
         y * Common.TILE_SIZE - 100,
@@ -833,7 +833,7 @@ function drawActions() {
 
     // Do states
     if (getAttr(gridObject, "agent:frozen") > 0) {
-      drawer.drawSprite(
+      ctx.drawSprite(
         "agents/frozen.png",
         x * Common.TILE_SIZE,
         y * Common.TILE_SIZE,
@@ -860,7 +860,7 @@ function drawInventory() {
     for (const [key, [icon, color]] of state.replay.resource_inventory) {
       const num = getAttr(gridObject, key);
       for (let i = 0; i < num; i++) {
-        drawer.drawSprite(
+        ctx.drawSprite(
           icon,
           x * Common.TILE_SIZE + inventoryX - Common.TILE_SIZE/2,
           y * Common.TILE_SIZE - Common.TILE_SIZE/2 + 16,
@@ -884,14 +884,14 @@ function drawRewards() {
       let rewardX = 0;
       let advanceX = Math.min(32, Common.TILE_SIZE / totalReward);
       for (let i = 0; i < totalReward; i++) {
-        drawer.save()
-        drawer.translate(
+        ctx.save()
+        ctx.translate(
           x * Common.TILE_SIZE + rewardX - Common.TILE_SIZE/2,
           y * Common.TILE_SIZE + Common.TILE_SIZE/2 - 16
         );
-        drawer.scale(1/8, 1/8);
-        drawer.drawSprite("resources/reward.png", 0, 0);
-        drawer.restore()
+        ctx.scale(1/8, 1/8);
+        ctx.drawSprite("resources/reward.png", 0, 0);
+        ctx.restore()
         rewardX += advanceX;
       }
     }
@@ -905,7 +905,7 @@ function drawSelection() {
 
   const x = getAttr(state.selectedGridObject, "c")
   const y = getAttr(state.selectedGridObject, "r")
-  drawer.drawSprite("selection.png", x * Common.TILE_SIZE, y * Common.TILE_SIZE);
+  ctx.drawSprite("selection.png", x * Common.TILE_SIZE, y * Common.TILE_SIZE);
 }
 
 function drawTrajectory() {
@@ -944,7 +944,7 @@ function drawTrajectory() {
           }
 
           if (cx1 > cx0) { // east
-            drawer.drawSprite(
+            ctx.drawSprite(
               image,
               cx0 * Common.TILE_SIZE,
               cy0 * Common.TILE_SIZE + 60,
@@ -953,7 +953,7 @@ function drawTrajectory() {
               0
             );
           } else if (cx1 < cx0) { // west
-            drawer.drawSprite(
+            ctx.drawSprite(
               image,
               cx0 * Common.TILE_SIZE,
               cy0 * Common.TILE_SIZE + 60,
@@ -962,7 +962,7 @@ function drawTrajectory() {
               Math.PI
             );
           } else if (cy1 > cy0) { // south
-            drawer.drawSprite(
+            ctx.drawSprite(
               image,
               cx0 * Common.TILE_SIZE,
               cy0 * Common.TILE_SIZE + 60,
@@ -971,7 +971,7 @@ function drawTrajectory() {
               -Math.PI / 2
             );
           } else if (cy1 < cy0) { // north
-            drawer.drawSprite(
+            ctx.drawSprite(
               image,
               cx0 * Common.TILE_SIZE,
               cy0 * Common.TILE_SIZE + 60,
@@ -987,7 +987,7 @@ function drawTrajectory() {
 }
 
 function drawMap(panel: PanelInfo) {
-  if (state.replay === null || drawer === null || drawer.ready === false) {
+  if (state.replay === null || ctx === null || ctx.ready === false) {
     return;
   }
 
@@ -1030,12 +1030,12 @@ function drawMap(panel: PanelInfo) {
     panel.panPos = new Vec2f(-x * Common.TILE_SIZE, -y * Common.TILE_SIZE);
   }
 
-  drawer.save();
-  drawer.setScissorRect(panel.x, panel.y, panel.width, panel.height);
+  ctx.save();
+  ctx.setScissorRect(panel.x, panel.y, panel.width, panel.height);
 
-  drawer.translate(panel.x + panel.width / 2, panel.y + panel.height / 2);
-  drawer.scale(panel.zoomLevel, panel.zoomLevel);
-  drawer.translate(panel.panPos.x(), panel.panPos.y());
+  ctx.translate(panel.x + panel.width / 2, panel.y + panel.height / 2);
+  ctx.scale(panel.zoomLevel, panel.zoomLevel);
+  ctx.translate(panel.panPos.x(), panel.panPos.y());
 
   drawFloor();
   drawWalls();
@@ -1046,11 +1046,11 @@ function drawMap(panel: PanelInfo) {
   drawInventory();
   drawRewards();
 
-  drawer.restore();
+  ctx.restore();
 }
 
 function drawTrace(panel: PanelInfo) {
-  if (state.replay === null || drawer === null || drawer.ready === false) {
+  if (state.replay === null || ctx === null || ctx.ready === false) {
     return;
   }
 
@@ -1089,8 +1089,8 @@ function drawTrace(panel: PanelInfo) {
     }
   }
 
-  drawer.save();
-  drawer.setScissorRect(panel.x, panel.y, panel.width, panel.height);
+  ctx.save();
+  ctx.setScissorRect(panel.x, panel.y, panel.width, panel.height);
 
   const fullSize = new Vec2f(
     state.replay.max_steps * Common.TRACE_WIDTH,
@@ -1098,28 +1098,28 @@ function drawTrace(panel: PanelInfo) {
   );
 
   // Draw background
-  drawer.drawSolidRect(
+  ctx.drawSolidRect(
     panel.x, panel.y, panel.width, panel.height,
     [0.08, 0.08, 0.08, 1.0] // Dark background
   );
 
-  drawer.translate(panel.x + panel.width / 2, panel.y + panel.height / 2);
-  drawer.scale(panel.zoomLevel, panel.zoomLevel);
-  drawer.translate(panel.panPos.x(), panel.panPos.y());
+  ctx.translate(panel.x + panel.width / 2, panel.y + panel.height / 2);
+  ctx.scale(panel.zoomLevel, panel.zoomLevel);
+  ctx.translate(panel.panPos.x(), panel.panPos.y());
 
   // Draw rectangle around the selected agent
   if (state.selectedGridObject !== null && state.selectedGridObject.agent_id !== undefined) {
     const agentId = state.selectedGridObject.agent_id;
 
     // Draw selection rectangle
-    drawer.drawSolidRect(
+    ctx.drawSolidRect(
       0, agentId * Common.TRACE_HEIGHT, fullSize.x(), Common.TRACE_HEIGHT,
       [.3, .3, .3, 1]
     );
   }
 
   // Draw current step line that goes through all of the traces
-  drawer.drawSolidRect(
+  ctx.drawSolidRect(
     state.step * Common.TRACE_WIDTH, 0,
     Common.TRACE_WIDTH, fullSize.y(),
     [0.5, 0.5, 0.5, 0.5] // White with 50% opacity
@@ -1133,13 +1133,13 @@ function drawTrace(panel: PanelInfo) {
       const action_success = getAttr(agent, "action_success", j);
 
       if (action_success && action != null && action[0] > 0 && action[0] < state.replay.action_images.length) {
-        drawer.drawSprite(
+        ctx.drawSprite(
           state.replay.action_images[action[0]],
           j * Common.TRACE_WIDTH + Common.TRACE_WIDTH/2,
           i * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT/2,
         );
       } else if (action != null && action[0] > 0 && action[0] < state.replay.action_images.length) {
-        drawer.drawSprite(
+        ctx.drawSprite(
           state.replay.action_images[action[0]],
           j * Common.TRACE_WIDTH + Common.TRACE_WIDTH/2,
           i * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT/2,
@@ -1148,7 +1148,7 @@ function drawTrace(panel: PanelInfo) {
       }
 
       if (getAttr(agent, "agent:frozen", j) > 0) {
-        drawer.drawSprite(
+        ctx.drawSprite(
           "trace/frozen.png",
           j * Common.TRACE_WIDTH + Common.TRACE_WIDTH/2,
           i * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT/2,
@@ -1158,7 +1158,7 @@ function drawTrace(panel: PanelInfo) {
       const reward = getAttr(agent, "reward", j);
       // If there is reward, draw a star.
       if (reward > 0) {
-        drawer.drawSprite(
+        ctx.drawSprite(
           "resources/reward.png",
           j * Common.TRACE_WIDTH + Common.TRACE_WIDTH/2,
           i * Common.TRACE_HEIGHT + 256 - 32,
@@ -1169,7 +1169,7 @@ function drawTrace(panel: PanelInfo) {
     }
   }
 
-  drawer.restore();
+  ctx.restore();
 }
 
 // Updates the readout of the selected object or replay info.
@@ -1209,7 +1209,7 @@ function updateReadout() {
 
 // Draw a frame.
 function onFrame() {
-  if (state.replay === null || drawer === null || drawer.ready === false) {
+  if (state.replay === null || ctx === null || ctx.ready === false) {
     return;
   }
 
@@ -1217,7 +1217,7 @@ function onFrame() {
   globalCanvas.width = window.innerWidth;
   globalCanvas.height = window.innerHeight;
 
-  drawer.clear();
+  ctx.clear();
 
   var fullUpdate = true;
   if (mapPanel.inside(ui.mousePos)) {
@@ -1233,13 +1233,13 @@ function onFrame() {
   }
 
   updateReadout();
-  drawer.useMesh("map");
+  ctx.useMesh("map");
   drawMap(mapPanel);
-  drawer.useMesh("trace");
+  ctx.useMesh("trace");
   drawTrace(tracePanel);
 
-  drawer.flush();
-  console.log("Flushed drawer.");
+  ctx.flush();
+  console.log("Flushed ctx.");
 
   // Update URL parameters with current state once per frame
   updateUrlParams();
@@ -1392,13 +1392,13 @@ window.addEventListener('dragover', preventDefaults, false);
 window.addEventListener('drop', handleDrop, false);
 
 window.addEventListener('load', async () => {
-  drawer = new Drawer(globalCanvas);
+  ctx = new Context3d(globalCanvas);
 
   // Use local atlas texture.
   const atlasImageUrl = 'dist/atlas.png';
   const atlasJsonUrl = 'dist/atlas.json';
 
-  const success = await drawer.init(atlasJsonUrl, atlasImageUrl);
+  const success = await ctx.init(atlasJsonUrl, atlasImageUrl);
   if (!success) {
     showModal(
       "error",
@@ -1407,7 +1407,7 @@ window.addEventListener('load', async () => {
     );
     return;
   } else {
-    console.log("Drawer initialized successfully.");
+    console.log("Context3d initialized successfully.");
   }
 
   await parseUrlParams();
