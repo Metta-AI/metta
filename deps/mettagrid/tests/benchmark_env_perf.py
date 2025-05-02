@@ -6,6 +6,7 @@ from omegaconf import OmegaConf
 from tqdm import tqdm
 
 from mettagrid.config.utils import get_cfg
+from mettagrid.mettagrid.curriculum.curriculum import SingleTaskCurriculum
 from mettagrid.mettagrid_env import MettaGridEnv
 
 global actions
@@ -48,7 +49,8 @@ def main():
     print(OmegaConf.to_yaml(cfg))
 
     cfg.game.max_steps = 999999999
-    env = MettaGridEnv(cfg, render_mode="human", _recursive_=False)
+    curriculum = SingleTaskCurriculum("task", cfg)
+    env = MettaGridEnv(curriculum, render_mode="human")
     env.reset()
     global actions
     # num_agents = cfg.game.num_agents
