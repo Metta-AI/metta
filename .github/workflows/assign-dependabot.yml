@@ -1,0 +1,23 @@
+name: Dependabot PR Assignment
+on:
+  pull_request:
+    types: [opened]
+jobs:
+  check-dependabot:
+    runs-on: ubuntu-latest
+    # Only run for Dependabot PRs
+    if: github.actor == 'dependabot[bot]'
+    permissions:
+      pull-requests: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assign and request reviews for Dependabot PR
+        uses: ./.github/actions/pr-assignment
+        with:
+          pr-number: ${{ github.event.pull_request.number }}
+          possible-assignees: ${{ vars.DEPENDABOT_ASSIGNEES || '' }}
+          possible-reviewers: ${{ vars.DEPENDABOT_REVIEWERS || '' }}
+          forced-assignees: ${{ vars.DEPENDABOT_FORCED_ASSIGNEES || '' }}
+          forced-reviewers: ${{ vars.DEPENDABOT_FORCED_REVIEWERS || '' }}
+          forced-labels: ${{ vars.DEPENDABOT_FORCED_LABELS || '' }}
