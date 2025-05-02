@@ -56,7 +56,7 @@ simulations:
   simple_npc:
     env: env/mettagrid/simple
     policy_agents_pct: 0.5
-    npc_policy_uri: wandb://run/b.daveey.t.8.rdr9.3
+    npc_policy_uri: wandb://run/b.alex.robust.npc.s.s.004
 
 
 
