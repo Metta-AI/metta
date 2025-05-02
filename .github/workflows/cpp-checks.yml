@@ -21,11 +21,11 @@ jobs:
     if: github.event.pull_request.draft == false || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     outputs:
-      has_relevant_changes: ${{ steps.check_cpp_files.outputs.has_relevant_changes }}
+      has_relevant_changes: ${{ github.event_name == 'push' || steps.check_cpp_files.outputs.has_relevant_changes }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        
+
       - name: Check for C++ and Cython file changes
         id: check_cpp_files
         uses: ./.github/actions/file-changes
