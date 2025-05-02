@@ -1,22 +1,35 @@
 name: py-lint
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name != 'workflow_call' }}
 on:
-  pull_request:
-    types: [opened, synchronize, ready_for_review]
-    branches: [main]
   workflow_dispatch: {}
+  workflow_call:
+    inputs:
+      ref:
+        required: false
+        type: string
+      skip_file_check:
+        required: false
+        type: boolean
+        default: false
 jobs:
   py-lint:
-    if: github.event.pull_request.draft == false || github.event_name == 'workflow_dispatch'
+    if: >-
+      github.event.pull_request.draft == false || 
+      github.event_name == 'workflow_dispatch' || 
+      github.event_name == 'workflow_call'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
         
+      # Skip file change check if triggered from py-checks workflow
       - name: Check for Python file changes
         id: check_files
+        if: inputs.skip_file_check != true
         uses: ./.github/actions/file-changes
         with:
           patterns: '*.py'
@@ -26,12 +39,19 @@ jobs:
             
       - name: Set early exit flag
         id: set_early_exit
+        if: inputs.skip_file_check != true
         run: |
           if [[ "${{ github.event_name }}" == "pull_request" && "${{ steps.check_files.outputs.has_relevant_changes }}" != "true" ]]; then
             echo "EARLY_EXIT=true" >> $GITHUB_ENV
           else
             echo "EARLY_EXIT=false" >> $GITHUB_ENV
           fi
+      
+      # Always run if triggered from py-checks
+      - name: Set early exit flag for workflow_call
+        if: inputs.skip_file_check == true
+        run: |
+          echo "EARLY_EXIT=false" >> $GITHUB_ENV
       
       - name: Setup Python
         if: env.EARLY_EXIT == 'false'
