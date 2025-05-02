@@ -75,6 +75,12 @@ jobs:
           BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # Add extra validation to catch this error early
+          if [ -z "$BENCHER_API_TOKEN" ]; then
+            echo "Error: BENCHER_API_TOKEN is empty. Make sure the secret is properly set."
+            exit 1
+          fi
+
           echo "Bencher token length: ${#BENCHER_API_TOKEN}"
           echo "Bencher token SHA256: $(echo -n "$BENCHER_API_TOKEN" | sha256sum)"
           
