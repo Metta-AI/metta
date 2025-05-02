@@ -75,6 +75,7 @@ jobs:
           source venv/bin/activate
           pip install ruff==0.11.5
           ruff check --respect-gitignore .
+          ruff format --check .
 
       - name: Run tests in /tests
         env:

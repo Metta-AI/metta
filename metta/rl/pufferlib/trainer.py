@@ -3,7 +3,6 @@ import os
 import time
 from collections import defaultdict
 
-import hydra
 import numpy as np
 import pufferlib
 import pufferlib.utils
@@ -17,16 +16,17 @@ from omegaconf import DictConfig, ListConfig
 from metta.agent.metta_agent import DistributedMettaAgent
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyStore
-from metta.agent.util.distribution_utils import sample_logits
 from metta.agent.util.weights_analysis import WeightsMetricsHelper
+from metta.eval.analysis_config import AnalyzerConfig
 from metta.rl.pufferlib.experience import Experience
 from metta.rl.pufferlib.kickstarter import Kickstarter
 from metta.rl.pufferlib.profile import Profile
+from metta.rl.pufferlib.torch_profiler import TorchProfiler
 from metta.rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
+from metta.sim.eval_stats_analyzer import EvalStatsAnalyzer
 from metta.sim.eval_stats_db import EvalStatsDB
 from metta.sim.eval_stats_logger import EvalStatsLogger
-from metta.sim.replay_helper import ReplayHelper
-from metta.sim.simulation import SimulationSuite
+from metta.sim.simulation import Simulation, SimulationSuite
 from metta.sim.simulation_config import SimulationConfig, SimulationSuiteConfig
 from metta.sim.vecenv import make_vecenv
 from metta.util.config import config_from_path
@@ -66,6 +66,7 @@ class PufferTrainer:
             logger.info(f"Setting up distributed training on device {self.device}")
 
         self.profile = Profile()
+        self.torch_profiler = TorchProfiler(self._master, cfg.run_dir, cfg.trainer.profiler_interval_epochs, wandb_run)
         self.losses = self._make_losses()
         self.stats = defaultdict(list)
         self.wandb_run = wandb_run
@@ -110,22 +111,21 @@ class PufferTrainer:
         if self._master:
             print(policy_record.policy())
 
-        action_names = self.vecenv.driver_env.action_names()
-        if policy_record.metadata["action_names"] != action_names:
-            raise ValueError(
-                "Action names do not match between policy and environment: "
-                f"{policy_record.metadata['action_names']} != {action_names}"
-            )
-
         self._initial_pr = policy_record
         self.last_pr = policy_record
         self.policy = policy_record.policy().to(self.device)
         self.policy_record = policy_record
         self.uncompiled_policy = self.policy
 
+        actions_names = self.vecenv.driver_env.action_names()
+        actions_max_params = self.vecenv.driver_env._c_env.max_action_args()
+        self.policy.activate_actions(actions_names, actions_max_params, self.device)
+
         if self.trainer_cfg.compile:
             logger.info("Compiling policy")
             self.policy = torch.compile(self.policy, mode=self.trainer_cfg.compile_mode)
+
+        self.kickstarter = Kickstarter(self.cfg, self.policy_store, actions_names, actions_max_params)
 
         if dist.is_initialized():
             logger.info(f"Initializing DistributedDataParallel on device {self.device}")
@@ -161,9 +161,7 @@ class PufferTrainer:
             for k in ["0verview", "env", "losses", "performance", "train"]:
                 wandb_run.define_metric(f"{k}/*", step_metric="train/agent_step")
 
-        self.kickstarter = Kickstarter(self.cfg, self.policy_store, self.vecenv.single_action_space)
-
-        replay_sim_config = SimulationConfig(
+        self.replay_sim_config = SimulationConfig(
             env=self.trainer_cfg.env,
             num_envs=1,
             num_episodes=1,
@@ -171,7 +169,6 @@ class PufferTrainer:
             device=self.device,
             vectorization=self.cfg.vectorization,
         )
-        self.replay_helper = ReplayHelper(replay_sim_config, self.last_pr, wandb_run)
 
         logger.info(f"PufferTrainer initialization complete on device: {self.device}")
 
@@ -190,11 +187,12 @@ class PufferTrainer:
 
         logger.info(f"Training on {self.device}")
         while self.agent_step < self.trainer_cfg.total_timesteps:
-            # Collecting experience
-            self._evaluate()
+            with self.torch_profiler:
+                # Collecting experience
+                self._evaluate()
 
-            # Training on collected experience
-            self._train()
+                # Training on collected experience
+                self._train()
 
             # Processing stats
             self._process_stats()
@@ -226,6 +224,7 @@ class PufferTrainer:
             if self.trainer_cfg.evaluate_interval != 0 and self.epoch % self.trainer_cfg.evaluate_interval == 0:
                 self._evaluate_policy()
             self._weights_helper.on_epoch_end(self.epoch, self.policy)
+            self.torch_profiler.on_epoch_end(self.epoch)
             if self.epoch % self.trainer_cfg.wandb_checkpoint_interval == 0:
                 self._save_policy_to_wandb()
             if (
@@ -264,7 +263,8 @@ class PufferTrainer:
             logger.error(f"Error logging stats: {e}")
 
         eval_stats_db = EvalStatsDB.from_uri(self.sim_suite_config.eval_db_uri, self.cfg.run_dir, self.wandb_run)
-        analyzer = hydra.utils.instantiate(self.cfg.analyzer, eval_stats_db)
+        analyzer_cfg = AnalyzerConfig(self.cfg.analyzer)
+        analyzer = EvalStatsAnalyzer(eval_stats_db, analyzer_cfg.analysis, analyzer_cfg.policy_uri)
         _, policy_fitness_records = analyzer.analyze()
         self._eval_results = policy_fitness_records
 
@@ -331,8 +331,7 @@ class PufferTrainer:
 
             with profile.eval_forward, torch.no_grad():
                 state = PolicyState(lstm_h=lstm_h[:, gpu_env_id], lstm_c=lstm_c[:, gpu_env_id])
-                logits, value = policy(o_device, state)
-                actions, logprob, _, _ = sample_logits(logits)
+                actions, logprob, _, value, _ = policy(o_device, state)
                 lstm_h[:, gpu_env_id] = state.lstm_h
                 lstm_c[:, gpu_env_id] = state.lstm_c
 
@@ -422,8 +421,7 @@ class PufferTrainer:
                     ret = experience.b_returns[mb]
 
                 with profile.train_forward:
-                    logits, newvalue = self.policy(obs, lstm_state, action=atn)
-                    _, newlogprob, entropy, new_normalized_logits = sample_logits(logits, action=atn)
+                    _, newlogprob, entropy, newvalue, new_normalized_logits = self.policy(obs, lstm_state, action=atn)
                     if self.device == "cuda":
                         torch.cuda.synchronize()
 
@@ -581,12 +579,14 @@ class PufferTrainer:
     def _generate_and_upload_replay(self):
         if self._master:
             logger.info("Generating and saving a replay to wandb and S3.")
-            self.replay_helper.generate_and_upload_replay(
-                self.epoch,
-                self.cfg.run_dir,
-                self.cfg.run,
-                dry_run=self.trainer_cfg.get("replay_dry_run", False),
+            self.replay_sim_config.replay_path = (
+                f"s3://softmax-public/replays/{self.cfg.run}/replay.{self.epoch}.json.z"
             )
+            dry_run = self.trainer_cfg.get("replay_dry_run", False)
+            replay_simulator = Simulation(
+                self.replay_sim_config, self.last_pr, self.policy_store, wandb_run=self.wandb_run
+            )
+            replay_simulator.simulate(epoch=self.epoch, dry_run=dry_run)
 
     def _process_stats(self):
         for k in list(self.stats.keys()):

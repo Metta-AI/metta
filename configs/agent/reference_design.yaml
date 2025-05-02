@@ -9,7 +9,6 @@ policy_selector:
 
 observations:
   obs_key: grid_obs
-  track_last_action: false
 
 clip_range: 3.0 # clip weights greater or less than this value * largest weight in layer * clip_scale
 analyze_weights_interval: 300 # compute weight metrics every N epochs and log to wandb, add analyze_weights: true to the layer to enable
@@ -22,12 +21,10 @@ l2_init_weight_update_interval: 0 # update the copy of initial weights every N e
 # is also necessary but can be set to null. The output_size is necessary unless
 # it is defined by the size of the input source. Do not enter an input_size
 # as it's defined by the input_source's output_size.
-# Necessary sources: _obs_, _core_
-# These interact with the trainer in a special way and use custom classes.
+# Necessary sources: _obs_
 
-# Necessary outputs: _action_type_ and _value_ (and _action_param_ if MultiDiscrete)
-# You must have layers with these names, and their output sizes must correspond
-# to your action and value space. They can otherwise be any class that works
+# Necessary outputs: _core_, _action_embeds_, _action_, and _value_
+# You must have layers with these names. They can otherwise be any class that works
 # with MettaAgent.
 
 # Components are nn.Modules. Linear and Conv modules get extra weight helper
@@ -46,16 +43,18 @@ l2_init_weight_update_interval: 0 # update the copy of initial weights every N e
 components:
   _obs_:
     _target_: metta.agent.lib.obs_shaper.ObsShaper
-    input_source: null
+    sources: 
+      null
 
   obs_normalizer:
     _target_: metta.agent.lib.observation_normalizer.ObservationNormalizer
-    input_source: _obs_
+    sources:
+      - name: _obs_
 
   channel_selector_0-11: # a merge layer that takes a slice of the input
     _target_: metta.agent.lib.merge_layer.ConcatMergeLayer
     sources:
-      - source_name: obs_normalizer
+      - name: obs_normalizer
         slice: [0, 12] # Use channels 0 to 11
         dim: 1 # Channel dimension
     output_size: 12
@@ -63,75 +62,84 @@ components:
   channel_selector_12-22:
     _target_: metta.agent.lib.merge_layer.ConcatMergeLayer
     sources:
-      - source_name: obs_normalizer
+      - name: obs_normalizer
         slice: [12, 22] # Use channels 12 to 23
         dim: 1
     output_size: 12
 
   cnn1_channels_0-11:
     _target_: metta.agent.lib.nn_layer_library.Conv2d
-    input_source: channel_selector_0-11
-    output_size: 64
+    sources:
+      - name: channel_selector_0-11
     clip_scale: 0
     nn_params:
+      out_channels: 64
       kernel_size: 5
       stride: 3
     # when defining nn.Modules, put your keyword argements under nn_params.
-    #Do not specify input_size or output_size.
+    # Do not specify the input_size
 
   cnn1_channels_12-22:
     _target_: metta.agent.lib.nn_layer_library.Conv2d
-    input_source: channel_selector_12-22
-    output_size: 64
+    sources:
+      - name: channel_selector_12-22
     nn_params:
+      out_channels: 64
       kernel_size: 5
       stride: 3
 
   cnn2_channels_0-11:
     _target_: metta.agent.lib.nn_layer_library.Conv2d
-    input_source: cnn1_channels_0-11
-    output_size: 64
+    sources:
+      - name: cnn1_channels_0-11
     nn_params:
+      out_channels: 64
       kernel_size: 3
       stride: 1
 
   cnn2_channels_12-22:
     _target_: metta.agent.lib.nn_layer_library.Conv2d
-    input_source: cnn1_channels_12-22
-    output_size: 64
+    sources:
+      - name: cnn1_channels_12-22
     nn_params:
+      out_channels: 64
       kernel_size: 3
       stride: 1
 
   cnn_merger: # a merge layer that takes two slices of the input and concatenates them
     _target_: metta.agent.lib.merge_layer.ConcatMergeLayer
     sources:
-      - source_name: cnn2_channels_0-11
+      - name: cnn2_channels_0-11
         slice: [0, 64]
         dim: 1
-      - source_name: cnn2_channels_12-22
+      - name: cnn2_channels_12-22
         slice: [0, 64]
         dim: 1
 
   obs_flattener:
     _target_: metta.agent.lib.nn_layer_library.Flatten
-    input_source: cnn_merger
+    sources:
+      - name: cnn_merger
 
   obs_dropout:
     _target_: metta.agent.lib.nn_layer_library.Dropout
-    input_source: obs_flattener
+    sources:
+      - name: obs_flattener
     nn_params:
       p: 0.5
 
   # using our first Linear layer as an example of the minimum required parameters
   encoded_obs:
     _target_: metta.agent.lib.nn_layer_library.Linear
-    input_source: obs_dropout
-    output_size: 128
+    sources:
+      - name: obs_dropout
+    nn_params:
+      out_features: 128
 
   _core_:
     _target_: metta.agent.lib.lstm.LSTM
-    input_source: encoded_obs
+    sources:
+      - name: encoded_obs
     output_size: 128
     nn_params:
       num_layers: 2
@@ -139,8 +147,8 @@ components:
   # using our second Linear layer as an example of all available parameters
   critic_1:
     _target_: metta.agent.lib.nn_layer_library.Linear
-    input_source: _core_
-    output_size: 512
+    sources:
+      - name: _core_
     nonlinearity: nn.Tanh
     analyze_weights: true
     l2_norm_scale: 1.0
@@ -148,41 +156,50 @@ components:
     clip_scale: 1.0
     initialization: xavier
     nn_params:
+      out_features: 512
       bias: false
 
   critic_2:
     _target_: metta.agent.lib.nn_layer_library.Linear
-    input_source: critic_1
-    output_size: 128
+    sources:
+      - name: critic_1
+    nn_params:
+      out_features: 128
 
   critic_3:
     _target_: metta.agent.lib.nn_layer_library.Linear
-    input_source: critic_2
-    output_size: 128
+    sources:
+      - name: critic_2
+    nn_params:
+      out_features: 128
     analyze_weights: true
 
   _value_:
     _target_: metta.agent.lib.nn_layer_library.Linear
-    input_source: critic_3
-    output_size: 1
+    sources:
+      - name: critic_3
+    nn_params:
+      out_features: 1
     nonlinearity: null # we don't want a nonlinearity here
 
   actor_1:
     _target_: metta.agent.lib.nn_layer_library.Linear
-    input_source: _core_
-    output_size: 512
+    sources:
+      - name: _core_
+    nn_params:
+      out_features: 512
 
-  actor_2:
-    _target_: metta.agent.lib.nn_layer_library.Linear
-    input_source: actor_1
-    output_size: 512
+  _action_embeds_:
+    _target_: metta.agent.lib.action.ActionEmbedding
+    input_source: null
+    nn_params:
+      num_embeddings: 100
+      embedding_dim: 16
 
-  _action_type_:
-    _target_: metta.agent.lib.action.ActionType
-    input_source: actor_1
-    nonlinearity: null # we don't want a nonlinearity here because we'll use a softmax on the action space
-
-  _action_param_:
-    _target_: metta.agent.lib.action.ActionParam
-    input_source: actor_1
-    nonlinearity: null
+  _action_:
+    _target_: metta.agent.lib.actor.MettaActorBig
+    bilinear_output_dim: 32
+    mlp_hidden_dim: 512
+    sources:
+      - name: actor_1
+      - name: _action_embeds_

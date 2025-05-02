@@ -1,8 +1,10 @@
+from typing import Callable, List
+
 import numpy as np
 import pandas as pd
 import pytest
-from omegaconf import OmegaConf
 
+from metta.eval.analysis_config import AnalysisConfig, Metric
 from metta.sim.eval_stats_analyzer import EvalStatsAnalyzer
 
 # --- Fixtures for shared test resources --- #
@@ -48,15 +50,14 @@ def dummy_db_for_analyze():
 
 
 @pytest.fixture
-def analysis_config_factory():
+def analysis_config_factory() -> Callable[[List[str]], AnalysisConfig]:
     """Returns a function to create an analysis config with given baseline policies."""
 
     def _create(baseline_policies):
-        return OmegaConf.create(
-            {
-                "metrics": [{"metric": "reward*"}],
-                "baseline_policies": baseline_policies,
-            }
+        return AnalysisConfig(
+            metrics=[Metric(metric="reward*")],
+            baseline_policies=baseline_policies,
+            filters={},
         )
 
     return _create
@@ -83,33 +84,38 @@ class TestFilters:
         analysis_conf = analysis_config_factory(baseline_policies=["policy1"])
         analyzer_instance = EvalStatsAnalyzer(dummy_stats_db, analysis_conf, policy_uri=candidate_policy)
         # With no filters set anywhere, expect None.
-        result = analyzer_instance._filters({})
+        result = analyzer_instance._filters(Metric(metric="reward*"))
         assert result == {}
 
     def test_global_only(self, analysis_config_factory, dummy_stats_db, candidate_policy):
-        analysis_conf = OmegaConf.create({"metrics": [{"metric": "reward*"}], "filters": {"env": "test_env"}})
+        analysis_conf = AnalysisConfig(
+            metrics=[Metric(metric="reward*")],
+            baseline_policies=["policy1"],
+            filters={"env": "test_env"},
+        )
         analyzer_instance = EvalStatsAnalyzer(dummy_stats_db, analysis_conf, policy_uri=candidate_policy)
-        result = analyzer_instance._filters({})
+        result = analyzer_instance._filters(Metric(metric="reward*"))
         assert result == {"env": "test_env"}
 
     def test_local_only(self, analysis_config_factory, dummy_stats_db, candidate_policy):
         analysis_conf = analysis_config_factory(baseline_policies=["policy1"])
         analyzer_instance = EvalStatsAnalyzer(dummy_stats_db, analysis_conf, policy_uri=candidate_policy)
-        local_item = {"filters": {"level": "local_value"}}
+        local_item = Metric(metric="reward*", filters={"level": "local_value"})
         result = analyzer_instance._filters(local_item)
         assert result == {"level": "local_value"}
 
     def test_merging_global_and_local(self, analysis_config_factory, dummy_stats_db, candidate_policy):
-        analysis_conf = OmegaConf.create(
-            {
-                "metrics": [{"metric": "reward*"}],
-                "filters": {"env": "test_env", "shared_key": "global_value", "list_key": ["global1", "global2"]},
-            }
+        analysis_conf = AnalysisConfig(
+            metrics=[Metric(metric="reward*")],
+            baseline_policies=["policy1"],
+            filters={"env": "test_env", "shared_key": "global_value", "list_key": ["global1", "global2"]},
         )
         analyzer_instance = EvalStatsAnalyzer(dummy_stats_db, analysis_conf, policy_uri=candidate_policy)
-        local_item = {
-            "filters": {"level": "local_value", "shared_key": "local_value", "list_key": ["local1", "local2"]}
-        }
+        local_item = Metric(
+            metric="reward*",
+            filters={"level": "local_value", "shared_key": "local_value", "list_key": ["local1", "local2"]},
+        )
+
         result = analyzer_instance._filters(local_item)
         expected = {
             "env": "test_env",
@@ -265,14 +271,22 @@ class TestPolicyFitness:
 
 class TestAnalyze:
     def test_no_metrics(self, analysis_config_factory, dummy_stats_db, candidate_policy):
-        analysis_conf = OmegaConf.create({"metrics": [{"metric": "nonexistent*"}], "baseline_policies": ["policy1"]})
+        analysis_conf = AnalysisConfig(
+            metrics=[Metric(metric="nonexistent*")],
+            baseline_policies=["policy1"],
+            filters={},
+        )
         analyzer_instance = EvalStatsAnalyzer(dummy_stats_db, analysis_conf, policy_uri=candidate_policy)
         result_dfs, policy_fitness_records = analyzer_instance.analyze()
         assert result_dfs == []
         assert policy_fitness_records == []
 
     def test_with_data(self, dummy_db_for_analyze, analysis_config_factory, candidate_policy, monkeypatch):
-        analysis_conf = OmegaConf.create({"metrics": [{"metric": "reward*"}], "baseline_policies": ["policy1"]})
+        analysis_conf = AnalysisConfig(
+            metrics=[Metric(metric="reward*")],
+            baseline_policies=["policy1"],
+            filters={},
+        )
         analyzer_instance = EvalStatsAnalyzer(dummy_db_for_analyze, analysis_conf, policy_uri=candidate_policy)
 
         # Replace log_result to confirm it gets called.
