@@ -2,6 +2,7 @@ import { Vec2f } from './vector_math.js';
 import { Context3d } from './context3d.js';
 import { PanelInfo } from './panels.js';
 import { onFrame } from './main.js';
+
 // The 3d context, used for nearly everything.
 export const ctx = new Context3d(document.getElementById('global-canvas') as HTMLCanvasElement);
 
@@ -71,6 +72,8 @@ export const state = {
 
 export const html = {
   scrubber: document.getElementById('main-scrubber') as HTMLInputElement,
+  playButton: document.getElementById('play-button') as HTMLButtonElement,
+  globalCanvas: document.getElementById('global-canvas') as HTMLCanvasElement,
 }
 
 
