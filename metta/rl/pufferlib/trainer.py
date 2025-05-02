@@ -78,7 +78,9 @@ class PufferTrainer:
         self._eval_results = []
         self._weights_helper = WeightsMetricsHelper(cfg)
         env_overrides = OmegaConf.create({"env_overrides": self.trainer_cfg.env_overrides})
-        curriculum_cfg = config_from_path(self.trainer_cfg.curriculum, env_overrides)
+        curriculum_cfg = config_from_path(
+            self.trainer_cfg.curriculum, OmegaConf.create({"env_overrides": env_overrides})
+        )
         self._curriculum = hydra.utils.instantiate(curriculum_cfg)
 
         self._make_vecenv()

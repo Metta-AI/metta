@@ -9,12 +9,11 @@ defaults:
 trainer:
   # env: /env/mettagrid/multienv_mettagrid
   curriculum: /env/mettagrid/curriculum/all
-  curriculum_overrides:
-    sampling: 0.7
 
   env_overrides:
     game:
       max_steps: 13
+
   evaluate_interval: 200
   optimizer:
     type: muon
