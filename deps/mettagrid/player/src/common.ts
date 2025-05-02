@@ -44,3 +44,17 @@ export const ui = {
   infoSplit: DEFAULT_INFO_SPLIT,
   infoDragging: false,
 };
+
+export const state = {
+  // Replay data and player state
+  replay: null as any,
+  selectedGridObject: null as any,
+  followSelection: false, // Flag to follow selected entity
+  followTraceSelection: false, // Flag to follow trace selection
+
+  // Playback state
+  step: 0,
+  isPlaying: false,
+  partialStep: 0,
+  playbackSpeed: 0.1,
+};
