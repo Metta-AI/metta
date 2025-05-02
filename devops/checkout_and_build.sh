@@ -7,10 +7,12 @@ if [ "$SKIP_BUILD" = "1" ]; then
     exit 0
 fi
 
+git pull
+
 #
-# Check if dependencies are already installed based on the presence of 
+# Check if dependencies are already installed based on the presence of
 # deps/.built (an empty file). If this file is found we will exit early.
-# 
+#
 # If we build the deps we will `touch "deps/.built"` at the end of this
 # script. The `devops/setup_build` script removes this file so that the
 # dependencies are reinstalled.
@@ -36,9 +38,9 @@ install_repo() {
     local repo_url=$2
     local branch=$3
     local build_cmd=$4
-    
+
     echo "========== Installing $repo_name =========="
-    
+
     if [ -d "$repo_name" ] && [ -d "$repo_name/.git" ]; then
         echo "Repository $repo_name already exists, updating instead of cloning"
         cd $repo_name
@@ -56,13 +58,13 @@ install_repo() {
             echo "Moving existing directory to cache_$repo_name"
             mv "$repo_name" "cache_$repo_name"
         fi
-        
+
         echo "Cloning $repo_name from $repo_url"
         git clone $repo_url
         cd $repo_name
         echo "Checking out $branch branch for $repo_name"
         git checkout $branch
-        
+
         # Restore build artifacts if we stored them before cloning
         if [ -d "../cache_$repo_name" ]; then
             echo "Attempting to restore cached build files"
@@ -84,10 +86,10 @@ install_repo() {
             rm -rf "../cache_$repo_name"
         fi
     fi
-    
+
     echo "Repository content for $repo_name"
     ls -al
-    
+
     # Check for package files
     echo "Checking for package files in $repo_name:"
     if [ -f "setup.py" ]; then
@@ -97,11 +99,11 @@ install_repo() {
     else
         echo "No standard Python package files found in root directory"
     fi
-    
+
     # Run the build command
     echo "Building with command: $build_cmd"
     eval $build_cmd
-    
+
     cd ..
     echo "Completed installation of $repo_name"
 }
