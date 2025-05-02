@@ -3,11 +3,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name != 'workflow_call' }}
 on:
-  pull_request:
-    types: [opened, synchronize, ready_for_review]
-    branches: [main]
-  push:
-    branches: [main]
   workflow_dispatch: {}
   workflow_call:
     inputs:
