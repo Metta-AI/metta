@@ -1,48 +1,56 @@
 name: cpp-lint
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name != 'workflow_call' }}
 on:
-  pull_request:
-    types: [opened, synchronize, ready_for_review]
-    branches: [main]
   workflow_dispatch: {}
+  workflow_call:
+    inputs:
+      ref:
+        required: false
+        type: string
+      skip_file_check:
+        required: false
+        type: boolean
+        default: false
+
 jobs:
   cpp-lint:
-    if: github.event.pull_request.draft == false || github.event_name == 'workflow_dispatch'
+    if: >-
+      github.event.pull_request.draft == false || 
+      github.event_name == 'workflow_dispatch' || 
+      github.event_name == 'workflow_call'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        
-      - name: Check for C++ file changes
-        id: check_files
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v6
         with:
-          script: |
-            const { data: changedFiles } = await github.rest.pulls.listFiles({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: context.issue.number,
-            });
-            
-            const hasRelevantChanges = changedFiles.some(file => {
-              return file.filename.endsWith('.cpp') ||
-                file.filename.endsWith('.h') ||
-                file.filename.endsWith('.hpp');
-            });
-            
-            core.setOutput('has_relevant_changes', hasRelevantChanges);
+          ref: ${{ inputs.ref || github.ref }}
+        
+      # Skip file change check if triggered from cpp-checks workflow
+      - name: Check for C++ and Cython file changes
+        id: check_files
+        if: inputs.skip_file_check != true
+        uses: ./.github/actions/file-changes
+        with:
+          patterns: 'deps/mettagrid/,*.cpp,*.cxx,*.cc,*.h,*.hpp,*.pyx,*.pxd'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Set early exit flag
         id: set_early_exit
+        if: inputs.skip_file_check != true
         run: |
           if [[ "${{ github.event_name }}" == "pull_request" && "${{ steps.check_files.outputs.has_relevant_changes }}" != "true" ]]; then
             echo "EARLY_EXIT=true" >> $GITHUB_ENV
           else
             echo "EARLY_EXIT=false" >> $GITHUB_ENV
           fi
+      
+      # Always run if triggered from cpp-checks
+      - name: Set early exit flag for workflow_call
+        if: inputs.skip_file_check == true
+        run: |
+          echo "EARLY_EXIT=false" >> $GITHUB_ENV
       
       - name: Setup C++
         if: env.EARLY_EXIT == 'false'
