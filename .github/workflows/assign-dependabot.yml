@@ -30,7 +30,7 @@ jobs:
           possible-reviewers: ${{ vars.DEPENDABOT_REVIEWERS || '' }}
           forced-assignees: ${{ vars.DEPENDABOT_FORCED_ASSIGNEES || '' }}
           forced-reviewers: ${{ vars.DEPENDABOT_FORCED_REVIEWERS || '' }}
-          forced-labels: ${{ vars.DEPENDABOT_FORCED_LABELS || '📦 dependencies' }}
+          forced-labels: ${{ vars.DEPENDABOT_FORCED_LABELS || '' }}
           
   process-all-dependabot:
     runs-on: ubuntu-latest
@@ -50,7 +50,7 @@ jobs:
           POSSIBLE_REVIEWERS: ${{ vars.DEPENDABOT_REVIEWERS || '' }}
           FORCED_ASSIGNEES: ${{ vars.DEPENDABOT_FORCED_ASSIGNEES || '' }}
           FORCED_REVIEWERS: ${{ vars.DEPENDABOT_FORCED_REVIEWERS || '' }}
-          FORCED_LABELS: ${{ vars.DEPENDABOT_FORCED_LABELS || '📦 dependencies' }}
+          FORCED_LABELS: ${{ vars.DEPENDABOT_FORCED_LABELS || '' }}
         run: |
           echo "Finding all open Dependabot PRs..."
           
