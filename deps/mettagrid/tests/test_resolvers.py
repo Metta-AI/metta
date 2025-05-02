@@ -59,247 +59,244 @@ def omega_conf_with_sampling():
     )
 
 
-"""Tests for resolver functionality"""
+class TestBasicResolvers:
+    """Tests for basic resolver functionality"""
+
+    @pytest.mark.parametrize(
+        "condition,true_value,false_value,expected",
+        [
+            (True, "yes", "no", "yes"),
+            (False, "yes", "no", "no"),
+            (True, 10, 20, 10),
+            (False, 10, 20, 20),
+        ],
+    )
+    def test_if_resolver(self, condition, true_value, false_value, expected):
+        """Test the if resolver with various inputs"""
+        assert oc_if(condition, true_value, false_value) == expected
+
+    def test_uniform_resolver(self):
+        """Test the uniform resolver generates values within range"""
+        # Set seed for reproducibility
+        np.random.seed(42)
+
+        # Test multiple ranges
+        ranges = [(10, 20), (0, 1), (-10, 10)]
+        for min_val, max_val in ranges:
+            for _ in range(20):  # Run multiple times to ensure range is respected
+                val = oc_uniform(min_val, max_val)
+                assert min_val <= val <= max_val
+
+    def test_choose_resolver(self):
+        """Test the choose resolver picks from provided options"""
+        # Set seed for reproducibility
+        np.random.seed(42)
+
+        test_cases = [
+            [1, 2, 3],
+            ["apple", "banana", "cherry"],
+            [True, False],
+        ]
+
+        for choices in test_cases:
+            # Run multiple times to ensure it's working
+            results = [oc_choose(*choices) for _ in range(30)]
+            # Check that we get all possible choices
+            assert all(r in choices for r in results)
+            # Check that we get some variety (this could theoretically fail but is very unlikely)
+            assert len(set(results)) > 1
+
+    @pytest.mark.parametrize(
+        "a,b,expected",
+        [
+            (3, 4, 7),  # Positive integers
+            (-3, 4, 1),  # Mixed signs
+            (3.5, 4.5, 8.0),  # Floating point
+        ],
+    )
+    def test_add_resolver(self, a, b, expected):
+        """Test addition resolver with various inputs"""
+        assert oc_add(a, b) == expected
+
+    @pytest.mark.parametrize(
+        "a,b,expected",
+        [
+            (10, 3, 7),  # Positive integers
+            (3, 10, -7),  # Result negative
+            (10.5, 3.5, 7.0),  # Floating point
+        ],
+    )
+    def test_subtract_resolver(self, a, b, expected):
+        """Test subtraction resolver with various inputs"""
+        assert oc_subtract(a, b) == expected
+
+    @pytest.mark.parametrize(
+        "a,b,expected",
+        [
+            (3, 4, 12),  # Positive integers
+            (-3, 4, -12),  # Mixed signs
+            (3.5, 2, 7.0),  # Floating point
+        ],
+    )
+    def test_multiply_resolver(self, a, b, expected):
+        """Test multiplication resolver with various inputs"""
+        assert oc_multiply(a, b) == expected
+
+    @pytest.mark.parametrize(
+        "a,b,expected",
+        [
+            (12, 4, 3),  # Positive integers, exact division
+            (12, 5, 2.4),  # Positive integers, floating point result
+            (-12, 4, -3),  # Mixed signs
+        ],
+    )
+    def test_divide_resolver(self, a, b, expected):
+        """Test division resolver with various inputs"""
+        assert oc_divide(a, b) == expected
+
+    @pytest.mark.parametrize(
+        "a,b,expected",
+        [
+            (5, 5, True),  # Same integers
+            (5, "5", False),  # Different types
+            ("abc", "abc", True),  # Same strings
+            ("abc", "ABC", False),  # Case-sensitive comparison
+            (True, True, True),  # Booleans
+            ([], [], True),  # Empty collections
+        ],
+    )
+    def test_equals_resolver(self, a, b, expected):
+        """Test equals resolver with various inputs"""
+        assert oc_equals(a, b) is expected
+
+    @pytest.mark.parametrize(
+        "value,min_val,max_val,expected",
+        [
+            (15, 10, 20, 15),  # Within range
+            (5, 10, 20, 10),  # Below min
+            (25, 10, 20, 20),  # Above max
+            (10, 10, 20, 10),  # At min boundary
+            (20, 10, 20, 20),  # At max boundary
+        ],
+    )
+    def test_clamp_resolver(self, value, min_val, max_val, expected):
+        """Test clamp resolver with various inputs"""
+        assert oc_clamp(value, min_val, max_val) == expected
+
+    @pytest.mark.parametrize(
+        "value,expected",
+        [
+            (3.2, 3),  # Round down
+            (3.5, 4),  # Round up at .5
+            (3.7, 4),  # Round up
+            (0.1, 0),  # Near zero, round down
+            (-1.7, -2),  # Negative, round down
+            (-1.2, -1),  # Negative, round up
+        ],
+    )
+    def test_make_integer_resolver(self, value, expected):
+        """Test integer conversion resolver with various inputs"""
+        assert oc_make_integer(value) == expected
+
+    @pytest.mark.parametrize(
+        "value,expected",
+        [
+            (4, 5),  # Even becomes next odd
+            (5, 5),  # Odd stays the same
+            (1, 3),  # Below 3 becomes 3
+            (2, 3),  # Below 3 becomes 3
+            (0, 3),  # Zero becomes 3
+            (-1, 3),  # Negative becomes 3
+        ],
+    )
+    def test_to_odd_min3_resolver(self, value, expected):
+        """Test conversion to odd number with minimum 3 with various inputs"""
+        assert oc_to_odd_min3(value) == expected
 
 
-@pytest.mark.parametrize(
-    "condition,true_value,false_value,expected",
-    [
-        (True, "yes", "no", "yes"),
-        (False, "yes", "no", "no"),
-        (True, 10, 20, 10),
-        (False, 10, 20, 20),
-    ],
-)
-def test_if_resolver(condition, true_value, false_value, expected):
-    """Test the if resolver with various inputs"""
-    assert oc_if(condition, true_value, false_value) == expected
+class TestComparisonResolvers:
+    """Tests for comparison resolver functionality"""
+
+    @pytest.mark.parametrize(
+        "a,b,expected",
+        [
+            (5, 3, True),
+            (3, 5, False),
+            (4, 4, False),
+        ],
+    )
+    def test_greater_than(self, a, b, expected):
+        """Test greater than resolver with various inputs"""
+        assert oc_greater_than(a, b) is expected
+
+    @pytest.mark.parametrize(
+        "a,b,expected",
+        [
+            (3, 5, True),
+            (5, 3, False),
+            (4, 4, False),
+        ],
+    )
+    def test_less_than(self, a, b, expected):
+        """Test less than resolver with various inputs"""
+        assert oc_less_than(a, b) is expected
+
+    @pytest.mark.parametrize(
+        "a,b,expected",
+        [
+            (5, 5, True),
+            (6, 5, True),
+            (4, 5, False),
+        ],
+    )
+    def test_greater_than_or_equal(self, a, b, expected):
+        """Test greater than or equal resolver with various inputs"""
+        assert oc_greater_than_or_equal(a, b) is expected
+
+    @pytest.mark.parametrize(
+        "a,b,expected",
+        [
+            (5, 5, True),
+            (4, 5, True),
+            (6, 5, False),
+        ],
+    )
+    def test_less_than_or_equal(self, a, b, expected):
+        """Test less than or equal resolver with various inputs"""
+        assert oc_less_than_or_equal(a, b) is expected
 
 
-def test_uniform_resolver():
-    """Test the uniform resolver generates values within range"""
-    # Set seed for reproducibility
-    np.random.seed(42)
+class TestAdvancedResolvers:
+    """Tests for advanced resolver functionality"""
 
-    # Test multiple ranges
-    ranges = [(10, 20), (0, 1), (-10, 10)]
-    for min_val, max_val in ranges:
-        for _ in range(20):  # Run multiple times to ensure range is respected
-            val = oc_uniform(min_val, max_val)
-            assert min_val <= val <= max_val
+    @pytest.mark.parametrize(
+        "alpha,new_value,last_value,expected",
+        [
+            (0.9, 10.0, 5.0, pytest.approx(9.5)),  # 0.9*10 + 0.1*5
+            (0.5, 8.0, 4.0, pytest.approx(6.0)),  # 0.5*8 + 0.5*4
+            (1.0, 7.0, 3.0, pytest.approx(7.0)),  # 1.0*7 + 0.0*3
+            (0.0, 7.0, 3.0, pytest.approx(3.0)),  # 0.0*7 + 1.0*3
+        ],
+    )
+    def test_iir(self, alpha, new_value, last_value, expected):
+        """Test Infinite Impulse Response filter with various inputs"""
+        assert oc_iir(alpha, new_value, last_value) == expected
 
-
-def test_choose_resolver():
-    """Test the choose resolver picks from provided options"""
-    # Set seed for reproducibility
-    np.random.seed(42)
-
-    test_cases = [
-        [1, 2, 3],
-        ["apple", "banana", "cherry"],
-        [True, False],
-    ]
-
-    for choices in test_cases:
-        # Run multiple times to ensure it's working
-        results = [oc_choose(*choices) for _ in range(30)]
-        # Check that we get all possible choices
-        assert all(r in choices for r in results)
-        # Check that we get some variety (this could theoretically fail but is very unlikely)
-        assert len(set(results)) > 1
-
-
-@pytest.mark.parametrize(
-    "a,b,expected",
-    [
-        (3, 4, 7),  # Positive integers
-        (-3, 4, 1),  # Mixed signs
-        (3.5, 4.5, 8.0),  # Floating point
-    ],
-)
-def test_add_resolver(a, b, expected):
-    """Test addition resolver with various inputs"""
-    assert oc_add(a, b) == expected
-
-
-@pytest.mark.parametrize(
-    "a,b,expected",
-    [
-        (10, 3, 7),  # Positive integers
-        (3, 10, -7),  # Result negative
-        (10.5, 3.5, 7.0),  # Floating point
-    ],
-)
-def test_subtract_resolver(a, b, expected):
-    """Test subtraction resolver with various inputs"""
-    assert oc_subtract(a, b) == expected
-
-
-@pytest.mark.parametrize(
-    "a,b,expected",
-    [
-        (3, 4, 12),  # Positive integers
-        (-3, 4, -12),  # Mixed signs
-        (3.5, 2, 7.0),  # Floating point
-    ],
-)
-def test_multiply_resolver(a, b, expected):
-    """Test multiplication resolver with various inputs"""
-    assert oc_multiply(a, b) == expected
-
-
-@pytest.mark.parametrize(
-    "a,b,expected",
-    [
-        (12, 4, 3),  # Positive integers, exact division
-        (12, 5, 2.4),  # Positive integers, floating point result
-        (-12, 4, -3),  # Mixed signs
-    ],
-)
-def test_divide_resolver(a, b, expected):
-    """Test division resolver with various inputs"""
-    assert oc_divide(a, b) == expected
-
-
-@pytest.mark.parametrize(
-    "a,b,expected",
-    [
-        (5, 5, True),  # Same integers
-        (5, "5", False),  # Different types
-        ("abc", "abc", True),  # Same strings
-        ("abc", "ABC", False),  # Case-sensitive comparison
-        (True, True, True),  # Booleans
-        ([], [], True),  # Empty collections
-    ],
-)
-def test_equals_resolver(a, b, expected):
-    """Test equals resolver with various inputs"""
-    assert oc_equals(a, b) is expected
-
-
-@pytest.mark.parametrize(
-    "value,min_val,max_val,expected",
-    [
-        (15, 10, 20, 15),  # Within range
-        (5, 10, 20, 10),  # Below min
-        (25, 10, 20, 20),  # Above max
-        (10, 10, 20, 10),  # At min boundary
-        (20, 10, 20, 20),  # At max boundary
-    ],
-)
-def test_clamp_resolver(value, min_val, max_val, expected):
-    """Test clamp resolver with various inputs"""
-    assert oc_clamp(value, min_val, max_val) == expected
-
-
-@pytest.mark.parametrize(
-    "value,expected",
-    [
-        (3.2, 3),  # Round down
-        (3.5, 4),  # Round up at .5
-        (3.7, 4),  # Round up
-        (0.1, 0),  # Near zero, round down
-        (-1.7, -2),  # Negative, round down
-        (-1.2, -1),  # Negative, round up
-    ],
-)
-def test_make_integer_resolver(value, expected):
-    """Test integer conversion resolver with various inputs"""
-    assert oc_make_integer(value) == expected
-
-
-@pytest.mark.parametrize(
-    "value,expected",
-    [
-        (4, 5),  # Even becomes next odd
-        (5, 5),  # Odd stays the same
-        (1, 3),  # Below 3 becomes 3
-        (2, 3),  # Below 3 becomes 3
-        (0, 3),  # Zero becomes 3
-        (-1, 3),  # Negative becomes 3
-    ],
-)
-def test_to_odd_min3_resolver(value, expected):
-    """Test conversion to odd number with minimum 3 with various inputs"""
-    assert oc_to_odd_min3(value) == expected
-
-
-@pytest.mark.parametrize(
-    "a,b,expected",
-    [
-        (5, 3, True),
-        (3, 5, False),
-        (4, 4, False),
-    ],
-)
-def test_oc_greater_than(a, b, expected):
-    assert oc_greater_than(a, b) is expected
-
-
-@pytest.mark.parametrize(
-    "a,b,expected",
-    [
-        (3, 5, True),
-        (5, 3, False),
-        (4, 4, False),
-    ],
-)
-def test_oc_less_than(a, b, expected):
-    assert oc_less_than(a, b) is expected
-
-
-@pytest.mark.parametrize(
-    "a,b,expected",
-    [
-        (5, 5, True),
-        (6, 5, True),
-        (4, 5, False),
-    ],
-)
-def test_oc_greater_than_or_equal(a, b, expected):
-    assert oc_greater_than_or_equal(a, b) is expected
-
-
-@pytest.mark.parametrize(
-    "a,b,expected",
-    [
-        (5, 5, True),
-        (4, 5, True),
-        (6, 5, False),
-    ],
-)
-def test_oc_less_than_or_equal(a, b, expected):
-    assert oc_less_than_or_equal(a, b) is expected
-
-
-@pytest.mark.parametrize(
-    "alpha,new_value,last_value,expected",
-    [
-        (0.9, 10.0, 5.0, pytest.approx(9.5)),  # 0.9*10 + 0.1*5
-        (0.5, 8.0, 4.0, pytest.approx(6.0)),  # 0.5*8 + 0.5*4
-        (1.0, 7.0, 3.0, pytest.approx(7.0)),  # 1.0*7 + 0.0*3
-        (0.0, 7.0, 3.0, pytest.approx(3.0)),  # 0.0*7 + 1.0*3
-    ],
-)
-def test_oc_iir(alpha, new_value, last_value, expected):
-    assert oc_iir(alpha, new_value, last_value) == expected
-
-
-@pytest.mark.parametrize(
-    "value,in_min,in_max,out_min,out_max,scale_type,expected",
-    [
-        (0.0, 0.0, 1.0, 0.0, 10.0, "linear", 0.0),
-        (0.5, 0.0, 1.0, 0.0, 10.0, "linear", 5.0),
-        (1.0, 0.0, 1.0, 0.0, 10.0, "linear", 10.0),
-        (0.5, 0.0, 1.0, 0.0, 1.0, "sigmoid", pytest.approx(0.5, abs=0.1)),
-        (0.5, 0.0, 1.0, 1.0, 100.0, "exp", pytest.approx(24.76, abs=0.5)),
-        (0.5, 0.0, 1.0, 1.0, 100.0, "log", pytest.approx(74.26, abs=0.5)),
-    ],
-)
-def test_oc_scale(value, in_min, in_max, out_min, out_max, scale_type, expected):
-    """Test value scaling with different types and ranges"""
-    result = oc_scale(value, in_min, in_max, out_min, out_max, scale_type)
-    assert result == expected
+    @pytest.mark.parametrize(
+        "value,in_min,in_max,out_min,out_max,scale_type,expected",
+        [
+            (0.0, 0.0, 1.0, 0.0, 10.0, "linear", 0.0),
+            (0.5, 0.0, 1.0, 0.0, 10.0, "linear", 5.0),
+            (1.0, 0.0, 1.0, 0.0, 10.0, "linear", 10.0),
+            (0.5, 0.0, 1.0, 0.0, 1.0, "sigmoid", pytest.approx(0.5, abs=0.1)),
+            (0.5, 0.0, 1.0, 1.0, 100.0, "exp", pytest.approx(24.76, abs=0.5)),
+            (0.5, 0.0, 1.0, 1.0, 100.0, "log", pytest.approx(74.26, abs=0.5)),
+        ],
+    )
+    def test_scale(self, value, in_min, in_max, out_min, out_max, scale_type, expected):
+        """Test value scaling with different types and ranges"""
+        result = oc_scale(value, in_min, in_max, out_min, out_max, scale_type)
+        assert result == expected
 
 
 class TestScaledRange:
@@ -399,9 +396,6 @@ class TestConfigIntegration:
 
     def test_sampling_resolver_random(self, omega_conf_with_sampling):
         """Test the sampling resolver in random mode"""
-
-        print(f"On entry - {omega_conf_with_sampling}")
-
         # Change to random mode and set seed
         np.random.seed(42)
 
@@ -410,11 +404,12 @@ class TestConfigIntegration:
         omega_conf_with_sampling.param1 = "${sampling:1,100,50}"
         omega_conf_with_sampling.param2 = "${sampling:1,100,25}"
 
+        # Debug prints
+        print(f"On entry - {omega_conf_with_sampling}")
         print(f"after overwrite - {omega_conf_with_sampling}")
 
         # Resolve and check
         OmegaConf.resolve(omega_conf_with_sampling)
-
         print(f"after resolve - {omega_conf_with_sampling}")
 
         resolved = OmegaConf.to_container(omega_conf_with_sampling)
@@ -426,7 +421,6 @@ class TestConfigIntegration:
         from typing import Dict, cast
 
         resolved_dict = cast(Dict[str, Any], resolved)
-
         print(f"resolved_dict - {resolved_dict}")
 
         # Values should now be randomized, but within range

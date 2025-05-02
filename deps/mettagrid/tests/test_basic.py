@@ -7,7 +7,7 @@ from mettagrid.resolvers import register_resolvers
 
 
 @pytest.fixture
-def environment(cfg):
+def environment():
     """Create and initialize the environment."""
 
     register_resolvers()
@@ -22,7 +22,6 @@ def environment(cfg):
     del env
 
 
-@pytest.mark.dependency
 @pytest.mark.parametrize(
     "dependency",
     [
@@ -49,7 +48,6 @@ def test_dependency_import(dependency):
         pytest.fail(f"Failed to import {dependency}: {str(e)}")
 
 
-@pytest.mark.dependency
 @pytest.mark.parametrize(
     "module_name",
     [
@@ -148,7 +146,7 @@ class TestEnvironmentFunctionality:
         assert max_arg > 0, f"max_arg: {max_arg}"
 
         # Check env properties
-        assert environment.render_mode is None
+        assert environment.render_mode == "human"
         assert environment._c_env.map_width() > 0
         assert environment._c_env.map_height() > 0
         num_agents = environment._c_env.num_agents()
