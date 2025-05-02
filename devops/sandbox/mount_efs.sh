@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 
-# TODO - update with the actual EFS endpoint
-ENDPOINT="fs-0959f49bf925f0023.efs.us-east-1.amazonaws.com"
+# TODO - grab this from SSM parameter store
+ENDPOINT=fs-0c0fb6a81f4e4723d.efs.us-east-1.amazonaws.com
+
 DIR="/Volumes/metta-efs"
 REGION="us-east-1"
 
