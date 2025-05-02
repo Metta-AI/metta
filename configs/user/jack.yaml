@@ -10,10 +10,18 @@ data_dir: ./train_dir
 run_dir: ${data_dir}/${run}
 policy_uri: wandb://run/b.daphne.navigation_multiagent_24_rewardsharing_maxinv
 trained_policy_uri: ${run_dir}/checkpoints
-eval_db_uri: wandb://artifacts/jack_db_testing
+eval_db_uri: wandb://artifacts/jack_db_nav
 
 trainer:
   evaluate_interval: 10
+
+sim_job:
+  dry_run: false
+  policy_uris:
+    - wandb://run/b.daphne.terrain_prioritized_styles_pretrained_r
+    - wandb://run/terrain_prioritized_styles_pretrained
+    - wandb://run/terrain_multienv_3_single_agent
+    - wandb://run/b.georgedeane.terrain_extra_hard
 
 analyzer:
   policy_uri: ${..policy_uri}
