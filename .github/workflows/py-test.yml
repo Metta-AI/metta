@@ -33,30 +33,34 @@ jobs:
             });
             
             const hasRelevantChanges = changedFiles.some(file => {
-              return file.filename.endsWith('.py') || 
-                     file.filename === 'requirements.txt' ||
-                     file.filename.includes('/deps/mettagrid/');
+              return file.filename.endsWith('.py') ||
+                file.filename === 'requirements.txt' ||
+                file.filename.includes('/deps/mettagrid/');
             });
             
             core.setOutput('has_relevant_changes', hasRelevantChanges);
       
-      # For push events, we'll always run the tests
-      - name: Set relevant changes for push events
-        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
-        run: echo "HAS_RELEVANT_CHANGES=true" >> $GITHUB_ENV
-        
+      - name: Set early exit flag
+        id: set_early_exit
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" && "${{ steps.check_files.outputs.has_relevant_changes }}" != "true" ]]; then
+            echo "EARLY_EXIT=true" >> $GITHUB_ENV
+          else
+            echo "EARLY_EXIT=false" >> $GITHUB_ENV
+          fi
+      
       - name: Setup Python
-        if: steps.check_files.outputs.has_relevant_changes == 'true' || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        if: env.EARLY_EXIT == 'false'
         uses: ./.github/actions/py-setup
         
       - name: List installed packages
-        if: steps.check_files.outputs.has_relevant_changes == 'true' || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        if: env.EARLY_EXIT == 'false'
         run: |
           source venv/bin/activate
           pip list
           
       - name: Run Pytest on core tests
-        if: steps.check_files.outputs.has_relevant_changes == 'true' || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        if: env.EARLY_EXIT == 'false'
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: |
@@ -64,7 +68,7 @@ jobs:
           pytest --maxfail=1 --disable-warnings -q
           
       - name: Run Pytest on mettagrid tests
-        if: steps.check_files.outputs.has_relevant_changes == 'true' || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        if: env.EARLY_EXIT == 'false'
         env:
           HYDRA_FULL_ERROR: 1
           PYTHONPATH: ${{ github.workspace }}/deps/mettagrid
@@ -74,7 +78,7 @@ jobs:
           pytest --maxfail=1 --disable-warnings -q
           
       - name: Skip testing (no relevant changes)
-        if: github.event_name == 'pull_request' && steps.check_files.outputs.has_relevant_changes != 'true'
+        if: env.EARLY_EXIT == 'true'
         run: |
           echo "No Python files or requirements.txt were changed. Skipping tests."
           echo "This check passes automatically when no Python files are changed."
