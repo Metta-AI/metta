@@ -1,17 +1,25 @@
 name: training-integration-test
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name != 'workflow_call' }}
 on:
-  pull_request:
-    types: [opened, synchronize, ready_for_review]
-    branches: [main]
-  push:
-    branches: [main]
   workflow_dispatch: {}
+  workflow_call:
+    inputs:
+      ref:
+        required: false
+        type: string
+      skip_file_check:
+        required: false
+        type: boolean
+        default: false
 jobs:
   training-integration-test:
-    if: github.event.pull_request.draft == false || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    if: >-
+      github.event.pull_request.draft == false || 
+      github.event_name == 'push' || 
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'workflow_call'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
@@ -21,7 +29,10 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
         
+      # We'll keep the file check but never early exit when called from py-checks
       - name: Check for Python file changes
         id: check_files
         uses: ./.github/actions/file-changes
@@ -31,21 +42,13 @@ jobs:
           directory_paths: 'tests/,benchmarks/,deps/mettagrid/tests/,deps/mettagrid/benchmarks/'
           github-token: ${{ secrets.GITHUB_TOKEN }}
       
+      # Only check for early exit when not called from py-checks and no files changed
       - name: Set early exit flag
         id: set_early_exit
         run: |
-          if [[ "${{ github.event_name }}" == "pull_request" && "${{ steps.check_files.outputs.has_relevant_changes }}" != "true" ]]; then
-            echo "EARLY_EXIT=true" >> $GITHUB_ENV
-          else
-            echo "EARLY_EXIT=false" >> $GITHUB_ENV
-          fi
+          # Always run this test, regardless of file changes
+          echo "EARLY_EXIT=false" >> $GITHUB_ENV
       
-      - name: Skip testing (no relevant changes)
-        if: env.EARLY_EXIT == 'true'
-        run: |
-          echo "No Python files, requirements.txt, or deps/mettagrid changes detected. Skipping integration test."
-          echo "This check passes automatically when no relevant files are changed."
-        
       - name: Setup Python
         if: env.EARLY_EXIT == 'false'
         uses: ./.github/actions/py-setup

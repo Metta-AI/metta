@@ -34,6 +34,17 @@ jobs:
           specific_files: 'requirements.txt,setup.py'
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
+  # This job runs if no relevant files changed
+  skip-checks:
+    needs: check-files
+    if: needs.check-files.outputs.has_relevant_changes != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skip tests and linting
+        run: |
+          echo "No Python files were changed. Skipping tests, linting, and benchmarks."
+          echo "This check passes automatically when no relevant Python files are changed."
+
   # Run lint workflow
   call-lint:
     needs: check-files
@@ -67,13 +78,11 @@ jobs:
       skip_file_check: true
     secrets: inherit
 
-  # This job runs if no relevant files changed
-  skip-checks:
-    needs: check-files
-    if: needs.check-files.outputs.has_relevant_changes != 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Skip tests and linting
-        run: |
-          echo "No Python files were changed. Skipping tests, linting, and benchmarks."
-          echo "This check passes automatically when no relevant Python files are changed."
+  # Run training integration test - always run regardless of file changes
+  call-training-integration:
+    uses: ./.github/workflows/py-training-integration-test.yml
+    with:
+      ref: ${{ github.ref }}
+      skip_file_check: true
+    secrets: inherit
+
