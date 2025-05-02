@@ -1,19 +1,12 @@
 name: cpp-lint
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review]
     branches: [main]
-    paths:
-      - '**.cpp'
-      - '**.h'
-      - '**.hpp'
   workflow_dispatch: {}
-
 jobs:
   cpp-lint:
     if: github.event.pull_request.draft == false || github.event_name == 'workflow_dispatch'
@@ -21,18 +14,46 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
+        
+      - name: Check for C++ file changes
+        id: check_files
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const { data: changedFiles } = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+            
+            const hasRelevantChanges = changedFiles.some(file => {
+              return file.filename.endsWith('.cpp') || 
+                     file.filename.endsWith('.h') || 
+                     file.filename.endsWith('.hpp');
+            });
+            
+            core.setOutput('has_relevant_changes', hasRelevantChanges);
+            
       - name: Setup C++
+        if: steps.check_files.outputs.has_relevant_changes == 'true' || github.event_name == 'workflow_dispatch'
         uses: ./.github/actions/cpp-setup
-
+        
       - name: Install clang-format
+        if: steps.check_files.outputs.has_relevant_changes == 'true' || github.event_name == 'workflow_dispatch'
         run: |
           sudo apt-get update
           sudo apt-get install -y clang-format
-
+          
       - name: Run clang-format check
+        if: steps.check_files.outputs.has_relevant_changes == 'true' || github.event_name == 'workflow_dispatch'
         run: |
           echo "Checking C++ formatting..."
           find . -type f \( -name "*.cpp" -o -name "*.h" -o -name "*.hpp" \) \
             -not -path "*/build/*" -not -path "*/venv/*" \
             -exec clang-format --dry-run --Werror {} +
+            
+      - name: Skip linting (no relevant changes)
+        if: steps.check_files.outputs.has_relevant_changes != 'true' && github.event_name != 'workflow_dispatch'
+        run: |
+          echo "No C++ files (*.cpp, *.h, *.hpp) were changed. Skipping linting."
+          echo "This check passes automatically when no C++ files are changed."
