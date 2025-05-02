@@ -123,24 +123,22 @@ class Simulation:
             s3_parts = base_path[5:].split("/", 1)
             bucket = s3_parts[0]
 
-            if len(s3_parts) > 1:
-                key_parts = s3_parts[1].rsplit("/", 1)
-                if len(key_parts) > 1:
-                    prefix = key_parts[0]
-                    filename = key_parts[1]
-                else:
-                    prefix = ""
-                    filename = key_parts[0]
-
-                # Add environment and episode identifiers to filename
-                new_filename = f"ep{episode_count}_env{env_idx}_{filename}"
-
-                if prefix:
-                    return f"s3://{bucket}/{prefix}/{new_filename}"
-                else:
-                    return f"s3://{bucket}/{new_filename}"
+            assert len(s3_parts) > 1
+            key_parts = s3_parts[1].rsplit("/", 1)
+            if len(key_parts) > 1:
+                prefix = key_parts[0]
+                filename = key_parts[1]
             else:
-                return f"s3://{bucket}/ep{episode_count}_env{env_idx}_replay.dat"
+                prefix = ""
+                filename = key_parts[0]
+
+            # Add environment and episode identifiers to filename
+            new_filename = f"ep{episode_count}_env{env_idx}_{filename}"
+
+            if prefix:
+                return f"s3://{bucket}/{prefix}/{new_filename}"
+            else:
+                return f"s3://{bucket}/{new_filename}"
         else:
             # For local paths
             directory, filename = os.path.split(base_path)
@@ -281,6 +279,8 @@ class SimulationSuite:
         logger.debug(f"Building Simulation suite from config:{config}")
         self._simulations = dict()
         self._wandb_run = wandb_run
+
+        config.propagate_replay_paths()
 
         for name, sim_config in config.simulations.items():
             # Create a Simulation object for each config and pass wandb_run directly
