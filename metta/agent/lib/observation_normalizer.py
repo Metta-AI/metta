@@ -54,15 +54,19 @@ OBS_NORMALIZATIONS = {
 
 class ObservationNormalizer(LayerBase):
     def __init__(self, grid_features, **cfg):
+        self._grid_features = grid_features
         super().__init__(**cfg)
 
-        num_objects = len(grid_features)
+    def _initialize(self):
+        num_objects = len(self._grid_features)
 
-        obs_norm = torch.tensor([OBS_NORMALIZATIONS[k] for k in grid_features], dtype=torch.float32)
+        obs_norm = torch.tensor([OBS_NORMALIZATIONS[k] for k in self._grid_features], dtype=torch.float32)
         obs_norm = obs_norm.view(1, num_objects, 1, 1)
 
         self.register_buffer("obs_norm", obs_norm)
 
+        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
+
     def _forward(self, td: TensorDict):
-        td[self._name] = td[self._input_source] / self.obs_norm
+        td[self._name] = td[self._sources[0]["name"]] / self.obs_norm
         return td

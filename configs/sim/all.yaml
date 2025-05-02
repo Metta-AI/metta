@@ -53,6 +53,10 @@ simulations:
   multiagent/spine_maze_extended:
     env: env/mettagrid/multiagent/evals/spine_maze_extended
     policy_agents_pct: 1.0
+  simple_npc:
+    env: env/mettagrid/simple
+    policy_agents_pct: 0.5
+    npc_policy_uri: wandb://run/b.daveey.t.8.rdr9.3
 
 
 

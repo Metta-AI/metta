@@ -16,7 +16,6 @@ from omegaconf import DictConfig, ListConfig
 from metta.agent.metta_agent import DistributedMettaAgent
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyStore
-from metta.agent.util.distribution_utils import sample_logits
 from metta.agent.util.weights_analysis import WeightsMetricsHelper
 from metta.eval.analysis_config import AnalyzerConfig
 from metta.rl.pufferlib.experience import Experience
@@ -112,22 +111,21 @@ class PufferTrainer:
         if self._master:
             print(policy_record.policy())
 
-        action_names = self.vecenv.driver_env.action_names()
-        if policy_record.metadata["action_names"] != action_names:
-            raise ValueError(
-                "Action names do not match between policy and environment: "
-                f"{policy_record.metadata['action_names']} != {action_names}"
-            )
-
         self._initial_pr = policy_record
         self.last_pr = policy_record
         self.policy = policy_record.policy().to(self.device)
         self.policy_record = policy_record
         self.uncompiled_policy = self.policy
 
+        actions_names = self.vecenv.driver_env.action_names()
+        actions_max_params = self.vecenv.driver_env._c_env.max_action_args()
+        self.policy.activate_actions(actions_names, actions_max_params, self.device)
+
         if self.trainer_cfg.compile:
             logger.info("Compiling policy")
             self.policy = torch.compile(self.policy, mode=self.trainer_cfg.compile_mode)
+
+        self.kickstarter = Kickstarter(self.cfg, self.policy_store, actions_names, actions_max_params)
 
         if dist.is_initialized():
             logger.info(f"Initializing DistributedDataParallel on device {self.device}")
@@ -162,8 +160,6 @@ class PufferTrainer:
             wandb_run.define_metric("train/agent_step")
             for k in ["0verview", "env", "losses", "performance", "train"]:
                 wandb_run.define_metric(f"{k}/*", step_metric="train/agent_step")
-
-        self.kickstarter = Kickstarter(self.cfg, self.policy_store, self.vecenv.single_action_space)
 
         self.replay_sim_config = SimulationConfig(
             env=self.trainer_cfg.env,
@@ -335,8 +331,7 @@ class PufferTrainer:
 
             with profile.eval_forward, torch.no_grad():
                 state = PolicyState(lstm_h=lstm_h[:, gpu_env_id], lstm_c=lstm_c[:, gpu_env_id])
-                logits, value = policy(o_device, state)
-                actions, logprob, _, _ = sample_logits(logits)
+                actions, logprob, _, value, _ = policy(o_device, state)
                 lstm_h[:, gpu_env_id] = state.lstm_h
                 lstm_c[:, gpu_env_id] = state.lstm_c
 
@@ -426,8 +421,7 @@ class PufferTrainer:
                     ret = experience.b_returns[mb]
 
                 with profile.train_forward:
-                    logits, newvalue = self.policy(obs, lstm_state, action=atn)
-                    _, newlogprob, entropy, new_normalized_logits = sample_logits(logits, action=atn)
+                    _, newlogprob, entropy, newvalue, new_normalized_logits = self.policy(obs, lstm_state, action=atn)
                     if self.device == "cuda":
                         torch.cuda.synchronize()
 
