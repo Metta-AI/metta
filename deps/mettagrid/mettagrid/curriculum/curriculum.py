@@ -26,7 +26,7 @@ class Curriculum:
         else:
             # If this is an environment rather than a curriculum, we need to wrap it in a curriculum
             # but we have to sample it first.
-            task = SamplingCurriculum(config_path, 0, env_overrides).get_task()
+            task = SamplingCurriculum(config_path, cfg.sampling).get_task()
             return SingleTaskCurriculum(task.id(), task.env_cfg())
 
 
