@@ -188,8 +188,7 @@ class PufferTrainer:
         logger.info(f"Training on {self.device}")
         while self.agent_step < self.trainer_cfg.total_timesteps:
             with self.torch_profiler:
-                # Collecting experience
-                self._evaluate()
+                self._rollout()
 
                 # Training on collected experience
                 self._train()
@@ -289,7 +288,7 @@ class PufferTrainer:
         pass
 
     @pufferlib.utils.profile
-    def _evaluate(self):
+    def _rollout(self):
         experience, profile = self.experience, self.profile
 
         with profile.eval_misc:
