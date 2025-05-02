@@ -7,11 +7,6 @@ import { focusFullMap, updateReadout, drawMap, drawTrace } from './drawing.js';
 import { PanelInfo } from './panels.js';
 
 // Get the html elements we will use.
-const scrubber = document.getElementById('main-scrubber') as HTMLInputElement;
-const playButton = document.getElementById('play-button') as HTMLButtonElement;
-
-// Get the canvas element.
-const globalCanvas = document.getElementById('global-canvas') as HTMLCanvasElement;
 
 // Handle resize events.
 function onResize() {
@@ -176,7 +171,7 @@ export function updateStep(newStep: number, skipScrubberUpdate = false) {
 
   // Update the scrubber value (unless told to skip)
   if (!skipScrubberUpdate) {
-    scrubber.value = state.step.toString();
+    html.scrubber.value = state.step.toString();
   }
 
   // Update trace panel position
@@ -188,7 +183,7 @@ export function updateStep(newStep: number, skipScrubberUpdate = false) {
 
 // Handle scrubber change events.
 function onScrubberChange() {
-  updateStep(parseInt(scrubber.value), true);
+  updateStep(parseInt(html.scrubber.value), true);
 }
 
 // Handle key down events.
@@ -228,8 +223,8 @@ export function onFrame() {
   }
 
   // Make sure the canvas is the size of the window.
-  globalCanvas.width = window.innerWidth;
-  globalCanvas.height = window.innerHeight;
+  html.globalCanvas.width = window.innerWidth;
+  html.globalCanvas.height = window.innerHeight;
 
   ctx.clear();
 
@@ -292,9 +287,9 @@ function onPlayButtonClick() {
   state.isPlaying = !state.isPlaying;
 
   if (state.isPlaying) {
-    playButton.classList.add('paused');
+    html.playButton.classList.add('paused');
   } else {
-    playButton.classList.remove('paused');
+    html.playButton.classList.remove('paused');
   }
 
   requestFrame();
@@ -370,8 +365,8 @@ window.addEventListener('mouseup', onMouseUp);
 window.addEventListener('mousemove', onMouseMove);
 window.addEventListener('wheel', onScroll);
 
-scrubber.addEventListener('input', onScrubberChange);
-playButton.addEventListener('click', onPlayButtonClick);
+html.scrubber.addEventListener('input', onScrubberChange);
+html.playButton.addEventListener('click', onPlayButtonClick);
 
 window.addEventListener('dragenter', preventDefaults, false);
 window.addEventListener('dragleave', preventDefaults, false);
