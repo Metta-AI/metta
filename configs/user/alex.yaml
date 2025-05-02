@@ -3,26 +3,27 @@
 seed: null
 
 defaults:
-  - override /agent: simple
+  # - override /env/mettagrid@env: simple
+  - override /agent: robust_puffer
   - _self_
 
-policy_uri: wandb://run/alex.trainee.002
+policy_uri: wandb://run/alex.local.411
 npc_policy_uri: null
 eval_db_uri: null
+
+env_overrides:
+  game:
+    max_steps: 1000
 
 env:
   game:
     max_steps: 1000
 
-trainer:
-  evaluate_interval: 0
-  # kickstart:
-  #   teacher_uri: wandb://run/b.daphne.multicolor_ore.r.5
-
 eval:
   policy_uri: ${..policy_uri}
   npc_policy_uri: ${..npc_policy_uri}
   eval_db_uri: ${..eval_db_uri}
+  env: /env/mettagrid/prog_3.yaml
   num_envs: 10
   num_episodes: 10
   max_time_s: 60
@@ -40,7 +41,7 @@ wandb:
   track: true
   checkpoint_interval: 1
 
-run_id: 370
+run_id: 446
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 sweep_name: "${oc.env:USER}.local.sweep.${run_id}"

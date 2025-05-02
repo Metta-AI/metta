@@ -4,8 +4,6 @@ from tensordict import TensorDict
 
 from metta.agent.lib.metta_layer import LayerBase
 
-# file name test, delete this comment after testing
-
 
 class LSTM(LayerBase):
     def __init__(self, obs_shape, hidden_size, **cfg):
@@ -14,12 +12,14 @@ class LSTM(LayerBase):
         foot with bad transpose and shape operations. This saves much pain."""
 
         super().__init__(**cfg)
-        self.obs_shape = obs_shape
+        self._obs_shape = list(obs_shape)  # make sure no Omegaconf types are used in forward passes
         self.hidden_size = hidden_size
+        # self._out_tensor_shape = [hidden_size] # delete this
         self.num_layers = self._nn_params["num_layers"]
 
     def _make_net(self):
-        net = nn.LSTM(self._input_size, self.hidden_size, **self._nn_params)
+        self._out_tensor_shape = [self.hidden_size]
+        net = nn.LSTM(self._in_tensor_shapes[0][0], self.hidden_size, **self._nn_params)
 
         for name, param in net.named_parameters():
             if "bias" in name:
@@ -29,18 +29,19 @@ class LSTM(LayerBase):
 
         return net
 
+    @torch.compile(disable=True)  # Dynamo doesn't support compiling LSTMs
     def _forward(self, td: TensorDict):
         x = td["x"]
-        hidden = td[self._input_source]
+        hidden = td[self._sources[0]["name"]]
         state = td["state"]
 
         if state is not None:
             split_size = self.num_layers
             state = (state[:split_size], state[split_size:])
 
-        x_shape, space_shape = x.shape, self.obs_shape
+        x_shape, space_shape = x.shape, self._obs_shape
         x_n, space_n = len(x_shape), len(space_shape)
-        if x_shape[-space_n:] != space_shape:
+        if tuple(x_shape[-space_n:]) != tuple(space_shape):
             raise ValueError("Invalid input tensor shape", x.shape)
 
         if x_n == space_n + 1:
@@ -52,9 +53,9 @@ class LSTM(LayerBase):
 
         if state is not None:
             assert state[0].shape[1] == state[1].shape[1] == B
-        assert hidden.shape == (B * TT, self._input_size)
+        assert hidden.shape == (B * TT, self._in_tensor_shapes[0][0])
 
-        hidden = hidden.reshape(B, TT, self._input_size)
+        hidden = hidden.reshape(B, TT, self._in_tensor_shapes[0][0])
         hidden = hidden.transpose(0, 1)
 
         hidden, state = self._net(hidden, state)
