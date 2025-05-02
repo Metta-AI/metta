@@ -2,26 +2,13 @@
 
 # Define the list of policy URIs
 POLICIES=(
-    "b.daphne.terrain_prioritized_styles_pretrained_r"
-    "terrain_prioritized_styles_pretrained"
-    "terrain_prioritized_styles_pretrained_mpmc"
-    "b.terrain_prioritized_styles_pretrained_nb"
-    "b.terrain_prioritized_styles"
-    "b.georgedeane.terrain_multienv"
-     "terrain_multienv_3_single_agent"
-	 "b.daphne.terrain_multienv_prioritized_multienv_cylinders"
-     "b.georgedeane.terrain_extra_hard:v1"
-     "b.daphne.terrain_prioritized_styles"
-     "b.daphne.terrain_prioritized_styles_pretrained"
-     "george_memory_pretrained"
-     "b.daphne.terrain_multiagent_48_norewardsharing"
-     "b.daphne.terrain_multiagent_24_norewardsharing"
-     "b.daphne.terrain_multiagent_24_rewardsharing"
-     "b.daphne.terrain_multiagent_48_rewardsharing"
-     "b.daphne.terrain_multiagent_48_norewardsharing_maxinv"
-     "b.daphne.terrain_multiagent_24_norewardsharing_maxinv"
-     "b.daphne.terrain_multiagent_24_rewardsharing_maxinv"
-     "b.daphne.terrain_multiagent_48_rewardsharing_maxinv"
+    "b.daphne.navigation_multiagent_24_rewardsharing_maxinv"
+    "b.daphne.navigation_multiagent_48_rewardsharing_maxinv"
+    "b.daphne.navigation_multiagent_24_norewardsharing_maxinv"
+    "b.daphne.navigation_multiagent_48_norewardsharing_maxinv"
+    "daphne.navigation"
+    "b.daphne.navigation"
+    "b.daphne.navigation2"
 )
 
 for i in "${!POLICIES[@]}"; do
