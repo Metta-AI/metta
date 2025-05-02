@@ -76,7 +76,7 @@ class ReplayHelper:
                 )
         self.step += 1
 
-    def write_replay(self, replay_path: str, epoch: int = 0, dry_run: bool = False):
+    def write_replay(self, replay_path: str, epoch: int = 0):
         self.replay["max_steps"] = self.step
         # Trim value changes to make them more compact.
         for grid_object in self.grid_objects:
@@ -87,11 +87,6 @@ class ReplayHelper:
         replay_data = json.dumps(self.replay)  # Convert to JSON string
         replay_bytes = replay_data.encode("utf-8")  # Encode to bytes
         compressed_data = zlib.compress(replay_bytes)  # Compress the bytes
-
-        if dry_run:
-            logger = logging.getLogger(__name__)
-            logger.info(f"Dry run: Would write replay to {replay_path}")
-            return
 
         # Make sure the directory exist
         if replay_path.startswith("s3://"):

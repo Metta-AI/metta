@@ -32,11 +32,13 @@ class Simulation:
         config: SimulationConfig,
         policy_pr: PolicyRecord,
         policy_store: PolicyStore,
+        replay_path: str | None = None,
         name: str = "",
         wandb_run=None,
     ):
         self._config = config
         self._wandb_run = wandb_run
+        self._replay_path = replay_path
         # TODO: Replace with typed EnvConfig
         self._env_cfg = config_from_path(config.env, config.env_overrides)
         self._env_name = config.env
@@ -104,7 +106,7 @@ class Simulation:
         # Initialize replay helpers array and episode counters if replay is enabled
         self._replay_helpers = None
         self._episode_counters = np.zeros(self._num_envs, dtype=int)
-        if config.replay_path is not None:
+        if self._replay_path is not None:
             self._replay_helpers = []
             for env_idx in range(self._num_envs):
                 self._replay_helpers.append(self._create_replay_helper(env_idx))
@@ -118,11 +120,14 @@ class Simulation:
             wandb_run=self._wandb_run,
         )
 
-    def _get_replay_path(self, env_idx, episode_count):
+    def _get_replay_path(self, env_idx: int, episode_count: int) -> str | None:
         """Generate a unique replay path for the given environment and episode."""
-        base_path = self._config.replay_path
+        base_path = self._replay_path
 
-        if self._config.num_envs == 1 and self._config.num_episodes == 1:
+        if base_path is None:
+            return None
+
+        if env_idx == 0 and episode_count == 0:
             return base_path
 
         if base_path.startswith("s3://"):
@@ -234,7 +239,7 @@ class Simulation:
 
                     if self._replay_helpers is not None:
                         path = self._get_replay_path(env_idx, self._episode_counters[env_idx])
-                        self._replay_helpers[env_idx].write_replay(path, epoch=epoch, dry_run=dry_run)
+                        self._replay_helpers[env_idx].write_replay(path, epoch=epoch)
                     self._episode_counters[env_idx] += 1
 
                 # (2) environment has auto-reset → new episode has started -------------
@@ -280,21 +285,35 @@ class SimulationSuite:
         policy_pr: PolicyRecord,
         policy_store: PolicyStore,
         wandb_run=None,
+        replay_dir: str | None = None,
     ):
         logger.debug(f"Building Simulation suite from config:{config}")
         self._simulations = dict()
         self._wandb_run = wandb_run
-
-        config.propagate_replay_paths()
+        self._replay_dir = replay_dir
 
         for name, sim_config in config.simulations.items():
+            replay_path = self._replay_path_for_sim(name)
             # Create a Simulation object for each config and pass wandb_run directly
             sim = Simulation(
-                config=sim_config, policy_pr=policy_pr, policy_store=policy_store, name=name, wandb_run=wandb_run
+                config=sim_config,
+                policy_pr=policy_pr,
+                policy_store=policy_store,
+                name=name,
+                wandb_run=wandb_run,
+                replay_path=replay_path,
             )
             self._simulations[name] = sim
 
-    # TODO: epoch and dry_run are replay-specific parameters we could probably handle better
-    def simulate(self, epoch: int = 0, dry_run: bool = False):
+    def _replay_path_for_sim(self, name: str) -> str:
+        if self._replay_dir is None:
+            return None
+        elif self._replay_dir.startswith("s3://"):
+            return f"{self._replay_dir.rstrip('/')}/{name}/replay.json.z"
+        else:
+            return os.path.join(self._replay_dir, name, "replay.json.z")
+
+    # TODO: epoch is a replay-specific parameter we could probably handle better
+    def simulate(self, epoch: int = 0):
         # Run all simulations and gather results by name
-        return {name: sim.simulate(epoch, dry_run) for name, sim in self._simulations.items()}
+        return {name: sim.simulate(epoch) for name, sim in self._simulations.items()}
