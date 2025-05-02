@@ -1,3 +1,4 @@
+sampling: 0
 game:
   num_agents: ???
   obs_width: 11
