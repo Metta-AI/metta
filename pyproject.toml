@@ -21,7 +21,7 @@ dependencies = { file = ["requirements.txt"] }
 source = ["deps/mettagrid", "metta"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests", "deps/mettagrid/tests"]
+testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
 python_classes = ["Test*"]

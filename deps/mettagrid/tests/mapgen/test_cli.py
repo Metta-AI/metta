@@ -4,7 +4,7 @@ import subprocess
 from mettagrid.config.utils import mettagrid_configs_root
 
 MAP_ROOT = str(mettagrid_configs_root / "maps")
-MAP_MODULE = "mettagrid.tools.map"
+MAP_MODULE = "tools.map"
 
 
 def test_gen_basic():
