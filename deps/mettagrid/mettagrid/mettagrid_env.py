@@ -5,8 +5,8 @@ import gymnasium as gym
 import numpy as np
 import pufferlib
 
-from mettagrid.mettagrid.config.utils import simple_instantiate
-from mettagrid.mettagrid.curriculum.curriculum import Curriculum
+from mettagrid.config.utils import simple_instantiate
+from mettagrid.curriculum.curriculum import Curriculum
 from mettagrid.mettagrid_c import MettaGrid  # pylint: disable=E0611
 from mettagrid.resolvers import register_resolvers
 

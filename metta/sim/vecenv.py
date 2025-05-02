@@ -2,8 +2,8 @@ import pufferlib
 import pufferlib.utils
 import pufferlib.vector
 
-from mettagrid.mettagrid.curriculum.curriculum import Curriculum
-from mettagrid.mettagrid.mettagrid_env import MettaGridEnv
+from mettagrid.curriculum.curriculum import Curriculum
+from mettagrid.mettagrid_env import MettaGridEnv
 
 
 def make_env_func(curriculum: Curriculum, buf=None, render_mode="rgb_array"):

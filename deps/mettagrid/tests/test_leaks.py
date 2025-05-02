@@ -1,5 +1,5 @@
 from mettagrid.config.utils import get_test_basic_cfg
-from mettagrid.mettagrid.curriculum.curriculum import SingleTaskCurriculum
+from mettagrid.curriculum.curriculum import SingleTaskCurriculum
 
 # Make sure all modules import without errors:
 from mettagrid.mettagrid_env import MettaGridEnv

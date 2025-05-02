@@ -3,6 +3,7 @@ import numpy as np
 import mettagrid
 import mettagrid.mettagrid_env
 from mettagrid.config.utils import get_test_basic_cfg
+from mettagrid.curriculum.curriculum import SingleTaskCurriculum
 
 
 # This function will be recognized as a test by pytest
@@ -67,7 +68,7 @@ def test_env_functionality():
     cfg = get_test_basic_cfg()
 
     # Create the environment:
-    mettaGridEnv = mettagrid.mettagrid_env.MettaGridEnv(cfg, render_mode=None)
+    mettaGridEnv = mettagrid.mettagrid_env.MettaGridEnv(SingleTaskCurriculum("task", cfg), render_mode=None)
 
     # Make sure the environment was created correctly:
     assert mettaGridEnv._renderer is None

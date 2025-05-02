@@ -12,8 +12,6 @@ def test_gen_basic():
             "python",
             "-m",
             "tools.map.gen",
-            "--show-mode",
-            "ascii",
             f"{map_root}/maze.yaml",
         ]
     )
@@ -25,8 +23,6 @@ def test_gen_missing_config():
             "python",
             "-m",
             "tools.map.gen",
-            "--show-mode",
-            "ascii",
             "./NON_EXISTENT_CONFIG.yaml",
         ]
     )
@@ -41,8 +37,6 @@ def test_save(tmpdir):
             "tools.map.gen",
             "--output-uri",
             tmpdir,
-            "--show-mode",
-            "ascii",
             f"{map_root}/maze.yaml",
         ]
     )
@@ -59,8 +53,6 @@ def test_save_exact_file(tmpdir):
             "tools.map.gen",
             "--output-uri",
             tmpdir + "/map.yaml",
-            "--show-mode",
-            "ascii",
             f"{map_root}/maze.yaml",
         ]
     )
@@ -78,8 +70,6 @@ def test_save_multiple(tmpdir):
             "tools.map.gen",
             "--output-uri",
             tmpdir,
-            "--show-mode",
-            "none",
             f"{map_root}/maze.yaml",
             "--count",
             str(count),
@@ -99,8 +89,6 @@ def test_view(tmpdir):
             "tools.map.gen",
             "--output-uri",
             tmpdir + "/map.yaml",
-            "--show-mode",
-            "none",
             f"{map_root}/maze.yaml",
         ]
     )
@@ -109,8 +97,6 @@ def test_view(tmpdir):
             "python",
             "-m",
             "tools.map.view",
-            "--show-mode",
-            "ascii",
             tmpdir + "/map.yaml",
         ]
     )
@@ -124,14 +110,12 @@ def test_view_random(tmpdir):
             "tools.map.gen",
             "--output-uri",
             tmpdir,
-            "--show-mode",
-            "none",
             "--count",
             "3",
             f"{map_root}/maze.yaml",
         ],
     )
     view_output = subprocess.check_output(
-        ["python", "-m", "tools.map.view", "--show-mode", "ascii", tmpdir], stderr=subprocess.STDOUT, text=True
+        ["python", "-m", "tools.map.view", tmpdir], stderr=subprocess.STDOUT, text=True
     )
     assert "Loading random map" in view_output

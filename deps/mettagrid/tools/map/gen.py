@@ -6,12 +6,11 @@ import signal
 import string
 import time
 from datetime import datetime
-from typing import cast, get_args
+from typing import cast
 
 from omegaconf import DictConfig, OmegaConf
 
 from mettagrid.config.utils import simple_instantiate
-from mettagrid.map.utils.show import ShowMode, show_map
 from mettagrid.map.utils.storable_map import StorableMap
 
 # Aggressively exit on ctrl+c
@@ -53,16 +52,10 @@ def uri_is_file(uri: str) -> bool:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--output-uri", type=str, help="Output URI")
-    parser.add_argument("--show-mode", choices=get_args(ShowMode), help="Show the map in the specified mode")
     parser.add_argument("--count", type=int, default=1, help="Number of maps to generate")
     parser.add_argument("--overrides", type=str, default="", help="OmniConf overrides for the map config")
     parser.add_argument("cfg_path", type=str, help="Path to the map config file")
     args = parser.parse_args()
-
-    show_mode = args.show_mode
-    if not show_mode and not args.output_uri:
-        # if not asked to save, show the map
-        show_mode = "raylib"
 
     output_uri = args.output_uri
     count = args.count
@@ -106,9 +99,6 @@ def main():
         target_uri = make_output_uri()
         if target_uri:
             storable_map.save(target_uri)
-
-        # Show the map if requested
-        show_map(storable_map, show_mode)
 
 
 if __name__ == "__main__":

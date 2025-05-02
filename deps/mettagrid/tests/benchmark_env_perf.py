@@ -6,7 +6,7 @@ from omegaconf import OmegaConf
 from tqdm import tqdm
 
 from mettagrid.config.utils import get_cfg
-from mettagrid.mettagrid.curriculum.curriculum import SingleTaskCurriculum
+from mettagrid.curriculum.curriculum import SingleTaskCurriculum
 from mettagrid.mettagrid_env import MettaGridEnv
 
 global actions

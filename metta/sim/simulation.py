@@ -13,7 +13,7 @@ from metta.sim.replay_helper import ReplayHelper
 from metta.sim.simulation_config import SimulationConfig, SimulationSuiteConfig
 from metta.sim.vecenv import make_vecenv
 from metta.util.datastruct import flatten_config
-from mettagrid.mettagrid.curriculum.curriculum import Curriculum
+from mettagrid.curriculum.curriculum import Curriculum
 
 logger = logging.getLogger(__name__)
 
