@@ -27,30 +27,3 @@ export const COLORS: [string, [number, number, number, number]][] = [
   ["green", [0, 1, 0, 1]],
   ["blue", [0, 0, 1, 1]],
 ];
-
-// Interaction state
-export let mouseDown = false;
-export let mouseClick = false;
-export let mouseDoubleClick = false;
-export let mousePos = new Vec2f(0, 0);
-export let lastMousePos = new Vec2f(0, 0);
-export let scrollDelta = 0;
-export let lastClickTime = 0; // For double-click detection
-
-// Panel split state
-export let traceSplit = DEFAULT_TRACE_SPLIT;
-export let traceDragging = false;
-export let infoSplit = DEFAULT_INFO_SPLIT;
-export let infoDragging = false;
-
-// Replay data and player state
-export let replay: any = null;
-export let selectedGridObject: any = null;
-export let followSelection = false; // Flag to follow selected entity
-export let followTraceSelection = false; // Flag to follow trace selection
-
-// Playback state
-export let step = 0;
-export let isPlaying = false;
-export let partialStep = 0;
-export let playbackSpeed = 0.1;

@@ -2,7 +2,6 @@ import { Vec2f, Mat3f } from './vector_math.js';
 import { Grid } from './grid.js';
 import { Drawer } from './drawer.js';
 import * as Common from './common.js';
-import { INVENTORY_PADDING, TILE_SIZE, TRACE_WIDTH } from './common.js';
 
 export class PanelInfo {
   public x: number = 0;
@@ -801,8 +800,8 @@ function drawActions(replay: any) {
         if (action_name == "attack" && action[1] >= 0 && action[1] <= 8) {
           drawer.drawSprite(
             "actions/attack" + (action[1] + 1) + ".png",
-            x * TILE_SIZE,
-            y * TILE_SIZE,
+            x * Common.TILE_SIZE,
+            y * Common.TILE_SIZE,
             [1, 1, 1, 1],
             1,
             rotation
@@ -810,8 +809,8 @@ function drawActions(replay: any) {
         } else if (action_name == "attack_nearest") {
           drawer.drawSprite(
             "actions/attack_nearest.png",
-            x * TILE_SIZE,
-            y * TILE_SIZE,
+            x * Common.TILE_SIZE,
+            y * Common.TILE_SIZE,
             [1, 1, 1, 1],
             1,
             rotation
@@ -819,8 +818,8 @@ function drawActions(replay: any) {
         } else if (action_name == "put_recipe_items") {
           drawer.drawSprite(
             "actions/put_recipe_items.png",
-            x * TILE_SIZE,
-            y * TILE_SIZE,
+            x * Common.TILE_SIZE,
+            y * Common.TILE_SIZE,
             [1, 1, 1, 1],
             1,
             rotation
@@ -828,8 +827,8 @@ function drawActions(replay: any) {
         } else if (action_name == "get_output") {
           drawer.drawSprite(
             "actions/get_output.png",
-            x * TILE_SIZE,
-            y * TILE_SIZE,
+            x * Common.TILE_SIZE,
+            y * Common.TILE_SIZE,
             [1, 1, 1, 1],
             1,
             rotation
@@ -837,8 +836,8 @@ function drawActions(replay: any) {
         } else if (action_name == "swap") {
           drawer.drawSprite(
             "actions/swap.png",
-            x * TILE_SIZE,
-            y * TILE_SIZE,
+            x * Common.TILE_SIZE,
+            y * Common.TILE_SIZE,
             [1, 1, 1, 1],
             1,
             rotation
@@ -851,8 +850,8 @@ function drawActions(replay: any) {
     if (getAttr(gridObject, "converting") > 0) {
       drawer.drawSprite(
         "actions/converting.png",
-        x * TILE_SIZE,
-        y * TILE_SIZE - 100,
+        x * Common.TILE_SIZE,
+        y * Common.TILE_SIZE - 100,
         [1, 1, 1, 1],
         1,
         // Apply the gentle rotation.
@@ -864,8 +863,8 @@ function drawActions(replay: any) {
     if (getAttr(gridObject, "agent:frozen") > 0) {
       drawer.drawSprite(
         "agents/frozen.png",
-        x * TILE_SIZE,
-        y * TILE_SIZE,
+        x * Common.TILE_SIZE,
+        y * Common.TILE_SIZE,
       );
     }
   }
@@ -973,13 +972,41 @@ function drawTrajectory(selectedObject: any | null) {
           }
 
           if (cx1 > cx0) { // east
-            drawer.drawSprite(image, cx0 * TILE_SIZE, cy0 * TILE_SIZE + 60, color, 1, 0);
+            drawer.drawSprite(
+              image,
+              cx0 * Common.TILE_SIZE,
+              cy0 * Common.TILE_SIZE + 60,
+              color,
+              1,
+              0
+            );
           } else if (cx1 < cx0) { // west
-            drawer.drawSprite(image, cx0 * TILE_SIZE, cy0 * TILE_SIZE + 60, color, 1, Math.PI);
+            drawer.drawSprite(
+              image,
+              cx0 * Common.TILE_SIZE,
+              cy0 * Common.TILE_SIZE + 60,
+              color,
+              1,
+              Math.PI
+            );
           } else if (cy1 > cy0) { // south
-            drawer.drawSprite(image, cx0 * TILE_SIZE, cy0 * TILE_SIZE + 60, color, 1, -Math.PI / 2);
+            drawer.drawSprite(
+              image,
+              cx0 * Common.TILE_SIZE,
+              cy0 * Common.TILE_SIZE + 60,
+              color,
+              1,
+              -Math.PI / 2
+            );
           } else if (cy1 < cy0) { // north
-            drawer.drawSprite(image, cx0 * TILE_SIZE, cy0 * TILE_SIZE + 60, color, 1, Math.PI / 2);
+            drawer.drawSprite(
+              image,
+              cx0 * Common.TILE_SIZE,
+              cy0 * Common.TILE_SIZE + 60,
+              color,
+              1,
+              Math.PI / 2
+            );
           }
         }
       }
@@ -1001,8 +1028,8 @@ function drawMap(panel: PanelInfo) {
 
     if (localMousePos != null) {
       const gridMousePos = new Vec2f(
-        Math.round(localMousePos.x() / TILE_SIZE),
-        Math.round(localMousePos.y() / TILE_SIZE)
+        Math.round(localMousePos.x() / Common.TILE_SIZE),
+        Math.round(localMousePos.y() / Common.TILE_SIZE)
       );
       const gridObject = replay.grid_objects.find((obj: any) => {
         const x: number = getAttr(obj, "c");
@@ -1028,7 +1055,7 @@ function drawMap(panel: PanelInfo) {
   if (followSelection && selectedGridObject !== null) {
     const x = getAttr(selectedGridObject, "c");
     const y = getAttr(selectedGridObject, "r");
-    panel.panPos = new Vec2f(-x * TILE_SIZE, -y * TILE_SIZE);
+    panel.panPos = new Vec2f(-x * Common.TILE_SIZE, -y * Common.TILE_SIZE);
   }
 
   drawer.save();
@@ -1075,8 +1102,8 @@ function drawTrace(panel: PanelInfo) {
           selectedGridObject = replay.agents[agentId];
           console.log("selectedGridObject on a trace:", selectedGridObject);
           mapPanel.focusPos(
-            getAttr(selectedGridObject, "c") * TILE_SIZE,
-            getAttr(selectedGridObject, "r") * TILE_SIZE
+            getAttr(selectedGridObject, "c") * Common.TILE_SIZE,
+            getAttr(selectedGridObject, "r") * Common.TILE_SIZE
           );
           // Update the step to the clicked step.
           updateStep(Math.floor(mapX / Common.TRACE_WIDTH));
