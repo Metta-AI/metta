@@ -1,7 +1,7 @@
 boto3==1.38.7
 colorama==0.4.6
 cython==3.0.12
-duckdb==1.2.0
+duckdb==1.2.2
 einops==0.8.1
 fastapi==0.115.5
 gymnasium==0.29.1
