@@ -3,7 +3,7 @@
 # Mentioned users will get code review requests.
 
 # CI, formatting, linting
-.github @rjwalters
+/.github @rjwalters
 /ruff.toml @rjwalters
 
 # MettaScope
@@ -12,6 +12,13 @@
 # DevOps
 /devops/tf @daveey @berekuk
 /devops @daveey
+
+# Specific packages
+/deps/mettagrid/mettagrid/map @sasmith @berekuk
+/deps/mettagrid/mettagrid @sasmith
+
+/metta/agent @Al-does @daveey
+/metta/rl @Al-does @daveey
 
 # Everything else
 * @sasmith
