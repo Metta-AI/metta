@@ -22,8 +22,14 @@ def find_repo_root(start_path=None):
     return None
 
 
+
 def sort_requirements_file(file_path):
     """Sort a single requirements file and rewrite it."""
+    # Check if the file is a symlink
+    if os.path.islink(file_path):
+        print(f"Skipping symlink: {file_path}")
+        return True
+        
     # Check if the file exists
     if not os.path.isfile(file_path):
         print(f"Error: {file_path} not found.")
@@ -46,6 +52,7 @@ def sort_requirements_file(file_path):
 
     print(f"Requirements file at {file_path} has been sorted successfully.")
     return True
+
 
 
 def main():
