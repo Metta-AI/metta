@@ -4,11 +4,11 @@ defaults:
 
 profiler_interval_epochs: 0
 
-forward_pass_minibatch_target_size: 72 # (agents (36 * 4))
-batch_size: 73728 # 144 * 1024
+forward_pass_minibatch_target_size: 144 # (agents (36 * 4))
+batch_size: 147456 # 144 * 1024
 minibatch_size: 18432 # 36 * 1024
 bptt_horizon: 1024
-update_epochs: 1
+update_epochs: 3
 
 clip_coef: 0.1
 ent_coef: 0.0002
