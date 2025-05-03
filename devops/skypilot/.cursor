@@ -1,0 +1,29 @@
+{
+  "documentation": {
+    "enabled": true,
+    "sources": [
+      {
+        "type": "local",
+        "path": "docs",
+        "include": ["*.md"]
+      },
+      {
+        "type": "external",
+        "url": "https://skypilot.readthedocs.io/en/latest/",
+        "name": "SkyPilot Official Docs"
+      }
+    ],
+    "search": {
+      "enabled": true,
+      "index": ["docs", "config"]
+    }
+  },
+  "language": {
+    "yaml": {
+      "schema": {
+        "fileMatch": ["*.yaml"],
+        "url": "https://raw.githubusercontent.com/skypilot-org/skypilot/master/sky/schemas/config.json"
+      }
+    }
+  }
+}
