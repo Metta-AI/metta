@@ -168,6 +168,7 @@ class Simulation:
             logger.debug(f"Against npc policy: {self._npc_pr.name} with {self._npc_agents_per_env} agents")
 
         logger.info(f"Simulation settings: {self._config}")
+        logger.info(f"Replay path: {self._replay_path}")
 
         obs, _ = self._vecenv.reset()
         policy_state = PolicyState()

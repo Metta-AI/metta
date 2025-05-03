@@ -18,10 +18,8 @@ trainer:
 sim_job:
   dry_run: false
   policy_uris:
-    - wandb://run/b.daphne.terrain_prioritized_styles_pretrained_r
-    - wandb://run/terrain_prioritized_styles_pretrained
-    - wandb://run/terrain_multienv_3_single_agent
-    - wandb://run/b.georgedeane.terrain_extra_hard
+    - wandb://run/daphne.navigation
+    - wandb://run/b.daphne.navigation_multiagent_48_norewardsharing_maxinv
 
 analyzer:
   policy_uri: ${..policy_uri}
