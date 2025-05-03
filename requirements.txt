@@ -19,7 +19,7 @@ pynvml==11.5.3
 pyright==1.1.400
 pytest-benchmark==5.1.0
 pytest-cov==6.1.1
-pytest==8.3.3
+pytest==8.3.5
 python-dotenv==1.1.0
 PyYAML==6.0.2
 raylib==5.5.0.2
