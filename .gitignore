@@ -8,10 +8,6 @@ __pycache__
 .task
 .vscode/PythonImportHelper-v2-Completion.json
 /checkpoints/
-/deps/carbs/
-/deps/fast_gae/
-/deps/pufferlib/
-/deps/wandb_carbs/
 /mettagrid/build
 /mettagrid/build_debug/
 /mettagrid/dist
@@ -29,7 +25,7 @@ stderr.log
 sweep_id
 personal/
 wandb/
-deps/.built
+/deps/*
 terrain_maps_nohearts*
 .idea
 .converage.*
