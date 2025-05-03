@@ -43,7 +43,7 @@ from mettagrid.actions.change_color cimport ChangeColorAction
 # Constants
 obs_np_type = np.uint8
 
-cdef class GridEnv:
+cdef class MettaGrid:
     cdef:
         object _cfg
         map[unsigned int, float] _group_reward_pct
