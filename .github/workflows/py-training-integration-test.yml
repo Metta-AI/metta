@@ -9,10 +9,7 @@ on:
       ref:
         required: false
         type: string
-      called_from_workflow:
-        required: false
-        type: boolean
-        default: false
+
 jobs:
   training-integration-test:
     if: >-
@@ -31,11 +28,11 @@ jobs:
           ref: ${{ inputs.ref || github.ref }}
 
       - name: Setup Python
-        if: inputs.called_from_workflow != true
+        if: github.event_name != 'workflow_call'
         uses: ./.github/actions/py-setup
         
       - name: List installed packages
-        if: inputs.called_from_workflow != true
+        if: github.event_name != 'workflow_call'
         run: |
           source venv/bin/activate
           pip list

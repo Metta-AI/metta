@@ -9,10 +9,7 @@ on:
       ref:
         required: false
         type: string
-      called_from_workflow:
-        required: false
-        type: boolean
-        default: false
+
 jobs:
   py-test:
     if: >-
@@ -30,7 +27,7 @@ jobs:
       # Skip file change check if triggered from py-checks workflow
       - name: Check for Python file changes
         id: py_test_check_files
-        if: inputs.called_from_workflow != true
+        if: github.event_name != 'workflow_call'
         uses: ./.github/actions/file-changes
         with:
           patterns: '*.py'
@@ -41,10 +38,15 @@ jobs:
       - name: Set early exit flag
         id: set_early_exit
         run: |
-          if [[ "${{ github.event_name }}" == "pull_request" || "${{ steps.py_test_check_files.outputs.has_relevant_changes }}" == "true" ]]; then
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            # If called from a manual workflow, don't skip anything
             echo "EARLY_EXIT=false" >> $GITHUB_ENV
-          else
+          elif [[ "${{ github.event_name }}" != "workflow_call" && "${{ steps.py_test_check_files.outputs.has_relevant_changes }}" == "false" ]]; then
+            # If we looked for changed files and found no relevant changes, exit early
             echo "EARLY_EXIT=true" >> $GITHUB_ENV
+          else
+            # In all other cases, don't exit early
+            echo "EARLY_EXIT=false" >> $GITHUB_ENV
           fi
       
       - name: Setup Python
