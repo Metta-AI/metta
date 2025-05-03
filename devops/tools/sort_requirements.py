@@ -57,17 +57,15 @@ def main():
     if repo_root:
         print(f"Repository root found at: {repo_root}")
 
-        # Define paths to both requirements files
+        # Define paths to requirements files
         main_requirements = os.path.join(repo_root, "requirements.txt")
-        mettagrid_requirements = os.path.join(repo_root, "deps", "mettagrid", "requirements.txt")
 
-        # Sort both files
+        # Sort each file
+        requirement_files = [main_requirements]
         success_count = 0
-        if sort_requirements_file(main_requirements):
-            success_count += 1
-
-        if sort_requirements_file(mettagrid_requirements):
-            success_count += 1
+        for file in requirement_files:
+            if sort_requirements_file(file):
+                success_count += 1
 
         print(f"Sorted {success_count} requirements file(s) successfully.")
     else:
