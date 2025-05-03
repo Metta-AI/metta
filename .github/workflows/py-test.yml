@@ -1,6 +1,6 @@
 name: py-test
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.run_id }}
+  group: py-test-${{ github.ref }}-${{ github.run_id }}
   cancel-in-progress: ${{ github.event_name != 'workflow_call' }}
 on:
   workflow_dispatch: {}
@@ -23,42 +23,42 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref || github.ref }}
-        
+
       # Skip file change check if triggered from py-checks workflow
       - name: Check for Python file changes
         id: py_test_check_files
         if: github.event_name != 'workflow_call'
         uses: ./.github/actions/file-changes
         with:
-          patterns: '*.py'
-          specific_files: 'requirements.txt,setup.py'
-          directory_paths: 'tests/,benchmarks/,deps/mettagrid/tests/,deps/mettagrid/benchmarks/'
+          patterns: "*.py"
+          specific_files: "requirements.txt,setup.py"
+          directory_paths: "tests/,benchmarks/,mettagrid/tests/,mettagrid/benchmarks/"
           github-token: ${{ secrets.GITHUB_TOKEN }}
-            
+
       - name: Set early exit flag
         id: set_early_exit
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            # If called from a manual workflow, don't skip anything
+            echo "called from a manual workflow, don't skip anything"
             echo "EARLY_EXIT=false" >> $GITHUB_ENV
           elif [[ "${{ github.event_name }}" != "workflow_call" && "${{ steps.py_test_check_files.outputs.has_relevant_changes }}" == "false" ]]; then
-            # If we looked for changed files and found no relevant changes, exit early
+            echo "we looked for changed files and found no relevant changes, exit early!"
             echo "EARLY_EXIT=true" >> $GITHUB_ENV
           else
-            # In all other cases, don't exit early
+            echo "in all other cases, don't exit early"
             echo "EARLY_EXIT=false" >> $GITHUB_ENV
           fi
-      
+
       - name: Setup Python
         if: env.EARLY_EXIT == 'false'
         uses: ./.github/actions/py-setup
-        
+
       - name: List installed packages
         if: env.EARLY_EXIT == 'false'
         run: |
           source venv/bin/activate
           pip list
-          
+
       - name: Run Pytest on core tests
         if: env.EARLY_EXIT == 'false'
         env:
@@ -66,17 +66,17 @@ jobs:
         run: |
           source venv/bin/activate
           pytest --maxfail=1 --disable-warnings -q
-          
+
       - name: Run Pytest on mettagrid tests
         if: env.EARLY_EXIT == 'false'
         env:
           HYDRA_FULL_ERROR: 1
-          PYTHONPATH: ${{ github.workspace }}/deps/mettagrid
+          PYTHONPATH: ${{ github.workspace }}/mettagrid
         run: |
           source venv/bin/activate
-          cd deps/mettagrid
+          cd mettagrid
           pytest --maxfail=1 --disable-warnings -q
-          
+
       - name: Skip testing (no relevant changes)
         if: env.EARLY_EXIT == 'true'
         run: |

@@ -1,6 +1,6 @@
 name: py-benchmark
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.run_id }}
+  group: py-benchmark-${{ github.ref }}-${{ github.run_id }}-benchmark
   cancel-in-progress: ${{ github.event_name != 'workflow_call' }}
 on:
   workflow_dispatch: {}
@@ -9,7 +9,6 @@ on:
       ref:
         required: false
         type: string
-
 
 jobs:
   py-benchmark:
@@ -35,25 +34,25 @@ jobs:
         if: github.event_name != 'workflow_call'
         uses: ./.github/actions/file-changes
         with:
-          patterns: '*.py'
-          specific_files: 'requirements.txt,setup.py'
-          directory_paths: 'tests/,benchmarks/,deps/mettagrid/tests/,deps/mettagrid/benchmarks/'
+          patterns: "*.py"
+          specific_files: "requirements.txt,setup.py"
+          directory_paths: "tests/,benchmarks/,mettagrid/tests/,mettagrid/benchmarks/"
           github-token: ${{ secrets.GITHUB_TOKEN }}
-                  
+
       - name: Set early exit flag
         id: set_early_exit
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            # If called from a manual workflow, don't skip anything
+            echo "called from a manual workflow, don't skip anything"
             echo "EARLY_EXIT=false" >> $GITHUB_ENV
           elif [[ "${{ github.event_name }}" != "workflow_call" && "${{ steps.py_benchmark_check_files.outputs.has_relevant_changes }}" == "false" ]]; then
-            # If we looked for changed files and found no relevant changes, exit early
+            echo "we looked for changed files and found no relevant changes, exit early!"
             echo "EARLY_EXIT=true" >> $GITHUB_ENV
           else
-            # In all other cases, don't exit early
+            echo "in all other cases, don't exit early"
             echo "EARLY_EXIT=false" >> $GITHUB_ENV
           fi
-            
+
       - name: Skip benchmarking (no relevant changes)
         if: env.EARLY_EXIT == 'true'
         run: |
@@ -87,7 +86,7 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}
         run: |
           source venv/bin/activate
-          cd deps/mettagrid
+          cd mettagrid
           pytest --benchmark-json=mettagrid_benchmark_results.json
           mv mettagrid_benchmark_results.json ../..
 
@@ -98,7 +97,7 @@ jobs:
           python - <<EOF
           import json
           import os
-          
+
           # Function to safely load JSON, handling empty files
           def safe_load_json(file_path):
               try:
@@ -111,14 +110,14 @@ jobs:
               except json.JSONDecodeError:
                   print(f"Warning: {file_path} contains invalid JSON or is empty. Using empty dict instead.")
                   return {}
-          
+
           # Read main benchmark results
           main_results = safe_load_json('main_benchmark_results.json')
-          
+
           # Read mettagrid benchmark results if file exists
           mettagrid_path = 'mettagrid_benchmark_results.json'
           mettagrid_results = safe_load_json(mettagrid_path)
-          
+
           # Check if we have any valid results to work with
           if not main_results and not mettagrid_results:
               print("Both result files are empty or invalid. Creating empty combined results.")
@@ -139,11 +138,11 @@ jobs:
                   for key in mettagrid_results:
                       if key != "benchmarks" and key not in combined_results:
                           combined_results[key] = mettagrid_results[key]
-          
+
           # Write combined results
           with open('combined_benchmark_results.json', 'w') as f:
               json.dump(combined_results, f, indent=2)
-          
+
           print("Successfully combined benchmark results.")
           EOF
 

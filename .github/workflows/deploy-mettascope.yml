@@ -4,7 +4,13 @@ on:
     branches:
       - main
     paths:
-      - "deps/mettagrid/player/**" # Run when any file in player directory changes
+      - "mettagrid/player/**" # Run when any file in player directory changes
+      - ".github/workflows/**" # Run when workflow files change
+  merge_group:
+    types: [checks_requested]
+    branches: [main]
+    paths:
+      - "mettagrid/player/**" # Run when any file in player directory changes
       - ".github/workflows/**" # Run when workflow files change
   workflow_dispatch: {} # Allow manual triggers
 
@@ -35,12 +41,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: 'npm'
-          cache-dependency-path: 'deps/mettagrid/player/package-lock.json'
+          cache: "npm"
+          cache-dependency-path: "mettagrid/player/package-lock.json"
 
       - name: Install and build TypeScript
         run: |
-          cd deps/mettagrid/player
+          cd mettagrid/player
           npm ci
           npx tsc
 
@@ -48,7 +54,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-          cache: 'pip'
+          cache: "pip"
 
       - name: Install Python dependencies
         run: |
@@ -63,19 +69,19 @@ jobs:
           python3 --version
           pip --version
           pip list
-          
+
           echo "=== Directory Structure ==="
           echo "Current directory: $(pwd)"
           ls -la
-          
+
           echo "=== Player Directory ==="
-          cd deps/mettagrid/player
+          cd mettagrid/player
           echo "Player directory: $(pwd)"
           ls -la
 
       - name: Generate Atlas
         run: |
-          cd deps/mettagrid/player
+          cd mettagrid/player
           python3 tools/gen_atlas.py
 
       - name: Setup Pages
@@ -84,8 +90,8 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: "./deps/mettagrid/player"
-          
+          path: "./mettagrid/player"
+
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
