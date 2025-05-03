@@ -42,9 +42,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             fname = f"stats_{os.getpid()}_{uuid.uuid4().hex[:6]}.duckdb"
             stats_writer_path = Path(stats_writer_dir) / fname
             self._writer_path = Path(stats_writer_path).resolve()
-            self.stats_writer = MettaGridStatsWriter(self._writer_path)
-
-            self.stats_writer = MettaGridStatsWriter(stats_writer_path)
+            self.stats_writer = MettaGridStatsWriter(str(self._writer_path))
         else:
             self.stats_writer = None
 
@@ -171,8 +169,9 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     @property
     def _max_steps(self):
-    
-        @property
+        return self._c_env.max_steps()
+
+    @property
     def single_observation_space(self):
         return self._env.observation_space
 
@@ -245,6 +244,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     def __del__(self):
         if getattr(self, "stats_writer", None):
             self.stats_writer.close()
+
 
 # Ensure resolvers are registered when this module is imported
 register_resolvers()
