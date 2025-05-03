@@ -56,5 +56,5 @@ import {
 
 import {
   to = spacelift_aws_integration.softmax
-  id = local.aws_integration_name
+  id = "01JT92QHHSWV1Y5VNQRET9256M"
 }
