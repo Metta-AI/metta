@@ -31,7 +31,7 @@ jobs:
         with:
           patterns: '*.py'
           specific_files: 'requirements.txt,setup.py'
-          directory_paths: 'tests/,benchmarks/,deps/mettagrid/tests/,deps/mettagrid/benchmarks/'
+          directory_paths: 'tests/,benchmarks/,mettagrid/tests/,mettagrid/benchmarks/'
           github-token: ${{ secrets.GITHUB_TOKEN }}
             
       - name: Set early exit flag

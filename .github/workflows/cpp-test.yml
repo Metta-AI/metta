@@ -30,7 +30,7 @@ jobs:
         if: github.event_name != 'workflow_call'
         uses: ./.github/actions/file-changes
         with:
-          patterns: 'deps/mettagrid/,*.cpp,*.cxx,*.cc,*.h,*.hpp,*.pyx,*.pxd'
+          patterns: 'mettagrid/,*.cpp,*.cxx,*.cc,*.h,*.hpp,*.pyx,*.pxd'
           github-token: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Set early exit flag
@@ -54,11 +54,11 @@ jobs:
       - name: Build and run tests
         if: env.EARLY_EXIT == 'false'
         run: |
-          cd deps/mettagrid
+          cd mettagrid
           make test
           
       - name: Skip tests (no relevant changes)
         if: env.EARLY_EXIT == 'true'
         run: |
-          echo "No C++ files in deps/mettagrid were changed. Skipping tests."
+          echo "No C++ files in mettagrid/ were changed. Skipping tests."
           echo "This check passes automatically when no relevant C++ files are changed."
