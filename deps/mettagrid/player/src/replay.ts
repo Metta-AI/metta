@@ -213,6 +213,16 @@ async function loadReplayText(replayData: any) {
     }
   }
 
+  // Map size is not to be trusted. Recompute map size just in case.
+  state.replay.map_size[0] = 0;
+  state.replay.map_size[1] = 0;
+  for (const gridObject of state.replay.grid_objects) {
+    let x = getAttr(gridObject, "c") + 1;
+    let y = getAttr(gridObject, "r") + 1;
+    state.replay.map_size[0] = Math.max(state.replay.map_size[0], x);
+    state.replay.map_size[1] = Math.max(state.replay.map_size[1], y);
+  }
+
   console.info("replay: ", state.replay);
 
   // Set the scrubber max value to the max steps.
