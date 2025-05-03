@@ -2,6 +2,7 @@ defaults:
   - sim
   - _self_
 
+name: object_use
 simulations:
   object_use/altar_use_free:
     env: env/mettagrid/object_use/evals/altar_use_free

@@ -2,6 +2,7 @@ defaults:
   - sim
   - _self_
 
+name: simple
 simulations:
   simple:
     env: env/mettagrid/simple
