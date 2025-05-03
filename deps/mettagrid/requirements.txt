@@ -4,7 +4,7 @@ jmespath==1.0.1
 matplotlib==3.9.2
 numpy==1.26.4
 pandas==2.2.3
-pettingzoo==1.24.1
+pettingzoo==1.25.0
 pynvml==11.5.3
 pytest==8.3.3
 pytest-cov==6.1.1
