@@ -46,7 +46,7 @@ jobs:
           echo "This check passes automatically when no relevant C++ files are changed."
 
   # Run lint workflow
-  call-lint:
+  call-lint-cpp:
     needs: check-files-cpp
     if: needs.check-files-cpp.outputs.has_relevant_changes == 'true'
     uses: ./.github/workflows/cpp-lint.yml
@@ -56,7 +56,7 @@ jobs:
     secrets: inherit
   
   # Run test workflow
-  call-test:
+  call-test-cpp:
     needs: check-files-cpp
     if: needs.check-files-cpp.outputs.has_relevant_changes == 'true'
     uses: ./.github/workflows/cpp-test.yml
@@ -66,7 +66,7 @@ jobs:
     secrets: inherit
   
   # Run benchmark workflow
-  call-benchmark:
+  call-benchmark-cpp:
     needs: check-files-cpp
     if: needs.check-files-cpp.outputs.has_relevant_changes == 'true'
     permissions:
