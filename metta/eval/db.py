@@ -153,9 +153,6 @@ class PolicyEvalDB:
 
         return metric_to_df
 
-    def short_name(self, name: str) -> str:
-        return name.split("/")[-1]
-
     def import_from_eval_stats(
         self, analyzer_cfg: AnalyzerConfig, omegaconf_cfg: DictConfig
     ):  # TODO: remove omegaconf_cfg
@@ -268,7 +265,7 @@ class PolicyEvalDB:
             num_output_policies: Optional number of policies to output
 
         Returns:
-            DataFrame with policies as rows and evaluations as columns
+            DataFrame with policies as rows and evaluations as columns, using full evaluation names
         """
         if policy_uri:
             policy_uri = self.parse_versioned_uri(policy_uri)[0]
@@ -335,10 +332,9 @@ class PolicyEvalDB:
             return pd.DataFrame()
 
         # Process data into matrix format
-        df["display_name"] = df["evaluation_name"].apply(self.short_name)
-
+        # Note: We're not using short_name here anymore
         policies = df["policy_uri"].unique()
-        eval_display_names = df["display_name"].unique()
+        eval_names = df["evaluation_name"].unique()
 
         # Generate an overall score for each policy
         overall_scores = {}
@@ -349,17 +345,17 @@ class PolicyEvalDB:
         # Create mapping for easy lookup
         data_map = {}
         for _, row in df.iterrows():
-            data_map[(row["policy_uri"], row["display_name"])] = row["value"]
+            data_map[(row["policy_uri"], row["evaluation_name"])] = row["value"]
 
-        # Create matrix data
+        # Create matrix data using full eval names
         matrix_data = []
         for policy in policies:
             row_data = {"policy_uri": policy}
             row_data["Overall"] = overall_scores[policy]
-            for display_name in eval_display_names:
-                key = (policy, display_name)
+            for eval_name in eval_names:
+                key = (policy, eval_name)
                 if key in data_map:
-                    row_data[display_name] = data_map[key]
+                    row_data[eval_name] = data_map[key]
             matrix_data.append(row_data)
 
         # Convert to DataFrame
@@ -385,8 +381,7 @@ class PolicyEvalDB:
                 matrix = matrix.reindex(sorted_policies)
         # For chronological view, we don't need to re-sort as it's already sorted in the SQL query
 
-        # Limit the number of policies. We take the tail because the policies are sorted by score,
-        # and we want the highest scoring policies.
+        # Limit the number of policies
         if num_output_policies != "all":
             matrix = matrix.tail(num_output_policies)
 

@@ -19,21 +19,31 @@ from metta.util.wandb.wandb_context import WandbContext
 class SimJob(Config):
     simulation_suite: SimulationSuiteConfig
     policy_uris: List[str]
-    selector_type: str = "latest"
-    metric: str = "score"
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    selector_type: str = "top"
+    dry_run: bool = False
+    replay_dir: str = "s3://softmax-public/replays/evals"
 
 
 def simulate_policy(sim_job: SimJob, policy_uri: str, cfg: DictConfig, wandb_run, logger: Logger):
     # TODO: Remove dependence on cfg in PolicyStore
     policy_store = PolicyStore(cfg, wandb_run)
-    policy_prs = policy_store.policies(policy_uri, sim_job.selector_type, n=1, metric=sim_job.metric)
+    # TODO: institutionalize this better?
+    metric = sim_job.simulation_suite.name + "_score"
+    policy_prs = policy_store.policies(policy_uri, sim_job.selector_type, n=1, metric=metric)
     # For each checkpoint of the policy, simulate
+
     for pr in policy_prs:
         logger.info(f"Evaluating policy {pr.uri}")
-        sim = SimulationSuite(config=sim_job.simulation_suite, policy_pr=pr, policy_store=policy_store)
+        if sim_job.dry_run:
+            replay_dir = None
+        else:
+            replay_dir = f"{sim_job.replay_dir}/{pr.name}"
+        sim = SimulationSuite(
+            config=sim_job.simulation_suite,
+            policy_pr=pr,
+            policy_store=policy_store,
+            replay_dir=replay_dir,
+        )
         stats = sim.simulate()
         stats_logger = EvalStatsLogger(sim_job.simulation_suite, wandb_run)
         stats_logger.log(stats)
