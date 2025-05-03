@@ -1,6 +1,6 @@
 name: py-checks
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: py-checks-${{ github.ref }}
   cancel-in-progress: true
 on:
   pull_request:

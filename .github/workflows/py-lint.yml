@@ -1,6 +1,6 @@
 name: py-lint
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.run_id }}
+  group: py-lint-${{ github.ref }}-${{ github.run_id }}
   cancel-in-progress: ${{ github.event_name != 'workflow_call' }}
 on:
   workflow_dispatch: {}
@@ -38,13 +38,13 @@ jobs:
         id: set_early_exit
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            # If called from a manual workflow, don't skip anything
+            echo "called from a manual workflow, don't skip anything"
             echo "EARLY_EXIT=false" >> $GITHUB_ENV
           elif [[ "${{ github.event_name }}" != "workflow_call" && "${{ steps.py_lint_check_files.outputs.has_relevant_changes }}" == "false" ]]; then
-            # If we looked for changed files and found no relevant changes, exit early
+            echo "we looked for changed files and found no relevant changes, exit early!"
             echo "EARLY_EXIT=true" >> $GITHUB_ENV
           else
-            # In all other cases, don't exit early
+            echo "in all other cases, don't exit early"
             echo "EARLY_EXIT=false" >> $GITHUB_ENV
           fi
       
