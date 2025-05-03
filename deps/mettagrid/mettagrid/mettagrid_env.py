@@ -1,11 +1,11 @@
 # mettagrid/mettagrid_env.py
 from __future__ import annotations
 
-from typing import Optional
+import copy
 import os
 import uuid
 from pathlib import Path
-import copy
+from typing import Optional
 
 import gym
 import numpy as np
@@ -14,6 +14,7 @@ from omegaconf import DictConfig, OmegaConf
 
 from mettagrid.config.utils import simple_instantiate
 from mettagrid.mettagrid_c import MettaGrid  # pylint: disable=E0611
+from mettagrid.resolvers import register_resolvers
 from mettagrid.stats_writer import MettaGridStatsWriter
 
 
@@ -169,7 +170,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     @property
     def _max_steps(self):
-        return self._c_env.max_steps()
+        return self._env_cfg.game.max_steps
 
     @property
     def single_observation_space(self):

@@ -3,17 +3,15 @@
 Vectorised simulation runner.
 
 • Launches a MettaGrid vec-env batch
-• Every worker writes its own *.duckdb* shard
-• On shutdown the shards are merged into **one** StatsDB object that the
+• Each worker writes its own *.duckdb* shard
+• At shutdown the shards are merged into **one** StatsDB object that the
   caller can further merge / export.
 """
 
 from __future__ import annotations
 
 import logging
-import os
 import time
-import uuid
 from pathlib import Path
 from typing import Dict, List, Tuple
 
@@ -22,7 +20,6 @@ import torch
 
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore
-from metta.agent.util.distribution_utils import sample_logits
 from metta.sim.replay_helper import ReplayHelper
 from metta.sim.simulation_config import SimulationConfig, SimulationSuiteConfig
 from metta.sim.stats_db import StatsDB
@@ -52,6 +49,7 @@ class Simulation:
         *,
         wandb_run=None,
         stats_dir: str | None = None,
+        replay_dir: str | None = None,
     ):
         self._name = name
         self._config = config
@@ -63,12 +61,15 @@ class Simulation:
 
         self._stats_dir = Path(stats_dir).expanduser() if stats_dir else Path("tmp/stats") / self._name
         self._stats_dir.mkdir(parents=True, exist_ok=True)
-        unique = f"{os.getpid():05d}_{uuid.uuid4().hex[:8]}"
+        self._replay_dir = replay_dir
 
         # ---------------- device / vec-env ----------------------------- #
         self._device = config.device
         self._vecenv = make_vecenv(
-            self._env_cfg, config.vectorization, num_envs=config.num_envs, stats_writer_dir=self._stats_dir
+            self._env_cfg,
+            config.vectorization,
+            num_envs=config.num_envs,
+            stats_writer_dir=str(self._stats_dir),
         )
 
         self._num_envs = config.num_envs
@@ -82,14 +83,14 @@ class Simulation:
         self._npc_pr = policy_store.policy(config.npc_policy_uri) if config.npc_policy_uri else None
         self._policy_agents_pct = config.policy_agents_pct if self._npc_pr is not None else 1.0
 
-        # Tell each policy which action-set is active in this env
+        # Let every policy know the active action-set of this env.
         action_names = self._vecenv.driver_env.action_names()
         max_args = self._vecenv.driver_env._c_env.max_action_args()
         self._policy_pr.policy().activate_actions(action_names, max_args, self._device)
         if self._npc_pr is not None:
             self._npc_pr.policy().activate_actions(action_names, max_args, self._device)
 
-        # ---------------- agent index bookkeeping ---------------------- #
+        # ---------------- agent-index bookkeeping ---------------------- #
         idx_matrix = torch.arange(self._vecenv.num_agents, device=self._device).reshape(
             self._num_envs, self._agents_per_env
         )
@@ -106,7 +107,7 @@ class Simulation:
         # ---------------- optional replay helpers ---------------------- #
         self._replay_helpers: List[ReplayHelper] | None = None
         self._episode_counters = np.zeros(self._num_envs, dtype=int)
-        if config.replay_path:
+        if replay_dir:
             self._replay_helpers = [self._make_replay_helper(e) for e in range(self._num_envs)]
 
     # ------------------------------------------------------------------ #
@@ -120,21 +121,12 @@ class Simulation:
             wandb_run=self._wandb_run,
         )
 
-    @staticmethod
-    def _replay_path(base: str, env_idx: int, ep: int) -> str:
-        if base.startswith("s3://"):
-            bucket, key = base[5:].split("/", 1)
-            prefix, fname = os.path.split(key)
-            fname = fname or "replay.dat"
-            dst = f"ep{ep}_env{env_idx}_{fname}"
-            return f"s3://{bucket}/{prefix}/{dst}" if prefix else f"s3://{bucket}/{dst}"
-        directory, fname = os.path.split(base)
-        fname = fname or "replay.dat"
-        return os.path.join(directory, f"ep{ep}_env{env_idx}_{fname}")
+    def _replay_path(self, env_idx: int, ep: int) -> str:
+        if env_idx == 0 and ep == 0:
+            return f"{self._replay_dir}/replay.json.z"
+        return f"{self._replay_dir}/replay_ep{ep}_env{env_idx}.json.z"
 
-    # ------------------------------------------------------------------ #
-    #   stats helpers                                                    #
-    # ------------------------------------------------------------------ #
+    # ------------------------- stats helpers -------------------------- #
     def _merge_worker_dbs(self) -> StatsDB:
         """Merge all *.duckdb* shards for this simulation → one `StatsDB`."""
         agent_map: Dict[int, Tuple[str, str | None]] = {
@@ -152,7 +144,7 @@ class Simulation:
     # ------------------------------------------------------------------ #
     def simulate(self, *, epoch: int = 0, dry_run: bool = False) -> StatsDB:
         """
-        Run the simulation; return the merged `StatsDB`.
+        Run the simulation; returns the merged `StatsDB`.
         """
         logger.info(
             "Sim '%s': %d env × %d agents (%.0f%% candidate)",
@@ -163,7 +155,7 @@ class Simulation:
         )
 
         obs, _ = self._vecenv.reset()
-        pol_state = PolicyState()
+        policy_state = PolicyState()
         npc_state = PolicyState()
         env_done_flags = [False] * self._num_envs
 
@@ -172,26 +164,31 @@ class Simulation:
             # ---------------- forward passes ------------------------- #
             with torch.no_grad():
                 obs_t = torch.as_tensor(obs, device=self._device)
-                pol_logits, _ = self._policy_pr.policy()(obs_t[self._policy_idxs], pol_state)
-                pol_actions, *_ = sample_logits(pol_logits)
 
+                # Candidate-policy agents
+                my_obs = obs_t[self._policy_idxs]
+                policy = self._policy_pr.policy()
+                policy_actions, _, _, _, _ = policy(my_obs, policy_state)
+
+                # NPC agents (if any)
                 if self._npc_pr is not None and len(self._npc_idxs):
-                    npc_logits, _ = self._npc_pr.policy()(obs_t[self._npc_idxs], npc_state)
-                    npc_actions, *_ = sample_logits(npc_logits)
+                    npc_obs = obs_t[self._npc_idxs]
+                    npc_policy = self._npc_pr.policy()
+                    npc_actions, _, _, _, _ = npc_policy(npc_obs, npc_state)
 
             # ---------------- action stitching ----------------------- #
-            acts_t = pol_actions
+            acts_t = policy_actions
             if self._npc_agents_per_env:
                 acts_t = torch.cat(
                     [
-                        pol_actions.view(self._num_envs, self._policy_agents_per_env, -1),
+                        policy_actions.view(self._num_envs, self._policy_agents_per_env, -1),
                         npc_actions.view(self._num_envs, self._npc_agents_per_env, -1),
                     ],
                     dim=1,
-                ).view(-1, pol_actions.shape[-1])
+                ).view(-1, policy_actions.shape[-1])
             acts_np = acts_t.cpu().numpy()
 
-            # ---------------- replay (pre-step) ------------ #
+            # ---------------- replay (pre-step) ----------------------- #
             if self._replay_helpers:
                 per_env = acts_np.reshape(self._num_envs, self._agents_per_env, -1)
                 for e in range(self._num_envs):
@@ -199,9 +196,9 @@ class Simulation:
                         self._replay_helpers[e].log_pre_step(per_env[e].squeeze())
 
             # ---------------- env.step ------------------------------- #
-            obs, rewards, dones, trunc, infos = self._vecenv.step(acts_np)
+            obs, rewards, dones, trunc, _ = self._vecenv.step(acts_np)
 
-            # ---------------- replay (post-step) ------------ #
+            # ---------------- replay (post-step) ---------------------- #
             if self._replay_helpers:
                 per_env_r = rewards.reshape(self._num_envs, self._agents_per_env)
                 for e in range(self._num_envs):
@@ -214,14 +211,12 @@ class Simulation:
                 trunc.reshape(self._num_envs, self._agents_per_env).all(1),
             )
             for e in range(self._num_envs):
-                # episode just ended
                 if done_now[e] and not env_done_flags[e]:
                     env_done_flags[e] = True
                     if self._replay_helpers:
-                        path = self._replay_path(self._config.replay_path, e, self._episode_counters[e])
+                        path = self._replay_path(e, self._episode_counters[e])
                         self._replay_helpers[e].write_replay(path, epoch=epoch, dry_run=dry_run)
                     self._episode_counters[e] += 1
-                # new episode started
                 elif not done_now[e] and env_done_flags[e]:
                     env_done_flags[e] = False
                     if self._replay_helpers:
@@ -256,6 +251,8 @@ class SimulationSuite:
         policy_store: PolicyStore,
         *,
         wandb_run=None,
+        stats_dir: str | None = None,
+        replay_dir: str | None = None,
     ):
         self._sims: Dict[str, Simulation] = {
             n: Simulation(
@@ -264,6 +261,8 @@ class SimulationSuite:
                 policy_pr,
                 policy_store,
                 wandb_run=wandb_run,
+                stats_dir=f"{stats_dir}/{n}" if stats_dir else None,
+                replay_dir=f"{replay_dir}/{n}" if replay_dir else None,
             )
             for n, cfg in config.simulations.items()
         }
@@ -280,7 +279,7 @@ class SimulationSuite:
             db = sim.simulate(epoch=epoch, dry_run=dry_run)
 
             if merged_db is None:
-                merged_db = db  # first result becomes accumulator
+                merged_db = db
             else:
                 merged_db.merge_in(db)
                 db.close()  # release file handle of merged shard

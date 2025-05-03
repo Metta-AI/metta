@@ -14,7 +14,6 @@ policy_uri: wandb://run/b.daveey.t.1.lra.dr.muon
 
 npc_policy_uri: ${policy_uri}
 
-eval_db_uri: wandb://artifacts/navigation_db
 
 analyzer:
   policy_uri: ${..policy_uri}
