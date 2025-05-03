@@ -8,5 +8,7 @@ Note that `spacelift` stack configures Spacelift, but not the individual stacks 
 
 - read https://docs.spacelift.io/concepts/stack/creating-a-stack
 - use OpenTofu instead of Terraform
-- if you need to deploy resources to AWS, attach the integration in Stack Settings -> Integrations
+- if you need to deploy resources to AWS, don't forget to "Attach cloud" during stack creation, or later in Stack Settings -> Integrations
 - you might want to switch on "Enable local preview" in Stack Setting -> Behavior for easier testing (`spacectl stack local-preview` command in CLI)
+
+When you first create a stack in a PR, you might need to use the branch's PR in the stack's settings. Don't forget to update the stack's settings when the PR is merged.
