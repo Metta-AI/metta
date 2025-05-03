@@ -1,12 +1,15 @@
 name: cpp-checks
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'merge_group' && github.event.merge_group.head_ref || github.ref }}
   cancel-in-progress: true
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review]
     branches: [main]
   push:
+    branches: [main]
+  merge_group:
+    types: [checks_requested]
     branches: [main]
   workflow_dispatch: {}
 
@@ -18,10 +21,14 @@ permissions:
 jobs:
   # First job: check if any C++ files have changed
   check-files-cpp:
-    if: github.event.pull_request.draft == false || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    if: |
+      github.event.pull_request.draft == false || 
+      github.event_name == 'push' || 
+      github.event_name == 'workflow_dispatch' || 
+      github.event_name == 'merge_group'
     runs-on: ubuntu-latest
     outputs:
-      has_relevant_changes: ${{ github.event_name == 'push' || steps.check_cpp_files.outputs.has_relevant_changes }}
+      has_relevant_changes: ${{ steps.check_cpp_files.outputs.has_relevant_changes }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -30,43 +37,43 @@ jobs:
         id: check_cpp_files
         uses: ./.github/actions/file-changes
         with:
-          patterns: 'deps/mettagrid/,*.cpp,*.cxx,*.cc,*.h,*.hpp,*.pyx,*.pxd'
+          patterns: "mettagrid/,*.cpp,*.cxx,*.cc,*.h,*.hpp,*.pyx,*.pxd"
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-  # This job runs if no relevant files changed
+  # This job runs to flag that we are skipping tests because no relevant files changed and this is a pull_request
   skip-checks-cpp:
     needs: check-files-cpp
-    if: needs.check-files-cpp.outputs.has_relevant_changes != 'true'
+    if: github.event_name == 'pull_request' && needs.check-files-cpp.outputs.has_relevant_changes == 'false'
     runs-on: ubuntu-latest
     steps:
       - name: Skip tests and linting
         id: skip_checks_cpp
         run: |
-          echo "No C++ files were changed. Skipping tests, linting, and benchmarks."
-          echo "This check passes automatically when no relevant C++ files are changed."
+          echo "CI was triggered by a pull request event: ${{github.event_name}} and no C++ files were changed."
+          echo "Skipping tests, linting, and benchmarks."
 
   # Run lint workflow
   call-lint-cpp:
     needs: check-files-cpp
-    if: needs.check-files-cpp.outputs.has_relevant_changes == 'true'
+    if: github.event_name != 'pull_request' || needs.check-files-cpp.outputs.has_relevant_changes == 'true'
     uses: ./.github/workflows/cpp-lint.yml
     with:
       ref: ${{ github.ref }}
     secrets: inherit
-  
+
   # Run test workflow
   call-test-cpp:
     needs: check-files-cpp
-    if: needs.check-files-cpp.outputs.has_relevant_changes == 'true'
+    if: github.event_name != 'pull_request' || needs.check-files-cpp.outputs.has_relevant_changes == 'true'
     uses: ./.github/workflows/cpp-test.yml
     with:
       ref: ${{ github.ref }}
     secrets: inherit
-  
+
   # Run benchmark workflow
   call-benchmark-cpp:
     needs: check-files-cpp
-    if: needs.check-files-cpp.outputs.has_relevant_changes == 'true'
+    if: github.event_name != 'pull_request' || needs.check-files-cpp.outputs.has_relevant_changes == 'true'
     permissions:
       checks: write
       pull-requests: write
@@ -74,4 +81,3 @@ jobs:
     with:
       ref: ${{ github.ref }}
     secrets: inherit
-

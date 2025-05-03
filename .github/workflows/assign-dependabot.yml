@@ -4,17 +4,17 @@ on:
   # Schedule to run 3 hours after Dependabot's weekly run on Monday
   schedule:
     # Run every Monday at 12:00 UTC (3 hours after Dependabot runs at 09:00 UTC)
-    - cron: '0 12 * * 1'
-  
+    - cron: "0 12 * * 1"
+
   # Keep manual trigger option
   workflow_dispatch:
     inputs:
       process-all:
-        description: 'Process all open Dependabot PRs'
+        description: "Process all open Dependabot PRs"
         type: boolean
         default: true
       specific-pr:
-        description: 'Process specific PR number (leave empty to process all)'
+        description: "Process specific PR number (leave empty to process all)"
         required: false
         type: string
 
@@ -26,7 +26,7 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Process specific PR if provided
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.specific-pr != ''
         uses: ./.github/actions/pr-assignment
@@ -37,7 +37,7 @@ jobs:
           forced-assignees: ${{ vars.DEPENDABOT_FORCED_ASSIGNEES || '' }}
           forced-reviewers: ${{ vars.DEPENDABOT_FORCED_REVIEWERS || '' }}
           forced-labels: ${{ vars.DEPENDABOT_FORCED_LABELS || '' }}
-      
+
       - name: Process all open Dependabot PRs
         if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.specific-pr == '')
         shell: bash

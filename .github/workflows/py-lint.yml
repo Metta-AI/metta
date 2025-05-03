@@ -1,6 +1,6 @@
 name: py-lint
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.run_id }}
+  group: py-lint-${{ github.ref }}-${{ github.run_id }}
   cancel-in-progress: ${{ github.event_name != 'workflow_call' }}
 on:
   workflow_dispatch: {}
@@ -22,54 +22,54 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref || github.ref }}
-        
+
       # Skip file change check if triggered from py-checks workflow
       - name: Check for Python file changes
         id: py_lint_check_files
         if: github.event_name != 'workflow_call'
         uses: ./.github/actions/file-changes
         with:
-          patterns: '*.py'
-          specific_files: 'requirements.txt,setup.py'
-          directory_paths: 'tests/,benchmarks/,deps/mettagrid/tests/,deps/mettagrid/benchmarks/'
+          patterns: "*.py"
+          specific_files: "requirements.txt,setup.py"
+          directory_paths: "tests/,benchmarks/,mettagrid/tests/,mettagrid/benchmarks/"
           github-token: ${{ secrets.GITHUB_TOKEN }}
-            
+
       - name: Set early exit flag
         id: set_early_exit
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            # If called from a manual workflow, don't skip anything
+            echo "called from a manual workflow, don't skip anything"
             echo "EARLY_EXIT=false" >> $GITHUB_ENV
           elif [[ "${{ github.event_name }}" != "workflow_call" && "${{ steps.py_lint_check_files.outputs.has_relevant_changes }}" == "false" ]]; then
-            # If we looked for changed files and found no relevant changes, exit early
+            echo "we looked for changed files and found no relevant changes, exit early!"
             echo "EARLY_EXIT=true" >> $GITHUB_ENV
           else
-            # In all other cases, don't exit early
+            echo "in all other cases, don't exit early"
             echo "EARLY_EXIT=false" >> $GITHUB_ENV
           fi
-      
+
       - name: Setup Python
         if: env.EARLY_EXIT == 'false'
         uses: ./.github/actions/py-setup
-        
+
       - name: Install Ruff
         if: env.EARLY_EXIT == 'false'
         run: |
           source venv/bin/activate
           pip install ruff==0.11.5
-          
+
       - name: Run Ruff linter
         if: env.EARLY_EXIT == 'false'
         run: |
           source venv/bin/activate
           ruff format --check .
-          
+
       - name: Run Ruff formatting
         if: env.EARLY_EXIT == 'false'
         run: |
           source venv/bin/activate
           ruff check --respect-gitignore --exit-non-zero-on-fix .
-          
+
       - name: Skip linting (no relevant changes)
         if: env.EARLY_EXIT == 'true'
         run: |

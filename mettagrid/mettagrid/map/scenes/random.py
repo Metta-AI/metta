@@ -3,10 +3,9 @@ from typing import Optional
 import numpy as np
 from omegaconf import DictConfig
 
+from mettagrid.map.node import Node
+from mettagrid.map.scene import Scene
 from mettagrid.map.utils.random import MaybeSeed
-
-from ..node import Node
-from ..scene import Scene
 
 
 class Random(Scene):
