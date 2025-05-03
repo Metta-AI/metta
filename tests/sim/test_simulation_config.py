@@ -43,6 +43,7 @@ def build_simulation_suite_config():
 def test_propagate_defaults_and_overrides(build_simulation_suite_config):
     cfg = {
         "env": ROOT_ENV,
+        "name": "test",
         "num_envs": 4,
         "num_episodes": 4,
         "device": DEVICE,
@@ -75,6 +76,7 @@ def test_allow_extra_child_keys(build_simulation_suite_config, has_extra, should
         child_node["foo"] = "bar"  # <- unknown key
     cfg = {
         "env": ROOT_ENV,
+        "name": "test",
         "num_envs": 4,
         "num_episodes": 4,
         "device": DEVICE,
@@ -95,6 +97,7 @@ def test_allow_extra_child_keys(build_simulation_suite_config, has_extra, should
 def test_missing_device_always_errors(build_simulation_suite_config):
     cfg = {
         "env": ROOT_ENV,
+        "name": "test",
         "num_envs": 4,
         "num_episodes": 4,
         "run_dir": RUN_DIR,
@@ -106,6 +109,7 @@ def test_missing_device_always_errors(build_simulation_suite_config):
 
 def test_missing_suite_env_is_allowed(build_simulation_suite_config):
     cfg = {
+        "name": "test",
         "run_dir": RUN_DIR,
         "device": DEVICE,
         "num_envs": 4,

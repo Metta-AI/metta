@@ -4,7 +4,7 @@ defaults:
   - sim
   - _self_
 
-
+name: smoke_test
 simulations:
   emptyspace_withinsight:
     env: env/mettagrid/navigation/evals/emptyspace_withinsight
