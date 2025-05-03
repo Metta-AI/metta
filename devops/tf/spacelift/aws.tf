@@ -53,8 +53,3 @@ import {
   to = aws_iam_role.spacelift
   id = local.iam_role_name
 }
-
-import {
-  to = spacelift_aws_integration.softmax
-  id = "01JT92QHHSWV1Y5VNQRET9256M"
-}
