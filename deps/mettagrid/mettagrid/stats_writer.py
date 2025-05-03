@@ -44,8 +44,8 @@ CREATE TABLE IF NOT EXISTS episode_agent_metrics (
 class MettaGridStatsWriter:
     """One instance **per MettaGridEnv** / per process (DuckDB is single-writer)."""
 
-    def __init__(self, db_path: str | Path, *, flush_every: int = 512) -> None:
-        self._conn = duckdb.connect(str(Path(db_path)))
+    def __init__(self, db_path: str, *, flush_every: int = 512) -> None:
+        self._conn = duckdb.connect(db_path)
         for stmt in filter(None, (s.strip() for s in _SCHEMA.split(";"))):
             self._conn.execute(stmt)
         self._flush_every = flush_every

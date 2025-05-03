@@ -1,5 +1,4 @@
 # metta/sim/simulation.py
-# pylint: disable=too-many-instance-attributes, too-many-locals, too-many-branches
 """
 Vectorised simulation runner.
 
@@ -104,16 +103,6 @@ class Simulation:
             else torch.tensor([], device=self._device)
         )
 
-        # Quick lookup for log-enrichment
-        self._agent_idx_to_policy_name = {
-            **{i.item(): self._policy_pr.name for i in self._policy_idxs},
-            **(
-                {i.item(): self._npc_pr.name for i in self._npc_idxs}
-                if self._npc_pr is not None and len(self._npc_idxs)
-                else {}
-            ),
-        }
-
         # ---------------- optional replay helpers ---------------------- #
         self._replay_helpers: List[ReplayHelper] | None = None
         self._episode_counters = np.zeros(self._num_envs, dtype=int)
@@ -202,7 +191,7 @@ class Simulation:
                 ).view(-1, pol_actions.shape[-1])
             acts_np = acts_t.cpu().numpy()
 
-            # ---------------- optional replay (pre-step) ------------- #
+            # ---------------- replay (pre-step) ------------ #
             if self._replay_helpers:
                 per_env = acts_np.reshape(self._num_envs, self._agents_per_env, -1)
                 for e in range(self._num_envs):
@@ -212,7 +201,7 @@ class Simulation:
             # ---------------- env.step ------------------------------- #
             obs, rewards, dones, trunc, infos = self._vecenv.step(acts_np)
 
-            # ---------------- optional replay (post-step) ------------ #
+            # ---------------- replay (post-step) ------------ #
             if self._replay_helpers:
                 per_env_r = rewards.reshape(self._num_envs, self._agents_per_env)
                 for e in range(self._num_envs):
@@ -267,11 +256,7 @@ class SimulationSuite:
         policy_store: PolicyStore,
         *,
         wandb_run=None,
-        stats_dir: str | None = None,
     ):
-        def dir_for(name: str) -> str | None:
-            return f"{stats_dir}/{name}" if stats_dir else None
-
         self._sims: Dict[str, Simulation] = {
             n: Simulation(
                 n,
@@ -279,7 +264,6 @@ class SimulationSuite:
                 policy_pr,
                 policy_store,
                 wandb_run=wandb_run,
-                stats_dir=dir_for(n),
             )
             for n, cfg in config.simulations.items()
         }
