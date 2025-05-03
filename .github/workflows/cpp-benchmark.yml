@@ -34,7 +34,7 @@ jobs:
         if: github.event_name != 'workflow_call'
         uses: ./.github/actions/file-changes
         with:
-          patterns: 'deps/mettagrid/,*.cpp,*.cxx,*.cc,*.h,*.hpp,*.pyx,*.pxd'
+          patterns: 'mettagrid/,*.cpp,*.cxx,*.cc,*.h,*.hpp,*.pyx,*.pxd'
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set early exit flag
@@ -65,7 +65,7 @@ jobs:
       - name: Build and run benchmarks with JSON output
         if: env.EARLY_EXIT == 'false'
         run: |
-          cd deps/mettagrid
+          cd mettagrid
           
           # Create output directory (just in case it's not created by the Makefile)
           mkdir -p benchmark_output
@@ -114,7 +114,7 @@ jobs:
           BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          cd deps/mettagrid/benchmark_output
+          cd mettagrid/benchmark_output
           ls -al
           if ls *.json 1> /dev/null 2>&1; then
             for file in *.json; do
@@ -142,7 +142,7 @@ jobs:
           BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          cd deps/mettagrid/benchmark_output
+          cd mettagrid/benchmark_output
           ls -al
           if ls *.json 1> /dev/null 2>&1; then
             for file in *.json; do
@@ -166,5 +166,5 @@ jobs:
       - name: Skip benchmarking (no relevant changes)
         if: env.EARLY_EXIT == 'true'
         run: |
-          echo "No files in deps/mettagrid were changed. Skipping benchmarks."
+          echo "No files in mettagrid/ were changed. Skipping benchmarks."
           echo "This check passes automatically when no relevant files are changed."

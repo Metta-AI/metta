@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from deps.mettagrid.mettagrid.map.node import Node
+from mettagrid.map.node import Node
 
 
 class MockScene:

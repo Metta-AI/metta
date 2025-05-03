@@ -29,7 +29,7 @@ RUN pip install -e .
 WORKDIR /workspace/metta/deps/pufferlib
 RUN pip install -e .
 
-WORKDIR /workspace/metta/deps/mettagrid
+WORKDIR /workspace/metta/mettagrid
 RUN python setup.py build_ext --inplace
 RUN pip install -e .
 

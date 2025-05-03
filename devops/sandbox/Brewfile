@@ -9,6 +9,7 @@ brew "googletest"
 brew "google-benchmark"
 cask "session-manager-plugin"
 brew "withgraphite/tap/graphite"
+brew "spacelift-io/spacelift/spacectl"
 
 # Applications
 cask "cursor"
