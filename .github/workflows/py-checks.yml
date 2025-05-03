@@ -1,6 +1,6 @@
 name: py-checks
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: py-checks-${{ github.ref }}
   cancel-in-progress: true
 on:
   pull_request:
@@ -47,27 +47,25 @@ jobs:
           echo "This check passes automatically when no relevant Python files are changed."
 
   # Run lint workflow
-  call-lint:
+  call-lint-py:
     needs: check-files-py
     if: needs.check-files-py.outputs.has_relevant_changes == 'true'
     uses: ./.github/workflows/py-lint.yml
     with:
       ref: ${{ github.ref }}
-      skip_file_check: true
     secrets: inherit
   
   # Run test workflow
-  call-test:
+  call-test-py:
     needs: check-files-py
     if: needs.check-files-py.outputs.has_relevant_changes == 'true'
     uses: ./.github/workflows/py-test.yml
     with:
       ref: ${{ github.ref }}
-      skip_file_check: true
     secrets: inherit
   
   # Run benchmark workflow
-  call-benchmark:
+  call-benchmark-py:
     needs: check-files-py
     if: needs.check-files-py.outputs.has_relevant_changes == 'true'
     permissions:
@@ -76,11 +74,10 @@ jobs:
     uses: ./.github/workflows/py-benchmark.yml
     with:
       ref: ${{ github.ref }}
-      skip_file_check: true
     secrets: inherit
 
   # Run training integration test - always run regardless of file changes
-  call-training-integration:
+  call-training-integration-py:
     uses: ./.github/workflows/py-training-integration-test.yml
     with:
       ref: ${{ github.ref }}

@@ -1,6 +1,6 @@
 name: cpp-checks
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: cpp-checks-${{ github.ref }}
   cancel-in-progress: true
 on:
   pull_request:
@@ -46,27 +46,25 @@ jobs:
           echo "This check passes automatically when no relevant C++ files are changed."
 
   # Run lint workflow
-  call-lint:
+  call-lint-cpp:
     needs: check-files-cpp
     if: needs.check-files-cpp.outputs.has_relevant_changes == 'true'
     uses: ./.github/workflows/cpp-lint.yml
     with:
       ref: ${{ github.ref }}
-      skip_file_check: true
     secrets: inherit
   
   # Run test workflow
-  call-test:
+  call-test-cpp:
     needs: check-files-cpp
     if: needs.check-files-cpp.outputs.has_relevant_changes == 'true'
     uses: ./.github/workflows/cpp-test.yml
     with:
       ref: ${{ github.ref }}
-      skip_file_check: true
     secrets: inherit
   
   # Run benchmark workflow
-  call-benchmark:
+  call-benchmark-cpp:
     needs: check-files-cpp
     if: needs.check-files-cpp.outputs.has_relevant_changes == 'true'
     permissions:
@@ -75,6 +73,5 @@ jobs:
     uses: ./.github/workflows/cpp-benchmark.yml
     with:
       ref: ${{ github.ref }}
-      skip_file_check: true
     secrets: inherit
 
