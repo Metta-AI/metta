@@ -32,13 +32,13 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        
+
       - name: Check for Python file changes
         id: check_files_py
         uses: ./.github/actions/file-changes
         with:
-          patterns: '**/*.py'
-          specific_files: 'requirements.txt,setup.py'
+          patterns: "**/*.py"
+          specific_files: "requirements.txt,setup.py"
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
   # This job runs to flag that we are skipping tests because no relevant files changed and this is a pull_request
@@ -50,7 +50,7 @@ jobs:
       - name: Skip tests and linting
         id: skip_checks_py
         run: |
-          echo "CI was triggered by a pull request event: ${github.event_name} and no Python files were changed."
+          echo "CI was triggered by a pull request event: ${{github.event_name}} and no Python files were changed."
           echo "Skipping tests, linting, and benchmarks."
 
   # Run lint workflow
@@ -61,7 +61,7 @@ jobs:
     with:
       ref: ${{ github.ref }}
     secrets: inherit
-  
+
   # Run test workflow
   call-test-py:
     needs: check-files-py
@@ -70,7 +70,7 @@ jobs:
     with:
       ref: ${{ github.ref }}
     secrets: inherit
-  
+
   # Run benchmark workflow
   call-benchmark-py:
     needs: check-files-py
@@ -89,4 +89,3 @@ jobs:
     with:
       ref: ${{ github.ref }}
     secrets: inherit
-

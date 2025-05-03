@@ -37,7 +37,7 @@ jobs:
         id: check_cpp_files
         uses: ./.github/actions/file-changes
         with:
-          patterns: 'mettagrid/,*.cpp,*.cxx,*.cc,*.h,*.hpp,*.pyx,*.pxd'
+          patterns: "mettagrid/,*.cpp,*.cxx,*.cc,*.h,*.hpp,*.pyx,*.pxd"
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
   # This job runs to flag that we are skipping tests because no relevant files changed and this is a pull_request
@@ -49,7 +49,7 @@ jobs:
       - name: Skip tests and linting
         id: skip_checks_cpp
         run: |
-          echo "CI was triggered by a pull request event: ${github.event_name} and no C++ files were changed."
+          echo "CI was triggered by a pull request event: ${{github.event_name}} and no C++ files were changed."
           echo "Skipping tests, linting, and benchmarks."
 
   # Run lint workflow
@@ -60,7 +60,7 @@ jobs:
     with:
       ref: ${{ github.ref }}
     secrets: inherit
-  
+
   # Run test workflow
   call-test-cpp:
     needs: check-files-cpp
@@ -69,7 +69,7 @@ jobs:
     with:
       ref: ${{ github.ref }}
     secrets: inherit
-  
+
   # Run benchmark workflow
   call-benchmark-cpp:
     needs: check-files-cpp
@@ -81,4 +81,3 @@ jobs:
     with:
       ref: ${{ github.ref }}
     secrets: inherit
-
