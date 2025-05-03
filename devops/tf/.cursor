@@ -1,0 +1,44 @@
+{
+  "documentation": {
+    "enabled": true,
+    "sources": [
+      {
+        "type": "local",
+        "path": ".",
+        "include": ["*.md"]
+      },
+      {
+        "type": "external",
+        "url": "https://developer.hashicorp.com/terraform/docs",
+        "name": "Terraform Official Docs"
+      }
+    ],
+    "search": {
+      "enabled": true,
+      "index": ["."]
+    }
+  },
+  "language": {
+    "terraform": {
+      "format": {
+        "enabled": true
+      },
+      "validation": {
+        "enabled": true
+      }
+    },
+    "hcl": {
+      "format": {
+        "enabled": true
+      },
+      "validation": {
+        "enabled": true
+      }
+    }
+  },
+  "extensions": {
+    "recommended": [
+      "hashicorp.terraform"
+    ]
+  }
+}
