@@ -229,7 +229,8 @@
 			"vecenv",
 			"venv",
 			"vloss",
-			"wandb"
+			"wandb",
+			"xlarge"
 		]
 	}
 }
