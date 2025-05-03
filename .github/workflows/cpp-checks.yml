@@ -1,0 +1,77 @@
+name: cpp-checks
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+# Set default permissions that will be inherited by called workflows
+permissions:
+  checks: write
+  pull-requests: write
+
+jobs:
+  # First job: check if any C++ files have changed
+  check-files-cpp:
+    if: github.event.pull_request.draft == false || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    outputs:
+      has_relevant_changes: ${{ github.event_name == 'push' || steps.check_cpp_files.outputs.has_relevant_changes }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check for C++ and Cython file changes
+        id: check_cpp_files
+        uses: ./.github/actions/file-changes
+        with:
+          patterns: 'deps/mettagrid/,*.cpp,*.cxx,*.cc,*.h,*.hpp,*.pyx,*.pxd'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  # This job runs if no relevant files changed
+  skip-checks-cpp:
+    needs: check-files-cpp
+    if: needs.check-files-cpp.outputs.has_relevant_changes != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skip tests and linting
+        id: skip_checks_cpp
+        run: |
+          echo "No C++ files were changed. Skipping tests, linting, and benchmarks."
+          echo "This check passes automatically when no relevant C++ files are changed."
+
+  # Run lint workflow
+  call-lint-cpp:
+    needs: check-files-cpp
+    if: needs.check-files-cpp.outputs.has_relevant_changes == 'true'
+    uses: ./.github/workflows/cpp-lint.yml
+    with:
+      ref: ${{ github.ref }}
+    secrets: inherit
+  
+  # Run test workflow
+  call-test-cpp:
+    needs: check-files-cpp
+    if: needs.check-files-cpp.outputs.has_relevant_changes == 'true'
+    uses: ./.github/workflows/cpp-test.yml
+    with:
+      ref: ${{ github.ref }}
+    secrets: inherit
+  
+  # Run benchmark workflow
+  call-benchmark-cpp:
+    needs: check-files-cpp
+    if: needs.check-files-cpp.outputs.has_relevant_changes == 'true'
+    permissions:
+      checks: write
+      pull-requests: write
+    uses: ./.github/workflows/cpp-benchmark.yml
+    with:
+      ref: ${{ github.ref }}
+    secrets: inherit
+

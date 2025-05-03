@@ -1,51 +1,51 @@
 name: py-test
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.run_id }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_call' }}
 on:
-  pull_request:
-    types: [opened, synchronize, ready_for_review]
-    branches: [main]
-  push:
-    branches: [main]
   workflow_dispatch: {}
+  workflow_call:
+    inputs:
+      ref:
+        required: false
+        type: string
+
 jobs:
   py-test:
-    if: github.event.pull_request.draft == false || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    if: >-
+      github.event.pull_request.draft == false || 
+      github.event_name == 'workflow_dispatch' || 
+      github.event_name == 'workflow_call'
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    permissions:
-      contents: read
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        
-      - name: Check for Python file changes
-        id: check_files
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v6
         with:
-          script: |
-            const { data: changedFiles } = await github.rest.pulls.listFiles({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: context.issue.number,
-            });
+          ref: ${{ inputs.ref || github.ref }}
+        
+      # Skip file change check if triggered from py-checks workflow
+      - name: Check for Python file changes
+        id: py_test_check_files
+        if: github.event_name != 'workflow_call'
+        uses: ./.github/actions/file-changes
+        with:
+          patterns: '*.py'
+          specific_files: 'requirements.txt,setup.py'
+          directory_paths: 'tests/,benchmarks/,deps/mettagrid/tests/,deps/mettagrid/benchmarks/'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
             
-            const hasRelevantChanges = changedFiles.some(file => {
-              return file.filename.endsWith('.py') ||
-                file.filename === 'requirements.txt' ||
-                file.filename.includes('/deps/mettagrid/');
-            });
-            
-            core.setOutput('has_relevant_changes', hasRelevantChanges);
-      
       - name: Set early exit flag
         id: set_early_exit
         run: |
-          if [[ "${{ github.event_name }}" == "pull_request" && "${{ steps.check_files.outputs.has_relevant_changes }}" != "true" ]]; then
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            # If called from a manual workflow, don't skip anything
+            echo "EARLY_EXIT=false" >> $GITHUB_ENV
+          elif [[ "${{ github.event_name }}" != "workflow_call" && "${{ steps.py_test_check_files.outputs.has_relevant_changes }}" == "false" ]]; then
+            # If we looked for changed files and found no relevant changes, exit early
             echo "EARLY_EXIT=true" >> $GITHUB_ENV
           else
+            # In all other cases, don't exit early
             echo "EARLY_EXIT=false" >> $GITHUB_ENV
           fi
       

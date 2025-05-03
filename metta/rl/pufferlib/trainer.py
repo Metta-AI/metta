@@ -604,14 +604,19 @@ class PufferTrainer:
     def _generate_and_upload_replay(self):
         if self._master:
             logger.info("Generating and saving a replay to wandb and S3.")
-            self.replay_sim_config.replay_path = (
-                f"s3://softmax-public/replays/{self.cfg.run}/replay.{self.epoch}.json.z"
-            )
             dry_run = self.trainer_cfg.get("replay_dry_run", False)
+            replay_path = f"s3://softmax-public/replays/{self.cfg.run}/replay.{self.epoch}.json.z"
+            if dry_run:
+                logger.info(f"Dry run: Would write replay to {replay_path}")
+                replay_path = None
             replay_simulator = Simulation(
-                self.replay_sim_config, self.last_pr, self.policy_store, wandb_run=self.wandb_run
+                self.replay_sim_config,
+                self.last_pr,
+                self.policy_store,
+                wandb_run=self.wandb_run,
+                replay_path=replay_path,
             )
-            replay_simulator.simulate(epoch=self.epoch, dry_run=dry_run)
+            replay_simulator.simulate(epoch=self.epoch)
 
     def _process_stats(self):
         for k in list(self.stats.keys()):
