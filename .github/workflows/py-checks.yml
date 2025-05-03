@@ -84,6 +84,5 @@ jobs:
     uses: ./.github/workflows/py-training-integration-test.yml
     with:
       ref: ${{ github.ref }}
-      skip_file_check: true
     secrets: inherit
 
