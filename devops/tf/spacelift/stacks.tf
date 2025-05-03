@@ -22,6 +22,9 @@ resource "spacelift_stack" "stacks" {
 
   enable_well_known_secret_masking = true
   github_action_deploy             = false
+
+  # spacelift stack uses this for managing other stacks
+  administrative = each.value.name == "spacelift"
 }
 
 # Allow each stack to deploy to AWS
@@ -35,3 +38,13 @@ resource "spacelift_aws_integration_attachment" "aws_integrations" {
 
 # Note: stack-specific secrets are configured manually in the Spacelift UI.
 # (In stack settings, under "Environment variables", add the variables one by one when needed.)
+
+import {
+  to = spacelift_stack.stacks["spacelift"]
+  id = "spacelift"
+}
+
+import {
+  to = spacelift_stack.stacks["shared-efs"]
+  id = "efs"
+}
