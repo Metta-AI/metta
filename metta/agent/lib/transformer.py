@@ -144,6 +144,8 @@ class TransformerCore(LayerBase):
         self.gtrxl_gate = self._nn_params.get("gtrxl_gate", False)
 
     def _initialize(self):
+        self._out_tensor_shape = [self.hidden_size]
+
         layers = []
         for _ in range(self.num_layers):
             layers.append(
@@ -164,8 +166,8 @@ class TransformerCore(LayerBase):
             layer.attention.ensure_kv_cache(batch_size, self.context_size, device, dtype)
 
     def _forward(self, td: TensorDict) -> TensorDict:
-        hidden = td[self._input_source]
         x = td["x"]
+        hidden = td[self._sources[0]["name"]]
 
         x_shape, space_shape = x.shape, self.obs_shape
         x_n, space_n = len(x_shape), len(space_shape)
@@ -179,7 +181,7 @@ class TransformerCore(LayerBase):
         else:
             raise ValueError("Invalid input tensor shape", x.shape)
 
-        hidden = hidden.reshape(B, TT, self._input_size)
+        hidden = hidden.reshape(B, TT, self._in_tensor_shapes[0][0])
         time_steps = td.get("time_steps")
 
         if self.training:
@@ -197,7 +199,7 @@ class TransformerCore(LayerBase):
         td[self._name] = hidden
         return td
 
-    @torch.compile(mode="max-autotune", dynamic=False, fullgraph=True, disable=not _compile)
+    @torch.compile(mode="max-autotune", dynamic=True, fullgraph=True, disable=not _compile)
     def _inner_forward(self, hidden: torch.Tensor, time_steps: torch.Tensor, block_mask: BlockMask | None) -> torch.Tensor:
         for layer in self.layers:
             hidden = layer(hidden, time_steps, block_mask)

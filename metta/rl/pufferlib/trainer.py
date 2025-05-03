@@ -190,22 +190,12 @@ class PufferTrainer:
 
         logger.info(f"Training on {self.device}")
         while self.agent_step < self.trainer_cfg.total_timesteps:
-<<<<<<< HEAD
-            # Collecting experience
-            self.policy.eval()
-            self._evaluate()
-
-            # Training on collected experience
-            self.policy.train()
-            self._train()
-=======
             with self.torch_profiler:
                 # Collecting experience
                 self._evaluate()
 
                 # Training on collected experience
                 self._train()
->>>>>>> origin/main
 
             # Processing stats
             self._process_stats()
@@ -304,6 +294,7 @@ class PufferTrainer:
     @pufferlib.utils.profile
     def _evaluate(self):
         experience, profile = self.experience, self.profile
+        self.policy.eval()
 
         with profile.eval_misc:
             policy = self.policy
@@ -366,14 +357,11 @@ class PufferTrainer:
                 else:
                     self.time_steps[gpu_env_id[dones]] = 0
 
-                self.time_steps[d] = 0
-                self.time_steps[t] = 0
-
                 value = value.flatten()
                 actions = actions.cpu().numpy()
                 mask = torch.as_tensor(mask)  # * policy.mask)
                 o = o if self.trainer_cfg.cpu_offload else o_device
-                self.experience.store(o, value, actions, logprob, r, t, cpu_env_id, mask)
+                self.experience.store(o, value, actions, logprob, r, d, cpu_env_id, mask)
 
                 for i in info:
                     for k, v in pufferlib.utils.unroll_nested_dict(i):
@@ -403,6 +391,7 @@ class PufferTrainer:
     def _train(self):
         experience, profile = self.experience, self.profile
         self.losses = self._make_losses()
+        self.policy.train()
 
         with profile.train_misc:
             idxs = experience.sort_training_data()
