@@ -65,14 +65,6 @@ def simulate_policy(
     policy_prs = policy_store.policies(policy_uri, sim_job.selector_type, n=1, metric=metric)
 
     # For each checkpoint of the policy, simulate
-
-    policy_prs = policy_store.policies(
-        policy_uri,
-        selector_type=sim_job.selector_type,
-        n=1,
-        metric=metric,
-    )
-
     for pr in policy_prs:
         logger.info("Evaluating policy %s", pr.uri)
 
@@ -116,7 +108,7 @@ def main(cfg: DictConfig) -> None:
     setup_mettagrid_environment(cfg)
 
     logger = setup_mettagrid_logger("metta.tools.sim")
-    logger.info("Sim job config:\n%s", OmegaConf.to_yaml(cfg, resolve=True))
+    logger.info(f"Sim job config:\n{OmegaConf.to_yaml(cfg, resolve=True)}")
 
     sim_job = SimJob(cfg.sim_job)
     assert isinstance(sim_job, SimJob)

@@ -15,13 +15,11 @@ import logging
 import os
 import time
 import uuid
-from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Tuple
 
 import numpy as np
 import torch
-from omegaconf import OmegaConf
 
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore
@@ -31,7 +29,6 @@ from metta.sim.simulation_config import SimulationConfig, SimulationSuiteConfig
 from metta.sim.stats_db import StatsDB
 from metta.sim.vecenv import make_vecenv
 from metta.util.config import config_from_path
-from metta.util.datastruct import flatten_config
 
 logger = logging.getLogger(__name__)
 
@@ -68,11 +65,12 @@ class Simulation:
         self._stats_dir = Path(stats_dir).expanduser() if stats_dir else Path("tmp/stats") / self._name
         self._stats_dir.mkdir(parents=True, exist_ok=True)
         unique = f"{os.getpid():05d}_{uuid.uuid4().hex[:8]}"
-        self._env_cfg["stats_writer_path"] = str(self._stats_dir / f"stats_{unique}.duckdb")
 
         # ---------------- device / vec-env ----------------------------- #
         self._device = config.device
-        self._vecenv = make_vecenv(self._env_cfg, config.vectorization, num_envs=config.num_envs)
+        self._vecenv = make_vecenv(
+            self._env_cfg, config.vectorization, num_envs=config.num_envs, stats_writer_dir=self._stats_dir
+        )
 
         self._num_envs = config.num_envs
         self._min_episodes = config.num_episodes
