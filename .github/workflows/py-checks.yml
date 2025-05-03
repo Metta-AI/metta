@@ -1,12 +1,15 @@
 name: py-checks
 concurrency:
-  group: py-checks-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'merge_group' && github.event.merge_group.head_ref || github.ref }}
   cancel-in-progress: true
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review]
     branches: [main]
   push:
+    branches: [main]
+  merge_group:
+    types: [checks_requested]
     branches: [main]
   workflow_dispatch: {}
 
@@ -18,7 +21,11 @@ permissions:
 jobs:
   # First job: check if any Python files have changed
   check-files-py:
-    if: github.event.pull_request.draft == false || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    if: |
+      github.event.pull_request.draft == false || 
+      github.event_name == 'push' || 
+      github.event_name == 'workflow_dispatch' || 
+      github.event_name == 'merge_group'
     runs-on: ubuntu-latest
     outputs:
       has_relevant_changes: ${{ steps.check_files_py.outputs.has_relevant_changes }}
@@ -37,15 +44,14 @@ jobs:
   # This job runs to flag that we are skipping tests because no relevant files changed and this is a pull_request
   skip-checks-py:
     needs: check-files-py
-    if: needs.check-files-py.outputs.has_relevant_changes == 'false'
+    if: github.event_name == 'pull_request' && needs.check-files-py.outputs.has_relevant_changes == 'false'
     runs-on: ubuntu-latest
     steps:
       - name: Skip tests and linting
         id: skip_checks_py
         run: |
-          echo "CI was triggered by a pull request event: ${github.event_name}"
-          echo "No Python files were changed. Skipping tests, linting, and benchmarks."
-          echo "This check passes automatically when no relevant Python files are changed."
+          echo "CI was triggered by a pull request event: ${github.event_name} and no Python files were changed."
+          echo "Skipping tests, linting, and benchmarks."
 
   # Run lint workflow
   call-lint-py:
