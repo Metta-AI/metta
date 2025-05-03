@@ -1,4 +1,10 @@
 import { Vec2f } from './vector_math.js';
+import { Context3d } from './context3d.js';
+import { PanelInfo } from './panels.js';
+import { onFrame } from './main.js';
+
+// The 3d context, used for nearly everything.
+export const ctx = new Context3d(document.getElementById('global-canvas') as HTMLCanvasElement);
 
 // Constants
 export const MIN_ZOOM_LEVEL = 0.025;
@@ -43,6 +49,11 @@ export const ui = {
   traceDragging: false,
   infoSplit: DEFAULT_INFO_SPLIT,
   infoDragging: false,
+
+  // Panels
+  mapPanel: new PanelInfo("map"),
+  tracePanel: new PanelInfo("trace"),
+  infoPanel: new PanelInfo("info"),
 };
 
 export const state = {
@@ -58,3 +69,39 @@ export const state = {
   partialStep: 0,
   playbackSpeed: 0.1,
 };
+
+export const html = {
+  scrubber: document.getElementById('main-scrubber') as HTMLInputElement,
+  playButton: document.getElementById('play-button') as HTMLButtonElement,
+  globalCanvas: document.getElementById('global-canvas') as HTMLCanvasElement,
+}
+
+
+// Get the modal element
+const modal = document.getElementById('modal');
+
+// Show the modal
+export function showModal(type: string, title: string, message: string) {
+  if (modal) {
+    modal.style.display = 'block';
+    modal.classList.add(type);
+    const header = modal.querySelector('h2');
+    if (header) {
+      header.textContent = title;
+    }
+    const content = modal.querySelector('p');
+    if (content) {
+      content.textContent = message;
+    }
+  }
+}
+
+// Close the modal
+export function closeModal() {
+  if (modal) {
+    // Remove error class from modal.
+    modal.classList.remove('error');
+    modal.classList.remove('info');
+    modal.style.display = 'none';
+  }
+}

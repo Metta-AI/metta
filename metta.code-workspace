@@ -128,11 +128,13 @@
 
 		"python.analysis.extraPaths": [
 			"/var/tmp/metta/conda-site-packages",
-			"/var/tmp/metta/deps"
+			"/var/tmp/metta/deps",
+			"mettagrid"
 		],
 		"python.autoComplete.extraPaths": [
 			"/var/tmp/metta/conda-site-packages",
-			"/var/tmp/metta/deps"
+			"/var/tmp/metta/deps",
+			"mettagrid"
 		],
 		"python.analysis.exclude": [
 			"**/deps/pufferlib/**"
