@@ -2,6 +2,8 @@ defaults:
   - sim
   - _self_
 
+name: multiagent
+
 num_envs: 1
 num_episodes: 1
 run_dir: ${run_dir}
