@@ -14,3 +14,4 @@ sim_job:
   simulation_suite: ${sim}
   policy_uris:
     - ${policy_uri}
+  stats_dir: ${run_dir}/stats

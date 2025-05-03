@@ -10,7 +10,6 @@ Simulation driver for evaluating policies in the Metta environment.
 
 from __future__ import annotations
 
-import copy
 import logging
 from pathlib import Path
 from typing import List
@@ -38,25 +37,13 @@ class SimJob(Config):
     selector_type: str = "top"
     dry_run: bool = False
     replay_dir: str = "s3://softmax-public/replays/evals"
-    eval_stats_uri: str = None  # The URI where stats should be stored
+    stats_db_base_uri: str = "wandb://artifacts/stats/evals/"  # The final (s3/wandb) URI where stats will be appended
+    stats_dir: str  # The (local) directory where stats should be stored
 
 
 # --------------------------------------------------------------------------- #
 # Helpers                                                                     #
 # --------------------------------------------------------------------------- #
-
-
-def _prepare_suite_config(orig: SimulationSuiteConfig, stats_root: Path) -> SimulationSuiteConfig:
-    """
-    Make a *deep* copy of the suite-config and wire-in a dedicated `stats_dir`
-    for every child simulation so shards don’t collide.
-    """
-    suite_cfg: SimulationSuiteConfig = OmegaConf.create(OmegaConf.to_container(orig, resolve=True))
-    for sim_name, sim_cfg in suite_cfg.simulations.items():
-        sim_stats_dir = stats_root / sim_name
-        sim_stats_dir.mkdir(parents=True, exist_ok=True)
-        sim_cfg.stats_dir = str(sim_stats_dir)
-    return suite_cfg
 
 
 def simulate_policy(
@@ -83,11 +70,14 @@ def simulate_policy(
         policy_uri,
         selector_type=sim_job.selector_type,
         n=1,
-        metric=sim_job.metric,
+        metric=metric,
     )
 
     for pr in policy_prs:
         logger.info("Evaluating policy %s", pr.uri)
+
+        stats_dir = Path(sim_job.stats_dir) / pr.name
+        stats_dir.mkdir(parents=True, exist_ok=True)
 
         if sim_job.dry_run:
             replay_dir = None
@@ -98,36 +88,19 @@ def simulate_policy(
             policy_pr=pr,
             policy_store=policy_store,
             replay_dir=replay_dir,
+            stats_dir=stats_dir,
         )
-
-        # Configure stats directory for this simulation run
-        # Either use the provided path or create a temporary one
-        stats_dir = Path(sim_job.simulation_suite.run_dir) / "stats" / pr.name
-        stats_dir.mkdir(parents=True, exist_ok=True)
-        # ------------------------------------------------------------------ #
-        # Build a private SimulationSuiteConfig with bespoke stats paths     #
-        # ------------------------------------------------------------------ #
-        run_dir = Path(getattr(sim_job.simulation_suite, "run_dir", Path.cwd()))
-        suite_stats_root = run_dir / "stats" / pr.name
-        suite_stats_root.mkdir(parents=True, exist_ok=True)
-
-        suite_cfg = _prepare_suite_config(sim_job.simulation_suite, suite_stats_root)
-
-        # ------------------------------------------------------------------ #
-        # Run the SimulationSuite                                            #
-        # ------------------------------------------------------------------ #
-        suite = SimulationSuite(config=suite_cfg, policy_pr=pr, policy_store=policy_store, wandb_run=wandb_run)
-        merged_db: StatsDB = suite.simulate()
+        merged_db: StatsDB = sim.simulate()
 
         # ------------------------------------------------------------------ #
         # Export                                                             #
         # ------------------------------------------------------------------ #
-        export_uri = suite_cfg.stats_db_uri
-        if export_uri:
+        export_uri = f"{sim_job.stats_db_base_uri}/{sim_job.simulation_suite.name}/{pr.name}.duckdb"
+        if not sim_job.dry_run:
             logger.info("Exporting merged stats DB → %s", export_uri)
             StatsDB.export_db(merged_db, export_uri)
         else:
-            logger.info("No `stats_db_uri` provided – skipping export")
+            logger.info(f"Dry run – skipping export to {export_uri}")
 
         merged_db.close()
         logger.info("Evaluation complete for policy %s", pr.uri)

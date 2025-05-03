@@ -4,4 +4,3 @@ eval_db_uri: ${eval_db_uri}
 env: env/mettagrid/simple
 num_envs: 1
 num_episodes: 1
-stats_dir: ${run_dir}/stats
