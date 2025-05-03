@@ -26,7 +26,7 @@ from mettagrid.observation_encoder cimport (
 )
 from mettagrid.grid_object cimport GridObject
 from mettagrid.objects.production_handler cimport ProductionHandler, CoolDownHandler
-from mettagrid.objects.constants cimport ObjectTypeNames, ObjectTypeAscii, InventoryItemNames, ObjectType
+from mettagrid.objects.constants cimport ObjectLayers, ObjectTypeNames, ObjectTypeAscii, InventoryItemNames, ObjectType
 
 # Action imports
 from mettagrid.action_handler cimport ActionHandler
@@ -42,6 +42,7 @@ from mettagrid.actions.change_color cimport ChangeColorAction
 
 # Constants
 obs_np_type = np.uint8
+ctypedef unsigned int ActionType
 
 cdef class MettaGrid:
     cdef:
@@ -90,11 +91,9 @@ cdef class MettaGrid:
     def __init__(self, env_cfg: DictConfig | ListConfig, map: np.ndarray):
         cfg = OmegaConf.create(env_cfg.game)
         self._cfg = cfg
-        max_agents = cfg.max_agents
-        map_width = cfg.map_width
-        map_height = cfg.map_height
-        max_timestep = cfg.max_timestep
-        layer_for_type_id = cfg.layer_for_type_id
+        num_agents = cfg.num_agents
+        max_timestep = cfg.max_steps
+        layer_for_type_id = dict(ObjectLayers).values()
         obs_width = cfg.obs_width
         obs_height = cfg.obs_height
 
@@ -102,7 +101,7 @@ cdef class MettaGrid:
         self._obs_height = obs_height
         self._max_timestep = max_timestep
         self._current_timestep = 0
-        self._grid = new Grid(map_width, map_height, layer_for_type_id)
+        self._grid = new Grid(map.shape[1], map.shape[0], layer_for_type_id)
         self._grid_features = self._obs_encoder.feature_names()
 
         self._event_manager.init(self._grid, &self._stats)
@@ -113,18 +112,18 @@ cdef class MettaGrid:
         self.set_buffers(
             np.zeros(
                 (
-                    max_agents,
+                    num_agents,
                     self._grid_features.size(),
                     self._obs_height,
                     self._obs_width
                 ),
                 dtype=obs_np_type),
-            np.zeros(max_agents, dtype=np.int8),
-            np.zeros(max_agents, dtype=np.int8),
-            np.zeros(max_agents, dtype=np.float32)
+            np.zeros(num_agents, dtype=np.int8),
+            np.zeros(num_agents, dtype=np.int8),
+            np.zeros(num_agents, dtype=np.float32)
         )
 
-        self._action_success.resize(max_agents)
+        self._action_success.resize(num_agents)
 
         # Set up action handlers. This would be cleaner in a separate function. We're leaving
         # it inline since we're moving to reduce cython, and don't want to have to add more
