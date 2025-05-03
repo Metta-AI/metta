@@ -1,6 +1,6 @@
 name: py-benchmark
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: py-benchmark-${{ github.ref }}-${{ github.run_id }}-benchmark
   cancel-in-progress: ${{ github.event_name != 'workflow_call' }}
 on:
   workflow_dispatch: {}
@@ -9,10 +9,6 @@ on:
       ref:
         required: false
         type: string
-      skip_file_check:
-        required: false
-        type: boolean
-        default: false
 
 jobs:
   py-benchmark:
@@ -34,31 +30,29 @@ jobs:
 
       # Skip file change check if triggered from py-checks workflow
       - name: Check for Python file changes
-        id: check_files
-        if: inputs.skip_file_check != true
+        id: py_benchmark_check_files
+        if: github.event_name != 'workflow_call'
         uses: ./.github/actions/file-changes
         with:
-          patterns: '*.py'
-          specific_files: 'requirements.txt,setup.py'
-          directory_paths: 'tests/,benchmarks/,deps/mettagrid/tests/,deps/mettagrid/benchmarks/'
+          patterns: "*.py"
+          specific_files: "requirements.txt,setup.py"
+          directory_paths: "tests/,benchmarks/,mettagrid/tests/,mettagrid/benchmarks/"
           github-token: ${{ secrets.GITHUB_TOKEN }}
-                  
+
       - name: Set early exit flag
         id: set_early_exit
-        if: inputs.skip_file_check != true
         run: |
-          if [[ "${{ github.event_name }}" == "pull_request" && "${{ steps.check_files.outputs.has_relevant_changes }}" != "true" ]]; then
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "called from a manual workflow, don't skip anything"
+            echo "EARLY_EXIT=false" >> $GITHUB_ENV
+          elif [[ "${{ github.event_name }}" != "workflow_call" && "${{ steps.py_benchmark_check_files.outputs.has_relevant_changes }}" == "false" ]]; then
+            echo "we looked for changed files and found no relevant changes, exit early!"
             echo "EARLY_EXIT=true" >> $GITHUB_ENV
           else
+            echo "in all other cases, don't exit early"
             echo "EARLY_EXIT=false" >> $GITHUB_ENV
           fi
-      
-      # Always run if triggered from py-checks
-      - name: Set early exit flag for workflow_call
-        if: inputs.skip_file_check == true
-        run: |
-          echo "EARLY_EXIT=false" >> $GITHUB_ENV
-            
+
       - name: Skip benchmarking (no relevant changes)
         if: env.EARLY_EXIT == 'true'
         run: |
@@ -92,7 +86,7 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}
         run: |
           source venv/bin/activate
-          cd deps/mettagrid
+          cd mettagrid
           pytest --benchmark-json=mettagrid_benchmark_results.json
           mv mettagrid_benchmark_results.json ../..
 
@@ -103,7 +97,7 @@ jobs:
           python - <<EOF
           import json
           import os
-          
+
           # Function to safely load JSON, handling empty files
           def safe_load_json(file_path):
               try:
@@ -116,14 +110,14 @@ jobs:
               except json.JSONDecodeError:
                   print(f"Warning: {file_path} contains invalid JSON or is empty. Using empty dict instead.")
                   return {}
-          
+
           # Read main benchmark results
           main_results = safe_load_json('main_benchmark_results.json')
-          
+
           # Read mettagrid benchmark results if file exists
           mettagrid_path = 'mettagrid_benchmark_results.json'
           mettagrid_results = safe_load_json(mettagrid_path)
-          
+
           # Check if we have any valid results to work with
           if not main_results and not mettagrid_results:
               print("Both result files are empty or invalid. Creating empty combined results.")
@@ -144,11 +138,11 @@ jobs:
                   for key in mettagrid_results:
                       if key != "benchmarks" and key not in combined_results:
                           combined_results[key] = mettagrid_results[key]
-          
+
           # Write combined results
           with open('combined_benchmark_results.json', 'w') as f:
               json.dump(combined_results, f, indent=2)
-          
+
           print("Successfully combined benchmark results.")
           EOF
 

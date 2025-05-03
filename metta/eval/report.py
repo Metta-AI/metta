@@ -21,7 +21,7 @@ from metta.eval.heatmap import create_heatmap_html_snippet
 from metta.eval.mapviewer import MAP_VIEWER_CSS
 from metta.sim.eval_stats_analyzer import EvalStatsAnalyzer
 from metta.sim.eval_stats_db import EvalStatsDB
-from metta.util.file import upload_to_s3
+from metta.util.file import s3_url, upload_to_s3
 from metta.util.wandb.wandb_context import WandbContext
 
 logger = logging.getLogger(__name__)
@@ -61,7 +61,7 @@ def _assemble_page(title: str, graphs: List[str]) -> str:
 </html>"""
 
 
-def generate_report_html(analyzer_cfg: AnalyzerConfig, omegaconf_cfg: DictConfig) -> str:  # TODO: remove omegaconf_cfg
+def generate_report_html(analyzer_cfg: AnalyzerConfig, omegaconf_cfg: DictConfig) -> str:
     metric = analyzer_cfg.metric
     view_type = analyzer_cfg.view_type
     policy_uri = analyzer_cfg.policy_uri
@@ -82,10 +82,10 @@ def generate_report_html(analyzer_cfg: AnalyzerConfig, omegaconf_cfg: DictConfig
         if matrix.empty:
             return "<html><body><h1>No data available</h1></body></html>"
 
-        # create heat‑map snippet
         heatmap_html = create_heatmap_html_snippet(
             matrix,
             metric,
+            replay_base_url="https://softmax-public.s3.us-east-1.amazonaws.com/replays/evals",
             height=600,
             width=900,
         )
@@ -112,7 +112,7 @@ def generate_report(analyzer_cfg: AnalyzerConfig, omegaconf_cfg: DictConfig):  #
 
     if output_path.startswith("s3://"):
         upload_to_s3(html_content, output_path, "text/html")
-        logger.info("Report uploaded to %s", output_path)
+        logger.info("Report uploaded to %s", s3_url(output_path))
     else:
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         with open(output_path, "w") as fh:
