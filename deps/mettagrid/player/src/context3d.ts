@@ -240,7 +240,7 @@ class Mesh {
   }
 }
 
-class Drawer {
+class Context3d {
   // Canvas and WebGPU state
   public canvas: HTMLCanvasElement;
   public device: GPUDevice | null;
@@ -987,4 +987,4 @@ class Drawer {
   }
 }
 
-export { Drawer };
+export { Context3d };
