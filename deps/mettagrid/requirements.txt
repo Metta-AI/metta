@@ -6,7 +6,7 @@ numpy==1.26.4
 pandas==2.2.3
 pettingzoo==1.25.0
 pynvml==11.5.3
-pytest==8.3.3
+pytest==8.3.5
 pytest-cov==6.1.1
 PyYAML==6.0.2
 raylib==5.5.0.1
