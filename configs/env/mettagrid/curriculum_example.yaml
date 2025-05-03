@@ -7,6 +7,7 @@ min_steps_per_info: 1000
 
 num_agents_per_room: 1
 num_repeated_rooms: 49 # use a perfect square
+num_hearts_per_room: 1
 
 # these are overwritten during training
 progress:
@@ -21,11 +22,11 @@ filtered_mean_reward: ${iir:0.1,${.progress.mean_reward},${.progress.last_mean_r
 game:
   num_agents: ${multiply:${..num_agents_per_room}, ${..num_repeated_rooms}}
 
-  difficulty_increase_threshold: 4.0
+  difficulty_increase_threshold: ${multiply:${..num_hearts_per_room},0.7}
   should_increase_difficulty: ${gt:${..filtered_mean_reward},${.difficulty_increase_threshold}}
   difficulty_increase_delta: ${if:${.should_increase_difficulty},0.1,0.0}
 
-  difficulty_decrease_threshold: 2.0
+  difficulty_decrease_threshold: ${multiply:${..num_hearts_per_room},0.3}
   should_decrease_difficulty: ${lt:${..filtered_mean_reward},${.difficulty_decrease_threshold}}
   difficulty_decrease_delta: ${if:${.should_decrease_difficulty},-0.2,0.0}
 
@@ -34,7 +35,7 @@ game:
 
   # episode length 
   # max_steps: ${make_integer:${scale:${.difficulty},0,10,100,500,"linear"}}
-  max_steps: 300
+  max_steps: 200
 
   # scaling the map size as our experimental condition
   min_size: 10
@@ -54,7 +55,7 @@ game:
       agents: ${....num_agents_per_room}
 
       objects:
-        altar: 10
+        altar: ${....num_hearts_per_room}
 
   # actions:
   #   noop:
