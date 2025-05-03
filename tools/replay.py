@@ -50,7 +50,6 @@ def main(cfg):
         # Only on macos open a browser to the replay
         first_sim_name = list(replay_job.sim.simulations.keys())[0]
         first_sim_path = f"{replay_dir}/{first_sim_name}/replay.json.z"
-
         if platform.system() == "Darwin":
             webbrowser.open(f"https://metta-ai.github.io/metta/?replayUrl={s3_url(first_sim_path)}")
 
