@@ -14,3 +14,5 @@ eval_db_uri: null
 replay_job:
   sim: ${sim}
   policy_uri: ${policy_uri}
+  selector_type: top
+  metric: score

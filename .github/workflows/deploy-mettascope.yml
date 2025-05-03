@@ -1,0 +1,91 @@
+name: Deploy to GitHub Pages
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "deps/mettagrid/player/**" # Run when any file in player directory changes
+      - ".github/workflows/**" # Run when workflow files change
+  workflow_dispatch: {} # Allow manual triggers
+
+# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Configure concurrency to always run
+concurrency:
+  group: pages-${{ github.ref }}-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  deploy-mettascope:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Get all history to ensure we don't hit caching issues
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: 'npm'
+          cache-dependency-path: 'deps/mettagrid/player/package-lock.json'
+
+      - name: Install and build TypeScript
+        run: |
+          cd deps/mettagrid/player
+          npm ci
+          npx tsc
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: 'pip'
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pixie-python
+
+      - name: Debug Output
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          echo "=== Python Environment ==="
+          which python3
+          python3 --version
+          pip --version
+          pip list
+          
+          echo "=== Directory Structure ==="
+          echo "Current directory: $(pwd)"
+          ls -la
+          
+          echo "=== Player Directory ==="
+          cd deps/mettagrid/player
+          echo "Player directory: $(pwd)"
+          ls -la
+
+      - name: Generate Atlas
+        run: |
+          cd deps/mettagrid/player
+          python3 tools/gen_atlas.py
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: "./deps/mettagrid/player"
+          
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

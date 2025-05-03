@@ -13,33 +13,18 @@ import shutil
 import tempfile
 from typing import List, Literal
 
-import boto3
-import hydra
-from botocore.exceptions import NoCredentialsError
 from omegaconf import DictConfig
 
+from metta.eval.analysis_config import AnalyzerConfig
 from metta.eval.db import PolicyEvalDB
 from metta.eval.heatmap import create_heatmap_html_snippet
 from metta.eval.mapviewer import MAP_VIEWER_CSS
+from metta.sim.eval_stats_analyzer import EvalStatsAnalyzer
 from metta.sim.eval_stats_db import EvalStatsDB
+from metta.util.file import s3_url, upload_to_s3
 from metta.util.wandb.wandb_context import WandbContext
 
 logger = logging.getLogger(__name__)
-
-
-# --------------------------------------------------------------------------- #
-# S3 util
-# --------------------------------------------------------------------------- #
-def _upload_to_s3(html: str, s3_path: str):
-    if not s3_path.startswith("s3://"):
-        raise ValueError("S3 path must start with s3://")
-
-    bucket, key = s3_path[5:].split("/", 1)
-    try:
-        boto3.client("s3").put_object(Body=html, Bucket=bucket, Key=key, ContentType="text/html")
-    except NoCredentialsError as e:
-        logger.error("AWS credentials not found; run setup_sso.py")
-        raise e
 
 
 # --------------------------------------------------------------------------- #
@@ -76,12 +61,12 @@ def _assemble_page(title: str, graphs: List[str]) -> str:
 </html>"""
 
 
-def generate_report_html(cfg: DictConfig) -> str:
-    metric = cfg.analyzer.metric
-    view_type = cfg.analyzer.view_type
-    policy_uri = cfg.analyzer.policy_uri
+def generate_report_html(analyzer_cfg: AnalyzerConfig, omegaconf_cfg: DictConfig) -> str:
+    metric = analyzer_cfg.metric
+    view_type = analyzer_cfg.view_type
+    policy_uri = analyzer_cfg.policy_uri
 
-    num_output_policies: int | Literal["all"] = cfg.analyzer.get("num_output_policies", 20)
+    num_output_policies: int | Literal["all"] = analyzer_cfg.num_output_policies
 
     tmp_dir = tempfile.mkdtemp()
     db_path = os.path.join(tmp_dir, "policy_metrics.sqlite")
@@ -89,7 +74,7 @@ def generate_report_html(cfg: DictConfig) -> str:
 
     try:
         db = PolicyEvalDB(db_path)
-        db.import_from_eval_stats(cfg)
+        db.import_from_eval_stats(analyzer_cfg, omegaconf_cfg)
 
         matrix = db.get_matrix_data(
             metric, view_type=view_type, policy_uri=policy_uri, num_output_policies=num_output_policies
@@ -97,10 +82,10 @@ def generate_report_html(cfg: DictConfig) -> str:
         if matrix.empty:
             return "<html><body><h1>No data available</h1></body></html>"
 
-        # create heat‑map snippet
         heatmap_html = create_heatmap_html_snippet(
             matrix,
             metric,
+            replay_base_url="https://softmax-public.s3.us-east-1.amazonaws.com/replays/evals",
             height=600,
             width=900,
         )
@@ -115,19 +100,19 @@ def generate_report_html(cfg: DictConfig) -> str:
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
-def generate_report(cfg: DictConfig):
-    html_content = generate_report_html(cfg)
-    output_path = cfg.analyzer.output_path
+def generate_report(analyzer_cfg: AnalyzerConfig, omegaconf_cfg: DictConfig):  # TODO: remove omegaconf_cfg
+    html_content = generate_report_html(analyzer_cfg, omegaconf_cfg)
+    output_path = analyzer_cfg.output_path
 
     # handle per‑policy filename tweak
-    if cfg.analyzer.view_type == "policy_versions" and cfg.analyzer.policy_uri:
+    if analyzer_cfg.view_type == "policy_versions" and analyzer_cfg.policy_uri:
         base, ext = os.path.splitext(output_path)
-        safe_name = cfg.analyzer.policy_uri.split("/")[-1].replace(":", "_")
+        safe_name = analyzer_cfg.policy_uri.split("/")[-1].replace(":", "_")
         output_path = f"{base}_{safe_name}{ext}"
 
     if output_path.startswith("s3://"):
-        _upload_to_s3(html_content, output_path)
-        logger.info("Report uploaded to %s", output_path)
+        upload_to_s3(html_content, output_path, "text/html")
+        logger.info("Report uploaded to %s", s3_url(output_path))
     else:
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         with open(output_path, "w") as fh:
@@ -137,12 +122,14 @@ def generate_report(cfg: DictConfig):
     return html_content, output_path
 
 
-def dump_stats(cfg: DictConfig):
-    logger.info(f"Importing data from {cfg.sim.eval_db_uri}")
-    with WandbContext(cfg) as wandb_run:
-        eval_stats_db = EvalStatsDB.from_uri(cfg.sim.eval_db_uri, cfg.run_dir, wandb_run)
+def dump_stats(analyzer_cfg: AnalyzerConfig, omegaconf_cfg: DictConfig):  # TODO: remove omegaconf_cfg
+    assert analyzer_cfg.eval_db_uri is not None, "eval_db_uri is required"
 
-    analyzer = hydra.utils.instantiate(cfg.analyzer, eval_stats_db)
+    logger.info(f"Importing data from {analyzer_cfg.eval_db_uri}")
+    with WandbContext(omegaconf_cfg) as wandb_run:
+        eval_stats_db = EvalStatsDB.from_uri(analyzer_cfg.eval_db_uri, omegaconf_cfg.run_dir, wandb_run)
+
+    analyzer = EvalStatsAnalyzer(eval_stats_db, analyzer_cfg.analysis, analyzer_cfg.policy_uri)
     dfs, _ = analyzer.analyze(include_policy_fitness=False)
     for df in dfs:
         print(df)

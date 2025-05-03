@@ -1,8 +1,6 @@
 _target_: mettagrid.mettagrid_env.MettaGridEnv
 
 normalize_rewards: false
-semi_compact_obs: true
-track_last_action: false
 
 sampling: 0
 

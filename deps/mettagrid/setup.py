@@ -1,6 +1,7 @@
 import multiprocessing
 import os
 import sys
+from typing import Optional
 
 import numpy
 from Cython.Build import cythonize
@@ -40,6 +41,7 @@ ext_modules = [
     build_ext(["mettagrid/actions/get_output.pyx"]),
     build_ext(["mettagrid/objects/agent.pyx"]),
     build_ext(["mettagrid/objects/constants.pyx"]),
+    build_ext(["mettagrid/objects/has_inventory.pyx"]),
     build_ext(["mettagrid/objects/converter.pyx"]),
     build_ext(["mettagrid/objects/metta_object.pyx"]),
     build_ext(["mettagrid/objects/production_handler.pyx"]),
@@ -52,7 +54,7 @@ annotate = os.getenv("ANNOTATE", "0") == "1"
 build_dir = "build_debug" if debug else "build"
 os.makedirs(build_dir, exist_ok=True)
 
-num_threads = multiprocessing.cpu_count() if sys.platform == "linux" else None
+num_threads: Optional[int] = multiprocessing.cpu_count() if sys.platform == "linux" else None
 
 setup(
     name="mettagrid",
@@ -64,7 +66,7 @@ setup(
     ext_modules=cythonize(
         ext_modules,
         build_dir=build_dir,
-        nthreads=num_threads,
+        nthreads=num_threads,  # type: ignore[reportArgumentType] -- Pylance is wrong. We want "None" when not on linux.
         annotate=debug or annotate,
         compiler_directives={
             "language_level": "3",

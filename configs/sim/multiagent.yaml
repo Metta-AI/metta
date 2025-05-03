@@ -1,0 +1,23 @@
+defaults:
+  - sim
+  - _self_
+
+name: multiagent
+
+num_envs: 1
+num_episodes: 1
+run_dir: ${run_dir}
+
+simulations:
+  multiagent/radial_cross:
+    env: env/mettagrid/multiagent/evals/radial_cross
+    policy_agents_pct: 1.0
+  multiagent/radial_cross_large:
+    env: env/mettagrid/multiagent/evals/radial_cross_large
+    policy_agents_pct: 1.0
+  multiagent/radial_diffusion:
+    env: env/mettagrid/multiagent/evals/radial_diffusion
+    policy_agents_pct: 1.0
+  multiagent/spine_maze_extended:
+    env: env/mettagrid/multiagent/evals/spine_maze_extended
+    policy_agents_pct: 1.0

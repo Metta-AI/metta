@@ -1,0 +1,45 @@
+name: 'PR Assignment Action'
+description: 'Assign and request reviews for PRs based on configurable rules'
+
+inputs:
+  pr-number:
+    description: 'PR number to process'
+    required: true
+  possible-assignees:
+    description: 'Comma-separated list of users to randomly select assignees from'
+    required: false
+    default: ''
+  possible-reviewers:
+    description: 'Comma-separated list of users to randomly select reviewers from'
+    required: false
+    default: ''
+  forced-assignees:
+    description: 'Comma-separated list of users who will always be assigned'
+    required: false
+    default: ''
+  forced-reviewers:
+    description: 'Comma-separated list of users who will always be requested as reviewers'
+    required: false
+    default: ''
+  forced-labels:
+    description: 'Comma-separated list of labels that will replace any labels currently set on the PR'
+    required: false
+    default: ''
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Assign and request reviews for PR
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        PR_NUMBER: ${{ inputs.pr-number }}
+        REPO: ${{ github.repository }}
+        POSSIBLE_ASSIGNEES: ${{ inputs.possible-assignees }}
+        POSSIBLE_REVIEWERS: ${{ inputs.possible-reviewers }}
+        FORCED_ASSIGNEES: ${{ inputs.forced-assignees }}
+        FORCED_REVIEWERS: ${{ inputs.forced-reviewers }}
+        FORCED_LABELS: ${{ inputs.forced-labels }}
+      run: |
+        # Execute the PR assignment script
+        ${{ github.action_path }}/run.sh "$PR_NUMBER" "$POSSIBLE_ASSIGNEES" "$POSSIBLE_REVIEWERS" "$FORCED_ASSIGNEES" "$FORCED_REVIEWERS" "$FORCED_LABELS"

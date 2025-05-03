@@ -1,8 +1,6 @@
 # This is a modified `sample.yaml` config with sampling removed, for benchmark_env_perf.py script.
 report_stats_interval: 100
 normalize_rewards: false
-semi_compact_obs: true
-track_last_action: false
 
 sampling: 0
 

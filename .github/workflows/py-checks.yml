@@ -1,0 +1,85 @@
+name: py-checks
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+# Set default permissions that will be inherited by called workflows
+permissions:
+  checks: write
+  pull-requests: write
+
+jobs:
+  # First job: check if any Python files have changed
+  check-files-py:
+    if: github.event.pull_request.draft == false || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    outputs:
+      has_relevant_changes: ${{ github.event_name == 'push' || steps.check_files_py.outputs.has_relevant_changes }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Check for Python file changes
+        id: check_files_py
+        uses: ./.github/actions/file-changes
+        with:
+          patterns: '**/*.py'
+          specific_files: 'requirements.txt,setup.py'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  # This job runs if no relevant files changed
+  skip-checks-py:
+    needs: check-files-py
+    if: needs.check-files-py.outputs.has_relevant_changes != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skip tests and linting
+        id: skip_checks_py
+        run: |
+          echo "No Python files were changed. Skipping tests, linting, and benchmarks."
+          echo "This check passes automatically when no relevant Python files are changed."
+
+  # Run lint workflow
+  call-lint-py:
+    needs: check-files-py
+    if: needs.check-files-py.outputs.has_relevant_changes == 'true'
+    uses: ./.github/workflows/py-lint.yml
+    with:
+      ref: ${{ github.ref }}
+    secrets: inherit
+  
+  # Run test workflow
+  call-test-py:
+    needs: check-files-py
+    if: needs.check-files-py.outputs.has_relevant_changes == 'true'
+    uses: ./.github/workflows/py-test.yml
+    with:
+      ref: ${{ github.ref }}
+    secrets: inherit
+  
+  # Run benchmark workflow
+  call-benchmark-py:
+    needs: check-files-py
+    if: needs.check-files-py.outputs.has_relevant_changes == 'true'
+    permissions:
+      checks: write
+      pull-requests: write
+    uses: ./.github/workflows/py-benchmark.yml
+    with:
+      ref: ${{ github.ref }}
+    secrets: inherit
+
+  # Run training integration test - always run regardless of file changes
+  call-training-integration-py:
+    uses: ./.github/workflows/py-training-integration-test.yml
+    with:
+      ref: ${{ github.ref }}
+    secrets: inherit
+

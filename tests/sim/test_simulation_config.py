@@ -1,11 +1,10 @@
 """
-Unit‑tests for SimulationSuiteConfig  ⇄  SimulationConfig behaviour.
-
+Unit‑tests for SimulationSuiteConfig ⇄ SimulationConfig behavior.
 Covered
 -------
 * suite‑level defaults propagate into children
 * child‑level overrides win
-* missing required keys always raise  (allow_missing removed)
+* missing required keys always raise (allow_missing removed)
 """
 
 from typing import Dict
@@ -19,23 +18,32 @@ from metta.sim.simulation_config import SimulationSuiteConfig
 # ---------------------------------------------------------------------------
 # constants
 # ---------------------------------------------------------------------------
-
 ROOT_ENV, CHILD_A, CHILD_B = "env/root", "env/a", "env/b"
 DEVICE, RUN_DIR = "cpu", "./runs/test"
 
 
-def _build(cfg: Dict):
-    return SimulationSuiteConfig(OmegaConf.create(cfg))
+@pytest.fixture
+def build_simulation_suite_config():
+    def _build(cfg: Dict):
+        # First create the OmegaConf object
+        dict_config = OmegaConf.create(cfg)
+
+        # Convert to a Python dictionary
+        regular_dict = OmegaConf.to_container(dict_config, resolve=True)
+
+        # Now create the SimulationSuiteConfig using the model_validate method
+        return SimulationSuiteConfig.model_validate(regular_dict)
+
+    return _build
 
 
 # ---------------------------------------------------------------------------
 # propagation & overrides
 # ---------------------------------------------------------------------------
-
-
-def test_propogate_defaults_and_overrides():
+def test_propagate_defaults_and_overrides(build_simulation_suite_config):
     cfg = {
         "env": ROOT_ENV,
+        "name": "test",
         "num_envs": 4,
         "num_episodes": 4,
         "device": DEVICE,
@@ -45,9 +53,8 @@ def test_propogate_defaults_and_overrides():
             "b": {"env": CHILD_B, "num_envs": 8},  # overrides num_envs
         },
     }
-    suite = _build(cfg)
+    suite = build_simulation_suite_config(cfg)
     a, b = suite.simulations["a"], suite.simulations["b"]
-
     # device and num_envs both propagated, even though num_envs has a default
     assert (a.device, a.num_envs) == (DEVICE, 4)
     assert (b.device, b.num_envs) == (DEVICE, 8)
@@ -56,8 +63,6 @@ def test_propogate_defaults_and_overrides():
 # ---------------------------------------------------------------------------
 # allow_extra – child nodes
 # ---------------------------------------------------------------------------
-
-
 @pytest.mark.parametrize(
     "has_extra, should_pass",
     [
@@ -65,47 +70,46 @@ def test_propogate_defaults_and_overrides():
         (True, False),
     ],
 )
-def test_allow_extra_child_keys(has_extra, should_pass):
+def test_allow_extra_child_keys(build_simulation_suite_config, has_extra, should_pass):
     child_node = {"env": CHILD_A}
     if has_extra:
         child_node["foo"] = "bar"  # <- unknown key
-
     cfg = {
         "env": ROOT_ENV,
+        "name": "test",
         "num_envs": 4,
         "num_episodes": 4,
         "device": DEVICE,
         "run_dir": RUN_DIR,
         "simulations": {"sim": child_node},
     }
-
     if should_pass:
-        suite = _build(cfg)
+        suite = build_simulation_suite_config(cfg)
         assert suite.simulations["sim"].device == DEVICE
     else:
         with pytest.raises(ValueError):
-            _build(cfg)
+            build_simulation_suite_config(cfg)
 
 
 # ---------------------------------------------------------------------------
 # missing required keys should always error
 # ---------------------------------------------------------------------------
-
-
-def test_missing_device_always_errors():
+def test_missing_device_always_errors(build_simulation_suite_config):
     cfg = {
         "env": ROOT_ENV,
+        "name": "test",
         "num_envs": 4,
         "num_episodes": 4,
         "run_dir": RUN_DIR,
         "simulations": {"sim": {}},  # required 'device' omitted
     }
     with pytest.raises(ValidationError):
-        _build(cfg)
+        build_simulation_suite_config(cfg)
 
 
-def test_missing_suite_env_is_allowed():
+def test_missing_suite_env_is_allowed(build_simulation_suite_config):
     cfg = {
+        "name": "test",
         "run_dir": RUN_DIR,
         "device": DEVICE,
         "num_envs": 4,
@@ -116,5 +120,5 @@ def test_missing_suite_env_is_allowed():
             }
         },
     }
-    suite = _build(cfg)
+    suite = build_simulation_suite_config(cfg)
     assert suite.simulations["sim"].env == CHILD_A

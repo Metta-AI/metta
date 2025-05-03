@@ -2,6 +2,8 @@ defaults:
   - sim
   - _self_
 
+name: navigation
+
 simulations:
   navigation/emptyspace_withinsight:
     env: env/mettagrid/navigation/evals/emptyspace_withinsight
@@ -53,5 +55,4 @@ simulations:
     env: env/mettagrid/navigation/evals/walkaround
   navigation/wanderout:
     env: env/mettagrid/navigation/evals/wanderout
-
 # selector_type: "latest"

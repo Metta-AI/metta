@@ -42,7 +42,40 @@ MAP_VIEWER_CSS = """
     padding: 50px 0;
     font-style: italic;
 }
+.map-viewer-controls {
+    display: flex;
+    justify-content: center;
+    margin-top: 15px;
+    gap: 10px;
+}
+.map-button {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: #fff;
+    cursor: pointer;
+    font-size: 14px;
+}
+.map-button svg {
+    width: 14px;
+    height: 14px;
+}
+.map-button.locked {
+    background: #f0f0f0;
+    border-color: #aaa;
+}
+.map-button:hover {
+    background: #f0f0f0;
+}
+.map-button.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
 """
+
 
 # --------------------------------------------------------------------------- #
 # Map Viewer component                                                        #
@@ -50,10 +83,10 @@ MAP_VIEWER_CSS = """
 def create_map_viewer_html(uid: str) -> str:
     """
     Create the HTML for a Map Viewer component.
-    
+
     Args:
         uid: Unique identifier to namespace this component's elements
-        
+
     Returns:
         HTML snippet for the Map Viewer component
     """
@@ -61,7 +94,9 @@ def create_map_viewer_html(uid: str) -> str:
     map_title_id = f"{uid}_map_title"
     map_img_id = f"{uid}_map_img"
     map_placeholder_id = f"{uid}_map_placeholder"
-    
+    lock_button_id = f"{uid}_lock_button"
+    replay_button_id = f"{uid}_replay_button"
+
     return f"""
 <!-- Map Viewer Panel -->
 <div class="map-viewer" id="{map_id}">
@@ -70,8 +105,31 @@ def create_map_viewer_html(uid: str) -> str:
     Hover over an evaluation name or cell to see the environment map
   </div>
   <img class="map-viewer-img" id="{map_img_id}" alt="Environment map" style="display: none;">
+  
+  <div class="map-viewer-controls">
+    <button id="{lock_button_id}" class="map-button" title="Lock current view (or click cell)">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+        <path fill-rule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 
+        2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" 
+        clip-rule="evenodd" />
+      </svg>
+      <span>Lock View</span>
+    </button>
+    <button id="{replay_button_id}" class="map-button disabled" title="Open replay in Mettascope">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+        <path fill-rule="evenodd" d="M4.25 5.5a.75.75 0 00-.75.75v8.5c0 .414.336.75.75.75h8.5a.75.75 0 
+        00.75-.75v-4a.75.75 0 011.5 0v4A2.25 2.25 0 0112.75 17h-8.5A2.25 2.25 0 012 14.75v-8.5A2.25 2.25 
+        0 014.25 4h5a.75.75 0 010 1.5h-5z" clip-rule="evenodd" />
+        <path fill-rule="evenodd" d="M6.194 12.753a.75.75 0 001.06.053L16.5 4.44v2.81a.75.75 0 001.5
+          0v-4.5a.75.75 0 00-.75-.75h-4.5a.75.75 0 000 1.5h2.553l-9.056 8.194a.75.75 0 00-.053 1.06z" 
+          clip-rule="evenodd" />
+      </svg>
+      <span>Open Replay</span>
+    </button>
+  </div>
 </div>
 """
+
 
 # --------------------------------------------------------------------------- #
 # JavaScript functions                                                        #
@@ -79,10 +137,10 @@ def create_map_viewer_html(uid: str) -> str:
 def get_map_viewer_js_functions(uid: str) -> str:
     """
     Get JavaScript functions for the Map Viewer component.
-    
+
     Args:
         uid: Unique identifier matching the one used for create_map_viewer_html
-        
+
     Returns:
         JavaScript functions as a string, to be included in a <script> tag
     """
@@ -90,14 +148,21 @@ def get_map_viewer_js_functions(uid: str) -> str:
     map_title_id = f"{uid}_map_title"
     map_img_id = f"{uid}_map_img"
     map_placeholder_id = f"{uid}_map_placeholder"
-    
+    lock_button_id = f"{uid}_lock_button"
+    replay_button_id = f"{uid}_replay_button"
+
     return f"""
 const mapPanel = document.getElementById("{map_id}");
 const mapTitle = document.getElementById("{map_title_id}");
 const mapImg = document.getElementById("{map_img_id}");
 const mapPlaceholder = document.getElementById("{map_placeholder_id}");
+const lockButton = document.getElementById("{lock_button_id}");
+const replayButton = document.getElementById("{replay_button_id}");
+
 let currentDisplayedEvalName = null;
 let isMouseOverMap = false;
+let isViewLocked = false;
+let currentReplayUrl = null;
 
 // Track when mouse enters/leaves the map viewer
 mapPanel.addEventListener('mouseenter', function() {{
@@ -106,41 +171,84 @@ mapPanel.addEventListener('mouseenter', function() {{
 
 mapPanel.addEventListener('mouseleave', function() {{
     isMouseOverMap = false;
+    if (!isViewLocked) {{
+        setTimeout(() => {{
+            if (!isMouseOverHeatmap && !isMouseOverMap) {{
+                hideMap();
+            }}
+        }}, 100);
+    }}
 }});
 
-function showMap(name, title) {{
-  if (name.toLowerCase() === "overall") return;
-  
-  // Store the currently displayed evaluation name
-  currentDisplayedEvalName = name;
-  
-  const url = imgs[name] || "";
-  
-  // Show only the eval name in the title (ignore the policy part)
-  mapTitle.textContent = name;
-  
-  if (url) {{
-    mapImg.src = url;
-    mapImg.style.display = "block";
-    mapPlaceholder.style.display = "none";
-  }} else {{
-    mapImg.style.display = "none";
-    mapPlaceholder.textContent = "No map available for " + name;
-    mapPlaceholder.style.display = "block";
-  }}
+// Lock/unlock button
+lockButton.addEventListener('click', function() {{
+    toggleLock();
+}});
+
+// Replay button
+replayButton.addEventListener('click', function() {{
+    if (currentReplayUrl) {{
+        window.open(currentReplayUrl, '_blank');
+    }}
+}});
+
+function toggleLock() {{
+    isViewLocked = !isViewLocked;
+    lockButton.classList.toggle('locked', isViewLocked);
+    
+    // Update button text
+    const lockText = lockButton.querySelector('span');
+    lockText.textContent = isViewLocked ? 'Unlock View' : 'Lock View';
+}}
+
+function showMap(name, replayUrl = null) {{
+    if (isViewLocked) return;
+    
+    if (name.toLowerCase() === "overall") return;
+    
+    // Store the currently displayed evaluation name
+    currentDisplayedEvalName = name;
+    
+    // Update replay button status
+    if (replayUrl) {{
+        currentReplayUrl = replayUrl;
+        replayButton.classList.remove('disabled');
+    }} else {{
+        replayButton.classList.add('disabled');
+        currentReplayUrl = null;
+    }}
+    
+    const url = imgs[name] || "";
+    
+    // Show only the eval name in the title (ignore the policy part)
+    mapTitle.textContent = name;
+    
+    if (url) {{
+        mapImg.src = url;
+        mapImg.style.display = "block";
+        mapPlaceholder.style.display = "none";
+    }} else {{
+        mapImg.style.display = "none";
+        mapPlaceholder.textContent = "No map available for " + name;
+        mapPlaceholder.style.display = "block";
+    }}
 }}
 
 function hideMap() {{
-  // Only hide if we're not hovering over the map panel itself
-  if (isMouseOverMap) {{
-    return;
-  }}
-  
-  // Reset the current displayed evaluation name
-  currentDisplayedEvalName = null;
-  
-  mapImg.style.display = "none";
-  mapPlaceholder.textContent = "Hover over an evaluation name or cell to see the map";
-  mapPlaceholder.style.display = "block";
+    // Only hide if we're not locked and not hovering over the map panel itself
+    if (isViewLocked || isMouseOverMap) {{
+        return;
+    }}
+    
+    // Reset the current displayed evaluation name
+    currentDisplayedEvalName = null;
+    currentReplayUrl = null;
+    
+    // Update the replay button
+    replayButton.classList.add('disabled');
+    
+    mapImg.style.display = "none";
+    mapPlaceholder.textContent = "Hover over an evaluation name or cell to see the environment map";
+    mapPlaceholder.style.display = "block";
 }}
 """

@@ -1,95 +1,111 @@
 # see reference_design.yaml for explanation of components
 _target_: metta.agent.metta_agent.MettaAgent
 
-policy_selector:
-  uri: null
-  type: top
-  range: 0
-  metric: final.score
-  generation: null
-
 observations:
   obs_key: grid_obs
-  track_last_action: false
 
 clip_range: 0 # set to 0 to disable clipping
 analyze_weights_interval: 300
 l2_init_weight_update_interval: 0
 
 components:
-  #necessary source layers: _obs_, _core_
-  #necessary output layers: _action_type_ and _value_ (and _action_param_ if MultiDiscrete)
+  #necessary layers: _core_, _action_embeds_, _action_, _value_
+  #necessary input_source: _obs_
+
   _obs_:
     _target_: metta.agent.lib.obs_shaper.ObsShaper
-    input_source: null
+    sources: 
+      null
 
   obs_normalizer:
     _target_: metta.agent.lib.observation_normalizer.ObservationNormalizer
-    input_source: _obs_
+    sources:
+      - name: _obs_
 
   cnn1:
     _target_: metta.agent.lib.nn_layer_library.Conv2d
-    input_source: obs_normalizer
-    output_size: 64
+    sources:
+      - name: obs_normalizer
     nn_params:
+      out_channels: 64
       kernel_size: 5
       stride: 3
 
   cnn2:
     _target_: metta.agent.lib.nn_layer_library.Conv2d
-    input_source: cnn1
-    output_size: 64
+    sources:
+      - name: cnn1
     nn_params:
+      out_channels: 64
       kernel_size: 3
       stride: 1
 
   obs_flattener:
     _target_: metta.agent.lib.nn_layer_library.Flatten
-    input_source: cnn2
+    sources:
+      - name: cnn2
 
   fc1:
     _target_: metta.agent.lib.nn_layer_library.Linear
-    input_source: obs_flattener
-    output_size: 128
-    analyze_weights: true
+    sources:
+      - name: obs_flattener
+    nn_params:
+      out_features: 128
 
   encoded_obs:
     _target_: metta.agent.lib.nn_layer_library.Linear
-    input_source: fc1
-    output_size: 128
-    analyze_weights: true
+    sources:
+      - name: fc1
+    nn_params:
+      out_features: 128
 
   _core_:
     _target_: metta.agent.lib.lstm.LSTM
-    input_source: encoded_obs
+    sources:
+      - name: encoded_obs
     output_size: 128
     nn_params:
       num_layers: 2
 
+  core_relu:
+    _target_: metta.agent.lib.nn_layer_library.ReLU
+    sources:
+      - name: _core_
+
   critic_1:
     _target_: metta.agent.lib.nn_layer_library.Linear
-    input_source: _core_
-    output_size: 1024
-    analyze_weights: true
+    sources:
+      - name: core_relu
+    nn_params:
+      out_features: 1024
+    nonlinearity: nn.Tanh
+    effective_rank: true
 
   _value_:
     _target_: metta.agent.lib.nn_layer_library.Linear
-    input_source: critic_1
-    output_size: 1
+    sources:
+      - name: critic_1
+    nn_params:
+      out_features: 1
     nonlinearity: null
 
   actor_1:
     _target_: metta.agent.lib.nn_layer_library.Linear
-    input_source: _core_
-    output_size: 512
-    analyze_weights: true
+    sources:
+      - name: core_relu
+    nn_params:
+      out_features: 512
 
-  _action_type_:
-    _target_: metta.agent.lib.action.ActionType
-    input_source: actor_1
-    nonlinearity: null
+  _action_embeds_:
+    _target_: metta.agent.lib.action.ActionEmbedding
+    sources:
+      null
+    nn_params:
+      num_embeddings: 100
+      embedding_dim: 16
 
-  _action_param_:
-    _target_: metta.agent.lib.action.ActionParam
-    input_source: actor_1
-    nonlinearity: null
+  _action_:
+    _target_: metta.agent.lib.actor.MettaActorSingleHead
+    sources:
+      - name: actor_1
+      - name: _action_embeds_

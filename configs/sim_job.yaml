@@ -14,4 +14,3 @@ sim_job:
   simulation_suite: ${sim}
   policy_uris:
     - ${policy_uri}
-  selector_type: top

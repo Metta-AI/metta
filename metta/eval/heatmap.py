@@ -58,33 +58,41 @@ def _build_figure(
         matrix.pop("policy_uri").tolist() if "policy_uri" in matrix.columns else matrix.index.tolist()
     )
 
+    # Create mapping of full paths to short display names
+    short_names = [name.split("/")[-1] if "/" in name and name != "Overall" else name for name in eval_names]
+
+    # Create image map with short names as keys
+    img_base = "https://softmax-public.s3.amazonaws.com/policydash/evals/img"
+    img_map = {short_name: f"{img_base}/{short_name.lower()}.png" for short_name in short_names}
+    img_map["Overall"] = ""  # no tooltip image
+
     z = [matrix.mean().tolist(), matrix.max().tolist()] + matrix.values.tolist()
     y_labels = ["Mean", "Max"] + policy_rows
 
-    # ---------------------------------------------------------------- images
-    img_base = "https://softmax-public.s3.amazonaws.com/policydash/evals/img"
-    img_map = {e: f"{img_base}/{e.lower()}.png" for e in eval_names}
-    img_map["Overall"] = ""  # no tooltip image
-
     # customdata for each cell (same for every row of a given column)
-    customdata = [[img_map[ev] for ev in eval_names] for _ in y_labels]
+    customdata = []
+    for _ in y_labels:
+        row_data = []
+        for i, name in enumerate(eval_names):
+            short_name = short_names[i]
+            row_data.append({"img": img_map[short_name], "shortName": short_name, "fullName": name})
+        customdata.append(row_data)
 
     # ---------------------------------------------------------------- chart
     fig = go.Figure(
         go.Heatmap(
             z=z,
             customdata=customdata,
-            x=eval_names,
+            x=short_names,  # Use short names for display on x-axis
             y=y_labels,
             colorscale=colorscale,
             zmin=score_range[0],
             zmax=score_range[1],
             colorbar=dict(title="Score"),
             hovertemplate=(
-                "<b>Policy:</b> %{y}"
-                "<br><b>Evaluation:</b> %{x}"
-                "<br><b>Score:</b> %{z:.2f}"
-                "<extra></extra>"
+                "<b>Policy:</b> %{y}<br>"
+                + "<b>Evaluation:</b> %{customdata.fullName}<br>"
+                + "<b>Score:</b> %{z:.2f}<extra></extra>"
             ),
         )
     )
@@ -101,7 +109,7 @@ def _build_figure(
         margin=dict(l=50, r=50, t=50, b=100),
         plot_bgcolor="white",
         showlegend=False,
-        meta=dict(eval_image_map=img_map),
+        meta=dict(eval_image_map=img_map, short_names=short_names, full_names=eval_names),
     )
 
     # dashed rectangle around aggregates
@@ -124,6 +132,7 @@ def _build_figure(
 def create_heatmap_html_snippet(
     matrix: pd.DataFrame,
     metric: str,
+    replay_base_url: str = "https://softmax-public.s3.us-east-1.amazonaws.com/replays/evals",
     *,
     height: int = 600,
     width: int = 900,
@@ -155,15 +164,22 @@ def create_heatmap_html_snippet(
     fig = _build_figure(matrix, metric, colorscale=colorscale, score_range=score_range, height=height, width=width)
     uid = f"heat_{uuid.uuid4().hex[:8]}"
     fig_json = json.dumps(fig, cls=PlotlyJSONEncoder)
-    eval_names_json = json.dumps(matrix.columns.tolist())
+
+    # Get policy names from index
+    policy_rows = matrix.index.tolist()
+    policy_rows_json = json.dumps(policy_rows)
 
     # ---------------------------------------------------------------- HTML
     return f"""
 <!-- enable pointer events on axis labels and cells -->
 <style>
   .xaxislayer-above .xtick text,
-  .yaxislayer-above .ytick text {{
+  .yaxislayer-above .ytick text,
+  .heatmap .nsewdrag {{
       pointer-events: all !important;
+      cursor: pointer;
+  }}
+  .clickable-cell {{
       cursor: pointer;
   }}
 </style>
@@ -179,7 +195,20 @@ def create_heatmap_html_snippet(
   const fig = {fig_json};
   const el = document.getElementById("{uid}");
   const imgs = fig.layout.meta.eval_image_map;
-  const evalNames = {eval_names_json};
+  const shortNames = fig.layout.meta.short_names;
+  const fullNames = fig.layout.meta.full_names;
+  const policyRows = {policy_rows_json};
+  const replayBaseUrl = "{replay_base_url}";
+  
+  // Create mapping from short names to full paths
+  const shortToFullPath = {{}};
+  for (let i = 0; i < shortNames.length; i++) {{
+    shortToFullPath[shortNames[i]] = fullNames[i];
+  }}
+  
+  // Track double-click timing
+  let lastClickTime = 0;
+  const doubleClickThreshold = 300; // ms
   
   // Track if the mouse is over the heatmap
   let isMouseOverHeatmap = false;
@@ -189,7 +218,7 @@ def create_heatmap_html_snippet(
   el.addEventListener('mouseleave', function() {{
     isMouseOverHeatmap = false;
     setTimeout(() => {{
-      if (!isMouseOverHeatmap && !isMouseOverMap) {{
+      if (!isMouseOverHeatmap && !isMouseOverMap && !isViewLocked) {{
         hideMap();
       }}
     }}, 100);
@@ -210,21 +239,28 @@ def create_heatmap_html_snippet(
     
     // Enhanced event binding for axis labels
     ticks.forEach((tick, i) => {{
-        if (i >= evalNames.length) return; // Safety check
-        const evalName = evalNames[i];
-        if (evalName.toLowerCase() === "overall") return;  // skip aggregate
+        if (i >= shortNames.length) return; // Safety check
+        const shortName = shortNames[i];
+        
+        if (shortName.toLowerCase() === "overall") return;  // skip aggregate
         
         // Make sure these elements have proper cursor and pointer events
         tick.style.pointerEvents = "all";
         tick.style.cursor = "pointer";
         
         // Add multiple event handlers for redundancy
-        tick.addEventListener('click', () => showMap(evalName));
-        tick.addEventListener('mouseenter', () => showMap(evalName));
-        tick.addEventListener('mouseover', () => showMap(evalName));
+        tick.addEventListener('click', () => {{
+            showMap(shortName);
+        }});
+        tick.addEventListener('mouseenter', () => {{
+            showMap(shortName);
+        }});
+        tick.addEventListener('mouseover', () => {{
+            showMap(shortName);
+        }});
         
-        // Add a data attribute for easier debugging
-        tick.setAttribute('data-eval-name', evalName);
+        // Add data attributes for easier debugging
+        tick.setAttribute('data-short-name', shortName);
     }});
     
     // Add a click handler to the entire axis as a fallback
@@ -233,8 +269,9 @@ def create_heatmap_html_snippet(
       xAxis.addEventListener('click', function(e) {{
         // Find the closest tick text element
         const target = e.target.closest('.xtick text');
-        if (target && target.hasAttribute('data-eval-name')) {{
-          showMap(target.getAttribute('data-eval-name'));
+        if (target && target.hasAttribute('data-short-name')) {{
+          const shortName = target.getAttribute('data-short-name');
+          showMap(shortName);
         }}
       }});
     }}
@@ -244,18 +281,88 @@ def create_heatmap_html_snippet(
   function attachHeatmapHover() {{
     el.on('plotly_hover', function(data) {{
       const pts = data.points[0];
-      const evalName = pts.x;
-      if (evalName.toLowerCase() === "overall") return;  // skip aggregate
-      showMap(evalName);
+      const shortName = pts.x;
+      if (shortName.toLowerCase() === "overall") return;  // skip aggregate
+      
+      const yIndex = pts.pointIndex[0];
+      
+      // Skip the first two rows (Mean and Max)
+      if (yIndex < 2) return;
+      
+      // Adjust index to account for Mean and Max rows
+      const policyIndex = yIndex - 2;
+      if (policyIndex >= policyRows.length) return;
+      
+      const policyName = policyRows[policyIndex];
+      
+      // Get full path for replay URL
+      const fullPath = shortToFullPath[shortName] || shortName;
+      
+      // Construct the replay URL
+      const replayUrl = `https://metta-ai.github.io/metta/?replayUrl=${{replayBaseUrl}}/${{policyName}}/${{fullPath}}/replay.json.z`;
+      
+      // Show map with replay URL
+      showMap(shortName, replayUrl);
+    }});
+    
+    // Handle clicks on cells to toggle lock and detect double-clicks
+    el.on('plotly_click', function(data) {{
+      const now = new Date().getTime();
+      const pts = data.points[0];
+      const shortName = pts.x;
+      const yIndex = pts.pointIndex[0];
+      
+      // Skip the first two rows (Mean and Max) and the Overall column
+      if (yIndex < 2 || shortName.toLowerCase() === "overall") return;
+      
+      // First get the policy name
+      const policyIndex = yIndex - 2;
+      if (policyIndex >= policyRows.length) return;
+      
+      const policyName = policyRows[policyIndex];
+      
+      // Get full path for this eval name (for replay URL)
+      const fullPath = shortToFullPath[shortName] || shortName;
+      
+      // Construct the replay URL
+      const replayUrl = `https://metta-ai.github.io/metta/?replayUrl=${{replayBaseUrl}}/${{policyName}}/${{fullPath}}/replay.json.z`;
+      
+      // Handle single vs double click
+      if (now - lastClickTime < doubleClickThreshold) {{
+        // This is a double-click - open replay in new tab
+        window.open(replayUrl, '_blank');
+      }} else {{
+        // This is a single click - toggle lock and update map
+        toggleLock();
+        
+        // Force show the map for this cell regardless of lock state
+        const wasLocked = isViewLocked;
+        isViewLocked = false;
+        showMap(shortName, replayUrl);
+        isViewLocked = wasLocked;
+      }}
+      
+      // Update last click time
+      lastClickTime = now;
     }});
     
     // Only trigger unhover when we're sure we've left both the heatmap and the map viewer
     el.on('plotly_unhover', function() {{
       setTimeout(() => {{
-        if (!isMouseOverHeatmap && !isMouseOverMap) {{
+        if (!isMouseOverHeatmap && !isMouseOverMap && !isViewLocked) {{
           hideMap();
         }}
       }}, 100);
+    }});
+    
+    // Add visual indicators for clickable cells
+    el.on('plotly_afterplot', function() {{
+      const cells = el.querySelectorAll('.heatmap .nsewdrag');
+      cells.forEach(cell => {{
+        cell.classList.add('clickable-cell');
+        cell.style.transition = 'opacity 0.2s';
+        cell.title = "Click to lock view; double-click to open replay";
+      }});
     }});
   }}
 }})();

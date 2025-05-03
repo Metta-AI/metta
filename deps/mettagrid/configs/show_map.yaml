@@ -1,8 +1,6 @@
 # This config is used by `tools.map.view` script.
 report_stats_interval: 100
 normalize_rewards: false
-semi_compact_obs: true
-track_last_action: false
 
 game:
   # no map_builder, tools.utils.view passes the map directly

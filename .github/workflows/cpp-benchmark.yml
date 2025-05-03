@@ -1,0 +1,170 @@
+name: cpp-benchmark
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.run_id }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_call' }}
+on:
+  workflow_dispatch: {}
+  workflow_call:
+    inputs:
+      ref:
+        required: false
+        type: string
+
+jobs:
+  cpp-benchmark:
+    if: >-
+      github.event.pull_request.draft == false || 
+      github.event_name == 'push' || 
+      github.event_name == 'workflow_dispatch' || 
+      github.event_name == 'workflow_call'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      checks: write
+      pull-requests: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+        
+      # Skip file change check if triggered from cpp-checks workflow
+      - name: Check for C++ and Cython file changes
+        id: cpp_benchmark_check_files
+        if: github.event_name != 'workflow_call'
+        uses: ./.github/actions/file-changes
+        with:
+          patterns: 'deps/mettagrid/,*.cpp,*.cxx,*.cc,*.h,*.hpp,*.pyx,*.pxd'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set early exit flag
+        id: set_early_exit
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            # If called from a manual workflow, don't skip anything
+            echo "EARLY_EXIT=false" >> $GITHUB_ENV
+          elif [[ "${{ github.event_name }}" != "workflow_call" && "${{ steps.cpp_benchmark_check_files.outputs.has_relevant_changes }}" == "false" ]]; then
+            # If we looked for changed files and found no relevant changes, exit early
+            echo "EARLY_EXIT=true" >> $GITHUB_ENV
+          else
+            # In all other cases, don't exit early
+            echo "EARLY_EXIT=false" >> $GITHUB_ENV
+          fi
+          
+      - name: Get main branch head SHA
+        if: env.EARLY_EXIT == 'false'
+        id: get-main-sha
+        run: |
+          git fetch origin main
+          echo "MAIN_SHA=$(git rev-parse origin/main)" >> $GITHUB_OUTPUT
+          
+      - name: Setup C++
+        if: env.EARLY_EXIT == 'false'
+        uses: ./.github/actions/cpp-setup
+        
+      - name: Build and run benchmarks with JSON output
+        if: env.EARLY_EXIT == 'false'
+        run: |
+          cd deps/mettagrid
+          
+          # Create output directory (just in case it's not created by the Makefile)
+          mkdir -p benchmark_output
+          
+          # Build and run benchmarks with JSON output
+          echo "Running benchmarks with JSON output..."
+          make bench-json
+          
+          # Verify benchmark output files exist
+          echo "Benchmark output files:"
+          ls -la benchmark_output/
+          
+          # Show file size to verify content
+          echo "Checking JSON file sizes:"
+          du -h benchmark_output/*.json
+          
+          # Optional: Check first few lines of each JSON file to verify format
+          echo "First few lines of JSON output:"
+          for json_file in benchmark_output/*.json; do
+            echo "=== $json_file ==="
+            head -n 10 "$json_file"
+          done
+          
+      - name: Install Bencher CLI
+        if: env.EARLY_EXIT == 'false'
+        uses: bencherdev/bencher@main
+        
+      - name: Validate Bencher Token
+        if: env.EARLY_EXIT == 'false'
+        env:
+          BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Add extra validation to catch this error early
+          if [ -z "$BENCHER_API_TOKEN" ]; then
+            echo "Error: BENCHER_API_TOKEN is empty. Make sure the secret is properly set."
+            exit 1
+          fi
+
+          echo "Bencher token length: ${#BENCHER_API_TOKEN}"
+          echo "Bencher token SHA256: $(echo -n "$BENCHER_API_TOKEN" | sha256sum)"
+          
+      - name: Upload to Bencher (Main Branch Baseline)
+        if: env.EARLY_EXIT == 'false' && github.ref == 'refs/heads/main'
+        env:
+          BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd deps/mettagrid/benchmark_output
+          ls -al
+          if ls *.json 1> /dev/null 2>&1; then
+            for file in *.json; do
+              bencher run \
+                --project mettagrid-sv3f5i2k \
+                --token "$BENCHER_API_TOKEN" \
+                --branch main \
+                --threshold-measure latency \
+                --threshold-test t_test \
+                --threshold-max-sample-size 64 \
+                --threshold-upper-boundary 0.99 \
+                --thresholds-reset \
+                --testbed ubuntu-latest \
+                --adapter cpp_google \
+                --github-actions "$GITHUB_TOKEN" \
+                --file "$file" > /dev/null
+            done
+          else
+            echo "NO TEST RESULTS FOUND"
+          fi
+          
+      - name: Upload to Bencher (PR Performance Changes)
+        if: env.EARLY_EXIT == 'false' && github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
+        env:
+          BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd deps/mettagrid/benchmark_output
+          ls -al
+          if ls *.json 1> /dev/null 2>&1; then
+            for file in *.json; do
+              bencher run \
+                --project mettagrid-sv3f5i2k \
+                --token "$BENCHER_API_TOKEN" \
+                --branch "$GITHUB_HEAD_REF" \
+                --start-point "main" \
+                --start-point-hash "${{ steps.get-main-sha.outputs.MAIN_SHA }}" \
+                --start-point-clone-thresholds \
+                --start-point-reset \
+                --testbed ubuntu-latest \
+                --adapter cpp_google \
+                --github-actions "$GITHUB_TOKEN" \
+                --file "$file" > /dev/null
+            done
+          else
+            echo "NO TEST RESULTS FOUND"
+          fi
+          
+      - name: Skip benchmarking (no relevant changes)
+        if: env.EARLY_EXIT == 'true'
+        run: |
+          echo "No files in deps/mettagrid were changed. Skipping benchmarks."
+          echo "This check passes automatically when no relevant files are changed."

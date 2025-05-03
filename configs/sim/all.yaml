@@ -2,6 +2,8 @@ defaults:
   - sim
   - _self_
 
+name: all
+
 simulations:
   navigation/emptyspace_withinsight:
     env: env/mettagrid/navigation/evals/emptyspace_withinsight
@@ -31,32 +33,79 @@ simulations:
     env: env/mettagrid/navigation/evals/labyrinth
   navigation/radialmaze:
     env: env/mettagrid/navigation/evals/radialmaze
-  object_use/altar_use_free:
-    env: env/mettagrid/object_use/evals/altar_use_free
-  object_use/altar_use:
-    env: env/mettagrid/object_use/evals/altar_use
-  object_use/armory_use_free:
-    env: env/mettagrid/object_use/evals/armory_use_free
-  object_use/armory_use:
-    env: env/mettagrid/object_use/evals/armory_use
-  object_use/generator_use_free:
-    env: env/mettagrid/object_use/evals/generator_use_free
-  object_use/generator_use:
-    env: env/mettagrid/object_use/evals/generator_use
-  object_use/lasery_use_free:
-    env: env/mettagrid/object_use/evals/lasery_use_free
-  object_use/lasery_use:
-    env: env/mettagrid/object_use/evals/lasery_use
-  object_use/mine_use:
-    env: env/mettagrid/object_use/evals/mine_use
-  object_use/shoot_out:
-    env: env/mettagrid/object_use/evals/shoot_out
-  object_use/swap_in:
-    env: env/mettagrid/object_use/evals/swap_in
-  object_use/swap_out:
-    env: env/mettagrid/object_use/evals/swap_out
-  object_use/temple_use_free:
-    env: env/mettagrid/object_use/evals/temple_use_free
+    policy_agents_pct: 1.0
+  memory/easy:
+    env: env/mettagrid/memory/evals/easy
+    policy_agents_pct: 1.0
+  memory/medium:
+    env: env/mettagrid/memory/evals/medium
+    policy_agents_pct: 1.0
+  memory/hard:
+    env: env/mettagrid/memory/evals/hard
+    policy_agents_pct: 1.0
+  multiagent/radial_cross:
+    env: env/mettagrid/multiagent/evals/radial_cross
+    policy_agents_pct: 1.0
+  multiagent/radial_cross_large:
+    env: env/mettagrid/multiagent/evals/radial_cross_large
+    policy_agents_pct: 1.0
+  multiagent/radial_diffusion:
+    env: env/mettagrid/multiagent/evals/radial_diffusion
+    policy_agents_pct: 1.0
+  multiagent/spine_maze_extended:
+    env: env/mettagrid/multiagent/evals/spine_maze_extended
+    policy_agents_pct: 1.0
   simple_npc:
     env: env/mettagrid/simple
-    npc_policy_uri: wandb://run/b.daveey.t.8.rdr9.3
+    policy_agents_pct: 0.5
+    npc_policy_uri: wandb://run/b.alex.robust.npc.s.s.004
+
+
+
+
+
+
+
+  # object_use/altar_use_free:
+  #   env: env/mettagrid/object_use/evals/altar_use_free
+  #   policy_agents_pct: 1.0
+  # object_use/altar_use:
+  #   env: env/mettagrid/object_use/evals/altar_use
+  #   policy_agents_pct: 1.0
+  # object_use/armory_use_free:
+  #   env: env/mettagrid/object_use/evals/armory_use_free
+  #   policy_agents_pct: 1.0
+  # object_use/armory_use:
+  #   env: env/mettagrid/object_use/evals/armory_use
+  #   policy_agents_pct: 1.0
+  # object_use/generator_use_free:
+  #   env: env/mettagrid/object_use/evals/generator_use_free
+  #   policy_agents_pct: 1.0
+  # object_use/generator_uses:
+  #   env: env/mettagrid/object_use/evals/generator_use
+  #   policy_agents_pct: 1.0
+  # object_use/lasery_use_free:
+  #   env: env/mettagrid/object_use/evals/lasery_use_free
+  #   policy_agents_pct: 1.0
+  # object_use/lasery_use:
+  #   env: env/mettagrid/object_use/evals/lasery_use
+  #   policy_agents_pct: 1.0
+  # object_use/mine_use:
+  #   env: env/mettagrid/object_use/evals/mine_use
+  #   policy_agents_pct: 1.0
+  # object_use/shoot_out:
+  #   env: env/mettagrid/object_use/evals/shoot_out
+  #   policy_agents_pct: 1.0
+  # object_use/swap_in:
+  #   env: env/mettagrid/object_use/evals/swap_in
+  #   policy_agents_pct: 1.0
+  # object_use/swap_out:
+  #   env: env/mettagrid/object_use/evals/swap_out
+  #   policy_agents_pct: 1.0
+  # object_use/temple_use_free:
+  #   env: env/mettagrid/object_use/evals/temple_use_free
+  #   policy_agents_pct: 1.0
+  # simple_npc:
+  #   env: env/mettagrid/simple
+  #   policy_agents_pct: 0.5
+  #   npc_policy_uri: wandb://run/b.daveey.t.8.rdr9.3
