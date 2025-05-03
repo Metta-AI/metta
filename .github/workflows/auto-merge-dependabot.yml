@@ -1,0 +1,30 @@
+name: Dependabot fetch metadata
+on: pull_request
+
+permissions:
+  pull-requests: write
+
+jobs:
+  dependabot:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    steps:
+      - name: Fetch Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Add a label for the update type
+        run: gh pr edit "$PR_URL" --add-label "${{ steps.metadata.outputs.update-type }}"
+        env:
+          PR_URL: ${{github.event.pull_request.html_url}}
+      - name: Enable auto-merge
+        # Reminder to the audience: The auto-merge won't trigger until the PR is approved.
+        run: gh pr edit "$PR_URL" --enable-auto-merge
+        env:
+          PR_URL: ${{github.event.pull_request.html_url}}
+      - name: Approve and merge if patch update
+        if: steps.metadata.outputs.update-type == 'version-update:semver-patch'
+        run: gh pr review --approve "$PR_URL"
+        env:
+          PR_URL: ${{github.event.pull_request.html_url}}
