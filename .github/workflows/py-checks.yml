@@ -53,7 +53,7 @@ jobs:
     uses: ./.github/workflows/py-lint.yml
     with:
       ref: ${{ github.ref }}
-      skip_file_check: true
+      called_from_workflow: true
     secrets: inherit
   
   # Run test workflow
@@ -63,7 +63,7 @@ jobs:
     uses: ./.github/workflows/py-test.yml
     with:
       ref: ${{ github.ref }}
-      skip_file_check: true
+      called_from_workflow: true
     secrets: inherit
   
   # Run benchmark workflow
@@ -76,7 +76,7 @@ jobs:
     uses: ./.github/workflows/py-benchmark.yml
     with:
       ref: ${{ github.ref }}
-      skip_file_check: true
+      called_from_workflow: true
     secrets: inherit
 
   # Run training integration test - always run regardless of file changes
@@ -84,5 +84,6 @@ jobs:
     uses: ./.github/workflows/py-training-integration-test.yml
     with:
       ref: ${{ github.ref }}
+      called_from_workflow: true
     secrets: inherit
 

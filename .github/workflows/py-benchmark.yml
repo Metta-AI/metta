@@ -9,7 +9,7 @@ on:
       ref:
         required: false
         type: string
-      skip_file_check:
+      called_from_workflow:
         required: false
         type: boolean
         default: false
@@ -35,7 +35,7 @@ jobs:
       # Skip file change check if triggered from py-checks workflow
       - name: Check for Python file changes
         id: py_benchmark_check_files
-        if: inputs.skip_file_check != true
+        if: inputs.called_from_workflow != true
         uses: ./.github/actions/file-changes
         with:
           patterns: '*.py'
@@ -45,19 +45,12 @@ jobs:
                   
       - name: Set early exit flag
         id: set_early_exit
-        if: inputs.skip_file_check != true
         run: |
-          if [[ "${{ github.event_name }}" == "pull_request" && "${{ steps.py_benchmark_check_files.outputs.has_relevant_changes }}" != "true" ]]; then
-            echo "EARLY_EXIT=true" >> $GITHUB_ENV
-          else
+          if [[ "${{ github.event_name }}" == "pull_request" || "${{ steps.py_benchmark_check_files.outputs.has_relevant_changes }}" == "true" ]]; then
             echo "EARLY_EXIT=false" >> $GITHUB_ENV
+          else
+            echo "EARLY_EXIT=true" >> $GITHUB_ENV
           fi
-      
-      # Always run if triggered from py-checks
-      - name: Set early exit flag for workflow_call
-        if: inputs.skip_file_check == true
-        run: |
-          echo "EARLY_EXIT=false" >> $GITHUB_ENV
             
       - name: Skip benchmarking (no relevant changes)
         if: env.EARLY_EXIT == 'true'

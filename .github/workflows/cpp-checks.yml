@@ -52,7 +52,7 @@ jobs:
     uses: ./.github/workflows/cpp-lint.yml
     with:
       ref: ${{ github.ref }}
-      skip_file_check: true
+      called_from_workflow: true
     secrets: inherit
   
   # Run test workflow
@@ -62,7 +62,7 @@ jobs:
     uses: ./.github/workflows/cpp-test.yml
     with:
       ref: ${{ github.ref }}
-      skip_file_check: true
+      called_from_workflow: true
     secrets: inherit
   
   # Run benchmark workflow
@@ -75,6 +75,6 @@ jobs:
     uses: ./.github/workflows/cpp-benchmark.yml
     with:
       ref: ${{ github.ref }}
-      skip_file_check: true
+      called_from_workflow: true
     secrets: inherit
 
