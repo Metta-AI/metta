@@ -22,17 +22,17 @@ def find_repo_root(start_path=None):
     return None
 
 
-def sort_requirements(repo_root):
-    """Sort the requirements.txt file and rewrite it."""
-    requirements_path = os.path.join(repo_root, "requirements.txt")
-
+def sort_requirements_file(file_path):
+    """Sort a single requirements file and rewrite it."""
     # Check if the file exists
-    if not os.path.isfile(requirements_path):
-        print(f"Error: {requirements_path} not found.")
-        sys.exit(1)
+    if not os.path.isfile(file_path):
+        print(f"Error: {file_path} not found.")
+        return False
+
+    print(f"Processing: {file_path}")
 
     # Open the file for reading
-    with open(requirements_path, "r") as file:
+    with open(file_path, "r") as file:
         # Read all lines and remove trailing whitespace
         lines = [line.strip() for line in file.readlines() if line.strip()]
 
@@ -40,11 +40,12 @@ def sort_requirements(repo_root):
     sorted_lines = sorted(lines, key=str.lower)
 
     # Write the sorted lines back to the file
-    with open(requirements_path, "w") as file:
+    with open(file_path, "w") as file:
         for line in sorted_lines:
             file.write(line + "\n")
 
-    print(f"Requirements file at {requirements_path} has been sorted successfully.")
+    print(f"Requirements file at {file_path} has been sorted successfully.")
+    return True
 
 
 def main():
@@ -55,7 +56,20 @@ def main():
 
     if repo_root:
         print(f"Repository root found at: {repo_root}")
-        sort_requirements(repo_root)
+
+        # Define paths to both requirements files
+        main_requirements = os.path.join(repo_root, "requirements.txt")
+        mettagrid_requirements = os.path.join(repo_root, "deps", "mettagrid", "requirements.txt")
+
+        # Sort both files
+        success_count = 0
+        if sort_requirements_file(main_requirements):
+            success_count += 1
+
+        if sort_requirements_file(mettagrid_requirements):
+            success_count += 1
+
+        print(f"Sorted {success_count} requirements file(s) successfully.")
     else:
         print("Error: Could not find repository root.")
         sys.exit(1)
