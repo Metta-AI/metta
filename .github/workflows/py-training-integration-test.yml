@@ -1,6 +1,6 @@
 name: training-integration-test
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.run_id }}
   cancel-in-progress: ${{ github.event_name != 'workflow_call' }}
 on:
   workflow_dispatch: {}
@@ -26,8 +26,13 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref || github.ref }}
-             
+
+      - name: Setup Python
+        if: github.event_name != 'workflow_call'
+        uses: ./.github/actions/py-setup
+        
       - name: List installed packages
+        if: github.event_name != 'workflow_call'
         run: |
           source venv/bin/activate
           pip list
