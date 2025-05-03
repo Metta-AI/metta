@@ -36,7 +36,6 @@ class Simulator:
         self.trunc = np.zeros(self.vecenv.num_agents)
         self.time_steps = torch.zeros((self.num_agents, 1), dtype=torch.long, device=self.device)
 
-
     def actions(self):
         """Get the actions for the current timestep"""
         with torch.no_grad():
@@ -48,7 +47,7 @@ class Simulator:
         """Step the simulator forward one timestep"""
         (self.obs, self.rewards, self.dones, self.trunc, self.infos) = self.vecenv.step(actions.cpu().numpy())
         self.total_rewards += self.rewards
-        self.time_steps +=1
+        self.time_steps += 1
         self.time_steps[self.dones] = 0
         self.time_steps[self.trunc] = 0
 
@@ -107,7 +106,7 @@ def play(config: SimulationConfig, policy_record: PolicyRecord):
             actions, _, _, _, _ = policy(obs, policy_state)
             if actions.dim() == 0:  # scalar tensor like tensor(2)
                 actions = torch.tensor([actions.item()])
-            
+
             time_steps += 1
 
         renderer.update(

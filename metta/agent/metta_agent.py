@@ -153,7 +153,7 @@ class MettaAgent(nn.Module):
     def total_params(self):
         return self._total_params
 
-    def forward(self, x, state: PolicyState, action=None, time_steps: Optional[torch.Tensor]=None):
+    def forward(self, x, state: PolicyState, action=None, time_steps: Optional[torch.Tensor] = None):
         td = TensorDict(
             {
                 "x": x,

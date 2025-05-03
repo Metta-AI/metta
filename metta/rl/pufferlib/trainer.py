@@ -338,9 +338,9 @@ class PufferTrainer:
                     state = PolicyState(lstm_h=lstm_h[:, gpu_env_id], lstm_c=lstm_c[:, gpu_env_id])
                 else:
                     state = PolicyState()
-                
+
                 actions, logprob, _, value, _ = policy(o_device, state, time_steps=self.time_steps[gpu_env_id])
-                
+
                 if lstm_h is not None and lstm_c is not None:
                     lstm_h[:, gpu_env_id] = state.lstm_h
                     lstm_c[:, gpu_env_id] = state.lstm_c

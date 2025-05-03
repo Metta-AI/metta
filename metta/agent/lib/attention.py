@@ -129,7 +129,7 @@ class AttentionBlock(nn.Module):
     def ensure_kv_cache(self, batch_size: int, context_size: int, device: torch.device, dtype: torch.dtype):
         if self.has_kv_cache and self.key_cache.shape[0] == batch_size:
             return
-        
+
         shape = (batch_size, context_size, self.num_heads, self.head_dim)
         key_cache = torch.zeros(shape, device=device, dtype=dtype)
         value_cache = torch.zeros(shape, device=device, dtype=dtype)
