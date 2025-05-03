@@ -60,7 +60,7 @@ def test_dependency_import(dependency):
         "mettagrid.actions.swap",
         "mettagrid.action_handler",
         "mettagrid.event",
-        "mettagrid.grid_env",
+        "mettagrid.mettagrid_c",
         "mettagrid.grid_object",
     ],
 )
