@@ -30,7 +30,7 @@ jobs:
         id: check_cpp_files
         uses: ./.github/actions/file-changes
         with:
-          patterns: 'deps/mettagrid/,*.cpp,*.cxx,*.cc,*.h,*.hpp,*.pyx,*.pxd'
+          patterns: 'mettagrid/,*.cpp,*.cxx,*.cc,*.h,*.hpp,*.pyx,*.pxd'
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
   # This job runs if no relevant files changed

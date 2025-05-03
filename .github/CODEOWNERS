@@ -7,15 +7,15 @@
 /ruff.toml @rjwalters
 
 # MettaScope
-/deps/mettagrid/player @treeform @daveey
+/mettagrid/player @treeform @daveey
 
 # DevOps
 /devops/tf @daveey @berekuk
 /devops @daveey
 
 # Specific packages
-/deps/mettagrid/mettagrid/map @sasmith @berekuk
-/deps/mettagrid/mettagrid @sasmith
+/mettagrid/mettagrid/map @sasmith @berekuk
+/mettagrid/mettagrid @sasmith
 
 /metta/agent @Al-does @daveey
 /metta/rl @Al-does @daveey

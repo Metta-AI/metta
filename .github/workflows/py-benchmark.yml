@@ -37,7 +37,7 @@ jobs:
         with:
           patterns: '*.py'
           specific_files: 'requirements.txt,setup.py'
-          directory_paths: 'tests/,benchmarks/,deps/mettagrid/tests/,deps/mettagrid/benchmarks/'
+          directory_paths: 'tests/,benchmarks/,mettagrid/tests/,mettagrid/benchmarks/'
           github-token: ${{ secrets.GITHUB_TOKEN }}
                   
       - name: Set early exit flag
@@ -87,7 +87,7 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}
         run: |
           source venv/bin/activate
-          cd deps/mettagrid
+          cd mettagrid
           pytest --benchmark-json=mettagrid_benchmark_results.json
           mv mettagrid_benchmark_results.json ../..
 
