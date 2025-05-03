@@ -1,5 +1,4 @@
 policy_uri: ${..policy_uri}
-eval_db_uri: ${..eval_db_uri}
 
 view_type: all
 output_path: /tmp/dashboard.html

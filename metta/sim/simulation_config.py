@@ -29,7 +29,6 @@ class SimulationSuiteConfig(SimulationConfig):
     """A suite of named simulations, with suite-level defaults injected."""
 
     name: str
-    run_dir: str
     simulations: Dict[str, SimulationConfig]
     # —— don't need env bc all the simulations will specify ——
     env: Optional[str] = None

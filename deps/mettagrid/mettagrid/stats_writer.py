@@ -7,7 +7,6 @@ No knowledge of policy mapping or run-level merge logic lives here.
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import duckdb
@@ -46,7 +45,7 @@ class MettaGridStatsWriter:
 
     def __init__(self, db_path: str, *, flush_every: int = 512) -> None:
         self._conn = duckdb.connect(db_path)
-        for stmt in filter(None, (s.strip() for s in _SCHEMA.split(";"))):
+        for stmt in filter(None, (s.strip() for s in SCHEMA.split(";"))):
             self._conn.execute(stmt)
         self._flush_every = flush_every
         self._buf: List[Tuple[int, int, str, float]] = []

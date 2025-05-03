@@ -9,7 +9,6 @@ defaults:
 
 policy_uri: wandb://run/alex.local.411
 npc_policy_uri: null
-eval_db_uri: null
 
 env_overrides:
   game:
@@ -22,7 +21,6 @@ env:
 eval:
   policy_uri: ${..policy_uri}
   npc_policy_uri: ${..npc_policy_uri}
-  eval_db_uri: ${..eval_db_uri}
   env: /env/mettagrid/prog_3.yaml
   num_envs: 10
   num_episodes: 10

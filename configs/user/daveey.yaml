@@ -33,9 +33,7 @@ npc_policy_uri: ${policy_uri}
 # npc_policy_uri: wandb://run/b.daveey.t.16.dr0
 # policy_uri: ${trained_policy_uri}
 # npc_policy_uri: ${trained_policy_uri}
-# eval_db_uri: wandb://artifacts/daveey_eval_testing
 
-eval_db_uri: ${run_dir}/eval_stats
 
 analyzer:
   policy_uri: ${..policy_uri}
