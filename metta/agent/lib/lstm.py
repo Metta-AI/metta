@@ -33,7 +33,7 @@ class LSTM(LayerBase):
     def _forward(self, td: TensorDict):
         x = td["x"]
         hidden = td[self._sources[0]["name"]]
-        state = td["state"]
+        state = td.get("state")
 
         if state is not None:
             split_size = self.num_layers

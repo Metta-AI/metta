@@ -170,6 +170,8 @@ class PufferTrainer:
             vectorization=self.cfg.vectorization,
         )
 
+        self.time_steps = torch.zeros((self.vecenv.num_agents, 1), dtype=torch.long, device=torch.device(self.device))
+
         logger.info(f"PufferTrainer initialization complete on device: {self.device}")
 
     def train(self):
@@ -291,6 +293,7 @@ class PufferTrainer:
     @pufferlib.utils.profile
     def _evaluate(self):
         experience, profile = self.experience, self.profile
+        self.policy.eval()
 
         with profile.eval_misc:
             policy = self.policy
@@ -328,17 +331,31 @@ class PufferTrainer:
                 o_device = o.to(self.device, non_blocking=True)
                 r = torch.as_tensor(r)
                 d = torch.as_tensor(d)
+                t = torch.as_tensor(t)
 
             with profile.eval_forward, torch.no_grad():
-                state = PolicyState(lstm_h=lstm_h[:, gpu_env_id], lstm_c=lstm_c[:, gpu_env_id])
-                actions, logprob, _, value, _ = policy(o_device, state)
-                lstm_h[:, gpu_env_id] = state.lstm_h
-                lstm_c[:, gpu_env_id] = state.lstm_c
+                if lstm_h is not None and lstm_c is not None:
+                    state = PolicyState(lstm_h=lstm_h[:, gpu_env_id], lstm_c=lstm_c[:, gpu_env_id])
+                else:
+                    state = PolicyState()
+                
+                actions, logprob, _, value, _ = policy(o_device, state, time_steps=self.time_steps[gpu_env_id])
+                
+                if lstm_h is not None and lstm_c is not None:
+                    lstm_h[:, gpu_env_id] = state.lstm_h
+                    lstm_c[:, gpu_env_id] = state.lstm_c
 
                 if self.device == "cuda":
                     torch.cuda.synchronize()
 
             with profile.eval_misc:
+                self.time_steps += 1
+                dones = d | t
+                if contiguous_env_ids:
+                    self.time_steps[gpu_env_id][dones] = 0
+                else:
+                    self.time_steps[gpu_env_id[dones]] = 0
+
                 value = value.flatten()
                 actions = actions.cpu().numpy()
                 mask = torch.as_tensor(mask)  # * policy.mask)
@@ -366,12 +383,14 @@ class PufferTrainer:
         # TODO: Better way to enable multiple collects
         experience.ptr = 0
         experience.step = 0
+        # assert self.time_steps[0, 0] == 0
         return self.stats, infos
 
     @pufferlib.utils.profile
     def _train(self):
         experience, profile = self.experience, self.profile
         self.losses = self._make_losses()
+        self.policy.train()
 
         with profile.train_misc:
             idxs = experience.sort_training_data()

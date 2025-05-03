@@ -1,5 +1,5 @@
 import logging
-from typing import List, Tuple, Union
+from typing import List, Tuple, Union, Optional
 
 import gymnasium as gym
 import hydra
@@ -153,16 +153,18 @@ class MettaAgent(nn.Module):
     def total_params(self):
         return self._total_params
 
-    def forward(self, x, state: PolicyState, action=None):
+    def forward(self, x, state: PolicyState, action=None, time_steps: Optional[torch.Tensor]=None):
         td = TensorDict(
             {
                 "x": x,
-                "state": None,
             }
         )
 
-        if state.lstm_h is not None:
+        if state.lstm_h is not None and state.lstm_c is not None:
             td["state"] = torch.cat([state.lstm_h, state.lstm_c], dim=0).to(x.device)
+
+        if time_steps is not None:
+            td["time_steps"] = time_steps
 
         self.components["_value_"](td)
         value = td["_value_"]
@@ -170,9 +172,10 @@ class MettaAgent(nn.Module):
         self.components["_action_"](td)
         logits = td["_action_"]
 
-        split_size = self.core_num_layers
-        state.lstm_h = td["state"][:split_size]
-        state.lstm_c = td["state"][split_size:]
+        if state.lstm_h is not None and state.lstm_c is not None:
+            split_size = self.core_num_layers
+            state.lstm_h = td["state"][:split_size]
+            state.lstm_c = td["state"][split_size:]
 
         action_logit_index = self._convert_action_to_logit_index(action) if action is not None else None
         action_logit_index, logprob_act, entropy, log_sftmx_logits = sample_logits(logits, action_logit_index)
