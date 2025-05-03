@@ -15,12 +15,14 @@ pettingzoo==1.24.1
 plotly==6.0.1
 pydantic==2.11.4
 pyright==1.1.400
-pytest==8.3.3
 pytest-benchmark==5.1.0
 pytest-cov==6.1.1
+pytest==8.3.3
 python-dotenv==1.1.0
 PyYAML==6.0.2
 raylib==5.5.0.1
+raylib==5.5.0.2
+rich==13.9.4
 rich==13.9.4
 ruff==0.11.5
 scipy==1.14.1
@@ -32,5 +34,3 @@ torchrl==0.6.0
 tqdm==4.67.1
 uvicorn==0.32.1
 wandb==0.19.9
-raylib==5.5.0.2
-rich==13.9.4
