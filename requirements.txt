@@ -36,4 +36,3 @@ tqdm==4.67.1
 uvicorn==0.32.1
 wandb-core==0.17.0b11
 wandb==0.19.10
-
