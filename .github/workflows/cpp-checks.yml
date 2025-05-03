@@ -21,7 +21,7 @@ jobs:
     if: github.event.pull_request.draft == false || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     outputs:
-      has_relevant_changes: ${{ github.event_name == 'push' || steps.check_cpp_files.outputs.has_relevant_changes }}
+      has_relevant_changes: ${{ steps.check_cpp_files.outputs.has_relevant_changes }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -33,22 +33,23 @@ jobs:
           patterns: 'mettagrid/,*.cpp,*.cxx,*.cc,*.h,*.hpp,*.pyx,*.pxd'
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-  # This job runs if no relevant files changed
+  # This job runs to flag that we are skipping tests because no relevant files changed and this is a pull_request
   skip-checks-cpp:
     needs: check-files-cpp
-    if: needs.check-files-cpp.outputs.has_relevant_changes != 'true'
+    if: needs.check-files-cpp.outputs.has_relevant_changes == 'false'
     runs-on: ubuntu-latest
     steps:
       - name: Skip tests and linting
         id: skip_checks_cpp
         run: |
+          echo "CI was triggered by a pull request event: ${github.event_name}"
           echo "No C++ files were changed. Skipping tests, linting, and benchmarks."
           echo "This check passes automatically when no relevant C++ files are changed."
 
   # Run lint workflow
   call-lint-cpp:
     needs: check-files-cpp
-    if: needs.check-files-cpp.outputs.has_relevant_changes == 'true'
+    if: github.event_name != 'pull_request' || needs.check-files-cpp.outputs.has_relevant_changes == 'true'
     uses: ./.github/workflows/cpp-lint.yml
     with:
       ref: ${{ github.ref }}
@@ -57,7 +58,7 @@ jobs:
   # Run test workflow
   call-test-cpp:
     needs: check-files-cpp
-    if: needs.check-files-cpp.outputs.has_relevant_changes == 'true'
+    if: github.event_name != 'pull_request' || needs.check-files-cpp.outputs.has_relevant_changes == 'true'
     uses: ./.github/workflows/cpp-test.yml
     with:
       ref: ${{ github.ref }}
@@ -66,7 +67,7 @@ jobs:
   # Run benchmark workflow
   call-benchmark-cpp:
     needs: check-files-cpp
-    if: needs.check-files-cpp.outputs.has_relevant_changes == 'true'
+    if: github.event_name != 'pull_request' || needs.check-files-cpp.outputs.has_relevant_changes == 'true'
     permissions:
       checks: write
       pull-requests: write
