@@ -16,9 +16,6 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import duckdb
 
-# --------------------------------------------------------------------------- #
-# Schema (kept deliberately minimal—no FKs)                                  #
-# --------------------------------------------------------------------------- #
 SCHEMA = """
 CREATE SEQUENCE IF NOT EXISTS episode_id_seq;
 

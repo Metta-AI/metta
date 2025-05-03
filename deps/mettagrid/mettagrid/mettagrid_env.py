@@ -1,8 +1,11 @@
 # mettagrid/mettagrid_env.py
 from __future__ import annotations
 
-import logging
 from typing import Optional
+import os
+import uuid
+from pathlib import Path
+import copy
 
 import gym
 import numpy as np
@@ -13,8 +16,6 @@ from mettagrid.config.utils import simple_instantiate
 from mettagrid.mettagrid_c import MettaGrid  # pylint: disable=E0611
 from mettagrid.stats_writer import MettaGridStatsWriter
 
-logger = logging.getLogger(__name__)
-
 
 class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     def __init__(
@@ -23,7 +24,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         render_mode: Optional[str],
         env_map: Optional[np.ndarray] = None,
         buf=None,
-        stats_writer_path: Optional[str] = None,
+        stats_writer_dir: Optional[str] = None,
         **kwargs,
     ):
         self._render_mode = render_mode
@@ -37,7 +38,12 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self.labels = self._env_cfg.get("labels", None)
 
         self.stats_writer: Optional[MettaGridStatsWriter] = None
-        if stats_writer_path:
+        if stats_writer_dir:
+            fname = f"stats_{os.getpid()}_{uuid.uuid4().hex[:6]}.duckdb"
+            stats_writer_path = Path(stats_writer_dir) / fname
+            self._writer_path = Path(stats_writer_path).resolve()
+            self.stats_writer = MettaGridStatsWriter(self._writer_path)
+
             self.stats_writer = MettaGridStatsWriter(stats_writer_path)
         else:
             self.stats_writer = None
@@ -165,8 +171,80 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     @property
     def _max_steps(self):
-        return self._env_cfg.game.max_steps
+    
+        @property
+    def single_observation_space(self):
+        return self._env.observation_space
+
+    @property
+    def single_action_space(self):
+        return self._env.action_space
+
+    def action_names(self):
+        return self._env.action_names()
+
+    @property
+    def player_count(self):
+        return self._num_agents
+
+    @property
+    def num_agents(self):
+        return self._num_agents
+
+    def render(self):
+        if self._renderer is None:
+            return None
+
+        return self._renderer.render(self._c_env.current_timestep(), self._c_env.grid_objects())
+
+    @property
+    def done(self):
+        return self.should_reset
+
+    @property
+    def grid_features(self):
+        return self._env.grid_features()
+
+    @property
+    def global_features(self):
+        return []
+
+    @property
+    def render_mode(self):
+        return self._render_mode
+
+    @property
+    def map_width(self):
+        return self._c_env.map_width()
+
+    @property
+    def map_height(self):
+        return self._c_env.map_height()
+
+    @property
+    def grid_objects(self):
+        return self._c_env.grid_objects()
+
+    @property
+    def max_action_args(self):
+        return self._c_env.max_action_args()
+
+    @property
+    def action_success(self):
+        return np.asarray(self._c_env.action_success())
+
+    def object_type_names(self):
+        return self._c_env.object_type_names()
+
+    def inventory_item_names(self):
+        return self._c_env.inventory_item_names()
+
+    def close(self):
+        pass
 
     def __del__(self):
         if getattr(self, "stats_writer", None):
             self.stats_writer.close()
+
+# Ensure resolvers are registered when this module is imported
+register_resolvers()
