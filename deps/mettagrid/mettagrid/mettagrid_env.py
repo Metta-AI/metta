@@ -18,7 +18,13 @@ logger = logging.getLogger(__name__)
 
 class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     def __init__(
-        self, env_cfg: DictConfig, render_mode: Optional[str], env_map: Optional[np.ndarray] = None, buf=None, **kwargs
+        self,
+        env_cfg: DictConfig,
+        render_mode: Optional[str],
+        env_map: Optional[np.ndarray] = None,
+        buf=None,
+        stats_writer_path: Optional[str] = None,
+        **kwargs,
     ):
         self._render_mode = render_mode
         self._cfg_template = env_cfg
@@ -31,9 +37,10 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self.labels = self._env_cfg.get("labels", None)
 
         self.stats_writer: Optional[MettaGridStatsWriter] = None
-        writer_path = self._env_cfg.get("stats_writer_path")
-        if writer_path:
-            self.stats_writer = MettaGridStatsWriter(writer_path)
+        if stats_writer_path:
+            self.stats_writer = MettaGridStatsWriter(stats_writer_path)
+        else:
+            self.stats_writer = None
 
         super().__init__(buf)
 

@@ -37,12 +37,17 @@ logger = logging.getLogger(__name__)
 class Simulation:
     def __init__(
         self,
+        name: str,
         config: SimulationConfig,
         policy_pr: PolicyRecord,
         policy_store: PolicyStore,
+<<<<<<< HEAD
         replay_path: str | None = None,
         name: str = "",
+=======
+>>>>>>> 137a628d (cp)
         wandb_run=None,
+        stats_dir: str | None = None,
     ):
 <<<<<<< HEAD
         self._config = config
@@ -60,9 +65,7 @@ class Simulation:
         self._env_cfg = config_from_path(config.env, config.env_overrides)
         self._env_name = config.env
 
-        stats_root: Path = (
-            Path(config.stats_dir).expanduser() if config.stats_dir is not None else (Path.cwd() / "stats" / self._name)
-        )
+        stats_root: Path = Path(stats_dir).expanduser() if stats_dir is not None else Path("tmp/stats") / self._name
         stats_root.mkdir(parents=True, exist_ok=True)
 
         # unique suffix so concurrent workers never step on each other
@@ -460,6 +463,7 @@ class SimulationSuite:
         policy_store: PolicyStore,
         *,
         wandb_run=None,
+<<<<<<< HEAD
         replay_dir: str | None = None,
     ):
 <<<<<<< HEAD
@@ -494,8 +498,15 @@ class SimulationSuite:
         # Run all simulations and gather results by name
         return {name: sim.simulate(epoch) for name, sim in self._simulations.items()}
 =======
+=======
+        stats_dir: str | None = None,
+    ):
+        def sim_stats_dir(name: str) -> str | None:
+            return f"{stats_dir}/{name}" if stats_dir and name else None
+
+>>>>>>> 137a628d (cp)
         self._sims: Dict[str, Simulation] = {
-            n: Simulation(cfg, policy_pr, policy_store, name=n, wandb_run=wandb_run)
+            n: Simulation(n, cfg, policy_pr, policy_store, wandb_run=wandb_run, stats_dir=sim_stats_dir(n))
             for n, cfg in config.simulations.items()
         }
 

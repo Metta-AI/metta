@@ -1,7 +1,6 @@
 # metta/sim/simulation_config.py
 
-from pathlib import Path
-from typing import Dict, Literal, Optional
+from typing import Dict, Optional
 
 from pydantic import model_validator
 
