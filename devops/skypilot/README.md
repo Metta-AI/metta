@@ -1,43 +1,76 @@
-# SkyPilot Integration
+# SkyPilot Launch Script
 
-This directory contains configuration and documentation for SkyPilot integration with the project.
+This script provides a convenient way to launch training jobs on AWS using SkyPilot.
 
-## Directory Structure
+## Prerequisites
 
-- `config/` - Contains SkyPilot configuration files and environment setup scripts
-- `docs/` - Documentation for SkyPilot integration and usage
+- AWS credentials configured with `stem-db-admin` profile
+- Access to AWS ECR in us-east-1 region
+- SkyPilot CLI installed and configured
 
-## Quick Start
+## Usage
 
-1. Install SkyPilot:
 ```bash
-pip install skypilot
+./launch.sh <COMMAND> <RUN_ID> [COMMAND_ARGS...]
 ```
 
-2. Configure your cloud credentials:
+### Parameters
+
+- `COMMAND`: The main command to execute
+- `RUN_ID`: Unique identifier for the run
+- `COMMAND_ARGS`: Additional arguments to pass to the command
+
+## Examples
+
+1. Launch a training run with default parameters:
 ```bash
-sky check
+./launch.sh train my_experiment_001
 ```
 
-3. Use the example configurations in `config/` as templates for your deployments
+2. Launch a training run with specific arguments:
+```bash
+./launch.sh train my_experiment_002 learning_rate=0.001 batch_size=32
+```
 
-## Documentation
+## Job Management
 
-See `docs/` for detailed documentation on:
-- Setting up SkyPilot
-- Configuration options
-- Common use cases
-- Troubleshooting
+### Viewing Jobs
 
-## Configuration Files
+List all jobs:
+```bash
+sky jobs list
+```
 
-The `config/` directory contains:
-- Example YAML configurations for different cloud providers
-- Environment setup scripts
-- Custom task definitions
+View details of a specific job:
+```bash
+sky jobs show <JOB_ID>
+```
 
-## Integration Notes
+View job logs:
+```bash
+sky jobs logs <JOB_ID>
+```
 
-- SkyPilot version: Latest stable
-- Supported clouds: AWS, GCP, Azure
-- Default region: us-west-2
+### Canceling Jobs
+
+Cancel a specific job:
+```bash
+sky jobs cancel <JOB_ID>
+```
+
+Cancel all jobs:
+```bash
+sky jobs cancel --all
+```
+
+## Notes
+
+- The script automatically:
+  - Gets ECR login credentials
+  - Sets up environment variables
+  - Uses the current git commit hash
+  - Launches jobs in detached mode
+  - Uses the configuration from `./devops/skypilot/config/train.yaml`
+
+- Jobs are launched asynchronously and will run in the background
+- Monitor job status using SkyPilot CLI or AWS console
