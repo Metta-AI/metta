@@ -49,9 +49,9 @@ def safe_torch_load(path, map_location=None, weights_only=False):
     # If explicitly requested to use MPS but we know it might fail,
     # redirect to CPU first to avoid potential issues
     if isinstance(map_location, str) and "mps" in map_location:
-        loaded = safe_torch_load(path, map_location="cpu", weights_only=weights_only)
+        loaded = torch.load(path, map_location="cpu", weights_only=weights_only)
         # The model will still be on CPU, but can be moved to MPS later if needed
         return loaded
 
     # Otherwise, use the provided map_location
-    returnsafe_torch_load(path, map_location=map_location, weights_only=weights_only)
+    return torch.load(path, map_location=map_location, weights_only=weights_only)
