@@ -21,7 +21,7 @@ from metta.eval.heatmap import create_heatmap_html_snippet
 from metta.eval.mapviewer import MAP_VIEWER_CSS
 from metta.sim.eval_stats_analyzer import EvalStatsAnalyzer
 from metta.sim.eval_stats_db import EvalStatsDB
-from metta.util.file import s3_url, upload_to_s3
+from metta.util.file import http_url, write_data
 from metta.util.wandb.wandb_context import WandbContext
 
 logger = logging.getLogger(__name__)
@@ -100,23 +100,21 @@ def generate_report_html(analyzer_cfg: AnalyzerConfig, omegaconf_cfg: DictConfig
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
-def generate_report(analyzer_cfg: AnalyzerConfig, omegaconf_cfg: DictConfig):  # TODO: remove omegaconf_cfg
+def generate_report(analyzer_cfg: AnalyzerConfig, omegaconf_cfg: DictConfig):
     html_content = generate_report_html(analyzer_cfg, omegaconf_cfg)
     output_path = analyzer_cfg.output_path
 
-    # handle per‑policy filename tweak
+    # Handle per-policy filename tweak
     if analyzer_cfg.view_type == "policy_versions" and analyzer_cfg.policy_uri:
         base, ext = os.path.splitext(output_path)
         safe_name = analyzer_cfg.policy_uri.split("/")[-1].replace(":", "_")
         output_path = f"{base}_{safe_name}{ext}"
 
+    write_data(output_path, html_content, content_type="text/html")
+
     if output_path.startswith("s3://"):
-        upload_to_s3(html_content, output_path, "text/html")
-        logger.info("Report uploaded to %s", s3_url(output_path))
+        logger.info("Report uploaded to %s", http_url(output_path))
     else:
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        with open(output_path, "w") as fh:
-            fh.write(html_content)
         logger.info("Report written to %s", output_path)
 
     return html_content, output_path

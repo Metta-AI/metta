@@ -136,13 +136,13 @@ class Simulation:
             agent_map.update({idx.item(): self._npc_pr.key_and_version() for idx in self._npc_idxs})
 
         db = StatsDB.merge_worker_dbs(self._stats_dir, agent_map)
-        logger.info("Merged %s → %s", self._stats_dir, db.path.name)
+        logger.info("Merged %s → %s", self._stats_dir, db.path)
         return db
 
     # ------------------------------------------------------------------ #
     #   public API                                                       #
     # ------------------------------------------------------------------ #
-    def simulate(self, *, epoch: int = 0, dry_run: bool = False) -> StatsDB:
+    def simulate(self) -> StatsDB:
         """
         Run the simulation; returns the merged `StatsDB`.
         """
@@ -153,7 +153,8 @@ class Simulation:
             self._agents_per_env,
             100 * self._policy_agents_per_env / self._agents_per_env,
         )
-
+        logger.info("Stats dir: %s", self._stats_dir)
+        # ---------------- reset ------------------------------- #
         obs, _ = self._vecenv.reset()
         policy_state = PolicyState()
         npc_state = PolicyState()
@@ -215,7 +216,7 @@ class Simulation:
                     env_done_flags[e] = True
                     if self._replay_helpers:
                         path = self._replay_path(e, self._episode_counters[e])
-                        self._replay_helpers[e].write_replay(path, epoch=epoch, dry_run=dry_run)
+                        self._replay_helpers[e].write_replay(path)
                     self._episode_counters[e] += 1
                 elif not done_now[e] and env_done_flags[e]:
                     env_done_flags[e] = False
@@ -270,13 +271,13 @@ class SimulationSuite:
     # ------------------------------------------------------------------ #
     #   public API                                                       #
     # ------------------------------------------------------------------ #
-    def simulate(self, *, epoch: int = 0, dry_run: bool = False) -> StatsDB:
+    def simulate(self) -> StatsDB:
         """Run every simulation, merge their DBs, return a single `StatsDB`."""
         merged_db: StatsDB | None = None
 
         for name, sim in self._sims.items():
             logger.info("=== Simulation '%s' ===", name)
-            db = sim.simulate(epoch=epoch, dry_run=dry_run)
+            db = sim.simulate()
 
             if merged_db is None:
                 merged_db = db

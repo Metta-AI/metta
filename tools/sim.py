@@ -90,7 +90,7 @@ def simulate_policy(
         export_uri = f"{sim_job.stats_db_base_uri}/{sim_job.simulation_suite.name}/{pr.name}.duckdb"
         if not sim_job.dry_run:
             logger.info("Exporting merged stats DB → %s", export_uri)
-            StatsDB.export_db(merged_db, export_uri)
+            merged_db.export(export_uri)
         else:
             logger.info(f"Dry run – skipping export to {export_uri}")
 

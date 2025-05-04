@@ -1,99 +1,225 @@
 """
-Per-environment statistics writer.
-Creates a small DuckDB file (a “shard”) that holds **only** raw episode data.
-No knowledge of policy mapping or run-level merge logic lives here.
+Base statistics writer class for MettaGrid environments.
 """
-
-from __future__ import annotations
 
 import json
-from typing import Any, Dict, List, Optional, Tuple
+import logging
+import uuid
+from typing import Any, Dict, Optional
 
 import duckdb
+import numpy as np
 
-# --------------------------------------------------------------------- #
-# Schema – identical in reader side. Keep lightweight: no FKs.         #
-# --------------------------------------------------------------------- #
-SCHEMA = """
-CREATE SEQUENCE IF NOT EXISTS episode_id_seq;
-
-CREATE TABLE IF NOT EXISTS episodes (
-    episode_id     BIGINT DEFAULT nextval('episode_id_seq') PRIMARY KEY,
-    env_name       TEXT,
-    seed           INT,
-    map_w          INT,
-    map_h          INT,
-    step_count     INT,
-    started_at     TIMESTAMPTZ,
-    finished_at    TIMESTAMPTZ,
-    metadata       JSON
-);
+logger = logging.getLogger(__name__)
 
 
-CREATE TABLE IF NOT EXISTS episode_agent_metrics (
-    episode_id BIGINT,
-    agent_id   INT,
-    metric     TEXT,
-    value      DOUBLE,
-    PRIMARY KEY (episode_id, agent_id, metric)
-);
-"""
+class StatsDB:
+    """
+    Statistics database for MettaGrid environments.
 
+    This class provides a DuckDB-backed database for storing and querying
+    simulation statistics.
+    """
 
-class MettaGridStatsWriter:
-    """One instance **per MettaGridEnv** / per process (DuckDB is single-writer)."""
+    def __init__(self, path: str, read_only: bool = False) -> None:
+        """
+        Initialize a statistics database.
 
-    def __init__(self, db_path: str, *, flush_every: int = 512) -> None:
-        self._conn = duckdb.connect(db_path)
-        for stmt in filter(None, (s.strip() for s in SCHEMA.split(";"))):
-            self._conn.execute(stmt)
-        self._flush_every = flush_every
-        self._buf: List[Tuple[int, int, str, float]] = []
-        self._eid: Optional[int] = None
+        Args:
+            path: Path to the database file
+            read_only: Whether to open the database in read-only mode
+        """
+        self.path = path
+        self.read_only = read_only
 
-    # -------- episode lifecycle ---------------------------------------- #
-    def start_episode(
-        self,
-        *,
-        env_name: str,
-        seed: int,
-        map_w: int,
-        map_h: int,
-        meta: Dict[str, Any],
-    ) -> int:
-        (eid,) = self._conn.execute(
-            "INSERT INTO episodes (env_name,seed,map_w,map_h,step_count,started_at,metadata) "
-            "VALUES (?,?,?,?,0,now(),?) RETURNING episode_id",
-            (env_name, seed, map_w, map_h, json.dumps(meta)),
-        ).fetchone()
-        self._eid = eid
-        return eid
+        self.con = duckdb.connect(path, read_only=read_only)
 
-    def log_metric(self, agent_id: int, metric: str, value: float) -> None:
-        self._buf.append((self._eid, agent_id, metric, float(value)))
-        if len(self._buf) >= self._flush_every:
-            self._flush()
+        if not read_only:
+            self._initialize_schema()
 
-    def end_episode(self, *, step_count: int) -> None:
-        self._flush()
-        self._conn.execute(
-            "UPDATE episodes SET step_count=?, finished_at=now() WHERE episode_id=?",
-            (step_count, self._eid),
+    def _initialize_schema(self) -> None:
+        """Initialize database schema."""
+        self.con.execute("""
+        CREATE TABLE IF NOT EXISTS episodes (
+            episode_id VARCHAR PRIMARY KEY,
+            env_name VARCHAR,
+            seed INTEGER,
+            map_w INTEGER,
+            map_h INTEGER,
+            step_count INTEGER,
+            started_at TIMESTAMP,
+            finished_at TIMESTAMP,
+            metadata VARCHAR
         )
-        self._eid = None
+        """)
 
-    # -------- internals ------------------------------------------------- #
-    def _flush(self) -> None:
-        if self._buf:
-            self._conn.executemany("INSERT INTO episode_agent_metrics VALUES (?,?,?,?)", self._buf)
-            self._buf.clear()
+        self.con.execute("""
+        CREATE TABLE IF NOT EXISTS episode_agent_metrics (
+            episode_id VARCHAR,
+            agent_id INTEGER,
+            metric VARCHAR,
+            value REAL,
+            PRIMARY KEY (episode_id, agent_id, metric)
+        )
+        """)
+
+    def get_next_episode_id(self) -> str:
+        """Generate a unique episode ID using UUID."""
+        return str(uuid.uuid4())
+
+    def create_episode(self, env_name: str, seed: int, map_w: int, map_h: int, metadata: Optional[Dict] = None) -> str:
+        """
+        Create a new episode.
+
+        Args:
+            env_name: Environment name
+            seed: Random seed
+            map_w: Map width
+            map_h: Map height
+            metadata: Optional metadata dictionary
+
+        Returns:
+            Episode ID
+        """
+        if self.read_only:
+            raise ValueError("Cannot create episode in read-only mode")
+
+        episode_id = self.get_next_episode_id()
+        metadata_json = json.dumps(metadata) if metadata else None
+
+        self.con.execute(
+            """
+            INSERT INTO episodes 
+            (episode_id, env_name, seed, map_w, map_h, started_at, metadata)
+            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
+            """,
+            (episode_id, env_name, seed, map_w, map_h, metadata_json),
+        )
+
+        return episode_id
+
+    def finish_episode(self, episode_id: str, step_count: int) -> None:
+        """
+        Mark an episode as finished.
+
+        Args:
+            episode_id: Episode ID
+            step_count: Number of steps taken
+        """
+        if self.read_only:
+            raise ValueError("Cannot update episode in read-only mode")
+
+        self.con.execute(
+            """
+            UPDATE episodes 
+            SET step_count = ?, finished_at = CURRENT_TIMESTAMP
+            WHERE episode_id = ?
+            """,
+            (step_count, episode_id),
+        )
+
+    def add_agent_metrics(self, episode_id: str, agent_id: int, metrics: Dict[str, float]) -> None:
+        """
+        Add agent metrics for an episode.
+
+        Args:
+            episode_id: Episode ID
+            agent_id: Agent ID
+            metrics: Dictionary of metric names to values
+        """
+        if self.read_only:
+            raise ValueError("Cannot add metrics in read-only mode")
+
+        if not metrics:
+            return
+
+        values = [(episode_id, agent_id, metric, value) for metric, value in metrics.items()]
+
+        self.con.executemany(
+            """
+            INSERT OR REPLACE INTO episode_agent_metrics 
+            (episode_id, agent_id, metric, value)
+            VALUES (?, ?, ?, ?)
+            """,
+            values,
+        )
 
     def close(self) -> None:
-        self._flush()
-        self._conn.close()
+        """Close the database connection."""
+        self.con.close()
 
-    def __enter__(self):
-        return self
 
-    def __exit__(self, *_):
-        self.close()
+class StatsWriter:
+    """
+    Writer for tracking statistics in MettaGrid environments.
+    """
+
+    def __init__(self, path: str) -> None:
+        """
+        Initialize a stats writer.
+
+        Args:
+            path: Path to the stats database
+        """
+        self.db = StatsDB(path, read_only=False)
+        self.current_episode_id = None
+        self.metrics = {}
+
+    def start_episode(self, env_name: str, seed: int, map_w: int, map_h: int, meta: Optional[Dict] = None) -> str:
+        """
+        Start a new episode.
+
+        Args:
+            env_name: Name of the environment
+            seed: Random seed
+            map_w: Map width
+            map_h: Map height
+            meta: Optional metadata
+
+        Returns:
+            Episode ID
+        """
+        self.current_episode_id = self.db.create_episode(env_name, seed, map_w, map_h, meta)
+        self.metrics = {}
+        return self.current_episode_id
+
+    def log_metric(self, agent_id: int, metric: str, value: float) -> None:
+        """
+        Log a metric for an agent.
+
+        Args:
+            agent_id: Agent ID
+            metric: Metric name
+            value: Metric value
+        """
+        if agent_id not in self.metrics:
+            self.metrics[agent_id] = {}
+        self.metrics[agent_id][metric] = value
+
+    def end_episode(self, step_count: int) -> None:
+        """
+        End the current episode.
+
+        Args:
+            step_count: Number of steps taken
+        """
+        if self.current_episode_id is None:
+            return
+
+        # Write metrics
+        for agent_id, agent_metrics in self.metrics.items():
+            self.db.add_agent_metrics(self.current_episode_id, agent_id, agent_metrics)
+
+        # Finish episode
+        self.db.finish_episode(self.current_episode_id, step_count)
+
+        # Reset
+        self.current_episode_id = None
+        self.metrics = {}
+
+    def close(self) -> None:
+        """Close the stats writer."""
+        if self.current_episode_id is not None:
+            logger.warning("Closing stats writer with an active episode. Episode will not be recorded.")
+
+        self.db.close()

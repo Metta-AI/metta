@@ -30,6 +30,7 @@ from metta.sim.simulation import Simulation, SimulationSuite
 from metta.sim.simulation_config import SimulationConfig, SimulationSuiteConfig
 from metta.sim.vecenv import make_vecenv
 from metta.util.config import config_from_path
+from metta.util.file import http_url
 
 torch.set_float32_matmul_precision("high")
 
@@ -591,6 +592,12 @@ class PufferTrainer:
                 replay_path=replay_path,
             )
             replay_simulator.simulate(epoch=self.epoch)
+            if self.wandb_run is not None:
+                player_url = "https://metta-ai.github.io/metta/?replayUrl=" + http_url(replay_path)
+                link_summary = {
+                    "replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {self.epoch})</a>')
+                }
+                self.wandb_run.log(link_summary)
 
     def _process_stats(self):
         for k in list(self.stats.keys()):
