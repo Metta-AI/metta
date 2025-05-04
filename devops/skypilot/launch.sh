@@ -11,10 +11,9 @@ RUN_ID=$2
 shift 2
 CMD_ARGS="$@"
 
-
 SKYPILOT_DOCKER_PASSWORD=$(aws ecr get-login-password --region us-east-1)
 
-AWS_PROFILE=stem sky jobs launch \
+AWS_PROFILE=stem-db-admin sky jobs launch \
   --name $RUN_ID \
   ./devops/skypilot/config/train.yaml \
   --env SKYPILOT_DOCKER_PASSWORD=$SKYPILOT_DOCKER_PASSWORD \
