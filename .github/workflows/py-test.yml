@@ -78,7 +78,7 @@ jobs:
           cd mettagrid
           pytest --maxfail=1 --disable-warnings -q
 
-      - name: Skip testing (no relevant changes)
+      - name: tests skipped (no relevant changes)
         if: env.EARLY_EXIT == 'true'
         run: |
           echo "No Python files or requirements.txt were changed. Skipping tests."

@@ -57,7 +57,7 @@ jobs:
           cd mettagrid
           make test
 
-      - name: Skip tests (no relevant changes)
+      - name: tests skipped (no relevant changes)
         if: env.EARLY_EXIT == 'true'
         run: |
           echo "No C++ files in mettagrid/ were changed. Skipping tests."

@@ -65,7 +65,7 @@ jobs:
             -not -path "*/build/*" -not -path "*/venv/*" \
             -exec clang-format --dry-run --Werror {} +
 
-      - name: Skip linting (no relevant changes)
+      - name: linting skipped (no relevant changes)
         if: env.EARLY_EXIT == 'true'
         run: |
           echo "No C++ files (*.cpp, *.h, *.hpp) were changed. Skipping linting."
