@@ -6,6 +6,8 @@ import torch
 from pufferlib.cleanrl import sample_logits
 from torch import nn
 
+from metta.util.torch_patches import safe_torch_load
+
 
 class Recurrent(pufferlib.models.LSTMWrapper):
     def __init__(self, env, policy, input_size=512, hidden_size=512):
@@ -105,7 +107,7 @@ class Policy(nn.Module):
 
 
 def load_policy(path: str, device: str = "cpu"):
-    weights = torch.load(path, map_location=device, weights_only=True)
+    weights = safe_torch_load(path, map_location=device, weights_only=True)
     num_actions, hidden_size = weights["policy.actor.0.weight"].shape
     num_action_args, _ = weights["policy.actor.1.weight"].shape
     cnn_channels, obs_channels, _, _ = weights["policy.network.0.weight"].shape

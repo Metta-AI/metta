@@ -24,6 +24,7 @@ from torch import nn
 
 from metta.agent.metta_agent import make_policy
 from metta.rl.pufferlib.policy import load_policy
+from metta.util.torch_patches import safe_torch_load
 from metta.util.wandb.wandb_context import WandbRun
 
 logger = logging.getLogger("policy_store")
@@ -368,7 +369,7 @@ class PolicyStore:
         assert path.endswith(".pt"), f"Policy file {path} does not have a .pt extension"
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=FutureWarning)
-            pr = torch.load(
+            pr = safe_torch_load(
                 path,
                 map_location=self._device,
                 weights_only=False,
