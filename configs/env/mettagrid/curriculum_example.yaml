@@ -55,7 +55,7 @@ game:
       agents: ${....num_agents_per_room}
 
       objects:
-        altar: ${....num_hearts_per_room}
+        altar: ${.....num_hearts_per_room}
 
   # actions:
   #   noop:
