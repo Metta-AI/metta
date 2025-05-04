@@ -14,3 +14,7 @@ brew "withgraphite/tap/graphite"
 cask "cursor"
 cask "discord"
 cask "miniconda"
+
+# FUSE for mounting S3 buckets
+cask "macfuse"
+brew "gromgit/fuse/s3fs-mac"
