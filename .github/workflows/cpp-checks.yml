@@ -45,7 +45,7 @@ jobs:
 
   # This job runs to flag that we are skipping tests because no relevant files changed and this is a pull_request
   skip-checks-cpp:
-    name: "skip all tasks?"
+    name: "skip tasks?"
     needs: check-files-cpp
     if: github.event_name == 'pull_request' && needs.check-files-cpp.outputs.has_relevant_changes == 'false'
     runs-on: ubuntu-latest
