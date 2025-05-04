@@ -2,8 +2,8 @@ name: "Automerge Dependabot PRs"
 on: pull_request
 permissions:
   pull-requests: write
-  issues: write     # For label creation
-  contents: write   # For checkout and merges
+  issues: write # For label creation
+  contents: write # For checkout and merges
 jobs:
   dependabot:
     runs-on: ubuntu-latest
@@ -11,34 +11,34 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        
+
       - name: Fetch Dependabot metadata
         id: metadata
         uses: dependabot/fetch-metadata@v2
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Create all necessary labels
         run: |
           # Update type labels with dots
           gh label create "🔴 major" --color "#FF0000" --description "Major version update" || echo "Label already exists"
           gh label create "🟡 minor" --color "#FFFF00" --description "Minor version update" || echo "Label already exists"
           gh label create "🟢 patch" --color "#00FF00" --description "Patch version update" || echo "Label already exists"
-          
+
           # Dependency type labels with arrows
           gh label create "➡️ direct" --color "#0366D6" --description "Direct dependency" || echo "Label already exists"
           gh label create "↪️ indirect" --color "#6F42C1" --description "Indirect dependency" || echo "Label already exists"
-          
+
           # Environment scope labels
           gh label create "🏭 prod" --color "#FD7E14" --description "Production dependency" || echo "Label already exists"
           gh label create "🧪 dev" --color "#6610F2" --description "Development dependency" || echo "Label already exists"
-          
+
           # Security-related label
           gh label create "🔒 security" --color "#D73A4A" --description "Security vulnerability fix" || echo "Label already exists"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-      
+
       - name: Map and add update type label
         run: |
           LABEL=""
@@ -49,14 +49,14 @@ jobs:
           elif [ "${{ steps.metadata.outputs.update-type }}" == "version-update:semver-patch" ]; then
             LABEL="🟢 patch"
           fi
-          
+
           if [ -n "$LABEL" ]; then
             gh pr edit "$PR_URL" --add-label "$LABEL"
           fi
         env:
           PR_URL: ${{github.event.pull_request.html_url}}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Map and add dependency type label
         run: |
           # Extract the dependency type (direct/indirect)
@@ -66,14 +66,14 @@ jobs:
           elif [[ "${{ steps.metadata.outputs.dependency-type }}" == indirect* ]]; then
             DEP_TYPE="↪️ indirect"
           fi
-          
+
           if [ -n "$DEP_TYPE" ]; then
             gh pr edit "$PR_URL" --add-label "$DEP_TYPE"
           fi
         env:
           PR_URL: ${{github.event.pull_request.html_url}}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Add environment label
         run: |
           # Extract the environment (production/development)
@@ -83,34 +83,34 @@ jobs:
           elif [[ "${{ steps.metadata.outputs.dependency-type }}" == *:development ]]; then
             ENV_LABEL="🧪 dev"
           fi
-          
+
           if [ -n "$ENV_LABEL" ]; then
             gh pr edit "$PR_URL" --add-label "$ENV_LABEL"
           fi
         env:
           PR_URL: ${{github.event.pull_request.html_url}}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Add security label if needed
         if: steps.metadata.outputs.security-vuln-alerts > 0
         run: gh pr edit "$PR_URL" --add-label "🔒 security"
         env:
           PR_URL: ${{github.event.pull_request.html_url}}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Enable auto-merge for eligible PRs
         run: gh pr edit "$PR_URL" --enable-auto-merge || echo "Unable to enable auto-merge, continuing workflow"
         env:
           PR_URL: ${{github.event.pull_request.html_url}}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Approve and merge patch updates and security fixes
         if: steps.metadata.outputs.update-type == 'version-update:semver-patch' || steps.metadata.outputs.security-vuln-alerts > 0
         run: gh pr review --approve "$PR_URL"
         env:
           PR_URL: ${{github.event.pull_request.html_url}}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Notify team of major/minor updates
         if: steps.metadata.outputs.update-type != 'version-update:semver-patch' && steps.metadata.outputs.security-vuln-alerts == 0
         run: |
