@@ -1,0 +1,55 @@
+resources:
+  cloud: aws
+  region: us-east-1
+  instance_type: g6.4xlarge
+  use_spot: true
+  num_nodes: 1
+  accelerators: {A10G: 4}  # 4 GPUs per node
+
+setup: |
+  # Install dependencies
+  pip install -r requirements.txt
+  ./devops/setup_build.sh
+
+  # Setup environment variables
+  export NUM_GPUS=4
+  export NUM_WORKERS=12
+  export HARDWARE=aws
+  export SKIP_BUILD=1
+  export DIST_ID=$SKYPILOT_TASK_ID
+
+  # Set up WandB directory
+  export WANDB_DIR="./wandb"
+  mkdir -p $WANDB_DIR
+
+  # Setup log directory
+  export LOG_FILE="train_dir/logs/${SKYPILOT_TASK_ID}.log"
+  mkdir -p $(dirname $LOG_FILE)
+
+  # Start logging
+  exec > >(tee -a "$LOG_FILE") 2>&1
+  echo "=== Logging to $LOG_FILE ==="
+
+run: |
+  # Handle git reference if specified
+  if [ -n "$GIT_REF" ]; then
+    echo "Checking out git reference: $GIT_REF"
+    git checkout "$GIT_REF"
+  fi
+
+  # Run the training command
+  ./devops/$CMD.sh run=$RUN_ID +hardware=$HARDWARE trainer.num_workers=$NUM_WORKERS $TASK_ARGS
+
+file_mounts:
+  ~/project: .
+  /mnt/efs/train_dir: train_dir
+
+envs:
+  HYDRA_FULL_ERROR: 1
+  WANDB_SILENT: true
+  COLOR_LOGGING: false
+  NCCL_DEBUG: ERROR
+  NCCL_IGNORE_DISABLED_P2P: 1
+  NCCL_IB_DISABLE: 1
+  NCCL_P2P_DISABLE: 1
+  MASTER_PORT: 29500
