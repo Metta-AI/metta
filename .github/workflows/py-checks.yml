@@ -43,6 +43,7 @@ jobs:
 
   # This job runs to flag that we are skipping tests because no relevant files changed and this is a pull_request
   skip-checks-py:
+    name: "skip all tasks?"
     needs: check-files-py
     if: github.event_name == 'pull_request' && needs.check-files-py.outputs.has_relevant_changes == 'false'
     runs-on: ubuntu-latest
@@ -55,6 +56,7 @@ jobs:
 
   # Run lint workflow
   call-lint-py:
+    name: "task"
     needs: check-files-py
     if: github.event_name != 'pull_request' || needs.check-files-py.outputs.has_relevant_changes == 'true'
     uses: ./.github/workflows/py-lint.yml
@@ -64,6 +66,7 @@ jobs:
 
   # Run test workflow
   call-test-py:
+    name: "task"
     needs: check-files-py
     if: github.event_name != 'pull_request' || needs.check-files-py.outputs.has_relevant_changes == 'true'
     uses: ./.github/workflows/py-test.yml
@@ -73,6 +76,7 @@ jobs:
 
   # Run benchmark workflow
   call-benchmark-py:
+    name: "task"
     needs: check-files-py
     if: github.event_name != 'pull_request' || needs.check-files-py.outputs.has_relevant_changes == 'true'
     permissions:
@@ -85,6 +89,7 @@ jobs:
 
   # Run training integration test - always run regardless of file changes
   call-training-integration-py:
+    name: "task"
     uses: ./.github/workflows/py-training-integration-test.yml
     with:
       ref: ${{ github.ref }}

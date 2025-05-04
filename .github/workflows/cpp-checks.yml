@@ -21,7 +21,7 @@ permissions:
 jobs:
   # First job: check if any C++ files have changed
   check-files-cpp:
-    name: "checking for C++ changes..."
+    name: "checking for C++ changes"
     if: |
       github.event.pull_request.draft == false || 
       github.event_name == 'push' || 
@@ -43,7 +43,7 @@ jobs:
 
   # This job runs to flag that we are skipping tests because no relevant files changed and this is a pull_request
   skip-checks-cpp:
-    name: "skipping all tasks..."
+    name: "skip all tasks?"
     needs: check-files-cpp
     if: github.event_name == 'pull_request' && needs.check-files-cpp.outputs.has_relevant_changes == 'false'
     runs-on: ubuntu-latest
@@ -56,7 +56,7 @@ jobs:
 
   # Run lint workflow
   call-lint-cpp:
-    name: "-"
+    name: "task"
     needs: check-files-cpp
     if: github.event_name != 'pull_request' || needs.check-files-cpp.outputs.has_relevant_changes == 'true'
     uses: ./.github/workflows/cpp-lint.yml
@@ -66,7 +66,7 @@ jobs:
 
   # Run test workflow
   call-test-cpp:
-    name: "-"
+    name: "task"
     needs: check-files-cpp
     if: github.event_name != 'pull_request' || needs.check-files-cpp.outputs.has_relevant_changes == 'true'
     uses: ./.github/workflows/cpp-test.yml
@@ -76,7 +76,7 @@ jobs:
 
   # Run benchmark workflow
   call-benchmark-cpp:
-    name: "-"
+    name: "task"
     needs: check-files-cpp
     if: github.event_name != 'pull_request' || needs.check-files-cpp.outputs.has_relevant_changes == 'true'
     permissions:
