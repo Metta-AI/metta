@@ -39,6 +39,7 @@ jobs:
         uses: ./.github/actions/file-changes
         with:
           patterns: "mettagrid/,*.cpp,*.cxx,*.cc,*.h,*.hpp,*.pyx,*.pxd"
+          specific_files: "requirements.txt,setup.py"
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
   # This job runs to flag that we are skipping tests because no relevant files changed and this is a pull_request
