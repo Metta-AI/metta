@@ -1,6 +1,5 @@
 # metta/sim/simulation_config.py
 
-import os
 from typing import Dict, Optional
 
 from pydantic import model_validator

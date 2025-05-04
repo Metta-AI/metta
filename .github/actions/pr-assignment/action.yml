@@ -1,33 +1,33 @@
-name: 'PR Assignment Action'
-description: 'Assign and request reviews for PRs based on configurable rules'
+name: "PR Assignment Action"
+description: "Assign and request reviews for PRs based on configurable rules"
 
 inputs:
   pr-number:
-    description: 'PR number to process'
+    description: "PR number to process"
     required: true
   possible-assignees:
-    description: 'Comma-separated list of users to randomly select assignees from'
+    description: "Comma-separated list of users to randomly select assignees from"
     required: false
-    default: ''
+    default: ""
   possible-reviewers:
-    description: 'Comma-separated list of users to randomly select reviewers from'
+    description: "Comma-separated list of users to randomly select reviewers from"
     required: false
-    default: ''
+    default: ""
   forced-assignees:
-    description: 'Comma-separated list of users who will always be assigned'
+    description: "Comma-separated list of users who will always be assigned"
     required: false
-    default: ''
+    default: ""
   forced-reviewers:
-    description: 'Comma-separated list of users who will always be requested as reviewers'
+    description: "Comma-separated list of users who will always be requested as reviewers"
     required: false
-    default: ''
+    default: ""
   forced-labels:
-    description: 'Comma-separated list of labels that will replace any labels currently set on the PR'
+    description: "Comma-separated list of labels that will replace any labels currently set on the PR"
     required: false
-    default: ''
+    default: ""
 
 runs:
-  using: 'composite'
+  using: "composite"
   steps:
     - name: Assign and request reviews for PR
       shell: bash

@@ -3,11 +3,10 @@ from typing import Optional
 import numpy as np
 from omegaconf import DictConfig
 
+from mettagrid.map.node import Node
+from mettagrid.map.scene import Scene, TypedChild
 from mettagrid.map.scenes.random import Random
 from mettagrid.map.utils.random import MaybeSeed, sample_float_distribution
-
-from ..node import Node
-from ..scene import Scene, TypedChild
 
 
 class RandomObjects(Scene):

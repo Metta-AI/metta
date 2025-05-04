@@ -12,18 +12,18 @@ packages = ["metta", "pufferlib", "fast_gae", "mettagrid"]
 metta = "metta"
 pufferlib = "deps/pufferlib"
 fast_gae = "deps/fast_gae"
-mettagrid = "deps/mettagrid"
+mettagrid = "mettagrid"
 
 [tool.setuptools.dynamic]
 dependencies = { file = ["requirements.txt"] }
 
 [tool.coverage.run]
-source = ["deps/mettagrid", "metta"]
+source = ["mettagrid", "metta"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
 python_classes = ["Test*"]
-addopts = "--cov=deps/mettagrid --cov=metta --cov-report=term"
+addopts = "--cov=mettagrid --cov=metta --cov-report=term"
 filterwarnings = ["ignore::DeprecationWarning:wandb.analytics.sentry"]

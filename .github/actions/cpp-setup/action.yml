@@ -1,8 +1,8 @@
-name: 'C++ Setup'
-description: 'Sets up C++ development environment'
+name: "C++ Setup"
+description: "Sets up C++ development environment"
 
 runs:
-  using: 'composite'
+  using: "composite"
   steps:
     - name: Install system dependencies
       shell: bash

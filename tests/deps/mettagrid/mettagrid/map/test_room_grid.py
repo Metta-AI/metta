@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
 
-from deps.mettagrid.mettagrid.map.node import Node
-from deps.mettagrid.mettagrid.map.scenes.room_grid import RoomGrid
+from mettagrid.map.node import Node
+from mettagrid.map.scenes.room_grid import RoomGrid
 
 
 class MockScene:

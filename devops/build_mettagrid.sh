@@ -29,15 +29,10 @@ SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 # Go to the project root directory 
 cd "$SCRIPT_DIR/.."
 
-# Check if deps/mettagrid exists
-if [ ! -d "deps/mettagrid" ]; then
-    echo "Error: mettagrid directory not found at deps/mettagrid"
-    echo "Make sure you have run the full dependency installation script first."
-    exit 1
-fi
-
 # Navigate to mettagrid directory
-cd deps/mettagrid
+cd mettagrid
+echo "Installing mettagrid requirements..."
+pip install -r requirements.txt
 
 echo "Building mettagrid in $(pwd)"
 

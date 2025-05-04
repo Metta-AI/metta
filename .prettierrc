@@ -1,0 +1,19 @@
+{
+  "overrides": [
+    {
+      "files": ["*.yml", "*.yaml"],
+      "options": {
+        "parser": "yaml",
+        "singleQuote": false,
+        "printWidth": 100,
+        "tabWidth": 2,
+        "useTabs": false,
+        "trailingComma": "none",
+        "bracketSpacing": true,
+        "proseWrap": "preserve",
+        "endOfLine": "lf",
+        "arrowParens": "avoid"
+      }
+    }
+  ]
+}

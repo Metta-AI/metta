@@ -35,7 +35,7 @@ section-order = [
 # B: flake8-bugbear
 # I: isort
 # See full rule list: https://docs.astral.sh/ruff/rules/
-select = ["E", "F", "B", "I"]
+select = ["E", "F", "B", "I", "TID"]
 
 # Rules to explicitly ignore
 # E203: Whitespace before ':' (conflicts with Black)
@@ -58,3 +58,6 @@ fixable = ["E", "F", "B", "I"]
 unfixable = []
 
 # For more configuration options, see: https://docs.astral.sh/ruff/configuration/
+
+[lint.flake8-tidy-imports.banned-api]
+"mettagrid.mettagrid".msg = "Import mettagrid instead of mettagrid.mettagrid"

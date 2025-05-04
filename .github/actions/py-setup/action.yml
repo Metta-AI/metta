@@ -1,18 +1,18 @@
-name: 'Python Setup'
-description: 'Sets up Python environment with virtual environment and dependencies'
+name: "Python Setup"
+description: "Sets up Python environment with virtual environment and dependencies"
 
 outputs:
   venv-path:
-    description: 'Path to the virtual environment'
-    value: 'venv'
+    description: "Path to the virtual environment"
+    value: "venv"
 
 runs:
-  using: 'composite'
+  using: "composite"
   steps:
     - uses: actions/setup-python@v5
       with:
         python-version: "3.11.7"
-        
+
     - name: Cache pip packages
       uses: actions/cache@v4
       with:
@@ -22,7 +22,7 @@ runs:
         key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt', '**/setup.py') }}
         restore-keys: |
           ${{ runner.os }}-pip-
-          
+
     - name: Install pip requirements
       shell: bash
       run: |
