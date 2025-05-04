@@ -32,8 +32,8 @@ resource "aws_efs_mount_target" "proxy" {
 }
 
 resource "aws_ssm_parameter" "efs_url" {
-  name  = "/softmax/efs/url"
-  type  = "SecureString"
-  value = aws_efs_mount_target.proxy.dns_name
+  name           = "/shared-efs/url"
+  type           = "String"
+  insecure_value = aws_efs_mount_target.proxy.dns_name
 }
 
