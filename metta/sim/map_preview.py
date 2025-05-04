@@ -54,7 +54,7 @@ def upload_map_preview(cfg: DictConfig | ListConfig, wandb_run: wandb_run.Run, l
     with open(preview_path, "wb") as f:
         f.write(compressed_data)
 
-    # Upload to S3 using out new utility function
+    # Upload to S3 using our new utility function
     try:
         preview_url = f"replays/{cfg.run}/replay.0.json.z"
         s3_url = upload_file(
