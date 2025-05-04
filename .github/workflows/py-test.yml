@@ -1,4 +1,4 @@
-name: py-test
+name: "Tests"
 concurrency:
   group: py-test-${{ github.ref }}-${{ github.run_id }}
   cancel-in-progress: ${{ github.event_name != 'workflow_call' }}

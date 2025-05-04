@@ -1,4 +1,4 @@
-name: training-integration-test
+name: "Training Smoke Test"
 concurrency:
   group: training-integration-test-${{ github.ref }}-${{ github.run_id }}
   cancel-in-progress: ${{ github.event_name != 'workflow_call' }}

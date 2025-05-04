@@ -1,4 +1,4 @@
-name: py-benchmark
+name: "Benchmarks"
 concurrency:
   group: py-benchmark-${{ github.ref }}-${{ github.run_id }}-benchmark
   cancel-in-progress: ${{ github.event_name != 'workflow_call' }}
