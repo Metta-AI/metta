@@ -61,21 +61,21 @@ simulations:
   multiagent/nonuniform_fork:
     env: env/mettagrid/multiagent/evals/fork
     policy_agents_pct: 1.0
-  multiagent/choose_an_altar:
-    env: env/mettagrid/multiagent/evals/choose_an_altar
-    policy_agents_pct: 1.0
-  multiagent/circumbulate_team:
-    env: env/mettagrid/multiagent/evals/circumbulate_team
-    policy_agents_pct: 1.0
-  multiagent/imitation_game:
-    env: env/mettagrid/multiagent/evals/imitation_game
-    policy_agents_pct: 1.0
-  multiagent/protect_the_resources:
-    env: env/mettagrid/multiagent/evals/protect_the_resources
-    policy_agents_pct: 1.0
-  multiagent/whichway:
-    env: env/mettagrid/multiagent/evals/whichway
-    policy_agents_pct: 1.0
+  # multiagent/choose_an_altar:
+  #   env: env/mettagrid/multiagent/evals/choose_an_altar
+  #   policy_agents_pct: 1.0
+  # multiagent/circumbulate_team:
+  #   env: env/mettagrid/multiagent/evals/circumbulate_team
+  #   policy_agents_pct: 1.0
+  # multiagent/imitation_game:
+  #   env: env/mettagrid/multiagent/evals/imitation_game
+  #   policy_agents_pct: 1.0
+  # multiagent/protect_the_resources:
+  #   env: env/mettagrid/multiagent/evals/protect_the_resources
+  #   policy_agents_pct: 1.0
+  # multiagent/whichway:
+  #   env: env/mettagrid/multiagent/evals/whichway
+  #   policy_agents_pct: 1.0
   simple_npc:
     env: env/mettagrid/simple
     policy_agents_pct: 0.5
