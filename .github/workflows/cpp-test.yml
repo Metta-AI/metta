@@ -1,4 +1,4 @@
-name: "Tests"
+name: "C++ Tests"
 concurrency:
   group: cpp-test-${{ github.ref }}-${{ github.run_id }}
   cancel-in-progress: ${{ github.event_name != 'workflow_call' }}

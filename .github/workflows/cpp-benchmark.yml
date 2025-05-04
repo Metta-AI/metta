@@ -1,4 +1,4 @@
-name: "Benchmarks"
+name: "C++ Benchmarks"
 concurrency:
   group: cpp-benchmark-${{ github.ref }}-${{ github.run_id }}
   cancel-in-progress: ${{ github.event_name != 'workflow_call' }}
