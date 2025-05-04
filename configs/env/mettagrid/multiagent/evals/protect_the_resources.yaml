@@ -4,7 +4,7 @@ defaults:
 
 game:
   num_agents: 80 #how many agents are in the map x2
-  max_steps: 50
+  max_steps: 60
 
   agent:
     rewards:
@@ -16,7 +16,7 @@ game:
     room:
       _target_: mettagrid.config.room.ascii.Ascii
       border_width: 1
-      uri: "configs/env/mettagrid/maps/multiagent/radial_cross_large.map"
+      uri: "configs/env/mettagrid/maps/multiagent/protect_the_resources.map"
 
   objects:
     altar:
