@@ -1,4 +1,4 @@
-name: Deploy to GitHub Pages
+name: "Deploy Mettascope to GitHub Pages"
 on:
   push:
     branches:

@@ -1,4 +1,4 @@
-name: py-test
+name: "Python Tests"
 concurrency:
   group: py-test-${{ github.ref }}-${{ github.run_id }}
   cancel-in-progress: ${{ github.event_name != 'workflow_call' }}
@@ -12,6 +12,7 @@ on:
 
 jobs:
   py-test:
+    name: "Tests"
     if: >-
       github.event.pull_request.draft == false || 
       github.event_name == 'workflow_dispatch' || 
@@ -77,7 +78,7 @@ jobs:
           cd mettagrid
           pytest --maxfail=1 --disable-warnings -q
 
-      - name: Skip testing (no relevant changes)
+      - name: tests skipped (no relevant changes)
         if: env.EARLY_EXIT == 'true'
         run: |
           echo "No Python files or requirements.txt were changed. Skipping tests."

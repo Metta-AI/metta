@@ -1,4 +1,4 @@
-name: py-benchmark
+name: "Python Benchmarks"
 concurrency:
   group: py-benchmark-${{ github.ref }}-${{ github.run_id }}-benchmark
   cancel-in-progress: ${{ github.event_name != 'workflow_call' }}
@@ -12,6 +12,7 @@ on:
 
 jobs:
   py-benchmark:
+    name: "Benchmarks"
     if: >-
       github.event.pull_request.draft == false || 
       github.event_name == 'push' || 
@@ -52,12 +53,6 @@ jobs:
             echo "in all other cases, don't exit early"
             echo "EARLY_EXIT=false" >> $GITHUB_ENV
           fi
-
-      - name: Skip benchmarking (no relevant changes)
-        if: env.EARLY_EXIT == 'true'
-        run: |
-          echo "No Python files or benchmark-related files were changed. Skipping benchmarks."
-          echo "This check passes automatically when no relevant files are changed."
 
       - name: Get main branch head SHA
         if: env.EARLY_EXIT == 'false'
@@ -180,9 +175,11 @@ jobs:
             --threshold-test t_test \
             --threshold-max-sample-size 64 \
             --threshold-upper-boundary 0.99 \
+            --threshold-measure "nanoseconds (ns)" \
             --thresholds-reset \
             --adapter python_pytest \
             --github-actions "$GITHUB_TOKEN" \
+            --err \
             --file combined_benchmark_results.json > /dev/null
 
       - name: Upload to Bencher (PR Performance Changes)
@@ -200,6 +197,18 @@ jobs:
             --start-point-clone-thresholds \
             --start-point-reset \
             --testbed ubuntu-latest \
+            --threshold-measure latency \
+            --threshold-test t_test \
+            --threshold-max-sample-size 64 \
+            --threshold-upper-boundary 0.99 \
+            --threshold-measure "nanoseconds (ns)" \
             --adapter python_pytest \
             --github-actions "$GITHUB_TOKEN" \
+            --err \
             --file combined_benchmark_results.json > /dev/null
+
+      - name: benchmarks skipped (no relevant changes)
+        if: env.EARLY_EXIT == 'true'
+        run: |
+          echo "No Python files or benchmark-related files were changed. Skipping benchmarks."
+          echo "This check passes automatically when no relevant files are changed."
