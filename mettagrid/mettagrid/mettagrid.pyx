@@ -76,6 +76,7 @@ cdef class MettaGrid:
         char[:] _terminals
         cnp.ndarray _truncations_np
         char[:] _truncations
+        float _reward_multiplier
         cnp.ndarray _rewards_np
         float[:] _rewards
         cnp.ndarray _episode_rewards_np
@@ -123,6 +124,7 @@ cdef class MettaGrid:
             np.zeros(num_agents, dtype=np.float32)
         )
 
+        self._reward_multiplier = 1.0
         self._action_success.resize(num_agents)
 
         # Set up action handlers. This would be cleaner in a separate function. We're leaving
@@ -312,6 +314,12 @@ cdef class MettaGrid:
             self._action_success[i] = 0
 
         self._current_timestep += 1
+
+        # Update reward multiplier using IIR filter
+        # Using time constant = max_timestep / 3 as suggested
+        cdef float decay_factor = 3.0 / self._max_timestep if self._max_timestep > 0 else 0.01
+        self._reward_multiplier = max(0.1, self._reward_multiplier * (1.0 - decay_factor))
+
         self._event_manager.process_events(self._current_timestep)
 
         cdef unsigned char p
@@ -332,6 +340,10 @@ cdef class MettaGrid:
                 self._action_success[idx] = handler.handle_action(idx, agent.id, arg, self._current_timestep)
 
         self._compute_observations(actions)
+
+        # Apply reward multiplier to all rewards
+        for i in range(self._rewards.shape[0]):
+            self._rewards[i] *= self._reward_multiplier
 
         for i in range(self._episode_rewards.shape[0]):
             self._episode_rewards[i] += self._rewards[i]
