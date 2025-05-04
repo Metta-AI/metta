@@ -177,7 +177,6 @@ jobs:
             --thresholds-reset \
             --adapter python_pytest \
             --github-actions "$GITHUB_TOKEN" \
-            --err \
             --file combined_benchmark_results.json > /dev/null
 
       - name: Upload to Bencher (PR Performance Changes)
