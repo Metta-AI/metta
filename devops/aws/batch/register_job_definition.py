@@ -10,8 +10,8 @@ import boto3
 def get_role_arn(role_name, profile=None):
     """Look up the ARN for a given IAM role name."""
     try:
-        # Use the specified profile or default to stem-root
-        session = boto3.Session(profile_name=profile or "stem-root", region_name="us-east-1")
+        # Use the specified profile or default to softmax-root
+        session = boto3.Session(profile_name=profile or "softmax-root", region_name="us-east-1")
         iam = session.client("iam")
         response = iam.get_role(RoleName=role_name)
         return response["Role"]["Arn"]
@@ -55,8 +55,8 @@ def get_efs_id(name_tag=None):
 
 def create_job_definition(args):
     """Create a job definition dictionary without registering it."""
-    # Use the stem-root profile for AWS operations
-    boto3.Session(profile_name="stem-root", region_name="us-east-1")
+    # Use the softmax-root profile for AWS operations
+    boto3.Session(profile_name="softmax-root", region_name="us-east-1")
 
     # Look up role ARNs if not provided
     job_role_arn = args.job_role_arn
@@ -147,8 +147,8 @@ def create_job_definition(args):
 
 def register_job_definition(args):
     """Register a new job definition or a new version of an existing one."""
-    # Use the stem-root profile for AWS operations
-    session = boto3.Session(profile_name="stem-root", region_name="us-east-1")
+    # Use the softmax-root profile for AWS operations
+    session = boto3.Session(profile_name="softmax-root", region_name="us-east-1")
     batch = session.client("batch")
 
     # Check if job definition already exists
@@ -179,13 +179,13 @@ def register_job_definition(args):
 
 
 def main():
-    # Use stem-root profile instead of unsetting AWS_PROFILE
-    if "AWS_PROFILE" in os.environ and os.environ["AWS_PROFILE"] != "stem-root":
-        print(f"Setting AWS_PROFILE environment variable to stem-root (was: {os.environ['AWS_PROFILE']})")
-        os.environ["AWS_PROFILE"] = "stem-root"
+    # Use softmax-root profile instead of unsetting AWS_PROFILE
+    if "AWS_PROFILE" in os.environ and os.environ["AWS_PROFILE"] != "softmax-root":
+        print(f"Setting AWS_PROFILE environment variable to softmax-root (was: {os.environ['AWS_PROFILE']})")
+        os.environ["AWS_PROFILE"] = "softmax-root"
     elif "AWS_PROFILE" not in os.environ:
-        print("Setting AWS_PROFILE environment variable to stem-root")
-        os.environ["AWS_PROFILE"] = "stem-root"
+        print("Setting AWS_PROFILE environment variable to softmax-root")
+        os.environ["AWS_PROFILE"] = "softmax-root"
 
     parser = argparse.ArgumentParser(description="Register a multi-node AWS Batch job definition")
     parser.add_argument("--job-definition-name", default="metta-batch-dist-train", help="Name of the job definition")
