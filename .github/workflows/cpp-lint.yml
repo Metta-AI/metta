@@ -12,6 +12,7 @@ on:
 
 jobs:
   cpp-lint:
+    name: "Lint"
     if: >-
       github.event.pull_request.draft == false || 
       github.event_name == 'workflow_dispatch' || 
