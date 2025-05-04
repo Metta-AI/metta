@@ -222,6 +222,8 @@
 			"PYTHONPATH",
 			"raylib",
 			"relu",
+			"SKYPILOT",
+			"softmax",
 			"tensorclass",
 			"tensordict",
 			"timestep",
