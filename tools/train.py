@@ -47,9 +47,6 @@ def train(cfg, wandb_run, logger: Logger):
 
     upload_map_preview(cfg, wandb_run, logger)
 
-    if "dry_run" in cfg and cfg.dry_run:
-        return
-
     trainer = hydra.utils.instantiate(cfg.trainer, cfg, wandb_run, policy_store, train_job.evals)
     trainer.train()
     trainer.close()
