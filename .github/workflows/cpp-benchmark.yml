@@ -129,9 +129,6 @@ jobs:
                 --threshold-max-sample-size 64 \
                 --threshold-upper-boundary 0.99 \
                 --threshold-measure "nanoseconds (ns)" \
-                --threshold-test t_test \
-                --threshold-max-sample-size 64 \
-                --threshold-upper-boundary 0.99 \
                 --thresholds-reset \
                 --testbed ubuntu-latest \
                 --adapter cpp_google \
@@ -162,10 +159,10 @@ jobs:
                 --start-point-hash "${{ steps.get-main-sha.outputs.MAIN_SHA }}" \
                 --start-point-clone-thresholds \
                 --start-point-reset \
-                --threshold-measure "nanoseconds (ns)" \
                 --threshold-test t_test \
                 --threshold-max-sample-size 64 \
                 --threshold-upper-boundary 0.99 \
+                --threshold-measure "nanoseconds (ns)" \
                 --testbed ubuntu-latest \
                 --adapter cpp_google \
                 --github-actions "$GITHUB_TOKEN" \
