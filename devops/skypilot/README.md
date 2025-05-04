@@ -51,6 +51,11 @@ View job logs:
 sky jobs logs <JOB_ID>
 ```
 
+View controller logs:
+```bash
+sky controller logs
+```
+
 ### Canceling Jobs
 
 Cancel a specific job:
