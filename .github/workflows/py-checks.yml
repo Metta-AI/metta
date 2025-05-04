@@ -21,6 +21,7 @@ permissions:
 jobs:
   # First job: check if any Python files have changed
   check-files-py:
+    name: "checking for Python changes"
     if: |
       github.event.pull_request.draft == false || 
       github.event_name == 'push' || 
