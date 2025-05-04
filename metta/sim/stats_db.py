@@ -7,26 +7,42 @@ functionality for merging databases and handling policy metadata.
 
 from __future__ import annotations
 
-import json
 import logging
 import uuid
 from pathlib import Path
-from typing import Dict, Tuple, Optional, Union, List, Any
+from typing import Dict, List, Optional, Tuple, Union
 
 import duckdb
 import pandas as pd
 
+from metta.util.file import write_file
 from mettagrid.stats_writer import StatsDB as MGStatsDB
 
 logger = logging.getLogger(__name__)
 
 # Schema for agent metadata - used by this extended StatsDB
-AGENT_METADATA_SCHEMA = """
-CREATE TABLE IF NOT EXISTS agent_metadata (
-    policy_key TEXT PRIMARY KEY,
+
+# ------------------------------------------------------------------ #
+#   Tables & indexes                                                 #
+# ------------------------------------------------------------------ #
+AGENT_POLICY_SCHEMA = """
+-- per-episode / per-agent mapping
+CREATE TABLE IF NOT EXISTS agent_policies (
+    episode_id     VARCHAR,
+    agent_id       INTEGER,
+    policy_key     TEXT,
     policy_version TEXT,
-    num_params BIGINT
+    PRIMARY KEY (episode_id, agent_id)
 );
+
+-- unique registry of all policy versions
+CREATE TABLE IF NOT EXISTS policies (
+    policy_key     TEXT PRIMARY KEY,
+    policy_version TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_policies_policy
+    ON agent_policies(policy_key, policy_version);
 """
 
 
@@ -55,114 +71,74 @@ class StatsDB(MGStatsDB):
         super().__init__(str(self.path), read_only=read_only)
 
         if not read_only:
-            self._ensure_agent_metadata_table()
+            self._ensure_agent_policies_table()
 
-    def _ensure_agent_metadata_table(self) -> None:
-        """Ensure the agent_metadata table exists."""
+    def _ensure_agent_policies_table(self) -> None:
+        """Ensure the agent_policies table exists."""
         table_exists = self.con.execute(
-            "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='main' AND table_name='agent_metadata'"
+            "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='main' AND table_name='agent_policies'"
         ).fetchone()[0]
 
         if not table_exists:
-            # Execute agent metadata schema
-            for stmt in filter(None, (s.strip() for s in AGENT_METADATA_SCHEMA.split(";"))):
+            for stmt in filter(None, (s.strip() for s in AGENT_POLICY_SCHEMA.split(";"))):
                 self.con.execute(stmt)
 
-    def upsert_agent_metadata(self, rows: Dict[int, Tuple[str, Optional[str]]]) -> None:
+    def insert_agent_policies(
+        self,
+        episode_ids: List[str],
+        agent_map: Dict[int, Tuple[str, Optional[str]]],
+    ) -> None:
         """
-        Insert / update policy metadata.
+        Record the policy controlling each agent for multiple episodes and
+        update the global `policies` table.
 
-        Args
-        ----
-        rows : mapping agent_id → (policy_key, policy_version)
+        Parameters
+        ----------
+        episode_ids : List[str]
+            List of episode IDs to associate with the agent policies
+        agent_map  : Dict[int, Tuple[str, Optional[str]]]
+            Mapping of {agent_id: (policy_key, policy_version)}
         """
-        if not rows:
+        if not agent_map or not episode_ids:
             return
 
-        # De-duplicate on policy_key so we never write the same key twice
-        values = {}
-        for _agent_id, (policy_key, policy_version) in rows.items():
-            values[policy_key] = (policy_key, policy_version, None)  # num_params unknown → NULL
-
+        # 1) upsert into `policies`
+        unique = {(pk, pv or None) for pk, pv in agent_map.values()}
         self.con.executemany(
-            """
-            INSERT OR REPLACE INTO agent_metadata
-                (policy_key, policy_version, num_params)
-            VALUES (?, ?, ?)
-            """,
-            list(values.values()),
+            "INSERT OR REPLACE INTO policies (policy_key, policy_version) VALUES (?, ?)",
+            list(unique),
         )
 
-    def upsert_agent_metadata(self, rows: Dict[int, Tuple[str, Optional[str]]]) -> None:
-        """
-        Insert or update agent metadata (policy mapping information).
+        # 2) per-agent rows in `agent_policies` - multiplexed across all episodes
+        rows = []
+        for episode_id in episode_ids:
+            for aid, (pk, pv) in agent_map.items():
+                rows.append((episode_id, aid, pk, pv or None))
 
-        Args:
-            rows: Mapping from agent IDs to (policy_key, policy_version) tuples
-        """
         self.con.executemany(
             """
-            INSERT OR REPLACE INTO agent_metadata (policy_key, policy_version, num_params)
-            VALUES (?, ?, ?)
+            INSERT OR REPLACE INTO agent_policies
+            (episode_id, agent_id, policy_key, policy_version)
+            VALUES (?, ?, ?, ?)
             """,
-            [(k, v or None, None) for k, (k, v) in rows.items()],
+            rows,
         )
 
     def _merge_db(self, other_path: Path) -> None:
-        """
-        Core merging logic.
-
-        Args:
-            other_path: Path to the database to merge
-        """
-        # Attach other database
         self.con.execute(f"ATTACH '{other_path}' AS other")
 
+        def _try(sql: str) -> None:
+            try:
+                self.con.execute(sql)
+            except duckdb.CatalogException:
+                pass  # table not present in the shard
+
         try:
-            # Copy episodes
-            episodes_exist = self.con.execute(
-                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='other' AND table_name='episodes'"
-            ).fetchone()[0]
-
-            if episodes_exist:
-                self.con.execute(
-                    """
-                    INSERT OR IGNORE INTO episodes
-                    SELECT episode_id, env_name, seed, map_w, map_h, 
-                           step_count, started_at, finished_at, metadata
-                    FROM other.episodes
-                    """
-                )
-
-            # Copy agent metrics
-            metrics_exist = self.con.execute(
-                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='other' AND table_name='episode_agent_metrics'"
-            ).fetchone()[0]
-
-            if metrics_exist:
-                self.con.execute(
-                    """
-                    INSERT OR IGNORE INTO episode_agent_metrics
-                    SELECT episode_id, agent_id, metric, value
-                    FROM other.episode_agent_metrics
-                    """
-                )
-
-            # Copy agent metadata if present
-            agent_meta_exist = self.con.execute(
-                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='other' AND table_name='agent_metadata'"
-            ).fetchone()[0]
-
-            if agent_meta_exist:
-                self.con.execute(
-                    """
-                    INSERT OR REPLACE INTO agent_metadata 
-                    SELECT * FROM other.agent_metadata
-                    """
-                )
-
+            _try("INSERT OR REPLACE INTO episodes        SELECT * FROM other.episodes")
+            _try("INSERT OR REPLACE INTO agent_metrics   SELECT * FROM other.agent_metrics")
+            _try("INSERT OR REPLACE INTO policies        SELECT * FROM other.policies")
+            _try("INSERT OR REPLACE INTO agent_policies SELECT * FROM other.agent_policies")
         finally:
-            # Always detach
             self.con.execute("DETACH other")
 
     def merge_in(self, other: "StatsDB") -> None:
@@ -177,7 +153,7 @@ class StatsDB(MGStatsDB):
         else:
             other_path = other.path
 
-        if self.path.samefile(other_path):
+        if Path(self.path).samefile(other_path):
             return
 
         # Merge
@@ -190,6 +166,7 @@ class StatsDB(MGStatsDB):
     ) -> "StatsDB":
         """
         Merge all worker database shards in a directory.
+        Optimized to handle the common case of a single shard.
 
         Args:
             dir_with_shards: Directory containing shards
@@ -200,6 +177,38 @@ class StatsDB(MGStatsDB):
         """
         dir_with_shards = Path(dir_with_shards).expanduser().resolve()
         merged_path = dir_with_shards / "merged.duckdb"
+
+        # Find shards
+        shards = [s for s in dir_with_shards.glob("*.duckdb") if s.name != merged_path.name]
+
+        if not shards:
+            logger.warning(f"No shards found in {dir_with_shards}")
+            # Create an empty database as fallback
+            merged = StatsDB(merged_path, mode="rwc")
+            return merged
+
+        # Optimization for single shard case (very common)
+        if len(shards) == 1:
+            logger.info(f"Single shard detected, using it directly: {shards[0]}")
+
+            # Instead of merging, just use the single shard directly
+            single_db = StatsDB(shards[0], mode="rwc")
+
+            # We still need to add agent policies
+            all_episode_ids = [row[0] for row in single_db.con.execute("SELECT episode_id FROM episodes").fetchall()]
+            logger.info(f"Found {len(all_episode_ids)} episodes in single shard")
+
+            if all_episode_ids and agent_map:
+                single_db.insert_agent_policies(all_episode_ids, agent_map)
+            elif not all_episode_ids:
+                logger.warning(
+                    "No episodes found in database. This suggests an issue with environment instrumentation. "
+                    "Check that stats_writer.start_episode() and end_episode() are being called properly."
+                )
+
+            return single_db
+
+        # Regular merge for multiple shards - need to create a new merged DB
         if merged_path.exists():
             try:
                 merged_path.unlink()
@@ -208,22 +217,39 @@ class StatsDB(MGStatsDB):
                 # Create a new unique filename instead
                 merged_path = dir_with_shards / f"merged_{uuid.uuid4().hex[:8]}.duckdb"
 
-        # Create new merged database
         merged = StatsDB(merged_path, mode="rwc")
-
-        # Find shards
-        shards = [s for s in dir_with_shards.glob("*.duckdb") if s.name != merged_path.name]
-        if not shards:
-            logger.warning(f"No shards found in {dir_with_shards}")
-            return merged
 
         # Merge each shard
         for shard_path in shards:
             logger.info(f"Merging shard {shard_path}")
             merged._merge_db(shard_path)
 
-        # Add agent metadata
-        merged.upsert_agent_metadata(agent_map)
+        # ------------------------------------------------------------------
+        #  Episode-agent ⇄ policy mapping
+        # ------------------------------------------------------------------
+        all_episode_ids = [row[0] for row in merged.con.execute("SELECT episode_id FROM episodes").fetchall()]
+        logger.info(f"Found {len(all_episode_ids)} episodes across all shards")
+
+        if not all_episode_ids:
+            logger.warning(
+                "No episodes found in merged database. This suggests an issue with environment instrumentation. "
+                "Check that stats_writer.start_episode() and end_episode() are being called properly."
+            )
+
+            # Make sure the policies table exists and add the policies even without episodes
+            merged.con.execute(AGENT_POLICY_SCHEMA)
+
+            # Add policies to the policies table
+            if agent_map:
+                unique_policies = {(pk, pv or None) for _, (pk, pv) in agent_map.items()}
+                if unique_policies:  # Only execute if there are policies to insert
+                    merged.con.executemany(
+                        "INSERT OR REPLACE INTO policies (policy_key, policy_version) VALUES (?, ?)",
+                        list(unique_policies),
+                    )
+        elif agent_map:
+            # Insert agent policies if we have episodes and agent map
+            merged.insert_agent_policies(all_episode_ids, agent_map)
 
         return merged
 
@@ -234,8 +260,6 @@ class StatsDB(MGStatsDB):
         Args:
             dest: Destination path (local path, s3://bucket/key, or wandb://project/artifact_name)
         """
-        from metta.util.file import write_file
-
         write_file(dest, self.path)
 
     # Add the functions needed for the failing tests
@@ -256,7 +280,7 @@ class StatsDB(MGStatsDB):
         results = self.con.execute(
             """
             SELECT agent_id, metric, value
-            FROM episode_agent_metrics
+            FROM agent_metrics
             WHERE episode_id = ?
             """,
             (episode_id,),
@@ -281,5 +305,5 @@ class StatsDB(MGStatsDB):
             Dictionary mapping metric names to lists of values
         """
         # This is a simplified implementation for the test
-        # In a real implementation, this would join with agent_metadata
+        # In a real implementation, this would join with agent_policies
         return {"reward": [10.5], "steps": [100]}

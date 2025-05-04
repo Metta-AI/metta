@@ -65,6 +65,7 @@ class Simulation:
 
         # ---------------- device / vec-env ----------------------------- #
         self._device = config.device
+        logger.info(f"Creating vecenv with {config.num_envs} environments")
         self._vecenv = make_vecenv(
             self._env_cfg,
             config.vectorization,
