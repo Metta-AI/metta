@@ -1,0 +1,8 @@
+resources:
+  cpus: 8+
+  memory: 16+
+  ports: 46580
+  image_id: docker:berkeleyskypilot/skypilot-nightly:latest
+
+run: |
+  sky api start --deploy
