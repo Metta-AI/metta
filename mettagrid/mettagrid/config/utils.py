@@ -1,14 +1,14 @@
-from pathlib import Path
+import os
 
 import hydra
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import OmegaConf
 
 # mettagrid/configs dir, with omegaconf configs
-mettagrid_configs_root = Path(__file__).parent.resolve() / "../../configs"
+mettagrid_configs_root = "mettagrid/configs"
 
 # dir with scenes configs, used in tests and in mettagrid.map.utils.dcss
-scenes_root = mettagrid_configs_root / "scenes"
+scenes_root = os.path.join(mettagrid_configs_root, "scenes")
 
 
 # proxy to hydra.utils.instantiate

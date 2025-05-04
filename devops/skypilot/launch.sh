@@ -67,3 +67,4 @@ AWS_PROFILE=softmax-db-admin sky jobs launch \
   --detach-run \
   --async \
   --yes
+

@@ -1,3 +1,4 @@
+import os
 from typing import Any, List, Optional, TypedDict, Union, cast
 
 import numpy as np
@@ -21,7 +22,7 @@ def make_scene(cfg: SceneCfg) -> "Scene":
     if isinstance(cfg, str):
         if cfg.startswith("/"):
             cfg = cfg[1:]
-        cfg = cast(SceneCfg, OmegaConf.load(f"{scenes_root}/{cfg}"))
+        cfg = cast(SceneCfg, OmegaConf.load(os.path.join(scenes_root, cfg)))
 
     if isinstance(cfg, Scene):
         # already an instance, maybe recursive=True was enabled

@@ -3,6 +3,8 @@ from typing import Optional, TypedDict, cast
 
 import numpy as np
 
+import mettagrid
+import mettagrid.config.utils
 from mettagrid.map.scene import Scene, TypedChild
 from mettagrid.map.scenes.random_scene import RandomScene
 from mettagrid.map.utils.random import MaybeSeed
@@ -20,7 +22,7 @@ class RandomSceneFromDir(Scene):
         super().__init__(children or [])
         self._dir = dir
 
-        files = os.listdir(self._dir)
+        files = os.listdir(os.path.join(mettagrid.config.utils.scenes_root, self._dir))
         if not files:
             raise ValueError(f"No files found in {self._dir}")
         self._files = files
