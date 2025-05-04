@@ -134,7 +134,6 @@ jobs:
                 --testbed ubuntu-latest \
                 --adapter cpp_google \
                 --github-actions "$GITHUB_TOKEN" \
-                --err \
                 --file "$file" > /dev/null
             done
           else
