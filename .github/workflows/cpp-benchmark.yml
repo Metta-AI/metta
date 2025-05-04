@@ -35,7 +35,9 @@ jobs:
         if: github.event_name != 'workflow_call'
         uses: ./.github/actions/file-changes
         with:
-          patterns: "mettagrid/,*.cpp,*.cxx,*.cc,*.h,*.hpp,*.pyx,*.pxd"
+          patterns: "*.cpp,*.cxx,*.cc,*.h,*.hpp,*.pyx,*.pxd"
+          directory_paths: "mettagrid/"
+          specific_files: "requirements.txt,setup.py"
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set early exit flag
@@ -128,7 +130,6 @@ jobs:
                 --threshold-test t_test \
                 --threshold-max-sample-size 64 \
                 --threshold-upper-boundary 0.99 \
-                --threshold-measure "nanoseconds (ns)" \
                 --thresholds-reset \
                 --testbed ubuntu-latest \
                 --adapter cpp_google \
@@ -162,7 +163,6 @@ jobs:
                 --threshold-test t_test \
                 --threshold-max-sample-size 64 \
                 --threshold-upper-boundary 0.99 \
-                --threshold-measure "nanoseconds (ns)" \
                 --testbed ubuntu-latest \
                 --adapter cpp_google \
                 --github-actions "$GITHUB_TOKEN" \

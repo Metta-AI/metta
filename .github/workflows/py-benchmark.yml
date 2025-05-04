@@ -35,9 +35,8 @@ jobs:
         if: github.event_name != 'workflow_call'
         uses: ./.github/actions/file-changes
         with:
-          patterns: "*.py"
+          patterns: "**/*.py"
           specific_files: "requirements.txt,setup.py"
-          directory_paths: "tests/,benchmarks/,mettagrid/tests/,mettagrid/benchmarks/"
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set early exit flag
@@ -175,7 +174,6 @@ jobs:
             --threshold-test t_test \
             --threshold-max-sample-size 64 \
             --threshold-upper-boundary 0.99 \
-            --threshold-measure "nanoseconds (ns)" \
             --thresholds-reset \
             --adapter python_pytest \
             --github-actions "$GITHUB_TOKEN" \
@@ -201,7 +199,6 @@ jobs:
             --threshold-test t_test \
             --threshold-max-sample-size 64 \
             --threshold-upper-boundary 0.99 \
-            --threshold-measure "nanoseconds (ns)" \
             --adapter python_pytest \
             --github-actions "$GITHUB_TOKEN" \
             --err \
