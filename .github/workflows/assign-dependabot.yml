@@ -1,4 +1,4 @@
-name: Dependabot PR Assignment
+name: "Assign Dependabot PRs"
 
 on:
   # Schedule to run 3 hours after Dependabot's weekly run on Monday
