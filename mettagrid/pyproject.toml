@@ -1,0 +1,39 @@
+
+[build-system]
+requires = ["setuptools>=64", "wheel", "cython>=3.0.0", "numpy>=1.21.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mettagrid"
+version = "0.1.6"
+description = "A fast grid-based open-ended MARL environment"
+authors = [{ name = "David Bloomin", email = "daveey@gmail.com" }]
+license = { text = "MIT" }
+readme = "README.md"
+urls = { Homepage = "https://daveey.github.io", Repository = "https://github.com/Metta-AI/mettagrid" }
+keywords = [
+    "gridworld",
+    "minigrid",
+    "rl",
+    "reinforcement-learning",
+    "environment",
+    "gym",
+]
+requires-python = ">=3.10,<4.0"
+dependencies = ["numpy>=1.21.0", "cython>=3.0.11"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["mettagrid*"]
+
+[tool.setuptools.package-data]
+"mettagrid" = ["*.pyx", "*.pxd", "*.hpp", "*.cpp", "*.so"]
+
+# Configuring pytest here causes us to ignore metta/conftest.py
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+python_classes = ["Test*"]
+addopts = "--cov=mettagrid --cov-report=term"

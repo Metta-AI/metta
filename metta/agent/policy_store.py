@@ -93,7 +93,6 @@ class PolicyStore:
                 prs = self._prs_from_wandb_sweep(sweep_name, version)
             else:
                 prs = self._prs_from_wandb_artifact(wandb_uri, version)
-
         elif uri.startswith("file://"):
             prs = self._prs_from_path(uri[len("file://") :])
         elif uri.startswith("puffer://"):
@@ -104,42 +103,75 @@ class PolicyStore:
         if len(prs) == 0:
             raise ValueError(f"No policies found at {uri}")
 
+        logger.info(f"Found {len(prs)} policies at {uri}")
+
         if selector_type == "all":
+            logger.info(f"Returning all {len(prs)} policies")
             return prs
-
         elif selector_type == "latest":
-            return [prs[0]]
-
+            selected = [prs[0]]
+            logger.info(f"Selected latest policy: {selected[0].name}")
+            return selected
         elif selector_type == "rand":
-            return [random.choice(prs)]
-
+            selected = [random.choice(prs)]
+            logger.info(f"Selected random policy: {selected[0].name}")
+            return selected
         elif selector_type == "top":
-            if metric not in prs[0].metadata:
-                # check if the metric is in eval_scores
-                if "eval_scores" in prs[0].metadata and metric in prs[0].metadata["eval_scores"]:
-                    policy_scores = {p: p.metadata.get("eval_scores", {}).get(metric, None) for p in prs}
-                else:
-                    logger.warning(f"Metric {metric} not found in policy metadata, returning latest policy")
-                    return [prs[0]]  #
-            else:
+            if (
+                "eval_scores" in prs[0].metadata
+                and prs[0].metadata["eval_scores"] is not None
+                and metric in prs[0].metadata["eval_scores"]
+            ):
+                # Metric is in eval_scores
+                logger.info(f"Found metric '{metric}' in metadata['eval_scores']")
+                policy_scores = {p: p.metadata.get("eval_scores", {}).get(metric, None) for p in prs}
+            elif metric in prs[0].metadata:
+                # Metric is directly in metadata
+                logger.info(f"Found metric '{metric}' directly in metadata")
                 policy_scores = {p: p.metadata.get(metric, None) for p in prs}
+            else:
+                # Metric not found anywhere
+                logger.warning(
+                    f"Metric '{metric}' not found in policy metadata or eval_scores, returning latest policy"
+                )
+                selected = [prs[0]]
+                logger.info(f"Selected latest policy (due to missing metric): {selected[0].name}")
+                return selected
 
             policies_with_scores = [p for p, s in policy_scores.items() if s is not None]
+
             # If more than 20% of the policies have no score, return the latest policy
             if len(policies_with_scores) < len(prs) * 0.8:
                 logger.warning("Too many invalid scores, returning latest policy")
-                return [prs[0]]  # return latest if metric not found
-            top = sorted(policies_with_scores, key=lambda p: policy_scores[p])[-n:]
+                selected = [prs[0]]  # return latest if metric not found
+                logger.info(f"Selected latest policy (due to too many invalid scores): {selected[0].name}")
+                return selected
+
+            # Sort by metric score (assuming higher is better)
+            def get_policy_score(policy: PolicyRecord) -> float:  # Explicitly return a comparable type
+                score = policy_scores.get(policy)
+                if score is None:
+                    return float("-inf")  # Or another appropriate default
+                return score
+
+            top = sorted(policies_with_scores, key=get_policy_score)[-n:]
+
             if len(top) < n:
                 logger.warning(f"Only found {len(top)} policies matching criteria, requested {n}")
 
-            logger.info(f"Top {n} policies by {metric}:")
+            logger.info(f"Top {len(top)} policies by {metric}:")
             logger.info(f"{'Policy':<40} | {metric:<20}")
             logger.info("-" * 62)
             for pr in top:
-                logger.info(f"{pr.name:<40} | {policy_scores[pr]:<20.4f}")
+                score = policy_scores[pr]
+                logger.info(f"{pr.name:<40} | {score:<20.4f}")
 
-            return top[-n:]
+            selected = top[-n:]
+            logger.info(f"Selected {len(selected)} top policies by {metric}")
+            for i, pr in enumerate(selected):
+                logger.info(f"  {i + 1}. {pr.name} (score: {policy_scores[pr]:.4f})")
+
+            return selected
         else:
             raise ValueError(f"Invalid selector type {selector_type}")
 
@@ -180,10 +212,16 @@ class PolicyStore:
         return pr
 
     def add_to_wandb_run(self, run_id: str, pr: PolicyRecord, additional_files=None):
-        return self.add_to_wandb_artifact(run_id, "model", pr.metadata, pr.local_path(), additional_files)
+        local_path = pr.local_path()
+        if local_path is None:
+            raise ValueError("PolicyRecord has no local path")
+        return self.add_to_wandb_artifact(run_id, "model", pr.metadata, local_path, additional_files)
 
     def add_to_wandb_sweep(self, sweep_name: str, pr: PolicyRecord, additional_files=None):
-        return self.add_to_wandb_artifact(sweep_name, "sweep_model", pr.metadata, pr.local_path(), additional_files)
+        local_path = pr.local_path()
+        if local_path is None:
+            raise ValueError("PolicyRecord has no local path")
+        return self.add_to_wandb_artifact(sweep_name, "sweep_model", pr.metadata, local_path, additional_files)
 
     def add_to_wandb_artifact(self, name: str, type: str, metadata: dict, local_path: str, additional_files=None):
         if self._wandb_run is None:

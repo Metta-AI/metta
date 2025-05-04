@@ -3,6 +3,7 @@ defaults:
   - _self_
 
 sampling: 1
+num_agents: 24
 
 game:
   num_agents: 24
@@ -13,6 +14,7 @@ game:
   map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom
     border_width: 6
+    num_rooms: 4
 
     room:
       _target_: mettagrid.config.room.navigation.varied_terrain_objects.VariedTerrainObjects
