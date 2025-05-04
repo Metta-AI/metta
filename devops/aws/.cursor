@@ -47,7 +47,7 @@
   "tasks": {
     "enabled": true,
     "scripts": {
-      "setup": "python setup_sso.py",
+      "setup": "aws sso login --profile stem-db",
       "cmd": "./cmd.sh"
     }
   }

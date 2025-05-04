@@ -4,8 +4,9 @@
 
 1. Configure AWS SSO and credentials:
 ```bash
-# Run the setup script
-python ./devops/aws/setup_sso.py
+mkdir -p ~/.aws
+cp devops/aws/config.txt ~/.aws/config
+aws sso login --profile stem-db
 
 # Load new environment settings
 source ~/.bashrc
