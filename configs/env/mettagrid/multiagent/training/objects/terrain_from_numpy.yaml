@@ -1,26 +1,22 @@
 defaults:
   - /env/mettagrid/mettagrid@
-  - _self_
 
 sampling: 1
-
 game:
-  num_agents: 24
-
+  num_agents: 24  #how many agents are in the map x2
+  max_steps: 100
   agent:
     max_inventory: 10
-
   map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom
+    num_rooms: 4
     border_width: 6
 
     room:
-      _target_: mettagrid.config.room.navigation.varied_terrain_objects.VariedTerrainObjects
-      width: ${sampling:50,100,60}
-      height: ${sampling:50,100,60}
-      border_width: ${sampling:1,6,3}
+      _target_: mettagrid.config.room.navigation.terrain_from_numpy_objects.TerrainFromNumpy
+      border_width: 1
+      dir: "terrain_maps_nohearts"
       num_agents: ${div:${....num_agents},4}
-      style: balanced # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
 
   objects:
     altar:
