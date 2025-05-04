@@ -5,12 +5,9 @@ Base statistics writer class for MettaGrid environments.
 import json
 import logging
 import uuid
-from typing import Any, Dict, Optional
+from typing import Dict, Optional
 
 import duckdb
-import numpy as np
-
-logger = logging.getLogger(__name__)
 
 
 class StatsDB:
@@ -31,6 +28,8 @@ class StatsDB:
         """
         self.path = path
         self.read_only = read_only
+        logger = logging.getLogger(__name__)
+        logger.info(f"Opening stats database at {path}")
 
         self.con = duckdb.connect(path, read_only=read_only)
 
@@ -54,7 +53,7 @@ class StatsDB:
         """)
 
         self.con.execute("""
-        CREATE TABLE IF NOT EXISTS episode_agent_metrics (
+        CREATE TABLE IF NOT EXISTS agent_metrics (
             episode_id VARCHAR,
             agent_id INTEGER,
             metric VARCHAR,
@@ -137,7 +136,7 @@ class StatsDB:
 
         self.con.executemany(
             """
-            INSERT OR REPLACE INTO episode_agent_metrics 
+            INSERT OR REPLACE INTO agent_metrics 
             (episode_id, agent_id, metric, value)
             VALUES (?, ?, ?, ?)
             """,
@@ -161,6 +160,8 @@ class StatsWriter:
         Args:
             path: Path to the stats database
         """
+        logger = logging.getLogger(__name__)
+        logger.info(f"Initializing stats writer at {path}")
         self.db = StatsDB(path, read_only=False)
         self.current_episode_id = None
         self.metrics = {}
@@ -219,6 +220,7 @@ class StatsWriter:
 
     def close(self) -> None:
         """Close the stats writer."""
+        logger = logging.getLogger(__name__)
         if self.current_episode_id is not None:
             logger.warning("Closing stats writer with an active episode. Episode will not be recorded.")
 

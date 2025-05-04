@@ -224,7 +224,7 @@ class PolicyEvalDB:
                 # Insert with conflict handling since unique constraint exists
                 logger.info(f"Batch inserting {len(results_to_insert)} evaluation results")
                 self.conn.executemany(
-                    """INSERT OR IGNORE INTO policy_evaluations
+                    """INSERT OR REPLACE INTO policy_evaluations
                     (policy_uri, policy_version, evaluation_name, metric, mean, stdev)
                     VALUES (?, ?, ?, ?, ?, ?)""",
                     results_to_insert,

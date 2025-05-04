@@ -94,11 +94,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                 meta=OmegaConf.to_container(self._env_cfg, resolve=False),
             )
 
-    # ---------------------------------------------------------------------- #
-    # Gym API                                                                #
-    # ---------------------------------------------------------------------- #
-    def reset(self, *, seed=None, options=None):
-        self._reset_env()
         obs, infos = self._c_env.reset()
         return obs, infos
 

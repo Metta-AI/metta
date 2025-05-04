@@ -6,8 +6,6 @@ import tempfile
 import uuid
 from pathlib import Path
 
-import pytest
-
 # The updated StatsDB with UUID-based IDs
 from mettagrid.stats_writer import StatsDB
 
@@ -105,7 +103,7 @@ def test_add_agent_metrics():
     for metric, value in metrics.items():
         result = db.con.execute(
             """
-            SELECT value FROM episode_agent_metrics 
+            SELECT value FROM agent_metrics 
             WHERE episode_id = ? AND agent_id = ? AND metric = ?
             """,
             (episode_id, agent_id, metric),

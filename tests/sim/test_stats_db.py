@@ -1,18 +1,16 @@
 """
 Integration tests for the extended StatsDB in metta.sim.stats_db,
-especially merge_worker_dbs().
+especially merge_worker_dbs() and insert_agent_policies().
 """
 
-import json
 import tempfile
 import uuid
 from pathlib import Path
 
-import duckdb
 import pytest
 
-from mettagrid.stats_writer import StatsDB as MGStatsDB
 from metta.sim.stats_db import StatsDB  # <— the Metta extension
+from mettagrid.stats_writer import StatsDB as MGStatsDB
 
 
 def _create_worker_db(path: Path, env_name: str):
@@ -43,9 +41,9 @@ def _create_worker_db(path: Path, env_name: str):
     )
     """)
 
-    # Make sure episode_agent_metrics table exists
+    # Make sure agent_metrics table exists
     db.con.execute("""
-    CREATE TABLE IF NOT EXISTS episode_agent_metrics (
+    CREATE TABLE IF NOT EXISTS agent_metrics (
         episode_id VARCHAR,
         agent_id INTEGER,
         metric VARCHAR,
@@ -68,7 +66,7 @@ def _create_worker_db(path: Path, env_name: str):
     # Add some metrics
     db.con.execute(
         """
-        INSERT INTO episode_agent_metrics
+        INSERT INTO agent_metrics
         (episode_id, agent_id, metric, value)
         VALUES (?, 0, 'reward', 1.0)
         """,
@@ -103,13 +101,15 @@ def test_merge_worker_dbs_two_shards(tmp_path: Path):
     assert "env_a" in env_names
     assert "env_b" in env_names
 
-    # Agent_metadata should be populated
-    agent_meta = merged.con.execute("SELECT * FROM agent_metadata").fetchall()
-    assert len(agent_meta) == len(agent_map)
-    assert agent_meta[0][0] == "dummy_policy"
+    # agent_policies should be populated
+    agent_meta = merged.con.execute(
+        "SELECT episode_id, agent_id, policy_key, policy_version FROM agent_policies"
+    ).fetchall()
+    # We should have one row per episode
+    assert len(agent_meta) == 2
 
     # Metrics should be merged
-    metrics = merged.con.execute("SELECT episode_id, agent_id, metric, value FROM episode_agent_metrics").fetchall()
+    metrics = merged.con.execute("SELECT episode_id, agent_id, metric, value FROM agent_metrics").fetchall()
     assert len(metrics) == 2
     assert metrics[0][2] == "reward"  # Check metric name
     assert metrics[1][2] == "reward"  # Check metric name
@@ -117,45 +117,97 @@ def test_merge_worker_dbs_two_shards(tmp_path: Path):
     merged.close()
 
 
-def test_upsert_agent_metadata():
-    """Test upserting agent metadata."""
+def test_insert_agent_policies():
+    """Test inserting agent policies with multiple episodes."""
     db = StatsDB(Path(tempfile.mktemp(suffix=".duckdb")), mode="rwc")
 
-    # Insert initial metadata
-    agent_map1 = {
+    # Multiple episode IDs
+    episode_ids = [str(uuid.uuid4()), str(uuid.uuid4())]
+
+    # Agent map
+    agent_map = {
         0: ("policy_a", "v1"),
         1: ("policy_b", None),
     }
-    db.upsert_agent_metadata(agent_map1)
 
-    # Verify it was stored correctly
-    results = db.con.execute("SELECT policy_key, policy_version FROM agent_metadata ORDER BY policy_key").fetchall()
+    # Insert agent policies for multiple episodes
+    db.insert_agent_policies(episode_ids, agent_map)
 
-    assert len(results) == 2
-    assert results[0][0] == "policy_a"
-    assert results[0][1] == "v1"
-    assert results[1][0] == "policy_b"
-    assert results[1][1] is None
+    # Verify policies table contains unique policies
+    policies = db.con.execute("SELECT policy_key, policy_version FROM policies ORDER BY policy_key").fetchall()
+    assert len(policies) == 2
+    assert policies[0][0] == "policy_a"
+    assert policies[0][1] == "v1"
+    assert policies[1][0] == "policy_b"
+    assert policies[1][1] is None
 
-    # Update with new metadata
-    agent_map2 = {
-        0: ("policy_a", "v2"),  # Update version
-        2: ("policy_c", "v1"),  # New policy
-    }
-    db.upsert_agent_metadata(agent_map2)
+    # Verify agent_policies contains multiplexed entries
+    agent_policies = db.con.execute(
+        "SELECT episode_id, agent_id, policy_key, policy_version FROM agent_policies ORDER BY episode_id, agent_id"
+    ).fetchall()
 
-    # Verify updates were applied
-    results = db.con.execute("SELECT policy_key, policy_version FROM agent_metadata ORDER BY policy_key").fetchall()
+    # Should have len(episode_ids) * len(agent_map) rows
+    assert len(agent_policies) == len(episode_ids) * len(agent_map)
 
-    assert len(results) == 3
-    assert results[0][0] == "policy_a"
-    assert results[0][1] == "v2"  # Updated version
-    assert results[1][0] == "policy_b"
-    assert results[1][1] is None
-    assert results[2][0] == "policy_c"
-    assert results[2][1] == "v1"
+    # Check specific entries
+    expected_entries = []
+    for ep_id in episode_ids:
+        for agent_id, (policy_key, policy_version) in agent_map.items():
+            expected_entries.append((ep_id, agent_id, policy_key, policy_version))
+
+    # Sort expected entries the same way as the query results
+    expected_entries.sort(key=lambda x: (x[0], x[1]))
+
+    for i, entry in enumerate(expected_entries):
+        assert agent_policies[i][0] == entry[0]  # episode_id
+        assert agent_policies[i][1] == entry[1]  # agent_id
+        assert agent_policies[i][2] == entry[2]  # policy_key
+        assert agent_policies[i][3] == entry[3]  # policy_version
 
     db.close()
+
+
+def test_empty_inputs_to_insert_agent_policies():
+    """Test handling of empty inputs to insert_agent_policies."""
+    db = StatsDB(Path(tempfile.mktemp(suffix=".duckdb")), mode="rwc")
+
+    # No episodes
+    db.insert_agent_policies([], {0: ("policy_a", "v1")})
+
+    # No agents
+    db.insert_agent_policies([str(uuid.uuid4())], {})
+
+    # Both empty
+    db.insert_agent_policies([], {})
+
+    # Verify no entries were added
+    agent_policies_count = db.con.execute("SELECT COUNT(*) FROM agent_policies").fetchone()[0]
+    assert agent_policies_count == 0
+
+    db.close()
+
+
+def test_merge_worker_dbs_empty_episodes(tmp_path: Path):
+    """Test handling the case when no episodes are found in database."""
+    shards_dir = tmp_path / "shards"
+    shards_dir.mkdir()
+
+    # Create an empty shard
+    empty_db_path = shards_dir / "empty.duckdb"
+    db = StatsDB(empty_db_path, mode="rwc")
+    db.close()
+
+    # Dummy agent map
+    agent_map = {0: ("dummy_policy", None)}
+
+    # Merge should handle empty episodes gracefully
+    merged = StatsDB.merge_worker_dbs(shards_dir, agent_map)
+
+    # Verify no episodes were found
+    episode_count = merged.con.execute("SELECT COUNT(*) FROM episodes").fetchone()[0]
+    assert episode_count == 0
+
+    merged.close()
 
 
 def test_query_method():
@@ -204,7 +256,7 @@ def test_get_metrics_for_episode():
     # Add metrics for multiple agents
     db.con.execute(
         """
-        INSERT INTO episode_agent_metrics
+        INSERT INTO agent_metrics
         (episode_id, agent_id, metric, value)
         VALUES 
         (?, 0, 'reward', 10.5),
