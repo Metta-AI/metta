@@ -1,0 +1,54 @@
+{
+  "documentation": {
+    "enabled": true,
+    "sources": [
+      {
+        "type": "local",
+        "path": ".",
+        "include": ["*.md"]
+      },
+      {
+        "type": "external",
+        "url": "https://docs.aws.amazon.com/",
+        "name": "AWS Official Docs"
+      }
+    ],
+    "search": {
+      "enabled": true,
+      "index": ["."]
+    }
+  },
+  "language": {
+    "python": {
+      "format": {
+        "enabled": true
+      },
+      "linting": {
+        "enabled": true,
+        "tools": ["pylint", "mypy"]
+      }
+    },
+    "shell": {
+      "format": {
+        "enabled": true
+      },
+      "linting": {
+        "enabled": true,
+        "tools": ["shellcheck"]
+      }
+    }
+  },
+  "extensions": {
+    "recommended": [
+      "ms-python.python",
+      "timonwong.shellcheck"
+    ]
+  },
+  "tasks": {
+    "enabled": true,
+    "scripts": {
+      "setup": "python setup_sso.py",
+      "cmd": "./cmd.sh"
+    }
+  }
+}
