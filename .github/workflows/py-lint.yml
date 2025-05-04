@@ -1,4 +1,4 @@
-name: py-lint
+name: "Python Lint"
 concurrency:
   group: py-lint-${{ github.ref }}-${{ github.run_id }}
   cancel-in-progress: ${{ github.event_name != 'workflow_call' }}
@@ -12,6 +12,7 @@ on:
 
 jobs:
   py-lint:
+    name: "Lint"
     if: >-
       github.event.pull_request.draft == false || 
       github.event_name == 'workflow_dispatch' || 
@@ -29,9 +30,8 @@ jobs:
         if: github.event_name != 'workflow_call'
         uses: ./.github/actions/file-changes
         with:
-          patterns: "*.py"
+          patterns: "**/*.py"
           specific_files: "requirements.txt,setup.py"
-          directory_paths: "tests/,benchmarks/,mettagrid/tests/,mettagrid/benchmarks/"
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set early exit flag
@@ -70,7 +70,7 @@ jobs:
           source venv/bin/activate
           ruff check --respect-gitignore --exit-non-zero-on-fix .
 
-      - name: Skip linting (no relevant changes)
+      - name: linting skipped (no relevant changes)
         if: env.EARLY_EXIT == 'true'
         run: |
           echo "No Python files or requirements.txt were changed. Skipping linting."

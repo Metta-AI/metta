@@ -1,4 +1,4 @@
-name: cpp-test
+name: "C++ Tests"
 concurrency:
   group: cpp-test-${{ github.ref }}-${{ github.run_id }}
   cancel-in-progress: ${{ github.event_name != 'workflow_call' }}
@@ -12,6 +12,7 @@ on:
 
 jobs:
   cpp-test:
+    name: "Tests"
     if: >-
       github.event.pull_request.draft == false || 
       github.event_name == 'workflow_dispatch' || 
@@ -29,7 +30,9 @@ jobs:
         if: github.event_name != 'workflow_call'
         uses: ./.github/actions/file-changes
         with:
-          patterns: "mettagrid/,*.cpp,*.cxx,*.cc,*.h,*.hpp,*.pyx,*.pxd"
+          patterns: "*.cpp,*.cxx,*.cc,*.h,*.hpp,*.pyx,*.pxd"
+          directory_paths: "mettagrid/"
+          specific_files: "requirements.txt,setup.py"
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set early exit flag
@@ -56,7 +59,7 @@ jobs:
           cd mettagrid
           make test
 
-      - name: Skip tests (no relevant changes)
+      - name: tests skipped (no relevant changes)
         if: env.EARLY_EXIT == 'true'
         run: |
           echo "No C++ files in mettagrid/ were changed. Skipping tests."

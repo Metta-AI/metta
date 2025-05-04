@@ -1,4 +1,4 @@
-name: cpp-benchmark
+name: "C++ Benchmarks"
 concurrency:
   group: cpp-benchmark-${{ github.ref }}-${{ github.run_id }}
   cancel-in-progress: ${{ github.event_name != 'workflow_call' }}
@@ -12,6 +12,7 @@ on:
 
 jobs:
   cpp-benchmark:
+    name: "Benchmarks"
     if: >-
       github.event.pull_request.draft == false || 
       github.event_name == 'push' || 
@@ -34,7 +35,9 @@ jobs:
         if: github.event_name != 'workflow_call'
         uses: ./.github/actions/file-changes
         with:
-          patterns: "mettagrid/,*.cpp,*.cxx,*.cc,*.h,*.hpp,*.pyx,*.pxd"
+          patterns: "*.cpp,*.cxx,*.cc,*.h,*.hpp,*.pyx,*.pxd"
+          directory_paths: "mettagrid/"
+          specific_files: "requirements.txt,setup.py"
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set early exit flag
@@ -108,6 +111,7 @@ jobs:
           echo "Bencher token length: ${#BENCHER_API_TOKEN}"
           echo "Bencher token SHA256: $(echo -n "$BENCHER_API_TOKEN" | sha256sum)"
 
+      # Main Branch Upload section
       - name: Upload to Bencher (Main Branch Baseline)
         if: env.EARLY_EXIT == 'false' && github.ref == 'refs/heads/main'
         env:
@@ -136,6 +140,7 @@ jobs:
             echo "NO TEST RESULTS FOUND"
           fi
 
+      # PR Performance Changes section
       - name: Upload to Bencher (PR Performance Changes)
         if: env.EARLY_EXIT == 'false' && github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
         env:
@@ -154,16 +159,21 @@ jobs:
                 --start-point-hash "${{ steps.get-main-sha.outputs.MAIN_SHA }}" \
                 --start-point-clone-thresholds \
                 --start-point-reset \
+                --threshold-measure latency \
+                --threshold-test t_test \
+                --threshold-max-sample-size 64 \
+                --threshold-upper-boundary 0.99 \
                 --testbed ubuntu-latest \
                 --adapter cpp_google \
                 --github-actions "$GITHUB_TOKEN" \
+                --err \
                 --file "$file" > /dev/null
             done
           else
             echo "NO TEST RESULTS FOUND"
           fi
 
-      - name: Skip benchmarking (no relevant changes)
+      - name: benchmarks skipped (no relevant changes)
         if: env.EARLY_EXIT == 'true'
         run: |
           echo "No files in mettagrid/ were changed. Skipping benchmarks."

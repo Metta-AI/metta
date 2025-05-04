@@ -1,4 +1,4 @@
-name: cpp-checks
+name: "C++"
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'merge_group' && github.event.merge_group.head_ref || github.ref }}
   cancel-in-progress: true
@@ -21,6 +21,7 @@ permissions:
 jobs:
   # First job: check if any C++ files have changed
   check-files-cpp:
+    name: "checking for C++ changes"
     if: |
       github.event.pull_request.draft == false || 
       github.event_name == 'push' || 
@@ -37,11 +38,14 @@ jobs:
         id: check_cpp_files
         uses: ./.github/actions/file-changes
         with:
-          patterns: "mettagrid/,*.cpp,*.cxx,*.cc,*.h,*.hpp,*.pyx,*.pxd"
+          patterns: "*.cpp,*.cxx,*.cc,*.h,*.hpp,*.pyx,*.pxd"
+          directory_paths: "mettagrid/"
+          specific_files: "requirements.txt,setup.py"
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
   # This job runs to flag that we are skipping tests because no relevant files changed and this is a pull_request
   skip-checks-cpp:
+    name: "skip tasks?"
     needs: check-files-cpp
     if: github.event_name == 'pull_request' && needs.check-files-cpp.outputs.has_relevant_changes == 'false'
     runs-on: ubuntu-latest
@@ -54,6 +58,7 @@ jobs:
 
   # Run lint workflow
   call-lint-cpp:
+    name: "task"
     needs: check-files-cpp
     if: github.event_name != 'pull_request' || needs.check-files-cpp.outputs.has_relevant_changes == 'true'
     uses: ./.github/workflows/cpp-lint.yml
@@ -63,6 +68,7 @@ jobs:
 
   # Run test workflow
   call-test-cpp:
+    name: "task"
     needs: check-files-cpp
     if: github.event_name != 'pull_request' || needs.check-files-cpp.outputs.has_relevant_changes == 'true'
     uses: ./.github/workflows/cpp-test.yml
@@ -72,6 +78,7 @@ jobs:
 
   # Run benchmark workflow
   call-benchmark-cpp:
+    name: "task"
     needs: check-files-cpp
     if: github.event_name != 'pull_request' || needs.check-files-cpp.outputs.has_relevant_changes == 'true'
     permissions:
