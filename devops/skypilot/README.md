@@ -29,7 +29,7 @@ This script provides a convenient way to launch training jobs on AWS using SkyPi
 
 2. Launch a training run with specific arguments:
 ```bash
-./launch.sh train my_experiment_002 learning_rate=0.001 batch_size=32
+./launch.sh train my_experiment_002 trainer.learning_rate=0.001 trainer.batch_size=32
 ```
 
 ## Job Management
