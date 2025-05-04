@@ -17,7 +17,6 @@ trainer:
 sim_job:
   dry_run: false
   policy_uris:
-    - wandb://run/daphne.navigation
     - wandb://run/b.daphne.navigation_multiagent_48_norewardsharing_maxinv
     - wandb://run/b.daphne.navigation_multiagent_24_rewardsharing_maxinv
     - wandb://run/b.daphne.navigation_multiagent_24_norewardsharing_maxinv

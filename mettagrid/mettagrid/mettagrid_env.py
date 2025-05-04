@@ -15,7 +15,7 @@ from omegaconf import DictConfig, OmegaConf
 from mettagrid.config.utils import simple_instantiate
 from mettagrid.mettagrid_c import MettaGrid  # pylint: disable=E0611
 from mettagrid.resolvers import register_resolvers
-from mettagrid.stats_writer import MettaGridStatsWriter
+from mettagrid.stats_writer import StatsWriter
 
 
 class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
@@ -38,12 +38,12 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._reset_env()
         self.labels = self._env_cfg.get("labels", None)
 
-        self.stats_writer: Optional[MettaGridStatsWriter] = None
+        self.stats_writer: Optional[StatsWriter] = None
         if stats_writer_dir:
             fname = f"stats_{os.getpid()}_{uuid.uuid4().hex[:6]}.duckdb"
             stats_writer_path = Path(stats_writer_dir) / fname
             self._writer_path = Path(stats_writer_path).resolve()
-            self.stats_writer = MettaGridStatsWriter(str(self._writer_path))
+            self.stats_writer = StatsWriter(str(self._writer_path))
         else:
             self.stats_writer = None
 

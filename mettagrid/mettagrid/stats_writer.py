@@ -1,147 +1,227 @@
 """
-Per-environment statistics writer for MettaGrid.
-
-One writer instance lives **inside each MettaGridEnv**.  It owns a tiny DuckDB
-shard that stores raw per-agent episode metrics—no policy knowledge, no
-run-level merge logic.
+Base statistics writer class for MettaGrid environments.
 """
-
-from __future__ import annotations
 
 import json
-import os
-from contextlib import contextmanager
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+import logging
+import uuid
+from typing import Any, Dict, Optional
 
 import duckdb
+import numpy as np
 
-SCHEMA = """
-CREATE SEQUENCE IF NOT EXISTS episode_id_seq;
-
-CREATE TABLE IF NOT EXISTS episodes (
-    episode_id  BIGINT DEFAULT nextval('episode_id_seq') PRIMARY KEY,
-    env_name    TEXT,
-    seed        INT,
-    map_w       INT,
-    map_h       INT,
-    step_count  INT,
-    started_at  TIMESTAMPTZ,
-    finished_at TIMESTAMPTZ,
-    metadata    JSON
-);
-
-CREATE TABLE IF NOT EXISTS episode_agent_metrics (
-    episode_id BIGINT,
-    agent_id   INT,
-    metric     TEXT,
-    value      DOUBLE,
-    PRIMARY KEY (episode_id, agent_id, metric)
-);
-"""
+logger = logging.getLogger(__name__)
 
 
-def _utc_now() -> str:
-    """Return SQL literal for UTC now (DuckDB ≥0.10)."""
-    return "now() AT TIME ZONE 'utc'"
+class StatsDB:
+    """
+    Statistics database for MettaGrid environments.
+
+    This class provides a DuckDB-backed database for storing and querying
+    simulation statistics.
+    """
+
+    def __init__(self, path: str, read_only: bool = False) -> None:
+        """
+        Initialize a statistics database.
+
+        Args:
+            path: Path to the database file
+            read_only: Whether to open the database in read-only mode
+        """
+        self.path = path
+        self.read_only = read_only
+
+        # Open DuckDB connection with appropriate access mode
+        access_mode = "read_only" if read_only else "read_write"
+        self.con = duckdb.connect(path, access_mode=access_mode)
+
+        if not read_only:
+            self._initialize_schema()
+
+    def _initialize_schema(self) -> None:
+        """Initialize database schema."""
+        self.con.execute("""
+        CREATE TABLE IF NOT EXISTS episodes (
+            episode_id VARCHAR PRIMARY KEY,
+            env_name VARCHAR,
+            seed INTEGER,
+            map_w INTEGER,
+            map_h INTEGER,
+            step_count INTEGER,
+            started_at TIMESTAMP,
+            finished_at TIMESTAMP,
+            metadata VARCHAR
+        )
+        """)
+
+        self.con.execute("""
+        CREATE TABLE IF NOT EXISTS episode_agent_metrics (
+            episode_id VARCHAR,
+            agent_id INTEGER,
+            metric VARCHAR,
+            value REAL,
+            PRIMARY KEY (episode_id, agent_id, metric)
+        )
+        """)
+
+    def get_next_episode_id(self) -> str:
+        """Generate a unique episode ID using UUID."""
+        return str(uuid.uuid4())
+
+    def create_episode(self, env_name: str, seed: int, map_w: int, map_h: int, metadata: Optional[Dict] = None) -> str:
+        """
+        Create a new episode.
+
+        Args:
+            env_name: Environment name
+            seed: Random seed
+            map_w: Map width
+            map_h: Map height
+            metadata: Optional metadata dictionary
+
+        Returns:
+            Episode ID
+        """
+        if self.read_only:
+            raise ValueError("Cannot create episode in read-only mode")
+
+        episode_id = self.get_next_episode_id()
+        metadata_json = json.dumps(metadata) if metadata else None
+
+        self.con.execute(
+            """
+            INSERT INTO episodes 
+            (episode_id, env_name, seed, map_w, map_h, started_at, metadata)
+            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
+            """,
+            (episode_id, env_name, seed, map_w, map_h, metadata_json),
+        )
+
+        return episode_id
+
+    def finish_episode(self, episode_id: str, step_count: int) -> None:
+        """
+        Mark an episode as finished.
+
+        Args:
+            episode_id: Episode ID
+            step_count: Number of steps taken
+        """
+        if self.read_only:
+            raise ValueError("Cannot update episode in read-only mode")
+
+        self.con.execute(
+            """
+            UPDATE episodes 
+            SET step_count = ?, finished_at = CURRENT_TIMESTAMP
+            WHERE episode_id = ?
+            """,
+            (step_count, episode_id),
+        )
+
+    def add_agent_metrics(self, episode_id: str, agent_id: int, metrics: Dict[str, float]) -> None:
+        """
+        Add agent metrics for an episode.
+
+        Args:
+            episode_id: Episode ID
+            agent_id: Agent ID
+            metrics: Dictionary of metric names to values
+        """
+        if self.read_only:
+            raise ValueError("Cannot add metrics in read-only mode")
+
+        if not metrics:
+            return
+
+        values = [(episode_id, agent_id, metric, value) for metric, value in metrics.items()]
+
+        self.con.executemany(
+            """
+            INSERT OR REPLACE INTO episode_agent_metrics 
+            (episode_id, agent_id, metric, value)
+            VALUES (?, ?, ?, ?)
+            """,
+            values,
+        )
+
+    def close(self) -> None:
+        """Close the database connection."""
+        self.con.close()
 
 
 class StatsWriter:
     """
-    High-throughput writer:
-
-    • 512-row buffer (configurable).
-    • Explicit transactions → far fewer WAL fsyncs.
-    • Guards misuse (`log_metric` outside episode).
+    Writer for tracking statistics in MettaGrid environments.
     """
 
-    def __init__(self, db_path: str | Path, *, flush_every: int = 512) -> None:
-        self._path = Path(db_path)
-        self._conn = duckdb.connect(str(self._path))
+    def __init__(self, path: str) -> None:
+        """
+        Initialize a stats writer.
 
-        for stmt in filter(None, (s.strip() for s in SCHEMA.split(";"))):
-            self._conn.execute(stmt)
+        Args:
+            path: Path to the stats database
+        """
+        self.db = StatsDB(path, read_only=False)
+        self.current_episode_id = None
+        self.metrics = {}
 
-        self._flush_every = flush_every
-        self._buf: List[Tuple[int, int, str, float]] = []
-        self._eid: Optional[int] = None
+    def start_episode(self, env_name: str, seed: int, map_w: int, map_h: int, meta: Optional[Dict] = None) -> str:
+        """
+        Start a new episode.
 
-        # Local SSD: cut checkpoint traffic (tune as needed)
-        if self._path.scheme in ("", "file") and not os.getenv("METTA_DISABLE_WAL_OPT"):
-            self._conn.execute("PRAGMA wal_autocheckpoint=10000")
+        Args:
+            env_name: Name of the environment
+            seed: Random seed
+            map_w: Map width
+            map_h: Map height
+            meta: Optional metadata
 
-    # ------------------------------------------------------------------ #
-    # Episode lifecycle                                                  #
-    # ------------------------------------------------------------------ #
-    def start_episode(
-        self,
-        *,
-        env_name: str,
-        seed: int,
-        map_w: int,
-        map_h: int,
-        meta: Dict[str, Any],
-    ) -> int:
-        (eid,) = self._conn.execute(
-            f"""
-            INSERT INTO episodes (env_name,seed,map_w,map_h,step_count,started_at,metadata)
-            VALUES (?,?,?,?,0,{_utc_now()},?)
-            RETURNING episode_id
-            """,
-            (env_name, seed, map_w, map_h, json.dumps(meta)),
-        ).fetchone()
-        self._eid = eid
-        return eid
+        Returns:
+            Episode ID
+        """
+        self.current_episode_id = self.db.create_episode(env_name, seed, map_w, map_h, meta)
+        self.metrics = {}
+        return self.current_episode_id
 
     def log_metric(self, agent_id: int, metric: str, value: float) -> None:
-        if self._eid is None:
-            raise RuntimeError("log_metric called before start_episode or after end_episode")
-        self._buf.append((self._eid, agent_id, metric, float(value)))
-        if len(self._buf) >= self._flush_every:
-            self._flush()
+        """
+        Log a metric for an agent.
 
-    def end_episode(self, *, step_count: int) -> None:
-        if self._eid is None:  # double-close safe
+        Args:
+            agent_id: Agent ID
+            metric: Metric name
+            value: Metric value
+        """
+        if agent_id not in self.metrics:
+            self.metrics[agent_id] = {}
+        self.metrics[agent_id][metric] = value
+
+    def end_episode(self, step_count: int) -> None:
+        """
+        End the current episode.
+
+        Args:
+            step_count: Number of steps taken
+        """
+        if self.current_episode_id is None:
             return
-        self._flush()
-        self._conn.execute(
-            f"UPDATE episodes SET step_count=?, finished_at={_utc_now()} WHERE episode_id=?",
-            (step_count, self._eid),
-        )
-        self._eid = None
 
-    # ------------------------------------------------------------------ #
-    # Internals                                                          #
-    # ------------------------------------------------------------------ #
-    def _flush(self) -> None:
-        if not self._buf:
-            return
-        with self._txn():
-            self._conn.executemany(
-                "INSERT INTO episode_agent_metrics VALUES (?,?,?,?)",
-                self._buf,
-            )
-        self._buf.clear()
+        # Write metrics
+        for agent_id, agent_metrics in self.metrics.items():
+            self.db.add_agent_metrics(self.current_episode_id, agent_id, agent_metrics)
 
-    @contextmanager
-    def _txn(self):
-        self._conn.execute("BEGIN")
-        try:
-            yield
-            self._conn.execute("COMMIT")
-        except Exception:
-            self._conn.execute("ROLLBACK")
-            raise
+        # Finish episode
+        self.db.finish_episode(self.current_episode_id, step_count)
 
-    # ------------------------------------------------------------------ #
-    # Context-manager helpers                                            #
-    # ------------------------------------------------------------------ #
+        # Reset
+        self.current_episode_id = None
+        self.metrics = {}
+
     def close(self) -> None:
-        self._flush()
-        self._conn.close()
+        """Close the stats writer."""
+        if self.current_episode_id is not None:
+            logger.warning("Closing stats writer with an active episode. Episode will not be recorded.")
 
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *_):
-        self.close()
+        self.db.close()

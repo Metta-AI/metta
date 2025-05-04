@@ -1,61 +1,227 @@
+"""
+file.py
+================
+Read and write files to local, S3, or W&B.
+Use EFS on AWS for shared filesystems.
+"""
+
+from __future__ import annotations
+
 import logging
 import os
 import platform
 import random
+import shutil
 import socket
+import tempfile
 import time
 from contextlib import contextmanager
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Union
 
 import boto3
+import wandb
 from botocore.exceptions import NoCredentialsError
 
-logger = logging.getLogger(__name__)
+# --------------------------------------------------------------------------- #
+#  Globals                                                                     #
+# --------------------------------------------------------------------------- #
+
+WANDB_ENTITY: str = os.getenv("WANDB_ENTITY", "metta-research")
 
 
-def upload_to_s3(data: str | bytes, s3_path: str, content_type: str):
-    if not s3_path.startswith("s3://"):
-        raise ValueError("S3 path must start with s3://")
+# --------------------------------------------------------------------------- #
+#  Public IO helpers                                                           #
+# --------------------------------------------------------------------------- #
 
-    bucket, key = s3_path[5:].split("/", 1)
+
+def write_data(path: str, data: Union[str, bytes], *, content_type: str = "application/octet-stream") -> None:
+    """
+    Write in-memory bytes/str to *local*, *s3://* or *wandb://* destinations.
+    """
+    logger = logging.getLogger(__name__)
+
+    if isinstance(data, str):
+        data = data.encode()
+
+    # ---------- S3 ---------- #
+    if path.startswith("s3://"):
+        bucket, key = path[5:].split("/", 1)
+        try:
+            boto3.client("s3").put_object(Body=data, Bucket=bucket, Key=key, ContentType=content_type)
+            logger.info("Wrote %d B → %s", len(data), path)
+            return
+        except NoCredentialsError as e:
+            logger.error("AWS credentials not found; run 'aws sso login --profile softmax'")
+            raise e
+
+    # ---------- W&B ---------- #
+    if path.startswith("wandb://"):
+        uri = WandbURI.parse(path)
+        _upload_bytes_to_wandb(uri, data)
+        logger.info("Wrote %d B → %s", len(data), uri)
+        return
+
+    # ---------- local -------- #
+    local_path = Path(path).expanduser().resolve()
+    local_path.parent.mkdir(parents=True, exist_ok=True)
+    local_path.write_bytes(data)
+    logger.info("Wrote %d B → %s", len(data), local_path)
+
+
+def write_file(path: str, local_file: str, *, content_type: str = "application/octet-stream") -> None:
+    """
+    Upload a file from disk to *s3://* or *wandb://* (or copy locally).
+    """
+    logger = logging.getLogger(__name__)
+
+    # ---------- S3 ---------- #
+    if path.startswith("s3://"):
+        bucket, key = path[5:].split("/", 1)
+        boto3.client("s3").upload_file(local_file, bucket, key, ExtraArgs={"ContentType": content_type})
+        logger.info("Uploaded %s → %s", local_file, path)
+        return
+
+    # ---------- W&B ---------- #
+    if path.startswith("wandb://"):
+        uri = WandbURI.parse(path)
+        _upload_file_to_wandb(uri, local_file)
+        logger.info("Uploaded %s → %s", local_file, uri)
+        return
+
+    # ---------- local -------- #
+    dst = Path(path).expanduser().resolve()
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(local_file, dst)
+    logger.info("Copied %s → %s", local_file, dst)
+
+
+def read(path: str) -> bytes:
+    """
+    Read bytes from local path, S3 object, or W&B artifact.
+    """
+    logger = logging.getLogger(__name__)
+
+    # ---------- S3 ---------- #
+    if path.startswith("s3://"):
+        bucket, key = path[5:].split("/", 1)
+        try:
+            body = boto3.client("s3").get_object(Bucket=bucket, Key=key)["Body"].read()
+            logger.info("Read %d B from %s", len(body), path)
+            return body
+        except NoCredentialsError:
+            logger.error("AWS credentials not found -- have you run devops/aws/setup_sso.py?")
+            raise
+
+    # ---------- W&B ---------- #
+    if path.startswith("wandb://"):
+        uri = WandbURI.parse(path)
+        api = wandb.Api()
+        artifact = api.artifact(uri.qname())
+        with tempfile.TemporaryDirectory(prefix="wandb_dl_") as tmp:
+            local_dir = artifact.download(root=tmp)
+            files = list(Path(local_dir).iterdir())
+            if not files:
+                raise FileNotFoundError(f"No files inside W&B artifact {uri}")
+            data = files[0].read_bytes()
+            logger.info("Read %d B from %s", len(data), uri)
+            return data
+
+    # ---------- local -------- #
+    data = Path(path).expanduser().resolve().read_bytes()
+    logger.info("Read %d B from %s", len(data), path)
+    return data
+
+
+def http_url(path: str) -> str:
+    """
+    Convert *s3://* or *wandb://* URI to a public browser URL.
+    No-op for local paths.
+    """
+    if path.startswith("s3://"):
+        bucket, key = path[5:].split("/", 1)
+        return f"https://{bucket}.s3.amazonaws.com/{key}"
+    if path.startswith("wandb://"):
+        return WandbURI.parse(path).http_url()
+    return path
+
+
+# --------------------------------------------------------------------------- #
+#  W&B URI handling                                                            #
+# --------------------------------------------------------------------------- #
+
+
+@dataclass(frozen=True, slots=True)
+class WandbURI:
+    """Parsed representation of a W&B artifact URI."""
+
+    project: str
+    artifact_path: str
+    version: str = "latest"
+
+    # ---------- factory ---------- #
+    @classmethod
+    def parse(cls, uri: str) -> "WandbURI":
+        if not uri.startswith("wandb://"):
+            raise ValueError("W&B URI must start with wandb://")
+
+        body = uri[len("wandb://") :]
+        if ":" in body:
+            path_part, version = body.rsplit(":", 1)
+        else:
+            path_part, version = body, "latest"
+
+        if "/" not in path_part:
+            raise ValueError("Malformed W&B URI – expected wandb://<project>/<artifact_path>[:<version>]")
+
+        project, artifact_path = path_part.split("/", 1)
+        if not artifact_path:
+            raise ValueError("Artifact path must be non-empty")
+
+        return cls(project, artifact_path, version)
+
+    # ---------- helpers ---------- #
+    def qname(self) -> str:
+        """`entity/project/artifact_path:version` – accepted by `wandb.Api().artifact()`."""
+        return f"{WANDB_ENTITY}/{self.project}/{self.artifact_path}:{self.version}"
+
+    def http_url(self) -> str:
+        """Human-readable URL for this artifact version."""
+        return f"https://wandb.ai/{WANDB_ENTITY}/{self.project}/artifacts/{self.artifact_path}/{self.version}"
+
+    # pretty print
+    def __str__(self) -> str:  # noqa: D401 (keep dunder)
+        return f"wandb://{self.project}/{self.artifact_path}:{self.version}"
+
+
+def _upload_bytes_to_wandb(uri: WandbURI, blob: bytes) -> None:
+    with tempfile.NamedTemporaryFile(delete=False) as fh:
+        fh.write(blob)
+        tmpname = fh.name
     try:
-        boto3.client("s3").put_object(Body=data, Bucket=bucket, Key=key, ContentType=content_type)
-    except NoCredentialsError as e:
-        logger.error("AWS credentials not found; run 'aws sso login --profile softmax'")
-        raise e
+        _upload_file_to_wandb(uri, tmpname)
+    finally:
+        os.unlink(tmpname)
 
 
-def s3_url(s3_path: str):
-    if not s3_path.startswith("s3://"):
-        raise ValueError("S3 path must start with s3://")
+def _upload_file_to_wandb(uri: WandbURI, local_file: str) -> None:
+    logger = logging.getLogger(__name__)
+    art = wandb.Artifact(uri.artifact_path, type="file", incremental=True)
+    art.add_file(local_file)
+    art.save(entity=WANDB_ENTITY, project=uri.project)  # no run created
+    logger.debug("Saved W&B artifact %s", uri.qname())
 
-    bucket, key = s3_path[5:].split("/", 1)
-    return f"https://{bucket}.s3.us-east-1.amazonaws.com/{key}"
+
+# --------------------------------------------------------------------------- #
+#  Distributed lock for shared filesystems (unchanged)                         #
+# --------------------------------------------------------------------------- #
 
 
 class EfsLock:
-    """
-    A distributed lock implementation for AWS EFS and other shared filesystems.
+    """Simple stale-file lock suitable for EFS / NFS-style shares."""
 
-    Uses file-based locking with timestamp-based stale lock detection.
-
-    Example usage:
-    ```
-    with EfsLock("/path/to/lock", timeout=300):
-        # This code will only run in one process at a time
-        do_something()
-    ```
-    """
-
-    def __init__(self, path, timeout=300, retry_interval=5, max_retries=60):
-        """
-        Initialize a distributed lock.
-
-        Args:
-            path: Path to the lock file
-            timeout: Time in seconds after which a lock is considered stale
-            retry_interval: Time in seconds to wait between retries
-            max_retries: Maximum number of times to retry acquiring the lock
-        """
+    def __init__(self, path: str, timeout: int = 300, retry_interval: int = 5, max_retries: int = 60):
         self.path = path
         self.timeout = timeout
         self.retry_interval = retry_interval
@@ -63,136 +229,68 @@ class EfsLock:
         self.lock_acquired = False
         self.hostname = socket.gethostname()
         self.system = platform.system()
-        logger.debug(f"Initializing EfsLock on {self.system} ({self.hostname}) for path: {path}")
 
-    def __enter__(self):
-        """Acquire the lock."""
+    # context-manager sugar
+    def __enter__(self):  # noqa: D401
         self._acquire_lock()
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """Release the lock."""
+    def __exit__(self, *_exc):
         self._release_lock()
 
+    # ---------- internals ---------- #
     def _acquire_lock(self):
-        """
-        Try to acquire the lock.
-
-        If the lock is already held, wait and retry.
-        If the lock is stale, remove it and try again.
-        """
         retries = 0
-
-        # Add a small random delay to reduce contention
-        delay = random.uniform(0.1, 1.0)
-        logger.debug(f"Initial delay before lock attempt: {delay:.2f}s")
-        time.sleep(delay)
-
-        # Ensure parent directory exists
-        os.makedirs(os.path.dirname(self.path), exist_ok=True)
-
-        logger.debug(f"Starting lock acquisition attempts for {self.path}")
+        time.sleep(random.uniform(0.1, 1.0))  # soften thundering herd
+        Path(self.path).parent.mkdir(parents=True, exist_ok=True)
 
         while retries < self.max_retries:
             try:
-                # Try to create the lock file exclusively
-                logger.debug(f"Attempt {retries + 1}/{self.max_retries} to acquire lock: {self.path}")
                 with open(self.path, "x") as f:
-                    # Write current timestamp to the lock file
-                    timestamp = time.time()
-                    pid = os.getpid()
-                    content = f"{timestamp}\n{pid}\n{self.hostname}\n{self.system}\n"
-                    f.write(content)
-                    logger.debug(f"Lock file content: {content}")
-
+                    f.write(f"{time.time()}\n{os.getpid()}\n{self.hostname}\n{self.system}\n")
                 self.lock_acquired = True
-                logger.info(f"Lock acquired: {self.path}")
+                logger.info("Lock acquired: %s", self.path)
                 return
             except FileExistsError:
-                # Lock file exists, check if it's stale
-                try:
-                    logger.debug(f"Lock file exists, checking if stale: {self.path}")
-                    with open(self.path, "r") as f:
-                        lines = f.readlines()
-                        if len(lines) >= 1:
-                            timestamp = float(lines[0].strip())
-                            current_time = time.time()
-                            age = current_time - timestamp
-                            logger.debug(f"Lock age: {age:.2f}s, timeout: {self.timeout}s")
-
-                            # Log more details about the lock
-                            if len(lines) >= 3:
-                                lock_hostname = lines[2].strip()
-                                logger.debug(f"Lock held by: {lock_hostname}")
-
-                            if age > self.timeout:
-                                # Lock is stale, try to remove it
-                                logger.warning(f"Removing stale lock (age: {age:.2f}s): {self.path}")
-                                try:
-                                    os.remove(self.path)
-                                    logger.debug(f"Successfully removed stale lock: {self.path}")
-                                    continue
-                                except OSError as e:
-                                    logger.warning(f"Failed to remove stale lock: {e}")
-                except (ValueError, IOError, OSError) as e:
-                    # Invalid lock file or can't read it, try to remove
-                    logger.warning(f"Error reading lock file: {e}")
+                if self._is_stale():
                     try:
                         os.remove(self.path)
-                        logger.debug(f"Removed invalid lock file: {self.path}")
-                        continue
+                        continue  # retry immediately after removing stale lock
                     except OSError as e:
-                        logger.warning(f"Failed to remove invalid lock file: {e}")
-
-                # Wait and retry
-                logger.debug(f"Waiting {self.retry_interval}s for lock: {self.path}")
+                        logger.warning("Could not remove stale lock: %s", e)
                 time.sleep(self.retry_interval)
                 retries += 1
-
-        logger.error(f"Failed to acquire lock after {retries} retries: {self.path}")
         raise TimeoutError(f"Failed to acquire lock after {retries} retries: {self.path}")
 
+    def _is_stale(self) -> bool:
+        try:
+            with open(self.path) as f:
+                timestamp = float(f.readline().strip())
+            return (time.time() - timestamp) > self.timeout
+        except Exception:
+            return True  # unreadable → treat as stale
+
     def _release_lock(self):
-        """Release the lock if we hold it."""
         if self.lock_acquired:
             try:
-                logger.debug(f"Releasing lock: {self.path}")
                 os.remove(self.path)
-                self.lock_acquired = False
-                logger.info(f"Lock released: {self.path}")
+                logger.info("Lock released: %s", self.path)
             except OSError as e:
-                logger.warning(f"Failed to release lock {self.path}: {e}")
+                logger.warning("Failed to release lock %s: %s", self.path, e)
+            finally:
+                self.lock_acquired = False
 
 
 @contextmanager
-def efs_lock(path, timeout=300, retry_interval=5, max_retries=60):
+def efs_lock(path: str, timeout: int = 300, retry_interval: int = 5, max_retries: int = 60):
     """
-    A context manager for distributed locking on EFS.
-
-    This is a convenience wrapper around the EfsLock class.
-
-    Example usage:
-    ```
-    with efs_lock("/path/to/lock", timeout=300):
-        # This code will only run in one process at a time
-        do_something()
-    ```
-
-    Args:
-        path: Path to the lock file
-        timeout: Time in seconds after which a lock is considered stale
-        retry_interval: Time in seconds to wait between retries
-        max_retries: Maximum number of times to retry acquiring the lock
+    Convenience wrapper: ``with efs_lock("/shared/my.lock"):``
     """
-    # For local development on Mac, use a shorter timeout and retry interval
+    # shorten defaults for macOS dev (NFS-loopback is fast)
     if platform.system() == "Darwin":
-        logger.debug("Running on macOS, adjusting lock parameters")
-        if timeout > 60:
-            timeout = 60
-        if retry_interval > 2:
-            retry_interval = 2
+        timeout = min(timeout, 60)
+        retry_interval = min(retry_interval, 2)
 
-    logger.debug(f"Creating lock with timeout={timeout}s, retry_interval={retry_interval}s, max_retries={max_retries}")
     lock = EfsLock(path, timeout, retry_interval, max_retries)
     try:
         lock._acquire_lock()
