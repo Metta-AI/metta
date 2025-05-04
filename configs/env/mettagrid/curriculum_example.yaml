@@ -35,11 +35,11 @@ game:
 
   # episode length 
   # max_steps: ${make_integer:${scale:${.difficulty},0,10,100,500,"linear"}}
-  max_steps: 200
+  max_steps: 100
 
   # scaling the map size as our experimental condition
   min_size: 10
-  max_size: ${scale:${.difficulty},0,10,10,60,"log"}
+  max_size: ${scale:${.difficulty},0,10,10,80,"log"}
   size: ${make_integer:${uniform:${.min_size}, ${.max_size}}}
 
   map_builder:
