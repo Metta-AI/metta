@@ -2,6 +2,7 @@ name: "Automerge Dependabot Patch Update PRs"
 on: pull_request
 permissions:
   pull-requests: write
+  issues: write # Added to enable label creation
 jobs:
   dependabot:
     runs-on: ubuntu-latest
@@ -12,32 +13,46 @@ jobs:
         uses: dependabot/fetch-metadata@v2
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-
+      
+      - name: Create necessary labels if they don't exist
+        run: |
+          # Create update type labels
+          gh label create "version-update:semver-major" --color "#FF0000" --description "Major version update" || echo "Label already exists"
+          gh label create "version-update:semver-minor" --color "#FFFF00" --description "Minor version update" || echo "Label already exists"
+          gh label create "version-update:semver-patch" --color "#00FF00" --description "Patch version update" || echo "Label already exists"
+          
+          # Create dependency type labels
+          gh label create "dependency:direct" --color "#0366D6" --description "Direct dependency update" || echo "Label already exists"
+          gh label create "dependency:indirect" --color "#6F42C1" --description "Indirect dependency update" || echo "Label already exists"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+      
       - name: Add a label for the update type
         run: gh pr edit "$PR_URL" --add-label "${{ steps.metadata.outputs.update-type }}"
         env:
           PR_URL: ${{github.event.pull_request.html_url}}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
+      
       - name: Add dependency type label
         run: gh pr edit "$PR_URL" --add-label "dependency:${{ steps.metadata.outputs.dependency-type }}"
         env:
           PR_URL: ${{github.event.pull_request.html_url}}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
+      
       - name: Enable auto-merge
         run: gh pr edit "$PR_URL" --enable-auto-merge || echo "Unable to enable auto-merge, continuing workflow"
         env:
           PR_URL: ${{github.event.pull_request.html_url}}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
+      
       - name: Approve and merge if patch update or security update
         if: steps.metadata.outputs.update-type == 'version-update:semver-patch' || steps.metadata.outputs.security-vuln-alerts > 0
         run: gh pr review --approve "$PR_URL"
         env:
           PR_URL: ${{github.event.pull_request.html_url}}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
+      
       - name: Notify team of major/minor updates
         if: steps.metadata.outputs.update-type != 'version-update:semver-patch' && steps.metadata.outputs.security-vuln-alerts == 0
         run: gh pr comment "$PR_URL" --body "This PR contains a non-patch update. Please review carefully before approving."
