@@ -1,0 +1,14 @@
+# Test config for random scene.
+_target_: mettagrid.map.mapgen.MapGen
+
+width: 40
+height: 40
+
+root:
+  _target_: mettagrid.map.scenes.random_scene.RandomScene
+
+  candidates:
+    - scene: /convchain/dungeon.yaml
+      weight: 2
+    - scene: /convchain/blob.yaml
+      weight: 1

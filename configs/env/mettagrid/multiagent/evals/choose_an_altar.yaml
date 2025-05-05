@@ -1,0 +1,39 @@
+defaults:
+  - /env/mettagrid/mettagrid@
+  - _self_
+
+game:
+  num_agents: 80 #how many agents are in the map x2
+  max_steps: 150
+
+  agent:
+    rewards:
+      heart: 1.0
+
+  map_builder:
+    _target_: mettagrid.config.room.multi_room.MultiRoom
+    num_rooms: 20
+    room:
+      _target_: mettagrid.config.room.ascii.Ascii
+      border_width: 1
+      uri: "configs/env/mettagrid/maps/multiagent/choose_an_altar.map"
+
+  objects:
+
+    altar:
+      hp: 30
+      input_battery: 9
+      output_heart: 1
+      max_output: 1
+      conversion_ticks: 1
+      cooldown: 255 # ${sampling:0, 50, 25}
+      initial_items: 1
+
+    generator.green:
+      hp: 30
+      color: 2
+      max_output: 3
+      conversion_ticks: 1
+      cooldown: 255 # ${sampling:0, 50, 25}
+      initial_items: 3
+      

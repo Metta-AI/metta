@@ -1,0 +1,12 @@
+_target_: metta.env.mettagrid_env_set.MettaGridEnvSet
+
+num_agents: 16
+sampling: 1
+
+game:
+  num_agents: ${..num_agents}
+
+envs:
+  - /env/mettagrid/memory/training/easy
+  - /env/mettagrid/memory/training/medium
+  -  /env/mettagrid/memory/training/hard

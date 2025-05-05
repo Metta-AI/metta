@@ -4,7 +4,7 @@ defaults:
 
 game:
   num_agents: 80 #how many agents are in the map x2
-  max_steps: 25
+  max_steps: 35
 
   agent:
     rewards:

@@ -4,4 +4,4 @@ defaults:
 
 simulations:
   simple:
-    env: env/mettagrid/multiagent/evals/fork
+    env: env/mettagrid/multiagent/evals/stealing
