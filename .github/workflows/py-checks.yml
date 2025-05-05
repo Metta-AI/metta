@@ -88,6 +88,8 @@ jobs:
         id: set-cache-paths
         run: |
           PATHS="mettagrid/build
+          mettagrid/mettagrid/**/*.so
+          mettagrid/mettagrid/**/*.cpython-*-*.so
           /build
           ~/.cache/pip
           venv"
@@ -258,7 +260,6 @@ jobs:
         with:
           path: ${{ needs.setup-checks.outputs.cache_paths }}
           key: ${{ needs.setup-checks.outputs.cache_key }}
-
 
       - name: Install pip requirements (cache miss fallback)
         if: steps.test-cache-py.outputs.cache-hit != 'true'
