@@ -68,7 +68,7 @@ jobs:
           HASH=$(find mettagrid -type f \( -name "*.cpp" -o -name "*.cxx" -o -name "*.cc" -o -name "*.h" -o -name "*.hpp" -o -name "*.pyx" -o -name "*.pxd" \) -exec sha256sum {} \; > /tmp/file_hashes.txt && \
           sha256sum setup.py requirements.txt 2>/dev/null >> /tmp/file_hashes.txt && \
           sort /tmp/file_hashes.txt | sha256sum | cut -d' ' -f1)
-          
+
           CACHE_KEY="cpp-build-${HASH}"
           echo "cache_key=${CACHE_KEY}" >> $GITHUB_OUTPUT
           echo "Created content-based hash key ${CACHE_KEY}"
@@ -109,7 +109,7 @@ jobs:
           echo "run_benchmark=${RUN_BENCHMARK}" >> $GITHUB_OUTPUT
 
           echo "run lint? ${RUN_LINT}"
-          echo "run test? ${RUN_TEST}"" 
+          echo "run test? ${RUN_TEST}"
           echo "run benchmark? ${RUN_BENCHMARK}"
 
   # Build and cache the C++ artifacts
