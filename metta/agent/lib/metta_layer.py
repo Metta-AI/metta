@@ -59,7 +59,7 @@ class LayerBase(nn.Module):
         if self._ready:
             return
 
-        self.__dict__["_source_components"] = source_components
+        self._source_components = source_components
         self._in_tensor_shapes = None
         if self._source_components is not None:
             self._in_tensor_shapes = []
