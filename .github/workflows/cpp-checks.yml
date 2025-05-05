@@ -33,7 +33,7 @@ permissions:
 
 jobs:
   # First job: check if any C++ files have changed
-  setup-cpp-checks:
+  setup-checks:
     name: "Set up for C++ checks"
     if: |
       github.event.pull_request.draft == false || 
@@ -64,17 +64,22 @@ jobs:
       - name: Generate cache key
         id: set-cache-key
         run: |
-          # Create a cache key based on commit SHA and relevant file hashes
-          HASH=$(find mettagrid -type f \( -name "*.cpp" -o -name "*.h" -o -name "*.hpp" \) -exec sha256sum {} \; | sort | sha256sum | cut -d' ' -f1)
-          echo "cache_key=${{ github.sha }}-${HASH}-cpp-build" >> $GITHUB_OUTPUT
-         
+          # Create a hash that combines all relevant files
+          HASH=$(find mettagrid -type f \( -name "*.cpp" -o -name "*.cxx" -o -name "*.cc" -o -name "*.h" -o -name "*.hpp" -o -name "*.pyx" -o -name "*.pxd" \) -exec sha256sum {} \; && \
+                sha256sum setup.py requirements.txt 2>/dev/null | sort | sha256sum | cut -d' ' -f1)
+          
+          CACHE_KEY="cpp-build-${HASH}"
+          echo "cache_key=${CACHE_KEY}" >> $GITHUB_OUTPUT
+          echo "Created content-based hash key ${CACHE_KEY}"
+
       - name: Get main branch head SHA
         id: get-main-sha
         run: |
           git fetch origin main
-          echo "MAIN_SHA=$(git rev-parse origin/main)" >> $GITHUB_OUTPUT
-          echo "found main branch at commit $(git rev-parse origin/main)"
-      
+          SHA=$(git rev-parse origin/main)
+          echo "MAIN_SHA=${SHA}" >> $GITHUB_OUTPUT
+          echo "found main branch at commit ${SHA}"
+
       - name: Determine which tasks to run
         id: determine_tasks
         run: |
@@ -102,16 +107,18 @@ jobs:
           echo "run_test=${RUN_TEST}" >> $GITHUB_OUTPUT
           echo "run_benchmark=${RUN_BENCHMARK}" >> $GITHUB_OUTPUT
 
-          echo "lint? ${RUN_LINT}   -   test? ${RUN_TEST}   -   benchmark? ${RUN_BENCHMARK}"
+          echo "run lint? ${RUN_LINT}"
+          echo "run test? ${RUN_TEST}"" 
+          echo "run benchmark? ${RUN_BENCHMARK}"
 
   # Build and cache the C++ artifacts
-  setup-cpp:
-    name: "Setup C++"
-    needs: setup-cpp-checks
+  build-cpp:
+    name: "Build C++ artifacts"
+    needs: setup-checks
     if: |
-      needs.setup-cpp-checks.outputs.run_lint == 'true' || 
-      needs.setup-cpp-checks.outputs.run_test == 'true' || 
-      needs.setup-cpp-checks.outputs.run_benchmark == 'true'
+      needs.setup-checks.outputs.run_lint == 'true' || 
+      needs.setup-checks.outputs.run_test == 'true' || 
+      needs.setup-checks.outputs.run_benchmark == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -122,47 +129,43 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y g++ cmake libgtest-dev libbenchmark-dev clang-format
 
-      # Try to restore cache
-      - name: Cache C++ build
-        id: cache-cpp
+      - name: Restore from build cache
+        id: build-cache-cpp 
         uses: actions/cache@v3
         with:
           path: |
             mettagrid/build
             ~/.cache/pip
-          key: ${{ needs.setup-cpp-checks.outputs.cache_key }}
-          restore-keys: |
-            ${{ github.sha }}-cpp-build
-            cpp-build-
+          key: ${{ needs.setup-checks.outputs.cache_key }}
 
-      # Prebuild step only if cache miss
-      - name: Prebuild C++ artifacts
-        if: steps.cache-cpp.outputs.cache-hit != 'true'
+      - name: Build C++ artifacts (cache miss fallback)
+        if: steps.build-cache-cpp.outputs.cache-hit != 'true'
         run: |
           cd mettagrid
           make build
 
   lint:
     name: "Lint"
-    needs: [setup-cpp-checks, setup-cpp]
-    if: needs.setup-cpp-checks.outputs.run_lint == 'true'
+    needs: [setup-checks, build-cpp]
+    if: needs.setup-checks.outputs.run_lint == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        
-      # Restore the cached C++ build if needed
-      - name: Cache C++ build
+      - name: Restore from build cache
+        id: lint-cache-cpp 
         uses: actions/cache@v3
         with:
           path: |
             mettagrid/build
             ~/.cache/pip
-          key: ${{ needs.setup-cpp-checks.outputs.cache_key }}
-          restore-keys: |
-            ${{ github.sha }}-cpp-build
-            cpp-build-
+          key: ${{ needs.setup-checks.outputs.cache_key }}
 
+      - name: Build C++ artifacts (cache miss fallback)
+        if: steps.lint-cache-cpp.outputs.cache-hit != 'true'
+        run: |
+          cd mettagrid
+          make build
       - name: Run clang-format check
         run: |
           echo "Checking C++ formatting..."
@@ -172,24 +175,27 @@ jobs:
 
   test:
     name: "Test"
-    needs: [setup-cpp-checks, setup-cpp]
-    if: needs.setup-cpp-checks.outputs.run_test == 'true'
+    needs: [setup-checks, build-cpp]
+    if: needs.setup-checks.outputs.run_test == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         
-      # Restore the cached C++ build
-      - name: Cache C++ build
+      - name: Restore from build cache
+        id: test-cache-cpp 
         uses: actions/cache@v3
         with:
           path: |
             mettagrid/build
             ~/.cache/pip
-          key: ${{ needs.setup-cpp-checks.outputs.cache_key }}
-          restore-keys: |
-            ${{ github.sha }}-cpp-build
-            cpp-build-
+          key: ${{ needs.setup-checks.outputs.cache_key }}
+
+      - name: Build C++ artifacts (cache miss fallback)
+        if: steps.test-cache-cpp.outputs.cache-hit != 'true'
+        run: |
+          cd mettagrid
+          make build
 
       - name: Build and run tests
         run: |
@@ -198,25 +204,28 @@ jobs:
 
   benchmark:
     name: "Benchmark"
-    needs: [setup-cpp-checks, setup-cpp]
-    if: needs.setup-cpp-checks.outputs.run_benchmark == 'true'
+    needs: [setup-checks, build-cpp]
+    if: needs.setup-checks.outputs.run_benchmark == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         
-      # Restore the cached C++ build
-      - name: Cache C++ build
+      - name: Restore from build cache
+        id: benchmark-cache-cpp 
         uses: actions/cache@v3
         with:
           path: |
             mettagrid/build
             ~/.cache/pip
-          key: ${{ needs.setup-cpp-checks.outputs.cache_key }}
-          restore-keys: |
-            ${{ github.sha }}-cpp-build
-            cpp-build-
+          key: ${{ needs.setup-checks.outputs.cache_key }}
+
+      - name: Build C++ artifacts (cache miss fallback)
+        if: steps.benchmark-cache-cpp.outputs.cache-hit != 'true'
+        run: |
+          cd mettagrid
+          make build
 
       - name: Build and run benchmarks with JSON output
         run: |
@@ -277,7 +286,7 @@ jobs:
         env:
           BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          MAIN_SHA: ${{ needs.setup-cpp-checks.outputs.main_sha }}
+          MAIN_SHA: ${{ needs.setup-checks.outputs.main_sha }}
         run: |
           cd mettagrid/benchmark_output
           ls -al
