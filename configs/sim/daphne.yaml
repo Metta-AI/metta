@@ -4,4 +4,4 @@ defaults:
 
 simulations:
   simple:
-    env: env/mettagrid/multiagent/training/reward_sharing/48/varied_terrain_sparse_altars_dense_objects
+    env: env/mettagrid/multi_agent/evals/circambulate
