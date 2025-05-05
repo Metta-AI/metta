@@ -22,7 +22,8 @@ game:
       border_width: ${sampling:1,6,3}
       num_agents: ${div:${....num_agents},4}
       style: sparse-altars-dense-objects # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
-
+      teams: ["team_1", "team_2", "team_3"]
+      object_colors: ["red", "green", "blue"]
   objects:
     altar:
       hp: 30

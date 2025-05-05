@@ -19,6 +19,8 @@ game:
       border_width: 1
       dir: "terrain_maps_nohearts"
       num_agents: ${div:${....num_agents},4}
+      teams: ["team_1", "team_2", "team_3"]
+      object_colors: ["red", "green", "blue"]
 
   objects:
     altar:

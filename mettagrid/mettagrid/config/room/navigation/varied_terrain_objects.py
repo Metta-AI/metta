@@ -74,9 +74,6 @@ class VariedTerrainObjects(Room):
         },
     }
 
-    COLORS = ["red", "green", "blue"]
-    TEAMS = ["team_1", "team_2", "team_3"]
-
     def __init__(
         self,
         width: int,
@@ -87,6 +84,8 @@ class VariedTerrainObjects(Room):
         border_object: str = "wall",
         occupancy_threshold: float = 0.66,
         style: str = "balanced",
+        teams: list | None = None,
+        object_colors: list | None = None,
     ):
         super().__init__(border_width=border_width, border_object=border_object)
         self.labels.append(style)  # Add style to labels after parent init
@@ -103,6 +102,16 @@ class VariedTerrainObjects(Room):
             self._rng = np.random.default_rng()
 
         self._occupancy_threshold = occupancy_threshold
+
+        if teams is None:
+            self.teams = ["agent"]
+        else:
+            self.teams = teams
+
+        if object_colors is None:
+            self.object_colors = ["red"]
+        else:
+            self.object_colors = object_colors
 
         # Validate style
         if style not in self.STYLE_PARAMETERS:
@@ -151,9 +160,9 @@ class VariedTerrainObjects(Room):
         self._blocks = {"count": clamp_count(params["blocks"]["count"], avg_sizes["blocks"])}
 
         # Initialize mines and generators with color-specific counts
-        self._mines = {color: clamp_count(params["mines"][color], avg_sizes["mines"]) for color in self.COLORS}
+        self._mines = {color: clamp_count(params["mines"][color], avg_sizes["mines"]) for color in self.object_colors}
         self._generators = {
-            color: clamp_count(params["generators"][color], avg_sizes["generators"]) for color in self.COLORS
+            color: clamp_count(params["generators"][color], avg_sizes["generators"]) for color in self.object_colors
         }
         self._hearts_count = clamp_count(params["hearts_count"], avg_sizes["hearts"])
 
@@ -239,7 +248,7 @@ class VariedTerrainObjects(Room):
     def _place_agents(self, grid: np.ndarray) -> np.ndarray:
         """Place agents of different teams."""
         # Iterate through teams in order
-        for team in self.TEAMS:
+        for team in self.teams:
             count = self._agent_counts.get(team, 0)
             for _ in range(count):
                 pos = self._choose_random_empty()

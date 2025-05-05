@@ -14,12 +14,13 @@ from mettagrid.config.room.room import Room
 def safe_load(path, retries=5, delay=1.0):
     for attempt in range(retries):
         try:
-            return np.load(path, allow_pickle=True)
+            level: np.ndarray = np.load(path, allow_pickle=True)
         except ValueError:
             if attempt < retries - 1:
                 time.sleep(delay)
                 continue
-            raise
+            raise Exception(f"Failed to load {path}")
+        return level
 
 
 def download_from_s3(s3_path: str, save_path: str, location: str = "us-east-1"):
@@ -58,9 +59,6 @@ class TerrainFromNumpy(Room):
     - Random distribution of altars
     """
 
-    COLORS = ["red", "green", "blue"]
-    TEAMS = ["team_1", "team_2", "team_3"]
-
     def __init__(
         self,
         dir,
@@ -68,7 +66,8 @@ class TerrainFromNumpy(Room):
         border_object: str = "wall",
         num_agents: int = 10,
         file: str | None = None,
-        team: str | None = None,
+        teams: list | None = None,
+        object_colors: list | None = None,
     ):
         zipped_dir = dir + ".zip"
         lock_path = zipped_dir + ".lock"
@@ -85,11 +84,11 @@ class TerrainFromNumpy(Room):
         self.dir = dir
         self.num_agents = num_agents
         self.uri = file
-
-        # Team handling
-        if team is not None and team not in self.TEAMS:
-            raise ValueError(f"Invalid team: {team}. Must be one of {self.TEAMS}")
-        self.team = team
+        self.teams = teams
+        if object_colors is None:
+            self.object_colors = ["red"]  # default object color is red
+        else:
+            self.object_colors = object_colors
 
         super().__init__(border_width=border_width, border_object=border_object, labels=["terrain"])
 
@@ -120,17 +119,17 @@ class TerrainFromNumpy(Room):
 
     def _distribute_agents(self, level, valid_positions):
         """Distribute agents across teams."""
-        if self.team is not None:
-            # If specific team is provided, all agents go to that team
-            level, valid_positions = self._place_objects(level, self.num_agents, f"agent.{self.team}", valid_positions)
-        else:
-            # Distribute agents evenly across teams
-            base_agents = self.num_agents // 3
-            remainder = self.num_agents % 3
 
-            for i, team in enumerate(self.TEAMS):
+        # Distribute agents evenly across teams
+        base_agents = self.num_agents // 3
+        remainder = self.num_agents % 3
+
+        if self.teams is not None:
+            for i, team in enumerate(self.teams):
                 num_team_agents = base_agents + (1 if i < remainder else 0)
                 level, valid_positions = self._place_objects(level, num_team_agents, f"agent.{team}", valid_positions)
+        else:
+            level, valid_positions = self._place_objects(level, self.num_agents, "agent", valid_positions)
 
         return level, valid_positions
 
@@ -140,7 +139,7 @@ class TerrainFromNumpy(Room):
         # Calculate base counts for each color
         base_count = area // random.randint(360, 600)  # Slightly fewer than original to account for colors
 
-        for color in self.COLORS:
+        for color in self.object_colors:
             # Add some randomness to counts
             gen_count = max(1, base_count + random.randint(-2, 2))
             mine_count = max(1, base_count + random.randint(-2, 2))
@@ -156,10 +155,10 @@ class TerrainFromNumpy(Room):
     def _build(self):
         # Load level
         if self.uri is not None:
-            level = safe_load(f"{self.dir}/{self.uri}")
+            level: np.ndarray = safe_load(f"{self.dir}/{self.uri}")
         else:
             uri = np.random.choice(self.files)
-            level = safe_load(f"{self.dir}/{uri}")
+            level: np.ndarray = safe_load(f"{self.dir}/{uri}")
         self.set_size_labels(level.shape[1], level.shape[0])
 
         # Clear existing agents
