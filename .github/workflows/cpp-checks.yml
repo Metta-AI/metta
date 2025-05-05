@@ -71,6 +71,7 @@ jobs:
       run_test: ${{ steps.determine_tasks.outputs.run_test }}
       run_benchmark: ${{ steps.determine_tasks.outputs.run_benchmark }}
       cache_key: ${{ steps.set-cache-key.outputs.cache_key }}
+      cache_paths: ${{ steps.set-cache-paths.outputs.paths }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -83,6 +84,16 @@ jobs:
           directory_paths: "mettagrid/"
           specific_files: "requirements.txt,setup.py"
           github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set cache paths
+        id: set-cache-paths
+        run: |
+          PATHS="mettagrid/build
+          ~/.cache/pip
+          "
+          echo "paths<<EOF" >> $GITHUB_OUTPUT
+          echo "$PATHS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Generate cache key
         id: set-cache-key
@@ -97,6 +108,9 @@ jobs:
           if [ -f "requirements.txt" ]; then
             sha256sum requirements.txt >> /tmp/file_hashes.txt
           fi
+
+          # Add the cache paths to the hash calculation
+          echo "${{ steps.set-cache-paths.outputs.paths }}" | sha256sum >> /tmp/file_hashes.txt
 
           # Create the final hash
           if [ -s "/tmp/file_hashes.txt" ]; then
@@ -170,9 +184,7 @@ jobs:
         id: build-cache-cpp
         uses: actions/cache@v3
         with:
-          path: |
-            mettagrid/build
-            ~/.cache/pip
+          path: ${{ needs.setup-checks.outputs.cache_paths }}
           key: ${{ needs.setup-checks.outputs.cache_key }}
 
       - name: Build C++ artifacts (cache miss fallback)
@@ -223,9 +235,7 @@ jobs:
         id: test-cache-cpp
         uses: actions/cache@v3
         with:
-          path: |
-            mettagrid/build
-            ~/.cache/pip
+          path: ${{ needs.setup-checks.outputs.cache_paths }}
           key: ${{ needs.setup-checks.outputs.cache_key }}
 
       - name: Build C++ artifacts (cache miss fallback)
@@ -260,9 +270,7 @@ jobs:
         id: benchmark-cache-cpp
         uses: actions/cache@v3
         with:
-          path: |
-            mettagrid/build
-            ~/.cache/pip
+          path: ${{ needs.setup-checks.outputs.cache_paths }}
           key: ${{ needs.setup-checks.outputs.cache_key }}
 
       - name: Build C++ artifacts (cache miss fallback)
