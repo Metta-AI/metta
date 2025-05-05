@@ -10,6 +10,9 @@ POSSIBLE_REVIEWERS="$3"
 FORCED_ASSIGNEES="$4"
 FORCED_REVIEWERS="$5"
 FORCED_LABELS="$6"
+CLEAR_EXISTING_ASSIGNEES="$7"
+CLEAR_EXISTING_REVIEWERS="$8"
+CLEAR_EXISTING_LABELS="$9"
 REPO="${GITHUB_REPOSITORY}"
 
 # Get PR author
@@ -20,6 +23,12 @@ echo "Processing PR #$PR_NUMBER by @$PR_AUTHOR"
 is_empty() {
   local str="$1"
   [[ -z "${str// /}" ]]
+}
+
+# Function to check if a value is true (case insensitive)
+is_true() {
+  local value=$(echo "$1" | tr '[:upper:]' '[:lower:]')
+  [[ "$value" == "true" ]]
 }
 
 # Function to randomly select from a comma-separated list
@@ -105,6 +114,72 @@ format_for_gh() {
 ASSIGNED=()
 REVIEWED=()
 LABELED=()
+CLEARED_ASSIGNEES=false
+CLEARED_REVIEWERS=false
+CLEARED_LABELS=false
+
+# Process assignees clearing
+if is_true "$CLEAR_EXISTING_ASSIGNEES"; then
+  echo "Clearing existing assignees..."
+  
+  # Get current assignees
+  CURRENT_ASSIGNEES=$(gh pr view $PR_NUMBER --json assignees --repo $REPO | jq -r '.assignees[].login' 2>/dev/null || echo "")
+  
+  # Remove all existing assignees
+  if ! is_empty "$CURRENT_ASSIGNEES"; then
+    for assignee in $CURRENT_ASSIGNEES; do
+      if ! is_empty "$assignee"; then
+        gh pr edit $PR_NUMBER --remove-assignee "$assignee" --repo $REPO || echo "Warning: Failed to remove assignee: $assignee"
+        echo "Removed assignee: $assignee"
+      fi
+    done
+    CLEARED_ASSIGNEES=true
+  else
+    echo "No existing assignees to clear"
+  fi
+fi
+
+# Process reviewers clearing
+if is_true "$CLEAR_EXISTING_REVIEWERS"; then
+  echo "Clearing existing review requests..."
+  
+  # Get current requested reviewers
+  CURRENT_REVIEWERS=$(gh pr view $PR_NUMBER --json reviewRequests --repo $REPO | jq -r '.reviewRequests[].login' 2>/dev/null || echo "")
+  
+  # Remove all existing review requests
+  if ! is_empty "$CURRENT_REVIEWERS"; then
+    for reviewer in $CURRENT_REVIEWERS; do
+      if ! is_empty "$reviewer"; then
+        gh pr edit $PR_NUMBER --remove-reviewer "$reviewer" --repo $REPO || echo "Warning: Failed to remove reviewer: $reviewer"
+        echo "Removed review request from: $reviewer"
+      fi
+    done
+    CLEARED_REVIEWERS=true
+  else
+    echo "No existing review requests to clear"
+  fi
+fi
+
+# Process labels clearing (separate from forced labels replacement)
+if is_true "$CLEAR_EXISTING_LABELS"; then
+  echo "Clearing existing labels..."
+  
+  # Get current labels
+  CURRENT_LABELS=$(gh pr view $PR_NUMBER --json labels --repo $REPO | jq -r '.labels[].name' 2>/dev/null || echo "")
+  
+  # Remove all existing labels
+  if ! is_empty "$CURRENT_LABELS"; then
+    for label in $CURRENT_LABELS; do
+      if ! is_empty "$label"; then
+        gh pr edit $PR_NUMBER --remove-label "$label" --repo $REPO || echo "Warning: Failed to remove label: $label"
+        echo "Removed label: $label"
+      fi
+    done
+    CLEARED_LABELS=true
+  else
+    echo "No existing labels to clear"
+  fi
+fi
 
 # Process forced assignees (always assigned)
 if ! is_empty "$FORCED_ASSIGNEES"; then
@@ -201,21 +276,24 @@ else
   echo "No possible reviewers specified for random selection"
 fi
 
-# Process forced labels (replacing existing labels)
+# Process forced labels 
 if ! is_empty "$FORCED_LABELS"; then
   echo "Setting forced labels: $FORCED_LABELS"
   
-  # First, get current labels to remove them
-  CURRENT_LABELS=$(gh pr view $PR_NUMBER --json labels --repo $REPO | jq -r '.labels[].name' 2>/dev/null || echo "")
-  
-  # Remove all existing labels
-  if ! is_empty "$CURRENT_LABELS"; then
-    for label in $CURRENT_LABELS; do
-      if ! is_empty "$label"; then
-        gh pr edit $PR_NUMBER --remove-label "$label" --repo $REPO || echo "Warning: Failed to remove label: $label"
-        echo "Removed label: $label"
-      fi
-    done
+  # Only clear existing labels if not already cleared by the clear-existing-labels parameter
+  if ! $CLEARED_LABELS; then
+    # Get current labels to remove them
+    CURRENT_LABELS=$(gh pr view $PR_NUMBER --json labels --repo $REPO | jq -r '.labels[].name' 2>/dev/null || echo "")
+    
+    # Remove all existing labels
+    if ! is_empty "$CURRENT_LABELS"; then
+      for label in $CURRENT_LABELS; do
+        if ! is_empty "$label"; then
+          gh pr edit $PR_NUMBER --remove-label "$label" --repo $REPO || echo "Warning: Failed to remove label: $label"
+          echo "Removed label: $label"
+        fi
+      done
+    fi
   fi
   
   # Format and add forced labels
@@ -238,8 +316,28 @@ else
 fi
 
 # Add a summary comment
-if [ ${#ASSIGNED[@]} -gt 0 ] || [ ${#REVIEWED[@]} -gt 0 ] || [ ${#LABELED[@]} -gt 0 ]; then
+COMMENT=""
+
+if $CLEARED_ASSIGNEES || $CLEARED_REVIEWERS || $CLEARED_LABELS; then
   COMMENT="PR automatically processed:\n"
+  
+  if $CLEARED_ASSIGNEES; then
+    COMMENT+="- Cleared all existing assignees\n"
+  fi
+  
+  if $CLEARED_REVIEWERS; then
+    COMMENT+="- Cleared all existing review requests\n"
+  fi
+  
+  if $CLEARED_LABELS; then
+    COMMENT+="- Cleared all existing labels\n"
+  fi
+fi
+
+if [ ${#ASSIGNED[@]} -gt 0 ] || [ ${#REVIEWED[@]} -gt 0 ] || [ ${#LABELED[@]} -gt 0 ]; then
+  if [ -z "$COMMENT" ]; then
+    COMMENT="PR automatically processed:\n"
+  fi
   
   if [ ${#ASSIGNED[@]} -gt 0 ]; then
     COMMENT+="- Assigned to: "
@@ -264,7 +362,13 @@ if [ ${#ASSIGNED[@]} -gt 0 ] || [ ${#REVIEWED[@]} -gt 0 ] || [ ${#LABELED[@]} -g
     done
   fi
   
-  gh pr comment $PR_NUMBER --body "$COMMENT" --repo $REPO || echo "Warning: Failed to add summary comment"
+  if [ ! -z "$COMMENT" ]; then
+    gh pr comment $PR_NUMBER --body "$COMMENT" --repo $REPO || echo "Warning: Failed to add summary comment"
+  fi
 else
-  echo "No actions were taken on this PR - no assignees, reviewers, or labels were set."
+  if [ -z "$COMMENT" ]; then
+    echo "No actions were taken on this PR - no assignees, reviewers, or labels were set or cleared."
+  else
+    gh pr comment $PR_NUMBER --body "$COMMENT" --repo $REPO || echo "Warning: Failed to add summary comment"
+  fi
 fi
