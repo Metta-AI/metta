@@ -135,7 +135,7 @@ class WFCRenderSession:
         self.sums_of_weight_log_weights = np.full(
             (self.height, self.width),
             self.scene._sum_of_weight_log_weights,
-            dtype=np.float_,
+            dtype=np.float64,
         )
         self.observed = 0
         self.queue = []
