@@ -43,8 +43,7 @@ class StatsDB:
         """Initialize database schema."""
         self.con.execute("""
         CREATE TABLE IF NOT EXISTS episodes (
-            episode_id VARCHAR PRIMARY KEY,
-            env_name VARCHAR,
+            id TEXT PRIMARY KEY,
             seed INTEGER,
             map_w INTEGER,
             map_h INTEGER,
@@ -57,9 +56,9 @@ class StatsDB:
 
         self.con.execute("""
         CREATE TABLE IF NOT EXISTS agent_metrics (
-            episode_id VARCHAR,
+            episode_id TEXT,
             agent_id INTEGER,
-            metric VARCHAR,
+            metric TEXT,
             value REAL,
             PRIMARY KEY (episode_id, agent_id, metric)
         )
@@ -70,19 +69,6 @@ class StatsDB:
         return str(uuid.uuid4())
 
     def create_episode(self, env_name: str, seed: int, map_w: int, map_h: int, metadata: Optional[Dict] = None) -> str:
-        """
-        Create a new episode.
-
-        Args:
-            env_name: Environment name
-            seed: Random seed
-            map_w: Map width
-            map_h: Map height
-            metadata: Optional metadata dictionary
-
-        Returns:
-            Episode ID
-        """
         if self.read_only:
             raise ValueError("Cannot create episode in read-only mode")
 
@@ -92,7 +78,7 @@ class StatsDB:
         self.con.execute(
             """
             INSERT INTO episodes 
-            (episode_id, env_name, seed, map_w, map_h, started_at, metadata)
+            (id, env_name, seed, map_w, map_h, started_at, metadata)
             VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
             """,
             (episode_id, env_name, seed, map_w, map_h, metadata_json),
@@ -101,13 +87,6 @@ class StatsDB:
         return episode_id
 
     def finish_episode(self, episode_id: str, step_count: int) -> None:
-        """
-        Mark an episode as finished.
-
-        Args:
-            episode_id: Episode ID
-            step_count: Number of steps taken
-        """
         if self.read_only:
             raise ValueError("Cannot update episode in read-only mode")
 
@@ -115,20 +94,12 @@ class StatsDB:
             """
             UPDATE episodes 
             SET step_count = ?, finished_at = CURRENT_TIMESTAMP
-            WHERE episode_id = ?
+            WHERE id = ?
             """,
             (step_count, episode_id),
         )
 
     def add_agent_metrics(self, episode_id: str, agent_id: int, metrics: Dict[str, float]) -> None:
-        """
-        Add agent metrics for an episode.
-
-        Args:
-            episode_id: Episode ID
-            agent_id: Agent ID
-            metrics: Dictionary of metric names to values
-        """
         if self.read_only:
             raise ValueError("Cannot add metrics in read-only mode")
 

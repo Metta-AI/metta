@@ -11,7 +11,9 @@ Vectorised simulation runner.
 from __future__ import annotations
 
 import logging
+import os
 import time
+import uuid
 from pathlib import Path
 from typing import Dict, List, Tuple
 
@@ -47,13 +49,13 @@ class Simulation:
         policy_pr: PolicyRecord,
         policy_store: PolicyStore,
         *,
-        wandb_run=None,
+        suite: SimulationSuite | None = None,
         stats_dir: str | None = None,
         replay_dir: str | None = None,
     ):
         self._name = name
+        self._suite = suite
         self._config = config
-        self._wandb_run = wandb_run
 
         # ---------------- env config ----------------------------------- #
         self._env_cfg = config_from_path(config.env, config.env_overrides)
@@ -119,7 +121,6 @@ class Simulation:
             config=self._config,
             env=self._vecenv.envs[env_idx],
             policy_record=self._policy_pr,
-            wandb_run=self._wandb_run,
         )
 
     def _replay_path(self, env_idx: int, ep: int) -> str:
@@ -128,7 +129,7 @@ class Simulation:
         return f"{self._replay_dir}/replay_ep{ep}_env{env_idx}.json.z"
 
     # ------------------------- stats helpers -------------------------- #
-    def _merge_worker_dbs(self) -> StatsDB:
+    def _merge_shards_and_add_context(self) -> StatsDB:
         """Merge all *.duckdb* shards for this simulation → one `StatsDB`."""
         agent_map: Dict[int, Tuple[str, str | None]] = {
             idx.item(): self._policy_pr.key_and_version() for idx in self._policy_idxs
@@ -136,8 +137,8 @@ class Simulation:
         if self._npc_pr is not None:
             agent_map.update({idx.item(): self._npc_pr.key_and_version() for idx in self._npc_idxs})
 
-        db = StatsDB.merge_worker_dbs(self._stats_dir, agent_map)
-        logger.info("Merged %s → %s", self._stats_dir, db.path)
+        suite_name = "" if self._suite is None else self._suite.name
+        db = StatsDB.merge_shards_and_add_context(self._stats_dir, agent_map, self._name, suite_name, self._config.env)
         return db
 
     # ------------------------------------------------------------------ #
@@ -226,7 +227,7 @@ class Simulation:
 
         # ---------------- teardown & DB merge ------------------------ #
         self._vecenv.close()
-        db = self._merge_worker_dbs()
+        db = self._merge_shards_and_add_context()
 
         logger.info(
             "Sim '%s' finished: %d episodes in %.1fs",
@@ -252,39 +253,43 @@ class SimulationSuite:
         policy_pr: PolicyRecord,
         policy_store: PolicyStore,
         *,
-        wandb_run=None,
         stats_dir: str | None = None,
         replay_dir: str | None = None,
     ):
-        self._sims: Dict[str, Simulation] = {
-            n: Simulation(
-                n,
-                cfg,
-                policy_pr,
-                policy_store,
-                wandb_run=wandb_run,
-                stats_dir=f"{stats_dir}/{n}" if stats_dir else None,
-                replay_dir=f"{replay_dir}/{n}" if replay_dir else None,
-            )
-            for n, cfg in config.simulations.items()
-        }
+        # Add a per-simulation uuid so we dont accidentally merge data from different
+        # simulation runs
+        if stats_dir:
+            self._stats_dir = f"{stats_dir}/{os.getpid()}_{uuid.uuid4().hex[:6]}"
+        else:
+            self._stats_dir = None
+        self._config = config
+        self._policy_pr = policy_pr
+        self._policy_store = policy_store
+        self._replay_dir = replay_dir
+
+        self.name = config.name
 
     # ------------------------------------------------------------------ #
     #   public API                                                       #
     # ------------------------------------------------------------------ #
     def simulate(self) -> StatsDB:
         """Run every simulation, merge their DBs, return a single `StatsDB`."""
-        merged_db: StatsDB | None = None
+        merged_db: StatsDB = StatsDB(f"{self._stats_dir}/all.duckdb")
 
-        for name, sim in self._sims.items():
+        for name, sim_config in self._config.simulations.items():
+            sim = Simulation(
+                name,
+                sim_config,
+                self._policy_pr,
+                self._policy_store,
+                suite=self,
+                stats_dir=f"{self._stats_dir}/{name}" if self._stats_dir else None,
+                replay_dir=f"{self._replay_dir}/{name}" if self._replay_dir else None,
+            )
             logger.info("=== Simulation '%s' ===", name)
             db = sim.simulate()
-
-            if merged_db is None:
-                merged_db = db
-            else:
-                merged_db.merge_in(db)
-                db.close()  # release file handle of merged shard
+            merged_db.merge_in(db)
+            db.close()  # release file handle of merged shard
 
         assert merged_db is not None, "SimulationSuite contained no simulations"
         return merged_db

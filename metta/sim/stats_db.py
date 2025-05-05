@@ -2,7 +2,7 @@
 metta/sim/stats_db.py - Extended StatsDB implementation for Metta.
 
 This module extends the base StatsDB class from mettagrid with additional
-functionality for merging databases and handling policy metadata.
+functionality for merging databases and handling policy/simulation metadata.
 """
 
 from __future__ import annotations
@@ -15,12 +15,8 @@ from typing import Dict, List, Optional, Tuple, Union
 import duckdb
 import pandas as pd
 
-from metta.util.file import write_file
+from metta.util.file import exists, local_copy, write_file
 from mettagrid.stats_writer import StatsDB as MGStatsDB
-
-logger = logging.getLogger(__name__)
-
-# Schema for agent metadata - used by this extended StatsDB
 
 # ------------------------------------------------------------------ #
 #   Tables & indexes                                                 #
@@ -28,30 +24,37 @@ logger = logging.getLogger(__name__)
 AGENT_POLICY_SCHEMA = """
 -- per-episode / per-agent mapping
 CREATE TABLE IF NOT EXISTS agent_policies (
-    episode_id     VARCHAR,
+    episode_id     TEXT NOT NULL,
     agent_id       INTEGER,
-    policy_key     TEXT,
-    policy_version TEXT,
+    policy_key     TEXT NOT NULL,
+    policy_version TEXT NOT NULL,
     PRIMARY KEY (episode_id, agent_id)
 );
 
 -- unique registry of all policy versions
 CREATE TABLE IF NOT EXISTS policies (
-    policy_key     TEXT PRIMARY KEY,
-    policy_version TEXT
+    policy_key     TEXT NOT NULL,
+    policy_version TEXT NOT NULL,
+    PRIMARY KEY (policy_key, policy_version)
 );
+"""
 
-CREATE INDEX IF NOT EXISTS idx_agent_policies_policy
-    ON agent_policies(policy_key, policy_version);
+
+SIMULATIONS_SCHEMA = """
+CREATE TABLE IF NOT EXISTS simulations (
+    id   TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    suite TEXT NOT NULL,
+    env TEXT NOT NULL,
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(suite, name, env)
+);
+ALTER TABLE episodes
+ADD COLUMN IF NOT EXISTS simulation_id TEXT;
 """
 
 
 class StatsDB(MGStatsDB):
-    """
-    Extended statistics database for Metta, inheriting from the base MettaGrid StatsDB.
-    Adds agent metadata and merging capabilities.
-    """
-
     def __init__(self, path: Union[str, Path], mode: str = "rwc") -> None:
         """
         Initialize a statistics database.
@@ -70,18 +73,42 @@ class StatsDB(MGStatsDB):
         # Call the parent constructor with read_only flag
         super().__init__(str(self.path), read_only=read_only)
 
+        logger = logging.getLogger(__name__)
+        logger.info(f"StatsDB initialized at {self.path}")
+
         if not read_only:
-            self._ensure_agent_policies_table()
-
-    def _ensure_agent_policies_table(self) -> None:
-        """Ensure the agent_policies table exists."""
-        table_exists = self.con.execute(
-            "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='main' AND table_name='agent_policies'"
-        ).fetchone()[0]
-
-        if not table_exists:
+            for stmt in filter(None, (s.strip() for s in SIMULATIONS_SCHEMA.split(";"))):
+                self.con.execute(stmt)
             for stmt in filter(None, (s.strip() for s in AGENT_POLICY_SCHEMA.split(";"))):
                 self.con.execute(stmt)
+
+    def ensure_simulation_id(self, name: str, suite: str, env: str) -> str:
+        """
+        Return the uuid PK for (simulation_name, simulation_suite),
+        inserting a fresh row if absent.
+        """
+        row = self.con.execute(
+            """
+            SELECT id
+            FROM simulations
+            WHERE name = ?
+            AND suite = ?
+            AND env = ?
+            """,
+            (name, suite, env),
+        ).fetchone()
+        if row:
+            return row[0]
+
+        sim_id = uuid.uuid4().hex
+        self.con.execute(
+            """
+            INSERT INTO simulations (id, name, suite, env)
+                VALUES (?, ?, ?, ?)
+            """,
+            (sim_id, name, suite, env),
+        )
+        return sim_id
 
     def insert_agent_policies(
         self,
@@ -124,20 +151,104 @@ class StatsDB(MGStatsDB):
             rows,
         )
 
+    def update_episode_simulations(
+        self,
+        episode_ids: list[str],
+        sim: str,
+        sim_suite: str,
+        env: str,
+    ) -> None:
+        simulation_id = self.ensure_simulation_id(sim, sim_suite, env)
+        if not episode_ids:
+            return
+        self.con.executemany(
+            """
+            UPDATE episodes
+               SET simulation_id = ?
+             WHERE id = ?
+            """,
+            [(simulation_id, eid) for eid in episode_ids],
+        )
+
+    def attach_context_data(
+        self,
+        episode_ids: list[str],
+        agent_map: Dict[int, Tuple[str, Optional[str]]],
+        sim: str,
+        sim_suite: str,
+        env: str,
+    ) -> None:
+        if not episode_ids:
+            logger = logging.getLogger(__name__)
+            logger.warning("No episodes to attach context to")
+            return
+        self.insert_agent_policies(episode_ids, agent_map)
+        self.update_episode_simulations(episode_ids, sim, sim_suite, env)
+
+    #   internal: merge one external DB into this DB                      #
+    # ------------------------------------------------------------------ #
     def _merge_db(self, other_path: Path) -> None:
+        """
+        ATTACH an external DuckDB file as \"other\" and copy rows into the
+        current connection.  Works even if the shard is missing any of the
+        context tables (`agent_policies`, `policies`, `simulations`) and
+        preserves `simulation_id` whenever it exists.
+        """
         self.con.execute(f"ATTACH '{other_path}' AS other")
 
-        def _try(sql: str) -> None:
+        # ---------- helpers -------------------------------------------------
+        def _table_exists(table: str) -> bool:
+            """
+            Return True if `other.<table>` exists.
+
+            DuckDB 1.2 throws a CatalogException when the table is absent, so we
+            use that to detect non-existence.
+            """
             try:
-                self.con.execute(sql)
+                # Returns an empty result set if the table exists but has no
+                # columns (impossible here) – that’s still “exists”.
+                self.con.execute(f"PRAGMA table_info(other.{table})").fetchall()
+                return True
             except duckdb.CatalogException:
-                pass  # table not present in the shard
+                return False
+
+        def _safe_copy(table: str) -> None:
+            if not _table_exists(table):
+                logger = logging.getLogger(__name__)
+                logger.debug("Skipping %s – not present in shard %s", table, other_path.name)
+                return
+            # Use INSERT OR IGNORE to avoid conflicts with unique constraints
+            self.con.execute(f"INSERT OR IGNORE INTO {table} SELECT * FROM other.{table}")
 
         try:
-            _try("INSERT OR REPLACE INTO episodes        SELECT * FROM other.episodes")
-            _try("INSERT OR REPLACE INTO agent_metrics   SELECT * FROM other.agent_metrics")
-            _try("INSERT OR REPLACE INTO policies        SELECT * FROM other.policies")
-            _try("INSERT OR REPLACE INTO agent_policies SELECT * FROM other.agent_policies")
+            # ----------------------------------------------------------------
+            #  episodes – dynamic column intersection (handles simulation_id which may or not be present    )
+            # ----------------------------------------------------------------
+            self_cols = [r[1] for r in self.con.execute("PRAGMA table_info(episodes)").fetchall()]
+            other_cols = [r[1] for r in self.con.execute("PRAGMA table_info(other.episodes)").fetchall()]
+            common = [c for c in other_cols if c in self_cols]  # keep shard order
+            cols_csv = ", ".join(common)
+
+            self.con.execute(
+                f"""
+                INSERT OR REPLACE INTO episodes ({cols_csv})
+                SELECT {cols_csv}
+                  FROM other.episodes
+                """
+            )
+
+            # ----------------------------------------------------------------
+            #  Remaining tables – copy only if they exist in the shard
+            # ----------------------------------------------------------------
+            _safe_copy("agent_metrics")
+            _safe_copy("policies")
+            _safe_copy("agent_policies")
+            _safe_copy("simulations")
+
+        except Exception as e:
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error merging {other_path}: {e}")
+            raise
         finally:
             self.con.execute("DETACH other")
 
@@ -148,6 +259,7 @@ class StatsDB(MGStatsDB):
         Args:
             other: StatsDB to merge
         """
+        logger = logging.getLogger(__name__)
         if isinstance(other.path, str):
             other_path = Path(other.path)
         else:
@@ -157,12 +269,19 @@ class StatsDB(MGStatsDB):
             return
 
         # Merge
-        self._merge_db(other_path)
+        logger.info(f"Before merge: {self.con.execute('SELECT COUNT(*) FROM episodes').fetchone()[0]} episodes")
+        self._merge_db(other.path)
+        logger.info(f"After merge: {self.con.execute('SELECT COUNT(*) FROM episodes').fetchone()[0]} episodes")
+
         logger.info(f"Merged {other_path} into {self.path}")
 
     @staticmethod
-    def merge_worker_dbs(
-        dir_with_shards: Union[str, Path], agent_map: Dict[int, Tuple[str, Optional[str]]]
+    def merge_shards_and_add_context(
+        dir_with_shards: Union[str, Path],
+        agent_map: Dict[int, Tuple[str, Optional[str]]],
+        sim_name: str,
+        sim_suite: str,
+        env: str,
     ) -> "StatsDB":
         """
         Merge all worker database shards in a directory.
@@ -181,6 +300,7 @@ class StatsDB(MGStatsDB):
         # Find shards
         shards = [s for s in dir_with_shards.glob("*.duckdb") if s.name != merged_path.name]
 
+        logger = logging.getLogger(__name__)
         if not shards:
             logger.warning(f"No shards found in {dir_with_shards}")
             # Create an empty database as fallback
@@ -195,16 +315,13 @@ class StatsDB(MGStatsDB):
             single_db = StatsDB(shards[0], mode="rwc")
 
             # We still need to add agent policies
-            all_episode_ids = [row[0] for row in single_db.con.execute("SELECT episode_id FROM episodes").fetchall()]
+            all_episode_ids = [row[0] for row in single_db.con.execute("SELECT id FROM episodes").fetchall()]
             logger.info(f"Found {len(all_episode_ids)} episodes in single shard")
 
-            if all_episode_ids and agent_map:
-                single_db.insert_agent_policies(all_episode_ids, agent_map)
-            elif not all_episode_ids:
-                logger.warning(
-                    "No episodes found in database. This suggests an issue with environment instrumentation. "
-                    "Check that stats_writer.start_episode() and end_episode() are being called properly."
-                )
+            if all_episode_ids:
+                single_db.attach_context_data(all_episode_ids, agent_map, sim_name, sim_suite, env)
+            else:
+                logger.warning("No episodes found in statsdb")
 
             return single_db
 
@@ -227,7 +344,7 @@ class StatsDB(MGStatsDB):
         # ------------------------------------------------------------------
         #  Episode-agent ⇄ policy mapping
         # ------------------------------------------------------------------
-        all_episode_ids = [row[0] for row in merged.con.execute("SELECT episode_id FROM episodes").fetchall()]
+        all_episode_ids = [row[0] for row in merged.con.execute("SELECT id FROM episodes").fetchall()]
         logger.info(f"Found {len(all_episode_ids)} episodes across all shards")
 
         if not all_episode_ids:
@@ -235,9 +352,6 @@ class StatsDB(MGStatsDB):
                 "No episodes found in merged database. This suggests an issue with environment instrumentation. "
                 "Check that stats_writer.start_episode() and end_episode() are being called properly."
             )
-
-            # Make sure the policies table exists and add the policies even without episodes
-            merged.con.execute(AGENT_POLICY_SCHEMA)
 
             # Add policies to the policies table
             if agent_map:
@@ -248,19 +362,42 @@ class StatsDB(MGStatsDB):
                         list(unique_policies),
                     )
         elif agent_map:
-            # Insert agent policies if we have episodes and agent map
-            merged.insert_agent_policies(all_episode_ids, agent_map)
-
+            merged.attach_context_data(all_episode_ids, agent_map, sim_name, sim_suite, env)
         return merged
 
     def export(self, dest: str) -> None:
         """
-        Export this database to a destination path.
+        Export **self** to *dest*.
 
-        Args:
-            dest: Destination path (local path, s3://bucket/key, or wandb://project/artifact_name)
+        • If *dest* already holds a DuckDB file/artifact, merge **self**
+          into the existing DB first and re-upload the result.
+        • Otherwise simply upload **self**.
+
+        Supported URI schemes: local paths, `s3://`, `wandb://`.
         """
-        write_file(dest, self.path)
+        # Flush tables & data pages to disk
+        self.con.execute("CHECKPOINT")  # ← this writes tables & data pages
+
+        # ---------------------------------------------------------------
+        #  (A) Destination already exists  →  merge + re-upload
+        # ---------------------------------------------------------------
+
+        if exists(dest):
+            with local_copy(dest) as existing_path:
+                # 2. Merge *self* into that DB
+                dest_db = StatsDB(existing_path, mode="rwc")
+                dest_db.merge_in(self)
+                dest_db.close()
+
+                # 3. Push the merged file back to its original location
+                write_file(dest, str(existing_path))
+
+            # 4. Clean up temp file if we created
+        else:
+            # ---------------------------------------------------------------
+            #  (B) Destination absent  →  first upload
+            # ---------------------------------------------------------------
+            write_file(dest, str(self.path))
 
     # Add the functions needed for the failing tests
     def query(self, sql_query: str) -> pd.DataFrame:
@@ -307,3 +444,131 @@ class StatsDB(MGStatsDB):
         # This is a simplified implementation for the test
         # In a real implementation, this would join with agent_policies
         return {"reward": [10.5], "steps": [100]}
+
+    # --------------------------------------------------------------------------- #
+    #  policy simulations view                                                    #
+    # --------------------------------------------------------------------------- #
+
+    def materialize_policy_simulations_view(
+        self,
+        metric: str = "reward",
+    ) -> None:
+        """
+        (Re)create the policy simulations table for a specific metric.
+        The table will be named 'policy_simulations_{metric}'.
+
+        Parameters
+        ----------
+        db     : open StatsDB (mode "rwc" recommended)
+        metric : metric name to aggregate; default → "reward"
+        """
+        logger = logging.getLogger(__name__)
+
+        if not metric.replace("_", "").isalnum():
+            logger.error(f"Invalid metric name: '{metric}' - must contain only alphanumeric characters and underscores")
+            raise ValueError(
+                f"Invalid metric name: '{metric}' - must contain only alphanumeric characters and underscores"
+            )
+
+        table_name = f"policy_simulations_{metric}"
+
+        # Check if the metric exists in the database
+        if not self._metric_exists(metric):
+            logger.warning(f"Metric '{metric}' not found in the agent_metrics table")
+            return
+
+        try:
+            self.con.execute("BEGIN TRANSACTION")
+
+            # First, create the table structure with primary key
+            self._create_policy_simulations_table_structure(metric, table_name)
+
+            # Then populate it with data
+            self._populate_policy_simulations_table(metric, table_name)
+
+            # Add index on simulation fields
+            self.con.execute(f"""
+            CREATE INDEX IF NOT EXISTS idx_{table_name}_sim 
+            ON {table_name}(sim_suite, sim_name)
+            """)
+
+            self.con.execute("COMMIT")
+            logger.info(f"Successfully created materialized view '{table_name}' for metric '{metric}'")
+        except Exception as e:
+            self.con.execute("ROLLBACK")
+            logger.error(f"Failed to create materialized view: {e}")
+            raise
+
+    # --------------------------------------------------------------------------- #
+    # internal helpers                                                            #
+    # --------------------------------------------------------------------------- #
+    def _metric_exists(self: StatsDB, metric: str) -> bool:
+        """Check if the metric exists in the agent_metrics table."""
+        query = f"SELECT COUNT(*) FROM agent_metrics WHERE metric = '{metric}'"
+        try:
+            result = self.con.execute(query).fetchone()
+            return result[0] > 0
+        except Exception as e:
+            logging.getLogger(__name__).error(f"Error checking metric existence: {e}")
+            return False
+
+    def _create_policy_simulations_table_structure(self: StatsDB, metric: str, table_name: str) -> None:
+        """Create the table structure with primary key defined."""
+        # Drop table if it exists
+        self.con.execute(f"DROP TABLE IF EXISTS {table_name}")
+
+        # Create table with modified primary key that handles NULL policy_version
+        self.con.execute(f"""
+        CREATE TABLE {table_name} (
+            policy_key      TEXT NOT NULL,
+            policy_version  TEXT NOT NULL,
+            eval_name       TEXT NOT NULL,
+            sim_suite       TEXT NOT NULL,
+            sim_name        TEXT NOT NULL,
+            {metric}        DOUBLE,
+            {metric}_std    DOUBLE,
+            PRIMARY KEY (policy_key, policy_version, sim_suite, sim_name)
+        )
+        """)
+
+    def _populate_policy_simulations_table(self: StatsDB, metric: str, table_name: str) -> None:
+        """Populate the policy simulations table with aggregated metrics."""
+
+        sql = f"""
+        INSERT INTO {table_name}
+        WITH per_ep AS (
+            SELECT
+                am.episode_id,
+                ap.policy_key,
+                ap.policy_version,
+                AVG(am.value) AS {metric},
+                STDDEV_SAMP(am.value) AS {metric}_std
+            FROM agent_metrics am
+            JOIN agent_policies ap
+            ON ap.episode_id = am.episode_id
+            AND ap.agent_id = am.agent_id
+            WHERE am.metric = '{metric}'
+            GROUP BY am.episode_id, ap.policy_key, ap.policy_version
+        ),
+        with_ctx AS (
+            SELECT
+                pe.*,
+                s.suite AS sim_suite,
+                s.name AS sim_name
+            FROM per_ep pe
+            JOIN episodes e ON e.id = pe.episode_id
+            JOIN simulations s ON s.id = e.simulation_id
+        )
+        SELECT 
+            policy_key,
+            policy_version,
+            sim_suite || '/' || sim_name AS eval_name,
+            sim_suite,
+            sim_name,
+            AVG({metric}) AS {metric},
+            AVG({metric}_std) AS {metric}_std
+        FROM with_ctx
+        GROUP BY
+            policy_key, policy_version, sim_suite, sim_name
+        """
+        self.con.execute(sql)

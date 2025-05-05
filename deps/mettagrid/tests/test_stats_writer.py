@@ -39,27 +39,23 @@ def test_create_and_get_episode():
     db = make_tmp_db()
 
     # Create an episode
-    env_name = "test_env"
     seed = 12345
     map_w = 10
     map_h = 20
     metadata = {"key": "value"}
 
-    episode_id = db.create_episode(env_name, seed, map_w, map_h, metadata)
+    episode_id = db.create_episode(seed, map_w, map_h, metadata)
 
     # Verify it's a valid UUID
     assert uuid.UUID(episode_id)
 
     # Verify it was stored correctly
-    result = db.con.execute(
-        "SELECT env_name, seed, map_w, map_h, metadata FROM episodes WHERE episode_id = ?", (episode_id,)
-    ).fetchone()
+    result = db.con.execute("SELECT seed, map_w, map_h, metadata FROM episodes WHERE id = ?", (episode_id,)).fetchone()
 
-    assert result[0] == env_name
-    assert result[1] == seed
-    assert result[2] == map_w
-    assert result[3] == map_h
-    assert "key" in result[4]  # Basic check on metadata
+    assert result[0] == seed
+    assert result[1] == map_w
+    assert result[2] == map_h
+    assert "key" in result[3]  # Basic check on metadata
 
     db.close()
 
@@ -69,16 +65,14 @@ def test_finish_episode():
     db = make_tmp_db()
 
     # Create an episode
-    episode_id = db.create_episode("test_env", 0, 1, 1)
+    episode_id = db.create_episode(0, 1, 1)
 
     # Mark it as finished
     step_count = 100
     db.finish_episode(episode_id, step_count)
 
     # Verify it was updated correctly
-    result = db.con.execute(
-        "SELECT step_count, finished_at FROM episodes WHERE episode_id = ?", (episode_id,)
-    ).fetchone()
+    result = db.con.execute("SELECT step_count, finished_at FROM episodes WHERE id = ?", (episode_id,)).fetchone()
 
     assert result[0] == step_count
     assert result[1] is not None  # finished_at should be set
@@ -91,7 +85,7 @@ def test_add_agent_metrics():
     db = make_tmp_db()
 
     # Create an episode
-    episode_id = db.create_episode("test_env", 0, 1, 1)
+    episode_id = db.create_episode(0, 1, 1)
 
     # Add metrics for an agent
     agent_id = 0

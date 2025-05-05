@@ -23,6 +23,6 @@ class AnalyzerConfig(Config):
     metric: str
     policy_uri: str
     output_path: str
-    eval_db_uri: str | None = None
+    eval_db_uri: str
 
     analysis: AnalysisConfig

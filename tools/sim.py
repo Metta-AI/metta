@@ -24,7 +24,6 @@ from metta.sim.stats_db import StatsDB
 from metta.util.config import Config
 from metta.util.logging import setup_mettagrid_logger
 from metta.util.runtime_configuration import setup_mettagrid_environment
-from metta.util.wandb.wandb_context import WandbContext
 
 # --------------------------------------------------------------------------- #
 # Config objects                                                              #
@@ -37,7 +36,7 @@ class SimJob(Config):
     selector_type: str = "top"
     dry_run: bool = False
     replay_dir: str = "s3://softmax-public/replays/evals"
-    stats_db_base_uri: str = "wandb://artifacts/stats/evals/"  # The final (s3/wandb) URI where stats will be appended
+    stats_db_uri: str = "wandb://stats/evals_jack_testing"
     stats_dir: str  # The (local) directory where stats should be stored
 
 
@@ -50,7 +49,6 @@ def simulate_policy(
     sim_job: SimJob,
     policy_uri: str,
     cfg: DictConfig,
-    wandb_run,
     logger: logging.Logger,
 ) -> None:
     """
@@ -59,7 +57,7 @@ def simulate_policy(
     *StatsDB* which is optionally exported.
     """
 
-    policy_store = PolicyStore(cfg, wandb_run)
+    policy_store = PolicyStore(cfg, None)
     # TODO: institutionalize this better?
     metric = sim_job.simulation_suite.name + "_score"
     policy_prs = policy_store.policies(policy_uri, sim_job.selector_type, n=1, metric=metric)
@@ -87,12 +85,11 @@ def simulate_policy(
         # ------------------------------------------------------------------ #
         # Export                                                             #
         # ------------------------------------------------------------------ #
-        export_uri = f"{sim_job.stats_db_base_uri}/{sim_job.simulation_suite.name}/{pr.name}.duckdb"
         if not sim_job.dry_run:
-            logger.info("Exporting merged stats DB → %s", export_uri)
-            merged_db.export(export_uri)
+            logger.info("Exporting merged stats DB → %s", sim_job.stats_db_uri)
+            merged_db.export(sim_job.stats_db_uri)
         else:
-            logger.info(f"Dry run – skipping export to {export_uri}")
+            logger.info(f"Dry run – skipping export to {sim_job.stats_db_uri}")
 
         merged_db.close()
         logger.info("Evaluation complete for policy %s", pr.uri)
@@ -113,9 +110,8 @@ def main(cfg: DictConfig) -> None:
     sim_job = SimJob(cfg.sim_job)
     assert isinstance(sim_job, SimJob)
 
-    with WandbContext(cfg) as wandb_run:
-        for policy_uri in sim_job.policy_uris:
-            simulate_policy(sim_job, policy_uri, cfg, wandb_run, logger)
+    for policy_uri in sim_job.policy_uris:
+        simulate_policy(sim_job, policy_uri, cfg, logger)
 
 
 if __name__ == "__main__":

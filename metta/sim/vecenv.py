@@ -6,6 +6,9 @@ from omegaconf import DictConfig, ListConfig
 
 
 def make_env_func(cfg: DictConfig, buf=None, render_mode="rgb_array", stats_writer_dir=None):
+    # Avoid creating stats writer for the pufferlib driver/probe env
+    if buf is None:
+        stats_writer_dir = None
     return hydra.utils.instantiate(cfg, cfg, render_mode=render_mode, buf=buf, stats_writer_dir=stats_writer_dir)
 
 

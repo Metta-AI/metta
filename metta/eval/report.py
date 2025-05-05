@@ -10,18 +10,15 @@ from __future__ import annotations
 import logging
 import os
 import shutil
-import tempfile
 from typing import List, Literal
 
 from omegaconf import DictConfig
 
 from metta.eval.analysis_config import AnalyzerConfig
-from metta.eval.db import PolicyEvalDB
 from metta.eval.heatmap import create_heatmap_html_snippet
 from metta.eval.mapviewer import MAP_VIEWER_CSS
-from metta.sim.eval_stats_analyzer import EvalStatsAnalyzer
-from metta.sim.eval_stats_db import EvalStatsDB
-from metta.util.file import http_url, write_data
+from metta.sim.stats_db import StatsDB
+from metta.util.file import local_copy, write_data
 from metta.util.wandb.wandb_context import WandbContext
 
 logger = logging.getLogger(__name__)
@@ -68,36 +65,29 @@ def generate_report_html(analyzer_cfg: AnalyzerConfig, omegaconf_cfg: DictConfig
 
     num_output_policies: int | Literal["all"] = analyzer_cfg.num_output_policies
 
-    tmp_dir = tempfile.mkdtemp()
-    db_path = os.path.join(tmp_dir, "policy_metrics.sqlite")
-    logger.info("Working db path: %s", db_path)
-
-    try:
-        db = PolicyEvalDB(db_path)
-        db.import_from_eval_stats(analyzer_cfg, omegaconf_cfg)
-
-        matrix = db.get_matrix_data(
+    with local_copy(analyzer_cfg.eval_db_uri) as db_path:
+        db = StatsDB(db_path)
+        db.materialize_policy_simulations_view(metric)
+        matrix = db.policy_simulations_view(
             metric, view_type=view_type, policy_uri=policy_uri, num_output_policies=num_output_policies
         )
-        if matrix.empty:
-            return "<html><body><h1>No data available</h1></body></html>"
 
-        heatmap_html = create_heatmap_html_snippet(
-            matrix,
-            metric,
-            replay_base_url="https://softmax-public.s3.us-east-1.amazonaws.com/replays/evals",
-            height=600,
-            width=900,
-        )
+    if matrix.empty:
+        return "<html><body><h1>No data available</h1></body></html>"
 
-        title = f"Policy Evaluation Report: {metric}"
-        if view_type == "policy_versions" and policy_uri:
-            title += f" – All versions of {policy_uri}"
+    heatmap_html = create_heatmap_html_snippet(
+        matrix,
+        metric,
+        replay_base_url="https://softmax-public.s3.us-east-1.amazonaws.com/replays/evals",
+        height=600,
+        width=900,
+    )
 
-        return _assemble_page(title, [heatmap_html])
+    title = f"Policy Evaluation Report: {metric}"
+    if view_type == "policy_versions" and policy_uri:
+        title += f" – All versions of {policy_uri}"
 
-    finally:
-        shutil.rmtree(tmp_dir, ignore_errors=True)
+    return _assemble_page(title, [heatmap_html])
 
 
 def generate_report(analyzer_cfg: AnalyzerConfig, omegaconf_cfg: DictConfig):
@@ -111,11 +101,6 @@ def generate_report(analyzer_cfg: AnalyzerConfig, omegaconf_cfg: DictConfig):
         output_path = f"{base}_{safe_name}{ext}"
 
     write_data(output_path, html_content, content_type="text/html")
-
-    if output_path.startswith("s3://"):
-        logger.info("Report uploaded to %s", http_url(output_path))
-    else:
-        logger.info("Report written to %s", output_path)
 
     return html_content, output_path
 

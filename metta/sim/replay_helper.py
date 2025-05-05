@@ -1,30 +1,23 @@
 # Generate a graphical trace of multiple runs.
 
 import json
-import logging
-import os
 import zlib
 
 import boto3
 import numpy as np
-import wandb
 
 from metta.agent.policy_store import PolicyRecord
 from metta.sim.simulation_config import SimulationConfig
-from metta.util.file import http_url, write_data
-from metta.util.wandb.wandb_context import WandbRun
+from metta.util.file import write_data
 from mettagrid.mettagrid_env import MettaGridEnv
 
 
 class ReplayHelper:
     """Helper class for generating and uploading replays."""
 
-    def __init__(
-        self, config: SimulationConfig, env: MettaGridEnv, policy_record: PolicyRecord, wandb_run: WandbRun | None
-    ):
+    def __init__(self, config: SimulationConfig, env: MettaGridEnv, policy_record: PolicyRecord):
         self.config = config
         self.policy_record = policy_record
-        self.wandb_run = wandb_run
         self.env = env
         self.s3_client = boto3.client("s3")
 
