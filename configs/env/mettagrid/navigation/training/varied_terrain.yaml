@@ -19,3 +19,5 @@ game:
       border_width: ${sampling:1,6,3}
       agents: 1
       style: ${choose:"sparse-altars-dense-objects","all-sparse","balanced"}
+      teams: ["team_1", "team_2", "team_3"]
+      object_colors: ["red", "green", "blue"]

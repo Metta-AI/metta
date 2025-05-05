@@ -1,0 +1,97 @@
+name: "Python"
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'merge_group' && github.event.merge_group.head_ref || github.ref }}
+  cancel-in-progress: true
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+    branches: [main]
+  push:
+    branches: [main]
+  merge_group:
+    types: [checks_requested]
+    branches: [main]
+  workflow_dispatch: {}
+
+# Set default permissions that will be inherited by called workflows
+permissions:
+  checks: write
+  pull-requests: write
+
+jobs:
+  # First job: check if any Python files have changed
+  check-files-py:
+    name: "checking for Python changes"
+    if: |
+      github.event.pull_request.draft == false || 
+      github.event_name == 'push' || 
+      github.event_name == 'workflow_dispatch' || 
+      github.event_name == 'merge_group'
+    runs-on: ubuntu-latest
+    outputs:
+      has_relevant_changes: ${{ steps.check_files_py.outputs.has_relevant_changes }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check for Python file changes
+        id: check_files_py
+        uses: ./.github/actions/file-changes
+        with:
+          patterns: "**/*.py"
+          specific_files: "requirements.txt,setup.py"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  # This job runs to flag that we are skipping tests because no relevant files changed and this is a pull_request
+  skip-checks-py:
+    name: "skip tasks?"
+    needs: check-files-py
+    if: github.event_name == 'pull_request' && needs.check-files-py.outputs.has_relevant_changes == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skip tests and linting
+        id: skip_checks_py
+        run: |
+          echo "CI was triggered by a pull request event: ${{github.event_name}} and no Python files were changed."
+          echo "Skipping tests, linting, and benchmarks."
+
+  # Run lint workflow
+  call-lint-py:
+    name: "task"
+    needs: check-files-py
+    if: github.event_name != 'pull_request' || needs.check-files-py.outputs.has_relevant_changes == 'true'
+    uses: ./.github/workflows/py-lint.yml
+    with:
+      ref: ${{ github.ref }}
+    secrets: inherit
+
+  # Run test workflow
+  call-test-py:
+    name: "task"
+    needs: check-files-py
+    if: github.event_name != 'pull_request' || needs.check-files-py.outputs.has_relevant_changes == 'true'
+    uses: ./.github/workflows/py-test.yml
+    with:
+      ref: ${{ github.ref }}
+    secrets: inherit
+
+  # Run benchmark workflow
+  call-benchmark-py:
+    name: "task"
+    needs: check-files-py
+    if: github.event_name != 'pull_request' || needs.check-files-py.outputs.has_relevant_changes == 'true'
+    permissions:
+      checks: write
+      pull-requests: write
+    uses: ./.github/workflows/py-benchmark.yml
+    with:
+      ref: ${{ github.ref }}
+    secrets: inherit
+
+  # Run training integration test - always run regardless of file changes
+  call-training-integration-py:
+    name: "task"
+    uses: ./.github/workflows/py-training-integration-test.yml
+    with:
+      ref: ${{ github.ref }}
+    secrets: inherit

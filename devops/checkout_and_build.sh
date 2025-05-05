@@ -118,12 +118,11 @@ mkdir -p deps
 cd deps
 
 # ========== METTAGRID ==========
-# Note that version control for the mettagrid package has been brought into our monorepo
-cd mettagrid
-echo "Building mettagrid into $(pwd)"
-python setup.py build_ext --inplace
-pip install -e .
-cd ..
+# Call the dedicated build_mettagrid.sh script instead of building directly
+echo "Building mettagrid using devops/build_mettagrid.sh"
+cd ..  # Go back to project root
+devops/build_mettagrid.sh
+cd deps  # Return to deps directory for remaining dependencies
 
 # Install dependencies using the function
 install_repo "fast_gae" $FAST_GAE_REPO "main" "python setup.py build_ext --inplace && pip install -e ."

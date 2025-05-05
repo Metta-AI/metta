@@ -2,6 +2,7 @@ defaults:
   - sim
   - _self_
 
+name: daphne
 simulations:
   simple:
     env: env/mettagrid/multiagent/evals/stealing
