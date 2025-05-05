@@ -61,6 +61,12 @@ print(f"Using device: {device}")
 encoder = encoder.to(device)
 td = td.to(device)
 
+# --- Setup the Encoder ---
+# This initializes internal states required by the forward pass
+print("Setting up encoder...")
+encoder.setup()  # Call setup before forward
+print("Encoder setup complete.")
+
 # --- Run Forward Pass ---
 print("Running forward pass...")
 try:
