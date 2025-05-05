@@ -1,7 +1,7 @@
 defaults:
   - common
   - wandb: metta_research
-  - sim: cards
+  - sim: multiagent
   - _self_
 
 cmd: sim
@@ -15,4 +15,3 @@ sim_job:
   policy_uris:
     - ${policy_uri}
   selector_type: latest
-  metric: score

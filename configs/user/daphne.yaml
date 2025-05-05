@@ -34,7 +34,7 @@ policy_uri: wandb://run/daphne.navigation:v33
 #eval_db_uri: wandb://artifacts/navigation_db
 # eval_db_uri: wandb://artifacts/terrain_multienv_prioritized_all
 
-eval_db_uri: wandb://artifacts/object_use_db
+eval_db_uri: wandb://artifacts/test
 
 analyzer:
   policy_uri: ${..policy_uri}

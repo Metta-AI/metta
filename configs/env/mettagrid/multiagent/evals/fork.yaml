@@ -3,7 +3,7 @@ defaults:
   - _self_
 
 game:
-  num_agents: 80 #how many agents are in the map x2
+  num_agents: 40 #how many agents are in the map x2
   max_steps: 40
 
   agent:
