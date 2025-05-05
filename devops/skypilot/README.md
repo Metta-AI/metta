@@ -38,22 +38,13 @@ This script provides a convenient way to launch training jobs on AWS using SkyPi
 
 List all jobs:
 ```bash
-sky jobs list
-```
-
-View details of a specific job:
-```bash
-sky jobs show <JOB_ID>
+sky jobs queue
 ```
 
 View job logs:
 ```bash
 sky jobs logs <JOB_ID>
-```
-
-View controller logs:
-```bash
-sky controller logs
+sky jobs logs <JOB_ID> --controller
 ```
 
 ### Canceling Jobs
