@@ -69,7 +69,9 @@ def ascii_to_patterns_with_counts(
     return [(v["pattern"], v["count"]) for v in seen_patterns.values()]
 
 
-def ascii_to_weights_of_all_patterns(source: str, n: int, periodic: bool, symmetry: Symmetry) -> npt.NDArray[np.float_]:
+def ascii_to_weights_of_all_patterns(
+    source: str, n: int, periodic: bool, symmetry: Symmetry
+) -> npt.NDArray[np.float64]:
     # This function is useful for ConvChain. We get weights for all possible patterns, even the ones that
     # don't exist in the sample. (2^(N*N) patterns)
 
