@@ -20,7 +20,7 @@ def upload_to_s3(data: str | bytes, s3_path: str, content_type: str):
     try:
         boto3.client("s3").put_object(Body=data, Bucket=bucket, Key=key, ContentType=content_type)
     except NoCredentialsError as e:
-        logger.error("AWS credentials not found; run setup_sso.py")
+        logger.error("AWS credentials not found; run 'aws sso login --profile softmax'")
         raise e
 
 
