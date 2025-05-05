@@ -3,13 +3,13 @@ import os
 import zlib
 from logging import Logger
 
-import hydra
 import wandb
-from omegaconf import DictConfig, ListConfig
+from omegaconf import DictConfig, ListConfig, OmegaConf
 from wandb.sdk import wandb_run
 
 from metta.util.config import config_from_path
 from metta.util.s3 import upload_file
+from mettagrid.mettagrid_env import MettaGridEnv
 
 
 def upload_map_preview(cfg: DictConfig | ListConfig, wandb_run: wandb_run.Run, logger: Logger):
@@ -29,8 +29,9 @@ def upload_map_preview(cfg: DictConfig | ListConfig, wandb_run: wandb_run.Run, l
     env_path = cfg.trainer.env
     env_cfg = config_from_path(env_path)
 
-    # Create a MettaGridEnv using Hydra instantiate
-    env = hydra.utils.instantiate(env_cfg, env_cfg, render_mode=None)
+    # MettaGridEnv requires a DictConfig
+    env_dict = OmegaConf.to_container(env_cfg)
+    env = MettaGridEnv(DictConfig(env_dict), render_mode=None)
 
     preview = {
         "version": 1,
