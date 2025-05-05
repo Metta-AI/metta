@@ -52,7 +52,7 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           graphite_token: ${{ secrets.GRAPHITE_TOKEN }}
-  
+
   # check if any C++ files have changed
   setup-checks:
     name: "Set up for C++ checks"
@@ -66,7 +66,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       has_relevant_changes: ${{ steps.check_cpp_files.outputs.has_relevant_changes }}
-      main_sha: ${{ steps.get-main-sha.outputs.MAIN_SHA }}
       run_lint: ${{ steps.determine_tasks.outputs.run_lint }}
       run_test: ${{ steps.determine_tasks.outputs.run_test }}
       run_benchmark: ${{ steps.determine_tasks.outputs.run_benchmark }}
@@ -122,14 +121,6 @@ jobs:
           CACHE_KEY="cpp-build-${HASH}"
           echo "cache_key=${CACHE_KEY}" >> $GITHUB_OUTPUT
           echo "Created content-based hash key ${CACHE_KEY}"
-
-      - name: Get main branch head SHA
-        id: get-main-sha
-        run: |
-          git fetch origin main
-          SHA=$(git rev-parse origin/main)
-          echo "MAIN_SHA=${SHA}" >> $GITHUB_OUTPUT
-          echo "found main branch at commit ${SHA}"
 
       - name: Determine which tasks to run
         id: determine_tasks
@@ -337,17 +328,16 @@ jobs:
         id: check-main-benchmark
         env:
           BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
-          MAIN_SHA: ${{ needs.setup-checks.outputs.main_sha }}
         run: |
           # Run the command and capture output in a variable
           bencher_result=$(bencher branch view mettagrid-sv3f5i2k main --token "$BENCHER_API_TOKEN")
-          
+
           # Print the captured output
           echo "$bencher_result"
-          
+
           # Save the output to a file for further processing
           echo "$bencher_result" > /tmp/branch_output.json
-          
+
           # Continue with checking if branch exists and has data
           if [ $? -eq 0 ]; then
             echo "Branch exists, checking if it has benchmark data..."
@@ -374,7 +364,6 @@ jobs:
         env:
           BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          MAIN_SHA: ${{ needs.setup-checks.outputs.main_sha }}
         run: |
           cd mettagrid/benchmark_output
           ls -al
@@ -385,7 +374,6 @@ jobs:
                 --token "$BENCHER_API_TOKEN" \
                 --branch "$GITHUB_HEAD_REF" \
                 --start-point "main" \
-                --start-point-hash "$MAIN_SHA" \
                 --start-point-clone-thresholds \
                 --start-point-reset \
                 --threshold-measure latency \
