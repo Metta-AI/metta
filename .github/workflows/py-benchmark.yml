@@ -63,6 +63,8 @@ jobs:
       - name: Setup Python
         if: env.EARLY_EXIT == 'false'
         uses: ./.github/actions/py-setup
+        with:
+          skip-cache: ${{ github.event_name == 'workflow_dispatch' }}
 
       - name: Run Main Python benchmarks
         if: env.EARLY_EXIT == 'false'
