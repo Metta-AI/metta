@@ -331,8 +331,17 @@ jobs:
           BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
           MAIN_SHA: ${{ needs.setup-checks.outputs.main_sha }}
         run: |
-          # Try to view the branch - if it succeeds, the branch exists
-          if bencher branch view mettagrid-sv3f5i2k main --token "$BENCHER_API_TOKEN" > /tmp/branch_output.json 2>/dev/null; then
+          # Run the command and capture output in a variable
+          bencher_result=$(bencher branch view mettagrid-sv3f5i2k main --token "$BENCHER_API_TOKEN")
+          
+          # Print the captured output
+          echo "$bencher_result"
+          
+          # Save the output to a file for further processing
+          echo "$bencher_result" > /tmp/branch_output.json
+          
+          # Continue with checking if branch exists and has data
+          if [ $? -eq 0 ]; then
             echo "Branch exists, checking if it has benchmark data..."
             
             # Check if branch output contains a head key
