@@ -141,7 +141,7 @@ jobs:
       - name: Install C++ dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y g++ cmake libgtest-dev libbenchmark-dev clang-format
+          sudo apt-get install -y g++ cmake
 
       - name: Restore from build cache
         id: build-cache-cpp 
@@ -167,6 +167,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
   
+      - name: Install C++ dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++ clang-format
+
       - name: Run clang-format check
         run: |
           echo "Checking C++ formatting..."
@@ -186,6 +191,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         
+      - name: Install C++ dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++ libgtest-dev
+
       - name: Restore from build cache
         id: test-cache-cpp 
         uses: actions/cache@v3
@@ -218,6 +228,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         
+      - name: Install C++ dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++ libbenchmark-dev
+          
       - name: Restore from build cache
         id: benchmark-cache-cpp 
         uses: actions/cache@v3
