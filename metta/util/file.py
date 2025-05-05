@@ -22,7 +22,8 @@ from typing import Union
 
 import boto3
 import wandb
-from botocore.exceptions import NoCredentialsError
+from botocore.exceptions import ClientError, NoCredentialsError
+from wandb.errors import CommError
 
 # --------------------------------------------------------------------------- #
 #  Globals                                                                     #
@@ -30,10 +31,40 @@ from botocore.exceptions import NoCredentialsError
 
 WANDB_ENTITY: str = os.getenv("WANDB_ENTITY", "metta-research")
 
-
 # --------------------------------------------------------------------------- #
 #  Public IO helpers                                                           #
 # --------------------------------------------------------------------------- #
+
+
+def exists(path: str) -> bool:
+    """
+    Return *True* if *path* points to an existing local file, S3 object,
+    or W&B artifact **version** (latest if omitted).  Network errors are
+    propagated so callers can decide how to handle them.
+    """
+    # ---------- S3 ---------- #
+    if path.startswith("s3://"):
+        bucket, key = path[5:].split("/", 1)
+        try:
+            boto3.client("s3").head_object(Bucket=bucket, Key=key)
+            return True
+        except ClientError as e:
+            if e.response["Error"]["Code"] in {"404", "403", "NoSuchKey"}:
+                return False
+            raise
+
+    # ---------- W&B ---------- #
+    if path.startswith("wandb://"):
+        uri = WandbURI.parse(path)
+        api = wandb.Api()
+        try:
+            api.artifact(uri.qname())
+            return True
+        except CommError:
+            return False
+
+    # ---------- local -------- #
+    return Path(path).expanduser().exists()
 
 
 def write_data(path: str, data: Union[str, bytes], *, content_type: str = "application/octet-stream") -> None:
@@ -50,7 +81,7 @@ def write_data(path: str, data: Union[str, bytes], *, content_type: str = "appli
         bucket, key = path[5:].split("/", 1)
         try:
             boto3.client("s3").put_object(Body=data, Bucket=bucket, Key=key, ContentType=content_type)
-            logger.info("Wrote %d B → %s", len(data), path)
+            logger.info("Wrote %d B → %s", len(data), http_url(path))
             return
         except NoCredentialsError as e:
             logger.error("AWS credentials not found; run 'aws sso login --profile softmax'")
@@ -59,8 +90,8 @@ def write_data(path: str, data: Union[str, bytes], *, content_type: str = "appli
     # ---------- W&B ---------- #
     if path.startswith("wandb://"):
         uri = WandbURI.parse(path)
-        _upload_bytes_to_wandb(uri, data)
-        logger.info("Wrote %d B → %s", len(data), uri)
+        upload_bytes_to_wandb(uri, data, name=uri.artifact_path.split("/")[-1])
+        logger.info("Wrote %d B → %s", len(data), uri.http_url())
         return
 
     # ---------- local -------- #
@@ -80,21 +111,21 @@ def write_file(path: str, local_file: str, *, content_type: str = "application/o
     if path.startswith("s3://"):
         bucket, key = path[5:].split("/", 1)
         boto3.client("s3").upload_file(local_file, bucket, key, ExtraArgs={"ContentType": content_type})
-        logger.info("Uploaded %s → %s", local_file, path)
+        logger.info("Uploaded %s → %s (size %d B)", local_file, path, os.path.getsize(local_file))
         return
 
     # ---------- W&B ---------- #
     if path.startswith("wandb://"):
         uri = WandbURI.parse(path)
-        _upload_file_to_wandb(uri, local_file)
-        logger.info("Uploaded %s → %s", local_file, uri)
+        upload_file_to_wandb(uri, local_file, name=uri.artifact_path)
+        logger.info("Uploaded %s → %s (size %d B)", local_file, uri, os.path.getsize(local_file))
         return
 
     # ---------- local -------- #
     dst = Path(path).expanduser().resolve()
     dst.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(local_file, dst)
-    logger.info("Copied %s → %s", local_file, dst)
+    logger.info("Copied %s → %s (size %d B)", local_file, dst, os.path.getsize(local_file))
 
 
 def read(path: str) -> bytes:
@@ -124,6 +155,8 @@ def read(path: str) -> bytes:
             files = list(Path(local_dir).iterdir())
             if not files:
                 raise FileNotFoundError(f"No files inside W&B artifact {uri}")
+            if len(files) > 1:
+                raise ValueError(f"Expected exactly one file inside W&B artifact {uri}, got {len(files)}: {files}")
             data = files[0].read_bytes()
             logger.info("Read %d B from %s", len(data), uri)
             return data
@@ -132,6 +165,36 @@ def read(path: str) -> bytes:
     data = Path(path).expanduser().resolve().read_bytes()
     logger.info("Read %d B from %s", len(data), path)
     return data
+
+
+@contextmanager
+def local_copy(path: str):
+    """
+    Yield a local *Path* for *path* (supports local / s3:// / wandb://).
+
+    • Local paths are yielded as-is.
+    • Remote URIs are streamed into a NamedTemporaryFile that is removed
+      when the context exits, so callers never worry about cleanup.
+
+    Usage:
+        with local_copy(uri) as p:
+            do_something_with(Path(p))
+    """
+    if path.startswith(("s3://", "wandb://")):
+        data = read(path)  # existing helper
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".duckdb")
+        tmp.write(data)
+        tmp.flush()
+        tmp.close()
+        try:
+            yield Path(tmp.name)
+        finally:
+            try:
+                os.remove(tmp.name)
+            except OSError:
+                pass
+    else:
+        yield Path(path).expanduser().resolve()
 
 
 def http_url(path: str) -> str:
@@ -195,22 +258,104 @@ class WandbURI:
         return f"wandb://{self.project}/{self.artifact_path}:{self.version}"
 
 
-def _upload_bytes_to_wandb(uri: WandbURI, blob: bytes) -> None:
+def upload_bytes_to_wandb(uri: WandbURI, blob: bytes, name: str) -> None:
     with tempfile.NamedTemporaryFile(delete=False) as fh:
         fh.write(blob)
         tmpname = fh.name
     try:
-        _upload_file_to_wandb(uri, tmpname)
+        upload_file_to_wandb(uri, tmpname, name=name)
     finally:
         os.unlink(tmpname)
 
 
-def _upload_file_to_wandb(uri: WandbURI, local_file: str) -> None:
+@contextmanager
+def wandb_export_context(project: str, entity: str = WANDB_ENTITY) -> wandb.Run:
+    """
+    Context manager that ensures a wandb run exists for artifact exports.
+    TODO: Refactor to use WandbContext without requiring passing a deep hydra config
+    TODO: Remove this after switching to using wandb_context
+
+    Args:
+        project: wandb project name
+        entity: wandb entity name
+
+    Yields:
+        The active wandb run object
+    """
+    # Check if there's already an active run
+    active_run = wandb.run
+
+    if active_run is not None:
+        if active_run.project != project:
+            raise ValueError(
+                f"Wandb run already active: {active_run.name}; "
+                "can't post files to a different project inside the same process"
+            )
+        run = active_run
+    else:
+        # Create a temporary run
+        run = wandb.init(
+            project=project,
+            entity=entity,
+            job_type="file-export",
+            name="file-export",
+            settings=wandb.Settings(
+                disable_code=True,
+                console="off",
+                quiet=True,
+            ),
+        )
+
+    try:
+        yield run
+    finally:
+        # TODO: We don't want to finish the run becasue we want to be able to
+        # reopen it later. However it would be good to "unset" wandb.run if we could.
+        # I'm not sure the right way to do that
+        pass
+
+
+def upload_file_to_wandb(uri, local_file: str, name: str) -> None:
+    """
+    Upload *local_file* to W&B as the next version of
+        wandb://{uri.project}/{uri.artifact_path}:latest    (type="file")
+    • Re-uses the caller's active run if present.
+    • Otherwise creates a temporary run just for this upload and finishes it
+
+    Args:
+        uri: A WandbURI object containing project, artifact_path, and version
+        local_file: Path to the file to upload
+
+    Returns:
+        None
+
+    Raises:
+        ValueError: If uri.version is not "latest"
+    """
     logger = logging.getLogger(__name__)
-    art = wandb.Artifact(uri.artifact_path, type="file", incremental=True)
-    art.add_file(local_file)
-    art.save(entity=WANDB_ENTITY, project=uri.project)  # no run created
-    logger.debug("Saved W&B artifact %s", uri.qname())
+
+    if uri.version != "latest":
+        raise ValueError(
+            "Export only supports the implicit ':latest' alias when writing to W&B (explicit versions are immutable)."
+        )
+
+    try:
+        with wandb_export_context(uri.project, WANDB_ENTITY) as run:
+            # Create and log the artifact
+            artifact = wandb.Artifact(uri.artifact_path, type="file")
+            artifact.add_file(local_file, name=name)
+            run.log_artifact(artifact)
+
+            logger.info(
+                "Uploaded %s → wandb://%s/%s  (size %d B, new version)",
+                local_file,
+                uri.project,
+                uri.artifact_path,
+                os.path.getsize(local_file),
+            )
+    except Exception as e:
+        logger.error(f"Failed to upload file to wandb: {e}")
+        raise
 
 
 # --------------------------------------------------------------------------- #

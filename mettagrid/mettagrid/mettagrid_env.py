@@ -2,12 +2,11 @@
 from __future__ import annotations
 
 import copy
-import os
 import uuid
 from pathlib import Path
 from typing import Optional
 
-import gym
+import gymnasium as gym
 import numpy as np
 import pufferlib
 from omegaconf import DictConfig, OmegaConf
@@ -40,7 +39,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         self.stats_writer: Optional[StatsWriter] = None
         if stats_writer_dir:
-            fname = f"stats_{os.getpid()}_{uuid.uuid4().hex[:6]}.duckdb"
+            fname = f"stats_{uuid.uuid4().hex[:6]}.duckdb"
             stats_writer_path = Path(stats_writer_dir) / fname
             self._writer_path = Path(stats_writer_path).resolve()
             self.stats_writer = StatsWriter(str(self._writer_path))
@@ -87,14 +86,14 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         if self.stats_writer:
             self._episode_id = self.stats_writer.start_episode(
-                env_name=self._env_cfg.name,
-                seed=self._env_cfg.seed,
+                seed=seed or 0,
                 map_w=self.map_width,
                 map_h=self.map_height,
                 meta=OmegaConf.to_container(self._env_cfg, resolve=False),
             )
 
         obs, infos = self._c_env.reset()
+        self.should_reset = False
         return obs, infos
 
     def step(self, actions):
