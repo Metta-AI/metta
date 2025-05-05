@@ -52,13 +52,13 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           graphite_token: ${{ secrets.GRAPHITE_TOKEN }}
-
+  
   # check if any C++ files have changed
   setup-checks:
     name: "Set up for C++ checks"
     needs: graphite-ci-optimizer
     if: |
-      (!needs.graphite-ci-optimizer.outputs.should_skip) && 
+      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') && 
       (github.event.pull_request.draft == false || 
       github.event_name == 'push' || 
       github.event_name == 'workflow_dispatch' || 
@@ -153,7 +153,7 @@ jobs:
     name: "Build C++ artifacts"
     needs: [graphite-ci-optimizer, setup-checks]
     if: |
-      (!needs.graphite-ci-optimizer.outputs.should_skip) && 
+      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') && 
       (needs.setup-checks.outputs.run_lint == 'true' || 
        needs.setup-checks.outputs.run_test == 'true' || 
        needs.setup-checks.outputs.run_benchmark == 'true')
@@ -185,7 +185,7 @@ jobs:
     name: "Lint"
     needs: [graphite-ci-optimizer, setup-checks, build-cpp]
     if: |
-      (!needs.graphite-ci-optimizer.outputs.should_skip) && 
+      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') && 
       (needs.setup-checks.outputs.run_lint == 'true')
     runs-on: ubuntu-latest
     steps:
@@ -207,7 +207,7 @@ jobs:
     name: "Test"
     needs: [graphite-ci-optimizer, setup-checks, build-cpp]
     if: |
-      (!needs.graphite-ci-optimizer.outputs.should_skip) && 
+      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') && 
       (needs.setup-checks.outputs.run_test == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -243,7 +243,7 @@ jobs:
     name: "Benchmark"
     needs: [graphite-ci-optimizer, setup-checks, build-cpp, test]
     if: |
-      (!needs.graphite-ci-optimizer.outputs.should_skip) && 
+      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') && 
       (needs.setup-checks.outputs.run_benchmark == 'true') && 
       (needs.test.result == 'success' || github.event_name != 'pull_request' )
     runs-on: ubuntu-latest
