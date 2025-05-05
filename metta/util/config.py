@@ -103,7 +103,11 @@ def config_from_path(config_path: str, overrides: Optional[DictConfig | ListConf
             error_msg += "None of the expected paths exist. "
 
         if yaml_files:
-            error_msg += f"Available YAML files in configs directory: {[str(f.relative_to(os.getcwd())) for f in yaml_files[:10]]}"
+            error_msg += (
+                "Available YAML files in configs directory: "
+                f"{[str(f.relative_to(os.getcwd())) for f in yaml_files[:10]]}"
+            )
+
             if len(yaml_files) > 10:
                 error_msg += f" and {len(yaml_files) - 10} more."
 
