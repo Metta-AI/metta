@@ -311,7 +311,9 @@ jobs:
           # Query the Bencher API to check if benchmarks exist for the main branch
           # First, get the project data in JSON format
           PROJECT_DATA=$(bencher project view mettagrid-sv3f5i2k --token "$BENCHER_API_TOKEN" --json)
-          
+          echo "Full Project Data JSON:"
+          echo "$PROJECT_DATA"   
+              
           # Use jq to look for versions on the main branch
           MAIN_BRANCH_DATA=$(echo "$PROJECT_DATA" | jq '.branches[] | select(.name=="main")')
           EXISTS=$(echo "$MAIN_BRANCH_DATA" | jq -r '.versions | length')
