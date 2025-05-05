@@ -294,9 +294,30 @@ jobs:
             echo "NO TEST RESULTS FOUND"
           fi
 
-      # PR Performance Changes section
-      - name: Upload to Bencher (PR Performance Changes)
+      # Check if main branch has benchmark data before attempting PR upload
+      - name: Check if main branch has benchmark data
         if: github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
+        id: check-main-benchmark
+        env:
+          BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
+          MAIN_SHA: ${{ needs.setup-checks.outputs.main_sha }}
+        run: |
+          # Query the Bencher API to check if benchmarks exist for the main branch
+          EXISTS=$(bencher project view mettagrid-sv3f5i2k --token "$BENCHER_API_TOKEN" --branch main --json | jq -r '.versions | length')
+          if [ "$EXISTS" -gt 0 ]; then
+            echo "main_benchmark_exists=true" >> $GITHUB_OUTPUT
+            echo "Main branch has benchmark data. Will proceed with PR performance comparison."
+          else
+            echo "main_benchmark_exists=false" >> $GITHUB_OUTPUT
+            echo "Warning: Main branch does not have benchmark data yet. Will skip PR performance comparison."
+          fi
+
+      # PR Performance Changes section - Only runs if main branch has benchmarks
+      - name: Upload to Bencher (PR Performance Changes)
+        if: |
+          github.event_name == 'pull_request' && 
+          !github.event.pull_request.head.repo.fork && 
+          steps.check-main-benchmark.outputs.main_benchmark_exists == 'true'
         env:
           BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
