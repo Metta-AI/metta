@@ -150,6 +150,16 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._num_agents = self._c_env.num_agents()
         self._env = self._grid_env
 
+        # Turn on reward decay if the user has requested it
+        use_reward_decay = get_or_0(lambda: self.active_cfg.game.enable_reward_decay)
+        reward_decay_time_constant = get_or_0(lambda: self.active_cfg.game.reward_decay_time_constant)  # in steps
+
+        if use_reward_decay:
+            # Use the time constant if provided, otherwise pass None
+            self._c_env.enable_reward_decay(reward_decay_time_constant or None)
+        else:
+            self._c_env.disable_reward_decay()
+
         # reset episode tracking
         self.start_time = time.perf_counter()
         self.episode_finished = False
