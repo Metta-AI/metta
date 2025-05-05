@@ -13,7 +13,7 @@ defaults:
   - _self_
 
 trainer:
-  env: env/mettagrid/multiagent/training/objects/multienv
+  env: env/mettagrid/multiagent/training/objects/terrain_from_numpy
 
   evaluate_interval: 1
 
@@ -53,7 +53,7 @@ wandb:
   track: true
   checkpoint_interval: 1
 
-run_id: 1
+run_id: 100
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 

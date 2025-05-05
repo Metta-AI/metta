@@ -2,6 +2,7 @@ defaults:
   - sim
   - _self_
 
+name: daphne
 simulations:
   simple:
-    env: env/mettagrid/multiagent/training/objects/multienv
+    env: env/mettagrid/multiagent/training/objects/terrain_from_numpy

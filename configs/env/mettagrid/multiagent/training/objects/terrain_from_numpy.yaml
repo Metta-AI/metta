@@ -6,7 +6,6 @@ num_agents: 24
 sampling: 1
 game:
   num_agents: 24  #how many agents are in the map x2
-  max_steps: 100
   agent:
     max_inventory: 10
   map_builder:
