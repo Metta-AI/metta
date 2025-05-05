@@ -1,9 +1,11 @@
 # Makefile for code formatting, linting, and testing
-.PHONY: help format check-tools install-tools test benchmark clean check-test-tools install-test-tools check-bench-tools install-bench-tools all
+.PHONY: help format check-tools install-tools test benchmark clean check-test-tools install-test-tools check-bench-tools install-bench-tools build build-clean all
 
 # Default target when just running 'make'
 help:
 	@echo "Available targets:"
+	@echo "  build             - Build mettagrid using the rebuild script"
+	@echo "  build-clean       - Build mettagrid with clean option"
 	@echo "  format            - Format C++/C files"
 	@echo "  check-tools       - Check if required formatting tools are installed"
 	@echo "  install-tools     - Install required formatting tools (macOS only)"
@@ -24,6 +26,8 @@ BUILD_DIR = build
 BUILD_TEST_DIR = $(BUILD_DIR)/tests
 BUILD_BENCH_DIR = $(BUILD_DIR)/benchmarks
 
+DEVOPS_SCRIPTS_DIR = ../devops
+
 # Compiler settings
 CXX = g++
 CXXFLAGS = -std=c++14 -Wall -g -I$(SRC_DIR)
@@ -41,6 +45,32 @@ BENCHMARK_LIBS = $(shell pkg-config --libs benchmark 2>/dev/null || echo "-lbenc
 
 # Add benchmark includes to CXXFLAGS when needed
 BENCH_CXXFLAGS = $(CXXFLAGS) $(BENCHMARK_INCLUDE)
+
+#-----------------------
+# Build
+#-----------------------
+
+# Build target that calls the build_mettagrid.sh script
+build:
+	@echo "Building mettagrid..."
+	@if [ -f $(DEVOPS_SCRIPTS_DIR)/build_mettagrid.sh ]; then \
+		$(DEVOPS_SCRIPTS_DIR)/build_mettagrid.sh; \
+	else \
+		echo "Error: build_mettagrid.sh script not found"; \
+		echo "Expected path: $(DEVOPS_SCRIPTS_DIR)/build_mettagrid.sh"; \
+		exit 1; \
+	fi
+
+# Build with clean option
+build-clean:
+	@echo "Building mettagrid with clean option..."
+	@if [ -f $(DEVOPS_SCRIPTS_DIR)/build_mettagrid.sh ]; then \
+		$(DEVOPS_SCRIPTS_DIR)/build_mettagrid.sh --clean; \
+	else \
+		echo "Error: build_mettagrid.sh script not found"; \
+		echo "Expected path: $(DEVOPS_SCRIPTS_DIR)/build_mettagrid.sh"; \
+		exit 1; \
+	fi
 
 #-----------------------
 # Formatting
