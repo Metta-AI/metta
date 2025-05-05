@@ -11,7 +11,7 @@ RUN_ID=$2
 shift 2
 CMD_ARGS="$@"
 
-source .venv/bin/activate
+source .venv/skypilot/bin/activate
 
 export SKYPILOT_DOCKER_PASSWORD=$(aws ecr get-login-password --region us-east-1)
 
