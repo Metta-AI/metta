@@ -65,10 +65,23 @@ jobs:
         id: set-cache-key
         run: |
           # Create a hash that combines all relevant files
-          HASH=$(find mettagrid -type f \( -name "*.cpp" -o -name "*.cxx" -o -name "*.cc" -o -name "*.h" -o -name "*.hpp" -o -name "*.pyx" -o -name "*.pxd" \) -exec sha256sum {} \; > /tmp/file_hashes.txt && \
-          sha256sum setup.py requirements.txt 2>/dev/null >> /tmp/file_hashes.txt && \
-          sort /tmp/file_hashes.txt | sha256sum | cut -d' ' -f1)
-
+          find mettagrid -type f \( -name "*.cpp" -o -name "*.cxx" -o -name "*.cc" -o -name "*.h" -o -name "*.hpp" -o -name "*.pyx" -o -name "*.pxd" \) -exec sha256sum {} \; > /tmp/file_hashes.txt || true
+          
+          # Add setup.py and requirements.txt if they exist
+          if [ -f "setup.py" ]; then
+            sha256sum setup.py >> /tmp/file_hashes.txt
+          fi
+          if [ -f "requirements.txt" ]; then
+            sha256sum requirements.txt >> /tmp/file_hashes.txt
+          fi
+          
+          # Create the final hash
+          if [ -s "/tmp/file_hashes.txt" ]; then
+            HASH=$(sort /tmp/file_hashes.txt | sha256sum | cut -d' ' -f1)
+          else
+            HASH="empty"
+          fi
+          
           CACHE_KEY="cpp-build-${HASH}"
           echo "cache_key=${CACHE_KEY}" >> $GITHUB_OUTPUT
           echo "Created content-based hash key ${CACHE_KEY}"
