@@ -38,8 +38,9 @@ game:
   max_steps: 200
 
   # scaling the map size as our experimental condition
-  min_size: 10
-  max_size: ${scale:${.difficulty},0,10,10,80,"log"}
+  min_size: 5
+  max_size_limit: 15
+  max_size: ${scale:${.difficulty},0,10,10,${.max_size_limit},"log"}
   size: ${make_integer:${uniform:${.min_size}, ${.max_size}}}
 
   map_builder:
