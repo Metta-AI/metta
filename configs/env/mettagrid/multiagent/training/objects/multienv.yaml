@@ -1,4 +1,6 @@
-_target_: metta.env.mettagrid_env_set.MettaGridEnvSet
+defaults:
+  - /env/mettagrid/multienv_mettagrid@
+  - _self_
 
 num_agents: 24
 
