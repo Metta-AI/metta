@@ -39,7 +39,7 @@ game:
 
   # scaling the map size as our experimental condition
   min_size: 5
-  max_size_limit: 15
+  max_size_limit: 5
   max_size: ${scale:${.difficulty},0,${.min_size},10,${.max_size_limit},"log"}
   size: ${make_integer:${uniform:${.min_size}, ${.max_size}}}
 
@@ -58,20 +58,3 @@ game:
       objects:
         altar: ${.....num_hearts_per_room}
 
-  # actions:
-  #   noop:
-  #     enabled: true
-  #   move:
-  #     enabled: true
-  #   rotate:
-  #     enabled: true
-  #   put_items:
-  #     enabled: false
-  #   get_items:
-  #     enabled: true
-  #   attack:
-  #     enabled: false
-  #   swap:
-  #     enabled: false
-  #   change_color:
-  #     enabled: false
