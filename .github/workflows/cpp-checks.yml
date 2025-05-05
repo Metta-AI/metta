@@ -13,15 +13,15 @@ on:
   workflow_dispatch:
     inputs:
       run_lint:
-        description: 'Run lint checks'
+        description: "Run lint checks"
         type: boolean
         default: true
       run_test:
-        description: 'Run tests'
+        description: "Run tests"
         type: boolean
         default: true
       run_benchmark:
-        description: 'Run benchmarks'
+        description: "Run benchmarks"
         type: boolean
         default: true
 
@@ -80,13 +80,13 @@ jobs:
           directory_paths: "mettagrid/"
           specific_files: "requirements.txt,setup.py"
           github-token: ${{ secrets.GITHUB_TOKEN }}
-         
+
       - name: Generate cache key
         id: set-cache-key
         run: |
           # Create a hash that combines all relevant files
           find mettagrid -type f \( -name "*.cpp" -o -name "*.cxx" -o -name "*.cc" -o -name "*.h" -o -name "*.hpp" -o -name "*.pyx" -o -name "*.pxd" \) -exec sha256sum {} \; > /tmp/file_hashes.txt || true
-          
+
           # Add setup.py and requirements.txt if they exist
           if [ -f "setup.py" ]; then
             sha256sum setup.py >> /tmp/file_hashes.txt
@@ -94,14 +94,14 @@ jobs:
           if [ -f "requirements.txt" ]; then
             sha256sum requirements.txt >> /tmp/file_hashes.txt
           fi
-          
+
           # Create the final hash
           if [ -s "/tmp/file_hashes.txt" ]; then
             HASH=$(sort /tmp/file_hashes.txt | sha256sum | cut -d' ' -f1)
           else
             HASH="empty"
           fi
-          
+
           CACHE_KEY="cpp-build-${HASH}"
           echo "cache_key=${CACHE_KEY}" >> $GITHUB_OUTPUT
           echo "Created content-based hash key ${CACHE_KEY}"
@@ -135,7 +135,7 @@ jobs:
             RUN_TEST="true"
             RUN_BENCHMARK="true"
           fi
-          
+
           # Output the decisions
           echo "run_lint=${RUN_LINT}" >> $GITHUB_OUTPUT
           echo "run_test=${RUN_TEST}" >> $GITHUB_OUTPUT
@@ -148,7 +148,7 @@ jobs:
   # Build and cache the C++ artifacts
   build-cpp:
     name: "Build C++ artifacts"
-    needs: [graphite-ci-optimizer,setup-checks]
+    needs: [graphite-ci-optimizer, setup-checks]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_run == 'true') && 
       (needs.setup-checks.outputs.run_lint == 'true' || 
@@ -164,7 +164,7 @@ jobs:
           sudo apt-get install -y g++ cmake
 
       - name: Restore from build cache
-        id: build-cache-cpp 
+        id: build-cache-cpp
         uses: actions/cache@v3
         with:
           path: |
@@ -180,7 +180,7 @@ jobs:
 
   lint:
     name: "Lint"
-    needs: [graphite-ci-optimizer,setup-checks, build-cpp]
+    needs: [graphite-ci-optimizer, setup-checks, build-cpp]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_run == 'true') && 
       (needs.setup-checks.outputs.run_lint == 'true')
@@ -188,7 +188,7 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-  
+
       - name: Install C++ dependencies
         run: |
           sudo apt-get install -y g++ clang-format
@@ -202,7 +202,7 @@ jobs:
 
   test:
     name: "Test"
-    needs: [graphite-ci-optimizer,setup-checks, build-cpp]
+    needs: [graphite-ci-optimizer, setup-checks, build-cpp]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_run == 'true') && 
       (needs.setup-checks.outputs.run_test == 'true')
@@ -211,13 +211,13 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        
+
       - name: Install C++ dependencies
         run: |
           sudo apt-get install -y g++ libgtest-dev
 
       - name: Restore from build cache
-        id: test-cache-cpp 
+        id: test-cache-cpp
         uses: actions/cache@v3
         with:
           path: |
@@ -238,7 +238,7 @@ jobs:
 
   benchmark:
     name: "Benchmark"
-    needs: [graphite-ci-optimizer,setup-checks, build-cpp, test]
+    needs: [graphite-ci-optimizer, setup-checks, build-cpp, test]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_run == 'true') && 
       (needs.setup-checks.outputs.run_benchmark == 'true') && 
@@ -248,13 +248,13 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        
+
       - name: Install C++ dependencies
         run: |
           sudo apt-get install -y g++ libbenchmark-dev jq
 
       - name: Restore from build cache
-        id: benchmark-cache-cpp 
+        id: benchmark-cache-cpp
         uses: actions/cache@v3
         with:
           path: |

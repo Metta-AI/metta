@@ -13,15 +13,15 @@ on:
   workflow_dispatch:
     inputs:
       run_lint:
-        description: 'Run lint checks'
+        description: "Run lint checks"
         type: boolean
         default: true
       run_test:
-        description: 'Run tests'
+        description: "Run tests"
         type: boolean
         default: true
       run_benchmark:
-        description: 'Run benchmarks'
+        description: "Run benchmarks"
         type: boolean
         default: true
 
@@ -79,13 +79,13 @@ jobs:
           patterns: "**/*.py"
           specific_files: "requirements.txt,setup.py"
           github-token: ${{ secrets.GITHUB_TOKEN }}
-         
+
       - name: Generate cache key
         id: set-cache-key
         run: |
           # Create a hash that combines all relevant files
           find mettagrid -type f \( -name "*.py" \) -exec sha256sum {} \; > /tmp/file_hashes.txt || true
-          
+
           # Add setup.py and requirements.txt if they exist
           if [ -f "setup.py" ]; then
             sha256sum setup.py >> /tmp/file_hashes.txt
@@ -93,14 +93,14 @@ jobs:
           if [ -f "requirements.txt" ]; then
             sha256sum requirements.txt >> /tmp/file_hashes.txt
           fi
-          
+
           # Create the final hash
           if [ -s "/tmp/file_hashes.txt" ]; then
             HASH=$(sort /tmp/file_hashes.txt | sha256sum | cut -d' ' -f1)
           else
             HASH="empty"
           fi
-          
+
           CACHE_KEY="py-build-${HASH}"
           echo "cache_key=${CACHE_KEY}" >> $GITHUB_OUTPUT
           echo "Created content-based hash key ${CACHE_KEY}"
@@ -134,7 +134,7 @@ jobs:
             RUN_TEST="true"
             RUN_BENCHMARK="true"
           fi
-          
+
           # Output the decisions
           echo "run_lint=${RUN_LINT}" >> $GITHUB_OUTPUT
           echo "run_test=${RUN_TEST}" >> $GITHUB_OUTPUT
@@ -147,7 +147,7 @@ jobs:
   # setup python
   setup-py:
     name: "Build Python artifacts"
-    needs: [graphite-ci-optimizer,setup-checks]
+    needs: [graphite-ci-optimizer, setup-checks]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_run == 'true') && 
       (needs.setup-checks.outputs.run_lint == 'true' || 
@@ -163,7 +163,7 @@ jobs:
           python-version: "3.11.7"
 
       - name: Restore from build cache
-        id: setup-cache-py 
+        id: setup-cache-py
         uses: actions/cache@v3
         with:
           path: |
@@ -190,7 +190,7 @@ jobs:
 
   lint:
     name: "Lint"
-    needs: [graphite-ci-optimizer,setup-checks, setup-py]
+    needs: [graphite-ci-optimizer, setup-checks, setup-py]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_run == 'true') && 
       (needs.setup-checks.outputs.run_lint == 'true')
@@ -223,22 +223,22 @@ jobs:
 
   test:
     name: "Test"
-    needs: [graphite-ci-optimizer,setup-checks, setup-py]
+    needs: [graphite-ci-optimizer, setup-checks, setup-py]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_run == 'true') && 
-      (needs.setup-checks.outputs.run_test == 'true') 
+      (needs.setup-checks.outputs.run_test == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11.7"
 
       - name: Restore from build cache
-        id: test-cache-py 
+        id: test-cache-py
         uses: actions/cache@v3
         with:
           path: |
@@ -281,7 +281,7 @@ jobs:
 
   benchmark:
     name: "Benchmark"
-    needs: [graphite-ci-optimizer,setup-checks, setup-py, test]
+    needs: [graphite-ci-optimizer, setup-checks, setup-py, test]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_run == 'true') && 
       (needs.setup-checks.outputs.run_benchmark == 'true') && 
@@ -291,13 +291,13 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11.7"
 
       - name: Restore from build cache
-        id: benchmark-cache-py 
+        id: benchmark-cache-py
         uses: actions/cache@v3
         with:
           path: |
@@ -493,7 +493,7 @@ jobs:
 
   training:
     name: "Training smoke test"
-    needs: [graphite-ci-optimizer,setup-checks, setup-py, test, lint, benchmark]
+    needs: [graphite-ci-optimizer, setup-checks, setup-py, test, lint, benchmark]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_run == 'true') && 
       (needs.benchmark.result == 'success' || github.event_name != 'pull_request' )
@@ -502,13 +502,13 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11.7"
 
       - name: Restore from build cache
-        id: benchmark-cache-py 
+        id: benchmark-cache-py
         uses: actions/cache@v3
         with:
           path: |
