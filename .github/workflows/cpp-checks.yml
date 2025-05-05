@@ -306,7 +306,7 @@ jobs:
         run: |
           # Query the Bencher API to check if benchmarks exist for the main branch
           # First, get the branch data using the specific branch endpoint
-          BRANCH_DATA=$(bencher branch view mettagrid-sv3f5i2k main --token "$BENCHER_API_TOKEN" --json || echo '{"error": "Branch not found"}')
+          BRANCH_DATA=$(bencher branch view mettagrid-sv3f5i2k main --token "$BENCHER_API_TOKEN" -- --json || echo '{"error": "Branch not found"}')
           
           echo "Branch Data JSON:"
           echo "$BRANCH_DATA"

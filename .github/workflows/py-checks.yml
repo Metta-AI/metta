@@ -421,7 +421,7 @@ jobs:
         run: |
           # Query the Bencher API to check if benchmarks exist for the main branch
           # First, get the branch data using the specific branch endpoint
-          BRANCH_DATA=$(bencher branch view mettagrid-sv3f5i2k main --token "$BENCHER_API_TOKEN" --json || echo '{"error": "Branch not found"}')
+          BRANCH_DATA=$(bencher branch view mettagrid-sv3f5i2k main --token "$BENCHER_API_TOKEN" -- --json || echo '{"error": "Branch not found"}')
           
           echo "Branch Data JSON:"
           echo "$BRANCH_DATA"
@@ -442,7 +442,7 @@ jobs:
               echo "Warning: Main branch exists but does not have benchmark data yet. Will skip PR performance comparison."
             fi
           fi
-          
+
       # PR Performance Changes section - Only runs if main branch has benchmarks
       - name: Upload to Bencher (PR Performance Changes)
         if: |
