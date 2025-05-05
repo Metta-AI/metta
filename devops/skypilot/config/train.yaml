@@ -8,8 +8,8 @@ resources:
 
 setup: |
   cd /workspace/metta
+  git fetch
   git checkout $METTA_GIT_REF
-  git pull
   pip install -r requirements.txt
 
   ./devops/checkout_and_build.sh
