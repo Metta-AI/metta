@@ -1,0 +1,4 @@
+extend = "../ruff.toml"
+
+[lint.flake8-tidy-imports.banned-api]
+"metta".msg = "Mettagrid shouldn't import metta"
