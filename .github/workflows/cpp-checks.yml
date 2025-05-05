@@ -73,6 +73,7 @@ jobs:
         run: |
           git fetch origin main
           echo "MAIN_SHA=$(git rev-parse origin/main)" >> $GITHUB_OUTPUT
+          echo "found main branch at commit $(git rev-parse origin/main)"
       
       - name: Determine which tasks to run
         id: determine_tasks
@@ -88,6 +89,7 @@ jobs:
             RUN_LINT="false"
             RUN_TEST="false"
             RUN_BENCHMARK="false"
+            echo "::notice title=Skipping Tasks::Skipping all tasks because no relevant files have changed"
           else
             # Default to running everything for other events or when changes exist
             RUN_LINT="true"
@@ -100,19 +102,7 @@ jobs:
           echo "run_test=${RUN_TEST}" >> $GITHUB_OUTPUT
           echo "run_benchmark=${RUN_BENCHMARK}" >> $GITHUB_OUTPUT
 
-  notification-skipped:
-    name: "Skipping C++ Tasks"
-    needs: setup-cpp-checks
-    if: |
-      needs.setup-cpp-checks.outputs.run_lint == 'false' && 
-      needs.setup-cpp-checks.outputs.run_test == 'false' && 
-      needs.setup-cpp-checks.outputs.run_benchmark == 'false'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Notify of skipped tasks
-        run: |
-          echo "No C++ files were changed in this PR. Skipping all C++ tasks."
-          echo "This check passes automatically when no relevant files are changed."
+          echo "lint? ${RUN_LINT}   -   test? ${RUN_TEST}   -   benchmark? ${RUN_BENCHMARK}"
 
   # Build and cache the C++ artifacts
   setup-cpp:
