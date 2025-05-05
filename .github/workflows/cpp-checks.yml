@@ -65,8 +65,9 @@ jobs:
         id: set-cache-key
         run: |
           # Create a hash that combines all relevant files
-          HASH=$(find mettagrid -type f \( -name "*.cpp" -o -name "*.cxx" -o -name "*.cc" -o -name "*.h" -o -name "*.hpp" -o -name "*.pyx" -o -name "*.pxd" \) -exec sha256sum {} \; && \
-                sha256sum setup.py requirements.txt 2>/dev/null | sort | sha256sum | cut -d' ' -f1)
+          HASH=$(find mettagrid -type f \( -name "*.cpp" -o -name "*.cxx" -o -name "*.cc" -o -name "*.h" -o -name "*.hpp" -o -name "*.pyx" -o -name "*.pxd" \) -exec sha256sum {} \; > /tmp/file_hashes.txt && \
+          sha256sum setup.py requirements.txt 2>/dev/null >> /tmp/file_hashes.txt && \
+          sort /tmp/file_hashes.txt | sha256sum | cut -d' ' -f1)
           
           CACHE_KEY="cpp-build-${HASH}"
           echo "cache_key=${CACHE_KEY}" >> $GITHUB_OUTPUT
