@@ -61,6 +61,12 @@ def setup_efs():
     print("EFS configured. Run './mount_efs.sh' to mount EFS.")
 
 
+def install_skypilot():
+    """Install Skypilot."""
+    print("Installing Skypilot...")
+    run_command(["./devops/skypilot/install.sh"])
+
+
 def main():
     parser = argparse.ArgumentParser(description="Setup developer machine with Homebrew and required packages")
     parser.add_argument("--brew-force", action="store_true", help="Let Homebrew take over existing installations")
@@ -70,6 +76,7 @@ def main():
     install_homebrew()
     run_brew_bundle(force=args.brew_force, no_fail=args.brew_no_fail)
     setup_efs()
+    install_skypilot()
     print("Machine setup complete!")
 
 

@@ -165,7 +165,7 @@ def setup_metta_environment(cfg: ListConfig | DictConfig, require_aws: bool = Tr
             print("AWS is not configured, please install:")
             print("brew install awscli")
             print("and run:")
-            print("python ./devops/aws/setup_sso.py")
+            print("aws sso login --profile softmax")
             print("Alternatively, set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in your environment.")
             exit(1)
     if cfg.wandb.track and require_wandb:
