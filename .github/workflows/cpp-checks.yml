@@ -31,14 +31,35 @@ permissions:
   pull-requests: write
 
 jobs:
-  # First job: check if any C++ files have changed
-  setup-checks:
-    name: "Set up for C++ checks"
+  # check if CI should run based on Graphite's stack position
+  graphite-ci-optimizer:
+    name: "Graphite CI Optimizer"
     if: |
       github.event.pull_request.draft == false || 
       github.event_name == 'push' || 
       github.event_name == 'workflow_dispatch' || 
       github.event_name == 'merge_group'
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.graphite_ci.outputs.should_run }}
+    steps:
+      - name: Graphite CI Optimizer
+        id: graphite_ci
+        uses: withgraphite/graphite-ci-action@main
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          graphite_token: ${{ secrets.GRAPHITE_TOKEN }}
+
+  # check if any C++ files have changed
+  setup-checks:
+    name: "Set up for C++ checks"
+    needs: graphite-ci-optimizer
+    if: |
+      (needs.graphite-ci-optimizer.outputs.should_run == 'true') && 
+      (github.event.pull_request.draft == false || 
+      github.event_name == 'push' || 
+      github.event_name == 'workflow_dispatch' || 
+      github.event_name == 'merge_group')
     runs-on: ubuntu-latest
     outputs:
       has_relevant_changes: ${{ steps.check_cpp_files.outputs.has_relevant_changes }}
@@ -127,11 +148,12 @@ jobs:
   # Build and cache the C++ artifacts
   build-cpp:
     name: "Build C++ artifacts"
-    needs: setup-checks
+    needs: [graphite-ci-optimizer,setup-checks]
     if: |
-      needs.setup-checks.outputs.run_lint == 'true' || 
-      needs.setup-checks.outputs.run_test == 'true' || 
-      needs.setup-checks.outputs.run_benchmark == 'true'
+      (needs.graphite-ci-optimizer.outputs.should_run == 'true') && 
+      (needs.setup-checks.outputs.run_lint == 'true' || 
+       needs.setup-checks.outputs.run_test == 'true' || 
+       needs.setup-checks.outputs.run_benchmark == 'true')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -158,8 +180,10 @@ jobs:
 
   lint:
     name: "Lint"
-    needs: [setup-checks, build-cpp]
-    if: needs.setup-checks.outputs.run_lint == 'true'
+    needs: [graphite-ci-optimizer,setup-checks, build-cpp]
+    if: |
+      (needs.graphite-ci-optimizer.outputs.should_run == 'true') && 
+      (needs.setup-checks.outputs.run_lint == 'true')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -178,8 +202,9 @@ jobs:
 
   test:
     name: "Test"
-    needs: [setup-checks, build-cpp]
+    needs: [graphite-ci-optimizer,setup-checks, build-cpp]
     if: |
+      (needs.graphite-ci-optimizer.outputs.should_run == 'true') && 
       (needs.setup-checks.outputs.run_test == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -213,8 +238,9 @@ jobs:
 
   benchmark:
     name: "Benchmark"
-    needs: [setup-checks, build-cpp, test]
+    needs: [graphite-ci-optimizer,setup-checks, build-cpp, test]
     if: |
+      (needs.graphite-ci-optimizer.outputs.should_run == 'true') && 
       (needs.setup-checks.outputs.run_benchmark == 'true') && 
       (needs.test.result == 'success' || github.event_name != 'pull_request' )
     runs-on: ubuntu-latest

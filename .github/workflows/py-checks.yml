@@ -31,14 +31,35 @@ permissions:
   pull-requests: write
 
 jobs:
-  # First job: check if any Python files have changed
-  setup-checks:
-    name: "Set up for Python checks"
+  # check if CI should run based on Graphite's stack position
+  graphite-ci-optimizer:
+    name: "Graphite CI Optimizer"
     if: |
       github.event.pull_request.draft == false || 
       github.event_name == 'push' || 
       github.event_name == 'workflow_dispatch' || 
       github.event_name == 'merge_group'
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.graphite_ci.outputs.should_run }}
+    steps:
+      - name: Graphite CI Optimizer
+        id: graphite_ci
+        uses: withgraphite/graphite-ci-action@main
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          graphite_token: ${{ secrets.GRAPHITE_TOKEN }}
+
+  # check if any Python files have changed
+  setup-checks:
+    name: "Set up for Python checks"
+    needs: graphite-ci-optimizer
+    if: |
+      (needs.graphite-ci-optimizer.outputs.should_run == 'true') && 
+      (github.event.pull_request.draft == false || 
+       github.event_name == 'push' || 
+       github.event_name == 'workflow_dispatch' || 
+       github.event_name == 'merge_group')
     runs-on: ubuntu-latest
     outputs:
       has_relevant_changes: ${{ steps.check_py_files.outputs.has_relevant_changes }}
@@ -126,11 +147,12 @@ jobs:
   # setup python
   setup-py:
     name: "Build Python artifacts"
-    needs: setup-checks
+    needs: [graphite-ci-optimizer,setup-checks]
     if: |
-      needs.setup-checks.outputs.run_lint == 'true' || 
-      needs.setup-checks.outputs.run_test == 'true' || 
-      needs.setup-checks.outputs.run_benchmark == 'true'
+      (needs.graphite-ci-optimizer.outputs.should_run == 'true') && 
+      (needs.setup-checks.outputs.run_lint == 'true' || 
+       needs.setup-checks.outputs.run_test == 'true' || 
+       needs.setup-checks.outputs.run_benchmark == 'true')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -166,12 +188,12 @@ jobs:
           source venv/bin/activate
           bash ./devops/setup_build.sh
 
-
-
   lint:
     name: "Lint"
-    needs: [setup-checks, setup-py]
-    if: needs.setup-checks.outputs.run_lint == 'true'
+    needs: [graphite-ci-optimizer,setup-checks, setup-py]
+    if: |
+      (needs.graphite-ci-optimizer.outputs.should_run == 'true') && 
+      (needs.setup-checks.outputs.run_lint == 'true')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -201,8 +223,9 @@ jobs:
 
   test:
     name: "Test"
-    needs: [setup-checks, setup-py]
+    needs: [graphite-ci-optimizer,setup-checks, setup-py]
     if: |
+      (needs.graphite-ci-optimizer.outputs.should_run == 'true') && 
       (needs.setup-checks.outputs.run_test == 'true') 
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -258,8 +281,9 @@ jobs:
 
   benchmark:
     name: "Benchmark"
-    needs: [setup-checks, setup-py, test]
+    needs: [graphite-ci-optimizer,setup-checks, setup-py, test]
     if: |
+      (needs.graphite-ci-optimizer.outputs.should_run == 'true') && 
       (needs.setup-checks.outputs.run_benchmark == 'true') && 
       (needs.test.result == 'success' || github.event_name != 'pull_request' )
     runs-on: ubuntu-latest
@@ -441,9 +465,9 @@ jobs:
       # PR Performance Changes section - Only runs if main branch has benchmarks
       - name: Upload to Bencher (PR Performance Changes)
         if: |
-          github.event_name == 'pull_request' && 
-          !github.event.pull_request.head.repo.fork && 
-          steps.check-main-benchmark.outputs.main_benchmark_exists == 'true'
+          (github.event_name == 'pull_request') && 
+          (!github.event.pull_request.head.repo.fork) && 
+          (steps.check-main-benchmark.outputs.main_benchmark_exists == 'true')
         env:
           BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -454,7 +478,7 @@ jobs:
             --token "$BENCHER_API_TOKEN" \
             --branch "$GITHUB_HEAD_REF" \
             --start-point "main" \
-            --start-point-hash "${{ steps.get-main-sha.outputs.MAIN_SHA }}" \
+            --start-point-hash "$MAIN_SHA" \
             --start-point-clone-thresholds \
             --start-point-reset \
             --testbed ubuntu-latest \
@@ -469,8 +493,10 @@ jobs:
 
   training:
     name: "Training smoke test"
-    needs: [setup-checks, setup-py, test, lint, benchmark]
-    if: (needs.benchmark.result == 'success' || github.event_name != 'pull_request' )
+    needs: [graphite-ci-optimizer,setup-checks, setup-py, test, lint, benchmark]
+    if: |
+      (needs.graphite-ci-optimizer.outputs.should_run == 'true') && 
+      (needs.benchmark.result == 'success' || github.event_name != 'pull_request' )
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
