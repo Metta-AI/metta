@@ -35,8 +35,6 @@ python -c "import sys; print('Python path:', sys.path); from carbs import CARBS;
 
 for dep in \
   "pufferlib" \
-  "fast_gae" \
-  "mettagrid" \
   "carbs" \
   "wandb_carbs"
 do
