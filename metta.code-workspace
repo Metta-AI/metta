@@ -204,6 +204,7 @@
 			"clipfrac",
 			"coef",
 			"cooldown",
+			"cpus",
 			"dones",
 			"heavyball",
 			"kickstarter",
@@ -222,6 +223,7 @@
 			"PYTHONPATH",
 			"raylib",
 			"relu",
+			"softmax",
 			"tensorclass",
 			"tensordict",
 			"timestep",
@@ -231,7 +233,8 @@
 			"vecenv",
 			"venv",
 			"vloss",
-			"wandb"
+			"wandb",
+			"xlarge"
 		]
 	}
 }
