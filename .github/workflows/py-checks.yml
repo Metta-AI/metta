@@ -41,7 +41,7 @@ jobs:
       github.event_name == 'merge_group'
     runs-on: ubuntu-latest
     outputs:
-      should_run: ${{ steps.graphite_ci.outputs.skip }}
+      should_skip: ${{ steps.graphite_ci.outputs.skip }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -53,15 +53,12 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           graphite_token: ${{ secrets.GRAPHITE_TOKEN }}
 
-      - name: Print graphite_ci output value
-        run: echo "The is ${{ steps.graphite_ci.outputs.skip }}"
-
   # check if any Python files have changed
   setup-checks:
     name: "Set up for Python checks"
     needs: graphite-ci-optimizer
     if: |
-      (needs.graphite-ci-optimizer.outputs.should_run == 'true') && 
+      (!needs.graphite-ci-optimizer.outputs.should_skip) && 
       (github.event.pull_request.draft == false || 
        github.event_name == 'push' || 
        github.event_name == 'workflow_dispatch' || 
@@ -155,7 +152,7 @@ jobs:
     name: "Build Python artifacts"
     needs: [graphite-ci-optimizer, setup-checks]
     if: |
-      (needs.graphite-ci-optimizer.outputs.should_run == 'true') && 
+      (!needs.graphite-ci-optimizer.outputs.should_skip) && 
       (needs.setup-checks.outputs.run_lint == 'true' || 
        needs.setup-checks.outputs.run_test == 'true' || 
        needs.setup-checks.outputs.run_benchmark == 'true')
@@ -198,7 +195,7 @@ jobs:
     name: "Lint"
     needs: [graphite-ci-optimizer, setup-checks, setup-py]
     if: |
-      (needs.graphite-ci-optimizer.outputs.should_run == 'true') && 
+      (!needs.graphite-ci-optimizer.outputs.should_skip) && 
       (needs.setup-checks.outputs.run_lint == 'true')
     runs-on: ubuntu-latest
     steps:
@@ -231,7 +228,7 @@ jobs:
     name: "Test"
     needs: [graphite-ci-optimizer, setup-checks, setup-py]
     if: |
-      (needs.graphite-ci-optimizer.outputs.should_run == 'true') && 
+      (!needs.graphite-ci-optimizer.outputs.should_skip) && 
       (needs.setup-checks.outputs.run_test == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -289,7 +286,7 @@ jobs:
     name: "Benchmark"
     needs: [graphite-ci-optimizer, setup-checks, setup-py, test]
     if: |
-      (needs.graphite-ci-optimizer.outputs.should_run == 'true') && 
+      (!needs.graphite-ci-optimizer.outputs.should_skip) && 
       (needs.setup-checks.outputs.run_benchmark == 'true') && 
       (needs.test.result == 'success' || github.event_name != 'pull_request' )
     runs-on: ubuntu-latest
@@ -501,7 +498,7 @@ jobs:
     name: "Training smoke test"
     needs: [graphite-ci-optimizer, setup-checks, setup-py, test, lint, benchmark]
     if: |
-      (needs.graphite-ci-optimizer.outputs.should_run == 'true') && 
+      (!needs.graphite-ci-optimizer.outputs.should_skip) && 
       (needs.benchmark.result == 'success' || github.event_name != 'pull_request' )
     runs-on: ubuntu-latest
     timeout-minutes: 10
