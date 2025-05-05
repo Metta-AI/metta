@@ -5,7 +5,6 @@ concurrency:
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review]
-    branches: [main]
   push:
     branches: [main]
   merge_group:
@@ -411,6 +410,9 @@ jobs:
             --github-actions "$GITHUB_TOKEN" \
             --file combined_benchmark_results.json > /dev/null
 
+      - name: Install jq
+        run: |
+          sudo apt-get install -y jq
 
       - name: Check if main branch has benchmark data
         if: github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
@@ -419,9 +421,6 @@ jobs:
           BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
           MAIN_SHA: ${{ needs.setup-checks.outputs.main_sha }}
         run: |
-          # First make sure jq is installed
-          sudo apt-get update && sudo apt-get install -y jq
-
           # Try to view the branch - if it succeeds, the branch exists
           if bencher branch view mettagrid-sv3f5i2k main --token "$BENCHER_API_TOKEN" > /tmp/branch_output.json 2>/dev/null; then
             echo "Branch exists, checking if it has benchmark data..."
