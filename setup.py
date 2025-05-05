@@ -18,7 +18,6 @@ annotate = os.getenv("ANNOTATE", "0") == "1"
 BUILD_DIR = "build"
 if debug:
     BUILD_DIR = "build_debug"
-
 os.makedirs(BUILD_DIR, exist_ok=True)
 
 setup(
@@ -47,8 +46,4 @@ setup(
     ),
     description="",
     url="https://github.com/Metta-AI/metta",
-    install_requires=[
-        "numpy",
-        "cython==3.0.11",
-    ],
 )
