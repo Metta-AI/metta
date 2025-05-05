@@ -420,23 +420,29 @@ jobs:
           MAIN_SHA: ${{ needs.setup-checks.outputs.main_sha }}
         run: |
           # Query the Bencher API to check if benchmarks exist for the main branch
-          # First, get the project data in JSON format
-          PROJECT_DATA=$(bencher project view mettagrid-sv3f5i2k --token "$BENCHER_API_TOKEN" -- --json)
-          echo "Full Project Data JSON:"
-          echo "$PROJECT_DATA"
-
-          # Use jq to look for versions on the main branch
-          MAIN_BRANCH_DATA=$(echo "$PROJECT_DATA" | jq '.branches[] | select(.name=="main")')
-          EXISTS=$(echo "$MAIN_BRANCH_DATA" | jq -r '.versions | length')
+          # First, get the branch data using the specific branch endpoint
+          BRANCH_DATA=$(bencher branch view mettagrid-sv3f5i2k main --token "$BENCHER_API_TOKEN" --json || echo '{"error": "Branch not found"}')
           
-          if [ -n "$EXISTS" ] && [ "$EXISTS" -gt 0 ]; then
-            echo "main_benchmark_exists=true" >> $GITHUB_OUTPUT
-            echo "Main branch has benchmark data. Will proceed with PR performance comparison."
-          else
+          echo "Branch Data JSON:"
+          echo "$BRANCH_DATA"
+          
+          # Check if there was an error retrieving the branch
+          if echo "$BRANCH_DATA" | jq -e '.error' > /dev/null; then
             echo "main_benchmark_exists=false" >> $GITHUB_OUTPUT
-            echo "Warning: Main branch does not have benchmark data yet. Will skip PR performance comparison."
+            echo "Warning: Main branch does not exist or cannot be accessed. Will skip PR performance comparison."
+          else
+            # Check if the branch has versions/benchmark data
+            VERSION_COUNT=$(echo "$BRANCH_DATA" | jq -r '.versions | length // 0')
+            
+            if [ "$VERSION_COUNT" -gt 0 ]; then
+              echo "main_benchmark_exists=true" >> $GITHUB_OUTPUT
+              echo "Main branch has benchmark data. Will proceed with PR performance comparison."
+            else
+              echo "main_benchmark_exists=false" >> $GITHUB_OUTPUT
+              echo "Warning: Main branch exists but does not have benchmark data yet. Will skip PR performance comparison."
+            fi
           fi
-
+          
       # PR Performance Changes section - Only runs if main branch has benchmarks
       - name: Upload to Bencher (PR Performance Changes)
         if: |
