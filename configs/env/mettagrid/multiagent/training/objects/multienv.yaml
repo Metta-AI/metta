@@ -12,7 +12,7 @@ envs:
   - /env/mettagrid/multiagent/training/objects/varied_terrain_all_sparse
   - /env/mettagrid/multiagent/training/objects/varied_terrain_balanced
   - /env/mettagrid/multiagent/training/objects/varied_terrain_maze
-  - /env/mettagrid/multiagent/training/objects/varied_terrain_sparse_altars_dense_objects
+  - /env/mettagrid/multiagent/training/objects/varied_terrain_dense
   - /env/mettagrid/multiagent/training/objects/varied_terrain_all_sparse_small
   - /env/mettagrid/multiagent/training/objects/varied_terrain_balanced_small
-  - /env/mettagrid/multiagent/training/objects/varied_terrain_sparse_altars_dense_objects_small
+  - /env/mettagrid/multiagent/training/objects/varied_terrain_dense_small
