@@ -31,3 +31,4 @@ terrain_maps_nohearts*
 .converage.*
 build/
 build_debug/
+.venv
