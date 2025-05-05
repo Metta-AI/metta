@@ -24,7 +24,7 @@ game:
   # max_steps: ${make_integer:${scale:${.difficulty},0,10,100,500,"linear"}}
   max_steps: 100
 
-  enable_reward_decay: true
+  enable_reward_decay: false
   reward_decay_time_constant: 50
 
   num_agents: ${multiply:${..num_agents_per_room}, ${..num_repeated_rooms}}
