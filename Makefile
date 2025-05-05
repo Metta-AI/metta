@@ -12,6 +12,8 @@ install:
 build:
 	@echo "Building mettagrid extension..."
 	cd mettagrid && python setup.py build_ext --inplace
+	@echo "Building metta extensions..."
+	python setup.py build_ext --inplace
 
 # Run tests with coverage
 test: build

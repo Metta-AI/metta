@@ -1,10 +1,10 @@
 import omegaconf
 import torch
-from sample_factory.algo.utils.running_mean_std import RunningMeanStdInPlace
 from tensordict import TensorDict
 from torch import nn
 
 from metta.agent.lib.metta_layer import LayerBase
+from metta.agent.util.running_mean_std import RunningMeanStdInPlace
 
 
 # this is not currently working

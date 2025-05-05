@@ -11,6 +11,7 @@ imageio==2.37.0
 jmespath==1.0.1
 matplotlib==3.10.1
 numpy==2.2.5
+omegaconf==2.3.0
 pandas==2.2.3
 pettingzoo==1.24.1
 plotly==6.0.1
