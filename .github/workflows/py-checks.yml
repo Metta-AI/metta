@@ -88,7 +88,6 @@ jobs:
         run: |
           PATHS="mettagrid/build
           mettagrid/mettagrid/**/*.so
-          mettagrid/mettagrid/**/*.cpython-*-*.so
           /build
           ~/.cache/pip
           venv"
@@ -212,19 +211,16 @@ jobs:
           python-version: "3.11.7"
 
       - name: Install Ruff
-        if: env.EARLY_EXIT == 'false'
         run: |
           source venv/bin/activate
           pip install ruff==0.11.5
 
       - name: Run Ruff linter
-        if: env.EARLY_EXIT == 'false'
         run: |
           source venv/bin/activate
           ruff format --check .
 
       - name: Run Ruff formatting
-        if: env.EARLY_EXIT == 'false'
         run: |
           source venv/bin/activate
           ruff check --exit-non-zero-on-fix .
@@ -325,7 +321,6 @@ jobs:
           bash ./devops/setup_build.sh
 
       - name: Run Main Python benchmarks
-        if: env.EARLY_EXIT == 'false'
         env:
           HYDRA_FULL_ERROR: 1
           PYTHONPATH: ${{ github.workspace }}
@@ -334,7 +329,6 @@ jobs:
           pytest --benchmark-json=main_benchmark_results.json
 
       - name: Run Mettagrid Python benchmarks
-        if: env.EARLY_EXIT == 'false'
         env:
           HYDRA_FULL_ERROR: 1
           PYTHONPATH: ${{ github.workspace }}
@@ -345,7 +339,6 @@ jobs:
           mv mettagrid_benchmark_results.json ../..
 
       - name: Combine benchmark results
-        if: env.EARLY_EXIT == 'false'
         run: |
           source venv/bin/activate
           python - <<EOF
