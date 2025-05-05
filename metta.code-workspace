@@ -5,10 +5,6 @@
 			"path": "."
 		},
 		{
-			"name": "fast_gae",
-			"path": "deps/fast_gae"
-		},
-		{
 			"name": "pufferlib",
 			"path": "deps/pufferlib"
 		},
