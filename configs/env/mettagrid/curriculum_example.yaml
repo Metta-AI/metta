@@ -20,6 +20,13 @@ progress:
 filtered_mean_reward: ${iir:0.1,${.progress.mean_reward},${.progress.last_mean_reward}}
 
 game:
+  # episode length 
+  # max_steps: ${make_integer:${scale:${.difficulty},0,10,100,500,"linear"}}
+  max_steps: 100
+
+  enable_reward_decay: true
+  reward_decay_time_constant: 10
+
   num_agents: ${multiply:${..num_agents_per_room}, ${..num_repeated_rooms}}
 
   difficulty_increase_threshold: ${multiply:${..num_hearts_per_room},0.7}
@@ -32,10 +39,6 @@ game:
 
   difficulty_change: ${add:${.difficulty_decrease_delta},${.difficulty_increase_delta}}
   difficulty: ${clamp:${add:${..progress.last_difficulty},${.difficulty_change}}, 0.0, 10.0}
-
-  # episode length 
-  # max_steps: ${make_integer:${scale:${.difficulty},0,10,100,500,"linear"}}
-  max_steps: 200
 
   # scaling the map size as our experimental condition
   min_size: 5
