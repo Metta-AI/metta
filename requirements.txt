@@ -13,7 +13,7 @@ matplotlib==3.10.1
 numpy==2.2.5
 omegaconf==2.3.0
 pandas==2.2.3
-pettingzoo==1.24.1
+pettingzoo==1.25.0
 plotly==6.0.1
 pydantic==2.11.4
 pynvml==11.5.3
