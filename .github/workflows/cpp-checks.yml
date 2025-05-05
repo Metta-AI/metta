@@ -166,20 +166,7 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      - name: Restore from build cache
-        id: lint-cache-cpp 
-        uses: actions/cache@v3
-        with:
-          path: |
-            mettagrid/build
-            ~/.cache/pip
-          key: ${{ needs.setup-checks.outputs.cache_key }}
-
-      - name: Build C++ artifacts (cache miss fallback)
-        if: steps.lint-cache-cpp.outputs.cache-hit != 'true'
-        run: |
-          cd mettagrid
-          make build
+  
       - name: Run clang-format check
         run: |
           echo "Checking C++ formatting..."
@@ -189,9 +176,12 @@ jobs:
 
   test:
     name: "Test"
-    needs: [setup-checks, build-cpp]
-    if: needs.setup-checks.outputs.run_test == 'true'
+    needs: [setup-checks, build-cpp, lint]
+    if: |
+      (needs.setup-checks.outputs.run_test == 'true') && 
+      (needs.lint.result == 'success' || github.event_name != 'pull_request' )
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -218,10 +208,12 @@ jobs:
 
   benchmark:
     name: "Benchmark"
-    needs: [setup-checks, build-cpp]
-    if: needs.setup-checks.outputs.run_benchmark == 'true'
+    needs: [setup-checks, build-cpp, lint, test]
+    if: |
+      (needs.setup-checks.outputs.run_benchmark == 'true') && 
+      (needs.test.result == 'success' || github.event_name != 'pull_request' )
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 10
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
