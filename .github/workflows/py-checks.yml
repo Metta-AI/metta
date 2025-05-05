@@ -53,8 +53,8 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           graphite_token: ${{ secrets.GRAPHITE_TOKEN }}
 
-      - name: Print should_run value
-        run: echo "The value of should_run is ${{ steps.graphite_ci.outputs.should_run }}"
+      - name: Print graphite_ci output value
+        run: echo "The is ${{ steps.graphite_ci.outputs.skip }}"
 
   # check if any Python files have changed
   setup-checks:
