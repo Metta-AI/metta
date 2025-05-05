@@ -28,7 +28,7 @@ components:
       - name: obs_normalizer
 
   obs_encoder:
-    _target_: metta.agent.lib.obs_encoders.ObsEncoder
+    _target_: metta.agent.lib.obs_encoders.RobustObsEncoderRev1
     sources:
       - name: obs_normalizer
       - name: center_pixels

@@ -7,7 +7,7 @@ from torch import nn
 import metta.agent.lib.nn_layer_library as nn_layer_library
 
 
-class ObsEncoder(nn_layer_library.LayerBase):
+class RobustObsEncoderRev1(nn_layer_library.LayerBase):
     def __init__(self, **cfg):
         super().__init__(**cfg)
         self.channel_sets = {
