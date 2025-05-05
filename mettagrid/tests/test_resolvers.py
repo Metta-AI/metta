@@ -298,6 +298,131 @@ class TestAdvancedResolvers:
         result = oc_scale(value, in_min, in_max, out_min, out_max, scale_type)
         assert result == expected
 
+    def test_scale_flattened_output_ranges(self):
+        """Test oc_scale with flattened output ranges (same endpoints)"""
+
+        # Test with linear scaling
+        assert oc_scale(0.0, 0.0, 1.0, 7.0, 7.0, "linear") == 7.0
+        assert oc_scale(0.5, 0.0, 1.0, 7.0, 7.0, "linear") == 7.0
+        assert oc_scale(1.0, 0.0, 1.0, 7.0, 7.0, "linear") == 7.0
+
+        # Test with log scaling
+        assert oc_scale(0.0, 0.0, 1.0, 7.0, 7.0, "log") == 7.0
+        assert oc_scale(0.5, 0.0, 1.0, 7.0, 7.0, "log") == 7.0
+        assert oc_scale(1.0, 0.0, 1.0, 7.0, 7.0, "log") == 7.0
+
+        # Test with exp scaling
+        assert oc_scale(0.0, 0.0, 1.0, 7.0, 7.0, "exp") == 7.0
+        assert oc_scale(0.5, 0.0, 1.0, 7.0, 7.0, "exp") == 7.0
+        assert oc_scale(1.0, 0.0, 1.0, 7.0, 7.0, "exp") == 7.0
+
+        # Test with sigmoid scaling
+        assert oc_scale(0.0, 0.0, 1.0, 7.0, 7.0, "sigmoid") == 7.0
+        assert oc_scale(0.5, 0.0, 1.0, 7.0, 7.0, "sigmoid") == 7.0
+        assert oc_scale(1.0, 0.0, 1.0, 7.0, 7.0, "sigmoid") == 7.0
+
+        # Test with different integer values
+        assert oc_scale(0.5, 0.0, 1.0, 0, 0, "linear") == 0
+        assert oc_scale(0.5, 0.0, 1.0, 42, 42, "log") == 42
+
+        # Test with negative values
+        assert oc_scale(0.5, 0.0, 1.0, -10, -10, "linear") == -10
+
+        # Test with float values
+        assert oc_scale(0.5, 0.0, 1.0, 3.14, 3.14, "linear") == 3.14
+
+        # Check that output type matches the output range type
+        result = oc_scale(0.5, 0.0, 1.0, 5, 5, "linear")
+        assert result == 5
+        assert isinstance(result, int)
+
+        # Test with flattened range but wider input range
+        assert oc_scale(50, 0, 100, 7, 7, "linear") == 7
+        assert oc_scale(-10, -20, 20, 7, 7, "linear") == 7
+
+    def test_scale_inverted_ranges(self):
+        """Test oc_scale with inverted input and output ranges"""
+
+        # Inverted input range is automatically corrected
+        assert oc_scale(0.5, 1.0, 0.0, 0.0, 10.0, "linear") == 5.0  # Now normalized to 0.5
+
+        # Inverted output range is preserved
+        assert oc_scale(0.0, 0.0, 1.0, 10.0, 5.0, "linear") == 10.0
+        assert oc_scale(0.5, 0.0, 1.0, 10.0, 5.0, "linear") == 7.5
+        assert oc_scale(1.0, 0.0, 1.0, 10.0, 5.0, "linear") == 5.0
+
+        # Log scaling with inverted output (expect exact integer 6)
+        assert oc_scale(0.0, 0.0, 1.0, 10.0, 5.0, "log") == 10.0
+        assert oc_scale(0.5, 0.0, 1.0, 10.0, 5.0, "log") == 6  # Integer output
+        assert oc_scale(1.0, 0.0, 1.0, 10.0, 5.0, "log") == 5.0
+
+        # Your specific case from the config
+        # ${scale:${.difficulty},0,5,10,5,"log"}
+        assert oc_scale(0, 0, 5, 10, 5, "log") == 10.0
+        assert oc_scale(2.5, 0, 5, 10, 5, "log") == 6  # Updated expected value
+        assert oc_scale(5, 0, 5, 10, 5, "log") == 5.0
+
+        # Test double inversion (both input and output inverted)
+        assert oc_scale(2.5, 5.0, 0.0, 10.0, 0.0, "linear") == 5.0
+
+    def test_scale_edge_cases(self):
+        """Test oc_scale with various edge cases"""
+
+        # Inverted output range
+        assert oc_scale(0.5, 0.0, 1.0, 10.0, 5.0, "linear") == 7.5
+        assert oc_scale(0.5, 0.0, 1.0, 10.0, 5.0, "log") == pytest.approx(7.5, abs=0.5)
+
+        # Inverted input range (should default to 0 normalized value)
+        assert oc_scale(0.5, 1.0, 0.0, 0.0, 10.0, "linear") == 0.0
+
+        # Equal input bounds (avoid division by zero)
+        assert oc_scale(5.0, 5.0, 5.0, 0.0, 10.0, "linear") == 5.0
+
+        # Equal output bounds
+        assert oc_scale(0.5, 0.0, 1.0, 7.0, 7.0, "linear") == 7.0
+
+        # Boundary value with log scale (avoiding log(0))
+        assert oc_scale(0.0, 0.0, 1.0, 0.0, 10.0, "log") == 0.0
+
+        # Integer output type preservation
+        result = oc_scale(0.6, 0.0, 1.0, 0, 10, "linear")
+        assert result == 6
+        assert isinstance(result, int)
+
+        # Out-of-range inputs (testing clamping)
+        assert oc_scale(-1.0, 0.0, 1.0, 0.0, 10.0, "linear") == 0.0
+        assert oc_scale(2.0, 0.0, 1.0, 0.0, 10.0, "linear") == 10.0
+
+        # Extreme value scaling
+        assert oc_scale(500, 0, 1000, 0, 1, "linear") == 0.5
+        assert oc_scale(0.0001, 0, 0.001, 0, 1, "linear") == 0.1
+
+        # Invalid scale type
+        with pytest.raises(ValueError):
+            oc_scale(0.5, 0, 1, 0, 1, "unknown_type")
+
+    def test_scaling_symmetry(self):
+        """Test that log and exp scaling are inversely related"""
+
+        # For a normalized input of 0.5:
+        # - Linear should give 0.5 normalized output
+        # - Log should give higher values (faster at beginning)
+        # - Exp should give lower values (slower at beginning)
+        # - Sigmoid should be close to 0.5
+
+        log_value = oc_scale(0.5, 0.0, 1.0, 0.0, 1.0, "log")
+        exp_value = oc_scale(0.5, 0.0, 1.0, 0.0, 1.0, "exp")
+        sigmoid_value = oc_scale(0.5, 0.0, 1.0, 0.0, 1.0, "sigmoid")
+
+        # Log should be > 0.5
+        assert log_value > 0.5
+        # Exp should be < 0.5
+        assert exp_value < 0.5
+        # Log and exp should be approximately symmetric around 0.5
+        assert log_value + exp_value == pytest.approx(1.0, abs=0.1)
+        # Sigmoid should be very close to 0.5 at the midpoint
+        assert sigmoid_value == pytest.approx(0.5, abs=0.01)
+
 
 class TestScaledRange:
     """Tests for the sampling (scaled range) resolver"""
