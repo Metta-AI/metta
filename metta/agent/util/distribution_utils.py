@@ -25,10 +25,15 @@ def sample_logits(logits: Tensor, action: Optional[Tensor] = None) -> Tuple[Tens
         - joint_entropy: Tensor of shape [batch_size], entropy of the distribution
         - normalized_logits: Log-softmaxed logits (same shape as input logits)
     """
-    # Step 1: Normalize logits into log-probabilities for numerical stability and sampling
-    normalized_logits = F.log_softmax(logits, dim=-1)  # i.e. log probs
-    softmaxed_logits = normalized_logits.exp()  # i.e. probs
     batch_size = logits.shape[0]
+
+    # Step 1: Normalize logits into log-probabilities for numerical stability and sampling
+    if batch_size < 100:
+        normalized_logits = logits - logits.logsumexp(dim=-1, keepdim=True)
+    else:
+        normalized_logits = F.log_softmax(logits, dim=-1)  # i.e. log probs
+
+    softmaxed_logits = normalized_logits.exp()  # i.e. probs
 
     # Step 2: Determine the actions to evaluate
     if action is None:
