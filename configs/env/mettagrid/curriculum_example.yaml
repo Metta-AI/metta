@@ -25,7 +25,7 @@ game:
   max_steps: 100
 
   enable_reward_decay: false
-  reward_decay_time_constant: 50
+  reward_decay_time_constant: 100
 
   num_agents: ${multiply:${..num_agents_per_room}, ${..num_repeated_rooms}}
 
@@ -41,10 +41,10 @@ game:
   difficulty: ${clamp:${add:${..progress.last_difficulty},${.difficulty_change}}, 0.0, 10.0}
 
   # scaling the map size as our experimental condition
-  min_size: 5
-  max_size_limit: 5
-  max_size: ${scale:${.difficulty},0,${.min_size},10,${.max_size_limit},"log"}
-  size: ${make_integer:${uniform:${.min_size}, ${.max_size}}}
+  # min_size: 5
+  # max_size_limit: 5
+  # max_size: ${scale:${.difficulty},0,${.min_size},10,${.max_size_limit},"log"}
+  # size: ${make_integer:${uniform:${.min_size}, ${.max_size}}}
 
   map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom
@@ -54,8 +54,10 @@ game:
     room:
       _target_: mettagrid.config.room.random.Random
       border_width: 3 
-      width: ${...size}
-      height: ${...size}
+      # width: ${...size}
+      # height: ${...size}
+      width: 5
+      height: 5
       agents: ${....num_agents_per_room}
 
       objects:
