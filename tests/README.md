@@ -15,8 +15,8 @@ In addition to these generic points, here are some other thoughts:
 
 # Testing Structure
 
-* Tests should be in tests/, with there being a single such directory at the root of the project.
-* Tests should start with test_. Other files should not start with test_.
-* The test directory should mirror the directory structure of the project, including subdirectories. So, for example, tests for your/favorite/file.py should be in tests/your/favorite/test_file.py.
+* Tests should be in `tests/`, with there being a single such directory at the root of the project.
+* Tests should start with `test_`. Other files should not start with `test_`.
+* The test directory should mirror the directory structure of the project, including subdirectories. So, for example, tests for `package_name/your/favorite/file.py` should be in `tests/your/favorite/test_file.py`.
 
 If tests are not structured this way, we should migrate them.

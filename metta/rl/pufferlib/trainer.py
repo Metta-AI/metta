@@ -9,7 +9,6 @@ import pufferlib.utils
 import torch
 import torch.distributed as dist
 import wandb
-from fast_gae import fast_gae
 from heavyball import ForeachMuon
 from omegaconf import DictConfig, ListConfig
 
@@ -18,6 +17,7 @@ from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyStore
 from metta.agent.util.weights_analysis import WeightsMetricsHelper
 from metta.eval.analysis_config import AnalyzerConfig
+from metta.rl import fast_gae
 from metta.rl.pufferlib.experience import Experience
 from metta.rl.pufferlib.kickstarter import Kickstarter
 from metta.rl.pufferlib.profile import Profile
@@ -74,7 +74,7 @@ class PufferTrainer:
         self.eval_stats_logger = EvalStatsLogger(self.sim_suite_config, wandb_run)
         self.average_reward = 0.0  # Initialize average reward estimate
         self._current_eval_score = None
-        self.eval_scores = None
+        self.eval_scores = {}
         self._eval_results = []
         self._weights_helper = WeightsMetricsHelper(cfg)
         self._make_vecenv()
@@ -579,14 +579,19 @@ class PufferTrainer:
     def _generate_and_upload_replay(self):
         if self._master:
             logger.info("Generating and saving a replay to wandb and S3.")
-            self.replay_sim_config.replay_path = (
-                f"s3://softmax-public/replays/{self.cfg.run}/replay.{self.epoch}.json.z"
-            )
             dry_run = self.trainer_cfg.get("replay_dry_run", False)
+            replay_path = f"s3://softmax-public/replays/{self.cfg.run}/replay.{self.epoch}.json.z"
+            if dry_run:
+                logger.info(f"Dry run: Would write replay to {replay_path}")
+                replay_path = None
             replay_simulator = Simulation(
-                self.replay_sim_config, self.last_pr, self.policy_store, wandb_run=self.wandb_run
+                self.replay_sim_config,
+                self.last_pr,
+                self.policy_store,
+                wandb_run=self.wandb_run,
+                replay_path=replay_path,
             )
-            replay_simulator.simulate(epoch=self.epoch, dry_run=dry_run)
+            replay_simulator.simulate(epoch=self.epoch)
 
     def _process_stats(self):
         for k in list(self.stats.keys()):

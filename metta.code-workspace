@@ -5,10 +5,6 @@
 			"path": "."
 		},
 		{
-			"name": "fast_gae",
-			"path": "deps/fast_gae"
-		},
-		{
 			"name": "pufferlib",
 			"path": "deps/pufferlib"
 		},
@@ -128,11 +124,13 @@
 
 		"python.analysis.extraPaths": [
 			"/var/tmp/metta/conda-site-packages",
-			"/var/tmp/metta/deps"
+			"/var/tmp/metta/deps",
+			"mettagrid"
 		],
 		"python.autoComplete.extraPaths": [
 			"/var/tmp/metta/conda-site-packages",
-			"/var/tmp/metta/deps"
+			"/var/tmp/metta/deps",
+			"mettagrid"
 		],
 		"python.analysis.exclude": [
 			"**/deps/pufferlib/**"
@@ -202,6 +200,7 @@
 			"clipfrac",
 			"coef",
 			"cooldown",
+			"cpus",
 			"dones",
 			"heavyball",
 			"kickstarter",
@@ -220,6 +219,9 @@
 			"PYTHONPATH",
 			"raylib",
 			"relu",
+			"softmax",
+			"skypilot",
+			"softmax",
 			"tensorclass",
 			"tensordict",
 			"timestep",
@@ -229,7 +231,8 @@
 			"vecenv",
 			"venv",
 			"vloss",
-			"wandb"
+			"wandb",
+			"xlarge"
 		]
 	}
 }

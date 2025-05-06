@@ -2,6 +2,8 @@ defaults:
   - sim
   - _self_
 
+name: memory
+
 simulations:
   memory/easy:
     env: env/mettagrid/memory/evals/easy
