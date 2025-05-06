@@ -653,7 +653,6 @@ class PufferTrainer:
                     **{f"losses/{k}": v for k, v in losses.items()},
                     **{f"performance/{k}": v for k, v in performance.items()},
                     **environment,
-                    **policy_fitness_metrics,
                     **self._weights_helper.stats(),
                     **self._eval_grouped_scores,
                     "train/agent_step": agent_steps,
