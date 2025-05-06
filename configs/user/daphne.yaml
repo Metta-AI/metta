@@ -34,7 +34,7 @@ policy_uri: wandb://run/daphne.navigation:v36
 #eval_db_uri: wandb://artifacts/navigation_db
 # eval_db_uri: wandb://artifacts/terrain_multienv_prioritized_all
 
-eval_db_uri: wandb://artifacts/test_navigation
+eval_db_uri: wandb://artifacts/test_navigation_main_cluster
 
 analyzer:
   policy_uri: ${..policy_uri}
@@ -42,7 +42,7 @@ analyzer:
   analysis:
     metrics:
       - metric: episode_reward
-  output_path: s3://softmax-public/policydash/object_use.html
+  output_path: s3://softmax-public/policydash/navigation.html
   # output_path: eval_results/navigations.html
   # output_path: navigation_results/navigation.html
 

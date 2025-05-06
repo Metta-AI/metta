@@ -10,9 +10,9 @@ analysis:
 
   metrics:
     - metric: episode_reward
-    - metric:
-      name: winning
-      value: "{group_0} + {group_1} - {group_2}"
+    # - metric:
+    #   name: winning
+    #   value: "{group_0} + {group_1} - {group_2}"
 
   queries: null
 
