@@ -316,7 +316,18 @@ jobs:
 
       - name: Source benchmark script
         run: |
+          # Check if the file exists
+          ls -la .github/scripts/benchmark.sh
+          
+          # Display file content
+          echo "File content:"
+          cat .github/scripts/benchmark.sh
+          
+          # Source the file
           source .github/scripts/benchmark.sh
+          
+          # Check if the function is defined
+          type benchmark || echo "Function not defined after sourcing"
 
       - name: Training smoke test
         id: train
@@ -328,6 +339,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: set_but_not_used
         run: |
           source venv/bin/activate
+          mkdir -p train_dir
           benchmark "train" "python -m tools.train +hardware=github wandb=off"
           ls -la $CHECKPOINT_PATH || echo "Warning: Checkpoint directory not created"
 
