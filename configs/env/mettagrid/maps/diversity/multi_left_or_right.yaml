@@ -10,7 +10,7 @@ game:
   max_steps: 25
 
   map_builder:
-    _target_: mettagrid.map.mapgen.MapGen
+    _target_: metta.map.mapgen.MapGen
 
     width: 200
     height: 100
