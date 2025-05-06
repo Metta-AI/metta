@@ -275,7 +275,7 @@ jobs:
           cd mettagrid
           pytest --maxfail=1 --disable-warnings -q
 
-  training:
+  smoke-test:
     name: "Training smoke test"
     needs: [graphite-ci-optimizer, setup-checks, setup-py]
     if: |
@@ -314,6 +314,10 @@ jobs:
           source venv/bin/activate
           bash ./devops/setup_build.sh
 
+      - name: Source benchmark script
+        run: |
+          source .github/scripts/benchmark.sh
+
       - name: Training smoke test
         id: train
         env:
@@ -324,17 +328,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: set_but_not_used
         run: |
           source venv/bin/activate
-
-          start_time=$(date +%s.%N)
-          python -m tools.train +hardware=github wandb=off
-          end_time=$(date +%s.%N)
-          duration=$(echo "$end_time - $start_time" | bc)
-          memory_usage=$(cat /tmp/memory_usage.txt)
-          echo "duration=$duration" >> $GITHUB_OUTPUT
-          echo "memory_usage=$memory_usage" >> $GITHUB_OUTPUT
-          echo "Replay duration: $duration seconds"
-          echo "Replay memory: $memory_usage MB"
-
+          benchmark "train" "python -m tools.train +hardware=github wandb=off"
           ls -la $CHECKPOINT_PATH || echo "Warning: Checkpoint directory not created"
 
       - name: Save training benchmark
@@ -342,7 +336,7 @@ jobs:
         uses: ./.github/actions/save-benchmarks
         with:
           name: train_smoke_test
-          metrics: '{"duration": ${{ steps.train.outputs.duration }}, "memory_mb": ${{ steps.train.outputs.memory_mb }}}'
+          metrics: '{"duration": ${{ steps.train.outputs.duration }}, "memory_usage": ${{ steps.train.outputs.memory_usage }}}'
           filename: smoke_test_train_benchmark_results.json
 
       - name: Upload training output
@@ -379,22 +373,13 @@ jobs:
           AWS_SECRET_ACCESS_KEY: set_but_not_used
         run: |
           source venv/bin/activate
-
-          start_time=$(date +%s.%N)
-          python -m tools.replay +hardware=github wandb=off
-          end_time=$(date +%s.%N)
-          duration=$(echo "$end_time - $start_time" | bc)
-          memory_usage=$(cat /tmp/memory_usage.txt)
-          echo "duration=$duration" >> $GITHUB_OUTPUT
-          echo "memory_usage=$memory_usage" >> $GITHUB_OUTPUT
-          echo "Replay duration: $duration seconds"
-          echo "Replay memory: $memory_usage MB"
+          benchmark "replay" "python -m tools.replay +hardware=github wandb=off"
 
       - name: Save replay benchmark
         uses: ./.github/actions/save-benchmarks
         with:
           name: replay_smoke_test
-          metrics: '{"duration": ${{ steps.replay.outputs.duration }}, "memory_mb": ${{ steps.replay.outputs.memory_mb }}}'
+          metrics: '{"duration": ${{ steps.replay.outputs.duration }}, "memory_usage": ${{ steps.replay.outputs.memory_usage }}}'
           filename: smoke_test_replay_benchmark_results.json
 
       - name: Debug on failure
@@ -407,7 +392,7 @@ jobs:
 
   benchmark:
     name: "Benchmark"
-    needs: [graphite-ci-optimizer, setup-checks, setup-py, test, training]
+    needs: [graphite-ci-optimizer, setup-checks, setup-py, test, smoke-test]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') && 
       (needs.setup-checks.outputs.run_benchmark == 'true') && 
