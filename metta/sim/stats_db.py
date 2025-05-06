@@ -497,9 +497,6 @@ class StatsDB(MGStatsDB):
 
         # Execute the query
         result = self.query(query)
-        logger = logging.getLogger(__name__)
-        logger.info(f"Query: {query}")
-        logger.info(f"Result: {result}")
         if not result.empty and not pd.isna(result["score"][0]):
             return float(result["score"][0])
         return None
