@@ -111,8 +111,7 @@ def oc_scale(
     """
 
     # Ensure in_min <= in_max
-    if in_min > in_max:
-        in_min, in_max = in_max, in_min
+    assert in_min <= in_max
 
     # Clamp value to input range
     value = oc_clamp(value, in_min, in_max)
