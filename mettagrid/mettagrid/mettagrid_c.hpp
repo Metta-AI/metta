@@ -34,7 +34,6 @@ public:
         py::array_t<char> truncations,
         py::array_t<float> rewards
     );
-    py::list grid();
     py::dict grid_objects();
     py::list action_names();
     unsigned int current_timestep();
