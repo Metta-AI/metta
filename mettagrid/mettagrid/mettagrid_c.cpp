@@ -47,7 +47,11 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array_t<std::string> map) {
     
     // Initialize grid
     auto map_info = map.request();
-    _grid = std::make_unique<Grid>(map_info.shape[1], map_info.shape[0]);
+    std::vector<Layer> layer_for_type_id;
+    for (const auto& layer : ObjectLayers) {
+        layer_for_type_id.push_back(layer.second);
+    }
+    _grid = std::make_unique<Grid>(map_info.shape[1], map_info.shape[0], layer_for_type_id);
     
     // Initialize event manager and stats tracker
     _event_manager = std::make_unique<EventManager>();
@@ -216,8 +220,6 @@ py::tuple MettaGrid::step(py::array_t<int> actions) {
     _step(actions);
     _compute_observations(actions);
     
-    auto terminals_view = _terminals.mutable_unchecked<1>();
-    auto truncations_view = _truncations.mutable_unchecked<1>();
     auto rewards_view = _rewards.mutable_unchecked<1>();
     auto episode_rewards_view = _episode_rewards.mutable_unchecked<1>();
     
@@ -237,7 +239,7 @@ py::tuple MettaGrid::step(py::array_t<int> actions) {
     for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
         if (rewards_view(agent_idx) != 0) {
             share_rewards = true;
-            auto agent = _agents[agent_idx];
+            auto& agent = _agents[agent_idx];
             unsigned int group_id = agent->group;
             float group_reward = rewards_view(agent_idx) * _group_reward_pct[group_id];
             rewards_view(agent_idx) -= group_reward;
@@ -247,7 +249,7 @@ py::tuple MettaGrid::step(py::array_t<int> actions) {
     
     if (share_rewards) {
         for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
-            auto agent = _agents[agent_idx];
+            auto& agent = _agents[agent_idx];
             unsigned int group_id = agent->group;
             float group_reward = group_rewards_view(group_id);
             rewards_view(agent_idx) += group_reward;
@@ -281,19 +283,19 @@ py::dict MettaGrid::grid_objects() {
         }
         
         // Encode object features
-        _obs_encoder->encode(obj, obj_data_view.data(), offsets);
+        _obs_encoder->encode(obj, obj_data_view.mutable_data(), offsets);
         
         // Add features to object dict
         for (size_t i = 0; i < type_features.size(); i++) {
-            obj_dict[type_features[i]] = obj_data_view(i);
+            obj_dict[py::str(type_features[i])] = obj_data_view(i);
         }
         
-        objects[obj_id] = obj_dict;
+        objects[py::int_(obj_id)] = obj_dict;
     }
     
     // Add agent IDs
     for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
-        auto agent_object = objects[_agents[agent_idx]->id];
+        auto agent_object = objects[py::int_(_agents[agent_idx]->id)];
         agent_object["agent_id"] = agent_idx;
     }
     
@@ -506,7 +508,7 @@ void MettaGrid::_compute_observation(
                 }
                 
                 // Encode object features
-                _obs_encoder->encode(obj, observation_view.data(obs_r, obs_c, 0), offsets);
+                _obs_encoder->encode(obj, reinterpret_cast<ObsType*>(observation_view.mutable_data(obs_r, obs_c, 0)), offsets);
             }
         }
     }
@@ -607,7 +609,6 @@ PYBIND11_MODULE(mettagrid_c, m) {
         .def("reset", &MettaGrid::reset)
         .def("step", &MettaGrid::step)
         .def("set_buffers", &MettaGrid::set_buffers)
-        .def("grid", &MettaGrid::grid)
         .def("grid_objects", &MettaGrid::grid_objects)
         .def("action_names", &MettaGrid::action_names)
         .def("current_timestep", &MettaGrid::current_timestep)
