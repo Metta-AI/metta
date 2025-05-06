@@ -184,26 +184,28 @@ class Simulation:
                     npc_actions, _, _, _, _ = npc_policy(npc_obs, npc_state)
 
             # ---------------- action stitching ----------------------- #
-            acts_t = policy_actions
+            actions = policy_actions
             if self._npc_agents_per_env:
-                acts_t = torch.cat(
+                actions = torch.cat(
                     [
                         policy_actions.view(self._num_envs, self._policy_agents_per_env, -1),
                         npc_actions.view(self._num_envs, self._npc_agents_per_env, -1),
                     ],
                     dim=1,
-                ).view(-1, policy_actions.shape[-1])
-            acts_np = acts_t.cpu().numpy()
+                )
+
+            actions = actions.view(self._num_envs * self._agents_per_env, -1)
+            actions_np = actions.cpu().numpy()
 
             # ---------------- replay (pre-step) ----------------------- #
             if self._replay_helpers:
-                per_env = acts_np.reshape(self._num_envs, self._agents_per_env, -1)
+                per_env = actions_np.reshape(self._num_envs, self._agents_per_env, -1)
                 for e in range(self._num_envs):
                     if not env_done_flags[e]:
                         self._replay_helpers[e].log_pre_step(per_env[e].squeeze())
 
             # ---------------- env.step ------------------------------- #
-            obs, rewards, dones, trunc, _ = self._vecenv.step(acts_np)
+            obs, rewards, dones, trunc, _ = self._vecenv.step(actions_np)
 
             # ---------------- replay (post-step) ---------------------- #
             if self._replay_helpers:
