@@ -180,7 +180,11 @@ py::tuple MettaGrid::reset() {
     }
 
     // Compute initial observations
-    auto zero_actions = py::array_t<int>({_agents.size(), 2});
+    std::vector<ssize_t> shape = {
+        static_cast<ssize_t>(_agents.size()),
+        static_cast<ssize_t>(2)
+    };
+    auto zero_actions = py::array_t<int>(shape);
     _compute_observations(zero_actions);
 
     return py::make_tuple(_observations_np, py::dict());
@@ -222,22 +226,31 @@ py::tuple MettaGrid::step(py::array_t<int> actions) {
         episode_rewards_view(i) += rewards_view(i);
     }
     
-    // Check for termination
-    bool all_terminated = true;
-    bool all_truncated = true;
-    for (py::ssize_t i = 0; i < terminals_view.shape(0); i++) {
-        if (!terminals_view(i)) {
-            all_terminated = false;
-        }
-        if (!truncations_view(i)) {
-            all_truncated = false;
+    // Clear group rewards
+    auto group_rewards_view = _group_rewards.mutable_unchecked<1>();
+    for (py::ssize_t i = 0; i < group_rewards_view.shape(0); i++) {
+        group_rewards_view(i) = 0;
+    }
+    
+    // Handle group rewards
+    bool share_rewards = false;
+    for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
+        if (rewards_view(agent_idx) != 0) {
+            share_rewards = true;
+            auto agent = _agents[agent_idx];
+            unsigned int group_id = agent->group;
+            float group_reward = rewards_view(agent_idx) * _group_reward_pct[group_id];
+            rewards_view(agent_idx) -= group_reward;
+            group_rewards_view(group_id) += group_reward / _group_sizes[group_id];
         }
     }
     
-    // Set truncation if max timesteps reached
-    if (_current_timestep >= _max_timestep) {
-        for (py::ssize_t i = 0; i < truncations_view.shape(0); i++) {
-            truncations_view(i) = 1;
+    if (share_rewards) {
+        for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
+            auto agent = _agents[agent_idx];
+            unsigned int group_id = agent->group;
+            float group_reward = group_rewards_view(group_id);
+            rewards_view(agent_idx) += group_reward;
         }
     }
     
