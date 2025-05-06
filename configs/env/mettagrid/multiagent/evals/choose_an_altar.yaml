@@ -4,7 +4,7 @@ defaults:
 
 game:
   num_agents: 40 #how many agents are in the map x2
-  max_steps: 150
+  max_steps: 75
 
   agent:
     rewards:
@@ -27,12 +27,10 @@ game:
       max_output: 1
       conversion_ticks: 1
       cooldown: 255 # ${sampling:0, 50, 25}
-      initial_items: 1
+      initial_items: 0
 
-    generator.green:
+    generator.red:
       hp: 30
-      color: 2
       max_output: 3
-      conversion_ticks: 1
       cooldown: 255 # ${sampling:0, 50, 25}
       initial_items: 3
