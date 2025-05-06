@@ -5,7 +5,7 @@ import { ui, state, html, ctx } from './common.js';
 import { getAttr } from './replay.js';
 import { PanelInfo } from './panels.js';
 import { updateStep, onFrame } from './main.js';
-
+import { parseHtmlColor } from './context3d.js';
 // Flag to prevent multiple calls to requestAnimationFrame
 let frameRequested = false;
 
@@ -71,7 +71,7 @@ function drawFloor() {
     for (let dx = -visionSize; dx <= visionSize; dx++) {
       for (let dy = -visionSize; dy <= visionSize; dy++) {
         visibilityMap.set(
-          x +dx,
+          x + dx,
           y + dy,
           true
         );
@@ -354,16 +354,16 @@ function drawInventory() {
       numItems += num;
     }
     // Draw the actual inventory icons.
-    let advanceX = Math.min(32, (Common.TILE_SIZE - Common.INVENTORY_PADDING*2) / numItems);
+    let advanceX = Math.min(32, (Common.TILE_SIZE - Common.INVENTORY_PADDING * 2) / numItems);
     for (const [key, [icon, color]] of state.replay.resource_inventory) {
       const num = getAttr(gridObject, key);
       for (let i = 0; i < num; i++) {
         ctx.drawSprite(
           icon,
-          x * Common.TILE_SIZE + inventoryX - Common.TILE_SIZE/2,
-          y * Common.TILE_SIZE - Common.TILE_SIZE/2 + 16,
+          x * Common.TILE_SIZE + inventoryX - Common.TILE_SIZE / 2,
+          y * Common.TILE_SIZE - Common.TILE_SIZE / 2 + 16,
           color,
-          1/8,
+          1 / 8,
           0
         );
         inventoryX += advanceX;
@@ -384,10 +384,10 @@ function drawRewards() {
       for (let i = 0; i < totalReward; i++) {
         ctx.save()
         ctx.translate(
-          x * Common.TILE_SIZE + rewardX - Common.TILE_SIZE/2,
-          y * Common.TILE_SIZE + Common.TILE_SIZE/2 - 16
+          x * Common.TILE_SIZE + rewardX - Common.TILE_SIZE / 2,
+          y * Common.TILE_SIZE + Common.TILE_SIZE / 2 - 16
         );
-        ctx.scale(1/8, 1/8);
+        ctx.scale(1 / 8, 1 / 8);
         ctx.drawSprite("resources/reward.png", 0, 0);
         ctx.restore()
         rewardX += advanceX;
@@ -491,7 +491,8 @@ export function drawMap(panel: PanelInfo) {
 
   const localMousePos = panel.transformPoint(ui.mousePos);
 
-  if (ui.mouseClick) {
+  if (ui.mouseClick && !ui.miniMapPanel.inside(ui.mousePos)) {
+
     // Reset the follow flags.
     state.followSelection = false;
     state.followTraceSelection = false;
@@ -514,7 +515,7 @@ export function drawMap(panel: PanelInfo) {
           // Toggle followSelection on double-click
           state.followSelection = true;
           state.followTraceSelection = true;
-          panel.zoomLevel = 1/2;
+          panel.zoomLevel = 1 / 2;
           ui.tracePanel.zoomLevel = 1;
         }
       }
@@ -547,6 +548,97 @@ export function drawMap(panel: PanelInfo) {
   ctx.restore();
 }
 
+export function drawMiniMap(panel: PanelInfo) {
+  if (state.replay === null || ctx === null || ctx.ready === false) {
+    return;
+  }
+
+  if(ui.mouseDown && panel.inside(ui.mousePos)) {
+    const localMousePos = panel.transformPoint(ui.mousePos);
+    // Pan the main map to the mini map's mouse position.
+    const miniMapMousePos = new Vec2f(
+      Math.round(localMousePos.x() / Common.MINI_MAP_TILE_SIZE),
+      Math.round(localMousePos.y() / Common.MINI_MAP_TILE_SIZE)
+    );
+    ui.mapPanel.panPos = new Vec2f(
+      -miniMapMousePos.x() * Common.TILE_SIZE - state.replay.map_size[0] * Common.TILE_SIZE / 2,
+      -miniMapMousePos.y() * Common.TILE_SIZE - state.replay.map_size[1] * Common.TILE_SIZE / 2
+    );
+    state.followSelection = false;
+  }
+
+  // Mini map is always drawn as colored rectangles.
+  ctx.save();
+  ctx.setScissorRect(panel.x, panel.y, panel.width, panel.height);
+  ctx.translate(panel.x, panel.y);
+
+  // Draw background rect thats the size of the map.
+  ctx.drawSolidRect(
+    0,
+    0,
+    state.replay.map_size[0] * Common.MINI_MAP_TILE_SIZE,
+    state.replay.map_size[1] * Common.MINI_MAP_TILE_SIZE,
+    parseHtmlColor("#E7D4B7")
+  );
+
+  // Draw grid objects on the mini map.
+  for (const gridObject of state.replay.grid_objects) {
+    const x = getAttr(gridObject, "c");
+    const y = getAttr(gridObject, "r");
+    const type = getAttr(gridObject, "type");
+    const typeName = state.replay.object_types[type];
+    var color = parseHtmlColor("#FFFFFF");
+    if (typeName === "wall") {
+      color = parseHtmlColor("#61574B");
+    } else if (typeName === "agent") {
+      continue;
+    }
+    ctx.drawSolidRect(
+      x * Common.MINI_MAP_TILE_SIZE,
+      y * Common.MINI_MAP_TILE_SIZE,
+      Common.MINI_MAP_TILE_SIZE,
+      Common.MINI_MAP_TILE_SIZE,
+      color
+    );
+  }
+
+  // Draw agent pips on top
+  for (const gridObject of state.replay.grid_objects) {
+    const x = getAttr(gridObject, "c");
+    const y = getAttr(gridObject, "r");
+    const type = getAttr(gridObject, "type");
+    const typeName = state.replay.object_types[type];
+    if (typeName === "agent") {
+      ctx.drawSprite("minimapPip.png",
+        x * Common.MINI_MAP_TILE_SIZE + 1,
+        y * Common.MINI_MAP_TILE_SIZE + 1,
+        [1, 0, 0, 1],
+        1,
+        0);
+      continue;
+    }
+  }
+
+  // Draw where the screen is on the mini map.
+  const pos = new Vec2f(
+    -ui.mapPanel.panPos.x() / Common.TILE_SIZE * Common.MINI_MAP_TILE_SIZE,
+    -ui.mapPanel.panPos.y() / Common.TILE_SIZE * Common.MINI_MAP_TILE_SIZE
+  );
+  const width = ui.mapPanel.width / ui.mapPanel.zoomLevel / Common.TILE_SIZE * Common.MINI_MAP_TILE_SIZE;
+  const height = ui.mapPanel.height / ui.mapPanel.zoomLevel / Common.TILE_SIZE * Common.MINI_MAP_TILE_SIZE;
+
+  ctx.drawStrokeRect(
+    pos.x() - width / 2,
+    pos.y() - height / 2,
+    width,
+    height,
+    1,
+    [1, 1, 1, 1]
+  );
+
+  ctx.restore();
+}
+
 export function drawTrace(panel: PanelInfo) {
   if (state.replay === null || ctx === null || ctx.ready === false) {
     return;
@@ -556,12 +648,12 @@ export function drawTrace(panel: PanelInfo) {
 
   if (state.followTraceSelection && state.selectedGridObject !== null) {
     panel.focusPos(
-      state.step * Common.TRACE_WIDTH + Common.TRACE_WIDTH/2,
-      getAttr(state.selectedGridObject, "agent_id") * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT/2
+      state.step * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
+      getAttr(state.selectedGridObject, "agent_id") * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT / 2
     );
   }
 
-  if (ui.mouseClick &&panel.inside(ui.mousePos)) {
+  if (ui.mouseClick && panel.inside(ui.mousePos)) {
     if (localMousePos != null) {
       const mapX = localMousePos.x();
       if (mapX > 0 && mapX < state.replay.max_steps * Common.TRACE_WIDTH &&
@@ -633,14 +725,14 @@ export function drawTrace(panel: PanelInfo) {
       if (action_success && action != null && action[0] > 0 && action[0] < state.replay.action_images.length) {
         ctx.drawSprite(
           state.replay.action_images[action[0]],
-          j * Common.TRACE_WIDTH + Common.TRACE_WIDTH/2,
-          i * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT/2,
+          j * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
+          i * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT / 2,
         );
       } else if (action != null && action[0] > 0 && action[0] < state.replay.action_images.length) {
         ctx.drawSprite(
           state.replay.action_images[action[0]],
-          j * Common.TRACE_WIDTH + Common.TRACE_WIDTH/2,
-          i * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT/2,
+          j * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
+          i * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT / 2,
           [0.01, 0.01, 0.01, 0.01],
         );
       }
@@ -648,8 +740,8 @@ export function drawTrace(panel: PanelInfo) {
       if (getAttr(agent, "agent:frozen", j) > 0) {
         ctx.drawSprite(
           "trace/frozen.png",
-          j * Common.TRACE_WIDTH + Common.TRACE_WIDTH/2,
-          i * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT/2,
+          j * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
+          i * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT / 2,
         );
       }
 
@@ -658,10 +750,10 @@ export function drawTrace(panel: PanelInfo) {
       if (reward > 0) {
         ctx.drawSprite(
           "resources/reward.png",
-          j * Common.TRACE_WIDTH + Common.TRACE_WIDTH/2,
+          j * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
           i * Common.TRACE_HEIGHT + 256 - 32,
           [1.0, 1.0, 1.0, 1.0],
-          1/8
+          1 / 8
         );
       }
     }

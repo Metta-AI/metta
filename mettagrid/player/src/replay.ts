@@ -1,6 +1,7 @@
 import * as Common from './common.js';
 import { ui, state, html, ctx } from './common.js';
 import { focusFullMap, requestFrame } from './drawing.js';
+import { onResize } from './main.js';
 
 // Gets an attribute from a grid object respecting the current step.
 export function getAttr(obj: any, attr: string, atStep = -1, defaultValue = 0): any {
@@ -231,5 +232,6 @@ async function loadReplayText(replayData: any) {
 
   Common.closeModal();
   focusFullMap(ui.mapPanel);
+  onResize();
   requestFrame();
 }

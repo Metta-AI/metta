@@ -748,6 +748,7 @@ class Context3d {
     }
   }
 
+  // Draws a solid filled rectangle.
   drawSolidRect(
     x: number,
     y: number,
@@ -781,6 +782,26 @@ class Context3d {
       uvy,
       color
     )
+  }
+
+  // Draws a stroked rectangle with set stroke width.
+  drawStrokeRect(
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    strokeWidth: number,
+    color: number[]
+  ) {
+    // Draw 4 rectangles as borders for the the stroke rectangle.
+    // Top border.
+    this.drawSolidRect(x, y, width, strokeWidth, color);
+    // Bottom border.
+    this.drawSolidRect(x, y + height - strokeWidth, width, strokeWidth, color);
+    // Left border.
+    this.drawSolidRect(x, y + strokeWidth, strokeWidth, height - 2 * strokeWidth, color);
+    // Right border.
+    this.drawSolidRect(x + width - strokeWidth, y + strokeWidth, strokeWidth, height - 2 * strokeWidth, color);
   }
 
   // Flushes all non-empty meshes to the screen

@@ -19,6 +19,7 @@ export const PANEL_BOTTOM_MARGIN = 60;    // bottom margin for panels
 // Map constants
 export const TILE_SIZE = 200;
 export const INVENTORY_PADDING = 16;
+export const MINI_MAP_TILE_SIZE = 2;
 
 // Agent defaults
 export const DEFAULT_VISION_SIZE = 11;
@@ -52,6 +53,7 @@ export const ui = {
 
   // Panels
   mapPanel: new PanelInfo("map"),
+  miniMapPanel: new PanelInfo("mini-map"),
   tracePanel: new PanelInfo("trace"),
   infoPanel: new PanelInfo("info"),
 };

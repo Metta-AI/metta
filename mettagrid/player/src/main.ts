@@ -3,11 +3,11 @@ import { Context3d } from './context3d.js';
 import * as Common from './common.js';
 import { ui, state, html, ctx } from './common.js';
 import { fetchReplay, readFile } from './replay.js';
-import { focusFullMap, updateReadout, drawMap, drawTrace, requestFrame } from './drawing.js';
+import { focusFullMap, updateReadout, drawMap, drawTrace, requestFrame, drawMiniMap } from './drawing.js';
 import { PanelInfo } from './panels.js';
 
 // Handle resize events.
-function onResize() {
+export function onResize() {
   // Adjust for high DPI displays.
   const dpr = window.devicePixelRatio || 1;
 
@@ -23,6 +23,17 @@ function onResize() {
   ui.mapPanel.y = 0;
   ui.mapPanel.width = mapWidth * ui.traceSplit;
   ui.mapPanel.height = mapHeight - Common.PANEL_BOTTOM_MARGIN;
+
+  // Minimap goes in the bottom left corner of the mapPanel.
+  if (state.replay != null) {
+    const miniMapWidth = state.replay.map_size[0] * 2;
+    const miniMapHeight = state.replay.map_size[1] * 2;
+    ui.miniMapPanel.x = 0;
+    ui.miniMapPanel.y = ui.mapPanel.height - miniMapHeight;
+    ui.miniMapPanel.width = miniMapWidth;
+    ui.miniMapPanel.height = miniMapHeight;
+    console.log("miniMap:", ui.miniMapPanel.x, ui.miniMapPanel.y, ui.miniMapPanel.width, ui.miniMapPanel.height);
+  }
 
   ui.tracePanel.x = mapWidth * ui.traceSplit;
   ui.tracePanel.y = mapHeight * ui.infoSplit;
@@ -112,7 +123,6 @@ function onScroll(event: WheelEvent) {
   ui.scrollDelta = event.deltaY;
   requestFrame();
 }
-
 
 // Update all URL parameters without creating browser history entries
 function updateUrlParams() {
@@ -242,6 +252,8 @@ export function onFrame() {
   updateReadout();
   ctx.useMesh("map");
   drawMap(ui.mapPanel);
+  ctx.useMesh("mini-map");
+  drawMiniMap(ui.miniMapPanel);
   ctx.useMesh("trace");
   drawTrace(ui.tracePanel);
 
