@@ -4,10 +4,14 @@ import hydra
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import OmegaConf
 
-# mettagrid/configs dir, with omegaconf configs
-mettagrid_configs_root = Path(__file__).parent.resolve() / "../../configs"
+# Get the directory containing the current file
+config_dir = Path(__file__).parent
 
-# dir with scenes configs, used in tests and in mettagrid.map.utils.dcss
+# Navigate up two levels to the package root (repo root / mettagrid)
+package_root = config_dir.parent.parent
+
+# Create paths to the specific directories
+mettagrid_configs_root = package_root / "configs"
 scenes_root = mettagrid_configs_root / "scenes"
 
 

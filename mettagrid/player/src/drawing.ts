@@ -212,15 +212,27 @@ function drawObjects() {
       );
     } else {
       // Draw regular objects.
-      if (hasInventory(gridObject)) {
-        // object.png
+
+      // Draw the base layer.
+      ctx.drawSprite(
+        state.replay.object_images[type][0],
+        x * Common.TILE_SIZE,
+        y * Common.TILE_SIZE
+      );
+
+      // Draw the color layer.
+      var colorIdx = getAttr(gridObject, "color");
+      if (colorIdx !== undefined) {
         ctx.drawSprite(
-          state.replay.object_images[type][0],
+          state.replay.object_images[type][2],
           x * Common.TILE_SIZE,
-          y * Common.TILE_SIZE
+          y * Common.TILE_SIZE,
+          Common.COLORS[colorIdx][1]
         );
-      } else {
-        // object.empty.png
+      }
+
+      // Draw the item layer.
+      if (hasInventory(gridObject)) {
         ctx.drawSprite(
           state.replay.object_images[type][1],
           x * Common.TILE_SIZE,
@@ -669,6 +681,8 @@ export function updateReadout() {
       var value = getAttr(state.selectedGridObject, key);
       if (key == "type") {
         value = state.replay.object_types[value] + " (" + value + ")";
+      } else if (key == "color") {
+        value = Common.COLORS[value][0] + " (" + value + ")";
       }
       readout += key + ": " + value + "\n";
     }

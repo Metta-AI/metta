@@ -29,3 +29,6 @@ wandb/
 terrain_maps_nohearts*
 .idea
 .converage.*
+build/
+build_debug/
+.venv

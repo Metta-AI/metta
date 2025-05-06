@@ -5,7 +5,6 @@ locals {
 
 resource "aws_s3_bucket" "softmax_public" {
   bucket = local.bucket_name
-
 }
 
 resource "aws_s3_bucket_policy" "softmax_public" {

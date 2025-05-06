@@ -1,26 +1,39 @@
-name: cpp-checks
+name: "C++"
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'merge_group' && github.event.merge_group.head_ref || github.ref }}
   cancel-in-progress: true
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review]
-    branches: [main]
   push:
     branches: [main]
   merge_group:
     types: [checks_requested]
     branches: [main]
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      run_lint:
+        description: "Run lint checks"
+        type: boolean
+        default: true
+      run_test:
+        description: "Run tests"
+        type: boolean
+        default: true
+      run_benchmark:
+        description: "Run benchmarks"
+        type: boolean
+        default: true
 
-# Set default permissions that will be inherited by called workflows
+# Set default permissions
 permissions:
   checks: write
   pull-requests: write
 
 jobs:
-  # First job: check if any C++ files have changed
-  check-files-cpp:
+  # check if CI should run based on Graphite's stack position
+  graphite-ci-optimizer:
+    name: "Graphite CI Optimizer"
     if: |
       github.event.pull_request.draft == false || 
       github.event_name == 'push' || 
@@ -28,7 +41,36 @@ jobs:
       github.event_name == 'merge_group'
     runs-on: ubuntu-latest
     outputs:
+      should_skip: ${{ steps.graphite_ci.outputs.skip }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Graphite CI Optimizer
+        id: graphite_ci
+        uses: withgraphite/graphite-ci-action@main
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          graphite_token: ${{ secrets.GRAPHITE_TOKEN }}
+
+  # check if any C++ files have changed
+  setup-checks:
+    name: "Set up for C++ checks"
+    needs: graphite-ci-optimizer
+    if: |
+      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') && 
+      (github.event.pull_request.draft == false || 
+      github.event_name == 'push' || 
+      github.event_name == 'workflow_dispatch' || 
+      github.event_name == 'merge_group')
+    runs-on: ubuntu-latest
+    outputs:
       has_relevant_changes: ${{ steps.check_cpp_files.outputs.has_relevant_changes }}
+      run_lint: ${{ steps.determine_tasks.outputs.run_lint }}
+      run_test: ${{ steps.determine_tasks.outputs.run_test }}
+      run_benchmark: ${{ steps.determine_tasks.outputs.run_benchmark }}
+      cache_key: ${{ steps.set-cache-key.outputs.cache_key }}
+      cache_paths: ${{ steps.set-cache-paths.outputs.paths }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -37,47 +79,313 @@ jobs:
         id: check_cpp_files
         uses: ./.github/actions/file-changes
         with:
-          patterns: "mettagrid/,*.cpp,*.cxx,*.cc,*.h,*.hpp,*.pyx,*.pxd"
+          patterns: "*.cpp,*.cxx,*.cc,*.h,*.hpp,*.pyx,*.pxd"
+          directory_paths: "mettagrid/"
+          specific_files: "requirements.txt,setup.py"
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-  # This job runs to flag that we are skipping tests because no relevant files changed and this is a pull_request
-  skip-checks-cpp:
-    needs: check-files-cpp
-    if: github.event_name == 'pull_request' && needs.check-files-cpp.outputs.has_relevant_changes == 'false'
+      - name: Set cache paths
+        id: set-cache-paths
+        run: |
+          PATHS="mettagrid/build
+          ~/.cache/pip
+          "
+          echo "paths<<EOF" >> $GITHUB_OUTPUT
+          echo "$PATHS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Generate cache key
+        id: set-cache-key
+        run: |
+          # Create a hash that combines all relevant files
+          find mettagrid -type f \( -name "*.cpp" -o -name "*.cxx" -o -name "*.cc" -o -name "*.h" -o -name "*.hpp" -o -name "*.pyx" -o -name "*.pxd" \) -exec sha256sum {} \; > /tmp/file_hashes.txt || true
+
+          # Add setup.py and requirements.txt if they exist
+          if [ -f "setup.py" ]; then
+            sha256sum setup.py >> /tmp/file_hashes.txt
+          fi
+          if [ -f "requirements.txt" ]; then
+            sha256sum requirements.txt >> /tmp/file_hashes.txt
+          fi
+
+          # Add the cache paths to the hash calculation
+          echo "${{ steps.set-cache-paths.outputs.paths }}" | sha256sum >> /tmp/file_hashes.txt
+
+          # Create the final hash
+          if [ -s "/tmp/file_hashes.txt" ]; then
+            HASH=$(sort /tmp/file_hashes.txt | sha256sum | cut -d' ' -f1)
+          else
+            HASH="empty"
+          fi
+
+          CACHE_KEY="cpp-build-${HASH}"
+          echo "cache_key=${CACHE_KEY}" >> $GITHUB_OUTPUT
+          echo "Created content-based hash key ${CACHE_KEY}"
+
+      - name: Determine which tasks to run
+        id: determine_tasks
+        run: |
+          # Default behavior based on event type and file changes
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            # Use workflow dispatch inputs for manual runs
+            RUN_LINT="${{ github.event.inputs.run_lint }}"
+            RUN_TEST="${{ github.event.inputs.run_test }}"
+            RUN_BENCHMARK="${{ github.event.inputs.run_benchmark }}"
+          elif [[ "${{ github.event_name }}" == "pull_request" && "${{ steps.check_cpp_files.outputs.has_relevant_changes }}" == "false" ]]; then
+            # Skip everything for PRs with no relevant changes
+            RUN_LINT="false"
+            RUN_TEST="false"
+            RUN_BENCHMARK="false"
+            echo "::notice title=Skipping Tasks::Skipping all tasks because no relevant files have changed"
+          else
+            # Default to running everything for other events or when changes exist
+            RUN_LINT="true"
+            RUN_TEST="true"
+            RUN_BENCHMARK="true"
+          fi
+
+          # Output the decisions
+          echo "run_lint=${RUN_LINT}" >> $GITHUB_OUTPUT
+          echo "run_test=${RUN_TEST}" >> $GITHUB_OUTPUT
+          echo "run_benchmark=${RUN_BENCHMARK}" >> $GITHUB_OUTPUT
+
+          echo "run lint? ${RUN_LINT}"
+          echo "run test? ${RUN_TEST}"
+          echo "run benchmark? ${RUN_BENCHMARK}"
+
+  # Build and cache the C++ artifacts
+  build-cpp:
+    name: "Build C++ artifacts"
+    needs: [graphite-ci-optimizer, setup-checks]
+    if: |
+      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') && 
+      (needs.setup-checks.outputs.run_lint == 'true' || 
+       needs.setup-checks.outputs.run_test == 'true' || 
+       needs.setup-checks.outputs.run_benchmark == 'true')
     runs-on: ubuntu-latest
     steps:
-      - name: Skip tests and linting
-        id: skip_checks_cpp
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install C++ dependencies
         run: |
-          echo "CI was triggered by a pull request event: ${{github.event_name}} and no C++ files were changed."
-          echo "Skipping tests, linting, and benchmarks."
+          sudo apt-get install -y g++ cmake
 
-  # Run lint workflow
-  call-lint-cpp:
-    needs: check-files-cpp
-    if: github.event_name != 'pull_request' || needs.check-files-cpp.outputs.has_relevant_changes == 'true'
-    uses: ./.github/workflows/cpp-lint.yml
-    with:
-      ref: ${{ github.ref }}
-    secrets: inherit
+      - name: Restore from build cache
+        id: build-cache-cpp
+        uses: actions/cache@v3
+        with:
+          path: ${{ needs.setup-checks.outputs.cache_paths }}
+          key: ${{ needs.setup-checks.outputs.cache_key }}
 
-  # Run test workflow
-  call-test-cpp:
-    needs: check-files-cpp
-    if: github.event_name != 'pull_request' || needs.check-files-cpp.outputs.has_relevant_changes == 'true'
-    uses: ./.github/workflows/cpp-test.yml
-    with:
-      ref: ${{ github.ref }}
-    secrets: inherit
+      - name: Build C++ artifacts (cache miss fallback)
+        if: steps.build-cache-cpp.outputs.cache-hit != 'true'
+        run: |
+          cd mettagrid
+          make build
 
-  # Run benchmark workflow
-  call-benchmark-cpp:
-    needs: check-files-cpp
-    if: github.event_name != 'pull_request' || needs.check-files-cpp.outputs.has_relevant_changes == 'true'
-    permissions:
-      checks: write
-      pull-requests: write
-    uses: ./.github/workflows/cpp-benchmark.yml
-    with:
-      ref: ${{ github.ref }}
-    secrets: inherit
+  lint:
+    name: "Lint"
+    needs: [graphite-ci-optimizer, setup-checks, build-cpp]
+    if: |
+      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') && 
+      (needs.setup-checks.outputs.run_lint == 'true')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install C++ dependencies
+        run: |
+          sudo apt-get install -y g++ clang-format
+
+      - name: Run clang-format check
+        run: |
+          echo "Checking C++ formatting..."
+          find . -type f \( -name "*.cpp" -o -name "*.h" -o -name "*.hpp" \) \
+            -not -path "*/build/*" -not -path "*/venv/*" \
+            -exec clang-format --dry-run --Werror {} +
+
+  test:
+    name: "Test"
+    needs: [graphite-ci-optimizer, setup-checks, build-cpp]
+    if: |
+      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') && 
+      (needs.setup-checks.outputs.run_test == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install C++ dependencies
+        run: |
+          sudo apt-get install -y g++ libgtest-dev
+
+      - name: Restore from build cache
+        id: test-cache-cpp
+        uses: actions/cache@v3
+        with:
+          path: ${{ needs.setup-checks.outputs.cache_paths }}
+          key: ${{ needs.setup-checks.outputs.cache_key }}
+
+      - name: Build C++ artifacts (cache miss fallback)
+        if: steps.test-cache-cpp.outputs.cache-hit != 'true'
+        run: |
+          cd mettagrid
+          make build
+
+      - name: Build and run tests
+        run: |
+          cd mettagrid
+          make test
+
+  benchmark:
+    name: "Benchmark"
+    needs: [graphite-ci-optimizer, setup-checks, build-cpp, test]
+    if: |
+      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') && 
+      (needs.setup-checks.outputs.run_benchmark == 'true') && 
+      (needs.test.result == 'success' || github.event_name != 'pull_request' )
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install C++ dependencies
+        run: |
+          sudo apt-get install -y g++ libbenchmark-dev jq
+
+      - name: Restore from build cache
+        id: benchmark-cache-cpp
+        uses: actions/cache@v3
+        with:
+          path: ${{ needs.setup-checks.outputs.cache_paths }}
+          key: ${{ needs.setup-checks.outputs.cache_key }}
+
+      - name: Build C++ artifacts (cache miss fallback)
+        if: steps.benchmark-cache-cpp.outputs.cache-hit != 'true'
+        run: |
+          cd mettagrid
+          make build
+
+      - name: Build and run benchmarks with JSON output
+        run: |
+          cd mettagrid
+          mkdir -p benchmark_output
+          echo "Running benchmarks with JSON output..."
+          make bench-json
+          echo "Benchmark output files:"
+          ls -la benchmark_output/
+
+      - name: Install Bencher CLI
+        uses: bencherdev/bencher@main
+
+      - name: Validate Bencher Token
+        env:
+          BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -z "$BENCHER_API_TOKEN" ]; then
+            echo "Error: BENCHER_API_TOKEN is empty. Make sure the secret is properly set."
+            exit 1
+          fi
+          echo "Bencher token length: ${#BENCHER_API_TOKEN}"
+          echo "Bencher token SHA256: $(echo -n "$BENCHER_API_TOKEN" | sha256sum)"
+
+      # Main Branch Upload section
+      - name: Upload to Bencher (Main Branch Baseline)
+        if: github.ref == 'refs/heads/main'
+        env:
+          BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd mettagrid/benchmark_output
+          ls -al
+          if ls *.json 1> /dev/null 2>&1; then
+            for file in *.json; do
+              bencher run \
+                --project mettagrid-sv3f5i2k \
+                --token "$BENCHER_API_TOKEN" \
+                --branch main \
+                --threshold-measure latency \
+                --threshold-test t_test \
+                --threshold-max-sample-size 64 \
+                --threshold-upper-boundary 0.99 \
+                --thresholds-reset \
+                --testbed ubuntu-latest \
+                --adapter cpp_google \
+                --github-actions "$GITHUB_TOKEN" \
+                --file "$file" > /dev/null
+            done
+          else
+            echo "NO TEST RESULTS FOUND"
+          fi
+
+      - name: Check if main branch has benchmark data
+        if: github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
+        id: check-main-benchmark
+        env:
+          BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
+        run: |
+          # Run the command and capture output in a variable
+          bencher_result=$(bencher branch view mettagrid-sv3f5i2k main --token "$BENCHER_API_TOKEN")
+
+          # Print the captured output
+          echo "$bencher_result"
+
+          # Save the output to a file for further processing
+          echo "$bencher_result" > /tmp/branch_output.json
+
+          # Continue with checking if branch exists and has data
+          if [ $? -eq 0 ]; then
+            echo "Branch exists, checking if it has benchmark data..."
+            
+            # Check if branch output contains a head key
+            if jq -e '.head' /tmp/branch_output.json > /dev/null; then
+              echo "main_benchmark_exists=true" >> $GITHUB_OUTPUT
+              echo "Main branch has benchmark data. Will proceed with PR performance comparison."
+            else
+              echo "main_benchmark_exists=false" >> $GITHUB_OUTPUT
+              echo "Warning: Main branch exists but does not have benchmark data yet. Will skip PR performance comparison."
+            fi
+          else
+            echo "main_benchmark_exists=false" >> $GITHUB_OUTPUT
+            echo "Warning: Main branch does not exist or cannot be accessed. Will skip PR performance comparison."
+          fi
+
+      # PR Performance Changes section - Only runs if main branch has benchmarks
+      - name: Upload to Bencher (PR Performance Changes)
+        if: |
+          github.event_name == 'pull_request' && 
+          !github.event.pull_request.head.repo.fork && 
+          steps.check-main-benchmark.outputs.main_benchmark_exists == 'true'
+        env:
+          BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd mettagrid/benchmark_output
+          ls -al
+          if ls *.json 1> /dev/null 2>&1; then
+            for file in *.json; do
+              bencher run \
+                --project mettagrid-sv3f5i2k \
+                --token "$BENCHER_API_TOKEN" \
+                --branch "$GITHUB_HEAD_REF" \
+                --start-point "main" \
+                --start-point-clone-thresholds \
+                --start-point-reset \
+                --threshold-measure latency \
+                --threshold-test t_test \
+                --threshold-max-sample-size 64 \
+                --threshold-upper-boundary 0.99 \
+                --testbed ubuntu-latest \
+                --adapter cpp_google \
+                --github-actions "$GITHUB_TOKEN" \
+                --err \
+                --file "$file" > /dev/null
+            done
+          else
+            echo "NO TEST RESULTS FOUND"
+          fi

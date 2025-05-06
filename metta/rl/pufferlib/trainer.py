@@ -9,7 +9,6 @@ import pufferlib.utils
 import torch
 import torch.distributed as dist
 import wandb
-from fast_gae import fast_gae
 from heavyball import ForeachMuon
 from omegaconf import DictConfig, ListConfig
 
@@ -18,6 +17,7 @@ from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyStore
 from metta.agent.util.weights_analysis import WeightsMetricsHelper
 from metta.eval.analysis_config import AnalyzerConfig
+from metta.rl import fast_gae
 from metta.rl.pufferlib.experience import Experience
 from metta.rl.pufferlib.kickstarter import Kickstarter
 from metta.rl.pufferlib.profile import Profile
