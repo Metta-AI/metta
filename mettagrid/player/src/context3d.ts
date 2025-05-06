@@ -793,7 +793,7 @@ class Context3d {
     strokeWidth: number,
     color: number[]
   ) {
-    // Draw 4 rectangles as borders for the the stroke rectangle.
+    // Draw 4 rectangles as borders for the stroke rectangle.
     // Top border.
     this.drawSolidRect(x, y, width, strokeWidth, color);
     // Bottom border.
