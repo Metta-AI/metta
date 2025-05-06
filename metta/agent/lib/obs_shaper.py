@@ -30,6 +30,8 @@ class ObsShaper(LayerBase):
 
         # conv expects [batch, channel, w, h]. Below is hardcoded for [batch, w, h, channel]
         x = self._permute(x)
+        # [B, C, H, W]
+        x = x.new_zeros((B, *x.shape[1:]))
 
         td["_TT_"] = TT
         td["_batch_size_"] = B
