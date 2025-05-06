@@ -32,9 +32,6 @@ policy_uri: wandb://run/b.georgedeane.terrain_extra_hard
 analyzer:
   # eval_stats_uri: ${run_dir}/eval_stats
   policy_uri: ${..policy_uri}
-  analysis:
-    metrics:
-      - metric: episode_reward
   output_path: evalresults/memory_db.html
 
 sim:

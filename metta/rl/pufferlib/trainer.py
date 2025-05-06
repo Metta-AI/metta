@@ -23,9 +23,7 @@ from metta.rl.pufferlib.kickstarter import Kickstarter
 from metta.rl.pufferlib.profile import Profile
 from metta.rl.pufferlib.torch_profiler import TorchProfiler
 from metta.rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
-from metta.sim.eval_stats_analyzer import EvalStatsAnalyzer
-from metta.sim.eval_stats_db import EvalStatsDB
-from metta.sim.eval_stats_logger import EvalStatsLogger
+from metta.eval.db import EvalStatsDB
 from metta.sim.simulation import Simulation, SimulationSuite
 from metta.sim.simulation_config import SimulationConfig, SimulationSuiteConfig
 from metta.sim.vecenv import make_vecenv
@@ -246,41 +244,35 @@ class PufferTrainer:
         if not self._master:
             return
 
-        self.cfg.analyzer.policy_uri = self.last_pr.uri
-
-        run_id = self.cfg.get("run_id")
-        if run_id is None and self.wandb_run is not None:
-            run_id = self.wandb_run.id
-
         logger.info(f"Simulating policy: {self.last_pr.uri} with config: {self.sim_suite_config}")
         sim = SimulationSuite(config=self.sim_suite_config, policy_pr=self.last_pr, policy_store=self.policy_store)
-        stats = sim.simulate()
+        stats_db = sim.simulate()
         logger.info("Simulation complete")
 
-        try:
-            self.eval_stats_logger.log(stats)
-        except Exception as e:
-            logger.error(f"Error logging stats: {e}")
+        # Define the list of evaluation categories
+        eval_categories = ["navigation", "object_use", "npc", "memory", "multiagent"]
 
-        eval_stats_db = EvalStatsDB.from_uri(self.sim_suite_config.eval_db_uri, self.cfg.run_dir, self.wandb_run)
-        analyzer_cfg = AnalyzerConfig(self.cfg.analyzer)
-        analyzer = EvalStatsAnalyzer(eval_stats_db, analyzer_cfg.analysis, analyzer_cfg.policy_uri)
-        _, policy_fitness_records = analyzer.analyze()
-        self._eval_results = policy_fitness_records
+        # Materialize the view for reward once
+        stats_db.materialize_policy_simulations_view("reward")
 
-        self.eval_scores = {
-            "navigation_score": np.mean([r["candidate_mean"] for r in self._eval_results if "navigation" in r["eval"]]),
-            "object_use_score": np.mean(
-                np.mean([r["candidate_mean"] for r in self._eval_results if "object_use" in r["eval"]])
-            ),
-            "against_npc_score": np.mean([r["candidate_mean"] for r in self._eval_results if "npc" in r["eval"]]),
-            "memory_score": np.mean([r["candidate_mean"] for r in self._eval_results if "memory" in r["eval"]]),
-            "multiagent_score": np.mean([r["candidate_mean"] for r in self._eval_results if "multiagent" in r["eval"]]),
-        }
+        # Get policy key and version directly from the policy record
+        policy_key, policy_version = self.last_pr.key_and_version()
 
-        self._current_eval_score = np.sum(
-            [r["candidate_mean"] for r in self._eval_results if r["metric"] == "episode_reward"]
-        )
+        # Initialize scores dictionary
+        self.eval_scores = {}
+
+        # Compute scores for each evaluation category
+        for category in eval_categories:
+            score = stats_db.get_average_metric_by_filter(
+                "reward", policy_key, policy_version, f"sim_env LIKE '%{category}%'"
+            )
+            # Only add the score if we got a non-None result
+            if score is not None:
+                self.eval_scores[f"{category}_score"] = score
+
+        # Get overall score (average of all rewards)
+        overall_score = stats_db.get_average_metric_by_filter("reward", policy_key, policy_version)
+        self._current_eval_score = overall_score if overall_score is not None else 0.0
 
     def _update_l2_init_weight_copy(self):
         self.policy.update_l2_init_weight_copy()

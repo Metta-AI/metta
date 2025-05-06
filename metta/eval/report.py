@@ -9,17 +9,15 @@ from __future__ import annotations
 
 import logging
 import os
-import shutil
 from typing import List, Literal
 
 from omegaconf import DictConfig
 
 from metta.eval.analysis_config import AnalyzerConfig
-from metta.eval.heatmap import create_heatmap_html_snippet
+from metta.eval.heatmap import create_heatmap_html_snippet, get_matrix_data
 from metta.eval.mapviewer import MAP_VIEWER_CSS
 from metta.sim.stats_db import StatsDB
 from metta.util.file import local_copy, write_data
-from metta.util.wandb.wandb_context import WandbContext
 
 logger = logging.getLogger(__name__)
 
@@ -64,13 +62,12 @@ def generate_report_html(analyzer_cfg: AnalyzerConfig, omegaconf_cfg: DictConfig
     policy_uri = analyzer_cfg.policy_uri
 
     num_output_policies: int | Literal["all"] = analyzer_cfg.num_output_policies
+    suite = analyzer_cfg.suite
 
     with local_copy(analyzer_cfg.eval_db_uri) as db_path:
         db = StatsDB(db_path)
         db.materialize_policy_simulations_view(metric)
-        matrix = db.policy_simulations_view(
-            metric, view_type=view_type, policy_uri=policy_uri, num_output_policies=num_output_policies
-        )
+        matrix = get_matrix_data(db, metric, view_type, policy_uri, suite, num_output_policies)
 
     if matrix.empty:
         return "<html><body><h1>No data available</h1></body></html>"
@@ -106,13 +103,5 @@ def generate_report(analyzer_cfg: AnalyzerConfig, omegaconf_cfg: DictConfig):
 
 
 def dump_stats(analyzer_cfg: AnalyzerConfig, omegaconf_cfg: DictConfig):  # TODO: remove omegaconf_cfg
-    assert analyzer_cfg.eval_db_uri is not None, "eval_db_uri is required"
-
-    logger.info(f"Importing data from {analyzer_cfg.eval_db_uri}")
-    with WandbContext(omegaconf_cfg) as wandb_run:
-        eval_stats_db = EvalStatsDB.from_uri(analyzer_cfg.eval_db_uri, omegaconf_cfg.run_dir, wandb_run)
-
-    analyzer = EvalStatsAnalyzer(eval_stats_db, analyzer_cfg.analysis, analyzer_cfg.policy_uri)
-    dfs, _ = analyzer.analyze(include_policy_fitness=False)
-    for df in dfs:
-        print(df)
+    # XCXC
+    pass

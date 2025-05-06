@@ -1,28 +1,18 @@
-from typing import Any, Dict, List, Literal
+from typing import Literal
 
 from metta.util.config import Config
 
 
-class Metric(Config):
-    metric: str
-    filters: Dict[str, Any] = {}
-
-
-class AnalysisConfig(Config):
-    metrics: List[Metric]
-    filters: Dict[str, Any] = {}
-    baseline_policies: List[str] | None = None
-    log_all: bool = True
-    metric_patterns: list | None = None
-    queries: list | None = None
-
-
 class AnalyzerConfig(Config):
+    # Output options
     num_output_policies: int | Literal["all"] = 20
-    view_type: Literal["latest", "policy_versions", "chronological", "all"] = "latest"
-    metric: str
-    policy_uri: str
+    view_type: Literal["latest", "all"] = "latest"
+    metric: str = "reward"
     output_path: str
+
+    # Input database
     eval_db_uri: str
 
-    analysis: AnalysisConfig
+    # Filtering options
+    suite: str | None = None
+    policy_uri: str | None = None

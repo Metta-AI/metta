@@ -30,9 +30,6 @@ policy_uri: wandb://run/b.daveey.t.8.rdr9.3
 # npc_policy_uri: ${trained_policy_uri}
 
 analyzer:
-  analysis:
-    metrics:
-    - metric: "action.use.altar.agent"
 
 sweep:
   metric: "action.use.altar.agent"

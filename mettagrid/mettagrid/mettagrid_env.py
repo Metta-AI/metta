@@ -34,6 +34,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self.should_reset = False
         self._renderer = None
         self._map_builder = None
+
         self._reset_env()
         self.labels = self._env_cfg.get("labels", None)
 
@@ -154,8 +155,12 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         for n, v in infos["agent"].items():
             infos["agent"][n] = v / self._num_agents
 
+        import logging
+
+        logger = logging.getLogger(__name__)
         if self.stats_writer and self._episode_id is not None:
             for agent_idx, agent_stats in enumerate(stats["agent"]):
+                logger.info(f"Logging metric for agent {agent_idx}, reward: {episode_rewards[agent_idx]}")
                 self.stats_writer.log_metric(agent_idx, "reward", float(episode_rewards[agent_idx]))
                 for k, v in agent_stats.items():
                     self.stats_writer.log_metric(agent_idx, k, float(v))

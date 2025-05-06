@@ -16,8 +16,9 @@ External boiler‑plate (include once per page)
 from __future__ import annotations
 
 import json
+import logging
 import uuid
-from typing import List, Tuple
+from typing import List, Literal, Tuple
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -368,3 +369,168 @@ def create_heatmap_html_snippet(
 }})();
 </script>
 """
+
+
+def get_matrix_data(
+    stats_db: StatsDB,
+    metric: str,
+    view_type: Literal["latest", "all"] = "latest",
+    policy_uri: str | None = None,
+    suite: str | None = None,
+    num_output_policies: int | str = "all",
+) -> pd.DataFrame:
+    """
+    Get matrix data for the specified metric from a StatsDB.
+
+    Args:
+        stats_db: StatsDB instance
+        metric: The metric to get data for
+        view_type:
+            - "latest": Only the latest version of each policy (or specific policy if policy_uri provided)
+            - "all": All versions of all policies (or all versions of a specific policy if policy_uri provided)
+        policy_uri: Optional URI to filter results to a specific policy
+        num_output_policies: Optional number of policies to output
+        suite: Optional suite name to filter evaluations
+
+    Returns:
+        DataFrame with policies as rows and evaluations as columns
+    """
+    # Ensure the materialized view exists
+    view_name = f"policy_simulations_{metric}"
+    logger = logging.getLogger(__name__)
+    # Try to materialize the view if it doesn't exist
+    try:
+        logger.info(f"Materializing view for metric {metric}")
+        stats_db.materialize_policy_simulations_view(metric)
+        logger.info(f"Materialized view for metric {metric}")
+    except Exception as e:
+        logger.error(f"Failed to materialize view for metric {metric}: {e}")
+        return pd.DataFrame()
+
+    # Parse the policy_uri if provided
+    policy_key = None
+    if policy_uri:
+        if "://" in policy_uri:
+            policy_uri = policy_uri.split("/")[-1]
+
+        # Extract key part without version if it has one
+        if ":" in policy_uri:
+            policy_key = policy_uri.split(":")[0]
+        else:
+            policy_key = policy_uri
+
+    # Base SQL query - keep policy_key and policy_version separate
+    base_sql = f"""
+        {view_name}.policy_key,
+        {view_name}.policy_version,
+        {view_name}.sim_env as eval_name,
+        {view_name}.{metric} as value
+    FROM {view_name}
+    """
+
+    # Add policy_key filter if provided
+    where_clause = ""
+    if policy_key:
+        where_clause = f"WHERE {view_name}.policy_key = '{policy_key}'"
+
+    # Add suite filtering if specified
+    if suite is not None:
+        if where_clause:
+            where_clause += f" AND {view_name}.sim_suite = '{suite}'"
+        else:
+            where_clause = f"WHERE {view_name}.sim_suite = '{suite}'"
+
+    # Build the SQL query based on view_type
+    if view_type == "latest":
+        # Get the latest version for each policy
+        if policy_key:
+            # Latest version of a specific policy
+            sql = f"""
+            WITH latest_version AS (
+                SELECT MAX(policy_version) as policy_version
+                FROM {view_name}
+                WHERE policy_key = '{policy_key}'
+            )
+            SELECT 
+                {base_sql}
+            WHERE {view_name}.policy_key = '{policy_key}'
+            AND {view_name}.policy_version = (SELECT policy_version FROM latest_version)
+            """
+        else:
+            # Latest version of each policy
+            sql = f"""
+            WITH latest_versions AS (
+                SELECT policy_key, MAX(policy_version) as policy_version
+                FROM {view_name}
+                GROUP BY policy_key
+            )
+            SELECT 
+                {base_sql}
+            JOIN latest_versions lv 
+            ON {view_name}.policy_key = lv.policy_key 
+            AND {view_name}.policy_version = lv.policy_version
+            """
+
+            # Add suite filtering if needed
+            if suite:
+                sql += f" AND {view_name}.sim_suite = '{suite}'"
+    else:  # "all" or default
+        # Get all versions of all policies (or all versions of a specific policy)
+        sql = f"""
+        SELECT 
+            {base_sql}
+        {where_clause}
+        """
+
+    # Execute the query
+    try:
+        df = stats_db.query(sql)
+    except Exception as e:
+        logger.error(f"Failed to execute query: {e}")
+        return pd.DataFrame()
+
+    if len(df) == 0:
+        logger.warning(f"No data found for metric {metric}")
+        return pd.DataFrame()
+
+    # Create the policy_uri column by combining policy_key and policy_version
+    df["policy_uri"] = df["policy_key"] + ":" + df["policy_version"].astype(str)
+
+    # Process data into matrix format
+    policies = df["policy_uri"].unique()
+    eval_names = df["eval_name"].unique()
+
+    # Create a dictionary to map (policy_uri, eval_name) to value
+    data_map = {}
+    for _, row in df.iterrows():
+        data_map[(row["policy_uri"], row["eval_name"])] = row["value"]
+
+    # Calculate overall scores for each policy
+    overall_scores = {}
+    for policy in policies:
+        policy_df = df[df["policy_uri"] == policy]
+        overall_scores[policy] = policy_df["value"].mean()
+
+    # Create the matrix data
+    matrix_data = []
+    for policy in policies:
+        row_data = {"policy_uri": policy, "Overall": overall_scores[policy]}
+        for eval_name in eval_names:
+            if (policy, eval_name) in data_map:
+                row_data[eval_name] = data_map[(policy, eval_name)]
+        matrix_data.append(row_data)
+
+    # Convert to DataFrame and set index
+    matrix = pd.DataFrame(matrix_data)
+    if len(matrix) > 0:
+        matrix = matrix.set_index("policy_uri")
+
+        # Always sort by overall score (lowest first)
+        sorted_policies = sorted(policies, key=lambda p: overall_scores[p])
+        matrix = matrix.reindex(sorted_policies)
+
+        # Limit the number of policies
+        if num_output_policies != "all" and isinstance(num_output_policies, int):
+            matrix = matrix.tail(num_output_policies)
+
+    return matrix

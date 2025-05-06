@@ -54,16 +54,16 @@ class PolicyRecord:
     def local_path(self):
         return self._local_path
 
-    def key_and_version(self) -> tuple[str, str | None]:
+    def key_and_version(self) -> tuple[str, int]:
         if ":" in self.uri:
             parts = self.uri.rsplit(":", 1)
-            return parts[0], (parts[1] if len(parts) > 1 else None)
-        return self.uri, None
+            return parts[0], int(parts[1][1:])
+        raise ValueError(f"Policy URI {self.uri} does not contain a version")
 
     def key(self) -> str:
         return self.key_and_version()[0]
 
-    def version(self) -> str | None:
+    def version(self) -> int:
         return self.key_and_version()[1]
 
 

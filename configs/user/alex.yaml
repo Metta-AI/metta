@@ -26,11 +26,6 @@ eval:
   num_episodes: 10
   max_time_s: 60
 
-analyzer:
-  analysis:
-    metrics:
-      - metric: "action.use.altar.agent"
-
 sweep:
   metric: "action.use.altar.agent"
 

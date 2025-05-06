@@ -38,11 +38,6 @@ npc_policy_uri: ${policy_uri}
 analyzer:
   policy_uri: ${..policy_uri}
   view_type: latest
-  analysis:
-    metrics:
-      - metric: episode_reward
-      - metric: "heart.get"
-
 
 sim:
   env: /env/mettagrid/puffer

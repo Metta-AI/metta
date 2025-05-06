@@ -36,7 +36,7 @@ class SimJob(Config):
     selector_type: str = "top"
     dry_run: bool = False
     replay_dir: str = "s3://softmax-public/replays/evals"
-    stats_db_uri: str = "wandb://stats/evals_jack_testing"
+    stats_db_uri: str
     stats_dir: str  # The (local) directory where stats should be stored
 
 

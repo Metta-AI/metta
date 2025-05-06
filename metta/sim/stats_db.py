@@ -27,14 +27,14 @@ CREATE TABLE IF NOT EXISTS agent_policies (
     episode_id     TEXT NOT NULL,
     agent_id       INTEGER,
     policy_key     TEXT NOT NULL,
-    policy_version TEXT NOT NULL,
+    policy_version INT NOT NULL,
     PRIMARY KEY (episode_id, agent_id)
 );
 
 -- unique registry of all policy versions
 CREATE TABLE IF NOT EXISTS policies (
     policy_key     TEXT NOT NULL,
-    policy_version TEXT NOT NULL,
+    policy_version INT NOT NULL,
     PRIMARY KEY (policy_key, policy_version)
 );
 """
@@ -113,7 +113,7 @@ class StatsDB(MGStatsDB):
     def insert_agent_policies(
         self,
         episode_ids: List[str],
-        agent_map: Dict[int, Tuple[str, Optional[str]]],
+        agent_map: Dict[int, Tuple[str, int]],
     ) -> None:
         """
         Record the policy controlling each agent for multiple episodes and
@@ -130,7 +130,7 @@ class StatsDB(MGStatsDB):
             return
 
         # 1) upsert into `policies`
-        unique = {(pk, pv or None) for pk, pv in agent_map.values()}
+        unique = {(pk, pv) for pk, pv in agent_map.values()}
         self.con.executemany(
             "INSERT OR REPLACE INTO policies (policy_key, policy_version) VALUES (?, ?)",
             list(unique),
@@ -140,7 +140,7 @@ class StatsDB(MGStatsDB):
         rows = []
         for episode_id in episode_ids:
             for aid, (pk, pv) in agent_map.items():
-                rows.append((episode_id, aid, pk, pv or None))
+                rows.append((episode_id, aid, pk, pv))
 
         self.con.executemany(
             """
@@ -521,13 +521,13 @@ class StatsDB(MGStatsDB):
         self.con.execute(f"""
         CREATE TABLE {table_name} (
             policy_key      TEXT NOT NULL,
-            policy_version  TEXT NOT NULL,
-            eval_name       TEXT NOT NULL,
+            policy_version  INT NOT NULL,
             sim_suite       TEXT NOT NULL,
             sim_name        TEXT NOT NULL,
+            sim_env         TEXT NOT NULL,
             {metric}        DOUBLE,
             {metric}_std    DOUBLE,
-            PRIMARY KEY (policy_key, policy_version, sim_suite, sim_name)
+            PRIMARY KEY (policy_key, policy_version, sim_suite, sim_env)
         )
         """)
 
@@ -554,7 +554,8 @@ class StatsDB(MGStatsDB):
             SELECT
                 pe.*,
                 s.suite AS sim_suite,
-                s.name AS sim_name
+                s.name AS sim_name,
+                s.env AS sim_env
             FROM per_ep pe
             JOIN episodes e ON e.id = pe.episode_id
             JOIN simulations s ON s.id = e.simulation_id
@@ -562,13 +563,57 @@ class StatsDB(MGStatsDB):
         SELECT 
             policy_key,
             policy_version,
-            sim_suite || '/' || sim_name AS eval_name,
             sim_suite,
             sim_name,
+            sim_env,
             AVG({metric}) AS {metric},
             AVG({metric}_std) AS {metric}_std
         FROM with_ctx
         GROUP BY
-            policy_key, policy_version, sim_suite, sim_name
+            policy_key, policy_version, sim_suite, sim_name, sim_env
         """
         self.con.execute(sql)
+
+    def get_average_metric_by_filter(
+        self,
+        metric: str,
+        policy_key: str,
+        policy_version: int,
+        filter_condition: str = None,
+    ) -> Optional[float]:
+        """
+        Calculate the average of a metric across multiple simulations matching a filter condition.
+
+        Args:
+            metric: The metric to average (e.g., "reward")
+            policy_key: The policy key to filter by
+            policy_version: The policy version to filter by
+            filter_condition: Optional additional SQL WHERE condition for filtering
+
+        Returns:
+            The average value of the metric, or None if no data is found
+        """
+        view_name = f"policy_simulations_{metric}"
+
+        # Build the query
+        query = f"""
+        SELECT AVG({view_name}.{metric}) as score
+        FROM {view_name}
+        WHERE {view_name}.policy_key = '{policy_key}'
+        AND {view_name}.policy_version = {policy_version}
+        """
+
+        # Add optional filter condition
+        if filter_condition:
+            query += f" AND {filter_condition}"
+
+        # Execute the query
+        try:
+            result = self.query(query)
+            if not result.empty and not pd.isna(result["score"][0]):
+                return float(result["score"][0])
+            return None
+        except Exception as e:
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error executing query: {e}")
+            return None

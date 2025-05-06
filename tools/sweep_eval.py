@@ -21,6 +21,8 @@ from metta.util.logging import setup_mettagrid_logger
 from metta.util.runtime_configuration import setup_mettagrid_environment
 from metta.util.wandb.wandb_context import WandbContext
 
+# xcxc fix sweeps
+
 
 def log_file(run_dir, name, data, wandb_run):
     path = os.path.join(run_dir, name)
