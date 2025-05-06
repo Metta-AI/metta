@@ -5,4 +5,4 @@ defaults:
 name: daphne
 simulations:
   simple:
-    env: env/mettagrid/multiagent/evals/stealing
+    env: env/mettagrid/navigation/evals/cylinder
