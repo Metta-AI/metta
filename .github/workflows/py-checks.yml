@@ -493,10 +493,9 @@ jobs:
 
   training:
     name: "Training smoke test"
-    needs: [graphite-ci-optimizer, setup-checks, setup-py, test, lint, benchmark]
+    needs: [graphite-ci-optimizer, setup-checks, setup-py]
     if: |
-      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') && 
-      (needs.benchmark.result == 'success' || github.event_name != 'pull_request' )
+      (needs.graphite-ci-optimizer.outputs.should_skip == 'false')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
