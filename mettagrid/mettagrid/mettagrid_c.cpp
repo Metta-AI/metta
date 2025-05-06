@@ -34,7 +34,7 @@ namespace py = pybind11;
 // TODO: see where we can simplify numpy array manipulations.
 
 // Constructor implementation
-MettaGrid::MettaGrid(py::dict env_cfg, py::array_t<char> map) {
+MettaGrid::MettaGrid(py::dict env_cfg, py::array_t<std::string> map) {
     auto cfg = env_cfg["game"].cast<py::dict>();
     _cfg = cfg;
     
@@ -75,29 +75,29 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array_t<char> map) {
     std::vector<std::unique_ptr<ActionHandler>> actions;
     
     if (cfg["actions"]["put_items"]["enabled"].cast<bool>()) {
-        actions.push_back(std::make_unique<PutRecipeItems>(cfg["actions"]["put_items"]));
+        actions.push_back(std::make_unique<PutRecipeItems>(cfg["actions"]["put_items"].cast<py::dict>()));
     }
     if (cfg["actions"]["get_items"]["enabled"].cast<bool>()) {
-        actions.push_back(std::make_unique<GetOutput>(cfg["actions"]["get_items"]));
+        actions.push_back(std::make_unique<GetOutput>(cfg["actions"]["get_items"].cast<py::dict>()));
     }
     if (cfg["actions"]["noop"]["enabled"].cast<bool>()) {
-        actions.push_back(std::make_unique<Noop>(cfg["actions"]["noop"]));
+        actions.push_back(std::make_unique<Noop>(cfg["actions"]["noop"].cast<py::dict>()));
     }
     if (cfg["actions"]["move"]["enabled"].cast<bool>()) {
-        actions.push_back(std::make_unique<Move>(cfg["actions"]["move"]));
+        actions.push_back(std::make_unique<Move>(cfg["actions"]["move"].cast<py::dict>()));
     }
     if (cfg["actions"]["rotate"]["enabled"].cast<bool>()) {
-        actions.push_back(std::make_unique<Rotate>(cfg["actions"]["rotate"]));
+        actions.push_back(std::make_unique<Rotate>(cfg["actions"]["rotate"].cast<py::dict>()));
     }
     if (cfg["actions"]["attack"]["enabled"].cast<bool>()) {
-        actions.push_back(std::make_unique<Attack>(cfg["actions"]["attack"]));
-        actions.push_back(std::make_unique<AttackNearest>(cfg["actions"]["attack"]));
+        actions.push_back(std::make_unique<Attack>(cfg["actions"]["attack"].cast<py::dict>()));
+        actions.push_back(std::make_unique<AttackNearest>(cfg["actions"]["attack"].cast<py::dict>()));
     }
     if (cfg["actions"]["swap"]["enabled"].cast<bool>()) {
-        actions.push_back(std::make_unique<Swap>(cfg["actions"]["swap"]));
+        actions.push_back(std::make_unique<Swap>(cfg["actions"]["swap"].cast<py::dict>()));
     }
     if (cfg["actions"]["change_color"]["enabled"].cast<bool>()) {
-        actions.push_back(std::make_unique<ChangeColorAction>(cfg["actions"]["change_color"]));
+        actions.push_back(std::make_unique<ChangeColorAction>(cfg["actions"]["change_color"].cast<py::dict>()));
     }
     
     init_action_handlers(actions);
@@ -111,22 +111,23 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array_t<char> map) {
         auto group = value.cast<py::dict>();
         unsigned int id = group["id"].cast<unsigned int>();
         _group_sizes[id] = 0;
-        _group_reward_pct[id] = group.get("group_reward_pct", 0.0).cast<float>();
+        _group_reward_pct[id] = group.contains("group_reward_pct") ? 
+            group["group_reward_pct"].cast<float>() : 0.0f;
     }
     
     // Initialize objects from map
     auto map_data = map.unchecked<2>();
     for (int r = 0; r < map_info.shape[0]; r++) {
         for (int c = 0; c < map_info.shape[1]; c++) {
-            std::string cell = map_data(r, c).cast<std::string>();
+            std::string cell = map_data(r, c);
             
             if (cell == "wall") {
-                auto wall = std::make_unique<Wall>(r, c, cfg["objects"]["wall"]);
+                auto wall = std::make_unique<Wall>(r, c, cfg["objects"]["wall"].cast<py::dict>());
                 _grid->add_object(wall.get());
                 _stats->incr("objects.wall");
             }
             else if (cell == "block") {
-                auto block = std::make_unique<Wall>(r, c, cfg["objects"]["block"]);
+                auto block = std::make_unique<Wall>(r, c, cfg["objects"]["block"].cast<py::dict>());
                 _grid->add_object(block.get());
                 _stats->incr("objects.block");
             }
@@ -135,7 +136,7 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array_t<char> map) {
                 if (m.find('.') == std::string::npos) {
                     m = "mine.red";
                 }
-                auto converter = std::make_unique<Converter>(r, c, cfg["objects"][m], ObjectType::MineT);
+                auto converter = std::make_unique<Converter>(r, c, cfg["objects"][py::str(m)].cast<py::dict>(), ObjectType::MineT);
                 _grid->add_object(converter.get());
                 converter->set_event_manager(_event_manager.get());
                 _stats->incr("objects." + cell);
@@ -589,7 +590,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
     m.doc() = "MettaGrid environment"; // optional module docstring
     
     py::class_<MettaGrid>(m, "MettaGrid")
-        .def(py::init<py::dict, py::array_t<char>>())
+        .def(py::init<py::dict, py::array_t<std::string>>())
         .def("reset", &MettaGrid::reset)
         .def("step", &MettaGrid::step)
         .def("set_buffers", &MettaGrid::set_buffers)
