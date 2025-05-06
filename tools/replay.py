@@ -9,6 +9,7 @@ from metta.agent.policy_store import PolicyStore
 from metta.sim.simulation import SimulationSuite
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.util.config import Config, setup_metta_environment
+from metta.util.file import http_url
 from metta.util.logging import setup_mettagrid_logger
 from metta.util.runtime_configuration import setup_mettagrid_environment
 from metta.util.wandb.wandb_context import WandbContext
