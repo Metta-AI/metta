@@ -32,6 +32,9 @@
 				"source.organizeImports.ruff": "explicit"
 			}
 		},
+		"[toml]": { 
+			"editor.formatOnSave": false 
+		},
 		"files.associations": {
 			"unordered_map": "cpp",
 			"__bit_reference": "cpp",
