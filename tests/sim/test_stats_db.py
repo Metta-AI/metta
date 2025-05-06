@@ -26,6 +26,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from duckdb import CatalogException
 
 from metta.sim.stats_db import StatsDB
 from mettagrid.stats_writer import StatsDB as MGStatsDB
@@ -480,7 +481,7 @@ def test_get_average_metric_by_filter(tmp_path: Path):
     assert no_policy is None
 
     # Test 7: Metric that doesn't exist (didn't materialize view)
-    with pytest.raises(ValueError):
+    with pytest.raises(CatalogException):
         _ = db.get_average_metric_by_filter("nonexistent_metric", "test_policy", 1)
 
     db.close()
