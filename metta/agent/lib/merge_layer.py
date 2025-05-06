@@ -273,7 +273,7 @@ class BatchReshapeLayer(LayerBase):
 
 
 class CenterPixelLayer(LayerBase):
-    """Returns the center pixel of a tensor shaped as (B, C, H, W).
+    """Returns the center pixels of a tensor shaped as (B, C, H, W).
     H and W must be odd."""
 
     def __init__(self, name, **cfg):
