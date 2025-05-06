@@ -130,8 +130,8 @@ void MettaGrid::set_observation_at(ObsType* flat_buffer,
   memcpy(dest, values, feature_size * sizeof(ObsType));
 }
 
-void MettaGrid::compute_observation(unsigned observer_r,
-                                    unsigned int observer_c,
+void MettaGrid::compute_observation(unsigned short observer_r,
+                                    unsigned short observer_c,
                                     unsigned short obs_width,
                                     unsigned short obs_height,
                                     ObsType* observation) {

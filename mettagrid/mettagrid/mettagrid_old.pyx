@@ -47,7 +47,7 @@ from mettagrid.actions.change_color cimport ChangeColorAction
 obs_np_type = np.uint8
 ctypedef unsigned int ActionType
 
-cdef class OldPyMettaGrid:
+cdef class PyMettaGrid:
     cdef:
         object _cfg
         map[unsigned int, float] _group_reward_pct

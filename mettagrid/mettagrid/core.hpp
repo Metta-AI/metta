@@ -87,8 +87,8 @@ public:
   // Core methods
   void init_action_handlers(std::vector<ActionHandler*> action_handlers);
   void add_agent(Agent* agent);
-  void compute_observation(unsigned observer_r,
-                           unsigned int observer_c,
+  void compute_observation(unsigned short observer_r,
+                           unsigned short observer_c,
                            unsigned short obs_width,
                            unsigned short obs_height,
                            ObsType* observation);
