@@ -48,6 +48,15 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             f"Number of agents {self._env_cfg.game.num_agents} does not match number of agents in map {map_agents}"
         )
 
+        # Count number of agents per team
+        team_counts = {}
+        for r in range(env_map.shape[0]):
+            for c in range(env_map.shape[1]):
+                if env_map[r, c].startswith("agent."):
+                    team = env_map[r, c].split(".")[1]
+                    team_counts[team] = team_counts.get(team, 0) + 1
+
+        self._team_counts = team_counts
         self._c_env = MettaGrid(self._env_cfg, env_map)
         self._grid_env = self._c_env
         self._num_agents = self._c_env.num_agents()
@@ -85,7 +94,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         return self.observations, self.rewards, self.terminals, self.truncations, infos
 
     def process_episode_stats(self, infos: Dict[str, Any]):
-        episode_rewards = self._c_env.get_episode_rewards()
+        episode_rewards, group_rewards = self._c_env.get_episode_rewards()
         episode_rewards_sum = episode_rewards.sum()
         episode_rewards_mean = episode_rewards_sum / self._num_agents
 
@@ -98,6 +107,16 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                 "episode_length": self._c_env.current_timestep(),
             }
         )
+
+        if len(self._team_counts) > 1:
+            for i, group_reward in enumerate(group_rewards):
+                group_mean = group_reward.sum() / self._team_counts[i]
+                infos.update(
+                    {
+                        f"episode/reward.group.{i}.sum": group_reward.sum(),
+                        f"episode/reward.group.{i}.mean": group_mean,
+                    }
+                )
 
         if self._map_builder is not None and self._map_builder.labels is not None:
             for label in self._map_builder.labels:
@@ -118,6 +137,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         stats = self._c_env.get_episode_stats()
 
         infos["episode_rewards"] = episode_rewards
+        infos["group_rewards"] = group_rewards
         infos["agent_raw"] = stats["agent"]
         infos["game"] = stats["game"]
         infos["agent"] = {}

@@ -4,5 +4,5 @@ defaults:
 
 name: daphne
 simulations:
-  simple:
-    env: env/mettagrid/navigation/evals/cylinder
+  memory_palace:
+    env: env/mettagrid/navigation/evals/memory_palace

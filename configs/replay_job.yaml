@@ -1,7 +1,7 @@
 defaults:
   - common
   - wandb: metta_research
-  - sim: daphne
+  - sim: navigation
   - _self_
 
 cmd: play

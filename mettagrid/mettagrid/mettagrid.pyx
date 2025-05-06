@@ -146,7 +146,7 @@ cdef class MettaGrid:
             actions.push_back(new Swap(cfg.actions.swap))
         if cfg.actions.change_color.enabled:
             actions.push_back(new ChangeColorAction(cfg.actions.change_color))
-        
+
         self.init_action_handlers(actions)
 
         self._group_rewards_np = np.zeros(len(cfg.groups))
@@ -402,10 +402,10 @@ cdef class MettaGrid:
 
         for i in range(self._agents.size()):
             self._agents[i].init(&self._rewards[i])
-    
+
     cpdef grid(self):
         return []
-    
+
     cpdef grid_objects(self):
         cdef GridObject *obj
         cdef ObsType[:] obj_data = np.zeros(len(self.grid_features()), dtype=np.uint8)
@@ -480,7 +480,7 @@ cdef class MettaGrid:
             row, col, obs_width, obs_height, observation)
 
     cpdef get_episode_rewards(self):
-        return self._episode_rewards_np
+        return self._episode_rewards_np, self._group_rewards_np
 
     cpdef dict get_episode_stats(self):
         return {
@@ -520,7 +520,7 @@ cdef class MettaGrid:
 
     def inventory_item_names(self):
         return InventoryItemNames
-    
+
     def render(self):
         grid = self.render_ascii()
         for r in grid:
