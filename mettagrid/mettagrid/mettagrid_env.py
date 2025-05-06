@@ -57,7 +57,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                     team = env_map[r, c].split(".")[1]
                     if team not in self._team_names:
                         raise ValueError(f"Team {team} not in {self._team_names}")
-                    # want to keep
+                    # only track teams we have in the map
                     if team_counts[team] is None:
                         team_counts[team] = 0
                     team_counts[team] += 1
