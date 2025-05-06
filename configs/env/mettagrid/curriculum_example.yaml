@@ -25,7 +25,7 @@ game:
   max_steps: 100
 
   enable_reward_decay: false
-  reward_decay_time_constant: 40
+  reward_decay_time_constant: 20
 
   num_agents: ${multiply:${..num_agents_per_room}, ${..num_repeated_rooms}}
 
