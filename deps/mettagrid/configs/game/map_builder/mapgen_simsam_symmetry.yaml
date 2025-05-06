@@ -13,20 +13,22 @@ root:
       _target_: mettagrid.map.scenes.simplex_sampler.SimplexSampler
       children: []
       layers:
-      - sampling_function : mettagrid.map.scenes.simsam_functions.radial_symmetry   # radial symmetry
+      # radial symmetry. Creates terrain with radial symmetry around arbitrary point
+      - sampling_function : mettagrid.map.scenes.simsam_functions.radial_symmetry 
         saturation: ${choose:1,2,3,4}
         function_parameters:
-          x_zoom: ${uniform:0.05,0.2}                       # scaling along x
-          y_zoom: ${uniform:0.05,0.2}                       # scaling along y
-          angle_theta: ${uniform:0,1}                             # additional rotation in 2*pi radians
-          symmetry: ${int:${uniform:2,9}}               # symmetry type
-          xc: ${triangular:-0.7,0.0,0.7}                # x off-center
-          yc: ${triangular:-0.7,0.0,0.7}                # y off-center
-      - sampling_function : mettagrid.map.scenes.simsam_functions.xy_noise   # random noise
+          x_zoom: ${uniform:0.05,0.2}
+          y_zoom: ${uniform:0.05,0.2}
+          angle_theta: ${uniform:0,1}
+          symmetry: ${int:${uniform:2,9}}
+          xc: ${triangular:-0.7,0.0,0.7}
+          yc: ${triangular:-0.7,0.0,0.7}
+      # random noise
+      - sampling_function : mettagrid.map.scenes.simsam_functions.xy_noise 
         saturation: ${uniform:0.0,0.5}
         function_parameters:
-          x_zoom: ${uniform:0.01,0.5}                       # scaling along x
-          y_zoom: ${uniform:0.01,0.5}                       # scaling along y
+          x_zoom: ${uniform:0.01,0.5}
+          y_zoom: ${uniform:0.01,0.5}
 
-      cutoff: ${uniform:0.02,0.63}                         # global cutoff threshold less number -> less walls
-      force_seed: 0 # 0 will use random seeds, any other integer will force the seed. Requires all above parameters to be fixed to produce identical results
+      cutoff: ${uniform:0.02,0.63}
+      force_seed: 0

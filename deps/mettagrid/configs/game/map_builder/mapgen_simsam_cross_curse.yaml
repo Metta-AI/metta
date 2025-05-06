@@ -13,23 +13,25 @@ root:
       _target_: mettagrid.map.scenes.simplex_sampler.SimplexSampler
       children: []
       layers:
-      - sampling_function : mettagrid.map.scenes.simsam_functions.cross_curse   # randomly rotated cross with random curse
+      # randomly rotated cross with random distortion alongside perpendicular axes
+      - sampling_function : mettagrid.map.scenes.simsam_functions.cross_curse 
         saturation: ${choose:2,3}
         function_parameters:
-          x_zoom: ${uniform:0.001,0.002}                   # scaling along x
-          y_zoom: ${uniform:0.001,0.002}                   # scaling along y
-          angle_theta: ${uniform:0,1}                             # additional rotation in 2*pi radians
-          x_pow: ${choose:0,2,3,4,5}                    # x power
-          y_pow: ${choose:1,2,3,4,5}                    # y power
-          xc: ${triangular:-0.6,0.0,0.6}                # x off-center
-          yc: ${triangular:-0.6,0.0,0.6}                # y off-center
-      - sampling_function : mettagrid.map.scenes.simsam_functions.xy_noise   # random noise
+          x_zoom: ${uniform:0.001,0.002} 
+          y_zoom: ${uniform:0.001,0.002} 
+          angle_theta: ${uniform:0,1} 
+          x_pow: ${choose:0,2,3,4,5} 
+          y_pow: ${choose:1,2,3,4,5} 
+          xc: ${triangular:-0.6,0.0,0.6} 
+          yc: ${triangular:-0.6,0.0,0.6} 
+      # random noise
+      - sampling_function : mettagrid.map.scenes.simsam_functions.xy_noise 
         saturation: ${uniform:0.0,1.5}
         function_parameters:
-          x_zoom: ${uniform:0.01,0.5}                       # scaling along x
-          y_zoom: ${uniform:0.01,0.5}                       # scaling along y
+          x_zoom: ${uniform:0.01,0.5} 
+          y_zoom: ${uniform:0.01,0.5} 
 
-      cutoff: ${uniform:0.08,0.43}                          # global cutoff threshold less number -> less walls
-      force_seed: 0 # 0 will use random seeds, any other integer will force the seed. Requires all above parameters to be fixed to produce identical results
+      cutoff: ${uniform:0.08,0.43}
+      force_seed: 0
 
 

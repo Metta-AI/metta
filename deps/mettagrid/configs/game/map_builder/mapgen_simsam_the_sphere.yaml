@@ -13,26 +13,28 @@ root:
       _target_: mettagrid.map.scenes.simplex_sampler.SimplexSampler
       children: []
       layers:
-      - sampling_function : mettagrid.map.scenes.simsam_functions.the_sphere   # randomly rotated cross with random curse
+      # over-complex sampler that produces interesting looking terrain
+      - sampling_function : mettagrid.map.scenes.simsam_functions.the_sphere
         saturation: ${triangular:1,2,4}
         function_parameters:
-          x_zoom: ${triangular:1,2,4}                       # scaling along x
-          y_zoom: ${triangular:1,2,4}                       # scaling along y
-          angle_theta: ${uniform:0,1}                             # additional rotation in 2*pi radians
-          x_pow: ${choose:0,2,2,2,3,4,5}                # x power
-          y_pow: ${choose:1,2,2,2,3,4,5}                # y power, 2 in both results in a circle
-          xc: ${triangular:-0.3,0.0,0.3}                # x off-center
-          yc: ${triangular:-0.3,0.0,0.3}                # y off-center
-          P: ${uniform:0.5,2}                           # weird parameter
-          ax: ${triangular:-1,0,1}                      # 
-          ay: ${triangular:-1,0,1}                      # 
-          bx: ${triangular:-1,0,1}                      # 
-          by: ${triangular:-1,0,1}                      # 
-      - sampling_function : mettagrid.map.scenes.simsam_functions.xy_noise   # random noise
+          x_zoom: ${triangular:1,2,4}   
+          y_zoom: ${triangular:1,2,4}   
+          angle_theta: ${uniform:0,1}   
+          x_pow: ${choose:0,2,2,2,3,4,5}
+          y_pow: ${choose:1,2,2,2,3,4,5}
+          xc: ${triangular:-0.3,0.0,0.3}
+          yc: ${triangular:-0.3,0.0,0.3}
+          P: ${uniform:0.5,2}           
+          ax: ${triangular:-1,0,1}      
+          ay: ${triangular:-1,0,1}      
+          bx: ${triangular:-1,0,1}      
+          by: ${triangular:-1,0,1}      
+      # random noise
+      - sampling_function : mettagrid.map.scenes.simsam_functions.xy_noise   
         saturation: ${uniform:0.0,0.5}
         function_parameters:
-          x_zoom: ${uniform:0.01,0.5}                       # scaling along x
-          y_zoom: ${uniform:0.01,0.5}                       # scaling along y
-
-      cutoff: ${uniform:0.20,0.40}                         # global cutoff threshold less number -> less walls
-      force_seed: 0 # 0 will use random seeds, any other integer will force the seed. Requires all above parameters to be fixed to produce identical results
+          x_zoom: ${uniform:0.01,0.5}
+          y_zoom: ${uniform:0.01,0.5}
+          
+      cutoff: ${uniform:0.20,0.40}   
+      force_seed: 

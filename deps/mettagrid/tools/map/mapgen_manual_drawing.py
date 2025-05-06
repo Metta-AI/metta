@@ -3,15 +3,12 @@ from PIL import Image
 
 from mettagrid.map.mapgen import MapGen
 
-# import numpy as np
 from mettagrid.resolvers import register_resolvers
 
-# import glob
-# import os
 
-'''
+"""
 It's a small script to quickly draw terrains
-'''
+"""
 
 w = 180
 h = 150
@@ -27,7 +24,7 @@ for i in range(1):
 
     world_map = MapGen(w, h, root=root).build()
 
-    Image.fromarray((world_map == 'empty')).save(f'{i}.png')
+    Image.fromarray((world_map == "empty")).save(f"{i}.png")
     # Image.fromarray((world_map == "empty")).resize(
     #     (((h + 2) * (500 // (h + 2))), ((w + 2) * (500 // (w + 2))))
     # ).save(f"{i}.png")
@@ -39,7 +36,7 @@ additional requirements: pip install pillow
 """
 
 # def make_gif():
-#     frames = [Image.open(image) for image in sorted(glob.glob('/home/catnee/mettagrid/giffactory/*.png'), 
+#     frames = [Image.open(image) for image in sorted(glob.glob('/home/catnee/mettagrid/giffactory/*.png'),
 #               key=os.path.getmtime)]
 #     frame_one = frames[0]
 #     frame_one.save("my_awesome.gif", format="GIF", append_images=frames,
