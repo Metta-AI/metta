@@ -518,7 +518,6 @@ void MettaGrid::_compute_observation(
 }
 
 void MettaGrid::_compute_observations(py::array_t<int> actions) {
-    auto observations_view = _observations.mutable_unchecked<4>();
     for (size_t idx = 0; idx < _agents.size(); idx++) {
         auto& agent = _agents[idx];
         _compute_observation(
@@ -526,7 +525,7 @@ void MettaGrid::_compute_observations(py::array_t<int> actions) {
             agent->location.c,
             _obs_width,
             _obs_height,
-            py::array_t<unsigned char>(observations_view[idx])
+            _observations_np[idx]
         );
     }
 }
