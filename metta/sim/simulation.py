@@ -260,6 +260,7 @@ class Simulation:
                 if "agent_raw" in infos[n]:
                     agent_episode_data = infos[n]["agent_raw"]
                     episode_reward = infos[n]["episode_rewards"]
+                    group_reward = infos[n]["group_rewards"]
                     for agent_i in range(len(agent_episode_data)):
                         agent_idx = agent_i + n * self._agents_per_env
 
