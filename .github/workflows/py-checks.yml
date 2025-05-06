@@ -275,9 +275,151 @@ jobs:
           cd mettagrid
           pytest --maxfail=1 --disable-warnings -q
 
+  smoke-test:
+    name: "Training smoke test"
+    needs: [graphite-ci-optimizer, setup-checks, setup-py]
+    if: |
+      (needs.graphite-ci-optimizer.outputs.should_skip == 'false')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CHECKPOINT_PATH: ./train_dir/github_test/checkpoints/
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11.7"
+
+      - name: Restore from build cache
+        id: benchmark-cache-py
+        uses: actions/cache@v3
+        with:
+          path: ${{ needs.setup-checks.outputs.cache_paths }}
+          key: ${{ needs.setup-checks.outputs.cache_key }}
+
+      - name: Install pip requirements (cache miss fallback)
+        if: steps.benchmark-cache-py.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          python -m venv venv
+          source venv/bin/activate
+          pip install -r requirements.txt
+
+      - name: Install and compile deps (cache miss fallback)
+        if: steps.benchmark-cache-py.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          source venv/bin/activate
+          bash ./devops/setup_build.sh
+
+      - name: Check benchmark script
+        run: |
+          # Check if the file exists
+          ls -la .github/scripts/benchmark.sh
+
+          # Check if the function is defined
+          type benchmark || echo "Function not defined after sourcing"
+
+      - name: Training smoke test
+        id: train
+        env:
+          HYDRA_FULL_ERROR: 1
+          PYTHONPATH: ${{ github.workspace }}
+          WANDB_API_KEY: set_but_not_used
+          AWS_ACCESS_KEY_ID: set_but_not_used
+          AWS_SECRET_ACCESS_KEY: set_but_not_used
+        run: |
+          source venv/bin/activate
+          mkdir -p train_dir
+          source .github/scripts/benchmark.sh
+          benchmark "train" "python -m tools.train +hardware=github wandb=off"
+          ls -la $CHECKPOINT_PATH || echo "Warning: Checkpoint directory not created"
+
+      - name: Save training benchmark
+        if: success()
+        uses: ./.github/actions/save-benchmarks
+        with:
+          name: train_smoke_test
+          metrics: '{"duration": ${{ steps.train.outputs.duration }}, "memory_usage": ${{ steps.train.outputs.memory_usage }}}'
+          filename: smoke_test_train_benchmark_results.json
+
+      - name: Upload training benchmark file
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: train-benchmark-results
+          path: |
+            smoke_test_train_benchmark_results.json
+          retention-days: 1
+          if-no-files-found: warn
+
+      - name: Upload training output
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: train-output
+          path: train_dir/
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Download training output
+        if: success()
+        uses: actions/download-artifact@v4
+        with:
+          name: train-output
+          path: train_dir/
+
+      - name: Verify training artifacts
+        if: success()
+        run: |
+          source venv/bin/activate
+          ls -la train_dir/
+          ls -la $CHECKPOINT_PATH || echo "Checkpoint directory not found!"
+
+      - name: Replay smoke test
+        id: replay
+        if: success()
+        env:
+          HYDRA_FULL_ERROR: 1
+          PYTHONPATH: ${{ github.workspace }}
+          WANDB_API_KEY: set_but_not_used
+          AWS_ACCESS_KEY_ID: set_but_not_used
+          AWS_SECRET_ACCESS_KEY: set_but_not_used
+        run: |
+          source venv/bin/activate
+          source .github/scripts/benchmark.sh
+          benchmark "replay" "python -m tools.replay +hardware=github wandb=off"
+
+      - name: Save replay benchmark
+        uses: ./.github/actions/save-benchmarks
+        with:
+          name: replay_smoke_test
+          metrics: '{"duration": ${{ steps.replay.outputs.duration }}, "memory_usage": ${{ steps.replay.outputs.memory_usage }}}'
+          filename: smoke_test_replay_benchmark_results.json
+
+      - name: Upload replay benchmark file
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: replay-benchmark-results
+          path: |
+            smoke_test_replay_benchmark_results.json
+          retention-days: 1
+          if-no-files-found: warn
+
+      - name: Debug on failure
+        if: failure()
+        run: |
+          source venv/bin/activate
+          echo "Listing the contents of the workspace:"
+          find train_dir -type f -name "*.py" | sort
+          find train_dir -type d | sort
+
   benchmark:
     name: "Benchmark"
-    needs: [graphite-ci-optimizer, setup-checks, setup-py, test]
+    needs: [graphite-ci-optimizer, setup-checks, setup-py, test, smoke-test]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') && 
       (needs.setup-checks.outputs.run_benchmark == 'true') && 
@@ -314,13 +456,25 @@ jobs:
           source venv/bin/activate
           bash ./devops/setup_build.sh
 
+      - name: Download benchmark results from smoke-test train-benchmark-results job
+        uses: actions/download-artifact@v4
+        with:
+          name: train-benchmark-results
+          path: ./
+
+      - name: Download benchmark results from smoke-test replay-benchmark-results job
+        uses: actions/download-artifact@v4
+        with:
+          name: replay-benchmark-results
+          path: ./
+
       - name: Run Main Python benchmarks
         env:
           HYDRA_FULL_ERROR: 1
           PYTHONPATH: ${{ github.workspace }}
         run: |
           source venv/bin/activate
-          pytest --benchmark-json=main_benchmark_results.json
+          pytest  --benchmark-only --benchmark-json=main_benchmark_results.json
 
       - name: Run Mettagrid Python benchmarks
         env:
@@ -329,13 +483,15 @@ jobs:
         run: |
           source venv/bin/activate
           cd mettagrid
-          pytest --benchmark-json=mettagrid_benchmark_results.json
-          mv mettagrid_benchmark_results.json ../..
+          pytest  --benchmark-only --benchmark-json=mettagrid_benchmark_results.json
+          mv mettagrid_benchmark_results.json ../
 
       - name: Combine benchmark results
         run: |
           source venv/bin/activate
           python - <<EOF
+
+          # Python Script to combine benchmark data
           import json
           import os
 
@@ -352,39 +508,53 @@ jobs:
                   print(f"Warning: {file_path} contains invalid JSON or is empty. Using empty dict instead.")
                   return {}
 
-          # Read main benchmark results
-          main_results = safe_load_json('main_benchmark_results.json')
+          # List of benchmark files to combine
+          benchmark_files = [
+              'main_benchmark_results.json',
+              'mettagrid_benchmark_results.json',
+              'smoke_test_train_benchmark_results.json',
+              'smoke_test_replay_benchmark_results.json'
+          ]
 
-          # Read mettagrid benchmark results if file exists
-          mettagrid_path = 'mettagrid_benchmark_results.json'
-          mettagrid_results = safe_load_json(mettagrid_path)
+          # Initialize combined results structure
+          combined_results = {
+              "machine_info": {},
+              "commit_info": {},
+              "benchmarks": []
+          }
 
-          # Check if we have any valid results to work with
-          if not main_results and not mettagrid_results:
-              print("Both result files are empty or invalid. Creating empty combined results.")
-              combined_results = {}
-          else:
-              # Combine results
-              combined_results = main_results.copy()
+          # Load and combine all benchmark files
+          valid_files_found = False
+          for file_path in benchmark_files:
+              results = safe_load_json(file_path)
+              if not results:
+                  print(f"Skipping empty or invalid file: {file_path}")
+                  continue
               
-              # If mettagrid results exist, add its benchmarks to the combined results
-              if mettagrid_results:
-                  # Add benchmark entries
-                  if "benchmarks" in mettagrid_results:
-                      if "benchmarks" not in combined_results:
-                          combined_results["benchmarks"] = []
-                      combined_results["benchmarks"].extend(mettagrid_results["benchmarks"])
-                  
-                  # Merge other fields as needed
-                  for key in mettagrid_results:
-                      if key != "benchmarks" and key not in combined_results:
-                          combined_results[key] = mettagrid_results[key]
+              valid_files_found = True
+              
+              # Add benchmarks to the combined list
+              if "benchmarks" in results and isinstance(results["benchmarks"], list):
+                  combined_results["benchmarks"].extend(results["benchmarks"])
+              
+              # Use the first valid file's machine_info and commit_info if not already set
+              if "machine_info" in results and not combined_results["machine_info"]:
+                  combined_results["machine_info"] = results["machine_info"]
+              
+              if "commit_info" in results and not combined_results["commit_info"]:
+                  combined_results["commit_info"] = results["commit_info"]
+
+          # If no valid files were found, use an empty structure
+          if not valid_files_found:
+              print("No valid benchmark files found. Creating empty combined results.")
+              combined_results = {}
 
           # Write combined results
           with open('combined_benchmark_results.json', 'w') as f:
               json.dump(combined_results, f, indent=2)
 
           print("Successfully combined benchmark results.")
+
           EOF
 
       - name: Install Bencher CLI
@@ -485,96 +655,3 @@ jobs:
             --github-actions "$GITHUB_TOKEN" \
             --err \
             --file combined_benchmark_results.json > /dev/null
-
-  training:
-    name: "Training smoke test"
-    needs: [graphite-ci-optimizer, setup-checks, setup-py]
-    if: |
-      (needs.graphite-ci-optimizer.outputs.should_skip == 'false')
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    env:
-      CHECKPOINT_PATH: ./train_dir/github_test/checkpoints/
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11.7"
-
-      - name: Restore from build cache
-        id: benchmark-cache-py
-        uses: actions/cache@v3
-        with:
-          path: ${{ needs.setup-checks.outputs.cache_paths }}
-          key: ${{ needs.setup-checks.outputs.cache_key }}
-
-      - name: Install pip requirements (cache miss fallback)
-        if: steps.benchmark-cache-py.outputs.cache-hit != 'true'
-        shell: bash
-        run: |
-          python -m venv venv
-          source venv/bin/activate
-          pip install -r requirements.txt
-
-      - name: Install and compile deps (cache miss fallback)
-        if: steps.benchmark-cache-py.outputs.cache-hit != 'true'
-        shell: bash
-        run: |
-          source venv/bin/activate
-          bash ./devops/setup_build.sh
-
-      - name: Training smoke test
-        env:
-          HYDRA_FULL_ERROR: 1
-          PYTHONPATH: ${{ github.workspace }}
-          WANDB_API_KEY: set_but_not_used
-          AWS_ACCESS_KEY_ID: set_but_not_used
-          AWS_SECRET_ACCESS_KEY: set_but_not_used
-        run: |
-          source venv/bin/activate
-          python -m tools.train +hardware=github wandb=off
-          ls -la $CHECKPOINT_PATH || echo "Warning: Checkpoint directory not created"
-
-      - name: Upload training output
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: train-output
-          path: train_dir/
-          retention-days: 1
-          if-no-files-found: error
-
-      - name: Download training output
-        if: success()
-        uses: actions/download-artifact@v4
-        with:
-          name: train-output
-          path: train_dir/
-
-      - name: Verify training artifacts
-        if: success()
-        run: |
-          source venv/bin/activate
-          ls -la train_dir/
-          ls -la $CHECKPOINT_PATH || echo "Checkpoint directory not found!"
-
-      - name: Replay smoke test
-        env:
-          HYDRA_FULL_ERROR: 1
-          PYTHONPATH: ${{ github.workspace }}
-          WANDB_API_KEY: set_but_not_used
-          AWS_ACCESS_KEY_ID: set_but_not_used
-          AWS_SECRET_ACCESS_KEY: set_but_not_used
-        run: |
-          source venv/bin/activate
-          python -m tools.replay +hardware=github wandb=off
-
-      - name: Debug on failure
-        if: failure()
-        run: |
-          source venv/bin/activate
-          echo "Listing the contents of the workspace:"
-          find train_dir -type f -name "*.py" | sort
-          find train_dir -type d | sort
