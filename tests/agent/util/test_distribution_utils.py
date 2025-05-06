@@ -27,17 +27,17 @@ def sample_logits_data():
 def benchmark_data():
     """Create benchmark data of various shapes."""
     # Small batch
-    small_batch_size = 4
+    small_batch_size = 36
     small_vocab_size = 10
     small_batch = torch.randn(small_batch_size, small_vocab_size)
 
     # Medium batch
-    medium_batch_size = 32
+    medium_batch_size = 360
     medium_vocab_size = 50
     medium_batch = torch.randn(medium_batch_size, medium_vocab_size)
 
     # Large batch
-    large_batch_size = 128
+    large_batch_size = 3600
     large_vocab_size = 1000
     large_batch = torch.randn(large_batch_size, large_vocab_size)
 
@@ -158,7 +158,7 @@ def test_benchmark_sizes(benchmark, benchmark_data, case_name, data_key):
         sample_logits,
         args=(data,),
         iterations=10,  # Number of iterations per round
-        rounds=50,  # Number of rounds
+        rounds=10,  # Number of rounds
     )
 
     # Validation of result
@@ -183,7 +183,7 @@ def test_benchmark_with_actions(benchmark, benchmark_data, case_name, data_key, 
         sample_logits,
         args=(data, actions),
         iterations=10,  # Number of iterations per round
-        rounds=50,  # Number of rounds
+        rounds=10,  # Number of rounds
     )
 
     # Validation of result
