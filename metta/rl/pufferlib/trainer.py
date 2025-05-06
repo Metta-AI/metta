@@ -273,10 +273,21 @@ class PufferTrainer:
             # Only add the score if we got a non-None result
             if score is not None:
                 self.eval_scores[f"{category}_score"] = score
+            else:
+                self.eval_scores[f"{category}_score"] = 0.0
 
         # Get overall score (average of all rewards)
         overall_score = stats_db.get_average_metric_by_filter("reward", policy_key, policy_version)
         self._current_eval_score = overall_score if overall_score is not None else 0.0
+        all_scores = stats_db.simulation_scores(policy_key, policy_version, "reward")
+
+        # Categorize scores by environment type
+        self._eval_grouped_scores = {}
+        # Process each score and assign to the right category
+        for (_, sim_name, _), score in all_scores.items():
+            for category in eval_categories:
+                if category in sim_name.lower():
+                    self._eval_grouped_scores[f"{category}/{sim_name.split('/')[-1]}"] = score
 
     def _update_l2_init_weight_copy(self):
         self.policy.update_l2_init_weight_copy()
@@ -617,12 +628,11 @@ class PufferTrainer:
             if k in self.stats:
                 overview[v] = self.stats[k]
 
-        navigation_score = np.mean([r["candidate_mean"] for r in self._eval_results if "navigation" in r["eval"]])
-        object_use_score = np.mean([r["candidate_mean"] for r in self._eval_results if "object_use" in r["eval"]])
-        against_npc_score = np.mean([r["candidate_mean"] for r in self._eval_results if "npc" in r["eval"]])
-        memory_score = np.mean([r["candidate_mean"] for r in self._eval_results if "memory" in r["eval"]])
-        multiagent_score = np.mean([r["candidate_mean"] for r in self._eval_results if "multiagent" in r["eval"]])
-
+        navigation_score = self.eval_scores["navigation_score"]
+        object_use_score = self.eval_scores["object_use_score"]
+        against_npc_score = self.eval_scores["against_npc_score"]
+        memory_score = self.eval_scores["memory_score"]
+        multiagent_score = self.eval_scores["multiagent_score"]
         if not np.isnan(navigation_score):
             overview["navigation_evals"] = navigation_score
         if not np.isnan(object_use_score):
@@ -636,40 +646,6 @@ class PufferTrainer:
 
         environment = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
 
-        policy_fitness_metrics = {
-            f"pfs/{r['eval'].split('/')[-1]}:{r['metric']}": r["fitness"] for r in self._eval_results
-        }
-
-        navigation_eval_metrics = {
-            f"navigation_evals/{r['eval'].split('/')[-1]}:{r['metric']}": r["candidate_mean"]
-            for r in self._eval_results
-            if "navigation" in r["eval"]
-        }
-
-        object_use_eval_metrics = {
-            f"object_use_evals/{r['eval'].split('/')[-1]}:{r['metric']}": r["candidate_mean"]
-            for r in self._eval_results
-            if "object_use" in r["eval"]
-        }
-
-        against_npc_eval_metrics = {
-            f"npc_evals/{r['eval'].split('/')[-1]}:{r['metric']}": r["candidate_mean"]
-            for r in self._eval_results
-            if "npc" in r["eval"]
-        }
-
-        memory_eval_metrics = {
-            f"memory_evals/{r['eval'].split('/')[-1]}:{r['metric']}": r["candidate_mean"]
-            for r in self._eval_results
-            if "memory" in r["eval"]
-        }
-
-        multiagent_eval_metrics = {
-            f"multiagent_evals/{r['eval'].split('/')[-1]}:{r['metric']}": r["candidate_mean"]
-            for r in self._eval_results
-            if "multiagent" in r["eval"]
-        }
-
         if self.wandb_run and self.cfg.wandb.track and self._master:
             self.wandb_run.log(
                 {
@@ -679,11 +655,7 @@ class PufferTrainer:
                     **environment,
                     **policy_fitness_metrics,
                     **self._weights_helper.stats(),
-                    **navigation_eval_metrics,
-                    **object_use_eval_metrics,
-                    **against_npc_eval_metrics,
-                    **memory_eval_metrics,
-                    **multiagent_eval_metrics,
+                    **self._eval_grouped_scores,
                     "train/agent_step": agent_steps,
                     "train/epoch": epoch,
                     "train/learning_rate": learning_rate,

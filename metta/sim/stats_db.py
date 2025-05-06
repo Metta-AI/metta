@@ -394,7 +394,7 @@ class StatsDB(MGStatsDB):
         try:
             result = self.con.execute(query).fetchone()
             return result[0] > 0
-        except Exception as e:
+        except Exception:
             return False
 
     def _create_policy_simulations_table_structure(self: StatsDB, metric: str, table_name: str) -> None:
@@ -500,3 +500,38 @@ class StatsDB(MGStatsDB):
         if not result.empty and not pd.isna(result["score"][0]):
             return float(result["score"][0])
         return None
+
+    def simulation_scores(self, policy_key: str, policy_version: int, metric: str) -> dict:
+        """
+        Get all simulation scores for a specific policy and metric.
+
+        Args:
+            policy_key (str): The policy key
+            policy_version (int): The policy version
+            metric (str): The metric name
+
+        Returns:
+            dict: A dictionary mapping (sim_suite, sim_name, sim_env) tuples to metric values
+        """
+
+        # Ensure view exists
+        view_name = f"policy_simulations_{metric}"
+        query = f"""
+        SELECT sim_suite, sim_name, sim_env, {metric}
+        FROM {view_name}
+        WHERE policy_key = '{policy_key}' AND policy_version = {policy_version}
+        """
+
+        results = self.query(query)
+
+        # Return empty dict if no results
+        if results.empty:
+            return {}
+
+        # Create mapping from (sim_suite, sim_name, sim_env) -> metric value
+        scores = {}
+        for _, row in results.iterrows():
+            key = (row["sim_suite"], row["sim_name"], row["sim_env"])
+            scores[key] = row[metric]
+
+        return scores

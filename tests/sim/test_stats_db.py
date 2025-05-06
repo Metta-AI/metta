@@ -628,3 +628,58 @@ def test_deterministic_simulation_ids_across_policies():
         db1.close()
         db2.close()
         merged_db.close()
+
+
+def test_simulation_scores():
+    """Test the simulation_scores function."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        db_path = Path(temp_dir) / f"{uuid.uuid4().hex}.duckdb"
+        db = StatsDB(db_path, mode="rwc")
+
+        # Create a test simulation
+        sim_id = db.ensure_simulation_id("test_sim", "test_suite", "env/test")
+
+        # Create test episodes
+        episodes = []
+        for i in range(3):
+            ep_id = db.get_next_episode_id()
+            episodes.append(ep_id)
+            db.con.execute(
+                """
+                INSERT INTO episodes 
+                (id, seed, map_w, map_h, step_count, started_at, finished_at, simulation_id)
+                VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?)
+                """,
+                (ep_id, i, 10, 10, 100, sim_id),
+            )
+
+        # Add agent policies
+        policy_key = "test_policy"
+        policy_version = 1
+        agent_map = {0: (policy_key, policy_version)}
+        db.insert_agent_policies(episodes, agent_map)
+
+        # Add metrics
+        for i, ep_id in enumerate(episodes):
+            db.con.execute(
+                """
+                INSERT INTO agent_metrics
+                (episode_id, agent_id, metric, value)
+                VALUES (?, ?, ?, ?)
+                """,
+                (ep_id, 0, "reward", 10.0 + i),
+            )
+
+        # Create the materialized view
+        db.materialize_policy_simulations_view("reward")
+
+        # Get scores
+        scores = db.simulation_scores(policy_key, policy_version, "reward")
+
+        # Verify results
+        assert len(scores) == 1
+        key = ("test_suite", "test_sim", "env/test")  # Use full environment path
+        assert key in scores
+        assert scores[key] == pytest.approx(11.0)  # Average of 10, 11, 12
+
+        db.close()
