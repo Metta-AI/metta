@@ -42,8 +42,8 @@ class SimplexSampler(Scene):
         # So, e.g., cutoff = 0 => no walls; cutoff = 1 => all walls
         cutoff: float = 0.27,
         # Option to use fixed seed.
-        # Useful for generating slowly changing variants of one benchmark. 0 will use random seed.
-        force_seed: int = 0,
+        # Useful for generating slowly changing variants of one benchmark. Default "None" will use random seed.
+        force_seed: int | None = None,
     ):
         super().__init__(children=children)
         self.seed = seed
@@ -87,7 +87,7 @@ class SimplexSampler(Scene):
         return norm_arr
 
     def terrain_map(self, layer: Layer) -> np.ndarray:
-        if self.force_seed == 0:
+        if self.force_seed is None:
             simplex = OpenSimplex(self._rng.integers(0, 2**31 - 1))
         else:
             simplex = OpenSimplex(self.force_seed)

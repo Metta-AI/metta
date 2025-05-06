@@ -45,11 +45,11 @@ root:
       
       # global cutoff threshold less number -> less walls
       cutoff: ${uniform:0.20,0.35} 
-      # 0 will use random seeds, any other integer will force the seed.
+      # "NULL" will use random seeds, any other integer will force the seed.
       # Requires all above parameters to be fixed to produce identical results
 
       # Slowly changing parameters along some
       # N-dimensional line in N-dimensional space of continuous parameters
       # Allows to create a slowly morphing set of maps
       # Could be useful in advanced benchmark production  
-      force_seed: 0 
+      force_seed: NULL

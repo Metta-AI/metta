@@ -37,4 +37,4 @@ root:
           y_zoom: ${uniform:0.01,0.5}
 
       cutoff: ${uniform:0.20,0.40}
-      force_seed: 0
+      force_seed: NULL

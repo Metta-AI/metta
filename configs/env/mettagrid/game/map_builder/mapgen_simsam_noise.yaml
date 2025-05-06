@@ -29,4 +29,4 @@ root:
           angle_theta: ${uniform:0,1}
 
       cutoff: ${uniform:0.15,0.40}
-      force_seed: 0 
+      force_seed: NULL
