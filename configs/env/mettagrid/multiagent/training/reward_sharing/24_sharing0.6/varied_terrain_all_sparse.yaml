@@ -42,3 +42,14 @@ game:
         agents: 6
         style: all-sparse # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
         team: team_4
+
+  reward_sharing:
+    groups:
+      team_1:
+        team_1: 0.3
+      team_2:
+        team_2: 0.3
+      team_3:
+        team_3: 0.3
+      team_4:
+        team_4: 0.3

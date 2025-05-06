@@ -12,3 +12,4 @@ envs:
   - /env/mettagrid/multiagent/training/no_reward_sharing/24/varied_terrain_maze
   - /env/mettagrid/multiagent/training/no_reward_sharing/24/varied_terrain_sparse_altars_dense_objects
   - /env/mettagrid/multiagent/training/no_reward_sharing/24/cylinder_world
+

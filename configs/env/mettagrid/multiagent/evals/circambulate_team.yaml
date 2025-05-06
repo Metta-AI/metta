@@ -4,7 +4,7 @@ defaults:
 
 game:
   num_agents: 40 #how many agents are in the map x2
-  max_steps: 38
+  max_steps: 50
 
   agent:
     rewards:
@@ -16,8 +16,9 @@ game:
     room:
       _target_: mettagrid.config.room.ascii.Ascii
       border_width: 1
-      uri: "configs/env/mettagrid/maps/multiagent/wallblocker_team.map"
+      uri: "configs/env/mettagrid/maps/multiagent/circambulate.map"
 
   objects:
     altar:
       cooldown: 255
+      max_output: 1

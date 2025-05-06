@@ -6,7 +6,7 @@ defaults:
 sampling: 1
 
 game:
-  num_agents: 24
+  num_agents: 48
 
   agent:
     max_inventory: 5
@@ -19,23 +19,34 @@ game:
         width: 60
         height: 60
         border_width: 1
-        agents: 6
+        agents: 12
         team: team_1
       - _target_: mettagrid.config.room.navigation.cylinder_world.CylinderWorld
         width: 60
         height: 60
         border_width: 1
-        agents: 6
+        agents: 12
         team: team_2
       - _target_: mettagrid.config.room.navigation.cylinder_world.CylinderWorld
         width: 60
         height: 60
         border_width: 1
-        agents: 6
+        agents: 12
         team: team_3
       - _target_: mettagrid.config.room.navigation.cylinder_world.CylinderWorld
         width: 60
         height: 60
         border_width: 1
-        agents: 6
+        agents: 12
         team: team_4
+
+  reward_sharing:
+    groups:
+      team_1:
+        team_1: 0.3
+      team_2:
+        team_2: 0.3
+      team_3:
+        team_3: 0.3
+      team_4:
+        team_4: 0.3
