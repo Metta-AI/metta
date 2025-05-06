@@ -25,14 +25,14 @@ trainer:
 
 # policy_uri: wandb://run/b.daphne.terrain_multienv_lessactions:v40
 # policy_uri: wandb://run/terrain_multienv_3_single_agent:v63
-policy_uri: wandb://run/b.daphne.terrain_multienv_prioritized_multienv_cylinders:v22
+policy_uri: wandb://run/b.daphne.terrain_prioritized_styles_pretrained_r:v1
 
 # npc_policy_uri: ${trained_policy_uri}
 # eval_db_uri: wandb://artifacts/testing
 #eval_db_uri: wandb://artifacts/navigation_db
 # eval_db_uri: wandb://artifacts/terrain_multienv_prioritized_all
 
-# eval_db_uri: wandb://artifacts/navigation_db
+eval_db_uri: wandb://artifacts/navigation_db
 
 analyzer:
   eval_stats_uri: ${run_dir}/eval_stats
@@ -42,10 +42,10 @@ analyzer:
       - metric: episode_reward
   # output_path: s3://softmax-public/policydash/dashboard.html
  # output_path: navigation_results/navigation.html
-  output_path: navigation_results/multienv_prioritized.html
+  output_path: navigation_results/navigation.html
 
 sim:
-  env: /env/mettagrid/navigation/training/terrain_from_numpy
+  env: /env/mettagrid/multiagent/evals/spine_maze_extended
   eval_db_uri: ${..eval_db_uri}
 
 

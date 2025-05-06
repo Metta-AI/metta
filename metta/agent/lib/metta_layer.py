@@ -23,45 +23,48 @@ class LayerBase(nn.Module):
     only the tensordict. The tensor dict is constructed anew each time the
     metta_agent forward pass is run. The component's `_forward` should read
     from the value at the key name of its input_source. After performing its
-    computation via self.layer or otherwise, it should store its output in the
+    computation via self._net() or otherwise, it should store its output in the
     tensor dict at the key with its own name.
 
     Before doing this, it should first check if the tensordict already has a
     key with its own name, indicating that its computation has already been
     performed (due to some other run up the DAG) and return. After this check,
     it should check if its input source is not None and recursively call the
-    forward method of the layer above it."""
+    forward method of the layer above it.
 
-    def __init__(self, name, input_source=None, output_size=None, nn_params=None, **cfg):
-        if nn_params is None:
-            nn_params = {}
+    Carefully passing input and output shapes is necessary to setup the agent.
+    self._in_tensor_shape and self._out_tensor_shape are always of type list.
+    Note that these lists not include the batch dimension so their shape is
+    one dimension smaller than the actual shape of the tensor."""
+
+    def __init__(self, name, sources=None, nn_params=None, **cfg):
         super().__init__()
         self._name = name
-        self._input_source = input_source
-        self._output_size = output_size
-        self._nn_params = nn_params
+        self._sources = sources
+        if self._sources is not None:
+            # convert from omegaconf's list class
+            self._sources = list(self._sources)
         self._net = None
         self._ready = False
+        if not hasattr(self, "_nn_params"):
+            self._nn_params = nn_params if nn_params is not None else {}
 
     @property
     def ready(self):
         return self._ready
 
-    def setup(self, input_source_component=None):
+    def setup(self, source_components=None):
+        """_in_tensor_shapes is a list of lists. Each sublist contains the shapes of the input tensors for each source
+        component._out_tensor_shape is a list of the shape of the output tensor."""
         if self._ready:
             return
 
-        self.__dict__["_input_source_component"] = input_source_component
-
-        if self._input_source_component is None:
-            self._input_size = None
-            if self._output_size is None:
-                raise ValueError(f"Either input source or output size must be set for layer {self._name}")
-        else:
-            self._input_size = self._input_source_component._output_size
-
-        if self._output_size is None:
-            self._output_size = self._input_size
+        self.__dict__["_source_components"] = source_components
+        self._in_tensor_shapes = None
+        if self._source_components is not None:
+            self._in_tensor_shapes = []
+            for _, source in self._source_components.items():
+                self._in_tensor_shapes.append(source._out_tensor_shape.copy())
 
         self._initialize()
         self._ready = True
@@ -76,15 +79,20 @@ class LayerBase(nn.Module):
         if self._name in td:
             return td
 
-        if self._input_source_component is not None:
-            self._input_source_component.forward(td)
+        # recursively call the forward method of the source components
+        if self._source_components is not None:
+            for _, source in self._source_components.items():
+                source.forward(td)
 
         self._forward(td)
 
         return td
 
     def _forward(self, td: TensorDict):
-        td[self._name] = self._net(td[self._input_source])
+        """Components that have more than one input sources must have their own _forward() method."""
+        # get the input tensor from the source component by calling its forward method (which recursively calls
+        # _forward() on its source components)
+        td[self._name] = self._net(td[self._sources[0]["name"]])
         return td
 
     def clip_weights(self):
@@ -155,8 +163,8 @@ class ParamLayer(LayerBase):
                 raise ValueError(f"Unsupported nonlinearity: {self.nonlinearity}") from e
 
     def _initialize_weights(self):
-        fan_in = self._input_size
-        fan_out = self._output_size
+        fan_in = self._in_tensor_shapes[0][0]
+        fan_out = self._out_tensor_shape[0]
 
         if self.initialization.lower() == "orthogonal":
             if self.nonlinearity == "nn.Tanh":

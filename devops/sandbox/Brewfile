@@ -1,25 +1,15 @@
 # Developer tools
+tap "withgraphite/tap"
 brew "awscli"
 brew "bazelisk"
 brew "docker"
+brew "withgraphite/tap/graphite"
 brew "clang-format"
 brew "googletest"
 brew "google-benchmark"
+cask "session-manager-plugin"
 
 # Applications
 cask "cursor"
 cask "discord"
 cask "miniconda"
-
-# VS Code extensions
-vscode "ktnrg45.vscode-cython"
-vscode "ms-azuretools.vscode-docker"
-vscode "ms-python.debugpy"
-vscode "ms-python.python"
-vscode "ms-python.vscode-pylance"
-vscode "ms-vscode-remote.remote-containers"
-vscode "ms-vscode.cmake-tools"
-vscode "ms-vscode.cpptools"
-vscode "ms-vscode.cpptools-extension-pack"
-vscode "ms-vscode.cpptools-themes"
-vscode "twxs.cmake"

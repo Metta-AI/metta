@@ -88,7 +88,7 @@ Design and implement a comprehensive suite of intelligence evaluations for gridw
 
 Develop tools and infrastructure for efficient management, tracking, and deployment of experiments, such as cloud cluster management, experiment tracking and visualization, and continuous integration and deployment pipelines.
 
-This readme provides only a brief overview of research explorations. Visit the [research roadmap](https://github.com/Metta-AI/metta/blob/master/roadmap.md) for more details.
+This readme provides only a brief overview of research explorations. Visit the [research roadmap](https://github.com/Metta-AI/metta/blob/main/roadmap.md) for more details.
 
 # Installation
 
@@ -149,3 +149,10 @@ python3 -m tools.analyze run=analyze +eval_db_uri=wandb://artifacts/navigation_d
 Currently you need to pass in a policy_uri here, and need to use any policy that is in the navigation db, for example `wandb://run/b.daveey.t.8.rdr9.3`, but that shouldn't be necessary in the future, and we are working on refactoring that
 
 You can do the same process for the object-use eval artifact using: `wandb://artifacts/object_use_db`
+
+# Third-party Content
+
+Some sample map patterns in `configs/scenes/dcss` were adapted from the open-source game [Dungeon Crawl Stone Soup (DCSS)](https://github.com/crawl/crawl),
+specifically from the file [`simple.des`](https://github.com/crawl/crawl/blob/master/crawl-ref/source/dat/des/arrival/simple.des).
+
+DCSS is licensed under the [GNU General Public License v2.0](https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html).

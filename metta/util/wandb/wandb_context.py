@@ -6,9 +6,15 @@ import socket
 import pkg_resources
 import requests
 import wandb
+import wandb.errors
+import wandb.sdk.wandb_run
+import wandb.util
 from omegaconf import OmegaConf
 
 logger = logging.getLogger(__name__)
+
+# Alias type for easier usage (other modules can import this type)
+WandbRun = wandb.sdk.wandb_run.Run
 
 
 def check_wandb_version() -> bool:
@@ -60,7 +66,7 @@ class WandbContext:
 
         check_wandb_version()
 
-    def __enter__(self) -> wandb.apis.public.Run:
+    def __enter__(self) -> WandbRun | None:
         if not self.cfg.wandb.enabled:
             assert not self.cfg.wandb.track, "wandb.track won't work if wandb.enabled is False"
             return None

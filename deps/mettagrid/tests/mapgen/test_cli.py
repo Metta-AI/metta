@@ -1,16 +1,21 @@
 import os
 import subprocess
 
+from mettagrid.config.utils import mettagrid_configs_root
+
+MAP_ROOT = str(mettagrid_configs_root / "maps")
+MAP_MODULE = "tools.map"
+
 
 def test_gen_basic():
     subprocess.check_call(
         [
             "python",
             "-m",
-            "tools.map.gen",
+            f"{MAP_MODULE}.gen",
             "--show-mode",
             "ascii",
-            "./configs/game/map_builder/mapgen_simple.yaml",
+            f"{MAP_ROOT}/maze.yaml",
         ]
     )
 
@@ -20,7 +25,7 @@ def test_gen_missing_config():
         [
             "python",
             "-m",
-            "tools.map.gen",
+            f"{MAP_MODULE}.gen",
             "--show-mode",
             "ascii",
             "./NON_EXISTENT_CONFIG.yaml",
@@ -34,12 +39,12 @@ def test_save(tmpdir):
         [
             "python",
             "-m",
-            "tools.map.gen",
+            f"{MAP_MODULE}.gen",
             "--output-uri",
             tmpdir,
             "--show-mode",
             "ascii",
-            "./configs/game/map_builder/mapgen_simple.yaml",
+            f"{MAP_ROOT}/maze.yaml",
         ]
     )
     files = os.listdir(tmpdir)
@@ -52,12 +57,12 @@ def test_save_exact_file(tmpdir):
         [
             "python",
             "-m",
-            "tools.map.gen",
+            f"{MAP_MODULE}.gen",
             "--output-uri",
             tmpdir + "/map.yaml",
             "--show-mode",
             "ascii",
-            "./configs/game/map_builder/mapgen_simple.yaml",
+            f"{MAP_ROOT}/maze.yaml",
         ]
     )
     files = os.listdir(tmpdir)
@@ -71,12 +76,12 @@ def test_save_multiple(tmpdir):
         [
             "python",
             "-m",
-            "tools.map.gen",
+            f"{MAP_MODULE}.gen",
             "--output-uri",
             tmpdir,
             "--show-mode",
             "none",
-            "./configs/game/map_builder/mapgen_maze.yaml",
+            f"{MAP_ROOT}/maze.yaml",
             "--count",
             str(count),
         ]
@@ -92,19 +97,19 @@ def test_view(tmpdir):
         [
             "python",
             "-m",
-            "tools.map.gen",
+            f"{MAP_MODULE}.gen",
             "--output-uri",
             tmpdir + "/map.yaml",
             "--show-mode",
             "none",
-            "./configs/game/map_builder/mapgen_simple.yaml",
+            f"{MAP_ROOT}/maze.yaml",
         ]
     )
     subprocess.check_call(
         [
             "python",
             "-m",
-            "tools.map.view",
+            f"{MAP_MODULE}.view",
             "--show-mode",
             "ascii",
             tmpdir + "/map.yaml",
@@ -117,17 +122,19 @@ def test_view_random(tmpdir):
         [
             "python",
             "-m",
-            "tools.map.gen",
+            f"{MAP_MODULE}.gen",
             "--output-uri",
             tmpdir,
             "--show-mode",
             "none",
             "--count",
             "3",
-            "./configs/game/map_builder/mapgen_simple.yaml",
+            f"{MAP_ROOT}/maze.yaml",
         ],
     )
     view_output = subprocess.check_output(
-        ["python", "-m", "tools.map.view", "--show-mode", "ascii", tmpdir], stderr=subprocess.STDOUT, text=True
+        ["python", "-m", f"{MAP_MODULE}.view", "--show-mode", "ascii", tmpdir],
+        stderr=subprocess.STDOUT,
+        text=True,
     )
     assert "Loading random map" in view_output

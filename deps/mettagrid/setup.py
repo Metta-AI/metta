@@ -40,6 +40,7 @@ ext_modules = [
     build_ext(["mettagrid/actions/get_output.pyx"]),
     build_ext(["mettagrid/objects/agent.pyx"]),
     build_ext(["mettagrid/objects/constants.pyx"]),
+    build_ext(["mettagrid/objects/has_inventory.pyx"]),
     build_ext(["mettagrid/objects/converter.pyx"]),
     build_ext(["mettagrid/objects/metta_object.pyx"]),
     build_ext(["mettagrid/objects/production_handler.pyx"]),
@@ -52,7 +53,7 @@ annotate = os.getenv("ANNOTATE", "0") == "1"
 build_dir = "build_debug" if debug else "build"
 os.makedirs(build_dir, exist_ok=True)
 
-num_threads = multiprocessing.cpu_count() if sys.platform == "linux" else None
+num_threads = multiprocessing.cpu_count() if sys.platform == "linux" else 1
 
 setup(
     name="mettagrid",

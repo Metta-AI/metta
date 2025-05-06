@@ -44,16 +44,17 @@ MAP_VIEWER_CSS = """
 }
 """
 
+
 # --------------------------------------------------------------------------- #
 # Map Viewer component                                                        #
 # --------------------------------------------------------------------------- #
 def create_map_viewer_html(uid: str) -> str:
     """
     Create the HTML for a Map Viewer component.
-    
+
     Args:
         uid: Unique identifier to namespace this component's elements
-        
+
     Returns:
         HTML snippet for the Map Viewer component
     """
@@ -61,7 +62,7 @@ def create_map_viewer_html(uid: str) -> str:
     map_title_id = f"{uid}_map_title"
     map_img_id = f"{uid}_map_img"
     map_placeholder_id = f"{uid}_map_placeholder"
-    
+
     return f"""
 <!-- Map Viewer Panel -->
 <div class="map-viewer" id="{map_id}">
@@ -73,16 +74,17 @@ def create_map_viewer_html(uid: str) -> str:
 </div>
 """
 
+
 # --------------------------------------------------------------------------- #
 # JavaScript functions                                                        #
 # --------------------------------------------------------------------------- #
 def get_map_viewer_js_functions(uid: str) -> str:
     """
     Get JavaScript functions for the Map Viewer component.
-    
+
     Args:
         uid: Unique identifier matching the one used for create_map_viewer_html
-        
+
     Returns:
         JavaScript functions as a string, to be included in a <script> tag
     """
@@ -90,7 +92,7 @@ def get_map_viewer_js_functions(uid: str) -> str:
     map_title_id = f"{uid}_map_title"
     map_img_id = f"{uid}_map_img"
     map_placeholder_id = f"{uid}_map_placeholder"
-    
+
     return f"""
 const mapPanel = document.getElementById("{map_id}");
 const mapTitle = document.getElementById("{map_title_id}");
