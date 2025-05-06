@@ -42,7 +42,7 @@ analyzer:
   analysis:
     metrics:
       - metric: episode_reward
-  output_path: s3://softmax-public/policydash/navigation.html
+  output_path: s3://softmax-public/policydash/navigation_test.html
   # output_path: eval_results/navigations.html
   # output_path: navigation_results/navigation.html
 
