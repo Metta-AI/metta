@@ -221,6 +221,7 @@
 			"relu",
 			"softmax",
 			"skypilot",
+			"softmax",
 			"tensorclass",
 			"tensordict",
 			"timestep",
