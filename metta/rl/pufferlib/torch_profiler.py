@@ -43,7 +43,7 @@ class TorchProfiler:
         # Hardcoding _first_profile_epoch to keep cfgs clean.
         # It just needs to be greater than pytorch warmup cycles.
         # We may need to revisit if compiling models under "max-autotune".
-        self._first_profile_epoch = 50
+        self._first_profile_epoch = 300
 
     def on_epoch_end(self, epoch):
         should_profile_this_epoch = False
