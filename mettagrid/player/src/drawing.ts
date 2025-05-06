@@ -212,21 +212,29 @@ function drawObjects() {
       );
     } else {
       // Draw regular objects.
+
+      // Draw the base layer.
+      ctx.drawSprite(
+        state.replay.object_images[type][0],
+        x * Common.TILE_SIZE,
+        y * Common.TILE_SIZE
+      );
+
+      // Draw the color layer.
       var colorIdx = getAttr(gridObject, "color");
       if (colorIdx !== undefined) {
-        colorIdx = colorIdx + 1;
-      }
-      if (hasInventory(gridObject)) {
-        // object.png
         ctx.drawSprite(
-          state.replay.object_images[type][colorIdx][0],
+          state.replay.object_images[type][2],
           x * Common.TILE_SIZE,
-          y * Common.TILE_SIZE
+          y * Common.TILE_SIZE,
+          Common.COLORS[colorIdx][1]
         );
-      } else {
-        // object.empty.png
+      }
+
+      // Draw the item layer.
+      if (hasInventory(gridObject)) {
         ctx.drawSprite(
-          state.replay.object_images[type][colorIdx][1],
+          state.replay.object_images[type][1],
           x * Common.TILE_SIZE,
           y * Common.TILE_SIZE
         );
