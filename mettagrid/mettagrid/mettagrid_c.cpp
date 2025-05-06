@@ -3,7 +3,7 @@
 #include "event.hpp"
 #include "stats_tracker.hpp"
 #include "action_handler.hpp"
-#include "agent.hpp"
+#include "objects/agent.hpp"
 #include "observation_encoder.hpp"
 #include "objects/constants.hpp"
 #include "objects/wall.hpp"
@@ -18,7 +18,8 @@
 #include "actions/swap.hpp"
 #include "actions/change_color.hpp"
 
-#include <gymnasium/gymnasium.hpp>
+// #include <gymnasium/gymnasium.hpp>
+// xcxc conda install -c conda-forge eigen
 #include <pybind11/gil.h>
 #include <pybind11/stl.h>
 #include <pybind11/numpy.h>
@@ -29,6 +30,8 @@
 #include <pybind11/operators.h>
 
 namespace py = pybind11;
+
+// TODO: see where we can simplify numpy array manipulations.
 
 // Constructor implementation
 MettaGrid::MettaGrid(py::dict env_cfg, py::array_t<char> map) {
@@ -55,15 +58,16 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array_t<char> map) {
     _grid_features = _obs_encoder->feature_names();
     
     // Initialize buffers
-    auto observations = py::array_t<unsigned char>({
-        num_agents,
-        _grid_features.size(),
-        _obs_height,
-        _obs_width
-    });
-    auto terminals = py::array_t<char>(num_agents);
-    auto truncations = py::array_t<char>(num_agents);
-    auto rewards = py::array_t<float>(num_agents);
+    std::vector<ssize_t> shape = {
+        static_cast<ssize_t>(num_agents),
+        static_cast<ssize_t>(_grid_features.size()),
+        static_cast<ssize_t>(_obs_height),
+        static_cast<ssize_t>(_obs_width)
+    };
+    auto observations = py::array_t<unsigned char>(shape);
+    auto terminals = py::array_t<char>(static_cast<ssize_t>(num_agents));
+    auto truncations = py::array_t<char>(static_cast<ssize_t>(num_agents));
+    auto rewards = py::array_t<float>(static_cast<ssize_t>(num_agents));
     
     set_buffers(observations, terminals, truncations, rewards);
     
