@@ -9,7 +9,6 @@ from metta.agent.policy_store import PolicyStore
 from metta.sim.simulation import SimulationSuite
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.util.config import Config, setup_metta_environment
-from metta.util.file import s3_url
 from metta.util.logging import setup_mettagrid_logger
 from metta.util.runtime_configuration import setup_mettagrid_environment
 from metta.util.wandb.wandb_context import WandbContext
@@ -51,7 +50,7 @@ def main(cfg):
         first_sim_name = list(replay_job.sim.simulations.keys())[0]
         first_sim_path = f"{replay_dir}/{first_sim_name}/replay.json.z"
         if platform.system() == "Darwin":
-            webbrowser.open(f"https://metta-ai.github.io/metta/?replayUrl={s3_url(first_sim_path)}")
+            webbrowser.open(f"https://metta-ai.github.io/metta/?replayUrl={http_url(first_sim_path)}")
 
 
 if __name__ == "__main__":
