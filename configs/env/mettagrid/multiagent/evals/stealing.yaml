@@ -3,7 +3,7 @@ defaults:
   - _self_
 
 game:
-  num_agents: 40 #how many agents are in the map x2
+  num_agents: 80 #how many agents are in the map x2
   max_steps: 500
 
   agent:
@@ -31,7 +31,7 @@ game:
       max_output: 5
       conversion_ticks: 1
       cooldown: 20 #${sampling:0, 100, 50}
-      initial_items: 1  
+      initial_items: 1
 
     mine.green:
       hp: 30
@@ -51,7 +51,7 @@ game:
       conversion_ticks: 1
       cooldown: 0 #${sampling:0, 50, 25}
       initial_items: 1
-    
+
     generator.green:
       hp: 30
       input_ore.green: 1

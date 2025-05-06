@@ -4,5 +4,5 @@ defaults:
 
 name: daphne
 simulations:
-  simple:
-    env: env/mettagrid/multiagent/evals/stealing
+  choose_an_altar_team:
+    env: env/mettagrid/multiagent/evals/choose_an_altar

@@ -43,39 +43,57 @@ simulations:
   memory/hard:
     env: env/mettagrid/memory/evals/hard
     policy_agents_pct: 1.0
-  multiagent/spreading_across:
-    env: env/mettagrid/multiagent/evals/radial_cross
+  multiagent/choose_altar_team:
+    env: env/mettagrid/multiagent/evals/choose_an_altar_team
     policy_agents_pct: 1.0
-  multiagent/spreading_diffusion:
-    env: env/mettagrid/multiagent/evals/radial_diffusion
+  multiagent/choose_an_altar:
+    env: env/mettagrid/multiagent/evals/choose_an_altar
     policy_agents_pct: 1.0
-  multiagent/spreading_maze:
-    env: env/mettagrid/multiagent/evals/spine_maze_extended
-    policy_agents_pct: 1.0
-  multiagent/spreading_circambulate:
+  multiagent/circambulate:
     env: env/mettagrid/multiagent/evals/circambulate
     policy_agents_pct: 1.0
-  multiagent/spreading_corridor:
+  multiagent/circambulate_team:
+    env: env/mettagrid/multiagent/evals/circambulate_team
+    policy_agents_pct: 1.0
+  multiagent/corridor:
     env: env/mettagrid/multiagent/evals/corridor
     policy_agents_pct: 1.0
-  multiagent/nonuniform_fork:
+  multiagent/corridor_team:
+    env: env/mettagrid/multiagent/evals/corridor_team
+    policy_agents_pct: 1.0
+  multiagent/fork:
     env: env/mettagrid/multiagent/evals/fork
     policy_agents_pct: 1.0
-  # multiagent/choose_an_altar:
-  #   env: env/mettagrid/multiagent/evals/choose_an_altar
-  #   policy_agents_pct: 1.0
-  # multiagent/circumbulate_team:
-  #   env: env/mettagrid/multiagent/evals/circumbulate_team
-  #   policy_agents_pct: 1.0
-  # multiagent/imitation_game:
-  #   env: env/mettagrid/multiagent/evals/imitation_game
-  #   policy_agents_pct: 1.0
-  # multiagent/protect_the_resources:
-  #   env: env/mettagrid/multiagent/evals/protect_the_resources
-  #   policy_agents_pct: 1.0
-  # multiagent/whichway:
-  #   env: env/mettagrid/multiagent/evals/whichway
-  #   policy_agents_pct: 1.0
+  multiagent/fork_team:
+    env: env/mettagrid/multiagent/evals/fork_team
+    policy_agents_pct: 1.0
+  multiagent/protect_the_resources:
+    env: env/mettagrid/multiagent/evals/protect_the_resources
+    policy_agents_pct: 1.0
+  multiagent/radial_cross:
+    env: env/mettagrid/multiagent/evals/radial_cross
+    policy_agents_pct: 1.0
+  multiagent/radial_cross_large:
+    env: env/mettagrid/multiagent/evals/radial_cross_large
+    policy_agents_pct: 1.0
+  multiagent/radial_diffusions:
+    env: env/mettagrid/multiagent/evals/radial_diffusion
+    policy_agents_pct: 1.0
+  multiagent/spine_maze_extended:
+    env: env/mettagrid/multiagent/evals/spine_maze_extended
+    policy_agents_pct: 1.0
+  multiagent/stealing:
+    env: env/mettagrid/multiagent/evals/stealing
+    policy_agents_pct: 1.0
+  multiagent/team_up:
+    env: env/mettagrid/multiagent/evals/team_up
+    policy_agents_pct: 1.0
+  multiagent/wallblocker_team:
+    env: env/mettagrid/multiagent/evals/wallblocker_team
+    policy_agents_pct: 1.0
+  multiagent/wallblocker:
+    env: env/mettagrid/multiagent/evals/wallblocker
+    policy_agents_pct: 1.0
   simple_npc:
     env: env/mettagrid/simple
     policy_agents_pct: 0.5

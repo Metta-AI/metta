@@ -13,7 +13,7 @@ defaults:
   - _self_
 
 trainer:
-  env: env/mettagrid/multiagent/training/objects/terrain_from_numpy
+  env: env/mettagrid/multiagent/training/objects/multienv_colors
 
   evaluate_interval: 1
 
@@ -27,14 +27,14 @@ trainer:
 # policy_uri: wandb://run/b.daphne.terrain_multienv_lessactions:v40
 # policy_uri: wandb://run/terrain_multienv_3_single_agent:v63
 # policy_uri: wandb://run/terrain_multiagent_24_norewardsharing2
-policy_uri: wandb://run/daphne.navigation:v33
+policy_uri: wandb://run/daphne.navigation:v36
 # eval_db_uri: wandb://artifacts/test
 # npc_policy_uri: ${trained_policy_uri}
 # eval_db_uri: wandb://artifacts/testing
 #eval_db_uri: wandb://artifacts/navigation_db
 # eval_db_uri: wandb://artifacts/terrain_multienv_prioritized_all
 
-eval_db_uri: wandb://artifacts/object_use_db
+eval_db_uri: wandb://artifacts/test
 
 analyzer:
   policy_uri: ${..policy_uri}
@@ -42,7 +42,7 @@ analyzer:
   analysis:
     metrics:
       - metric: episode_reward
-  output_path: s3://softmax-public/policydash/object_use.html
+  output_path: s3://softmax-public/policydash/navigation_test.html
   # output_path: eval_results/navigations.html
   # output_path: navigation_results/navigation.html
 
@@ -53,7 +53,7 @@ wandb:
   track: true
   checkpoint_interval: 1
 
-run_id: 100
+run_id: 102
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 

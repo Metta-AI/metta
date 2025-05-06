@@ -58,7 +58,13 @@ def setup_efs():
     """Setup EFS."""
     print("Setting up EFS...")
     run_command(["sudo", "bash", str(Path(__file__).parent / "setup_efs.sh")])
-    print("EFS configured. Run './mount_efs.sh' to mount EFS.")
+    run_command(["sudo", "bash", str(Path(__file__).parent / "mount_efs.sh")])
+
+
+def install_skypilot():
+    """Install Skypilot."""
+    print("Installing Skypilot...")
+    run_command(["./devops/skypilot/install.sh"])
 
 
 def main():
@@ -70,6 +76,7 @@ def main():
     install_homebrew()
     run_brew_bundle(force=args.brew_force, no_fail=args.brew_no_fail)
     setup_efs()
+    install_skypilot()
     print("Machine setup complete!")
 
 

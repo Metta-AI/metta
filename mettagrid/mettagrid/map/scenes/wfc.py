@@ -67,7 +67,7 @@ class WFC(Scene):
             self._ascii_pattern, pattern_size, periodic=periodic_input, symmetry=symmetry
         )
 
-        self._weights = np.array([p[1] for p in patterns_with_counts], dtype=np.float_)
+        self._weights = np.array([p[1] for p in patterns_with_counts], dtype=np.float64)
         self._patterns = [p[0] for p in patterns_with_counts]
         self._pattern_count = len(self._weights)
 
@@ -131,11 +131,11 @@ class WFCRenderSession:
                     self.compatible[y, x, d, :] = self.scene._propagator_lengths[opposite_direction(d), :]
 
         self.sums_of_ones = np.full((self.height, self.width), len(self.weights), dtype=np.int_)
-        self.sums_of_weights = np.full((self.height, self.width), self.scene._sum_of_weights, dtype=np.float_)
+        self.sums_of_weights = np.full((self.height, self.width), self.scene._sum_of_weights, dtype=np.float64)
         self.sums_of_weight_log_weights = np.full(
             (self.height, self.width),
             self.scene._sum_of_weight_log_weights,
-            dtype=np.float_,
+            dtype=np.float64,
         )
         self.observed = 0
         self.queue = []
