@@ -14,3 +14,5 @@ simulations:
   memory/hard:
     env: env/mettagrid/memory/evals/hard
     policy_agents_pct: 1.0
+
+analyzer:
