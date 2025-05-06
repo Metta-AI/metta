@@ -87,7 +87,8 @@ jobs:
         id: set-cache-paths
         run: |
           PATHS="mettagrid/build
-          mettagrid/mettagrid/**/*.so
+          mettagrid/**/*.so
+          metta/**/*.so
           /build
           ~/.cache/pip
           venv"
