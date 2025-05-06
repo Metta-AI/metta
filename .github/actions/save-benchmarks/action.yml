@@ -106,6 +106,20 @@ runs:
         }
         EOF
           echo "Benchmark results written to: ${filename}"
+          
+          # Debug: Print file contents
+          echo "DEBUG: Contents of ${filename}:"
+          cat "${filename}"
+          
+          # Validate the JSON file
+          if command -v jq &> /dev/null; then
+            if jq . "${filename}" > /dev/null 2>&1; then
+              echo "DEBUG: File contains valid JSON"
+            else
+              echo "WARNING: File contains invalid JSON"
+            fi
+          fi
+
         }
         # Call the function to create the benchmark file
         create_benchmark_file "${{ inputs.name }}" "${METRICS}" "${{ inputs.filename }}" "${{ inputs.group }}"
