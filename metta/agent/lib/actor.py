@@ -128,36 +128,3 @@ class MettaActorSingleHead(LayerBase):
 
         td[self._name] = action_logits
         return td
-
-
-class PufferActor(LayerBase):
-    """
-    Implements a single Linear layer that is the same size as [hidden, num_actions]
-    to replicate the Puffer small agent."""
-
-    def __init__(self, **cfg):
-        super().__init__(**cfg)
-
-    def _make_net(self):
-        self.hidden = self._in_tensor_shapes[0][0]  # input_1 dim
-        self.embed_dim = self._in_tensor_shapes[1][1]  # input_2 dim (_action_embeds_)
-
-    def _forward(self, td: TensorDict):
-        hidden = td[self._sources[0]["name"]]  # Shape: [B*TT, hidden]
-        action_embeds = td[self._sources[1]["name"]]  # Shape: [B*TT, num_actions, embed_dim]
-
-        B_TT = hidden.shape[0]
-        num_actions = action_embeds.shape[1]
-
-        # Reshape inputs similar to Rev2 for bilinear calculation
-        # input_1: [B*TT, hidden] -> [B*TT * num_actions, hidden]
-        # input_2: [B*TT, num_actions, embed_dim] -> [B*TT * num_actions, embed_dim]
-        hidden_reshaped = repeat(hidden, "b h -> b a h", a=num_actions)  # shape: [B*TT, num_actions, hidden]
-        hidden_reshaped = rearrange(hidden_reshaped, "b a h -> (b a) h")  # shape: [N, H]
-        action_embeds_reshaped = rearrange(action_embeds, "b a e -> (b a) e")  # shape: [N, E]
-
-        action_logits = torch.einsum("nh,ne->n", hidden_reshaped, action_embeds_reshaped)  # Shape: [N]
-        action_logits = rearrange(action_logits, "(b a) -> b a", b=B_TT, a=num_actions)  # Shape: [B*TT, num_actions]
-
-        td[self._name] = action_logits
-        return td
