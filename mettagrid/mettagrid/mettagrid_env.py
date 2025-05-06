@@ -118,10 +118,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         )
 
         if len(self._team_counts) > 1:
-<<<<<<< HEAD
-=======
             group_means = []
->>>>>>> e89374a6236512779dfd89b5b38f5bc91d25ebc8
             for i, group_reward in enumerate(group_rewards):
                 if self._team_counts[self._team_names[i]] is None:
                     if group_reward != 0:
@@ -134,10 +131,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                         f"episode/reward.group.{self._team_names[i]}.mean": group_mean,
                     }
                 )
-<<<<<<< HEAD
-=======
                 group_means.append(group_mean)
->>>>>>> e89374a6236512779dfd89b5b38f5bc91d25ebc8
 
         if self._map_builder is not None and self._map_builder.labels is not None:
             for label in self._map_builder.labels:
@@ -159,10 +153,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         infos["episode_rewards"] = episode_rewards
         infos["group_rewards"] = group_rewards
-<<<<<<< HEAD
-=======
         infos["group_means"] = group_means
->>>>>>> e89374a6236512779dfd89b5b38f5bc91d25ebc8
         infos["agent_raw"] = stats["agent"]
         infos["game"] = stats["game"]
         infos["agent"] = {}

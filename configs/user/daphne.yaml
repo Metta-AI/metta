@@ -13,7 +13,7 @@ defaults:
   - _self_
 
 trainer:
-  env: env/mettagrid/multiagent/training/objects/terrain_from_numpy
+  env: env/mettagrid/multiagent/training/objects/multienv_colors
 
   evaluate_interval: 1
 
@@ -34,7 +34,7 @@ policy_uri: wandb://run/daphne.navigation:v36
 #eval_db_uri: wandb://artifacts/navigation_db
 # eval_db_uri: wandb://artifacts/terrain_multienv_prioritized_all
 
-eval_db_uri: wandb://artifacts/test_navigation_main_cluster
+eval_db_uri: wandb://artifacts/test
 
 analyzer:
   policy_uri: ${..policy_uri}
