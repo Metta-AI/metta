@@ -87,7 +87,8 @@ jobs:
         id: set-cache-paths
         run: |
           PATHS="mettagrid/build
-          mettagrid/mettagrid/**/*.so
+          mettagrid/**/*.so
+          metta/**/*.so
           /build
           ~/.cache/pip
           venv"
@@ -158,11 +159,6 @@ jobs:
   setup-py:
     name: "Build Python artifacts"
     needs: [graphite-ci-optimizer, setup-checks]
-    if: |
-      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') && 
-      (needs.setup-checks.outputs.run_lint == 'true' || 
-       needs.setup-checks.outputs.run_test == 'true' || 
-       needs.setup-checks.outputs.run_benchmark == 'true')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -185,7 +181,6 @@ jobs:
         run: |
           python -m venv venv
           source venv/bin/activate
-          python -m pip install --upgrade pip
           pip install -r requirements.txt
 
       - name: Install and compile deps (cache miss fallback)
@@ -212,6 +207,7 @@ jobs:
 
       - name: Install Ruff
         run: |
+          python -m venv venv
           source venv/bin/activate
           pip install ruff==0.11.5
 
@@ -254,7 +250,6 @@ jobs:
         run: |
           python -m venv venv
           source venv/bin/activate
-          python -m pip install --upgrade pip
           pip install -r requirements.txt
 
       - name: Install and compile deps (cache miss fallback)
@@ -310,7 +305,6 @@ jobs:
         run: |
           python -m venv venv
           source venv/bin/activate
-          python -m pip install --upgrade pip
           pip install -r requirements.txt
 
       - name: Install and compile deps (cache miss fallback)
@@ -494,10 +488,9 @@ jobs:
 
   training:
     name: "Training smoke test"
-    needs: [graphite-ci-optimizer, setup-checks, setup-py, test, lint, benchmark]
+    needs: [graphite-ci-optimizer, setup-checks, setup-py]
     if: |
-      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') && 
-      (needs.benchmark.result == 'success' || github.event_name != 'pull_request' )
+      (needs.graphite-ci-optimizer.outputs.should_skip == 'false')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -523,7 +516,6 @@ jobs:
         run: |
           python -m venv venv
           source venv/bin/activate
-          python -m pip install --upgrade pip
           pip install -r requirements.txt
 
       - name: Install and compile deps (cache miss fallback)

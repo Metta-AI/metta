@@ -69,7 +69,7 @@ runs:
               changedFiles = commits.files || [];
             }
             else if (eventName === 'workflow_dispatch') {
-              console.log('Manual workflow dispatch. Assuming all patterns match.');
+              console.log('Manual workflow dispatch. Assuming relevant files have changed.');
               core.setOutput('has_relevant_changes', true);
               return;
             }
