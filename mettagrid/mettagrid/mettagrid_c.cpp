@@ -437,7 +437,10 @@ py::list MettaGrid::inventory_item_names() {
 }
 
 void MettaGrid::init_action_handlers(const std::vector<std::unique_ptr<ActionHandler>>& action_handlers) {
-    _action_handlers = std::move(action_handlers);
+    _action_handlers.clear();
+    for (const auto& handler : action_handlers) {
+        _action_handlers.push_back(std::move(const_cast<std::unique_ptr<ActionHandler>&>(handler)));
+    }
     _num_action_handlers = _action_handlers.size();
     _max_action_priority = 0;
     _max_action_arg = 0;
@@ -515,6 +518,7 @@ void MettaGrid::_compute_observation(
 }
 
 void MettaGrid::_compute_observations(py::array_t<int> actions) {
+    auto observations_view = _observations.mutable_unchecked<4>();
     for (size_t idx = 0; idx < _agents.size(); idx++) {
         auto& agent = _agents[idx];
         _compute_observation(
@@ -522,7 +526,7 @@ void MettaGrid::_compute_observations(py::array_t<int> actions) {
             agent->location.c,
             _obs_width,
             _obs_height,
-            _observations[idx]
+            py::array_t<unsigned char>(observations_view[idx])
         );
     }
 }
