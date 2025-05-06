@@ -8,6 +8,8 @@ trainer:
   env: /env/mettagrid/walkaround
   evaluate_interval: 2
 
+eval_db_uri: wandb://artifacts/memory_db
+
 # policy: wandb://run/b.daveey.train.maze.sm.dr.warm.0
 # baselines: wandb://run/b.daveey.train.maze.sm.11x11.0
 
@@ -28,14 +30,10 @@ policy_uri: wandb://run/b.georgedeane.terrain_extra_hard
 # navigation_poisson_train_sampling5 breaks in infinite_cooldown, works great in poisson with short distance
 # navigation_poisson_train_sampling5
 # npc_policy_uri: ${trained_policy_uri}
-eval_db_uri: wandb://artifacts/memory_db
 
 analyzer:
   # eval_stats_uri: ${run_dir}/eval_stats
   policy_uri: ${..policy_uri}
-  analysis:
-    metrics:
-      - metric: episode_reward
   output_path: evalresults/memory_db.html
 
 sim:
@@ -45,7 +43,6 @@ sim:
 
   # policy_uri: ${..policy_uri}
   # npc_policy_uri: ${..npc_policy_uri}
-  # eval_db_uri: ${..eval_db_uri} #file://daphne/sweep_stats
   env: /env/mettagrid/navigation/training/empty_world
 
 

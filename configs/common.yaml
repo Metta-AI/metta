@@ -8,3 +8,4 @@ torch_deterministic: true
 vectorization: multiprocessing
 seed: 0
 device: cuda
+eval_db_uri: null

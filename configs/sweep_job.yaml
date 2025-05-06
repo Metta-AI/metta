@@ -23,7 +23,6 @@ trainer:
 sim:
   num_envs: 5
   num_episodes: 5
-  eval_db_uri: null
 
 sweep_job:
   evals: ${sim}

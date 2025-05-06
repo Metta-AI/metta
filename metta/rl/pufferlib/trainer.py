@@ -2,6 +2,7 @@ import logging
 import os
 import time
 from collections import defaultdict
+from pathlib import Path
 
 import numpy as np
 import pufferlib
@@ -16,20 +17,17 @@ from metta.agent.metta_agent import DistributedMettaAgent
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyStore
 from metta.agent.util.weights_analysis import WeightsMetricsHelper
-from metta.eval.analysis_config import AnalyzerConfig
 from metta.rl import fast_gae
 from metta.rl.pufferlib.experience import Experience
 from metta.rl.pufferlib.kickstarter import Kickstarter
 from metta.rl.pufferlib.profile import Profile
 from metta.rl.pufferlib.torch_profiler import TorchProfiler
 from metta.rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
-from metta.sim.eval_stats_analyzer import EvalStatsAnalyzer
-from metta.sim.eval_stats_db import EvalStatsDB
-from metta.sim.eval_stats_logger import EvalStatsLogger
 from metta.sim.simulation import Simulation, SimulationSuite
 from metta.sim.simulation_config import SimulationConfig, SimulationSuiteConfig
 from metta.sim.vecenv import make_vecenv
 from metta.util.config import config_from_path
+from metta.util.file import http_url
 
 torch.set_float32_matmul_precision("high")
 
@@ -71,7 +69,6 @@ class PufferTrainer:
         self.stats = defaultdict(list)
         self.wandb_run = wandb_run
         self.policy_store = policy_store
-        self.eval_stats_logger = EvalStatsLogger(self.sim_suite_config, wandb_run)
         self.average_reward = 0.0  # Initialize average reward estimate
         self._current_eval_score = None
         self.eval_scores = {}
@@ -188,8 +185,7 @@ class PufferTrainer:
         logger.info(f"Training on {self.device}")
         while self.agent_step < self.trainer_cfg.total_timesteps:
             with self.torch_profiler:
-                # Collecting experience
-                self._evaluate()
+                self._rollout()
 
                 # Training on collected experience
                 self._train()
@@ -246,41 +242,41 @@ class PufferTrainer:
         if not self._master:
             return
 
-        self.cfg.analyzer.policy_uri = self.last_pr.uri
-
-        run_id = self.cfg.get("run_id")
-        if run_id is None and self.wandb_run is not None:
-            run_id = self.wandb_run.id
-
         logger.info(f"Simulating policy: {self.last_pr.uri} with config: {self.sim_suite_config}")
-        sim = SimulationSuite(config=self.sim_suite_config, policy_pr=self.last_pr, policy_store=self.policy_store)
-        stats = sim.simulate()
+        sim = SimulationSuite(
+            config=self.sim_suite_config,
+            policy_pr=self.last_pr,
+            policy_store=self.policy_store,
+            stats_dir=Path(self.cfg.run_dir) / "stats",
+        )
+        stats_db = sim.simulate()
         logger.info("Simulation complete")
 
-        try:
-            self.eval_stats_logger.log(stats)
-        except Exception as e:
-            logger.error(f"Error logging stats: {e}")
+        # Define the list of evaluation categories
+        eval_categories = ["navigation", "object_use", "npc", "memory", "multiagent"]
 
-        eval_stats_db = EvalStatsDB.from_uri(self.sim_suite_config.eval_db_uri, self.cfg.run_dir, self.wandb_run)
-        analyzer_cfg = AnalyzerConfig(self.cfg.analyzer)
-        analyzer = EvalStatsAnalyzer(eval_stats_db, analyzer_cfg.analysis, analyzer_cfg.policy_uri)
-        _, policy_fitness_records = analyzer.analyze()
-        self._eval_results = policy_fitness_records
+        # Materialize the view for reward once
+        stats_db.materialize_policy_simulations_view("reward")
 
-        self.eval_scores = {
-            "navigation_score": np.mean([r["candidate_mean"] for r in self._eval_results if "navigation" in r["eval"]]),
-            "object_use_score": np.mean(
-                np.mean([r["candidate_mean"] for r in self._eval_results if "object_use" in r["eval"]])
-            ),
-            "against_npc_score": np.mean([r["candidate_mean"] for r in self._eval_results if "npc" in r["eval"]]),
-            "memory_score": np.mean([r["candidate_mean"] for r in self._eval_results if "memory" in r["eval"]]),
-            "multiagent_score": np.mean([r["candidate_mean"] for r in self._eval_results if "multiagent" in r["eval"]]),
-        }
+        # Get policy key and version directly from the policy record
+        policy_key, policy_version = self.last_pr.key_and_version()
 
-        self._current_eval_score = np.sum(
-            [r["candidate_mean"] for r in self._eval_results if r["metric"] == "episode_reward"]
-        )
+        # Initialize scores dictionary
+        self.eval_scores = {}
+
+        # Compute scores for each evaluation category
+        for category in eval_categories:
+            score = stats_db.get_average_metric_by_filter(
+                "reward", policy_key, policy_version, f"sim_name LIKE '%{category}%'"
+            )
+            logging.info(f"{category} score: {score}")
+            # Only add the score if we got a non-None result
+            if score is not None:
+                self.eval_scores[f"{category}_score"] = score
+
+        # Get overall score (average of all rewards)
+        overall_score = stats_db.get_average_metric_by_filter("reward", policy_key, policy_version)
+        self._current_eval_score = overall_score if overall_score is not None else 0.0
 
     def _update_l2_init_weight_copy(self):
         self.policy.update_l2_init_weight_copy()
@@ -289,7 +285,7 @@ class PufferTrainer:
         pass
 
     @pufferlib.utils.profile
-    def _evaluate(self):
+    def _rollout(self):
         experience, profile = self.experience, self.profile
 
         with profile.eval_misc:
@@ -580,18 +576,24 @@ class PufferTrainer:
         if self._master:
             logger.info("Generating and saving a replay to wandb and S3.")
             dry_run = self.trainer_cfg.get("replay_dry_run", False)
-            replay_path = f"s3://softmax-public/replays/{self.cfg.run}/replay.{self.epoch}.json.z"
+            replay_dir = f"s3://softmax-public/replays/{self.cfg.run}"
             if dry_run:
-                logger.info(f"Dry run: Would write replay to {replay_path}")
-                replay_path = None
+                logger.info(f"Dry run: Would write replay to {replay_dir}")
+                replay_dir = None
             replay_simulator = Simulation(
-                self.replay_sim_config,
-                self.last_pr,
-                self.policy_store,
-                wandb_run=self.wandb_run,
-                replay_path=replay_path,
+                name=f"replay_{self.epoch}",
+                config=self.replay_sim_config,
+                policy_pr=self.last_pr,
+                policy_store=self.policy_store,
+                replay_dir=replay_dir,
             )
-            replay_simulator.simulate(epoch=self.epoch)
+            replay_simulator.simulate()
+            if self.wandb_run is not None:
+                player_url = "https://metta-ai.github.io/metta/?replayUrl=" + http_url(replay_dir + "/replay.json.z")
+                link_summary = {
+                    "replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {self.epoch})</a>')
+                }
+                self.wandb_run.log(link_summary)
 
     def _process_stats(self):
         for k in list(self.stats.keys()):

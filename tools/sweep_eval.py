@@ -12,14 +12,13 @@ from wandb_carbs import WandbCarbs
 
 from metta.agent.policy_store import PolicyStore
 from metta.eval.analysis_config import AnalyzerConfig
-from metta.sim.eval_stats_analyzer import EvalStatsAnalyzer
-from metta.sim.eval_stats_db import EvalStatsDB
-from metta.sim.eval_stats_logger import EvalStatsLogger
 from metta.sim.simulation import SimulationSuite
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.util.logging import setup_mettagrid_logger
 from metta.util.runtime_configuration import setup_mettagrid_environment
 from metta.util.wandb.wandb_context import WandbContext
+
+# xcxc fix sweeps
 
 
 def log_file(run_dir, name, data, wandb_run):
@@ -89,34 +88,10 @@ def main(cfg: DictConfig | ListConfig) -> int:
         logger.info(f"Evaluating policy {policy_pr.name}")
         log_file(cfg.run_dir, "sweep_eval_config.yaml", cfg, wandb_run)
 
-        stats = eval.simulate()
+        stats_db = eval.simulate()
         eval_time = time.time() - eval_start_time
-
-        # Log evaluation stats
-        eval_stats_logger = EvalStatsLogger(simulation_suite_cfg, wandb_run)
-        eval_stats_logger.log(stats)
-
-        # Create eval stats database and analyze results
-        eval_stats_db = EvalStatsDB.from_uri(eval_stats_logger.json_path, cfg.run_dir, wandb_run)
-
-        # Find the metric index in the analyzer metrics
-        metric_idxs = [i for i, m in enumerate(cfg.analyzer.analysis.metrics) if fnmatch.fnmatch(cfg.metric, m.metric)]
-        if len(metric_idxs) == 0:
-            logger.error(f"Metric {cfg.metric} not found in analyzer metrics: {cfg.analyzer.analysis.metrics}")
-            return 1
-        elif len(metric_idxs) > 1:
-            logger.error(f"Multiple metrics found for {cfg.metric} in analyzer")
-            return 1
-        sweep_metric_index = metric_idxs[0]
-
-        # Analyze the evaluation results
-        analyzer_cfg = AnalyzerConfig(cfg.analyzer)
-        analyzer = EvalStatsAnalyzer(eval_stats_db, analyzer_cfg.analysis, analyzer_cfg.policy_uri)
-        results, _ = analyzer.analyze()
-
-        # Filter by policy name and average the mean values over evals
-        filtered_results = results[sweep_metric_index][results[sweep_metric_index]["policy_name"] == policy_pr.name]
-        eval_metric = filtered_results[f"mean_{cfg.metric}"].mean()
+        stats_db.materialize_policy_simulations_view(cfg.metric)
+        eval_metric = stats_db.get_average_metric_by_filter(cfg.metric, policy_pr.key(), policy_pr.version())
 
         # Get training stats from metadata if available
         train_time = policy_pr.metadata.get("train_time", 0)

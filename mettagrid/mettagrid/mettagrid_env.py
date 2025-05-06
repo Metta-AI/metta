@@ -1,5 +1,10 @@
+# mettagrid/mettagrid_env.py
+from __future__ import annotations
+
 import copy
-from typing import Any, Dict, Optional
+import uuid
+from pathlib import Path
+from typing import Optional
 
 import gymnasium as gym
 import numpy as np
@@ -9,11 +14,18 @@ from omegaconf import DictConfig, OmegaConf
 from mettagrid.config.utils import simple_instantiate
 from mettagrid.mettagrid_c import MettaGrid  # pylint: disable=E0611
 from mettagrid.resolvers import register_resolvers
+from mettagrid.stats_writer import StatsWriter
 
 
 class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     def __init__(
-        self, env_cfg: DictConfig, render_mode: Optional[str], env_map: Optional[np.ndarray] = None, buf=None, **kwargs
+        self,
+        env_cfg: DictConfig,
+        render_mode: Optional[str],
+        env_map: Optional[np.ndarray] = None,
+        buf=None,
+        stats_writer_dir: Optional[str] = None,
+        **kwargs,
     ):
         self._render_mode = render_mode
         self._cfg_template = env_cfg
@@ -22,9 +34,18 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self.should_reset = False
         self._renderer = None
         self._map_builder = None
-        self._reset_env()
 
+        self._reset_env()
         self.labels = self._env_cfg.get("labels", None)
+
+        self.stats_writer: Optional[StatsWriter] = None
+        if stats_writer_dir:
+            fname = f"stats_{uuid.uuid4().hex[:6]}.duckdb"
+            stats_writer_path = Path(stats_writer_dir) / fname
+            self._writer_path = Path(stats_writer_path).resolve()
+            self.stats_writer = StatsWriter(str(self._writer_path))
+        else:
+            self.stats_writer = None
 
         super().__init__(buf)
 
@@ -64,8 +85,14 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         self._c_env.set_buffers(self.observations, self.terminals, self.truncations, self.rewards)
 
-        # obs, infos = self._env.reset(**kwargs)
-        # return obs, infos
+        if self.stats_writer:
+            self._episode_id = self.stats_writer.start_episode(
+                seed=seed or 0,
+                map_w=self.map_width,
+                map_h=self.map_height,
+                meta=OmegaConf.to_container(self._env_cfg, resolve=False),
+            )
+
         obs, infos = self._c_env.reset()
         self.should_reset = False
         return obs, infos
@@ -127,6 +154,14 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                 infos["agent"][n] = infos["agent"].get(n, 0) + v
         for n, v in infos["agent"].items():
             infos["agent"][n] = v / self._num_agents
+
+        if self.stats_writer and self._episode_id is not None:
+            for agent_idx, agent_stats in enumerate(stats["agent"]):
+                self.stats_writer.log_metric(agent_idx, "reward", float(episode_rewards[agent_idx]))
+                for k, v in agent_stats.items():
+                    self.stats_writer.log_metric(agent_idx, k, float(v))
+            self.stats_writer.end_episode(step_count=self._c_env.current_timestep())
+        self._episode_id = None
 
     @property
     def _max_steps(self):
@@ -200,7 +235,11 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         return self._c_env.inventory_item_names()
 
     def close(self):
-        pass
+        if self.stats_writer:
+            self.stats_writer.close()
+
+    def __del__(self):
+        self.close()
 
 
 # Ensure resolvers are registered when this module is imported
