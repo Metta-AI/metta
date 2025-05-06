@@ -185,7 +185,6 @@ jobs:
         run: |
           python -m venv venv
           source venv/bin/activate
-          python -m pip install --upgrade pip
           pip install -r requirements.txt
 
       - name: Install and compile deps (cache miss fallback)
@@ -212,6 +211,7 @@ jobs:
 
       - name: Install Ruff
         run: |
+          python -m venv venv
           source venv/bin/activate
           pip install ruff==0.11.5
 
@@ -254,7 +254,6 @@ jobs:
         run: |
           python -m venv venv
           source venv/bin/activate
-          python -m pip install --upgrade pip
           pip install -r requirements.txt
 
       - name: Install and compile deps (cache miss fallback)
@@ -310,7 +309,6 @@ jobs:
         run: |
           python -m venv venv
           source venv/bin/activate
-          python -m pip install --upgrade pip
           pip install -r requirements.txt
 
       - name: Install and compile deps (cache miss fallback)
@@ -523,7 +521,6 @@ jobs:
         run: |
           python -m venv venv
           source venv/bin/activate
-          python -m pip install --upgrade pip
           pip install -r requirements.txt
 
       - name: Install and compile deps (cache miss fallback)
