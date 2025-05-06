@@ -5,7 +5,7 @@ from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import OmegaConf
 
 # mettagrid/configs dir, with omegaconf configs
-mettagrid_configs_root = Path(__file__).parent.resolve() / "../../configs"
+mettagrid_configs_root = (Path(__file__).parent.resolve() / "../../configs").resolve()
 
 # dir with scenes configs, used in tests and in mettagrid.map.utils.dcss
 scenes_root = mettagrid_configs_root / "scenes"
