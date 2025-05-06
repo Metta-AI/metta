@@ -310,7 +310,7 @@ async function parseUrlParams() {
 
   const urlParams = new URLSearchParams(window.location.search);
 
-    // Load the replay.
+  // Load the replay.
   const replayUrl = urlParams.get('replayUrl');
   if (replayUrl) {
     console.log("Loading replay from URL: ", replayUrl);
@@ -343,7 +343,7 @@ async function parseUrlParams() {
     if (selectedObjectId >= 0 && selectedObjectId < state.replay.grid_objects.length) {
       state.selectedGridObject = state.replay.grid_objects[selectedObjectId];
       state.followSelection = true;
-      ui.mapPanel.zoomLevel = 1/2;
+      ui.mapPanel.zoomLevel = 1 / 2;
       ui.tracePanel.zoomLevel = 1;
       console.info("Selected object via query parameter:", state.selectedGridObject);
     } else {

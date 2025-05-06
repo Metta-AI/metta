@@ -553,7 +553,7 @@ export function drawMiniMap(panel: PanelInfo) {
     return;
   }
 
-  if(ui.mouseDown && panel.inside(ui.mousePos)) {
+  if (ui.mouseDown && panel.inside(ui.mousePos)) {
     const localMousePos = panel.transformPoint(ui.mousePos);
     // Pan the main map to the mini map's mouse position.
     const miniMapMousePos = new Vec2f(

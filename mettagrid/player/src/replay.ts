@@ -195,7 +195,7 @@ async function loadReplayText(replayData: any) {
       var color = [1, 1, 1, 1]; // Default to white.
       for (const [colorName, colorValue] of Common.COLORS) {
         if (type.endsWith(colorName)) {
-          if(ctx.hasImage("resources/" + type + ".png")) {
+          if (ctx.hasImage("resources/" + type + ".png")) {
             // Use the resource.color.png with white color.
             break;
           } else {

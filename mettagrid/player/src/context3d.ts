@@ -105,7 +105,7 @@ class Mesh {
 
   // Resize the maximum number of quads the mesh can hold.
   resizeMaxQuads(newMaxQuads: number): void {
-    console.info("Resizing max ", this.name," quads from", this.maxQuads, "to", newMaxQuads);
+    console.info("Resizing max ", this.name, " quads from", this.maxQuads, "to", newMaxQuads);
 
     if (newMaxQuads <= this.maxQuads) {
       console.warn("New max quads must be larger than current max quads");
@@ -738,7 +738,7 @@ class Context3d {
     } else {
       // Draw the rectangle with the image's texture coordinates.
       // For centered drawing, we need to account for the reduced size.
-        this.drawRect(
+      this.drawRect(
         x - sw / 2 - m, // Center horizontally with margin adjustment.
         y - sh / 2 - m, // Center vertically with margin adjustment.
         sw + 2 * m,         // Reduce width by twice the margin.
