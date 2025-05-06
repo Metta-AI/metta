@@ -3,8 +3,8 @@
 # This script checks out and builds all dependencies
 
 if [ "$SKIP_BUILD" = "1" ]; then
-    echo "SKIP_BUILD was set. Skipping checkout and build!"
-    exit 0
+  echo "SKIP_BUILD was set. Skipping checkout and build!"
+  exit 0
 fi
 
 #
@@ -16,9 +16,9 @@ fi
 # dependencies are reinstalled.
 #
 if [ -f "deps/.built" ]; then
-    echo "Dependencies already installed. Skipping checkout and build!"
-    echo "You can force reinstall by running \"devops/setup_build\""
-    exit 0
+  echo "Dependencies already installed. Skipping checkout and build!"
+  echo "You can force reinstall by running \"devops/setup_build\""
+  exit 0
 fi
 
 # Exit immediately if a command exits with a non-zero status
@@ -31,80 +31,79 @@ WANDB_CARBS_REPO="https://github.com/Metta-AI/wandb_carbs.git"
 
 # Function to install a repository dependency
 install_repo() {
-    local repo_name=$1
-    local repo_url=$2
-    local branch=$3
-    local build_cmd=$4
+  local repo_name=$1
+  local repo_url=$2
+  local branch=$3
+  local build_cmd=$4
 
-    echo "========== Installing $repo_name =========="
+  echo "========== Installing $repo_name =========="
 
-    if [ -d "$repo_name" ] && [ -d "$repo_name/.git" ]; then
-        echo "Repository $repo_name already exists, updating instead of cloning"
-        cd $repo_name
-        echo "Current branch: $(git branch --show-current)"
-        echo "Fetching updates for $repo_name"
-        git fetch
-        echo "Checking out $branch branch for $repo_name"
-        git checkout $branch
-        echo "Pulling latest changes"
-        git pull origin $branch
-    else
-        # Repository doesn't exist or isn't a git repo, clone it
-        if [ -d "$repo_name" ]; then
-            echo "Directory $repo_name exists but is not a git repository"
-            echo "Moving existing directory to cache_$repo_name"
-            mv "$repo_name" "cache_$repo_name"
-        fi
-
-        echo "Cloning $repo_name from $repo_url"
-        git clone $repo_url
-        cd $repo_name
-        echo "Checking out $branch branch for $repo_name"
-        git checkout $branch
-
-        # Restore build artifacts if we stored them before cloning
-        if [ -d "../cache_$repo_name" ]; then
-            echo "Attempting to restore cached build files"
-            # Find and copy all *.so files
-            find "../cache_$repo_name" -name "*.so" -exec cp {} . \;
-            # Copy the build directory if it exists
-            if [ -d "../cache_$repo_name/build" ]; then
-                echo "Restoring build directory"
-                cp -r "../cache_$repo_name/build" .
-            fi
-            # If there's a nested directory with the same name, check for build artifacts there too
-            if [ -d "../cache_$repo_name/$repo_name" ]; then
-                echo "Restoring nested build artifacts"
-                mkdir -p "$repo_name"
-                find "../cache_$repo_name/$repo_name" -name "*.so" -exec cp {} "$repo_name/" \;
-            fi
-            echo "Cached build files restored"
-            # Cleanup the cache directory
-            rm -rf "../cache_$repo_name"
-        fi
+  if [ -d "$repo_name" ] && [ -d "$repo_name/.git" ]; then
+    echo "Repository $repo_name already exists, updating instead of cloning"
+    cd $repo_name
+    echo "Current branch: $(git branch --show-current)"
+    echo "Fetching updates for $repo_name"
+    git fetch
+    echo "Checking out $branch branch for $repo_name"
+    git checkout $branch
+    echo "Pulling latest changes"
+    git pull origin $branch
+  else
+    # Repository doesn't exist or isn't a git repo, clone it
+    if [ -d "$repo_name" ]; then
+      echo "Directory $repo_name exists but is not a git repository"
+      echo "Moving existing directory to cache_$repo_name"
+      mv "$repo_name" "cache_$repo_name"
     fi
 
-    echo "Repository content for $repo_name"
-    ls -al
+    echo "Cloning $repo_name from $repo_url"
+    git clone $repo_url
+    cd $repo_name
+    echo "Checking out $branch branch for $repo_name"
+    git checkout $branch
 
-    # Check for package files
-    echo "Checking for package files in $repo_name:"
-    if [ -f "setup.py" ]; then
-        echo "Found setup.py in root directory"
-    elif [ -f "pyproject.toml" ]; then
-        echo "Found pyproject.toml in root directory"
-    else
-        echo "No standard Python package files found in root directory"
+    # Restore build artifacts if we stored them before cloning
+    if [ -d "../cache_$repo_name" ]; then
+      echo "Attempting to restore cached build files"
+      # Find and copy all *.so files
+      find "../cache_$repo_name" -name "*.so" -exec cp {} . \;
+      # Copy the build directory if it exists
+      if [ -d "../cache_$repo_name/build" ]; then
+        echo "Restoring build directory"
+        cp -r "../cache_$repo_name/build" .
+      fi
+      # If there's a nested directory with the same name, check for build artifacts there too
+      if [ -d "../cache_$repo_name/$repo_name" ]; then
+        echo "Restoring nested build artifacts"
+        mkdir -p "$repo_name"
+        find "../cache_$repo_name/$repo_name" -name "*.so" -exec cp {} "$repo_name/" \;
+      fi
+      echo "Cached build files restored"
+      # Cleanup the cache directory
+      rm -rf "../cache_$repo_name"
     fi
+  fi
 
-    # Run the build command
-    echo "Building with command: $build_cmd"
-    eval $build_cmd
+  echo "Repository content for $repo_name"
+  ls -al
 
-    cd ..
-    echo "Completed installation of $repo_name"
+  # Check for package files
+  echo "Checking for package files in $repo_name:"
+  if [ -f "setup.py" ]; then
+    echo "Found setup.py in root directory"
+  elif [ -f "pyproject.toml" ]; then
+    echo "Found pyproject.toml in root directory"
+  else
+    echo "No standard Python package files found in root directory"
+  fi
+
+  # Run the build command
+  echo "Building with command: $build_cmd"
+  eval $build_cmd
+
+  cd ..
+  echo "Completed installation of $repo_name"
 }
-
 
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 

@@ -10,8 +10,8 @@ rm -f deps/.built
 
 # Check if we're in the correct conda environment
 if [ "$CONDA_DEFAULT_ENV" != "metta" ] && [ -z "$CI" ]; then
-    echo "WARNING: You must be in the 'metta' conda environment to run this script."
-    echo "Please activate the correct environment with: \"conda activate metta\""
+  echo "WARNING: You must be in the 'metta' conda environment to run this script."
+  echo "Please activate the correct environment with: \"conda activate metta\""
 fi
 
 echo "Upgrading pip..."
@@ -41,8 +41,7 @@ python -c "import sys; print('Python path:', sys.path); from carbs import CARBS;
 for dep in \
   "pufferlib" \
   "carbs" \
-  "wandb_carbs"
-do
+  "wandb_carbs"; do
   echo "Checking import for $dep..."
   python -c "import $dep; print('✅ Found {} at {}'.format('$dep', __import__('$dep').__file__))" || {
     echo "❌ Failed to import $dep"
@@ -51,9 +50,9 @@ do
 done
 
 if [ -z "$CI" ]; then
-    # ========== VS CODE INTEGRATION ==========
-    echo "Setting up VSCode integration..."
-    source "$SCRIPT_DIR/sandbox/setup_vscode_workspace.sh"
+  # ========== VS CODE INTEGRATION ==========
+  echo "Setting up VSCode integration..."
+  source "$SCRIPT_DIR/sandbox/setup_vscode_workspace.sh"
 
-    echo "✅ setup_build.sh completed successfully!"
+  echo "✅ setup_build.sh completed successfully!"
 fi

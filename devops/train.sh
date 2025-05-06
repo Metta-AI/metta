@@ -20,12 +20,12 @@ echo "Running train with args: $args"
 PYTHONPATH=$PYTHONPATH:.
 
 torchrun \
-    --nnodes=$NUM_NODES \
-    --nproc-per-node=$NUM_GPUS \
-    --master-addr=$MASTER_ADDR \
-    --master-port=$MASTER_PORT \
-    --node-rank=$NODE_INDEX \
-    tools/train.py \
-    wandb.enabled=true \
-    wandb.track=true \
-    $args
+  --nnodes=$NUM_NODES \
+  --nproc-per-node=$NUM_GPUS \
+  --master-addr=$MASTER_ADDR \
+  --master-port=$MASTER_PORT \
+  --node-rank=$NODE_INDEX \
+  tools/train.py \
+  wandb.enabled=true \
+  wandb.track=true \
+  $args
