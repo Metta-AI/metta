@@ -1,4 +1,8 @@
+# Re-export the PyMettaGrid as MettaGrid to maintain compatibility with existing code
+from mettagrid.env import PyMettaGrid as MettaGrid
+
+# Export other useful components directly
+from mettagrid.objects.constants import InventoryItemNames, ObjectLayers, ObjectTypeNames
 from mettagrid.resolvers import register_resolvers
 
-# Re-export the resolver registration function to allow for simple imports
-__all__ = ["register_resolvers"]
+__all__ = ["MettaGrid", "ObjectTypeNames", "InventoryItemNames", "ObjectLayers", "register_resolvers"]

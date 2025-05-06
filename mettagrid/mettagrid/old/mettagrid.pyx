@@ -1,3 +1,6 @@
+# this is the old implementation which relies more heavily on cython that we are working to replace
+
+
 from libc.stdio cimport printf
 from libcpp.vector cimport vector
 from libcpp.string cimport string
@@ -44,7 +47,7 @@ from mettagrid.actions.change_color cimport ChangeColorAction
 obs_np_type = np.uint8
 ctypedef unsigned int ActionType
 
-cdef class MettaGrid:
+cdef class OldPyMettaGrid:
     cdef:
         object _cfg
         map[unsigned int, float] _group_reward_pct
