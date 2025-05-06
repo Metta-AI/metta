@@ -49,3 +49,6 @@ benchmark() {
   
   return $exit_code
 }
+
+# Export the function so it's available in subshells
+export -f benchmark
