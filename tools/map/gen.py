@@ -26,9 +26,22 @@ def make_map(cfg_path: str, overrides: DictConfig | None = None):
     if not OmegaConf.is_dict(cfg):
         raise ValueError(f"Invalid config type: {type(cfg)}")
 
+    recursive = False
+    if cfg.get("game") and cfg.game.get("map_builder"):
+        # safe default for old room maps
+        recursive = cfg.game.get("recursive_map_builder", True)
+        # Looks like env config, unwrapping the map config from it. This won't
+        # work for all configs because they could rely on Hydra-specific
+        # features, but it has a decent chance of working.
+        cfg = cfg.game.map_builder
+
+    if "mapgen" in cfg.get("_target_"):
+        # mapgen works better with recursive=False
+        recursive = False
+
     # Generate and measure time taken
     start = time.time()
-    map_builder = hydra.utils.instantiate(cfg, _recursive_=False)
+    map_builder = hydra.utils.instantiate(cfg, _recursive_=recursive)
     grid = map_builder.build()
     gen_time = time.time() - start
     logger.info(f"Time taken to build map: {gen_time}s")
