@@ -2,7 +2,7 @@
 
 # Define the list of policy URIs
 POLICIES=(
-    "b.daphne.multiagent_nocolors2"
+    "b.daphne.multiagent_objects_nocolors2"
     "b.daphne.multiagent_nocolors"
 )
 
