@@ -12,7 +12,6 @@ package_root = config_dir.parent.parent
 
 # Create paths to the specific directories
 mettagrid_configs_root = package_root / "configs"
-scenes_root = mettagrid_configs_root / "scenes"
 
 
 # proxy to hydra.utils.instantiate
