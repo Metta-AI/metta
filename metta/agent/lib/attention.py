@@ -141,8 +141,10 @@ class AttentionBlock(nn.Module):
     def update_kv_cache(self, time_steps: Tensor, key: Tensor, value: Tensor):
         batch_idx = torch.arange(self.key_cache.shape[0], device=time_steps.device, dtype=torch.int64)
         batch_idx = batch_idx[:, None]
-        self.key_cache[batch_idx, time_steps] = key
-        self.value_cache[batch_idx, time_steps] = value
+
+        mod_time_steps = time_steps % self.key_cache.shape[1]
+        self.key_cache[batch_idx, mod_time_steps] = key
+        self.value_cache[batch_idx, mod_time_steps] = value
 
         return self.key_cache, self.value_cache
 
@@ -162,8 +164,6 @@ class AttentionBlock(nn.Module):
             key, value = self.update_kv_cache(time_steps, key, value)
 
         if block_mask is not None:
-            # TODO: macos likely can not use flex attention
-            # inference can't use flex attention because of the block mask, there is a work around but it's not worth it imo
             x = flex_attention_wrapper(query, key, value, block_mask=block_mask)
         else:
             x = einsum_attention(query, key, value, time_steps)
