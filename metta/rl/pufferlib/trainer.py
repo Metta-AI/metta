@@ -628,11 +628,11 @@ class PufferTrainer:
             if k in self.stats:
                 overview[v] = self.stats[k]
 
-        navigation_score = self.eval_scores["navigation_score"]
-        object_use_score = self.eval_scores["object_use_score"]
-        against_npc_score = self.eval_scores["against_npc_score"]
-        memory_score = self.eval_scores["memory_score"]
-        multiagent_score = self.eval_scores["multiagent_score"]
+        navigation_score = self.eval_scores.get("navigation_score", None)
+        object_use_score = self.eval_scores.get("object_use_score", None)
+        against_npc_score = self.eval_scores.get("against_npc_score", None)
+        memory_score = self.eval_scores.get("memory_score", None)
+        multiagent_score = self.eval_scores.get("multiagent_score", None)
         if not np.isnan(navigation_score):
             overview["navigation_evals"] = navigation_score
         if not np.isnan(object_use_score):
