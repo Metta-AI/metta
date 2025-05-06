@@ -4,7 +4,7 @@ from __future__ import annotations
 import copy
 import uuid
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, Optional
 
 import gymnasium as gym
 import numpy as np

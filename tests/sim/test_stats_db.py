@@ -27,7 +27,6 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-
 from metta.sim.stats_db import StatsDB
 from mettagrid.stats_writer import StatsDB as MGStatsDB
 
@@ -308,7 +307,6 @@ def test_materialize_policy_simulations_view_creates_table(test_db):
 
 def test_materialize_policy_simulations_view_with_nonexistent_metric(test_db):
     metric = "nonexistent_metric"
-    expected = f"policy_simulations_{metric}"
     with pytest.raises(ValueError):
         test_db.materialize_policy_simulations_view(metric)
 
@@ -482,7 +480,7 @@ def test_get_average_metric_by_filter(tmp_path: Path):
     assert no_policy is None
 
     # Test 7: Metric that doesn't exist (didn't materialize view)
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         _ = db.get_average_metric_by_filter("nonexistent_metric", "test_policy", 1)
 
     db.close()

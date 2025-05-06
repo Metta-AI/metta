@@ -5,7 +5,6 @@ Unit tests for get_matrix_data function with StatsDB focusing on different view 
 import tempfile
 import uuid
 from pathlib import Path
-from unittest.mock import patch
 
 import numpy as np
 import pytest
@@ -63,7 +62,7 @@ def sample_stats_db():
         # Create agent policies - one unique agent ID per policy
         agent_policies = []
         all_episodes = []
-        for eval_name, episodes in episodes_by_sim.items():
+        for _, episodes in episodes_by_sim.items():
             all_episodes.extend(episodes)
 
         # Assign each policy to all episodes
@@ -220,5 +219,5 @@ def test_get_matrix_data_num_output_policies(sample_stats_db):
 
 def test_get_matrix_data_empty_result(sample_stats_db):
     """Test get_matrix_data when no data is found for the specified metric."""
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         _ = get_matrix_data(sample_stats_db, "nonexistent_metric")

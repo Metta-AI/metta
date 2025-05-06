@@ -389,6 +389,7 @@ class EfsLock:
         self.lock_acquired = False
         self.hostname = socket.gethostname()
         self.system = platform.system()
+        logger = logging.getLogger(__name__)
         logger.debug(f"Initializing EfsLock on {self.system} ({self.hostname}) for path: {path}")
 
     def __enter__(self):
@@ -407,6 +408,8 @@ class EfsLock:
         If the lock is already held, wait and retry.
         If the lock is stale, remove it and try again.
         """
+        logger = logging.getLogger(__name__)
+
         retries = 0
 
         # Add a small random delay to reduce contention
@@ -479,6 +482,7 @@ class EfsLock:
         raise TimeoutError(f"Failed to acquire lock after {retries} retries: {self.path}")
 
     def _release_lock(self):
+        logger = logging.getLogger(__name__)
         """Release the lock if we hold it."""
         if self.lock_acquired:
             try:
@@ -510,6 +514,7 @@ def efs_lock(path, timeout=300, retry_interval=5, max_retries=60):
         retry_interval: Time in seconds to wait between retries
         max_retries: Maximum number of times to retry acquiring the lock
     """
+    logger = logging.getLogger(__name__)
     # For local development on Mac, use a shorter timeout and retry interval
     if platform.system() == "Darwin":
         logger.debug("Running on macOS, adjusting lock parameters")

@@ -8,7 +8,6 @@ multiple chart types – simply append more HTML snippets to `graphs_html`.
 from __future__ import annotations
 
 import logging
-import os
 from typing import List, Literal
 
 from metta.eval.analysis_config import AnalyzerConfig

@@ -288,7 +288,7 @@ class StatsDB(MGStatsDB):
 
         merged = StatsDB(merged_path, mode="rwc")
 
-        sim_id = merged.ensure_simulation_id(sim_name, sim_suite, env)
+        _ = merged.ensure_simulation_id(sim_name, sim_suite, env)
         # Merge each shard
         for shard_path in shards:
             logger.debug(f"Merging shard {shard_path}")
