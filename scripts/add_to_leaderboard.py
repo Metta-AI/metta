@@ -1,6 +1,7 @@
 import argparse
 import subprocess
 import sys
+from typing import List
 
 
 def get_db_uri(simulation_suite: str) -> str:
@@ -8,37 +9,22 @@ def get_db_uri(simulation_suite: str) -> str:
 
 
 def get_dashboard_path(dashboard_name: str) -> str:
-    return f"s3://softmax-public/policydash/{dashboard_name}"
+    return f"s3://softmax-public/policydash/{dashboard_name}.html"
 
 
 def get_dashboard_url(dashboard_name: str) -> str:
-    return f"https://softmax-public.s3.amazonaws.com/policydash/{dashboard_name}"
+    return f"https://softmax-public.s3.amazonaws.com/policydash/{dashboard_name}.html"
 
 
-SIMULATION_SUITES = ["navigation", "multiagent", "memory"]
+def add_to_leaderboard(
+    sim_suite: str, policy_uri: str, dashboard_name_opt: str | None, eval_db_uri_opt: str | None, extra_args: List[str]
+):
+    run_name = f"{sim_suite}_leaderboard"
+    dashboard_name = dashboard_name_opt or f"{sim_suite}_leaderboard"
+    eval_db_uri = eval_db_uri_opt or get_db_uri(sim_suite)
 
-
-def main():
-    parser = argparse.ArgumentParser(description="Add a policy to the leaderboard.")
-    parser.add_argument("--policy_uri", type=str, required=True, help="Policy URI (e.g., wandb://run/b.user.test_run)")
-    parser.add_argument(
-        "--sim_suite",
-        type=str,
-        required=True,
-        choices=SIMULATION_SUITES,
-        help="Simulation suite (navigation, multiagent, memory)",
-    )
-    parser.add_argument("--eval_db_uri", type=str, required=False, help="Evaluation DB URI (optional)")
-    parser.add_argument("--dashboard_name", type=str, required=False, help="Dashboard name (optional)")
-    args, unknown = parser.parse_known_args()
-    print(f"Unknown arguments: {unknown}")
-
-    eval_db_uri = args.eval_db_uri or get_db_uri(args.sim_suite)
-    dashboard_name = args.dashboard_name or f"{args.sim_suite}_leaderboard.html"
-    run_name = f"{args.sim_suite}_leaderboard"
-
-    print(f"Adding policy to eval leaderboard with policy URI: {args.policy_uri}")
-    print(f"Simulation suite: {args.sim_suite}")
+    print(f"Adding policy to eval leaderboard with policy URI: {policy_uri}")
+    print(f"Simulation suite: {sim_suite}")
     print(f"Eval DB URI: {eval_db_uri}")
 
     # Step 1: Run the simulation
@@ -48,11 +34,11 @@ def main():
         sys.executable,
         "-m",
         "tools.sim",
-        f"sim={args.sim_suite}",
+        f"sim={sim_suite}",
         f"run={run_name}",
-        f"policy_uri={args.policy_uri}",
+        f"policy_uri={policy_uri}",
         f"+eval_db_uri={eval_db_uri}",
-    ] + unknown
+    ] + extra_args
 
     print(f"Executing: {' '.join(sim_cmd)}")
     sim_proc = subprocess.run(sim_cmd)
@@ -70,7 +56,7 @@ def main():
         f"+eval_db_uri={eval_db_uri}",
         f"analyzer.output_path={get_dashboard_path(dashboard_name)}",
         "+analyzer.num_output_policies=all",
-    ] + unknown
+    ] + extra_args
 
     print(f"Executing: {' '.join(analyze_cmd)}")
     analyze_proc = subprocess.run(analyze_cmd)
@@ -80,6 +66,26 @@ def main():
 
     print("Successfully added policy to leaderboard and updated dashboard!")
     print(f"Dashboard URL: {get_dashboard_url(dashboard_name)}")
+
+
+SIMULATION_SUITES = ["navigation", "multiagent", "memory"]
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Add a policy to the leaderboard.")
+    parser.add_argument("--policy_uri", type=str, required=True, help="Policy URI (e.g., wandb://run/b.user.test_run)")
+    parser.add_argument(
+        "--sim_suite",
+        type=str,
+        required=True,
+        choices=SIMULATION_SUITES,
+        help="Simulation suite (navigation, multiagent, memory)",
+    )
+    parser.add_argument("--eval_db_uri", type=str, required=False, help="Evaluation DB URI (optional)")
+    parser.add_argument("--dashboard_name", type=str, required=False, help="Dashboard name (optional)")
+    args, extra_args = parser.parse_known_args()
+
+    add_to_leaderboard(args.sim_suite, args.policy_uri, args.dashboard_name, args.eval_db_uri, extra_args)
 
 
 if __name__ == "__main__":
