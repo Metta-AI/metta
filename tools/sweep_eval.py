@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import fnmatch
 import json
 import os
 import sys
@@ -11,14 +10,11 @@ from omegaconf import DictConfig, ListConfig, OmegaConf
 from wandb_carbs import WandbCarbs
 
 from metta.agent.policy_store import PolicyStore
-from metta.eval.analysis_config import AnalyzerConfig
 from metta.sim.simulation import SimulationSuite
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.util.logging import setup_mettagrid_logger
 from metta.util.runtime_configuration import setup_mettagrid_environment
 from metta.util.wandb.wandb_context import WandbContext
-
-# xcxc fix sweeps
 
 
 def log_file(run_dir, name, data, wandb_run):
