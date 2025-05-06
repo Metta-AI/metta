@@ -81,6 +81,11 @@ cdef class MettaGrid:
         cnp.ndarray _episode_rewards_np
         float[:] _episode_rewards
 
+        # support for reward decay IIR in _step()
+        bint _enable_reward_decay 
+        float _reward_multiplier
+        float _reward_decay_factor
+        
         vector[string] _grid_features
 
         bint _track_last_action
@@ -122,6 +127,12 @@ cdef class MettaGrid:
             np.zeros(num_agents, dtype=np.int8),
             np.zeros(num_agents, dtype=np.float32)
         )
+
+        # controls reward decay IIR in _step()
+        self._enable_reward_decay = False
+        self._reward_multiplier = 1.0
+        # Using time constant = max_timestep / 3 or 0.01
+        self._reward_decay_factor = 3.0 / self._max_timestep if self._max_timestep > 0 else 0.01
 
         self._action_success.resize(num_agents)
 
@@ -312,6 +323,7 @@ cdef class MettaGrid:
             self._action_success[i] = 0
 
         self._current_timestep += 1
+
         self._event_manager.process_events(self._current_timestep)
 
         cdef unsigned char p
@@ -332,6 +344,12 @@ cdef class MettaGrid:
                 self._action_success[idx] = handler.handle_action(idx, agent.id, arg, self._current_timestep)
 
         self._compute_observations(actions)
+
+        # Update reward multiplier using IIR filter
+        if self._enable_reward_decay:
+            self._reward_multiplier = max(0.1, self._reward_multiplier * (1.0 - self._reward_decay_factor))
+            for i in range(self._rewards.shape[0]):
+                self._rewards[i] *= self._reward_multiplier
 
         for i in range(self._episode_rewards.shape[0]):
             self._episode_rewards[i] += self._rewards[i]
@@ -456,6 +474,38 @@ cdef class MettaGrid:
 
     cpdef unsigned int num_agents(self):
         return self._agents.size()
+
+    cpdef void enable_reward_decay(self, decay_time_steps = None):
+        """
+        Enable the reward decay mechanism with an optional provided time constant in steps.
+        
+        This applies an IIR filter to rewards that gradually reduces their magnitude over time.
+        As the episode progresses, rewards become smaller - encouraging agents to achieve goals
+        earlier rather than later.
+        
+        Args:
+            decay_time_steps: Optional number of steps that determines the decay rate.
+                If provided, the decay factor is set to 3.0/decay_time_steps, meaning
+                rewards will decay to ~5% of original value after decay_time_steps steps.
+                If None, uses the previously set decay factor.
+                If <= 0, uses a default decay factor of 0.01.
+        """
+        self._enable_reward_decay = True
+        self._reward_multiplier = 1.0  # Reset multiplier to initial value
+        
+        # Update decay factor if custom time constant provided
+        if decay_time_steps is not None:
+            self._reward_decay_factor = 3.0 / decay_time_steps if decay_time_steps > 0 else 0.01
+
+    cpdef void disable_reward_decay(self):
+        """
+        Disable the reward decay mechanism.
+        
+        When disabled, rewards maintain their full value throughout the episode,
+        regardless of when they are received.
+        """
+        self._enable_reward_decay = False
+        self._reward_multiplier = 1.0  # Reset multiplier to initial value
 
     cpdef observe(
         self,
