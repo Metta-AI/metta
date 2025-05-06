@@ -1,5 +1,6 @@
 # Developer tools
 tap "withgraphite/tap"
+tap "aws/homebrew-aws"
 brew "amazon-efs-utils"
 brew "awscli"
 brew "bazelisk"
@@ -10,6 +11,7 @@ brew "google-benchmark"
 cask "session-manager-plugin"
 brew "withgraphite/tap/graphite"
 brew "spacelift-io/spacelift/spacectl"
+brew "uv"
 
 # Applications
 cask "cursor"

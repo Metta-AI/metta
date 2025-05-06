@@ -4,17 +4,17 @@ from mettagrid.map.mapgen import MapGen
 
 # Define test parameters for different scenes
 SCENE_PARAMS = [
-    "/scenes/wfc/blob",
-    "/scenes/wfc/simple",
-    "/scenes/convchain/blob",
-    "/scenes/convchain/c_shape",
-    "/scenes/convchain/diagonal",
+    "wfc/blob.yaml",
+    "wfc/simple.yaml",
+    "convchain/blob.yaml",
+    "convchain/c_shape.yaml",
+    "convchain/diagonal.yaml",
 ]
 
 
 # Parametrized test that will run for each scene
 @pytest.mark.parametrize("scene", SCENE_PARAMS)
-def test_scene_gen(benchmark, hydra_setup, scene):
+def test_scene_gen(benchmark, scene):
     """Benchmark scene generation for different scene types."""
     size = 20
 
