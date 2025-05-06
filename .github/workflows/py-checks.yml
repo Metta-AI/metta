@@ -345,6 +345,16 @@ jobs:
           metrics: '{"duration": ${{ steps.train.outputs.duration }}, "memory_usage": ${{ steps.train.outputs.memory_usage }}}'
           filename: smoke_test_train_benchmark_results.json
 
+      - name: Upload training benchmark file
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: train-benchmark-results
+          path: |
+            smoke_test_train_benchmark_results.json
+          retention-days: 1
+          if-no-files-found: warn
+
       - name: Upload training output
         if: success()
         uses: actions/upload-artifact@v4
@@ -388,6 +398,16 @@ jobs:
           name: replay_smoke_test
           metrics: '{"duration": ${{ steps.replay.outputs.duration }}, "memory_usage": ${{ steps.replay.outputs.memory_usage }}}'
           filename: smoke_test_replay_benchmark_results.json
+
+      - name: Upload replay benchmark file
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: replay-benchmark-results
+          path: |
+            smoke_test_replay_benchmark_results.json
+          retention-days: 1
+          if-no-files-found: warn
 
       - name: Debug on failure
         if: failure()
@@ -436,13 +456,25 @@ jobs:
           source venv/bin/activate
           bash ./devops/setup_build.sh
 
+      - name: Download benchmark results from smoke-test train-benchmark-results job
+        uses: actions/download-artifact@v4
+        with:
+          name: train-benchmark-results
+          path: ./
+
+      - name: Download benchmark results from smoke-test replay-benchmark-results job
+        uses: actions/download-artifact@v4
+        with:
+          name: replay-benchmark-results
+          path: ./
+
       - name: Run Main Python benchmarks
         env:
           HYDRA_FULL_ERROR: 1
           PYTHONPATH: ${{ github.workspace }}
         run: |
           source venv/bin/activate
-          pytest --benchmark-json=main_benchmark_results.json
+          pytest  --benchmark-only --benchmark-json=main_benchmark_results.json
 
       - name: Run Mettagrid Python benchmarks
         env:
@@ -451,8 +483,8 @@ jobs:
         run: |
           source venv/bin/activate
           cd mettagrid
-          pytest --benchmark-json=mettagrid_benchmark_results.json
-          mv mettagrid_benchmark_results.json ../..
+          pytest  --benchmark-only --benchmark-json=mettagrid_benchmark_results.json
+          mv mettagrid_benchmark_results.json ../
 
       - name: Combine benchmark results
         run: |
