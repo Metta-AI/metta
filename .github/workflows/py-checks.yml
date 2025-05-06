@@ -318,7 +318,7 @@ jobs:
         run: |
           # Check if the file exists
           ls -la .github/scripts/benchmark.sh
-          
+
           # Check if the function is defined
           type benchmark || echo "Function not defined after sourcing"
 
