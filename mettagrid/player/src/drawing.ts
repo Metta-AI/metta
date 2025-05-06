@@ -212,17 +212,21 @@ function drawObjects() {
       );
     } else {
       // Draw regular objects.
+      var colorIdx = getAttr(gridObject, "color");
+      if (colorIdx !== undefined) {
+        colorIdx = colorIdx + 1;
+      }
       if (hasInventory(gridObject)) {
         // object.png
         ctx.drawSprite(
-          state.replay.object_images[type][0],
+          state.replay.object_images[type][colorIdx][0],
           x * Common.TILE_SIZE,
           y * Common.TILE_SIZE
         );
       } else {
         // object.empty.png
         ctx.drawSprite(
-          state.replay.object_images[type][1],
+          state.replay.object_images[type][colorIdx][1],
           x * Common.TILE_SIZE,
           y * Common.TILE_SIZE
         );
@@ -669,6 +673,8 @@ export function updateReadout() {
       var value = getAttr(state.selectedGridObject, key);
       if (key == "type") {
         value = state.replay.object_types[value] + " (" + value + ")";
+      } else if (key == "color") {
+        value = Common.COLORS[value][0] + " (" + value + ")";
       }
       readout += key + ": " + value + "\n";
     }

@@ -4,8 +4,14 @@
 
 1. Configure AWS SSO and credentials:
 ```bash
-# Run the setup script
-python ./devops/aws/setup_sso.py
+# Create AWS config directory if it doesn't exist
+mkdir -p ~/.aws
+
+# Run the setup script to configure AWS profiles
+./devops/aws/setup_aws_profiles.sh
+
+# Login to AWS SSO
+aws sso login --profile softmax
 
 # Load new environment settings
 source ~/.bashrc

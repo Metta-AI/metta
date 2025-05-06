@@ -1,0 +1,58 @@
+resources:
+  cloud: aws
+  region: us-east-1
+  use_spot: true
+  accelerators: {L4: 1}
+  cpus: 8+
+  image_id: docker:metta:latest
+
+setup: |
+  cd /workspace/metta
+  git fetch
+  git checkout $METTA_GIT_REF
+  pip install -r requirements.txt
+
+  ./devops/checkout_and_build.sh
+  mkdir -p $WANDB_DIR
+
+run: |
+  cd /workspace/metta
+  source ./devops/env.sh
+
+  export NUM_GPUS=$SKYPILOT_NUM_GPUS_PER_NODE
+  export NUM_NODES=$SKYPILOT_NUM_NODES
+  export MASTER_ADDR=$(echo "$SKYPILOT_NODE_IPS" | head -n1)
+  export MASTER_PORT=8008
+  export NODE_INDEX=$SKYPILOT_NODE_RANK
+
+  ./devops/$METTA_CMD.sh \
+    +hardware=$METTA_HARDWARE \
+    run=$METTA_RUN_ID \
+    trainer.num_workers=$METTA_NUM_WORKERS \
+    $METTA_CMD_ARGS
+
+file_mounts:
+  # Wandb Credentials
+  ~/.netrc: ~/.netrc
+
+  /mnt/s3/softmax-public:
+    source: s3://softmax-public
+    mode: MOUNT
+
+  /workspace/metta/train_dir:
+    name: train-dir
+    store: s3
+    mode: MOUNT
+
+envs:
+  METTA_RUN_ID:
+  METTA_HARDWARE: aws
+  METTA_CMD: train
+  METTA_CMD_ARGS: ""
+  METTA_NUM_WORKERS: 4
+  METTA_GIT_REF: main
+  WANDB_DIR: ./wandb
+
+  SKYPILOT_DOCKER_USERNAME: AWS
+  SKYPILOT_DOCKER_PASSWORD: SKYPILOT_DOCKER_PASSWORD
+  SKYPILOT_DOCKER_SERVER: 767406518141.dkr.ecr.us-east-1.amazonaws.com

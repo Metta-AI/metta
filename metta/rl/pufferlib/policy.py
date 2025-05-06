@@ -118,6 +118,8 @@ def load_policy(path: str, device: str = "cpu"):
 
     policy.load_state_dict(weights)
 
+    policy = PufferAgentWrapper(policy)
+
     return policy
 
 
@@ -132,8 +134,9 @@ class PufferAgentWrapper(nn.Module):
         logprob -> logprob_act
         hidden -> logits then, after sample_logits(), log_sftmx_logits
         """
-        hidden, critic, state, e3b, intrinsic_reward = self.policy(obs, state)  # using variable names from LSTMWrapper
+        hidden, critic = self.policy(obs, state)  # using variable names from LSTMWrapper
         action, logprob, logits_entropy = sample_logits(hidden, action)
+        # explanation of var names in the docstring above
         return action, logprob, logits_entropy, critic, hidden
 
     def activate_actions(self, actions_names, actions_max_params, device):

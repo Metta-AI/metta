@@ -1,6 +1,6 @@
 
 [build-system]
-requires = ["setuptools>=64", "wheel", "cython>=3.0.0", "numpy>=1.21.0"]
+requires = ["setuptools>=64", "wheel", "cython>=3.0.0", "numpy>=2.2.5"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -20,7 +20,7 @@ keywords = [
     "gym",
 ]
 requires-python = ">=3.10,<4.0"
-dependencies = ["numpy>=1.21.0", "cython>=3.0.11"]
+dependencies = ["numpy>=2.2.5", "cython>=3.0.11"]
 
 [tool.setuptools.packages.find]
 where = ["."]
@@ -32,7 +32,7 @@ include = ["mettagrid*"]
 # Configuring pytest here causes us to ignore metta/conftest.py
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "benchmarks"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
 python_classes = ["Test*"]

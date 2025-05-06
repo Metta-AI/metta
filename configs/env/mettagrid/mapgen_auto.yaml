@@ -1,0 +1,12 @@
+defaults:
+  - mettagrid
+  - game/map_builder: mapgen_auto
+  - _self_
+
+game:
+  num_agents: 10
+
+  map_builder:
+    root:
+      config:
+        num_agents: 10

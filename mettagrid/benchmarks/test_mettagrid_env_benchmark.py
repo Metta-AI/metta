@@ -8,15 +8,17 @@ from mettagrid.resolvers import register_resolvers
 
 
 @pytest.fixture
+def cfg():
+    """Create configuration for the environment."""
+    register_resolvers()
+    return get_cfg("benchmark")
+
+
+@pytest.fixture
 def environment(cfg):
     """Create and initialize the environment."""
-
-    register_resolvers()
-
-    cfg = get_cfg("benchmark")
     print(OmegaConf.to_yaml(cfg))
-
-    env = MettaGridEnv(cfg, render_mode="human", _recursive_=False)
+    env = MettaGridEnv(cfg, render_mode="human", recursive=False)
     env.reset()
     yield env
     # Cleanup after test
@@ -41,9 +43,9 @@ def test_step_performance(benchmark, environment, single_action):
     # Run the benchmark
     benchmark.pedantic(
         run_step,
-        iterations=5000,  # Number of iterations per round
-        rounds=10,  # Number of rounds to run
-        warmup_rounds=2,  # Number of warmup rounds to discard
+        iterations=500,  # Number of iterations per round
+        rounds=3,  # Number of rounds to run
+        warmup_rounds=1,  # Number of warmup rounds to discard
     )
 
 
@@ -54,8 +56,13 @@ def test_get_stats_performance(benchmark, environment, single_action):
         obs, rewards, terminated, truncated, infos = environment.step(single_action)
         if np.any(terminated) or np.any(truncated):
             environment.reset()
-    # Benchmark just the stats collection
-    benchmark(environment._c_env.get_episode_stats)
+
+    benchmark.pedantic(
+        environment._c_env.get_episode_stats,
+        iterations=1000,  # Number of iterations per round
+        rounds=3,  # Number of rounds to run
+        warmup_rounds=1,  # Number of warmup rounds to discard
+    )
 
 
 def test_combined_performance(benchmark, environment, single_action):
@@ -68,5 +75,9 @@ def test_combined_performance(benchmark, environment, single_action):
             return environment._c_env.get_episode_stats()
         return {}  # we only return infos at the end of each episode
 
-    # Run the benchmark
-    benchmark(run_step_and_stats)
+    benchmark.pedantic(
+        run_step_and_stats,
+        iterations=500,  # Number of iterations per round
+        rounds=3,  # Number of rounds to run
+        warmup_rounds=1,  # Number of warmup rounds to discard
+    )

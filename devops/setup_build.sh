@@ -25,7 +25,12 @@ echo "Installing main project requirements..."
 pip install -r requirements.txt
 
 # ========== CHECKOUT AND BUILD DEPENDENCIES ==========
+echo "Calling devops/checkout_and_build script..."
 bash "$SCRIPT_DIR/checkout_and_build.sh"
+
+# ========== BUILD FAST_GAE ==========
+echo "Building from setup.py (metta cython components)"
+python setup.py build_ext --inplace
 
 # ========== SANITY CHECK ==========
 echo "Sanity check: verifying all local deps are importable"
@@ -35,8 +40,6 @@ python -c "import sys; print('Python path:', sys.path); from carbs import CARBS;
 
 for dep in \
   "pufferlib" \
-  "fast_gae" \
-  "mettagrid" \
   "carbs" \
   "wandb_carbs"
 do

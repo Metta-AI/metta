@@ -50,7 +50,6 @@ root:
       rows: ["uniform", 2, 4]
       columns: ["uniform", 2, 4]
 
-
     # If we go with BSP layout, how many areas?
     bsp:
       area_count: ["uniform", 3, 15]
@@ -68,8 +67,9 @@ root:
     content:
       - scene:
           _target_: mettagrid.map.scenes.random_scene_from_dir.RandomSceneFromDir
-          dir: /dcss/wfc
+          dir: ./mettagrid/configs/scenes/dcss/wfc
         weight: 20
+      # Note: scenes are relative to the `mettagrid/configs/scenes` directory for now.
       - scene: /wfc/blob.yaml
       - scene: /wfc/blob2.yaml
       - scene: /wfc/blob3.yaml

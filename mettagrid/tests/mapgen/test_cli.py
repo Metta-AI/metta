@@ -3,7 +3,7 @@ import subprocess
 
 from mettagrid.config.utils import mettagrid_configs_root
 
-MAP_ROOT = str(mettagrid_configs_root / "maps")
+MAP_ROOT = os.path.join(mettagrid_configs_root, "maps")
 MAP_MODULE = "tools.map"
 
 
