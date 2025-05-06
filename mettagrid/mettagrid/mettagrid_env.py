@@ -57,7 +57,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                     team = env_map[r, c].split(".")[1]
                     if team not in self._team_names:
                         raise ValueError(f"Team {team} not in {self._team_names}")
-                    # want to keep
+                    # only track teams we have in the map
                     if team_counts[team] is None:
                         team_counts[team] = 0
                     team_counts[team] += 1
@@ -118,6 +118,10 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         )
 
         if len(self._team_counts) > 1:
+<<<<<<< HEAD
+=======
+            group_means = []
+>>>>>>> e89374a6236512779dfd89b5b38f5bc91d25ebc8
             for i, group_reward in enumerate(group_rewards):
                 if self._team_counts[self._team_names[i]] is None:
                     if group_reward != 0:
@@ -130,6 +134,10 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                         f"episode/reward.group.{self._team_names[i]}.mean": group_mean,
                     }
                 )
+<<<<<<< HEAD
+=======
+                group_means.append(group_mean)
+>>>>>>> e89374a6236512779dfd89b5b38f5bc91d25ebc8
 
         if self._map_builder is not None and self._map_builder.labels is not None:
             for label in self._map_builder.labels:
@@ -151,6 +159,10 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         infos["episode_rewards"] = episode_rewards
         infos["group_rewards"] = group_rewards
+<<<<<<< HEAD
+=======
+        infos["group_means"] = group_means
+>>>>>>> e89374a6236512779dfd89b5b38f5bc91d25ebc8
         infos["agent_raw"] = stats["agent"]
         infos["game"] = stats["game"]
         infos["agent"] = {}
