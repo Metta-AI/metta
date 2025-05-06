@@ -23,7 +23,7 @@ for i in "${!POLICIES[@]}"; do
         policy_uri=wandb://run/$POLICY_URI \
         +eval_db_uri=wandb://artifacts/test_navigation \
         ++sim_job.selector_type=top \
-        ++sim_job.metric=navigation_score
+        # ++sim_job.metric=navigation_score
 
     # python3 -m tools.sim \
     #     sim=multiagent \
