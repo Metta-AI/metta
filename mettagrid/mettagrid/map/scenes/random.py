@@ -18,7 +18,7 @@ class Random(Scene):
     def __init__(
         self,
         objects: Optional[DictConfig | dict] = None,
-        agents: int | DictConfig = 0,
+        agents: int | DictConfig | dict = 0,
         too_many_is_ok: bool = True,
         seed: MaybeSeed = None,
     ):
@@ -33,8 +33,10 @@ class Random(Scene):
 
         if isinstance(self._agents, int):
             agents = ["agent.agent"] * self._agents
-        elif isinstance(self._agents, DictConfig):
+        elif isinstance(self._agents, (DictConfig, dict)):
             agents = ["agent." + str(agent) for agent, na in self._agents.items() for _ in range(na)]
+        else:
+            raise ValueError(f"Invalid agents: {self._agents}")
 
         # Find empty cells in the grid
         empty_mask = node.grid == "empty"
