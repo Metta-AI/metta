@@ -155,6 +155,11 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         for n, v in infos["agent"].items():
             infos["agent"][n] = v / self._num_agents
 
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.info(f"Episode rewards: {episode_rewards}")
+
         if self.stats_writer and self._episode_id is not None:
             for agent_idx, agent_stats in enumerate(stats["agent"]):
                 self.stats_writer.log_metric(agent_idx, "reward", float(episode_rewards[agent_idx]))
