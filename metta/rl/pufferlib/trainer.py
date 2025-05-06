@@ -71,7 +71,7 @@ class PufferTrainer:
         self.policy_store = policy_store
         self.average_reward = 0.0  # Initialize average reward estimate
         self._current_eval_score = None
-        self.eval_scores = {}
+        self.eval_suite_avgs = {}
         self._eval_results = []
         self._weights_helper = WeightsMetricsHelper(cfg)
         self._make_vecenv()
@@ -262,7 +262,7 @@ class PufferTrainer:
         policy_key, policy_version = self.last_pr.key_and_version()
 
         # Initialize scores dictionary
-        self.eval_scores = {}
+        self.eval_suite_avgs = {}
 
         # Compute scores for each evaluation category
         for category in eval_categories:
@@ -272,9 +272,9 @@ class PufferTrainer:
             logging.info(f"{category} score: {score}")
             # Only add the score if we got a non-None result
             if score is not None:
-                self.eval_scores[f"{category}_score"] = score
+                self.eval_suite_avgs[f"{category}_score"] = score
             else:
-                self.eval_scores[f"{category}_score"] = 0.0
+                self.eval_suite_avgs[f"{category}_score"] = 0.0
 
         # Get overall score (average of all rewards)
         overall_score = stats_db.get_average_metric_by_filter("reward", policy_key, policy_version)
@@ -566,7 +566,7 @@ class PufferTrainer:
                 "initial_uri": self._initial_pr.uri,
                 "train_time": time.time() - self.train_start,
                 "score": self._current_eval_score,
-                "eval_scores": self.eval_scores,
+                "eval_scores": self.eval_suite_avgs,
             },
         )
         # this is hacky, but otherwise the initial_pr points
@@ -628,20 +628,20 @@ class PufferTrainer:
             if k in self.stats:
                 overview[v] = self.stats[k]
 
-        navigation_score = self.eval_scores.get("navigation_score", None)
-        object_use_score = self.eval_scores.get("object_use_score", None)
-        against_npc_score = self.eval_scores.get("against_npc_score", None)
-        memory_score = self.eval_scores.get("memory_score", None)
-        multiagent_score = self.eval_scores.get("multiagent_score", None)
-        if not np.isnan(navigation_score):
+        navigation_score = self.eval_suite_avgs.get("navigation_score", None)
+        object_use_score = self.eval_suite_avgs.get("object_use_score", None)
+        against_npc_score = self.eval_suite_avgs.get("against_npc_score", None)
+        memory_score = self.eval_suite_avgs.get("memory_score", None)
+        multiagent_score = self.eval_suite_avgs.get("multiagent_score", None)
+        if navigation_score is not None:
             overview["navigation_evals"] = navigation_score
-        if not np.isnan(object_use_score):
+        if object_use_score is not None:
             overview["object_use_evals"] = object_use_score
-        if not np.isnan(against_npc_score):
+        if against_npc_score is not None:
             overview["npc_evals"] = against_npc_score
-        if not np.isnan(memory_score):
+        if memory_score is not None:
             overview["memory_evals"] = memory_score
-        if not np.isnan(multiagent_score):
+        if multiagent_score is not None:
             overview["multiagent_evals"] = multiagent_score
 
         environment = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
