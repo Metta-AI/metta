@@ -43,9 +43,7 @@ def main(cfg):
         if cfg.trainer.get("replay_dry_run", False):
             replay_dir = None
 
-        sim_suite = SimulationSuite(
-            replay_job.sim, policy_record, policy_store, wandb_run=wandb_run, replay_dir=replay_dir
-        )
+        sim_suite = SimulationSuite(replay_job.sim, policy_record, policy_store, replay_dir=replay_dir)
         sim_suite.simulate()
         # Only on macos open a browser to the replay
         first_sim_name = list(replay_job.sim.simulations.keys())[0]
