@@ -180,7 +180,7 @@ class MettaAgent(nn.Module):
             action = self._convert_logit_index_to_action(action_logit_index, td)
 
         if action is not None:
-            print(f"logits: {log_sftmx_logits[0]}")
+            print(f"MettaAgent logits: {log_sftmx_logits[0]}")
 
         return action, logprob_act, entropy, value, log_sftmx_logits
 

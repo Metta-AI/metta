@@ -190,6 +190,7 @@ class Simulation:
                 # Parallelize across opponents
                 policy = self._policy_pr.policy()  # policy to evaluate
                 policy_actions, _, _, _, _ = policy(my_obs, policy_state)
+                print(f"Policy actions: {policy_actions}")
 
                 # Iterate opponent policies
                 if self._npc_pr is not None:
