@@ -70,9 +70,9 @@ class PufferTrainer:
         self.wandb_run = wandb_run
         self.policy_store = policy_store
         self.average_reward = 0.0  # Initialize average reward estimate
-        self._current_eval_score = None
         self.eval_suite_avgs = {}
-        self._eval_results = []
+        self._current_eval_score = None
+        self._eval_grouped_scores = {}
         self._weights_helper = WeightsMetricsHelper(cfg)
         self._make_vecenv()
 
@@ -662,7 +662,7 @@ class PufferTrainer:
                 }
             )
 
-        self._eval_results = []
+        self._eval_grouped_scores = {}
         self._weights_helper.reset()
         self.stats.clear()
 
