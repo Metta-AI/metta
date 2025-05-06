@@ -162,37 +162,22 @@ async function loadReplayText(replayData: any) {
   }
 
   // Create object image mapping for faster access.
-  // Example: 3 -> ["objects/altar.png", "objects/altar.empty.png"]
-  // Example: 1 -> ["objects/wall.png", "objects/wall.png"]
-  // Also do this for the undefined and the colors.
+  // Example: 3 -> ["objects/altar.png", "objects/altar.item.png", "objects/altar.color.png"]
+  // Example: 1 -> ["objects/unknown.png", "objects/unknown.item.png", "objects/unknown.color.png"]
   state.replay.object_images = []
   for (let i = 0; i < state.replay.object_types.length; i++) {
-    var imageSet: [string, string][] = [];
     const typeName = state.replay.object_types[i];
     var image = "objects/" + typeName + ".png";
+    var imageItem = "objects/" + typeName + ".item.png";
+    var imageColor = "objects/" + typeName + ".color.png";
     if (!ctx.hasImage(image)) {
       console.warn("Object not supported: ", typeName);
+      // Use the unknown image.
       image = "objects/unknown.png";
+      imageItem = "objects/unknown.item.png";
+      imageColor = "objects/unknown.color.png";
     }
-    var imageEmpty = "objects/" + typeName + ".empty.png";
-    if (!ctx.hasImage(imageEmpty)) {
-      imageEmpty = image;
-    }
-    imageSet.push([image, imageEmpty]);
-
-    // Now add the color variants.
-    for (const [colorName, colorValue] of Common.COLORS) {
-      var colorImage = "objects/" + typeName + "." + colorName + ".png";
-      if (!ctx.hasImage(colorImage)) {
-        colorImage = image;
-      }
-      var emptyColorImage = "objects/" + typeName + ".empty." + colorName + ".png";
-      if (!ctx.hasImage(emptyColorImage)) {
-        emptyColorImage = colorImage;
-      }
-      imageSet.push([colorImage, emptyColorImage]);
-    }
-    state.replay.object_images.push(imageSet);
+    state.replay.object_images.push([image, imageItem, imageColor]);
   }
 
   // Create resource inventory mapping for faster access.
