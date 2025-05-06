@@ -141,9 +141,7 @@
 		"files.watcherExclude": {},
 		"files.exclude": {
 			"train_dir": true,
-			"wandb": true,
-			"mettagrid/build": true,
-			"mettagrid/build_debug": true,
+			"wandb": true
 		},
 		"files.excludeGitIgnored": true,
 		"terminal.integrated.profiles.osx": {

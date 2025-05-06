@@ -18,7 +18,7 @@ def build_ext(srcs, module_name=None):
         sources=srcs,
         language="c++",
         define_macros=[("NPY_NO_DEPRECATED_API", "NPY_1_7_API_VERSION")],
-        extra_compile_args=["-std=c++11"],
+        extra_compile_args=["-std=c++17"],
     )
 
 
