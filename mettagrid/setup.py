@@ -22,11 +22,11 @@ class Pybind11BuildExt(build_ext):
         # Detect compiler
         compiler = self.compiler.compiler_type
         if compiler == "msvc":
-            extra_compile_args = ["/std:c++17", "/EHsc"]
+            extra_compile_args = ["/std:c++20"]
             extra_link_args = []
         else:
-            extra_compile_args = ["-std=c++17", "-fvisibility=hidden"]
-            extra_link_args = []
+            extra_compile_args = ["-std=c++20", "-fvisibility=hidden"]
+            extra_link_args = ["-std=c++20"]
 
         # Add pybind11 include directory
         import pybind11
