@@ -301,16 +301,13 @@ class TestAdvancedResolvers:
     def test_scale_edge_cases(self):
         """Test oc_scale with various edge cases"""
 
-        # Inverted output range
-        assert oc_scale(0.5, 0.0, 1.0, 10.0, 5.0, "linear") == 7.5
-        assert oc_scale(0.5, 0.0, 1.0, 10.0, 5.0, "log") == pytest.approx(6.3, abs=0.1)
-
-        # Equal input bounds (avoid division by zero)
+        # Equal input bounds
         assert oc_scale(5.0, 5.0, 5.0, 0.0, 10.0, "linear") == 5.0
         assert oc_scale(5.0, 5.0, 5.0, 0.0, 10.0, "log") == 5.0
 
-        # Equal output bounds
-        assert oc_scale(0.5, 0.0, 1.0, 7.0, 7.0, "linear") == 7.0
+        # Equal input bounds
+        assert oc_scale(5.0, 0.0, 5.0, 7.0, 7.0, "linear") == 7.0
+        assert oc_scale(5.0, 0.0, 5.0, 7.0, 7.0, "log") == 7.0
 
         # Boundary value with log scale (avoiding log(0))
         assert oc_scale(0.0, 0.0, 1.0, 0.0, 10.0, "log") == 0.0
@@ -325,12 +322,12 @@ class TestAdvancedResolvers:
         assert oc_scale(2.0, 0.0, 1.0, 0.0, 10.0, "linear") == 10.0
 
         # Extreme value scaling
-        assert oc_scale(500, 0, 1000, 0, 1, "linear") == 0.5
-        assert oc_scale(0.0001, 0, 0.001, 0, 1, "linear") == 0.1
+        assert oc_scale(500, 0.0, 1000, 0.0, 1.0, "linear") == 0.5
+        assert oc_scale(0.0001, 0.0, 0.001, 0.0, 1.0, "linear") == 0.1
 
         # Invalid scale type
         with pytest.raises(ValueError):
-            oc_scale(0.5, 0, 1, 0, 1, "unknown_type")
+            oc_scale(0.5, 0.0, 1.0, 0.0, 1.0, "unknown_type")
 
     def test_scaling_symmetry(self):
         """Test that log and exp scaling are inversely related"""
