@@ -53,7 +53,7 @@ wandb:
   track: true
   checkpoint_interval: 1
 
-run_id: 101
+run_id: 102
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 
