@@ -206,7 +206,7 @@ class Simulation:
 
                 # Parallelize across opponents
                 policy = self._policy_pr.policy()  # policy to evaluate
-                print(f"Obs: {self.print_tensor_hash(my_obs)}")
+                print(f"Obs: {self.print_tensor(my_obs)}")
                 policy_actions, _, _, _, _ = policy(my_obs, policy_state)
                 print(f"Policy actions: {policy_actions}")
 
