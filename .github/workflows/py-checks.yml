@@ -337,18 +337,7 @@ jobs:
       - name: Check deps
         run: |
           source venv/bin/activate
-          echo "content of repo"
-          ls -al
-
-          echo "contents of deps"
-          ls -la deps
-
-          echo "contents of deps/pufferlib"
-          ls -la deps/pufferlib
-
-          echo "contents of deps/pufferlib/pufferlib"
-          ls -la deps/pufferlib/pufferlib
-
+          
           for dep in \
             "pufferlib" \
             "carbs" \
