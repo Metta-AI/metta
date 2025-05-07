@@ -32,3 +32,4 @@ terrain_maps_nohearts*
 build/
 build_debug/
 .venv
+*benchmark_results.json

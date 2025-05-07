@@ -457,28 +457,6 @@ cdef class MettaGrid:
     cpdef unsigned int num_agents(self):
         return self._agents.size()
 
-    cpdef observe(
-        self,
-        GridObjectId observer_id,
-        unsigned short obs_width,
-        unsigned short obs_height,
-        ObsType[:,:,:] observation):
-
-        cdef GridObject* observer = self._grid.object(observer_id)
-        self._compute_observation(
-            observer.location.r, observer.location.c, obs_width, obs_height, observation)
-
-    cpdef observe_at(
-        self,
-        unsigned short row,
-        unsigned short col,
-        unsigned short obs_width,
-        unsigned short obs_height,
-        ObsType[:,:,:] observation):
-
-        self._compute_observation(
-            row, col, obs_width, obs_height, observation)
-
     cpdef get_episode_rewards(self):
         return self._episode_rewards_np
 
