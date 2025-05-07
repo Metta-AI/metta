@@ -1,4 +1,3 @@
-import random
 from dataclasses import dataclass
 from typing import List, Optional
 
@@ -92,7 +91,8 @@ class Node:
             offset = query.get("offset")
             if order_by == "random":
                 assert offset is None, "offset is not supported for random order"
-                selected_areas = random.sample(selected_areas, k=limit)
+                rng = np.random.default_rng(query.get("order_by_seed"))
+                selected_areas = rng.choice(selected_areas, size=int(limit), replace=False)  # type: ignore
             elif order_by == "first":
                 offset = offset or 0
                 selected_areas = selected_areas[offset : offset + limit]

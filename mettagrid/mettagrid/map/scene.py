@@ -23,6 +23,9 @@ def make_scene(cfg: SceneCfg) -> "Scene":
             cfg = cfg[1:]
         cfg = cast(SceneCfg, OmegaConf.load(f"{scenes_root}/{cfg}"))
 
+    if callable(cfg):
+        cfg = cfg()  # useful for creating unique scene objects when dealing with seeds
+
     if isinstance(cfg, Scene):
         # already an instance, maybe recursive=True was enabled
         return cfg
