@@ -57,6 +57,6 @@ simulations:
   multiagent/wallblocker_team:
     env: env/mettagrid/multiagent/evals/wallblocker_team
     policy_agents_pct: 1.0
-  multiagent/wallblocker:
-    env: env/mettagrid/multiagent/evals/wallblocker
-    policy_agents_pct: 1.0
+  # multiagent/wallblocker:
+  #   env: env/mettagrid/multiagent/evals/wallblocker
+  #   policy_agents_pct: 1.0
