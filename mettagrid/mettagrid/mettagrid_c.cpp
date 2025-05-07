@@ -77,31 +77,33 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array_t<std::string> map) {
     
     // Initialize action handlers
     std::vector<std::unique_ptr<ActionHandler>> actions;
+
+    // TODO: These conversions to ActionConfig are copying.
     
     if (cfg["actions"]["put_items"]["enabled"].cast<bool>()) {
-        actions.push_back(std::make_unique<PutRecipeItems>(cfg["actions"]["put_items"].cast<py::dict>()));
+        actions.push_back(std::make_unique<PutRecipeItems>(cfg["actions"]["put_items"].cast<ActionConfig>()));
     }
     if (cfg["actions"]["get_items"]["enabled"].cast<bool>()) {
-        actions.push_back(std::make_unique<GetOutput>(cfg["actions"]["get_items"].cast<py::dict>()));
+        actions.push_back(std::make_unique<GetOutput>(cfg["actions"]["get_items"].cast<ActionConfig>()));
     }
     if (cfg["actions"]["noop"]["enabled"].cast<bool>()) {
-        actions.push_back(std::make_unique<Noop>(cfg["actions"]["noop"].cast<py::dict>()));
+        actions.push_back(std::make_unique<Noop>(cfg["actions"]["noop"].cast<ActionConfig>()));
     }
     if (cfg["actions"]["move"]["enabled"].cast<bool>()) {
-        actions.push_back(std::make_unique<Move>(cfg["actions"]["move"].cast<py::dict>()));
+        actions.push_back(std::make_unique<Move>(cfg["actions"]["move"].cast<ActionConfig>()));
     }
     if (cfg["actions"]["rotate"]["enabled"].cast<bool>()) {
-        actions.push_back(std::make_unique<Rotate>(cfg["actions"]["rotate"].cast<py::dict>()));
+        actions.push_back(std::make_unique<Rotate>(cfg["actions"]["rotate"].cast<ActionConfig>()));
     }
     if (cfg["actions"]["attack"]["enabled"].cast<bool>()) {
-        actions.push_back(std::make_unique<Attack>(cfg["actions"]["attack"].cast<py::dict>()));
-        actions.push_back(std::make_unique<AttackNearest>(cfg["actions"]["attack"].cast<py::dict>()));
+        actions.push_back(std::make_unique<Attack>(cfg["actions"]["attack"].cast<ActionConfig>()));
+        actions.push_back(std::make_unique<AttackNearest>(cfg["actions"]["attack"].cast<ActionConfig>()));
     }
     if (cfg["actions"]["swap"]["enabled"].cast<bool>()) {
-        actions.push_back(std::make_unique<Swap>(cfg["actions"]["swap"].cast<py::dict>()));
+        actions.push_back(std::make_unique<Swap>(cfg["actions"]["swap"].cast<ActionConfig>()));
     }
     if (cfg["actions"]["change_color"]["enabled"].cast<bool>()) {
-        actions.push_back(std::make_unique<ChangeColorAction>(cfg["actions"]["change_color"].cast<py::dict>()));
+        actions.push_back(std::make_unique<ChangeColorAction>(cfg["actions"]["change_color"].cast<ActionConfig>()));
     }
     
     init_action_handlers(actions);
@@ -126,12 +128,12 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array_t<std::string> map) {
             std::string cell = map_data(r, c);
             
             if (cell == "wall") {
-                auto wall = std::make_unique<Wall>(r, c, cfg["objects"]["wall"].cast<py::dict>());
+                auto wall = std::make_unique<Wall>(r, c, cfg["objects"]["wall"].cast<ObjectConfig>());
                 _grid->add_object(wall.get());
                 _stats->incr("objects.wall");
             }
             else if (cell == "block") {
-                auto block = std::make_unique<Wall>(r, c, cfg["objects"]["block"].cast<py::dict>());
+                auto block = std::make_unique<Wall>(r, c, cfg["objects"]["block"].cast<ObjectConfig>());
                 _grid->add_object(block.get());
                 _stats->incr("objects.block");
             }
@@ -140,12 +142,12 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array_t<std::string> map) {
                 if (m.find('.') == std::string::npos) {
                     m = "mine.red";
                 }
-                auto converter = std::make_unique<Converter>(r, c, cfg["objects"][py::str(m)].cast<py::dict>(), ObjectType::MineT);
+                auto converter = std::make_unique<Converter>(r, c, cfg["objects"][py::str(m)].cast<ObjectConfig>(), ObjectType::MineT);
                 _grid->add_object(converter.get());
                 converter->set_event_manager(_event_manager.get());
                 _stats->incr("objects." + cell);
             }
-            // TODO: Add other object types
+            // xcxc: Add other object types
         }
     }
 }
