@@ -54,13 +54,13 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         for r in range(env_map.shape[0]):
             for c in range(env_map.shape[1]):
                 if env_map[r, c].startswith("agent."):
-                    team = env_map[r, c].split(".")[1]
-                    if team not in self._group_names:
-                        raise ValueError(f"Team {team} not in {self._group_names}")
+                    group = env_map[r, c].split(".")[1]
+                    if group not in self._group_names:
+                        raise ValueError(f"Group {group} not in {self._group_names}")
                     # only track teams we have in the map
-                    if group_counts[team] is None:
-                        group_counts[team] = 0
-                    group_counts[team] += 1
+                    if group_counts[group] is None:
+                        group_counts[group] = 0
+                    group_counts[group] += 1
 
         self._group_counts = group_counts
         self._c_env = MettaGrid(self._env_cfg, env_map)
