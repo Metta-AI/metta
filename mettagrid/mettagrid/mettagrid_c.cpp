@@ -330,36 +330,6 @@ unsigned int MettaGrid::num_agents() {
     return _agents.size();
 }
 
-void MettaGrid::observe(
-    unsigned int observer_id,
-    unsigned short obs_width,
-    unsigned short obs_height,
-    py::array_t<unsigned char> observation
-) {
-    auto observer = _grid->object(observer_id);
-    if (!observer) {
-        throw std::runtime_error("Invalid observer ID");
-    }
-    
-    _compute_observation(
-        observer->location.r,
-        observer->location.c,
-        obs_width,
-        obs_height,
-        observation
-    );
-}
-
-void MettaGrid::observe_at(
-    unsigned short row,
-    unsigned short col,
-    unsigned short obs_width,
-    unsigned short obs_height,
-    py::array_t<unsigned char> observation
-) {
-    _compute_observation(row, col, obs_width, obs_height, observation);
-}
-
 py::array_t<float> MettaGrid::get_episode_rewards() {
     return _episode_rewards_np;
 }
@@ -465,8 +435,8 @@ void MettaGrid::add_agent(Agent* agent) {
 }
 
 void MettaGrid::_compute_observation(
-    unsigned int observer_r,
-    unsigned int observer_c,
+    unsigned int observer_row,
+    unsigned int observer_col,
     unsigned short obs_width,
     unsigned short obs_height,
     py::array_t<unsigned char> observation
@@ -474,44 +444,53 @@ void MettaGrid::_compute_observation(
     auto observation_view = observation.mutable_unchecked<3>();
     
     // Calculate observation boundaries
-    int obs_width_r = obs_width / 2;
-    int obs_height_r = obs_height / 2;
-    int r_start = observer_r - obs_height_r;
-    int c_start = observer_c - obs_width_r;
+    int obs_width_radius = obs_width >> 1;
+    int obs_height_radius = obs_height >> 1;
+    int r_start = observer_row - obs_height_radius;
+    int c_start = observer_col - obs_width_radius;
+    int r_end = observer_row + obs_height_radius;
+    int c_end = observer_col + obs_width_radius;
     
+    r_start = r_start < 0 ? 0 : r_start;
+    c_start = c_start < 0 ? 0 : c_start;
+    r_end = r_end > _grid->height - 1 ? _grid->height - 1 : r_end;
+    c_end = c_end > _grid->width - 1 ? _grid->width - 1 : c_end;
+
     // Clear observation
-    for (int r = 0; r < obs_height; r++) {
-        for (int c = 0; c < obs_width; c++) {
-            for (size_t f = 0; f < _grid_features.size(); f++) {
-                observation_view(r, c, f) = 0;
-            }
-        }
-    }
+    // xcxc
+    // for (int r = 0; r < obs_height; r++) {
+    //     for (int c = 0; c < obs_width; c++) {
+    //         for (size_t f = 0; f < _grid_features.size(); f++) {
+    //             observation_view(r, c, f) = 0;
+    //         }
+    //     }
+    // }
     
     // Fill in visible objects
-    for (int r = r_start; r <= observer_r + obs_height_r; r++) {
-        if (r < 0 || r >= _grid->height) continue;
-        
-        for (int c = c_start; c <= observer_c + obs_width_r; c++) {
-            if (c < 0 || c >= _grid->width) continue;
-            
+    for (int r = r_start; r <= r_end; r++) {
+        for (int c = c_start; c <= c_end; c++) {
             for (unsigned int layer = 0; layer < _grid->num_layers; layer++) {
                 GridLocation object_loc(r, c, layer);
                 auto obj = _grid->object_at(object_loc);
                 if (!obj) continue;
                 
-                int obs_r = object_loc.r + obs_height_r - observer_r;
-                int obs_c = object_loc.c + obs_width_r - observer_c;
-                
-                // Get feature offsets for this object type
-                auto type_features = _obs_encoder->type_feature_names()[obj->_type_id];
-                std::vector<unsigned int> offsets(type_features.size());
-                for (size_t i = 0; i < offsets.size(); i++) {
-                    offsets[i] = i;
-                }
-                
+                int obs_r = object_loc.r + obs_height_radius - observer_row;
+                int obs_c = object_loc.c + obs_width_radius - observer_col;
+
+                // auto shape = observation_view.shape();
+                // auto strides = observation_view.strides();
+
+                // Maybe not needed?
+                // py::array_t<unsigned char> agent_obs(
+                //     std::array<ssize_t, 1>{shape[2]},
+                //     std::array<ssize_t, 1>{strides[2]},
+                //     observation_view.mutable_data(obs_r, obs_c, 0)
+                // );
+
+                auto obs_data = observation_view.mutable_data(obs_r, obs_c, 0);
+                                
                 // Encode object features
-                _obs_encoder->encode(obj, reinterpret_cast<ObsType*>(observation_view.mutable_data(obs_r, obs_c, 0)), offsets);
+                _obs_encoder->encode(obj, obs_data);
             }
         }
     }
@@ -525,7 +504,9 @@ void MettaGrid::_compute_observations(py::array_t<int> actions) {
             agent->location.c,
             _obs_width,
             _obs_height,
-            _observations_np[idx]
+            // TODO: this slicing may be inefficient, since it passes
+            // things back to Python (at least somewhat)
+            _observations_np[py::make_tuple(idx, py::ellipsis())].cast<py::array_t<unsigned char>>()
         );
     }
 }
@@ -619,8 +600,6 @@ PYBIND11_MODULE(mettagrid_c, m) {
         .def("map_height", &MettaGrid::map_height)
         .def("grid_features", &MettaGrid::grid_features)
         .def("num_agents", &MettaGrid::num_agents)
-        .def("observe", &MettaGrid::observe)
-        .def("observe_at", &MettaGrid::observe_at)
         .def("get_episode_rewards", &MettaGrid::get_episode_rewards)
         .def("get_episode_stats", &MettaGrid::get_episode_stats)
         .def("render_ascii", &MettaGrid::render_ascii)
