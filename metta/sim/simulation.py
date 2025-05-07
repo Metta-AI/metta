@@ -168,7 +168,10 @@ class Simulation:
         for i, value in enumerate(one_d):
             if value != 0:
                 obj[i] = value
-        return str(obj)
+        res = f"Shape: {tensor.shape}\n"
+        res += f"One d: length {len(one_d)}, first: {one_d[0]}, last: {one_d[-1]}\n"
+        res += f"Values: {obj}\n"
+        return res
 
     def print_tensor_hash(self, tensor: torch.Tensor) -> str:
         """Print a tensor as a string."""
@@ -206,7 +209,6 @@ class Simulation:
 
                 # Parallelize across opponents
                 policy = self._policy_pr.policy()  # policy to evaluate
-                print("Obs dims: ", my_obs.shape)
                 print(f"Obs: {self.print_tensor(my_obs)}")
                 policy_actions, _, _, _, _ = policy(my_obs, policy_state)
                 print(f"Policy actions: {policy_actions}")
