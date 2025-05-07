@@ -24,6 +24,20 @@ def make_policy(env: PufferEnv, cfg: ListConfig | DictConfig):
             "global_vars": gym.spaces.Box(low=-np.inf, high=np.inf, shape=[0], dtype=np.int32),
         }
     )
+    num_actions = env.single_action_space.nvec[0]
+    num_action_args = env.single_action_space.nvec[1]
+
+    # Check against expected values if specified in config
+    if hasattr(cfg, "expected_num_actions") and cfg.expected_num_actions != num_actions:
+        raise ValueError(
+            f"Action space first dimension {num_actions} doesn't match expected value {cfg.expected_num_actions}"
+        )
+
+    if hasattr(cfg, "expected_num_action_args") and cfg.expected_num_action_args != num_action_args:
+        raise ValueError(
+            f"Action space second dimension {num_action_args} doesn't match expected value {cfg.expected_num_action_args}"
+        )
+
     return hydra.utils.instantiate(
         cfg.agent,
         obs_shape=env.single_observation_space.shape,
@@ -55,6 +69,7 @@ class MettaAgent(nn.Module):
         action_space: gym.spaces.Space,
         grid_features: List[str],
         device: str,
+        logger: Logger,
         **cfg,
     ):
         super().__init__()

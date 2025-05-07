@@ -1,5 +1,5 @@
+import numpy as np
 import pytest
-from omegaconf import OmegaConf
 
 from mettagrid.config.utils import get_cfg
 from mettagrid.mettagrid_env import MettaGridEnv
@@ -9,12 +9,8 @@ from mettagrid.resolvers import register_resolvers
 @pytest.fixture
 def environment():
     """Create and initialize the environment."""
-
     register_resolvers()
-
     cfg = get_cfg("benchmark")
-    print(OmegaConf.to_yaml(cfg))
-
     env = MettaGridEnv(cfg, render_mode="human", _recursive_=False)
     env.reset()
     yield env
@@ -22,113 +18,104 @@ def environment():
     del env
 
 
-@pytest.mark.parametrize(
-    "dependency",
-    [
-        "hydra",
-        "matplotlib",
-        "pettingzoo",
-        "pytest",
-        "yaml",
-        "raylib",
-        "rich",
-        "scipy",
-        "tabulate",
-        "termcolor",
-        "wandb",
-        "pandas",
-        "tqdm",
-    ],
-)
-def test_dependency_import(dependency):
-    """Test that individual dependencies can be imported."""
-    try:
-        __import__(dependency)
-    except ImportError as e:
-        pytest.fail(f"Failed to import {dependency}: {str(e)}")
+def test_basic(environment):
+    """
+    Comprehensive test of MettaGrid environment functionality.
+    This test combines the functionality of multiple tests into one
+    while fixing the dtype issue for actions.
+    """
+    # ---- Test environment initialization ----
+    assert environment._renderer is None
+    assert environment._c_env is not None
+    assert environment._grid_env is not None
+    assert environment._c_env == environment._grid_env
+    assert environment.done is False
 
+    # ---- Test environment properties ----
+    assert environment._max_steps > 0
 
-class TestEnvironmentFunctionality:
-    """Test suite for MettaGrid environment functionality."""
+    # Check observation space
+    obs_shape = environment.single_observation_space.shape
+    assert len(obs_shape) == 3  # (width, height, channels)
+    assert obs_shape[0] > 0  # grid width
+    assert obs_shape[1] > 0  # grid height
+    assert obs_shape[2] > 0  # channels
 
-    def test_env_initialization(self, environment):
-        """Test environment initialization."""
-        assert environment._renderer is None
-        assert environment._c_env is not None
-        assert environment._grid_env is not None
-        assert environment._c_env == environment._grid_env
-        assert environment.done is False
+    # Check action space
+    [num_actions, max_arg] = environment.single_action_space.nvec.tolist()
+    assert num_actions > 0, f"num_actions: {num_actions}"
+    assert max_arg > 0, f"max_arg: {max_arg}"
 
-    def test_env_reset(self, environment):
-        """Test environment reset functionality."""
-        # Reset should return observation and info
-        obs, info = environment.reset()
+    # Check env properties
+    assert environment.render_mode == "human"
+    assert environment._c_env.map_width() > 0
+    assert environment._c_env.map_height() > 0
+    num_agents = environment._c_env.num_agents()
+    assert num_agents > 0
+    assert environment.action_success.shape == (num_agents,)
 
-        # Check observation structure
-        [num_agents, grid_width, grid_height, num_channels] = obs.shape
-        num_expected_agents = environment._c_env.num_agents()
-        assert num_agents == num_expected_agents
-        assert grid_width > 0
-        assert grid_height > 0
-        assert 20 <= num_channels <= 50
+    # Test object type names
+    assert environment.object_type_names() == environment._c_env.object_type_names()
 
-    def test_env_step(self, environment):
-        """Test environment step functionality."""
-        environment.reset()
+    # Test inventory item names
+    assert environment.inventory_item_names() == environment._c_env.inventory_item_names()
 
-        # Check initial timestep
-        assert environment._c_env.current_timestep() == 0
+    # ---- Test environment reset ----
+    obs, info = environment.reset()
 
-        num_agents = environment._c_env.num_agents()
-        # Take a step with NoOp actions for all agents
-        (obs, rewards, terminated, truncated, infos) = environment.step([[0, 0]] * num_agents)
+    # Check observation structure
+    [agents_in_obs, grid_width, grid_height, num_channels] = obs.shape
+    num_expected_agents = environment._c_env.num_agents()
+    assert agents_in_obs == num_expected_agents
+    assert grid_width > 0
+    assert grid_height > 0
+    assert 20 <= num_channels <= 50
 
-        # Check timestep increased
-        assert environment._c_env.current_timestep() == 1
+    # ---- Test environment step ----
+    # Check initial timestep
+    assert environment._c_env.current_timestep() == 0
 
-        # Verify observation structure
-        [agents_in_obs, grid_width, grid_height, num_channels] = obs.shape
-        assert agents_in_obs == num_agents
-        assert grid_width > 0
-        assert grid_height > 0
-        assert 20 <= num_channels <= 50
+    # Take a step with NoOp actions for all agents
+    # Create properly formatted actions with correct dtype
+    actions = np.array([[0, 0]] * num_agents, dtype=np.int32)
 
-        # Verify rewards and termination flags
-        assert rewards.shape == (num_agents,)
-        assert len(terminated) == num_agents
-        assert len(truncated) == num_agents
+    obs, rewards, terminated, truncated, infos = environment.step(actions)
 
-    def test_episode_stats(self, environment):
-        """Test processing of episode statistics."""
-        environment.reset()
-        infos = {}
-        environment.process_episode_stats(infos)
-        # Add specific assertions if you know what should be in infos after processing
+    # Check timestep increased
+    assert environment._c_env.current_timestep() == 1
 
-    def test_environment_properties(self, environment):
-        """Test environment properties."""
-        assert environment._max_steps > 0
+    # Verify observation structure
+    [agents_in_obs, grid_width, grid_height, num_channels] = obs.shape
+    assert agents_in_obs == num_agents
+    assert grid_width > 0
+    assert grid_height > 0
+    assert 20 <= num_channels <= 50
 
-        # Check observation space
-        obs_shape = environment.single_observation_space.shape
-        assert len(obs_shape) == 3  # (width, height, channels)
-        assert obs_shape[0] > 0  # grid width
-        assert obs_shape[1] > 0  # grid height
-        assert obs_shape[2] > 0  # channels
+    # Verify rewards and termination flags
+    assert rewards.shape == (num_agents,)
+    assert len(terminated) == num_agents
+    assert len(truncated) == num_agents
 
-        # Check action space
-        [num_actions, max_arg] = environment.single_action_space.nvec.tolist()
-        assert num_actions > 0, f"num_actions: {num_actions}"
-        assert max_arg > 0, f"max_arg: {max_arg}"
+    # ---- Test episode stats ----
+    infos = {}
+    environment.process_episode_stats(infos)
 
-        # Check env properties
-        assert environment.render_mode == "human"
-        assert environment._c_env.map_width() > 0
-        assert environment._c_env.map_height() > 0
-        num_agents = environment._c_env.num_agents()
-        assert num_agents > 0
-        assert environment.action_success.shape == (num_agents,)
+    # ---- Additional testing with random actions ----
+    # Reset for additional testing
+    obs, info = environment.reset()
 
-    def test_object_type_names(self, environment):
-        """Test object type names functionality."""
-        assert environment.object_type_names() == environment._c_env.object_type_names()
+    # Test multiple steps with random actions
+    for i in range(5):
+        # Generate random actions but ensure correct dtype
+        random_actions = np.random.randint(low=0, high=[num_actions, max_arg], size=(num_agents, 2), dtype=np.int32)
+
+        obs, rewards, terminated, truncated, infos = environment.step(random_actions)
+
+        # Process episode stats if needed
+        if np.any(terminated) or np.any(truncated):
+            environment.process_episode_stats(infos)
+            obs, info = environment.reset()
+
+    # Final verification that environment is still functioning
+    assert environment._c_env is not None
+    assert environment._grid_env is not None

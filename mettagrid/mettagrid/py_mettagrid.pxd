@@ -48,6 +48,10 @@ cdef extern from "observation_encoder.hpp":
 cdef extern from "objects/agent.hpp":
     cdef cppclass Agent
 
+cdef extern from "objects/constants.hpp":
+    cdef vector[string] ObjectTypeNames
+    cdef vector[string] InventoryItemNames
+
 # Updated MettaGrid class definition with precise types
 cdef extern from "core.hpp":
     cdef cppclass MettaGrid:

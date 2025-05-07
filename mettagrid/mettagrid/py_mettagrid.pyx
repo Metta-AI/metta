@@ -20,7 +20,7 @@ import gymnasium as gym
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
 # Import from the cython definition file
-from mettagrid.py_mettagrid cimport MettaGrid, GridObjectId, ObsType
+from mettagrid.py_mettagrid cimport MettaGrid, GridObjectId, ObsType, ObjectTypeNames, InventoryItemNames
 
 # Constants
 obs_np_type = np.uint8
@@ -335,11 +335,12 @@ cdef class PyMettaGrid:
     def step(self, actions):
         """Take a step in the environment with the given actions."""
         cdef:
-            cnp.ndarray[cnp.int32_t, ndim=2] actions_array
+            cnp.ndarray[int32_t, ndim=2] actions_array
             uint32_t i, rows, cols
         
         # Fast path for already compatible numpy arrays
         if isinstance(actions, np.ndarray) and actions.shape == (self._num_agents, 2) and actions.dtype == np.int32:
+            assert False
             actions_array = actions
         else:
             # Ensure actions is a properly shaped numpy array using our buffer
@@ -627,3 +628,35 @@ cdef class PyMettaGrid:
             shape=(self._cpp_mettagrid.map_height(), self._cpp_mettagrid.map_width(), self._feature_size),
             dtype=obs_np_type
         )
+
+    def object_type_names(self):
+        """Get a list of all object type names."""
+        cdef vector[string] cpp_names = ObjectTypeNames
+        cdef list result = []
+        cdef uint32_t i
+        
+        # Convert C++ vector of strings to Python list
+        for i in range(cpp_names.size()):
+            name = cpp_names[i]
+            if isinstance(name, bytes):
+                result.append(name.decode('utf8'))
+            else:
+                result.append(name)
+        
+        return result
+
+    def inventory_item_names(self):
+        """Get a list of all inventory item names."""
+        cdef vector[string] cpp_names = InventoryItemNames
+        cdef list result = []
+        cdef uint32_t i
+        
+        # Convert C++ vector of strings to Python list
+        for i in range(cpp_names.size()):
+            name = cpp_names[i]
+            if isinstance(name, bytes):
+                result.append(name.decode('utf8'))
+            else:
+                result.append(name)
+        
+        return result

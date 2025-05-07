@@ -33,6 +33,8 @@ class Policy(nn.Module):
             nn.ReLU(),
         )
 
+        # TODO - fix magic numbers!
+
         max_vec = (
             torch.tensor(
                 [
@@ -103,24 +105,28 @@ class Policy(nn.Module):
         value = self.value(hidden)
         return logits, value
 
+    def load_policy(self, path: str, device: str = "cpu"):
+        weights = torch.load(path, map_location=device, weights_only=True)
+        num_actions, hidden_size = weights["policy.actor.0.weight"].shape
+        num_action_args, _ = weights["policy.actor.1.weight"].shape
+        cnn_channels, obs_channels, _, _ = weights["policy.network.0.weight"].shape
 
-def load_policy(path: str, device: str = "cpu"):
-    weights = torch.load(path, map_location=device, weights_only=True)
-    num_actions, hidden_size = weights["policy.actor.0.weight"].shape
-    num_action_args, _ = weights["policy.actor.1.weight"].shape
-    cnn_channels, obs_channels, _, _ = weights["policy.network.0.weight"].shape
-    env = SimpleNamespace(
-        single_action_space=SimpleNamespace(nvec=[num_actions, num_action_args]),
-        single_observation_space=SimpleNamespace(shape=[obs_channels, 11, 11]),
-    )
-    policy = Policy(env, cnn_channels=cnn_channels, hidden_size=hidden_size)
-    policy = Recurrent(env, policy)
+        # TODO -- fix magic number 11
 
-    policy.load_state_dict(weights)
+        # Create environment namespace
+        env = SimpleNamespace(
+            single_action_space=SimpleNamespace(nvec=[num_actions, num_action_args]),
+            single_observation_space=SimpleNamespace(shape=[obs_channels, 11, 11]),
+        )
 
-    policy = PufferAgentWrapper(policy)
+        policy = Policy(env, cnn_channels=cnn_channels, hidden_size=hidden_size)
+        policy = Recurrent(env, policy)
 
-    return policy
+        policy.load_state_dict(weights)
+
+        policy = PufferAgentWrapper(policy)
+
+        return policy
 
 
 class PufferAgentWrapper(nn.Module):
