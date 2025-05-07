@@ -89,7 +89,7 @@ jobs:
           PATHS="mettagrid/build
           mettagrid/**/*.so
           metta/**/*.so
-          /build
+          deps/**/*.so
           ~/.cache/pip
           venv"
           echo "paths<<EOF" >> $GITHUB_OUTPUT
