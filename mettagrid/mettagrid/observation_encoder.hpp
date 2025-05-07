@@ -42,7 +42,9 @@ public:
     for (uint32_t type_id = 0; type_id < ObjectType::Count; ++type_id) {
       for (size_t i = 0; i < _type_feature_names[type_id].size(); ++i) {
         if (features.count(_type_feature_names[type_id][i]) == 0) {
-          features[_type_feature_names[type_id][i]] = features.size();
+          // The C++ standard doesn't guarantee the order of evaluation
+          size_t current_size = features.size();
+          features[_type_feature_names[type_id][i]] = current_size;
           _feature_names.push_back(_type_feature_names[type_id][i]);
         }
       }

@@ -122,9 +122,9 @@ mkdir -p deps
 cd deps
 
 # Install dependencies using the function
-install_repo "pufferlib" $PUFFERLIB_REPO "metta" "pip install -e ."
-install_repo "carbs" $CARBS_REPO "main" "pip install -e ."
+install_repo "carbs" $CARBS_REPO "main" "pip install -e . "
 install_repo "wandb_carbs" $WANDB_CARBS_REPO "main" "pip install -e ."
+install_repo "pufferlib" $PUFFERLIB_REPO "metta" "pip install -e . --no-deps"
 
 # Mark dependencies as installed
 cd ..
