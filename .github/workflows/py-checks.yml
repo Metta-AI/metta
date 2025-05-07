@@ -86,12 +86,12 @@ jobs:
       - name: Set cache paths
         id: set-cache-paths
         run: |
-          PATHS="mettagrid/build
+          PATHS="venv
           mettagrid/**/*.so
           metta/**/*.so
           deps/**/*.so
           ~/.cache/pip
-          venv"
+          "
           echo "paths<<EOF" >> $GITHUB_OUTPUT
           echo "$PATHS" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
@@ -317,8 +317,10 @@ jobs:
       - name: Check deps
         run: |
           source venv/bin/activate
+          echo "content of repo"
+          ls -al
+          echo "contents of deps"
           ls -la deps
-          ls -la deps/pufferlib
 
           for dep in \
             "pufferlib" \
