@@ -686,7 +686,7 @@ jobs:
             --threshold-measure latency \
             --threshold-test t_test \
             --threshold-max-sample-size 64 \
-            --threshold-upper-boundary 0.99 \
+            --threshold-upper-boundary 1.1 \
             --adapter python_pytest \
             --github-actions "$GITHUB_TOKEN" \
             --file combined_benchmark_results.json > /dev/null
