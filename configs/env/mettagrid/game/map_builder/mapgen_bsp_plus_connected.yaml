@@ -1,4 +1,4 @@
-_target_: mettagrid.map.mapgen.MapGen
+_target_: metta.map.mapgen.MapGen
 
 width: 80
 height: 60
@@ -7,7 +7,7 @@ height: 60
 # The result looks worse, but it serves as a nice test for the MakeConnected scene.
 
 root:
-  _target_: mettagrid.map.scenes.bsp.BSP
+  _target_: metta.map.scenes.bsp.BSP
   rooms: 10
   min_room_size: 3
   min_room_size_ratio: 0.5
@@ -17,4 +17,4 @@ root:
   children:
     - where: full
       scene:
-        _target_: mettagrid.map.scenes.make_connected.MakeConnected
+        _target_: metta.map.scenes.make_connected.MakeConnected
