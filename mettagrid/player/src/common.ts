@@ -108,6 +108,21 @@ export const html = {
   toast: document.getElementById('toast') as HTMLDivElement,
 }
 
+// Set the follow selection state, you can pass null to leave a state unchanged.
+export function setFollowSelection(map: boolean | null, trace: boolean | null) {
+  if (map != null) {
+    state.followSelection = map;
+    if (map) {
+      html.focusView.style.opacity = "1";
+    } else {
+      html.focusView.style.opacity = "0.2";
+    }
+  }
+  if (trace != null) {
+    state.followTraceSelection = trace;
+  }
+}
+
 // Show the modal
 export function showModal(type: string, title: string, message: string) {
   html.modal.style.display = 'block';

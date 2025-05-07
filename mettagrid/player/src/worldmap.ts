@@ -1,7 +1,7 @@
 import { Vec2f } from './vector_math.js';
 import { Grid } from './grid.js';
 import * as Common from './common.js';
-import { ui, state, ctx } from './common.js';
+import { ui, state, ctx, setFollowSelection } from './common.js';
 import { getAttr } from './replay.js';
 import { PanelInfo } from './panels.js';
 import {onFrame } from './main.js';
@@ -494,8 +494,7 @@ export function drawMap(panel: PanelInfo) {
   if (ui.mouseClick && !ui.miniMapPanel.inside(ui.mousePos)) {
 
     // Reset the follow flags.
-    state.followSelection = false;
-    state.followTraceSelection = false;
+    setFollowSelection(false, false);
 
     if (localMousePos != null) {
       const gridMousePos = new Vec2f(
@@ -513,8 +512,7 @@ export function drawMap(panel: PanelInfo) {
 
         if (ui.mouseDoubleClick) {
           // Toggle followSelection on double-click
-          state.followSelection = true;
-          state.followTraceSelection = true;
+          setFollowSelection(true, true);
           panel.zoomLevel = 1 / 2;
           ui.tracePanel.zoomLevel = 1;
         }

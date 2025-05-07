@@ -1,6 +1,6 @@
 import { Vec2f, Mat3f } from './vector_math.js';
 import * as Common from './common.js';
-import { ui, state, html, ctx } from './common.js';
+import { ui, state, html, ctx, setFollowSelection } from './common.js';
 import { fetchReplay, readFile } from './replay.js';
 import { focusFullMap, updateReadout, drawMap, requestFrame } from './worldmap.js';
 import { drawTrace } from './traces.js';
@@ -192,8 +192,7 @@ function onScrubberChange() {
 function onKeyDown(event: KeyboardEvent) {
   if (event.key == "Escape") {
     state.selectedGridObject = null;
-    state.followSelection = false; // Also stop following when selection is cleared
-    state.followTraceSelection = false;
+    setFollowSelection(false, false);
   }
   // '[' and ']' to scrub forward and backward.
   if (event.key == "[") {
@@ -323,8 +322,7 @@ async function parseUrlParams() {
     const selectedObjectId = parseInt(urlParams.get('selectedObjectId') || "-1") - 1;
     if (selectedObjectId >= 0 && selectedObjectId < state.replay.grid_objects.length) {
       state.selectedGridObject = state.replay.grid_objects[selectedObjectId];
-      state.followSelection = true;
-      state.followTraceSelection = true;
+      setFollowSelection(true, true);
       ui.mapPanel.zoomLevel = 1 / 2;
       ui.tracePanel.zoomLevel = 1;
       console.info("Selected object via query parameter:", state.selectedGridObject);
@@ -421,6 +419,12 @@ for (let i = 0; i < html.speedButtons.length; i++) {
     () => setPlaybackSpeed(Common.SPEEDS[i])
   );
 }
+
+// Toggle follow selection state.
+html.focusView.addEventListener('click', () => {
+  const reverse = !state.followSelection;
+  setFollowSelection(reverse, reverse);
+});
 
 window.addEventListener('load', async () => {
 
