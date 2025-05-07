@@ -1,6 +1,7 @@
 #ifndef ATTACK_NEAREST_HPP
 #define ATTACK_NEAREST_HPP
 
+#include <cstdint>  // Added for fixed-width integer types
 #include <string>
 
 #include "attack.hpp"
@@ -11,7 +12,7 @@ class AttackNearest : public Attack {
 public:
   AttackNearest(const ActionConfig& cfg) : Attack(cfg, "attack_nearest") {}
 
-  unsigned char max_arg() const override {
+  uint8_t max_arg() const override {
     return 0;
   }
 
@@ -20,7 +21,7 @@ public:
   }
 
 protected:
-  bool _handle_action(unsigned int actor_id, Agent* actor, ActionArg arg) override {
+  bool _handle_action(uint32_t actor_id, Agent* actor, ActionArg arg) override {
     if (actor->inventory[InventoryItem::laser] == 0) {
       return false;
     }
@@ -28,9 +29,9 @@ protected:
     actor->update_inventory(InventoryItem::laser, -1);
 
     // Scan the space to find the nearest agent. Prefer the middle (offset 0) before the edges (offset -1, 1).
-    for (int distance = 1; distance < 4; distance++) {
-      for (int i = 0; i < 3; i++) {
-        int offset = i;
+    for (int32_t distance = 1; distance < 4; distance++) {
+      for (int32_t i = 0; i < 3; i++) {
+        int32_t offset = i;
         if (offset == 2) {
           // Sort of a mod 3 operation.
           offset = -1;

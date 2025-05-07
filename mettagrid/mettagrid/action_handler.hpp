@@ -1,5 +1,7 @@
 #ifndef ACTION_HANDLER_HPP
 #define ACTION_HANDLER_HPP
+
+#include <cstdint>  // Added for fixed-width integer types
 #include <map>
 #include <string>
 #include <vector>
@@ -18,12 +20,12 @@ struct StatNames {
   std::vector<std::string> group;
 };
 
-typedef unsigned char ActionArg;
-typedef std::map<std::string, int> ActionConfig;
+typedef uint8_t ActionArg;
+typedef std::map<std::string, int32_t> ActionConfig;
 
 class ActionHandler {
 public:
-  unsigned char priority;
+  uint8_t priority;
   Grid* _grid;
 
   ActionHandler(const ActionConfig& cfg, const std::string& action_name) : priority(0), _action_name(action_name) {
@@ -42,10 +44,7 @@ public:
     this->_grid = grid;
   }
 
-  bool handle_action(unsigned int actor_id,
-                     GridObjectId actor_object_id,
-                     ActionArg arg,
-                     unsigned int current_timestep) {
+  bool handle_action(uint32_t actor_id, GridObjectId actor_object_id, ActionArg arg, uint32_t current_timestep) {
     Agent* actor = static_cast<Agent*>(_grid->object(actor_object_id));
     if (actor->frozen > 0) {
       actor->stats.incr("status.frozen.ticks");
@@ -65,7 +64,7 @@ public:
     return result;
   }
 
-  virtual unsigned char max_arg() const {
+  virtual uint8_t max_arg() const {
     return 0;
   }
 
@@ -77,7 +76,7 @@ public:
   virtual ActionHandler* clone() const = 0;
 
 protected:
-  virtual bool _handle_action(unsigned int actor_id, Agent* actor, ActionArg arg) = 0;
+  virtual bool _handle_action(uint32_t actor_id, Agent* actor, ActionArg arg) = 0;
   StatNames _stats;
   std::string _action_name;
 };

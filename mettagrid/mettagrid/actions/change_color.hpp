@@ -1,6 +1,7 @@
 #ifndef CHANGE_COLOR_HPP
 #define CHANGE_COLOR_HPP
 
+#include <cstdint>  // Added for fixed-width integer types
 #include <string>
 
 #include "action_handler.hpp"
@@ -10,7 +11,7 @@ class ChangeColorAction : public ActionHandler {
 public:
   ChangeColorAction(const ActionConfig& cfg) : ActionHandler(cfg, "change_color") {}
 
-  unsigned char max_arg() const override {
+  uint8_t max_arg() const override {
     return 3;
   }
 
@@ -19,7 +20,7 @@ public:
   }
 
 protected:
-  bool _handle_action(unsigned int actor_id, Agent* actor, ActionArg arg) override {
+  bool _handle_action(uint32_t actor_id, Agent* actor, ActionArg arg) override {
     if (arg == 0) {  // Increment
       if (actor->color < 255) {
         actor->color += 1;

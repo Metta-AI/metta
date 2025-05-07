@@ -2,34 +2,34 @@
 #define GRID_HPP
 
 #include <algorithm>
+#include <cstdint>
 #include <vector>
 
 #include "grid_object.hpp"
 
-using namespace std;
-typedef vector<vector<vector<GridObjectId> > > GridType;
+typedef std::vector<std::vector<std::vector<GridObjectId>>> GridType;
 
 class Grid {
 public:
-  unsigned int width;
-  unsigned int height;
-  vector<Layer> layer_for_type_id;
+  uint32_t width;
+  uint32_t height;
+  std::vector<Layer> layer_for_type_id;
   Layer num_layers;
 
   GridType grid;
-  vector<GridObject*> objects;
+  std::vector<GridObject*> objects;
 
-  inline Grid(unsigned int width, unsigned int height, vector<Layer> layer_for_type_id)
+  inline Grid(uint32_t width, uint32_t height, std::vector<Layer> layer_for_type_id)
       : width(width), height(height), layer_for_type_id(layer_for_type_id) {
-    num_layers = *max_element(layer_for_type_id.begin(), layer_for_type_id.end()) + 1;
-    grid.resize(height, vector<vector<GridObjectId> >(width, vector<GridObjectId>(this->num_layers, 0)));
+    num_layers = *std::max_element(layer_for_type_id.begin(), layer_for_type_id.end()) + 1;
+    grid.resize(height, std::vector<std::vector<GridObjectId>>(width, std::vector<GridObjectId>(this->num_layers, 0)));
 
     // 0 is reserved for empty space
     objects.push_back(nullptr);
   }
 
   inline ~Grid() {
-    for (unsigned long id = 1; id < objects.size(); ++id) {
+    for (uint64_t id = 1; id < objects.size(); ++id) {
       if (objects[id] != nullptr) {
         delete objects[id];
         objects[id] = nullptr;  // Set to nullptr after deletion for safety
@@ -37,7 +37,7 @@ public:
     }
   }
 
-  inline char add_object(GridObject* obj) {
+  inline bool add_object(GridObject* obj) {
     if (obj->location.r >= height or obj->location.c >= width or obj->location.layer >= num_layers) {
       return false;
     }
@@ -63,37 +63,38 @@ public:
     this->remove_object(obj);
   }
 
-  inline char move_object(GridObjectId id, const GridLocation& loc) {
-    if (loc.r >= height or loc.c >= width or loc.layer >= num_layers) {
+  inline bool move_object(GridObjectId id, const GridLocation& dest) {
+    if (dest.r >= height or dest.c >= width or dest.layer >= num_layers) {
       return false;
     }
 
-    if (grid[loc.r][loc.c][loc.layer] != 0) {
+    if (grid[dest.r][dest.c][dest.layer] != 0) {
       return false;
     }
 
     GridObject* obj = objects[id];
-    grid[loc.r][loc.c][loc.layer] = id;
-    grid[obj->location.r][obj->location.c][obj->location.layer] = 0;
-    obj->location = loc;
+    GridLocation src = obj->location;
+    grid[dest.r][dest.c][dest.layer] = id;
+    grid[src.r][src.c][src.layer] = 0;
+    obj->location = dest;
     return true;
   }
 
   inline void swap_objects(GridObjectId id1, GridObjectId id2) {
     GridObject* obj1 = objects[id1];
-    GridLocation loc1 = obj1->location;
-    Layer layer1 = loc1.layer;
-    grid[loc1.r][loc1.c][loc1.layer] = 0;
+    GridLocation pos1 = obj1->location;
+    Layer layer1 = pos1.layer;
+    grid[pos1.r][pos1.c][pos1.layer] = 0;
 
     GridObject* obj2 = objects[id2];
-    GridLocation loc2 = obj2->location;
-    Layer layer2 = loc2.layer;
-    grid[loc2.r][loc2.c][loc2.layer] = 0;
+    GridLocation pos2 = obj2->location;
+    Layer layer2 = pos2.layer;
+    grid[pos2.r][pos2.c][pos2.layer] = 0;
 
     // Keep the layer the same
-    obj1->location = loc2;
+    obj1->location = pos2;
     obj1->location.layer = layer1;
-    obj2->location = loc1;
+    obj2->location = pos1;
     obj2->location.layer = layer2;
 
     grid[obj1->location.r][obj1->location.c][obj1->location.layer] = id1;
@@ -104,19 +105,19 @@ public:
     return objects[obj_id];
   }
 
-  inline GridObject* object_at(const GridLocation& loc) {
-    if (loc.r >= height or loc.c >= width or loc.layer >= num_layers) {
+  inline GridObject* object_at(const GridLocation& pos) {
+    if (pos.r >= height or pos.c >= width or pos.layer >= num_layers) {
       return nullptr;
     }
-    if (grid[loc.r][loc.c][loc.layer] == 0) {
+    if (grid[pos.r][pos.c][pos.layer] == 0) {
       return nullptr;
     }
-    return objects[grid[loc.r][loc.c][loc.layer]];
+    return objects[grid[pos.r][pos.c][pos.layer]];
   }
 
-  inline GridObject* object_at(const GridLocation& loc, TypeId type_id) {
-    GridObject* obj = object_at(loc);
-    if (obj != NULL and obj->_type_id == type_id) {
+  inline GridObject* object_at(const GridLocation& pos, TypeId type_id) {
+    GridObject* obj = object_at(pos);
+    if (obj != nullptr and obj->_type_id == type_id) {
       return obj;
     }
     return nullptr;
@@ -135,65 +136,65 @@ public:
     return objects[id]->location;
   }
 
-  inline const GridLocation relative_location(const GridLocation& loc,
+  inline const GridLocation relative_location(const GridLocation& origin,
                                               Orientation orientation,
                                               GridCoord distance,
                                               GridCoord offset) {
-    int new_r = loc.r;
-    int new_c = loc.c;
+    int32_t targetR = origin.r;
+    int32_t targetC = origin.c;
 
     switch (orientation) {
       case Up:
-        new_r = loc.r - distance;
-        new_c = loc.c - offset;
+        targetR = origin.r - distance;
+        targetC = origin.c - offset;
         break;
       case Down:
-        new_r = loc.r + distance;
-        new_c = loc.c + offset;
+        targetR = origin.r + distance;
+        targetC = origin.c + offset;
         break;
       case Left:
-        new_r = loc.r + offset;
-        new_c = loc.c - distance;
+        targetR = origin.r + offset;
+        targetC = origin.c - distance;
         break;
       case Right:
-        new_r = loc.r - offset;
-        new_c = loc.c + distance;
+        targetR = origin.r - offset;
+        targetC = origin.c + distance;
         break;
     }
-    new_r = max(0, new_r);
-    new_c = max(0, new_c);
-    return GridLocation(new_r, new_c, loc.layer);
+    targetR = std::max(0, targetR);
+    targetC = std::max(0, targetC);
+    return GridLocation(targetR, targetC, origin.layer);
   }
 
-  inline const GridLocation relative_location(const GridLocation& loc,
+  inline const GridLocation relative_location(const GridLocation& origin,
                                               Orientation orientation,
                                               GridCoord distance,
                                               GridCoord offset,
                                               TypeId type_id) {
-    GridLocation rloc = this->relative_location(loc, orientation, distance, offset);
-    rloc.layer = this->layer_for_type_id[type_id];
-    return rloc;
+    GridLocation target = this->relative_location(origin, orientation, distance, offset);
+    target.layer = this->layer_for_type_id[type_id];
+    return target;
   }
 
-  inline const GridLocation relative_location(const GridLocation& loc, Orientation orientation) {
-    return this->relative_location(loc, orientation, 1, 0);
+  inline const GridLocation relative_location(const GridLocation& origin, Orientation orientation) {
+    return this->relative_location(origin, orientation, 1, 0);
   }
 
-  inline const GridLocation relative_location(const GridLocation& loc, Orientation orientation, TypeId type_id) {
-    return this->relative_location(loc, orientation, 1, 0, type_id);
+  inline const GridLocation relative_location(const GridLocation& origin, Orientation orientation, TypeId type_id) {
+    return this->relative_location(origin, orientation, 1, 0, type_id);
   }
 
-  inline char is_empty(unsigned int row, unsigned int col) {
-    GridLocation loc;
-    loc.r = row;
-    loc.c = col;
-    for (int layer = 0; layer < num_layers; ++layer) {
-      loc.layer = layer;
-      if (object_at(loc) != nullptr) {
-        return 0;
+  inline bool is_empty(uint32_t row, uint32_t col) {
+    GridLocation pos;
+    pos.r = row;
+    pos.c = col;
+    for (int32_t layer = 0; layer < num_layers; ++layer) {
+      pos.layer = layer;
+      if (object_at(pos) != nullptr) {
+        return false;
       }
     }
-    return 1;
+    return true;
   }
 };
 

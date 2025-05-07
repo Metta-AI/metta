@@ -11,7 +11,7 @@
 
 class HasInventory : public MettaObject {
 public:
-  std::vector<uint8_t> inventory;  // Changed from unsigned char to uint8_t
+  std::vector<uint8_t> inventory;
 
   void init_has_inventory(ObjectConfig cfg) {
     this->inventory.resize(InventoryItem::InventoryCount);

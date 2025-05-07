@@ -2,17 +2,19 @@
 #define EVENT_H
 
 #include <cassert>
+#include <cstdint>  // Added for fixed-width integer types
 #include <queue>
 #include <vector>
-using namespace std;
 
 #include "grid.hpp"
 #include "grid_object.hpp"
 #include "stats_tracker.hpp"
-typedef unsigned short EventId;
-typedef int EventArg;
+
+typedef uint16_t EventId;
+typedef int32_t EventArg;
+
 struct Event {
-  unsigned int timestamp;
+  uint32_t timestamp;
   EventId event_id;
   GridObjectId object_id;
   EventArg arg;
@@ -40,13 +42,13 @@ public:
 
 class EventManager {
 private:
-  priority_queue<Event> _event_queue;
-  unsigned int _current_timestep;
+  std::priority_queue<Event> _event_queue;
+  uint32_t _current_timestep;
 
 public:
   Grid* grid;
   StatsTracker* stats;
-  vector<EventHandler*> event_handlers;
+  std::vector<EventHandler*> event_handlers;
 
   EventManager() {
     this->grid = nullptr;
@@ -65,7 +67,7 @@ public:
     }
   }
 
-  void schedule_event(EventId event_id, unsigned int delay, GridObjectId object_id, EventArg arg) {
+  void schedule_event(EventId event_id, uint32_t delay, GridObjectId object_id, EventArg arg) {
     Event event;
     // If the object id is 0, the object has probably not been added to the grid yet. Given
     // our current usage of events, this is an error, since we won't be able to find the object
@@ -78,7 +80,7 @@ public:
     this->_event_queue.push(event);
   }
 
-  void process_events(unsigned int current_timestep) {
+  void process_events(uint32_t current_timestep) {
     this->_current_timestep = current_timestep;
     Event event;
     while (!this->_event_queue.empty()) {

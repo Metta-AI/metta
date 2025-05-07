@@ -1,6 +1,7 @@
 #ifndef METTAGRID_OBSERVATION_ENCODER_HPP
 #define METTAGRID_OBSERVATION_ENCODER_HPP
 
+#include <cstdint>  // Added for fixed-width integer types
 #include <map>
 #include <memory>
 #include <string>
@@ -38,7 +39,7 @@ public:
     // Generate an offset for each unique feature name.
     std::map<std::string, size_t> features;
 
-    for (size_t type_id = 0; type_id < ObjectType::Count; ++type_id) {
+    for (uint32_t type_id = 0; type_id < ObjectType::Count; ++type_id) {
       for (size_t i = 0; i < _type_feature_names[type_id].size(); ++i) {
         if (features.count(_type_feature_names[type_id][i]) == 0) {
           features[_type_feature_names[type_id][i]] = features.size();
@@ -48,7 +49,7 @@ public:
     }
 
     // Set the offset for each feature, using the global offsets.
-    for (size_t type_id = 0; type_id < ObjectType::Count; ++type_id) {
+    for (uint32_t type_id = 0; type_id < ObjectType::Count; ++type_id) {
       for (size_t i = 0; i < _type_feature_names[type_id].size(); ++i) {
         _offsets[type_id].push_back(features[_type_feature_names[type_id][i]]);
       }
@@ -59,7 +60,7 @@ public:
     encode(obj, obs, _offsets[obj->_type_id]);
   }
 
-  void encode(const GridObject* obj, ObsType* obs, const std::vector<unsigned int>& offsets) {
+  void encode(const GridObject* obj, ObsType* obs, const std::vector<uint32_t>& offsets) {
     obj->obs(obs, offsets);
   }
 
@@ -72,7 +73,7 @@ public:
   }
 
 private:
-  std::vector<std::vector<unsigned int>> _offsets;
+  std::vector<std::vector<uint32_t>> _offsets;
   std::vector<std::vector<std::string>> _type_feature_names;
   std::vector<std::string> _feature_names;
 };

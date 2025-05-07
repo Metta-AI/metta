@@ -1,5 +1,6 @@
 #ifndef MOVE_HPP
 #define MOVE_HPP
+#include <cstdint>  // Added for fixed-width integer types
 #include <string>
 
 #include "action_handler.hpp"
@@ -10,7 +11,7 @@ class Move : public ActionHandler {
 public:
   Move(const ActionConfig& cfg) : ActionHandler(cfg, "move") {}
 
-  unsigned char max_arg() const override {
+  uint8_t max_arg() const override {
     return 1;
   }
 
@@ -19,8 +20,8 @@ public:
   }
 
 protected:
-  bool _handle_action(unsigned int actor_id, Agent* actor, ActionArg arg) override {
-    unsigned short direction = arg;
+  bool _handle_action(uint32_t actor_id, Agent* actor, ActionArg arg) override {
+    uint16_t direction = arg;
     Orientation orientation = static_cast<Orientation>(actor->orientation);
     if (direction == 1) {
       if (orientation == Orientation::Up) {

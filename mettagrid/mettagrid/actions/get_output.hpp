@@ -1,6 +1,7 @@
 #ifndef GET_OUTPUT_HPP
 #define GET_OUTPUT_HPP
 
+#include <cstdint>  // Added for fixed-width integer types
 #include <string>
 
 #include "action_handler.hpp"
@@ -13,7 +14,7 @@ class GetOutput : public ActionHandler {
 public:
   GetOutput(const ActionConfig& cfg) : ActionHandler(cfg, "get_output") {}
 
-  unsigned char max_arg() const override {
+  uint8_t max_arg() const override {
     return 0;
   }
 
@@ -22,7 +23,7 @@ public:
   }
 
 protected:
-  bool _handle_action(unsigned int actor_id, Agent* actor, ActionArg arg) override {
+  bool _handle_action(uint32_t actor_id, Agent* actor, ActionArg arg) override {
     GridLocation target_loc = _grid->relative_location(actor->location, static_cast<Orientation>(actor->orientation));
     target_loc.layer = GridLayer::Object_Layer;
     MettaObject* target = static_cast<MettaObject*>(_grid->object_at(target_loc));
@@ -44,7 +45,7 @@ protected:
     // Actions is only successful if we take at least one item.
     bool items_taken = false;
 
-    for (size_t i = 0; i < InventoryItem::InventoryCount; i++) {
+    for (uint32_t i = 0; i < InventoryItem::InventoryCount; i++) {
       if (converter->recipe_output[i] == 0) {
         // We only want to take things the converter can produce. Otherwise it's a pain to
         // collect resources from a converter that's in the middle of processing a queue.

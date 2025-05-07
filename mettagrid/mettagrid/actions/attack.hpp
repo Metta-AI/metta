@@ -1,6 +1,7 @@
 #ifndef ATTACK_HPP
 #define ATTACK_HPP
 
+#include <cstdint>  // Added for fixed-width integer types
 #include <string>
 
 #include "action_handler.hpp"
@@ -14,7 +15,7 @@ public:
     priority = 1;
   }
 
-  unsigned char max_arg() const override {
+  uint8_t max_arg() const override {
     return 9;
   }
 
@@ -23,7 +24,7 @@ public:
   }
 
 protected:
-  bool _handle_action(unsigned int actor_id, Agent* actor, ActionArg arg) override {
+  bool _handle_action(uint32_t actor_id, Agent* actor, ActionArg arg) override {
     if (arg > 9 || arg < 1) {
       return false;
     }
@@ -34,8 +35,8 @@ protected:
 
     actor->update_inventory(InventoryItem::laser, -1);
 
-    short distance = 1 + (arg - 1) / 3;
-    short offset = -((arg - 1) % 3 - 1);
+    int16_t distance = 1 + (arg - 1) / 3;
+    int16_t offset = -((arg - 1) % 3 - 1);
 
     GridLocation target_loc =
         _grid->relative_location(actor->location, static_cast<Orientation>(actor->orientation), distance, offset);
@@ -43,7 +44,7 @@ protected:
     return _handle_target(actor_id, actor, target_loc);
   }
 
-  bool _handle_target(unsigned int actor_id, Agent* actor, GridLocation target_loc) {
+  bool _handle_target(uint32_t actor_id, Agent* actor, GridLocation target_loc) {
     target_loc.layer = GridLayer::Agent_Layer;
     Agent* agent_target = static_cast<Agent*>(_grid->object_at(target_loc));
 
@@ -80,7 +81,7 @@ protected:
             actor->stats.incr("attack.win.other_team", actor->group_name);
           }
 
-          for (int item = 0; item < InventoryItem::InventoryCount; item++) {
+          for (int32_t item = 0; item < InventoryItem::InventoryCount; item++) {
             actor->stats.add(InventoryItemNames[item], "stolen", actor->group_name, agent_target->inventory[item]);
             actor->update_inventory(static_cast<InventoryItem>(item), agent_target->inventory[item]);
             agent_target->update_inventory(static_cast<InventoryItem>(item), -agent_target->inventory[item]);
