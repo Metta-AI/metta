@@ -122,11 +122,10 @@ class TestEnvironmentFunctionality:
         assert len(terminated) == num_agents
         assert len(truncated) == num_agents
 
-    def test_episode_stats(self, environment):
+    def test_finalize_episode(self, environment):
         """Test processing of episode statistics."""
         environment.reset()
-        infos = {}
-        environment.process_episode_stats(infos)
+        environment.finalize_episode()
         # Add specific assertions if you know what should be in infos after processing
 
     def test_environment_properties(self, environment):

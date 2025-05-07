@@ -3,7 +3,7 @@ import json
 import logging
 import os
 import shutil
-from typing import List
+from typing import List, Optional
 
 import duckdb
 import pandas as pd
@@ -15,11 +15,22 @@ logger = logging.getLogger("eval_stats_db.py")
 
 
 class EvalStatsDB:
-    def __init__(self, data: pd.DataFrame):
+    def __init__(self, data: Optional[pd.DataFrame] = None):
         self._db = duckdb.connect(database=":memory:")
         self._table_name = "eval_data"
-        self._db.register(self._table_name, data)
-        self.available_metrics = self.query(all_fields())
+
+        if data is None:
+            logger.warning("No data provided to EvalStatsDB.")
+            self._db = None
+            self.available_metrics = []
+        else:
+            self._db.register(self._table_name, data)
+            try:
+                self.available_metrics = self.query(all_fields())
+            except Exception as e:
+                logger.error(f"Error querying available fields: {e}")
+                self.available_metrics = []
+
         logger.info(f"Loaded {len(self.available_metrics)} metrics from {self._table_name}")
 
     @staticmethod
@@ -27,6 +38,10 @@ class EvalStatsDB:
         return [record for env_data in data.values() for episode in env_data for record in episode]
 
     def query(self, sql_query: str) -> pd.DataFrame:
+        if self._db is None or len(self.available_metrics) == 0:
+            logger.warning("Cannot run query on empty database")
+            return pd.DataFrame()
+
         try:
             result = self._db.execute(sql_query).fetchdf()
             return result
@@ -61,15 +76,31 @@ class EvalStatsDbFile(EvalStatsDB):
 
     def __init__(self, json_path: str):
         if not os.path.exists(json_path):
-            raise FileNotFoundError(f"File not found: {json_path}")
+            logger.error(f"Error loading eval stats from {json_path}: File Not Found")
+            super().__init__(None)
+            return
 
-        with gzip.open(json_path, "rt") as f:
-            data = json.load(f)
-        logger.info(f"Loading eval stats from {json_path}")
+        try:
+            with gzip.open(json_path, "rt") as f:
+                data = json.load(f)
+            logger.info(f"Loading eval stats from {json_path}")
 
-        data = self._flatten_data_into_records(data)
+            # Check if all lists in the data are empty
+            if isinstance(data, dict) and all(not value for value in data.values()):
+                logger.warning(f"All environments in {json_path} have empty data.")
+                super().__init__(None)
+                return
 
-        super().__init__(pd.DataFrame(data))
+            data = self._flatten_data_into_records(data)
+
+            if len(data) > 0:
+                super().__init__(pd.DataFrame(data))
+            else:
+                logger.warning(f"No records found in {json_path} after flattening")
+                super().__init__(None)
+        except Exception as e:
+            logger.error(f"Error loading eval stats from {json_path}: {e}")
+            super().__init__(None)
 
 
 class EvalStatsDbWandb(EvalStatsDB):

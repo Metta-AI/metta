@@ -1,0 +1,63 @@
+defaults:
+  - /env/mettagrid/mettagrid@
+  - _self_
+
+
+# min_steps_per_info: 1000
+
+num_agents_per_room: 1
+num_repeated_rooms: 49 # use a perfect square
+num_hearts_per_room: 1
+
+# these are overwritten during training
+progress:
+  episode_count: 0
+  mean_reward: 0.0
+  last_mean_reward: 0.0
+  last_difficulty: 0.0
+
+# # compute the ~10 episode running average 
+filtered_mean_reward: ${iir:0.1,${.progress.mean_reward},${.progress.last_mean_reward}}
+
+game:
+  # episode length 
+  # max_steps: ${make_integer:${scale:${.difficulty},0,10,100,500,"linear"}}
+  max_steps: 100
+
+  enable_reward_decay: false
+  reward_decay_time_constant: 40
+
+  num_agents: ${multiply:${..num_agents_per_room}, ${..num_repeated_rooms}}
+
+  difficulty_increase_threshold: ${multiply:${..num_hearts_per_room},0.7}
+  should_increase_difficulty: ${gt:${..filtered_mean_reward},${.difficulty_increase_threshold}}
+  difficulty_increase_delta: ${if:${.should_increase_difficulty},0.2,0.0}
+
+  difficulty_decrease_threshold: ${multiply:${..num_hearts_per_room},0.3}
+  should_decrease_difficulty: ${lt:${..filtered_mean_reward},${.difficulty_decrease_threshold}}
+  difficulty_decrease_delta: ${if:${.should_decrease_difficulty},-0.2,0.0}
+
+  difficulty_change: ${add:${.difficulty_decrease_delta},${.difficulty_increase_delta}}
+  difficulty: ${clamp:${add:${..progress.last_difficulty},${.difficulty_change}}, 0.0, 10.0}
+
+  # scaling the map size as our experimental condition
+  min_size: 5
+  max_size_limit: 20
+  max_size: ${scale:${.difficulty},0,${.min_size},10,${.max_size_limit},"log"}
+  size: ${make_integer:${uniform:${.min_size}, ${.max_size}}}
+
+  map_builder:
+    _target_: mettagrid.config.room.multi_room.MultiRoom
+    num_rooms: ${...num_repeated_rooms}
+    border_width: 3
+
+    room:
+      _target_: mettagrid.config.room.random.Random
+      border_width: 3 
+      width: ${...size}
+      height: ${...size}
+      agents: ${....num_agents_per_room}
+
+      objects:
+        altar: ${.....num_hearts_per_room}
+

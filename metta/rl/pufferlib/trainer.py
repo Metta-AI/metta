@@ -247,7 +247,6 @@ class PufferTrainer:
             return
 
         self.cfg.analyzer.policy_uri = self.last_pr.uri
-
         run_id = self.cfg.get("run_id")
         if run_id is None and self.wandb_run is not None:
             run_id = self.wandb_run.id
@@ -262,25 +261,51 @@ class PufferTrainer:
         except Exception as e:
             logger.error(f"Error logging stats: {e}")
 
-        eval_stats_db = EvalStatsDB.from_uri(self.sim_suite_config.eval_db_uri, self.cfg.run_dir, self.wandb_run)
-        analyzer_cfg = AnalyzerConfig(self.cfg.analyzer)
-        analyzer = EvalStatsAnalyzer(eval_stats_db, analyzer_cfg.analysis, analyzer_cfg.policy_uri)
-        _, policy_fitness_records = analyzer.analyze()
-        self._eval_results = policy_fitness_records
+        try:
+            # Load the evaluation stats database
+            eval_stats_db = EvalStatsDB.from_uri(self.sim_suite_config.eval_db_uri, self.cfg.run_dir, self.wandb_run)
 
-        self.eval_scores = {
-            "navigation_score": np.mean([r["candidate_mean"] for r in self._eval_results if "navigation" in r["eval"]]),
-            "object_use_score": np.mean(
-                np.mean([r["candidate_mean"] for r in self._eval_results if "object_use" in r["eval"]])
-            ),
-            "against_npc_score": np.mean([r["candidate_mean"] for r in self._eval_results if "npc" in r["eval"]]),
-            "memory_score": np.mean([r["candidate_mean"] for r in self._eval_results if "memory" in r["eval"]]),
-            "multiagent_score": np.mean([r["candidate_mean"] for r in self._eval_results if "multiagent" in r["eval"]]),
-        }
+            # Check if there are any metrics available for analysis
+            if len(eval_stats_db.available_metrics) == 0:
+                logger.warning("No metrics available for analysis. Skipping evaluation analysis.")
+                self._eval_results = []
+                self._current_eval_score = 0.0
+                return
 
-        self._current_eval_score = np.sum(
-            [r["candidate_mean"] for r in self._eval_results if r["metric"] == "episode_reward"]
-        )
+            # Continue with analysis if metrics are available
+            analyzer_cfg = AnalyzerConfig(self.cfg.analyzer)
+            analyzer = EvalStatsAnalyzer(eval_stats_db, analyzer_cfg.analysis, analyzer_cfg.policy_uri)
+            _, policy_fitness_records = analyzer.analyze()
+            self._eval_results = policy_fitness_records
+
+            # Calculate the evaluation score
+            if self._eval_results:
+                self.eval_scores = {
+                    "navigation_score": np.mean(
+                        [r["candidate_mean"] for r in self._eval_results if "navigation" in r["eval"]]
+                    ),
+                    "object_use_score": np.mean(
+                        np.mean([r["candidate_mean"] for r in self._eval_results if "object_use" in r["eval"]])
+                    ),
+                    "against_npc_score": np.mean(
+                        [r["candidate_mean"] for r in self._eval_results if "npc" in r["eval"]]
+                    ),
+                    "memory_score": np.mean([r["candidate_mean"] for r in self._eval_results if "memory" in r["eval"]]),
+                    "multiagent_score": np.mean(
+                        [r["candidate_mean"] for r in self._eval_results if "multiagent" in r["eval"]]
+                    ),
+                }
+
+                self._current_eval_score = np.sum(
+                    [r["candidate_mean"] for r in self._eval_results if r["metric"] == "episode_reward"]
+                )
+            else:
+                self._current_eval_score = 0.0
+
+        except Exception as e:
+            logger.error(f"Error during evaluation analysis: {e}", exc_info=True)
+            self._eval_results = []
+            self._current_eval_score = 0.0
 
     def _update_l2_init_weight_copy(self):
         self.policy.update_l2_init_weight_copy()
