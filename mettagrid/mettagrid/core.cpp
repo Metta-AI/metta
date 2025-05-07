@@ -93,7 +93,7 @@ void MettaGrid::init_action_handlers(const std::vector<ActionHandler*>& action_h
   _action_handlers.clear();
 
   // Create and store copies of the action handlers
-  for (uint32_t i = 0; i < action_handlers.size(); i++) {
+  for (size_t i = 0; i < action_handlers.size(); i++) {
     ActionHandler* handler = action_handlers[i];
 
     // Create a deep copy through cloning and store it (with ownership)
@@ -220,7 +220,7 @@ void MettaGrid::compute_observation(uint16_t observer_r,
 
 // Compute observations for all agents
 void MettaGrid::compute_observations(int32_t** actions) {
-  for (uint32_t idx = 0; idx < _agents.size(); idx++) {
+  for (size_t idx = 0; idx < _agents.size(); idx++) {
     Agent* agent = _agents[idx];
     ObsType* obs_ptr = _observations.data() + idx * _obs_width * _obs_height * _grid_features.size();
 
@@ -242,7 +242,7 @@ void MettaGrid::step(int32_t** actions) {
 
   // Process actions by priority
   for (uint8_t p = 0; p <= _max_action_priority; p++) {
-    for (uint32_t idx = 0; idx < _agents.size(); idx++) {
+    for (size_t idx = 0; idx < _agents.size(); idx++) {
       int32_t action = actions[idx][0];
       if (action < 0 || static_cast<uint32_t>(action) >= _num_action_handlers) {
         printf("Invalid action: %d\n", action);
@@ -269,19 +269,19 @@ void MettaGrid::step(int32_t** actions) {
   // Apply reward decay if enabled
   if (_enable_reward_decay) {
     _reward_multiplier = std::max(0.1f, _reward_multiplier * (1.0f - _reward_decay_factor));
-    for (uint32_t i = 0; i < _rewards.size(); i++) {
+    for (size_t i = 0; i < _rewards.size(); i++) {
       _rewards[i] *= _reward_multiplier;
     }
   }
 
   // Update episode rewards
-  for (uint32_t i = 0; i < _episode_rewards.size(); i++) {
+  for (size_t i = 0; i < _episode_rewards.size(); i++) {
     _episode_rewards[i] += _rewards[i];
   }
 
   // Check for termination
   if (_max_timestep > 0 && _current_timestep >= _max_timestep) {
-    for (uint32_t i = 0; i < _truncations.size(); i++) {
+    for (size_t i = 0; i < _truncations.size(); i++) {
       _truncations[i] = 1;
     }
   }
@@ -340,7 +340,7 @@ void MettaGrid::compute_group_rewards(float* rewards) {
   bool share_rewards = false;
 
   // First pass: collect group rewards
-  for (uint32_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
+  for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
     if (rewards[agent_idx] != 0) {
       share_rewards = true;
       Agent* agent = _agents[agent_idx];
@@ -353,7 +353,7 @@ void MettaGrid::compute_group_rewards(float* rewards) {
 
   // Second pass: distribute group rewards
   if (share_rewards) {
-    for (uint32_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
+    for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
       Agent* agent = _agents[agent_idx];
       uint32_t group_id = agent->group;
       float group_reward = _group_rewards[group_id];
@@ -694,7 +694,7 @@ std::string MettaGrid::get_episode_stats_json() const {
 
   // Agent stats
   nlohmann::json agent_stats_array = nlohmann::json::array();
-  for (uint32_t i = 0; i < _agents.size(); i++) {
+  for (size_t i = 0; i < _agents.size(); i++) {
     Agent* agent = _agents[i];
     nlohmann::json agent_stats;
     std::map<std::string, int32_t> agent_stat_map = agent->stats.stats();
