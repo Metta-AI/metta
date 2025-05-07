@@ -142,7 +142,7 @@ class RobustObsEncoderRev2(nn_layer_library.LayerBase):
             # Get embeddings for this channel list
             ch_idxs = torch.tensor(ch_list, dtype=torch.long, device=device)
             K = len(ch_list)
-            eo = self.eo_embed(ch_idxs)  # [K, eo_dim]
+            eo = self.eo_embed(ch_idxs)  # [K, eo_dim] # !!! this should be special channel? Not ch_list!!!
             ea = self.ea_embed(ch_idxs)  # [K, ea_dim]
 
             # Combine features using broadcasting
@@ -151,12 +151,14 @@ class RobustObsEncoderRev2(nn_layer_library.LayerBase):
             # ea: [K, ea_dim] -> [1, K, ea_dim]
             # eo: [K, eo_dim] -> [1, K, eo_dim]
             # batch_pixel_coords: [Total_M, coords_dim] -> [Total_M, 1, coords_dim]
-            scaled_ea = vals.view(Total_M, 1, 1) * ea.unsqueeze(0)  # [Total_M, K, ea_dim]
+            scaled_ea = vals.view(Total_M, 1, 1) * ea.unsqueeze(0)  # [Total_M, K, ea_dim] # I think this should be scaled by Total_M - 1, right??
             eo_exp = eo.unsqueeze(0).expand(Total_M, -1, -1)  # [Total_M, K, eo_dim]
             coords_exp = batch_pixel_coords.unsqueeze(1).expand(-1, K, -1)  # [Total_M, K, coords_dim]
 
             # Concatenate features
-            batch_feats = torch.cat([eo_exp, scaled_ea, coords_exp], dim=-1)  # [Total_M, K, out_dim]
+            batch_feats = torch.cat([eo_exp, scaled_ea, coords_exp], dim=-1)  # [Total_M, K, out_dim] # this is true for 
+            # channels in channel indexes. but for special channels, it should be eo_exp, ea_obj, coords_exp. 
+            # ea_obj is the same embedding for all channel lists. Let's call it embedding index number 99.
 
             # Flatten features and record batch indices
             batch_feats_flat = batch_feats.reshape(-1, self.out_dim)  # [Total_M * K, out_dim]
