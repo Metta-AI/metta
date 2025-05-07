@@ -53,6 +53,17 @@ public:
         _offsets[type_id].push_back(features[_type_feature_names[type_id][i]]);
       }
     }
+
+    // Print all offsets
+    printf("Offsets: \n");
+    for (size_t i = 0; i < _offsets.size(); ++i) {
+      printf("Type %zu: ,[", i);
+      for (size_t j = 0; j < _offsets[i].size(); ++j) {
+        printf("%d ", _offsets[i][j]);
+      }
+      printf("]\n");
+    }
+    printf("\n");
   }
 
   void encode(const GridObject* obj, ObsType* obs) {
