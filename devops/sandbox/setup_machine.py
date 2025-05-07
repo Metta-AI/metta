@@ -75,8 +75,11 @@ def main():
 
     install_homebrew()
     run_brew_bundle(force=args.brew_force, no_fail=args.brew_no_fail)
-    setup_efs()
     install_skypilot()
+
+    # disable for now, it's too slow
+    # setup_efs()
+
     print("Machine setup complete!")
 
 

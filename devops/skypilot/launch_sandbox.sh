@@ -53,12 +53,12 @@ source .venv/skypilot/bin/activate
 
 export SKYPILOT_DOCKER_PASSWORD=$(aws ecr get-login-password --region us-east-1)
 
-AWS_PROFILE=softmax-db-admin sky jobs launch \
+AWS_PROFILE=softmax-db-admin sky launch \
   --gpus L4:$gpus \
   --num-nodes $nodes \
   --cpus $cpus\+ \
-  --name $RUN_ID \
-  ./devops/skypilot/config/sk_train.yaml \
+  --cluster $RUN_ID \
+  ./devops/skypilot/config/train.yaml \
   --env SKYPILOT_DOCKER_PASSWORD \
   --env METTA_RUN_ID=$RUN_ID \
   --env METTA_CMD=$CMD \

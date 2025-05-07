@@ -1,4 +1,4 @@
-#! /bin/zsh -e
+#! /bin/bash -e
 
 # Create a new virtual environment using uv
 uv venv .venv/skypilot --python=3.11 --no-project
