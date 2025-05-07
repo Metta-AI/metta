@@ -18,7 +18,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._render_mode = render_mode
         self._cfg_template = env_cfg
         self._env_cfg = self._get_new_env_cfg()
-        self._team_names = list(self._env_cfg.game.groups.keys())
+        self._group_names = list(self._env_cfg.game.groups.keys())
         self._env_map = env_map
         self.should_reset = False
         self._renderer = None
@@ -49,20 +49,20 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             f"Number of agents {self._env_cfg.game.num_agents} does not match number of agents in map {map_agents}"
         )
 
-        # Count number of agents per team
-        team_counts = {t: None for t in self._team_names}
+        # Count number of agents per group
+        group_counts = {t: None for t in self._group_names}
         for r in range(env_map.shape[0]):
             for c in range(env_map.shape[1]):
                 if env_map[r, c].startswith("agent."):
-                    team = env_map[r, c].split(".")[1]
-                    if team not in self._team_names:
-                        raise ValueError(f"Team {team} not in {self._team_names}")
-                    # only track teams we have in the map
-                    if team_counts[team] is None:
-                        team_counts[team] = 0
-                    team_counts[team] += 1
+                    group = env_map[r, c].split(".")[1]
+                    if group not in self._group_names:
+                        raise ValueError(f"Group {group} not in {self._group_names}")
+                    # only track groups we have in the map
+                    if group_counts[group] is None:
+                        group_counts[group] = 0
+                    group_counts[group] += 1
 
-        self._team_counts = team_counts
+        self._group_counts = group_counts
         self._c_env = MettaGrid(self._env_cfg, env_map)
         self._grid_env = self._c_env
         self._num_agents = self._c_env.num_agents()
@@ -100,9 +100,19 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         return self.observations, self.rewards, self.terminals, self.truncations, infos
 
     def process_episode_stats(self, infos: Dict[str, Any]):
-        # group rewards is a list of length teams
+        # group rewards is a list of length groups
         # episode rewards is a list of length num_agents
-        episode_rewards, group_rewards = self._c_env.get_episode_rewards()
+        episode_rewards = self._c_env.get_episode_rewards()
+
+        agent_to_group = self._c_env.agent_to_group
+
+        group_rewards = {}
+        for agent_id, group_id in agent_to_group.items():
+            group_rewards[f"team_{group_id}"] = int(
+                group_rewards.get(f"team_{group_id}", 0) + episode_rewards[agent_id]
+            )
+
+        group_means = {k: v / self._group_counts[k] for k, v in group_rewards.items()}
 
         episode_rewards_sum = episode_rewards.sum()
         episode_rewards_mean = episode_rewards_sum / self._num_agents
@@ -117,20 +127,12 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             }
         )
 
-        if len(self._team_counts) > 1:
-            group_means = []
-            for i, group_reward in enumerate(group_rewards):
-                if self._team_counts[self._team_names[i]] is None:
-                    if group_reward != 0:
-                        raise ValueError("Mismatch between teams in map and teams in env config")
-                    continue
-                group_mean = group_reward / self._team_counts[self._team_names[i]]
-                infos.update(
-                    {
-                        f"episode/reward.group.{self._team_names[i]}.mean": group_mean,
-                    }
-                )
-                group_means.append(group_mean)
+        for group_name, group_mean in group_means.items():
+            infos.update(
+                {
+                    f"episode/reward.group.{group_name}.mean": group_mean,
+                }
+            )
 
         if self._map_builder is not None and self._map_builder.labels is not None:
             for label in self._map_builder.labels:
@@ -151,8 +153,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         stats = self._c_env.get_episode_stats()
 
         infos["episode_rewards"] = episode_rewards
-        infos["group_rewards"] = group_rewards
-        infos["group_means"] = group_means
+        infos["group_rewards"] = group_means
         infos["agent_raw"] = stats["agent"]
         infos["game"] = stats["game"]
         infos["agent"] = {}
