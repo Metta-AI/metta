@@ -1,0 +1,22 @@
+# Multi-room version of `left_or_right.yaml`.
+
+defaults:
+  - /env/mettagrid/mettagrid@
+  - _self_
+
+game:
+  num_agents: 32
+  # Enough time to pick one direction, but not to dilly-dally.
+  max_steps: 25
+
+  map_builder:
+    _target_: metta.map.mapgen.MapGen
+
+    width: 200
+    height: 100
+    border_width: 1
+
+    root:
+      _target_: metta.map.scenes.multi_left_and_right.MultiLeftAndRight
+      rows: 4
+      columns: 8

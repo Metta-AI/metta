@@ -1,5 +1,5 @@
 import { Vec2f } from './vector_math.js';
-import { Context3d } from './context3d.js';
+import { Context3d, parseHtmlColor } from './context3d.js';
 import { PanelInfo } from './panels.js';
 import { onFrame } from './main.js';
 
@@ -29,9 +29,9 @@ export const TRACE_WIDTH = 32;
 
 // Colors for resources
 export const COLORS: [string, [number, number, number, number]][] = [
-  ["red", [1, 0, 0, 1]],
-  ["green", [0, 1, 0, 1]],
-  ["blue", [0, 0, 1, 1]],
+  ["red", parseHtmlColor("#E4433A")],
+  ["green", parseHtmlColor("#66BB6A")],
+  ["blue", parseHtmlColor("#3498DB")],
 ];
 
 export const ui = {
