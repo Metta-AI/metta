@@ -244,19 +244,18 @@ void MettaGrid::step(int32_t** actions) {
   for (uint8_t p = 0; p <= _max_action_priority; p++) {
     for (size_t idx = 0; idx < _agents.size(); idx++) {
       int32_t action = actions[idx][0];
-      if (action < 0) {
-        printf("Invalid action: %d\n", action);
-        continue;
-      }
-      uint32_t unsigned_action = static_cast<uint32_t>(action);
-      if (unsigned_action >= _num_action_handlers) {
-        printf("Invalid action: %d\n", action);
-        continue;
-      }
+
+      // Crash hard on invalid actions
+      assert(action >= 0 && "Action cannot be negative");
+      assert(action < static_cast<int32_t>(_num_action_handlers) && "Action exceeds available handlers");
 
       ActionArg arg(actions[idx][1]);
       Agent* agent = _agents[idx];
       ActionHandler* handler = _action_handlers[static_cast<uint32_t>(action)].get();
+
+      // Crash on invalid priority or args
+      assert(handler->priority == _max_action_priority - p || "Action handled in wrong priority phase");
+      assert(arg <= _max_action_args[static_cast<uint32_t>(action)] && "Action argument exceeds maximum allowed");
 
       if (handler->priority != _max_action_priority - p) {
         continue;
@@ -743,4 +742,46 @@ std::string MettaGrid::render_ascii() const {
   }
 
   return result;
+}
+
+std::string MettaGrid::get_grid_objects_json() const {
+  nlohmann::json objects_json = nlohmann::json::object();
+
+  for (size_t obj_id = 1; obj_id < _grid->objects.size(); obj_id++) {
+    GridObject* obj = _grid->object(obj_id);
+    if (obj == nullptr) continue;
+
+    // Create object entry
+    nlohmann::json obj_json;
+    obj_json["id"] = obj_id;
+    obj_json["type"] = obj->_type_id;
+    obj_json["r"] = obj->location.r;
+    obj_json["c"] = obj->location.c;
+    obj_json["layer"] = obj->location.layer;
+
+    // Get object features
+    std::vector<ObsType> obj_data(_grid_features.size(), 0);
+    _obs_encoder->encode(obj, obj_data.data());
+
+    // Add type-specific features
+    const auto& type_features = _obs_encoder->type_feature_names()[obj->_type_id];
+    for (size_t i = 0; i < type_features.size(); i++) {
+      obj_json[type_features[i]] = obj_data[i];
+    }
+
+    // Add to objects map
+    objects_json[std::to_string(obj_id)] = obj_json;
+  }
+
+  // Add agent_id to agent objects
+  for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
+    Agent* agent = _agents[agent_idx];
+    std::string agent_id_str = std::to_string(agent->id);
+
+    if (objects_json.contains(agent_id_str)) {
+      objects_json[agent_id_str]["agent_id"] = agent_idx;
+    }
+  }
+
+  return objects_json.dump();
 }

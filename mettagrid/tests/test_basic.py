@@ -63,6 +63,9 @@ def test_basic(environment):
     # Test action names
     assert environment.action_names() == environment._c_env.action_names()
 
+    # Test grid objects
+    assert environment.grid_objects == environment._c_env.grid_objects()
+
     # ---- Test environment reset ----
     obs, info = environment.reset()
 
@@ -105,7 +108,7 @@ def test_basic(environment):
 
     # ---- Additional testing with random actions ----
     # Reset for additional testing
-    obs, info = environment.reset()
+    obs, _info = environment.reset()
 
     # Test multiple steps with random actions
     for _i in range(5):

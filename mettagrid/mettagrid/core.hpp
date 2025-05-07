@@ -186,6 +186,8 @@ public:
 
   std::vector<std::string> action_names() const;
 
+  std::string get_grid_objects_json() const;
+
 private:
   // Helper methods for initialization
   void setup_action_handlers(const nlohmann::json& config);

@@ -675,3 +675,17 @@ cdef class PyMettaGrid:
                 result.append(name)
         
         return result
+
+    def grid_objects(self):
+        """
+        Get information about all grid objects.
+        
+        Returns:
+            A dictionary mapping object IDs to their properties.
+        """
+        # Get JSON string from C++ and parse it
+        json_str = self._cpp_mettagrid.get_grid_objects_json()
+        objects_dict = json.loads(json_str)
+        
+        # Convert string keys to integers
+        return {int(k): v for k, v in objects_dict.items()}

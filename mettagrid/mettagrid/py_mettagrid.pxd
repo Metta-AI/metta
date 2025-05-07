@@ -137,3 +137,4 @@ cdef extern from "core.hpp":
         string render_ascii() const
 
         vector[string] action_names() const
+        string get_grid_objects_json() const
