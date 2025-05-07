@@ -4,10 +4,10 @@
 #include <vector>
 
 #include "action_handler.hpp"
-#include "agent.hpp"
 #include "core.hpp"
 #include "event.hpp"
 #include "grid.hpp"
+#include "objects/agent.hpp"
 #include "observation_encoder.hpp"
 
 // Mock classes for testing

@@ -20,6 +20,7 @@ help:
 
 # Directories
 SRC_DIR = mettagrid
+THIRD_PARTY_DIR = third_party
 TEST_DIR = tests
 BENCH_DIR = benchmarks
 BUILD_DIR = build
@@ -30,7 +31,7 @@ DEVOPS_SCRIPTS_DIR = ../devops
 
 # Compiler settings
 CXX = g++
-CXXFLAGS = -std=c++23 -Wall -g -I$(SRC_DIR)
+CXXFLAGS = -std=c++23 -Wall -g -I$(SRC_DIR) -I$(THIRD_PARTY_DIR)
 
 # Google Test settings - with detection for different install locations
 GTEST_INCLUDE = $(shell pkg-config --cflags gtest 2>/dev/null || echo "-I/opt/homebrew/Cellar/googletest/1.16.0/include")

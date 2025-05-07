@@ -340,7 +340,6 @@ cdef class PyMettaGrid:
         
         # Fast path for already compatible numpy arrays
         if isinstance(actions, np.ndarray) and actions.shape == (self._num_agents, 2) and actions.dtype == np.int32:
-            assert False
             actions_array = actions
         else:
             # Ensure actions is a properly shaped numpy array using our buffer
