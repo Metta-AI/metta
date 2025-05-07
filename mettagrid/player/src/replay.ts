@@ -1,6 +1,7 @@
 import * as Common from './common.js';
 import { ui, state, html, ctx } from './common.js';
-import { focusFullMap, requestFrame } from './drawing.js';
+import { focusFullMap, requestFrame } from './worldmap.js';
+import { onResize } from './main.js';
 
 // Gets an attribute from a grid object respecting the current step.
 export function getAttr(obj: any, attr: string, atStep = -1, defaultValue = 0): any {
@@ -194,7 +195,7 @@ async function loadReplayText(replayData: any) {
       var color = [1, 1, 1, 1]; // Default to white.
       for (const [colorName, colorValue] of Common.COLORS) {
         if (type.endsWith(colorName)) {
-          if(ctx.hasImage("resources/" + type + ".png")) {
+          if (ctx.hasImage("resources/" + type + ".png")) {
             // Use the resource.color.png with white color.
             break;
           } else {
@@ -231,5 +232,6 @@ async function loadReplayText(replayData: any) {
 
   Common.closeModal();
   focusFullMap(ui.mapPanel);
+  onResize();
   requestFrame();
 }
