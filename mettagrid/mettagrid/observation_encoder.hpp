@@ -37,6 +37,8 @@ public:
 
     // Generate an offset for each unique feature name.
     std::map<std::string, size_t> features;
+    
+    printf("Features.size() = %zu\n", features.size());
 
     for (size_t type_id = 0; type_id < ObjectType::Count; ++type_id) {
       for (size_t i = 0; i < _type_feature_names[type_id].size(); ++i) {
