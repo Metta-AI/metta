@@ -40,4 +40,4 @@ build: clean-mettagrid
 # Build metta extensions (new target)
 build-metta:
 	@echo "Building metta extensions..."
-	# Add your metta build commands here
+	python setup.py build_ext --inplace

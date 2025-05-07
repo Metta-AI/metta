@@ -21,6 +21,8 @@ class ObsShaper(LayerBase):
             actual_shape = f"{list(x_shape)}"
             raise ValueError(
                 f"Shape mismatch error:\n"
+                f" x.shape: {x.shape}\n"
+                f"self._obs_shape: {self._obs_shape}\n"
                 f"Expected tensor with shape {expected_shape}\n"
                 f"Got tensor with shape {actual_shape}\n"
                 f"The last {space_n} dimensions should match {tuple(space_shape)}"
