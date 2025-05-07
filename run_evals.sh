@@ -58,4 +58,5 @@ for i in "${!POLICIES[@]}"; do
         run=object_use$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         +eval_db_uri=wandb://artifacts/object_use_db \
+
 done
