@@ -208,9 +208,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     def single_action_space(self):
         return self._env.action_space
 
-    def action_names(self):
-        return self._env.action_names()
-
     @property
     def player_count(self):
         return self._num_agents
@@ -262,6 +259,9 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         # Get the char array and convert to numpy array
         # Note: We keep it as char/int8 type for consistency
         return np.asarray(self._c_env.action_success(), dtype=np.int8)
+
+    def action_names(self):
+        return self._env.action_names()
 
     def object_type_names(self):
         return self._c_env.object_type_names()

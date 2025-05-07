@@ -686,6 +686,14 @@ void MettaGrid::setup_action_handlers(const nlohmann::json& cfg) {
   }
 }
 
+std::vector<std::string> MettaGrid::action_names() const {
+  std::vector<std::string> names;
+  for (const auto& handler : _action_handlers) {
+    names.push_back(handler->action_name());
+  }
+  return names;
+}
+
 std::string MettaGrid::get_episode_stats_json() const {
   nlohmann::json stats_json;
 

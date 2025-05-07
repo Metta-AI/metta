@@ -60,6 +60,9 @@ def test_basic(environment):
     # Test inventory item names
     assert environment.inventory_item_names() == environment._c_env.inventory_item_names()
 
+    # Test action names
+    assert environment.action_names() == environment._c_env.action_names()
+
     # ---- Test environment reset ----
     obs, info = environment.reset()
 

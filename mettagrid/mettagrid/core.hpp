@@ -184,6 +184,8 @@ public:
   std::string get_episode_stats_json() const;
   std::string render_ascii() const;
 
+  std::vector<std::string> action_names() const;
+
 private:
   // Helper methods for initialization
   void setup_action_handlers(const nlohmann::json& config);

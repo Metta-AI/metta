@@ -135,3 +135,5 @@ cdef extern from "core.hpp":
         EventManager* get_event_manager()
         string get_episode_stats_json() const
         string render_ascii() const
+
+        vector[string] action_names() const

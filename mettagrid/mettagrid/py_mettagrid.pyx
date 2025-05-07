@@ -659,3 +659,19 @@ cdef class PyMettaGrid:
                 result.append(name)
         
         return result
+
+    def action_names(self):
+        """Get a list of all action handler names."""
+        cdef vector[string] cpp_names = self._cpp_mettagrid.action_names()
+        cdef list result = []
+        cdef uint32_t i
+        
+        # Convert C++ vector of strings to Python list
+        for i in range(cpp_names.size()):
+            name = cpp_names[i]
+            if isinstance(name, bytes):
+                result.append(name.decode('utf8'))
+            else:
+                result.append(name)
+        
+        return result
