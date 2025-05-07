@@ -1,10 +1,10 @@
 import { Vec2f, Mat3f } from './vector_math.js';
-import { Context3d } from './context3d.js';
 import * as Common from './common.js';
 import { ui, state, html, ctx } from './common.js';
 import { fetchReplay, readFile } from './replay.js';
-import { focusFullMap, updateReadout, drawMap, drawTrace, requestFrame, drawMiniMap } from './drawing.js';
-import { PanelInfo } from './panels.js';
+import { focusFullMap, updateReadout, drawMap, requestFrame } from './worldmap.js';
+import { drawTrace } from './traces.js';
+import { drawMiniMap } from './minimap.js';
 
 // Handle resize events.
 export function onResize() {

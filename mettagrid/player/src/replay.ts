@@ -1,6 +1,6 @@
 import * as Common from './common.js';
 import { ui, state, html, ctx } from './common.js';
-import { focusFullMap, requestFrame } from './drawing.js';
+import { focusFullMap, requestFrame } from './worldmap.js';
 import { onResize } from './main.js';
 
 // Gets an attribute from a grid object respecting the current step.
