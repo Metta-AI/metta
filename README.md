@@ -9,7 +9,7 @@ A reinforcement learning codebase focusing on the emergence of cooperation and a
 ## What is Metta Learning?
 
 <p align="middle">
-<img src="https://github.com/debbly/metta-learning-assets/blob/main/gifs/example_video.gif?raw=true" width="360" alt="Metta learning example video">
+<img src="docs/readme_showoff.gif" alt="Metta learning example video">
 </p>
 
 Metta AI is an open-source research project investigating the emergence of cooperation and alignment in multi-agent AI systems. By creating a model organism for complex multi-agent gridworld environments, the project aims to study the impact of social dynamics, such as kinship and mate selection, on learning and cooperative behaviors of AI agents.
