@@ -263,8 +263,8 @@ body {
   display: flex;
   align-items: center;
   flex: 1;
-  min-width: 0; /* Allows ellipsis to work */
-  margin-right: 20px; /* Ensure space between filename and filter */
+  min-width: 0;
+  margin-right: 20px;
 }
 
 #header .header-right {
@@ -276,7 +276,8 @@ body {
 #header #logo {
   height: 54px;
   margin: 0 15px;
-  flex-shrink: 0; /* Prevent logo from shrinking */
+  /* Prevent logo from shrinking */
+  flex-shrink: 0;
 }
 
 /* File name styling */
@@ -288,7 +289,8 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
-  max-width: 100%; /* Allow it to fill available space but not overflow */
+  /* Allow it to fill available space but not overflow */
+  max-width: 100%;
 }
 
 /* Filter styling */
@@ -340,10 +342,10 @@ body {
 }
 
 /* Remove previous pseudo-element styles if they still exist */
-#header > #logo,
-#header > #file-name,
-#header > #main-filter,
-#header > #share-button {
+#header>#logo,
+#header>#file-name,
+#header>#main-filter,
+#header>#share-button {
   float: none;
 }
 
@@ -366,7 +368,8 @@ body {
   z-index: 1000;
   opacity: 0;
   transition: opacity 0.3s ease, transform 0.3s ease;
-  pointer-events: none; /* Allow clicks to pass through when hidden */
+  /* Allow clicks to pass through when hidden */
+  pointer-events: none;
   word-wrap: break-word;
   line-height: 1.4;
 }
@@ -379,13 +382,15 @@ body {
 
 #toast.hiding {
   opacity: 0;
-  transform: translateX(-50%) translateY(-20px); /* Animate upward when hiding */
+  /* Animate upward when hiding */
+  transform: translateX(-50%) translateY(-20px);
 }
 
 /* Control Bar */
 #control-bar {
   position: absolute;
-  bottom: 0px; /* Positioned above the scrubber container */
+  /* Positioned above the scrubber container */
+  bottom: 0px;
   left: 0;
   right: 0;
   height: 60px;
@@ -434,7 +439,7 @@ body {
 /* Image styling for all control icons */
 #control-bar .section img {
   height: 32px;
-  filter: brightness(0) invert(1); /* Makes icons white */
+  filter: brightness(0) invert(1);
   cursor: pointer;
   padding: 0px;
   margin: 0 3px;

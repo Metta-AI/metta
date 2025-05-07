@@ -4,7 +4,7 @@ import * as Common from './common.js';
 import { ui, state, ctx, setFollowSelection } from './common.js';
 import { getAttr } from './replay.js';
 import { PanelInfo } from './panels.js';
-import {onFrame } from './main.js';
+import { onFrame } from './main.js';
 
 // Flag to prevent multiple calls to requestAnimationFrame
 let frameRequested = false;
