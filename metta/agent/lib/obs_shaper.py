@@ -12,25 +12,37 @@ class ObsShaper(LayerBase):
 
     def _forward(self, td: TensorDict):
         x = td["x"]
-
         x_shape, space_shape = x.shape, self._obs_shape
         x_n, space_n = len(x_shape), len(space_shape)
-        if tuple(x_shape[-space_n:]) != tuple(space_shape):
-            raise ValueError("Invalid input tensor shape", x.shape)
 
+        # Improved error handling with detailed shape information
+        if tuple(x_shape[-space_n:]) != tuple(space_shape):
+            expected_shape = f"[B(, T), {', '.join(str(dim) for dim in space_shape)}]"
+            actual_shape = f"{list(x_shape)}"
+            raise ValueError(
+                f"Shape mismatch error:\n"
+                f"Expected tensor with shape {expected_shape}\n"
+                f"Got tensor with shape {actual_shape}\n"
+                f"The last {space_n} dimensions should match {tuple(space_shape)}"
+            )
+
+        # Validate overall tensor dimensionality with improved error message
         if x_n == space_n + 1:
             B, TT = x_shape[0], 1
         elif x_n == space_n + 2:
             B, TT = x_shape[:2]
         else:
-            raise ValueError("Invalid input tensor shape", x.shape)
+            raise ValueError(
+                f"Invalid input tensor dimensionality:\n"
+                f"Expected tensor with {space_n + 1} or {space_n + 2} dimensions\n"
+                f"Got tensor with {x_n} dimensions: {list(x_shape)}\n"
+                f"Expected format: [batch_size(, time_steps), {', '.join(str(dim) for dim in space_shape)}]"
+            )
 
         x = x.reshape(B * TT, *space_shape)
         x = x.float()
-
         # conv expects [batch, channel, w, h]. Below is hardcoded for [batch, w, h, channel]
         x = self._permute(x)
-
         td["_TT_"] = TT
         td["_batch_size_"] = B
         td["_BxTT_"] = B * TT
