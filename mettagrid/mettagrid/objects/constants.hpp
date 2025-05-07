@@ -1,6 +1,7 @@
 #ifndef CONSTANTS_HPP
 #define CONSTANTS_HPP
 
+#include <cstdint>
 #include <map>
 #include <string>
 #include <vector>
@@ -39,10 +40,10 @@ enum ObjectType {
   Count = 11
 };
 
-std::vector<std::string> ObjectTypeNames =
+const std::vector<std::string> ObjectTypeNames =
     {"agent", "wall", "mine", "generator", "altar", "armory", "lasery", "lab", "factory", "temple", "converter"};
 
-std::vector<std::string> ObjectTypeAscii = {"A", "#", "g", "c", "a", "r", "l", "b", "f", "t", "v"};
+const std::vector<std::string> ObjectTypeAscii = {"A", "#", "g", "c", "a", "r", "l", "b", "f", "t", "v"};
 
 enum InventoryItem {
   ore_red = 0,
@@ -56,19 +57,19 @@ enum InventoryItem {
   InventoryCount = 8
 };
 
-// These should be const, but we run into type inference issues with cython
-std::vector<std::string> InventoryItemNames =
+// These should be const global variables
+const std::vector<std::string> InventoryItemNames =
     {"ore.red", "ore.blue", "ore.green", "battery", "heart", "armor", "laser", "blueprint"};
 
-std::map<TypeId, GridLayer> ObjectLayers = {{ObjectType::AgentT, GridLayer::Agent_Layer},
-                                            {ObjectType::WallT, GridLayer::Object_Layer},
-                                            {ObjectType::MineT, GridLayer::Object_Layer},
-                                            {ObjectType::GeneratorT, GridLayer::Object_Layer},
-                                            {ObjectType::AltarT, GridLayer::Object_Layer},
-                                            {ObjectType::ArmoryT, GridLayer::Object_Layer},
-                                            {ObjectType::LaseryT, GridLayer::Object_Layer},
-                                            {ObjectType::LabT, GridLayer::Object_Layer},
-                                            {ObjectType::FactoryT, GridLayer::Object_Layer},
-                                            {ObjectType::TempleT, GridLayer::Object_Layer}};
+const std::map<TypeId, GridLayer> ObjectLayers = {{ObjectType::AgentT, GridLayer::Agent_Layer},
+                                                  {ObjectType::WallT, GridLayer::Object_Layer},
+                                                  {ObjectType::MineT, GridLayer::Object_Layer},
+                                                  {ObjectType::GeneratorT, GridLayer::Object_Layer},
+                                                  {ObjectType::AltarT, GridLayer::Object_Layer},
+                                                  {ObjectType::ArmoryT, GridLayer::Object_Layer},
+                                                  {ObjectType::LaseryT, GridLayer::Object_Layer},
+                                                  {ObjectType::LabT, GridLayer::Object_Layer},
+                                                  {ObjectType::FactoryT, GridLayer::Object_Layer},
+                                                  {ObjectType::TempleT, GridLayer::Object_Layer}};
 
 #endif

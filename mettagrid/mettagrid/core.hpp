@@ -11,6 +11,9 @@
 #include <string>
 #include <vector>
 
+typedef float float;
+typedef double double;
+
 // Forward declarations for external classes
 class Grid;
 class GridObject;
@@ -21,10 +24,10 @@ class ActionHandler;
 class ObservationEncoder;
 
 // Type definitions
-typedef unsigned int GridObjectId;
-typedef unsigned int ActionType;
+typedef uint32_t GridObjectId;
+typedef uint32_t ActionType;
 typedef uint8_t ObsType;
-typedef std::map<std::string, int> ActionConfig;
+typedef std::map<std::string, int32_t> ActionConfig;
 
 // Main MettaGrid class
 class MettaGrid {
@@ -37,32 +40,32 @@ private:
 
   // Action management
   std::vector<std::unique_ptr<ActionHandler>> _action_handlers;
-  int _num_action_handlers;
-  std::vector<unsigned char> _max_action_args;
-  unsigned char _max_action_arg;
-  unsigned char _max_action_priority;
+  int32_t _num_action_handlers;
+  std::vector<uint8_t> _max_action_args;
+  uint8_t _max_action_arg;
+  uint8_t _max_action_priority;
 
   // Agent management
   std::vector<Agent*> _agents;  // Owned by the grid, not this class
 
   // Group rewards
-  std::map<unsigned int, float> _group_reward_pct;
-  std::map<unsigned int, unsigned int> _group_sizes;
+  std::map<uint32_t, float> _group_reward_pct;
+  std::map<uint32_t, uint32_t> _group_sizes;
   std::vector<double> _group_rewards;
 
   // Timestep tracking
-  unsigned int _current_timestep;
-  unsigned int _max_timestep;
+  uint32_t _current_timestep;
+  uint32_t _max_timestep;
 
   // Observation dimensions
-  unsigned short _obs_width;
-  unsigned short _obs_height;
+  uint16_t _obs_width;
+  uint16_t _obs_height;
   std::vector<std::string> _grid_features;
 
   // Buffer management - now owned by this class
   std::vector<ObsType> _observations;
-  std::vector<char> _terminals;
-  std::vector<char> _truncations;
+  std::vector<int8_t> _terminals;
+  std::vector<int8_t> _truncations;
   std::vector<float> _rewards;
   std::vector<float> _episode_rewards;
 
@@ -73,18 +76,18 @@ private:
 
   // Action tracking
   bool _track_last_action;
-  unsigned char _last_action_obs_idx;
-  unsigned char _last_action_arg_obs_idx;
-  std::vector<char> _action_success;
+  uint8_t _last_action_obs_idx;
+  uint8_t _last_action_arg_obs_idx;
+  std::vector<int8_t> _action_success;
 
 public:
   // Constructor - note the changes to take ownership of the grid
-  MettaGrid(unsigned int map_width,
-            unsigned int map_height,
-            unsigned int num_agents,
-            unsigned int max_timestep,
-            unsigned short obs_width,
-            unsigned short obs_height);
+  MettaGrid(uint32_t map_width,
+            uint32_t map_height,
+            uint32_t num_agents,
+            uint32_t max_timestep,
+            uint16_t obs_width,
+            uint16_t obs_height);
 
   // Destructor - simplified with smart pointers
   ~MettaGrid();
@@ -95,54 +98,50 @@ public:
   void initialize_from_json(const std::string& map_json, const std::string& config_json);
 
   // Core game loop methods
-  void step(int** actions);
+  void step(int32_t** actions);
   void reset();
 
   // Observation methods
-  void compute_observation(unsigned short observer_r,
-                           unsigned short observer_c,
-                           unsigned short obs_width,
-                           unsigned short obs_height,
+  void compute_observation(uint16_t observer_r,
+                           uint16_t observer_c,
+                           uint16_t obs_width,
+                           uint16_t obs_height,
                            ObsType* observation);
-  void compute_observations(int** actions);
-  void observe(GridObjectId observer_id, unsigned short obs_width, unsigned short obs_height, ObsType* observation);
-  void observe_at(unsigned short row,
-                  unsigned short col,
-                  unsigned short obs_width,
-                  unsigned short obs_height,
-                  ObsType* observation);
+  void compute_observations(int32_t** actions);
+  void observe(GridObjectId observer_id, uint16_t obs_width, uint16_t obs_height, ObsType* observation);
+  void observe_at(uint16_t row, uint16_t col, uint16_t obs_width, uint16_t obs_height, ObsType* observation);
 
   // Observation utilities
   void observation_at(ObsType* flat_buffer,
-                      unsigned int obs_width,
-                      unsigned int obs_height,
-                      unsigned int feature_size,
-                      unsigned int r,
-                      unsigned int c,
+                      uint32_t obs_width,
+                      uint32_t obs_height,
+                      uint32_t feature_size,
+                      uint32_t r,
+                      uint32_t c,
                       ObsType* output);
   void set_observation_at(ObsType* flat_buffer,
-                          unsigned int obs_width,
-                          unsigned int obs_height,
-                          unsigned int feature_size,
-                          unsigned int r,
-                          unsigned int c,
+                          uint32_t obs_width,
+                          uint32_t obs_height,
+                          uint32_t feature_size,
+                          uint32_t r,
+                          uint32_t c,
                           const ObsType* values);
 
   // Reward management
-  void enable_reward_decay(int decay_time_steps = -1);
+  void enable_reward_decay(int32_t decay_time_steps = -1);
   void disable_reward_decay();
   void compute_group_rewards(float* rewards);
-  void set_group_reward_pct(unsigned int group_id, float pct);
-  void set_group_size(unsigned int group_id, unsigned int size);
+  void set_group_reward_pct(uint32_t group_id, float pct);
+  void set_group_size(uint32_t group_id, uint32_t size);
 
   // Getters for buffer access - now return references to internal vectors
   const std::vector<ObsType>& get_observations() const {
     return _observations;
   }
-  const std::vector<char>& get_terminals() const {
+  const std::vector<int8_t>& get_terminals() const {
     return _terminals;
   }
-  const std::vector<char>& get_truncations() const {
+  const std::vector<int8_t>& get_truncations() const {
     return _truncations;
   }
   const std::vector<float>& get_rewards() const {
@@ -156,21 +155,21 @@ public:
   }
 
   // Status and environment information getters
-  unsigned int current_timestep() const {
+  uint32_t current_timestep() const {
     return _current_timestep;
   }
-  unsigned int map_width() const;
-  unsigned int map_height() const;
+  uint32_t map_width() const;
+  uint32_t map_height() const;
   std::vector<std::string> grid_features() const {
     return _grid_features;
   }
-  unsigned int num_agents() const {
+  uint32_t num_agents() const {
     return _agents.size();
   }
-  std::vector<char> action_success() const {
+  std::vector<int8_t> action_success() const {
     return _action_success;
   }
-  std::vector<unsigned char> max_action_args() const {
+  std::vector<uint8_t> max_action_args() const {
     return _max_action_args;
   }
   const std::vector<Agent*>& get_agents() const {
@@ -190,15 +189,15 @@ public:
 private:
   // Helper methods for initialization
   void setup_action_handlers(const nlohmann::json& config);
-  void parse_grid_object(const std::string& object_type, int row, int col, const nlohmann::json& config);
+  void parse_grid_object(const std::string& object_type, int32_t row, int32_t col, const nlohmann::json& config);
   void parse_agent(const std::string& group_name,
-                   int row,
-                   int col,
+                   int32_t row,
+                   int32_t col,
                    const nlohmann::json& agent_config,
                    const nlohmann::json& group_config);
 
   // Initialize internal buffers based on number of agents and observation dimensions
-  void initialize_buffers(unsigned int num_agents);
+  void initialize_buffers(uint32_t num_agents);
 };
 
 #endif  // CORE_HPP

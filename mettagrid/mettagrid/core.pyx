@@ -10,6 +10,7 @@ from libcpp.vector cimport vector
 from libcpp.string cimport string
 from libcpp.map cimport map
 from libcpp cimport bool
+from libc.stdint cimport uint8_t, uint16_t, uint32_t, int8_t, int32_t
 
 # Python imports
 import json
@@ -41,13 +42,13 @@ cdef class PyMettaGrid:
         
         # Cache for frequently accessed data
         list _grid_features_list
-        int _feature_size
+        uint32_t _feature_size
         
         # Pre-allocated buffers for frequent operations
-        int** _c_actions
+        int32_t** _c_actions
         cnp.ndarray _action_array_buffer
         cnp.ndarray _obs_buffer
-        unsigned int _num_agents
+        uint32_t _num_agents
 
 
     def __init__(self, env_cfg: DictConfig | ListConfig, np_map: cnp.ndarray):
@@ -88,13 +89,13 @@ cdef class PyMettaGrid:
         self._create_numpy_views(num_agents, self._feature_size, obs_height, obs_width)
         
         # Pre-allocate action arrays for step and reset
-        self._c_actions = <int**>malloc(num_agents * sizeof(int*))
+        self._c_actions = <int32_t**>malloc(num_agents * sizeof(int32_t*))
         if self._c_actions == NULL:
             raise MemoryError("Failed to allocate action buffer")
             
-        cdef int i
+        cdef uint32_t i
         for i in range(num_agents):
-            self._c_actions[i] = <int*>malloc(2 * sizeof(int))
+            self._c_actions[i] = <int32_t*>malloc(2 * sizeof(int32_t))
             if self._c_actions[i] == NULL:
                 # Clean up already allocated memory
                 for j in range(i):
@@ -122,7 +123,7 @@ cdef class PyMettaGrid:
             self._cpp_mettagrid = NULL
 
 
-    def _create_numpy_views(self, int num_agents, int feature_size, int obs_height, int obs_width):
+    def _create_numpy_views(self, uint32_t num_agents, uint32_t feature_size, uint16_t obs_height, uint16_t obs_width):
         """Create NumPy array views that reference the C++ internal buffers."""
         cdef:
             # For observations
@@ -132,16 +133,16 @@ cdef class PyMettaGrid:
             ObsType[:] obs_view = <ObsType[:obs_size]>obs_ptr
             
             # For terminals
-            vector[char] cpp_terminals = self._cpp_mettagrid.get_terminals()
-            char* term_ptr = cpp_terminals.data()
+            vector[int8_t] cpp_terminals = self._cpp_mettagrid.get_terminals()
+            int8_t* term_ptr = cpp_terminals.data()
             size_t term_size = cpp_terminals.size()
-            char[:] terminals_view = <char[:term_size]>term_ptr
+            int8_t[:] terminals_view = <int8_t[:term_size]>term_ptr
             
             # For truncations
-            vector[char] cpp_truncations = self._cpp_mettagrid.get_truncations()
-            char* trunc_ptr = cpp_truncations.data()
+            vector[int8_t] cpp_truncations = self._cpp_mettagrid.get_truncations()
+            int8_t* trunc_ptr = cpp_truncations.data()
             size_t trunc_size = cpp_truncations.size()
-            char[:] truncations_view = <char[:trunc_size]>trunc_ptr
+            int8_t[:] truncations_view = <int8_t[:trunc_size]>trunc_ptr
             
             # For rewards
             vector[float] cpp_rewards = self._cpp_mettagrid.get_rewards()
@@ -160,7 +161,7 @@ cdef class PyMettaGrid:
             double* group_reward_ptr = cpp_group_rewards.data()
             size_t group_reward_size = cpp_group_rewards.size()
             double[:] group_rewards_view = <double[:group_reward_size]>group_reward_ptr
-        
+
         # Create NumPy arrays from memory views
         self._observations_np = np.asarray(obs_view).reshape(num_agents, obs_height, obs_width, feature_size)
         self._terminals_np = np.asarray(terminals_view).astype(np.int8)
@@ -169,12 +170,11 @@ cdef class PyMettaGrid:
         self._episode_rewards_np = np.asarray(episode_rewards_view).astype(np.float32)
         self._group_rewards_np = np.asarray(group_rewards_view).astype(np.float64)
 
-
     # Helper method to get grid features as Python list - caching the result
     cdef list _get_grid_features(self):
         cdef vector[string] features = self._cpp_mettagrid.grid_features()
         cdef list result = []
-        cdef int i
+        cdef uint32_t i
         for i in range(features.size()):
             result.append(features[i].decode('utf8'))
         return result
@@ -186,7 +186,7 @@ cdef class PyMettaGrid:
         self._cpp_mettagrid.reset()
         
         # Initialize all actions to zero
-        cdef int i
+        cdef uint32_t i
         for i in range(self._num_agents):
             self._c_actions[i][0] = 0
             self._c_actions[i][1] = 0
@@ -201,7 +201,7 @@ cdef class PyMettaGrid:
         """Take a step in the environment with the given actions."""
         cdef:
             cnp.ndarray[cnp.int32_t, ndim=2] actions_array
-            int i, rows, cols
+            uint32_t i, rows, cols
         
         # Fast path for already compatible numpy arrays
         if isinstance(actions, np.ndarray) and actions.shape == (self._num_agents, 2) and actions.dtype == np.int32:
@@ -242,20 +242,20 @@ cdef class PyMettaGrid:
     def action_success(self):
         """Get the action success information."""
         cdef:
-            vector[char] success = self._cpp_mettagrid.action_success()
-            char* data_ptr = success.data()
+            vector[int8_t] success = self._cpp_mettagrid.action_success()
+            int8_t* data_ptr = success.data()
             size_t size = success.size()
-            char[:] success_view = <char[:size]>data_ptr
+            int8_t[:] success_view = <int8_t[:size]>data_ptr
         # Efficiently create numpy array directly from buffer
         return np.asarray(success_view)
-    
+
     def max_action_args(self):
         """Get the maximum action arguments."""
         cdef:
-            vector[unsigned char] max_args = self._cpp_mettagrid.max_action_args()
-            unsigned char* data_ptr = max_args.data()
+            vector[uint8_t] max_args = self._cpp_mettagrid.max_action_args()
+            uint8_t* data_ptr = max_args.data()
             size_t size = max_args.size()
-            unsigned char[:] max_args_view = <unsigned char[:size]>data_ptr
+            uint8_t[:] max_args_view = <uint8_t[:size]>data_ptr
         
         # Efficiently create numpy array directly from buffer
         return np.asarray(max_args_view)
@@ -288,13 +288,13 @@ cdef class PyMettaGrid:
 
 
     def _observe_internal(self,
-                         unsigned short obs_width,
-                         unsigned short obs_height,
+                         uint16_t obs_width,
+                         uint16_t obs_height,
                          observation,
                          bint is_observer_id=False,
                          GridObjectId observer_id=0,
-                         unsigned short row=0,
-                         unsigned short col=0):
+                         uint16_t row=0,
+                         uint16_t col=0):
         """
         Internal helper method for observation functions.
         
@@ -338,8 +338,8 @@ cdef class PyMettaGrid:
 
     def observe(self,
                GridObjectId observer_id,
-               unsigned short obs_width,
-               unsigned short obs_height,
+               uint16_t obs_width,
+               uint16_t obs_height,
                observation=None):
         """
         Get observation from a specific observer's perspective.
@@ -360,10 +360,10 @@ cdef class PyMettaGrid:
 
 
     def observe_at(self,
-                  unsigned short row,
-                  unsigned short col,
-                  unsigned short obs_width,
-                  unsigned short obs_height,
+                  uint16_t row,
+                  uint16_t col,
+                  uint16_t obs_width,
+                  uint16_t obs_height,
                   observation=None):
         """
         Get observation at a specific location in the grid.
@@ -385,10 +385,9 @@ cdef class PyMettaGrid:
         )
     
     
-    def enable_reward_decay(self, decay_time_steps=None):
+    def enable_reward_decay(self, int32_t decay_time_steps=-1):
         """Enable reward decay mechanism."""
-        cdef int decay_time = -1 if decay_time_steps is None else decay_time_steps
-        self._cpp_mettagrid.enable_reward_decay(decay_time)
+        self._cpp_mettagrid.enable_reward_decay(decay_time_steps)
     
     
     def disable_reward_decay(self):
@@ -428,12 +427,12 @@ cdef class PyMettaGrid:
         """Get the action space for gymnasium compatibility."""
         # Get number of action handlers and max argument value
         cdef:
-            vector[unsigned char] max_args = self._cpp_mettagrid.max_action_args() 
-            unsigned char* data_ptr = max_args.data()
+            vector[uint8_t] max_args = self._cpp_mettagrid.max_action_args() 
+            uint8_t* data_ptr = max_args.data()
             size_t size = max_args.size()
-            unsigned char[:] max_args_view = <unsigned char[:size]>data_ptr
+            uint8_t[:] max_args_view = <uint8_t[:size]>data_ptr
             cnp.ndarray max_args_array
-            int max_arg
+            uint8_t max_arg
         
         max_args_array = np.asarray(max_args_view)
         

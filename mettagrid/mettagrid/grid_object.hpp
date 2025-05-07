@@ -1,15 +1,20 @@
 #ifndef GRID_OBJECT_HPP
 #define GRID_OBJECT_HPP
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
-using namespace std;
+// Use the same typedefs as in core.hpp
+typedef uint32_t GridObjectId;
+typedef uint8_t ObsType;
 
-typedef unsigned short Layer;
-typedef unsigned short TypeId;
-typedef unsigned int GridCoord;
-typedef unsigned char ObsType;
+// Layer and TypeId should be consistent
+typedef uint16_t Layer;
+typedef uint16_t TypeId;
+
+// GridCoord should be consistent with the grid dimensions
+typedef uint32_t GridCoord;
 
 class GridLocation {
 public:
@@ -29,18 +34,16 @@ enum Orientation {
   Right = 3
 };
 
-typedef unsigned int GridObjectId;
-
 class GridObject {
 public:
   GridObjectId id;
   GridLocation location;
-  TypeId _type_id;
+  TypeId _type_id;  // Changed to _type_id to match usage in grid.hpp
 
   virtual ~GridObject() = default;
 
   void init(TypeId type_id, const GridLocation& loc) {
-    this->_type_id = type_id;
+    this->_type_id = type_id;  // Updated to use _type_id
     this->location = loc;
   }
 
@@ -52,7 +55,7 @@ public:
     init(type_id, GridLocation(r, c, layer));
   }
 
-  virtual void obs(ObsType* obs, const vector<unsigned int>& offsets) const = 0;
+  virtual void obs(ObsType* obs, const std::vector<uint32_t>& offsets) const = 0;  // Updated to use std:: and uint32_t
 };
 
 #endif  // GRID_OBJECT_HPP

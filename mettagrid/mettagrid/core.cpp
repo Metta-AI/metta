@@ -20,12 +20,12 @@
 #include "observation_encoder.hpp"
 #include "stats_tracker.hpp"
 
-MettaGrid::MettaGrid(unsigned int map_width,
-                     unsigned int map_height,
-                     unsigned int num_agents,
-                     unsigned int max_timestep,
-                     unsigned short obs_width,
-                     unsigned short obs_height) {
+MettaGrid::MettaGrid(uint32_t map_width,
+                     uint32_t map_height,
+                     uint32_t num_agents,
+                     uint32_t max_timestep,
+                     uint16_t obs_width,
+                     uint16_t obs_height) {
   // Initialize member variables
   _current_timestep = 0;
   _max_timestep = max_timestep;
@@ -52,8 +52,8 @@ MettaGrid::MettaGrid(unsigned int map_width,
 
   // Set up reward decay
   _enable_reward_decay = false;
-  _reward_multiplier = 1.0;
-  _reward_decay_factor = 3.0 / (_max_timestep > 0 ? _max_timestep : 100);
+  _reward_multiplier = 1.0f;
+  _reward_decay_factor = 3.0f / (_max_timestep > 0 ? _max_timestep : 100);
 
   // Get grid features from the encoder
   _grid_features = _obs_encoder->feature_names();
@@ -68,9 +68,9 @@ MettaGrid::~MettaGrid() {
   // Agents are owned by the grid, not by us directly
 }
 
-void MettaGrid::initialize_buffers(unsigned int num_agents) {
+void MettaGrid::initialize_buffers(uint32_t num_agents) {
   // Calculate buffer sizes
-  unsigned int obs_size = num_agents * _obs_width * _obs_height * _grid_features.size();
+  uint32_t obs_size = num_agents * _obs_width * _obs_height * _grid_features.size();
 
   // Resize all buffers
   _observations.resize(obs_size, 0);
@@ -92,7 +92,7 @@ void MettaGrid::init_action_handlers(const std::vector<ActionHandler*>& action_h
   _action_handlers.clear();
 
   // Create and store copies of the action handlers
-  for (unsigned int i = 0; i < action_handlers.size(); i++) {
+  for (uint32_t i = 0; i < action_handlers.size(); i++) {
     ActionHandler* handler = action_handlers[i];
 
     // Create a deep copy through cloning and store it (with ownership)
@@ -100,7 +100,7 @@ void MettaGrid::init_action_handlers(const std::vector<ActionHandler*>& action_h
     _action_handlers.back()->init(_grid.get());
 
     // Update maximums
-    unsigned char max_arg = handler->max_arg();
+    uint8_t max_arg = handler->max_arg();
     _max_action_args[i] = max_arg;
     _max_action_arg = std::max(_max_action_arg, max_arg);
     _max_action_priority = std::max(_max_action_priority, handler->priority);
@@ -130,18 +130,18 @@ void MettaGrid::reset() {
   std::fill(_action_success.begin(), _action_success.end(), false);
 
   // Reset reward decay
-  _reward_multiplier = 1.0;
+  _reward_multiplier = 1.0f;
 
   // Note: This doesn't reset the grid or agents, which would require re-initialization
 }
 
 // Get observation values at coordinates (r,c)
 void MettaGrid::observation_at(ObsType* flat_buffer,
-                               unsigned int obs_width,
-                               unsigned int obs_height,
-                               unsigned int feature_size,
-                               unsigned int r,
-                               unsigned int c,
+                               uint32_t obs_width,
+                               uint32_t obs_height,
+                               uint32_t feature_size,
+                               uint32_t r,
+                               uint32_t c,
                                ObsType* output) {
   // Check bounds
   if (r >= obs_height || c >= obs_width) {
@@ -157,11 +157,11 @@ void MettaGrid::observation_at(ObsType* flat_buffer,
 
 // Set observation values at coordinates (r,c)
 void MettaGrid::set_observation_at(ObsType* flat_buffer,
-                                   unsigned int obs_width,
-                                   unsigned int obs_height,
-                                   unsigned int feature_size,
-                                   unsigned int r,
-                                   unsigned int c,
+                                   uint32_t obs_width,
+                                   uint32_t obs_height,
+                                   uint32_t feature_size,
+                                   uint32_t r,
+                                   uint32_t c,
                                    const ObsType* values) {
   // Check bounds
   if (r >= obs_height || c >= obs_width) {
@@ -175,34 +175,34 @@ void MettaGrid::set_observation_at(ObsType* flat_buffer,
   memcpy(dest, values, feature_size * sizeof(ObsType));
 }
 
-void MettaGrid::compute_observation(unsigned short observer_r,
-                                    unsigned short observer_c,
-                                    unsigned short obs_width,
-                                    unsigned short obs_height,
+void MettaGrid::compute_observation(uint16_t observer_r,
+                                    uint16_t observer_c,
+                                    uint16_t obs_width,
+                                    uint16_t obs_height,
                                     ObsType* observation) {
-  unsigned short obs_width_r = obs_width >> 1;
-  unsigned short obs_height_r = obs_height >> 1;
+  uint16_t obs_width_r = obs_width >> 1;
+  uint16_t obs_height_r = obs_height >> 1;
   std::vector<ObsType> temp_obs(_grid_features.size(), 0);
 
   // Clear the observation buffer
   memset(observation, 0, obs_width * obs_height * _grid_features.size() * sizeof(ObsType));
 
-  unsigned int r_start = std::max<unsigned int>(observer_r, obs_height_r) - obs_height_r;
-  unsigned int c_start = std::max<unsigned int>(observer_c, obs_width_r) - obs_width_r;
+  uint32_t r_start = std::max<uint32_t>(observer_r, obs_height_r) - obs_height_r;
+  uint32_t c_start = std::max<uint32_t>(observer_c, obs_width_r) - obs_width_r;
 
-  for (unsigned int r = r_start; r <= observer_r + obs_height_r; r++) {
+  for (uint32_t r = r_start; r <= observer_r + obs_height_r; r++) {
     if (r < 0 || r >= _grid->height) continue;
 
-    for (unsigned int c = c_start; c <= observer_c + obs_width_r; c++) {
+    for (uint32_t c = c_start; c <= observer_c + obs_width_r; c++) {
       if (c < 0 || c >= _grid->width) continue;
 
-      for (unsigned int layer = 0; layer < _grid->num_layers; layer++) {
+      for (uint32_t layer = 0; layer < _grid->num_layers; layer++) {
         GridLocation object_loc(r, c, layer);
         GridObject* obj = _grid->object_at(object_loc);
         if (obj == nullptr) continue;
 
-        unsigned int obs_r = object_loc.r + obs_height_r - observer_r;
-        unsigned int obs_c = object_loc.c + obs_width_r - observer_c;
+        uint32_t obs_r = object_loc.r + obs_height_r - observer_r;
+        uint32_t obs_c = object_loc.c + obs_width_r - observer_c;
 
         // Reset temp buffer
         std::fill(temp_obs.begin(), temp_obs.end(), 0);
@@ -218,8 +218,8 @@ void MettaGrid::compute_observation(unsigned short observer_r,
 }
 
 // Compute observations for all agents
-void MettaGrid::compute_observations(int** actions) {
-  for (unsigned int idx = 0; idx < _agents.size(); idx++) {
+void MettaGrid::compute_observations(int32_t** actions) {
+  for (uint32_t idx = 0; idx < _agents.size(); idx++) {
     Agent* agent = _agents[idx];
     ObsType* obs_ptr = _observations.data() + idx * _obs_width * _obs_height * _grid_features.size();
 
@@ -228,7 +228,7 @@ void MettaGrid::compute_observations(int** actions) {
 }
 
 // Take a step in the environment
-void MettaGrid::step(int** actions) {
+void MettaGrid::step(int32_t** actions) {
   // Reset rewards
   std::fill(_rewards.begin(), _rewards.end(), 0);
 
@@ -240,9 +240,9 @@ void MettaGrid::step(int** actions) {
   _event_manager->process_events(_current_timestep);
 
   // Process actions by priority
-  for (unsigned char p = 0; p <= _max_action_priority; p++) {
-    for (unsigned int idx = 0; idx < _agents.size(); idx++) {
-      int action = actions[idx][0];
+  for (uint8_t p = 0; p <= _max_action_priority; p++) {
+    for (uint32_t idx = 0; idx < _agents.size(); idx++) {
+      int32_t action = actions[idx][0];
       if (action < 0 || action >= _num_action_handlers) {
         printf("Invalid action: %d\n", action);
         continue;
@@ -268,26 +268,26 @@ void MettaGrid::step(int** actions) {
   // Apply reward decay if enabled
   if (_enable_reward_decay) {
     _reward_multiplier = std::max(0.1f, _reward_multiplier * (1.0f - _reward_decay_factor));
-    for (unsigned int i = 0; i < _rewards.size(); i++) {
+    for (uint32_t i = 0; i < _rewards.size(); i++) {
       _rewards[i] *= _reward_multiplier;
     }
   }
 
   // Update episode rewards
-  for (unsigned int i = 0; i < _episode_rewards.size(); i++) {
+  for (uint32_t i = 0; i < _episode_rewards.size(); i++) {
     _episode_rewards[i] += _rewards[i];
   }
 
   // Check for termination
   if (_max_timestep > 0 && _current_timestep >= _max_timestep) {
-    for (unsigned int i = 0; i < _truncations.size(); i++) {
+    for (uint32_t i = 0; i < _truncations.size(); i++) {
       _truncations[i] = 1;
     }
   }
 }
 
 // Enable reward decay
-void MettaGrid::enable_reward_decay(int decay_time_steps) {
+void MettaGrid::enable_reward_decay(int32_t decay_time_steps) {
   _enable_reward_decay = true;
   _reward_multiplier = 1.0f;  // Reset multiplier to initial value
 
@@ -306,30 +306,23 @@ void MettaGrid::disable_reward_decay() {
 }
 
 // Observe from a specific object's perspective
-void MettaGrid::observe(GridObjectId observer_id,
-                        unsigned short obs_width,
-                        unsigned short obs_height,
-                        ObsType* observation) {
+void MettaGrid::observe(GridObjectId observer_id, uint16_t obs_width, uint16_t obs_height, ObsType* observation) {
   GridObject* observer = _grid->object(observer_id);
   compute_observation(observer->location.r, observer->location.c, obs_width, obs_height, observation);
 }
 
 // Observe from a specific location
-void MettaGrid::observe_at(unsigned short row,
-                           unsigned short col,
-                           unsigned short obs_width,
-                           unsigned short obs_height,
-                           ObsType* observation) {
+void MettaGrid::observe_at(uint16_t row, uint16_t col, uint16_t obs_width, uint16_t obs_height, ObsType* observation) {
   compute_observation(row, col, obs_width, obs_height, observation);
 }
 
 // Get map width
-unsigned int MettaGrid::map_width() const {
+uint32_t MettaGrid::map_width() const {
   return _grid->width;
 }
 
 // Get map height
-unsigned int MettaGrid::map_height() const {
+uint32_t MettaGrid::map_height() const {
   return _grid->height;
 }
 
@@ -341,11 +334,11 @@ void MettaGrid::compute_group_rewards(float* rewards) {
   bool share_rewards = false;
 
   // First pass: collect group rewards
-  for (unsigned int agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
+  for (uint32_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
     if (rewards[agent_idx] != 0) {
       share_rewards = true;
       Agent* agent = _agents[agent_idx];
-      unsigned int group_id = agent->group;
+      uint32_t group_id = agent->group;
       float group_reward = rewards[agent_idx] * _group_reward_pct[group_id];
       rewards[agent_idx] -= group_reward;
       _group_rewards[group_id] += group_reward / _group_sizes[group_id];
@@ -354,20 +347,20 @@ void MettaGrid::compute_group_rewards(float* rewards) {
 
   // Second pass: distribute group rewards
   if (share_rewards) {
-    for (unsigned int agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
+    for (uint32_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
       Agent* agent = _agents[agent_idx];
-      unsigned int group_id = agent->group;
+      uint32_t group_id = agent->group;
       float group_reward = _group_rewards[group_id];
       rewards[agent_idx] += group_reward;
     }
   }
 }
 
-void MettaGrid::set_group_reward_pct(unsigned int group_id, float pct) {
+void MettaGrid::set_group_reward_pct(uint32_t group_id, float pct) {
   _group_reward_pct[group_id] = pct;
 }
 
-void MettaGrid::set_group_size(unsigned int group_id, unsigned int size) {
+void MettaGrid::set_group_size(uint32_t group_id, uint32_t size) {
   _group_sizes[group_id] = size;
 }
 
@@ -379,7 +372,7 @@ void MettaGrid::initialize_from_json(const std::string& map_json, const std::str
   json cfg = json::parse(config_json);
 
   // Initialize group sizes
-  std::map<unsigned int, unsigned int> group_sizes;
+  std::map<uint32_t, uint32_t> group_sizes;
   for (auto& [group_name, group_info] : cfg["groups"].items()) {
     group_sizes[group_info["id"]] = 0;
   }
@@ -388,8 +381,8 @@ void MettaGrid::initialize_from_json(const std::string& map_json, const std::str
   _group_rewards.resize(cfg["groups"].size(), 0);
 
   // Process map and create objects
-  for (int r = 0; r < map_data.size(); r++) {
-    for (int c = 0; c < map_data[r].size(); c++) {
+  for (int32_t r = 0; r < map_data.size(); r++) {
+    for (int32_t c = 0; c < map_data[r].size(); c++) {
       std::string cell_type = map_data[r][c];
 
       // Wall
@@ -447,7 +440,7 @@ void MettaGrid::initialize_from_json(const std::string& map_json, const std::str
         parse_agent(group_name, r, c, cfg["agent"], cfg["groups"][group_name]);
 
         // Update group size
-        unsigned int group_id = cfg["groups"][group_name]["id"];
+        uint32_t group_id = cfg["groups"][group_name]["id"];
         group_sizes[group_id]++;
         set_group_size(group_id, group_sizes[group_id]);
       }
@@ -456,7 +449,7 @@ void MettaGrid::initialize_from_json(const std::string& map_json, const std::str
 
   // Initialize group reward percentages
   for (auto& [group_name, group_info] : cfg["groups"].items()) {
-    unsigned int group_id = group_info["id"];
+    uint32_t group_id = group_info["id"];
     float pct = 0;
     if (group_info.contains("group_reward_pct")) {
       pct = group_info["group_reward_pct"];
@@ -468,7 +461,10 @@ void MettaGrid::initialize_from_json(const std::string& map_json, const std::str
   setup_action_handlers(cfg);
 }
 
-void MettaGrid::parse_grid_object(const std::string& object_type, int row, int col, const nlohmann::json& config) {
+void MettaGrid::parse_grid_object(const std::string& object_type,
+                                  int32_t row,
+                                  int32_t col,
+                                  const nlohmann::json& config) {
   // Convert JSON config to ObjectConfig
   ObjectConfig obj_config;
   for (auto& [key, value] : config.items()) {
@@ -517,8 +513,8 @@ void MettaGrid::parse_grid_object(const std::string& object_type, int row, int c
 }
 
 void MettaGrid::parse_agent(const std::string& group_name,
-                            int row,
-                            int col,
+                            int32_t row,
+                            int32_t col,
                             const nlohmann::json& agent_config,
                             const nlohmann::json& group_config) {
   // Merge agent and group configs
@@ -539,7 +535,7 @@ void MettaGrid::parse_agent(const std::string& group_name,
   ObjectConfig obj_config;
   for (auto& [key, value] : merged_config.items()) {
     if (value.is_number_integer() || value.is_number_float()) {
-      obj_config[key] = static_cast<int>(value.get<double>());
+      obj_config[key] = static_cast<int32_t>(value.get<double>());
     }
   }
 
@@ -563,7 +559,7 @@ void MettaGrid::parse_agent(const std::string& group_name,
   }
 
   // Create agent
-  unsigned int group_id = group_config["id"];
+  uint32_t group_id = group_config["id"];
   Agent* agent = new Agent(row, col, group_name, group_id, obj_config, cpp_rewards);
   agent->agent_id = _agents.size();
 
@@ -684,7 +680,7 @@ std::string MettaGrid::get_episode_stats_json() const {
 
   // Game stats
   nlohmann::json game_stats;
-  std::map<std::string, int> cpp_stats = _stats->stats();
+  std::map<std::string, int32_t> cpp_stats = _stats->stats();
   for (const auto& [key, value] : cpp_stats) {
     game_stats[key] = value;
   }
@@ -692,10 +688,10 @@ std::string MettaGrid::get_episode_stats_json() const {
 
   // Agent stats
   nlohmann::json agent_stats_array = nlohmann::json::array();
-  for (unsigned int i = 0; i < _agents.size(); i++) {
+  for (uint32_t i = 0; i < _agents.size(); i++) {
     Agent* agent = _agents[i];
     nlohmann::json agent_stats;
-    std::map<std::string, int> agent_stat_map = agent->stats.stats();
+    std::map<std::string, int32_t> agent_stat_map = agent->stats.stats();
 
     for (const auto& [key, value] : agent_stat_map) {
       agent_stats[key] = value;

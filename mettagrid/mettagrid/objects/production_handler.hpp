@@ -1,6 +1,8 @@
 #ifndef PRODUCTION_HANDLER_HPP
 #define PRODUCTION_HANDLER_HPP
 
+#include <cstdint>  // Added for fixed-width integer types
+
 #include "event.hpp"
 #include "grid.hpp"
 #include "objects/constants.hpp"

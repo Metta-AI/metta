@@ -2,6 +2,7 @@
 #define CONVERTER_HPP
 
 #include <cassert>
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -27,8 +28,8 @@ private:
       return;
     }
     // Check if the converter is already at max output.
-    unsigned short total_output = 0;
-    for (unsigned int i = 0; i < InventoryItem::InventoryCount; i++) {
+    uint16_t total_output = 0;
+    for (uint32_t i = 0; i < InventoryItem::InventoryCount; i++) {
       if (this->recipe_output[i] > 0) {
         total_output += this->inventory[i];
       }
@@ -37,13 +38,13 @@ private:
       return;
     }
     // Check if the converter has enough input.
-    for (unsigned int i = 0; i < InventoryItem::InventoryCount; i++) {
+    for (uint32_t i = 0; i < InventoryItem::InventoryCount; i++) {
       if (this->inventory[i] < this->recipe_input[i]) {
         return;
       }
     }
     // produce.
-    for (unsigned int i = 0; i < InventoryItem::InventoryCount; i++) {
+    for (uint32_t i = 0; i < InventoryItem::InventoryCount; i++) {
       this->inventory[i] -= this->recipe_input[i];
     }
     // All the previous returns were "we don't start converting".
@@ -53,17 +54,17 @@ private:
   }
 
 public:
-  vector<unsigned char> recipe_input;
-  vector<unsigned char> recipe_output;
+  std::vector<uint8_t> recipe_input;
+  std::vector<uint8_t> recipe_output;
   // The converter won't convert if its output already has this many things of
   // the type it produces. This may be clunky in some cases, but the main usage
   // is to make Mines (etc) have a maximum output.
-  unsigned short max_output;
-  unsigned char conversion_ticks;  // Time to produce output
-  unsigned char cooldown;          // Time to wait after producing before starting again
-  bool converting;                 // Currently in production phase
-  bool cooling_down;               // Currently in cooldown phase
-  unsigned char color;
+  uint16_t max_output;
+  uint8_t conversion_ticks;  // Time to produce output
+  uint8_t cooldown;          // Time to wait after producing before starting again
+  bool converting;           // Currently in production phase
+  bool cooling_down;         // Currently in cooldown phase
+  uint8_t color;
   EventManager* event_manager;
 
   Converter(GridCoord r, GridCoord c, ObjectConfig cfg, TypeId type_id) {
@@ -72,7 +73,7 @@ public:
     HasInventory::init_has_inventory(cfg);
     this->recipe_input.resize(InventoryItem::InventoryCount);
     this->recipe_output.resize(InventoryItem::InventoryCount);
-    for (unsigned int i = 0; i < InventoryItem::InventoryCount; i++) {
+    for (uint32_t i = 0; i < InventoryItem::InventoryCount; i++) {
       this->recipe_input[i] = cfg["input_" + InventoryItemNames[i]];
       this->recipe_output[i] = cfg["output_" + InventoryItemNames[i]];
     }
@@ -85,8 +86,8 @@ public:
 
     // Initialize inventory with initial_items for all output types
     // Default to recipe_output values if initial_items is not present
-    unsigned char initial_items = cfg["initial_items"];
-    for (unsigned int i = 0; i < InventoryItem::InventoryCount; i++) {
+    uint8_t initial_items = cfg["initial_items"];
+    for (uint32_t i = 0; i < InventoryItem::InventoryCount; i++) {
       if (this->recipe_output[i] > 0) {
         HasInventory::update_inventory(static_cast<InventoryItem>(i), initial_items);
       }
@@ -104,7 +105,7 @@ public:
     this->converting = false;
 
     // Add output to inventory
-    for (unsigned int i = 0; i < InventoryItem::InventoryCount; i++) {
+    for (uint32_t i = 0; i < InventoryItem::InventoryCount; i++) {
       if (this->recipe_output[i] > 0) {
         HasInventory::update_inventory(static_cast<InventoryItem>(i), this->recipe_output[i]);
       }
@@ -128,17 +129,17 @@ public:
     this->maybe_start_converting();
   }
 
-  void update_inventory(InventoryItem item, short amount) override {
+  void update_inventory(InventoryItem item, int16_t amount) override {
     HasInventory::update_inventory(item, amount);
     this->maybe_start_converting();
   }
 
-  void obs(ObsType* obs, const std::vector<unsigned int>& offsets) const override {
+  void obs(ObsType* obs, const std::vector<uint32_t>& offsets) const override {
     obs[offsets[0]] = 1;
     obs[offsets[1]] = this->hp;
     obs[offsets[2]] = this->color;
     obs[offsets[3]] = this->converting || this->cooling_down;
-    for (unsigned int i = 0; i < InventoryItem::InventoryCount; i++) {
+    for (uint32_t i = 0; i < InventoryItem::InventoryCount; i++) {
       obs[offsets[4] + i] = this->inventory[i];
     }
   }
@@ -152,7 +153,7 @@ public:
     names.push_back("hp");
     names.push_back("color");
     names.push_back("converting");
-    for (unsigned int i = 0; i < InventoryItem::InventoryCount; i++) {
+    for (uint32_t i = 0; i < InventoryItem::InventoryCount; i++) {
       names.push_back("inv:" + InventoryItemNames[i]);
     }
     return names;

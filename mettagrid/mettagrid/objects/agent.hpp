@@ -1,6 +1,7 @@
 #ifndef AGENT_HPP
 #define AGENT_HPP
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -11,18 +12,18 @@
 
 class Agent : public MettaObject {
 public:
-  unsigned char group;
-  unsigned char frozen;
-  unsigned char freeze_duration;
-  unsigned char orientation;
-  std::vector<unsigned char> inventory;
-  unsigned char max_items;
+  uint8_t group;
+  uint8_t frozen;
+  uint8_t freeze_duration;
+  uint8_t orientation;
+  std::vector<uint8_t> inventory;
+  uint8_t max_items;
   std::vector<float> resource_rewards;
   std::vector<float> resource_reward_max;
   float action_failure_penalty;
   std::string group_name;
-  unsigned char color;
-  unsigned char agent_id;
+  uint8_t color;
+  uint8_t agent_id;
   StatsTracker stats;
   float current_resource_reward;
   float* reward;
@@ -30,7 +31,7 @@ public:
   Agent(GridCoord r,
         GridCoord c,
         std::string group_name,
-        unsigned char group_id,
+        uint8_t group_id,
         ObjectConfig cfg,
         // Configuration -- rewards that the agent will get for certain
         // actions or inventory changes.
@@ -46,11 +47,11 @@ public:
     this->inventory.resize(InventoryItem::InventoryCount);
     this->max_items = cfg["max_inventory"];
     this->resource_rewards.resize(InventoryItem::InventoryCount);
-    for (int i = 0; i < InventoryItem::InventoryCount; i++) {
+    for (int32_t i = 0; i < InventoryItem::InventoryCount; i++) {
       this->resource_rewards[i] = rewards[InventoryItemNames[i]];
     }
     this->resource_reward_max.resize(InventoryItem::InventoryCount);
-    for (int i = 0; i < InventoryItem::InventoryCount; i++) {
+    for (int32_t i = 0; i < InventoryItem::InventoryCount; i++) {
       this->resource_reward_max[i] = rewards[InventoryItemNames[i] + "_max"];
     }
     this->action_failure_penalty = rewards["action_failure_penalty"];
@@ -63,9 +64,9 @@ public:
     this->reward = reward;
   }
 
-  void update_inventory(InventoryItem item, short amount) {
-    int current_amount = this->inventory[static_cast<int>(item)];
-    int new_amount = current_amount + amount;
+  void update_inventory(InventoryItem item, int16_t amount) {
+    int32_t current_amount = this->inventory[static_cast<int32_t>(item)];
+    int32_t new_amount = current_amount + amount;
     if (new_amount > this->max_items) {
       new_amount = this->max_items;
     }
@@ -73,8 +74,8 @@ public:
       new_amount = 0;
     }
 
-    int delta = new_amount - current_amount;
-    this->inventory[static_cast<int>(item)] = new_amount;
+    int32_t delta = new_amount - current_amount;
+    this->inventory[static_cast<int32_t>(item)] = new_amount;
 
     if (delta > 0) {
       this->stats.add(InventoryItemNames[item], "gained", delta);
@@ -86,12 +87,12 @@ public:
   }
 
   inline void compute_resource_reward(InventoryItem item) {
-    if (this->resource_rewards[static_cast<int>(item)] == 0) {
+    if (this->resource_rewards[static_cast<int32_t>(item)] == 0) {
       return;
     }
 
     float new_reward = 0;
-    for (int i = 0; i < InventoryItem::InventoryCount; i++) {
+    for (int32_t i = 0; i < InventoryItem::InventoryCount; i++) {
       float max_val = static_cast<float>(this->inventory[i]);
       if (max_val > this->resource_reward_max[i]) {
         max_val = this->resource_reward_max[i];
@@ -106,7 +107,7 @@ public:
     return this->frozen;
   }
 
-  virtual void obs(ObsType* obs, const std::vector<unsigned int>& offsets) const override {
+  virtual void obs(ObsType* obs, const std::vector<uint32_t>& offsets) const override {
     obs[offsets[0]] = 1;
     obs[offsets[1]] = group;
     obs[offsets[2]] = hp;
@@ -114,7 +115,7 @@ public:
     obs[offsets[4]] = orientation;
     obs[offsets[5]] = color;
 
-    for (int i = 0; i < InventoryItem::InventoryCount; i++) {
+    for (int32_t i = 0; i < InventoryItem::InventoryCount; i++) {
       obs[offsets[6 + i]] = inventory[i];
     }
   }
