@@ -17,6 +17,11 @@ export function parseHtmlColor(color: string): [number, number, number, number] 
   ];
 }
 
+// Clamp a value between a minimum and maximum.
+export function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(value, max));
+}
+
 /**
  * Mesh class responsible for managing vertex data
  */
@@ -869,7 +874,14 @@ class Context3d {
         // Apply scissor if enabled for this mesh
         if (mesh.scissorEnabled) {
           const [x, y, width, height] = mesh.scissorRect;
-          passEncoder.setScissorRect(x, y, width, height);
+          const w = this.canvas.width;
+          const h = this.canvas.height;
+          passEncoder.setScissorRect(
+            clamp(x, 0, w),
+            clamp(y, 0, h),
+            clamp(width, 0, w - x),
+            clamp(height, 0, h - y)
+          );
         } else {
           // Reset scissor to full canvas if previously set
           passEncoder.setScissorRect(0, 0, this.canvas.width, this.canvas.height);

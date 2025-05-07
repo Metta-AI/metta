@@ -43,14 +43,15 @@ body {
   bottom: 0px;
   left: 0px;
   right: 0px;
-  height: 64px;
+  height: 120px;
   background-color: rgba(0.2, 0.2, 0.2, 1.0);
   display: flex;
   align-items: center;
 }
 
 .play-button {
-  position: relative;
+  position: absolute;
+  top: 64px;
   width: 36px;
   height: 36px;
   margin-left: 20px;
@@ -85,7 +86,7 @@ body {
 .scrubber {
   position: absolute;
   top: 29px;
-  left: 70px;
+  left: 20px;
   right: 20px;
   height: 5px;
   /* Track height */
@@ -162,7 +163,7 @@ body {
 
 #info-div {
   padding: 32px;
-  background-color: rgba(0.2, 0.2, 0.2, 1.0);
+  background-color: rgba(0.2, 0.2, 0.2, 0.75);
   color: white;
   font-family: monospace;
   font-size: 12px;
@@ -237,4 +238,146 @@ body {
   color: black;
   text-decoration: none;
   cursor: pointer;
+}
+
+/* Header styles */
+#header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 60px;
+  background-color: #273646;
+  background-image: url('data/ui/header-bg.png');
+  background-position: top left;
+  background-repeat: no-repeat;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0;
+  z-index: 10;
+  border-bottom: 1px solid #333;
+}
+
+#header .header-left {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0; /* Allows ellipsis to work */
+  margin-right: 20px; /* Ensure space between filename and filter */
+}
+
+#header .header-right {
+  display: flex;
+  align-items: center;
+}
+
+/* Logo styling */
+#header #logo {
+  height: 54px;
+  margin: 0 15px;
+  flex-shrink: 0; /* Prevent logo from shrinking */
+}
+
+/* File name styling */
+#header #file-name {
+  color: white;
+  font-family: sans-serif;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  max-width: 100%; /* Allow it to fill available space but not overflow */
+}
+
+/* Filter styling */
+#header .filter-wrapper {
+  position: relative;
+  margin-right: 15px;
+  display: flex;
+  align-items: center;
+}
+
+/* #header .filter-wrapper::before {
+  content: '';
+  position: absolute;
+  right: 10px;
+  width: 16px;
+  height: 16px;
+  background-image: url('data/ui/search.png');
+  background-size: contain;
+  background-repeat: no-repeat;
+  pointer-events: none;
+  z-index: 1;
+} */
+
+#header #main-filter {
+  width: 700px;
+  height: 36px;
+  padding: 0 30px 0 10px;
+  border: none;
+  background-color: #2d2d2d;
+  color: white;
+  font-size: 14px;
+  border-radius: 3px;
+}
+
+#header #main-filter::placeholder {
+  color: #aaa;
+}
+
+/* Share icon styling */
+#header .share-wrapper {
+  display: flex;
+  align-items: center;
+  margin-right: 15px;
+}
+
+#header #share-button {
+  height: 24px;
+  cursor: pointer;
+}
+
+/* Remove previous pseudo-element styles if they still exist */
+#header > #logo,
+#header > #file-name,
+#header > #main-filter,
+#header > #share-button {
+  float: none;
+}
+
+/* Toast notification */
+#toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #24C76B;
+  color: white;
+  padding: 12px 24px;
+  border-radius: 30px;
+  border: 2px solid white;
+  font-family: sans-serif;
+  font-size: 18px;
+  max-width: 300px;
+  text-align: center;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  z-index: 1000;
+  opacity: 0;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  pointer-events: none; /* Allow clicks to pass through when hidden */
+  word-wrap: break-word;
+  line-height: 1.4;
+}
+
+#toast.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+  pointer-events: auto;
+}
+
+#toast.hiding {
+  opacity: 0;
+  transform: translateX(-50%) translateY(-20px); /* Animate upward when hiding */
 }

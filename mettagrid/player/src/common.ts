@@ -11,9 +11,10 @@ export const MAX_ZOOM_LEVEL = 2.0;
 
 export const SPLIT_DRAG_THRESHOLD = 10;  // pixels to detect split dragging
 export const SCROLL_ZOOM_FACTOR = 1000;  // divisor for scroll delta to zoom conversion
-export const DEFAULT_TRACE_SPLIT = 0.80;  // default horizontal split ratio
-export const DEFAULT_INFO_SPLIT = 0.25;   // default vertical split ratio
+export const DEFAULT_TRACE_SPLIT = 0.75;  // default horizontal split ratio
 export const PANEL_BOTTOM_MARGIN = 60;    // bottom margin for panels
+export const HEADER_HEIGHT = 60;          // height of the header
+export const SCRUBBER_HEIGHT = 120;        // height of the scrubber
 
 // Map constants
 export const TILE_SIZE = 200;
@@ -47,8 +48,6 @@ export const ui = {
   // Split between trace and info panels.
   traceSplit: DEFAULT_TRACE_SPLIT,
   traceDragging: false,
-  infoSplit: DEFAULT_INFO_SPLIT,
-  infoDragging: false,
 
   // Panels
   mapPanel: new PanelInfo("map"),
@@ -75,6 +74,10 @@ export const html = {
   scrubber: document.getElementById('main-scrubber') as HTMLInputElement,
   playButton: document.getElementById('play-button') as HTMLButtonElement,
   globalCanvas: document.getElementById('global-canvas') as HTMLCanvasElement,
+  fileName: document.getElementById('file-name') as HTMLDivElement,
+  shareButton: document.getElementById('share-button') as HTMLButtonElement,
+  mainFilter: document.getElementById('main-filter') as HTMLInputElement,
+  toast: document.getElementById('toast') as HTMLDivElement,
 }
 
 
@@ -105,4 +108,29 @@ export function closeModal() {
     modal.classList.remove('info');
     modal.style.display = 'none';
   }
+}
+
+// Functions to show and hide toast notifications
+export function showToast(message: string, duration = 3000) {
+  // Set the message
+  html.toast.textContent = message;
+  // Remove any existing classes
+  html.toast.classList.remove('hiding');
+  // Make the toast visible
+  html.toast.classList.add('visible');
+  // Set a timeout to hide the toast after the specified duration
+  setTimeout(() => {
+    hideToast();
+  }, duration);
+}
+
+// Hides the currently visible toast with an upward animation
+export function hideToast() {
+  // Add the hiding class for the upward animation
+  html.toast.classList.add('hiding');
+  // Remove the visible class after the animation completes
+  setTimeout(() => {
+    html.toast.classList.remove('visible');
+    html.toast.classList.remove('hiding');
+  }, 300); // Match the transition duration from CSS
 }

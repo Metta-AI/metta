@@ -11,39 +11,33 @@ export function onResize() {
   // Adjust for high DPI displays.
   const dpr = window.devicePixelRatio || 1;
 
-  const mapWidth = window.innerWidth;
-  const mapHeight = window.innerHeight;
+  const screenWidth = window.innerWidth;
+  const screenHeight = window.innerHeight;
 
   // Make sure traceSplit and infoSplit are not too small or too large.
   const a = 0.025;
   ui.traceSplit = Math.max(a, Math.min(ui.traceSplit, 1 - a));
-  ui.infoSplit = Math.max(a, Math.min(ui.infoSplit, 1 - a));
 
   ui.mapPanel.x = 0;
-  ui.mapPanel.y = 0;
-  ui.mapPanel.width = mapWidth * ui.traceSplit;
-  ui.mapPanel.height = mapHeight - Common.PANEL_BOTTOM_MARGIN;
+  ui.mapPanel.y = Common.HEADER_HEIGHT;
+  ui.mapPanel.width = screenWidth;
+  ui.mapPanel.height = screenHeight * ui.traceSplit;
 
   // Minimap goes in the bottom left corner of the mapPanel.
   if (state.replay != null) {
     const miniMapWidth = state.replay.map_size[0] * 2;
     const miniMapHeight = state.replay.map_size[1] * 2;
     ui.miniMapPanel.x = 0;
-    ui.miniMapPanel.y = ui.mapPanel.height - miniMapHeight;
+    ui.miniMapPanel.y = ui.mapPanel.y + ui.mapPanel.height - miniMapHeight;
     ui.miniMapPanel.width = miniMapWidth;
     ui.miniMapPanel.height = miniMapHeight;
     console.log("miniMap:", ui.miniMapPanel.x, ui.miniMapPanel.y, ui.miniMapPanel.width, ui.miniMapPanel.height);
   }
 
-  ui.tracePanel.x = mapWidth * ui.traceSplit;
-  ui.tracePanel.y = mapHeight * ui.infoSplit;
-  ui.tracePanel.width = mapWidth * (1 - ui.traceSplit);
-  ui.tracePanel.height = mapHeight * (1 - ui.infoSplit) - Common.PANEL_BOTTOM_MARGIN;
-
-  ui.infoPanel.x = mapWidth * ui.traceSplit;
-  ui.infoPanel.y = 0;
-  ui.infoPanel.width = mapWidth * (1 - ui.traceSplit);
-  ui.infoPanel.height = mapHeight * ui.infoSplit;
+  ui.infoPanel.x = screenWidth - 400;
+  ui.infoPanel.y = ui.mapPanel.y + ui.mapPanel.height - 200;
+  ui.infoPanel.width = 400;
+  ui.infoPanel.height = 200;
   if (ui.infoPanel.div === null) {
     ui.infoPanel.div = document.createElement("div");
     ui.infoPanel.div.id = ui.infoPanel.name + "-div";
@@ -58,6 +52,13 @@ export function onResize() {
     div.style.height = ui.infoPanel.height + 'px';
   }
 
+  // Trace panel is always on the bottom of the screen.
+  ui.tracePanel.x = 0;
+  ui.tracePanel.y = ui.mapPanel.y + ui.mapPanel.height;
+  ui.tracePanel.width = screenWidth;
+  ui.tracePanel.height = screenHeight - ui.tracePanel.y - Common.SCRUBBER_HEIGHT;
+
+
   // Redraw the square after resizing.
   requestFrame();
 }
@@ -70,12 +71,9 @@ function onMouseDown() {
   ui.mouseDoubleClick = currentTime - ui.lastClickTime < 300; // 300ms threshold for double-click
   ui.lastClickTime = currentTime;
 
-  if (Math.abs(ui.mousePos.x() - ui.mapPanel.width) < Common.SPLIT_DRAG_THRESHOLD) {
+  if (Math.abs(ui.mousePos.y() - ui.tracePanel.y) < Common.SPLIT_DRAG_THRESHOLD) {
     ui.traceDragging = true
     console.log("Started trace dragging")
-  } else if (ui.mousePos.x() > ui.mapPanel.width && Math.abs(ui.mousePos.y() - ui.infoPanel.height) < Common.SPLIT_DRAG_THRESHOLD) {
-    ui.infoDragging = true
-    console.log("Started info dragging")
   } else {
     ui.mouseDown = true;
   }
@@ -87,7 +85,6 @@ function onMouseDown() {
 function onMouseUp() {
   ui.mouseDown = false;
   ui.traceDragging = false;
-  ui.infoDragging = false;
   requestFrame();
 }
 
@@ -109,11 +106,8 @@ function onMouseMove(event: MouseEvent) {
   }
 
   if (ui.traceDragging) {
-    ui.traceSplit = ui.mousePos.x() / window.innerWidth
+    ui.traceSplit = ui.mousePos.y() / window.innerHeight
     onResize();
-  } else if (ui.infoDragging) {
-    ui.infoSplit = ui.mousePos.y() / window.innerHeight
-    onResize()
   }
   requestFrame();
 }
@@ -343,6 +337,7 @@ async function parseUrlParams() {
     if (selectedObjectId >= 0 && selectedObjectId < state.replay.grid_objects.length) {
       state.selectedGridObject = state.replay.grid_objects[selectedObjectId];
       state.followSelection = true;
+      state.followTraceSelection = true;
       ui.mapPanel.zoomLevel = 1 / 2;
       ui.tracePanel.zoomLevel = 1;
       console.info("Selected object via query parameter:", state.selectedGridObject);
@@ -364,6 +359,14 @@ async function parseUrlParams() {
   requestFrame();
 }
 
+// Handle share button click
+function onShareButtonClick() {
+  // Copy the current URL to the clipboard
+  navigator.clipboard.writeText(window.location.href);
+  // Show a toast notification
+  Common.showToast("URL copied to clipboard");
+}
+
 // Initial resize.
 onResize();
 
@@ -374,14 +377,15 @@ window.addEventListener('mousedown', onMouseDown);
 window.addEventListener('mouseup', onMouseUp);
 window.addEventListener('mousemove', onMouseMove);
 window.addEventListener('wheel', onScroll);
-
-html.scrubber.addEventListener('input', onScrubberChange);
-html.playButton.addEventListener('click', onPlayButtonClick);
-
 window.addEventListener('dragenter', preventDefaults, false);
 window.addEventListener('dragleave', preventDefaults, false);
 window.addEventListener('dragover', preventDefaults, false);
 window.addEventListener('drop', handleDrop, false);
+
+html.scrubber.addEventListener('input', onScrubberChange);
+html.playButton.addEventListener('click', onPlayButtonClick);
+html.shareButton.addEventListener('click', onShareButtonClick);
+html.mainFilter.style.display = "none"; // Hide the main filter for now.
 
 window.addEventListener('load', async () => {
 

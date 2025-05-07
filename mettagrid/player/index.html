@@ -11,6 +11,22 @@
 
 <body>
   <canvas id="global-canvas"></canvas>
+  <div id="header">
+    <div class="header-left">
+      <img id="logo" src="data/ui/logo.png" alt="MettaScope">
+      <div id="file-name">
+        loading...
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="filter-wrapper">
+        <input id="main-filter" type="text" placeholder="Filter/Search Field">
+      </div>
+      <div class="share-wrapper">
+        <img id="share-button" src="data/ui/share.png" alt="Share">
+      </div>
+    </div>
+  </div>
   <div class="scrubber-container">
     <button id="play-button" class="play-button" aria-label="Play/Pause">▶</button>
     <input id="main-scrubber" type="range" class="scrubber" min="0" max="500" value="0">
@@ -21,6 +37,10 @@
       <p>Please drop a replay file here to see the replay.</p>
     </div>
   </div>
+
+  <!-- Toast notification -->
+  <div id="toast">Notification message here</div>
+
   <script type="module" src="dist/main.js"></script>
 </body>
 
