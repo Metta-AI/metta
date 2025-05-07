@@ -41,8 +41,6 @@ public:
     unsigned int map_height();
     py::list grid_features();
     unsigned int num_agents();
-    void observe(unsigned int observer_id, unsigned short obs_width, unsigned short obs_height, py::array_t<unsigned char> observation);
-    void observe_at(unsigned short row, unsigned short col, unsigned short obs_width, unsigned short obs_height, py::array_t<unsigned char> observation);
     py::array_t<float> get_episode_rewards();
     py::dict get_episode_stats();
     py::array_t<std::string> render_ascii();
