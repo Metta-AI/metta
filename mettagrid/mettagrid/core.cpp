@@ -244,7 +244,12 @@ void MettaGrid::step(int32_t** actions) {
   for (uint8_t p = 0; p <= _max_action_priority; p++) {
     for (size_t idx = 0; idx < _agents.size(); idx++) {
       int32_t action = actions[idx][0];
-      if (action < 0 || static_cast<uint32_t>(action) >= _num_action_handlers) {
+      if (action < 0) {
+        printf("Invalid action: %d\n", action);
+        continue;
+      }
+      uint32_t unsigned_action = static_cast<uint32_t>(action);
+      if (unsigned_action >= _num_action_handlers) {
         printf("Invalid action: %d\n", action);
         continue;
       }

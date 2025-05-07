@@ -105,7 +105,7 @@ def test_basic(environment):
     obs, info = environment.reset()
 
     # Test multiple steps with random actions
-    for i in range(5):
+    for _i in range(5):
         # Generate random actions but ensure correct dtype
         random_actions = np.random.randint(low=0, high=[num_actions, max_arg], size=(num_agents, 2), dtype=np.int32)
 
