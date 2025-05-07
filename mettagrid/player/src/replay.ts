@@ -1,6 +1,7 @@
 import * as Common from './common.js';
 import { ui, state, html, ctx } from './common.js';
-import { focusFullMap, requestFrame } from './drawing.js';
+import { focusFullMap, requestFrame } from './worldmap.js';
+import { onResize } from './main.js';
 
 // Gets an attribute from a grid object respecting the current step.
 export function getAttr(obj: any, attr: string, atStep = -1, defaultValue = 0): any {
@@ -162,21 +163,22 @@ async function loadReplayText(replayData: any) {
   }
 
   // Create object image mapping for faster access.
-  // Example: 3 -> ["objects/altar.png", "objects/altar.empty.png"]
-  // Example: 1 -> ["objects/wall.png", "objects/wall.png"]
+  // Example: 3 -> ["objects/altar.png", "objects/altar.item.png", "objects/altar.color.png"]
+  // Example: 1 -> ["objects/unknown.png", "objects/unknown.item.png", "objects/unknown.color.png"]
   state.replay.object_images = []
   for (let i = 0; i < state.replay.object_types.length; i++) {
     const typeName = state.replay.object_types[i];
     var image = "objects/" + typeName + ".png";
+    var imageItem = "objects/" + typeName + ".item.png";
+    var imageColor = "objects/" + typeName + ".color.png";
     if (!ctx.hasImage(image)) {
       console.warn("Object not supported: ", typeName);
+      // Use the unknown image.
       image = "objects/unknown.png";
+      imageItem = "objects/unknown.item.png";
+      imageColor = "objects/unknown.color.png";
     }
-    var imageEmpty = "objects/" + typeName + ".empty.png";
-    if (!ctx.hasImage(imageEmpty)) {
-      imageEmpty = image;
-    }
-    state.replay.object_images.push([image, imageEmpty]);
+    state.replay.object_images.push([image, imageItem, imageColor]);
   }
 
   // Create resource inventory mapping for faster access.
@@ -193,7 +195,7 @@ async function loadReplayText(replayData: any) {
       var color = [1, 1, 1, 1]; // Default to white.
       for (const [colorName, colorValue] of Common.COLORS) {
         if (type.endsWith(colorName)) {
-          if(ctx.hasImage("resources/" + type + ".png")) {
+          if (ctx.hasImage("resources/" + type + ".png")) {
             // Use the resource.color.png with white color.
             break;
           } else {
@@ -230,5 +232,6 @@ async function loadReplayText(replayData: any) {
 
   Common.closeModal();
   focusFullMap(ui.mapPanel);
+  onResize();
   requestFrame();
 }

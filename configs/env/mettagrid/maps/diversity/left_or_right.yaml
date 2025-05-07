@@ -1,0 +1,50 @@
+# Agents have to pick whether to go left or right -- there isn't
+# enough time for both.
+
+defaults:
+  - /env/mettagrid/mettagrid@
+  - _self_
+
+game:
+  num_agents: 1
+  # Enough time to pick one direction, but not to dilly-dally.
+  max_steps: 25
+
+  map_builder:
+    _target_: metta.map.mapgen.MapGen
+
+    width: 30
+    height: 5
+    border_width: 6
+
+    root:
+      _target_: metta.map.scenes.room_grid.RoomGrid
+      layout:
+        [
+          [
+            "maybe_altars",
+            "empty",
+            "empty",
+            "agents",
+            "empty",
+            "empty",
+            "maybe_altars",
+          ],
+        ]
+      border_width: 0
+      children:
+        # Put the agents in the middle
+        - scene:
+            _target_: metta.map.scenes.random.Random
+            agents: 1
+          where:
+            tags:
+              - agents
+        - scene:
+            _target_: metta.map.scenes.random.Random
+            objects:
+              altar: 2
+          limit: 1
+          where:
+            tags:
+              - maybe_altars
