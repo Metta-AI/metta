@@ -1,7 +1,7 @@
-#!/usr/bin/env bash
+#!/usr/bin/env bash -e
 
-# TODO - grab this from SSM parameter store
-ENDPOINT=fs-0c0fb6a81f4e4723d.efs.us-east-1.amazonaws.com
+export AWS_PROFILE=softmax
+ENDPOINT=$(aws ssm get-parameter --name /shared-efs/url --output text --query "Parameter.Value")
 
 DIR="/Volumes/metta-efs"
 REGION="us-east-1"

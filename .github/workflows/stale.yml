@@ -1,4 +1,4 @@
-name: "Label stale pull requests"
+name: "Label Stale PRs"
 on:
   schedule:
     - cron: "0 0 * * *" # Runs at midnight every day

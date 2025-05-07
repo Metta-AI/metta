@@ -30,3 +30,10 @@ resource "aws_efs_mount_target" "proxy" {
 
   security_groups = [aws_security_group.allow_efs_access.id]
 }
+
+resource "aws_ssm_parameter" "efs_url" {
+  name           = "/shared-efs/url"
+  type           = "String"
+  insecure_value = aws_efs_mount_target.proxy.dns_name
+}
+
