@@ -21,7 +21,7 @@ export function onResize() {
   ui.mapPanel.x = 0;
   ui.mapPanel.y = Common.HEADER_HEIGHT;
   ui.mapPanel.width = screenWidth;
-  ui.mapPanel.height = screenHeight * ui.traceSplit;
+  ui.mapPanel.height = screenHeight * ui.traceSplit - Common.HEADER_HEIGHT;
 
   // Minimap goes in the bottom left corner of the mapPanel.
   if (state.replay != null) {
@@ -73,11 +73,9 @@ function onMouseDown() {
 
   if (Math.abs(ui.mousePos.y() - ui.tracePanel.y) < Common.SPLIT_DRAG_THRESHOLD) {
     ui.traceDragging = true
-    console.log("Started trace dragging")
   } else {
     ui.mouseDown = true;
   }
-
   requestFrame();
 }
 

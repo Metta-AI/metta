@@ -489,10 +489,14 @@ export function drawMap(panel: PanelInfo) {
     return;
   }
 
-  const localMousePos = panel.transformPoint(ui.mousePos);
 
-  if (ui.mouseClick && !ui.miniMapPanel.inside(ui.mousePos)) {
 
+  if (ui.mouseClick &&
+    ui.mapPanel.inside(ui.mousePos) &&
+    !ui.miniMapPanel.inside(ui.mousePos) &&
+    !ui.tracePanel.inside(ui.mousePos)
+  ) {
+    const localMousePos = panel.transformPoint(ui.mousePos);
     // Reset the follow flags.
     setFollowSelection(false, false);
 
