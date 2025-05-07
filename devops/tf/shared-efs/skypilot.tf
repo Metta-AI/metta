@@ -1,8 +1,7 @@
 locals {
-  skypilot_api_port  = 46580
-  skypilot_api_image = "berkeleyskypilot/skypilot-nightly:latest"
-  skypilot_api_cpu   = "8192"  # 8 vCPU
-  skypilot_api_mem   = "16384" # 16GB
+  skypilot_api_image  = "berkeleyskypilot/skypilot-nightly:latest"
+  skypilot_api_cpu    = "8192"  # 8 vCPU
+  skypilot_api_memory = "16384" # 16GB
 }
 
 resource "aws_security_group" "allow_skypilot_inbound" {
@@ -11,8 +10,8 @@ resource "aws_security_group" "allow_skypilot_inbound" {
   vpc_id      = var.vpc_id
 
   ingress {
-    from_port   = local.skypilot_api_port
-    to_port     = local.skypilot_api_port
+    from_port   = 80
+    to_port     = 80
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
@@ -35,17 +34,21 @@ resource "aws_ecs_task_definition" "skypilot_api_server" {
   requires_compatibilities = ["FARGATE"]
   network_mode             = "awsvpc"
   cpu                      = local.skypilot_api_cpu
-  memory                   = local.skypilot_api_mem
-  execution_role_arn       = aws_iam_role.ecs_task_exec.arn
+  memory                   = local.skypilot_api_memory
+
+  execution_role_arn = aws_iam_role.ecs_task_exec.arn
+  # give AWS credentials to the api server
+  task_role_arn = "arn:aws:iam::767406518141:instance-profile/skypilot-v1"
 
   container_definitions = jsonencode([
     {
       name      = "skypilot"
+      command   = ["sky", "api", "start", "--deploy", "--foreground"]
       image     = local.skypilot_api_image
       essential = true
       portMappings = [{
-        containerPort = local.skypilot_api_port
-        protocol      = "tcp"
+        containerPort = 46580
+        hostPort      = 80
       }]
     }
   ])
