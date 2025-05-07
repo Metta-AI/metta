@@ -54,6 +54,13 @@ public:
       }
     }
 
+    // Print features map
+    printf("Features map: \n");
+    for (auto& feature : features) {
+      printf("%s: %zu\n", feature.first.c_str(), feature.second);
+    }
+    printf("\n");
+
     // Print all type feature names
     printf("Type feature names: \n");
     for (size_t i = 0; i < ObjectType::Count; ++i) {
