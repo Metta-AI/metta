@@ -38,7 +38,7 @@ resource "aws_ecs_task_definition" "skypilot_api_server" {
 
   execution_role_arn = aws_iam_role.ecs_task_exec.arn
   # give AWS credentials to the api server
-  task_role_arn = "arn:aws:iam::767406518141:instance-profile/skypilot-v1"
+  task_role_arn = "arn:aws:iam::767406518141:role/skypilot-v1"
 
   container_definitions = jsonencode([
     {
