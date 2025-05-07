@@ -42,7 +42,7 @@ cdef class PyMettaGrid:
         
         # Cache for frequently accessed data
         list _grid_features_list
-        uint32_t _feature_size
+        uint32_t _grid_features_size
         
         # Pre-allocated buffers for frequent operations
         int32_t** _c_actions
@@ -83,10 +83,10 @@ cdef class PyMettaGrid:
         
         # Cache grid features
         self._grid_features_list = self._get_grid_features()
-        self._feature_size = len(self._grid_features_list)
+        self._grid_features_size = len(self._grid_features_list)
         
         # Set up NumPy array views for Python access
-        self._create_numpy_views(num_agents, self._feature_size, obs_height, obs_width)
+        self._create_numpy_views(num_agents, self._grid_features_size, obs_height, obs_width)
         
         # Pre-allocate action arrays for step and reset
         self._c_actions = <int32_t**>malloc(num_agents * sizeof(int32_t*))
@@ -105,7 +105,7 @@ cdef class PyMettaGrid:
         
         # Pre-allocate NumPy arrays for common operations
         self._action_array_buffer = np.zeros((num_agents, 2), dtype=np.int32)
-        self._obs_buffer = np.zeros((obs_height, obs_width, self._feature_size), dtype=np.uint8)
+        self._obs_buffer = np.zeros((obs_height, obs_width, self._grid_features_size), dtype=np.uint8)
 
 
     def __dealloc__(self):
@@ -122,7 +122,7 @@ cdef class PyMettaGrid:
             del self._cpp_mettagrid
             self._cpp_mettagrid = NULL
 
-    def _create_numpy_views(self, uint32_t num_agents, uint32_t feature_size, uint16_t obs_height, uint16_t obs_width):
+    def _create_numpy_views(self, uint32_t num_agents, uint32_t grid_features_size, uint16_t obs_height, uint16_t obs_width):
         """Create NumPy array views that reference the C++ internal buffers."""
         # Declare all variables at the beginning of the function
         cdef:
@@ -176,12 +176,12 @@ cdef class PyMettaGrid:
             cnp.ndarray group_rewards_array
         
         # Create observations array
-        obs_array = np.zeros((num_agents, obs_height, obs_width, feature_size), dtype=np.uint8)
+        obs_array = np.zeros((num_agents, obs_height, obs_width, grid_features_size), dtype=np.uint8)
         
         # Manually copy data if available
         if obs_size > 0:
             # We know exactly what size the array should be
-            expected_size = num_agents * obs_height * obs_width * feature_size
+            expected_size = num_agents * obs_height * obs_width * grid_features_size
             
             # Safety check to avoid buffer overruns
             copy_size = min(obs_size, expected_size)
@@ -261,7 +261,7 @@ cdef class PyMettaGrid:
             uint32_t num_agents = self._num_agents
             uint16_t obs_height = self._cfg.obs_height
             uint16_t obs_width = self._cfg.obs_width
-            uint32_t feature_size = self._feature_size
+            uint32_t grid_features_size = self._grid_features_size
             uint32_t dim_i
             bint shape_match = True
             tuple expected_obs_shape
@@ -271,7 +271,7 @@ cdef class PyMettaGrid:
             tuple reward_shape
         
         # Predict expected buffer shapes
-        expected_obs_shape = (num_agents, obs_height, obs_width, feature_size)
+        expected_obs_shape = (num_agents, obs_height, obs_width, grid_features_size)
         
         # Convert NumPy shapes to Python tuples for comparison and error messages
         obs_shape_tuple = tuple(observations.shape[i] for i in range(observations.ndim))
@@ -302,12 +302,12 @@ cdef class PyMettaGrid:
 
     # Helper method to get grid features as Python list - caching the result
     cdef list _get_grid_features(self):
-        cdef vector[string] features = self._cpp_mettagrid.grid_features()
+        cdef vector[string] grid_features = self._cpp_mettagrid.grid_features()
         cdef list result = []
         cdef uint32_t i
-        for i in range(features.size()):
+        for i in range(grid_features.size()):
             # Check if the object is bytes before decoding
-            feature = features[i]
+            feature = grid_features[i]
             if isinstance(feature, bytes):
                 result.append(feature.decode('utf8'))
             else:
@@ -477,7 +477,7 @@ cdef class PyMettaGrid:
             obs_array = observation
         else:
             # Create a new array if incompatible type
-            obs_array = np.zeros((obs_height, obs_width, self._feature_size), dtype=np.uint8)
+            obs_array = np.zeros((obs_height, obs_width, self._grid_features_size), dtype=np.uint8)
         
         # Call the appropriate C++ implementation method
         if is_observer_id:
@@ -624,7 +624,7 @@ cdef class PyMettaGrid:
         return gym.spaces.Box(
             0,
             255,
-            shape=(self._cpp_mettagrid.map_height(), self._cpp_mettagrid.map_width(), self._feature_size),
+            shape=(self._cpp_mettagrid.map_height(), self._cpp_mettagrid.map_width(), self._grid_features_size),
             dtype=obs_np_type
         )
 
@@ -689,3 +689,13 @@ cdef class PyMettaGrid:
         
         # Convert string keys to integers
         return {int(k): v for k, v in objects_dict.items()}
+
+    @property
+    def grid_features_list(self):
+        """Get the list of grid features."""
+        return self._grid_features_list
+
+    @property
+    def feature_size(self):
+        """Get the number of grid features."""
+        return self._grid_features_size

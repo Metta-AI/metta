@@ -13,6 +13,13 @@ from mettagrid.resolvers import register_resolvers
 
 
 class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
+    # Type hints for attributes defined in the C++ extension to help Pylance
+    observations: np.ndarray
+    terminals: np.ndarray
+    truncations: np.ndarray
+    rewards: np.ndarray
+    actions: np.ndarray
+
     def __init__(
         self, env_cfg: DictConfig, render_mode: Optional[str], env_map: Optional[np.ndarray] = None, buf=None, **kwargs
     ):
@@ -30,13 +37,15 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         # Get actual map dimensions from the environment
         num_agents = self._num_agents
 
-        # TODO -- fix magic numbers 34, 11, and 2
-        # TODO -- typedef ActionType
-        obs_channels = 34
+        # TODO -- typedef actions type
+
+        obs_width = self._env_cfg.obs_width
+        obs_height = self._env_cfg.obs_height
+        grid_features_size = self._c_env.grid_features_size
 
         # force buffers to the correct size
         buf = {
-            "observations": np.zeros((num_agents, 11, 11, obs_channels)),
+            "observations": np.zeros((num_agents, obs_width, obs_height, grid_features_size)),
             "terminals": np.zeros((num_agents,), dtype=bool),
             "truncations": np.zeros((num_agents,), dtype=bool),
             "rewards": np.zeros((num_agents,), dtype=float),
@@ -55,7 +64,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         # Define expected shapes
         num_agents = self._num_agents
-        expected_obs_shape = (num_agents, 11, 11, obs_channels)  # Assuming 11x11 grid
+        expected_obs_shape = (num_agents, obs_width, obs_height, grid_features_size)  # Assuming 11x11 grid
 
         # Validate observation shape
         obs_shape_tuple = self.observations.shape

@@ -684,9 +684,9 @@ jobs:
             --start-point-reset \
             --testbed ubuntu-latest \
             --threshold-measure latency \
-            --threshold-test t_test \
+            --threshold-test percentage \
             --threshold-max-sample-size 64 \
-            --threshold-upper-boundary 1.1 \
+            --threshold-upper-boundary 0.25 \
             --adapter python_pytest \
             --github-actions "$GITHUB_TOKEN" \
             --file combined_benchmark_results.json > /dev/null
