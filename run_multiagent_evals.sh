@@ -39,5 +39,5 @@ for i in "${!POLICIES[@]}"; do
         sim=multiagent \
         run=multiagent$IDX \
         policy_uri=wandb://run/$POLICY_URI \
-        +eval_db_
+        +eval_db_uri=wandb://artifacts/multiagent_db_test \
 done
