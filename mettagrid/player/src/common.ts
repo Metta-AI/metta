@@ -71,43 +71,60 @@ export const state = {
 };
 
 export const html = {
-  scrubber: document.getElementById('main-scrubber') as HTMLInputElement,
-  playButton: document.getElementById('play-button') as HTMLButtonElement,
   globalCanvas: document.getElementById('global-canvas') as HTMLCanvasElement,
+
+  // Header area
   fileName: document.getElementById('file-name') as HTMLDivElement,
   shareButton: document.getElementById('share-button') as HTMLButtonElement,
   mainFilter: document.getElementById('main-filter') as HTMLInputElement,
+
+  // Bottom area
+  scrubber: document.getElementById('main-scrubber') as HTMLInputElement,
+
+  rewindToStartButton: document.getElementById('rewind-to-start') as HTMLImageElement,
+  stepBackButton: document.getElementById('step-back') as HTMLImageElement,
+  playButton: document.getElementById('play') as HTMLButtonElement,
+  stepForwardButton: document.getElementById('step-forward') as HTMLImageElement,
+  rewindToEndButton: document.getElementById('rewind-to-end') as HTMLImageElement,
+
+  speed1Button: document.getElementById('speed1') as HTMLImageElement,
+  speed2Button: document.getElementById('speed2') as HTMLImageElement,
+  speed3Button: document.getElementById('speed3') as HTMLImageElement,
+  speed4Button: document.getElementById('speed4') as HTMLImageElement,
+  speed5Button: document.getElementById('speed5') as HTMLImageElement,
+  speed6Button: document.getElementById('speed6') as HTMLImageElement,
+
+  sortView: document.getElementById('sort') as HTMLImageElement,
+  focusView: document.getElementById('tack') as HTMLImageElement,
+  gridView: document.getElementById('grid') as HTMLImageElement,
+  showView: document.getElementById('eye') as HTMLImageElement,
+  showFog: document.getElementById('cloud') as HTMLImageElement,
+
+  // Utility
+  modal: document.getElementById('modal') as HTMLDivElement,
   toast: document.getElementById('toast') as HTMLDivElement,
 }
 
-
-// Get the modal element
-const modal = document.getElementById('modal');
-
 // Show the modal
 export function showModal(type: string, title: string, message: string) {
-  if (modal) {
-    modal.style.display = 'block';
-    modal.classList.add(type);
-    const header = modal.querySelector('h2');
-    if (header) {
-      header.textContent = title;
-    }
-    const content = modal.querySelector('p');
-    if (content) {
-      content.textContent = message;
-    }
+  html.modal.style.display = 'block';
+  html.modal.classList.add(type);
+  const header = html.modal.querySelector('h2');
+  if (header) {
+    header.textContent = title;
+  }
+  const content = html.modal.querySelector('p');
+  if (content) {
+    content.textContent = message;
   }
 }
 
 // Close the modal
 export function closeModal() {
-  if (modal) {
-    // Remove error class from modal.
-    modal.classList.remove('error');
-    modal.classList.remove('info');
-    modal.style.display = 'none';
-  }
+  // Remove error class from modal.
+  html.modal.classList.remove('error');
+  html.modal.classList.remove('info');
+  html.modal.style.display = 'none';
 }
 
 // Functions to show and hide toast notifications

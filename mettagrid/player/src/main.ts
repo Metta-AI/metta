@@ -291,9 +291,9 @@ function onPlayButtonClick() {
   state.isPlaying = !state.isPlaying;
 
   if (state.isPlaying) {
-    html.playButton.classList.add('paused');
+    html.playButton.setAttribute("src", "data/ui/pause.png");
   } else {
-    html.playButton.classList.remove('paused');
+    html.playButton.setAttribute("src", "data/ui/play.png");
   }
 
   requestFrame();
@@ -367,6 +367,12 @@ function onShareButtonClick() {
   Common.showToast("URL copied to clipboard");
 }
 
+function setPlaybackSpeed(speed: number) {
+  return () => {
+    state.playbackSpeed = speed;
+  }
+}
+
 // Initial resize.
 onResize();
 
@@ -382,10 +388,35 @@ window.addEventListener('dragleave', preventDefaults, false);
 window.addEventListener('dragover', preventDefaults, false);
 window.addEventListener('drop', handleDrop, false);
 
-html.scrubber.addEventListener('input', onScrubberChange);
-html.playButton.addEventListener('click', onPlayButtonClick);
+// Header area
 html.shareButton.addEventListener('click', onShareButtonClick);
 html.mainFilter.style.display = "none"; // Hide the main filter for now.
+
+// Bottom area
+html.scrubber.addEventListener('input', onScrubberChange);
+
+html.rewindToStartButton.addEventListener('click', () => {
+  updateStep(0);
+});
+html.stepBackButton.addEventListener('click', () => {
+  updateStep(Math.max(state.step - 1, 0));
+});
+html.playButton.addEventListener('click', onPlayButtonClick);
+html.stepForwardButton.addEventListener('click', () => {
+  updateStep(Math.min(state.step + 1, state.replay.max_steps - 1));
+});
+html.rewindToEndButton.addEventListener('click', () => {
+  updateStep(state.replay.max_steps - 1);
+});
+
+// Speed buttons
+html.speed1Button.addEventListener('click', setPlaybackSpeed(0.01));
+html.speed2Button.addEventListener('click', setPlaybackSpeed(0.1));
+html.speed3Button.addEventListener('click', setPlaybackSpeed(0.25));
+html.speed4Button.addEventListener('click', setPlaybackSpeed(0.5));
+html.speed5Button.addEventListener('click', setPlaybackSpeed(1.0));
+html.speed6Button.addEventListener('click', setPlaybackSpeed(5.0));
+
 
 window.addEventListener('load', async () => {
 
