@@ -5,6 +5,25 @@ locals {
   skypilot_api_mem   = "16384" # 16GB
 }
 
+resource "aws_security_group" "allow_skypilot_inbound" {
+  name        = "skypilot-inbound"
+  description = "Allow HTTP inbound"
+  vpc_id      = var.vpc_id
+
+  ingress {
+    from_port   = local.skypilot_api_port
+    to_port     = local.skypilot_api_port
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
 # ECS Cluster
 resource "aws_ecs_cluster" "skypilot_api_server" {
   name = "skypilot-api-server"
@@ -35,14 +54,14 @@ resource "aws_ecs_task_definition" "skypilot_api_server" {
 # ECS Service
 resource "aws_ecs_service" "skypilot_service" {
   name            = "skypilot-api-server"
-  cluster         = aws_ecs_cluster.cluster.id
+  cluster         = aws_ecs_cluster.skypilot_api_server.id
   task_definition = aws_ecs_task_definition.skypilot_api_server.arn
   desired_count   = 1
   launch_type     = "FARGATE"
 
   network_configuration {
     subnets         = [aws_default_subnet.proxy_subnet.id]
-    security_groups = [aws_security_group.alb_sg.id]
+    security_groups = [aws_security_group.allow_skypilot_inbound.id]
   }
 
   service_registries {
