@@ -11,7 +11,7 @@ export const MAX_ZOOM_LEVEL = 2.0;
 
 export const SPLIT_DRAG_THRESHOLD = 10;  // pixels to detect split dragging
 export const SCROLL_ZOOM_FACTOR = 1000;  // divisor for scroll delta to zoom conversion
-export const DEFAULT_TRACE_SPLIT = 0.75;  // default horizontal split ratio
+export const DEFAULT_TRACE_SPLIT = 0.85;  // default horizontal split ratio
 export const PANEL_BOTTOM_MARGIN = 60;    // bottom margin for panels
 export const HEADER_HEIGHT = 60;          // height of the header
 export const SCRUBBER_HEIGHT = 120;        // height of the scrubber
@@ -69,6 +69,12 @@ export const state = {
   isPlaying: false,
   partialStep: 0,
   playbackSpeed: 0.1,
+
+  // What to show?
+  sortTraces: false,
+  showGrid: true,
+  showViewRanges: true,
+  showFogOfWar: false,
 };
 
 export const html = {
@@ -97,11 +103,11 @@ export const html = {
     document.getElementById('speed6') as HTMLImageElement,
   ],
 
-  sortView: document.getElementById('sort') as HTMLImageElement,
-  focusView: document.getElementById('tack') as HTMLImageElement,
-  gridView: document.getElementById('grid') as HTMLImageElement,
-  showView: document.getElementById('eye') as HTMLImageElement,
-  showFog: document.getElementById('cloud') as HTMLImageElement,
+  sortButton: document.getElementById('sort') as HTMLImageElement,
+  focusButton: document.getElementById('tack') as HTMLImageElement,
+  gridButton: document.getElementById('grid') as HTMLImageElement,
+  showViewButton: document.getElementById('eye') as HTMLImageElement,
+  showFogOfWarButton: document.getElementById('cloud') as HTMLImageElement,
 
   // Utility
   modal: document.getElementById('modal') as HTMLDivElement,
@@ -113,9 +119,9 @@ export function setFollowSelection(map: boolean | null, trace: boolean | null) {
   if (map != null) {
     state.followSelection = map;
     if (map) {
-      html.focusView.style.opacity = "1";
+      html.focusButton.style.opacity = "1";
     } else {
-      html.focusView.style.opacity = "0.2";
+      html.focusButton.style.opacity = "0.2";
     }
   }
   if (trace != null) {

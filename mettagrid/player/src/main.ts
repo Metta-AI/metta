@@ -360,16 +360,20 @@ function setIsPlaying(isPlaying: boolean) {
   requestFrame();
 }
 
+function toggleOpacity(button: HTMLImageElement, show: boolean) {
+  if (show) {
+    button.style.opacity = "1";
+  } else {
+    button.style.opacity = "0.2";
+  }
+}
+
 // Set the playback speed and update the speed buttons.
 function setPlaybackSpeed(speed: number) {
   state.playbackSpeed = speed;
   // Update the speed buttons to show the current speed.
   for (let i = 0; i < html.speedButtons.length; i++) {
-    if (Common.SPEEDS[i] <= speed) {
-      html.speedButtons[i].style.opacity = "1";
-    } else {
-      html.speedButtons[i].style.opacity = "0.2";
-    }
+    toggleOpacity(html.speedButtons[i], Common.SPEEDS[i] <= speed);
   }
 }
 
@@ -419,13 +423,42 @@ for (let i = 0; i < html.speedButtons.length; i++) {
 }
 
 // Toggle follow selection state.
-html.focusView.addEventListener('click', () => {
+html.sortButton.addEventListener('click', () => {
+  state.sortTraces = !state.sortTraces;
+  toggleOpacity(html.sortButton, state.sortTraces);
+  requestFrame();
+});
+toggleOpacity(html.sortButton, state.sortTraces);
+html.sortButton.style.display = "none";
+
+html.focusButton.addEventListener('click', () => {
   const reverse = !state.followSelection;
   setFollowSelection(reverse, reverse);
 });
+toggleOpacity(html.focusButton, state.followSelection);
+
+html.gridButton.addEventListener('click', () => {
+  state.showGrid = !state.showGrid;
+  toggleOpacity(html.gridButton, state.showGrid);
+  requestFrame();
+});
+toggleOpacity(html.gridButton, state.showGrid);
+
+html.showViewButton.addEventListener('click', () => {
+  state.showViewRanges = !state.showViewRanges;
+  toggleOpacity(html.showViewButton, state.showViewRanges);
+  requestFrame();
+});
+toggleOpacity(html.showViewButton, state.showViewRanges);
+
+html.showFogOfWarButton.addEventListener('click', () => {
+  state.showFogOfWar = !state.showFogOfWar;
+  toggleOpacity(html.showFogOfWarButton, state.showFogOfWar);
+  requestFrame();
+});
+toggleOpacity(html.showFogOfWarButton, state.showFogOfWar);
 
 window.addEventListener('load', async () => {
-
   // Use local atlas texture.
   const atlasImageUrl = 'dist/atlas.png';
   const atlasJsonUrl = 'dist/atlas.json';

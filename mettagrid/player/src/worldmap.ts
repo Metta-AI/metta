@@ -54,50 +54,10 @@ export function focusFullMap(panel: PanelInfo) {
 
 // Draw the tiles that make up the floor.
 function drawFloor() {
-
-  // Compute the visibility map, each agent contributes to the visibility map.
-  const visibilityMap = new Grid(state.replay.map_size[0], state.replay.map_size[1]);
-
-  // Update the visibility map for a grid object.
-  function updateVisibilityMap(gridObject: any) {
-    const x = getAttr(gridObject, "c");
-    const y = getAttr(gridObject, "r");
-    var visionSize = Math.floor(getAttr(
-      gridObject,
-      "agent:vision_size",
-      state.step,
-      Common.DEFAULT_VISION_SIZE
-    ) / 2);
-    for (let dx = -visionSize; dx <= visionSize; dx++) {
-      for (let dy = -visionSize; dy <= visionSize; dy++) {
-        visibilityMap.set(
-          x + dx,
-          y + dy,
-          true
-        );
-      }
-    }
-  }
-
-  if (state.selectedGridObject !== null && state.selectedGridObject.agent_id !== undefined) {
-    // When there is a selected grid object only update its visibility.
-    updateVisibilityMap(state.selectedGridObject);
-  } else {
-    // When there is no selected grid object update the visibility map for all agents.
-    for (const gridObject of state.replay.grid_objects) {
-      const type = gridObject.type;
-      const typeName = state.replay.object_types[type];
-      if (typeName == "agent") {
-        updateVisibilityMap(gridObject);
-      }
-    }
-  }
-
   // Draw the floor, darker where there is no visibility.
   for (let x = 0; x < state.replay.map_size[0]; x++) {
     for (let y = 0; y < state.replay.map_size[1]; y++) {
-      const color = visibilityMap.get(x, y) ? [1, 1, 1, 1] : [0.75, 0.75, 0.75, 1];
-      ctx.drawSprite('objects/floor.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE, color);
+      ctx.drawSprite('objects/floor.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE);
     }
   }
 }
@@ -484,12 +444,83 @@ function drawTrajectory() {
   }
 }
 
+function drawVisibility() {
+
+  if (state.showViewRanges || state.showFogOfWar) {
+    // Compute the visibility map, each agent contributes to the visibility map.
+    const visibilityMap = new Grid(state.replay.map_size[0], state.replay.map_size[1]);
+
+    // Update the visibility map for a grid object.
+    function updateVisibilityMap(gridObject: any) {
+      const x = getAttr(gridObject, "c");
+      const y = getAttr(gridObject, "r");
+      var visionSize = Math.floor(getAttr(
+        gridObject,
+        "agent:vision_size",
+        state.step,
+        Common.DEFAULT_VISION_SIZE
+      ) / 2);
+      for (let dx = -visionSize; dx <= visionSize; dx++) {
+        for (let dy = -visionSize; dy <= visionSize; dy++) {
+          visibilityMap.set(
+            x + dx,
+            y + dy,
+            true
+          );
+        }
+      }
+    }
+
+    if (state.selectedGridObject !== null && state.selectedGridObject.agent_id !== undefined) {
+      // When there is a selected grid object only update its visibility.
+      updateVisibilityMap(state.selectedGridObject);
+    } else {
+      // When there is no selected grid object update the visibility map for all agents.
+      for (const gridObject of state.replay.grid_objects) {
+        const type = gridObject.type;
+        const typeName = state.replay.object_types[type];
+        if (typeName == "agent") {
+          updateVisibilityMap(gridObject);
+        }
+      }
+    }
+
+    var color = [0, 0, 0, 0.25];
+    if (state.showFogOfWar) {
+      color = [0, 0, 0, 1];
+    }
+    for (let x = 0; x < state.replay.map_size[0]; x++) {
+      for (let y = 0; y < state.replay.map_size[1]; y++) {
+        if (!visibilityMap.get(x, y)) {
+          ctx.drawSolidRect(
+            x * Common.TILE_SIZE - Common.TILE_SIZE / 2,
+            y * Common.TILE_SIZE - Common.TILE_SIZE / 2,
+            Common.TILE_SIZE,
+            Common.TILE_SIZE,
+            color
+          );
+        }
+      }
+    }
+
+    console.log("done drawing visibility");
+  }
+}
+
+function drawGrid() {
+  if (state.showGrid) {
+    for (let x = 0; x < state.replay.map_size[0]; x++) {
+      for (let y = 0; y < state.replay.map_size[1]; y++) {
+        ctx.drawSprite('objects/grid.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE);
+      }
+    }
+  }
+}
+
 export function drawMap(panel: PanelInfo) {
   if (state.replay === null || ctx === null || ctx.ready === false) {
     return;
   }
-
-
 
   if (ui.mouseClick &&
     ui.mapPanel.inside(ui.mousePos) &&
@@ -546,6 +577,8 @@ export function drawMap(panel: PanelInfo) {
   drawActions();
   drawInventory();
   drawRewards();
+  drawVisibility();
+  drawGrid();
 
   ctx.restore();
 }
