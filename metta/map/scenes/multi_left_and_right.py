@@ -1,8 +1,8 @@
 from numpy import random
 
-from mettagrid.map.scene import Scene
-from mettagrid.map.scenes.random import Random
-from mettagrid.map.scenes.room_grid import RoomGrid
+from metta.map.scene import Scene
+from metta.map.scenes.random import Random
+from metta.map.scenes.room_grid import RoomGrid
 
 
 class MultiLeftAndRight(Scene):
