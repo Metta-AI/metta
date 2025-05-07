@@ -314,6 +314,24 @@ jobs:
           source venv/bin/activate
           bash ./devops/setup_build.sh
 
+      - name: Check deps
+        run: |
+          source venv/bin/activate
+          ls -la deps
+          ls -la deps/pufferlib
+
+          for dep in \
+            "pufferlib" \
+            "carbs" \
+            "wandb_carbs"
+          do
+            echo "Checking import for $dep..."
+            python -c "import $dep; print('✅ Found {} at {}'.format('$dep', __import__('$dep').__file__))" || {
+              echo "❌ Failed to import $dep"
+              exit 1
+            }
+          done
+
       - name: Check benchmark script
         run: |
           # Check if the file exists
