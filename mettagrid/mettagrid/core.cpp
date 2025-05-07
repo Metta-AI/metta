@@ -192,10 +192,10 @@ void MettaGrid::compute_observation(uint16_t observer_r,
   uint32_t c_start = std::max<uint32_t>(observer_c, obs_width_r) - obs_width_r;
 
   for (uint32_t r = r_start; r <= observer_r + obs_height_r; r++) {
-    if (r < 0 || r >= _grid->height) continue;
+    if (r >= _grid->height) continue;  // uint32_t is always >= 0
 
     for (uint32_t c = c_start; c <= observer_c + obs_width_r; c++) {
-      if (c < 0 || c >= _grid->width) continue;
+      if (c >= _grid->width) continue;  // uint32_t is always >= 0
 
       for (uint32_t layer = 0; layer < _grid->num_layers; layer++) {
         GridLocation object_loc(r, c, layer);
@@ -244,19 +244,19 @@ void MettaGrid::step(int32_t** actions) {
   for (uint8_t p = 0; p <= _max_action_priority; p++) {
     for (uint32_t idx = 0; idx < _agents.size(); idx++) {
       int32_t action = actions[idx][0];
-      if (action < 0 || action >= _num_action_handlers) {
+      if (action < 0 || static_cast<uint32_t>(action) >= _num_action_handlers) {
         printf("Invalid action: %d\n", action);
         continue;
       }
 
       ActionArg arg(actions[idx][1]);
       Agent* agent = _agents[idx];
-      ActionHandler* handler = _action_handlers[action].get();
+      ActionHandler* handler = _action_handlers[static_cast<uint32_t>(action)].get();
 
       if (handler->priority != _max_action_priority - p) {
         continue;
       }
-      if (arg > _max_action_args[action]) {
+      if (arg > _max_action_args[static_cast<uint32_t>(action)]) {
         continue;
       }
 
@@ -387,8 +387,8 @@ void MettaGrid::initialize_from_json(const std::string& map_json, const std::str
   _group_rewards.resize(cfg["groups"].size(), 0);
 
   // Process map and create objects
-  for (int32_t r = 0; r < map_data.size(); r++) {
-    for (int32_t c = 0; c < map_data[r].size(); c++) {
+  for (size_t r = 0; r < map_data.size(); r++) {
+    for (size_t c = 0; c < map_data[r].size(); c++) {
       std::string cell_type = map_data[r][c];
 
       // Wall
