@@ -1,7 +1,6 @@
 import { Vec2f } from './vector_math.js';
 import { Context3d, parseHtmlColor } from './context3d.js';
 import { PanelInfo } from './panels.js';
-import { onFrame } from './main.js';
 
 // The 3d context, used for nearly everything.
 export const ctx = new Context3d(document.getElementById('global-canvas') as HTMLCanvasElement);
@@ -19,6 +18,7 @@ export const PANEL_BOTTOM_MARGIN = 60;    // bottom margin for panels
 // Map constants
 export const TILE_SIZE = 200;
 export const INVENTORY_PADDING = 16;
+export const MINI_MAP_TILE_SIZE = 2;
 
 // Agent defaults
 export const DEFAULT_VISION_SIZE = 11;
@@ -52,6 +52,7 @@ export const ui = {
 
   // Panels
   mapPanel: new PanelInfo("map"),
+  miniMapPanel: new PanelInfo("mini-map"),
   tracePanel: new PanelInfo("trace"),
   infoPanel: new PanelInfo("info"),
 };
