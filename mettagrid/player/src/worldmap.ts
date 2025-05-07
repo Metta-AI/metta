@@ -5,7 +5,7 @@ import { ui, state, ctx, setFollowSelection } from './common.js';
 import { getAttr } from './replay.js';
 import { PanelInfo } from './panels.js';
 import { onFrame } from './main.js';
-
+import { parseHtmlColor } from './context3d.js';
 // Flag to prevent multiple calls to requestAnimationFrame
 let frameRequested = false;
 
@@ -52,14 +52,16 @@ export function focusFullMap(panel: PanelInfo) {
   panel.zoomLevel = Math.min(panel.width / width, panel.height / height);
 }
 
-// Draw the tiles that make up the floor.
+// Draw the the floor.
 function drawFloor() {
-  // Draw the floor, darker where there is no visibility.
-  for (let x = 0; x < state.replay.map_size[0]; x++) {
-    for (let y = 0; y < state.replay.map_size[1]; y++) {
-      ctx.drawSprite('objects/floor.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE);
-    }
-  }
+  const floorColor = parseHtmlColor("#CFA970");
+  ctx.drawSolidRect(
+    0,
+    0,
+    state.replay.map_size[0] * Common.TILE_SIZE,
+    state.replay.map_size[1] * Common.TILE_SIZE,
+    floorColor
+  );
 }
 
 // Draw the walls, based on the adjacency map, and fill any holes.
