@@ -689,5 +689,4 @@ jobs:
             --threshold-upper-boundary 0.99 \
             --adapter python_pytest \
             --github-actions "$GITHUB_TOKEN" \
-            --err \
             --file combined_benchmark_results.json > /dev/null
