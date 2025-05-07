@@ -39,8 +39,8 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         # TODO -- typedef actions type
 
-        obs_width = self._env_cfg.obs_width
-        obs_height = self._env_cfg.obs_height
+        obs_width = self._c_env.observation_width
+        obs_height = self._c_env.observation_height
         grid_features_size = self._c_env.grid_features_size
 
         # force buffers to the correct size

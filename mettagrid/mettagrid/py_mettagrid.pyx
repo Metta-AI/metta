@@ -60,14 +60,14 @@ cdef class PyMettaGrid:
         num_agents = cfg.num_agents
         self._num_agents = num_agents
         max_timestep = cfg.max_steps
-        obs_width = cfg.obs_width
-        obs_height = cfg.obs_height
+        self._obs_width = cfg.obs_width
+        self._obs_height = cfg.obs_height
         map_width = np_map.shape[1]
         map_height = np_map.shape[0]
         
         # Create the C++ MettaGrid instance with ownership of the grid
         self._cpp_mettagrid = new MettaGrid(
-            map_width, map_height, num_agents, max_timestep, obs_width, obs_height
+            map_width, map_height, num_agents, max_timestep, self._obs_width, self._obs_height
         )
         
         if self._cpp_mettagrid == NULL:
@@ -86,7 +86,7 @@ cdef class PyMettaGrid:
         self._grid_features_size = len(self._grid_features_list)
         
         # Set up NumPy array views for Python access
-        self._create_numpy_views(num_agents, self._grid_features_size, obs_height, obs_width)
+        self._create_numpy_views(num_agents, self._grid_features_size,  self._obs_width, self._obs_height)
         
         # Pre-allocate action arrays for step and reset
         self._c_actions = <int32_t**>malloc(num_agents * sizeof(int32_t*))
@@ -105,7 +105,7 @@ cdef class PyMettaGrid:
         
         # Pre-allocate NumPy arrays for common operations
         self._action_array_buffer = np.zeros((num_agents, 2), dtype=np.int32)
-        self._obs_buffer = np.zeros((obs_height, obs_width, self._grid_features_size), dtype=np.uint8)
+        self._obs_buffer = np.zeros((self._obs_width, self._obs_height, self._grid_features_size), dtype=np.uint8)
 
 
     def __dealloc__(self):
@@ -122,7 +122,7 @@ cdef class PyMettaGrid:
             del self._cpp_mettagrid
             self._cpp_mettagrid = NULL
 
-    def _create_numpy_views(self, uint32_t num_agents, uint32_t grid_features_size, uint16_t obs_height, uint16_t obs_width):
+    def _create_numpy_views(self, uint32_t num_agents, uint32_t grid_features_size, uint16_t obs_width, uint16_t obs_height):
         """Create NumPy array views that reference the C++ internal buffers."""
         # Declare all variables at the beginning of the function
         cdef:
@@ -469,7 +469,7 @@ cdef class PyMettaGrid:
         
         if observation is None:
             # Use pre-allocated buffer when None is provided
-            obs_array = self._obs_buffer
+            obs_array = self._obs_buffer # index as width, height
             # Ensure buffer is clear
             obs_array.fill(0)
         elif isinstance(observation, np.ndarray):
@@ -477,7 +477,7 @@ cdef class PyMettaGrid:
             obs_array = observation
         else:
             # Create a new array if incompatible type
-            obs_array = np.zeros((obs_height, obs_width, self._grid_features_size), dtype=np.uint8)
+            obs_array = np.zeros(( obs_width, obs_height, self._grid_features_size), dtype=np.uint8)
         
         # Call the appropriate C++ implementation method
         if is_observer_id:
@@ -624,9 +624,9 @@ cdef class PyMettaGrid:
         return gym.spaces.Box(
             0,
             255,
-            shape=(self._cpp_mettagrid.map_height(), self._cpp_mettagrid.map_width(), self._grid_features_size),
+            shape=(self.obs_height, self.obs_width, self._grid_features_size),
             dtype=obs_np_type
-        )
+        )  # note that gym wants height, width which is opposite of our convention
 
     def object_type_names(self):
         """Get a list of all object type names."""
@@ -699,3 +699,15 @@ cdef class PyMettaGrid:
     def feature_size(self):
         """Get the number of grid features."""
         return self._grid_features_size
+
+    @property
+    def observation_width(self):
+        """Get the width of the observation window."""
+        return self.obs_width
+
+    @property
+    def observation_height(self):
+        """Get the height of the observation window."""
+        return self.obs_height
+
+            
