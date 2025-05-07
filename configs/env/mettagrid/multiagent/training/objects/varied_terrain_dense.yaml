@@ -41,7 +41,7 @@ game:
       color: 0
       max_output: 10
       conversion_ticks: 1
-      cooldown: ${sampling:0, 5, 50}
+      cooldown: 1
       initial_items: 1
 
     generator.red:
