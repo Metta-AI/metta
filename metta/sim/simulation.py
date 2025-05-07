@@ -1,3 +1,4 @@
+import hashlib
 import logging
 import os
 import time
@@ -159,6 +160,22 @@ class Simulation:
             new_filename = f"ep{episode_count}_env{env_idx}_{filename}"
             return os.path.join(directory, new_filename)
 
+    def print_tensor(self, tensor: torch.Tensor) -> str:
+        """Print a tensor as a string."""
+        one_d = tensor.flatten().cpu().numpy()
+        # Build object with non-zero values
+        obj = {}
+        for i, value in enumerate(one_d):
+            if value != 0:
+                obj[i] = value
+        return str(obj)
+
+    def print_tensor_hash(self, tensor: torch.Tensor) -> str:
+        """Print a tensor as a string."""
+        one_d = tensor.flatten().cpu().numpy()
+        # Build object with non-zero values
+        return hashlib.sha256(one_d.tobytes()).hexdigest()
+
     def simulate(self, epoch: int = 0, dry_run: bool = False):
         logger.info(
             f"Simulating {self._name} policy: {self._policy_pr.name} "
@@ -189,7 +206,7 @@ class Simulation:
 
                 # Parallelize across opponents
                 policy = self._policy_pr.policy()  # policy to evaluate
-                print(f"Obs: ${my_obs}")
+                print(f"Obs: {self.print_tensor_hash(my_obs)}")
                 policy_actions, _, _, _, _ = policy(my_obs, policy_state)
                 print(f"Policy actions: {policy_actions}")
 

@@ -5,9 +5,6 @@ defaults:
 name: navigation
 
 simulations:
-  navigation/emptyspace_withinsight:
-    env: env/mettagrid/navigation/evals/emptyspace_withinsight
-  navigation/emptyspace_outofsight:
-    env: env/mettagrid/navigation/evals/emptyspace_outofsight
-
+  navigation/wanderout:
+    env: env/mettagrid/navigation/evals/wanderout
 # selector_type: "latest"
