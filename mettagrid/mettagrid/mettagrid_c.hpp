@@ -22,7 +22,7 @@ namespace py = pybind11;
 
 class MettaGrid {
 public:
-    MettaGrid(py::dict env_cfg, py::array_t<std::string> map);
+    MettaGrid(py::dict env_cfg, py::array_t<std::char*> map);
     ~MettaGrid();
 
     // Python API methods
@@ -43,14 +43,12 @@ public:
     unsigned int num_agents();
     py::array_t<float> get_episode_rewards();
     py::dict get_episode_stats();
-    py::array_t<std::string> render_ascii();
     py::object action_space();
     py::object observation_space();
     py::list action_success();
     py::list max_action_args();
     py::list object_type_names();
     py::list inventory_item_names();
-    void render();
 
 private:
     // Member variables

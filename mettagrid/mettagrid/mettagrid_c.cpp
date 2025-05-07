@@ -34,7 +34,7 @@ namespace py = pybind11;
 // TODO: see where we can simplify numpy array manipulations.
 
 // Constructor implementation
-MettaGrid::MettaGrid(py::dict env_cfg, py::array_t<std::string> map) {
+MettaGrid::MettaGrid(py::dict env_cfg, py::array_t<char*> map) {
     auto cfg = env_cfg["game"].cast<py::dict>();
     _cfg = cfg;
     
@@ -285,7 +285,7 @@ py::dict MettaGrid::grid_objects() {
         }
         
         // Encode object features
-        _obs_encoder->encode(obj, obj_data_view.mutable_data(), offsets);
+        _obs_encoder->encode(obj, obj_data_view.mutable_data(0), offsets);
         
         // Add features to object dict
         for (size_t i = 0; i < type_features.size(); i++) {
@@ -347,27 +347,6 @@ py::dict MettaGrid::get_episode_stats() {
     stats["agent"] = agent_stats;
     
     return stats;
-}
-
-py::array_t<std::string> MettaGrid::render_ascii() {
-    auto grid = py::array_t<std::string>({_grid->height, _grid->width});
-    auto grid_view = grid.mutable_unchecked<2>();
-    
-    // Initialize grid with spaces
-    for (int r = 0; r < _grid->height; r++) {
-        for (int c = 0; c < _grid->width; c++) {
-            grid_view(r, c) = " ";
-        }
-    }
-    
-    // Fill in objects
-    for (unsigned int obj_id = 1; obj_id < _grid->objects.size(); obj_id++) {
-        auto obj = _grid->object(obj_id);
-        if (!obj) continue;
-        grid_view(obj->location.r, obj->location.c) = ObjectTypeAscii[obj->_type_id];
-    }
-    
-    return grid;
 }
 
 py::object MettaGrid::action_space() {
@@ -591,7 +570,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
     m.doc() = "MettaGrid environment"; // optional module docstring
     
     py::class_<MettaGrid>(m, "MettaGrid")
-        .def(py::init<py::dict, py::array_t<std::string>>())
+        .def(py::init<py::dict, py::array_t<char*>>())
         .def("reset", &MettaGrid::reset)
         .def("step", &MettaGrid::step)
         .def("set_buffers", &MettaGrid::set_buffers)
@@ -604,12 +583,10 @@ PYBIND11_MODULE(mettagrid_c, m) {
         .def("num_agents", &MettaGrid::num_agents)
         .def("get_episode_rewards", &MettaGrid::get_episode_rewards)
         .def("get_episode_stats", &MettaGrid::get_episode_stats)
-        .def("render_ascii", &MettaGrid::render_ascii)
         .def("action_space", &MettaGrid::action_space)
         .def("observation_space", &MettaGrid::observation_space)
         .def("action_success", &MettaGrid::action_success)
         .def("max_action_args", &MettaGrid::max_action_args)
         .def("object_type_names", &MettaGrid::object_type_names)
-        .def("inventory_item_names", &MettaGrid::inventory_item_names)
-        .def("render", &MettaGrid::render);
+        .def("inventory_item_names", &MettaGrid::inventory_item_names);
 } 
