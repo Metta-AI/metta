@@ -7,7 +7,7 @@ Each layer class (e.g., `ObsNormalizer`, `ActionEmbedding`, etc.) must include a
 `ObsNormalizerRev05-06-01(nn.Module)`. MM-DD represents the date of revision (month and day). XX is a two-digit index for multiple changes on the same day.
 
 ### Deprecation and Lifecycle
-When a class is superseded, mark it as deprecated by adding `DEPRECATED` at the top of its docstring.
+When a class is superseded, it should be marked as deprecated by adding `DEPRECATED` at the top of its docstring.
 
 Move deprecated classes below a separator comment in the file (e.g., 
 # ---------------- DEPRECATED ----------------).
