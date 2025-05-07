@@ -1,7 +1,7 @@
 defaults:
   - common
   - wandb: metta_research
-  - sim: simple
+  - sim: lars
   - _self_
 
 cmd: play

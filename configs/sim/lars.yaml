@@ -1,0 +1,8 @@
+defaults:
+  - sim
+  - _self_
+
+name: diversity
+simulations:
+  diversity:
+    env: env/mettagrid/diversity/left_or_right

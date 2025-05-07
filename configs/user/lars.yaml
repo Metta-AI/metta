@@ -1,51 +1,30 @@
 # @package __global__
 
 
-#POLICIES TO EVALUATE
+# defaults:
+#   - _self_
 
-#b.daphne.navigation_varied_obstacle_shapes_pretrained.r.1
-#b.daphne.navigation_varied_obstacle_shapes.r.0
-#navigation_poisson_sparser.r.2
-#navigation_infinite_cooldown_sparser_pretrained.r.0
-#navigation_infinite_cooldown_sparser.r.0
-#navigation_poisson_sparser_pretrained.r.6
-
-defaults:
-  - override /agent: simple
-  - override /analyzer: eval_analyzer
-  - _self_
-
-policy_uri: wandb://run/alex.trainee.002
-npc_policy_uri: null
-eval_db_uri: null
-
-env:
-  game:
-    max_steps: 1000
-
-
-# policy_uri: wandb://run/b.daveey.sm.train.er.new.0
-# policy_uri: wandb://run/daveey.ar.cards.1
-# policy_uri: wandb://run/b.daveey.t.32.instant
-policy_uri: wandb://run/b.daveey.t.8.rdr9.3
-# npc_policy_uri: ${trained_policy_uri}
-# eval_db_uri: wandb://artifacts/testing
-eval_db_uri: wandb://artifacts/object_use_db
-
-analyzer:
-  analysis:
-    metrics:
-    - metric: "action.use.altar.agent"
-
-sweep:
-  metric: "action.use.altar.agent"
+# # policy_uri: wandb://run/b.daveey.t.8.rdr9.3
 
 wandb:
   enabled: true
   track: true
   checkpoint_interval: 1
 
-run_id: 100
-run: ${oc.env:USER}.local.${run_id}
-trained_policy_uri: ${run_dir}/checkpoints
-sweep_name: "${oc.env:USER}.local.sweep.${run_id}"
+# trainer:
+#   replay_interval: 2
+
+# run_id: left_right_test
+# run: ${oc.env:USER}.local.${run_id}
+# trained_policy_uri: ${run_dir}/checkpoints
+# # sweep_name: "${oc.env:USER}.local.sweep.${run_id}"
+
+
+
+run: left-right-multiroom
+policy_uri: wandb://run/left_right_test_2
+
+# trainer:
+#   sim:
+#     env: /env/mettagrid/navigation/training/terrain_from_numpy
+
