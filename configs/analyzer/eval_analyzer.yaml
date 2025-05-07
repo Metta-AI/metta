@@ -3,13 +3,13 @@ eval_db_uri: ${..eval_db_uri}
 
 view_type: all
 output_path: /tmp/dashboard.html
-metric: episode_reward
+metric: group_rewards.team_1
 
 analysis:
   metric_patterns: null
 
   metrics:
-    - metric: episode_reward
+    - metric: group_rewards.team_1
 
   queries: null
 
