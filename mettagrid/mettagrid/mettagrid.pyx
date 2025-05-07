@@ -2,6 +2,7 @@ from libc.stdio cimport printf
 from libcpp.vector cimport vector
 from libcpp.string cimport string
 from libcpp.map cimport map
+from libcpp.unordered_map cimport unordered_map
 import numpy as np
 cimport numpy as cnp
 import gymnasium as gym
@@ -87,6 +88,7 @@ cdef class MettaGrid:
         unsigned char _last_action_obs_idx
         unsigned char _last_action_arg_obs_idx
         vector[bint] _action_success
+        unordered_map[int, unsigned char] _agent_to_group
 
     def __init__(self, env_cfg: DictConfig | ListConfig, map: np.ndarray):
         cfg = OmegaConf.create(env_cfg.game)
@@ -163,6 +165,7 @@ cdef class MettaGrid:
         cdef Converter *converter = NULL
         cdef string group_name
         cdef unsigned char group_id
+        cdef unordered_map[int, unsigned char] agent_to_group
         for r in range(map.shape[0]):
             for c in range(map.shape[1]):
 
@@ -206,19 +209,22 @@ cdef class MettaGrid:
                         rewards[inv_item] = rewards.get(inv_item, 0)
                         rewards[inv_item + "_max"] = rewards.get(inv_item + "_max", 1000)
                     group_id = cfg.groups[group_name].id
+
                     agent = new Agent(
                         r, c, group_name, group_id, agent_cfg, rewards)
                     self._grid.add_object(agent)
                     agent.agent_id = self._agents.size()
                     self.add_agent(agent)
                     self._group_sizes[group_id] += 1
-
+                    agent_to_group[agent.agent_id] = group_id
                 if converter != NULL:
                     stat = "objects." + map[r,c]
                     self._stats.incr(stat)
                     self._grid.add_object(converter)
                     converter.set_event_manager(&self._event_manager)
                     converter = NULL
+
+        self._agent_to_group = agent_to_group
 
     def __dealloc__(self):
         del self._grid
@@ -457,30 +463,8 @@ cdef class MettaGrid:
     cpdef unsigned int num_agents(self):
         return self._agents.size()
 
-    cpdef observe(
-        self,
-        GridObjectId observer_id,
-        unsigned short obs_width,
-        unsigned short obs_height,
-        ObsType[:,:,:] observation):
-
-        cdef GridObject* observer = self._grid.object(observer_id)
-        self._compute_observation(
-            observer.location.r, observer.location.c, obs_width, obs_height, observation)
-
-    cpdef observe_at(
-        self,
-        unsigned short row,
-        unsigned short col,
-        unsigned short obs_width,
-        unsigned short obs_height,
-        ObsType[:,:,:] observation):
-
-        self._compute_observation(
-            row, col, obs_width, obs_height, observation)
-
     cpdef get_episode_rewards(self):
-        return self._episode_rewards_np, self._group_rewards_np
+        return self._episode_rewards_np
 
     cpdef dict get_episode_stats(self):
         return {
@@ -508,6 +492,10 @@ cdef class MettaGrid:
             shape=(self._obs_height, self._obs_width, self._grid_features.size()),
             dtype=obs_np_type
         )
+
+    @property
+    def agent_to_group(self):
+        return self._agent_to_group
 
     def action_success(self):
         return self._action_success
