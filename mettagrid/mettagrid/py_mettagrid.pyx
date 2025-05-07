@@ -40,6 +40,10 @@ cdef class PyMettaGrid:
         cnp.ndarray _episode_rewards_np
         cnp.ndarray _group_rewards_np
         
+        # observation dimensions
+        uint16_t _obs_width
+        uint16_t _obs_height
+
         # Cache for frequently accessed data
         list _grid_features_list
         uint32_t _grid_features_size
@@ -696,18 +700,18 @@ cdef class PyMettaGrid:
         return self._grid_features_list
 
     @property
-    def feature_size(self):
+    def grid_features_size(self):
         """Get the number of grid features."""
         return self._grid_features_size
 
     @property
     def observation_width(self):
         """Get the width of the observation window."""
-        return self.obs_width
+        return self._obs_width
 
     @property
     def observation_height(self):
         """Get the height of the observation window."""
-        return self.obs_height
+        return self._obs_height
 
             
