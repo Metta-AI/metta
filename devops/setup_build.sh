@@ -13,22 +13,20 @@ if [ "$CONDA_DEFAULT_ENV" != "metta" ] && [ -z "$CI" ]; then
   echo "Please activate the correct environment with: \"conda activate metta\""
 fi
 
-echo "Upgrading pip..."
-python -m pip install --upgrade pip
-
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 
 # ========== Main Project ==========
 cd "$SCRIPT_DIR/.."
 
-echo -e "\n\nUninstalling all old python packages...\n\n"
-# Explicitly uninstall pufferlib first to avoid dependency conflicts
-pip uninstall -y pufferlib
+if [ -z "$CI" ]; then
+  echo -e "\n\nUpgrading pip...\n\n"
+  python -m pip install --upgrade pip
 
-# Then uninstall other packages, avoiding editable installs
-pip freeze | grep -v "^-e" > requirements_to_remove.txt
-pip uninstall -y -r requirements_to_remove.txt
-rm requirements_to_remove.txt
+  echo -e "\n\nUninstalling all old python packages...\n\n"
+  pip freeze | grep -v "^-e" > requirements_to_remove.txt
+  pip uninstall -y -r requirements_to_remove.txt
+  rm requirements_to_remove.txt
+fi
 
 # ========== INSTALL PACKAGES BEFORE BUILD ==========
 echo -e "\n\nInstalling main project requirements...\n\n"
