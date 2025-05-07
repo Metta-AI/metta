@@ -7,6 +7,7 @@ import boto3
 import numpy as np
 from botocore.exceptions import NoCredentialsError
 from filelock import FileLock
+from omegaconf import DictConfig
 
 from mettagrid.config.room.room import Room
 
@@ -56,11 +57,11 @@ class TerrainFromNumpy(Room):
 
     def __init__(
         self,
-        dir,
+        objects: DictConfig,
+        agents: int | DictConfig = 10,
+        dir: str = "terrain_maps_nohearts",
         border_width: int = 0,
         border_object: str = "wall",
-        num_agents: int = 10,
-        generators: bool = False,
         file: str | None = None,
         team: str | None = None,
     ):
@@ -77,8 +78,8 @@ class TerrainFromNumpy(Room):
 
         self.files = os.listdir(dir)
         self.dir = dir
-        self.num_agents = num_agents
-        self.generators = generators
+        self._agents = agents
+        self._objects = objects
         self.uri = file
         self.team = team
         super().__init__(border_width=border_width, border_object=border_object, labels=["terrain"])
@@ -111,28 +112,33 @@ class TerrainFromNumpy(Room):
         agents = level == "agent.agent"
         level[agents] = "empty"
 
+        if isinstance(self._agents, int):
+            agents = ["agent.agent"] * self._agents
+            num_agents = self._agents
+        elif isinstance(self._agents, DictConfig):
+            agents = ["agent." + agent for agent, na in self._agents.items() for _ in range(na)]
+            num_agents = len(agents)
+
         valid_positions = self.get_valid_positions(level)
-        positions = random.sample(valid_positions, self.num_agents)
-        for pos in positions:
-            if self.team is None:
-                level[pos] = "agent.agent"
-            else:
-                level[pos] = "agent." + self.team
+        positions = random.sample(valid_positions, num_agents)
+
+        for pos, agent in zip(positions, agents, strict=False):
+            level[pos] = agent
+
         area = level.shape[0] * level.shape[1]
-        num_hearts = area // 180  # random.randint(66, 180)
-        # Find valid empty spaces surrounded by empty
-        valid_positions = self.get_valid_positions(level)
 
-        # Randomly place hearts in valid positions
-        positions = random.sample(valid_positions, min(num_hearts, len(valid_positions)))
-        for pos in positions:
-            level[pos] = "altar"
+        # Check if total objects exceed room size and halve counts if needed
+        total_objects = sum(count for count in self._objects.values()) + len(agents)
+        while total_objects > 2 * area / 3:
+            for obj_name in self._objects:
+                self._objects[obj_name] = max(1, self._objects[obj_name] // 2)
+                total_objects = sum(count for count in self._objects.values()) + len(agents)
 
-        if self.generators:
-            num_mines = area // random.randint(66, 180)
+        for obj_name, count in self._objects.items():
             valid_positions = self.get_valid_positions(level)
-            positions = random.sample(valid_positions, min(num_mines, len(valid_positions)))
+            positions = random.sample(valid_positions, count)
             for pos in positions:
-                level[pos] = "generator"
+                level[pos] = obj_name
+
         self._level = level
         return self._level
