@@ -330,7 +330,7 @@ class Context3d {
     this.ensureMeshSelected();
 
     this.currentMesh!.scissorEnabled = true;
-    this.currentMesh!.scissorRect = [x, y, Math.max(width, 0), Math.max(height, 0)];
+    this.currentMesh!.scissorRect = [x, y, width, height];
   }
 
   // Disable scissoring for the current mesh
@@ -874,13 +874,13 @@ class Context3d {
         // Apply scissor if enabled for this mesh
         if (mesh.scissorEnabled) {
           const [x, y, width, height] = mesh.scissorRect;
-          const w = this.canvas.width;
-          const h = this.canvas.height;
+          const w = Math.floor(this.canvas.width);
+          const h = Math.floor(this.canvas.height);
           passEncoder.setScissorRect(
-            clamp(x, 0, w),
-            clamp(y, 0, h),
-            clamp(width, 0, w - x),
-            clamp(height, 0, h - y)
+            clamp(Math.floor(x), 0, w),
+            clamp(Math.floor(y), 0, h),
+            clamp(Math.floor(width), 0, w - x),
+            clamp(Math.floor(height), 0, h - y)
           );
         } else {
           // Reset scissor to full canvas if previously set
