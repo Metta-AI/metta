@@ -122,53 +122,183 @@ cdef class PyMettaGrid:
             del self._cpp_mettagrid
             self._cpp_mettagrid = NULL
 
-
     def _create_numpy_views(self, uint32_t num_agents, uint32_t feature_size, uint16_t obs_height, uint16_t obs_width):
         """Create NumPy array views that reference the C++ internal buffers."""
+        # Declare all variables at the beginning of the function
         cdef:
             # For observations
             vector[ObsType] cpp_observations = self._cpp_mettagrid.get_observations()
             ObsType* obs_ptr = cpp_observations.data()
             size_t obs_size = cpp_observations.size()
-            ObsType[:] obs_view = <ObsType[:obs_size]>obs_ptr
             
             # For terminals
             vector[int8_t] cpp_terminals = self._cpp_mettagrid.get_terminals()
             int8_t* term_ptr = cpp_terminals.data()
             size_t term_size = cpp_terminals.size()
-            int8_t[:] terminals_view = <int8_t[:term_size]>term_ptr
             
             # For truncations
             vector[int8_t] cpp_truncations = self._cpp_mettagrid.get_truncations()
             int8_t* trunc_ptr = cpp_truncations.data()
             size_t trunc_size = cpp_truncations.size()
-            int8_t[:] truncations_view = <int8_t[:trunc_size]>trunc_ptr
             
             # For rewards
             vector[float] cpp_rewards = self._cpp_mettagrid.get_rewards()
             float* reward_ptr = cpp_rewards.data()
             size_t reward_size = cpp_rewards.size()
-            float[:] rewards_view = <float[:reward_size]>reward_ptr
             
             # For episode rewards
             vector[float] cpp_episode_rewards = self._cpp_mettagrid.get_episode_rewards()
             float* ep_reward_ptr = cpp_episode_rewards.data()
             size_t ep_reward_size = cpp_episode_rewards.size()
-            float[:] episode_rewards_view = <float[:ep_reward_size]>ep_reward_ptr
             
             # For group rewards
             vector[double] cpp_group_rewards = self._cpp_mettagrid.get_group_rewards()
             double* group_reward_ptr = cpp_group_rewards.data()
             size_t group_reward_size = cpp_group_rewards.size()
-            double[:] group_rewards_view = <double[:group_reward_size]>group_reward_ptr
+            
+            # Additional variables for manual copying
+            size_t expected_size
+            size_t copy_size
+            uint32_t i
+            uint8_t* target_ptr
+            int8_t* term_target_ptr
+            int8_t* trunc_target_ptr
+            float* reward_target_ptr
+            float* ep_reward_target_ptr
+            double* group_reward_target_ptr
+            
+            # NumPy arrays
+            cnp.ndarray obs_array
+            cnp.ndarray terminals_array
+            cnp.ndarray truncations_array
+            cnp.ndarray rewards_array
+            cnp.ndarray episode_rewards_array
+            cnp.ndarray group_rewards_array
+        
+        # Create observations array
+        obs_array = np.zeros((num_agents, obs_height, obs_width, feature_size), dtype=np.uint8)
+        
+        # Manually copy data if available
+        if obs_size > 0:
+            # We know exactly what size the array should be
+            expected_size = num_agents * obs_height * obs_width * feature_size
+            
+            # Safety check to avoid buffer overruns
+            copy_size = min(obs_size, expected_size)
+            
+            # Get raw pointers for direct memory access
+            target_ptr = <uint8_t*>obs_array.data
+            
+            # Copy data manually
+            for i in range(copy_size):
+                target_ptr[i] = obs_ptr[i]
+        
+        # Create and copy terminals array
+        terminals_array = np.zeros(num_agents, dtype=np.int8)
+        if term_size > 0:
+            copy_size = min(term_size, num_agents)
+            term_target_ptr = <int8_t*>terminals_array.data
+            for i in range(copy_size):
+                term_target_ptr[i] = term_ptr[i]
+        
+        # Create and copy truncations array  
+        truncations_array = np.zeros(num_agents, dtype=np.int8)
+        if trunc_size > 0:
+            copy_size = min(trunc_size, num_agents)
+            trunc_target_ptr = <int8_t*>truncations_array.data
+            for i in range(copy_size):
+                trunc_target_ptr[i] = trunc_ptr[i]
+        
+        # Create and copy rewards array
+        rewards_array = np.zeros(num_agents, dtype=np.float32)
+        if reward_size > 0:
+            copy_size = min(reward_size, num_agents)
+            reward_target_ptr = <float*>rewards_array.data
+            for i in range(copy_size):
+                reward_target_ptr[i] = reward_ptr[i]
+        
+        # Create and copy episode rewards array
+        episode_rewards_array = np.zeros(num_agents, dtype=np.float32)
+        if ep_reward_size > 0:
+            copy_size = min(ep_reward_size, num_agents)
+            ep_reward_target_ptr = <float*>episode_rewards_array.data
+            for i in range(copy_size):
+                ep_reward_target_ptr[i] = ep_reward_ptr[i]
+        
+        # Create and copy group rewards array
+        group_rewards_array = np.zeros(num_agents, dtype=np.float64)
+        if group_reward_size > 0:
+            copy_size = min(group_reward_size, num_agents)
+            group_reward_target_ptr = <double*>group_rewards_array.data
+            for i in range(copy_size):
+                group_reward_target_ptr[i] = group_reward_ptr[i]
+        
+        # Assign arrays to instance variables
+        self._observations_np = obs_array
+        self._terminals_np = terminals_array
+        self._truncations_np = truncations_array
+        self._rewards_np = rewards_array
+        self._episode_rewards_np = episode_rewards_array
+        self._group_rewards_np = group_rewards_array
 
-        # Create NumPy arrays from memory views
-        self._observations_np = np.asarray(obs_view).reshape(num_agents, obs_height, obs_width, feature_size)
-        self._terminals_np = np.asarray(terminals_view).astype(np.int8)
-        self._truncations_np = np.asarray(truncations_view).astype(np.int8)
-        self._rewards_np = np.asarray(rewards_view).astype(np.float32)
-        self._episode_rewards_np = np.asarray(episode_rewards_view).astype(np.float32)
-        self._group_rewards_np = np.asarray(group_rewards_view).astype(np.float64)
+    def set_buffers(self, 
+                    cnp.ndarray observations,
+                    cnp.ndarray terminals, 
+                    cnp.ndarray truncations, 
+                    cnp.ndarray rewards):
+        """
+        Set external buffers for observations, terminals, truncations, and rewards.
+        
+        This allows sharing memory between the environment and the caller.
+        
+        Args:
+            observations: NumPy array for observations
+            terminals: NumPy array for terminal flags
+            truncations: NumPy array for truncation flags
+            rewards: NumPy array for rewards
+        """
+        cdef:
+            uint32_t num_agents = self._num_agents
+            uint16_t obs_height = self._cfg.obs_height
+            uint16_t obs_width = self._cfg.obs_width
+            uint32_t feature_size = self._feature_size
+            uint32_t dim_i
+            bint shape_match = True
+            tuple expected_obs_shape
+            tuple obs_shape_tuple
+            tuple term_shape
+            tuple trunc_shape
+            tuple reward_shape
+        
+        # Predict expected buffer shapes
+        expected_obs_shape = (num_agents, obs_height, obs_width, feature_size)
+        
+        # Convert NumPy shapes to Python tuples for comparison and error messages
+        obs_shape_tuple = tuple(observations.shape[i] for i in range(observations.ndim))
+        term_shape = tuple(terminals.shape[i] for i in range(terminals.ndim))
+        trunc_shape = tuple(truncations.shape[i] for i in range(truncations.ndim))
+        reward_shape = tuple(rewards.shape[i] for i in range(rewards.ndim))
+        
+        # Validate observation shape
+        if observations.ndim != 4 or obs_shape_tuple != expected_obs_shape:
+            raise ValueError(f"Observations buffer has shape {obs_shape_tuple}, expected {expected_obs_shape}")
+        
+        # Validate other buffer shapes
+        if terminals.ndim < 1 or terminals.shape[0] < num_agents:
+            raise ValueError(f"Terminals buffer has shape {term_shape}, expected first dimension ≥ {num_agents}")
+        
+        if truncations.ndim < 1 or truncations.shape[0] < num_agents:
+            raise ValueError(f"Truncations buffer has shape {trunc_shape}, expected first dimension ≥ {num_agents}")
+        
+        if rewards.ndim < 1 or rewards.shape[0] < num_agents:
+            raise ValueError(f"Rewards buffer has shape {reward_shape}, expected first dimension ≥ {num_agents}")
+        
+        # Store the external buffers
+        self._observations_np = observations
+        self._terminals_np = terminals
+        self._truncations_np = truncations
+        self._rewards_np = rewards
+
 
     # Helper method to get grid features as Python list - caching the result
     cdef list _get_grid_features(self):
@@ -176,9 +306,14 @@ cdef class PyMettaGrid:
         cdef list result = []
         cdef uint32_t i
         for i in range(features.size()):
-            result.append(features[i].decode('utf8'))
+            # Check if the object is bytes before decoding
+            feature = features[i]
+            if isinstance(feature, bytes):
+                result.append(feature.decode('utf8'))
+            else:
+                # It's already a string, no need to decode
+                result.append(feature)
         return result
-
 
     def reset(self):
         """Reset the environment and return initial observation."""
@@ -238,28 +373,49 @@ cdef class PyMettaGrid:
         
         return (self._observations_np, self._rewards_np, self._terminals_np, self._truncations_np, {})
     
-        
     def action_success(self):
         """Get the action success information."""
         cdef:
             vector[int8_t] success = self._cpp_mettagrid.action_success()
             int8_t* data_ptr = success.data()
             size_t size = success.size()
-            int8_t[:] success_view = <int8_t[:size]>data_ptr
-        # Efficiently create numpy array directly from buffer
-        return np.asarray(success_view)
+            uint32_t i
+            int8_t* target_ptr
+            cnp.ndarray success_array
+        
+        # Create a new numpy array and manually copy the data
+        success_array = np.zeros(size, dtype=np.int8)
+        
+        # Manual copy
+        if size > 0:
+            target_ptr = <int8_t*>success_array.data
+            for i in range(size):
+                target_ptr[i] = data_ptr[i]
+        
+        # Return the array
+        return success_array
 
     def max_action_args(self):
         """Get the maximum action arguments."""
         cdef:
-            vector[uint8_t] max_args = self._cpp_mettagrid.max_action_args()
+            vector[uint8_t] max_args = self._cpp_mettagrid.max_action_args() 
             uint8_t* data_ptr = max_args.data()
             size_t size = max_args.size()
-            uint8_t[:] max_args_view = <uint8_t[:size]>data_ptr
+            uint32_t i
+            uint8_t* target_ptr
+            cnp.ndarray max_args_array
         
-        # Efficiently create numpy array directly from buffer
-        return np.asarray(max_args_view)
-
+        # Create a new numpy array and manually copy the data
+        max_args_array = np.zeros(size, dtype=np.uint8)
+        
+        # Manual copy
+        if size > 0:
+            target_ptr = <uint8_t*>max_args_array.data
+            for i in range(size):
+                target_ptr[i] = data_ptr[i]
+        
+        # Return the array
+        return max_args_array
 
     def current_timestep(self):
         """Get the current timestep."""
@@ -435,16 +591,23 @@ cdef class PyMettaGrid:
     @property
     def action_space(self):
         """Get the action space for gymnasium compatibility."""
-        # Get number of action handlers and max argument value
         cdef:
             vector[uint8_t] max_args = self._cpp_mettagrid.max_action_args() 
             uint8_t* data_ptr = max_args.data()
             size_t size = max_args.size()
-            uint8_t[:] max_args_view = <uint8_t[:size]>data_ptr
+            uint32_t i
+            uint8_t* target_ptr
             cnp.ndarray max_args_array
             uint8_t max_arg
         
-        max_args_array = np.asarray(max_args_view)
+        # Create a new numpy array and manually copy the data
+        max_args_array = np.zeros(size, dtype=np.uint8)
+        
+        # Manual copy
+        if size > 0:
+            target_ptr = <uint8_t*>max_args_array.data
+            for i in range(size):
+                target_ptr[i] = data_ptr[i]
         
         # Use numpy's max function
         max_arg = max_args_array.max() if max_args_array.size > 0 else 0
