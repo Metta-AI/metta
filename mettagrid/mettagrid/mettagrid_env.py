@@ -127,7 +127,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                 group_mean = group_reward / self._team_counts[self._team_names[i]]
                 infos.update(
                     {
-                        f"episode/reward.group.{self._team_names[i]}.sum": group_reward,
                         f"episode/reward.group.{self._team_names[i]}.mean": group_mean,
                     }
                 )
