@@ -190,6 +190,26 @@ jobs:
           source venv/bin/activate
           bash ./devops/setup_build.sh
 
+      - name: Check deps
+        run: |
+          source venv/bin/activate
+          echo "content of repo"
+          ls -al
+          echo "contents of deps"
+          ls -la deps
+
+          for dep in \
+            "pufferlib" \
+            "carbs" \
+            "wandb_carbs"
+          do
+            echo "Checking import for $dep..."
+            python -c "import $dep; print('✅ Found {} at {}'.format('$dep', __import__('$dep').__file__))" || {
+              echo "❌ Failed to import $dep"
+              exit 1
+            }
+          done
+
   lint:
     name: "Lint"
     needs: [graphite-ci-optimizer, setup-checks, setup-py]
