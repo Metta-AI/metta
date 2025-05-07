@@ -17,7 +17,7 @@ game:
   max_steps: 1000
   no_energy_steps: 500
 
-  # default for the old map builder; new mettagrid.map.mapgen requires false
+  # default for the old map builder; new metta.map.mapgen requires false
   recursive_map_builder: true
 
   agent:
