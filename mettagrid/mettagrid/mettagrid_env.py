@@ -108,9 +108,11 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         group_rewards = {}
         for agent_id, group_id in agent_to_group.items():
-            group_rewards[f"team_{group_id}"] = int(
-                group_rewards.get(f"team_{group_id}", 0) + episode_rewards[agent_id]
-            )
+            if group_id == 0:
+                group_name = "agent"
+            else:
+                group_name = f"team_{group_id}"
+            group_rewards[group_name] = int(group_rewards.get(group_name, 0) + episode_rewards[agent_id])
 
         group_means = {k: v / self._group_counts[k] for k, v in group_rewards.items()}
 
