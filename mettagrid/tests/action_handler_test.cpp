@@ -18,7 +18,7 @@ public:
   // Fix: properly initialize the base class Grid with required parameters
   TestGrid(unsigned int width, unsigned int height, unsigned int num_layers)
       : Grid(width, height, std::vector<Layer>(10, 0)) {
-    // The third parameter is layer_for_type_id - we initialize with a default mapping
+    // The third parameter is typeToLayerMap - we initialize with a default mapping
     // where all type IDs map to layer 0
     this->num_layers = num_layers;
   }

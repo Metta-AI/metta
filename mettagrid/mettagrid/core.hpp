@@ -11,9 +11,6 @@
 #include <string>
 #include <vector>
 
-typedef float float;
-typedef double double;
-
 // Forward declarations for external classes
 class Grid;
 class GridObject;
@@ -74,10 +71,6 @@ private:
   float _reward_multiplier;
   float _reward_decay_factor;
 
-  // Action tracking
-  bool _track_last_action;
-  uint8_t _last_action_obs_idx;
-  uint8_t _last_action_arg_obs_idx;
   std::vector<int8_t> _action_success;
 
 public:
@@ -109,7 +102,12 @@ public:
                            ObsType* observation);
   void compute_observations(int32_t** actions);
   void observe(GridObjectId observer_id, uint16_t obs_width, uint16_t obs_height, ObsType* observation);
-  void observe_at(uint16_t row, uint16_t col, uint16_t obs_width, uint16_t obs_height, ObsType* observation);
+  void observe_at(uint16_t row,
+                  uint16_t col,
+                  uint16_t obs_width,
+                  uint16_t obs_height,
+                  ObsType* observation,
+                  uint8_t dummy);
 
   // Observation utilities
   void observation_at(ObsType* flat_buffer,

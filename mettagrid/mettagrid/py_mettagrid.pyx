@@ -20,7 +20,7 @@ import gymnasium as gym
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
 # Import from the cython definition file
-from mettagrid.core cimport MettaGrid
+from mettagrid.py_mettagrid cimport MettaGrid, GridObjectId, ObsType
 
 # Constants
 obs_np_type = np.uint8
@@ -325,11 +325,21 @@ cdef class PyMettaGrid:
         
         # Call the appropriate C++ implementation method
         if is_observer_id:
-            self._cpp_mettagrid.observe(observer_id, obs_width, obs_height,
-                                      <ObsType*>obs_array.data)
+            self._cpp_mettagrid.observe(
+                observer_id, 
+                obs_width, 
+                obs_height,
+                <ObsType*>obs_array.data
+            )
         else:
-            self._cpp_mettagrid.observe_at(row, col, obs_width, obs_height,
-                                         <ObsType*>obs_array.data)
+            self._cpp_mettagrid.observe_at(
+                row, 
+                col, 
+                obs_width, 
+                obs_height,
+                <ObsType*>obs_array.data, 
+                0  # last param is an ignored dummy uint8_t to help cython binding
+            )
         
         # Return the observation only if we used our buffer or created a new one
         if observation is None or not isinstance(observation, np.ndarray):

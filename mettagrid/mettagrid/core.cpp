@@ -17,6 +17,7 @@
 #include "grid.hpp"
 #include "grid_object.hpp"
 #include "objects/constants.hpp"
+#include "objects/production_handler.hpp"
 #include "observation_encoder.hpp"
 #include "stats_tracker.hpp"
 
@@ -44,8 +45,8 @@ MettaGrid::MettaGrid(uint32_t map_width,
   _event_manager->init(_grid.get(), _stats.get());
 
   // Add event handlers
-  _event_manager->event_handlers.push_back(std::make_unique<ProductionHandler>(_event_manager.get()));
-  _event_manager->event_handlers.push_back(std::make_unique<CoolDownHandler>(_event_manager.get()));
+  _event_manager->event_handlers.push_back(new ProductionHandler(_event_manager.get()));
+  _event_manager->event_handlers.push_back(new CoolDownHandler(_event_manager.get()));
 
   // Set up action success tracking
   _action_success.resize(num_agents);
@@ -312,7 +313,12 @@ void MettaGrid::observe(GridObjectId observer_id, uint16_t obs_width, uint16_t o
 }
 
 // Observe from a specific location
-void MettaGrid::observe_at(uint16_t row, uint16_t col, uint16_t obs_width, uint16_t obs_height, ObsType* observation) {
+void MettaGrid::observe_at(uint16_t row,
+                           uint16_t col,
+                           uint16_t obs_width,
+                           uint16_t obs_height,
+                           ObsType* observation,
+                           uint8_t dummy) {
   compute_observation(row, col, obs_width, obs_height, observation);
 }
 

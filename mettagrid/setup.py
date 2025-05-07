@@ -48,7 +48,7 @@ ext_modules = [
     build_ext(["mettagrid/objects/metta_object.cpp"]),
     build_ext(["mettagrid/objects/production_handler.cpp"]),
     build_ext(["mettagrid/objects/wall.cpp"]),
-    build_ext(["mettagrid/core.pyx"], module_name="mettagrid.core"),
+    build_ext(["mettagrid/py_mettagrid.pyx", "mettagrid/core.cpp"], module_name="mettagrid.core"),
 ]
 
 debug = os.getenv("DEBUG", "0") == "1"

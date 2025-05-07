@@ -81,7 +81,8 @@ cdef extern from "core.hpp":
                        uint16_t col,
                        uint16_t obs_width, 
                        uint16_t obs_height,
-                       ObsType* observation)
+                       ObsType* observation,
+                       uint8_t dummy)
 
         # Observation utilities
         void observation_at(ObsType* flat_buffer,
