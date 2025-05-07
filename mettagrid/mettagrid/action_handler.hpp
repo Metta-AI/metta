@@ -39,6 +39,8 @@ public:
     }
   }
 
+  virtual ~ActionHandler() {}
+
   void init(Grid* grid) {
     this->_grid = grid;
   }
