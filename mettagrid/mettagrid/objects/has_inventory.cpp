@@ -1,0 +1,1 @@
+#include "has_inventory.hpp"

@@ -4,7 +4,6 @@
 #include <string>
 
 #include "attack.hpp"
-#include "grid_object.hpp"
 #include "objects/agent.hpp"
 #include "objects/constants.hpp"
 
@@ -14,6 +13,10 @@ public:
 
   unsigned char max_arg() const override {
     return 0;
+  }
+
+  ActionHandler* clone() const override {
+    return new AttackNearest(*this);
   }
 
 protected:

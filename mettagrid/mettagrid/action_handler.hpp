@@ -1,6 +1,5 @@
 #ifndef ACTION_HANDLER_HPP
 #define ACTION_HANDLER_HPP
-
 #include <map>
 #include <string>
 #include <vector>
@@ -14,7 +13,6 @@ struct StatNames {
   std::string success;
   std::string first_use;
   std::string failure;
-
   std::map<TypeId, std::string> target;
   std::map<TypeId, std::string> target_first_use;
   std::vector<std::string> group;
@@ -32,12 +30,13 @@ public:
     _stats.success = "action." + action_name;
     _stats.failure = "action." + action_name + ".failed";
     _stats.first_use = "action." + action_name + ".first_use";
-
     for (TypeId t = 0; t < ObjectType::Count; t++) {
       _stats.target[t] = _stats.success + "." + ObjectTypeNames[t];
       _stats.target_first_use[t] = _stats.first_use + "." + ObjectTypeNames[t];
     }
   }
+
+  virtual ~ActionHandler() {}  // Add virtual destructor
 
   void init(Grid* grid) {
     this->_grid = grid;
@@ -48,16 +47,13 @@ public:
                      ActionArg arg,
                      unsigned int current_timestep) {
     Agent* actor = static_cast<Agent*>(_grid->object(actor_object_id));
-
     if (actor->frozen > 0) {
       actor->stats.incr("status.frozen.ticks");
       actor->stats.incr("status.frozen.ticks", actor->group_name);
       actor->frozen -= 1;
       return false;
     }
-
     bool result = _handle_action(actor_id, actor, arg);
-
     if (result) {
       actor->stats.incr(_stats.success);
     } else {
@@ -66,7 +62,6 @@ public:
       *actor->reward -= actor->action_failure_penalty;
       actor->stats.set_once(_stats.first_use, current_timestep);
     }
-
     return result;
   }
 
@@ -78,9 +73,11 @@ public:
     return _action_name;
   }
 
+  // Clone method for ownership transfer - derived classes must implement
+  virtual ActionHandler* clone() const = 0;
+
 protected:
   virtual bool _handle_action(unsigned int actor_id, Agent* actor, ActionArg arg) = 0;
-
   StatNames _stats;
   std::string _action_name;
 };

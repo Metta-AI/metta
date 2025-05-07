@@ -5,12 +5,12 @@
 #include <string>
 #include <vector>
 
-#include "../event.hpp"
-#include "../grid_object.hpp"
-#include "agent.hpp"
-#include "constants.hpp"
-#include "has_inventory.hpp"
-#include "metta_object.hpp"
+#include "event.hpp"
+#include "grid_object.hpp"
+#include "objects/agent.hpp"
+#include "objects/constants.hpp"
+#include "objects/has_inventory.hpp"
+#include "objects/metta_object.hpp"
 
 class Converter : public HasInventory {
 private:

@@ -1,6 +1,5 @@
 #ifndef MOVE_HPP
 #define MOVE_HPP
-
 #include <string>
 
 #include "action_handler.hpp"
@@ -15,10 +14,13 @@ public:
     return 1;
   }
 
+  ActionHandler* clone() const override {
+    return new Move(*this);
+  }
+
 protected:
   bool _handle_action(unsigned int actor_id, Agent* actor, ActionArg arg) override {
     unsigned short direction = arg;
-
     Orientation orientation = static_cast<Orientation>(actor->orientation);
     if (direction == 1) {
       if (orientation == Orientation::Up) {
@@ -31,7 +33,6 @@ protected:
         orientation = Orientation::Left;
       }
     }
-
     GridLocation old_loc = actor->location;
     GridLocation new_loc = _grid->relative_location(old_loc, orientation);
     if (!_grid->is_empty(new_loc.r, new_loc.c)) {

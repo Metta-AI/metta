@@ -32,6 +32,7 @@ public:
     for (unsigned long id = 1; id < objects.size(); ++id) {
       if (objects[id] != nullptr) {
         delete objects[id];
+        objects[id] = nullptr;  // Set to nullptr after deletion for safety
       }
     }
   }
@@ -52,8 +53,9 @@ public:
 
   inline void remove_object(GridObject* obj) {
     this->grid[obj->location.r][obj->location.c][obj->location.layer] = 0;
-    // delete obj;
+    // Don't delete the object here, just mark it as removed in the grid
     this->objects[obj->id] = nullptr;
+    // The actual deletion is deferred to the destructor
   }
 
   inline void remove_object(GridObjectId id) {

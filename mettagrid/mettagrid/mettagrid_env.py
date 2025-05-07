@@ -7,7 +7,7 @@ import pufferlib
 from omegaconf import DictConfig, OmegaConf
 
 from mettagrid.config.utils import simple_instantiate
-from mettagrid.mettagrid_c import MettaGrid  # pylint: disable=E0611
+from mettagrid.core import MettaGrid
 from mettagrid.resolvers import register_resolvers
 
 
@@ -191,7 +191,9 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     @property
     def action_success(self):
-        return np.asarray(self._c_env.action_success())
+        # Get the char array and convert to numpy array
+        # Note: We keep it as char/int8 type for consistency
+        return np.asarray(self._c_env.action_success(), dtype=np.int8)
 
     def object_type_names(self):
         return self._c_env.object_type_names()

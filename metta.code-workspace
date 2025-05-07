@@ -107,7 +107,15 @@
 			"__verbose_abort": "cpp",
 			"execution": "cpp",
 			"*.pxd": "cython",
-			"print": "cpp"
+			"print": "cpp",
+			"any": "cpp",
+			"charconv": "cpp",
+			"condition_variable": "cpp",
+			"csignal": "cpp",
+			"forward_list": "cpp",
+			"list": "cpp",
+			"span": "cpp",
+			"format": "cpp"
 		},
 
 		// IntelliSense may not automatically resolve packages from your Conda environment.

@@ -1,30 +1,53 @@
 #include "core.hpp"
 
 // Include necessary headers
+#include <nlohmann/json.hpp>
+
 #include "action_handler.hpp"
+#include "actions/attack.hpp"
+#include "actions/attack_nearest.hpp"
+#include "actions/change_color.hpp"
+#include "actions/get_output.hpp"
+#include "actions/move.hpp"
+#include "actions/noop.hpp"
+#include "actions/put_recipe_items.hpp"
+#include "actions/rotate.hpp"
+#include "actions/swap.hpp"
 #include "event.hpp"
 #include "grid.hpp"
 #include "grid_object.hpp"
+#include "objects/constants.hpp"
 #include "observation_encoder.hpp"
 #include "stats_tracker.hpp"
 
-MettaGrid::MettaGrid(Grid* grid,
+MettaGrid::MettaGrid(unsigned int map_width,
+                     unsigned int map_height,
                      unsigned int num_agents,
                      unsigned int max_timestep,
                      unsigned short obs_width,
                      unsigned short obs_height) {
-  _grid = grid;
-  _max_timestep = max_timestep;
+  // Initialize member variables
   _current_timestep = 0;
+  _max_timestep = max_timestep;
   _obs_width = obs_width;
   _obs_height = obs_height;
-  _stats = nullptr;  // Initialize to null
 
-  // Initialize event manager and observation encoder
-  _event_manager = new EventManager();
-  _obs_encoder = new ObservationEncoder();
+  // Create the grid - now owned by this class
+  _grid = std::make_unique<Grid>(map_width, map_height);
 
-  // Initialize arrays for agents
+  // Create event manager and observation encoder - now using smart pointers
+  _event_manager = std::make_unique<EventManager>();
+  _obs_encoder = std::make_unique<ObservationEncoder>();
+  _stats = std::make_unique<StatsTracker>();
+
+  // Initialize the event manager
+  _event_manager->init(_grid.get(), _stats.get());
+
+  // Add event handlers
+  _event_manager->event_handlers.push_back(std::make_unique<ProductionHandler>(_event_manager.get()));
+  _event_manager->event_handlers.push_back(std::make_unique<CoolDownHandler>(_event_manager.get()));
+
+  // Set up action success tracking
   _action_success.resize(num_agents);
 
   // Set up reward decay
@@ -32,51 +55,51 @@ MettaGrid::MettaGrid(Grid* grid,
   _reward_multiplier = 1.0;
   _reward_decay_factor = 3.0 / (_max_timestep > 0 ? _max_timestep : 100);
 
-  // Grid features will be initialized by the observer
+  // Get grid features from the encoder
   _grid_features = _obs_encoder->feature_names();
 
-  // Initialize buffer sizes to 0
-  _rewards_size = 0;
-  _episode_rewards_size = 0;
-  _truncations_size = 0;
-  _terminals_size = 0;
-  _observations_size = 0;
-
-  // Initialize pointers to null
-  _observations = nullptr;
-  _terminals = nullptr;
-  _truncations = nullptr;
-  _rewards = nullptr;
-  _episode_rewards = nullptr;
-  _group_rewards = nullptr;
-  _group_rewards_size = 0;
+  // Initialize internal buffers
+  initialize_buffers(num_agents);
 }
 
-// Destructor
+// Destructor is simpler with smart pointers
 MettaGrid::~MettaGrid() {
-  // Note: we don't delete _grid here because it's passed in by the owner
-
-  // Clean up action handlers
-  for (auto handler : _action_handlers) {
-    delete handler;
-  }
-
-  // Clean up event manager and observation encoder
-  delete _event_manager;
-  delete _obs_encoder;
+  // Smart pointers will clean up automatically
+  // Agents are owned by the grid, not by us directly
 }
 
-// Initialize action handlers
-void MettaGrid::init_action_handlers(std::vector<ActionHandler*> action_handlers) {
-  _action_handlers = action_handlers;
+void MettaGrid::initialize_buffers(unsigned int num_agents) {
+  // Calculate buffer sizes
+  unsigned int obs_size = num_agents * _obs_width * _obs_height * _grid_features.size();
+
+  // Resize all buffers
+  _observations.resize(obs_size, 0);
+  _terminals.resize(num_agents, 0);
+  _truncations.resize(num_agents, 0);
+  _rewards.resize(num_agents, 0);
+  _episode_rewards.resize(num_agents, 0);
+  _group_rewards.resize(num_agents, 0);  // Default size, will be adjusted later
+}
+
+// Initialize action handlers - modified to take ownership through cloning
+void MettaGrid::init_action_handlers(const std::vector<ActionHandler*>& action_handlers) {
   _num_action_handlers = action_handlers.size();
+  _max_action_args.resize(_num_action_handlers);
   _max_action_priority = 0;
   _max_action_arg = 0;
-  _max_action_args.resize(action_handlers.size());
 
+  // Clear previous action handlers
+  _action_handlers.clear();
+
+  // Create and store copies of the action handlers
   for (unsigned int i = 0; i < action_handlers.size(); i++) {
     ActionHandler* handler = action_handlers[i];
-    handler->init(_grid);
+
+    // Create a deep copy through cloning and store it (with ownership)
+    _action_handlers.push_back(std::unique_ptr<ActionHandler>(handler->clone()));
+    _action_handlers.back()->init(_grid.get());
+
+    // Update maximums
     unsigned char max_arg = handler->max_arg();
     _max_action_args[i] = max_arg;
     _max_action_arg = std::max(_max_action_arg, max_arg);
@@ -86,8 +109,30 @@ void MettaGrid::init_action_handlers(std::vector<ActionHandler*> action_handlers
 
 // Add an agent to the game
 void MettaGrid::add_agent(Agent* agent) {
+  // Initialize the agent with its reward buffer
   agent->init(&_rewards[_agents.size()]);
   _agents.push_back(agent);
+}
+
+// Reset the environment
+void MettaGrid::reset() {
+  // Reset timestep
+  _current_timestep = 0;
+
+  // Reset buffers
+  std::fill(_rewards.begin(), _rewards.end(), 0);
+  std::fill(_episode_rewards.begin(), _episode_rewards.end(), 0);
+  std::fill(_terminals.begin(), _terminals.end(), 0);
+  std::fill(_truncations.begin(), _truncations.end(), 0);
+  std::fill(_observations.begin(), _observations.end(), 0);
+
+  // Reset action success flags
+  std::fill(_action_success.begin(), _action_success.end(), false);
+
+  // Reset reward decay
+  _reward_multiplier = 1.0;
+
+  // Note: This doesn't reset the grid or agents, which would require re-initialization
 }
 
 // Get observation values at coordinates (r,c)
@@ -142,8 +187,8 @@ void MettaGrid::compute_observation(unsigned short observer_r,
   // Clear the observation buffer
   memset(observation, 0, obs_width * obs_height * _grid_features.size() * sizeof(ObsType));
 
-  unsigned int r_start = std::max(observer_r, (unsigned int)obs_height_r) - obs_height_r;
-  unsigned int c_start = std::max(observer_c, (unsigned int)obs_width_r) - obs_width_r;
+  unsigned int r_start = std::max<unsigned int>(observer_r, obs_height_r) - obs_height_r;
+  unsigned int c_start = std::max<unsigned int>(observer_c, obs_width_r) - obs_width_r;
 
   for (unsigned int r = r_start; r <= observer_r + obs_height_r; r++) {
     if (r < 0 || r >= _grid->height) continue;
@@ -176,27 +221,19 @@ void MettaGrid::compute_observation(unsigned short observer_r,
 void MettaGrid::compute_observations(int** actions) {
   for (unsigned int idx = 0; idx < _agents.size(); idx++) {
     Agent* agent = _agents[idx];
-    compute_observation(agent->location.r,
-                        agent->location.c,
-                        _obs_width,
-                        _obs_height,
-                        // This would need to be adjusted based on how observations are stored
-                        _observations + idx * _obs_width * _obs_height * _grid_features.size());
+    ObsType* obs_ptr = _observations.data() + idx * _obs_width * _obs_height * _grid_features.size();
+
+    compute_observation(agent->location.r, agent->location.c, _obs_width, _obs_height, obs_ptr);
   }
 }
 
 // Take a step in the environment
 void MettaGrid::step(int** actions) {
-  // Reset rewards and observations
-  for (unsigned int i = 0; i < _rewards_size; i++) {
-    _rewards[i] = 0;
-  }
-  // Reset observations would be here
+  // Reset rewards
+  std::fill(_rewards.begin(), _rewards.end(), 0);
 
-  // Clear success flags
-  for (unsigned int i = 0; i < _action_success.size(); i++) {
-    _action_success[i] = false;
-  }
+  // Reset success flags
+  std::fill(_action_success.begin(), _action_success.end(), false);
 
   _current_timestep++;
 
@@ -213,7 +250,7 @@ void MettaGrid::step(int** actions) {
 
       ActionArg arg(actions[idx][1]);
       Agent* agent = _agents[idx];
-      ActionHandler* handler = _action_handlers[action];
+      ActionHandler* handler = _action_handlers[action].get();
 
       if (handler->priority != _max_action_priority - p) {
         continue;
@@ -231,19 +268,19 @@ void MettaGrid::step(int** actions) {
   // Apply reward decay if enabled
   if (_enable_reward_decay) {
     _reward_multiplier = std::max(0.1f, _reward_multiplier * (1.0f - _reward_decay_factor));
-    for (unsigned int i = 0; i < _rewards_size; i++) {
+    for (unsigned int i = 0; i < _rewards.size(); i++) {
       _rewards[i] *= _reward_multiplier;
     }
   }
 
   // Update episode rewards
-  for (unsigned int i = 0; i < _episode_rewards_size; i++) {
+  for (unsigned int i = 0; i < _episode_rewards.size(); i++) {
     _episode_rewards[i] += _rewards[i];
   }
 
   // Check for termination
   if (_max_timestep > 0 && _current_timestep >= _max_timestep) {
-    for (unsigned int i = 0; i < _truncations_size; i++) {
+    for (unsigned int i = 0; i < _truncations.size(); i++) {
       _truncations[i] = 1;
     }
   }
@@ -296,45 +333,10 @@ unsigned int MettaGrid::map_height() const {
   return _grid->height;
 }
 
-// Add buffer initialization
-void MettaGrid::set_buffers(ObsType* observations,
-                            char* terminals,
-                            char* truncations,
-                            float* rewards,
-                            float* episode_rewards,
-                            unsigned int num_agents) {
-  _observations = observations;
-  _terminals = terminals;
-  _truncations = truncations;
-  _rewards = rewards;
-  _episode_rewards = episode_rewards;
-
-  _rewards_size = num_agents;
-  _episode_rewards_size = num_agents;
-  _truncations_size = num_agents;
-  _terminals_size = num_agents;
-
-  // Initialize group rewards - we'll set proper size later
-  _group_rewards = nullptr;
-  _group_rewards_size = 0;
-
-  // Re-initialize agents with new reward pointers
-  for (unsigned int i = 0; i < _agents.size(); i++) {
-    _agents[i]->init(&_rewards[i]);
-  }
-}
-
-void MettaGrid::init_group_rewards(double* group_rewards, unsigned int size) {
-  _group_rewards = group_rewards;
-  _group_rewards_size = size;
-}
-
 // Add group reward computation
 void MettaGrid::compute_group_rewards(float* rewards) {
   // Initialize group rewards to 0
-  for (unsigned int i = 0; i < _group_rewards_size; i++) {
-    _group_rewards[i] = 0;
-  }
+  std::fill(_group_rewards.begin(), _group_rewards.end(), 0);
 
   bool share_rewards = false;
 
@@ -369,9 +371,361 @@ void MettaGrid::set_group_size(unsigned int group_id, unsigned int size) {
   _group_sizes[group_id] = size;
 }
 
-void MettaGrid::init_event_manager(EventManager* event_manager) {
-  if (_event_manager) {
-    delete _event_manager;
+void MettaGrid::initialize_from_json(const std::string& map_json, const std::string& config_json) {
+  using json = nlohmann::json;
+
+  // Parse JSON strings
+  json map_data = json::parse(map_json);
+  json cfg = json::parse(config_json);
+
+  // Initialize group sizes
+  std::map<unsigned int, unsigned int> group_sizes;
+  for (auto& [group_name, group_info] : cfg["groups"].items()) {
+    group_sizes[group_info["id"]] = 0;
   }
-  _event_manager = event_manager;
+
+  // Update group rewards size
+  _group_rewards.resize(cfg["groups"].size(), 0);
+
+  // Process map and create objects
+  for (int r = 0; r < map_data.size(); r++) {
+    for (int c = 0; c < map_data[r].size(); c++) {
+      std::string cell_type = map_data[r][c];
+
+      // Wall
+      if (cell_type == "wall") {
+        parse_grid_object("wall", r, c, cfg["objects"]["wall"]);
+      }
+      // Block
+      else if (cell_type == "block") {
+        parse_grid_object("block", r, c, cfg["objects"]["block"]);
+      }
+      // Mine
+      else if (cell_type.substr(0, 4) == "mine") {
+        std::string mine_type = cell_type;
+        if (mine_type.find(".") == std::string::npos) {
+          mine_type = "mine.red";
+        }
+        parse_grid_object(mine_type, r, c, cfg["objects"][mine_type]);
+      }
+      // Generator
+      else if (cell_type.substr(0, 9) == "generator") {
+        std::string generator_type = cell_type;
+        if (generator_type.find(".") == std::string::npos) {
+          generator_type = "generator.red";
+        }
+        parse_grid_object(generator_type, r, c, cfg["objects"][generator_type]);
+      }
+      // Altar
+      else if (cell_type == "altar") {
+        parse_grid_object("altar", r, c, cfg["objects"]["altar"]);
+      }
+      // Armory
+      else if (cell_type == "armory") {
+        parse_grid_object("armory", r, c, cfg["objects"]["armory"]);
+      }
+      // Lasery
+      else if (cell_type == "lasery") {
+        parse_grid_object("lasery", r, c, cfg["objects"]["lasery"]);
+      }
+      // Lab
+      else if (cell_type == "lab") {
+        parse_grid_object("lab", r, c, cfg["objects"]["lab"]);
+      }
+      // Factory
+      else if (cell_type == "factory") {
+        parse_grid_object("factory", r, c, cfg["objects"]["factory"]);
+      }
+      // Temple
+      else if (cell_type == "temple") {
+        parse_grid_object("temple", r, c, cfg["objects"]["temple"]);
+      }
+      // Agent
+      else if (cell_type.substr(0, 6) == "agent.") {
+        size_t pos = cell_type.find(".");
+        std::string group_name = cell_type.substr(pos + 1);
+        parse_agent(group_name, r, c, cfg["agent"], cfg["groups"][group_name]);
+
+        // Update group size
+        unsigned int group_id = cfg["groups"][group_name]["id"];
+        group_sizes[group_id]++;
+        set_group_size(group_id, group_sizes[group_id]);
+      }
+    }
+  }
+
+  // Initialize group reward percentages
+  for (auto& [group_name, group_info] : cfg["groups"].items()) {
+    unsigned int group_id = group_info["id"];
+    float pct = 0;
+    if (group_info.contains("group_reward_pct")) {
+      pct = group_info["group_reward_pct"];
+    }
+    set_group_reward_pct(group_id, pct);
+  }
+
+  // Set up action handlers from the config
+  setup_action_handlers(cfg);
+}
+
+void MettaGrid::parse_grid_object(const std::string& object_type, int row, int col, const nlohmann::json& config) {
+  // Convert JSON config to ObjectConfig
+  ObjectConfig obj_config;
+  for (auto& [key, value] : config.items()) {
+    if (value.is_number_integer()) {
+      obj_config[key] = value;
+    }
+  }
+
+  // Create appropriate object based on type
+  GridObject* obj = nullptr;
+
+  if (object_type == "wall" || object_type == "block") {
+    obj = new Wall(row, col, obj_config);
+  } else if (object_type.substr(0, 4) == "mine") {
+    obj = new Converter(row, col, obj_config, ObjectType::MineT);
+  } else if (object_type.substr(0, 9) == "generator") {
+    obj = new Converter(row, col, obj_config, ObjectType::GeneratorT);
+  } else if (object_type == "altar") {
+    obj = new Converter(row, col, obj_config, ObjectType::AltarT);
+  } else if (object_type == "armory") {
+    obj = new Converter(row, col, obj_config, ObjectType::ArmoryT);
+  } else if (object_type == "lasery") {
+    obj = new Converter(row, col, obj_config, ObjectType::LaseryT);
+  } else if (object_type == "lab") {
+    obj = new Converter(row, col, obj_config, ObjectType::LabT);
+  } else if (object_type == "factory") {
+    obj = new Converter(row, col, obj_config, ObjectType::FactoryT);
+  } else if (object_type == "temple") {
+    obj = new Converter(row, col, obj_config, ObjectType::TempleT);
+  }
+
+  // Add object to grid
+  if (obj != nullptr) {
+    _grid->add_object(obj);
+
+    // Update stats
+    std::string stat = "objects." + object_type;
+    _stats->incr(stat);
+
+    // Set event manager for converters
+    Converter* converter = dynamic_cast<Converter*>(obj);
+    if (converter != nullptr) {
+      converter->set_event_manager(_event_manager.get());
+    }
+  }
+}
+
+void MettaGrid::parse_agent(const std::string& group_name,
+                            int row,
+                            int col,
+                            const nlohmann::json& agent_config,
+                            const nlohmann::json& group_config) {
+  // Merge agent and group configs
+  nlohmann::json merged_config = agent_config;
+  if (group_config.contains("props")) {
+    for (auto& [key, value] : group_config["props"].items()) {
+      merged_config[key] = value;
+    }
+  }
+
+  // Extract rewards
+  nlohmann::json rewards = merged_config.value("rewards", nlohmann::json::object());
+  if (merged_config.contains("rewards")) {
+    merged_config.erase("rewards");
+  }
+
+  // Convert to ObjectConfig for Agent creation
+  ObjectConfig obj_config;
+  for (auto& [key, value] : merged_config.items()) {
+    if (value.is_number_integer() || value.is_number_float()) {
+      obj_config[key] = static_cast<int>(value.get<double>());
+    }
+  }
+
+  // Build rewards map
+  std::map<std::string, float> cpp_rewards;
+  for (const auto& item : InventoryItemNames) {
+    // Default value is 0
+    cpp_rewards[item] = 0;
+    if (rewards.contains(item)) {
+      // Convert to float explicitly
+      cpp_rewards[item] = static_cast<float>(rewards[item].get<double>());
+    }
+
+    // Set max values
+    std::string max_key = item + "_max";
+    // Default max is 1000
+    cpp_rewards[max_key] = 1000.0f;
+    if (rewards.contains(max_key)) {
+      cpp_rewards[max_key] = static_cast<float>(rewards[max_key].get<double>());
+    }
+  }
+
+  // Create agent
+  unsigned int group_id = group_config["id"];
+  Agent* agent = new Agent(row, col, group_name, group_id, obj_config, cpp_rewards);
+  agent->agent_id = _agents.size();
+
+  // Add to grid and agent list
+  _grid->add_object(agent);
+  add_agent(agent);
+}
+
+void MettaGrid::setup_action_handlers(const nlohmann::json& cfg) {
+  std::vector<ActionHandler*> temp_handlers;
+
+  // Check each action type and add handlers if enabled
+  if (cfg.contains("actions")) {
+    auto& actions_cfg = cfg["actions"];
+
+    // PutRecipeItems
+    if (actions_cfg.contains("put_items") && actions_cfg["put_items"]["enabled"]) {
+      ActionConfig action_config;
+      for (auto& [key, value] : actions_cfg["put_items"].items()) {
+        if (value.is_number_integer()) {
+          action_config[key] = value;
+        }
+      }
+      temp_handlers.push_back(new PutRecipeItems(action_config));
+    }
+
+    // GetOutput
+    if (actions_cfg.contains("get_items") && actions_cfg["get_items"]["enabled"]) {
+      ActionConfig action_config;
+      for (auto& [key, value] : actions_cfg["get_items"].items()) {
+        if (value.is_number_integer()) {
+          action_config[key] = value;
+        }
+      }
+      temp_handlers.push_back(new GetOutput(action_config));
+    }
+
+    // Noop
+    if (actions_cfg.contains("noop") && actions_cfg["noop"]["enabled"]) {
+      ActionConfig action_config;
+      for (auto& [key, value] : actions_cfg["noop"].items()) {
+        if (value.is_number_integer()) {
+          action_config[key] = value;
+        }
+      }
+      temp_handlers.push_back(new Noop(action_config));
+    }
+
+    // Move
+    if (actions_cfg.contains("move") && actions_cfg["move"]["enabled"]) {
+      ActionConfig action_config;
+      for (auto& [key, value] : actions_cfg["move"].items()) {
+        if (value.is_number_integer()) {
+          action_config[key] = value;
+        }
+      }
+      temp_handlers.push_back(new Move(action_config));
+    }
+
+    // Rotate
+    if (actions_cfg.contains("rotate") && actions_cfg["rotate"]["enabled"]) {
+      ActionConfig action_config;
+      for (auto& [key, value] : actions_cfg["rotate"].items()) {
+        if (value.is_number_integer()) {
+          action_config[key] = value;
+        }
+      }
+      temp_handlers.push_back(new Rotate(action_config));
+    }
+
+    // Attack
+    if (actions_cfg.contains("attack") && actions_cfg["attack"]["enabled"]) {
+      ActionConfig action_config;
+      for (auto& [key, value] : actions_cfg["attack"].items()) {
+        if (value.is_number_integer()) {
+          action_config[key] = value;
+        }
+      }
+      temp_handlers.push_back(new Attack(action_config));
+      // For AttackNearest, reuse the same config
+      temp_handlers.push_back(new AttackNearest(action_config));
+    }
+
+    // Swap
+    if (actions_cfg.contains("swap") && actions_cfg["swap"]["enabled"]) {
+      ActionConfig action_config;
+      for (auto& [key, value] : actions_cfg["swap"].items()) {
+        if (value.is_number_integer()) {
+          action_config[key] = value;
+        }
+      }
+      temp_handlers.push_back(new Swap(action_config));
+    }
+
+    // ChangeColor
+    if (actions_cfg.contains("change_color") && actions_cfg["change_color"]["enabled"]) {
+      ActionConfig action_config;
+      for (auto& [key, value] : actions_cfg["change_color"].items()) {
+        if (value.is_number_integer()) {
+          action_config[key] = value;
+        }
+      }
+      temp_handlers.push_back(new ChangeColorAction(action_config));
+    }
+  }
+
+  // Initialize the action handlers and take ownership
+  init_action_handlers(temp_handlers);
+
+  // Clean up temporary handlers that have been cloned and are no longer needed
+  for (auto handler : temp_handlers) {
+    delete handler;
+  }
+}
+
+std::string MettaGrid::get_episode_stats_json() const {
+  nlohmann::json stats_json;
+
+  // Game stats
+  nlohmann::json game_stats;
+  std::map<std::string, int> cpp_stats = _stats->stats();
+  for (const auto& [key, value] : cpp_stats) {
+    game_stats[key] = value;
+  }
+  stats_json["game"] = game_stats;
+
+  // Agent stats
+  nlohmann::json agent_stats_array = nlohmann::json::array();
+  for (unsigned int i = 0; i < _agents.size(); i++) {
+    Agent* agent = _agents[i];
+    nlohmann::json agent_stats;
+    std::map<std::string, int> agent_stat_map = agent->stats.stats();
+
+    for (const auto& [key, value] : agent_stat_map) {
+      agent_stats[key] = value;
+    }
+
+    agent_stats_array.push_back(agent_stats);
+  }
+  stats_json["agent"] = agent_stats_array;
+
+  return stats_json.dump();
+}
+
+std::string MettaGrid::render_ascii() const {
+  // Create an empty grid filled with spaces
+  std::vector<std::vector<char>> grid(_grid->height, std::vector<char>(_grid->width, ' '));
+
+  // Iterate through objects and update grid
+  for (size_t obj_id = 1; obj_id < _grid->objects.size(); obj_id++) {
+    GridObject* obj = _grid->object(obj_id);
+    grid[obj->location.r][obj->location.c] = ObjectTypeAscii[obj->_type_id][0];
+  }
+
+  // Convert the 2D grid to a string representation
+  std::string result;
+  for (const auto& row : grid) {
+    for (char c : row) {
+      result += c;
+    }
+    result += '\n';  // Add newline after each row
+  }
+
+  return result;
 }

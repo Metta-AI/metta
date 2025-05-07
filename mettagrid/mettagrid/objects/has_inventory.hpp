@@ -4,8 +4,8 @@
 #include <map>
 #include <string>
 
-#include "constants.hpp"
-#include "metta_object.hpp"
+#include "objects/constants.hpp"
+#include "objects/metta_object.hpp"
 
 class HasInventory : public MettaObject {
 public:

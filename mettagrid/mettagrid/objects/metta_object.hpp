@@ -4,7 +4,7 @@
 #include <map>
 #include <string>
 
-#include "../grid_object.hpp"
+#include "grid_object.hpp"
 
 typedef std::map<std::string, int> ObjectConfig;
 

@@ -14,6 +14,10 @@ public:
     return 0;
   }
 
+  ActionHandler* clone() const override {
+    return new Noop(*this);
+  }
+
 protected:
   bool _handle_action(unsigned int actor_id, Agent* actor, ActionArg arg) override {
     return true;

@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-#include "../grid_object.hpp"
+#include "grid_object.hpp"
 
 enum Events {
   FinishConverting = 0,

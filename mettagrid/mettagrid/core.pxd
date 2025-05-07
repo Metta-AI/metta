@@ -48,67 +48,41 @@ cdef extern from "observation_encoder.hpp":
 cdef extern from "objects/agent.hpp":
     cdef cppclass Agent
 
-# Only keep the MettaGrid class definition
+# Updated MettaGrid class definition to match refactored C++ code
 cdef extern from "core.hpp":
     cdef cppclass MettaGrid:
-        # Constructor
-        MettaGrid(Grid* grid, unsigned int num_agents, unsigned int max_timestep, 
-                 unsigned short obs_width, unsigned short obs_height)
+        # Constructor - updated signature
+        MettaGrid(unsigned int map_width, 
+                 unsigned int map_height,
+                 unsigned int num_agents, 
+                 unsigned int max_timestep, 
+                 unsigned short obs_width, 
+                 unsigned short obs_height)
         
         # Core methods
-        void init_action_handlers(vector[ActionHandler*] action_handlers)
+        void init_action_handlers(const vector[ActionHandler*]& action_handlers)
         void add_agent(Agent* agent)
-        void compute_observation(unsigned observer_r, unsigned int observer_c,
-                               unsigned short obs_width, unsigned short obs_height,
-                               ObsType* observation)
-        void compute_observations(int** actions)
+        void initialize_from_json(const string& map_json, const string& config_json)
+        void reset()
         void step(int** actions)
         
-        # Getters
-        unsigned int current_timestep()
-        unsigned int map_width()
-        unsigned int map_height()
-        vector[string] grid_features()
-        unsigned int num_agents()
-        
-        # Reward decay methods
-        void enable_reward_decay(int decay_time_steps)
-        void disable_reward_decay()
-        
         # Observation methods
-        void observe(GridObjectId observer_id, unsigned short obs_width,
-                    unsigned short obs_height, ObsType* observation)
-        void observe_at(unsigned short row, unsigned short col,
-                       unsigned short obs_width, unsigned short obs_height,
+        void compute_observation(unsigned short observer_r, 
+                               unsigned short observer_c,
+                               unsigned short obs_width, 
+                               unsigned short obs_height,
+                               ObsType* observation)
+        void compute_observations(int** actions)
+        void observe(GridObjectId observer_id, 
+                    unsigned short obs_width,
+                    unsigned short obs_height, 
+                    ObsType* observation)
+        void observe_at(unsigned short row, 
+                       unsigned short col,
+                       unsigned short obs_width, 
+                       unsigned short obs_height,
                        ObsType* observation)
                        
-        # Accessors
-        float* get_episode_rewards()
-        vector[bool] action_success()
-        vector[unsigned char] max_action_args()
-
-        # Buffer management
-        void set_buffers(ObsType* observations,
-                  char* terminals,
-                  char* truncations,
-                  float* rewards,
-                  float* episode_rewards,
-                  unsigned int num_agents)
-        
-        # Group rewards
-        void init_group_rewards(double* group_rewards, unsigned int size)
-        void compute_group_rewards(float* rewards)
-        void set_group_reward_pct(unsigned int group_id, float pct)
-        void set_group_size(unsigned int group_id, unsigned int size)
-        
-        # Event management
-        void init_event_manager(EventManager* event_manager)
-        EventManager* get_event_manager()
-
-        # Stats tracking
-        StatsTracker* stats()
-        void set_stats(StatsTracker* s)
-        
         # Observation utilities
         void observation_at(ObsType* flat_buffer,
                       unsigned int obs_width,
@@ -125,3 +99,34 @@ cdef extern from "core.hpp":
                           unsigned int r,
                           unsigned int c,
                           const ObsType* values)
+        
+        # Getters - now returning const references to vectors
+        const vector[ObsType]& get_observations() const
+        const vector[char]& get_terminals() const
+        const vector[char]& get_truncations() const
+        const vector[float]& get_rewards() const
+        const vector[float]& get_episode_rewards() const
+        const vector[double]& get_group_rewards() const
+        
+        # Status and environment information
+        unsigned int current_timestep() const
+        unsigned int map_width() const
+        unsigned int map_height() const
+        vector[string] grid_features() const
+        unsigned int num_agents() const
+        vector[char] action_success() const
+        vector[unsigned char] max_action_args() const
+        const vector[Agent*]& get_agents() const
+        
+        # Reward management
+        void enable_reward_decay(int decay_time_steps)
+        void disable_reward_decay()
+        void compute_group_rewards(float* rewards)
+        void set_group_reward_pct(unsigned int group_id, float pct)
+        void set_group_size(unsigned int group_id, unsigned int size)
+        
+        # Stats and management
+        StatsTracker* stats() const
+        EventManager* get_event_manager()
+        string get_episode_stats_json() const
+        string render_ascii() const

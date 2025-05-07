@@ -4,10 +4,10 @@
 #include <string>
 #include <vector>
 
-#include "../grid_object.hpp"
-#include "../stats_tracker.hpp"
-#include "constants.hpp"
-#include "metta_object.hpp"
+#include "grid_object.hpp"
+#include "objects/constants.hpp"
+#include "objects/metta_object.hpp"
+#include "stats_tracker.hpp"
 
 class Agent : public MettaObject {
 public:

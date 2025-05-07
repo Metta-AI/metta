@@ -1,11 +1,11 @@
 #ifndef PRODUCTION_HANDLER_HPP
 #define PRODUCTION_HANDLER_HPP
 
-#include "../event.hpp"
-#include "../grid.hpp"
-#include "../stats_tracker.hpp"
-#include "constants.hpp"
-#include "converter.hpp"
+#include "event.hpp"
+#include "grid.hpp"
+#include "objects/constants.hpp"
+#include "objects/converter.hpp"
+#include "stats_tracker.hpp"
 
 // Handles the FinishConverting event
 class ProductionHandler : public EventHandler {

@@ -17,6 +17,10 @@ public:
     return 0;
   }
 
+  ActionHandler* clone() const override {
+    return new GetOutput(*this);
+  }
+
 protected:
   bool _handle_action(unsigned int actor_id, Agent* actor, ActionArg arg) override {
     GridLocation target_loc = _grid->relative_location(actor->location, static_cast<Orientation>(actor->orientation));

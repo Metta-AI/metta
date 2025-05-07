@@ -4,7 +4,6 @@
 #include <string>
 
 #include "action_handler.hpp"
-#include "grid_object.hpp"
 #include "objects/agent.hpp"
 #include "objects/constants.hpp"
 #include "objects/metta_object.hpp"
@@ -17,6 +16,10 @@ public:
 
   unsigned char max_arg() const override {
     return 9;
+  }
+
+  ActionHandler* clone() const override {
+    return new Attack(*this);
   }
 
 protected:

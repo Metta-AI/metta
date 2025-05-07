@@ -14,6 +14,10 @@ public:
     return 3;
   }
 
+  ActionHandler* clone() const override {
+    return new ChangeColorAction(*this);
+  }
+
 protected:
   bool _handle_action(unsigned int actor_id, Agent* actor, ActionArg arg) override {
     if (arg == 0) {  // Increment

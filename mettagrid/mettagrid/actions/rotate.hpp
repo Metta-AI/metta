@@ -14,6 +14,10 @@ public:
     return 3;
   }
 
+  ActionHandler* clone() const override {
+    return new Rotate(*this);
+  }
+
 protected:
   bool _handle_action(unsigned int actor_id, Agent* actor, ActionArg arg) override {
     unsigned short orientation = arg;
