@@ -32,21 +32,17 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         # TODO -- fix magic numbers 34, 11, and 2
         # TODO -- typedef ActionType
+        obs_channels = 34
 
-        # If buf is None, create a buffer with correct dimensions
-        if buf is None:
-            obs_channels = 34
-            buf = {
-                "observations": np.zeros((num_agents, 11, 11, obs_channels)),
-                "terminals": np.zeros((num_agents,), dtype=bool),
-                "truncations": np.zeros((num_agents,), dtype=bool),
-                "rewards": np.zeros((num_agents,), dtype=float),
-                "actions": np.zeros((num_agents, 2), dtype=np.int32),
-                "masks": np.ones((num_agents,), dtype=bool),
-            }
-
-            # Convert dictionary to object with attributes
-            buf_obj = SimpleNamespace(**buf)
+        # force buffers to the correct size
+        buf = {
+            "observations": np.zeros((num_agents, 11, 11, obs_channels)),
+            "terminals": np.zeros((num_agents,), dtype=bool),
+            "truncations": np.zeros((num_agents,), dtype=bool),
+            "rewards": np.zeros((num_agents,), dtype=float),
+            "actions": np.zeros((num_agents, 2), dtype=np.int32),
+            "masks": np.ones((num_agents,), dtype=bool),
+        }
 
         buf_obj = SimpleNamespace(**buf)
 
@@ -134,12 +130,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         # Ensure actions are int32 as required by the C++ binding
         self.actions[:] = actions.astype(np.int32, copy=False)
-
-        # Debug: Check type before passing to C
-        print(f"Actions dtype: {self.actions.dtype}")
-        print(f"Actions shape: {self.actions.shape}")
-        print(f"Actions C-contiguous: {self.actions.flags['C_CONTIGUOUS']}")
-
         self._c_env.step(self.actions)
 
         if self._env_cfg.normalize_rewards:
