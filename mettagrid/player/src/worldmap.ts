@@ -203,8 +203,8 @@ function drawObjects() {
   }
 }
 
+// Draw actions above the objects.
 function drawActions() {
-  // Draw actions above the objects.
   for (const gridObject of state.replay.grid_objects) {
     const x = getAttr(gridObject, "c")
     const y = getAttr(gridObject, "r")
@@ -300,8 +300,8 @@ function drawActions() {
   }
 }
 
+// Draw the object's inventory.
 function drawInventory() {
-  // Draw the object's inventory.
   for (const gridObject of state.replay.grid_objects) {
     const x = getAttr(gridObject, "c")
     const y = getAttr(gridObject, "r")
@@ -332,8 +332,8 @@ function drawInventory() {
   }
 }
 
+// Draw the rewards on the bottom of the object.
 function drawRewards() {
-  // Draw the reward on the bottom of the object.
   for (const gridObject of state.replay.grid_objects) {
     const x = getAttr(gridObject, "c")
     const y = getAttr(gridObject, "r")
@@ -356,6 +356,7 @@ function drawRewards() {
   }
 }
 
+// Draw the selection of the selected object.
 function drawSelection() {
   if (state.selectedGridObject === null) {
     return;
@@ -366,6 +367,7 @@ function drawSelection() {
   ctx.drawSprite("selection.png", x * Common.TILE_SIZE, y * Common.TILE_SIZE);
 }
 
+// Draw the trajectory of the selected object, footprints or future arrow.
 function drawTrajectory() {
   if (state.selectedGridObject === null) {
     return;
@@ -444,6 +446,7 @@ function drawTrajectory() {
   }
 }
 
+// Draw the visibility map either agent view ranges or fog of war.
 function drawVisibility() {
 
   if (state.showViewRanges || state.showFogOfWar) {
@@ -502,11 +505,10 @@ function drawVisibility() {
         }
       }
     }
-
-    console.log("done drawing visibility");
   }
 }
 
+// Draw the grid.
 function drawGrid() {
   if (state.showGrid) {
     for (let x = 0; x < state.replay.map_size[0]; x++) {
