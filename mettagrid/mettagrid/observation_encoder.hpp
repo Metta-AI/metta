@@ -41,7 +41,9 @@ public:
       for (size_t i = 0; i < _type_feature_names[type_id].size(); ++i) {
         std::string feature_name = _type_feature_names[type_id][i];
         if (features.count(feature_name) == 0) {
+          printf("Adding feature: (%s, %zu)\n", feature_name.c_str(), features.size());
           features[feature_name] = features.size();
+          printf("Feature %s index: %zu\n", feature_name.c_str(), features[feature_name]);
           _feature_names.push_back(feature_name);
         }
       }
