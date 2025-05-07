@@ -49,7 +49,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             f"Number of agents {self._env_cfg.game.num_agents} does not match number of agents in map {map_agents}"
         )
 
-        # Count number of agents per team
+        # Count number of agents per group
         group_counts = {t: None for t in self._group_names}
         for r in range(env_map.shape[0]):
             for c in range(env_map.shape[1]):
@@ -57,7 +57,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                     group = env_map[r, c].split(".")[1]
                     if group not in self._group_names:
                         raise ValueError(f"Group {group} not in {self._group_names}")
-                    # only track teams we have in the map
+                    # only track groups we have in the map
                     if group_counts[group] is None:
                         group_counts[group] = 0
                     group_counts[group] += 1
@@ -100,7 +100,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         return self.observations, self.rewards, self.terminals, self.truncations, infos
 
     def process_episode_stats(self, infos: Dict[str, Any]):
-        # group rewards is a list of length teams
+        # group rewards is a list of length groups
         # episode rewards is a list of length num_agents
         episode_rewards = self._c_env.get_episode_rewards()
 
