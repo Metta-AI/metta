@@ -126,6 +126,9 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
     for (int r = 0; r < map_info.shape[0]; r++) {
         for (int c = 0; c < map_info.shape[1]; c++) {
             ssize_t idx = r * map_info.shape[1] + c;
+            // xcxc will using a unique_ptr mean that the object is deleted when the unique_ptr goes out of scope?
+            // Will that mess up the grid?
+            std::unique_ptr<Converter> converter = nullptr;
             std::string cell = py::cast<std::string>(map_data[idx]);
             
             if (cell == "wall") {
@@ -143,12 +146,77 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
                 if (m.find('.') == std::string::npos) {
                     m = "mine.red";
                 }
-                auto converter = std::make_unique<Converter>(r, c, cfg["objects"][py::str(m)].cast<ObjectConfig>(), ObjectType::MineT);
+                converter = std::make_unique<Converter>(r, c, cfg["objects"][py::str(m)].cast<ObjectConfig>(), ObjectType::MineT);
                 _grid->add_object(converter.get());
-                converter->set_event_manager(_event_manager.get());
                 _stats->incr("objects." + cell);
             }
-            // xcxc: Add other object types
+            else if (cell.starts_with("generator")) {
+                std::string m = cell;
+                if (m.find('.') == std::string::npos) {
+                    m = "generator.red";
+                }
+                converter = std::make_unique<Converter>(r, c, cfg["objects"][py::str(m)].cast<ObjectConfig>(), ObjectType::GeneratorT);
+                _grid->add_object(converter.get());
+                _stats->incr("objects." + cell);
+            }
+            else if (cell == "altar") {
+                converter = std::make_unique<Converter>(r, c, cfg["objects"]["altar"].cast<ObjectConfig>(), ObjectType::AltarT);
+                _grid->add_object(converter.get());
+                _stats->incr("objects.altar");
+            }
+            else if (cell == "armory") {
+                converter = std::make_unique<Converter>(r, c, cfg["objects"]["armory"].cast<ObjectConfig>(), ObjectType::ArmoryT);
+                _grid->add_object(converter.get());
+                _stats->incr("objects.armory");
+            }
+            else if (cell == "lasery") {
+                converter = std::make_unique<Converter>(r, c, cfg["objects"]["lasery"].cast<ObjectConfig>(), ObjectType::LaseryT);
+                _grid->add_object(converter.get());
+                _stats->incr("objects.lasery");
+            }
+            else if (cell == "lab") {
+                converter = std::make_unique<Converter>(r, c, cfg["objects"]["lab"].cast<ObjectConfig>(), ObjectType::LabT);
+                _grid->add_object(converter.get());
+                _stats->incr("objects.lab");
+            }
+            else if (cell == "factory") {
+                converter = std::make_unique<Converter>(r, c, cfg["objects"]["factory"].cast<ObjectConfig>(), ObjectType::FactoryT);
+                _grid->add_object(converter.get());
+                _stats->incr("objects.factory");
+            }
+            else if (cell == "temple") {
+                converter = std::make_unique<Converter>(r, c, cfg["objects"]["temple"].cast<ObjectConfig>(), ObjectType::TempleT);
+                _grid->add_object(converter.get());
+                _stats->incr("objects.temple");
+            }
+            else if (cell.starts_with("agent.")) {
+                std::string group_name = cell.substr(6);
+                auto group = groups[py::str(group_name)].cast<py::dict>();
+                auto agent_cfg = cfg["agent"].cast<ObjectConfig>();
+                // xcxc something like this?
+                // auto merged_cfg = py::dict(agent_cfg) + group["props"].cast<py::dict>();
+                // auto agent_cfg = OmegaConf.to_container(OmegaConf.merge(
+                //         cfg.agent, cfg.groups[group_name].props))
+                // xcxc
+                // auto rewards = agent_cfg.get("rewards", {});
+                // del agent_cfg["rewards"];
+                // for (const auto& inv_item : InventoryItemNames) {
+                //     rewards[inv_item] = rewards.get(inv_item, 0);
+                //     rewards[inv_item + "_max"] = rewards.get(inv_item + "_max", 1000);
+                // }
+                unsigned int group_id = group["id"].cast<unsigned int>();
+                auto agent = std::make_unique<Agent>(r, c, group_name, group_id, agent_cfg, std::map<std::string, float>());
+                _grid->add_object(agent.get());
+                agent->agent_id = _agents.size();
+                add_agent(agent.get());
+                _group_sizes[group_id] += 1;
+            }
+            if (converter != nullptr) {
+                _stats->incr("objects." + cell);
+                _grid->add_object(converter.get());
+                converter->set_event_manager(_event_manager.get());
+                converter = nullptr;
+            }
         }
     }
 }
