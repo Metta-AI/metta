@@ -25,17 +25,16 @@ if [ -z "$CI" ]; then
   echo -e "\n\nUninstalling all old python packages...\n\n"
   pip freeze | grep -v "^-e" > requirements_to_remove.txt
   pip uninstall -y -r requirements_to_remove.txt
-  rm requirements_to_remove.txt
+  rm requirements_to_remove.txt  
 fi
-
-# ========== INSTALL PACKAGES BEFORE BUILD ==========
-echo -e "\n\nInstalling main project requirements...\n\n"
-pip install pettingzoo==1.25.0 --no-deps  # Install pettingzoo without dependencies
-pip install -c requirements.txt -r requirements.txt
 
 # ========== CHECKOUT AND BUILD DEPENDENCIES ==========
 echo -e "\n\nCalling devops/checkout_and_build script...\n\n"
 bash "$SCRIPT_DIR/checkout_and_build.sh"
+
+# ========== INSTALL PACKAGES AFTER BUILDING DEPS ==========
+echo -e "\n\nInstalling main project requirements...\n\n"
+pip install -c requirements.txt -r requirements.txt
 
 # ========== BUILD FAST_GAE ==========
 echo -e "\n\nBuilding from setup.py (metta cython components)\n\n"
