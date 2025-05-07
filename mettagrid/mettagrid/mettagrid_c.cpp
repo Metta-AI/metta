@@ -34,7 +34,7 @@ namespace py = pybind11;
 // TODO: see where we can simplify numpy array manipulations.
 
 // Constructor implementation
-MettaGrid::MettaGrid(py::dict env_cfg, py::array_t<char*> map) {
+MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
     auto cfg = env_cfg["game"].cast<py::dict>();
     _cfg = cfg;
     
@@ -122,10 +122,11 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array_t<char*> map) {
     }
     
     // Initialize objects from map
-    auto map_data = map.unchecked<2>();
+    auto map_data = static_cast<py::object*>(map_info.ptr);
     for (int r = 0; r < map_info.shape[0]; r++) {
         for (int c = 0; c < map_info.shape[1]; c++) {
-            std::string cell = map_data(r, c);
+            ssize_t idx = r * map_info.shape[1] + c;
+            std::string cell = py::cast<std::string>(map_data[idx]);
             
             if (cell == "wall") {
                 auto wall = std::make_unique<Wall>(r, c, cfg["objects"]["wall"].cast<ObjectConfig>());
