@@ -57,6 +57,13 @@ public:
 
   void encode(const GridObject* obj, ObsType* obs) {
     encode(obj, obs, _offsets[obj->_type_id]);
+    // print offsets
+    printf("Offsets: ");
+    for (size_t i = 0; i < _offsets[obj->_type_id].size(); ++i) {
+      printf("%d ", _offsets[obj->_type_id][i]);
+    }
+    printf("\n");
+
     // print the first non-zero value of obs
     bool found = false;
     for (size_t i = 0; i < 10; ++i) {
