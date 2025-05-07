@@ -57,6 +57,18 @@ public:
 
   void encode(const GridObject* obj, ObsType* obs) {
     encode(obj, obs, _offsets[obj->_type_id]);
+    // print the first non-zero value of obs
+    bool found = false;
+    for (size_t i = 0; i < 10; ++i) {
+      if (obs[i] != 0) {
+        printf("First non-zero value cpp: index %zu, value %d\n", i, (int)obs[i]);
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      printf("No non-zero values found cpp\n");
+    }
   }
 
   void encode(const GridObject* obj, ObsType* obs, const std::vector<unsigned int>& offsets) {

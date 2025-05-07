@@ -162,7 +162,7 @@ class Simulation:
 
     def print_tensor(self, tensor: torch.Tensor) -> str:
         """Print a tensor as a string."""
-        one_d = tensor.flatten().cpu().numpy()
+        one_d = tensor.flatten()
         # Build object with non-zero values
         obj = {}
         for i, value in enumerate(one_d):
@@ -191,6 +191,10 @@ class Simulation:
         logger.info(f"Replay path: {self._replay_path}")
 
         obs, _ = self._vecenv.reset()
+
+        print(f"First obs: {self.print_tensor(obs)}")
+        raise Exception("Stop here")
+
         policy_state = PolicyState()
         npc_state = PolicyState()
 

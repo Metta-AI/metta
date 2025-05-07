@@ -40,6 +40,8 @@ from mettagrid.actions.noop cimport Noop
 from mettagrid.actions.swap cimport Swap
 from mettagrid.actions.change_color cimport ChangeColorAction
 
+from libc.stdio cimport printf
+
 # Constants
 obs_np_type = np.uint8
 ctypedef unsigned int ActionType
@@ -250,6 +252,17 @@ cdef class MettaGrid:
         agent.init(&self._rewards[self._agents.size()])
         self._agents.push_back(agent)
 
+    cdef void _print_first_non_zero(self, ObsType[:] obs):
+        cdef unsigned int i
+        cdef unsigned char obs_value
+        
+        for i in range(len(obs)):
+            if obs[i] != 0:
+                obs_value = obs[i]
+                printf("First non-zero cython: index %d, value %d\n", i, obs_value)
+                return
+        printf("No non-zero values found\n")
+
     cdef void _compute_observation(
         self,
         unsigned observer_r, unsigned int observer_c,
@@ -283,7 +296,7 @@ cdef class MettaGrid:
                     obs_c = object_loc.c + obs_width_r - observer_c
                     agent_ob = observation[obs_r, obs_c, :]
                     self._obs_encoder.encode(obj, &agent_ob[0])
-
+                    self._print_first_non_zero(agent_ob)
     cdef void _compute_observations(self, int[:,:] actions):
         cdef Agent *agent
         for idx in range(self._agents.size()):
