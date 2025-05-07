@@ -54,12 +54,23 @@ public:
       }
     }
 
+    // Print all type feature names
+    printf("Type feature names: \n");
+    for (size_t i = 0; i < ObjectType::Count; ++i) {
+      printf("Type %zu: [", i);
+      for (size_t j = 0; j < _type_feature_names[i].size(); ++j) {
+        printf("%s, ", _type_feature_names[i][j].c_str());
+      }
+      printf("]\n");
+    }
+    printf("\n");
+
     // Print all offsets
     printf("Offsets: \n");
     for (size_t i = 0; i < _offsets.size(); ++i) {
       printf("Type %zu: ,[", i);
       for (size_t j = 0; j < _offsets[i].size(); ++j) {
-        printf("%d ", _offsets[i][j]);
+        printf("%d, ", _offsets[i][j]);
       }
       printf("]\n");
     }
