@@ -213,7 +213,7 @@ function onKeyDown(event: KeyboardEvent) {
   }
   // If space make it press the play button.
   if (event.key == " ") {
-    onPlayButtonClick();
+    setIsPlaying(!state.isPlaying);
   }
   requestFrame();
 }
@@ -286,19 +286,6 @@ function handleDrop(event: DragEvent) {
   }
 }
 
-// Handle play button click
-function onPlayButtonClick() {
-  state.isPlaying = !state.isPlaying;
-
-  if (state.isPlaying) {
-    html.playButton.setAttribute("src", "data/ui/pause.png");
-  } else {
-    html.playButton.setAttribute("src", "data/ui/play.png");
-  }
-
-  requestFrame();
-}
-
 // Parse URL parameters, and modify the map and trace panels accordingly.
 async function parseUrlParams() {
 
@@ -327,7 +314,7 @@ async function parseUrlParams() {
 
   // Set the playing state.
   if (urlParams.get('play') !== null) {
-    state.isPlaying = urlParams.get('play') === "true";
+    setIsPlaying(urlParams.get('play') === "true");
     console.info("Playing state via query parameter:", state.isPlaying);
   }
 
@@ -367,9 +354,26 @@ function onShareButtonClick() {
   Common.showToast("URL copied to clipboard");
 }
 
+function setIsPlaying(isPlaying: boolean) {
+  state.isPlaying = isPlaying;
+  if (state.isPlaying) {
+    html.playButton.setAttribute("src", "data/ui/pause.png");
+  } else {
+    html.playButton.setAttribute("src", "data/ui/play.png");
+  }
+  requestFrame();
+}
+
+// Set the playback speed and update the speed buttons.
 function setPlaybackSpeed(speed: number) {
-  return () => {
-    state.playbackSpeed = speed;
+  state.playbackSpeed = speed;
+  // Update the speed buttons to show the current speed.
+  for (let i = 0; i < html.speedButtons.length; i++) {
+    if (Common.SPEEDS[i] <= speed) {
+      html.speedButtons[i].style.opacity = "1";
+    } else {
+      html.speedButtons[i].style.opacity = "0.2";
+    }
   }
 }
 
@@ -395,28 +399,28 @@ html.mainFilter.style.display = "none"; // Hide the main filter for now.
 // Bottom area
 html.scrubber.addEventListener('input', onScrubberChange);
 
-html.rewindToStartButton.addEventListener('click', () => {
-  updateStep(0);
-});
-html.stepBackButton.addEventListener('click', () => {
-  updateStep(Math.max(state.step - 1, 0));
-});
-html.playButton.addEventListener('click', onPlayButtonClick);
-html.stepForwardButton.addEventListener('click', () => {
-  updateStep(Math.min(state.step + 1, state.replay.max_steps - 1));
-});
-html.rewindToEndButton.addEventListener('click', () => {
-  updateStep(state.replay.max_steps - 1);
-});
+html.rewindToStartButton.addEventListener('click', () =>
+  updateStep(0)
+);
+html.stepBackButton.addEventListener('click', () =>
+  updateStep(Math.max(state.step - 1, 0))
+);
+html.playButton.addEventListener('click', () =>
+  setIsPlaying(!state.isPlaying)
+);
+html.stepForwardButton.addEventListener('click', () =>
+  updateStep(Math.min(state.step + 1, state.replay.max_steps - 1))
+);
+html.rewindToEndButton.addEventListener('click', () =>
+  updateStep(state.replay.max_steps - 1)
+);
 
 // Speed buttons
-html.speed1Button.addEventListener('click', setPlaybackSpeed(0.01));
-html.speed2Button.addEventListener('click', setPlaybackSpeed(0.1));
-html.speed3Button.addEventListener('click', setPlaybackSpeed(0.25));
-html.speed4Button.addEventListener('click', setPlaybackSpeed(0.5));
-html.speed5Button.addEventListener('click', setPlaybackSpeed(1.0));
-html.speed6Button.addEventListener('click', setPlaybackSpeed(5.0));
-
+for (let i = 0; i < html.speedButtons.length; i++) {
+  html.speedButtons[i].addEventListener('click',
+    () => setPlaybackSpeed(Common.SPEEDS[i])
+  );
+}
 
 window.addEventListener('load', async () => {
 
@@ -437,6 +441,7 @@ window.addEventListener('load', async () => {
   }
 
   await parseUrlParams();
+  setPlaybackSpeed(0.1);
 
   requestFrame();
 });

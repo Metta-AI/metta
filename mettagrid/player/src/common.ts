@@ -15,6 +15,7 @@ export const DEFAULT_TRACE_SPLIT = 0.75;  // default horizontal split ratio
 export const PANEL_BOTTOM_MARGIN = 60;    // bottom margin for panels
 export const HEADER_HEIGHT = 60;          // height of the header
 export const SCRUBBER_HEIGHT = 120;        // height of the scrubber
+export const SPEEDS = [0.02, 0.1, 0.25, 0.5, 1.0, 5.0];
 
 // Map constants
 export const TILE_SIZE = 200;
@@ -87,12 +88,14 @@ export const html = {
   stepForwardButton: document.getElementById('step-forward') as HTMLImageElement,
   rewindToEndButton: document.getElementById('rewind-to-end') as HTMLImageElement,
 
-  speed1Button: document.getElementById('speed1') as HTMLImageElement,
-  speed2Button: document.getElementById('speed2') as HTMLImageElement,
-  speed3Button: document.getElementById('speed3') as HTMLImageElement,
-  speed4Button: document.getElementById('speed4') as HTMLImageElement,
-  speed5Button: document.getElementById('speed5') as HTMLImageElement,
-  speed6Button: document.getElementById('speed6') as HTMLImageElement,
+  speedButtons: [
+    document.getElementById('speed1') as HTMLImageElement,
+    document.getElementById('speed2') as HTMLImageElement,
+    document.getElementById('speed3') as HTMLImageElement,
+    document.getElementById('speed4') as HTMLImageElement,
+    document.getElementById('speed5') as HTMLImageElement,
+    document.getElementById('speed6') as HTMLImageElement,
+  ],
 
   sortView: document.getElementById('sort') as HTMLImageElement,
   focusView: document.getElementById('tack') as HTMLImageElement,
