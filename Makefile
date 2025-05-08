@@ -1,4 +1,4 @@
-.PHONY: help all install build test clean 
+.PHONY: help all reinstall install build test clean 
 
 # Default target when just running 'make'
 help:
@@ -17,7 +17,7 @@ clean:
 	find . -type d -name '*.egg-info' -exec rm -rf {} +
 	find . -type f -name '.coverage' -delete
 	@echo "Cleaning mettagrid build artifacts..."
-	cd mettagrid && $(MAKE) 
+	cd mettagrid && $(MAKE) clean
 	
 # Install all project dependencies and external components
 install:

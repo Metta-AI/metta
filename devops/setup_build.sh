@@ -4,6 +4,26 @@
 # Exit immediately if a command exits with a non-zero status
 set -e
 
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+
+# ========== CLEAN BUILD ARTIFACTS ==========
+echo -e "\n\nCleaning build artifacts...\n\n"
+# Clean root directory artifacts
+find "$PROJECT_DIR" -type f -name '*.so' -delete
+find "$PROJECT_DIR" -type d -name '__pycache__' -exec rm -rf {} +
+find "$PROJECT_DIR" -type d -name 'build' -exec rm -rf {} +
+find "$PROJECT_DIR" -type d -name '*.egg-info' -exec rm -rf {} +
+find "$PROJECT_DIR" -type f -name '.coverage' -delete
+echo "✅ Cleaned root directory build artifacts"
+
+# Clean mettagrid artifacts if directory exists
+if [ -d "$PROJECT_DIR/mettagrid" ]; then
+  echo "Cleaning mettagrid build artifacts..."
+  find "$PROJECT_DIR/mettagrid" -name "*.so" -type f -delete
+  echo "✅ Removed .so files from mettagrid directory"
+fi
+
 if [ -f /.dockerenv ]; then
   export IS_DOCKER=true
 else
@@ -15,8 +35,6 @@ if [ "$CONDA_DEFAULT_ENV" != "metta" ] && [ -z "$CI" ] && [ -z "$IS_DOCKER" ]; t
   echo "WARNING: You must be in the 'metta' conda environment to run this script."
   echo "Please activate the correct environment with: \"conda activate metta\""
 fi
-
-SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 
 # ========== Main Project ==========
 cd "$SCRIPT_DIR/.."
