@@ -1,5 +1,5 @@
 """
-Unit tests for get_matrix_data function with StatsDB focusing on different view types.
+Unit tests for get_heatmap_matrix function with StatsDB focusing on different view types.
 """
 
 import tempfile
@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from metta.eval.dashboard.heatmap import get_matrix_data
+from metta.eval.dashboard.heatmap import get_heatmap_matrix
 from metta.sim.simulation_stats_db import StatsDB
 
 
@@ -117,9 +117,9 @@ def sample_stats_db():
         db.close()
 
 
-def test_get_matrix_data_all(sample_stats_db):
-    """Test get_matrix_data with 'all' view type."""
-    matrix = get_matrix_data(sample_stats_db, "episode_reward", view_type="all")
+def test_get_heatmap_matrix_all(sample_stats_db):
+    """Test get_heatmap_matrix with 'all' view type."""
+    matrix = get_heatmap_matrix(sample_stats_db, "episode_reward", view_type="all")
 
     # Should include all versions of all policies
     assert len(matrix) == 6  # 6 total policy versions
@@ -139,9 +139,9 @@ def test_get_matrix_data_all(sample_stats_db):
     assert policies_by_score[-1] == "policy1:3"
 
 
-def test_get_matrix_data_latest(sample_stats_db):
-    """Test get_matrix_data with 'latest' view type."""
-    matrix = get_matrix_data(sample_stats_db, "episode_reward", view_type="latest")
+def test_get_heatmap_matrix_latest(sample_stats_db):
+    """Test get_heatmap_matrix with 'latest' view type."""
+    matrix = get_heatmap_matrix(sample_stats_db, "episode_reward", view_type="latest")
 
     # Should only include the latest version for each policy
     assert len(matrix) == 3  # 3 policies
@@ -165,9 +165,9 @@ def test_get_matrix_data_latest(sample_stats_db):
     assert policy_order[-1] == "policy1:3"  # Highest score
 
 
-def test_get_matrix_data_with_policy_filter_all(sample_stats_db):
-    """Test get_matrix_data with 'all' view type and policy filter."""
-    matrix = get_matrix_data(sample_stats_db, "episode_reward", view_type="all", policy_uri="policy1")
+def test_get_heatmap_matrix_with_policy_filter_all(sample_stats_db):
+    """Test get_heatmap_matrix with 'all' view type and policy filter."""
+    matrix = get_heatmap_matrix(sample_stats_db, "episode_reward", view_type="all", policy_uri="policy1")
 
     # Should include all versions of policy1
     assert len(matrix) == 3  # 3 versions of policy1
@@ -190,9 +190,9 @@ def test_get_matrix_data_with_policy_filter_all(sample_stats_db):
     assert policy_order[-1] == "policy1:3"  # Highest score among policy1 versions
 
 
-def test_get_matrix_data_with_policy_filter_latest(sample_stats_db):
-    """Test get_matrix_data with 'latest' view type and policy filter."""
-    matrix = get_matrix_data(sample_stats_db, "episode_reward", view_type="latest", policy_uri="policy1")
+def test_get_heatmap_matrix_with_policy_filter_latest(sample_stats_db):
+    """Test get_heatmap_matrix with 'latest' view type and policy filter."""
+    matrix = get_heatmap_matrix(sample_stats_db, "episode_reward", view_type="latest", policy_uri="policy1")
 
     # Should include only the latest version of policy1
     assert len(matrix) == 1
@@ -203,10 +203,10 @@ def test_get_matrix_data_with_policy_filter_latest(sample_stats_db):
     assert "policy1:2" not in matrix.index
 
 
-def test_get_matrix_data_num_output_policies(sample_stats_db):
-    """Test get_matrix_data with 'num_output_policies' parameter."""
-    all_matrix = get_matrix_data(sample_stats_db, "episode_reward", view_type="all")
-    limited_matrix = get_matrix_data(sample_stats_db, "episode_reward", view_type="all", num_output_policies=2)
+def test_get_heatmap_matrix_num_output_policies(sample_stats_db):
+    """Test get_heatmap_matrix with 'num_output_policies' parameter."""
+    all_matrix = get_heatmap_matrix(sample_stats_db, "episode_reward", view_type="all")
+    limited_matrix = get_heatmap_matrix(sample_stats_db, "episode_reward", view_type="all", num_output_policies=2)
 
     # Check that the limited matrix has only the requested number of policies
     assert len(limited_matrix) == 2
@@ -217,7 +217,7 @@ def test_get_matrix_data_num_output_policies(sample_stats_db):
     assert limited_matrix.index.tolist() == all_matrix.index.tolist()[-2:]
 
 
-def test_get_matrix_data_empty_result(sample_stats_db):
-    """Test get_matrix_data when no data is found for the specified metric."""
+def test_get_heatmap_matrix_empty_result(sample_stats_db):
+    """Test get_heatmap_matrix when no data is found for the specified metric."""
     with pytest.raises(ValueError):
-        _ = get_matrix_data(sample_stats_db, "nonexistent_metric")
+        _ = get_heatmap_matrix(sample_stats_db, "nonexistent_metric")

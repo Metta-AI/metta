@@ -3,7 +3,7 @@ from typing import Literal
 from metta.util.config import Config
 
 
-class PolicyStatsConfig(Config):
+class AnalysisConfig(Config):
     metrics: list[str]
     # Input database
     eval_db_uri: str

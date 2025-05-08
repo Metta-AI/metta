@@ -372,7 +372,7 @@ def create_heatmap_html_snippet(
 """
 
 
-def get_matrix_data(
+def get_heatmap_matrix(
     stats_db: StatsDB,
     metric: str,
     view_type: Literal["latest", "all"] = "latest",

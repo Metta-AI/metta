@@ -57,6 +57,8 @@ class PolicyRecord:
     def key_and_version(self) -> tuple[str, int]:
         """
         Extract the policy key and version from the URI.
+        TODO: store these on the metadata for new policies,
+        eventually read them from the metadata instead of parsing the URI.
 
         Returns:
             tuple: (policy_key, version)

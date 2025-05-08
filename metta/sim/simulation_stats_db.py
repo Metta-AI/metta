@@ -54,7 +54,9 @@ class SimulationStatsDB(EpisodeStatsDB):
         super().__init__(path)
 
     def tables(self) -> Dict[str, str]:
-        """Return all tables in the database."""
+        """Add simulation tables to the parent tables.
+        super().initialize_schema() will read this to initialize the schema.
+        """
         parent_tables = super().tables()
         return {**parent_tables, **SIMULATION_DB_TABLES}
 

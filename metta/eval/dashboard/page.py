@@ -11,7 +11,7 @@ import logging
 from typing import List, Literal
 
 from metta.eval.analysis_config import AnalyzerConfig
-from metta.eval.dashboard.heatmap import create_heatmap_html_snippet, get_matrix_data
+from metta.eval.dashboard.heatmap import create_heatmap_html_snippet, get_heatmap_matrix
 from metta.eval.dashboard.mapviewer import MAP_VIEWER_CSS
 from metta.sim.simulation_stats_db import StatsDB
 from metta.util.file import local_copy, write_data
@@ -65,7 +65,7 @@ def generate_report_html(db: StatsDB, analyzer_cfg: AnalyzerConfig) -> str:
     num_output_policies: int | Literal["all"] = analyzer_cfg.num_output_policies
     suite = analyzer_cfg.suite
 
-    matrix = get_matrix_data(db, metric, view_type, policy_uri, suite, num_output_policies)
+    matrix = get_heatmap_matrix(db, metric, view_type, policy_uri, suite, num_output_policies)
 
     if matrix.empty:
         return "<html><body><h1>No data available</h1></body></html>"

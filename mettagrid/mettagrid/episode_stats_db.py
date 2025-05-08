@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Dict, List
 
 import duckdb
+import pandas as pd
 
 # TODO consider game/episode-keyed metrics
 EPISODE_DB_TABLES = {
@@ -20,6 +21,7 @@ EPISODE_DB_TABLES = {
         step_count INTEGER,
         created_at TIMESTAMP,
         completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        simulation_id TEXT,
         replay_url TEXT
     );
     """,
@@ -75,13 +77,14 @@ class EpisodeStatsDB:
 
     def initialize_schema(self) -> None:
         logger = logging.getLogger(__name__)
-        for table_name, stmt in EPISODE_DB_TABLES.items():
+        for table_name, stmt in self.tables().items():
             try:
-                print(stmt)
+                logger.info(f"Initializing table {table_name} at path {self.path}")
                 self.con.execute(stmt)
             except Exception as e:
                 logger.error(f"Error executing SQL for table {table_name}: {e}")
                 raise
+        self.con.commit()
 
     def tables(self) -> Dict[str, str]:
         """Return all tables in the database."""
@@ -156,6 +159,10 @@ class EpisodeStatsDB:
             values,
         )
         self.con.commit()
+
+    def query(self, sql_query: str) -> pd.DataFrame:
+        """Execute a SQL query and return a pandas DataFrame."""
+        return self.con.execute(sql_query).fetchdf()
 
     def close(self) -> None:
         self.con.close()
