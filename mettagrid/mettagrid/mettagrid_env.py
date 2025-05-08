@@ -193,6 +193,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     @property
     def single_observation_space(self):
+        print(f"single_observation_space access from MettaGridEnv: {self._single_observation_space}")
         return self._single_observation_space
 
     @property

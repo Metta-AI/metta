@@ -25,6 +25,9 @@ def make_policy(env: MettaGridEnv, cfg: ListConfig | DictConfig):
             "global_vars": gym.spaces.Box(low=-np.inf, high=np.inf, shape=[0], dtype=np.int32),
         }
     )
+
+    print(f"single_observation_space in make_policy: {env.single_observation_space}")
+
     return hydra.utils.instantiate(
         cfg.agent,
         obs_space=obs_space,
