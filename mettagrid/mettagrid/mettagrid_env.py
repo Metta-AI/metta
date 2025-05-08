@@ -79,7 +79,11 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         env = self._grid_env
 
+        print("freeing env")
+        del self._env
+        print("setting env")
         self._env = env
+        print("done mucking with env")
         # self._env = RewardTracker(self._env)
         # self._env = FeatureMasker(self._env, self._cfg.hidden_features)
 
