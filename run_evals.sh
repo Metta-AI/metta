@@ -32,7 +32,6 @@ for i in "${!POLICIES[@]}"; do
         run=multiagent$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         +eval_db_uri=wandb://artifacts/multiagent_db \
-        +sim.eval_db_uri=wandb://artifacts/multiagent_db \
         # sim.num_envs=20 \
         # sim.num_episodes=20
 
