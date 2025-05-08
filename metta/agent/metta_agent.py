@@ -1,5 +1,5 @@
 import logging
-from typing import List, Tuple, Union
+from typing import Any, Dict, List, Tuple, Union
 
 import gymnasium as gym
 import hydra
@@ -12,6 +12,7 @@ from torch.nn.parallel import DistributedDataParallel
 from metta.agent.policy_state import PolicyState
 from metta.agent.util.distribution_utils import sample_logits
 from metta.agent.util.safe_get import safe_get_obs_property
+from metta.util.omegaconf import convert_to_dict
 from mettagrid.mettagrid_env import MettaGridEnv
 
 logger = logging.getLogger("metta_agent")
@@ -90,29 +91,14 @@ class MettaAgent(nn.Module):
         # self.global_features = global_features # for use with FeatureSetEncoder
 
         self.components = nn.ModuleDict()
-        component_cfgs = OmegaConf.to_container(cfg.components, resolve=True)
+        component_cfgs = convert_to_dict(cfg.components)
 
-        # Check if component_cfgs is a list or dictionary
-        if isinstance(component_cfgs, list):
-            # Handle list case
-            for i, component_cfg in enumerate(component_cfgs):
-                if isinstance(component_cfg, dict):
-                    component_name = str(component_cfg.get("name", f"component_{i}"))
-                    component_cfg["name"] = component_name
-                    component = hydra.utils.instantiate(component_cfg, **agent_attributes)
-                    self.components[component_name] = component
-                else:
-                    raise ValueError(f"Component configuration at index {i} is not a dictionary")
-        elif isinstance(component_cfgs, dict):
-            # Handle dictionary case (original code)
-            for component_key in component_cfgs:
-                # Convert key to string to ensure compatibility
-                component_name = str(component_key)
-                component_cfgs[component_key]["name"] = component_name
-                component = hydra.utils.instantiate(component_cfgs[component_key], **agent_attributes)
-                self.components[component_name] = component
-        else:
-            raise ValueError(f"Component configurations must be a list or dictionary, got {type(component_cfgs)}")
+        for component_key in component_cfgs:
+            # Convert key to string to ensure compatibility
+            component_name = str(component_key)
+            component_cfgs[component_key]["name"] = component_name
+            component = hydra.utils.instantiate(component_cfgs[component_key], **agent_attributes)
+            self.components[component_name] = component
 
         component = self.components["_value_"]
         self._setup_components(component)
@@ -257,9 +243,10 @@ class MettaAgent(nn.Module):
         # direct tensor indexing on precomputed action_index_tensor
         return self.action_index_tensor[action_logit_index.reshape(-1)]
 
-    def _apply_to_components(self, method_name, *args, **kwargs):
+    def _apply_to_components(self, method_name, *args, **kwargs) -> Dict[str, Any]:
         """
-        Safely apply a method to all components.
+        Apply a method to all components, raising an error if any component
+        doesn't support the method.
 
         Args:
             method_name: Name of the method to call on each component
@@ -267,19 +254,21 @@ class MettaAgent(nn.Module):
 
         Returns:
             Dictionary of component names mapped to their return values
+
+        Raises:
+            AttributeError: If any component doesn't have the requested method
         """
         results = {}
         for name, component in self.components.items():
-            try:
-                if hasattr(component, method_name):
-                    method = getattr(component, method_name)
-                    if callable(method):
-                        results[name] = method(*args, **kwargs)
-                    else:
-                        logger.warning(f"Component '{name}' has {method_name} attribute but it's not callable")
-                # Otherwise skip this component
-            except Exception as e:
-                logger.warning(f"Error applying {method_name} to component '{name}': {e}")
+            if not hasattr(component, method_name):
+                raise AttributeError(f"Component '{name}' does not have method '{method_name}'")
+
+            method = getattr(component, method_name)
+            if not callable(method):
+                raise TypeError(f"Component '{name}' has {method_name} attribute but it's not callable")
+
+            # Now call the method, letting any exceptions propagate up
+            results[name] = method(*args, **kwargs)
 
         return results
 
@@ -294,7 +283,7 @@ class MettaAgent(nn.Module):
         component_losses = self._apply_to_components("l2_reg_loss")
 
         # Process the results
-        for name, comp_loss in component_losses.items():
+        for _name, comp_loss in component_losses.items():
             if comp_loss is not None:
                 # Convert to tensor if it's not already
                 if not isinstance(comp_loss, torch.Tensor):
@@ -314,7 +303,7 @@ class MettaAgent(nn.Module):
         component_losses = self._apply_to_components("l2_init_loss")
 
         # Process the results
-        for name, comp_loss in component_losses.items():
+        for _name, comp_loss in component_losses.items():
             if comp_loss is not None:
                 # Convert to tensor if it's not already
                 if not isinstance(comp_loss, torch.Tensor):
