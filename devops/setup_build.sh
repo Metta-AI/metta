@@ -4,9 +4,6 @@
 # Exit immediately if a command exits with a non-zero status
 set -e
 
-# Clear the deps built flag to ensure fresh checkout/build
-rm -f deps/.built
-
 if [ -f /.dockerenv ]; then
   export IS_DOCKER=true
 else

@@ -7,20 +7,6 @@ if [ "$SKIP_BUILD" = "1" ]; then
     exit 0
 fi
 
-#
-# Check if dependencies are already installed based on the presence of
-# deps/.built (an empty file). If this file is found we will exit early.
-#
-# If we build the deps we will `touch "deps/.built"` at the end of this
-# script. The `devops/setup_build` script removes this file so that the
-# dependencies are reinstalled.
-#
-if [ -f "deps/.built" ]; then
-    echo "Dependencies already installed. Skipping checkout and build!"
-    echo "You can force reinstall by running \"devops/setup_build\""
-    exit 0
-fi
-
 # Exit immediately if a command exits with a non-zero status
 set -e
 
@@ -126,7 +112,4 @@ install_repo "carbs" $CARBS_REPO "main" "pip install -e . "
 install_repo "wandb_carbs" $WANDB_CARBS_REPO "main" "pip install -e . "
 install_repo "pufferlib" $PUFFERLIB_REPO "metta" "pip install -e . --no-deps"
 
-# Mark dependencies as installed
-cd ..
-touch "deps/.built"
 echo "Dependencies successfully installed and cached!"
