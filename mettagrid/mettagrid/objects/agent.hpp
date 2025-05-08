@@ -10,7 +10,7 @@
 #include "objects/metta_object.hpp"
 #include "stats_tracker.hpp"
 
-class Agent : public MettaObject {
+class Agent : public HasInventory {
 public:
   uint8_t group;
   uint8_t frozen;
@@ -108,7 +108,7 @@ public:
   }
 
   virtual void obs(ObsType* obs) const override {
-    MettaObject::obs(obs);
+    HasInventory::obs(obs);
 
     // Agent-specific features
     encode(obs, "agent", 1);
