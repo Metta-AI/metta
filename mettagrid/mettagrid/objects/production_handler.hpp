@@ -6,7 +6,7 @@
 #include "../stats_tracker.hpp"
 #include "constants.hpp"
 #include "converter.hpp"
-
+#include <iostream>
 // Handles the FinishConverting event
 class ProductionHandler : public EventHandler {
 public:
@@ -18,8 +18,11 @@ public:
       return;
     }
 
+    cout << "production handler: finishing conversion" << endl;
     converter->finish_converting();
+    cout << "production handler: incrementing produced" << endl;
     this->event_manager->stats->incr(ObjectTypeNames[converter->_type_id], "produced");
+    cout << "production handler: done" << endl;
   }
 };
 

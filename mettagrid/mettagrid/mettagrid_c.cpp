@@ -270,6 +270,8 @@ MettaGrid::~MettaGrid() {
     _obs_encoder = nullptr;
     cout << "action_handlers" << endl;
     _action_handlers.clear();
+    cout << "agents" << endl;
+    _agents.clear();
     cout << "done" << endl;
 }
 
@@ -533,7 +535,8 @@ void MettaGrid::add_agent(Agent* agent) {
     agent->init(&_rewards.mutable_unchecked<1>()(_agents.size()));
     // These agents are also in the Grid. We'll GC them since we have a unique_ptr
     // here, but it's not super clean.
-    _agents.push_back(std::unique_ptr<Agent>(agent));
+    // xcxc on grid and here -- make be shared_ptr?
+    _agents.push_back(agent);
 }
 
 void MettaGrid::_compute_observation(
@@ -620,10 +623,13 @@ void MettaGrid::_step(py::array_t<int> actions) {
     auto rewards_view = _rewards.mutable_unchecked<1>();
     auto observations_view = _observations.mutable_unchecked<4>();
     
+    cout << "resetting rewards and observations" << endl;
+
     for (py::ssize_t i = 0; i < rewards_view.shape(0); i++) {
         rewards_view(i) = 0;
     }
     
+    cout << "resetting observations" << endl;
     for (py::ssize_t i = 0; i < observations_view.shape(0); i++) {
         for (py::ssize_t j = 0; j < observations_view.shape(1); j++) {
             for (py::ssize_t k = 0; k < observations_view.shape(2); k++) {
@@ -633,19 +639,24 @@ void MettaGrid::_step(py::array_t<int> actions) {
             }
         }
     }
-    
+
+    cout << "resetting action success flags" << endl;
     // Clear action success flags
     for (size_t i = 0; i < _action_success.size(); i++) {
         _action_success[i] = false;
     }
-    
+
+    cout << "incrementing timestep" << endl;
     // Increment timestep and process events
     _current_timestep++;
     _event_manager->process_events(_current_timestep);
     
+    cout << "processing actions by priority" << endl;
     // Process actions by priority
     for (unsigned char p = 0; p <= _max_action_priority; p++) {
+        cout << "processing actions by priority: " << (int)p << endl;
         for (size_t idx = 0; idx < _agents.size(); idx++) {
+            cout << "processing actions by priority: " << (int)p << " for agent " << idx << endl;
             int action = actions_view(idx, 0);
             if (action < 0 || action >= _num_action_handlers) {
                 printf("Invalid action: %d\n", action);
@@ -668,6 +679,7 @@ void MettaGrid::_step(py::array_t<int> actions) {
         }
     }
     
+    cout << "computing observations" << endl;
     // Compute observations for next step
     _compute_observations(actions);
     
@@ -676,7 +688,8 @@ void MettaGrid::_step(py::array_t<int> actions) {
     for (py::ssize_t i = 0; i < rewards_view.shape(0); i++) {
         episode_rewards_view(i) += rewards_view(i);
     }
-    
+
+    cout << "checking for truncation" << endl;
     // Check for truncation
     if (_max_timestep > 0 && _current_timestep >= _max_timestep) {
         auto truncations_view = _truncations.mutable_unchecked<1>();
@@ -684,6 +697,8 @@ void MettaGrid::_step(py::array_t<int> actions) {
             truncations_view(i) = 1;
         }
     }
+
+    cout << "done" << endl;
 }
 
 // Pybind11 module definition

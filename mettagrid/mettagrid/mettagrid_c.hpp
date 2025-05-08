@@ -74,7 +74,9 @@ private:
     unsigned short _obs_width;
     unsigned short _obs_height;
 
-    std::vector<std::unique_ptr<Agent>> _agents;
+    // xcxc not unique_ptr because the grid owns these.
+    // change to shared_ptr?
+    std::vector<Agent*> _agents;
 
     py::array_t<unsigned char> _observations_np;
     py::array_t<unsigned char> _observations;
