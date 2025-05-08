@@ -24,8 +24,8 @@ sim_job:
   policy_uris:
     - wandb://run/b.daphne.navigation
     - wandb://run/b.daphne.navigation2
- #   - wandb://run/b.daphne.navigation_multiagent_24_rewardsharing_maxinv
- #   - wandb://run/b.daphne.navigation_multiagent_24_norewardsharing_maxinv
+    - wandb://run/b.daphne.navigation_multiagent_24_rewardsharing_maxinv
+    - wandb://run/b.daphne.navigation_multiagent_24_norewardsharing_maxinv
 
 analyzer:
 #  output_path: s3://softmax-public/policydash/dashboard.html

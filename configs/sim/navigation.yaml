@@ -19,40 +19,40 @@ simulations:
     env: env/mettagrid/navigation/evals/walls_sparse
   navigation/cylinder:
     env: env/mettagrid/navigation/evals/cylinder
-  navigation/obstacles0:
-    env: env/mettagrid/navigation/evals/obstacles0
-  navigation/obstacles1:
-    env: env/mettagrid/navigation/evals/obstacles1
-  navigation/obstacles2:
-    env: env/mettagrid/navigation/evals/obstacles2
-  navigation/obstacles3:
-    env: env/mettagrid/navigation/evals/obstacles3
-  navigation/corridors:
-    env: env/mettagrid/navigation/evals/corridors
-  navigation/labyrinth:
-    env: env/mettagrid/navigation/evals/labyrinth
-  navigation/radialmaze:
-    env: env/mettagrid/navigation/evals/radialmaze
-  navigation/cylinder_easy:
-    env: env/mettagrid/navigation/evals/cylinder_easy
-  navigation/honeypot:
-    env: env/mettagrid/navigation/evals/honeypot
-  navigation/knotty:
-    env: env/mettagrid/navigation/evals/knotty
-  navigation/memory_palace:
-    env: env/mettagrid/navigation/evals/memory_palace
-  navigation/radial_large:
-    env: env/mettagrid/navigation/evals/radial_large
-  navigation/radial_mini:
-    env: env/mettagrid/navigation/evals/radial_mini
-  navigation/radial_small:
-    env: env/mettagrid/navigation/evals/radial_small
-  navigation/swirls:
-    env: env/mettagrid/navigation/evals/swirls
-  navigation/thecube:
-    env: env/mettagrid/navigation/evals/thecube
-  navigation/walkaround:
-    env: env/mettagrid/navigation/evals/walkaround
-  navigation/wanderout:
-    env: env/mettagrid/navigation/evals/wanderout
-# selector_type: "latest"
+#   navigation/obstacles0:
+#     env: env/mettagrid/navigation/evals/obstacles0
+#   navigation/obstacles1:
+#     env: env/mettagrid/navigation/evals/obstacles1
+#   navigation/obstacles2:
+#     env: env/mettagrid/navigation/evals/obstacles2
+#   navigation/obstacles3:
+#     env: env/mettagrid/navigation/evals/obstacles3
+#   navigation/corridors:
+#     env: env/mettagrid/navigation/evals/corridors
+#   navigation/labyrinth:
+#     env: env/mettagrid/navigation/evals/labyrinth
+#   navigation/radialmaze:
+#     env: env/mettagrid/navigation/evals/radialmaze
+#   navigation/cylinder_easy:
+#     env: env/mettagrid/navigation/evals/cylinder_easy
+#   navigation/honeypot:
+#     env: env/mettagrid/navigation/evals/honeypot
+#   navigation/knotty:
+#     env: env/mettagrid/navigation/evals/knotty
+#   navigation/memory_palace:
+#     env: env/mettagrid/navigation/evals/memory_palace
+#   navigation/radial_large:
+#     env: env/mettagrid/navigation/evals/radial_large
+#   navigation/radial_mini:
+#     env: env/mettagrid/navigation/evals/radial_mini
+#   navigation/radial_small:
+#     env: env/mettagrid/navigation/evals/radial_small
+#   navigation/swirls:
+#     env: env/mettagrid/navigation/evals/swirls
+#   navigation/thecube:
+#     env: env/mettagrid/navigation/evals/thecube
+#   navigation/walkaround:
+#     env: env/mettagrid/navigation/evals/walkaround
+#   navigation/wanderout:
+#     env: env/mettagrid/navigation/evals/wanderout
+# # selector_type: "latest"
