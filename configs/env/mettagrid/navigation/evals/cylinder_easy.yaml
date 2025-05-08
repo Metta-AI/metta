@@ -3,11 +3,7 @@ defaults:
   - _self_
 
 game:
-<<<<<<< HEAD
   num_agents: 1 #how many agents are in the map x2
-=======
-  num_agents: 20  #how many agents are in the map x2
->>>>>>> 5fbdb29a5566bf93b5af83136ba052c1ded7cd98
   max_steps: 400
   agent:
     rewards:
