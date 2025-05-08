@@ -15,10 +15,10 @@ resource "aws_security_group" "allow_skypilot_inbound" {
 
   # allow access from proxy
   ingress {
-    from_port   = local.skypilot_api_port
-    to_port     = local.skypilot_api_port
-    protocol    = "tcp"
-    cidr_blocks = ["${aws_instance.proxy.private_ip}/32"]
+    from_port       = local.skypilot_api_port
+    to_port         = local.skypilot_api_port
+    protocol        = "tcp"
+    security_groups = [aws_security_group.proxy.id]
   }
 
   egress {
