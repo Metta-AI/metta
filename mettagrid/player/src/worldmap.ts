@@ -56,8 +56,8 @@ export function focusFullMap(panel: PanelInfo) {
 function drawFloor() {
   const floorColor = parseHtmlColor("#CFA970");
   ctx.drawSolidRect(
-    0,
-    0,
+    -Common.TILE_SIZE / 2,
+    -Common.TILE_SIZE / 2,
     state.replay.map_size[0] * Common.TILE_SIZE,
     state.replay.map_size[1] * Common.TILE_SIZE,
     floorColor
