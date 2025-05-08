@@ -3,7 +3,7 @@ from tensordict import TensorDict
 
 # Assuming RobustObsEncoderRev1 is importable from its location
 # Adjust the import path as necessary
-from metta.agent.lib.obs_encoders import RobustObsEncoderRev1
+from metta.agent.lib.obs_encoders_old import RobustObsEncoderRev1
 
 # --- Configuration ---
 cfg = {
