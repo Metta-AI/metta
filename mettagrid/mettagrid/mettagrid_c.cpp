@@ -256,7 +256,22 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
     }
 }
 
-MettaGrid::~MettaGrid() = default;
+// xcxc be more explicit about what we need
+// MettaGrid::~MettaGrid() = default;
+MettaGrid::~MettaGrid() {
+    cout << "destroying MettaGrid" << endl;
+    cout << "grid" << endl;
+    _grid = nullptr;
+    cout << "event_manager" << endl;
+    _event_manager = nullptr;
+    cout << "stats" << endl;
+    _stats = nullptr;
+    cout << "obs_encoder" << endl;
+    _obs_encoder = nullptr;
+    cout << "action_handlers" << endl;
+    _action_handlers.clear();
+    cout << "done" << endl;
+}
 
 // Example implementation of some key methods
 py::tuple MettaGrid::reset() {
@@ -516,6 +531,8 @@ void MettaGrid::init_action_handlers(std::vector<std::unique_ptr<ActionHandler>>
 
 void MettaGrid::add_agent(Agent* agent) {
     agent->init(&_rewards.mutable_unchecked<1>()(_agents.size()));
+    // These agents are also in the Grid. We'll GC them since we have a unique_ptr
+    // here, but it's not super clean.
     _agents.push_back(std::unique_ptr<Agent>(agent));
 }
 
