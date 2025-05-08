@@ -23,6 +23,105 @@ resource "aws_security_group" "allow_skypilot_inbound" {
   }
 }
 
+# IAM
+resource "aws_iam_role" "skypilot_api_server" {
+  name               = "skypilot-api-server"
+  assume_role_policy = data.aws_iam_policy_document.ecs_task_assume.json
+}
+
+resource "aws_iam_role_policy" "skypilot_api_server" {
+  name = "minimal-skypilot-policy"
+  role = aws_iam_role.skypilot_api_server.id
+  policy = jsonencode({
+    "Version" : "2012-10-17",
+    "Statement" : [
+      {
+        "Effect" : "Allow",
+        "Action" : "ec2:RunInstances",
+        "Resource" : "arn:aws:ec2:*::image/ami-*"
+      },
+      {
+        "Effect" : "Allow",
+        "Action" : "ec2:RunInstances",
+        "Resource" : [
+          "arn:aws:ec2:*:<account-ID-without-hyphens>:instance/*",
+          "arn:aws:ec2:*:<account-ID-without-hyphens>:network-interface/*",
+          "arn:aws:ec2:*:<account-ID-without-hyphens>:subnet/*",
+          "arn:aws:ec2:*:<account-ID-without-hyphens>:volume/*",
+          "arn:aws:ec2:*:<account-ID-without-hyphens>:security-group/*"
+        ]
+      },
+      {
+        "Effect" : "Allow",
+        "Action" : [
+          "ec2:TerminateInstances",
+          "ec2:DeleteTags",
+          "ec2:StartInstances",
+          "ec2:CreateTags",
+          "ec2:StopInstances"
+        ],
+        "Resource" : "arn:aws:ec2:*:<account-ID-without-hyphens>:instance/*"
+      },
+      {
+        "Effect" : "Allow",
+        "Action" : [
+          "ec2:Describe*"
+        ],
+        "Resource" : "*"
+      },
+      {
+        "Effect" : "Allow",
+        "Action" : [
+          "ec2:CreateSecurityGroup",
+          "ec2:AuthorizeSecurityGroupIngress"
+        ],
+        "Resource" : "arn:aws:ec2:*:<account-ID-without-hyphens>:*"
+      },
+      {
+        "Effect" : "Allow",
+        "Action" : "iam:CreateServiceLinkedRole",
+        "Resource" : "*",
+        "Condition" : {
+          "StringEquals" : {
+            "iam:AWSServiceName" : "spot.amazonaws.com"
+          }
+        }
+      },
+      {
+        "Effect" : "Allow",
+        "Action" : [
+          "iam:GetRole",
+          "iam:PassRole",
+          # for skypilot-v1 role
+          "iam:CreateRole",
+          "iam:AttachRolePolicy"
+        ],
+        "Resource" : [
+          "arn:aws:iam::<account-ID-without-hyphens>:role/skypilot-v1"
+        ]
+      },
+      {
+        "Effect" : "Allow",
+        "Action" : [
+          "iam:GetInstanceProfile",
+          # for skypilot-v1 role
+          "iam:CreateInstanceProfile",
+          "iam:AddRoleToInstanceProfile"
+        ],
+        "Resource" : "arn:aws:iam::<account-ID-without-hyphens>:instance-profile/skypilot-v1"
+      },
+      {
+        "Effect" : "Allow",
+        "Action" : [
+          "s3:*"
+        ],
+        "Resource" : "*"
+      }
+    ]
+  })
+}
+
+
 # ECS Cluster
 resource "aws_ecs_cluster" "skypilot_api_server" {
   name = "skypilot-api-server"
@@ -38,7 +137,7 @@ resource "aws_ecs_task_definition" "skypilot_api_server" {
 
   execution_role_arn = aws_iam_role.ecs_task_exec.arn
   # give AWS credentials to the api server
-  task_role_arn = "arn:aws:iam::767406518141:role/skypilot-v1"
+  task_role_arn = aws_iam_role.skypilot_api_server.arn
 
   container_definitions = jsonencode([
     {
