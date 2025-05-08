@@ -71,10 +71,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         )
 
         env_map_list = env_map.tolist()
-        for i, row in enumerate(env_map_list):
-            for j, cell in enumerate(row):
-                print(f"{i}, {j}: {cell}")
-
         env_map = np.array(env_map_list)
 
         self._c_env = MettaGrid(OmegaConf.to_container(self._env_cfg), env_map)
