@@ -40,7 +40,8 @@ def safe_get_obs_property(
                 if property_index is not None:
                     if len(prop) <= property_index:
                         raise ValueError(
-                            f"{property_name.capitalize()} for space '{obs_key}' does not have an index {property_index}"
+                            f"{property_name.capitalize()} for space '{obs_key}' "
+                            f"does not have an index {property_index}"
                         )
                     if property_index == 1:
                         return prop[1:]  # Special case for obs_input_shape
