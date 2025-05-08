@@ -27,7 +27,7 @@ typedef uint8_t ObsType;
 typedef std::map<std::string, int32_t> ActionConfig;
 
 // Main MettaGrid class
-class MettaGrid {
+class CppMettaGrid {
 private:
   // Grid and environment management
   std::unique_ptr<Grid> _grid;
@@ -75,15 +75,15 @@ private:
 
 public:
   // Constructor - note the changes to take ownership of the grid
-  MettaGrid(uint32_t map_width,
-            uint32_t map_height,
-            uint32_t num_agents,
-            uint32_t max_timestep,
-            uint16_t obs_width,
-            uint16_t obs_height);
+  CppMettaGrid(uint32_t map_width,
+               uint32_t map_height,
+               uint32_t num_agents,
+               uint32_t max_timestep,
+               uint16_t obs_width,
+               uint16_t obs_height);
 
   // Destructor - simplified with smart pointers
-  ~MettaGrid();
+  ~CppMettaGrid();
 
   // Initialization methods
   void init_action_handlers(const std::vector<ActionHandler*>& action_handlers);

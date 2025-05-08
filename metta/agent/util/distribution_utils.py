@@ -1,67 +1,83 @@
-from typing import Optional, Tuple
-
 import torch
-import torch.jit
-import torch.nn.functional as F
-from torch import Tensor
+from torch.distributions.utils import logits_to_probs
 
 
-@torch.jit.script
-def sample_logits(logits: Tensor, action: Optional[Tensor] = None) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
+def get_action_log_prob(log_sftmx_logits, sampled_action):
     """
-    Sample actions from unnormalized logits and compute associated log-probabilities and entropy.
-    `logits` corresponds to a categorical distribution over the full action.
-    This function supports either sampling actions from these logits or using externally provided actions.
+    Compute log probability of a value given logits.
 
     Args:
-        logits:
-            unnormalized logits (pre-softmax)
-        action:
-            Optional tensor of shape [batch_size] or [batch_size, 1]
-            If provided, these actions will be used instead of sampling.
+        logits: Unnormalized log probabilities
+        value: The specific action selection to compute probability for
 
     Returns:
-        A tuple of:
-        - actions: Tensor of shape [batch_size], sampled or provided
-        - joint_logprob: Tensor of shape [batch_size], log-probabilities of selected actions
-        - joint_entropy: Tensor of shape [batch_size], entropy of the distribution
-        - normalized_logits: Log-softmaxed logits (same shape as input logits)
+        Log probability of the specific action selection
     """
-    batch_size = logits.shape[0]
-    num_actions = logits.shape[-1]
+    sampled_action = sampled_action.long().unsqueeze(-1)
+    sampled_action, log_pmf = torch.broadcast_tensors(sampled_action, log_sftmx_logits)
+    sampled_action = sampled_action[..., :1]
+    return log_pmf.gather(-1, sampled_action).squeeze(-1)  # replace w reshape
 
-    # Step 1: Normalize logits into log-probabilities for numerical stability and sampling
-    normalized_logits = F.log_softmax(logits, dim=-1)  # log probs
-    softmaxed_logits = normalized_logits.exp()  # probs
 
-    # Step 2: Determine the actions to evaluate
+def entropy(log_sftmx_logits):
+    """
+    Compute entropy of a categorical distribution given logits.
+
+    Args:
+        logits: Unnormalized log probabilities
+
+    Returns:
+        Entropy of the distribution
+    """
+    min_real = torch.finfo(log_sftmx_logits.dtype).min
+    log_sftmx_logits = torch.clamp(log_sftmx_logits, min=min_real)
+    # logits_to_probs is just softmax. softmax(log(softmax(logits) = softmax(logits)
+    p_log_p = log_sftmx_logits * logits_to_probs(log_sftmx_logits)
+    return -p_log_p.sum(-1)
+
+
+def sample_logits(logits: torch.Tensor, action=None):
+    """
+    Sample actions from logits and compute log probabilities and entropy.
+
+    Args:
+        logits: Unnormalized log probabilities of shape [batch_size * bptt, num_actions].
+        action: Optional pre-specified actions of shape [batch_size, bptt, 1] or [batch_size * bptt].
+                If provided, log probabilities and entropy for these actions are computed.
+
+    Returns:
+        Tuple of (action, log_probability, entropy, normalized_logits)
+        Shapes: [B*T], [B*T], [B*T], [B*T, A] respectively.
+    """
+    # Input logits shape: [B*T, A]
+    # Input action shape (if provided): [B, T, 1]
+
+    # Normalize logits for numerical stability
+    # Shape: [B*T, A]
+    log_sftmx_logits = logits - logits.logsumexp(dim=-1, keepdim=True)
+
     if action is None:
-        # Sample actions from the categorical distribution
-        output_action = torch.multinomial(softmaxed_logits, 1)
+        # Sample action if not provided
+        # probs shape: [B*T, A]
+        probs = logits_to_probs(log_sftmx_logits)
+        # Sampled action shape: [B*T, 1], squeeze to [B*T]
+        B = logits.shape[0]
+        action = torch.multinomial(probs, 1, replacement=True).reshape(B)
+        # action = torch.multinomial(probs, 1, replacement=True).squeeze(-1)
     else:
-        # Use provided actions, ensure correct shape
-        output_action = action.reshape(batch_size, -1)
-        if output_action.size(1) != 1:
-            output_action = output_action[:, :1]  # Take only the first dimension if multi-dimensional
+        # Reshape provided action from [B, T, 1] or [B*T] to [B*T]
+        action = action.reshape(-1)
 
-        # Critical: Check if any actions are out of valid range
-        max_action = output_action.max().item()
-        min_action = output_action.min().item()
+    # Ensure action has the expected shape [B*T]
+    assert action.shape == logits.shape[:-1], f"Action shape mismatch: expected {logits.shape[:-1]}, got {action.shape}"
 
-        if max_action >= num_actions or min_action < 0:
-            # Clamp actions to valid range to prevent out-of-bounds errors
-            output_action = torch.clamp(output_action, 0, num_actions - 1)
+    # Calculate log probability for the action selected
+    # Shape: [B*T]
+    act_logprob = get_action_log_prob(log_sftmx_logits, action)
 
-    # Convert to long index type, ensuring it's the right shape for gathering
-    indices = output_action.long()
+    # Calculate entropy of the distribution
+    # Shape: [B*T]
+    logits_entropy = entropy(log_sftmx_logits)
 
-    # Step 3: Compute log-probabilities for the selected actions
-    # Gather the log probability of each selected action
-    joint_logprob = normalized_logits.gather(dim=1, index=indices).squeeze(-1)
-
-    # Step 4: Compute entropy directly without a loop
-    # Entropy formula: -sum(p * log(p))
-    joint_entropy = -torch.sum(softmaxed_logits * normalized_logits, dim=-1)
-
-    # Return action with shape [batch_size] to match expected output
-    return output_action.squeeze(-1), joint_logprob, joint_entropy, normalized_logits
+    # Return shapes: [B*T], [B*T], [B*T], [B*T, A]
+    return action, act_logprob, logits_entropy, log_sftmx_logits

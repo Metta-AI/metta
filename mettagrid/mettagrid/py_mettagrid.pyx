@@ -20,17 +20,17 @@ import gymnasium as gym
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
 # Import from the cython definition file
-from mettagrid.py_mettagrid cimport MettaGrid, GridObjectId, ObsType, ObjectTypeNames, InventoryItemNames
+from mettagrid.py_mettagrid cimport CppMettaGrid, GridObjectId, ObsType, ObjectTypeNames, InventoryItemNames
 
 # Constants
 obs_np_type = np.uint8
 
 # Wrapper class for the C++ implementation
-cdef class PyMettaGrid:
+cdef class MettaGrid:
     cdef:
         object _cfg
-        # The C++ implementation of MettaGrid
-        MettaGrid* _cpp_mettagrid
+        # The C++ implementation
+        CppMettaGrid* _cpp_mettagrid
         
         # NumPy array views for Python access
         cnp.ndarray _observations_np
@@ -70,7 +70,7 @@ cdef class PyMettaGrid:
         map_height = np_map.shape[0]
         
         # Create the C++ MettaGrid instance with ownership of the grid
-        self._cpp_mettagrid = new MettaGrid(
+        self._cpp_mettagrid = new CppMettaGrid(
             map_width, map_height, num_agents, max_timestep, self._obs_width, self._obs_height
         )
         

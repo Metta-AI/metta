@@ -5,13 +5,10 @@ from metta.agent.lib.metta_layer import LayerBase
 
 class ObsShaper(LayerBase):
     def __init__(self, obs_shape, num_objects, **cfg):
+        # Note that __init__ is NOT called when we reload a policy from a checkpoint file
         super().__init__(**cfg)
         self._obs_shape = list(obs_shape)  # make sure no Omegaconf types are used in forward passes
         self._out_tensor_shape = [self._obs_shape[2], self._obs_shape[0], self._obs_shape[1]]
-
-        print(f"(init ObsShaper) obs_shape {obs_shape}")
-        print(f"(init ObsShaper) num_objects {num_objects}")
-
         self._output_size = num_objects
 
     def _forward(self, td: TensorDict):
@@ -19,13 +16,12 @@ class ObsShaper(LayerBase):
         x_shape, space_shape = x.shape, self._obs_shape
         x_n, space_n = len(x_shape), len(space_shape)
 
-        # Improved error handling with detailed shape information
         if tuple(x_shape[-space_n:]) != tuple(space_shape):
             expected_shape = f"[B(, T), {', '.join(str(dim) for dim in space_shape)}]"
             actual_shape = f"{list(x_shape)}"
             raise ValueError(
                 f"Shape mismatch error:\n"
-                f" x.shape: {x.shape}\n"
+                f"x.shape: {x.shape}\n"
                 f"self._obs_shape: {self._obs_shape}\n"
                 f"Expected tensor with shape {expected_shape}\n"
                 f"Got tensor with shape {actual_shape}\n"

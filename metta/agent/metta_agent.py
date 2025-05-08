@@ -26,7 +26,7 @@ def make_policy(env: MettaGridEnv, cfg: ListConfig | DictConfig):
         }
     )
 
-    print(f"single_observation_space in make_policy: {env.single_observation_space}")
+    logger.info("calling hydra instantiate from make_policy")
 
     return hydra.utils.instantiate(
         cfg.agent,
@@ -102,6 +102,7 @@ class MettaAgent(nn.Module):
             # Convert key to string to ensure compatibility
             component_name = str(component_key)
             component_cfgs[component_key]["name"] = component_name
+            logger.info("calling hydra instantiate from MettaAgent __init__")
             component = hydra.utils.instantiate(component_cfgs[component_key], **agent_attributes)
             self.components[component_name] = component
 

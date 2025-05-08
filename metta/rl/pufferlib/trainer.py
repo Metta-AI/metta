@@ -12,7 +12,7 @@ import wandb
 from heavyball import ForeachMuon
 from omegaconf import DictConfig, ListConfig
 
-from metta.agent.metta_agent import DistributedMettaAgent
+from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyStore
 from metta.agent.util.weights_analysis import WeightsMetricsHelper
@@ -30,6 +30,7 @@ from metta.sim.simulation import Simulation, SimulationSuite
 from metta.sim.simulation_config import SimulationConfig, SimulationSuiteConfig
 from metta.sim.vecenv import make_vecenv
 from metta.util.config import config_from_path
+from mettagrid.mettagrid_env import MettaGridEnv
 
 torch.set_float32_matmul_precision("high")
 
@@ -79,37 +80,50 @@ class PufferTrainer:
         self._weights_helper = WeightsMetricsHelper(cfg)
         self._make_vecenv()
 
+        self.metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
+        assert isinstance(self.metta_grid_env, MettaGridEnv)
+
         logger.info("Loading checkpoint")
         os.makedirs(cfg.trainer.checkpoint_dir, exist_ok=True)
         checkpoint = TrainerCheckpoint.load(cfg.run_dir)
 
-        logger.info("Setting up policy")
         if checkpoint.policy_path:
             logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
             policy_record = policy_store.policy(checkpoint.policy_path)
-            if hasattr(checkpoint, "average_reward"):
-                self.average_reward = checkpoint.average_reward
+            if "average_reward" in checkpoint.extra_args:
+                self.average_reward = checkpoint.extra_args["average_reward"]
         elif cfg.trainer.initial_policy.uri is not None:
-            logger.info(f"Loading initial policy: {cfg.trainer.initial_policy.uri}")
+            logger.info(f"Loading initial policy URI: {cfg.trainer.initial_policy.uri}")
             policy_record = policy_store.policy(cfg.trainer.initial_policy)
         else:
             policy_path = os.path.join(cfg.trainer.checkpoint_dir, policy_store.make_model_name(0))
-            for _i in range(20):
-                if os.path.exists(policy_path):
-                    logger.info(f"Loading policy from checkpoint: {policy_path}")
-                    policy_record = policy_store.policy(policy_path)
-                    break
-                elif self._master:
-                    logger.info("Creating new policy")
-                    policy_record = policy_store.create(self.vecenv.driver_env)
-                    break
 
-                logger.info("No policy found. Waiting for 10 seconds before retrying.")
-                time.sleep(10)
-            assert policy_record is not None, "No policy found"
+            if os.path.exists(policy_path):
+                logger.info(f"Loading policy from checkpoint: {policy_path}")
+                policy_record = policy_store.policy(policy_path)
+            elif self._master:
+                logger.info(f"Failed to load policy from default checkpoint: {policy_path}. Creating a new policy!")
+                policy_record = policy_store.create(self.metta_grid_env)
+
+        assert policy_record is not None, "No policy found"
+
+        self.metta_agent: MettaAgent = policy_record._policy  # type: ignore
+        assert isinstance(self.metta_agent, MettaAgent)
+
+        # validate that policy matches environment
+        for component_name, component in self.metta_agent.components.items():
+            if hasattr(component, "obs_shape"):
+                env_shape = self.metta_grid_env.single_observation_space.shape
+                if component.obs_shape != env_shape:
+                    raise ValueError(
+                        f"Observation space mismatch error:\n"
+                        f"component_name: {component_name}\n"
+                        f"obs_shape: {component.obs_shape}\n"
+                        f"env_shape: {env_shape}\n"
+                    )
 
         if self._master:
-            print(policy_record.policy())
+            logger.info(f"PufferTrainer has policy: {policy_record.policy()}")
 
         self._initial_pr = policy_record
         self.last_pr = policy_record
@@ -117,8 +131,8 @@ class PufferTrainer:
         self.policy_record = policy_record
         self.uncompiled_policy = self.policy
 
-        actions_names = self.vecenv.driver_env.action_names()
-        actions_max_params = self.vecenv.driver_env._c_env.max_action_args()
+        actions_names = self.metta_grid_env.action_names()
+        actions_max_params = self.metta_grid_env._c_env.max_action_args()
 
         self.policy.activate_actions(actions_names, actions_max_params, self.device)
 
@@ -307,7 +321,7 @@ class PufferTrainer:
                 # This was originally self.config.env_batch_size == 1, but you have scaling
                 # configured differently in metta. You want the whole forward pass batch to come
                 # from one core to reduce indexing overhead.
-                # contiguous_env_ids = self.vecenv.agents_per_batch == self.vecenv.driver_env.agents_per_env[0]
+                # contiguous_env_ids = self.vecenv.agents_per_batch == self.metta_grid_env.agents_per_env[0]
                 contiguous_env_ids = self.trainer_cfg.async_factor == self.trainer_cfg.num_workers
                 contiguous_env_ids = False
                 if contiguous_env_ids:
@@ -558,7 +572,7 @@ class PufferTrainer:
                 "agent_step": self.agent_step,
                 "epoch": self.epoch,
                 "run": self.cfg.run,
-                "action_names": self.vecenv.driver_env.action_names(),
+                "action_names": self.metta_grid_env.action_names(),
                 "generation": generation,
                 "initial_uri": self._initial_pr.uri,
                 "train_time": time.time() - self.train_start,

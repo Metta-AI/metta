@@ -121,14 +121,14 @@ inline void delete_action_array(int32_t** actions, uint32_t num_agents) {
 }
 
 // Create a standard MettaGrid for testing with default dimensions
-inline std::unique_ptr<MettaGrid> create_test_grid(uint32_t map_width = 10,
-                                                   uint32_t map_height = 10,
-                                                   uint32_t num_agents = 2,
-                                                   uint32_t max_timestep = 100,
-                                                   uint16_t obs_width = 5,
-                                                   uint16_t obs_height = 5) {
+inline std::unique_ptr<CppMettaGrid> create_test_grid(uint32_t map_width = 10,
+                                                      uint32_t map_height = 10,
+                                                      uint32_t num_agents = 2,
+                                                      uint32_t max_timestep = 100,
+                                                      uint16_t obs_width = 5,
+                                                      uint16_t obs_height = 5) {
   // Create grid with specified dimensions
-  auto grid = std::make_unique<MettaGrid>(map_width, map_height, num_agents, max_timestep, obs_width, obs_height);
+  auto grid = std::make_unique<CppMettaGrid>(map_width, map_height, num_agents, max_timestep, obs_width, obs_height);
 
   // Initialize from standard test map and config
   grid->initialize_from_json(create_test_map_json(), create_test_config_json());

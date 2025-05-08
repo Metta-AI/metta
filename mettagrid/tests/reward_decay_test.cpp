@@ -59,7 +59,7 @@ protected:
     }
   }
 
-  std::unique_ptr<MettaGrid> metta_grid;
+  std::unique_ptr<CppMettaGrid> metta_grid;
   int32_t** actions;
 };
 

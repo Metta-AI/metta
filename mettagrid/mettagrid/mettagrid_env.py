@@ -8,7 +8,7 @@ import pufferlib
 from omegaconf import DictConfig, OmegaConf
 
 from mettagrid.config.utils import simple_instantiate
-from mettagrid.core import PyMettaGrid
+from mettagrid.core import MettaGrid
 from mettagrid.resolvers import register_resolvers
 
 
@@ -105,7 +105,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             f"Number of agents {self._env_cfg.game.num_agents} does not match number of agents in map {map_agents}"
         )
 
-        self._c_env = PyMettaGrid(self._env_cfg, env_map)
+        self._c_env = MettaGrid(self._env_cfg, env_map)
         self._num_agents = self._c_env.num_agents()
 
     def reset(self, seed=None, options=None):

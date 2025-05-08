@@ -54,14 +54,16 @@ cdef extern from "objects/constants.hpp":
 
 # Updated MettaGrid class definition with precise types
 cdef extern from "core.hpp":
-    cdef cppclass MettaGrid:
+    cdef cppclass CppMettaGrid:
         # Constructor - updated signature
-        MettaGrid(uint32_t map_width, 
-                 uint32_t map_height,
-                 uint32_t num_agents, 
-                 uint32_t max_timestep, 
-                 uint16_t obs_width, 
-                 uint16_t obs_height)
+        CppMettaGrid(
+            uint32_t map_width, 
+            uint32_t map_height,
+            uint32_t num_agents, 
+            uint32_t max_timestep, 
+            uint16_t obs_width, 
+            uint16_t obs_height
+        )
         
         # Core methods
         void init_action_handlers(const vector[ActionHandler*]& action_handlers)
