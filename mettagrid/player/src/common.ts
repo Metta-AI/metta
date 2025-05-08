@@ -73,7 +73,7 @@ export const state = {
 
   // What to show?
   sortTraces: false,
-  showResources: false,
+  showResources: true,
   showGrid: true,
   showViewRanges: true,
   showFogOfWar: false,

@@ -88,13 +88,13 @@ export function drawTrace(panel: PanelInfo) {
       const action = getAttr(agent, "action", j);
       const action_success = getAttr(agent, "action_success", j);
 
-      if (action_success && action != null && action[0] > 0 && action[0] < state.replay.action_images.length) {
+      if (action_success && action != null && action[0] >= 0 && action[0] < state.replay.action_images.length) {
         ctx.drawSprite(
           state.replay.action_images[action[0]],
           j * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
           i * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT / 2,
         );
-      } else if (action != null && action[0] > 0 && action[0] < state.replay.action_images.length) {
+      } else if (action != null && action[0] >= 0 && action[0] < state.replay.action_images.length) {
         ctx.drawSprite(
           state.replay.action_images[action[0]],
           j * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
@@ -112,7 +112,7 @@ export function drawTrace(panel: PanelInfo) {
       }
 
       const reward = getAttr(agent, "reward", j);
-      // If there is reward, draw a star.
+      // If there is reward, draw a coin.
       if (reward > 0) {
         ctx.drawSprite(
           "resources/reward.png",
@@ -121,6 +121,34 @@ export function drawTrace(panel: PanelInfo) {
           [1.0, 1.0, 1.0, 1.0],
           1 / 8
         );
+      }
+
+      // Draw resource gain/loss.
+      if (state.showResources) {
+        // Figure out how many resources to draw.
+        var number = 0;
+        for (const [key, [image, color]] of state.replay.resource_inventory) {
+          number += Math.abs(getAttr(agent, key, j + 1) - getAttr(agent, key, j));
+        }
+        // Draw the resources.
+        var y = 16;
+        // Compress the resources if there are too many, so that they fit.
+        var step = Math.min(16, (Common.TRACE_HEIGHT - 32) / number);
+        for (const [key, [image, color]] of state.replay.resource_inventory) {
+          const prevResources = getAttr(agent, key, j);
+          const nextResources = getAttr(agent, key, j + 1);
+          const absGain = Math.abs(nextResources - prevResources);
+          for (let k = 0; k < absGain; k++) {
+            ctx.drawSprite(
+              image,
+              j * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
+              i * Common.TRACE_HEIGHT + y,
+              color,
+              1 / 8
+            );
+            y += step;
+          }
+        }
       }
     }
   }

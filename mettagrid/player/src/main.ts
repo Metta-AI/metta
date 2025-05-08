@@ -193,9 +193,11 @@ function onKeyDown(event: KeyboardEvent) {
   }
   // '[' and ']' to scrub forward and backward.
   if (event.key == "[") {
+    setIsPlaying(false);
     updateStep(Math.max(state.step - 1, 0));
   }
   if (event.key == "]") {
+    setIsPlaying(false);
     updateStep(Math.min(state.step + 1, state.replay.max_steps - 1));
   }
   // '<' and '>' control the playback speed.
@@ -398,21 +400,25 @@ html.mainFilter.style.display = "none"; // Hide the main filter for now.
 // Bottom area
 html.scrubber.addEventListener('input', onScrubberChange);
 
-html.rewindToStartButton.addEventListener('click', () =>
+html.rewindToStartButton.addEventListener('click', () => {
+  setIsPlaying(false);``
   updateStep(0)
-);
-html.stepBackButton.addEventListener('click', () =>
+});
+html.stepBackButton.addEventListener('click', () => {
+  setIsPlaying(false);
   updateStep(Math.max(state.step - 1, 0))
-);
+});
 html.playButton.addEventListener('click', () =>
   setIsPlaying(!state.isPlaying)
 );
-html.stepForwardButton.addEventListener('click', () =>
+html.stepForwardButton.addEventListener('click', () => {
+  setIsPlaying(false);
   updateStep(Math.min(state.step + 1, state.replay.max_steps - 1))
-);
-html.rewindToEndButton.addEventListener('click', () =>
+});
+html.rewindToEndButton.addEventListener('click', () => {
+  setIsPlaying(false);
   updateStep(state.replay.max_steps - 1)
-);
+});
 
 // Speed buttons
 for (let i = 0; i < html.speedButtons.length; i++) {
