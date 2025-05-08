@@ -9,6 +9,8 @@
 /.github @rjwalters
 /ruff.toml @rjwalters
 
+/.github/CODEOWNERS @daveey
+
 # MettaScope
 /mettagrid/player @treeform @daveey
 
@@ -17,8 +19,8 @@
 /devops @daveey
 
 # Specific packages
-/mettagrid/mettagrid/map @sasmith @berekuk
 /mettagrid/mettagrid @sasmith
 
 /metta/agent @Al-does @daveey
+/metta/map @sasmith @berekuk
 /metta/rl @Al-does @daveey
