@@ -2,29 +2,21 @@
 
 # Define the list of policy URIs
 POLICIES=(
-    "multiagent_objects_nocolors2"
-    "multienv_nocolors2"
-    "multiagent_colors"
-    "multiagent_objects"
-    "george_24_nosharing_pretrained"
-    "b.daphne.multiagent_mixed_noinitialheart"
-    "b.daphne.multiagent_nc_pretrained"
-    "b.daphne.multiagent_c_pretrained"
-    "b.daphne.multiagent_mix_pretrained"
-    "b.daphne.multiagent_nc"
-    "b.daphne.multiagent_c"
-    "b.daphne.multiagent_mix"
-    "george_sharing_24"
-    "george_sharing_24_sharing_06"
-    "george_sharing_24_sharing03"
-    "george_24_no_sharing"
-    "george_sharing_48_range_pretrained"
-    "george_sharing48_sharing06_pretrained"
-    "george_sharing_24_range_pretrained"
-    "george_sharing24_sharing06_pretrained"
-    "george_sharing24_sharing03_pretrained"
-    "george_48_no_sharing_prterained"
-    "george_24_no_sharing_pretrained"
+    "b.daphne.multiagent_mix3"
+    "b.daphne.multiagent_c3"
+    "b.daphne.multiagent_nc3"
+    "b.daphne.multiagent_nc1"
+    "b.daphne.multiagent_mix1"
+    "b.daphne.multiagent_c1"
+    "george_sharing_48"
+    "george_sharing48_06"
+    "george_sharing48_03"
+    "george_48_no_sharing"
+    "b.daphne.navigation4"
+    "b.daphne.navigation1"
+    "b.daphne.navigation3"
+    "b.daphne.navigation0"
+    "b.daphne.navigation5"
 )
 
 for i in "${!POLICIES[@]}"; do
@@ -58,5 +50,11 @@ for i in "${!POLICIES[@]}"; do
         run=object_use$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         +eval_db_uri=wandb://artifacts/object_use_db \
+
+    python3 -m tools.sim \
+        sim=navigation \
+        run=navigation$IDX \
+        policy_uri=wandb://run/$POLICY_URI \
+        +eval_db_uri=wandb://artifacts/navigation_db \
 
 done
