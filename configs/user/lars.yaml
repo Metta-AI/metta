@@ -11,18 +11,20 @@ wandb:
   track: true
   checkpoint_interval: 1
 
-trainer:
-  replay_interval: 100
+# trainer:
+#   replay_interval: 100
 
 # run_id: left_right_test
 # run: ${oc.env:USER}.local.${run_id}
 # trained_policy_uri: ${run_dir}/checkpoints
 # # sweep_name: "${oc.env:USER}.local.sweep.${run_id}"
 
+trainer:
+  env: /env/mettagrid/diversity/multi_left_or_right
+  replay_interval: 50
 
-
-run: left-right-multiroom-4
-policy_uri: wandb://run/left_right_test_4
+run: left-right-multiroom-7
+policy_uri: wandb://run/left-right-multiroom-7
 
 # trainer:
 #   sim:
