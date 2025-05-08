@@ -34,18 +34,15 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         # Set up the environment first to establish dimensions
         self._reset_env()
 
-        # Get actual map dimensions from the environment
-        num_agents = self._num_agents
-
         # TODO -- typedef actions type
-
-        obs_width = self._c_env.observation_width
-        obs_height = self._c_env.observation_height
+        num_agents = self._num_agents
+        self._obs_width = self._c_env.obs_width
+        self._obs_height = self._c_env.obs_height
         grid_features_size = self._c_env.grid_features_size
 
         # force buffers to the correct size
         buf = {
-            "observations": np.zeros((num_agents, obs_width, obs_height, grid_features_size)),
+            "observations": np.zeros((num_agents, self._obs_width, self._obs_height, grid_features_size)),
             "terminals": np.zeros((num_agents,), dtype=bool),
             "truncations": np.zeros((num_agents,), dtype=bool),
             "rewards": np.zeros((num_agents,), dtype=float),
@@ -54,6 +51,8 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         }
 
         buf_obj = SimpleNamespace(**buf)
+        self._single_observation_space = self._c_env.observation_space
+        self._single_action_space = self._c_env.action_space
 
         # Call super().__init__ with the correctly sized buffer
         super().__init__(buf_obj)
@@ -64,7 +63,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         # Define expected shapes
         num_agents = self._num_agents
-        expected_obs_shape = (num_agents, obs_width, obs_height, grid_features_size)  # Assuming 11x11 grid
+        expected_obs_shape = (num_agents, self._obs_width, self._obs_height, grid_features_size)  # Assuming 11x11 grid
 
         # Validate observation shape
         obs_shape_tuple = self.observations.shape
@@ -107,12 +106,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         )
 
         self._c_env = PyMettaGrid(self._env_cfg, env_map)
-        self._grid_env = self._c_env
         self._num_agents = self._c_env.num_agents()
-
-        env = self._grid_env
-
-        self._env = env
 
     def reset(self, seed=None, options=None):
         self._env_cfg = self._get_new_env_cfg()
@@ -120,8 +114,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         self._c_env.set_buffers(self.observations, self.terminals, self.truncations, self.rewards)
 
-        # obs, infos = self._env.reset(**kwargs)
-        # return obs, infos
         obs, infos = self._c_env.reset()
         self.should_reset = False
         return obs, infos
@@ -201,11 +193,11 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     @property
     def single_observation_space(self):
-        return self._env.observation_space
+        return self._single_observation_space
 
     @property
     def single_action_space(self):
-        return self._env.action_space
+        return self._single_action_space
 
     @property
     def player_count(self):
@@ -227,7 +219,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     @property
     def grid_features(self):
-        return self._env.grid_features()
+        return self._c_env.grid_features()
 
     @property
     def global_features(self):
@@ -260,7 +252,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         return np.asarray(self._c_env.action_success(), dtype=np.int8)
 
     def action_names(self):
-        return self._env.action_names()
+        return self._c_env.action_names()
 
     def object_type_names(self):
         return self._c_env.object_type_names()

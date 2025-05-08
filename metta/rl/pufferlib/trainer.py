@@ -17,7 +17,7 @@ from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyStore
 from metta.agent.util.weights_analysis import WeightsMetricsHelper
 from metta.eval.analysis_config import AnalyzerConfig
-from metta.rl import fast_gae
+from metta.rl.fast_gae import compute_gae
 from metta.rl.pufferlib.experience import Experience
 from metta.rl.pufferlib.kickstarter import Kickstarter
 from metta.rl.pufferlib.profile import Profile
@@ -389,7 +389,7 @@ class PufferTrainer:
                 # Set gamma to 1.0 for average reward case
                 effective_gamma = 1.0
                 # Compute advantages using adjusted rewards
-                advantages_np = fast_gae.compute_gae(
+                advantages_np = compute_gae(
                     dones_np, values_np, rewards_np_adjusted, effective_gamma, self.trainer_cfg.gae_lambda
                 )
                 # For average reward case, returns are computed differently:
@@ -398,7 +398,7 @@ class PufferTrainer:
             else:
                 effective_gamma = self.trainer_cfg.gamma
                 # Standard GAE computation for discounted case
-                advantages_np = fast_gae.compute_gae(
+                advantages_np = compute_gae(
                     dones_np, values_np, rewards_np, effective_gamma, self.trainer_cfg.gae_lambda
                 )
                 experience.returns_np = advantages_np + values_np
@@ -496,6 +496,9 @@ class PufferTrainer:
                         torch.cuda.synchronize()
 
                 with profile.train_misc:
+                    if self.losses is None:
+                        raise ValueError("self.losses is None")
+
                     self.losses.policy_loss += pg_loss.item() / total_minibatches
                     self.losses.value_loss += v_loss.item() / total_minibatches
                     self.losses.entropy += entropy_loss.item() / total_minibatches

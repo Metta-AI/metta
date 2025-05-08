@@ -705,12 +705,12 @@ cdef class PyMettaGrid:
         return self._grid_features_size
 
     @property
-    def observation_width(self):
+    def obs_width(self):
         """Get the width of the observation window."""
         return self._obs_width
 
     @property
-    def observation_height(self):
+    def obs_height(self):
         """Get the height of the observation window."""
         return self._obs_height
 

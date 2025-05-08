@@ -34,49 +34,16 @@ class Policy(nn.Module):
         )
 
         # TODO - fix magic numbers!
+        # fmt: off
+        max_vec = torch.tensor([
+            1, 10, 30, 1, 1, 255,
+            100, 100, 100, 100, 100, 100, 100, 100,
+            1, 1, 1, 10, 1,
+            100, 100, 100, 100, 100, 100, 100, 100,
+            1, 1, 1, 1, 1, 1, 1
+        ], dtype=torch.float).reshape(1, 34, 1, 1)
+        # fmt: on
 
-        max_vec = (
-            torch.tensor(
-                [
-                    1,
-                    10,
-                    30,
-                    1,
-                    1,
-                    255,
-                    100,
-                    100,
-                    100,
-                    100,
-                    100,
-                    100,
-                    100,
-                    100,
-                    1,
-                    1,
-                    1,
-                    10,
-                    1,
-                    100,
-                    100,
-                    100,
-                    100,
-                    100,
-                    100,
-                    100,
-                    100,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                ]
-            )
-            .float()
-            .view(1, 34, 1, 1)
-        )
         self.register_buffer("max_vec", max_vec)
 
         action_nvec = env.single_action_space.nvec
@@ -132,7 +99,7 @@ def load_policy(path: str, device: str = "cpu"):
 
 
 class PufferAgentWrapper(nn.Module):
-    def __init__(self, policy: Policy):
+    def __init__(self, policy: nn.Module):
         super().__init__()
         self.policy = policy
 
