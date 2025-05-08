@@ -186,7 +186,9 @@ class LPEnvWrapper:
     def __init__(self, env, num_tasks, ema_alpha = 0.001, p_theta = 0.05, num_active_tasks = 16, 
                  rand_task_rate = 0.25, sample_threshold = 10, memory = 25, 
                  use_lp = True, lp_metric='episode/reward.mean'):
+        # assume this is the MettPuff env (pufferlib) wrapper
         self.env = env
+        # then this is the mettagrid env (metta)
         self.raw_env = env.env
         self.n = num_tasks
         self.use_lp = use_lp
