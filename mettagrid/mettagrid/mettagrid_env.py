@@ -70,6 +70,13 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             f"Number of agents {self._env_cfg.game.num_agents} does not match number of agents in map {map_agents}"
         )
 
+        env_map_list = env_map.tolist()
+        for i, row in enumerate(env_map_list):
+            for j, cell in enumerate(row):
+                print(f"{i}, {j}: {cell}")
+
+        env_map = np.array(env_map_list)
+
         self._c_env = MettaGrid(self._env_cfg, env_map)
         self._grid_env = self._c_env
         self._num_agents = self._c_env.num_agents()
