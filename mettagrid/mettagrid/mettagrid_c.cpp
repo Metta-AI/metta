@@ -28,6 +28,10 @@
 #include <pybind11/chrono.h>
 #include <pybind11/complex.h>
 #include <pybind11/operators.h>
+#include <iostream>
+// xcxc for utf32 -> utf8 conversion
+#include <codecvt>
+#include <locale>
 
 namespace py = pybind11;
 
@@ -44,14 +48,6 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
     _obs_height = cfg["obs_height"].cast<unsigned short>();
     
     _current_timestep = 0;
-    
-    // Initialize grid
-    auto map_info = map.request();
-    std::vector<Layer> layer_for_type_id;
-    for (const auto& layer : ObjectLayers) {
-        layer_for_type_id.push_back(layer.second);
-    }
-    _grid = std::make_unique<Grid>(map_info.shape[1], map_info.shape[0], layer_for_type_id);
     
     // Initialize event manager and stats tracker
     _event_manager = std::make_unique<EventManager>();
@@ -120,16 +116,46 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
         _group_reward_pct[id] = group.contains("group_reward_pct") ? 
             group["group_reward_pct"].cast<float>() : 0.0f;
     }
+
+    // Initialize grid
+    auto map_info = map.request();
+    // Ensure the array is 2D
+    if (map_info.ndim != 2) {
+        throw std::runtime_error("Expected a 2D array");
+    }
+
+    // Check the dtype size (should match <U50)
+    ssize_t element_size = map_info.itemsize;
+    if (element_size % 4 != 0) {
+        // We expect utf-32
+        throw std::runtime_error("Invalid Unicode size: not divisible by 4");
+    }
+    ssize_t max_chars = element_size / 4;
+    if (max_chars != 50) {
+        // This check is less necessary, since we can be flexible here
+        // It's mostly to ensure that we _really_ know what we're dealing with.
+        throw std::runtime_error("Invalid String Size: expected 50 characters");
+    }
+    
+    std::vector<Layer> layer_for_type_id;
+    for (const auto& layer : ObjectLayers) {
+        layer_for_type_id.push_back(layer.second);
+    }
+    _grid = std::make_unique<Grid>(map_info.shape[1], map_info.shape[0], layer_for_type_id);
     
     // Initialize objects from map
-    auto map_data = static_cast<py::object*>(map_info.ptr);
+    auto map_data = static_cast<wchar_t*>(map_info.ptr);
     for (int r = 0; r < map_info.shape[0]; r++) {
         for (int c = 0; c < map_info.shape[1]; c++) {
             ssize_t idx = r * map_info.shape[1] + c;
             // xcxc will using a unique_ptr mean that the object is deleted when the unique_ptr goes out of scope?
             // Will that mess up the grid?
             std::unique_ptr<Converter> converter = nullptr;
-            std::string cell = py::cast<std::string>(map_data[idx]);
+            std::wstring wide_string(map_data + idx * max_chars, max_chars);
+            std::wstring_convert<std::codecvt_utf8<wchar_t>> w_string_converter;
+            std::string cell = w_string_converter.to_bytes(wide_string);
+
+            cout << cell << endl;
             
             if (cell == "wall") {
                 auto wall = std::make_unique<Wall>(r, c, cfg["objects"]["wall"].cast<ObjectConfig>());
