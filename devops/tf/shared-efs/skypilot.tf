@@ -18,7 +18,7 @@ resource "aws_security_group" "allow_skypilot_inbound" {
     from_port   = local.skypilot_api_port
     to_port     = local.skypilot_api_port
     protocol    = "tcp"
-    cidr_blocks = [aws_instance.proxy.private_ip]
+    cidr_blocks = ["${aws_instance.proxy.private_ip}/32"]
   }
 
   egress {
