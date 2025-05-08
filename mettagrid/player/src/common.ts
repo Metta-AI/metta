@@ -1,9 +1,10 @@
 import { Vec2f } from './vector_math.js';
-import { Context3d, parseHtmlColor } from './context3d.js';
+import { Context3d } from './context3d.js';
+import { find, parseHtmlColor } from './htmlutils.js';
 import { PanelInfo } from './panels.js';
 
 // The 3d context, used for nearly everything.
-export const ctx = new Context3d(document.getElementById('global-canvas') as HTMLCanvasElement);
+export const ctx = new Context3d(find('#global-canvas') as HTMLCanvasElement);
 
 // Constants
 export const MIN_ZOOM_LEVEL = 0.025;
@@ -72,46 +73,48 @@ export const state = {
 
   // What to show?
   sortTraces: false,
+  showResources: false,
   showGrid: true,
   showViewRanges: true,
   showFogOfWar: false,
 };
 
 export const html = {
-  globalCanvas: document.getElementById('global-canvas') as HTMLCanvasElement,
+  globalCanvas: find('#global-canvas') as HTMLCanvasElement,
 
   // Header area
-  fileName: document.getElementById('file-name') as HTMLDivElement,
-  shareButton: document.getElementById('share-button') as HTMLButtonElement,
-  mainFilter: document.getElementById('main-filter') as HTMLInputElement,
+  fileName: find('#file-name') as HTMLDivElement,
+  shareButton: find('#share-button') as HTMLButtonElement,
+  mainFilter: find('#main-filter') as HTMLInputElement,
 
   // Bottom area
-  scrubber: document.getElementById('main-scrubber') as HTMLInputElement,
+  scrubber: find('#main-scrubber') as HTMLInputElement,
 
-  rewindToStartButton: document.getElementById('rewind-to-start') as HTMLImageElement,
-  stepBackButton: document.getElementById('step-back') as HTMLImageElement,
-  playButton: document.getElementById('play') as HTMLButtonElement,
-  stepForwardButton: document.getElementById('step-forward') as HTMLImageElement,
-  rewindToEndButton: document.getElementById('rewind-to-end') as HTMLImageElement,
+  rewindToStartButton: find('#rewind-to-start') as HTMLImageElement,
+  stepBackButton: find('#step-back') as HTMLImageElement,
+  playButton: find('#play') as HTMLButtonElement,
+  stepForwardButton: find('#step-forward') as HTMLImageElement,
+  rewindToEndButton: find('#rewind-to-end') as HTMLImageElement,
 
   speedButtons: [
-    document.getElementById('speed1') as HTMLImageElement,
-    document.getElementById('speed2') as HTMLImageElement,
-    document.getElementById('speed3') as HTMLImageElement,
-    document.getElementById('speed4') as HTMLImageElement,
-    document.getElementById('speed5') as HTMLImageElement,
-    document.getElementById('speed6') as HTMLImageElement,
+    find('#speed1') as HTMLImageElement,
+    find('#speed2') as HTMLImageElement,
+    find('#speed3') as HTMLImageElement,
+    find('#speed4') as HTMLImageElement,
+    find('#speed5') as HTMLImageElement,
+    find('#speed6') as HTMLImageElement,
   ],
 
-  sortButton: document.getElementById('sort') as HTMLImageElement,
-  focusButton: document.getElementById('tack') as HTMLImageElement,
-  gridButton: document.getElementById('grid') as HTMLImageElement,
-  showViewButton: document.getElementById('eye') as HTMLImageElement,
-  showFogOfWarButton: document.getElementById('cloud') as HTMLImageElement,
+  sortButton: find('#sort') as HTMLImageElement,
+  resourcesButton: find('#resources') as HTMLImageElement,
+  focusButton: find('#tack') as HTMLImageElement,
+  gridButton: find('#grid') as HTMLImageElement,
+  showViewButton: find('#eye') as HTMLImageElement,
+  showFogOfWarButton: find('#cloud') as HTMLImageElement,
 
   // Utility
-  modal: document.getElementById('modal') as HTMLDivElement,
-  toast: document.getElementById('toast') as HTMLDivElement,
+  modal: find('#modal') as HTMLDivElement,
+  toast: find('#toast') as HTMLDivElement,
 }
 
 // Set the follow selection state, you can pass null to leave a state unchanged.

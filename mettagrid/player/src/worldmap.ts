@@ -5,7 +5,7 @@ import { ui, state, ctx, setFollowSelection } from './common.js';
 import { getAttr } from './replay.js';
 import { PanelInfo } from './panels.js';
 import { onFrame } from './main.js';
-import { parseHtmlColor } from './context3d.js';
+import { parseHtmlColor } from './htmlutils.js';
 // Flag to prevent multiple calls to requestAnimationFrame
 let frameRequested = false;
 

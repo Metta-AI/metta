@@ -430,6 +430,13 @@ html.sortButton.addEventListener('click', () => {
 toggleOpacity(html.sortButton, state.sortTraces);
 html.sortButton.style.display = "none";
 
+html.resourcesButton.addEventListener('click', () => {
+  state.showResources = !state.showResources;
+  toggleOpacity(html.resourcesButton, state.showResources);
+  requestFrame();
+});
+toggleOpacity(html.resourcesButton, state.showResources);
+
 html.focusButton.addEventListener('click', () => {
   const reverse = !state.followSelection;
   setFollowSelection(reverse, reverse);
