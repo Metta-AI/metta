@@ -1,6 +1,6 @@
 import { Vec2f } from './vector_math.js';
 import * as Common from './common.js';
-import { ui, state, ctx } from './common.js';
+import { ui, state, ctx, setFollowSelection } from './common.js';
 import { getAttr } from './replay.js';
 import { PanelInfo } from './panels.js';
 import { updateStep } from './main.js';
@@ -26,7 +26,7 @@ export function drawTrace(panel: PanelInfo) {
         localMousePos.y() > 0 && localMousePos.y() < state.replay.num_agents * Common.TRACE_HEIGHT) {
         const agentId = Math.floor(localMousePos.y() / Common.TRACE_HEIGHT);
         if (agentId >= 0 && agentId < state.replay.num_agents) {
-          state.followSelection = true;
+          setFollowSelection(true, null);
           state.selectedGridObject = state.replay.agents[agentId];
           console.log("selectedGridObject on a trace:", state.selectedGridObject);
           ui.mapPanel.focusPos(
@@ -37,7 +37,7 @@ export function drawTrace(panel: PanelInfo) {
           updateStep(Math.floor(mapX / Common.TRACE_WIDTH));
 
           if (ui.mouseDoubleClick) {
-            state.followTraceSelection = true;
+            setFollowSelection(null, true);
             panel.zoomLevel = 1;
           }
         }
