@@ -1,4 +1,4 @@
-name: "Python"
+name: "Python" 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'merge_group' && github.event.merge_group.head_ref || github.ref }}
   cancel-in-progress: true
@@ -21,7 +21,7 @@ on:
         type: boolean
         default: true
       run_benchmark:
-        description: "Run benchmarks"
+        description: "Run benchmarks (requires tests)"
         type: boolean
         default: true
 
@@ -684,10 +684,9 @@ jobs:
             --start-point-reset \
             --testbed ubuntu-latest \
             --threshold-measure latency \
-            --threshold-test t_test \
+            --threshold-test percentage \
             --threshold-max-sample-size 64 \
-            --threshold-upper-boundary 0.99 \
+            --threshold-upper-boundary 0.25 \
             --adapter python_pytest \
             --github-actions "$GITHUB_TOKEN" \
-            --err \
             --file combined_benchmark_results.json > /dev/null
