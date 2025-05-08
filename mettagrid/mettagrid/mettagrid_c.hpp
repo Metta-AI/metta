@@ -95,7 +95,7 @@ private:
     std::vector<bool> _action_success;
 
     // Private methods
-    void init_action_handlers(const std::vector<std::unique_ptr<ActionHandler>>& action_handlers);
+    void init_action_handlers(std::vector<std::unique_ptr<ActionHandler>>& action_handlers);
     void add_agent(Agent* agent);
     void _compute_observation(
         unsigned int observer_r,
