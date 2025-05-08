@@ -21,6 +21,8 @@ game:
         agents: 6
         style: maze # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
         teams: [team_1]
+        objects:
+          altar: ${sampling:10,30,24}
       - _target_: mettagrid.config.room.navigation.varied_terrain.VariedTerrain
         width: ${sampling:50,100,60}
         height: ${sampling:50,100,60}
@@ -28,6 +30,8 @@ game:
         agents: 6
         style: maze # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
         teams: [team_2]
+        objects:
+          altar: ${sampling:10,30,24}
       - _target_: mettagrid.config.room.navigation.varied_terrain.VariedTerrain
         width: ${sampling:50,100,60}
         height: ${sampling:50,100,60}
@@ -35,6 +39,8 @@ game:
         agents: 6
         style: maze # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
         teams: [team_3]
+        objects:
+          altar: ${sampling:10,30,24}
       - _target_: mettagrid.config.room.navigation.varied_terrain.VariedTerrain
         width: ${sampling:50,100,60}
         height: ${sampling:50,100,60}
@@ -42,6 +48,8 @@ game:
         agents: 6
         style: maze # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
         teams: [team_4]
+        objects:
+          altar: ${sampling:10,30,24}
 
   reward_sharing:
     groups:
