@@ -5,4 +5,4 @@ defaults:
 name: daphne
 simulations:
   multiagent:
-    env: env/mettagrid/multiagent/evals/protect_the_resources
+    env: env/mettagrid/multiagent/training/reward_sharing/48_range/varied_terrain_all_sparse

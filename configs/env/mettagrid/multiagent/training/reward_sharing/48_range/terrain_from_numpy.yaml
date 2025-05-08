@@ -3,7 +3,7 @@ defaults:
 
 sampling: 1
 game:
-  num_agents: 24    #how many agents are in the map x2
+  num_agents: 48    #how many agents are in the map x2
 
   agent:
     max_inventory: 5
@@ -16,29 +16,29 @@ game:
       - _target_: mettagrid.config.room.terrain_from_numpy.TerrainFromNumpy
         border_width: 1
         dir: "terrain_maps_nohearts"
-        agents: 6
-        teams: [team_1]
+        agents: 12
+        team: team_1
         objects:
           altar: ${sampling:10,75,30}
       - _target_: mettagrid.config.room.terrain_from_numpy.TerrainFromNumpy
         border_width: 1
         dir: "terrain_maps_nohearts"
-        agents: 6
-        teams: [team_2]
+        agents: 12
+        team: team_2
         objects:
           altar: ${sampling:10,75,30}
       - _target_: mettagrid.config.room.terrain_from_numpy.TerrainFromNumpy
         border_width: 1
         dir: "terrain_maps_nohearts"
-        agents: 6
-        teams: [team_3]
+        agents: 12
+        team: team_3
         objects:
           altar: ${sampling:10,75,30}
       - _target_: mettagrid.config.room.terrain_from_numpy.TerrainFromNumpy
         border_width: 1
         dir: "terrain_maps_nohearts"
-        agents: 6
-        teams: [team_4]
+        agents: 12
+        team: team_4
         objects:
           altar: ${sampling:10,75,30}
 

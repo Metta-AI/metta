@@ -140,7 +140,7 @@ class VariedTerrain(Room):
             agents = []
             agents_per_team = self._agents // len(self._teams)
             for team in self._teams:
-                agents.append(["agent." + team] * agents_per_team)
+                agents += ["agent." + team] * agents_per_team
 
         # Create an empty grid.
         grid = np.full((self._height, self._width), "empty", dtype=object)
