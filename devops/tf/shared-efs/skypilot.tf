@@ -99,8 +99,9 @@ resource "aws_iam_role_policy" "skypilot_api_server" {
           "iam:GetRole",
           "iam:PassRole",
           # for skypilot-v1 role maintained by skypilot
-          "iam:CreateRole",
-          "iam:AttachRolePolicy"
+          # disabled - we terraform the role
+          # "iam:CreateRole",
+          # "iam:AttachRolePolicy"
         ],
         "Resource" : [
           "arn:aws:iam::${local.account_id}:role/skypilot-v1"
@@ -111,8 +112,9 @@ resource "aws_iam_role_policy" "skypilot_api_server" {
         "Action" : [
           "iam:GetInstanceProfile",
           # for skypilot-v1 role maintained by skypilot
-          "iam:CreateInstanceProfile",
-          "iam:AddRoleToInstanceProfile"
+          # disabled - we terraform the role
+          # "iam:CreateInstanceProfile",
+          # "iam:AddRoleToInstanceProfile"
         ],
         "Resource" : "arn:aws:iam::${local.account_id}:instance-profile/skypilot-v1"
       },
@@ -127,6 +129,56 @@ resource "aws_iam_role_policy" "skypilot_api_server" {
   })
 }
 
+resource "aws_iam_role" "skypilot_v1" {
+  name = "skypilot-v1"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action    = "sts:AssumeRole"
+        Effect    = "Allow"
+        Principal = { Service = "ec2.amazonaws.com" }
+      }
+    ]
+  })
+}
+
+
+resource "aws_iam_role_policy_attachment" "skypilot_v1_attach" {
+  for_each = toset([
+    "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPullOnly",
+    "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly",
+    "arn:aws:iam::aws:policy/AmazonEC2FullAccess",
+    "arn:aws:iam::aws:policy/AmazonS3FullAccess",
+  ])
+  role       = aws_iam_role.skypilot_v1.name
+  policy_arn = each.value
+}
+
+# For some reason, skypilot didn't initialize skypilot-v1 role correctly.
+# Old account had this inline policy, but the new account only had EC2 and S3 attached.
+# So I'm reproducing the inline policy here; I think this is necessary for managed jobs.
+resource "aws_iam_role_policy" "skypilot_v1_pass_role" {
+  name = "SkyPilotPassRolePolicy"
+  role = aws_iam_role.skypilot_v1.name
+  policy = jsonencode({
+    "Statement" : [
+      {
+        "Effect" : "Allow",
+        "Action" : [
+          "iam:GetRole",
+          "iam:PassRole"
+        ],
+        "Resource" : "arn:aws:iam::${local.account_id}:role/skypilot-v1"
+      },
+      {
+        "Effect" : "Allow",
+        "Action" : "iam:GetInstanceProfile",
+        "Resource" : "arn:aws:iam::${local.account_id}:instance-profile/skypilot-v1"
+      }
+    ]
+  })
+}
 
 # ECS Cluster
 resource "aws_ecs_cluster" "skypilot_api_server" {
