@@ -38,22 +38,26 @@ TEST_F(GridLocationTest, ThreeParamConstructor) {
   EXPECT_EQ(2, location.layer);
 }
 
-// Concrete implementation of GridObject for testing
-class TestGridObject : public GridObject {
+// Create a derived class for testing
+class TestableGridObject : public GridObject {
 public:
-  void obs(ObsType* obs, const std::vector<unsigned int>& offsets) const override {
+  // Make the protected encode method public for testing
+  using GridObject::encode;
+
+  // Implement the pure virtual method
+  void obs(ObsType* obs) const override {
     // Simple implementation for testing
-    obs[offsets[0]] = 1;
+    encode(obs, "test_feature", 1);
   }
 };
 
 // Test fixture for GridObject
 class GridObjectTest : public ::testing::Test {
 protected:
-  TestGridObject obj;
+  TestableGridObject obj;
 
   void SetUp() override {
-    // Reset object before each test if needed
+    // Setup code if needed before each test
   }
 };
 
@@ -88,12 +92,34 @@ TEST_F(GridObjectTest, InitWithCoordinatesAndLayer) {
   EXPECT_EQ(4, obj.location.layer);
 }
 
-// Test obs method
+// Test feature registration and observation encoding
 TEST_F(GridObjectTest, ObsMethod) {
-  ObsType observations[1] = {0};
-  std::vector<unsigned int> offsets = {0};
+  // Get initial observation size
+  size_t initial_size = GridObject::get_observation_size();
 
-  obj.obs(observations, offsets);
+  // Create an observation array large enough
+  std::vector<ObsType> observations(initial_size + 1, 0);
 
-  EXPECT_EQ(1, observations[0]);
+  // Call the observation method
+  obj.obs(observations.data());
+
+  // Get the updated observation size (should be at least 1 more than before if feature didn't exist)
+  size_t updated_size = GridObject::get_observation_size();
+  EXPECT_GE(updated_size, initial_size);
+
+  // Get the feature names to find our test_feature
+  auto feature_names = GridObject::get_feature_names();
+
+  // Find the index of our test_feature
+  int test_feature_index = -1;
+  for (size_t i = 0; i < feature_names.size(); i++) {
+    if (feature_names[i] == "test_feature") {
+      test_feature_index = i;
+      break;
+    }
+  }
+
+  // Verify the feature was registered and the observation was set
+  ASSERT_GE(test_feature_index, 0) << "test_feature not found in feature names";
+  EXPECT_EQ(1, observations[test_feature_index]);
 }

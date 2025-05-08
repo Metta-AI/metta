@@ -36,6 +36,7 @@ CppMettaGrid::CppMettaGrid(uint32_t map_width,
   _max_timestep = max_timestep;
   _obs_width = obs_width;
   _obs_height = obs_height;
+  _num_agents = num_agents;
 
   // Create the grid - now owned by this class
   _grid = std::make_unique<Grid>(map_width, map_height);
@@ -185,6 +186,7 @@ void CppMettaGrid::compute_observation(uint16_t observer_r,
                                        ObsType* observation) {
   uint16_t obs_width_r = obs_width >> 1;
   uint16_t obs_height_r = obs_height >> 1;
+
   // Get observation size from GridObject's static method
   std::vector<ObsType> temp_obs(GridObject::get_observation_size(), 0);
 
@@ -199,7 +201,6 @@ void CppMettaGrid::compute_observation(uint16_t observer_r,
 
     for (uint32_t c = c_start; c <= observer_c + obs_width_r; c++) {
       if (c >= _grid->width) continue;  // uint32_t is always >= 0
-
       for (uint32_t layer = 0; layer < _grid->num_layers; layer++) {
         GridLocation object_loc(r, c, layer);
         GridObject* obj = _grid->object_at(object_loc);
@@ -226,8 +227,13 @@ void CppMettaGrid::compute_observation(uint16_t observer_r,
 void CppMettaGrid::compute_observations(int32_t** actions) {
   for (size_t idx = 0; idx < _agents.size(); idx++) {
     Agent* agent = _agents[idx];
-    ObsType* obs_ptr = _observations.data() + idx * _obs_width * _obs_height * _grid_features.size();
 
+    if (_observations.data() == nullptr) {
+      std::cerr << "ERROR: _observations pointer is null!" << std::endl;
+      return;
+    }
+
+    ObsType* obs_ptr = _observations.data() + idx * _obs_width * _obs_height * _grid_features.size();
     compute_observation(agent->location.r, agent->location.c, _obs_width, _obs_height, obs_ptr);
   }
 }
@@ -473,6 +479,32 @@ void CppMettaGrid::initialize_from_json(const std::string& map_json, const std::
 
   // Set up action handlers from the config
   setup_action_handlers(cfg);
+
+  // Register all features by calling obs() on all objects
+  register_features();
+
+  // Resize storage
+  size_t obs_size = _num_agents * _obs_width * _obs_height * _grid_features.size();
+  _observations.resize(obs_size, 0);
+}
+
+void CppMettaGrid::register_features() {
+  // Create a dummy observation buffer large enough for all possible features
+  std::vector<ObsType> dummy_obs(MAX_FEATURE_OFFSETS, 0);
+
+  // Call obs() on each object to register its features
+  for (size_t obj_id = 1; obj_id < _grid->objects.size(); obj_id++) {
+    GridObject* obj = _grid->object(obj_id);
+    if (obj == nullptr) continue;
+
+    // This will call encode() which calls register_feature() for each feature
+    obj->obs(dummy_obs.data());
+  }
+
+  // Now update _grid_features with the registered features
+  _grid_features = GridObject::get_feature_names();
+
+  // std::cout << "Registered " << _grid_features.size() << " features." << std::endl;
 }
 
 void CppMettaGrid::parse_grid_object(const std::string& object_type,
@@ -759,13 +791,12 @@ std::string CppMettaGrid::get_grid_objects_json() const {
     // Create object entry with basic info
     nlohmann::json obj_json;
     obj_json["id"] = obj_id;
-    obj_json["type_id"] = obj->_type_id;
 
     // Add string type name
     if (obj->_type_id < ObjectTypeNames.size()) {
-      obj_json["type_name"] = ObjectTypeNames[obj->_type_id];
+      obj_json["type"] = ObjectTypeNames[obj->_type_id];
     } else {
-      obj_json["type_name"] = "Unknown";
+      obj_json["type"] = "Unknown";
     }
 
     // Add location info

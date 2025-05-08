@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <iostream>
+
 #include "actions/noop.hpp"
 #include "core.hpp"
 #include "grid.hpp"
@@ -8,6 +10,7 @@
 #include "stats_tracker.hpp"
 #include "test_utils.hpp"
 
+// Modify the test class to focus on the multiplier
 class RewardDecayTest : public ::testing::Test {
 protected:
   // Constants for test setup
@@ -21,42 +24,38 @@ protected:
   void SetUp() override {
     // Create a test grid using the utilities
     metta_grid = test_utils::create_test_grid(kMapWidth, kMapHeight, kNumAgents, kMaxTimestep, kObsWidth, kObsHeight);
+    ASSERT_TRUE(metta_grid != nullptr) << "Failed to create test grid";
 
     // Create action array for testing
     actions = test_utils::create_action_array(kNumAgents);
+    ASSERT_TRUE(actions != nullptr) << "Failed to create action array";
+
+    // Initialize the grid to ensure it's in a valid state
+    metta_grid->reset();
   }
 
   void TearDown() override {
     // Clean up actions array
-    test_utils::delete_action_array(actions, kNumAgents);
+    if (actions != nullptr) {
+      test_utils::delete_action_array(actions, kNumAgents);
+      actions = nullptr;
+    }
+
+    // Reset the grid to ensure clean state
+    if (metta_grid != nullptr) {
+      metta_grid.reset();
+    }
   }
 
-  // Helper method to run steps and compare reward ratios
-  void run_steps_and_check_ratio(float expected_ratio, int setup_steps, int test_steps) {
-    // Run setup steps first
-    for (int step = 0; step < setup_steps; ++step) {
+  // Run steps and return the resulting multiplier
+  float run_steps_and_get_multiplier(int num_steps) {
+    // Run steps
+    for (int i = 0; i < num_steps; ++i) {
       metta_grid->step(actions);
     }
 
-    // Store the rewards at this point
-    auto& initial_rewards = metta_grid->get_rewards();
-    std::vector<float> stored_rewards(initial_rewards.begin(), initial_rewards.end());
-
-    // Run test steps
-    for (int i = 0; i < test_steps; ++i) {
-      metta_grid->step(actions);
-    }
-
-    // Get final rewards for comparison
-    auto& final_rewards = metta_grid->get_rewards();
-
-    // Compare ratios where relevant
-    for (uint32_t i = 0; i < kNumAgents; ++i) {
-      if (fabs(stored_rewards[i]) > 0.001f) {
-        float ratio = final_rewards[i] / stored_rewards[i];
-        EXPECT_NEAR(expected_ratio, ratio, 0.001f) << "Expected ratio of " << expected_ratio << ", got " << ratio;
-      }
-    }
+    // Return the multiplier directly
+    return metta_grid->get_reward_multiplier();
   }
 
   std::unique_ptr<CppMettaGrid> metta_grid;
@@ -65,25 +64,21 @@ protected:
 
 // Test minimum reward decay limit
 TEST_F(RewardDecayTest, MinimumDecayLimit) {
-  // Reset and enable decay with a small time constant
+  // Reset and make sure we have a fresh state
   metta_grid->reset();
+
+  // Enable fast decay
   metta_grid->enable_reward_decay(5);  // Fast decay
 
-  // Calculate how many steps needed to reach minimum
-  const float kDecayFactor = 3.0f / 5;
-  float multiplier = 1.0f;
-  int steps_to_minimum = 0;
-
-  while (multiplier > 0.1f) {
-    multiplier *= (1.0f - kDecayFactor);
-    steps_to_minimum++;
+  // Run enough steps to ensure we hit the minimum decay limit (0.1)
+  // With decay factor of 3.0/5, this should be reached within ~8 steps
+  for (int i = 0; i < 20; ++i) {
+    metta_grid->step(actions);
   }
 
-  // Add a few extra steps to be sure
-  int setup_steps = steps_to_minimum + 5;
-
-  // Run steps and check the minimum ratio is applied
-  run_steps_and_check_ratio(0.1f, setup_steps, 5);
+  // Check if the multiplier has reached the minimum limit
+  float multiplier = metta_grid->get_reward_multiplier();
+  EXPECT_NEAR(0.1f, multiplier, 0.001f) << "Expected multiplier to reach minimum 0.1, got " << multiplier;
 }
 
 // Test disabled reward decay
@@ -92,8 +87,11 @@ TEST_F(RewardDecayTest, DisabledDecay) {
   metta_grid->reset();
   metta_grid->disable_reward_decay();
 
-  // With decay disabled, ratio should be 1.0
-  run_steps_and_check_ratio(1.0f, 3, 5);
+  // Run some steps
+  float multiplier = run_steps_and_get_multiplier(5);
+
+  // With decay disabled, multiplier should stay at 1.0
+  EXPECT_NEAR(1.0f, multiplier, 0.001f) << "Expected multiplier of 1.0 with disabled decay, got " << multiplier;
 }
 
 // Test enabling and then disabling decay
@@ -107,11 +105,22 @@ TEST_F(RewardDecayTest, EnableThenDisable) {
     metta_grid->step(actions);
   }
 
-  // Disable decay
+  // Get multiplier after decay
+  float decayed_multiplier = metta_grid->get_reward_multiplier();
+  EXPECT_LT(decayed_multiplier, 1.0f) << "Expected multiplier to decrease from 1.0, got " << decayed_multiplier;
+
+  // Disable decay - this should reset the multiplier to 1.0
   metta_grid->disable_reward_decay();
 
-  // Now ratio should be 1.0 since decay is disabled
-  run_steps_and_check_ratio(1.0f, 0, 5);
+  // Multiplier should be reset to 1.0 immediately
+  float reset_multiplier = metta_grid->get_reward_multiplier();
+  EXPECT_NEAR(1.0f, reset_multiplier, 0.001f)
+      << "Expected multiplier to reset to 1.0 after disabling decay, got " << reset_multiplier;
+
+  // Run a few more steps to ensure it stays at 1.0
+  float final_multiplier = run_steps_and_get_multiplier(5);
+  EXPECT_NEAR(1.0f, final_multiplier, 0.001f)
+      << "Expected multiplier to remain at 1.0 after running steps with decay disabled, got " << final_multiplier;
 }
 
 // Test changing decay time constant
@@ -120,32 +129,30 @@ TEST_F(RewardDecayTest, ChangeDecayTimeConstant) {
   metta_grid->reset();
   metta_grid->enable_reward_decay(100);  // Slow decay
 
-  // Run some steps
+  // Run some steps with slow decay
   for (int i = 0; i < 10; i++) {
     metta_grid->step(actions);
   }
 
-  // Store current rewards
-  auto& slow_decay_rewards = metta_grid->get_rewards();
-  std::vector<float> stored_slow = {slow_decay_rewards.begin(), slow_decay_rewards.end()};
+  // Get multiplier after slow decay
+  float slow_multiplier = metta_grid->get_reward_multiplier();
 
-  // Change to fast decay
+  // Reset and enable with fast decay
+  metta_grid->reset();
   metta_grid->enable_reward_decay(5);  // Fast decay
 
-  // Run same number of steps
+  // Run same number of steps with fast decay
   for (int i = 0; i < 10; i++) {
     metta_grid->step(actions);
   }
 
-  // Get rewards after fast decay
-  auto& fast_decay_rewards = metta_grid->get_rewards();
+  // Get multiplier after fast decay
+  float fast_multiplier = metta_grid->get_reward_multiplier();
 
-  // Fast decay should result in smaller rewards than slow decay
-  for (uint32_t i = 0; i < kNumAgents; ++i) {
-    if (fabs(stored_slow[i]) > 0.001f && fabs(fast_decay_rewards[i]) > 0.001f) {
-      EXPECT_LT(fast_decay_rewards[i], stored_slow[i]) << "Expected fast decay to produce smaller rewards";
-    }
-  }
+  // The fast decay should produce a smaller multiplier
+  EXPECT_LT(fast_multiplier, slow_multiplier)
+      << "Fast decay multiplier (" << fast_multiplier << ") should be smaller than slow decay multiplier ("
+      << slow_multiplier << ")";
 }
 
 // Test reward decay calculation precision
@@ -158,41 +165,25 @@ TEST_F(RewardDecayTest, DecayPrecision) {
   // Calculate expected decay factor
   const float kDecayFactor = 3.0f / kDecayTimeSteps;
 
-  // Initial multiplier
-  float expected_multiplier = 1.0f;
-
   // Run a moderate number of steps
   const int kStepsToRun = 25;  // Half the decay time
 
+  // Calculate expected multiplier
+  float expected_multiplier = 1.0f;
   for (int step = 0; step < kStepsToRun; ++step) {
-    // Step the environment
+    expected_multiplier *= (1.0f - kDecayFactor);
+    expected_multiplier = std::max(0.1f, expected_multiplier);
+  }
+
+  // Run the steps
+  for (int step = 0; step < kStepsToRun; ++step) {
     metta_grid->step(actions);
-
-    // Update expected multiplier
-    if (step > 0) {
-      expected_multiplier *= (1.0f - kDecayFactor);
-      expected_multiplier = std::max(0.1f, expected_multiplier);
-    }
   }
 
-  // Store rewards
-  auto& rewards_after_steps = metta_grid->get_rewards();
+  // Get final multiplier
+  float actual_multiplier = metta_grid->get_reward_multiplier();
 
-  // Create a fresh grid to compare against
-  auto reference_grid =
-      test_utils::create_test_grid(kMapWidth, kMapHeight, kNumAgents, kMaxTimestep, kObsWidth, kObsHeight);
-  reference_grid->reset();
-
-  // Step once to get baseline rewards
-  reference_grid->step(actions);
-  auto& reference_rewards = reference_grid->get_rewards();
-
-  // Compare precision of decay - should match our calculated value
-  for (uint32_t i = 0; i < kNumAgents; ++i) {
-    if (fabs(reference_rewards[i]) > 0.001f && fabs(rewards_after_steps[i]) > 0.001f) {
-      float actual_ratio = rewards_after_steps[i] / reference_rewards[i];
-      EXPECT_NEAR(expected_multiplier, actual_ratio, 0.001f)
-          << "Expected multiplier " << expected_multiplier << ", got " << actual_ratio;
-    }
-  }
+  // Check precision of decay calculation
+  EXPECT_NEAR(expected_multiplier, actual_multiplier, 0.001f)
+      << "Expected multiplier " << expected_multiplier << ", got " << actual_multiplier;
 }

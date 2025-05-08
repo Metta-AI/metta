@@ -24,8 +24,8 @@ public:
 
 class GridObject {
 private:
-  static std::unordered_map<std::string, int> _feature_map;
-  static int _next_feature_index;
+  inline static std::unordered_map<std::string, int> _feature_map{};
+  inline static int _next_feature_index = 0;
 
 public:
   GridObjectId id;

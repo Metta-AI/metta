@@ -8,6 +8,8 @@
 
 #include "types.hpp"
 
+constexpr size_t MAX_FEATURE_OFFSETS = 100;
+
 enum Events {
   FinishConverting = 0,
   CoolDown = 1

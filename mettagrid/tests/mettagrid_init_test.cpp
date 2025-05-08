@@ -104,7 +104,7 @@ TEST_F(MettaGridTestDataTest, ObjectLoading) {
     FAIL() << "Failed to parse grid objects JSON: " << e.what();
     return;
   }
-  std::cout << "JSON type: " << objects << std::endl;
+  // std::cout << "JSON type: " << objects << std::endl;
 
   // Make sure objects is an object, not an array
   ASSERT_TRUE(objects.is_object()) << "Grid objects JSON is not an object";

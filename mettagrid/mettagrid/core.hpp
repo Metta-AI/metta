@@ -30,6 +30,7 @@ private:
 
   // Agent management
   std::vector<Agent*> _agents;  // Owned by the grid, not this class
+  uint32_t _num_agents;
 
   // Group rewards
   std::map<uint32_t, float> _group_reward_pct;
@@ -43,9 +44,8 @@ private:
   // Observation dimensions
   uint16_t _obs_width;
   uint16_t _obs_height;
-  std::vector<std::string> _grid_features;
 
-  // Buffer management - now owned by this class
+  std::vector<std::string> _grid_features;
   std::vector<ObsType> _observations;
   std::vector<int8_t> _terminals;
   std::vector<int8_t> _truncations;
@@ -58,6 +58,8 @@ private:
   float _reward_decay_factor;
 
   std::vector<int8_t> _action_success;
+
+  void register_features();
 
 public:
   // Constructor - note the changes to take ownership of the grid
@@ -173,6 +175,10 @@ public:
   std::vector<std::string> action_names() const;
 
   std::string get_grid_objects_json() const;
+
+  float get_reward_multiplier() const {
+    return _reward_multiplier;
+  }
 
 private:
   // Helper methods for initialization

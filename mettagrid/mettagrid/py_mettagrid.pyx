@@ -575,21 +575,6 @@ cdef class MettaGrid:
         stats_json = self._cpp_mettagrid.get_episode_stats_json()
         return json.loads(stats_json)
 
-
-    def render_ascii(self):
-        """Render the grid as an ASCII representation."""
-        ascii_str = self._cpp_mettagrid.render_ascii()
-        # Convert to numpy array for backward compatibility
-        lines = ascii_str.strip().split('\n')
-        grid = np.array([list(line) for line in lines], dtype=np.str_)
-        return grid
-
-
-    def render(self):
-        """Render the grid to the console."""
-        ascii_str = self._cpp_mettagrid.render_ascii()
-        print(ascii_str, end='')  # end='' because string already has newlines
-    
     
     # Gym compatibility properties
     @property
