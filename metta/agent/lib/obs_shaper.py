@@ -8,6 +8,10 @@ class ObsShaper(LayerBase):
         super().__init__(**cfg)
         self._obs_shape = list(obs_shape)  # make sure no Omegaconf types are used in forward passes
         self._out_tensor_shape = [self._obs_shape[2], self._obs_shape[0], self._obs_shape[1]]
+
+        print(f"(init ObsShaper) obs_shape {obs_shape}")
+        print(f"(init ObsShaper) num_objects {num_objects}")
+
         self._output_size = num_objects
 
     def _forward(self, td: TensorDict):
