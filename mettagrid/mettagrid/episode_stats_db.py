@@ -78,10 +78,8 @@ class EpisodeStatsDB:
         self.initialize_schema()
 
     def initialize_schema(self) -> None:
-        logger = logging.getLogger(__name__)
         for table_name, stmt in self.tables().items():
             try:
-                logger.info(f"Initializing table {table_name} at path {self.path}")
                 self.con.execute(stmt)
             except Exception as e:
                 logger.error(f"Error executing SQL for table {table_name}: {e}")

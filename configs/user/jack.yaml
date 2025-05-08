@@ -14,8 +14,8 @@ trained_policy_uri: ${run_dir}/checkpoints
 eval_db_uri: wandb://stats/evals_jack_testing_1
 
 trainer:
-  evaluate_interval: 10
-  checkpoint_interval: 10
+  evaluate_interval: 100
+  checkpoint_interval: 50
 
 sim_job:
   simulation_suite:
