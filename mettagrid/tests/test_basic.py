@@ -27,8 +27,6 @@ def test_basic(environment):
     # ---- Test environment initialization ----
     assert environment._renderer is None
     assert environment._c_env is not None
-    assert environment._grid_env is not None
-    assert environment._c_env == environment._grid_env
     assert environment.done is False
 
     # ---- Test environment properties ----
@@ -124,4 +122,3 @@ def test_basic(environment):
 
     # Final verification that environment is still functioning
     assert environment._c_env is not None
-    assert environment._grid_env is not None
