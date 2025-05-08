@@ -1,17 +1,21 @@
 locals {
+  skypilot_api_port   = 46580
   skypilot_api_image  = "berkeleyskypilot/skypilot-nightly:latest"
   skypilot_api_cpu    = "8192"  # 8 vCPU
   skypilot_api_memory = "16384" # 16GB
+  account_id          = data.aws_caller_identity.current.account_id
 }
+
+data "aws_caller_identity" "current" {}
 
 resource "aws_security_group" "allow_skypilot_inbound" {
   name        = "skypilot-inbound"
-  description = "Allow HTTP inbound"
+  description = "Allow inbound traffic to skypilot API server"
   vpc_id      = var.vpc_id
 
   ingress {
-    from_port   = 80
-    to_port     = 80
+    from_port   = local.skypilot_api_port
+    to_port     = local.skypilot_api_port
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
@@ -44,11 +48,11 @@ resource "aws_iam_role_policy" "skypilot_api_server" {
         "Effect" : "Allow",
         "Action" : "ec2:RunInstances",
         "Resource" : [
-          "arn:aws:ec2:*:<account-ID-without-hyphens>:instance/*",
-          "arn:aws:ec2:*:<account-ID-without-hyphens>:network-interface/*",
-          "arn:aws:ec2:*:<account-ID-without-hyphens>:subnet/*",
-          "arn:aws:ec2:*:<account-ID-without-hyphens>:volume/*",
-          "arn:aws:ec2:*:<account-ID-without-hyphens>:security-group/*"
+          "arn:aws:ec2:*:${local.account_id}:instance/*",
+          "arn:aws:ec2:*:${local.account_id}:network-interface/*",
+          "arn:aws:ec2:*:${local.account_id}:subnet/*",
+          "arn:aws:ec2:*:${local.account_id}:volume/*",
+          "arn:aws:ec2:*:${local.account_id}:security-group/*"
         ]
       },
       {
@@ -60,7 +64,7 @@ resource "aws_iam_role_policy" "skypilot_api_server" {
           "ec2:CreateTags",
           "ec2:StopInstances"
         ],
-        "Resource" : "arn:aws:ec2:*:<account-ID-without-hyphens>:instance/*"
+        "Resource" : "arn:aws:ec2:*:${local.account_id}:instance/*"
       },
       {
         "Effect" : "Allow",
@@ -75,7 +79,7 @@ resource "aws_iam_role_policy" "skypilot_api_server" {
           "ec2:CreateSecurityGroup",
           "ec2:AuthorizeSecurityGroupIngress"
         ],
-        "Resource" : "arn:aws:ec2:*:<account-ID-without-hyphens>:*"
+        "Resource" : "arn:aws:ec2:*:${local.account_id}:*"
       },
       {
         "Effect" : "Allow",
@@ -92,23 +96,23 @@ resource "aws_iam_role_policy" "skypilot_api_server" {
         "Action" : [
           "iam:GetRole",
           "iam:PassRole",
-          # for skypilot-v1 role
+          # for skypilot-v1 role maintained by skypilot
           "iam:CreateRole",
           "iam:AttachRolePolicy"
         ],
         "Resource" : [
-          "arn:aws:iam::<account-ID-without-hyphens>:role/skypilot-v1"
+          "arn:aws:iam::${local.account_id}:role/skypilot-v1"
         ]
       },
       {
         "Effect" : "Allow",
         "Action" : [
           "iam:GetInstanceProfile",
-          # for skypilot-v1 role
+          # for skypilot-v1 role maintained by skypilot
           "iam:CreateInstanceProfile",
           "iam:AddRoleToInstanceProfile"
         ],
-        "Resource" : "arn:aws:iam::<account-ID-without-hyphens>:instance-profile/skypilot-v1"
+        "Resource" : "arn:aws:iam::${local.account_id}:instance-profile/skypilot-v1"
       },
       {
         "Effect" : "Allow",
@@ -146,8 +150,7 @@ resource "aws_ecs_task_definition" "skypilot_api_server" {
       image     = local.skypilot_api_image
       essential = true
       portMappings = [{
-        containerPort = 46580
-        hostPort      = 80
+        containerPort = local.skypilot_api_port
       }]
     }
   ])
@@ -162,8 +165,9 @@ resource "aws_ecs_service" "skypilot_service" {
   launch_type     = "FARGATE"
 
   network_configuration {
-    subnets         = [aws_default_subnet.proxy_subnet.id]
-    security_groups = [aws_security_group.allow_skypilot_inbound.id]
+    subnets          = [aws_default_subnet.proxy_subnet.id]
+    security_groups  = [aws_security_group.allow_skypilot_inbound.id]
+    assign_public_ip = false # only exposed through tailscale
   }
 
   service_registries {
