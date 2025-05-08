@@ -1,4 +1,1 @@
 
-view_type: all
-output_path: /tmp/dashboard.html
-eval_db_uri: ${..eval_db_uri}

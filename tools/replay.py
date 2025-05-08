@@ -48,7 +48,9 @@ def main(cfg):
         result = sim_suite.simulate()
         # Only on macos open a browser to the replay
         if platform.system() == "Darwin" and replay_dir is not None:
-            replay_url = result.stats_db.get_replay_urls(policy_record=policy_record)[0]
+            replay_url = result.stats_db.get_replay_urls(
+                policy_key=policy_record.key(), policy_version=policy_record.version()
+            )[0]
             webbrowser.open(f"https://metta-ai.github.io/metta/?replayUrl={http_url(replay_url)}")
 
 

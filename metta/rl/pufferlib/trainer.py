@@ -601,7 +601,9 @@ class PufferTrainer:
                 replay_dir=replay_dir,
             )
             results = replay_simulator.simulate()
-            replay_url = results.stats_db.get_replay_urls(policy_record=self.last_pr)[0]
+            replay_url = results.stats_db.get_replay_urls(
+                policy_key=self.last_pr.key(), policy_version=self.last_pr.version()
+            )[0]
             if self.wandb_run is not None:
                 player_url = "https://metta-ai.github.io/metta/?replayUrl=" + replay_url
                 link_summary = {

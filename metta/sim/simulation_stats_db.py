@@ -153,18 +153,7 @@ class SimulationStatsDB(EpisodeStatsDB):
                 self.merge_in(pre_existing)
         write_file(dest, str(self.path))
 
-    def get_replay_urls(self, policy_record: Optional[PolicyRecord] = None, env: Optional[str] = None) -> List[str]:
-        """Retrieve replay URLs for episodes matching the specified criteria."""
-
-        if policy_record is not None:
-            policy_key, policy_version = policy_record.key_and_version()
-        else:
-            policy_key = None
-            policy_version = None
-
-        return self._get_replay_urls(policy_key, policy_version, env)
-
-    def _get_replay_urls(
+    def get_replay_urls(
         self, policy_key: str | None = None, policy_version: int | None = None, env: str | None = None
     ) -> List[str]:
         query = """

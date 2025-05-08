@@ -14,9 +14,7 @@ def main(cfg: DictConfig) -> None:
     setup_mettagrid_environment(cfg)
     logger = setup_mettagrid_logger("analyze")
 
-    view_type = "latest"
     logger.info(f"Analyze job config:\n{OmegaConf.to_yaml(cfg, resolve=True)}")
-    logger.info(f"Generating {view_type} report")
 
     analyzer = AnalyzerConfig(cfg.analyzer)
 

@@ -6,11 +6,9 @@ from metta.util.config import Config
 class DashboardConfig(Config):
     # Output options
     num_output_policies: int | Literal["all"] = 20
-    view_type: Literal["latest", "all"] = "latest"
     metric: str = "reward"
-    output_path: str
+    output_path: str = "/tmp/dashboard.html"
     # Input database
     eval_db_uri: str
     # Filtering options
     suite: str | None = None
-    policy_uri: str | None = None

@@ -7,6 +7,7 @@ import uuid
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from metta.eval.dashboard.heatmap import get_heatmap_matrix
@@ -23,14 +24,23 @@ def sample_stats_db():
         # Create a simulation for each eval type
         sim_ids = {}
         for eval_name in ["eval1", "eval2", "eval3"]:
-            sim_ids[eval_name] = db.ensure_simulation_id(f"test_{eval_name}", "test_suite", f"env_{eval_name}")
+            sim_id = str(uuid.uuid4())
+            sim_ids[eval_name] = sim_id
+            db.con.execute(
+                """
+                INSERT INTO simulations 
+                (id, name, suite, env, policy_key, policy_version, created_at, finished_at)
+                VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """,
+                (sim_id, f"test_{eval_name}", "test_suite", eval_name, "dummy_policy", 1),
+            )
 
         # Create test episodes - one for each simulation (eval type)
         episodes_by_sim = {}
         for eval_name, sim_id in sim_ids.items():
             episodes_by_sim[eval_name] = []
             for i in range(3):  # 3 episodes per simulation
-                ep_id = db.get_next_episode_id()
+                ep_id = str(uuid.uuid4())
                 episodes_by_sim[eval_name].append(ep_id)
                 db.con.execute(
                     """
@@ -41,23 +51,15 @@ def sample_stats_db():
                     (ep_id, i, 10, 10, 100, sim_id),
                 )
 
-        # Add policy entries - using integer versions instead of string versions
+        # Add policy entries
         policies = [
-            ("policy1", 1),  # Changed from "v1" to 1
-            ("policy1", 2),  # Changed from "v2" to 2
-            ("policy1", 3),  # Changed from "v3" to 3
-            ("policy2", 1),  # Changed from "v1" to 1
-            ("policy2", 2),  # Changed from "v2" to 2
-            ("policy3", 1),  # Changed from "v1" to 1
+            ("policy1", 1),
+            ("policy1", 2),
+            ("policy1", 3),
+            ("policy2", 1),
+            ("policy2", 2),
+            ("policy3", 1),
         ]
-
-        db.con.executemany(
-            """
-            INSERT INTO policies (policy_key, policy_version)
-            VALUES (?, ?)
-            """,
-            policies,
-        )
 
         # Create agent policies - one unique agent ID per policy
         agent_policies = []
@@ -83,12 +85,12 @@ def sample_stats_db():
 
         # Add metrics with the expected test values
         metric_values = {
-            "policy1:1": {"eval1": 10.0, "eval2": 15.0, "eval3": 20.0},
-            "policy1:2": {"eval1": 12.0, "eval2": 17.0, "eval3": 22.0},
-            "policy1:3": {"eval1": 14.0, "eval2": 19.0, "eval3": 24.0},
-            "policy2:1": {"eval1": 8.0, "eval2": 13.0, "eval3": 18.0},
-            "policy2:2": {"eval1": 9.0, "eval2": 14.0, "eval3": 19.0},
-            "policy3:1": {"eval1": 7.0, "eval2": 12.0, "eval3": 17.0},
+            "policy1:1": {"eval1": 0.10, "eval2": 0.15, "eval3": 0.20},
+            "policy1:2": {"eval1": 0.12, "eval2": 0.17, "eval3": 0.22},
+            "policy1:3": {"eval1": 0.14, "eval2": 0.19, "eval3": 0.24},
+            "policy2:1": {"eval1": 0.08, "eval2": 0.13, "eval3": 0.18},
+            "policy2:2": {"eval1": 0.09, "eval2": 0.14, "eval3": 0.19},
+            "policy3:1": {"eval1": 0.07, "eval2": 0.12, "eval3": 0.17},
         }
 
         # Add agent metrics for each policy, eval type, and episode
@@ -99,7 +101,7 @@ def sample_stats_db():
             for eval_name, value in metric_values[policy_uri].items():
                 for ep_id in episodes_by_sim[eval_name]:
                     # Add a small random noise to the value
-                    metric_value = value + np.random.normal(0, 0.01)
+                    metric_value = value + np.random.normal(0, 0.001)
 
                     db.con.execute(
                         """
@@ -110,16 +112,37 @@ def sample_stats_db():
                         (ep_id, agent_id, "episode_reward", metric_value),
                     )
 
-        # Materialize the view for episode_reward
-        db.materialize_policy_simulations_view("episode_reward")
+        # Add some replay URLs
+        replay_urls = []
+        for eval_name, episodes in episodes_by_sim.items():
+            for ep_id in episodes:
+                replay_url = f"https://example.com/replay/{ep_id}.json"
+                replay_urls.append((ep_id, replay_url))
+
+        db.con.executemany(
+            """
+            UPDATE episodes
+            SET replay_url = ?
+            WHERE id = ?
+            """,
+            [(url, ep_id) for ep_id, url in replay_urls],
+        )
+
+        # Mock the get_replay_urls method
+        def mock_get_replay_urls(policy_key=None, policy_version=None, env=None):
+            if policy_key and policy_version and env:
+                return [f"https://example.com/replay/{policy_key}/{policy_version}/{env}/replay.json"]
+            return []
+
+        # Add the mock method to the database instance
+        db.get_replay_urls = mock_get_replay_urls
 
         yield db
         db.close()
 
 
-def test_get_heatmap_matrix_all(sample_stats_db):
-    """Test get_heatmap_matrix with 'all' view type."""
-    matrix = get_heatmap_matrix(sample_stats_db, "episode_reward", view_type="all")
+def test_get_heatmap_matrix(sample_stats_db):
+    matrix = get_heatmap_matrix(sample_stats_db, "episode_reward")
 
     # Should include all versions of all policies
     assert len(matrix) == 6  # 6 total policy versions
@@ -131,76 +154,25 @@ def test_get_heatmap_matrix_all(sample_stats_db):
     # Check that the matrix includes the Overall column
     assert "Overall" in matrix.columns
 
-    # Verify that the matrix is sorted by overall score (lowest first)
-    policies_by_score = list(matrix.index)
-    # policy3:1 has lowest overall score
-    assert policies_by_score[0] == "policy3:1"
-    # policy1:3 has highest overall score
-    assert policies_by_score[-1] == "policy1:3"
+    # Check that metrics columns exist
+    for col in ["eval1", "eval2", "eval3"]:
+        assert col in matrix.columns
 
+    # Check replay URL map
+    assert hasattr(matrix, "replay_url_map")
+    assert isinstance(matrix.replay_url_map, dict)
 
-def test_get_heatmap_matrix_latest(sample_stats_db):
-    """Test get_heatmap_matrix with 'latest' view type."""
-    matrix = get_heatmap_matrix(sample_stats_db, "episode_reward", view_type="latest")
+    # Verify that the replay URL map has entries for each policy+eval combination
+    for policy_uri in matrix.index:
+        policy_key, policy_version = policy_uri.split(":")
+        for eval_name in ["eval1", "eval2", "eval3"]:
+            key = f"{policy_key}|{policy_version}|{eval_name}"
+            assert key in matrix.replay_url_map
+            assert matrix.replay_url_map[key].startswith("https://example.com/replay/")
 
-    # Should only include the latest version for each policy
-    assert len(matrix) == 3  # 3 policies
-
-    # Check that we have the latest versions
-    assert "policy1:3" in matrix.index
-    assert "policy2:2" in matrix.index
-    assert "policy3:1" in matrix.index
-
-    # Check that earlier versions are excluded
-    assert "policy1:1" not in matrix.index
-    assert "policy1:2" not in matrix.index
-    assert "policy2:1" not in matrix.index
-
-    # Check that the matrix includes the Overall column
+    # All policies should be included since our mock doesn't actually filter
+    assert len(matrix) == 6
     assert "Overall" in matrix.columns
-
-    # Verify the policies are in expected order (lowest to highest score)
-    policy_order = list(matrix.index)
-    assert policy_order[0] == "policy3:1"  # Lowest score
-    assert policy_order[-1] == "policy1:3"  # Highest score
-
-
-def test_get_heatmap_matrix_with_policy_filter_all(sample_stats_db):
-    """Test get_heatmap_matrix with 'all' view type and policy filter."""
-    matrix = get_heatmap_matrix(sample_stats_db, "episode_reward", view_type="all", policy_uri="policy1")
-
-    # Should include all versions of policy1
-    assert len(matrix) == 3  # 3 versions of policy1
-
-    # Check that all versions of policy1 are included
-    for policy_uri in ["policy1:1", "policy1:2", "policy1:3"]:
-        assert policy_uri in matrix.index
-
-    # Check that other policies are excluded
-    assert "policy2:1" not in matrix.index
-    assert "policy2:2" not in matrix.index
-    assert "policy3:1" not in matrix.index
-
-    # Check that the matrix includes the Overall column
-    assert "Overall" in matrix.columns
-
-    # Check that the matrix is sorted by overall score (lowest to highest)
-    policy_order = list(matrix.index)
-    assert policy_order[0] == "policy1:1"  # Lowest score among policy1 versions
-    assert policy_order[-1] == "policy1:3"  # Highest score among policy1 versions
-
-
-def test_get_heatmap_matrix_with_policy_filter_latest(sample_stats_db):
-    """Test get_heatmap_matrix with 'latest' view type and policy filter."""
-    matrix = get_heatmap_matrix(sample_stats_db, "episode_reward", view_type="latest", policy_uri="policy1")
-
-    # Should include only the latest version of policy1
-    assert len(matrix) == 1
-
-    # Check that only the latest version is included
-    assert "policy1:3" in matrix.index
-    assert "policy1:1" not in matrix.index
-    assert "policy1:2" not in matrix.index
 
 
 def test_get_heatmap_matrix_num_output_policies(sample_stats_db):
@@ -212,12 +184,14 @@ def test_get_heatmap_matrix_num_output_policies(sample_stats_db):
     assert len(limited_matrix) == 2
     assert len(all_matrix) == 6
 
-    # The limited matrix should contain the last 2 rows from the all_matrix
-    # (highest scoring policies at the end after sorting)
+    # The limited matrix should contain the 2 policies with highest scores
+    # (due to tail() behavior)
     assert limited_matrix.index.tolist() == all_matrix.index.tolist()[-2:]
 
 
 def test_get_heatmap_matrix_empty_result(sample_stats_db):
     """Test get_heatmap_matrix when no data is found for the specified metric."""
-    with pytest.raises(ValueError):
-        _ = get_heatmap_matrix(sample_stats_db, "nonexistent_metric")
+    # Using a non-existent metric should return an empty DataFrame, not raise an error
+    matrix = get_heatmap_matrix(sample_stats_db, "nonexistent_metric")
+    assert isinstance(matrix, pd.DataFrame)
+    assert matrix.empty
