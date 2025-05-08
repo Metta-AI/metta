@@ -41,7 +41,7 @@ file_mounts:
     mode: MOUNT
 
   /workspace/metta/train_dir:
-    name: train-dir
+    name: softmax-train-dir
     store: s3
     mode: MOUNT
 

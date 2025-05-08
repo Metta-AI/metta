@@ -53,7 +53,7 @@ source .venv/skypilot/bin/activate
 
 export SKYPILOT_DOCKER_PASSWORD=$(aws ecr get-login-password --region us-east-1)
 
-AWS_PROFILE=softmax-db-admin sky jobs launch \
+sky jobs launch \
   --gpus L4:$gpus \
   --num-nodes $nodes \
   --cpus $cpus\+ \
