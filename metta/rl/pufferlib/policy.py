@@ -82,6 +82,10 @@ def load_policy(path: str, device: str = "cpu"):
 
     # TODO -- fix magic number 11
 
+    print("Weight shapes:")
+    for key, tensor in weights.items():
+        print(f"{key}: {tensor.shape}")
+
     # Create environment namespace
     env = SimpleNamespace(
         single_action_space=SimpleNamespace(nvec=[num_actions, num_action_args]),

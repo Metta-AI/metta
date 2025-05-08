@@ -107,23 +107,8 @@ class PufferTrainer:
 
         assert policy_record is not None, "No policy found"
 
-        self.metta_agent: MettaAgent = policy_record._policy  # type: ignore
-        assert isinstance(self.metta_agent, MettaAgent)
-
-        # validate that policy matches environment
-        for component_name, component in self.metta_agent.components.items():
-            if hasattr(component, "obs_shape"):
-                env_shape = self.metta_grid_env.single_observation_space.shape
-                if component.obs_shape != env_shape:
-                    raise ValueError(
-                        f"Observation space mismatch error:\n"
-                        f"component_name: {component_name}\n"
-                        f"obs_shape: {component.obs_shape}\n"
-                        f"env_shape: {env_shape}\n"
-                    )
-
         if self._master:
-            logger.info(f"PufferTrainer has policy: {policy_record.policy()}")
+            logger.info(f"PufferTrainer loaded: {policy_record.policy()}")
 
         self._initial_pr = policy_record
         self.last_pr = policy_record
@@ -161,6 +146,21 @@ class PufferTrainer:
             betas=(self.trainer_cfg.optimizer.beta1, self.trainer_cfg.optimizer.beta2),
             eps=self.trainer_cfg.optimizer.eps,
         )
+
+        self.metta_agent: MettaAgent = self.policy  # type: ignore
+        assert isinstance(self.metta_agent, MettaAgent)
+
+        # validate that policy matches environment
+        for component_name, component in self.metta_agent.components.items():
+            if hasattr(component, "obs_shape"):
+                env_shape = self.metta_grid_env.single_observation_space.shape
+                if component.obs_shape != env_shape:
+                    raise ValueError(
+                        f"Observation space mismatch error:\n"
+                        f"component_name: {component_name}\n"
+                        f"obs_shape: {component.obs_shape}\n"
+                        f"env_shape: {env_shape}\n"
+                    )
 
         self.lr_scheduler = None
         if self.trainer_cfg.lr_scheduler.enabled:
