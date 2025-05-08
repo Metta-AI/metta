@@ -10,39 +10,57 @@ export function drawTrace(panel: PanelInfo) {
     return;
   }
 
-  const localMousePos = panel.transformPoint(ui.mousePos);
-
-  if (state.followTraceSelection && state.selectedGridObject !== null) {
-    panel.focusPos(
-      state.step * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
-      getAttr(state.selectedGridObject, "agent_id") * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT / 2
-    );
-  }
-
-  if (ui.mouseClick && panel.inside(ui.mousePos)) {
-    if (localMousePos != null) {
-      const mapX = localMousePos.x();
-      if (mapX > 0 && mapX < state.replay.max_steps * Common.TRACE_WIDTH &&
-        localMousePos.y() > 0 && localMousePos.y() < state.replay.num_agents * Common.TRACE_HEIGHT) {
+  // Handle mouse events for the trace panel.
+  if (
+    panel.inside(ui.mousePos)
+  ) {
+    if (ui.mouseDoubleClick) {
+      // Toggle followSelection on double-click
+      console.log("Trace double click - following selection");
+      setFollowSelection(true);
+      panel.zoomLevel = 1;
+      ui.mapPanel.zoomLevel = 1 / 2;
+    } else if (ui.mouseClick) {
+      // Trace click - likely a drag/pan
+      console.log("Trace click - clearing trace follow selection");
+      setFollowSelection(false);
+    } else if (ui.mouseUp &&
+      ui.mouseDownPos.sub(ui.mousePos).length() < 10
+    ){
+      // Check if we are clicking on an action/step.
+      console.log("Trace up without dragging - selecting trace object");
+      const localMousePos = panel.transformPoint(ui.mousePos);
+      if (localMousePos != null) {
+        const mapX = localMousePos.x();
+        const selectedStep = Math.floor(mapX / Common.TRACE_WIDTH);
         const agentId = Math.floor(localMousePos.y() / Common.TRACE_HEIGHT);
-        if (agentId >= 0 && agentId < state.replay.num_agents) {
-          setFollowSelection(true, null);
-          state.selectedGridObject = state.replay.agents[agentId];
-          console.log("selectedGridObject on a trace:", state.selectedGridObject);
-          ui.mapPanel.focusPos(
-            getAttr(state.selectedGridObject, "c") * Common.TILE_SIZE,
-            getAttr(state.selectedGridObject, "r") * Common.TILE_SIZE
-          );
-          // Update the step to the clicked step.
-          updateStep(Math.floor(mapX / Common.TRACE_WIDTH));
-
-          if (ui.mouseDoubleClick) {
-            setFollowSelection(null, true);
-            panel.zoomLevel = 1;
+        if (mapX > 0 && mapX < state.replay.max_steps * Common.TRACE_WIDTH &&
+          localMousePos.y() > 0 && localMousePos.y() < state.replay.num_agents * Common.TRACE_HEIGHT &&
+          selectedStep >= 0 && selectedStep < state.replay.max_steps &&
+          agentId >= 0 && agentId < state.replay.num_agents
+        ) {
+          const actionSuccess = getAttr(state.replay.agents[agentId], "action_success", selectedStep);
+          if (actionSuccess) {
+            state.selectedGridObject = state.replay.agents[agentId];
+            console.log("Selected an agent on a trace:", state.selectedGridObject);
+            ui.mapPanel.focusPos(
+              getAttr(state.selectedGridObject, "c") * Common.TILE_SIZE,
+              getAttr(state.selectedGridObject, "r") * Common.TILE_SIZE
+            );
+            // Update the step to the clicked step.
+            updateStep(selectedStep);
           }
         }
       }
     }
+  }
+
+  // If we're following a selection, center the trace panel on it
+  if (state.followSelection && state.selectedGridObject !== null) {
+    panel.focusPos(
+      state.step * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
+      getAttr(state.selectedGridObject, "agent_id") * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT / 2
+    );
   }
 
   ctx.save();
@@ -89,18 +107,14 @@ export function drawTrace(panel: PanelInfo) {
       const action_success = getAttr(agent, "action_success", j);
 
       if (action_success && action != null && action[0] >= 0 && action[0] < state.replay.action_images.length) {
+        // Draw the action.
         ctx.drawSprite(
           state.replay.action_images[action[0]],
           j * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
           i * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT / 2,
         );
       } else if (action != null && action[0] >= 0 && action[0] < state.replay.action_images.length) {
-        ctx.drawSprite(
-          state.replay.action_images[action[0]],
-          j * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
-          i * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT / 2,
-          [0.01, 0.01, 0.01, 0.01],
-        );
+        // Don't draw invalid actions.
       }
 
       if (getAttr(agent, "agent:frozen", j) > 0) {

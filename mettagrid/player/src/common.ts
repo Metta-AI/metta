@@ -40,10 +40,12 @@ export const COLORS: [string, [number, number, number, number]][] = [
 export const ui = {
   // Mouse events
   mouseDown: false,
+  mouseUp: false,
   mouseClick: false,
   mouseDoubleClick: false,
   mousePos: new Vec2f(0, 0),
   lastMousePos: new Vec2f(0, 0),
+  mouseDownPos: new Vec2f(0, 0),
   scrollDelta: 0,
   lastClickTime: 0, // For double-click detection
 
@@ -63,7 +65,6 @@ export const state = {
   replay: null as any,
   selectedGridObject: null as any,
   followSelection: false, // Flag to follow selected entity
-  followTraceSelection: false, // Flag to follow trace selection
 
   // Playback state
   step: 0,
@@ -118,7 +119,7 @@ export const html = {
 }
 
 // Set the follow selection state, you can pass null to leave a state unchanged.
-export function setFollowSelection(map: boolean | null, trace: boolean | null) {
+export function setFollowSelection(map: boolean | null) {
   if (map != null) {
     state.followSelection = map;
     if (map) {
@@ -126,9 +127,6 @@ export function setFollowSelection(map: boolean | null, trace: boolean | null) {
     } else {
       html.focusButton.style.opacity = "0.2";
     }
-  }
-  if (trace != null) {
-    state.followTraceSelection = trace;
   }
 }
 

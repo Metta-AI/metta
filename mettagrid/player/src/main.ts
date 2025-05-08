@@ -65,23 +65,30 @@ export function onResize() {
 // Handle mouse down events.
 function onMouseDown() {
   ui.lastMousePos = ui.mousePos;
+  ui.mouseDownPos = ui.mousePos;
   ui.mouseClick = true;
-  const currentTime = new Date().getTime();
-  ui.mouseDoubleClick = currentTime - ui.lastClickTime < 300; // 300ms threshold for double-click
-  ui.lastClickTime = currentTime;
 
   if (Math.abs(ui.mousePos.y() - ui.tracePanel.y) < Common.SPLIT_DRAG_THRESHOLD) {
     ui.traceDragging = true
   } else {
     ui.mouseDown = true;
   }
+
   requestFrame();
 }
 
 // Handle mouse up events.
 function onMouseUp() {
+  ui.mouseUp = true;
   ui.mouseDown = false;
   ui.traceDragging = false;
+
+  // Due to how we select objects on mouse-up (mouse-down is drag/pan),
+  // we need to check for double-click on mouse-up as well.
+  const currentTime = new Date().getTime();
+  ui.mouseDoubleClick = currentTime - ui.lastClickTime < 300; // 300ms threshold for double-click
+  ui.lastClickTime = currentTime;
+
   requestFrame();
 }
 
@@ -91,17 +98,11 @@ function onMouseMove(event: MouseEvent) {
 
   // If mouse is close to a panels edge change cursor to edge changer.
   document.body.style.cursor = "default";
-
-  if (Math.abs(ui.mousePos.x() - ui.mapPanel.width) < Common.SPLIT_DRAG_THRESHOLD) {
-    document.body.style.cursor = "ew-resize";
-  }
-
-  if (ui.mousePos.x() > ui.mapPanel.width &&
-    Math.abs(ui.mousePos.y() - ui.infoPanel.height) < Common.SPLIT_DRAG_THRESHOLD
-  ) {
+  if (Math.abs(ui.mousePos.y() - ui.tracePanel.y) < Common.SPLIT_DRAG_THRESHOLD) {
     document.body.style.cursor = "ns-resize";
   }
 
+  // Drag the trace panel up or down.
   if (ui.traceDragging) {
     ui.traceSplit = ui.mousePos.y() / window.innerHeight
     onResize();
@@ -174,7 +175,7 @@ export function updateStep(newStep: number, skipScrubberUpdate = false) {
   }
 
   // Update trace panel position
-  ui.tracePanel.panPos.setX(-state.step * 32);
+  // ui.tracePanel.panPos.setX(-state.step * 32);
 
   // Request a new frame
   requestFrame();
@@ -189,7 +190,7 @@ function onScrubberChange() {
 function onKeyDown(event: KeyboardEvent) {
   if (event.key == "Escape") {
     state.selectedGridObject = null;
-    setFollowSelection(false, false);
+    setFollowSelection(false);
   }
   // '[' and ']' to scrub forward and backward.
   if (event.key == "[") {
@@ -265,6 +266,7 @@ export function onFrame() {
     requestFrame();
   }
 
+  ui.mouseUp = false;
   ui.mouseClick = false;
   ui.mouseDoubleClick = false;
 }
@@ -321,7 +323,7 @@ async function parseUrlParams() {
     const selectedObjectId = parseInt(urlParams.get('selectedObjectId') || "-1") - 1;
     if (selectedObjectId >= 0 && selectedObjectId < state.replay.grid_objects.length) {
       state.selectedGridObject = state.replay.grid_objects[selectedObjectId];
-      setFollowSelection(true, true);
+      setFollowSelection(true);
       ui.mapPanel.zoomLevel = 1 / 2;
       ui.tracePanel.zoomLevel = 1;
       console.info("Selected object via query parameter:", state.selectedGridObject);
@@ -444,8 +446,7 @@ html.resourcesButton.addEventListener('click', () => {
 toggleOpacity(html.resourcesButton, state.showResources);
 
 html.focusButton.addEventListener('click', () => {
-  const reverse = !state.followSelection;
-  setFollowSelection(reverse, reverse);
+  setFollowSelection(!state.followSelection);
 });
 toggleOpacity(html.focusButton, state.followSelection);
 

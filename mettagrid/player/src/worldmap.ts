@@ -526,34 +526,49 @@ export function drawMap(panel: PanelInfo) {
     return;
   }
 
-  if (ui.mouseClick &&
+  // Handle mouse events for the map panel.
+  if (
     ui.mapPanel.inside(ui.mousePos) &&
     !ui.miniMapPanel.inside(ui.mousePos) &&
-    !ui.tracePanel.inside(ui.mousePos)
+    !ui.tracePanel.inside(ui.mousePos) &&
+    !ui.infoPanel.inside(ui.mousePos)
   ) {
-    const localMousePos = panel.transformPoint(ui.mousePos);
-    // Reset the follow flags.
-    setFollowSelection(false, false);
-
-    if (localMousePos != null) {
-      const gridMousePos = new Vec2f(
-        Math.round(localMousePos.x() / Common.TILE_SIZE),
-        Math.round(localMousePos.y() / Common.TILE_SIZE)
-      );
-      const gridObject = state.replay.grid_objects.find((obj: any) => {
-        const x: number = getAttr(obj, "c");
-        const y: number = getAttr(obj, "r");
-        return x === gridMousePos.x() && y === gridMousePos.y();
-      });
-      if (gridObject !== undefined) {
-        state.selectedGridObject = gridObject;
-        console.log("selectedGridObject on map:", state.selectedGridObject);
-
-        if (ui.mouseDoubleClick) {
-          // Toggle followSelection on double-click
-          setFollowSelection(true, true);
-          panel.zoomLevel = 1 / 2;
-          ui.tracePanel.zoomLevel = 1;
+    if (ui.mouseDoubleClick) {
+      // Toggle followSelection on double-click
+      console.log("Map double click - following selection");
+      setFollowSelection(true);
+      panel.zoomLevel = 1 / 2;
+      ui.tracePanel.zoomLevel = 1;
+    } else if (ui.mouseClick) {
+      // Map click - likely a drag/pan
+      console.log("Map click - clearing follow selection");
+      setFollowSelection(false);
+    } else if (ui.mouseUp &&
+      ui.mouseDownPos.sub(ui.mousePos).length() < 10
+    ) {
+      // Check if we are clicking on an object.
+      console.log("Map up without dragging - selecting object");
+      const localMousePos = panel.transformPoint(ui.mousePos);
+      if (localMousePos != null) {
+        const gridMousePos = new Vec2f(
+          Math.round(localMousePos.x() / Common.TILE_SIZE),
+          Math.round(localMousePos.y() / Common.TILE_SIZE)
+        );
+        const gridObject = state.replay.grid_objects.find((obj: any) => {
+          const x: number = getAttr(obj, "c");
+          const y: number = getAttr(obj, "r");
+          return x === gridMousePos.x() && y === gridMousePos.y();
+        });
+        if (gridObject !== undefined) {
+          state.selectedGridObject = gridObject;
+          console.log("Selected object on the map:", state.selectedGridObject);
+          if (state.selectedGridObject.agent_id !== undefined) {
+            // If selecting an agent, focus the trace panel on the agent.
+            ui.tracePanel.focusPos(
+              state.step * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
+              getAttr(state.selectedGridObject, "agent_id") * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT / 2
+            );
+          }
         }
       }
     }
