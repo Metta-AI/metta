@@ -60,10 +60,6 @@ class BidirectionalLearningProgess:
         if self.random_baseline is None:
             # Assume that any perfect success rate is actually 75% due to evaluation precision.
             # Prevents NaN probabilities and prevents task from being completely ignored.
-            # high_success_idxs = np.where(task_success_rates > 0.75)
-            # high_success_rates = task_success_rates[high_success_idxs]
-            #  warnings.warn(
-            #     f"Tasks {high_success_idxs} had very high success rates {high_success_rates} for random baseline. Consider removing them from the training set of tasks.")
             self.random_baseline = np.minimum(task_success_rates, 0.75)
             self.task_rates = task_success_rates
 
@@ -79,14 +75,11 @@ class BidirectionalLearningProgess:
             self._p_true = task_success_rates[update_mask]
         else:
             # Exponential moving average
-            try:
-                self._p_fast[update_mask] = (normalized_task_success_rates * self.ema_alpha) + (self._p_fast[update_mask] * (1.0 - self.ema_alpha))
-                self._p_slow[update_mask] = (self._p_fast[update_mask] * self.ema_alpha) + (self._p_slow[update_mask] * (1.0 - self.ema_alpha))
-                self._p_true[update_mask] = (task_success_rates[update_mask] * self.ema_alpha) + (self._p_true[update_mask] * (1.0 - self.ema_alpha))
-            except IndexError:
-                T()
-
-        self.task_rates[update_mask] = task_success_rates[update_mask]    # Logging only
+            self._p_fast[update_mask] = (normalized_task_success_rates * self.ema_alpha) + (self._p_fast[update_mask] * (1.0 - self.ema_alpha))
+            self._p_slow[update_mask] = (self._p_fast[update_mask] * self.ema_alpha) + (self._p_slow[update_mask] * (1.0 - self.ema_alpha))
+            self._p_true[update_mask] = (task_success_rates[update_mask] * self.ema_alpha) + (self._p_true[update_mask] * (1.0 - self.ema_alpha))
+            
+        self.task_rates[update_mask] = task_success_rates[update_mask]
         self._stale_dist = True
         self.task_dist = None
 
@@ -105,13 +98,6 @@ class BidirectionalLearningProgess:
                     self.outcomes[task_id].append(res)
                     if task_id in self.sample_levels:
                         self.counter[task_id] += 1
-
-        # self.task_sampled_tracker = [int(bool(o)) for k, o in self.outcomes.items()]
-        # print(f'data collected on {sum(self.task_sampled_tracker)} / {self.num_tasks} tasks')
-        # if sum(self.task_sampled_tracker) == self.num_tasks:
-            # T()
-        # self.collecting = False
-        # self.task_sampled_tracker = self.num_tasks * [0]
 
     def continue_collecting(self):
         return self.collecting
@@ -160,13 +146,8 @@ class BidirectionalLearningProgess:
 
         self.task_dist = task_dist.astype(np.float32)
         self._stale_dist = False
-        # clear the outcome dict
-        # go through the outcomes and for each task, keep the last 25
-        # plot number of nans in the outcomes
-        # print(f'number of nans in outcomes: {sum(np.isnan([np.mean(self.outcomes[i]) for i in range(self.num_tasks)]))}')
         out_vec = [np.mean(self.outcomes[i]) for i in range(self.num_tasks)]
         self.num_nans.append(sum(np.isnan(out_vec)))
-        # sort sample rates and plot to see how big the tail is
         self.task_success_rate = np.nan_to_num(out_vec)
         self.mean_samples_per_eval.append(np.mean([len(self.outcomes[i]) for i in range(self.num_tasks)]))
         for i in range(self.num_tasks):
