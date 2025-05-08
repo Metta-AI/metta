@@ -271,6 +271,8 @@ resource "aws_ecs_service" "skypilot_service" {
   desired_count   = 1
   launch_type     = "FARGATE"
 
+  enable_execute_command = true
+
   network_configuration {
     subnets          = [aws_default_subnet.proxy_subnet.id]
     security_groups  = [aws_security_group.allow_skypilot_inbound.id]

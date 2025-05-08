@@ -18,3 +18,8 @@ resource "aws_iam_role_policy_attachment" "ecs_task_exec_policy" {
   role       = aws_iam_role.ecs_task_exec.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
+
+resource "aws_iam_role_policy_attachment" "ecs_task_exec_policy" {
+  role       = aws_iam_role.ecs_task_exec.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonSSMManagedInstanceCore"
+}
