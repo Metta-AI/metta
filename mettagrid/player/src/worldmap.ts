@@ -184,7 +184,7 @@ function drawObjects() {
 
       // Draw the color layer.
       var colorIdx = getAttr(gridObject, "color");
-      if (colorIdx !== undefined) {
+      if (colorIdx >= 0 && colorIdx < Common.COLORS.length) {
         ctx.drawSprite(
           state.replay.object_images[type][2],
           x * Common.TILE_SIZE,
@@ -598,7 +598,7 @@ export function updateReadout() {
       var value = getAttr(state.selectedGridObject, key);
       if (key == "type") {
         value = state.replay.object_types[value] + " (" + value + ")";
-      } else if (key == "color") {
+      } else if (key == "color" && value >= 0 && value < Common.COLORS.length) {
         value = Common.COLORS[value][0] + " (" + value + ")";
       }
       readout += key + ": " + value + "\n";
