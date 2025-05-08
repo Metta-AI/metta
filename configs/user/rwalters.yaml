@@ -36,9 +36,9 @@ sweep:
 wandb:
   enabled: true
   track: true
-  checkpoint_interval: 1
+  checkpoint_interval: 10
 
-run_id: 000
+run_id: 2
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 sweep_name: "${oc.env:USER}.local.sweep.${run_id}"

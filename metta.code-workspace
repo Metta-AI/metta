@@ -115,7 +115,8 @@
 			"forward_list": "cpp",
 			"list": "cpp",
 			"span": "cpp",
-			"format": "cpp"
+			"format": "cpp",
+			"valarray": "cpp"
 		},
 
 		// IntelliSense may not automatically resolve packages from your Conda environment.

@@ -7,6 +7,7 @@ import numpy as np
 import pufferlib
 from omegaconf import DictConfig, OmegaConf
 
+from metta.util.debug import save_mettagrid_args
 from mettagrid.config.utils import simple_instantiate
 from mettagrid.core import MettaGrid
 from mettagrid.resolvers import register_resolvers
@@ -23,6 +24,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     def __init__(
         self, env_cfg: DictConfig, render_mode: Optional[str], env_map: Optional[np.ndarray] = None, buf=None, **kwargs
     ):
+        self._debug = False
         self._render_mode = render_mode
         self._cfg_template = env_cfg
         self._env_cfg = self._get_new_env_cfg()
@@ -104,6 +106,9 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         assert self._env_cfg.game.num_agents == map_agents, (
             f"Number of agents {self._env_cfg.game.num_agents} does not match number of agents in map {map_agents}"
         )
+
+        if self._debug:
+            save_mettagrid_args(self._env_cfg, env_map)
 
         self._c_env = MettaGrid(self._env_cfg, env_map)
         self._num_agents = self._c_env.num_agents()
