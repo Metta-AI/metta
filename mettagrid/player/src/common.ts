@@ -12,7 +12,7 @@ export const MAX_ZOOM_LEVEL = 2.0;
 
 export const SPLIT_DRAG_THRESHOLD = 10;  // pixels to detect split dragging
 export const SCROLL_ZOOM_FACTOR = 1000;  // divisor for scroll delta to zoom conversion
-export const DEFAULT_TRACE_SPLIT = 0.85;  // default horizontal split ratio
+export const DEFAULT_TRACE_SPLIT = 0.80;  // default horizontal split ratio
 export const PANEL_BOTTOM_MARGIN = 60;    // bottom margin for panels
 export const HEADER_HEIGHT = 60;          // height of the header
 export const SCRUBBER_HEIGHT = 120;        // height of the scrubber

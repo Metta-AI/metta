@@ -106,14 +106,22 @@ export function drawTrace(panel: PanelInfo) {
       const action = getAttr(agent, "action", j);
       const action_success = getAttr(agent, "action_success", j);
 
-      if (action_success && action != null && action[0] >= 0 && action[0] < state.replay.action_images.length) {
+      if (action_success &&
+        action != null &&
+        action[0] >= 0 &&
+        action[0] < state.replay.action_images.length
+      ) {
         // Draw the action.
         ctx.drawSprite(
           state.replay.action_images[action[0]],
           j * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
           i * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT / 2,
         );
-      } else if (action != null && action[0] >= 0 && action[0] < state.replay.action_images.length) {
+      } else if (
+        action != null &&
+        action[0] >= 0 &&
+        action[0] < state.replay.action_images.length
+      ) {
         // Don't draw invalid actions.
       }
 
