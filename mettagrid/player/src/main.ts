@@ -58,7 +58,6 @@ export function onResize() {
   ui.tracePanel.width = screenWidth;
   ui.tracePanel.height = screenHeight - ui.tracePanel.y - Common.SCRUBBER_HEIGHT;
 
-
   // Redraw the square after resizing.
   requestFrame();
 }
