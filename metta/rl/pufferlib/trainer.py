@@ -749,12 +749,20 @@ class PufferTrainer:
         self.target_batch_size = self.trainer_cfg.forward_pass_minibatch_target_size // self._env_cfg.game.num_agents
         if self.target_batch_size < 2:  # pufferlib bug requires batch size >= 2
             self.target_batch_size = 2
+
         self.batch_size = (self.target_batch_size // self.trainer_cfg.num_workers) * self.trainer_cfg.num_workers
+        num_envs = self.batch_size * self.trainer_cfg.async_factor
+
+        if num_envs < 1:
+            logger.error(
+                f"num_envs = batch_size ({self.batch_size}) * async_factor ({self.trainer_cfg.async_factor}) "
+                f"is {num_envs}, which is less than 1! (Increase trainer.forward_pass_minibatch_target_size)"
+            )
 
         self.vecenv = make_vecenv(
             self._env_cfg,
             self.cfg.vectorization,
-            num_envs=self.batch_size * self.trainer_cfg.async_factor,
+            num_envs=num_envs,
             batch_size=self.batch_size,
             num_workers=self.trainer_cfg.num_workers,
             zero_copy=self.trainer_cfg.zero_copy,

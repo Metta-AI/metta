@@ -64,6 +64,20 @@ do
   }
 done
 
+# Check for metta.rl.fast_gae.compute_gae
+echo "Checking import for metta.rl.fast_gae.compute_gae..."
+python -c "from metta.rl.fast_gae import compute_gae; print('✅ Found metta.rl.fast_gae.compute_gae')" || {
+  echo "❌ Failed to import metta.rl.fast_gae.compute_gae"
+  exit 1
+}
+
+# Check for mettagrid.mettagrid_env.MettaGridEnv
+echo "Checking import for mettagrid.mettagrid_env.MettaGridEnv..."
+python -c "from mettagrid.mettagrid_env import MettaGridEnv; print('✅ Found mettagrid.mettagrid_env.MettaGridEnv')" || {
+  echo "❌ Failed to import mettagrid.mettagrid_env.MettaGridEnv"
+  exit 1
+}
+
 if [ -z "$CI" ] && [ -z "$IS_DOCKER" ]; then
   # ========== VS CODE INTEGRATION ==========
   echo "Setting up VSCode integration..."

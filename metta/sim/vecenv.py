@@ -1,8 +1,12 @@
+import logging
+
 import hydra
 import pufferlib
 import pufferlib.utils
 import pufferlib.vector
 from omegaconf import DictConfig, ListConfig
+
+logger = logging.getLogger("vecenv")
 
 
 def make_env_func(cfg: DictConfig, buf=None, render_mode="rgb_array"):
@@ -27,6 +31,10 @@ def make_vecenv(
         vec = pufferlib.vector.Ray
     else:
         raise ValueError("Invalid --vector (serial/multiprocessing/ray).")
+
+    # Check if num_envs is valid
+    if num_envs < 1:
+        logger.error(f"num_envs is {num_envs}, which is less than 1!")
 
     vecenv_args = dict(
         env_kwargs=dict(cfg=env_cfg, render_mode=render_mode),
