@@ -32,8 +32,8 @@ for i in "${!POLICIES[@]}"; do
         run=multiagent$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         +eval_db_uri=wandb://artifacts/multiagent_db \
-        +sim.num_envs=20 \
-        +sim.num_episodes=20
+        sim.num_envs=20 \
+        sim.num_episodes=20
 
     python3 -m tools.sim \
         sim=memory \
@@ -52,14 +52,14 @@ for i in "${!POLICIES[@]}"; do
         run=object_use$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         +eval_db_uri=wandb://artifacts/object_use_db \
-        +sim.num_envs=20 \
-        +sim.num_episodes=20
+        sim.num_envs=20 \
+        sim.num_episodes=20
 
     python3 -m tools.sim \
         sim=navigation \
         run=navigation$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         +eval_db_uri=wandb://artifacts/navigation_db \
-        +sim.num_envs=20 \
-        +sim.num_episodes=20
+        sim.num_envs=20 \
+        sim.num_episodes=20
 done
