@@ -112,7 +112,11 @@ class PolicyRecord:
                     weight = next((p for name, p in params if name == "weight"), None)
                     if weight is not None:
                         out_channels, in_channels, kernel_h, kernel_w = weight.shape
-                        module_info += f" [out_channels={out_channels}, in_channels={in_channels}, kernel=({kernel_h}, {kernel_w})]"
+                        module_info += " ["
+                        module_info += f"out_channels={out_channels}, "
+                        module_info += f"in_channels={in_channels}, "
+                        module_info += f"kernel=({kernel_h}, {kernel_w})"
+                        module_info += "]"
 
                 elif isinstance(module, torch.nn.Linear):
                     weight = next((p for name, p in params if name == "weight"), None)
@@ -121,7 +125,11 @@ class PolicyRecord:
                         module_info += f" [in_features={in_features}, out_features={out_features}]"
 
                 elif isinstance(module, torch.nn.LSTM):
-                    module_info += f" [input_size={module.input_size}, hidden_size={module.hidden_size}, num_layers={module.num_layers}]"
+                    module_info += " ["
+                    module_info += f"input_size={module.input_size}, "
+                    module_info += f"hidden_size={module.hidden_size}, "
+                    module_info += f"num_layers={module.num_layers}"
+                    module_info += "]"
 
                 elif isinstance(module, torch.nn.Embedding):
                     weight = next((p for name, p in params if name == "weight"), None)
