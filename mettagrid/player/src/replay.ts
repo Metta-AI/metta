@@ -47,8 +47,18 @@ async function decompressStream(stream: ReadableStream<Uint8Array>): Promise<str
 
 // Load the replay from a URL.
 export async function fetchReplay(replayUrl: string) {
+
+  // If its an S3 url, we can convert it to a http url.
+  const s3Prefix = "s3://softmax-public/";
+  let httpUrl = replayUrl;
+  if (replayUrl.startsWith(s3Prefix)) {
+    const httpPrefix = "https://softmax-public.s3.us-east-1.amazonaws.com/";
+    httpUrl = httpPrefix + replayUrl.slice(s3Prefix.length);
+    console.log("Converted S3 url to http url: ", httpUrl);
+  }
+
   try {
-    const response = await fetch(replayUrl);
+    const response = await fetch(httpUrl);
     if (!response.ok) {
       throw new Error("Network response was not ok");
     }
@@ -60,11 +70,11 @@ export async function fetchReplay(replayUrl: string) {
     console.log("Content-Type: ", contentType);
     if (contentType === "application/json") {
       let replayData = await response.text();
-      loadReplayText(replayData);
+      loadReplayText(replayUrl, replayData);
     } else if (contentType === "application/x-compress" || contentType === "application/octet-stream") {
       // Compressed JSON.
       const decompressedData = await decompressStream(response.body);
-      loadReplayText(decompressedData);
+      loadReplayText(replayUrl, decompressedData);
     } else {
       throw new Error("Unsupported content type: " + contentType);
     }
@@ -79,13 +89,13 @@ export async function readFile(file: File) {
     const contentType = file.type;
     console.log("Content-Type: ", contentType);
     if (contentType === "application/json") {
-      loadReplayText(await file.text());
+      loadReplayText(file.name, await file.text());
     } else if (contentType === "application/x-compress" || contentType === "application/octet-stream") {
       // Compressed JSON.
       console.log("Decompressing file");
       const decompressedData = await decompressStream(file.stream());
       console.log("Decompressed file");
-      loadReplayText(decompressedData);
+      loadReplayText(file.name, decompressedData);
     }
   } catch (error) {
     Common.showModal("error", "Error reading file", "Message: " + error);
@@ -120,7 +130,7 @@ function removeSuffix(str: string, suffix: string) {
 }
 
 // Load the replay text.
-async function loadReplayText(replayData: any) {
+async function loadReplayText(url: string, replayData: any) {
   state.replay = JSON.parse(replayData);
 
   // Go through each grid object and expand its key sequence.
@@ -229,6 +239,12 @@ async function loadReplayText(replayData: any) {
 
   // Set the scrubber max value to the max steps.
   html.scrubber.max = (state.replay.max_steps - 1).toString();
+
+  if (state.replay.file_name) {
+    html.fileName.textContent = state.replay.file_name;
+  } else {
+    html.fileName.textContent = url.split("/").pop() || "unknown";
+  }
 
   Common.closeModal();
   focusFullMap(ui.mapPanel);
