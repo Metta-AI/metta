@@ -70,9 +70,12 @@ def get_metrics_data(
     suite: Optional[str] = None,
 ) -> Dict[str, Dict[str, float]]:
     """
-    Return {metric: {"mean": μ, "std": σ, "count": K}}
-        • μ, σ are sample-normalised (missing samples treated as 0).
-        • K is the *recorded* sample count for that metric.
+    Return {metric: {"mean": μ, "std": σ,
+                     "count": K_recorded,
+                     "samples": N_potential}}
+        • μ, σ are normalised (missing values = 0).
+        • K_recorded  – rows in policy_simulation_agent_metrics.
+        • N_potential – total agent-episode pairs for that filter.
     """
     policy_key, policy_version = policy_record.key_and_version()
     filter_condition = f"sim_suite = '{suite}'" if suite else None
@@ -84,29 +87,32 @@ def get_metrics_data(
             continue
         std = stats_db.get_std_metric_by_filter(m, policy_record, filter_condition) or 0.0
 
-        # ← use recorded-sample count (metrics table), not potential count
-        k = stats_db.count_metric_agents(policy_key, policy_version, m, filter_condition)
+        k_recorded = stats_db.count_metric_agents(policy_key, policy_version, m, filter_condition)
+        n_potential = stats_db.potential_samples_for_metric(policy_key, policy_version, filter_condition)
 
-        data[m] = {"mean": mean, "std": std, "count": k}
+        data[m] = {
+            "mean": mean,
+            "std": std,
+            "count": k_recorded,
+            "samples": n_potential,
+        }
     return data
 
 
-# --------------------------------------------------------------------------- #
-#   pretty printer                                                            #
-# --------------------------------------------------------------------------- #
 def print_metrics_table(metrics_data: Dict[str, Dict[str, float]], policy_record: PolicyRecord) -> None:
     logger = logging.getLogger(__name__)
     if not metrics_data:
         logger.warning(f"No metrics data available for {policy_record.key}:v{policy_record.version}")
         return
 
-    headers = ["Metric", "Average", "Std Dev", "Sample Count"]
+    headers = ["Metric", "Average", "Std Dev", "Metric Samples", "Agent Samples"]
     rows = [
         [
             metric,
             f"{stats['mean']:.4f}",
             f"{stats['std']:.4f}",
             str(int(stats["count"])),
+            str(int(stats["samples"])),
         ]
         for metric, stats in metrics_data.items()
     ]
