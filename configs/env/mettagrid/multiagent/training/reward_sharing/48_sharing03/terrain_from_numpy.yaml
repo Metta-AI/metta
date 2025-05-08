@@ -17,28 +17,28 @@ game:
         border_width: 1
         dir: "terrain_maps_nohearts"
         agents: 6
-        team: team_1
+        teams: [team_1]
         objects:
           altar: ${sampling:10,75,30}
       - _target_: mettagrid.config.room.terrain_from_numpy.TerrainFromNumpy
         border_width: 1
         dir: "terrain_maps_nohearts"
         agents: 6
-        team: team_2
+        teams: [team_2]
         objects:
           altar: ${sampling:10,75,30}
       - _target_: mettagrid.config.room.terrain_from_numpy.TerrainFromNumpy
         border_width: 1
         dir: "terrain_maps_nohearts"
         agents: 6
-        team: team_3
+        teams: [team_3]
         objects:
           altar: ${sampling:10,75,30}
       - _target_: mettagrid.config.room.terrain_from_numpy.TerrainFromNumpy
         border_width: 1
         dir: "terrain_maps_nohearts"
         agents: 6
-        team: team_4
+        teams: [team_4]
         objects:
           altar: ${sampling:10,75,30}
 

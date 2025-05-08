@@ -10,6 +10,7 @@ analysis:
 
   metrics:
     - metric: episode_reward
+    - metric: group_reward*
 
   queries: null
 
