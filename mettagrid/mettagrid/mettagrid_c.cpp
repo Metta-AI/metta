@@ -151,8 +151,6 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
     for (int r = 0; r < map_info.shape[0]; r++) {
         for (int c = 0; c < map_info.shape[1]; c++) {
             ssize_t idx = r * map_info.shape[1] + c;
-            // xcxc will using a unique_ptr mean that the object is deleted when the unique_ptr goes out of scope?
-            // Will that mess up the grid?
             Converter* converter = nullptr;
             std::wstring wide_string(map_data + idx * max_chars, max_chars);
             std::wstring_convert<std::codecvt_utf8<wchar_t>> w_string_converter;
@@ -493,10 +491,10 @@ py::list MettaGrid::inventory_item_names() {
     return py::cast(InventoryItemNames);
 }
 
-void MettaGrid::init_action_handlers(const std::vector<std::unique_ptr<ActionHandler>>& action_handlers) {
+void MettaGrid::init_action_handlers(std::vector<std::unique_ptr<ActionHandler>>& action_handlers) {
     _action_handlers.clear();
-    for (const auto& handler : action_handlers) {
-        _action_handlers.push_back(std::move(const_cast<std::unique_ptr<ActionHandler>&>(handler)));
+    for (auto& handler : action_handlers) {
+        _action_handlers.push_back(std::move(handler));
     }
     _num_action_handlers = _action_handlers.size();
     _max_action_priority = 0;
