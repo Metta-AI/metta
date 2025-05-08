@@ -1,5 +1,5 @@
 # Similar to simple.yaml, but using MapGen.
-_target_: mettagrid.map.mapgen.MapGen
+_target_: metta.map.mapgen.MapGen
 
 width: ${sampling:20,200,50}
 height: ${sampling:20,200,50}
@@ -7,7 +7,7 @@ height: ${sampling:20,200,50}
 border_width: 6
 
 root:
-  _target_: mettagrid.map.scenes.room_grid.RoomGrid
+  _target_: metta.map.scenes.room_grid.RoomGrid
 
   rows: 2
   columns: 3 # simple.yaml referred to num_agents here, but we're using OmegaConf now without Hydra
@@ -16,7 +16,7 @@ root:
 
   children:
     - scene:
-        _target_: mettagrid.map.scenes.random.Random
+        _target_: metta.map.scenes.random.Random
 
         objects:
           mine: ${sampling:1,20,10}

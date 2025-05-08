@@ -36,8 +36,6 @@ game:
         block: 20
         wall: 20
 
-
-  # default for the old map builder; new mettagrid.map.mapgen requires false
   recursive_map_builder: true
 
   obs_width: 11
