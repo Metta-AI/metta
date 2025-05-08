@@ -42,7 +42,7 @@ def main(cfg):
 
         replay_dir = f"{replay_job.replay_dir}/{cfg.run}"
         if cfg.trainer.get("replay_dry_run", False):
-            replay_dir = "/tmp"
+            replay_dir = None
 
         sim_suite = SimulationSuite(replay_job.sim, policy_record, policy_store, replay_dir=replay_dir)
         result = sim_suite.simulate()

@@ -12,7 +12,7 @@ from mettagrid.util.file import http_url, write_data
 class ReplayWriter:
     """Helper class for generating and uploading replays."""
 
-    def __init__(self, replay_dir: str):
+    def __init__(self, replay_dir: str | None = None):
         self.replay_dir = replay_dir
         self.episodes = {}
 
@@ -26,6 +26,8 @@ class ReplayWriter:
         self.episodes[episode_id].log_post_step(rewards)
 
     def write_replay(self, episode_id: str):
+        if self.replay_dir is None:
+            return None
         episode_replay = self.episodes[episode_id]
         if episode_replay is None:
             raise ValueError(f"Episode {episode_id} not found")

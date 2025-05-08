@@ -23,7 +23,7 @@ class SimulationSuite:
         policy_pr: PolicyRecord,
         policy_store: PolicyStore,
         stats_dir: str = "/tmp/stats",
-        replay_dir: str = "/tmp/replays",
+        replay_dir: str | None = None,
     ):
         self._config = config
         self._policy_pr = policy_pr

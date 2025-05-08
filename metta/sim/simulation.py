@@ -51,7 +51,7 @@ class Simulation:
         policy_store: PolicyStore,
         suite=None,
         stats_dir: str = "/tmp/stats",
-        replay_dir: str = "/tmp/replays",
+        replay_dir: str | None = None,
     ):
         self._name = name
         self._suite = suite
@@ -62,7 +62,7 @@ class Simulation:
         self._env_cfg = config_from_path(config.env, config.env_overrides)
         self._env_name = config.env
 
-        replay_dir = f"{replay_dir}/{self._id}"
+        replay_dir = f"{replay_dir}/{self._id}" if replay_dir else None
 
         sim_stats_dir = (Path(stats_dir) / self._id).resolve()
         sim_stats_dir.mkdir(parents=True, exist_ok=True)

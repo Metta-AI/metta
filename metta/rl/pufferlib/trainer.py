@@ -599,7 +599,7 @@ class PufferTrainer:
             replay_url = results.stats_db.get_replay_urls(
                 policy_key=self.last_pr.key(), policy_version=self.last_pr.version()
             )[0]
-            if self.wandb_run is not None:
+            if self.wandb_run is not None and not dry_run:
                 player_url = "https://metta-ai.github.io/metta/?replayUrl=" + replay_url
                 link_summary = {
                     "replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {self.epoch})</a>')
