@@ -252,8 +252,8 @@ def main():
     git_group.add_argument("--git-branch", help="Use the HEAD of a specific git branch instead of current commit")
     git_group.add_argument("--git-commit", help="Use a specific git commit hash")
 
-    parser.add_argument("--gpus", type=int, default=4)
-    parser.add_argument("--node-gpus", type=int, default=4)
+    parser.add_argument("--gpus", type=int, default=1)
+    parser.add_argument("--node-gpus", type=int, default=1)
     parser.add_argument("--gpu-cpus", type=int)
     parser.add_argument("--node-ram-gb", type=int)
     parser.add_argument("--copies", type=int, default=1)

@@ -12,17 +12,20 @@ game:
     border_width: 6
 
     room:
-      _target_: mettagrid.config.room.terrain_from_numpy.TerrainFromNumpy
+      _target_: mettagrid.config.room.navigation.varied_terrain.VariedTerrain
+      width: ${sampling:20,50,30}
+      height: ${sampling:20,50,30}
       border_width: ${sampling:1,6,3}
       agents: 1
+      style: maze # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
       objects:
         altar: 1
         generator.red: 3
         mine.red: 3
-        # generator.blue: 1
-        # mine.blue: 1
-        # generator.green: 1
-        # mine.green: 1
+            # generator.blue: 1
+            # mine.blue: 1
+            # generator.green: 1
+            # mine.green: 1
   objects:
     altar:
       cooldown: 1

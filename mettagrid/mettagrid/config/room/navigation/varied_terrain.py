@@ -81,10 +81,6 @@ class VariedTerrain(Room):
         teams: list | None = None,
     ):
         super().__init__(border_width=border_width, border_object=border_object, labels=[style])
-
-        width = np.random.randint(35, 90)
-        height = np.random.randint(35, 90)
-
         self.set_size_labels(width, height)
         self._rng = np.random.default_rng(seed)
         self._width = width
@@ -175,7 +171,7 @@ class VariedTerrain(Room):
                     if pos is None:
                         break
                     r, c = pos
-                    grid[r, c] = "altar"
+                    grid[r, c] = obj_name
                     self._occupancy[r, c] = True
 
         return grid

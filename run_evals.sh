@@ -65,7 +65,7 @@ for i in "${!POLICIES[@]}"; do
 
 python3 -m tools.analyze +eval_db_uri=wandb://artifacts/multiagent_db run=multiagentrun3 ++analyzer.output_path=s3://softmax-public/policydash/multiagent.html \
 
-python3 -m tools.analyze +eval_db_uri=wandb://artifacts/cards_db run=cardsrun3 ++analyzer.output_path=s3://softmax-public/policydash/cards.html \
+# python3 -m tools.analyze +eval_db_uri=wandb://artifacts/cards_db run=cardsrun3 ++analyzer.output_path=s3://softmax-public/policydash/cards.html \
 
 python3 -m tools.analyze +eval_db_uri=wandb://artifacts/object_use_db run=object_userun3 ++analyzer.output_path=s3://softmax-public/policydash/object_use.html \
 

@@ -19,10 +19,10 @@ game:
         altar: 1
         generator.red: 3
         mine.red: 3
-        # generator.blue: 1
-        # mine.blue: 1
-        # generator.green: 1
-        # mine.green: 1
+          # generator.blue: 1
+          # mine.blue: 1
+          # generator.green: 1
+          # mine.green: 1
   objects:
     altar:
       cooldown: 1

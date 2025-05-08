@@ -38,6 +38,3 @@ game:
     mine.blue:
       cooldown: 1
     generator.green:
-      cooldown: 1
-    mine.green:
-      cooldown: 1
