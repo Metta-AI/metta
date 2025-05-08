@@ -107,7 +107,7 @@ class EvalStatsDB(SimulationStatsDB):
         return int(res["cnt"][0]) if not res.empty else 0
 
     # Public alias (referenced by downstream code/tests)
-    def count_potential_agents(
+    def potential_samples_for_metric(
         self,
         policy_key: str,
         policy_version: int,
@@ -147,7 +147,7 @@ class EvalStatsDB(SimulationStatsDB):
         filter_condition: str | None = None,
     ) -> Optional[float]:
         """Return SUM/AVG/STD after zero‑filling missing samples."""
-        potential = self.count_potential_agents(policy_key, policy_version, filter_condition)
+        potential = self.potential_samples_for_metric(policy_key, policy_version, filter_condition)
         if potential == 0:
             return None
 

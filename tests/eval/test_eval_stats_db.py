@@ -106,7 +106,7 @@ def test_metrics_normalisation(test_db):
     avg_hearts = db.get_average_metric_by_filter("hearts_collected", policy)
     assert 1.15 <= avg_hearts <= 1.25, f"expected ≈1.2 got {avg_hearts}"
 
-    potential = db.count_potential_agents(policy._policy_key, policy._policy_version)
+    potential = db.potential_samples_for_metric(policy._policy_key, policy._policy_version)
     assert potential == 5
 
     recorded = db.count_metric_agents(policy._policy_key, policy._policy_version, "hearts_collected")
@@ -168,7 +168,7 @@ def test_empty_database():
         policy = MockPolicyRecord("test", 1)
 
         assert db.get_average_metric_by_filter("reward", policy) is None
-        assert db.count_potential_agents("test", 1) == 0
+        assert db.potential_samples_for_metric("test", 1) == 0
         db.close()
 
 

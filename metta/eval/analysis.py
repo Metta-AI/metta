@@ -63,9 +63,6 @@ def filter_metrics(available_metrics: List[str], patterns: List[str]) -> List[st
     return list(dict.fromkeys(selected))  # dedupe, preserve order
 
 
-# --------------------------------------------------------------------------- #
-#   NEW normalised metrics extraction                                         #
-# --------------------------------------------------------------------------- #
 def get_metrics_data(
     stats_db: EvalStatsDB,
     policy_record: PolicyRecord,
@@ -73,9 +70,9 @@ def get_metrics_data(
     suite: Optional[str] = None,
 ) -> Dict[str, Dict[str, float]]:
     """
-    Return {metric: {"mean": μ, "std": σ, "count": N}}
-    • μ and σ are *sample-normalised* (missing values treated as 0)
-    • N is the number of potential agent-episode samples.
+    Return {metric: {"mean": μ, "std": σ, "count": K}}
+        • μ, σ are sample-normalised (missing samples treated as 0).
+        • K is the *recorded* sample count for that metric.
     """
     policy_key, policy_version = policy_record.key_and_version()
     filter_condition = f"sim_suite = '{suite}'" if suite else None
@@ -84,10 +81,13 @@ def get_metrics_data(
     for m in metrics:
         mean = stats_db.get_average_metric_by_filter(m, policy_record, filter_condition)
         if mean is None:
-            continue  # no samples
+            continue
         std = stats_db.get_std_metric_by_filter(m, policy_record, filter_condition) or 0.0
-        count = stats_db.count_potential_agents(policy_key, policy_version, filter_condition)
-        data[m] = {"mean": mean, "std": std, "count": count}
+
+        # ← use recorded-sample count (metrics table), not potential count
+        k = stats_db.count_metric_agents(policy_key, policy_version, m, filter_condition)
+
+        data[m] = {"mean": mean, "std": std, "count": k}
     return data
 
 
