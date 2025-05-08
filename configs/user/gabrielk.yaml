@@ -1,45 +1,51 @@
 # @package __global__
 
-seed: null
-
 defaults:
-  - override /hardware: aws
-  - override /env/mettagrid@env: simple
-  - override /agent: resnet
+  - override /agent: transformer
+  - override /analyzer: eval_analyzer
+  - override /trainer: transformer
   - _self_
 
-# policy: file://.train_dir/gabrielk.local.train.simple/checkpoints/model_0000.pt
-# baselines: file://.train_dir/gabrielk.local.train.simple/checkpoints/model_0000.pt
 
-# evaluator:
-#   policy:
-#     uri: ${...policy_uri}
-# baselines:
-#   uri: ${...baseline_uri}
-
-policy_uri: file://./train_dir/gabrielk.local.train.resnet/checkpoints/model_0000.pt
-baseline_uri: file://./train_dir/gabrielk.local.train.simple/checkpoints/model_0000.pt
-
-env:
-  game:
-    max_steps: 100
+device: cuda
+# vectorization: multiprocessing
+vectorization: serial
 
 trainer:
-  evaluate_interval: 2
+  num_workers: 4
+  async_factor: 1
+  zero_copy: true
+  replay_interval: 0
+  evaluate_interval: 0
+  env_overrides:
+    sampling: 0.7
+    game:
+      num_agents: 36
+      max_steps: 1023 # 1024 - 1
 
-evaluator:
-  policy:
-    uri: ${...policy_uri}
-  baselines:
-    uri: ${...baseline_uri}
+analyzer:
+  policy_uri: ${..policy_uri}
+  view_type: latest
+  analysis:
+    metrics:
+      - metric: episode_reward
+      - metric: "heart.get"
 
-wandb:
-  enabled: false
-  track: false
-  checkpoint_interval: 1
 
-sweep:
-  metric: action.use
+sim:
+  env: /env/mettagrid/puffer
+  num_envs: 1
+  num_episodes: 1
+  max_time_s: 600
 
-cmd: ???
-run: ${oc.env:USER}.local.${cmd}.simple
+# wandb:
+#   enabled: false
+#   track: false
+
+run_id: 34
+run: ${oc.env:USER}.local.${run_id}
+trained_policy_uri: ${run_dir}/checkpoints
+
+sweep_params: "sweep/fast"
+sweep_name: "${oc.env:USER}.local.sweep.${run_id}"
+seed: null
