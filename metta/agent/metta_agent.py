@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, List, Union
 
 import gymnasium as gym
 import hydra
@@ -11,7 +11,7 @@ from torch.nn.parallel import DistributedDataParallel
 
 from metta.agent.policy_state import PolicyState
 from metta.agent.util.distribution_utils import sample_logits
-from metta.agent.util.safe_get import safe_get_obs_property
+from metta.agent.util.safe_get import safe_get_from_obs_space
 from metta.util.omegaconf import convert_to_dict
 from mettagrid.mettagrid_env import MettaGridEnv
 
@@ -27,7 +27,6 @@ def make_policy(env: MettaGridEnv, cfg: ListConfig | DictConfig):
     )
     return hydra.utils.instantiate(
         cfg.agent,
-        obs_shape=env.single_observation_space.shape,
         obs_space=obs_space,
         action_space=env.single_action_space,
         grid_features=env.grid_features,
@@ -51,7 +50,6 @@ class DistributedMettaAgent(DistributedDataParallel):
 class MettaAgent(nn.Module):
     def __init__(
         self,
-        obs_shape: Tuple[int, ...],
         obs_space: Union[gym.spaces.Space, gym.spaces.Dict],
         action_space: gym.spaces.Space,
         grid_features: List[str],
@@ -61,21 +59,21 @@ class MettaAgent(nn.Module):
         super().__init__()
         cfg = OmegaConf.create(cfg)
 
+        logger.info(f"cfg: {cfg}")
+        logger.info(f"obs_space: {obs_space} ")
+
         self.hidden_size = cfg.components._core_.output_size
         self.core_num_layers = cfg.components._core_.nn_params.num_layers
         self.clip_range = cfg.clip_range
 
         try:
-            obs_key = cfg.observations.obs_key
+            obs_key = cfg.observations.obs_key  # typically "grid_obs"
         except (AttributeError, KeyError) as err:
             raise ValueError("Configuration is missing required field 'observations.obs_key'") from err
 
-        obs_input_shape = safe_get_obs_property(obs_space, obs_key, property_index=1)
-
-        # this is hardcoded to index 2 to provide the channel # at end of tuple
-        num_objects = safe_get_obs_property(obs_space, obs_key, property_index=2)
-
-        logging.info(f"cfg: {cfg}")
+        obs_shape = safe_get_from_obs_space(obs_space, obs_key, "shape")
+        obs_input_shape = obs_shape[1:]  # typ. 11, 11, 34
+        num_objects = obs_shape[2]  # typ. 34
 
         agent_attributes = {
             "obs_shape": obs_shape,

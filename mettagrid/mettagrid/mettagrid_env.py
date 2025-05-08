@@ -36,13 +36,13 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         # TODO -- typedef actions type
         num_agents = self._num_agents
-        self._obs_width = self._c_env.obs_width
-        self._obs_height = self._c_env.obs_height
+        obs_width = self._c_env.obs_width
+        obs_height = self._c_env.obs_height
         grid_features_size = self._c_env.grid_features_size
 
         # force buffers to the correct size
         buf = {
-            "observations": np.zeros((num_agents, self._obs_width, self._obs_height, grid_features_size)),
+            "observations": np.zeros((num_agents, obs_width, obs_height, grid_features_size)),
             "terminals": np.zeros((num_agents,), dtype=bool),
             "truncations": np.zeros((num_agents,), dtype=bool),
             "rewards": np.zeros((num_agents,), dtype=float),
@@ -63,7 +63,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         # Define expected shapes
         num_agents = self._num_agents
-        expected_obs_shape = (num_agents, self._obs_width, self._obs_height, grid_features_size)  # Assuming 11x11 grid
+        expected_obs_shape = (num_agents, obs_width, obs_height, grid_features_size)
 
         # Validate observation shape
         obs_shape_tuple = self.observations.shape
