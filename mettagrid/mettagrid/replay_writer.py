@@ -1,4 +1,5 @@
 # Generate a graphical trace of multiple runs.
+from __future__ import annotations
 
 import json
 import zlib
@@ -6,7 +7,6 @@ import zlib
 import numpy as np
 
 from metta.util.file import http_url, write_data
-from mettagrid.mettagrid_env import MettaGridEnv
 
 
 class ReplayWriter:
@@ -16,7 +16,7 @@ class ReplayWriter:
         self.replay_dir = replay_dir
         self.episodes = {}
 
-    def start_episode(self, episode_id: str, env: MettaGridEnv):
+    def start_episode(self, episode_id: str, env: "MettaGridEnv"):
         self.episodes[episode_id] = EpisodeReplay(env)
 
     def log_pre_step(self, episode_id: str, actions: np.ndarray):
@@ -36,7 +36,7 @@ class ReplayWriter:
 
 # Helper for managing state of individual episode's replay
 class EpisodeReplay:
-    def __init__(self, env: MettaGridEnv):
+    def __init__(self, env: "MettaGridEnv"):
         self.env = env
         self.step = 0
         self.grid_objects = []
@@ -94,7 +94,7 @@ class EpisodeReplay:
                 if isinstance(changes, list) and len(changes) == 1:
                     grid_object[key] = changes[0][1]
 
-        replay_data = json.dumps(episode_replay.replay_data)  # Convert to JSON string
+        replay_data = json.dumps(self.replay_data)  # Convert to JSON string
         replay_bytes = replay_data.encode("utf-8")  # Encode to bytes
         compressed_data = zlib.compress(replay_bytes)  # Compress the bytes
 

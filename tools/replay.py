@@ -6,8 +6,8 @@ import webbrowser
 import hydra
 
 from metta.agent.policy_store import PolicyStore
-from metta.sim.simulation import SimulationSuite
 from metta.sim.simulation_config import SimulationSuiteConfig
+from metta.sim.simulation_suite import SimulationSuite
 from metta.util.config import Config, setup_metta_environment
 from metta.util.file import http_url
 from metta.util.logging import setup_mettagrid_logger

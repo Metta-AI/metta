@@ -174,10 +174,9 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                 "seed": self._current_seed,
                 "map_w": self.map_width,
                 "map_h": self.map_height,
-                "meta": OmegaConf.to_container(self._env_cfg, resolve=False),
             }
 
-            for k, v in pufferlib.utils.unroll_nested_dict(self._env_cfg.to_container(resolve=True)):
+            for k, v in pufferlib.utils.unroll_nested_dict(OmegaConf.to_container(self._env_cfg, resolve=False)):
                 attributes[f"config.{k.replace('/', '.')}"] = str(v)
 
             agent_metrics = {}
@@ -190,6 +189,10 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             # TODO: Add groups
             groups = []
             group_metrics = {}
+            import logging
+
+            logger = logging.getLogger(__name__)
+            logger.info("Rewards: %s", episode_rewards)
             self._stats_writer.record_episode(
                 self._episode_id,
                 attributes,
@@ -201,6 +204,9 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                 self._reset_at,
             )
         self._episode_id = None
+
+    def close(self):
+        pass
 
     @property
     def _max_steps(self):

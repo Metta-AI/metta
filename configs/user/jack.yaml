@@ -11,18 +11,20 @@ data_dir: ./train_dir
 run_dir: ${data_dir}/${run}
 policy_uri: wandb://run/b.daphne.navigation_multiagent_24_rewardsharing_maxinv
 trained_policy_uri: ${run_dir}/checkpoints
-eval_db_uri: wandb://stats/evals_jack_testing
+eval_db_uri: wandb://stats/evals_jack_testing_1
 
 trainer:
   evaluate_interval: 10
 
 sim_job:
-  dry_run: false
+  simulation_suite:
+    num_envs: 2
+    num_episodes: 2
   policy_uris:
     - wandb://run/b.daphne.navigation
     - wandb://run/b.daphne.navigation2
-    - wandb://run/b.daphne.navigation_multiagent_24_rewardsharing_maxinv
-    - wandb://run/b.daphne.navigation_multiagent_24_norewardsharing_maxinv
+ #   - wandb://run/b.daphne.navigation_multiagent_24_rewardsharing_maxinv
+ #   - wandb://run/b.daphne.navigation_multiagent_24_norewardsharing_maxinv
 
 analyzer:
   view_type: latest

@@ -10,8 +10,9 @@ from omegaconf import DictConfig, ListConfig, OmegaConf
 from wandb_carbs import WandbCarbs
 
 from metta.agent.policy_store import PolicyStore
-from metta.sim.simulation import SimulationSuite
+from metta.eval.eval_stats_db import EvalStatsDB
 from metta.sim.simulation_config import SimulationSuiteConfig
+from metta.sim.simulation_suite import SimulationSuite
 from metta.util.logging import setup_mettagrid_logger
 from metta.util.runtime_configuration import setup_mettagrid_environment
 from metta.util.wandb.wandb_context import WandbContext
@@ -85,10 +86,11 @@ def main(cfg: DictConfig | ListConfig) -> int:
         log_file(cfg.run_dir, "sweep_eval_config.yaml", cfg, wandb_run)
 
         results = eval.simulate()
-        stats_db = results.stats_db
         eval_time = time.time() - eval_start_time
-        stats_db.materialize_policy_simulations_view(cfg.metric)
-        eval_metric = stats_db.get_average_metric_by_filter(cfg.metric, policy_pr.key(), policy_pr.version())
+        stats_db = results.stats_db
+        stats_db.close()
+        eval_stats_db = EvalStatsDB(stats_db.path)
+        eval_metric = eval_stats_db.get_average_metric_by_filter(cfg.metric, policy_pr)
 
         # Get training stats from metadata if available
         train_time = policy_pr.metadata.get("train_time", 0)

@@ -7,6 +7,7 @@ Can be extended (e.g. see SimulationStatsDb) with additional context on top of t
 
 import datetime
 import logging
+import os
 from pathlib import Path
 from typing import Dict, List
 
@@ -72,6 +73,7 @@ class EpisodeStatsDB:
 
     def __init__(self, path: Path) -> None:
         self.path = path
+        os.makedirs(path.parent, exist_ok=True)
         self.con = duckdb.connect(path)
         self.initialize_schema()
 

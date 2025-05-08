@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 
 from metta.eval.dashboard.heatmap import get_heatmap_matrix
-from metta.sim.simulation_stats_db import StatsDB
+from metta.eval.eval_stats_db import EvalStatsDB
 
 
 @pytest.fixture
@@ -18,7 +18,7 @@ def sample_stats_db():
     """Create a temporary StatsDB with sample data for testing."""
     with tempfile.TemporaryDirectory() as temp_dir:
         db_path = Path(temp_dir) / f"{uuid.uuid4().hex}.duckdb"
-        db = StatsDB(db_path, mode="rwc")
+        db = EvalStatsDB(db_path)
 
         # Create a simulation for each eval type
         sim_ids = {}
