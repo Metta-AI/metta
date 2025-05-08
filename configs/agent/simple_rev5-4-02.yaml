@@ -22,21 +22,26 @@ components:
     sources:
       - name: _obs_
 
-  # center_pixels:
-  #   _target_: metta.agent.lib.merge_layer.CenterPixelLayer
-  #   sources:
-  #     - name: obs_normalizer
-
-  obs_encoder:
-    _target_: metta.agent.lib.obs_encoders.RobustObsEncoderRev2
+  center_pixels:
+    _target_: metta.agent.lib.merge_layer.CenterPixelLayer
     sources:
       - name: obs_normalizer
-      # - name: center_pixels
+
+  obs_encoder:
+    _target_: metta.agent.lib.obs_encoders.ObsEncoderRev05_08_01
+    sources:
+      - name: obs_normalizer
+
+  obs_attn:
+    _target_: metta.agent.lib.obs_encoders.ObsAttnRev05_08_01
+    sources:
+      - name: obs_encoder
+      - name: center_pixels
 
   _core_:
     _target_: metta.agent.lib.lstm.LSTM
     sources:
-      - name: obs_encoder
+      - name: obs_attn
     output_size: 128
     nn_params:
       num_layers: 2

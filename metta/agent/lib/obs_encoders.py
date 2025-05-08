@@ -5,7 +5,7 @@ from tensordict import TensorDict
 from metta.agent.lib.nn_layer_library import LayerBase
 
 
-class ObsEncoderRev5_8_01(LayerBase):
+class ObsEncoderRev05_08_01(LayerBase):
     def __init__(self, **cfg):
         super().__init__(**cfg)
         self.channel_sets = {
@@ -23,17 +23,21 @@ class ObsEncoderRev5_8_01(LayerBase):
 
         self.eo_dim = 8
         self.ea_dim = 8
-        self.score_dim = 32
-        self.key_dim = 16  # dimensionality for key/query/value projections
+        # self.score_dim = 32
+        # self.key_dim = 16  # dimensionality for key/query/value projections
 
         self.center_pixel_len = 34
         self.lstm_h_len = 128
         self.lstm_h_layers = 2
         # final hidden vector length (8 slices × key_dim)
-        self.hidden = self.key_dim * 8
+        # self.hidden = self.key_dim * 8
 
         self.eo_embed = nn.Embedding(100, self.eo_dim)
         self.ea_embed = nn.Embedding(100, self.ea_dim)
+
+        # Initialize embedding weights
+        nn.init.uniform_(self.eo_embed.weight, -1, 1)
+        nn.init.uniform_(self.ea_embed.weight, -1, 1)
 
         self.grid_size = (11, 11)
         self.coords_dim = 4
@@ -98,26 +102,26 @@ class ObsEncoderRev5_8_01(LayerBase):
 
     def _make_net(self):
         # output is a fixed-length hidden vector per batch
-        self._out_tensor_shape = [self.hidden]
+        self._out_tensor_shape = [self.out_dim]
         return None
 
     def _forward(self, td: TensorDict):
         obs = td[self._sources[0]["name"]]
-        center_pixels = td[self._sources[1]["name"]]
-        state_h_prev = td["state_h_prev"]
+        # center_pixels = td[self._sources[1]["name"]]
+        # state_h_prev = td["state_h_prev"]
         N = obs.size(0)
 
-        if state_h_prev is None:
-            state_h_prev = torch.zeros(N, self.lstm_h_len, device=obs.device)
-        else:
-            state_h_prev = state_h_prev[self.lstm_h_layers - 1]
+        # if state_h_prev is None:
+        #     state_h_prev = torch.zeros(N, self.lstm_h_len, device=obs.device)
+        # else:
+        #     state_h_prev = state_h_prev[self.lstm_h_layers - 1]
 
-        query = torch.cat([center_pixels, state_h_prev], dim=1)  # [N, center_pixel_len + lstm_h_len]
+        # query = torch.cat([center_pixels, state_h_prev], dim=1)  # [N, center_pixel_len + lstm_h_len]
 
-        expected_dim = self.center_pixel_len + self.lstm_h_len
-        assert query.shape == (N, expected_dim), (
-            f"Shape mismatch for query: expected ({N}, {expected_dim}), got {query.shape}"
-        )
+        # expected_dim = self.center_pixel_len + self.lstm_h_len
+        # assert query.shape == (N, expected_dim), (
+        #     f"Shape mismatch for query: expected ({N}, {expected_dim}), got {query.shape}"
+        # )
         device = obs.device
 
         # ----- Run math to get the right feature vectors here ------
@@ -193,10 +197,60 @@ class ObsEncoderRev5_8_01(LayerBase):
             # Output a tensor of shape [N, 0, self.out_dim] or handle as an error/specific case
             # For now, let's assume self.hidden implies a different structure later or this output is intermediate.
             # If an error, obs.device might not be right if obs can be empty. query.device perhaps.
-            output = torch.zeros(N, 0, self.out_dim, device=query.device)
+            output = torch.zeros(N, 0, self.out_dim, device=device)
         else:
             output = torch.cat(all_processed_features_for_batch, dim=1)
             # Shape: [N, total_locations_across_all_sets, self.out_dim]
+
+        # --- BEGIN MODIFICATION: Filter zero vectors and pad ---
+        # output current shape: [N, S, D_feature]
+        # S = total_locations_across_all_sets, D_feature = self.out_dim
+        N_b, S_orig, D_feat = output.shape  # Capture original N, S, D
+
+        if output.numel() > 0 and S_orig > 0:  # Proceed only if output has features to process
+            is_zero_vector_mask = torch.all(output == 0, dim=2)  # Shape: [N_b, S_orig]
+            non_zero_mask_batch = ~is_zero_vector_mask  # Shape: [N_b, S_orig], True where vectors are non-zero
+
+            # Calculate number of non-zero vectors for each batch item
+            num_non_zero_per_item = non_zero_mask_batch.sum(dim=1)  # Shape: [N_b]
+
+            # Determine max_s_prime. If all items have zero non-zero vectors, max_s_prime will be 0.
+            max_s_prime = int(num_non_zero_per_item.max().item()) if num_non_zero_per_item.numel() > 0 else 0
+
+            # Create padded output and attention mask
+            padded_output = torch.zeros(N_b, max_s_prime, D_feat, device=output.device, dtype=output.dtype)
+            attention_mask = torch.zeros(N_b, max_s_prime, dtype=torch.bool, device=output.device)
+
+            for i in range(N_b):
+                # Efficiently select non-zero vectors for the current batch item
+                current_item_non_zero_mask = non_zero_mask_batch[i]
+                # output[i] is [S_orig, D_feat], current_item_non_zero_mask is [S_orig]
+                current_item_vectors = output[i, current_item_non_zero_mask]  # Shape: [s_prime_i, D_feat]
+
+                s_prime_i = current_item_vectors.shape[0]  # This is equivalent to num_non_zero_per_item[i].item()
+
+                if s_prime_i > 0:
+                    padded_output[i, :s_prime_i, :] = current_item_vectors
+                    attention_mask[i, :s_prime_i] = True
+
+            output = padded_output  # Update output to the new padded version
+            td[self._name + "_attention_mask"] = attention_mask  # Store the attention mask
+        else:
+            # Handle cases where output was empty to begin with (e.g., S_orig was 0)
+            # or if N_b was 0 (though N_b, S_orig are from output.shape)
+            # The attention mask should reflect an empty sequence.
+            # 'device' should be in scope from earlier in the _forward method (obs.device)
+            # 'N_b' is from output.shape, so it's the correct batch size for the empty mask.
+            td[self._name + "_attention_mask"] = torch.empty(
+                N_b,
+                0,
+                dtype=torch.bool,
+                device=device,  # Use 'device' from outer scope
+            )
+        # --- END MODIFICATION ---
+
+        # Output should be [N, S, D_feature] for attention layers
+        # output = output.reshape(-1, self.out_dim) # This was flattening the sequence
 
         td[self._name] = output
 
@@ -210,3 +264,112 @@ class ObsEncoderRev5_8_01(LayerBase):
         dx_t = torch.tensor(dx, dtype=torch.float32)
         r = torch.sqrt(dy_t**2 + dx_t**2)
         return torch.stack([torch.abs(dy_t), torch.abs(dx_t), torch.log1p(r), 1.0 / (1.0 + r)])
+
+
+class ObsAttnRev05_08_01(LayerBase):
+    def __init__(self, **cfg):
+        super().__init__(**cfg)
+        self.center_pixel_len = 34
+        self.lstm_h_len = 128
+        self._query_dim = 32
+        self._lstm_layers = 2
+        self._SQ_proj_hidden = 256
+        self._QV_dim = 32
+        self._V_dim = 128
+
+    def _make_net(self):
+        self._out_tensor_shape = [128]
+
+        # Assuming self._in_tensor_shapes[0][-1] gives the feature dimension
+        # self._feat_dim should be the last dimension of the input tensor shape.
+        self._feat_dim = self._in_tensor_shapes[0][-1]
+
+        self._cp_proj = nn.Linear(self.center_pixel_len, self._SQ_proj_hidden)
+        self._state_proj = nn.Linear(self.lstm_h_len, self._SQ_proj_hidden)
+        # Define the _cat_proj layer
+        self._q_vec_proj = nn.Linear(self._SQ_proj_hidden * 2, self._query_dim)
+        self._relu = nn.ReLU()
+
+        self._Q = nn.Linear(self._query_dim, self._QV_dim)
+        self._K = nn.Linear(self._feat_dim, self._QV_dim)
+        # Corrected self._V to take self._feat_dim as input and output self._V_dim
+        self._V = nn.Linear(self._feat_dim, self._V_dim)
+
+        return None
+
+    def _forward(self, td: TensorDict):
+        feat_vectors = td[self._sources[0]["name"]]  # Shape: [B_TT, S, self._feat_dim]
+        center_pixels = td[self._sources[1]["name"]]  # Shape: [B_TT, self.center_pixel_len]
+        state_h_prev = td["state_h_prev"]  # Shape: [B_TT, self.lstm_h_len] (after indexing)
+        B_TT = td["_BxTT_"]
+
+        # The expand might be redundant if feat_vectors is already [B_TT, S, D]
+        # If feat_vectors comes from ObsEncoderRev05_08_01 directly, it is already [B_TT, S, D]
+        # For robustness, ensure B_TT matches feat_vectors.shape[0] if not expanding from a shared source.
+        if feat_vectors.shape[0] == 1 and B_TT > 1:
+            feat_vectors = feat_vectors.expand(B_TT, -1, -1)
+        elif feat_vectors.shape[0] != B_TT:
+            # This case should be handled based on expected input behavior
+            # For now, assuming feat_vectors.shape[0] == B_TT if not 1
+            pass
+
+        if state_h_prev is None:
+            # Ensure state_h_prev is correctly initialized for all items in the batch B_TT
+            state_h_prev = torch.zeros(B_TT, self.lstm_h_len, device=feat_vectors.device)
+        else:
+            # Assuming state_h_prev comes from an LSTM with shape [num_layers, B_TT, lstm_h_len]
+            state_h_prev = state_h_prev[self._lstm_layers - 1]  # Takes the last layer's hidden state
+            if state_h_prev.shape[0] != B_TT:
+                # Handle cases where state_h_prev might not be per B_TT item (e.g. if from single stream)
+                # This might need expansion or specific logic based on how B_TT relates to batching in LSTM
+                # For now, assume it aligns or is handled before this layer
+                pass
+
+        # Prep the input for the Q projection
+        cp_proj_out = self._cp_proj(center_pixels)  # Shape: [B_TT, _SQ_proj_hidden]
+        state_proj_out = self._state_proj(state_h_prev)  # Shape: [B_TT, _SQ_proj_hidden]
+
+        # Concatenate and project for query
+        cat_input = torch.cat([cp_proj_out, state_proj_out], dim=1)  # Shape: [B_TT, 2 * _SQ_proj_hidden]
+        cat_input = self._relu(cat_input)
+        q_vec_proj_out = self._q_vec_proj(cat_input)  # Shape: [B_TT, _query_dim]
+        query_vec = self._relu(q_vec_proj_out)  # query_vec (Query for attention) shape: [B_TT, _query_dim]
+
+        # Project Q, K, V
+        Q_proj = self._Q(query_vec)  # Shape: [B_TT, self._QV_dim]
+        K_proj = self._K(feat_vectors)  # Shape: [B_TT, S, self._QV_dim]
+        V_proj = self._V(feat_vectors)  # Shape: [B_TT, S, self._V_dim]
+
+        # Compute attention scores
+        # Q_proj: [B_TT, _QV_dim] -> [B_TT, 1, _QV_dim]
+        # K_proj: [B_TT, S, _QV_dim] -> [B_TT, _QV_dim, S] (transposed)
+        attn_scores = torch.matmul(Q_proj.unsqueeze(1), K_proj.transpose(-2, -1))  # Shape: [B_TT, 1, S]
+        attn_scores = attn_scores.squeeze(1)  # Shape: [B_TT, S]
+
+        # Scale scores
+        attn_scores = attn_scores / (self._QV_dim**0.5)
+
+        # Apply attention mask
+        # The mask is expected to be at td[self._sources[0]["name"] + "_attention_mask"]
+        # It should have shape [B_TT, S] and be boolean (True for valid tokens)
+        mask_key = self._sources[0]["name"] + "_attention_mask"
+        if mask_key in td:
+            attention_mask = td[mask_key]  # Shape: [B_TT, S]
+            # Ensure mask is boolean and on the correct device
+            attention_mask = attention_mask.bool().to(attn_scores.device)
+            # ~attention_mask is True for tokens to be masked (fill with a large negative number)
+            if attn_scores.shape[1] == attention_mask.shape[1]:  # Ensure sequence lengths match
+                attn_scores.masked_fill_(~attention_mask, -1e9)
+            # else: error or warning, mask shape mismatch
+        # else: warning, no attention mask found
+
+        # Softmax to get attention weights
+        attn_weights = torch.softmax(attn_scores, dim=-1)  # Shape: [B_TT, S]
+
+        # Compute weighted sum of V
+        # attn_weights: [B_TT, S] -> [B_TT, 1, S]
+        # V_proj: [B_TT, S, self._V_dim]
+        output = torch.matmul(attn_weights.unsqueeze(1), V_proj)  # Shape: [B_TT, 1, self._V_dim]
+        output = output.squeeze(1)  # Shape: [B_TT, self._V_dim]
+
+        td[self._name] = output  # Shape: [B_TT, self._V_dim] (which is 128)
