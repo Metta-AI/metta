@@ -6,7 +6,6 @@ import hydra
 import numpy as np
 import torch
 from omegaconf import DictConfig, ListConfig, OmegaConf
-from tensordict import TensorDict
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 
@@ -268,7 +267,7 @@ class MettaAgent(nn.Module):
             Tuple of (action, logprob_act, entropy, value, log_sftmx_logits)
         """
         # Initialize dictionary for TensorDict
-        td_dict = {"x": x, "state": None}
+        td = {"x": x, "state": None}
 
         # Safely handle LSTM state
         if state.lstm_h is not None and state.lstm_c is not None:
@@ -277,11 +276,7 @@ class MettaAgent(nn.Module):
             lstm_c = state.lstm_c.to(x.device)
 
             # Concatenate LSTM states along dimension 0
-            td_dict["state"] = torch.cat([lstm_h, lstm_c], dim=0)
-
-        # Create TensorDict with the prepared tensors
-        batch_size = x.shape[0] if hasattr(x, "shape") and len(x.shape) > 0 else None
-        td = TensorDict(td_dict, batch_size=batch_size)
+            td["state"] = torch.cat([lstm_h, lstm_c], dim=0)
 
         # Forward pass through value network
         self.components["_value_"](td)
@@ -300,7 +295,8 @@ class MettaAgent(nn.Module):
             else:
                 # Handle error case where state tensor is smaller than expected
                 raise ValueError(
-                    f"State tensor has insufficient size: {td['state'].shape[0]} < {split_size * 2} (expected for h and c)"
+                    "State tensor has insufficient size: "
+                    f"{td['state'].shape[0]} < {split_size * 2} (expected for h and c)"
                 )
 
         # Sample actions

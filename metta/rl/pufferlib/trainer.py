@@ -119,6 +119,7 @@ class PufferTrainer:
 
         actions_names = self.vecenv.driver_env.action_names()
         actions_max_params = self.vecenv.driver_env._c_env.max_action_args()
+
         self.policy.activate_actions(actions_names, actions_max_params, self.device)
 
         if self.trainer_cfg.compile:
@@ -761,6 +762,7 @@ class PufferTrainer:
 
         if self.cfg.seed is None:
             self.cfg.seed = np.random.randint(0, 1000000)
+
         self.vecenv.async_reset(self.cfg.seed)
 
 
