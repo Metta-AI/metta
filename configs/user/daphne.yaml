@@ -34,7 +34,7 @@ policy_uri: wandb://run/multiagent_objects_nocolors2
 #eval_db_uri: wandb://artifacts/navigation_db
 # eval_db_uri: wandb://artifacts/terrain_multienv_prioritized_all
 
-eval_db_uri: wandb://artifacts/multiagent_db_test
+eval_db_uri: wandb://artifacts/multiagent_db
 
 analyzer:
   policy_uri: ${..policy_uri}
@@ -43,7 +43,7 @@ analyzer:
   analysis:
     metrics:
       - metric: episode_reward
-  output_path: s3://softmax-public/policydash/navigation_test.html
+  output_path: s3://softmax-public/policydash/multiagent.html
   # output_path: eval_results/navigations.html
   # output_path: navigation_results/navigation.html
 

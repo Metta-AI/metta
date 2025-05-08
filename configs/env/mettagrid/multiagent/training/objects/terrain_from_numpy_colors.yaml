@@ -2,25 +2,27 @@ defaults:
   - /env/mettagrid/mettagrid@
   - _self_
 
-num_agents: 24
 sampling: 1
+
 game:
-  num_agents: 24  #how many agents are in the map x2
-  # max_steps: 25
-  agent:
-    max_inventory: 10
+  num_agents: 24
   map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom
     num_rooms: 4
     border_width: 6
 
     room:
-      _target_: mettagrid.config.room.navigation.terrain_from_numpy_objects.TerrainFromNumpy
-      border_width: 1
-      dir: "terrain_maps_nohearts"
-      num_agents: ${div:${....num_agents},4}
-      teams: ["team_1", "team_2", "team_3"]
-      object_colors: ["red", "green", "blue"]
+      _target_: mettagrid.config.room.navigation.terrain_from_numpy.TerrainFromNumpy
+      border_width: ${sampling:1,6,3}
+      agents: ${div:${....num_agents},4}
+      objects:
+        altar: ${sampling:3,10,7}
+        generator.green: ${sampling:1,5,3}
+        generator.blue: ${sampling:1,5,3}
+        generator.red: ${sampling:1,5,3}
+        mine.green: ${sampling:1,5,3}
+        mine.blue: ${sampling:1,5,3}
+        mine.red: ${sampling:1,5,3}
 
   objects:
     altar:
@@ -38,7 +40,7 @@ game:
       color: 0
       max_output: 10
       conversion_ticks: 1
-      cooldown: ${sampling:0, 5, 50}
+      cooldown: 1
       initial_items: 1
 
     mine.blue:
@@ -47,7 +49,7 @@ game:
       output_ore.blue: ${choose:0,1,1,2}
       max_output: 10
       conversion_ticks: 1
-      cooldown: ${sampling:0, 5, 50}
+      cooldown: 1
       initial_items: 1
 
     mine.green:
@@ -56,7 +58,7 @@ game:
       color: 2
       max_output: 10
       conversion_ticks: 1
-      cooldown: ${sampling:0, 5, 50}
+      cooldown: 1
       initial_items: 1
 
 
@@ -67,7 +69,7 @@ game:
       color: 0
       max_output: 10
       conversion_ticks: 1
-      cooldown: ${sampling:0, 5, 25}
+      cooldown: 1
       initial_items: 1
 
     generator.blue:
@@ -77,7 +79,7 @@ game:
       color: 1
       max_output: 10
       conversion_ticks: 1
-      cooldown: ${sampling:0, 5, 25}
+      cooldown: 1
       initial_items: 1
 
     generator.green:
@@ -87,5 +89,5 @@ game:
       color: 2
       max_output: 10
       conversion_ticks: 1
-      cooldown: ${sampling:0, 5, 25}
+      cooldown: 1
       initial_items: 1

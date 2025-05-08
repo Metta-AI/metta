@@ -10,5 +10,5 @@ envs:
   - /env/mettagrid/multiagent/training/no_reward_sharing/48/varied_terrain_all_sparse
   - /env/mettagrid/multiagent/training/no_reward_sharing/48/varied_terrain_balanced
   - /env/mettagrid/multiagent/training/no_reward_sharing/48/varied_terrain_maze
-  - /env/mettagrid/multiagent/training/no_reward_sharing/48/varied_terrain_sparse_altars_dense_objects
+  - /env/mettagrid/multiagent/training/no_reward_sharing/48/varied_terrain_dense
   - /env/mettagrid/multiagent/training/no_reward_sharing/48/cylinder_world

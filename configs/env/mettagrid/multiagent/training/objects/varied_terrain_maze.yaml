@@ -22,7 +22,10 @@ game:
       num_agents: ${div:${....num_agents},4}
       style: maze # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
       teams: ["team_1", "team_2", "team_3"]
-      object_colors: ["red"]
+      objects:
+        altar: ${sampling:1,4,2}
+        mine.red: ${sampling:2,7,2}
+        generator.red: ${sampling:2,7,2}
   objects:
     altar:
       hp: 30

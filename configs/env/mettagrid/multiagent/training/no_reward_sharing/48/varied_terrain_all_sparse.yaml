@@ -20,3 +20,5 @@ game:
       border_width: ${sampling:1,6,3}
       agents: 12
       style: all-sparse # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
+      objects:
+        altar: ${sampling:3,10,5}
