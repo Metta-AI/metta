@@ -241,6 +241,13 @@ resource "aws_ecs_task_definition" "skypilot_api_server" {
           readOnly      = false
         }
       ]
+      healthCheck = {
+        command     = ["CMD", "curl", "-f", "http://localhost:${local.skypilot_api_port}/api/health"]
+        interval    = 30
+        timeout     = 5
+        retries     = 3
+        startPeriod = 60
+      }
     }
   ])
 }
