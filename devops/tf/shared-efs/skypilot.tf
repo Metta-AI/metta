@@ -227,8 +227,19 @@ resource "aws_ecs_task_definition" "skypilot_api_server" {
 
   container_definitions = jsonencode([
     {
-      name      = "skypilot"
-      command   = ["sky", "api", "start", "--deploy", "--foreground"]
+      name = "skypilot"
+      command = ["/bin/sh", "-c", <<-EOT
+        # persist data
+        ln -s /mnt/data /root/.sky
+
+        # except for tmp which skypilot uses for its own mounts
+        mkdir -p /tmp/sky-tmp
+        ln -s /tmp/sky-tmp /root/.sky/tmp
+
+        # start the api server
+        sky api start --deploy --foreground
+      EOT
+      ]
       image     = local.skypilot_api_image
       essential = true
       portMappings = [{
@@ -237,7 +248,7 @@ resource "aws_ecs_task_definition" "skypilot_api_server" {
       mountPoints = [
         {
           sourceVolume  = "skypilot-root-sky-volume"
-          containerPath = "/root/.sky"
+          containerPath = "/mnt/data"
           readOnly      = false
         }
       ]
