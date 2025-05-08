@@ -18,7 +18,7 @@ from __future__ import annotations
 import json
 import logging
 import uuid
-from typing import Dict, List, Literal, Tuple
+from typing import Dict, List, Tuple
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -211,6 +211,9 @@ def create_heatmap_html_snippet(
   const policyRows = {policy_rows_json};
   const replayUrlMap = {replay_url_map_json};
   
+  // Debug logging
+  console.log("Map keys available:", Object.keys(replayUrlMap));
+  
   // Create mapping from short names to full paths
   const shortToFullPath = {{}};
   for (let i = 0; i < shortNames.length; i++) {{
@@ -304,30 +307,32 @@ def create_heatmap_html_snippet(
       const policyIndex = yIndex - 2;
       if (policyIndex >= policyRows.length) return;
       
-      const policyName = policyRows[policyIndex];
+      const policyUri = policyRows[policyIndex];
       
       // Get the full path for the eval
       const fullPath = shortToFullPath[shortName] || shortName;
       
       // Use the specific replay URL from the map if available
-      let replayUrl;
+      let replayUrl = null;
       const mapKey = {{
-        policyUri: policyName,
+        policyUri: policyUri,
         evalName: fullPath
       }};
       
-      // Convert the mapKey object to a string that matches the Python-created keys
-      const mapKeyStr = JSON.stringify(mapKey);
+      // IMPORTANT: Sort keys to match Python's sort_keys=True
+      const mapKeyStr = JSON.stringify(mapKey, Object.keys(mapKey).sort());
+      
+      // Debug logging for each cell hover
+      console.log("Looking for mapKey:", mapKeyStr);
       
       if (replayUrlMap && replayUrlMap[mapKeyStr]) {{
         replayUrl = replayUrlMap[mapKeyStr];
+        console.log("Found replay URL:", replayUrl);
       }} else {{
-        // Fallback to constructing a URL if not in the map
-        const [policyKey, policyVersion] = policyName.split(':');
-        replayUrl = `https://metta-ai.github.io/metta/?replayUrl=${{policyKey}}/${{policyVersion}}/${{fullPath}}/replay.json.z`;
+        console.log("No replay URL found for this cell");
       }}
       
-      // Show map with replay URL
+      // Show map with replay URL (or without if none found)
       showMap(shortName, replayUrl);
     }});
     
@@ -345,31 +350,35 @@ def create_heatmap_html_snippet(
       const policyIndex = yIndex - 2;
       if (policyIndex >= policyRows.length) return;
       
-      const policyName = policyRows[policyIndex];
+      const policyUri = policyRows[policyIndex];
       
       // Get full path for this eval name
       const fullPath = shortToFullPath[shortName] || shortName;
       
       // Get the replay URL from the map if available
-      let replayUrl;
+      let replayUrl = null;
       const mapKey = {{
-        policyUri: policyName,
+        policyUri: policyUri,
         evalName: fullPath
       }};
       
-      // Convert the mapKey object to a string that matches the Python-created keys
-      const mapKeyStr = JSON.stringify(mapKey);
+      // IMPORTANT: Sort keys to match Python's sort_keys=True
+      const mapKeyStr = JSON.stringify(mapKey, Object.keys(mapKey).sort());
+      
+      // Debug logging for each cell click
+      console.log("Click - Looking for mapKey:", mapKeyStr);
       
       if (replayUrlMap && replayUrlMap[mapKeyStr]) {{
         replayUrl = replayUrlMap[mapKeyStr];
-      }} 
+        console.log("Click - Found replay URL:", replayUrl);
+      }} else {{
+        console.log("Click - No replay URL found for this cell");
+      }}
       
       // Handle single vs double click
-      if (now - lastClickTime < doubleClickThreshold) {{
-        // This is a double-click - open replay in new tab
-        if (replayUrl) {{
-          window.open(replayUrl, '_blank');
-        }}
+      if (now - lastClickTime < doubleClickThreshold && replayUrl) {{
+        // This is a double-click - open replay in new tab only if we have a URL
+        window.open(replayUrl, '_blank');
       }} else {{
         // This is a single click - toggle lock and update map
         toggleLock();
@@ -421,8 +430,8 @@ def get_heatmap_matrix(
     Args:
         stats_db: EvalStatsDB instance
         metric: The metric to get data for
-        num_output_policies: Optional number of policies to output
         suite: Optional suite name to filter evaluations
+        num_output_policies: Optional number of policies to output
 
     Returns:
         DataFrame with policies as rows and evaluations as columns
@@ -431,10 +440,10 @@ def get_heatmap_matrix(
     logger.info(f"Building heatmap matrix for metric {metric}")
 
     # Base SQL query using the policy_simulation_agent_aggregates view
+    # Now directly generating policy_uri in the expected format
     sql = """
     SELECT
-        policy_key,
-        policy_version,
+        policy_key || ':v' || policy_version AS policy_uri,
         sim_env as eval_name,
         mean as value
     FROM policy_simulation_agent_aggregates
@@ -458,13 +467,24 @@ def get_heatmap_matrix(
         logger.warning(f"No data found for metric {metric}")
         return pd.DataFrame()
 
-    # Create the policy_uri column by combining policy_key and policy_version
-    df["policy_uri"] = df["policy_key"] + ":" + df["policy_version"].astype(str)
-    logger.info(f"Created policy_uri column. Sample: {df['policy_uri'].head(3).tolist() if len(df) > 0 else []}")
+    logger.info(f"Policy URIs in data: {df['policy_uri'].head(3).tolist() if len(df) > 0 else []}")
 
     # Get replay URLs for each (policy, eval_name) pair
     replay_url_map = _get_replay_urls_map(stats_db, df)
     logger.info(f"Retrieved {len(replay_url_map)} replay URLs")
+
+    # Log the first few replay URLs for debugging
+    if len(replay_url_map) > 0:
+        logger.info("Sample replay URLs:")
+        count = 0
+        for key, url in replay_url_map.items():
+            logger.info(f"  Key: {key}")
+            logger.info(f"  URL: {url}")
+            count += 1
+            if count >= 3:
+                break
+    else:
+        logger.warning("No replay URLs were found!")
 
     # Process data into matrix format
     policies = df["policy_uri"].unique()
@@ -521,20 +541,26 @@ def _get_replay_urls_map(stats_db: EvalStatsDB, data_df: pd.DataFrame) -> Dict[s
         return {}
 
     logger = logging.getLogger(__name__)
-
-    # Get unique (policy_key, policy_version) combinations
-    policy_pairs = data_df[["policy_key", "policy_version"]].drop_duplicates().values.tolist()
+    logger.info("Starting replay URL mapping...")
 
     # Map to store replay URLs: structured key (as JSON string) -> replay_url
     replay_url_map = {}
 
-    for policy_key, policy_version in policy_pairs:
-        # Get all eval_names for this policy
-        eval_names = data_df[(data_df["policy_key"] == policy_key) & (data_df["policy_version"] == policy_version)][
-            "eval_name"
-        ].unique()
+    # Process each unique policy URI
+    for policy_uri in data_df["policy_uri"].unique():
+        # Parse the policy key and version from the URI
+        parts = policy_uri.split(":v")
+        policy_key = parts[0]
+        try:
+            policy_version = int(parts[1]) if len(parts) > 1 else 1
+        except ValueError:
+            logger.error(f"Could not parse version from policy_uri: {policy_uri}")
+            continue
 
-        policy_uri = f"{policy_key}:v{policy_version}"
+        logger.info(f"Processing policy: {policy_key}, version: {policy_version}")
+
+        # Get all eval_names for this policy
+        eval_names = data_df[data_df["policy_uri"] == policy_uri]["eval_name"].unique()
 
         # Get replay URLs for this policy
         for eval_name in eval_names:
@@ -544,22 +570,30 @@ def _get_replay_urls_map(stats_db: EvalStatsDB, data_df: pd.DataFrame) -> Dict[s
 
             # Get replay URLs for this specific environment
             try:
+                logger.info(f"Fetching replay URLs for policy={policy_key}, version={policy_version}, env={eval_name}")
                 replay_urls = stats_db.get_replay_urls(
                     policy_key=policy_key, policy_version=policy_version, env=eval_name
                 )
 
                 if replay_urls:
-                    # Create a structured key as a dictionary
+                    logger.info(
+                        f"Found {len(replay_urls)} replay URLs for {policy_key}:v{policy_version}, env={eval_name}"
+                    )
+
+                    # Create a structured key as a dictionary and sort keys
                     key_obj = {"policyUri": policy_uri, "evalName": eval_name}
-                    # Convert to a JSON string to use as a dictionary key
-                    key_str = json.dumps(key_obj)
+                    # Convert to a JSON string to use as a dictionary key with sorted keys
+                    key_str = json.dumps(key_obj, sort_keys=True)
 
                     # Use the first URL for this combination
                     replay_url_map[key_str] = replay_urls[0]
-                    logger.debug(f"Found replay URL for {key_str}: {replay_urls[0]}")
+                    logger.info(f"Added replay URL for key {key_str}: {replay_urls[0]}")
                 else:
-                    logger.debug(f"No replay URLs found for policy {policy_uri}, env {eval_name}")
+                    logger.warning(
+                        f"No replay URLs found for policy={policy_key}, version={policy_version}, env={eval_name}"
+                    )
             except Exception as e:
-                logger.error(f"Error retrieving replay URLs for {policy_uri}, env {eval_name}: {e}")
+                logger.error(f"Error retrieving replay URLs for {policy_uri}, env={eval_name}: {e}", exc_info=True)
 
+    logger.info(f"Finished building replay URL map with {len(replay_url_map)} entries")
     return replay_url_map

@@ -7,13 +7,14 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Optional
+from typing import Dict, Optional
 
 import pandas as pd
 
 from metta.agent.policy_store import PolicyRecord
 from metta.sim.simulation_stats_db import SimulationStatsDB
 from metta.util.file import local_copy
+
 
 # TODO: add group metrics
 EVAL_DB_VIEWS = {

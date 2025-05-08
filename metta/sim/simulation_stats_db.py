@@ -149,8 +149,17 @@ class SimulationStatsDB(EpisodeStatsDB):
         # ---------------------------------------------------------------
 
         if exists(dest):
+            logger = logging.getLogger(__name__)
+            logger.info(f"Merging {self.path} into {dest}")
             with SimulationStatsDB.from_uri(dest) as pre_existing:
+                logger.info(
+                    f"Num policies before merge: {len(self.get_all_policy_uris())}: {self.get_all_policy_uris()}"
+                )
+                logger.info(
+                    f"Num policies in pre-existing: {len(pre_existing.get_all_policy_uris())}: {pre_existing.get_all_policy_uris()}"
+                )
                 self.merge_in(pre_existing)
+                logger.info(f"Num policies after merge: {len(self.get_all_policy_uris())}")
         write_file(dest, str(self.path))
 
     def get_replay_urls(
@@ -177,6 +186,11 @@ class SimulationStatsDB(EpisodeStatsDB):
 
         result = self.con.execute(query, params).fetchall()
         return [row[0] for row in result if row[0]]  # Filter out None values
+
+    def get_all_policy_uris(self) -> List[str]:
+        result = self.con.execute("SELECT DISTINCT policy_key, policy_version FROM simulations").fetchall()
+        print(result)
+        return [f"{row[0]}:v{row[1]}" for row in result]
 
     def _insert_simulation(
         self, sim_id: str, name: str, suite: str, env: str, policy_key: str, policy_version: int
