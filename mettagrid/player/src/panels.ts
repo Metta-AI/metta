@@ -38,7 +38,7 @@ export class PanelInfo {
       -x,
       -y
     );
-    this.zoomLevel = 1/2;
+    this.zoomLevel = 1 / 2;
   }
 
   // Update the pan and zoom level based on the mouse position and scroll delta.
