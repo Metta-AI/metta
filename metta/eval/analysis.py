@@ -48,7 +48,7 @@ def get_available_metrics(stats_db: EvalStatsDB, policy_record: PolicyRecord) ->
     # Query the database for all metrics for this policy
     query = f"""
     SELECT DISTINCT metric
-    FROM policy_simulation_agent_samples
+    FROM policy_simulation_agent_metrics
     WHERE policy_key = '{policy_key}'
     AND policy_version = {policy_version}
     ORDER BY metric
@@ -82,7 +82,7 @@ def get_metrics_data(
     # Build the SQL query
     sql = f"""
     SELECT metric, AVG(value) as mean, STDDEV_SAMP(value) as std, COUNT(*) as count
-    FROM policy_simulation_agent_samples
+    FROM policy_simulation_agent_metrics
     WHERE policy_key = '{policy_key}'
     AND policy_version = {policy_version}
     AND metric IN ({", ".join(["?" for _ in metrics])})

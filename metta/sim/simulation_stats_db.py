@@ -142,13 +142,9 @@ class SimulationStatsDB(EpisodeStatsDB):
         Supported URI schemes: local paths, `s3://`, `wandb://`.
         """
 
-        # ---------------------------------------------------------------
-        #  (A) Destination already exists  →  merge + re-upload
-        # ---------------------------------------------------------------
-
         if exists(dest):
             logger = logging.getLogger(__name__)
-            logger.info(f"Merging {self.path} into {dest}")
+            logger.info(f"Merging {dest} into {self.path}")
             with SimulationStatsDB.from_uri(dest) as pre_existing:
                 self.merge_in(pre_existing)
         # Flush tables & data pages to disk
@@ -182,7 +178,6 @@ class SimulationStatsDB(EpisodeStatsDB):
 
     def get_all_policy_uris(self) -> List[str]:
         result = self.con.execute("SELECT DISTINCT policy_key, policy_version FROM simulations").fetchall()
-        print(result)
         return [f"{row[0]}:v{row[1]}" for row in result]
 
     def _insert_simulation(

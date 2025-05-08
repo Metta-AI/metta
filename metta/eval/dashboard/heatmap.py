@@ -431,31 +431,10 @@ def get_heatmap_matrix(
     logger = logging.getLogger(__name__)
     logger.info(f"Building heatmap matrix for metric {metric}")
 
-    # Base SQL query using the policy_simulation_agent_aggregates view
-    # Now directly generating policy_uri in the expected format
-    sql = """
-    SELECT
-        policy_key || ':v' || policy_version AS policy_uri,
-        sim_env as eval_name,
-        mean as value
-    FROM policy_simulation_agent_aggregates
-    WHERE metric = ?
-    """
-    params = [metric]
-    # Add suite filtering if specified
-    if suite is not None:
-        logger.info(f"Adding suite filter for: {suite}")
-        sql += " AND sim_suite = ?"
-        params.append(suite)
-
-    # Log the SQL query for debugging
-    logger.info(f"Executing SQL query: {sql} with params {params}")
-
-    # Execute the query
-    df = stats_db.con.execute(sql, params).fetchdf()
+    df = stats_db.metric_by_policy_eval(metric)
     logger.info(f"Query returned {len(df)} rows")
 
-    if len(df) == 0:
+    if len(df) == 0 or df["value"].abs().sum() == 0:
         logger.warning(f"No data found for metric {metric}")
         return pd.DataFrame()
 

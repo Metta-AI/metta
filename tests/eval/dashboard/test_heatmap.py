@@ -83,20 +83,20 @@ def sample_stats_db():
             agent_policies,
         )
 
-        # Add metrics with the expected test values
+        # Add metrics with the expected test values - now with the correct format (policy_key:v{version})
         metric_values = {
-            "policy1:1": {"eval1": 0.10, "eval2": 0.15, "eval3": 0.20},
-            "policy1:2": {"eval1": 0.12, "eval2": 0.17, "eval3": 0.22},
-            "policy1:3": {"eval1": 0.14, "eval2": 0.19, "eval3": 0.24},
-            "policy2:1": {"eval1": 0.08, "eval2": 0.13, "eval3": 0.18},
-            "policy2:2": {"eval1": 0.09, "eval2": 0.14, "eval3": 0.19},
-            "policy3:1": {"eval1": 0.07, "eval2": 0.12, "eval3": 0.17},
+            "policy1:v1": {"eval1": 0.10, "eval2": 0.15, "eval3": 0.20},
+            "policy1:v2": {"eval1": 0.12, "eval2": 0.17, "eval3": 0.22},
+            "policy1:v3": {"eval1": 0.14, "eval2": 0.19, "eval3": 0.24},
+            "policy2:v1": {"eval1": 0.08, "eval2": 0.13, "eval3": 0.18},
+            "policy2:v2": {"eval1": 0.09, "eval2": 0.14, "eval3": 0.19},
+            "policy3:v1": {"eval1": 0.07, "eval2": 0.12, "eval3": 0.17},
         }
 
         # Add agent metrics for each policy, eval type, and episode
         for policy_idx, (policy_key, policy_version) in enumerate(policies):
             agent_id = policy_idx
-            policy_uri = f"{policy_key}:{policy_version}"
+            policy_uri = f"{policy_key}:v{policy_version}"
 
             for eval_name, value in metric_values[policy_uri].items():
                 for ep_id in episodes_by_sim[eval_name]:
@@ -149,7 +149,7 @@ def test_get_heatmap_matrix(sample_stats_db):
     assert len(matrix) == 6  # 6 total policy versions
 
     # Check that all versions are included with correct formatting
-    for policy_uri in ["policy1:1", "policy1:2", "policy1:3", "policy2:1", "policy2:2", "policy3:1"]:
+    for policy_uri in ["policy1:v1", "policy1:v2", "policy1:v3", "policy2:v1", "policy2:v2", "policy3:v1"]:
         assert policy_uri in matrix.index
 
     # Check that the matrix includes the Overall column
@@ -165,11 +165,14 @@ def test_get_heatmap_matrix(sample_stats_db):
 
     # Verify that the replay URL map has entries for each policy+eval combination
     for policy_uri in matrix.index:
-        policy_key, policy_version = policy_uri.split(":")
         for eval_name in ["eval1", "eval2", "eval3"]:
-            key = f"{policy_key}|{policy_version}|{eval_name}"
+            # Use the format from the implementation: "{policy_uri}|{eval_name}"
+            key = f"{policy_uri}|{eval_name}"
             assert key in matrix.replay_url_map
-            assert matrix.replay_url_map[key].startswith("https://example.com/replay/")
+            print(matrix.replay_url_map[key])
+            assert matrix.replay_url_map[key].startswith(
+                "https://metta-ai.github.io/metta/?replayUrl=https://example.com/replay/"
+            )
 
     # All policies should be included since our mock doesn't actually filter
     assert len(matrix) == 6
