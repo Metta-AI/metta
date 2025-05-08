@@ -6,7 +6,7 @@ import zlib
 
 import numpy as np
 
-from metta.util.file import http_url, write_data
+from mettagrid.util.file import http_url, write_data
 
 
 class ReplayWriter:
@@ -16,7 +16,7 @@ class ReplayWriter:
         self.replay_dir = replay_dir
         self.episodes = {}
 
-    def start_episode(self, episode_id: str, env: "MettaGridEnv"):
+    def start_episode(self, episode_id: str, env):
         self.episodes[episode_id] = EpisodeReplay(env)
 
     def log_pre_step(self, episode_id: str, actions: np.ndarray):
@@ -36,7 +36,7 @@ class ReplayWriter:
 
 # Helper for managing state of individual episode's replay
 class EpisodeReplay:
-    def __init__(self, env: "MettaGridEnv"):
+    def __init__(self, env):
         self.env = env
         self.step = 0
         self.grid_objects = []

@@ -39,7 +39,7 @@ def sample_stats_db():
         episodes_by_sim = {}
         for eval_name, sim_id in sim_ids.items():
             episodes_by_sim[eval_name] = []
-            for i in range(3):  # 3 episodes per simulation
+            for _ in range(3):  # 3 episodes per simulation
                 ep_id = str(uuid.uuid4())
                 episodes_by_sim[eval_name].append(ep_id)
                 db.con.execute(
@@ -114,7 +114,7 @@ def sample_stats_db():
 
         # Add some replay URLs
         replay_urls = []
-        for eval_name, episodes in episodes_by_sim.items():
+        for _, episodes in episodes_by_sim.items():
             for ep_id in episodes:
                 replay_url = f"https://example.com/replay/{ep_id}.json"
                 replay_urls.append((ep_id, replay_url))

@@ -2,16 +2,12 @@
 
 defaults:
   - override /agent: simple
-  - override /analyzer: eval_analyzer
   - _self_
 
 trainer:
   evaluate_interval: 200
   evaluate: false
 
-
-analyzer:
-  policy_uri: ${..policy_uri}
  
 eval:
   num_envs: 10

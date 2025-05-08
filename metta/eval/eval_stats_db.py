@@ -13,8 +13,7 @@ import pandas as pd
 
 from metta.agent.policy_store import PolicyRecord
 from metta.sim.simulation_stats_db import SimulationStatsDB
-from metta.util.file import local_copy
-
+from mettagrid.util.file import local_copy
 
 # TODO: add group metrics
 EVAL_DB_VIEWS = {
@@ -84,6 +83,36 @@ class EvalStatsDB(SimulationStatsDB):
         """
         parent_tables = super().tables()
         return {**parent_tables, **EVAL_DB_VIEWS}
+
+    def sample_count(
+        self,
+        policy_record: Optional[PolicyRecord] = None,
+        sim_suite: Optional[str] = None,
+        sim_name: Optional[str] = None,
+        sim_env: Optional[str] = None,
+    ) -> int:
+        query = """
+        SELECT COUNT(*) as count FROM policy_simulation_agent_samples WHERE 
+        """
+
+        filters = []
+        if policy_record is not None:
+            policy_key, policy_version = policy_record.key_and_version()
+            filters.append(f"policy_key = '{policy_key}' AND policy_version = {policy_version}")
+
+        if sim_suite is not None:
+            filters.append(f"sim_suite = '{sim_suite}'")
+
+        if sim_name is not None:
+            filters.append(f"sim_name = '{sim_name}'")
+
+        if sim_env is not None:
+            filters.append(f"sim_env = '{sim_env}'")
+
+        if filters:
+            query += " AND ".join(filters)
+
+        return self.query(query)["count"][0]
 
     def get_average_metric_by_filter(
         self,

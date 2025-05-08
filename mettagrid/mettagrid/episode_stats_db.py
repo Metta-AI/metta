@@ -82,6 +82,7 @@ class EpisodeStatsDB:
             try:
                 self.con.execute(stmt)
             except Exception as e:
+                logger = logging.getLogger(__name__)
                 logger.error(f"Error executing SQL for table {table_name}: {e}")
                 raise
         self.con.commit()
@@ -141,6 +142,7 @@ class EpisodeStatsDB:
         self._add_metrics(episode_id, group_metrics, "group")
 
         self.con.commit()
+        self.con.execute("CHECKPOINT")
 
     def _add_metrics(self, episode_id: str, metrics: Dict[int, Dict[str, float]], entity: str) -> None:
         if len(metrics) == 0:
@@ -158,7 +160,6 @@ class EpisodeStatsDB:
             """,
             values,
         )
-        self.con.commit()
 
     def query(self, sql_query: str) -> pd.DataFrame:
         """Execute a SQL query and return a pandas DataFrame."""

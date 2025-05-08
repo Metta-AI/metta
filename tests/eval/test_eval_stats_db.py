@@ -16,6 +16,8 @@ from typing import List, Tuple
 
 import pytest
 
+from metta.eval.eval_stats_db import EvalStatsDB
+
 
 # Mock for PolicyRecord
 class MockPolicyRecord:
@@ -29,9 +31,6 @@ class MockPolicyRecord:
         """Return the policy key and version as a tuple."""
         return self._policy_key, self._policy_version
 
-
-# Import after MockPolicyRecord definition
-from metta.eval.eval_stats_db import EvalStatsDB
 
 # --------------------------------------------------------------------------- #
 # helpers                                                                     #

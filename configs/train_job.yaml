@@ -3,7 +3,6 @@ defaults:
   - agent: simple
   - trainer: puffer
   - sim: all
-  - analyzer: eval_analyzer
   - wandb: metta_research
   - _self_
 

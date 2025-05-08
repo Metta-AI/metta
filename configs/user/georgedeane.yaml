@@ -31,9 +31,7 @@ policy_uri: wandb://run/b.georgedeane.terrain_extra_hard
 # navigation_poisson_train_sampling5
 # npc_policy_uri: ${trained_policy_uri}
 
-analyzer:
-  # eval_stats_uri: ${run_dir}/eval_stats
-  policy_uri: ${..policy_uri}
+dashboard:
   output_path: evalresults/memory_db.html
 
 sim:

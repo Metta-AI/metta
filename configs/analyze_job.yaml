@@ -1,19 +1,11 @@
 defaults:
   - common
-  - agent: simple
-  - trainer: puffer
-  - sim: navigation
-  - analyzer: eval_analyzer
   - wandb: metta_research
   - _self_
 
-cmd: analyze
-run: ???
-
-torch_deterministic: true
-vectorization: multiprocessing
-
 eval_db_uri: ???
+policy_uri: ???
 
-analyzer:
-  stats_db_uri: ${eval_db_uri}
+analysis:
+  eval_db_uri: ${eval_db_uri}
+  policy_uri: ${policy_uri}

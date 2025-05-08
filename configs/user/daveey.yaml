@@ -2,8 +2,6 @@
 
 defaults:
   - override /sim: simple
-#   - override /eval: simple_solo
-#   - override /analyzer: eval_analyzer
   - _self_
 
 trainer:

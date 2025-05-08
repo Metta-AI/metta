@@ -24,9 +24,15 @@ from torch import nn
 
 from metta.agent.metta_agent import make_policy
 from metta.rl.pufferlib.policy import load_policy
+from metta.util.config import Config
 from metta.util.wandb.wandb_context import WandbRun
 
 logger = logging.getLogger("policy_store")
+
+
+class PolicySelectorConfig(Config):
+    type: str = "top"
+    metric: str = "score"
 
 
 class PolicyRecord:

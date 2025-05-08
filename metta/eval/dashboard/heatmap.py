@@ -314,19 +314,15 @@ def create_heatmap_html_snippet(
       
       // Use the specific replay URL from the map if available
       let replayUrl = null;
-      const mapKey = {{
-        policyUri: policyUri,
-        evalName: fullPath
-      }};
       
-      // IMPORTANT: Sort keys to match Python's sort_keys=True
-      const mapKeyStr = JSON.stringify(mapKey, Object.keys(mapKey).sort());
+      // Simple string key for lookup
+      const mapKey = `${{policyUri}}|${{fullPath}}`;
       
       // Debug logging for each cell hover
-      console.log("Looking for mapKey:", mapKeyStr);
+      console.log("Looking for mapKey:", mapKey);
       
-      if (replayUrlMap && replayUrlMap[mapKeyStr]) {{
-        replayUrl = replayUrlMap[mapKeyStr];
+      if (replayUrlMap && replayUrlMap[mapKey]) {{
+        replayUrl = replayUrlMap[mapKey];
         console.log("Found replay URL:", replayUrl);
       }} else {{
         console.log("No replay URL found for this cell");
@@ -357,19 +353,15 @@ def create_heatmap_html_snippet(
       
       // Get the replay URL from the map if available
       let replayUrl = null;
-      const mapKey = {{
-        policyUri: policyUri,
-        evalName: fullPath
-      }};
       
-      // IMPORTANT: Sort keys to match Python's sort_keys=True
-      const mapKeyStr = JSON.stringify(mapKey, Object.keys(mapKey).sort());
+      // Simple string key for lookup
+      const mapKey = `${{policyUri}}|${{fullPath}}`;
       
       // Debug logging for each cell click
-      console.log("Click - Looking for mapKey:", mapKeyStr);
+      console.log("Click - Looking for mapKey:", mapKey);
       
-      if (replayUrlMap && replayUrlMap[mapKeyStr]) {{
-        replayUrl = replayUrlMap[mapKeyStr];
+      if (replayUrlMap && replayUrlMap[mapKey]) {{
+        replayUrl = replayUrlMap[mapKey];
         console.log("Click - Found replay URL:", replayUrl);
       }} else {{
         console.log("Click - No replay URL found for this cell");
@@ -535,16 +527,18 @@ def _get_replay_urls_map(stats_db: EvalStatsDB, data_df: pd.DataFrame) -> Dict[s
     """
     Get replay URLs for each (policy, eval_name) combination in the data frame.
 
-    Returns a dictionary mapping structured keys (as JSON strings) to replay URLs.
+    Returns a dictionary mapping simple string keys to replay URLs.
     """
     if data_df.empty:
         return {}
 
     logger = logging.getLogger(__name__)
-    logger.info("Starting replay URL mapping...")
 
-    # Map to store replay URLs: structured key (as JSON string) -> replay_url
+    # Map to store replay URLs: "policy_uri|eval_name" -> replay_url
     replay_url_map = {}
+
+    # Base URL prefix for all replay URLs
+    replay_url_prefix = "https://metta-ai.github.io/metta/?replayUrl="
 
     # Process each unique policy URI
     for policy_uri in data_df["policy_uri"].unique():
@@ -556,9 +550,6 @@ def _get_replay_urls_map(stats_db: EvalStatsDB, data_df: pd.DataFrame) -> Dict[s
         except ValueError:
             logger.error(f"Could not parse version from policy_uri: {policy_uri}")
             continue
-
-        logger.info(f"Processing policy: {policy_key}, version: {policy_version}")
-
         # Get all eval_names for this policy
         eval_names = data_df[data_df["policy_uri"] == policy_uri]["eval_name"].unique()
 
@@ -570,24 +561,17 @@ def _get_replay_urls_map(stats_db: EvalStatsDB, data_df: pd.DataFrame) -> Dict[s
 
             # Get replay URLs for this specific environment
             try:
-                logger.info(f"Fetching replay URLs for policy={policy_key}, version={policy_version}, env={eval_name}")
                 replay_urls = stats_db.get_replay_urls(
                     policy_key=policy_key, policy_version=policy_version, env=eval_name
                 )
 
                 if replay_urls:
-                    logger.info(
-                        f"Found {len(replay_urls)} replay URLs for {policy_key}:v{policy_version}, env={eval_name}"
-                    )
+                    # Create a simple string key that's easy to reproduce in JavaScript
+                    key_str = f"{policy_uri}|{eval_name}"
 
-                    # Create a structured key as a dictionary and sort keys
-                    key_obj = {"policyUri": policy_uri, "evalName": eval_name}
-                    # Convert to a JSON string to use as a dictionary key with sorted keys
-                    key_str = json.dumps(key_obj, sort_keys=True)
-
-                    # Use the first URL for this combination
-                    replay_url_map[key_str] = replay_urls[0]
-                    logger.info(f"Added replay URL for key {key_str}: {replay_urls[0]}")
+                    # Use the first URL for this combination and prefix it
+                    prefixed_url = f"{replay_url_prefix}{replay_urls[0]}"
+                    replay_url_map[key_str] = prefixed_url
                 else:
                     logger.warning(
                         f"No replay URLs found for policy={policy_key}, version={policy_version}, env={eval_name}"

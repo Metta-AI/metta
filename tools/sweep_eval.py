@@ -64,8 +64,6 @@ def main(cfg: DictConfig | ListConfig) -> int:
             WandbCarbs._record_failure(wandb_run)
             return 1
 
-        cfg.analyzer.policy_uri = policy_pr.uri
-
         eval = SimulationSuite(simulation_suite_cfg, policy_pr, policy_store)
         # Start evaluation process
         sweep_stats = {}

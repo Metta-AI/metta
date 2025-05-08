@@ -14,7 +14,7 @@ from metta.eval.dashboard.dashboard_config import DashboardConfig
 from metta.eval.dashboard.heatmap import create_heatmap_html_snippet, get_heatmap_matrix
 from metta.eval.dashboard.mapviewer import MAP_VIEWER_CSS
 from metta.eval.eval_stats_db import EvalStatsDB
-from metta.util.file import write_data
+from mettagrid.util.file import write_data
 
 logger = logging.getLogger(__name__)
 

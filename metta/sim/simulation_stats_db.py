@@ -11,13 +11,13 @@ from __future__ import annotations
 import logging
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Tuple, Union
 
 import duckdb
 
 from metta.agent.policy_store import PolicyRecord
-from metta.util.file import exists, local_copy, write_file
 from mettagrid.episode_stats_db import EpisodeStatsDB
+from mettagrid.util.file import exists, local_copy, write_file
 
 # ------------------------------------------------------------------ #
 #   Tables & indexes                                                 #
@@ -141,8 +141,6 @@ class SimulationStatsDB(EpisodeStatsDB):
 
         Supported URI schemes: local paths, `s3://`, `wandb://`.
         """
-        # Flush tables & data pages to disk
-        self.con.execute("CHECKPOINT")  # ← this writes tables & data pages
 
         # ---------------------------------------------------------------
         #  (A) Destination already exists  →  merge + re-upload
@@ -152,14 +150,9 @@ class SimulationStatsDB(EpisodeStatsDB):
             logger = logging.getLogger(__name__)
             logger.info(f"Merging {self.path} into {dest}")
             with SimulationStatsDB.from_uri(dest) as pre_existing:
-                logger.info(
-                    f"Num policies before merge: {len(self.get_all_policy_uris())}: {self.get_all_policy_uris()}"
-                )
-                logger.info(
-                    f"Num policies in pre-existing: {len(pre_existing.get_all_policy_uris())}: {pre_existing.get_all_policy_uris()}"
-                )
                 self.merge_in(pre_existing)
-                logger.info(f"Num policies after merge: {len(self.get_all_policy_uris())}")
+        # Flush tables & data pages to disk
+        self.con.execute("CHECKPOINT")
         write_file(dest, str(self.path))
 
     def get_replay_urls(
@@ -288,14 +281,17 @@ class SimulationStatsDB(EpisodeStatsDB):
         def _safe_copy(table: str) -> None:
             if not _table_exists(table):
                 logger = logging.getLogger(__name__)
-                logger.debug("Skipping %s – not present in shard %s", table, other_path.name)
+                logger.info("Skipping %s – not present in shard %s", table, other_path.name)
                 return
-            # Use INSERT OR IGNORE to avoid conflicts with unique constraints
             self.con.execute(f"INSERT OR IGNORE INTO {table} SELECT * FROM other.{table}")
 
         try:
+            self.con.begin()
             for table, _ in self.tables().items():
                 _safe_copy(table)
+            self.con.commit()
+            # Flush tables & data pages to disk
+            self.con.execute("CHECKPOINT")  # ← this writes tables & data pages
         except Exception as e:
             logger = logging.getLogger(__name__)
             logger.error(f"Error merging {other_path}: {e}")

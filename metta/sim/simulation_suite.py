@@ -1,6 +1,6 @@
 import logging
+import uuid
 from pathlib import Path
-from typing import Dict, List
 
 from metta.agent.policy_store import PolicyRecord, PolicyStore
 from metta.sim.simulation import Simulation, SimulationResults
@@ -38,7 +38,8 @@ class SimulationSuite:
     def simulate(self) -> SimulationResults:
         """Run every simulation, merge their DBs/replay dicts, and return a single `SimulationResults`."""
         logger = logging.getLogger(__name__)
-        merged_db: SimulationStatsDB = SimulationStatsDB(Path(f"{self._stats_dir}/all.duckdb"))
+        # Make a new merged db with a random uuid each time so that we don't copy old stats dbs
+        merged_db: SimulationStatsDB = SimulationStatsDB(Path(f"{self._stats_dir}/all_{uuid.uuid4().hex[:8]}.duckdb"))
         for name, sim_config in self._config.simulations.items():
             sim = Simulation(
                 name,

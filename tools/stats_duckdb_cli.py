@@ -11,7 +11,7 @@ import argparse
 import logging
 import subprocess
 
-from metta.util.file import local_copy
+from mettagrid.util.file import local_copy
 
 
 def launch_duckdb_cli(file_path):

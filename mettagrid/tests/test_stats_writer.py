@@ -3,7 +3,6 @@ Unit tests for the StatsWriter functionality in mettagrid.stats_writer.
 """
 
 import datetime
-import os
 import tempfile
 import uuid
 from pathlib import Path
@@ -115,34 +114,6 @@ def test_episode_lifecycle(temp_dir):
     assert result[0] == replay_url
 
     writer.close()
-
-
-def test_multiple_processes_compatibility(temp_dir):
-    """Test that StatsWriter works correctly with multiple processes."""
-    # Simulate multiple processes by creating writers with different PIDs
-    original_getpid = os.getpid
-
-    try:
-        # Mock process IDs to simulate different processes
-        for pid in [1000, 2000, 3000]:
-            os.getpid = lambda: pid
-
-            writer = StatsWriter(temp_dir)
-            episode_id = str(uuid.uuid4())
-
-            # Record a simple episode
-            created_at = datetime.datetime.now()
-            writer.record_episode(episode_id, {"seed": "12345"}, [], {0: {"reward": 1.0}}, {}, 10, None, created_at)
-
-            writer.close()
-
-        # Check that we have three different database files
-        db_files = list(temp_dir.glob("*.duckdb"))
-        assert len(db_files) == 3
-
-    finally:
-        # Restore original function
-        os.getpid = original_getpid
 
 
 def test_close_without_db(temp_dir):

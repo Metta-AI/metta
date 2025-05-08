@@ -63,7 +63,7 @@ def test_insert_agent_policies(tmp_path: Path):
     db_path = tmp_path / "policies.duckdb"
     db = SimulationStatsDB(db_path)
 
-    for table_name, sql in db.tables().items():
+    for _, sql in db.tables().items():
         db.con.execute(sql)
 
     episode_id = str(uuid.uuid4())
@@ -82,7 +82,7 @@ def test_insert_agent_policies_empty_inputs(tmp_path: Path):
     db_path = tmp_path / "empty_policies.duckdb"
     db = SimulationStatsDB(db_path)
 
-    for table_name, sql in db.tables().items():
+    for _, sql in db.tables().items():
         db.con.execute(sql)
 
     db._insert_agent_policies([], _DUMMY_AGENT_MAP)
@@ -132,7 +132,7 @@ def test_insert_simulation(tmp_path: Path):
     db_path = tmp_path / "sim_table.duckdb"
     db = SimulationStatsDB(db_path)
 
-    for table_name, sql in db.tables().items():
+    for _, sql in db.tables().items():
         db.con.execute(sql)
 
     sim_id = str(uuid.uuid4())
@@ -158,7 +158,7 @@ def test_get_replay_urls(tmp_path: Path):
     db = SimulationStatsDB(db_path)
 
     # Create tables
-    for table_name, sql in db.tables().items():
+    for _, sql in db.tables().items():
         db.con.execute(sql)
 
     # Add the simulation_id column to episodes if it doesn't exist
@@ -232,129 +232,6 @@ def test_get_replay_urls(tmp_path: Path):
     db.close()
 
 
-def test_export_and_merge(tmp_path: Path):
-    """Test exporting and merging databases."""
-    # Create first database
-    db1_path = tmp_path / "db1.duckdb"
-    ep1 = _create_worker_db(db1_path)
-    db1 = SimulationStatsDB(db1_path)
-
-    # Manually add simulation and policy data to db1
-    sim_id1 = "sim1"
-    db1.con.execute(
-        """
-        CREATE TABLE IF NOT EXISTS simulations (
-            id TEXT PRIMARY KEY, 
-            name TEXT, 
-            suite TEXT, 
-            env TEXT,
-            policy_key TEXT,
-            policy_version INT,
-            created_at TIMESTAMP,
-            finished_at TIMESTAMP
-        )
-        """
-    )
-    db1._insert_simulation(sim_id1, "sim1", "test_suite", "env_test", "test_policy", 1)
-    db1.con.execute("UPDATE episodes SET simulation_id = ? WHERE id = ?", (sim_id1, ep1))
-
-    # Create agent_policies table if it doesn't exist
-    db1.con.execute(
-        """
-        CREATE TABLE IF NOT EXISTS agent_policies (
-            episode_id TEXT,
-            agent_id INTEGER,
-            policy_key TEXT,
-            policy_version INT,
-            PRIMARY KEY (episode_id, agent_id)
-        )
-        """
-    )
-
-    # Add agent policy
-    db1.con.execute(
-        """
-        INSERT INTO agent_policies (episode_id, agent_id, policy_key, policy_version)
-        VALUES (?, 0, 'test_policy', 1)
-        """,
-        (ep1,),
-    )
-
-    # Create second database with different simulation
-    db2_path = tmp_path / "db2.duckdb"
-    ep2 = _create_worker_db(db2_path)
-    db2 = SimulationStatsDB(db2_path)
-
-    # Manually add simulation and policy data to db2
-    sim_id2 = "sim2"
-    db2.con.execute(
-        """
-        CREATE TABLE IF NOT EXISTS simulations (
-            id TEXT PRIMARY KEY, 
-            name TEXT, 
-            suite TEXT, 
-            env TEXT,
-            policy_key TEXT,
-            policy_version INT,
-            created_at TIMESTAMP,
-            finished_at TIMESTAMP
-        )
-        """
-    )
-    db2._insert_simulation(sim_id2, "sim2", "test_suite", "env_another", "test_policy", 1)
-    db2.con.execute("UPDATE episodes SET simulation_id = ? WHERE id = ?", (sim_id2, ep2))
-
-    # Create agent_policies table if it doesn't exist
-    db2.con.execute(
-        """
-        CREATE TABLE IF NOT EXISTS agent_policies (
-            episode_id TEXT,
-            agent_id INTEGER,
-            policy_key TEXT,
-            policy_version INT,
-            PRIMARY KEY (episode_id, agent_id)
-        )
-        """
-    )
-
-    # Add agent policy
-    db2.con.execute(
-        """
-        INSERT INTO agent_policies (episode_id, agent_id, policy_key, policy_version)
-        VALUES (?, 0, 'test_policy', 1)
-        """,
-        (ep2,),
-    )
-
-    # Export db1 to a file
-    export_path = tmp_path / "exported.duckdb"
-    db1.export(str(export_path))
-
-    # Load the exported file and merge db2 into it
-    merged_db = SimulationStatsDB(export_path)
-    merged_db.merge_in(db2)
-
-    # Verify both episodes exist
-    episodes = merged_db.con.execute("SELECT id FROM episodes").fetchall()
-    episode_ids = [row[0] for row in episodes]
-    assert ep1 in episode_ids
-    assert ep2 in episode_ids
-
-    # Verify both simulations exist
-    simulations = merged_db.con.execute("SELECT id, name, env FROM simulations").fetchall()
-    assert (sim_id1, "sim1", "env_test") in simulations
-    assert (sim_id2, "sim2", "env_another") in simulations
-
-    # Verify agent policies exist for both episodes
-    policies = merged_db.con.execute("SELECT episode_id, policy_key, policy_version FROM agent_policies").fetchall()
-    assert (ep1, "test_policy", 1) in policies
-    assert (ep2, "test_policy", 1) in policies
-
-    db1.close()
-    db2.close()
-    merged_db.close()
-
-
 def test_from_shards_and_context(tmp_path: Path):
     """Test creating a SimulationStatsDB from shards and context.
 
@@ -411,24 +288,21 @@ def test_from_shards_and_context(tmp_path: Path):
     # Verify that all required tables exist in the merged DB
     # Rather than looking at SQLite metadata which varies by database type,
     # we'll try to count records in each table
-    try:
-        # Episodes table
-        episodes_count = merged_db.con.execute("SELECT COUNT(*) FROM episodes").fetchone()[0]
-        assert episodes_count > 0, "Episodes table exists but is empty"
+    # Episodes table
+    episodes_count = merged_db.con.execute("SELECT COUNT(*) FROM episodes").fetchone()[0]
+    assert episodes_count > 0, "Episodes table exists but is empty"
 
-        # Agent metrics table
-        metrics_count = merged_db.con.execute("SELECT COUNT(*) FROM agent_metrics").fetchone()[0]
-        assert metrics_count > 0, "Agent metrics table exists but is empty"
+    # Agent metrics table
+    metrics_count = merged_db.con.execute("SELECT COUNT(*) FROM agent_metrics").fetchone()[0]
+    assert metrics_count > 0, "Agent metrics table exists but is empty"
 
-        # Simulations table
-        sims_count = merged_db.con.execute("SELECT COUNT(*) FROM simulations").fetchone()[0]
-        assert sims_count > 0, "Simulations table exists but is empty"
+    # Simulations table
+    sims_count = merged_db.con.execute("SELECT COUNT(*) FROM simulations").fetchone()[0]
+    assert sims_count > 0, "Simulations table exists but is empty"
 
-        # Agent policies table
-        policies_count = merged_db.con.execute("SELECT COUNT(*) FROM agent_policies").fetchone()[0]
-        assert policies_count > 0, "Agent policies table exists but is empty"
-    except Exception as e:
-        assert False, f"Error checking tables in merged DB: {e}"
+    # Agent policies table
+    policies_count = merged_db.con.execute("SELECT COUNT(*) FROM agent_policies").fetchone()[0]
+    assert policies_count > 0, "Agent policies table exists but is empty"
 
     # Verify the episode was imported
     result = merged_db.con.execute("SELECT id FROM episodes").fetchall()
@@ -436,12 +310,9 @@ def test_from_shards_and_context(tmp_path: Path):
     assert ep_id in episode_ids, f"Episode {ep_id} not found in merged DB"
 
     # Check simulation_id was set correctly
-    try:
-        sim_check = merged_db.con.execute("SELECT simulation_id FROM episodes WHERE id = ?", (ep_id,)).fetchone()
-        assert sim_check is not None, "simulation_id not found in episodes table"
-        assert sim_check[0] == "sim_id", f"simulation_id should be sim_id, got {sim_check[0]}"
-    except Exception as e:
-        assert False, f"Error checking simulation_id: {e}"
+    sim_check = merged_db.con.execute("SELECT simulation_id FROM episodes WHERE id = ?", (ep_id,)).fetchone()
+    assert sim_check is not None, "simulation_id not found in episodes table"
+    assert sim_check[0] == "sim_id", f"simulation_id should be sim_id, got {sim_check[0]}"
 
     # Verify simulation was created with correct metadata
     sim_result = merged_db.con.execute("SELECT id, name, suite, env FROM simulations").fetchall()
@@ -488,3 +359,143 @@ def test_from_shards_and_context(tmp_path: Path):
     assert metric_found, f"Expected ('reward', 1.0) not found in {metrics_result}"
 
     merged_db.close()
+
+
+def test_sequential_policy_merges(tmp_path: Path):
+    """Test that policies are preserved during sequential merges.
+
+    This test simulates the workflow in the actual code where:
+    1. We create a database with Policy A
+    2. Export it to a destination
+    3. Create a new database with Policy B
+    4. Have the new database merge with the exported one
+    5. Export the result
+    6. Verify both policies exist in the final database
+    """
+    # Create first database with Policy A
+    db1_path = tmp_path / "db1.duckdb"
+    db1 = SimulationStatsDB(db1_path)
+
+    for _, sql in db1.tables().items():
+        db1.con.execute(sql)
+
+    # Add simulation for Policy A
+    db1._insert_simulation("sim1", "test_sim", "test_suite", "env_test", "policy_A", 1)
+
+    # Add episode linked to sim1
+    episode1_id = str(uuid.uuid4())
+    db1.con.execute("INSERT INTO episodes (id, simulation_id) VALUES (?, ?)", (episode1_id, "sim1"))
+
+    # Create export destination
+    export_path = tmp_path / "export.duckdb"
+    db1.export(str(export_path))
+    db1.close()
+
+    # Now create second database with Policy B
+    db2_path = tmp_path / "db2.duckdb"
+    db2 = SimulationStatsDB(db2_path)
+
+    for _, sql in db2.tables().items():
+        db2.con.execute(sql)
+
+    # Add simulation for Policy B
+    db2._insert_simulation("sim2", "test_sim", "test_suite", "env_test", "policy_B", 1)
+
+    # Add episode linked to sim2
+    episode2_id = str(uuid.uuid4())
+    db2.con.execute("INSERT INTO episodes (id, simulation_id) VALUES (?, ?)", (episode2_id, "sim2"))
+
+    # Now simulate the workflow: db2 exports to export_path after merging with it
+    db2.export(str(export_path))
+    db2.close()
+
+    # Now verify that export_path contains both policies
+    result_db = SimulationStatsDB(export_path)
+
+    # Check if both episodes exist
+    episodes = result_db.con.execute("SELECT id FROM episodes").fetchall()
+    episode_ids = [row[0] for row in episodes]
+    assert episode1_id in episode_ids, f"Episode {episode1_id} (Policy A) not found in result"
+    assert episode2_id in episode_ids, f"Episode {episode2_id} (Policy B) not found in result"
+
+    # Check if both simulations exist
+    simulations = result_db.con.execute("SELECT id, policy_key, policy_version FROM simulations").fetchall()
+
+    # Look for policy_A
+    policy_a_found = False
+    policy_b_found = False
+
+    for sim in simulations:
+        if sim[1] == "policy_A" and sim[2] == 1:
+            policy_a_found = True
+        if sim[1] == "policy_B" and sim[2] == 1:
+            policy_b_found = True
+
+    assert policy_a_found, "Policy A not found in result database"
+    assert policy_b_found, "Policy B not found in result database"
+
+    # Verify policy count
+    all_policies = result_db.get_all_policy_uris()
+    assert len(all_policies) == 2, f"Expected 2 policies, got {len(all_policies)}: {all_policies}"
+
+    result_db.close()
+
+
+def test_export_preserves_all_policies(tmp_path: Path):
+    """Test that export correctly preserves all policies when merging."""
+    # Create a database with two policies
+    db_path = tmp_path / "source.duckdb"
+    db = SimulationStatsDB(db_path)
+
+    for _, sql in db.tables().items():
+        db.con.execute(sql)
+
+    # Add two different policies
+    db._insert_simulation("sim1", "test_sim", "test_suite", "env_test", "policy_X", 1)
+    db._insert_simulation("sim2", "test_sim", "test_suite", "env_test", "policy_Y", 1)
+
+    # Export to a new location
+    export_path = tmp_path / "export_test.duckdb"
+    db.export(str(export_path))
+
+    # Close the first database after export
+    db.close()
+
+    # Check exported database
+    exported_db = SimulationStatsDB(export_path)
+    policies = exported_db.get_all_policy_uris()
+
+    # Should have both policies
+    assert "policy_X:v1" in policies, f"policy_X:v1 not found in {policies}"
+    assert "policy_Y:v1" in policies, f"policy_Y:v1 not found in {policies}"
+    assert len(policies) == 2, f"Expected 2 policies, got {len(policies)}: {policies}"
+
+    # Close the exported database after checking
+    exported_db.close()
+
+    # Now create a new database with a third policy
+    new_db_path = tmp_path / "new_source.duckdb"
+    new_db = SimulationStatsDB(new_db_path)
+
+    for _, sql in new_db.tables().items():
+        new_db.con.execute(sql)
+
+    new_db._insert_simulation("sim3", "test_sim", "test_suite", "env_test", "policy_Z", 1)
+
+    # Export this new db to the same export location
+    new_db.export(str(export_path))
+
+    # Close the new database after export
+    new_db.close()
+
+    # Check the updated export - should contain all three policies
+    final_db = SimulationStatsDB(export_path)
+    final_policies = final_db.get_all_policy_uris()
+
+    # Should have all three policies
+    assert "policy_X:v1" in final_policies, f"policy_X:v1 not found in {final_policies}"
+    assert "policy_Y:v1" in final_policies, f"policy_Y:v1 not found in {final_policies}"
+    assert "policy_Z:v1" in final_policies, f"policy_Z:v1 not found in {final_policies}"
+
+    # Close the final database
+    final_db.close()
