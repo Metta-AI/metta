@@ -147,20 +147,32 @@ class PufferTrainer:
             eps=self.trainer_cfg.optimizer.eps,
         )
 
+        # validate that policy matches environment
         self.metta_agent: MettaAgent = self.policy  # type: ignore
         assert isinstance(self.metta_agent, MettaAgent)
+        _env_shape = self.metta_grid_env.single_observation_space.shape
+        environment_shape = tuple(_env_shape) if isinstance(_env_shape, list) else _env_shape
 
-        # validate that policy matches environment
+        found_match = False
         for component_name, component in self.metta_agent.components.items():
-            if hasattr(component, "obs_shape"):
-                env_shape = self.metta_grid_env.single_observation_space.shape
-                if component.obs_shape != env_shape:
+            if hasattr(component, "_obs_shape"):
+                found_match = True
+                component_shape = (
+                    tuple(component._obs_shape) if isinstance(component._obs_shape, list) else component._obs_shape
+                )
+                if component_shape != environment_shape:
                     raise ValueError(
                         f"Observation space mismatch error:\n"
                         f"component_name: {component_name}\n"
-                        f"obs_shape: {component.obs_shape}\n"
-                        f"env_shape: {env_shape}\n"
+                        f"component_shape: {component_shape}\n"
+                        f"environment_shape: {environment_shape}\n"
                     )
+
+        if not found_match:
+            raise ValueError(
+                "No component with observation shape found in policy. "
+                f"Environment observation shape: {environment_shape}"
+            )
 
         self.lr_scheduler = None
         if self.trainer_cfg.lr_scheduler.enabled:
