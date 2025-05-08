@@ -7,6 +7,7 @@
 
 #include "constants.hpp"
 #include "grid_object.hpp"
+#include "objects/has_inventory.hpp"
 #include "objects/metta_object.hpp"
 #include "stats_tracker.hpp"
 
