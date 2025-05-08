@@ -144,7 +144,7 @@ class SimulationStatsDB(EpisodeStatsDB):
 
         if exists(dest):
             logger = logging.getLogger(__name__)
-            logger.info(f"Merging {dest} into {self.path}")
+            logger.info(f"Merging  {dest} into {self.path}")
             with SimulationStatsDB.from_uri(dest) as pre_existing:
                 self.merge_in(pre_existing)
         # Flush tables & data pages to disk
@@ -276,7 +276,7 @@ class SimulationStatsDB(EpisodeStatsDB):
         def _safe_copy(table: str) -> None:
             if not _table_exists(table):
                 logger = logging.getLogger(__name__)
-                logger.info("Skipping %s – not present in shard %s", table, other_path.name)
+                logger.debug("Skipping %s – not present in shard %s", table, other_path.name)
                 return
             self.con.execute(f"INSERT OR IGNORE INTO {table} SELECT * FROM other.{table}")
 
