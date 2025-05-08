@@ -75,6 +75,8 @@ class MettaAgent(nn.Module):
         # this is hardcoded to index 2 to provide the channel # at end of tuple
         num_objects = safe_get_obs_property(obs_space, obs_key, property_index=2)
 
+        logging.info(f"cfg: {cfg}")
+
         agent_attributes = {
             "obs_shape": obs_shape,
             "clip_range": self.clip_range,
@@ -86,6 +88,8 @@ class MettaAgent(nn.Module):
             "hidden_size": self.hidden_size,
             "core_num_layers": self.core_num_layers,
         }
+
+        logging.info(f"agent_attributes: {agent_attributes}")
 
         # self.observation_space = obs_space # for use with FeatureSetEncoder
         # self.global_features = global_features # for use with FeatureSetEncoder
