@@ -1,108 +1,155 @@
 """
-Unit-tests for the StatsDB functionality in mettagrid.stats_writer.
+Unit tests for the StatsWriter functionality in mettagrid.stats_writer.
 """
 
+import datetime
+import os
 import tempfile
 import uuid
 from pathlib import Path
 
-# The updated StatsDB with UUID-based IDs
-from mettagrid.stats_writer import StatsDB
+import pytest
+
+from mettagrid.episode_stats_db import EpisodeStatsDB
+from mettagrid.stats_writer import StatsWriter
 
 
-def make_tmp_db() -> StatsDB:
-    """Return a brand-new writable StatsDB in a temp file."""
-    tmp = Path(tempfile.mktemp(suffix=".duckdb"))
-    return StatsDB(tmp, read_only=False)  # read_only==False → create schema
+@pytest.fixture
+def temp_dir():
+    """Create a temporary directory for test files."""
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        yield Path(tmpdirname)
 
 
-def test_uuid_generation():
-    """Test that get_next_episode_id generates valid UUIDs."""
-    db = make_tmp_db()
-
-    # Generate multiple UUIDs to ensure they're unique
-    id1 = db.get_next_episode_id()
-    id2 = db.get_next_episode_id()
-
-    # Verify they're valid UUIDs
-    assert uuid.UUID(id1)
-    assert uuid.UUID(id2)
-
-    # Verify they're unique
-    assert id1 != id2
-
-    db.close()
+def test_stats_writer_initialization(temp_dir):
+    """Test that StatsWriter initializes correctly."""
+    writer = StatsWriter(temp_dir)
+    assert writer.dir == temp_dir
+    assert writer.db is None  # Database should be created on demand
 
 
-def test_create_and_get_episode():
-    """Test creating an episode and retrieving it."""
-    db = make_tmp_db()
+def test_ensure_db(temp_dir):
+    """Test that _ensure_db creates a database when needed."""
+    writer = StatsWriter(temp_dir)
+    writer._ensure_db()
+    assert writer.db is not None
+    assert isinstance(writer.db, EpisodeStatsDB)
 
-    # Create an episode
-    seed = 12345
-    map_w = 10
-    map_h = 20
-    metadata = {"key": "value"}
+    # Check that the database file exists
+    db_files = list(temp_dir.glob("*.duckdb"))
+    assert len(db_files) == 1
 
-    episode_id = db.create_episode(seed, map_w, map_h, metadata)
-
-    # Verify it's a valid UUID
-    assert uuid.UUID(episode_id)
-
-    # Verify it was stored correctly
-    result = db.con.execute("SELECT seed, map_w, map_h, metadata FROM episodes WHERE id = ?", (episode_id,)).fetchone()
-
-    assert result[0] == seed
-    assert result[1] == map_w
-    assert result[2] == map_h
-    assert "key" in result[3]  # Basic check on metadata
-
-    db.close()
+    writer.close()
 
 
-def test_finish_episode():
-    """Test marking an episode as finished."""
-    db = make_tmp_db()
+def test_episode_lifecycle(temp_dir):
+    """Test the full lifecycle of an episode."""
+    writer = StatsWriter(temp_dir)
 
-    # Create an episode
-    episode_id = db.create_episode(0, 1, 1)
+    # Create episode ID
+    episode_id = str(uuid.uuid4())
 
-    # Mark it as finished
+    # Episode attributes
+    attributes = {"seed": "12345", "map_w": "10", "map_h": "20", "meta": '{"key": "value"}'}
+    groups = [[0, 1]]
+
+    # Metrics
+    agent_metrics = {0: {"reward": 10.5, "steps": 50.0}, 1: {"reward": 8.2, "steps": 45.0}}
+    group_metrics = {0: {"group_reward": 18.7}}
+
+    # Step count and timestamps
     step_count = 100
-    db.finish_episode(episode_id, step_count)
+    created_at = datetime.datetime.now()
+    replay_url = "https://example.com/replay.json"
 
-    # Verify it was updated correctly
-    result = db.con.execute("SELECT step_count, finished_at FROM episodes WHERE id = ?", (episode_id,)).fetchone()
+    # Record the complete episode
+    writer.record_episode(
+        episode_id, attributes, groups, agent_metrics, group_metrics, step_count, replay_url, created_at
+    )
 
-    assert result[0] == step_count
-    assert result[1] is not None  # finished_at should be set
+    # Verify data in database
+    assert writer.db is not None
+    db = writer.db
 
-    db.close()
+    # Check episode exists
+    result = db.con.execute("SELECT id FROM episodes WHERE id = ?", (episode_id,)).fetchone()
+    assert result is not None
+    assert result[0] == episode_id
 
-
-def test_add_agent_metrics():
-    """Test adding agent metrics."""
-    db = make_tmp_db()
-
-    # Create an episode
-    episode_id = db.create_episode(0, 1, 1)
-
-    # Add metrics for an agent
-    agent_id = 0
-    metrics = {"reward": 10.5, "steps": 50}
-
-    db.add_agent_metrics(episode_id, agent_id, metrics)
-
-    # Verify metrics were stored correctly
-    for metric, value in metrics.items():
+    # Check episode attributes
+    for attr, value in attributes.items():
         result = db.con.execute(
-            """
-            SELECT value FROM agent_metrics 
-            WHERE episode_id = ? AND agent_id = ? AND metric = ?
-            """,
-            (episode_id, agent_id, metric),
+            "SELECT value FROM episode_attributes WHERE episode_id = ? AND attribute = ?", (episode_id, attr)
         ).fetchone()
-
+        assert result is not None
         assert result[0] == value
 
-    db.close()
+    # Check agent metrics
+    for agent_id, metrics in agent_metrics.items():
+        for metric, value in metrics.items():
+            result = db.con.execute(
+                "SELECT value FROM agent_metrics WHERE episode_id = ? AND agent_id = ? AND metric = ?",
+                (episode_id, agent_id, metric),
+            ).fetchone()
+            assert result is not None
+            assert abs(result[0] - value) < 1e-6  # Compare floats with tolerance
+
+    # Check group metrics
+    for group_id, metrics in group_metrics.items():
+        for metric, value in metrics.items():
+            result = db.con.execute(
+                "SELECT value FROM group_metrics WHERE episode_id = ? AND group_id = ? AND metric = ?",
+                (episode_id, group_id, metric),
+            ).fetchone()
+            assert result is not None
+            assert abs(result[0] - value) < 1e-6  # Compare floats with tolerance
+
+    # Check step count
+    result = db.con.execute("SELECT step_count FROM episodes WHERE id = ?", (episode_id,)).fetchone()
+    assert result is not None
+    assert result[0] == step_count
+
+    # Check replay URL
+    result = db.con.execute("SELECT replay_url FROM episodes WHERE id = ?", (episode_id,)).fetchone()
+    assert result is not None
+    assert result[0] == replay_url
+
+    writer.close()
+
+
+def test_multiple_processes_compatibility(temp_dir):
+    """Test that StatsWriter works correctly with multiple processes."""
+    # Simulate multiple processes by creating writers with different PIDs
+    original_getpid = os.getpid
+
+    try:
+        # Mock process IDs to simulate different processes
+        for pid in [1000, 2000, 3000]:
+            os.getpid = lambda: pid
+
+            writer = StatsWriter(temp_dir)
+            episode_id = str(uuid.uuid4())
+
+            # Record a simple episode
+            created_at = datetime.datetime.now()
+            writer.record_episode(episode_id, {"seed": "12345"}, [], {0: {"reward": 1.0}}, {}, 10, None, created_at)
+
+            writer.close()
+
+        # Check that we have three different database files
+        db_files = list(temp_dir.glob("*.duckdb"))
+        assert len(db_files) == 3
+
+    finally:
+        # Restore original function
+        os.getpid = original_getpid
+
+
+def test_close_without_db(temp_dir):
+    """Test calling close() on a StatsWriter that hasn't created a DB yet."""
+    writer = StatsWriter(temp_dir)
+    assert writer.db is None
+
+    # This should not raise an error
+    writer.close()
+    assert writer.db is None

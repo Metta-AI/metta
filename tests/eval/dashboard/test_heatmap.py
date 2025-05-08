@@ -9,8 +9,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from metta.eval.heatmap import get_matrix_data
-from metta.sim.stats_db import StatsDB
+from metta.eval.dashboard.heatmap import get_matrix_data
+from metta.sim.simulation_stats_db import StatsDB
 
 
 @pytest.fixture

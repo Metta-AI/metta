@@ -12,3 +12,8 @@ run: ???
 
 torch_deterministic: true
 vectorization: multiprocessing
+
+eval_db_uri: ???
+
+analyzer:
+  stats_db_uri: ${eval_db_uri}

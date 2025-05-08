@@ -28,7 +28,7 @@ import numpy as np
 import pytest
 from duckdb import CatalogException
 
-from metta.sim.stats_db import StatsDB
+from metta.sim.simulation_stats_db import StatsDB
 from mettagrid.stats_writer import StatsDB as MGStatsDB
 
 # --------------------------------------------------------------------------- #
@@ -68,9 +68,7 @@ def test_merge_two_shards_with_context(tmp_path: Path):
     ep_a = _create_worker_db(shards_dir / "worker0.duckdb")
     ep_b = _create_worker_db(shards_dir / "worker1.duckdb")
 
-    merged: StatsDB = StatsDB.merge_shards_and_add_context(
-        shards_dir, _DUMMY_AGENT_MAP, "sim_alpha", "suite_nav", "env_a"
-    )
+    merged: StatsDB = StatsDB.from_shards_and_context(shards_dir, _DUMMY_AGENT_MAP, "sim_alpha", "suite_nav", "env_a")
 
     # rows copied -----------------------------------------------------------
     df = merged.query("SELECT id FROM episodes ORDER BY id")
@@ -97,7 +95,7 @@ def test_merge_two_shards_with_context(tmp_path: Path):
 
 
 def test_merge_empty_shard_dir(tmp_path: Path):
-    merged = StatsDB.merge_shards_and_add_context(tmp_path, _DUMMY_AGENT_MAP, "sim_empty", "suite_empty", "env_a")
+    merged = StatsDB.from_shards_and_context(tmp_path, _DUMMY_AGENT_MAP, "sim_empty", "suite_empty", "env_a")
     assert merged.query("SELECT COUNT(*) AS n FROM episodes")["n"][0] == 0
     merged.close()
 
@@ -110,11 +108,11 @@ def test_merge_empty_shard_dir(tmp_path: Path):
 def test_simulation_id_uniqueness(tmp_path: Path):
     shards = tmp_path / "shards"
     _create_worker_db(shards / "a.duckdb")
-    merged1 = StatsDB.merge_shards_and_add_context(shards, _DUMMY_AGENT_MAP, "sim1", "suite", "env_a")
+    merged1 = StatsDB.from_shards_and_context(shards, _DUMMY_AGENT_MAP, "sim1", "suite", "env_a")
     sim_id_1 = merged1.query("SELECT DISTINCT simulation_id FROM episodes")["simulation_id"][0]
     merged1.close()
 
-    merged2 = StatsDB.merge_shards_and_add_context(shards, _DUMMY_AGENT_MAP, "sim2", "suite", "env_a")
+    merged2 = StatsDB.from_shards_and_context(shards, _DUMMY_AGENT_MAP, "sim2", "suite", "env_a")
     sim_id_2 = merged2.query("SELECT DISTINCT simulation_id FROM episodes")["simulation_id"][0]
     merged2.close()
 
@@ -125,11 +123,11 @@ def test_simulation_id_deduplication(tmp_path: Path):
     """Merging twice with the *same* (suite,name) pair must reuse the UUID."""
     shards = tmp_path / "shards"
     _create_worker_db(shards / "a.duckdb")
-    merged1 = StatsDB.merge_shards_and_add_context(shards, _DUMMY_AGENT_MAP, "sim_fixed", "suite", "env_a")
+    merged1 = StatsDB.from_shards_and_context(shards, _DUMMY_AGENT_MAP, "sim_fixed", "suite", "env_a")
     sim_id_1 = merged1.query("SELECT DISTINCT simulation_id FROM episodes")["simulation_id"][0]
     merged1.close()
 
-    merged2 = StatsDB.merge_shards_and_add_context(shards, _DUMMY_AGENT_MAP, "sim_fixed", "suite", "env_a")
+    merged2 = StatsDB.from_shards_and_context(shards, _DUMMY_AGENT_MAP, "sim_fixed", "suite", "env_a")
     sim_id_2 = merged2.query("SELECT DISTINCT simulation_id FROM episodes")["simulation_id"][0]
     merged2.close()
 
@@ -137,7 +135,7 @@ def test_simulation_id_deduplication(tmp_path: Path):
 
 
 # --------------------------------------------------------------------------- #
-# insert_agent_policies                                                       #
+# _insert_agent_policies                                                       #
 # --------------------------------------------------------------------------- #
 
 
@@ -147,7 +145,7 @@ def test_insert_agent_policies(tmp_path: Path):
 
     episodes = [uuid.uuid4().hex for _ in range(3)]
     agent_map = {0: ("policy_a", 1), 1: ("policy_b", 0)}
-    db.insert_agent_policies(episodes, agent_map)
+    db._insert_agent_policies(episodes, agent_map)
 
     pol = db.query("SELECT * FROM policies")
     assert pol.shape[0] == 2
@@ -159,8 +157,8 @@ def test_insert_agent_policies(tmp_path: Path):
 
 def test_insert_agent_policies_empty_inputs(tmp_path: Path):
     db = StatsDB(tmp_path / "x.duckdb", mode="rwc")
-    db.insert_agent_policies([], _DUMMY_AGENT_MAP)
-    db.insert_agent_policies([uuid.uuid4().hex], {})
+    db._insert_agent_policies([], _DUMMY_AGENT_MAP)
+    db._insert_agent_policies([uuid.uuid4().hex], {})
     assert db.query("SELECT COUNT(*) AS n FROM agent_policies")["n"][0] == 0
     db.close()
 
@@ -210,7 +208,7 @@ def test_sequential_policy_simulations_and_merging(tmp_path: Path):
 
             agent_map = {0: (f"policy_{i}", i)}  # integer version
 
-            policy_db = StatsDB.merge_shards_and_add_context(
+            policy_db = StatsDB.from_shards_and_context(
                 policy_dir, agent_map, f"sim_{i}", "test_suite", f"env/test_{i}"
             )
 
@@ -656,7 +654,7 @@ def test_simulation_scores():
         policy_key = "test_policy"
         policy_version = 1
         agent_map = {0: (policy_key, policy_version)}
-        db.insert_agent_policies(episodes, agent_map)
+        db._insert_agent_policies(episodes, agent_map)
 
         # Add metrics
         for i, ep_id in enumerate(episodes):

@@ -20,7 +20,6 @@ from omegaconf import DictConfig, OmegaConf
 from metta.agent.policy_store import PolicyStore
 from metta.sim.simulation import SimulationSuite
 from metta.sim.simulation_config import SimulationSuiteConfig
-from metta.sim.stats_db import StatsDB
 from metta.util.config import Config
 from metta.util.logging import setup_mettagrid_logger
 from metta.util.runtime_configuration import setup_mettagrid_environment
@@ -34,7 +33,6 @@ class SimJob(Config):
     simulation_suite: SimulationSuiteConfig
     policy_uris: List[str]
     selector_type: str = "top"
-    dry_run: bool = False
     replay_dir: str = "s3://softmax-public/replays/evals"
     stats_db_uri: str
     stats_dir: str  # The (local) directory where stats should be stored
@@ -66,13 +64,8 @@ def simulate_policy(
     for pr in policy_prs:
         logger.info("Evaluating policy %s", pr.uri)
 
-        stats_dir = Path(sim_job.stats_dir) / pr.name
-        stats_dir.mkdir(parents=True, exist_ok=True)
-
-        if sim_job.dry_run:
-            replay_dir = None
-        else:
-            replay_dir = f"{sim_job.replay_dir}/{pr.name}"
+        stats_dir = f"{sim_job.stats_dir}/{pr.name}"
+        replay_dir = f"{sim_job.replay_dir}/{pr.name}"
         sim = SimulationSuite(
             config=sim_job.simulation_suite,
             policy_pr=pr,
@@ -80,18 +73,13 @@ def simulate_policy(
             replay_dir=replay_dir,
             stats_dir=stats_dir,
         )
-        merged_db: StatsDB = sim.simulate()
-
+        results = sim.simulate()
         # ------------------------------------------------------------------ #
         # Export                                                             #
         # ------------------------------------------------------------------ #
-        if not sim_job.dry_run:
-            logger.info("Exporting merged stats DB → %s", sim_job.stats_db_uri)
-            merged_db.export(sim_job.stats_db_uri)
-        else:
-            logger.info(f"Dry run – skipping export to {sim_job.stats_db_uri}")
+        logger.info("Exporting merged stats DB → %s", sim_job.stats_db_uri)
+        results.stats_db.export(sim_job.stats_db_uri)
 
-        merged_db.close()
         logger.info("Evaluation complete for policy %s", pr.uri)
 
 

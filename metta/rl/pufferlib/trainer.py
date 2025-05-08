@@ -27,7 +27,6 @@ from metta.sim.simulation import Simulation, SimulationSuite
 from metta.sim.simulation_config import SimulationConfig, SimulationSuiteConfig
 from metta.sim.vecenv import make_vecenv
 from metta.util.config import config_from_path
-from metta.util.file import http_url
 
 torch.set_float32_matmul_precision("high")
 
@@ -249,7 +248,8 @@ class PufferTrainer:
             policy_store=self.policy_store,
             stats_dir=Path(self.cfg.run_dir) / "stats",
         )
-        stats_db = sim.simulate()
+        result = sim.simulate()
+        stats_db = result.stats_db
         logger.info("Simulation complete")
 
         # Define the list of evaluation categories
@@ -591,16 +591,18 @@ class PufferTrainer:
             if dry_run:
                 logger.info(f"Dry run: Would write replay to {replay_dir}")
                 replay_dir = None
+            name = f"replay_{self.epoch}"
             replay_simulator = Simulation(
-                name=f"replay_{self.epoch}",
+                name=name,
                 config=self.replay_sim_config,
                 policy_pr=self.last_pr,
                 policy_store=self.policy_store,
                 replay_dir=replay_dir,
             )
-            replay_simulator.simulate()
+            results = replay_simulator.simulate()
+            replay_url = results.stats_db.get_replay_urls(policy_record=self.last_pr)[0]
             if self.wandb_run is not None:
-                player_url = "https://metta-ai.github.io/metta/?replayUrl=" + http_url(replay_dir + "/replay.json.z")
+                player_url = "https://metta-ai.github.io/metta/?replayUrl=" + replay_url
                 link_summary = {
                     "replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {self.epoch})</a>')
                 }

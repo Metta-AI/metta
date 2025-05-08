@@ -15,6 +15,7 @@ from metta.util.runtime_configuration import setup_mettagrid_environment
 from metta.util.wandb.wandb_context import WandbContext
 
 
+# TODO: This job can be replaced with sim now that Simulations create replays
 class ReplayJob(Config):
     sim: SimulationSuiteConfig
     policy_uri: str
@@ -41,15 +42,14 @@ def main(cfg):
 
         replay_dir = f"{replay_job.replay_dir}/{cfg.run}"
         if cfg.trainer.get("replay_dry_run", False):
-            replay_dir = None
+            replay_dir = "/tmp"
 
         sim_suite = SimulationSuite(replay_job.sim, policy_record, policy_store, replay_dir=replay_dir)
-        sim_suite.simulate()
+        result = sim_suite.simulate()
         # Only on macos open a browser to the replay
-        first_sim_name = list(replay_job.sim.simulations.keys())[0]
-        first_sim_path = f"{replay_dir}/{first_sim_name}/replay.json.z"
-        if platform.system() == "Darwin":
-            webbrowser.open(f"https://metta-ai.github.io/metta/?replayUrl={http_url(first_sim_path)}")
+        if platform.system() == "Darwin" and replay_dir is not None:
+            replay_url = result.stats_db.get_replay_urls(policy_record=policy_record)[0]
+            webbrowser.open(f"https://metta-ai.github.io/metta/?replayUrl={http_url(replay_url)}")
 
 
 if __name__ == "__main__":

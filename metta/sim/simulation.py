@@ -11,22 +11,23 @@ Vectorised simulation runner.
 from __future__ import annotations
 
 import logging
-import os
 import time
 import uuid
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, Tuple
 
 import numpy as np
 import torch
 
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore
-from metta.sim.replay_helper import ReplayHelper
-from metta.sim.simulation_config import SimulationConfig, SimulationSuiteConfig
-from metta.sim.stats_db import StatsDB
+from metta.sim.simulation_config import SimulationConfig
+from metta.sim.simulation_stats_db import SimulationStatsDB
 from metta.sim.vecenv import make_vecenv
 from metta.util.config import config_from_path
+from mettagrid.replay_writer import ReplayWriter
+from mettagrid.stats_writer import StatsWriter
 
 logger = logging.getLogger(__name__)
 
@@ -48,35 +49,34 @@ class Simulation:
         config: SimulationConfig,
         policy_pr: PolicyRecord,
         policy_store: PolicyStore,
-        *,
-        suite: SimulationSuite | None = None,
-        stats_dir: str | None = None,
-        replay_dir: str | None = None,
+        suite: "SimulationSuite" | None = None,
+        stats_dir: str = "/tmp/stats",
+        replay_dir: str = "/tmp/replays",
     ):
         self._name = name
         self._suite = suite
         self._config = config
+        self._id = uuid.uuid4().hex[:12]
 
         # ---------------- env config ----------------------------------- #
         self._env_cfg = config_from_path(config.env, config.env_overrides)
         self._env_name = config.env
 
-        self._stats_dir = (
-            Path(stats_dir).expanduser()
-            if stats_dir
-            else Path("tmp/stats") / self._name / f"{os.getpid()}_{uuid.uuid4().hex[:6]}"
-        )
-        self._stats_dir.mkdir(parents=True, exist_ok=True)
-        self._replay_dir = replay_dir
+        replay_dir = f"{replay_dir}/{self._id}"
 
-        # ---------------- device / vec-env ----------------------------- #
+        sim_stats_dir = (Path(stats_dir) / self._id).resolve()
+        sim_stats_dir.mkdir(parents=True, exist_ok=True)
+        self._stats_dir = sim_stats_dir
+        self._stats_writer = StatsWriter(sim_stats_dir)
+        self._replay_writer = ReplayWriter(replay_dir)
         self._device = config.device
         logger.debug(f"Creating vecenv with {config.num_envs} environments")
         self._vecenv = make_vecenv(
             self._env_cfg,
             config.vectorization,
             num_envs=config.num_envs,
-            stats_writer_dir=str(self._stats_dir),
+            stats_writer=self._stats_writer,
+            replay_writer=self._replay_writer,
         )
 
         self._num_envs = config.num_envs
@@ -110,45 +110,12 @@ class Simulation:
             if self._npc_agents_per_env
             else torch.tensor([], device=self._device)
         )
-
-        # ---------------- optional replay helpers ---------------------- #
-        self._replay_helpers: List[ReplayHelper] | None = None
         self._episode_counters = np.zeros(self._num_envs, dtype=int)
-        if replay_dir:
-            self._replay_helpers = [self._make_replay_helper(e) for e in range(self._num_envs)]
-
-    # ------------------------------------------------------------------ #
-    #   helpers                                                          #
-    # ------------------------------------------------------------------ #
-    def _make_replay_helper(self, env_idx: int) -> ReplayHelper:
-        return ReplayHelper(
-            config=self._config,
-            env=self._vecenv.envs[env_idx],
-            policy_record=self._policy_pr,
-        )
-
-    def _replay_path(self, env_idx: int, ep: int) -> str:
-        if env_idx == 0 and ep == 0:
-            return f"{self._replay_dir}/replay.json.z"
-        return f"{self._replay_dir}/replay_ep{ep}_env{env_idx}.json.z"
-
-    # ------------------------- stats helpers -------------------------- #
-    def _merge_shards_and_add_context(self) -> StatsDB:
-        """Merge all *.duckdb* shards for this simulation → one `StatsDB`."""
-        agent_map: Dict[int, Tuple[str, int]] = {
-            idx.item(): self._policy_pr.key_and_version() for idx in self._policy_idxs
-        }
-        if self._npc_pr is not None:
-            agent_map.update({idx.item(): self._npc_pr.key_and_version() for idx in self._npc_idxs})
-
-        suite_name = "" if self._suite is None else self._suite.name
-        db = StatsDB.merge_shards_and_add_context(self._stats_dir, agent_map, self._name, suite_name, self._config.env)
-        return db
 
     # ------------------------------------------------------------------ #
     #   public API                                                       #
     # ------------------------------------------------------------------ #
-    def simulate(self) -> StatsDB:
+    def simulate(self) -> SimulationResults:
         """
         Run the simulation; returns the merged `StatsDB`.
         """
@@ -197,22 +164,8 @@ class Simulation:
             actions = actions.view(self._num_envs * self._agents_per_env, -1)
             actions_np = actions.cpu().numpy()
 
-            # ---------------- replay (pre-step) ----------------------- #
-            if self._replay_helpers:
-                per_env = actions_np.reshape(self._num_envs, self._agents_per_env, -1)
-                for e in range(self._num_envs):
-                    if not env_done_flags[e]:
-                        self._replay_helpers[e].log_pre_step(per_env[e].squeeze())
-
             # ---------------- env.step ------------------------------- #
-            obs, rewards, dones, trunc, _ = self._vecenv.step(actions_np)
-
-            # ---------------- replay (post-step) ---------------------- #
-            if self._replay_helpers:
-                per_env_r = rewards.reshape(self._num_envs, self._agents_per_env)
-                for e in range(self._num_envs):
-                    if not env_done_flags[e]:
-                        self._replay_helpers[e].log_post_step(per_env_r[e])
+            obs, _, dones, trunc, _ = self._vecenv.step(actions_np)
 
             # ---------------- episode FSM ---------------------------- #
             done_now = np.logical_or(
@@ -222,18 +175,13 @@ class Simulation:
             for e in range(self._num_envs):
                 if done_now[e] and not env_done_flags[e]:
                     env_done_flags[e] = True
-                    if self._replay_helpers:
-                        path = self._replay_path(e, self._episode_counters[e])
-                        self._replay_helpers[e].write_replay(path)
                     self._episode_counters[e] += 1
                 elif not done_now[e] and env_done_flags[e]:
                     env_done_flags[e] = False
-                    if self._replay_helpers:
-                        self._replay_helpers[e] = self._make_replay_helper(e)
 
         # ---------------- teardown & DB merge ------------------------ #
         self._vecenv.close()
-        db = self._merge_shards_and_add_context()
+        db = self._from_shards_and_context()
 
         logger.info(
             "Sim '%s' finished: %d episodes in %.1fs",
@@ -241,61 +189,27 @@ class Simulation:
             int(self._episode_counters.sum()),
             time.time() - t0,
         )
+        return SimulationResults(db)
+
+    # ------------------------- stats helpers -------------------------- #
+    def _from_shards_and_context(self) -> SimulationStatsDB:
+        """Merge all *.duckdb* shards for this simulation → one `StatsDB`."""
+        agent_map: Dict[int, Tuple[str, int]] = {idx.item(): self._policy_pr for idx in self._policy_idxs}
+        if self._npc_pr is not None:
+            agent_map.update({idx.item(): self._npc_pr for idx in self._npc_idxs})
+
+        suite_name = "" if self._suite is None else self._suite.name
+        db = SimulationStatsDB.from_shards_and_context(
+            self._id, self._stats_dir, agent_map, self._name, suite_name, self._config.env, self._policy_pr
+        )
         return db
 
 
-# --------------------------------------------------------------------------- #
-#   Suite of simulations                                                      #
-# --------------------------------------------------------------------------- #
-class SimulationSuite:
+@dataclass
+class SimulationResults:
     """
-    Runs a collection of named simulations and returns **one merged StatsDB**
-    containing the union of their statistics.
+    Results of a simulation.
+    For now just a stats db. Replay plays can be retrieved from the stats db.
     """
 
-    def __init__(
-        self,
-        config: SimulationSuiteConfig,
-        policy_pr: PolicyRecord,
-        policy_store: PolicyStore,
-        *,
-        stats_dir: str | None = None,
-        replay_dir: str | None = None,
-    ):
-        # Add a per-simulation uuid so we dont accidentally merge data from different
-        # simulation runs
-        if stats_dir:
-            self._stats_dir = f"{stats_dir}/{os.getpid()}_{uuid.uuid4().hex[:6]}"
-        else:
-            self._stats_dir = None
-        self._config = config
-        self._policy_pr = policy_pr
-        self._policy_store = policy_store
-        self._replay_dir = replay_dir
-
-        self.name = config.name
-
-    # ------------------------------------------------------------------ #
-    #   public API                                                       #
-    # ------------------------------------------------------------------ #
-    def simulate(self) -> StatsDB:
-        """Run every simulation, merge their DBs, return a single `StatsDB`."""
-        merged_db: StatsDB = StatsDB(f"{self._stats_dir}/all.duckdb")
-
-        for name, sim_config in self._config.simulations.items():
-            sim = Simulation(
-                name,
-                sim_config,
-                self._policy_pr,
-                self._policy_store,
-                suite=self,
-                stats_dir=f"{self._stats_dir}/{name}" if self._stats_dir else None,
-                replay_dir=f"{self._replay_dir}/{name}" if self._replay_dir else None,
-            )
-            logger.info("=== Simulation '%s' ===", name)
-            db = sim.simulate()
-            merged_db.merge_in(db)
-            db.close()  # release file handle of merged shard
-
-        assert merged_db is not None, "SimulationSuite contained no simulations"
-        return merged_db
+    stats_db: SimulationStatsDB

@@ -24,8 +24,8 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.utils import PlotlyJSONEncoder
 
-from metta.eval.mapviewer import create_map_viewer_html, get_map_viewer_js_functions
-from metta.sim.stats_db import StatsDB
+from metta.eval.dashboard.mapviewer import create_map_viewer_html, get_map_viewer_js_functions
+from metta.sim.simulation_stats_db import StatsDB
 
 
 # --------------------------------------------------------------------------- #

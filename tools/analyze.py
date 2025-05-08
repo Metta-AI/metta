@@ -4,7 +4,7 @@ import hydra
 from omegaconf import DictConfig, OmegaConf
 
 from metta.eval.analysis_config import AnalyzerConfig
-from metta.eval.report import generate_report
+from metta.eval.dashboard.page import generate_report
 from metta.util.logging import setup_mettagrid_logger
 from metta.util.runtime_configuration import setup_mettagrid_environment
 

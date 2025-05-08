@@ -84,7 +84,8 @@ def main(cfg: DictConfig | ListConfig) -> int:
         logger.info(f"Evaluating policy {policy_pr.name}")
         log_file(cfg.run_dir, "sweep_eval_config.yaml", cfg, wandb_run)
 
-        stats_db = eval.simulate()
+        results = eval.simulate()
+        stats_db = results.stats_db
         eval_time = time.time() - eval_start_time
         stats_db.materialize_policy_simulations_view(cfg.metric)
         eval_metric = stats_db.get_average_metric_by_filter(cfg.metric, policy_pr.key(), policy_pr.version())
