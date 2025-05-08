@@ -11,9 +11,11 @@ export const MAX_ZOOM_LEVEL = 2.0;
 
 export const SPLIT_DRAG_THRESHOLD = 10;  // pixels to detect split dragging
 export const SCROLL_ZOOM_FACTOR = 1000;  // divisor for scroll delta to zoom conversion
-export const DEFAULT_TRACE_SPLIT = 0.80;  // default horizontal split ratio
-export const DEFAULT_INFO_SPLIT = 0.25;   // default vertical split ratio
+export const DEFAULT_TRACE_SPLIT = 0.85;  // default horizontal split ratio
 export const PANEL_BOTTOM_MARGIN = 60;    // bottom margin for panels
+export const HEADER_HEIGHT = 60;          // height of the header
+export const SCRUBBER_HEIGHT = 120;        // height of the scrubber
+export const SPEEDS = [0.02, 0.1, 0.25, 0.5, 1.0, 5.0];
 
 // Map constants
 export const TILE_SIZE = 200;
@@ -47,8 +49,6 @@ export const ui = {
   // Split between trace and info panels.
   traceSplit: DEFAULT_TRACE_SPLIT,
   traceDragging: false,
-  infoSplit: DEFAULT_INFO_SPLIT,
-  infoDragging: false,
 
   // Panels
   mapPanel: new PanelInfo("map"),
@@ -69,40 +69,109 @@ export const state = {
   isPlaying: false,
   partialStep: 0,
   playbackSpeed: 0.1,
+
+  // What to show?
+  sortTraces: false,
+  showGrid: true,
+  showViewRanges: true,
+  showFogOfWar: false,
 };
 
 export const html = {
-  scrubber: document.getElementById('main-scrubber') as HTMLInputElement,
-  playButton: document.getElementById('play-button') as HTMLButtonElement,
   globalCanvas: document.getElementById('global-canvas') as HTMLCanvasElement,
+
+  // Header area
+  fileName: document.getElementById('file-name') as HTMLDivElement,
+  shareButton: document.getElementById('share-button') as HTMLButtonElement,
+  mainFilter: document.getElementById('main-filter') as HTMLInputElement,
+
+  // Bottom area
+  scrubber: document.getElementById('main-scrubber') as HTMLInputElement,
+
+  rewindToStartButton: document.getElementById('rewind-to-start') as HTMLImageElement,
+  stepBackButton: document.getElementById('step-back') as HTMLImageElement,
+  playButton: document.getElementById('play') as HTMLButtonElement,
+  stepForwardButton: document.getElementById('step-forward') as HTMLImageElement,
+  rewindToEndButton: document.getElementById('rewind-to-end') as HTMLImageElement,
+
+  speedButtons: [
+    document.getElementById('speed1') as HTMLImageElement,
+    document.getElementById('speed2') as HTMLImageElement,
+    document.getElementById('speed3') as HTMLImageElement,
+    document.getElementById('speed4') as HTMLImageElement,
+    document.getElementById('speed5') as HTMLImageElement,
+    document.getElementById('speed6') as HTMLImageElement,
+  ],
+
+  sortButton: document.getElementById('sort') as HTMLImageElement,
+  focusButton: document.getElementById('tack') as HTMLImageElement,
+  gridButton: document.getElementById('grid') as HTMLImageElement,
+  showViewButton: document.getElementById('eye') as HTMLImageElement,
+  showFogOfWarButton: document.getElementById('cloud') as HTMLImageElement,
+
+  // Utility
+  modal: document.getElementById('modal') as HTMLDivElement,
+  toast: document.getElementById('toast') as HTMLDivElement,
 }
 
-
-// Get the modal element
-const modal = document.getElementById('modal');
+// Set the follow selection state, you can pass null to leave a state unchanged.
+export function setFollowSelection(map: boolean | null, trace: boolean | null) {
+  if (map != null) {
+    state.followSelection = map;
+    if (map) {
+      html.focusButton.style.opacity = "1";
+    } else {
+      html.focusButton.style.opacity = "0.2";
+    }
+  }
+  if (trace != null) {
+    state.followTraceSelection = trace;
+  }
+}
 
 // Show the modal
 export function showModal(type: string, title: string, message: string) {
-  if (modal) {
-    modal.style.display = 'block';
-    modal.classList.add(type);
-    const header = modal.querySelector('h2');
-    if (header) {
-      header.textContent = title;
-    }
-    const content = modal.querySelector('p');
-    if (content) {
-      content.textContent = message;
-    }
+  html.modal.style.display = 'block';
+  html.modal.classList.add(type);
+  const header = html.modal.querySelector('h2');
+  if (header) {
+    header.textContent = title;
+  }
+  const content = html.modal.querySelector('p');
+  if (content) {
+    content.textContent = message;
   }
 }
 
 // Close the modal
 export function closeModal() {
-  if (modal) {
-    // Remove error class from modal.
-    modal.classList.remove('error');
-    modal.classList.remove('info');
-    modal.style.display = 'none';
-  }
+  // Remove error class from modal.
+  html.modal.classList.remove('error');
+  html.modal.classList.remove('info');
+  html.modal.style.display = 'none';
+}
+
+// Functions to show and hide toast notifications
+export function showToast(message: string, duration = 3000) {
+  // Set the message
+  html.toast.textContent = message;
+  // Remove any existing classes
+  html.toast.classList.remove('hiding');
+  // Make the toast visible
+  html.toast.classList.add('visible');
+  // Set a timeout to hide the toast after the specified duration
+  setTimeout(() => {
+    hideToast();
+  }, duration);
+}
+
+// Hides the currently visible toast with an upward animation
+export function hideToast() {
+  // Add the hiding class for the upward animation
+  html.toast.classList.add('hiding');
+  // Remove the visible class after the animation completes
+  setTimeout(() => {
+    html.toast.classList.remove('visible');
+    html.toast.classList.remove('hiding');
+  }, 300); // Match the transition duration from CSS
 }

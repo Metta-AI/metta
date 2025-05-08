@@ -1,6 +1,6 @@
 import { Vec2f, Mat3f } from './vector_math.js';
 import * as Common from './common.js';
-import { ui, state, html, ctx } from './common.js';
+import { ui, state, html, ctx, setFollowSelection } from './common.js';
 import { fetchReplay, readFile } from './replay.js';
 import { focusFullMap, updateReadout, drawMap, requestFrame } from './worldmap.js';
 import { drawTrace } from './traces.js';
@@ -11,39 +11,33 @@ export function onResize() {
   // Adjust for high DPI displays.
   const dpr = window.devicePixelRatio || 1;
 
-  const mapWidth = window.innerWidth;
-  const mapHeight = window.innerHeight;
+  const screenWidth = window.innerWidth;
+  const screenHeight = window.innerHeight;
 
   // Make sure traceSplit and infoSplit are not too small or too large.
   const a = 0.025;
   ui.traceSplit = Math.max(a, Math.min(ui.traceSplit, 1 - a));
-  ui.infoSplit = Math.max(a, Math.min(ui.infoSplit, 1 - a));
 
   ui.mapPanel.x = 0;
-  ui.mapPanel.y = 0;
-  ui.mapPanel.width = mapWidth * ui.traceSplit;
-  ui.mapPanel.height = mapHeight - Common.PANEL_BOTTOM_MARGIN;
+  ui.mapPanel.y = Common.HEADER_HEIGHT;
+  ui.mapPanel.width = screenWidth;
+  ui.mapPanel.height = screenHeight * ui.traceSplit - Common.HEADER_HEIGHT;
 
   // Minimap goes in the bottom left corner of the mapPanel.
   if (state.replay != null) {
     const miniMapWidth = state.replay.map_size[0] * 2;
     const miniMapHeight = state.replay.map_size[1] * 2;
     ui.miniMapPanel.x = 0;
-    ui.miniMapPanel.y = ui.mapPanel.height - miniMapHeight;
+    ui.miniMapPanel.y = ui.mapPanel.y + ui.mapPanel.height - miniMapHeight;
     ui.miniMapPanel.width = miniMapWidth;
     ui.miniMapPanel.height = miniMapHeight;
     console.log("miniMap:", ui.miniMapPanel.x, ui.miniMapPanel.y, ui.miniMapPanel.width, ui.miniMapPanel.height);
   }
 
-  ui.tracePanel.x = mapWidth * ui.traceSplit;
-  ui.tracePanel.y = mapHeight * ui.infoSplit;
-  ui.tracePanel.width = mapWidth * (1 - ui.traceSplit);
-  ui.tracePanel.height = mapHeight * (1 - ui.infoSplit) - Common.PANEL_BOTTOM_MARGIN;
-
-  ui.infoPanel.x = mapWidth * ui.traceSplit;
-  ui.infoPanel.y = 0;
-  ui.infoPanel.width = mapWidth * (1 - ui.traceSplit);
-  ui.infoPanel.height = mapHeight * ui.infoSplit;
+  ui.infoPanel.x = screenWidth - 400;
+  ui.infoPanel.y = ui.mapPanel.y + ui.mapPanel.height - 200;
+  ui.infoPanel.width = 400;
+  ui.infoPanel.height = 200;
   if (ui.infoPanel.div === null) {
     ui.infoPanel.div = document.createElement("div");
     ui.infoPanel.div.id = ui.infoPanel.name + "-div";
@@ -58,6 +52,12 @@ export function onResize() {
     div.style.height = ui.infoPanel.height + 'px';
   }
 
+  // Trace panel is always on the bottom of the screen.
+  ui.tracePanel.x = 0;
+  ui.tracePanel.y = ui.mapPanel.y + ui.mapPanel.height;
+  ui.tracePanel.width = screenWidth;
+  ui.tracePanel.height = screenHeight - ui.tracePanel.y - Common.SCRUBBER_HEIGHT;
+
   // Redraw the square after resizing.
   requestFrame();
 }
@@ -70,16 +70,11 @@ function onMouseDown() {
   ui.mouseDoubleClick = currentTime - ui.lastClickTime < 300; // 300ms threshold for double-click
   ui.lastClickTime = currentTime;
 
-  if (Math.abs(ui.mousePos.x() - ui.mapPanel.width) < Common.SPLIT_DRAG_THRESHOLD) {
+  if (Math.abs(ui.mousePos.y() - ui.tracePanel.y) < Common.SPLIT_DRAG_THRESHOLD) {
     ui.traceDragging = true
-    console.log("Started trace dragging")
-  } else if (ui.mousePos.x() > ui.mapPanel.width && Math.abs(ui.mousePos.y() - ui.infoPanel.height) < Common.SPLIT_DRAG_THRESHOLD) {
-    ui.infoDragging = true
-    console.log("Started info dragging")
   } else {
     ui.mouseDown = true;
   }
-
   requestFrame();
 }
 
@@ -87,7 +82,6 @@ function onMouseDown() {
 function onMouseUp() {
   ui.mouseDown = false;
   ui.traceDragging = false;
-  ui.infoDragging = false;
   requestFrame();
 }
 
@@ -109,11 +103,8 @@ function onMouseMove(event: MouseEvent) {
   }
 
   if (ui.traceDragging) {
-    ui.traceSplit = ui.mousePos.x() / window.innerWidth
+    ui.traceSplit = ui.mousePos.y() / window.innerHeight
     onResize();
-  } else if (ui.infoDragging) {
-    ui.infoSplit = ui.mousePos.y() / window.innerHeight
-    onResize()
   }
   requestFrame();
 }
@@ -198,8 +189,7 @@ function onScrubberChange() {
 function onKeyDown(event: KeyboardEvent) {
   if (event.key == "Escape") {
     state.selectedGridObject = null;
-    state.followSelection = false; // Also stop following when selection is cleared
-    state.followTraceSelection = false;
+    setFollowSelection(false, false);
   }
   // '[' and ']' to scrub forward and backward.
   if (event.key == "[") {
@@ -219,7 +209,7 @@ function onKeyDown(event: KeyboardEvent) {
   }
   // If space make it press the play button.
   if (event.key == " ") {
-    onPlayButtonClick();
+    setIsPlaying(!state.isPlaying);
   }
   requestFrame();
 }
@@ -292,19 +282,6 @@ function handleDrop(event: DragEvent) {
   }
 }
 
-// Handle play button click
-function onPlayButtonClick() {
-  state.isPlaying = !state.isPlaying;
-
-  if (state.isPlaying) {
-    html.playButton.classList.add('paused');
-  } else {
-    html.playButton.classList.remove('paused');
-  }
-
-  requestFrame();
-}
-
 // Parse URL parameters, and modify the map and trace panels accordingly.
 async function parseUrlParams() {
 
@@ -333,7 +310,7 @@ async function parseUrlParams() {
 
   // Set the playing state.
   if (urlParams.get('play') !== null) {
-    state.isPlaying = urlParams.get('play') === "true";
+    setIsPlaying(urlParams.get('play') === "true");
     console.info("Playing state via query parameter:", state.isPlaying);
   }
 
@@ -342,7 +319,7 @@ async function parseUrlParams() {
     const selectedObjectId = parseInt(urlParams.get('selectedObjectId') || "-1") - 1;
     if (selectedObjectId >= 0 && selectedObjectId < state.replay.grid_objects.length) {
       state.selectedGridObject = state.replay.grid_objects[selectedObjectId];
-      state.followSelection = true;
+      setFollowSelection(true, true);
       ui.mapPanel.zoomLevel = 1 / 2;
       ui.tracePanel.zoomLevel = 1;
       console.info("Selected object via query parameter:", state.selectedGridObject);
@@ -364,6 +341,41 @@ async function parseUrlParams() {
   requestFrame();
 }
 
+// Handle share button click
+function onShareButtonClick() {
+  // Copy the current URL to the clipboard
+  navigator.clipboard.writeText(window.location.href);
+  // Show a toast notification
+  Common.showToast("URL copied to clipboard");
+}
+
+function setIsPlaying(isPlaying: boolean) {
+  state.isPlaying = isPlaying;
+  if (state.isPlaying) {
+    html.playButton.setAttribute("src", "data/ui/pause.png");
+  } else {
+    html.playButton.setAttribute("src", "data/ui/play.png");
+  }
+  requestFrame();
+}
+
+function toggleOpacity(button: HTMLImageElement, show: boolean) {
+  if (show) {
+    button.style.opacity = "1";
+  } else {
+    button.style.opacity = "0.2";
+  }
+}
+
+// Set the playback speed and update the speed buttons.
+function setPlaybackSpeed(speed: number) {
+  state.playbackSpeed = speed;
+  // Update the speed buttons to show the current speed.
+  for (let i = 0; i < html.speedButtons.length; i++) {
+    toggleOpacity(html.speedButtons[i], Common.SPEEDS[i] <= speed);
+  }
+}
+
 // Initial resize.
 onResize();
 
@@ -374,17 +386,78 @@ window.addEventListener('mousedown', onMouseDown);
 window.addEventListener('mouseup', onMouseUp);
 window.addEventListener('mousemove', onMouseMove);
 window.addEventListener('wheel', onScroll);
-
-html.scrubber.addEventListener('input', onScrubberChange);
-html.playButton.addEventListener('click', onPlayButtonClick);
-
 window.addEventListener('dragenter', preventDefaults, false);
 window.addEventListener('dragleave', preventDefaults, false);
 window.addEventListener('dragover', preventDefaults, false);
 window.addEventListener('drop', handleDrop, false);
 
-window.addEventListener('load', async () => {
+// Header area
+html.shareButton.addEventListener('click', onShareButtonClick);
+html.mainFilter.style.display = "none"; // Hide the main filter for now.
 
+// Bottom area
+html.scrubber.addEventListener('input', onScrubberChange);
+
+html.rewindToStartButton.addEventListener('click', () =>
+  updateStep(0)
+);
+html.stepBackButton.addEventListener('click', () =>
+  updateStep(Math.max(state.step - 1, 0))
+);
+html.playButton.addEventListener('click', () =>
+  setIsPlaying(!state.isPlaying)
+);
+html.stepForwardButton.addEventListener('click', () =>
+  updateStep(Math.min(state.step + 1, state.replay.max_steps - 1))
+);
+html.rewindToEndButton.addEventListener('click', () =>
+  updateStep(state.replay.max_steps - 1)
+);
+
+// Speed buttons
+for (let i = 0; i < html.speedButtons.length; i++) {
+  html.speedButtons[i].addEventListener('click',
+    () => setPlaybackSpeed(Common.SPEEDS[i])
+  );
+}
+
+// Toggle follow selection state.
+html.sortButton.addEventListener('click', () => {
+  state.sortTraces = !state.sortTraces;
+  toggleOpacity(html.sortButton, state.sortTraces);
+  requestFrame();
+});
+toggleOpacity(html.sortButton, state.sortTraces);
+html.sortButton.style.display = "none";
+
+html.focusButton.addEventListener('click', () => {
+  const reverse = !state.followSelection;
+  setFollowSelection(reverse, reverse);
+});
+toggleOpacity(html.focusButton, state.followSelection);
+
+html.gridButton.addEventListener('click', () => {
+  state.showGrid = !state.showGrid;
+  toggleOpacity(html.gridButton, state.showGrid);
+  requestFrame();
+});
+toggleOpacity(html.gridButton, state.showGrid);
+
+html.showViewButton.addEventListener('click', () => {
+  state.showViewRanges = !state.showViewRanges;
+  toggleOpacity(html.showViewButton, state.showViewRanges);
+  requestFrame();
+});
+toggleOpacity(html.showViewButton, state.showViewRanges);
+
+html.showFogOfWarButton.addEventListener('click', () => {
+  state.showFogOfWar = !state.showFogOfWar;
+  toggleOpacity(html.showFogOfWarButton, state.showFogOfWar);
+  requestFrame();
+});
+toggleOpacity(html.showFogOfWarButton, state.showFogOfWar);
+
+window.addEventListener('load', async () => {
   // Use local atlas texture.
   const atlasImageUrl = 'dist/atlas.png';
   const atlasJsonUrl = 'dist/atlas.json';
@@ -402,6 +475,7 @@ window.addEventListener('load', async () => {
   }
 
   await parseUrlParams();
+  setPlaybackSpeed(0.1);
 
   requestFrame();
 });
