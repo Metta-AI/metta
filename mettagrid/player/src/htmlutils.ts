@@ -9,7 +9,7 @@ export function parseHtmlColor(color: string): [number, number, number, number] 
   ];
 }
 
-// Find an element by id.
+// Find an element by css selector.
 export function find(selector: string): HTMLElement {
   const elements = document.querySelectorAll(selector);
   if (elements.length === 0) {
