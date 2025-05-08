@@ -6,7 +6,7 @@ import numpy as np
 import pufferlib
 from omegaconf import DictConfig, OmegaConf
 
-from mettagrid.config.utils import simple_instantiate
+from mettagrid.config.utils import calculate_diversity_bonus, simple_instantiate
 from mettagrid.mettagrid_c import MettaGrid  # pylint: disable=E0611
 from mettagrid.resolvers import register_resolvers
 
@@ -79,6 +79,14 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         infos = {}
         if self.terminals.all() or self.truncations.all():
+            if self._env_cfg.game.diversity_bonus.enabled:
+                self.rewards *= calculate_diversity_bonus(
+                    self._c_env.get_episode_rewards(),
+                    self._c_env._agents,
+                    self._env_cfg.game.diversity_bonus.similarity_coef,
+                    self._env_cfg.game.diversity_bonus.diversity_coef,
+                )
+
             self.process_episode_stats(infos)
             self.should_reset = True
 
