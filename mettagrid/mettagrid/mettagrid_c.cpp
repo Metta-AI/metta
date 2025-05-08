@@ -1,3 +1,6 @@
+// debugging
+#define PYBIND11_DETAILED_ERROR_MESSAGES
+
 #include "mettagrid_c.hpp"
 #include "grid.hpp"
 #include "event.hpp"
@@ -150,21 +153,19 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
             ssize_t idx = r * map_info.shape[1] + c;
             // xcxc will using a unique_ptr mean that the object is deleted when the unique_ptr goes out of scope?
             // Will that mess up the grid?
-            std::unique_ptr<Converter> converter = nullptr;
+            Converter* converter = nullptr;
             std::wstring wide_string(map_data + idx * max_chars, max_chars);
             std::wstring_convert<std::codecvt_utf8<wchar_t>> w_string_converter;
             std::string cell = w_string_converter.to_bytes(wide_string);
-
-            cout << cell << endl;
-            
+            cout << "cell: " << cell << endl;
             if (cell == "wall") {
-                auto wall = std::make_unique<Wall>(r, c, cfg["objects"]["wall"].cast<ObjectConfig>());
-                _grid->add_object(wall.get());
+                Wall* wall = new Wall(r, c, cfg["objects"]["wall"].cast<ObjectConfig>());
+                _grid->add_object(wall);
                 _stats->incr("objects.wall");
             }
             else if (cell == "block") {
-                auto block = std::make_unique<Wall>(r, c, cfg["objects"]["block"].cast<ObjectConfig>());
-                _grid->add_object(block.get());
+                Wall* block = new Wall(r, c, cfg["objects"]["block"].cast<ObjectConfig>());
+                _grid->add_object(block);
                 _stats->incr("objects.block");
             }
             else if (cell.starts_with("mine")) {
@@ -172,8 +173,8 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
                 if (m.find('.') == std::string::npos) {
                     m = "mine.red";
                 }
-                converter = std::make_unique<Converter>(r, c, cfg["objects"][py::str(m)].cast<ObjectConfig>(), ObjectType::MineT);
-                _grid->add_object(converter.get());
+                converter = new Converter(r, c, cfg["objects"][py::str(m)].cast<ObjectConfig>(), ObjectType::MineT);
+                _grid->add_object(converter);
                 _stats->incr("objects." + cell);
             }
             else if (cell.starts_with("generator")) {
@@ -181,44 +182,53 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
                 if (m.find('.') == std::string::npos) {
                     m = "generator.red";
                 }
-                converter = std::make_unique<Converter>(r, c, cfg["objects"][py::str(m)].cast<ObjectConfig>(), ObjectType::GeneratorT);
-                _grid->add_object(converter.get());
+                converter = new Converter(r, c, cfg["objects"][py::str(m)].cast<ObjectConfig>(), ObjectType::GeneratorT);
+                _grid->add_object(converter);
                 _stats->incr("objects." + cell);
             }
             else if (cell == "altar") {
-                converter = std::make_unique<Converter>(r, c, cfg["objects"]["altar"].cast<ObjectConfig>(), ObjectType::AltarT);
-                _grid->add_object(converter.get());
+                converter = new Converter(r, c, cfg["objects"]["altar"].cast<ObjectConfig>(), ObjectType::AltarT);
+                _grid->add_object(converter);
                 _stats->incr("objects.altar");
             }
             else if (cell == "armory") {
-                converter = std::make_unique<Converter>(r, c, cfg["objects"]["armory"].cast<ObjectConfig>(), ObjectType::ArmoryT);
-                _grid->add_object(converter.get());
+                converter = new Converter(r, c, cfg["objects"]["armory"].cast<ObjectConfig>(), ObjectType::ArmoryT);
+                _grid->add_object(converter);
                 _stats->incr("objects.armory");
             }
             else if (cell == "lasery") {
-                converter = std::make_unique<Converter>(r, c, cfg["objects"]["lasery"].cast<ObjectConfig>(), ObjectType::LaseryT);
-                _grid->add_object(converter.get());
+                converter = new Converter(r, c, cfg["objects"]["lasery"].cast<ObjectConfig>(), ObjectType::LaseryT);
+                _grid->add_object(converter);
                 _stats->incr("objects.lasery");
             }
             else if (cell == "lab") {
-                converter = std::make_unique<Converter>(r, c, cfg["objects"]["lab"].cast<ObjectConfig>(), ObjectType::LabT);
-                _grid->add_object(converter.get());
+                converter = new Converter(r, c, cfg["objects"]["lab"].cast<ObjectConfig>(), ObjectType::LabT);
+                _grid->add_object(converter);
                 _stats->incr("objects.lab");
             }
             else if (cell == "factory") {
-                converter = std::make_unique<Converter>(r, c, cfg["objects"]["factory"].cast<ObjectConfig>(), ObjectType::FactoryT);
-                _grid->add_object(converter.get());
+                converter = new Converter(r, c, cfg["objects"]["factory"].cast<ObjectConfig>(), ObjectType::FactoryT);
+                _grid->add_object(converter);
                 _stats->incr("objects.factory");
             }
             else if (cell == "temple") {
-                converter = std::make_unique<Converter>(r, c, cfg["objects"]["temple"].cast<ObjectConfig>(), ObjectType::TempleT);
-                _grid->add_object(converter.get());
+                converter = new Converter(r, c, cfg["objects"]["temple"].cast<ObjectConfig>(), ObjectType::TempleT);
+                _grid->add_object(converter);
                 _stats->incr("objects.temple");
             }
             else if (cell.starts_with("agent.")) {
                 std::string group_name = cell.substr(6);
                 auto group = groups[py::str(group_name)].cast<py::dict>();
-                auto agent_cfg = cfg["agent"].cast<ObjectConfig>();
+                cout << "group: " << group << endl;
+                auto agent_cfg_py = cfg["agent"].cast<py::dict>();
+                cout << "agent_cfg_py: " << agent_cfg_py << endl;
+                if (agent_cfg_py.contains("rewards")) {
+                    agent_cfg_py.attr("pop")("rewards");
+                }
+                cout << "agent_cfg_py: " << agent_cfg_py << endl;
+                auto agent_cfg = agent_cfg_py.cast<ObjectConfig>();
+                cout << "got agent_cfg" << endl;
+                // cout << "agent_cfg: " << agent_cfg << endl;
                 // xcxc something like this?
                 // auto merged_cfg = py::dict(agent_cfg) + group["props"].cast<py::dict>();
                 // auto agent_cfg = OmegaConf.to_container(OmegaConf.merge(
@@ -231,15 +241,16 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
                 //     rewards[inv_item + "_max"] = rewards.get(inv_item + "_max", 1000);
                 // }
                 unsigned int group_id = group["id"].cast<unsigned int>();
-                auto agent = std::make_unique<Agent>(r, c, group_name, group_id, agent_cfg, std::map<std::string, float>());
-                _grid->add_object(agent.get());
+                Agent* agent = new Agent(r, c, group_name, group_id, agent_cfg, std::map<std::string, float>());
+                _grid->add_object(agent);
                 agent->agent_id = _agents.size();
-                add_agent(agent.get());
+                add_agent(agent);
                 _group_sizes[group_id] += 1;
             }
             if (converter != nullptr) {
+                cout << "converter: " << converter << endl;
                 _stats->incr("objects." + cell);
-                _grid->add_object(converter.get());
+                _grid->add_object(converter);
                 converter->set_event_manager(_event_manager.get());
                 converter = nullptr;
             }
