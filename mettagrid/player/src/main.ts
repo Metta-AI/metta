@@ -324,8 +324,8 @@ async function parseUrlParams() {
     if (selectedObjectId >= 0 && selectedObjectId < state.replay.grid_objects.length) {
       state.selectedGridObject = state.replay.grid_objects[selectedObjectId];
       setFollowSelection(true);
-      ui.mapPanel.zoomLevel = 1 / 2;
-      ui.tracePanel.zoomLevel = 1;
+      ui.mapPanel.zoomLevel = Common.DEFAULT_ZOOM_LEVEL;
+      ui.tracePanel.zoomLevel = Common.DEFAULT_TRACE_ZOOM_LEVEL;
       console.info("Selected object via query parameter:", state.selectedGridObject);
     } else {
       console.warn("Invalid selectedObjectId:", selectedObjectId);

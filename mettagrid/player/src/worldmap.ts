@@ -48,8 +48,7 @@ export function focusFullMap(panel: PanelInfo) {
   }
   const width = state.replay.map_size[0] * Common.TILE_SIZE;
   const height = state.replay.map_size[1] * Common.TILE_SIZE;
-  panel.focusPos(width / 2, height / 2);
-  panel.zoomLevel = Math.min(panel.width / width, panel.height / height);
+  panel.focusPos(width / 2, height / 2, Math.min(panel.width / width, panel.height / height));
 }
 
 // Draw the the floor.
@@ -537,8 +536,8 @@ export function drawMap(panel: PanelInfo) {
       // Toggle followSelection on double-click
       console.log("Map double click - following selection");
       setFollowSelection(true);
-      panel.zoomLevel = 1 / 2;
-      ui.tracePanel.zoomLevel = 1;
+      panel.zoomLevel = Common.DEFAULT_ZOOM_LEVEL;
+      ui.tracePanel.zoomLevel = Common.DEFAULT_TRACE_ZOOM_LEVEL;
     } else if (ui.mouseClick) {
       // Map click - likely a drag/pan
       console.log("Map click - clearing follow selection");
@@ -566,7 +565,8 @@ export function drawMap(panel: PanelInfo) {
             // If selecting an agent, focus the trace panel on the agent.
             ui.tracePanel.focusPos(
               state.step * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
-              getAttr(state.selectedGridObject, "agent_id") * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT / 2
+              getAttr(state.selectedGridObject, "agent_id") * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT / 2,
+              Common.DEFAULT_TRACE_ZOOM_LEVEL
             );
           }
         }

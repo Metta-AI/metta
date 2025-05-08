@@ -9,7 +9,8 @@ export const ctx = new Context3d(find('#global-canvas') as HTMLCanvasElement);
 // Constants
 export const MIN_ZOOM_LEVEL = 0.025;
 export const MAX_ZOOM_LEVEL = 2.0;
-
+export const DEFAULT_ZOOM_LEVEL = 1 / 2;
+export const DEFAULT_TRACE_ZOOM_LEVEL = 1 / 4;
 export const SPLIT_DRAG_THRESHOLD = 10;  // pixels to detect split dragging
 export const SCROLL_ZOOM_FACTOR = 1000;  // divisor for scroll delta to zoom conversion
 export const DEFAULT_TRACE_SPLIT = 0.80;  // default horizontal split ratio
@@ -27,8 +28,8 @@ export const MINI_MAP_TILE_SIZE = 2;
 export const DEFAULT_VISION_SIZE = 11;
 
 // Trace constants
-export const TRACE_HEIGHT = 256;
-export const TRACE_WIDTH = 32;
+export const TRACE_HEIGHT = 512;
+export const TRACE_WIDTH = 54;
 
 // Colors for resources
 export const COLORS: [string, [number, number, number, number]][] = [
