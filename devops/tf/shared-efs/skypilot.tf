@@ -180,6 +180,11 @@ resource "aws_iam_role_policy" "skypilot_v1_pass_role" {
   })
 }
 
+resource "aws_iam_instance_profile" "skypilot_v1" {
+  name = "skypilot-v1"
+  role = aws_iam_role.skypilot_v1.name
+}
+
 # ECS Cluster
 resource "aws_ecs_cluster" "skypilot_api_server" {
   name = "skypilot-api-server"
