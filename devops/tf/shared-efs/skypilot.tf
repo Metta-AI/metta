@@ -202,6 +202,14 @@ resource "aws_ecs_task_definition" "skypilot_api_server" {
   # give AWS credentials to the api server
   task_role_arn = aws_iam_role.skypilot_api_server.arn
 
+  volume {
+    name = "skypilot-root-sky-volume"
+    efs_volume_configuration {
+      file_system_id     = aws_efs_file_system.shared_efs.id # Assumes aws_efs_file_system.shared_efs is defined
+      transit_encryption = "ENABLED"
+    }
+  }
+
   container_definitions = jsonencode([
     {
       name      = "skypilot"
@@ -211,6 +219,13 @@ resource "aws_ecs_task_definition" "skypilot_api_server" {
       portMappings = [{
         containerPort = local.skypilot_api_port
       }]
+      mountPoints = [
+        {
+          sourceVolume  = "skypilot-root-sky-volume"
+          containerPath = "/root/.sky"
+          readOnly      = false
+        }
+      ]
     }
   ])
 }
