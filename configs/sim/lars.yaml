@@ -5,4 +5,4 @@ defaults:
 name: diversity
 simulations:
   diversity:
-    env: env/mettagrid/diversity/left_or_right
+    env: env/mettagrid/diversity/multi_left_or_right

@@ -11,8 +11,8 @@ wandb:
   track: true
   checkpoint_interval: 1
 
-# trainer:
-#   replay_interval: 2
+trainer:
+  replay_interval: 100
 
 # run_id: left_right_test
 # run: ${oc.env:USER}.local.${run_id}
@@ -21,8 +21,8 @@ wandb:
 
 
 
-run: left-right-multiroom
-policy_uri: wandb://run/left_right_test_2
+run: left-right-multiroom-4
+policy_uri: wandb://run/left_right_test_4
 
 # trainer:
 #   sim:
