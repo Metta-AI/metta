@@ -39,6 +39,7 @@ resource "aws_security_group" "proxy" {
   }
 
   # Allow ssh
+  # There are no keys but you can connect through AWS Console
   ingress {
     from_port   = 22
     to_port     = 22

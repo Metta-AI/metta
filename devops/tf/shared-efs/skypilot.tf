@@ -167,7 +167,7 @@ resource "aws_ecs_service" "skypilot_service" {
   network_configuration {
     subnets          = [aws_default_subnet.proxy_subnet.id]
     security_groups  = [aws_security_group.allow_skypilot_inbound.id]
-    assign_public_ip = false # only exposed through tailscale
+    assign_public_ip = true # required to pull docker image
   }
 
   service_registries {
