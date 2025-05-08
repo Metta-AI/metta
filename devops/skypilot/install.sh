@@ -8,3 +8,5 @@ source .venv/skypilot/bin/activate
 uv pip install skypilot==0.9.2 --prerelease=allow
 uv pip install "skypilot[aws]"
 uv pip install "skypilot[vast]"
+
+sky api login -e 'http://skypilot-api-server.softmax:46580'
