@@ -57,6 +57,7 @@ class Experience:
         self.dones = torch.zeros(batch_size, pin_memory=pin)
         self.truncateds = torch.zeros(batch_size, pin_memory=pin)
         self.values = torch.zeros(batch_size, pin_memory=pin)
+        self.time_steps = torch.zeros(batch_size, pin_memory=pin, dtype=torch.long)
         self.e3b_inv = 10 * torch.eye(hidden_size).repeat(lstm_total_agents, 1, 1).to(device)
 
         self.actions_np = np.asarray(self.actions)
@@ -65,6 +66,7 @@ class Experience:
         self.dones_np = np.asarray(self.dones)
         self.truncateds_np = np.asarray(self.truncateds)
         self.values_np = np.asarray(self.values)
+        self.time_steps_np = np.asarray(self.time_steps)
 
         self.lstm_h = None
         self.lstm_c = None
@@ -97,7 +99,7 @@ class Experience:
     def full(self):
         return self.ptr >= self.batch_size
 
-    def store(self, obs, value, action, logprob, reward, done, env_id, mask):
+    def store(self, obs, value, action, logprob, reward, done, time_steps, env_id, mask):
         # Mask learner and Ensure indices do not exceed batch size
         ptr = self.ptr
         indices = np.where(mask)[0]
@@ -118,6 +120,7 @@ class Experience:
         self.logprobs_np[dst] = logprob.cpu().numpy()[cpu_inds]
         self.rewards_np[dst] = reward.cpu().numpy()[cpu_inds]
         self.dones_np[dst] = done.cpu().numpy()[cpu_inds]
+        self.time_steps_np[dst] = time_steps.cpu().numpy()[cpu_inds].squeeze(axis=-1)
         if isinstance(env_id, slice):
             self.sort_keys[dst, 1] = np.arange(cpu_inds.start, cpu_inds.stop, dtype=np.int32)
         else:
@@ -148,6 +151,7 @@ class Experience:
         self.b_logprobs = self.logprobs.to(self.device, non_blocking=True)
         self.b_dones = self.dones.to(self.device, non_blocking=True)
         self.b_values = self.values.to(self.device, non_blocking=True)
+        self.b_time_steps = self.time_steps.to(self.device, non_blocking=True)
         self.b_advantages = (
             advantages.reshape(self.minibatch_rows, self.num_minibatches, self.bptt_horizon)
             .transpose(0, 1)
@@ -159,4 +163,5 @@ class Experience:
         self.b_logprobs = self.b_logprobs[b_idxs]
         self.b_dones = self.b_dones[b_idxs]
         self.b_values = self.b_values[b_flat]
+        self.b_time_steps = self.b_time_steps[b_idxs]
         self.b_returns = self.b_advantages + self.b_values

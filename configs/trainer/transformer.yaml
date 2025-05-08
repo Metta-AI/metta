@@ -7,7 +7,7 @@ profiler_interval_epochs: 0
 forward_pass_minibatch_target_size: 144 # (agents (36 * 4))
 batch_size: 147456 # 144 * 1024
 minibatch_size: 18432 # 36 * 1024
-bptt_horizon: 1024
+bptt_horizon: 1024 #256
 update_epochs: 3
 
 clip_coef: 0.1
@@ -15,7 +15,7 @@ ent_coef: 0.0002
 gae_lambda: 0.9
 gamma: 0.97
 vf_coef: 2.0
-average_reward: false
+average_reward: true
 
 optimizer:
   type: adam

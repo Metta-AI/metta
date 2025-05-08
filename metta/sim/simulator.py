@@ -103,7 +103,7 @@ def play(config: SimulationConfig, policy_record: PolicyRecord):
             # Parallelize across opponents
 
             policy.eval()
-            actions, _, _, _, _ = policy(obs, policy_state)
+            actions, _, _, _, _ = policy(obs, policy_state, time_steps=time_steps)
             if actions.dim() == 0:  # scalar tensor like tensor(2)
                 actions = torch.tensor([actions.item()])
 

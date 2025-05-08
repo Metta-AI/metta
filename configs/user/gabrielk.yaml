@@ -8,8 +8,8 @@ defaults:
 
 
 device: cuda
-# vectorization: multiprocessing
-vectorization: serial
+vectorization: multiprocessing
+# vectorization: serial
 
 trainer:
   num_workers: 4
@@ -38,11 +38,11 @@ sim:
   num_episodes: 1
   max_time_s: 600
 
-# wandb:
-#   enabled: false
-#   track: false
+wandb:
+  enabled: false
+  track: false
 
-run_id: 34
+run_id: 41
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 

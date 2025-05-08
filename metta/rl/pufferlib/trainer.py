@@ -349,22 +349,22 @@ class PufferTrainer:
                     torch.cuda.synchronize()
 
             with profile.eval_misc:
+                value = value.flatten()
+                actions = actions.cpu().numpy()
+                mask = torch.as_tensor(mask)  # * policy.mask)
+                o = o if self.trainer_cfg.cpu_offload else o_device
+                self.experience.store(o, value, actions, logprob, r, t, self.time_steps, cpu_env_id, mask)
+
+                for i in info:
+                    for k, v in pufferlib.utils.unroll_nested_dict(i):
+                        infos[k].append(v)
+                
                 self.time_steps += 1
                 dones = d | t
                 if contiguous_env_ids:
                     self.time_steps[gpu_env_id][dones] = 0
                 else:
                     self.time_steps[gpu_env_id[dones]] = 0
-
-                value = value.flatten()
-                actions = actions.cpu().numpy()
-                mask = torch.as_tensor(mask)  # * policy.mask)
-                o = o if self.trainer_cfg.cpu_offload else o_device
-                self.experience.store(o, value, actions, logprob, r, d, cpu_env_id, mask)
-
-                for i in info:
-                    for k, v in pufferlib.utils.unroll_nested_dict(i):
-                        infos[k].append(v)
 
             with profile.env:
                 self.vecenv.send(actions)
@@ -383,7 +383,6 @@ class PufferTrainer:
         # TODO: Better way to enable multiple collects
         experience.ptr = 0
         experience.step = 0
-        # assert self.time_steps[0, 0] == 0
         return self.stats, infos
 
     @pufferlib.utils.profile
@@ -438,9 +437,10 @@ class PufferTrainer:
                     val = experience.b_values[mb]
                     adv = experience.b_advantages[mb]
                     ret = experience.b_returns[mb]
+                    ts = experience.b_time_steps[mb]
 
                 with profile.train_forward:
-                    _, newlogprob, entropy, newvalue, new_normalized_logits = self.policy(obs, lstm_state, action=atn)
+                    _, newlogprob, entropy, newvalue, new_normalized_logits = self.policy(obs, lstm_state, action=atn, time_steps=ts)
                     if self.device == "cuda":
                         torch.cuda.synchronize()
 

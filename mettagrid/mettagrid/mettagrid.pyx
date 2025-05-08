@@ -345,6 +345,8 @@ cdef class MettaGrid:
     cpdef tuple[cnp.ndarray, dict] reset(self):
         if self._current_timestep > 0:
             raise NotImplemented("Cannot reset after stepping")
+        
+        print("Reset")
 
         self._terminals[:] = 0
         self._truncations[:] = 0

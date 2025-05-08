@@ -65,11 +65,11 @@ components:
       - name: encoded_obs
     output_size: 128
     nn_params:
-      num_layers: 2
+      num_layers: 3
       num_heads: 8
       ffn_size: 128
-      context_size: 1024
-      gtrxl_gate: false
+      context_size: 1024 #256
+      gtrxl_gate: true
 
   core_relu:
     _target_: metta.agent.lib.nn_layer_library.ReLU
