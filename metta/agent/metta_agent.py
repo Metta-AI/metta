@@ -178,6 +178,9 @@ class MettaAgent(nn.Module):
         Returns:
             Tuple of (action, logprob_act, entropy, value, log_sftmx_logits)
         """
+
+        logger.info(f"x has shape: {x.shape}")
+
         # Initialize dictionary for TensorDict
         td = {"x": x, "state": None}
 
