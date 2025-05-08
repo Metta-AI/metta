@@ -38,12 +38,12 @@ class GridObject {
 public:
   GridObjectId id;
   GridLocation location;
-  TypeId _type_id;  // Changed to _type_id to match usage in grid.hpp
+  TypeId _type_id;
 
   virtual ~GridObject() = default;
 
   void init(TypeId type_id, const GridLocation& loc) {
-    this->_type_id = type_id;  // Updated to use _type_id
+    this->_type_id = type_id;
     this->location = loc;
   }
 
@@ -55,7 +55,7 @@ public:
     init(type_id, GridLocation(r, c, layer));
   }
 
-  virtual void obs(ObsType* obs, const std::vector<uint32_t>& offsets) const = 0;  // Updated to use std:: and uint32_t
+  virtual void obs(ObsType* obs, const std::vector<uint32_t>& offsets) const = 0;
 };
 
 #endif  // GRID_OBJECT_HPP
