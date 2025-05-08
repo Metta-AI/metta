@@ -31,6 +31,6 @@ analyzer:
   output_path: s3://softmax-public/users/jack/policydash/dashboard.html
 
 wandb:
-  checkpoint_interval: 1
+  checkpoint_interval: 10
 
 sweep_name: ${oc.env:USER}.local.sweep.${run_id}
