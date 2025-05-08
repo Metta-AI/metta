@@ -77,7 +77,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         env_map = np.array(env_map_list)
 
-        self._c_env = MettaGrid(self._env_cfg, env_map)
+        self._c_env = MettaGrid(OmegaConf.to_container(self._env_cfg), env_map)
         self._grid_env = self._c_env
         self._num_agents = self._c_env.num_agents()
 

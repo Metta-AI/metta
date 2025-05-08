@@ -131,11 +131,11 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
         throw std::runtime_error("Invalid Unicode size: not divisible by 4");
     }
     ssize_t max_chars = element_size / 4;
-    if (max_chars != 50) {
-        // This check is less necessary, since we can be flexible here
-        // It's mostly to ensure that we _really_ know what we're dealing with.
-        throw std::runtime_error("Invalid String Size: expected 50 characters");
-    }
+    // if (max_chars != 50) {
+    //     // This check is less necessary, since we can be flexible here
+    //     // It's mostly to ensure that we _really_ know what we're dealing with.
+    //     throw std::runtime_error("Invalid String Size: expected 50 characters, got " + std::to_string(max_chars));
+    // }
     
     std::vector<Layer> layer_for_type_id;
     for (const auto& layer : ObjectLayers) {
@@ -665,7 +665,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
     m.doc() = "MettaGrid environment"; // optional module docstring
     
     py::class_<MettaGrid>(m, "MettaGrid")
-        .def(py::init<py::dict, py::array_t<char*>>())
+        .def(py::init<py::dict, py::array>())
         .def("reset", &MettaGrid::reset)
         .def("step", &MettaGrid::step)
         .def("set_buffers", &MettaGrid::set_buffers)
