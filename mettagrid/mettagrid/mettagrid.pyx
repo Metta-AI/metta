@@ -386,6 +386,8 @@ cdef class MettaGrid:
                 group_id = agent.group
                 group_reward = self._group_rewards[group_id]
                 rewards[agent_idx] += group_reward
+
+
         return (obs, rewards, terms, truncs, infos)
 
     cpdef void set_buffers(
