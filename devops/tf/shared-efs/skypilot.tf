@@ -190,6 +190,21 @@ resource "aws_ecs_cluster" "skypilot_api_server" {
   name = "skypilot-api-server"
 }
 
+# Data
+resource "aws_efs_file_system" "skypilot_api_server_data" {
+  creation_token = "skypilot-api-server-data"
+  tags = {
+    Name = "skypilot-api-server-data"
+  }
+}
+
+resource "aws_efs_mount_target" "skypilot_api_server_data" {
+  file_system_id  = aws_efs_file_system.skypilot_api_server_data.id
+  subnet_id       = aws_default_subnet.proxy_subnet.id
+  security_groups = [aws_security_group.allow_efs_access.id]
+}
+
+
 # ECS Task Definition (Fargate)
 resource "aws_ecs_task_definition" "skypilot_api_server" {
   family                   = "skypilot-api-server-task"
@@ -205,7 +220,7 @@ resource "aws_ecs_task_definition" "skypilot_api_server" {
   volume {
     name = "skypilot-root-sky-volume"
     efs_volume_configuration {
-      file_system_id     = aws_efs_file_system.shared_efs.id # Assumes aws_efs_file_system.shared_efs is defined
+      file_system_id     = aws_efs_file_system.skypilot_api_server_data.id
       transit_encryption = "ENABLED"
     }
   }
