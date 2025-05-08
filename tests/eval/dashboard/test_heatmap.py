@@ -45,10 +45,10 @@ def sample_stats_db():
                 db.con.execute(
                     """
                     INSERT INTO episodes 
-                    (id, seed, map_w, map_h, step_count, started_at, finished_at, simulation_id)
-                    VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?)
+                    (id, step_count, created_at, completed_at, simulation_id, replay_url)
+                    VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?)
                     """,
-                    (ep_id, i, 10, 10, 100, sim_id),
+                    (ep_id, 100, sim_id, None),
                 )
 
         # Add policy entries
@@ -137,6 +137,7 @@ def sample_stats_db():
         # Add the mock method to the database instance
         db.get_replay_urls = mock_get_replay_urls
 
+        db.con.commit()  # Make sure all data is committed
         yield db
         db.close()
 
@@ -177,8 +178,8 @@ def test_get_heatmap_matrix(sample_stats_db):
 
 def test_get_heatmap_matrix_num_output_policies(sample_stats_db):
     """Test get_heatmap_matrix with 'num_output_policies' parameter."""
-    all_matrix = get_heatmap_matrix(sample_stats_db, "episode_reward", view_type="all")
-    limited_matrix = get_heatmap_matrix(sample_stats_db, "episode_reward", view_type="all", num_output_policies=2)
+    all_matrix = get_heatmap_matrix(sample_stats_db, "episode_reward")
+    limited_matrix = get_heatmap_matrix(sample_stats_db, "episode_reward", num_output_policies=2)
 
     # Check that the limited matrix has only the requested number of policies
     assert len(limited_matrix) == 2

@@ -189,10 +189,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             # TODO: Add groups
             groups = []
             group_metrics = {}
-            import logging
-
-            logger = logging.getLogger(__name__)
-            logger.info("Rewards: %s", episode_rewards)
             self._stats_writer.record_episode(
                 self._episode_id,
                 attributes,

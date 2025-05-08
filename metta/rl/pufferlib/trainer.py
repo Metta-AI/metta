@@ -17,6 +17,7 @@ from metta.agent.metta_agent import DistributedMettaAgent
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyStore
 from metta.agent.util.weights_analysis import WeightsMetricsHelper
+from metta.eval.eval_stats_db import EvalStatsDB
 from metta.rl import fast_gae
 from metta.rl.pufferlib.experience import Experience
 from metta.rl.pufferlib.kickstarter import Kickstarter
@@ -250,14 +251,14 @@ class PufferTrainer:
             stats_dir=Path(self.cfg.run_dir) / "stats",
         )
         result = sim.simulate()
-        stats_db = result.stats_db
+        result.stats_db.close()
+        stats_db = EvalStatsDB(result.stats_db.path)
+
         logger.info("Simulation complete")
 
-        # Define the list of evaluation categories
-        eval_categories = ["navigation", "object_use", "npc", "memory", "multiagent"]
-
-        # Materialize the view for reward once
-        stats_db.materialize_policy_simulations_view("reward")
+        eval_categories = set()
+        for sim_name in self.sim_suite_config.simulations.keys():
+            eval_categories.add(sim_name.split("/")[0])
 
         # Get policy key and version directly from the policy record
         policy_key, policy_version = self.last_pr.key_and_version()
@@ -267,10 +268,8 @@ class PufferTrainer:
 
         # Compute scores for each evaluation category
         for category in eval_categories:
-            score = stats_db.get_average_metric_by_filter(
-                "reward", policy_key, policy_version, f"sim_name LIKE '%{category}%'"
-            )
-            logging.info(f"{category} score: {score}")
+            score = stats_db.get_average_metric_by_filter("reward", self.last_pr, f"sim_name LIKE '%{category}%'")
+            logger.info(f"{category} score: {score}")
             # Only add the score if we got a non-None result
             if score is not None:
                 self.eval_suite_avgs[f"{category}_score"] = score
@@ -278,9 +277,9 @@ class PufferTrainer:
                 self.eval_suite_avgs[f"{category}_score"] = 0.0
 
         # Get overall score (average of all rewards)
-        overall_score = stats_db.get_average_metric_by_filter("reward", policy_key, policy_version)
+        overall_score = stats_db.get_average_metric_by_filter("reward", self.last_pr)
         self._current_eval_score = overall_score if overall_score is not None else 0.0
-        all_scores = stats_db.simulation_scores(policy_key, policy_version, "reward")
+        all_scores = stats_db.simulation_scores(self.last_pr, "reward")
 
         # Categorize scores by environment type
         self._eval_grouped_scores = {}

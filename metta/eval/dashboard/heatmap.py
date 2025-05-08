@@ -416,7 +416,7 @@ def get_heatmap_matrix(
     logger.info(f"Building heatmap matrix for metric {metric}")
 
     # Base SQL query using the policy_simulation_agent_aggregates view
-    base_sql = """
+    sql = """
     SELECT
         policy_key,
         policy_version,
@@ -429,7 +429,7 @@ def get_heatmap_matrix(
     # Add suite filtering if specified
     if suite is not None:
         logger.info(f"Adding suite filter for: {suite}")
-        base_sql += " AND sim_suite = ?"
+        sql += " AND sim_suite = ?"
         params.append(suite)
 
     # Log the SQL query for debugging

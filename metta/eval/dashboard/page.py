@@ -62,7 +62,7 @@ def generate_dashboard_html(db: EvalStatsDB, dashboard_cfg: DashboardConfig) -> 
     num_output_policies: int | Literal["all"] = dashboard_cfg.num_output_policies
     suite = dashboard_cfg.suite
 
-    matrix = get_heatmap_matrix(db, metric, view_type, suite, num_output_policies)
+    matrix = get_heatmap_matrix(db, metric, suite, num_output_policies)
 
     if matrix.empty:
         return "<html><body><h1>No data available</h1></body></html>"
