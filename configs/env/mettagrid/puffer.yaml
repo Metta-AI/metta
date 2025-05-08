@@ -20,6 +20,10 @@ game:
   tile_size: 16
   no_energy_steps: 500
   recursive_map_builder: true
+  diversity_bonus:
+    enabled: false
+    similarity_coef: 0.5  # Coefficient for within-group similarity
+    diversity_coef: 0.5   # Coefficient for between-group diversity
 
   agent:
     max_inventory: 50
