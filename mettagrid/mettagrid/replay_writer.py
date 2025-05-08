@@ -25,7 +25,8 @@ class ReplayWriter:
     def log_post_step(self, episode_id: str, rewards: np.ndarray):
         self.episodes[episode_id].log_post_step(rewards)
 
-    def write_replay(self, episode_id: str):
+    def write_replay(self, episode_id: str) -> str | None:
+        """Write the replay to the replay directory and return the URL."""
         if self.replay_dir is None:
             return None
         episode_replay = self.episodes[episode_id]
