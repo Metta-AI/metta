@@ -11,20 +11,7 @@
 #include <string>
 #include <vector>
 
-// Forward declarations for external classes
-class Grid;
-class GridObject;
-class Agent;
-class EventManager;
-class StatsTracker;
-class ActionHandler;
-class ObservationEncoder;
-
-// Type definitions
-typedef uint32_t GridObjectId;
-typedef uint32_t ActionType;
-typedef uint8_t ObsType;
-typedef std::map<std::string, int32_t> ActionConfig;
+#include "types.hpp"
 
 // Main MettaGrid class
 class CppMettaGrid {
@@ -32,7 +19,6 @@ private:
   // Grid and environment management
   std::unique_ptr<Grid> _grid;
   std::unique_ptr<EventManager> _event_manager;
-  std::unique_ptr<ObservationEncoder> _obs_encoder;
   std::unique_ptr<StatsTracker> _stats;
 
   // Action management

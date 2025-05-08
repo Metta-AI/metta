@@ -1,13 +1,9 @@
-#ifndef PRODUCTION_HANDLER_HPP
-#define PRODUCTION_HANDLER_HPP
+#ifndef EVENT_HANDLERS_HPP
+#define EVENT_HANDLERS_HPP
 
-#include <cstdint>  // Added for fixed-width integer types
-
-#include "event.hpp"
-#include "grid.hpp"
-#include "objects/constants.hpp"
+#include "event_manager.hpp"
 #include "objects/converter.hpp"
-#include "stats_tracker.hpp"
+#include "types.hpp"
 
 // Handles the FinishConverting event
 class ProductionHandler : public EventHandler {
@@ -40,4 +36,4 @@ public:
   }
 };
 
-#endif  // PRODUCTION_HANDLER_HPP
+#endif  // EVENT_HANDLERS_HPP

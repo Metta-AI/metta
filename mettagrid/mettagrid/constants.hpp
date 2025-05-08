@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-#include "grid_object.hpp"
+#include "types.hpp"
 
 enum Events {
   FinishConverting = 0,
@@ -16,6 +16,13 @@ enum Events {
 enum GridLayer {
   Agent_Layer = 0,
   Object_Layer = 1
+};
+
+enum Orientation {
+  Up = 0,
+  Down = 1,
+  Left = 2,
+  Right = 3
 };
 
 // There should be a one-to-one mapping between ObjectType and ObjectTypeNames.

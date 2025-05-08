@@ -1,31 +1,13 @@
-#ifndef EVENT_H
-#define EVENT_H
+#ifndef EVENT_MANAGER_HPP
+#define EVENT_MANAGER_HPP
 
 #include <cassert>
-#include <cstdint>  // Added for fixed-width integer types
 #include <queue>
 #include <vector>
 
-#include "grid.hpp"
-#include "grid_object.hpp"
-#include "stats_tracker.hpp"
+#include "types.hpp"
 
-typedef uint16_t EventId;
-typedef int32_t EventArg;
-
-struct Event {
-  uint32_t timestamp;
-  EventId event_id;
-  GridObjectId object_id;
-  EventArg arg;
-
-  bool operator<(const Event& other) const {
-    return timestamp > other.timestamp;
-  }
-};
-
-class EventManager;
-
+// Base event handler definition
 class EventHandler {
 protected:
   EventManager* event_manager;
@@ -40,6 +22,7 @@ public:
   virtual void handle_event(GridObjectId object_id, EventArg arg) = 0;
 };
 
+// Event Manager definition
 class EventManager {
 private:
   std::priority_queue<Event> _event_queue;
@@ -53,12 +36,12 @@ public:
   EventManager() {
     this->grid = nullptr;
     this->stats = nullptr;
+    this->_current_timestep = 0;
   }
 
   void init(Grid* grid, StatsTracker* stats) {
     this->grid = grid;
     this->stats = stats;
-    this->_current_timestep = 0;
   }
 
   ~EventManager() {
@@ -69,9 +52,7 @@ public:
 
   void schedule_event(EventId event_id, uint32_t delay, GridObjectId object_id, EventArg arg) {
     Event event;
-    // If the object id is 0, the object has probably not been added to the grid yet. Given
-    // our current usage of events, this is an error, since we won't be able to find the object
-    // later when the event resolves.
+    // If the object id is 0, the object has probably not been added to the grid yet.
     assert(object_id != 0);
     event.timestamp = this->_current_timestep + delay;
     event.event_id = event_id;
@@ -94,4 +75,4 @@ public:
   }
 };
 
-#endif  // EVENT_H
+#endif  // EVENT_MANAGER_HPP

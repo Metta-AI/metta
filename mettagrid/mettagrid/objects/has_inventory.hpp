@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-#include "objects/constants.hpp"
+#include "constants.hpp"
 #include "objects/metta_object.hpp"
 
 class HasInventory : public MettaObject {
@@ -17,7 +17,7 @@ public:
     this->inventory.resize(InventoryItem::InventoryCount);
   }
 
-  virtual bool has_inventory() {
+  virtual bool has_inventory() override {
     return true;
   }
 
@@ -34,6 +34,16 @@ public:
       amount = -this->inventory[item];
     }
     this->inventory[item] += amount;
+  }
+
+  virtual void obs(ObsType* obs) const override {
+    MettaObject::obs(obs);
+
+    // HasInventory-specific features
+    encode(obs, "has_inventory", 1);
+
+    // We don't encode inventory here because different derived classes
+    // may want to encode inventory with different prefixes
   }
 };
 

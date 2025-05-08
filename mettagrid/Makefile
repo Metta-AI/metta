@@ -275,6 +275,8 @@ bench-json: check-bench-tools $(SRC_OBJECTS) $(BENCH_EXECUTABLES)
 clean:
 	@echo "Cleaning build files..."
 	@rm -rf $(BUILD_DIR)
+	@find mettagrid -name "*.so" -type f -delete
+	@echo "Removed .so files from mettagrid directory"
 
 # Run format and test
 all: format test

@@ -5,8 +5,8 @@
 #include <string>
 
 #include "attack.hpp"
+#include "constants.hpp"
 #include "objects/agent.hpp"
-#include "objects/constants.hpp"
 
 class AttackNearest : public Attack {
 public:

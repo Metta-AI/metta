@@ -2,19 +2,14 @@
 #define GRID_OBJECT_HPP
 
 #include <cstdint>
+#include <iostream>
+#include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
-// Use the same typedefs as in core.hpp
-typedef uint32_t GridObjectId;
-typedef uint8_t ObsType;
-
-// Layer and TypeId should be consistent
-typedef uint16_t Layer;
-typedef uint16_t TypeId;
-
-// GridCoord should be consistent with the grid dimensions
-typedef uint32_t GridCoord;
+#include "constants.hpp"
+#include "types.hpp"
 
 class GridLocation {
 public:
@@ -27,14 +22,11 @@ public:
   inline GridLocation() : r(0), c(0), layer(0) {}
 };
 
-enum Orientation {
-  Up = 0,
-  Down = 1,
-  Left = 2,
-  Right = 3
-};
-
 class GridObject {
+private:
+  static std::unordered_map<std::string, int> _feature_map;
+  static int _next_feature_index;
+
 public:
   GridObjectId id;
   GridLocation location;
@@ -55,7 +47,49 @@ public:
     init(type_id, GridLocation(r, c, layer));
   }
 
-  virtual void obs(ObsType* obs, const std::vector<uint32_t>& offsets) const = 0;
+  // Pure virtual method to be implemented by derived classes
+  virtual void obs(ObsType* obs) const = 0;
+
+  // Get the observation size (total number of features)
+  static size_t get_observation_size() {
+    return _feature_map.size();
+  }
+
+  // Get all registered feature names
+  static std::vector<std::string> get_feature_names() {
+    std::vector<std::string> names(_feature_map.size());
+    for (const auto& pair : _feature_map) {
+      names[pair.second] = pair.first;
+    }
+    return names;
+  }
+
+protected:
+  // Register a feature name if it's not already registered
+  static size_t register_feature(const std::string& feature_name) {
+    auto it = _feature_map.find(feature_name);
+    if (it == _feature_map.end()) {
+      // Feature not found, register it
+      size_t index = _next_feature_index++;
+      _feature_map[feature_name] = index;
+      return index;
+    }
+    return it->second;
+  }
+
+  template <typename T>
+  void encode(ObsType* obs, const std::string& feature_name, T value) const {
+    // Register the feature if it doesn't exist
+    size_t index = register_feature(feature_name);
+
+    // Set the value in the observation array
+    obs[index] = static_cast<ObsType>(value);
+  }
+
+  // Special handling for boolean values
+  void encode(ObsType* obs, const std::string& feature_name, bool value) const {
+    encode(obs, feature_name, value ? 1 : 0);
+  }
 };
 
 #endif  // GRID_OBJECT_HPP

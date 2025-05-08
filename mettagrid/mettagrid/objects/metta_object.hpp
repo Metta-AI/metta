@@ -13,8 +13,12 @@ class MettaObject : public GridObject {
 public:
   uint32_t hp;
 
-  void init_mo(ObjectConfig cfg) {
+  void set_hp(ObjectConfig cfg) {
     this->hp = cfg["hp"];
+  }
+
+  virtual void obs(ObsType* obs) const override {
+    encode(obs, "hp", this->hp);
   }
 
   virtual bool has_inventory() {  // TODO: make const

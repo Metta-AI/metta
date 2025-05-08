@@ -6,10 +6,10 @@
 #include <string>
 #include <vector>
 
+#include "constants.hpp"
 #include "grid.hpp"
 #include "grid_object.hpp"
 #include "objects/agent.hpp"
-#include "objects/constants.hpp"
 
 struct StatNames {
   std::string success;

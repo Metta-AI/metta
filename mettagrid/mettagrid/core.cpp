@@ -13,14 +13,18 @@
 #include "actions/put_recipe_items.hpp"
 #include "actions/rotate.hpp"
 #include "actions/swap.hpp"
-#include "event.hpp"
+#include "constants.hpp"
+#include "event_handlers.hpp"
+#include "event_manager.hpp"
 #include "grid.hpp"
 #include "grid_object.hpp"
-#include "objects/constants.hpp"
-#include "objects/production_handler.hpp"
-#include "observation_encoder.hpp"
+#include "objects/agent.hpp"
+#include "objects/converter.hpp"
+#include "objects/wall.hpp"
 #include "stats_tracker.hpp"
+#include "types.hpp"
 
+// Constructor needs to be updated to use the new feature_names from GridObject
 CppMettaGrid::CppMettaGrid(uint32_t map_width,
                            uint32_t map_height,
                            uint32_t num_agents,
@@ -36,9 +40,8 @@ CppMettaGrid::CppMettaGrid(uint32_t map_width,
   // Create the grid - now owned by this class
   _grid = std::make_unique<Grid>(map_width, map_height);
 
-  // Create event manager and observation encoder - now using smart pointers
+  // Create event manager and stats tracker - now using smart pointers
   _event_manager = std::make_unique<EventManager>();
-  _obs_encoder = std::make_unique<ObservationEncoder>();
   _stats = std::make_unique<StatsTracker>();
 
   // Initialize the event manager
@@ -56,8 +59,8 @@ CppMettaGrid::CppMettaGrid(uint32_t map_width,
   _reward_multiplier = 1.0f;
   _reward_decay_factor = 3.0f / (_max_timestep > 0 ? _max_timestep : 100);
 
-  // Get grid features from the encoder
-  _grid_features = _obs_encoder->feature_names();
+  // Get grid features from GridObject instead of the encoder
+  _grid_features = GridObject::get_feature_names();
 
   // Initialize internal buffers
   initialize_buffers(num_agents);
@@ -70,8 +73,8 @@ CppMettaGrid::~CppMettaGrid() {
 }
 
 void CppMettaGrid::initialize_buffers(uint32_t num_agents) {
-  // Calculate buffer sizes
-  uint32_t obs_size = num_agents * _obs_width * _obs_height * _grid_features.size();
+  // Calculate buffer sizes using the GridObject's observation size
+  uint32_t obs_size = num_agents * _obs_width * _obs_height * GridObject::get_observation_size();
 
   // Resize all buffers
   _observations.resize(obs_size, 0);
@@ -81,7 +84,6 @@ void CppMettaGrid::initialize_buffers(uint32_t num_agents) {
   _episode_rewards.resize(num_agents, 0);
   _group_rewards.resize(num_agents, 0);  // Default size, will be adjusted later
 }
-
 // Initialize action handlers - modified to take ownership through cloning
 void CppMettaGrid::init_action_handlers(const std::vector<ActionHandler*>& action_handlers) {
   _num_action_handlers = action_handlers.size();
@@ -183,10 +185,11 @@ void CppMettaGrid::compute_observation(uint16_t observer_r,
                                        ObsType* observation) {
   uint16_t obs_width_r = obs_width >> 1;
   uint16_t obs_height_r = obs_height >> 1;
-  std::vector<ObsType> temp_obs(_grid_features.size(), 0);
+  // Get observation size from GridObject's static method
+  std::vector<ObsType> temp_obs(GridObject::get_observation_size(), 0);
 
   // Clear the observation buffer
-  memset(observation, 0, obs_width * obs_height * _grid_features.size() * sizeof(ObsType));
+  memset(observation, 0, obs_width * obs_height * GridObject::get_observation_size() * sizeof(ObsType));
 
   uint32_t r_start = std::max<uint32_t>(observer_r, obs_height_r) - obs_height_r;
   uint32_t c_start = std::max<uint32_t>(observer_c, obs_width_r) - obs_width_r;
@@ -208,11 +211,12 @@ void CppMettaGrid::compute_observation(uint16_t observer_r,
         // Reset temp buffer
         std::fill(temp_obs.begin(), temp_obs.end(), 0);
 
-        // Encode object into temp buffer
-        _obs_encoder->encode(obj, temp_obs.data());
+        // Updated: Use the object's own obs method instead of the encoder
+        obj->obs(temp_obs.data());
 
         // Set the observation at the correct location
-        set_observation_at(observation, obs_width, obs_height, _grid_features.size(), obs_r, obs_c, temp_obs.data());
+        set_observation_at(
+            observation, obs_width, obs_height, GridObject::get_observation_size(), obs_r, obs_c, temp_obs.data());
       }
     }
   }
@@ -745,42 +749,81 @@ std::string CppMettaGrid::render_ascii() const {
 }
 
 std::string CppMettaGrid::get_grid_objects_json() const {
-  nlohmann::json objects_json = nlohmann::json::object();
+  // Use a std::map to automatically sort keys
+  std::map<int, nlohmann::json> sorted_objects;
 
   for (size_t obj_id = 1; obj_id < _grid->objects.size(); obj_id++) {
     GridObject* obj = _grid->object(obj_id);
     if (obj == nullptr) continue;
 
-    // Create object entry
+    // Create object entry with basic info
     nlohmann::json obj_json;
     obj_json["id"] = obj_id;
-    obj_json["type"] = obj->_type_id;
+    obj_json["type_id"] = obj->_type_id;
+
+    // Add string type name
+    if (obj->_type_id < ObjectTypeNames.size()) {
+      obj_json["type_name"] = ObjectTypeNames[obj->_type_id];
+    } else {
+      obj_json["type_name"] = "Unknown";
+    }
+
+    // Add location info
     obj_json["r"] = obj->location.r;
     obj_json["c"] = obj->location.c;
     obj_json["layer"] = obj->location.layer;
 
-    // Get object features
-    std::vector<ObsType> obj_data(_grid_features.size(), 0);
-    _obs_encoder->encode(obj, obj_data.data());
+    // Updated: Get object features using the object's own obs method
+    std::vector<ObsType> obj_data(GridObject::get_observation_size(), 0);
+    obj->obs(obj_data.data());
 
-    // Add type-specific features
-    const auto& type_features = _obs_encoder->type_feature_names()[obj->_type_id];
-    for (size_t i = 0; i < type_features.size(); i++) {
-      obj_json[type_features[i]] = obj_data[i];
+    // Add features to JSON, using GridObject::get_feature_names() for mapping
+    const auto& feature_names = GridObject::get_feature_names();
+    for (size_t i = 0; i < feature_names.size(); i++) {
+      const std::string& feature_name = feature_names[i];
+      ObsType feature_value = obj_data[i];
+
+      // Skip zero values
+      if (feature_value == 0) {
+        continue;
+      }
+
+      // Validate specific features
+      bool is_valid = true;
+      if (feature_name == "color" && feature_value > 2) {
+        is_valid = false;
+      } else if (feature_name == "swappable" && feature_value > 1) {
+        is_valid = false;
+      }
+
+      if (!is_valid) {
+        std::cerr << "Warning: Invalid value " << static_cast<int>(feature_value) << " for feature '" << feature_name
+                  << "'"
+                  << " on object ID " << obj_id << " of type " << obj_json["type_name"].get<std::string>() << std::endl;
+        continue;
+      }
+
+      // Add valid feature to the JSON
+      obj_json[feature_name] = static_cast<int>(feature_value);
     }
 
-    // Add to objects map
-    objects_json[std::to_string(obj_id)] = obj_json;
+    // Add to sorted map
+    sorted_objects[static_cast<int>(obj_id)] = obj_json;
   }
 
   // Add agent_id to agent objects
   for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
     Agent* agent = _agents[agent_idx];
-    std::string agent_id_str = std::to_string(agent->id);
-
-    if (objects_json.contains(agent_id_str)) {
-      objects_json[agent_id_str]["agent_id"] = agent_idx;
+    int agent_id = static_cast<int>(agent->id);
+    if (sorted_objects.count(agent_id)) {
+      sorted_objects[agent_id]["agent_id"] = agent_idx;
     }
+  }
+
+  // Create final JSON object
+  nlohmann::json objects_json = nlohmann::json::object();
+  for (const auto& [id, obj_json] : sorted_objects) {
+    objects_json[std::to_string(id)] = obj_json;
   }
 
   return objects_json.dump();

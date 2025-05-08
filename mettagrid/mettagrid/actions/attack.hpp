@@ -5,8 +5,8 @@
 #include <string>
 
 #include "action_handler.hpp"
+#include "constants.hpp"
 #include "objects/agent.hpp"
-#include "objects/constants.hpp"
 #include "objects/metta_object.hpp"
 
 class Attack : public ActionHandler {

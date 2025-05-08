@@ -1,6 +1,10 @@
 #ifndef TEST_UTILS_HPP
 #define TEST_UTILS_HPP
 
+#include <fstream>
+#include <iostream>
+#include <sstream>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -134,6 +138,84 @@ inline std::unique_ptr<CppMettaGrid> create_test_grid(uint32_t map_width = 10,
   grid->initialize_from_json(create_test_map_json(), create_test_config_json());
 
   return grid;
+}
+
+// Create a MettaGrid from saved test data files
+inline std::unique_ptr<CppMettaGrid> create_grid_from_test_files(
+    const std::string& map_path = "test_data/mettagrid_test_args_env_map.txt",
+    const std::string& config_path = "test_data/mettagrid_test_args_env_cfg.json",
+    uint32_t max_timestep = 1000,
+    uint16_t obs_width = 11,
+    uint16_t obs_height = 11) {
+  // Read the map file
+  std::ifstream map_file(map_path);
+  if (!map_file.is_open()) {
+    throw std::runtime_error("Could not open map file: " + map_path);
+  }
+
+  // Parse map dimensions and content
+  std::vector<std::vector<std::string>> map_data;
+  std::string line;
+  while (std::getline(map_file, line)) {
+    std::vector<std::string> row;
+    std::istringstream ss(line);
+    std::string cell;
+    while (std::getline(ss, cell, ',')) {
+      row.push_back(cell);
+    }
+    if (!row.empty()) {
+      map_data.push_back(row);
+    }
+  }
+
+  // Determine map dimensions
+  uint32_t map_height = map_data.size();
+  uint32_t map_width = map_data.empty() ? 0 : map_data[0].size();
+
+  // Count agents in the map
+  uint32_t num_agents = 0;
+  for (const auto& row : map_data) {
+    for (const auto& cell : row) {
+      // Count cells that contain "agent" as agents
+      if (cell.find("agent") != std::string::npos) {
+        num_agents++;
+      }
+    }
+  }
+
+  // Read the config file
+  std::ifstream config_file(config_path);
+  if (!config_file.is_open()) {
+    throw std::runtime_error("Could not open config file: " + config_path);
+  }
+
+  // Read the entire file into a string
+  std::string config_str((std::istreambuf_iterator<char>(config_file)), std::istreambuf_iterator<char>());
+
+  // Parse the config JSON
+  nlohmann::json config = nlohmann::json::parse(config_str);
+
+  // Create the map JSON
+  nlohmann::json map_json = nlohmann::json::array();
+  for (const auto& row : map_data) {
+    map_json.push_back(row);
+  }
+
+  // Create the grid with dimensions from the map
+  auto grid = std::make_unique<CppMettaGrid>(map_width, map_height, num_agents, max_timestep, obs_width, obs_height);
+
+  // Initialize from the loaded map and config
+  grid->initialize_from_json(map_json.dump(), config["game"].dump());
+
+  return grid;
+}
+
+// Create a MettaGrid from the mettagrid_test_args specifically
+inline std::unique_ptr<CppMettaGrid> create_grid_from_mettagrid_args(const std::string& test_data_dir = "./test_data") {
+  std::string map_path = test_data_dir + "/mettagrid_test_args_env_map.txt";
+  std::string config_path = test_data_dir + "/mettagrid_test_args_env_cfg.json";
+
+  return create_grid_from_test_files(map_path, config_path);
 }
 
 }  // namespace test_utils

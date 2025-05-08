@@ -1,12 +1,12 @@
 #ifndef WALL_HPP
 #define WALL_HPP
 
-#include <cstdint>  // Added for fixed-width integer types
+#include <cstdint>
 #include <string>
 #include <vector>
 
+#include "constants.hpp"
 #include "grid_object.hpp"
-#include "objects/constants.hpp"
 #include "objects/metta_object.hpp"
 
 class Wall : public MettaObject {
@@ -15,22 +15,16 @@ public:
 
   Wall(GridCoord r, GridCoord c, ObjectConfig cfg) {
     GridObject::init(ObjectType::WallT, GridLocation(r, c, GridLayer::Object_Layer));
-    MettaObject::init_mo(cfg);
+    MettaObject::set_hp(cfg);
     this->_swappable = cfg["swappable"];
   }
 
-  virtual void obs(ObsType* obs, const std::vector<uint32_t>& offsets) const override {
-    obs[offsets[0]] = 1;
-    obs[offsets[1]] = this->hp;
-    obs[offsets[2]] = this->_swappable;
-  }
+  virtual void obs(ObsType* obs) const override {
+    MettaObject::obs(obs);
 
-  static std::vector<std::string> feature_names() {
-    std::vector<std::string> names;
-    names.push_back("wall");
-    names.push_back("hp");
-    names.push_back("swappable");
-    return names;
+    // wall-specific features
+    encode(obs, "wall", 1);
+    encode(obs, "swappable", this->_swappable);
   }
 
   virtual bool swappable() const override {

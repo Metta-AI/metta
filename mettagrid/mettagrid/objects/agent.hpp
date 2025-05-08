@@ -5,8 +5,8 @@
 #include <string>
 #include <vector>
 
+#include "constants.hpp"
 #include "grid_object.hpp"
-#include "objects/constants.hpp"
 #include "objects/metta_object.hpp"
 #include "stats_tracker.hpp"
 
@@ -37,7 +37,7 @@ public:
         // actions or inventory changes.
         std::map<std::string, float> rewards) {
     GridObject::init(ObjectType::AgentT, GridLocation(r, c, GridLayer::Agent_Layer));
-    MettaObject::init_mo(cfg);
+    MettaObject::set_hp(cfg);
 
     this->group_name = group_name;
     this->group = group_id;
@@ -107,32 +107,20 @@ public:
     return this->frozen;
   }
 
-  virtual void obs(ObsType* obs, const std::vector<uint32_t>& offsets) const override {
-    obs[offsets[0]] = 1;
-    obs[offsets[1]] = group;
-    obs[offsets[2]] = hp;
-    obs[offsets[3]] = frozen;
-    obs[offsets[4]] = orientation;
-    obs[offsets[5]] = color;
+  virtual void obs(ObsType* obs) const override {
+    MettaObject::obs(obs);
 
+    // Agent-specific features
+    encode(obs, "agent", 1);
+    encode(obs, "agent:group", group);
+    encode(obs, "agent:frozen", frozen);
+    encode(obs, "agent:orientation", orientation);
+    encode(obs, "agent:color", color);
+
+    // Inventory features
     for (int32_t i = 0; i < InventoryItem::InventoryCount; i++) {
-      obs[offsets[6 + i]] = inventory[i];
+      encode(obs, "agent:inv:" + InventoryItemNames[i], inventory[i]);
     }
-  }
-
-  static std::vector<std::string> feature_names() {
-    std::vector<std::string> names;
-    names.push_back("agent");
-    names.push_back("agent:group");
-    names.push_back("hp");
-    names.push_back("agent:frozen");
-    names.push_back("agent:orientation");
-    names.push_back("agent:color");
-
-    for (const auto& name : InventoryItemNames) {
-      names.push_back("agent:inv:" + name);
-    }
-    return names;
   }
 };
 

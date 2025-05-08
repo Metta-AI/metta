@@ -6,23 +6,23 @@
 #include <string>
 #include <vector>
 
-#include "event.hpp"
+#include "constants.hpp"
+#include "event_manager.hpp"
 #include "grid_object.hpp"
 #include "objects/agent.hpp"
-#include "objects/constants.hpp"
 #include "objects/has_inventory.hpp"
 #include "objects/metta_object.hpp"
+#include "types.hpp"
 
+// Converter class definition
 class Converter : public HasInventory {
 private:
-  // This should be called any time the converter could start converting. E.g.,
-  // when things are added to its input, and when it finishes converting.
+  // This should be called any time the converter could start converting
   void maybe_start_converting() {
-    // We can't start converting if there's no event manager, since we won't
-    // be able to schedule the finishing event.
+    // We can't start converting if there's no event manager, since we won'tbe able to schedule the finishing event.
     assert(this->event_manager != nullptr);
-    // We also need to have an id to schedule the finishing event. If our id
-    // is zero, we probably haven't been added to the grid yet.
+    // We also need to have an id to schedule the finishing event. If our id id zero, we probably haven't been added to
+    // the grid yet.
     assert(this->id != 0);
     if (this->converting || this->cooling_down) {
       return;
@@ -47,8 +47,7 @@ private:
     for (uint32_t i = 0; i < InventoryItem::InventoryCount; i++) {
       this->inventory[i] -= this->recipe_input[i];
     }
-    // All the previous returns were "we don't start converting".
-    // This one is us starting to convert.
+    // All the previous returns were "we don't start converting". This one is us starting to convert.
     this->converting = true;
     this->event_manager->schedule_event(Events::FinishConverting, this->conversion_ticks, this->id, 0);
   }
@@ -56,20 +55,17 @@ private:
 public:
   std::vector<uint8_t> recipe_input;
   std::vector<uint8_t> recipe_output;
-  // The converter won't convert if its output already has this many things of
-  // the type it produces. This may be clunky in some cases, but the main usage
-  // is to make Mines (etc) have a maximum output.
   uint16_t max_output;
-  uint8_t conversion_ticks;  // Time to produce output
-  uint8_t cooldown;          // Time to wait after producing before starting again
-  bool converting;           // Currently in production phase
-  bool cooling_down;         // Currently in cooldown phase
+  uint8_t conversion_ticks;
+  uint8_t cooldown;
+  bool converting;
+  bool cooling_down;
   uint8_t color;
   EventManager* event_manager;
 
   Converter(GridCoord r, GridCoord c, ObjectConfig cfg, TypeId type_id) {
     GridObject::init(type_id, GridLocation(r, c, GridLayer::Object_Layer));
-    MettaObject::init_mo(cfg);
+    MettaObject::set_hp(cfg);
     HasInventory::init_has_inventory(cfg);
     this->recipe_input.resize(InventoryItem::InventoryCount);
     this->recipe_output.resize(InventoryItem::InventoryCount);
@@ -85,7 +81,6 @@ public:
     this->cooling_down = false;
 
     // Initialize inventory with initial_items for all output types
-    // Default to recipe_output values if initial_items is not present
     uint8_t initial_items = cfg["initial_items"];
     for (uint32_t i = 0; i < InventoryItem::InventoryCount; i++) {
       if (this->recipe_output[i] > 0) {
@@ -134,30 +129,19 @@ public:
     this->maybe_start_converting();
   }
 
-  void obs(ObsType* obs, const std::vector<uint32_t>& offsets) const override {
-    obs[offsets[0]] = 1;
-    obs[offsets[1]] = this->hp;
-    obs[offsets[2]] = this->color;
-    obs[offsets[3]] = this->converting || this->cooling_down;
-    for (uint32_t i = 0; i < InventoryItem::InventoryCount; i++) {
-      obs[offsets[4] + i] = this->inventory[i];
-    }
-  }
+  virtual void obs(ObsType* obs) const override {
+    HasInventory::obs(obs);
 
-  static std::vector<std::string> feature_names(TypeId type_id) {
-    std::vector<std::string> names;
-    // We use the same feature names for all converters, since this compresses
-    // the observation space. At the moment we don't expose the recipe, since
-    // we expect converters to be hard coded.
-    names.push_back(ObjectTypeNames[type_id]);
-    names.push_back("hp");
-    names.push_back("color");
-    names.push_back("converting");
+    // Converter-specific features
+    encode(obs, ObjectTypeNames[_type_id], 1);
+    encode(obs, "color", this->color);
+    encode(obs, "converting", this->converting || this->cooling_down);
+
+    // Inventory features
     for (uint32_t i = 0; i < InventoryItem::InventoryCount; i++) {
-      names.push_back("inv:" + InventoryItemNames[i]);
+      encode(obs, "inv:" + InventoryItemNames[i], this->inventory[i]);
     }
-    return names;
   }
 };
 
-#endif
+#endif  // CONVERTER_HPP

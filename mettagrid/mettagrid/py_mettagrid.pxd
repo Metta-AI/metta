@@ -7,12 +7,30 @@ from libcpp.map cimport map
 from libc.stdint cimport uint8_t, uint16_t, uint32_t, int8_t, int32_t
 from libcpp cimport bool
 
-# Basic type definitions
-ctypedef uint32_t GridObjectId
-ctypedef uint32_t ActionType
-ctypedef uint8_t ObsType
 
-# Forward declarations - use extern to avoid redefinition
+# Forward declarations - updated to match our new structure
+cdef extern from "types.hpp":
+    ctypedef uint32_t GridObjectId
+    ctypedef uint8_t ObsType
+    ctypedef uint32_t ActionType
+
+    cdef struct Event:
+        uint32_t timestamp
+        uint16_t event_id
+        GridObjectId object_id
+        int32_t arg
+        
+        bint operator_lt "operator<"(const Event& other)
+
+cdef extern from "event_manager.hpp":
+    cdef cppclass EventHandler:
+        EventHandler(EventManager* em)
+        void handle_event(GridObjectId object_id, int32_t arg)
+    
+    cdef cppclass EventManager:
+        void schedule_event(uint16_t event_id, uint32_t delay, GridObjectId object_id, int32_t arg)
+        void process_events(uint32_t current_timestep)
+
 cdef extern from "grid_object.hpp":
     cdef struct GridLocation:
         uint32_t r
@@ -20,37 +38,29 @@ cdef extern from "grid_object.hpp":
         uint32_t layer
         
         GridLocation(uint32_t row, uint32_t col, uint32_t l)
+    
+    cdef cppclass GridObject
 
 cdef extern from "action_handler.hpp":
     cdef cppclass ActionArg:
         int32_t value
         ActionArg(int32_t v)
 
-# Forward declare the classes from other modules
 cdef extern from "grid.hpp":
     cdef cppclass Grid
-    
-cdef extern from "grid_object.hpp":
-    cdef cppclass GridObject
-    
-cdef extern from "event.hpp":
-    cdef cppclass EventManager
     
 cdef extern from "stats_tracker.hpp":
     cdef cppclass StatsTracker
     
 cdef extern from "action_handler.hpp":
     cdef cppclass ActionHandler
-    
-cdef extern from "observation_encoder.hpp":
-    cdef cppclass ObservationEncoder
-    
-cdef extern from "objects/agent.hpp":
-    cdef cppclass Agent
 
-cdef extern from "objects/constants.hpp":
+cdef extern from "constants.hpp":
     cdef vector[string] ObjectTypeNames
     cdef vector[string] InventoryItemNames
+
+cdef extern from "objects/agent.hpp":
+    cdef cppclass Agent
 
 # Updated MettaGrid class definition with precise types
 cdef extern from "core.hpp":

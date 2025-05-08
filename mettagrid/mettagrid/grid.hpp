@@ -5,8 +5,8 @@
 #include <cstdint>
 #include <vector>
 
+#include "constants.hpp"
 #include "grid_object.hpp"
-#include "objects/constants.hpp"
 
 /**
  * A 3D grid representation for storing game objects.
