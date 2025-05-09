@@ -1,11 +1,12 @@
 # Makefile for code formatting, linting, and testing 
-.PHONY: help format check-tools install-tools test benchmark clean check-test-tools install-test-tools check-bench-tools install-bench-tools build build-clean all
+.PHONY: help format check-tools install-tools test benchmark clean check-test-tools install-test-tools check-bench-tools install-bench-tools build build-clean all build-for-ci
 
 # Default target when just running 'make'
 help:
 	@echo "Available targets:"
 	@echo "  build             - Build mettagrid using the rebuild script"
 	@echo "  build-clean       - Build mettagrid with clean option"
+	@echo "  build-for-ci      - Build all source, test, and benchmark files without running tests (for CI)"
 	@echo "  format            - Format C++/C files"
 	@echo "  check-tools       - Check if required formatting tools are installed"
 	@echo "  install-tools     - Install required formatting tools (macOS only)"
@@ -51,6 +52,17 @@ BENCH_CXXFLAGS = $(CXXFLAGS) $(BENCHMARK_INCLUDE)
 # Source files for mettagrid core library
 SRC_SOURCES := $(wildcard $(SRC_DIR)/*.cpp $(SRC_DIR)/**/*.cpp)
 SRC_OBJECTS := $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_SRC_DIR)/%.o,$(SRC_SOURCES))
+
+#-----------------------
+# CI Build Target
+#-----------------------
+
+# Build all test and benchmark executables without running them (for CI environments)
+build-for-ci: $(SRC_OBJECTS) $(TEST_EXECUTABLES) $(BENCH_EXECUTABLES)
+	@echo "Built all source files, test executables, and benchmark executables"
+	@echo "Source objects: $(words $(SRC_OBJECTS))"
+	@echo "Test executables: $(words $(TEST_EXECUTABLES))"
+	@echo "Benchmark executables: $(words $(BENCH_EXECUTABLES))"
 
 #-----------------------
 # Build
