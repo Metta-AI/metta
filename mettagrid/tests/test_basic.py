@@ -81,7 +81,7 @@ def test_basic(environment):
 
     # Take a step with NoOp actions for all agents
     # Create properly formatted actions with correct dtype
-    actions = np.array([[0, 0]] * num_agents, dtype=np.int32)
+    actions = np.array([[0, 0]] * num_agents, dtype=np.uint8)
 
     obs, rewards, terminated, truncated, infos = environment.step(actions)
 

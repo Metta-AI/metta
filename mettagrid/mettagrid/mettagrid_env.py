@@ -161,8 +161,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     def step(self, actions: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, dict]:
         """
-        This method overrides the reset method from PufferEnv.
-
         Take a step in the environment with the given actions.
 
         Args:
@@ -171,6 +169,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         Returns:
             Tuple of (observations, rewards, terminals, truncations, infos)
         """
+        np.copyto(self.actions, actions.astype(np.uint8, casting="unsafe"))
 
         if self._replay_writer:
             self._replay_writer.log_pre_step(self._episode_id, self.actions)

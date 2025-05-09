@@ -205,10 +205,9 @@ cdef class MettaGrid:
             shape_tuple = tuple([actions.shape[i] for i in range(actions.ndim)])
             raise ValueError("Actions must have shape ({0}, 2), got {1}".format(
                 self._num_agents, shape_tuple))
-    
-        actions_flat = np.ascontiguousarray(actions, dtype=np.uint8).reshape(-1)
 
-        self._cpp_mettagrid.step(actions_flat)
+        actions_flat = np.ascontiguousarray(actions, dtype=np.uint8).reshape(-1)
+        self._cpp_mettagrid.step(actions_flat.tobytes())
 
         self._cpp_mettagrid.compute_group_rewards(<float*>self._rewards_np.data)
         return (self._observations_np, self._rewards_np, self._terminals_np, self._truncations_np, {})
