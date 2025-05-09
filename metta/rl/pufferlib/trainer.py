@@ -2,6 +2,7 @@ import logging
 import os
 import time
 from collections import defaultdict
+from pathlib import Path
 
 import numpy as np
 import pufferlib
@@ -16,18 +17,16 @@ from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyStore
 from metta.agent.util.weights_analysis import WeightsMetricsHelper
-from metta.eval.analysis_config import AnalyzerConfig
+from metta.eval.eval_stats_db import EvalStatsDB
 from metta.rl.fast_gae import compute_gae
 from metta.rl.pufferlib.experience import Experience
 from metta.rl.pufferlib.kickstarter import Kickstarter
 from metta.rl.pufferlib.profile import Profile
 from metta.rl.pufferlib.torch_profiler import TorchProfiler
 from metta.rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
-from metta.sim.eval_stats_analyzer import EvalStatsAnalyzer
-from metta.sim.eval_stats_db import EvalStatsDB
-from metta.sim.eval_stats_logger import EvalStatsLogger
-from metta.sim.simulation import Simulation, SimulationSuite
+from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationConfig, SimulationSuiteConfig
+from metta.sim.simulation_suite import SimulationSuite
 from metta.sim.vecenv import make_vecenv
 from metta.util.config import config_from_path
 from mettagrid.mettagrid_env import MettaGridEnv
@@ -72,16 +71,16 @@ class PufferTrainer:
         self.stats = defaultdict(list)
         self.wandb_run = wandb_run
         self.policy_store = policy_store
-        self.eval_stats_logger = EvalStatsLogger(self.sim_suite_config, wandb_run)
         self.average_reward = 0.0  # Initialize average reward estimate
         self._current_eval_score = None
-        self.eval_scores = {}
-        self._eval_results = []
+        self._eval_grouped_scores = {}
+        self._eval_suite_avgs = {}
+        self._eval_categories = set()
         self._weights_helper = WeightsMetricsHelper(cfg)
         self._make_vecenv()
 
-        self.metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
-        assert isinstance(self.metta_grid_env, MettaGridEnv)
+        metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
+        assert isinstance(metta_grid_env, MettaGridEnv)
 
         logger.info("Loading checkpoint")
         os.makedirs(cfg.trainer.checkpoint_dir, exist_ok=True)
@@ -103,7 +102,7 @@ class PufferTrainer:
                 policy_record = policy_store.policy(policy_path)
             elif self._master:
                 logger.info(f"Failed to load policy from default checkpoint: {policy_path}. Creating a new policy!")
-                policy_record = policy_store.create(self.metta_grid_env)
+                policy_record = policy_store.create(metta_grid_env)
 
         assert policy_record is not None, "No policy found"
 
@@ -116,8 +115,10 @@ class PufferTrainer:
         self.policy_record = policy_record
         self.uncompiled_policy = self.policy
 
-        actions_names = self.metta_grid_env.action_names()
-        actions_max_params = self.metta_grid_env._c_env.max_action_args()
+        # Note that these fields are specific to MettaGridEnv, which is why we can't keep
+        # self.vecenv.driver_env as just the parent class pufferlib.PufferEnv
+        actions_names = metta_grid_env.action_names()
+        actions_max_params = metta_grid_env._c_env.max_action_args()
 
         self.policy.activate_actions(actions_names, actions_max_params, self.device)
 
@@ -150,7 +151,7 @@ class PufferTrainer:
         # validate that policy matches environment
         self.metta_agent: MettaAgent = self.policy  # type: ignore
         assert isinstance(self.metta_agent, MettaAgent)
-        _env_shape = self.metta_grid_env.single_observation_space.shape
+        _env_shape = metta_grid_env.single_observation_space.shape
         environment_shape = tuple(_env_shape) if isinstance(_env_shape, list) else _env_shape
 
         found_match = False
@@ -215,8 +216,7 @@ class PufferTrainer:
         logger.info(f"Training on {self.device}")
         while self.agent_step < self.trainer_cfg.total_timesteps:
             with self.torch_profiler:
-                # Collecting experience
-                self._evaluate()
+                self._rollout()
 
                 # Training on collected experience
                 self._train()
@@ -273,41 +273,46 @@ class PufferTrainer:
         if not self._master:
             return
 
-        self.cfg.analyzer.policy_uri = self.last_pr.uri
-
-        run_id = self.cfg.get("run_id")
-        if run_id is None and self.wandb_run is not None:
-            run_id = self.wandb_run.id
-
         logger.info(f"Simulating policy: {self.last_pr.uri} with config: {self.sim_suite_config}")
-        sim = SimulationSuite(config=self.sim_suite_config, policy_pr=self.last_pr, policy_store=self.policy_store)
-        stats = sim.simulate()
+        sim = SimulationSuite(
+            config=self.sim_suite_config,
+            policy_pr=self.last_pr,
+            policy_store=self.policy_store,
+            stats_dir=Path(self.cfg.run_dir) / "stats",
+        )
+        result = sim.simulate()
+        result.stats_db.close()
+        stats_db = EvalStatsDB(result.stats_db.path)
+
         logger.info("Simulation complete")
 
-        try:
-            self.eval_stats_logger.log(stats)
-        except Exception as e:
-            logger.error(f"Error logging stats: {e}")
+        self._eval_categories = set()
+        for sim_name in self.sim_suite_config.simulations.keys():
+            self._eval_categories.add(sim_name.split("/")[0])
+        self._eval_suite_avgs = {}
 
-        eval_stats_db = EvalStatsDB.from_uri(self.sim_suite_config.eval_db_uri, self.cfg.run_dir, self.wandb_run)
-        analyzer_cfg = AnalyzerConfig(self.cfg.analyzer)
-        analyzer = EvalStatsAnalyzer(eval_stats_db, analyzer_cfg.analysis, analyzer_cfg.policy_uri)
-        _, policy_fitness_records = analyzer.analyze()
-        self._eval_results = policy_fitness_records
+        # Compute scores for each evaluation category
+        for category in self._eval_categories:
+            score = stats_db.get_average_metric_by_filter("reward", self.last_pr, f"sim_name LIKE '%{category}%'")
+            logger.info(f"{category} score: {score}")
+            # Only add the score if we got a non-None result
+            if score is not None:
+                self._eval_suite_avgs[f"{category}_score"] = score
+            else:
+                self._eval_suite_avgs[f"{category}_score"] = 0.0
 
-        self.eval_scores = {
-            "navigation_score": np.mean([r["candidate_mean"] for r in self._eval_results if "navigation" in r["eval"]]),
-            "object_use_score": np.mean(
-                np.mean([r["candidate_mean"] for r in self._eval_results if "object_use" in r["eval"]])
-            ),
-            "against_npc_score": np.mean([r["candidate_mean"] for r in self._eval_results if "npc" in r["eval"]]),
-            "memory_score": np.mean([r["candidate_mean"] for r in self._eval_results if "memory" in r["eval"]]),
-            "multiagent_score": np.mean([r["candidate_mean"] for r in self._eval_results if "multiagent" in r["eval"]]),
-        }
+        # Get overall score (average of all rewards)
+        overall_score = stats_db.get_average_metric_by_filter("reward", self.last_pr)
+        self._current_eval_score = overall_score if overall_score is not None else 0.0
+        all_scores = stats_db.simulation_scores(self.last_pr, "reward")
 
-        self._current_eval_score = np.sum(
-            [r["candidate_mean"] for r in self._eval_results if r["metric"] == "episode_reward"]
-        )
+        # Categorize scores by environment type
+        self._eval_grouped_scores = {}
+        # Process each score and assign to the right category
+        for (_, sim_name, _), score in all_scores.items():
+            for category in self._eval_categories:
+                if category in sim_name.lower():
+                    self._eval_grouped_scores[f"{category}/{sim_name.split('/')[-1]}"] = score
 
     def _update_l2_init_weight_copy(self):
         self.policy.update_l2_init_weight_copy()
@@ -316,7 +321,7 @@ class PufferTrainer:
         pass
 
     @pufferlib.utils.profile
-    def _evaluate(self):
+    def _rollout(self):
         experience, profile = self.experience, self.profile
 
         with profile.eval_misc:
@@ -333,7 +338,7 @@ class PufferTrainer:
                 # This was originally self.config.env_batch_size == 1, but you have scaling
                 # configured differently in metta. You want the whole forward pass batch to come
                 # from one core to reduce indexing overhead.
-                # contiguous_env_ids = self.vecenv.agents_per_batch == self.metta_grid_env.agents_per_env[0]
+                # contiguous_env_ids = self.vecenv.agents_per_batch == metta_grid_env.agents_per_env[0]
                 contiguous_env_ids = self.trainer_cfg.async_factor == self.trainer_cfg.num_workers
                 contiguous_env_ids = False
                 if contiguous_env_ids:
@@ -570,6 +575,9 @@ class PufferTrainer:
         if not self._master:
             return
 
+        metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
+        assert isinstance(metta_grid_env, MettaGridEnv)
+
         name = self.policy_store.make_model_name(self.epoch)
 
         generation = 0
@@ -584,12 +592,12 @@ class PufferTrainer:
                 "agent_step": self.agent_step,
                 "epoch": self.epoch,
                 "run": self.cfg.run,
-                "action_names": self.metta_grid_env.action_names(),
+                "action_names": metta_grid_env.action_names(),
                 "generation": generation,
                 "initial_uri": self._initial_pr.uri,
                 "train_time": time.time() - self.train_start,
                 "score": self._current_eval_score,
-                "eval_scores": self.eval_scores,
+                "eval_scores": self._eval_suite_avgs,
             },
         )
         # this is hacky, but otherwise the initial_pr points
@@ -610,18 +618,29 @@ class PufferTrainer:
         if self._master:
             logger.info("Generating and saving a replay to wandb and S3.")
             dry_run = self.trainer_cfg.get("replay_dry_run", False)
-            replay_path = f"s3://softmax-public/replays/{self.cfg.run}/replay.{self.epoch}.json.z"
+            replay_dir = f"s3://softmax-public/replays/{self.cfg.run}"
             if dry_run:
-                logger.info(f"Dry run: Would write replay to {replay_path}")
-                replay_path = None
+                logger.info(f"Dry run: Would write replay to {replay_dir}")
+                replay_dir = None
+            name = f"replay_{self.epoch}"
             replay_simulator = Simulation(
-                self.replay_sim_config,
-                self.last_pr,
-                self.policy_store,
-                wandb_run=self.wandb_run,
-                replay_path=replay_path,
+                name=name,
+                config=self.replay_sim_config,
+                policy_pr=self.last_pr,
+                policy_store=self.policy_store,
+                replay_dir=replay_dir,
             )
-            replay_simulator.simulate(epoch=self.epoch)
+            results = replay_simulator.simulate()
+
+            if self.wandb_run is not None and not dry_run:
+                replay_url = results.stats_db.get_replay_urls(
+                    policy_key=self.last_pr.key(), policy_version=self.last_pr.version()
+                )[0]
+                player_url = "https://metta-ai.github.io/metta/?replayUrl=" + replay_url
+                link_summary = {
+                    "replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {self.epoch})</a>')
+                }
+                self.wandb_run.log(link_summary)
 
     def _process_stats(self):
         for k in list(self.stats.keys()):
@@ -645,58 +664,12 @@ class PufferTrainer:
             if k in self.stats:
                 overview[v] = self.stats[k]
 
-        navigation_score = np.mean([r["candidate_mean"] for r in self._eval_results if "navigation" in r["eval"]])
-        object_use_score = np.mean([r["candidate_mean"] for r in self._eval_results if "object_use" in r["eval"]])
-        against_npc_score = np.mean([r["candidate_mean"] for r in self._eval_results if "npc" in r["eval"]])
-        memory_score = np.mean([r["candidate_mean"] for r in self._eval_results if "memory" in r["eval"]])
-        multiagent_score = np.mean([r["candidate_mean"] for r in self._eval_results if "multiagent" in r["eval"]])
-
-        if not np.isnan(navigation_score):
-            overview["navigation_evals"] = navigation_score
-        if not np.isnan(object_use_score):
-            overview["object_use_evals"] = object_use_score
-        if not np.isnan(against_npc_score):
-            overview["npc_evals"] = against_npc_score
-        if not np.isnan(memory_score):
-            overview["memory_evals"] = memory_score
-        if not np.isnan(multiagent_score):
-            overview["multiagent_evals"] = multiagent_score
+        for category in self._eval_categories:
+            score = self._eval_suite_avgs.get(f"{category}_score", None)
+            if score is not None:
+                overview[f"{category}_evals"] = score
 
         environment = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
-
-        policy_fitness_metrics = {
-            f"pfs/{r['eval'].split('/')[-1]}:{r['metric']}": r["fitness"] for r in self._eval_results
-        }
-
-        navigation_eval_metrics = {
-            f"navigation_evals/{r['eval'].split('/')[-1]}:{r['metric']}": r["candidate_mean"]
-            for r in self._eval_results
-            if "navigation" in r["eval"]
-        }
-
-        object_use_eval_metrics = {
-            f"object_use_evals/{r['eval'].split('/')[-1]}:{r['metric']}": r["candidate_mean"]
-            for r in self._eval_results
-            if "object_use" in r["eval"]
-        }
-
-        against_npc_eval_metrics = {
-            f"npc_evals/{r['eval'].split('/')[-1]}:{r['metric']}": r["candidate_mean"]
-            for r in self._eval_results
-            if "npc" in r["eval"]
-        }
-
-        memory_eval_metrics = {
-            f"memory_evals/{r['eval'].split('/')[-1]}:{r['metric']}": r["candidate_mean"]
-            for r in self._eval_results
-            if "memory" in r["eval"]
-        }
-
-        multiagent_eval_metrics = {
-            f"multiagent_evals/{r['eval'].split('/')[-1]}:{r['metric']}": r["candidate_mean"]
-            for r in self._eval_results
-            if "multiagent" in r["eval"]
-        }
 
         if self.wandb_run and self.cfg.wandb.track and self._master:
             self.wandb_run.log(
@@ -705,13 +678,8 @@ class PufferTrainer:
                     **{f"losses/{k}": v for k, v in losses.items()},
                     **{f"performance/{k}": v for k, v in performance.items()},
                     **environment,
-                    **policy_fitness_metrics,
                     **self._weights_helper.stats(),
-                    **navigation_eval_metrics,
-                    **object_use_eval_metrics,
-                    **against_npc_eval_metrics,
-                    **memory_eval_metrics,
-                    **multiagent_eval_metrics,
+                    **self._eval_grouped_scores,
                     "train/agent_step": agent_steps,
                     "train/epoch": epoch,
                     "train/learning_rate": learning_rate,
@@ -719,7 +687,7 @@ class PufferTrainer:
                 }
             )
 
-        self._eval_results = []
+        self._eval_grouped_scores = {}
         self._weights_helper.reset()
         self.stats.clear()
 

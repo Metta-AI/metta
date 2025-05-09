@@ -55,6 +55,18 @@ OBS_NORMALIZATIONS = {
 
 
 class ObservationNormalizer(LayerBase):
+    """
+    Normalizes observation features by dividing each feature by its approximate maximum value.
+
+    This class scales observation features to a range of approximately [0, 1] by dividing
+    each feature by predefined normalization values from the OBS_NORMALIZATIONS dictionary.
+    Normalization helps stabilize neural network training by preventing features with large
+    magnitudes from dominating the learning process.
+
+    Note that the __init__ of any layer class and the MettaAgent are only called when the agent
+    is instantiated and never again. I.e., not when it is reloaded from a saved policy.
+    """
+
     def __init__(self, grid_features, **cfg):
         self._grid_features = grid_features
         super().__init__(**cfg)

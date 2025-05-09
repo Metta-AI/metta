@@ -4,45 +4,61 @@ import { ui, state, ctx, setFollowSelection } from './common.js';
 import { getAttr } from './replay.js';
 import { PanelInfo } from './panels.js';
 import { updateStep } from './main.js';
+import { parseHtmlColor } from './htmlutils.js';
 
 export function drawTrace(panel: PanelInfo) {
   if (state.replay === null || ctx === null || ctx.ready === false) {
     return;
   }
 
-  const localMousePos = panel.transformPoint(ui.mousePos);
-
-  if (state.followTraceSelection && state.selectedGridObject !== null) {
-    panel.focusPos(
-      state.step * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
-      getAttr(state.selectedGridObject, "agent_id") * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT / 2
-    );
-  }
-
-  if (ui.mouseClick && panel.inside(ui.mousePos)) {
-    if (localMousePos != null) {
-      const mapX = localMousePos.x();
-      if (mapX > 0 && mapX < state.replay.max_steps * Common.TRACE_WIDTH &&
-        localMousePos.y() > 0 && localMousePos.y() < state.replay.num_agents * Common.TRACE_HEIGHT) {
+  // Handle mouse events for the trace panel.
+  if (
+    panel.inside(ui.mousePos)
+  ) {
+    if (ui.mouseDoubleClick) {
+      // Toggle followSelection on double-click
+      console.log("Trace double click - following selection");
+      setFollowSelection(true);
+      panel.zoomLevel = Common.DEFAULT_TRACE_ZOOM_LEVEL;
+      ui.mapPanel.zoomLevel = Common.DEFAULT_ZOOM_LEVEL;
+    } else if (ui.mouseClick) {
+      // Trace click - likely a drag/pan
+      console.log("Trace click - clearing trace follow selection");
+      setFollowSelection(false);
+    } else if (ui.mouseUp &&
+      ui.mouseDownPos.sub(ui.mousePos).length() < 10
+    ){
+      // Check if we are clicking on an action/step.
+      console.log("Trace up without dragging - selecting trace object");
+      const localMousePos = panel.transformPoint(ui.mousePos);
+      if (localMousePos != null) {
+        const mapX = localMousePos.x();
+        const selectedStep = Math.floor(mapX / Common.TRACE_WIDTH);
         const agentId = Math.floor(localMousePos.y() / Common.TRACE_HEIGHT);
-        if (agentId >= 0 && agentId < state.replay.num_agents) {
-          setFollowSelection(true, null);
+        if (mapX > 0 && mapX < state.replay.max_steps * Common.TRACE_WIDTH &&
+          localMousePos.y() > 0 && localMousePos.y() < state.replay.num_agents * Common.TRACE_HEIGHT &&
+          selectedStep >= 0 && selectedStep < state.replay.max_steps &&
+          agentId >= 0 && agentId < state.replay.num_agents
+        ) {
           state.selectedGridObject = state.replay.agents[agentId];
-          console.log("selectedGridObject on a trace:", state.selectedGridObject);
+          console.log("Selected an agent on a trace:", state.selectedGridObject);
           ui.mapPanel.focusPos(
             getAttr(state.selectedGridObject, "c") * Common.TILE_SIZE,
-            getAttr(state.selectedGridObject, "r") * Common.TILE_SIZE
+            getAttr(state.selectedGridObject, "r") * Common.TILE_SIZE,
+            Common.DEFAULT_ZOOM_LEVEL
           );
           // Update the step to the clicked step.
-          updateStep(Math.floor(mapX / Common.TRACE_WIDTH));
-
-          if (ui.mouseDoubleClick) {
-            setFollowSelection(null, true);
-            panel.zoomLevel = 1;
-          }
+          updateStep(selectedStep);
         }
       }
     }
+  }
+
+  // If we're following a selection, center the trace panel on it
+  if (state.followSelection && state.selectedGridObject !== null) {
+    const x = state.step * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2;
+    const y = getAttr(state.selectedGridObject, "agent_id") * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT / 2;
+    panel.panPos = new Vec2f(-x, -y);
   }
 
   ctx.save();
@@ -56,7 +72,8 @@ export function drawTrace(panel: PanelInfo) {
   // Draw background
   ctx.drawSolidRect(
     panel.x, panel.y, panel.width, panel.height,
-    [0.08, 0.08, 0.08, 1.0] // Dark background
+    //[0.08, 0.08, 0.08, 1.0] // Dark background
+    parseHtmlColor("#141B23")
   );
 
   ctx.translate(panel.x + panel.width / 2, panel.y + panel.height / 2);
@@ -88,39 +105,75 @@ export function drawTrace(panel: PanelInfo) {
       const action = getAttr(agent, "action", j);
       const action_success = getAttr(agent, "action_success", j);
 
-      if (action_success && action != null && action[0] > 0 && action[0] < state.replay.action_images.length) {
-        ctx.drawSprite(
-          state.replay.action_images[action[0]],
-          j * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
-          i * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT / 2,
-        );
-      } else if (action != null && action[0] > 0 && action[0] < state.replay.action_images.length) {
-        ctx.drawSprite(
-          state.replay.action_images[action[0]],
-          j * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
-          i * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT / 2,
-          [0.01, 0.01, 0.01, 0.01],
-        );
-      }
-
       if (getAttr(agent, "agent:frozen", j) > 0) {
+        // Draw frozen state.
         ctx.drawSprite(
           "trace/frozen.png",
+          j * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
+          i * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT / 2,
+        );
+      } else if (action_success &&
+        action != null &&
+        action[0] >= 0 &&
+        action[0] < state.replay.action_images.length
+      ) {
+        // Draw the action.
+        ctx.drawSprite(
+          state.replay.action_images[action[0]],
+          j * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
+          i * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT / 2,
+        );
+      } else if (
+        action != null &&
+        action[0] >= 0 &&
+        action[0] < state.replay.action_images.length
+      ) {
+        // Draw invalid action.
+        ctx.drawSprite(
+          "trace/invalid.png",
           j * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
           i * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT / 2,
         );
       }
 
       const reward = getAttr(agent, "reward", j);
-      // If there is reward, draw a star.
+      // If there is reward, draw a coin.
       if (reward > 0) {
         ctx.drawSprite(
           "resources/reward.png",
           j * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
-          i * Common.TRACE_HEIGHT + 256 - 32,
+          i * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT - 32,
           [1.0, 1.0, 1.0, 1.0],
-          1 / 8
+          1 / 4
         );
+      }
+
+      // Draw resource gain/loss.
+      if (state.showResources) {
+        // Figure out how many resources to draw.
+        var number = 0;
+        for (const [key, [image, color]] of state.replay.resource_inventory) {
+          number += Math.abs(getAttr(agent, key, j + 1) - getAttr(agent, key, j));
+        }
+        // Draw the resources.
+        var y = 32;
+        // Compress the resources if there are too many, so that they fit.
+        var step = Math.min(32, (Common.TRACE_HEIGHT - 64) / number);
+        for (const [key, [image, color]] of state.replay.resource_inventory) {
+          const prevResources = getAttr(agent, key, j);
+          const nextResources = getAttr(agent, key, j + 1);
+          const absGain = Math.abs(nextResources - prevResources);
+          for (let k = 0; k < absGain; k++) {
+            ctx.drawSprite(
+              image,
+              j * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
+              i * Common.TRACE_HEIGHT + y,
+              color,
+              1 / 4
+            );
+            y += step;
+          }
+        }
       }
     }
   }

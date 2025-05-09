@@ -185,7 +185,7 @@ jobs:
           make build-for-ci
 
   lint:
-    name: "Lint"
+    name: "C++ Lint"
     needs: [graphite-ci-optimizer, setup-checks, build-cpp]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') && 
@@ -207,7 +207,7 @@ jobs:
             -exec clang-format --dry-run --Werror {} +
 
   test:
-    name: "Test"
+    name: "C++ Tests"
     needs: [graphite-ci-optimizer, setup-checks, build-cpp]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') && 
@@ -241,7 +241,7 @@ jobs:
           make test
 
   benchmark:
-    name: "Benchmark"
+    name: "C++ Benchmarks"
     needs: [graphite-ci-optimizer, setup-checks, build-cpp, test]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') && 

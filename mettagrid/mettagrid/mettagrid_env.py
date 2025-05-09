@@ -1,4 +1,9 @@
+# mettagrid/mettagrid_env.py
+from __future__ import annotations
+
 import copy
+import datetime
+import uuid
 from types import SimpleNamespace
 from typing import Any, Dict, Optional
 
@@ -9,7 +14,9 @@ from omegaconf import DictConfig, OmegaConf
 
 from mettagrid.config.utils import simple_instantiate
 from mettagrid.core import MettaGrid
+from mettagrid.replay_writer import ReplayWriter
 from mettagrid.resolvers import register_resolvers
+from mettagrid.stats_writer import StatsWriter
 from mettagrid.util.debug import save_mettagrid_args
 
 
@@ -22,19 +29,30 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     actions: np.ndarray
 
     def __init__(
-        self, env_cfg: DictConfig, render_mode: Optional[str], env_map: Optional[np.ndarray] = None, buf=None, **kwargs
+        self,
+        env_cfg: DictConfig,
+        render_mode: Optional[str],
+        env_map: Optional[np.ndarray] = None,
+        buf=None,
+        stats_writer: Optional[StatsWriter] = None,
+        replay_writer: Optional[ReplayWriter] = None,
+        **kwargs,
     ):
         self._debug = False
         self._render_mode = render_mode
         self._cfg_template = env_cfg
         self._env_cfg = self._get_new_env_cfg()
         self._env_map = env_map
-        self.should_reset = False
         self._renderer = None
         self._map_builder = None
 
         # Set up the environment first to establish dimensions
         self._reset_env()
+        self._stats_writer = stats_writer
+        self._replay_writer = replay_writer
+        self._episode_id = None
+        self._reset_at = datetime.datetime.now()
+        self._current_seed = 0
 
         # TODO -- typedef actions type
         num_agents = self._num_agents
@@ -62,6 +80,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         super().__init__(buf_obj)
 
         self.labels = self._env_cfg.get("labels", None)
+        self.should_reset = False
 
         # check on the buffer shapes
 
@@ -88,6 +107,9 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         reward_shape = self.rewards.shape
         if self.rewards.ndim < 1 or reward_shape[0] < num_agents:
             raise ValueError(f"Rewards buffer has shape {reward_shape}, expected first dimension ≥ {num_agents}")
+
+    def _make_episode_id(self):
+        return str(uuid.uuid4())
 
     def _get_new_env_cfg(self):
         env_cfg = OmegaConf.create(copy.deepcopy(self._cfg_template))
@@ -121,6 +143,12 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         self._c_env.set_buffers(self.observations, self.terminals, self.truncations, self.rewards)
 
+        self._episode_id = self._make_episode_id()
+        self._current_seed = seed or 0
+        self._reset_at = datetime.datetime.now()
+        if self._replay_writer:
+            self._replay_writer.start_episode(self._episode_id, self)
+
         obs, infos = self._c_env.reset()
         self.should_reset = False
         return obs, infos
@@ -138,10 +166,17 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         # Ensure actions are int32 as required by the C++ binding
         self.actions[:] = actions.astype(np.int32, copy=False)
+
+        if self._replay_writer:
+            self._replay_writer.log_pre_step(self._episode_id, self.actions)
+
         self._c_env.step(self.actions)
 
         if self._env_cfg.normalize_rewards:
             self.rewards -= self.rewards.mean()
+
+        if self._replay_writer:
+            self._replay_writer.log_post_step(self._episode_id, self.rewards)
 
         infos = {}
         if self.terminals.all() or self.truncations.all():
@@ -193,6 +228,49 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                 infos["agent"][n] = infos["agent"].get(n, 0) + v
         for n, v in infos["agent"].items():
             infos["agent"][n] = v / self._num_agents
+
+        replay_url = None
+        if self._replay_writer:
+            assert self._episode_id is not None
+            replay_url = self._replay_writer.write_replay(self._episode_id)
+        infos["replay_url"] = replay_url
+
+        if self._stats_writer:
+            assert self._episode_id is not None
+
+            attributes = {
+                "seed": self._current_seed,
+                "map_w": self.map_width,
+                "map_h": self.map_height,
+            }
+
+            for k, v in pufferlib.utils.unroll_nested_dict(OmegaConf.to_container(self._env_cfg, resolve=False)):
+                attributes[f"config.{k.replace('/', '.')}"] = str(v)
+
+            agent_metrics = {}
+            for agent_idx, agent_stats in enumerate(stats["agent"]):
+                agent_metrics[agent_idx] = {}
+                agent_metrics[agent_idx]["reward"] = float(episode_rewards[agent_idx])
+                for k, v in agent_stats.items():
+                    agent_metrics[agent_idx][k] = float(v)
+
+            # TODO: Add groups
+            groups = []
+            group_metrics = {}
+            self._stats_writer.record_episode(
+                self._episode_id,
+                attributes,
+                groups,
+                agent_metrics,
+                group_metrics,
+                self._max_steps,
+                replay_url,
+                self._reset_at,
+            )
+        self._episode_id = None
+
+    def close(self):
+        pass
 
     @property
     def _max_steps(self):
@@ -266,9 +344,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     def inventory_item_names(self):
         return self._c_env.inventory_item_names()
-
-    def close(self):
-        pass
 
 
 # Ensure resolvers are registered when this module is imported
