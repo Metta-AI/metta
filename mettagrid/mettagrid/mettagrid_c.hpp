@@ -55,6 +55,8 @@ private:
     py::dict _cfg;
     std::map<unsigned int, float> _group_reward_pct;
     std::map<unsigned int, unsigned int> _group_sizes;
+    // TODO: it's not clear why we need two of these, or why they need to be numpy arrays.
+    // See if we can change that.
     py::array_t<double> _group_rewards_np;
     py::array_t<double> _group_rewards;
     std::unique_ptr<Grid> _grid;
@@ -78,6 +80,7 @@ private:
     // change to shared_ptr?
     std::vector<Agent*> _agents;
 
+    // TODO: We probably don't need to have two references for each of these.
     py::array_t<unsigned char> _observations_np;
     py::array_t<unsigned char> _observations;
     py::array_t<char> _terminals_np;
@@ -96,7 +99,6 @@ private:
     unsigned char _last_action_arg_obs_idx;
     std::vector<bool> _action_success;
 
-    // Private methods
     void init_action_handlers(std::vector<std::unique_ptr<ActionHandler>>& action_handlers);
     void add_agent(Agent* agent);
     void _compute_observation(
