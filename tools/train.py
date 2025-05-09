@@ -41,7 +41,6 @@ def train(cfg, wandb_run, logger: Logger):
             OmegaConf.save(cfg, f)
 
     train_job = TrainJob(cfg.train_job)
-    train_job.evals.eval_db_uri = None  # We never want to log to a persistent db when training
 
     policy_store = PolicyStore(cfg, wandb_run)
 

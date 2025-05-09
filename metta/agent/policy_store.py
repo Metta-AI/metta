@@ -24,9 +24,15 @@ from torch import nn
 
 from metta.agent.metta_agent import make_policy
 from metta.rl.pufferlib.policy import load_policy
+from metta.util.config import Config
 from metta.util.wandb.wandb_context import WandbRun
 
 logger = logging.getLogger("policy_store")
+
+
+class PolicySelectorConfig(Config):
+    type: str = "top"
+    metric: str = "score"
 
 
 class PolicyRecord:
@@ -53,6 +59,41 @@ class PolicyRecord:
 
     def local_path(self):
         return self._local_path
+
+    def key_and_version(self) -> tuple[str, int]:
+        """
+        Extract the policy key and version from the URI.
+        TODO: store these on the metadata for new policies,
+        eventually read them from the metadata instead of parsing the URI.
+
+        Returns:
+            tuple: (policy_key, version)
+                - policy_key is the clean name without path or version
+                - version is the numeric version or 0 if not present
+        """
+        # Get the last part after splitting by slash
+        base_name = self.uri.split("/")[-1]
+
+        # Check if it has a version number in format ":vNUM"
+        if ":" in base_name and ":v" in base_name:
+            parts = base_name.split(":v")
+            key = parts[0]
+            try:
+                version = int(parts[1])
+            except ValueError:
+                version = 0
+        else:
+            # No version, use the whole thing as key and version = 0
+            key = base_name
+            version = 0
+
+        return key, version
+
+    def key(self) -> str:
+        return self.key_and_version()[0]
+
+    def version(self) -> int:
+        return self.key_and_version()[1]
 
 
 class PolicyStore:

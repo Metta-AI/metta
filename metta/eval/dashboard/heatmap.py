@@ -16,14 +16,16 @@ External boiler‑plate (include once per page)
 from __future__ import annotations
 
 import json
+import logging
 import uuid
-from typing import List, Tuple
+from typing import Dict, List, Tuple
 
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.utils import PlotlyJSONEncoder
 
-from metta.eval.mapviewer import create_map_viewer_html, get_map_viewer_js_functions
+from metta.eval.dashboard.mapviewer import create_map_viewer_html, get_map_viewer_js_functions
+from metta.eval.eval_stats_db import EvalStatsDB
 
 
 # --------------------------------------------------------------------------- #
@@ -54,6 +56,9 @@ def _build_figure(
     width: int,
 ) -> go.Figure:
     eval_names: List[str] = matrix.columns.tolist()
+    # Remove the replay_url_map column if it exists
+    if "replay_url_map" in matrix.columns:
+        matrix = matrix.drop(columns=["replay_url_map"])
     policy_rows: List[str] = (
         matrix.pop("policy_uri").tolist() if "policy_uri" in matrix.columns else matrix.index.tolist()
     )
@@ -132,7 +137,6 @@ def _build_figure(
 def create_heatmap_html_snippet(
     matrix: pd.DataFrame,
     metric: str,
-    replay_base_url: str = "https://softmax-public.s3.us-east-1.amazonaws.com/replays/evals",
     *,
     height: int = 600,
     width: int = 900,
@@ -169,6 +173,13 @@ def create_heatmap_html_snippet(
     policy_rows = matrix.index.tolist()
     policy_rows_json = json.dumps(policy_rows)
 
+    # Get the replay_url_map from the matrix if it exists, otherwise use an empty dict
+    replay_url_map = {}
+    if hasattr(matrix, "replay_url_map") and isinstance(matrix.replay_url_map, dict):
+        replay_url_map = matrix.replay_url_map
+
+    replay_url_map_json = json.dumps(replay_url_map)
+
     # ---------------------------------------------------------------- HTML
     return f"""
 <!-- enable pointer events on axis labels and cells -->
@@ -198,7 +209,10 @@ def create_heatmap_html_snippet(
   const shortNames = fig.layout.meta.short_names;
   const fullNames = fig.layout.meta.full_names;
   const policyRows = {policy_rows_json};
-  const replayBaseUrl = "{replay_base_url}";
+  const replayUrlMap = {replay_url_map_json};
+  
+  // Debug logging
+  console.log("Map keys available:", Object.keys(replayUrlMap));
   
   // Create mapping from short names to full paths
   const shortToFullPath = {{}};
@@ -293,15 +307,28 @@ def create_heatmap_html_snippet(
       const policyIndex = yIndex - 2;
       if (policyIndex >= policyRows.length) return;
       
-      const policyName = policyRows[policyIndex];
+      const policyUri = policyRows[policyIndex];
       
-      // Get full path for replay URL
+      // Get the full path for the eval
       const fullPath = shortToFullPath[shortName] || shortName;
       
-      // Construct the replay URL
-      const replayUrl = `https://metta-ai.github.io/metta/?replayUrl=${{replayBaseUrl}}/${{policyName}}/${{fullPath}}/replay.json.z`;
+      // Use the specific replay URL from the map if available
+      let replayUrl = null;
       
-      // Show map with replay URL
+      // Simple string key for lookup
+      const mapKey = `${{policyUri}}|${{fullPath}}`;
+      
+      // Debug logging for each cell hover
+      console.log("Looking for mapKey:", mapKey);
+      
+      if (replayUrlMap && replayUrlMap[mapKey]) {{
+        replayUrl = replayUrlMap[mapKey];
+        console.log("Found replay URL:", replayUrl);
+      }} else {{
+        console.log("No replay URL found for this cell");
+      }}
+      
+      // Show map with replay URL (or without if none found)
       showMap(shortName, replayUrl);
     }});
     
@@ -319,17 +346,30 @@ def create_heatmap_html_snippet(
       const policyIndex = yIndex - 2;
       if (policyIndex >= policyRows.length) return;
       
-      const policyName = policyRows[policyIndex];
+      const policyUri = policyRows[policyIndex];
       
-      // Get full path for this eval name (for replay URL)
+      // Get full path for this eval name
       const fullPath = shortToFullPath[shortName] || shortName;
       
-      // Construct the replay URL
-      const replayUrl = `https://metta-ai.github.io/metta/?replayUrl=${{replayBaseUrl}}/${{policyName}}/${{fullPath}}/replay.json.z`;
+      // Get the replay URL from the map if available
+      let replayUrl = null;
+      
+      // Simple string key for lookup
+      const mapKey = `${{policyUri}}|${{fullPath}}`;
+      
+      // Debug logging for each cell click
+      console.log("Click - Looking for mapKey:", mapKey);
+      
+      if (replayUrlMap && replayUrlMap[mapKey]) {{
+        replayUrl = replayUrlMap[mapKey];
+        console.log("Click - Found replay URL:", replayUrl);
+      }} else {{
+        console.log("Click - No replay URL found for this cell");
+      }}
       
       // Handle single vs double click
-      if (now - lastClickTime < doubleClickThreshold) {{
-        // This is a double-click - open replay in new tab
+      if (now - lastClickTime < doubleClickThreshold && replayUrl) {{
+        // This is a double-click - open replay in new tab only if we have a URL
         window.open(replayUrl, '_blank');
       }} else {{
         // This is a single click - toggle lock and update map
@@ -368,3 +408,155 @@ def create_heatmap_html_snippet(
 }})();
 </script>
 """
+
+
+def get_heatmap_matrix(
+    stats_db: EvalStatsDB,
+    metric: str,
+    suite: str | None = None,
+    num_output_policies: int | str = "all",
+) -> pd.DataFrame:
+    """
+    Get matrix data for the specified metric from a StatsDB.
+
+    Args:
+        stats_db: EvalStatsDB instance
+        metric: The metric to get data for
+        suite: Optional suite name to filter evaluations
+        num_output_policies: Optional number of policies to output
+
+    Returns:
+        DataFrame with policies as rows and evaluations as columns
+    """
+    logger = logging.getLogger(__name__)
+    logger.info(f"Building heatmap matrix for metric {metric}")
+
+    df = stats_db.metric_by_policy_eval(metric)
+    logger.info(f"Query returned {len(df)} rows")
+
+    if len(df) == 0 or df["value"].abs().sum() == 0:
+        logger.warning(f"No data found for metric {metric}")
+        return pd.DataFrame()
+
+    logger.info(f"Policy URIs in data: {df['policy_uri'].head(3).tolist() if len(df) > 0 else []}")
+
+    # Get replay URLs for each (policy, eval_name) pair
+    replay_url_map = _get_replay_urls_map(stats_db, df)
+    logger.info(f"Retrieved {len(replay_url_map)} replay URLs")
+
+    # Log the first few replay URLs for debugging
+    if len(replay_url_map) > 0:
+        logger.info("Sample replay URLs:")
+        count = 0
+        for key, url in replay_url_map.items():
+            logger.info(f"  Key: {key}")
+            logger.info(f"  URL: {url}")
+            count += 1
+            if count >= 3:
+                break
+    else:
+        logger.warning("No replay URLs were found!")
+
+    # Process data into matrix format
+    policies = df["policy_uri"].unique()
+    eval_names = df["eval_name"].unique()
+    logger.info(f"Found {len(policies)} unique policies and {len(eval_names)} unique evaluation names")
+
+    # Create a dictionary to map (policy_uri, eval_name) to value
+    data_map = {}
+    for _, row in df.iterrows():
+        data_map[(row["policy_uri"], row["eval_name"])] = row["value"]
+
+    # Calculate overall scores for each policy
+    overall_scores = {}
+    for policy in policies:
+        policy_df = df[df["policy_uri"] == policy]
+        overall_scores[policy] = policy_df["value"].mean()
+
+    # Create the matrix data
+    matrix_data = []
+    for policy in policies:
+        row_data = {"policy_uri": policy, "Overall": overall_scores[policy]}
+        for eval_name in eval_names:
+            if (policy, eval_name) in data_map:
+                row_data[eval_name] = data_map[(policy, eval_name)]
+        matrix_data.append(row_data)
+
+    # Convert to DataFrame and set index
+    matrix = pd.DataFrame(matrix_data)
+    if len(matrix) > 0:
+        matrix = matrix.set_index("policy_uri")
+
+        # Always sort by overall score (lowest first)
+        sorted_policies = sorted(policies, key=lambda p: overall_scores[p])
+        matrix = matrix.reindex(sorted_policies)
+
+        # Limit the number of policies
+        if num_output_policies != "all" and isinstance(num_output_policies, int):
+            matrix = matrix.tail(num_output_policies)
+
+        # Attach the replay URL map as an attribute on the DataFrame
+        matrix.replay_url_map = replay_url_map
+
+    logger.info(f"Final matrix shape: {matrix.shape}")
+    return matrix
+
+
+def _get_replay_urls_map(stats_db: EvalStatsDB, data_df: pd.DataFrame) -> Dict[str, str]:
+    """
+    Get replay URLs for each (policy, eval_name) combination in the data frame.
+
+    Returns a dictionary mapping simple string keys to replay URLs.
+    """
+    if data_df.empty:
+        return {}
+
+    logger = logging.getLogger(__name__)
+
+    # Map to store replay URLs: "policy_uri|eval_name" -> replay_url
+    replay_url_map = {}
+
+    # Base URL prefix for all replay URLs
+    replay_url_prefix = "https://metta-ai.github.io/metta/?replayUrl="
+
+    # Process each unique policy URI
+    for policy_uri in data_df["policy_uri"].unique():
+        # Parse the policy key and version from the URI
+        parts = policy_uri.split(":v")
+        policy_key = parts[0]
+        try:
+            policy_version = int(parts[1]) if len(parts) > 1 else 1
+        except ValueError:
+            logger.error(f"Could not parse version from policy_uri: {policy_uri}")
+            continue
+        # Get all eval_names for this policy
+        eval_names = data_df[data_df["policy_uri"] == policy_uri]["eval_name"].unique()
+
+        # Get replay URLs for this policy
+        for eval_name in eval_names:
+            # Skip "Overall" as it's not a real evaluation
+            if eval_name == "Overall":
+                continue
+
+            # Get replay URLs for this specific environment
+            try:
+                replay_urls = stats_db.get_replay_urls(
+                    policy_key=policy_key, policy_version=policy_version, env=eval_name
+                )
+
+                if replay_urls:
+                    # Create a simple string key that's easy to reproduce in JavaScript
+                    key_str = f"{policy_uri}|{eval_name}"
+
+                    # Use the first URL for this combination and prefix it
+                    prefixed_url = f"{replay_url_prefix}{replay_urls[0]}"
+                    replay_url_map[key_str] = prefixed_url
+                else:
+                    logger.warning(
+                        f"No replay URLs found for policy={policy_key}, version={policy_version}, env={eval_name}"
+                    )
+            except Exception as e:
+                logger.error(f"Error retrieving replay URLs for {policy_uri}, env={eval_name}: {e}", exc_info=True)
+
+    logger.info(f"Finished building replay URL map with {len(replay_url_map)} entries")
+    return replay_url_map

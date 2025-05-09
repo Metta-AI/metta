@@ -8,6 +8,8 @@ trainer:
   env: /env/mettagrid/walkaround
   evaluate_interval: 2
 
+eval_db_uri: wandb://artifacts/memory_db
+
 # policy: wandb://run/b.daveey.train.maze.sm.dr.warm.0
 # baselines: wandb://run/b.daveey.train.maze.sm.11x11.0
 
@@ -28,14 +30,12 @@ policy_uri: wandb://run/daphne.navigation:v36
 # navigation_poisson_train_sampling5 breaks in infinite_cooldown, works great in poisson with short distance
 # navigation_poisson_train_sampling5
 # npc_policy_uri: ${trained_policy_uri}
+<<<<<<< HEAD
 eval_db_uri: wandb://artifacts/rewardsharing_db
+=======
+>>>>>>> 79b1ec2c6339cd79b843d7c5422c00fe8538d841
 
-analyzer:
-  # eval_stats_uri: ${run_dir}/eval_stats
-  policy_uri: ${..policy_uri}
-  analysis:
-    metrics:
-      - metric: episode_reward
+dashboard:
   output_path: evalresults/memory_db.html
 
 # sim:
@@ -43,10 +43,16 @@ analyzer:
 #   num_episodes: 2
 #   max_time_s: 600
 
+<<<<<<< HEAD
 #   # policy_uri: ${..policy_uri}
 #   # npc_policy_uri: ${..npc_policy_uri}
 #   # eval_db_uri: ${..eval_db_uri} #file://daphne/sweep_stats
 #   env: /env/mettagrid/navigation/training/empty_world
+=======
+  # policy_uri: ${..policy_uri}
+  # npc_policy_uri: ${..npc_policy_uri}
+  env: /env/mettagrid/navigation/training/empty_world
+>>>>>>> 79b1ec2c6339cd79b843d7c5422c00fe8538d841
 
 
 run_id: 104
