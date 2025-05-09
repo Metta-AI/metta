@@ -47,6 +47,9 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
     // `map` is a numpy array of shape (height, width) and a 'U' dtype.
     // It's not clear that there's any value in using a numpy array here,
     // and this causes us to need to do some awkward conversions.
+
+    // xcxc playing on simple, the outer walls don't render. Maybe a problem
+    // with how we translate stuff from numpy to C++?
     auto cfg = env_cfg["game"].cast<py::dict>();
     _cfg = cfg;
     
@@ -91,37 +94,34 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
     
     _action_success.resize(num_agents);
 
-    // Initialize action handlers
-    std::vector<std::unique_ptr<ActionHandler>> actions;
-
     // TODO: These conversions to ActionConfig are copying. I don't want to pass python objects down further,
     // but maybe it would be better to just do the conversion once?
     if (cfg["actions"]["put_items"]["enabled"].cast<bool>()) {
-        actions.push_back(std::make_unique<PutRecipeItems>(cfg["actions"]["put_items"].cast<ActionConfig>()));
+        _action_handlers.push_back(std::make_unique<PutRecipeItems>(cfg["actions"]["put_items"].cast<ActionConfig>()));
     }
     if (cfg["actions"]["get_items"]["enabled"].cast<bool>()) {
-        actions.push_back(std::make_unique<GetOutput>(cfg["actions"]["get_items"].cast<ActionConfig>()));
+        _action_handlers.push_back(std::make_unique<GetOutput>(cfg["actions"]["get_items"].cast<ActionConfig>()));
     }
     if (cfg["actions"]["noop"]["enabled"].cast<bool>()) {
-        actions.push_back(std::make_unique<Noop>(cfg["actions"]["noop"].cast<ActionConfig>()));
+        _action_handlers.push_back(std::make_unique<Noop>(cfg["actions"]["noop"].cast<ActionConfig>()));
     }
     if (cfg["actions"]["move"]["enabled"].cast<bool>()) {
-        actions.push_back(std::make_unique<Move>(cfg["actions"]["move"].cast<ActionConfig>()));
+        _action_handlers.push_back(std::make_unique<Move>(cfg["actions"]["move"].cast<ActionConfig>()));
     }
     if (cfg["actions"]["rotate"]["enabled"].cast<bool>()) {
-        actions.push_back(std::make_unique<Rotate>(cfg["actions"]["rotate"].cast<ActionConfig>()));
+        _action_handlers.push_back(std::make_unique<Rotate>(cfg["actions"]["rotate"].cast<ActionConfig>()));
     }
     if (cfg["actions"]["attack"]["enabled"].cast<bool>()) {
-        actions.push_back(std::make_unique<Attack>(cfg["actions"]["attack"].cast<ActionConfig>()));
-        actions.push_back(std::make_unique<AttackNearest>(cfg["actions"]["attack"].cast<ActionConfig>()));
+        _action_handlers.push_back(std::make_unique<Attack>(cfg["actions"]["attack"].cast<ActionConfig>()));
+        _action_handlers.push_back(std::make_unique<AttackNearest>(cfg["actions"]["attack"].cast<ActionConfig>()));
     }
     if (cfg["actions"]["swap"]["enabled"].cast<bool>()) {
-        actions.push_back(std::make_unique<Swap>(cfg["actions"]["swap"].cast<ActionConfig>()));
+        _action_handlers.push_back(std::make_unique<Swap>(cfg["actions"]["swap"].cast<ActionConfig>()));
     }
     if (cfg["actions"]["change_color"]["enabled"].cast<bool>()) {
-        actions.push_back(std::make_unique<ChangeColorAction>(cfg["actions"]["change_color"].cast<ActionConfig>()));
+        _action_handlers.push_back(std::make_unique<ChangeColorAction>(cfg["actions"]["change_color"].cast<ActionConfig>()));
     }
-    init_action_handlers(actions);
+    init_action_handlers();
 
     auto groups = cfg["groups"].cast<py::dict>();
     _group_rewards_np = py::array_t<double>(groups.size());
@@ -157,6 +157,9 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
             std::wstring wide_string(map_data + idx * max_chars, max_chars);
             std::wstring_convert<std::codecvt_utf8<wchar_t>> w_string_converter;
             std::string cell = w_string_converter.to_bytes(wide_string);
+            // xcxc playing on simple, the outer walls don't render. Maybe a problem
+            // with how we translate stuff from numpy to C++?
+            // Are the string matches happening?
             if (cell == "wall") {
                 Wall* wall = new Wall(r, c, cfg["objects"]["wall"].cast<ObjectConfig>());
                 _grid->add_object(wall);
@@ -243,7 +246,6 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
     }
 }
 
-// xcxc be more explicit about what we need
 // xcxc see if we can use default destructor
 // MettaGrid::~MettaGrid() = default;
 MettaGrid::~MettaGrid() {
@@ -255,7 +257,184 @@ MettaGrid::~MettaGrid() {
     _agents.clear();
 }
 
-// Example implementation of some key methods
+
+void MettaGrid::init_action_handlers() {
+    _num_action_handlers = _action_handlers.size();
+    _max_action_priority = 0;
+    _max_action_arg = 0;
+    _max_action_args.resize(_action_handlers.size());
+    
+    for (size_t i = 0; i < _action_handlers.size(); i++) {
+        auto& handler = _action_handlers[i];
+        handler->init(_grid.get());
+        if (handler->priority > _max_action_priority) {
+            _max_action_priority = handler->priority;
+        }
+        _max_action_args[i] = handler->max_arg();
+        if (_max_action_args[i] > _max_action_arg) {
+            _max_action_arg = _max_action_args[i];
+        }
+    }
+}
+
+void MettaGrid::add_agent(Agent* agent) {
+    agent->init(&_rewards.mutable_unchecked<1>()(_agents.size()));
+    // These agents are also in the Grid. We'll GC them since we have a unique_ptr
+    // here, but it's not super clean.
+    // xcxc on grid and here -- make be shared_ptr?
+    _agents.push_back(agent);
+}
+
+void MettaGrid::_compute_observation(
+    unsigned int observer_row,
+    unsigned int observer_col,
+    unsigned short obs_width,
+    unsigned short obs_height,
+    py::array_t<unsigned char> observation
+) {
+    auto observation_view = observation.mutable_unchecked<3>();
+    
+    // Calculate observation boundaries
+    int obs_width_radius = obs_width >> 1;
+    int obs_height_radius = obs_height >> 1;
+    int r_start = observer_row - obs_height_radius;
+    int c_start = observer_col - obs_width_radius;
+    int r_end = observer_row + obs_height_radius;
+    int c_end = observer_col + obs_width_radius;
+    
+    r_start = r_start < 0 ? 0 : r_start;
+    c_start = c_start < 0 ? 0 : c_start;
+    r_end = r_end > _grid->height - 1 ? _grid->height - 1 : r_end;
+    c_end = c_end > _grid->width - 1 ? _grid->width - 1 : c_end;
+
+    // Clear observation
+    // xcxc
+    // for (int r = 0; r < obs_height; r++) {
+    //     for (int c = 0; c < obs_width; c++) {
+    //         for (size_t f = 0; f < _grid_features.size(); f++) {
+    //             observation_view(r, c, f) = 0;
+    //         }
+    //     }
+    // }
+    
+    // Fill in visible objects
+    for (int r = r_start; r <= r_end; r++) {
+        for (int c = c_start; c <= c_end; c++) {
+            for (unsigned int layer = 0; layer < _grid->num_layers; layer++) {
+                GridLocation object_loc(r, c, layer);
+                auto obj = _grid->object_at(object_loc);
+                if (!obj) continue;
+                
+                int obs_r = object_loc.r + obs_height_radius - observer_row;
+                int obs_c = object_loc.c + obs_width_radius - observer_col;
+
+                // auto shape = observation_view.shape();
+                // auto strides = observation_view.strides();
+
+                // Maybe not needed?
+                // py::array_t<unsigned char> agent_obs(
+                //     std::array<ssize_t, 1>{shape[2]},
+                //     std::array<ssize_t, 1>{strides[2]},
+                //     observation_view.mutable_data(obs_r, obs_c, 0)
+                // );
+
+                auto obs_data = observation_view.mutable_data(obs_r, obs_c, 0);
+                                
+                // Encode object features
+                _obs_encoder->encode(obj, obs_data);
+            }
+        }
+    }
+}
+
+void MettaGrid::_compute_observations(py::array_t<int> actions) {
+    for (size_t idx = 0; idx < _agents.size(); idx++) {
+        auto& agent = _agents[idx];
+        _compute_observation(
+            agent->location.r,
+            agent->location.c,
+            _obs_width,
+            _obs_height,
+            // TODO: this slicing may be inefficient, since it passes
+            // things back to Python (at least somewhat)
+            _observations_np[py::make_tuple(idx, py::ellipsis())].cast<py::array_t<unsigned char>>()
+        );
+    }
+}
+
+void MettaGrid::_step(py::array_t<int> actions) {
+    auto actions_view = actions.unchecked<2>();
+    
+    // Reset rewards and observations
+    auto rewards_view = _rewards.mutable_unchecked<1>();
+    auto observations_view = _observations.mutable_unchecked<4>();
+
+    for (py::ssize_t i = 0; i < rewards_view.shape(0); i++) {
+        rewards_view(i) = 0;
+    }
+    
+    for (py::ssize_t i = 0; i < observations_view.shape(0); i++) {
+        for (py::ssize_t j = 0; j < observations_view.shape(1); j++) {
+            for (py::ssize_t k = 0; k < observations_view.shape(2); k++) {
+                for (py::ssize_t l = 0; l < observations_view.shape(3); l++) {
+                    observations_view(i, j, k, l) = 0;
+                }
+            }
+        }
+    }
+
+    // Clear action success flags
+    for (size_t i = 0; i < _action_success.size(); i++) {
+        _action_success[i] = false;
+    }
+
+    // Increment timestep and process events
+    _current_timestep++;
+    _event_manager->process_events(_current_timestep);
+    
+    // Process actions by priority
+    for (unsigned char p = 0; p <= _max_action_priority; p++) {
+        for (size_t idx = 0; idx < _agents.size(); idx++) {
+            int action = actions_view(idx, 0);
+            if (action < 0 || action >= _num_action_handlers) {
+                printf("Invalid action: %d\n", action);
+                continue;
+            }
+            
+            ActionArg arg = actions_view(idx, 1);
+            auto& agent = _agents[idx];
+            auto& handler = _action_handlers[action];
+            
+            if (handler->priority != _max_action_priority - p) {
+                continue;
+            }
+            
+            if (arg > _max_action_args[action]) {
+                continue;
+            }
+
+            _action_success[idx] = handler->handle_action(idx, agent->id, arg, _current_timestep);
+        }
+    }
+    
+    // Compute observations for next step
+    _compute_observations(actions);
+    
+    // Update episode rewards
+    auto episode_rewards_view = _episode_rewards.mutable_unchecked<1>();
+    for (py::ssize_t i = 0; i < rewards_view.shape(0); i++) {
+        episode_rewards_view(i) += rewards_view(i);
+    }
+
+    // Check for truncation
+    if (_max_timestep > 0 && _current_timestep >= _max_timestep) {
+        auto truncations_view = _truncations.mutable_unchecked<1>();
+        for (py::ssize_t i = 0; i < truncations_view.shape(0); i++) {
+            truncations_view(i) = 1;
+        }
+    }
+}
+
 py::tuple MettaGrid::reset() {
     if (_current_timestep > 0) {
         throw std::runtime_error("Cannot reset after stepping");
@@ -486,187 +665,6 @@ py::list MettaGrid::object_type_names() {
 
 py::list MettaGrid::inventory_item_names() {
     return py::cast(InventoryItemNames);
-}
-
-void MettaGrid::init_action_handlers(std::vector<std::unique_ptr<ActionHandler>>& action_handlers) {
-    _action_handlers.clear();
-    for (auto& handler : action_handlers) {
-        _action_handlers.push_back(std::move(handler));
-    }
-    _num_action_handlers = _action_handlers.size();
-    _max_action_priority = 0;
-    _max_action_arg = 0;
-    _max_action_args.resize(_action_handlers.size());
-    
-    for (size_t i = 0; i < _action_handlers.size(); i++) {
-        auto& handler = _action_handlers[i];
-        handler->init(_grid.get());
-        if (handler->priority > _max_action_priority) {
-            _max_action_priority = handler->priority;
-        }
-        _max_action_args[i] = handler->max_arg();
-        if (_max_action_args[i] > _max_action_arg) {
-            _max_action_arg = _max_action_args[i];
-        }
-    }
-}
-
-void MettaGrid::add_agent(Agent* agent) {
-    agent->init(&_rewards.mutable_unchecked<1>()(_agents.size()));
-    // These agents are also in the Grid. We'll GC them since we have a unique_ptr
-    // here, but it's not super clean.
-    // xcxc on grid and here -- make be shared_ptr?
-    _agents.push_back(agent);
-}
-
-void MettaGrid::_compute_observation(
-    unsigned int observer_row,
-    unsigned int observer_col,
-    unsigned short obs_width,
-    unsigned short obs_height,
-    py::array_t<unsigned char> observation
-) {
-    auto observation_view = observation.mutable_unchecked<3>();
-    
-    // Calculate observation boundaries
-    int obs_width_radius = obs_width >> 1;
-    int obs_height_radius = obs_height >> 1;
-    int r_start = observer_row - obs_height_radius;
-    int c_start = observer_col - obs_width_radius;
-    int r_end = observer_row + obs_height_radius;
-    int c_end = observer_col + obs_width_radius;
-    
-    r_start = r_start < 0 ? 0 : r_start;
-    c_start = c_start < 0 ? 0 : c_start;
-    r_end = r_end > _grid->height - 1 ? _grid->height - 1 : r_end;
-    c_end = c_end > _grid->width - 1 ? _grid->width - 1 : c_end;
-
-    // Clear observation
-    // xcxc
-    // for (int r = 0; r < obs_height; r++) {
-    //     for (int c = 0; c < obs_width; c++) {
-    //         for (size_t f = 0; f < _grid_features.size(); f++) {
-    //             observation_view(r, c, f) = 0;
-    //         }
-    //     }
-    // }
-    
-    // Fill in visible objects
-    for (int r = r_start; r <= r_end; r++) {
-        for (int c = c_start; c <= c_end; c++) {
-            for (unsigned int layer = 0; layer < _grid->num_layers; layer++) {
-                GridLocation object_loc(r, c, layer);
-                auto obj = _grid->object_at(object_loc);
-                if (!obj) continue;
-                
-                int obs_r = object_loc.r + obs_height_radius - observer_row;
-                int obs_c = object_loc.c + obs_width_radius - observer_col;
-
-                // auto shape = observation_view.shape();
-                // auto strides = observation_view.strides();
-
-                // Maybe not needed?
-                // py::array_t<unsigned char> agent_obs(
-                //     std::array<ssize_t, 1>{shape[2]},
-                //     std::array<ssize_t, 1>{strides[2]},
-                //     observation_view.mutable_data(obs_r, obs_c, 0)
-                // );
-
-                auto obs_data = observation_view.mutable_data(obs_r, obs_c, 0);
-                                
-                // Encode object features
-                _obs_encoder->encode(obj, obs_data);
-            }
-        }
-    }
-}
-
-void MettaGrid::_compute_observations(py::array_t<int> actions) {
-    for (size_t idx = 0; idx < _agents.size(); idx++) {
-        auto& agent = _agents[idx];
-        _compute_observation(
-            agent->location.r,
-            agent->location.c,
-            _obs_width,
-            _obs_height,
-            // TODO: this slicing may be inefficient, since it passes
-            // things back to Python (at least somewhat)
-            _observations_np[py::make_tuple(idx, py::ellipsis())].cast<py::array_t<unsigned char>>()
-        );
-    }
-}
-
-void MettaGrid::_step(py::array_t<int> actions) {
-    auto actions_view = actions.unchecked<2>();
-    
-    // Reset rewards and observations
-    auto rewards_view = _rewards.mutable_unchecked<1>();
-    auto observations_view = _observations.mutable_unchecked<4>();
-
-    for (py::ssize_t i = 0; i < rewards_view.shape(0); i++) {
-        rewards_view(i) = 0;
-    }
-    
-    for (py::ssize_t i = 0; i < observations_view.shape(0); i++) {
-        for (py::ssize_t j = 0; j < observations_view.shape(1); j++) {
-            for (py::ssize_t k = 0; k < observations_view.shape(2); k++) {
-                for (py::ssize_t l = 0; l < observations_view.shape(3); l++) {
-                    observations_view(i, j, k, l) = 0;
-                }
-            }
-        }
-    }
-
-    // Clear action success flags
-    for (size_t i = 0; i < _action_success.size(); i++) {
-        _action_success[i] = false;
-    }
-
-    // Increment timestep and process events
-    _current_timestep++;
-    _event_manager->process_events(_current_timestep);
-    
-    // Process actions by priority
-    for (unsigned char p = 0; p <= _max_action_priority; p++) {
-        for (size_t idx = 0; idx < _agents.size(); idx++) {
-            int action = actions_view(idx, 0);
-            if (action < 0 || action >= _num_action_handlers) {
-                printf("Invalid action: %d\n", action);
-                continue;
-            }
-            
-            ActionArg arg = actions_view(idx, 1);
-            auto& agent = _agents[idx];
-            auto& handler = _action_handlers[action];
-            
-            if (handler->priority != _max_action_priority - p) {
-                continue;
-            }
-            
-            if (arg > _max_action_args[action]) {
-                continue;
-            }
-
-            _action_success[idx] = handler->handle_action(idx, agent->id, arg, _current_timestep);
-        }
-    }
-    
-    // Compute observations for next step
-    _compute_observations(actions);
-    
-    // Update episode rewards
-    auto episode_rewards_view = _episode_rewards.mutable_unchecked<1>();
-    for (py::ssize_t i = 0; i < rewards_view.shape(0); i++) {
-        episode_rewards_view(i) += rewards_view(i);
-    }
-
-    // Check for truncation
-    if (_max_timestep > 0 && _current_timestep >= _max_timestep) {
-        auto truncations_view = _truncations.mutable_unchecked<1>();
-        for (py::ssize_t i = 0; i < truncations_view.shape(0); i++) {
-            truncations_view(i) = 1;
-        }
-    }
 }
 
 // Pybind11 module definition

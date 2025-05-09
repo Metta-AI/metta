@@ -70,6 +70,9 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             f"Number of agents {self._env_cfg.game.num_agents} does not match number of agents in map {map_agents}"
         )
 
+        # I haven't figured out how to get C++ code to deal with fixed-length strings; so we convert
+        # to non-fixed length strings. This is obvious very silly, but OTOH we shouldn't be using a numpy array
+        # of strings here in the first place.
         env_map_list = env_map.tolist()
         env_map = np.array(env_map_list)
 
@@ -79,11 +82,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         env = self._grid_env
 
-        print("freeing env")
-        del self._env
-        print("setting env")
         self._env = env
-        print("done mucking with env")
         # self._env = RewardTracker(self._env)
         # self._env = FeatureMasker(self._env, self._cfg.hidden_features)
 
