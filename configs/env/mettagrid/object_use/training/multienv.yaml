@@ -8,7 +8,6 @@ game:
 
 envs:
   - /env/mettagrid/object_use/training/terrain_from_numpy
-  - /env/mettagrid/object_use/training/cylinder_world
   - /env/mettagrid/object_use/training/varied_terrain_sparse
   - /env/mettagrid/object_use/training/varied_terrain_balanced
   - /env/mettagrid/object_use/training/varied_terrain_maze
