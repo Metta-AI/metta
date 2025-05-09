@@ -2,6 +2,7 @@ from libc.stdio cimport printf
 from libcpp.vector cimport vector
 from libcpp.string cimport string
 from libcpp.map cimport map
+from libcpp.unordered_map cimport unordered_map
 import numpy as np
 cimport numpy as cnp
 import gymnasium as gym
@@ -87,6 +88,7 @@ cdef class MettaGrid:
         unsigned char _last_action_obs_idx
         unsigned char _last_action_arg_obs_idx
         vector[bint] _action_success
+        unordered_map[int, unsigned char] _agent_to_group
 
     def __init__(self, env_cfg: DictConfig | ListConfig, map: np.ndarray):
         cfg = OmegaConf.create(env_cfg.game)
@@ -146,7 +148,7 @@ cdef class MettaGrid:
             actions.push_back(new Swap(cfg.actions.swap))
         if cfg.actions.change_color.enabled:
             actions.push_back(new ChangeColorAction(cfg.actions.change_color))
-        
+
         self.init_action_handlers(actions)
 
         self._group_rewards_np = np.zeros(len(cfg.groups))
@@ -163,6 +165,7 @@ cdef class MettaGrid:
         cdef Converter *converter = NULL
         cdef string group_name
         cdef unsigned char group_id
+        cdef unordered_map[int, unsigned char] agent_to_group
         for r in range(map.shape[0]):
             for c in range(map.shape[1]):
 
@@ -206,19 +209,22 @@ cdef class MettaGrid:
                         rewards[inv_item] = rewards.get(inv_item, 0)
                         rewards[inv_item + "_max"] = rewards.get(inv_item + "_max", 1000)
                     group_id = cfg.groups[group_name].id
+
                     agent = new Agent(
                         r, c, group_name, group_id, agent_cfg, rewards)
                     self._grid.add_object(agent)
                     agent.agent_id = self._agents.size()
                     self.add_agent(agent)
                     self._group_sizes[group_id] += 1
-
+                    agent_to_group[agent.agent_id] = group_id
                 if converter != NULL:
                     stat = "objects." + map[r,c]
                     self._stats.incr(stat)
                     self._grid.add_object(converter)
                     converter.set_event_manager(&self._event_manager)
                     converter = NULL
+
+        self._agent_to_group = agent_to_group
 
     def __dealloc__(self):
         del self._grid
@@ -402,10 +408,10 @@ cdef class MettaGrid:
 
         for i in range(self._agents.size()):
             self._agents[i].init(&self._rewards[i])
-    
+
     cpdef grid(self):
         return []
-    
+
     cpdef grid_objects(self):
         cdef GridObject *obj
         cdef ObsType[:] obj_data = np.zeros(len(self.grid_features()), dtype=np.uint8)
@@ -487,6 +493,10 @@ cdef class MettaGrid:
             dtype=obs_np_type
         )
 
+    @property
+    def agent_to_group(self):
+        return self._agent_to_group
+
     def action_success(self):
         return self._action_success
 
@@ -498,7 +508,7 @@ cdef class MettaGrid:
 
     def inventory_item_names(self):
         return InventoryItemNames
-    
+
     def render(self):
         grid = self.render_ascii()
         for r in grid:
