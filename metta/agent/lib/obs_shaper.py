@@ -4,8 +4,18 @@ from metta.agent.lib.metta_layer import LayerBase
 
 
 class ObsShaper(LayerBase):
+    """
+    This class does the following:
+    1) permutes input observations from [B, H, W, C] or [B, TT, H, W, C] to [..., C, H, W]
+    2) inspects tensor shapes, ensuring that input observations match expectations from the environment
+    3) inserts batch size, TT, and B * TT into the tensor dict for certain other layers in the network to use
+       if they need reshaping.
+
+    Note that the __init__ of any layer class and the MettaAgent are only called when the agent is instantiated
+    and never again. I.e., not when it is reloaded from a saved policy.
+    """
+
     def __init__(self, obs_shape, num_objects, **cfg):
-        # Note that __init__ is NOT called when we reload a policy from a checkpoint file
         super().__init__(**cfg)
         self._obs_shape = list(obs_shape)  # make sure no Omegaconf types are used in forward passes
         self._out_tensor_shape = [self._obs_shape[2], self._obs_shape[0], self._obs_shape[1]]
