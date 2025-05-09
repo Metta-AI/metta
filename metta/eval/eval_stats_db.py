@@ -84,10 +84,6 @@ class EvalStatsDB(SimulationStatsDB):
     @staticmethod
     def from_sim_stats_db(sim_stats_db: SimulationStatsDB) -> EvalStatsDB:
         """Create an EvalStatsDB from a SimulationStatsDB."""
-        # We need to close the sim_stats_db because you can't have
-        # two write connections to the same database, and we have
-        # avoided using read-only connections for simplicity.
-        sim_stats_db.close()
         return EvalStatsDB(sim_stats_db.path)
 
     # Extend parent schema with the extra views
