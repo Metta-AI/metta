@@ -1,7 +1,7 @@
 defaults:
   - common
   - wandb: metta_research
-  - sim: simple
+  - /sim/sim@replay_job.sim
   - _self_
 
 cmd: play
@@ -11,7 +11,8 @@ run_dir: ${data_dir}/${run}
 torch_deterministic: true
 
 replay_job:
-  sim: ${sim}
+  sim:
+    env: env/mettagrid/simple
   policy_uri: ${policy_uri}
   selector_type: top
   metric: score

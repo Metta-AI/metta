@@ -25,7 +25,7 @@ from metta.rl.pufferlib.profile import Profile
 from metta.rl.pufferlib.torch_profiler import TorchProfiler
 from metta.rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
 from metta.sim.simulation import Simulation
-from metta.sim.simulation_config import SimulationConfig, SimulationSuiteConfig
+from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
 from metta.sim.vecenv import make_vecenv
 from metta.util.config import config_from_path
@@ -189,7 +189,7 @@ class PufferTrainer:
             for k in ["0verview", "env", "losses", "performance", "train"]:
                 wandb_run.define_metric(f"{k}/*", step_metric="train/agent_step")
 
-        self.replay_sim_config = SimulationConfig(
+        self.replay_sim_config = SingleEnvSimulationConfig(
             env=self.trainer_cfg.env,
             num_envs=1,
             num_episodes=1,

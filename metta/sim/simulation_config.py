@@ -11,7 +11,6 @@ class SimulationConfig(Config):
     """Configuration for a single simulation run."""
 
     # Core simulation config
-    env: str
     device: str
     num_envs: int
     num_episodes: int
@@ -21,15 +20,30 @@ class SimulationConfig(Config):
     policy_agents_pct: float = 1.0
     max_time_s: int = 60
     vectorization: str = "serial"
+    eval_db_uri: Optional[str] = None
+    run_dir: str
 
 
-class SimulationSuiteConfig(SimulationConfig):
+class SingleEnvSimulationConfig(SimulationConfig):
+    """Configuration for a single simulation run."""
+
+    env: str
+    env_overrides: Optional[dict] = None
+
+    @property
+    def simulations(self) -> Dict[str, SimulationConfig]:
+        return {self.name: self}
+
+    @property
+    def name(self) -> str:
+        return self.env
+
+
+class SimulationSuiteConfig:
     """A suite of named simulations, with suite-level defaults injected."""
 
     name: str
     simulations: Dict[str, SimulationConfig]
-    # —— don't need env bc all the simulations will specify ——
-    env: Optional[str] = None
 
     @model_validator(mode="before")
     @classmethod

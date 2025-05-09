@@ -6,7 +6,7 @@ import webbrowser
 import hydra
 
 from metta.agent.policy_store import PolicyStore
-from metta.sim.simulation_config import SimulationSuiteConfig
+from metta.sim.simulation_config import SingleEnvSimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
 from metta.util.config import Config, setup_metta_environment
 from metta.util.logging import setup_mettagrid_logger
@@ -17,7 +17,7 @@ from mettagrid.util.file import http_url
 
 # TODO: This job can be replaced with sim now that Simulations create replays
 class ReplayJob(Config):
-    sim: SimulationSuiteConfig
+    sim: SingleEnvSimulationConfig
     policy_uri: str
     selector_type: str
     metric: str
