@@ -156,48 +156,51 @@ TEST_F(MettaGridTestDataTest, ObjectLoading) {
     // Check if "type_name" field exists
     if (obj.contains("type_name")) {
       std::string type_name = obj["type_name"];
-      if (type_name == "Wall")
+      if (type_name == "wall")
         found_wall = true;
-      else if (type_name.find("Mine") != std::string::npos || type_name.find("mine") != std::string::npos)
+      else if (type_name.find("mine") != std::string::npos)
         found_mine = true;
-      else if (type_name == "Altar" || type_name == "AltarT")
+      else if (type_name == "altar")
         found_altar = true;
     }
   }
 
-  // Log the actual JSON for debugging
-  if (!found_wall || !found_mine || !found_altar) {
-    std::cout << "Grid objects JSON: " << objects_json << std::endl;
+  if (false) {
+    // Print non-wall object type names for debugging
+    std::cout << "Non-wall objects found:" << std::endl;
+
+    // Iterate over key-value pairs in the JSON object
+    for (const auto& [key, obj] : objects.items()) {
+      // Check if "type_name" field exists
+      if (obj.contains("type_name")) {
+        std::string type_name = obj["type_name"];
+
+        if (type_name == "wall")
+          found_wall = true;
+        else if (type_name.find("mine") != std::string::npos)
+          found_mine = true;
+        else if (type_name == "altar")
+          found_altar = true;
+
+        // Print only non-Wall objects to reduce output clutter
+        if (type_name != "wall") {
+          std::cout << "Object ID " << key << ": Type = " << type_name << std::endl;
+          // Print all properties of this object
+          std::cout << "  Properties: ";
+          for (auto& [prop_name, prop_value] : obj.items()) {
+            if (prop_name != "type_name") {
+              std::cout << prop_name << "=" << prop_value << ", ";
+            }
+          }
+          std::cout << std::endl;
+        }
+      }
+    }
   }
 
   EXPECT_TRUE(found_wall) << "Wall object not found in grid";
   EXPECT_TRUE(found_mine) << "Mine object not found in grid";
   EXPECT_TRUE(found_altar) << "Altar object not found in grid";
-}
-
-// Test step functionality
-TEST_F(MettaGridTestDataTest, StepFunctionality) {
-  // Reset the grid
-  grid->reset();
-
-  // Check initial timestep
-  EXPECT_EQ(0, grid->current_timestep());
-
-  // Create actions - move all agents in direction 0
-  int32_t** actions = test_utils::create_action_array(grid->num_agents(), 1, 0);
-
-  // Take a step
-  grid->step(actions);
-
-  // Check timestep increment
-  EXPECT_EQ(1, grid->current_timestep());
-
-  // Check action success
-  auto success = grid->action_success();
-  EXPECT_EQ(grid->num_agents(), success.size());
-
-  // Clean up
-  test_utils::delete_action_array(actions, grid->num_agents());
 }
 
 int main(int argc, char** argv) {

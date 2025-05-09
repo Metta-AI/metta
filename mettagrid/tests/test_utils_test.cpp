@@ -246,7 +246,7 @@ TEST_F(TestUtilsTest, BufferHelpers) {
       can_step = true;
       // Find the Noop action if available
       for (size_t i = 0; i < action_names.size(); i++) {
-        if (action_names[i] == "Noop") {
+        if (action_names[i] == "noop") {
           action_idx = i;
           break;
         }
