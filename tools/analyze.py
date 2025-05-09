@@ -1,11 +1,10 @@
 """Analysis tool for MettaGrid evaluation results."""
 
 import hydra
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 
-from metta.agent.policy_store import PolicyStore
-from metta.eval.analysis import analyze
-from metta.eval.analysis_config import AnalysisConfig
+from metta.eval.analysis_config import AnalyzerConfig
+from metta.eval.report import dump_stats, generate_report
 from metta.util.logging import setup_mettagrid_logger
 from metta.util.runtime_configuration import setup_mettagrid_environment
 
@@ -15,15 +14,13 @@ def main(cfg: DictConfig) -> None:
     setup_mettagrid_environment(cfg)
     logger = setup_mettagrid_logger("analyze")
 
-    logger.info(f"Analyze job config:\n{OmegaConf.to_yaml(cfg, resolve=True)}")
+    view_type = "latest"
+    logger.info(f"Generating {view_type} report")
 
-    config = AnalysisConfig(cfg.analysis)
+    analyzer = AnalyzerConfig(cfg.analyzer)
 
-    policy_store = PolicyStore(cfg, None)
-    policy_pr = policy_store.policy(
-        config.policy_uri, config.policy_selector.type, metric=config.policy_selector.metric
-    )
-    analyze(policy_pr, config)
+    dump_stats(analyzer, cfg)
+    generate_report(analyzer, cfg)
 
 
 if __name__ == "__main__":

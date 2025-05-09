@@ -6,6 +6,7 @@ name: multiagent
 
 num_envs: 1
 num_episodes: 1
+run_dir: ${run_dir}
 
 simulations:
   multiagent/radial_cross:

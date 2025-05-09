@@ -12,10 +12,12 @@
 
 defaults:
   - override /agent: simple
+  - override /analyzer: eval_analyzer
   - _self_
 
 policy_uri: wandb://run/alex.trainee.002
 npc_policy_uri: null
+eval_db_uri: null
 
 env:
   game:
@@ -27,7 +29,13 @@ env:
 # policy_uri: wandb://run/b.daveey.t.32.instant
 policy_uri: wandb://run/b.daveey.t.8.rdr9.3
 # npc_policy_uri: ${trained_policy_uri}
+# eval_db_uri: wandb://artifacts/testing
+eval_db_uri: wandb://artifacts/object_use_db
 
+analyzer:
+  analysis:
+    metrics:
+    - metric: "action.use.altar.agent"
 
 sweep:
   metric: "action.use.altar.agent"

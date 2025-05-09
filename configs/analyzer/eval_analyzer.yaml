@@ -1,0 +1,18 @@
+policy_uri: ${..policy_uri}
+eval_db_uri: ${..eval_db_uri}
+
+view_type: all
+output_path: /tmp/dashboard.html
+metric: episode_reward
+
+analysis:
+  metric_patterns: null
+
+  metrics:
+    - metric: episode_reward
+
+  queries: null
+
+  baseline_policies: null
+
+  log_all: true
