@@ -42,6 +42,8 @@ enum ObjectType {
 std::vector<std::string> ObjectTypeNames =
     {"agent", "wall", "mine", "generator", "altar", "armory", "lasery", "lab", "factory", "temple", "converter"};
 
+std::vector<std::string> ObjectTypeAscii = {"A", "#", "g", "c", "a", "r", "l", "b", "f", "t", "v"};
+
 enum InventoryItem {
   ore_red = 0,
   ore_blue = 1,
