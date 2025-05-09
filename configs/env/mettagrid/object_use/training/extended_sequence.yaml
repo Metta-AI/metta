@@ -1,12 +1,35 @@
 defaults:
-  - mettagrid
-  - game/map_builder: extended_sequence
+  - /env/mettagrid/mettagrid@
   - _self_
 
+
 game:
+  map_builder:
+    _target_: mettagrid.config.room.multi_room.MultiRoom
+    num_rooms: ${div:${..num_agents},6}
+    border_width: 6
+
+    room:
+      _target_: mettagrid.config.room.random.Random
+      width: ${sampling:10,30,25}
+      height: ${sampling:10,30,25}
+      border_width: 0
+
+      agents: 6
+
+      objects:
+        mine.red: 1
+        generator.red: 1
+        mine.blue: 1
+        generator.blue: 1
+        mine.green: 1
+        generator.green: 1
+        altar: 1
+        block: 1
+        wall: 1
+
   num_agents: 24
   max_steps: 700
-
 
   agent:
     max_inventory: ${sampling:0, 100, 50}
