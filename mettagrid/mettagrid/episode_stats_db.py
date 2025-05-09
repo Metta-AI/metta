@@ -55,7 +55,7 @@ EPISODE_DB_TABLES = {
     CREATE TABLE IF NOT EXISTS agent_metrics (
         episode_id TEXT,
         agent_id INTEGER,
-        metric TEXT,    
+        metric TEXT,
         value REAL,
         PRIMARY KEY (episode_id, agent_id, metric)
     );
@@ -105,7 +105,7 @@ class EpisodeStatsDB:
         self.con.begin()
         self.con.execute(
             """
-            INSERT INTO episodes 
+            INSERT INTO episodes
             (id, step_count, replay_url, created_at)
             VALUES (?, ?, ?, ?)
             """,
@@ -139,7 +139,7 @@ class EpisodeStatsDB:
             )
 
         self._add_metrics(episode_id, agent_metrics, "agent")
-        self._add_metrics(episode_id, group_metrics, "group")
+        # self._add_metrics(episode_id, group_metrics, "group")
 
         self.con.commit()
         self.con.execute("CHECKPOINT")
