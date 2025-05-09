@@ -2,12 +2,10 @@
 
 # Define the list of policy URIs
 POLICIES=(
-    "b.daveey.t.8.rdr9.3"
-    "b.daveey.t.4.rdr9.3"
-    "b.daveey.t.8.rdr9.mb2.1"
-    "daveey.t.1.pi.dpm"
-    "b.daveey.t.64.dr90.1"
-    "b.daveey.t.8.rdr9.sb"
+    "b.daphne.object_use_training_no_colors_pretrained3"
+    "b.daphne.object_use_training_no_colors3"
+    "b.daphne.object_use_training_colors2"
+    "b.daphne.object_use_training_colors_pretrained2"
 )
 
 
@@ -17,8 +15,11 @@ for i in "${!POLICIES[@]}"; do
     IDX="${IDX}_${RANDOM_NUM}"
     echo "Running full sequence eval for policy $POLICY_URI"
     python3 -m tools.sim \
-        eval=object_use \
-        run=george_object_use_basic_evaluation$IDX \
-        eval.policy_uri=wandb://run/$POLICY_URI \
-        eval_db_uri=wandb://artifacts/object_use_db
+        sim=object_use \
+        run=objectuse$IDX \
+        policy_uri=wandb://run/$POLICY_URI \
+        +eval_db_uri=wandb://artifacts/object_use_db_2 \
+
+python3 -m tools.analyze +eval_db_uri=wandb://artifacts/object_use_db_2 run=objectuseanalyze ++analyzer.output_path=s3://softmax-public/policydash/objectuse_2.html \
+
 done
