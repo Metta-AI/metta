@@ -261,7 +261,7 @@ class Simulation:
                     agent_episode_data = infos[n]["agent_raw"]
                     episode_reward = infos[n]["episode_rewards"]
                     group_reward = infos[n]["group_rewards"]
-                    game_stats.append(group_reward)
+                    # game_stats.append(group_reward)
                     for agent_i in range(len(agent_episode_data)):
                         agent_idx = agent_i + n * self._agents_per_env
 
@@ -273,6 +273,8 @@ class Simulation:
                             agent_episode_data[agent_i]["policy_name"] = "No Name Found"
                         agent_episode_data[agent_i]["episode_reward"] = episode_reward[agent_i].tolist()
                         agent_episode_data[agent_i].update(flattened_env)
+                        for group, reward in group_reward.items():
+                            agent_episode_data[agent_i][f"group_reward_{group}"] = reward
 
                     game_stats.append(agent_episode_data)
 

@@ -6,9 +6,9 @@ game:
   num_agents: ${..num_agents}
 
 envs:
-  - /env/mettagrid/multiagent/training/reward_sharing/48_sharing0.3/terrain_from_numpy
-  - /env/mettagrid/multiagent/training/reward_sharing/48_sharing0.3/varied_terrain_all_sparse
-  - /env/mettagrid/multiagent/training/reward_sharing/48_sharing0.3/varied_terrain_balanced
-  - /env/mettagrid/multiagent/training/reward_sharing/48_sharing0.3/varied_terrain_maze
-  - /env/mettagrid/multiagent/training/reward_sharing/48_sharing0.3/varied_terrain_sparse_altars_dense_objects
-  - /env/mettagrid/multiagent/training/reward_sharing/48_sharing0.3/cylinder_world
+  - /env/mettagrid/multiagent/training/reward_sharing/48_sharing03/terrain_from_numpy
+  - /env/mettagrid/multiagent/training/reward_sharing/48_sharing03/varied_terrain_all_sparse
+  - /env/mettagrid/multiagent/training/reward_sharing/48_sharing03/varied_terrain_balanced
+  - /env/mettagrid/multiagent/training/reward_sharing/48_sharing03/varied_terrain_maze
+  - /env/mettagrid/multiagent/training/reward_sharing/48_sharing03/varied_terrain_dense
+  - /env/mettagrid/multiagent/training/reward_sharing/48_sharing03/cylinder_world

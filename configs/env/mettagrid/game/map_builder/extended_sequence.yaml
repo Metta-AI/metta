@@ -1,0 +1,22 @@
+_target_: mettagrid.config.room.multi_room.MultiRoom
+num_rooms: ${div:${..num_agents},6}
+border_width: 6
+
+room:
+  _target_: mettagrid.config.room.random.Random
+  width: ${sampling:10,100,25}
+  height: ${sampling:10,100,25}
+  border_width: 0
+
+  agents: 6
+
+  objects:
+    mine.red: ${sampling:1,20,10}
+    generator.red: ${sampling:1,10,2}
+    mine.blue: ${sampling:1,20,10}
+    generator.blue: ${sampling:1,10,2}
+    mine.green: ${sampling:1,20,10}
+    generator.green: ${sampling:1,10,2}
+    altar: ${sampling:1,5,1}
+    block: ${sampling:5,50,20}
+    wall: ${sampling:5,50,20}

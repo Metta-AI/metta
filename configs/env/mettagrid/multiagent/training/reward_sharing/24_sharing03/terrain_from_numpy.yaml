@@ -13,26 +13,34 @@ game:
     border_width: 6
 
     rooms:
-      - _target_: mettagrid.config.room.navigation.terrain_from_numpy.TerrainFromNumpy
+      - _target_: mettagrid.config.room.terrain_from_numpy.TerrainFromNumpy
         border_width: 1
         dir: "terrain_maps_nohearts"
-        num_agents: 6
+        agents: 6
         team: team_1
-      - _target_: mettagrid.config.room.navigation.terrain_from_numpy.TerrainFromNumpy
+        objects:
+          altar: ${sampling:10,75,30}
+      - _target_: mettagrid.config.room.terrain_from_numpy.TerrainFromNumpy
         border_width: 1
         dir: "terrain_maps_nohearts"
-        num_agents: 6
+        agents: 6
         team: team_2
-      - _target_: mettagrid.config.room.navigation.terrain_from_numpy.TerrainFromNumpy
+        objects:
+          altar: ${sampling:10,75,30}
+      - _target_: mettagrid.config.room.terrain_from_numpy.TerrainFromNumpy
         border_width: 1
         dir: "terrain_maps_nohearts"
-        num_agents: 6
+        agents: 6
         team: team_3
-      - _target_: mettagrid.config.room.navigation.terrain_from_numpy.TerrainFromNumpy
+        objects:
+          altar: ${sampling:10,75,30}
+      - _target_: mettagrid.config.room.terrain_from_numpy.TerrainFromNumpy
         border_width: 1
         dir: "terrain_maps_nohearts"
-        num_agents: 6
+        agents: 6
         team: team_4
+        objects:
+          altar: ${sampling:10,75,30}
 
   reward_sharing:
     groups:

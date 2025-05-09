@@ -13,19 +13,31 @@ game:
 
     room:
       _target_: mettagrid.config.room.navigation.varied_terrain.VariedTerrain
-      width: ${sampling:50,100,60}
-      height: ${sampling:50,100,60}
+      width: ${sampling:20,50,30}
+      height: ${sampling:20,50,30}
       border_width: ${sampling:1,6,3}
       agents: 1
       style: all-sparse # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
-      teams: ["team_1", "team_2", "team_3"]
-      object_colors: ["red", "green", "blue"]
-
+      objects:
+        altar: 1
+        generator.red: 1
+        mine.red: 1
+        generator.blue: 1
+        mine.blue: 1
+        generator.green: 1
+        mine.green: 1
   objects:
     altar:
-      cooldown: 1000
-      input_battery: 3
-      output_heart: 1
-      max_output: 5
-      conversion_ticks: 1
-      initial_items: 1
+      cooldown: 1
+    generator.red:
+      cooldown: 1
+    mine.red:
+      cooldown: 1
+    generator.blue:
+      cooldown: 1
+    mine.blue:
+      cooldown: 1
+    generator.green:
+      cooldown: 1
+    mine.green:
+      cooldown: 1

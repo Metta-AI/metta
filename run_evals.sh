@@ -2,17 +2,21 @@
 
 # Define the list of policy URIs
 POLICIES=(
-<<<<<<< Updated upstream
-    "b.daphne.navigation_multiagent_24_rewardsharing_maxinv"
-    "b.daphne.navigation_multiagent_48_rewardsharing_maxinv"
-    "b.daphne.navigation_multiagent_24_norewardsharing_maxinv"
-    "b.daphne.navigation_multiagent_48_norewardsharing_maxinv"
-    "daphne.navigation"
-    "b.daphne.navigation"
-    "b.daphne.navigation2"
-=======
-    "daphne.navigation:v127"
->>>>>>> Stashed changes
+    "b.daphne.multiagent_mix3"
+    "b.daphne.multiagent_c3"
+    "b.daphne.multiagent_nc3"
+    "b.daphne.multiagent_nc1"
+    "b.daphne.multiagent_mix1"
+    "b.daphne.multiagent_c1"
+    "george_sharing_48"
+    "george_sharing48_06"
+    "george_sharing48_03"
+    "george_48_no_sharing"
+    "b.daphne.navigation4"
+    "b.daphne.navigation1"
+    "b.daphne.navigation3"
+    "b.daphne.navigation0"
+    "b.daphne.navigation5"
 )
 
 for i in "${!POLICIES[@]}"; do
@@ -21,55 +25,52 @@ for i in "${!POLICIES[@]}"; do
     echo "Running full sequence eval for policy $POLICY_URI"
     RANDOM_NUM=$((RANDOM % 1000))
     IDX="${IDX}_${RANDOM_NUM}"
+
+
     python3 -m tools.sim \
-        sim=navigation \
-        run=navigation$IDX \
-<<<<<<< Updated upstream
+        sim=multiagent \
+        run=multiagent$IDX \
         policy_uri=wandb://run/$POLICY_URI \
-        +eval_db_uri=wandb://artifacts/test_navigation \
-        ++sim_job.selector_type=top \
-        # ++sim_job.metric=navigation_score
-=======
-        policy_uri=wandb://run/daphne.navigation:v127 \
-        +eval_db_uri=wandb://artifacts/test_navigation_main
->>>>>>> Stashed changes
-
-    # python3 -m tools.sim \
-    #     sim=multiagent \
-    #     run=multiagent$IDX \
-    #     policy_uri=wandb://run/$POLICY_URI \
-<<<<<<< Updated upstream
-    #     +eval_db_uri=wandb://artifacts/multiagent_db \
-    #     ++sim_job.selector_type=top \
-    #     ++sim_job.metric=multiagent_score
-
-=======
-    #     +eval_db_uri=wandb://artifacts/multiagent_db
->>>>>>> Stashed changes
-
-    # python3 -m tools.sim \
-    #     sim=memory \
-    #     run=memory$IDX \
-    #     policy_uri=wandb://run/$POLICY_URI \
-<<<<<<< Updated upstream
-    #     +eval_db_uri=wandb://artifacts/memory_db \
-    #     ++sim_job.selector_type=top \
-    #     ++sim_job.metric=memory_score
+        +eval_db_uri=wandb://artifacts/multiagent_db \
+        # sim.num_envs=20 \
+        # sim.num_episodes=20
 
     # python3 -m tools.sim \
     #     sim=cards \
     #     run=cards$IDX \
     #     policy_uri=wandb://run/$POLICY_URI \
     #     +eval_db_uri=wandb://artifacts/cards_db \
-    #     ++sim_job.selector_type=latest
 
-    # python3 -m tools.sim \
-    #     sim=object_use \
-    #     run=object_use$IDX \
-    #     policy_uri=wandb://run/$POLICY_URI \
-    #     +eval_db_uri=wandb://artifacts/object_use_db \
-    #     ++sim_job.selector_type=latest
-=======
-    #     +eval_db_uri=wandb://artifacts/memory_db
->>>>>>> Stashed changes
+    python3 -m tools.sim \
+        sim=object_use \
+        run=object_use$IDX \
+        policy_uri=wandb://run/$POLICY_URI \
+        +eval_db_uri=wandb://artifacts/object_use_db \
+        # sim.num_envs=20 \
+        # sim.num_episodes=20 \
+
+    python3 -m tools.sim \
+        sim=memory \
+        run=memory$IDX \
+        policy_uri=wandb://run/$POLICY_URI \
+        +eval_db_uri=wandb://artifacts/memory_db \
+
+    python3 -m tools.sim \
+        sim=navigation \
+        run=navigation$IDX \
+        policy_uri=wandb://run/$POLICY_URI \
+        +eval_db_uri=wandb://artifacts/navigation_db \
+        # sim.num_envs=20 \
+        # sim.num_episodes=20 \
+
+python3 -m tools.analyze +eval_db_uri=wandb://artifacts/multiagent_db run=multiagentrun3 ++analyzer.output_path=s3://softmax-public/policydash/multiagent.html \
+
+# python3 -m tools.analyze +eval_db_uri=wandb://artifacts/cards_db run=cardsrun3 ++analyzer.output_path=s3://softmax-public/policydash/cards.html \
+
+python3 -m tools.analyze +eval_db_uri=wandb://artifacts/object_use_db run=object_userun3 ++analyzer.output_path=s3://softmax-public/policydash/object_use.html \
+
+python3 -m tools.analyze +eval_db_uri=wandb://artifacts/memory_db run=multiagentrun3 ++analyzer.output_path=s3://softmax-public/policydash/memory.html \
+
+python3 -m tools.analyze +eval_db_uri=wandb://artifacts/navigation_db run=navigationrun3 ++analyzer.output_path=s3://softmax-public/policydash/navigation.html \
+
 done

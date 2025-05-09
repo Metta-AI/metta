@@ -1,0 +1,43 @@
+defaults:
+  - /env/mettagrid/mettagrid@
+  - _self_
+
+sampling: 1
+
+game:
+  num_agents: 4
+  map_builder:
+    _target_: mettagrid.config.room.multi_room.MultiRoom
+    num_rooms: 4
+    border_width: 6
+
+    room:
+      _target_: mettagrid.config.room.navigation.varied_terrain.VariedTerrain
+      width: ${sampling:20,50,30}
+      height: ${sampling:20,50,30}
+      border_width: ${sampling:1,6,3}
+      agents: 1
+      style: sparse-altars-dense-objects # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
+      objects:
+        altar: 1
+        generator.red: 3
+        mine.red: 3
+        # generator.blue: 1
+        # mine.blue: 1
+        # generator.green: 1
+        # mine.green: 1
+  objects:
+    altar:
+      cooldown: 1
+    generator.red:
+      cooldown: 1
+    mine.red:
+      cooldown: 1
+    generator.blue:
+      cooldown: 1
+    mine.blue:
+      cooldown: 1
+    generator.green:
+      cooldown: 1
+    mine.green:
+      cooldown: 1

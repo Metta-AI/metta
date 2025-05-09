@@ -26,6 +26,14 @@ game:
       style: balanced # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
       teams: ["team_1", "team_2", "team_3"]
       object_colors: ["red", "green", "blue"]
+      objects:
+        altar: ${sampling:1,4,2}
+        mine.green: ${sampling:2,5,2}
+        mine.red: ${sampling:2,5,2}
+        mine.blue: ${sampling:2,5,2}
+        generator.red: ${sampling:2,5,2}
+        generator.blue: ${sampling:2,5,2}
+        generator.green: ${sampling:2,5,2}
   objects:
     altar:
       hp: 30
@@ -33,8 +41,8 @@ game:
       output_heart: 1
       max_output: 10
       conversion_ticks: 1
-      cooldown: ${sampling:1, 20, 10}
-      initial_items: 1
+      cooldown: 1
+      initial_items: 0
 
     mine.red:
       hp: 30

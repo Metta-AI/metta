@@ -5,11 +5,9 @@ defaults:
 sampling: 1
 
 game:
-  num_agents: 24
-
+  num_agents: 48
   agent:
     max_inventory: 5
-
   map_builder:
     _target_: mettagrid.config.room.multi_room.RoomList
     border_width: 6
@@ -19,38 +17,46 @@ game:
         width: ${sampling:50,100,60}
         height: ${sampling:50,100,60}
         border_width: ${sampling:1,6,3}
-        agents: 6
+        agents: 12
         style: sparse-altars-dense-objects # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
-        team: team_1
+        teams: [team_1]
+        objects:
+          altar: ${sampling:25,75,30}
       - _target_: mettagrid.config.room.navigation.varied_terrain.VariedTerrain
         width: ${sampling:50,100,60}
         height: ${sampling:50,100,60}
         border_width: ${sampling:1,6,3}
-        agents: 6
+        agents: 12
         style: sparse-altars-dense-objects # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
-        team: team_2
+        teams: [team_2]
+        objects:
+          altar: ${sampling:25,75,30}
       - _target_: mettagrid.config.room.navigation.varied_terrain.VariedTerrain
         width: ${sampling:50,100,60}
         height: ${sampling:50,100,60}
         border_width: ${sampling:1,6,3}
-        agents: 6
+        agents: 12
         style: sparse-altars-dense-objects # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
-        team: team_3
+        teams: [team_3]
+        objects:
+          altar: ${sampling:25,75,30}
       - _target_: mettagrid.config.room.navigation.varied_terrain.VariedTerrain
         width: ${sampling:50,100,60}
         height: ${sampling:50,100,60}
         border_width: ${sampling:1,6,3}
-        agents: 6
+        agents: 12
         style: sparse-altars-dense-objects # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
-        team: team_4
+        teams: [team_4]
+        objects:
+          altar: ${sampling:25,75,30}
 
   reward_sharing:
     groups:
       team_1:
-        team_1: 0.3
+        team_1: 0.2
       team_2:
-        team_2: 0.3
+        team_2: 0.4
       team_3:
-        team_3: 0.3
+        team_3: 0.6
       team_4:
-        team_4: 0.3
+        team_4: 0.8

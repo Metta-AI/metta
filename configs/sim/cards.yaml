@@ -2,6 +2,8 @@ defaults:
   - sim
   - _self_
 
+name: cards
+
 simulations:
   cards/depletable_single_use:
     env: env/mettagrid/cards/evals/depletable_single_use
