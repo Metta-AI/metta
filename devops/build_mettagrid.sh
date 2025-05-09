@@ -5,6 +5,8 @@
 # Exit immediately if a command exits with a non-zero status
 set -e
 
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+
 # Parse command line arguments
 CLEAN=0
 for arg in "$@"; do
@@ -23,16 +25,24 @@ else
     echo "========== Rebuilding mettagrid =========="
 fi
 
-# Get the directory where this script is located
-SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+echo "Python executable: $(which python)"
+echo "Python version: $(python --version)"
+echo "Current directory: $(pwd)"
+echo "Python path: $(python -c 'import sys; print(sys.path)')"
 
 # Go to the project root directory 
 cd "$SCRIPT_DIR/.."
 
 # Navigate to mettagrid directory
 cd mettagrid
-echo "Installing mettagrid requirements..."
-pip install -r requirements.txt
+
+if [ -z "$CI" ]; then
+    echo "Upgrading pip..."
+    python -m pip install --upgrade pip
+
+    echo "Installing mettagrid requirements..."
+    pip install -r requirements.txt
+    fi
 
 echo "Building mettagrid in $(pwd)"
 
