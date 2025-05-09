@@ -1,17 +1,19 @@
 import { Vec2f } from './vector_math.js';
-import { Context3d, parseHtmlColor } from './context3d.js';
+import { Context3d } from './context3d.js';
+import { find, parseHtmlColor } from './htmlutils.js';
 import { PanelInfo } from './panels.js';
 
 // The 3d context, used for nearly everything.
-export const ctx = new Context3d(document.getElementById('global-canvas') as HTMLCanvasElement);
+export const ctx = new Context3d(find('#global-canvas') as HTMLCanvasElement);
 
 // Constants
 export const MIN_ZOOM_LEVEL = 0.025;
 export const MAX_ZOOM_LEVEL = 2.0;
-
+export const DEFAULT_ZOOM_LEVEL = 1 / 2;
+export const DEFAULT_TRACE_ZOOM_LEVEL = 1 / 4;
 export const SPLIT_DRAG_THRESHOLD = 10;  // pixels to detect split dragging
 export const SCROLL_ZOOM_FACTOR = 1000;  // divisor for scroll delta to zoom conversion
-export const DEFAULT_TRACE_SPLIT = 0.85;  // default horizontal split ratio
+export const DEFAULT_TRACE_SPLIT = 0.80;  // default horizontal split ratio
 export const PANEL_BOTTOM_MARGIN = 60;    // bottom margin for panels
 export const HEADER_HEIGHT = 60;          // height of the header
 export const SCRUBBER_HEIGHT = 120;        // height of the scrubber
@@ -26,8 +28,8 @@ export const MINI_MAP_TILE_SIZE = 2;
 export const DEFAULT_VISION_SIZE = 11;
 
 // Trace constants
-export const TRACE_HEIGHT = 256;
-export const TRACE_WIDTH = 32;
+export const TRACE_HEIGHT = 512;
+export const TRACE_WIDTH = 54;
 
 // Colors for resources
 export const COLORS: [string, [number, number, number, number]][] = [
@@ -39,10 +41,12 @@ export const COLORS: [string, [number, number, number, number]][] = [
 export const ui = {
   // Mouse events
   mouseDown: false,
+  mouseUp: false,
   mouseClick: false,
   mouseDoubleClick: false,
   mousePos: new Vec2f(0, 0),
   lastMousePos: new Vec2f(0, 0),
+  mouseDownPos: new Vec2f(0, 0),
   scrollDelta: 0,
   lastClickTime: 0, // For double-click detection
 
@@ -62,7 +66,6 @@ export const state = {
   replay: null as any,
   selectedGridObject: null as any,
   followSelection: false, // Flag to follow selected entity
-  followTraceSelection: false, // Flag to follow trace selection
 
   // Playback state
   step: 0,
@@ -72,50 +75,52 @@ export const state = {
 
   // What to show?
   sortTraces: false,
+  showResources: true,
   showGrid: true,
   showViewRanges: true,
   showFogOfWar: false,
 };
 
 export const html = {
-  globalCanvas: document.getElementById('global-canvas') as HTMLCanvasElement,
+  globalCanvas: find('#global-canvas') as HTMLCanvasElement,
 
   // Header area
-  fileName: document.getElementById('file-name') as HTMLDivElement,
-  shareButton: document.getElementById('share-button') as HTMLButtonElement,
-  mainFilter: document.getElementById('main-filter') as HTMLInputElement,
+  fileName: find('#file-name') as HTMLDivElement,
+  shareButton: find('#share-button') as HTMLButtonElement,
+  mainFilter: find('#main-filter') as HTMLInputElement,
 
   // Bottom area
-  scrubber: document.getElementById('main-scrubber') as HTMLInputElement,
+  scrubber: find('#main-scrubber') as HTMLInputElement,
 
-  rewindToStartButton: document.getElementById('rewind-to-start') as HTMLImageElement,
-  stepBackButton: document.getElementById('step-back') as HTMLImageElement,
-  playButton: document.getElementById('play') as HTMLButtonElement,
-  stepForwardButton: document.getElementById('step-forward') as HTMLImageElement,
-  rewindToEndButton: document.getElementById('rewind-to-end') as HTMLImageElement,
+  rewindToStartButton: find('#rewind-to-start') as HTMLImageElement,
+  stepBackButton: find('#step-back') as HTMLImageElement,
+  playButton: find('#play') as HTMLButtonElement,
+  stepForwardButton: find('#step-forward') as HTMLImageElement,
+  rewindToEndButton: find('#rewind-to-end') as HTMLImageElement,
 
   speedButtons: [
-    document.getElementById('speed1') as HTMLImageElement,
-    document.getElementById('speed2') as HTMLImageElement,
-    document.getElementById('speed3') as HTMLImageElement,
-    document.getElementById('speed4') as HTMLImageElement,
-    document.getElementById('speed5') as HTMLImageElement,
-    document.getElementById('speed6') as HTMLImageElement,
+    find('#speed1') as HTMLImageElement,
+    find('#speed2') as HTMLImageElement,
+    find('#speed3') as HTMLImageElement,
+    find('#speed4') as HTMLImageElement,
+    find('#speed5') as HTMLImageElement,
+    find('#speed6') as HTMLImageElement,
   ],
 
-  sortButton: document.getElementById('sort') as HTMLImageElement,
-  focusButton: document.getElementById('tack') as HTMLImageElement,
-  gridButton: document.getElementById('grid') as HTMLImageElement,
-  showViewButton: document.getElementById('eye') as HTMLImageElement,
-  showFogOfWarButton: document.getElementById('cloud') as HTMLImageElement,
+  sortButton: find('#sort') as HTMLImageElement,
+  resourcesButton: find('#resources') as HTMLImageElement,
+  focusButton: find('#tack') as HTMLImageElement,
+  gridButton: find('#grid') as HTMLImageElement,
+  showViewButton: find('#eye') as HTMLImageElement,
+  showFogOfWarButton: find('#cloud') as HTMLImageElement,
 
   // Utility
-  modal: document.getElementById('modal') as HTMLDivElement,
-  toast: document.getElementById('toast') as HTMLDivElement,
+  modal: find('#modal') as HTMLDivElement,
+  toast: find('#toast') as HTMLDivElement,
 }
 
 // Set the follow selection state, you can pass null to leave a state unchanged.
-export function setFollowSelection(map: boolean | null, trace: boolean | null) {
+export function setFollowSelection(map: boolean | null) {
   if (map != null) {
     state.followSelection = map;
     if (map) {
@@ -123,9 +128,6 @@ export function setFollowSelection(map: boolean | null, trace: boolean | null) {
     } else {
       html.focusButton.style.opacity = "0.2";
     }
-  }
-  if (trace != null) {
-    state.followTraceSelection = trace;
   }
 }
 

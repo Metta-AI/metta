@@ -7,16 +7,6 @@ interface AtlasData {
   [key: string]: [number, number, number, number]; // [x, y, width, height]
 }
 
-// Parse a hex color string into a float array.
-export function parseHtmlColor(color: string): [number, number, number, number] {
-  return [
-    parseInt(color.slice(1, 3), 16) / 255,
-    parseInt(color.slice(3, 5), 16) / 255,
-    parseInt(color.slice(5, 7), 16) / 255,
-    1.0
-  ];
-}
-
 // Clamp a value between a minimum and maximum.
 export function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(value, max));
