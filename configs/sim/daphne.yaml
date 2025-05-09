@@ -5,4 +5,4 @@ defaults:
 name: daphne
 simulations:
   choose_an_altar_team:
-    env: env/mettagrid/multiagent/evals/choose_an_altar
+    env: env/mettagrid/multiagent/evals/be_polite
