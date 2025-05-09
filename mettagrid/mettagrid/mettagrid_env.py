@@ -139,6 +139,11 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._num_agents = self._c_env.num_agents()
 
     def reset(self, seed=None, options=None):
+        """
+        This method overrides the reset method from PufferEnv.
+
+        Reset the environment to an initial state and returns an initial observation.
+        """
         self._env_cfg = self._get_new_env_cfg()
         self._reset_env()
 
@@ -156,6 +161,8 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     def step(self, actions: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, dict]:
         """
+        This method overrides the reset method from PufferEnv.
+
         Take a step in the environment with the given actions.
 
         Args:

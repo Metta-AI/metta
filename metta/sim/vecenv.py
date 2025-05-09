@@ -21,9 +21,18 @@ def make_env_func(
     replay_writer: Optional[ReplayWriter] = None,
     **kwargs,
 ):
-    return hydra.utils.instantiate(
+    # Create the environment instance
+    env = hydra.utils.instantiate(
         cfg, cfg, render_mode=render_mode, buf=buf, stats_writer=stats_writer, replay_writer=replay_writer, **kwargs
     )
+
+    # Ensure the environment is properly initialized
+    if hasattr(env, "_c_env") and env._c_env is None:
+        logger.warning("MettaGridEnv._c_env is None")
+        # You might need to add code here to properly initialize _c_env
+        # This depends on how MettaGridEnv is designed
+
+    return env
 
 
 def make_vecenv(
@@ -64,13 +73,13 @@ def make_vecenv(
     env_kwargs_list = [env_kwargs] * num_envs  # Same kwargs for each environment
 
     vecenv = vectorizer_cls(
-        env_creator_or_creators=env_creators,
-        env_args=env_args_list,
-        env_kwargs=env_kwargs_list,
-        backend=MettaGridEnv,
-        num_envs=num_envs,
-        num_workers=num_workers,
+        env_creators,  # First positional argument
+        env_args_list,  # Second positional argument
+        env_kwargs_list,  # Third positional argument
+        num_envs,  # Fourth positional argument
+        num_workers=num_workers,  # Keyword arguments from here
         batch_size=batch_size or num_envs,
+        backend=MettaGridEnv,
         **kwargs,
     )
 

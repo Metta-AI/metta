@@ -20,7 +20,7 @@ def build_ext(srcs, module_name=None, depends=None):
         sources=srcs,
         language="c++",
         define_macros=[("NPY_NO_DEPRECATED_API", "NPY_1_7_API_VERSION")],
-        extra_compile_args=["-std=c++23"],
+        extra_compile_args=["-std=c++23", "-Wno-unreachable-code"],
         include_dirs=[numpy.get_include(), ".", "./mettagrid", "./third_party"],
         depends=depends or [],
     )

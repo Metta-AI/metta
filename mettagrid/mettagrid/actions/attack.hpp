@@ -103,7 +103,7 @@ protected:
             actor->stats.incr("attack.win.other_team", actor->group_name);
           }
 
-          for (int32_t item = 0; item < InventoryItem::InventoryCount; item++) {
+          for (size_t item = 0; item < InventoryItem::InventoryCount; item++) {
             // Validate inventory item index before accessing
             if (item >= InventoryItemNames.size()) {
               throw std::runtime_error("Invalid inventory item index: " + std::to_string(item));

@@ -11,6 +11,7 @@ ext_modules = [
         sources=["metta/rl/fast_gae/fast_gae.pyx"],
         define_macros=[("NPY_NO_DEPRECATED_API", "NPY_1_7_API_VERSION")],
         include_dirs=[numpy.get_include()],
+        xtra_compile_args=["-Wno-unreachable-code"],
     )
 ]
 

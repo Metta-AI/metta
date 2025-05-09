@@ -173,17 +173,16 @@ cdef class MettaGrid:
         
         if rewards.ndim < 1 or rewards.shape[0] < num_agents:
             raise ValueError(f"Rewards buffer has shape {reward_shape}, expected first dimension ≥ {num_agents}")
-        
 
-       # Ensure arrays are contiguous in memory
-        if not self._observations_np.flags['C_CONTIGUOUS']:
-            self._observations_np = np.ascontiguousarray(self._observations_np)
-        if not self._terminals_np.flags['C_CONTIGUOUS']:
-            self._terminals_np = np.ascontiguousarray(self._terminals_np)
-        if not self._truncations_np.flags['C_CONTIGUOUS']:
-            self._truncations_np = np.ascontiguousarray(self._truncations_np)
-        if not self._rewards_np.flags['C_CONTIGUOUS']:
-            self._rewards_np = np.ascontiguousarray(self._rewards_np)
+        # Ensure arrays are contiguous in memory
+        if not observations.flags['C_CONTIGUOUS']:
+            observations = np.ascontiguousarray(observations)
+        if not terminals.flags['C_CONTIGUOUS']:
+            terminals = np.ascontiguousarray(terminals)
+        if not truncations.flags['C_CONTIGUOUS']:
+            truncations = np.ascontiguousarray(truncations)
+        if not rewards.flags['C_CONTIGUOUS']:
+            rewards = np.ascontiguousarray(rewards)
 
         # Store the external buffers
         self._observations_np = observations
@@ -191,7 +190,7 @@ cdef class MettaGrid:
         self._truncations_np = truncations
         self._rewards_np = rewards
         
-        # Connect these arrays to the C++ engine - match the method name
+        # Connect these arrays to the C++ engine
         self._cpp_mettagrid.set_buffers(
             <ObsType*>observations.data,
             <int8_t*>terminals.data,
