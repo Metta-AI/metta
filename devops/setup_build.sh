@@ -11,10 +11,7 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 echo -e "\n\nCleaning build artifacts...\n\n"
 # Clean root directory artifacts
 find "$PROJECT_DIR" -type f -name '*.so' -delete
-find "$PROJECT_DIR" -type d -name '__pycache__' -exec rm -rf {} +
 find "$PROJECT_DIR" -type d -name 'build' -exec rm -rf {} +
-find "$PROJECT_DIR" -type d -name '*.egg-info' -exec rm -rf {} +
-find "$PROJECT_DIR" -type f -name '.coverage' -delete
 echo "✅ Cleaned root directory build artifacts"
 
 # Clean mettagrid artifacts if directory exists
