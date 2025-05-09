@@ -33,10 +33,13 @@ class Pybind11BuildExt(build_ext):
 
         pybind11_include = pybind11.get_include()
 
-        # eigen_include = os.path.join(os.getenv("CONDA_PREFIX"), "include", "eigen3")
+        if os.getenv("CONDA_PREFIX"):
+            eigen_include = os.path.join(os.getenv("CONDA_PREFIX"), "include", "eigen3")
+        else:
+            eigen_include = "/usr/include/eigen3"
 
         for ext in self.extensions:
-            ext.include_dirs.extend([numpy.get_include(), pybind11_include, "mettagrid"])
+            ext.include_dirs.extend([numpy.get_include(), pybind11_include, eigen_include, "mettagrid"])
             ext.extra_compile_args.extend(extra_compile_args)
             ext.extra_link_args.extend(extra_link_args)
 
