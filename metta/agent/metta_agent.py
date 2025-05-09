@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, List, Union
+from typing import List, Union
 
 import gymnasium as gym
 import hydra
@@ -66,10 +66,10 @@ class MettaAgent(nn.Module):
         self.core_num_layers = cfg.components._core_.nn_params.num_layers
         self.clip_range = cfg.clip_range
 
-        try:
-            obs_key = cfg.observations.obs_key  # typically "grid_obs"
-        except (AttributeError, KeyError) as err:
-            raise ValueError("Configuration is missing required field 'observations.obs_key'") from err
+        assert hasattr(cfg.observations, "obs_key") and cfg.observations.obs_key is not None, (
+            "Configuration is missing required field 'observations.obs_key'"
+        )
+        obs_key = cfg.observations.obs_key  # typically "grid_obs"
 
         obs_shape = safe_get_from_obs_space(obs_space, obs_key, "shape")
         obs_input_shape = obs_shape[1:]  # typ. obs_width, obs_height, number of observations
@@ -238,7 +238,7 @@ class MettaAgent(nn.Module):
         # direct tensor indexing on precomputed action_index_tensor
         return self.action_index_tensor[action_logit_index.reshape(-1)]
 
-    def _apply_to_components(self, method_name, *args, **kwargs) -> Dict[str, torch.Tensor]:
+    def _apply_to_components(self, method_name, *args, **kwargs) -> list[torch.Tensor]:
         """
         Apply a method to all components, raising an error if any component
         doesn't support the method.
@@ -248,10 +248,11 @@ class MettaAgent(nn.Module):
             *args, **kwargs: Arguments to pass to the method
 
         Returns:
-            Dictionary of component names mapped to their return values (torch.Tensor)
+            List of tensor values returned by each component
 
         Raises:
             AttributeError: If any component doesn't have the requested method
+            AssertionError: If no components are available
         """
         results = {}
         for name, component in self.components.items():
@@ -265,39 +266,23 @@ class MettaAgent(nn.Module):
             # Now call the method, letting any exceptions propagate up
             results[name] = method(*args, **kwargs)
 
-        return results
+        tensor_list = list(results.values())
+        assert len(tensor_list) != 0, "No components available to apply method"
+        return tensor_list
 
     def l2_reg_loss(self) -> torch.Tensor:
         """L2 regularization loss is on by default although setting l2_norm_coeff to 0 effectively turns it off. Adjust
         it by setting l2_norm_scale in your component config to a multiple of the global loss value or 0 to turn it off.
         """
-        # Initialize with a tensor of zeros
-        loss_value = torch.tensor(0.0, device=self.device)
-
-        # Use the helper method to gather all component losses
-        component_losses = self._apply_to_components("l2_reg_loss")
-
-        # Process the results
-        for _name, comp_loss in component_losses.items():
-            loss_value = loss_value + comp_loss
-
-        return loss_value
+        component_loss_tensors = self._apply_to_components("l2_reg_loss")
+        return torch.sum(torch.stack(component_loss_tensors))
 
     def l2_init_loss(self) -> torch.Tensor:
         """L2 initialization loss is on by default although setting l2_init_coeff to 0 effectively turns it off. Adjust
         it by setting l2_init_scale in your component config to a multiple of the global loss value or 0 to turn it off.
         """
-        # Initialize with a tensor of zeros
-        loss_value = torch.tensor(0.0, device=self.device)
-
-        # Use the helper method to gather all component losses
-        component_losses = self._apply_to_components("l2_init_loss")
-
-        # Process the results
-        for _name, comp_loss in component_losses.items():
-            loss_value = loss_value + comp_loss
-
-        return loss_value
+        component_loss_tensors = self._apply_to_components("l2_init_loss")
+        return torch.sum(torch.stack(component_loss_tensors))
 
     def update_l2_init_weight_copy(self):
         """Update interval set by l2_init_weight_update_interval. 0 means no updating."""
@@ -319,9 +304,11 @@ class MettaAgent(nn.Module):
             method_name = "compute_weight_metrics"
             if not hasattr(component, method_name):
                 continue  # Skip components that don't have this method instead of raising an error
+
             method = getattr(component, method_name)
-            if not callable(method):
-                raise TypeError(f"Component '{name}' has {method_name} attribute but it's not callable")
+            assert callable(method), f"Component '{name}' has {method_name} attribute but it's not callable"
+
             results[name] = method(delta)
 
-        return [metrics for metrics in results.values() if metrics is not None]
+        metrics_list = [metrics for metrics in results.values() if metrics is not None]
+        return metrics_list
