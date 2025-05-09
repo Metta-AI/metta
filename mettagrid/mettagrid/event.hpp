@@ -101,6 +101,7 @@ public:
       cout << "object id: " << event.object_id << endl;
       cout << "arg: " << event.arg << endl;
       handler->handle_event(event.object_id, event.arg);
+      cout << "processing events: done" << endl;
     }
     cout << "done processing events" << endl;
   }
