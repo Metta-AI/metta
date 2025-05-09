@@ -238,19 +238,25 @@ class MettaAgent(nn.Module):
         # direct tensor indexing on precomputed action_index_tensor
         return self.action_index_tensor[action_logit_index.reshape(-1)]
 
-    def _apply_to_components(self, method_name, *args, **kwargs) -> None:
+    def _apply_to_components(self, method_name, *args, **kwargs) -> List[torch.Tensor]:
         """
-        Apply a method to all components, raising an error if any component
-        doesn't support the method.
+        Apply a method to all components, collecting and returning the results.
 
         Args:
             method_name: Name of the method to call on each component
             *args, **kwargs: Arguments to pass to the method
 
+        Returns:
+            list: Results from calling the method on each component
+
         Raises:
             AttributeError: If any component doesn't have the requested method
+            TypeError: If a component's method is not callable
             AssertionError: If no components are available
         """
+        assert len(self.components) != 0, "No components available to apply method"
+
+        results = []
         for name, component in self.components.items():
             if not hasattr(component, method_name):
                 raise AttributeError(f"Component '{name}' does not have method '{method_name}'")
@@ -259,9 +265,9 @@ class MettaAgent(nn.Module):
             if not callable(method):
                 raise TypeError(f"Component '{name}' has {method_name} attribute but it's not callable")
 
-            method(*args, **kwargs)
+            results.append(method(*args, **kwargs))
 
-        assert len(self.components) != 0, "No components available to apply method"
+        return results
 
     def l2_reg_loss(self) -> torch.Tensor:
         """L2 regularization loss is on by default although setting l2_norm_coeff to 0 effectively turns it off. Adjust
