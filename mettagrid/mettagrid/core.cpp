@@ -750,9 +750,11 @@ std::string CppMettaGrid::get_grid_objects_json() const {
 
     // Add string type name
     if (obj->_type_id < ObjectTypeNames.size()) {
-      obj_json["type"] = ObjectTypeNames[obj->_type_id];
+      obj_json["type_name"] = ObjectTypeNames[obj->_type_id];
+      obj_json["type"] = obj->_type_id;
     } else {
-      obj_json["type"] = "Unknown";
+      obj_json["type_name"] = "Unknown";
+      obj_json["type"] = -1;
     }
 
     // Add location info
