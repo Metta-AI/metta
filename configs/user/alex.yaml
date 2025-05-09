@@ -9,7 +9,6 @@ defaults:
 
 policy_uri: puffer:///tmp/puffer_metta.pt
 npc_policy_uri: null
-eval_db_uri: null
 
 env_overrides:
   game:
@@ -27,11 +26,6 @@ eval:
   # num_envs: 10
   # num_episodes: 10
   # max_time_s: 60
-
-analyzer:
-  analysis:
-    metrics:
-      - metric: "action.use.altar.agent"
 
 sweep:
   metric: "action.use.altar.agent"
