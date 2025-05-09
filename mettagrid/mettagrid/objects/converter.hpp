@@ -132,14 +132,64 @@ public:
   virtual void obs(ObsType* obs) const override {
     HasInventory::obs(obs);
 
+    // Map object type to corresponding feature
+    GridFeature objectTypeFeature;
+    switch (_type_id) {
+      case ObjectType::AgentT:
+        objectTypeFeature = GridFeature::AGENT_TYPE;
+        break;
+      case ObjectType::WallT:
+        objectTypeFeature = GridFeature::WALL_TYPE;
+        break;
+      case ObjectType::MineT:
+        objectTypeFeature = GridFeature::MINE_TYPE;
+        break;
+      case ObjectType::GeneratorT:
+        objectTypeFeature = GridFeature::GENERATOR_TYPE;
+        break;
+      case ObjectType::AltarT:
+        objectTypeFeature = GridFeature::ALTAR_TYPE;
+        break;
+      case ObjectType::ArmoryT:
+        objectTypeFeature = GridFeature::ARMORY_TYPE;
+        break;
+      case ObjectType::LaseryT:
+        objectTypeFeature = GridFeature::LASERY_TYPE;
+        break;
+      case ObjectType::LabT:
+        objectTypeFeature = GridFeature::LAB_TYPE;
+        break;
+      case ObjectType::FactoryT:
+        objectTypeFeature = GridFeature::FACTORY_TYPE;
+        break;
+      case ObjectType::TempleT:
+        objectTypeFeature = GridFeature::TEMPLE_TYPE;
+        break;
+      case ObjectType::GenericConverterT:
+        objectTypeFeature = GridFeature::CONVERTER_TYPE;
+        break;
+      default:
+        objectTypeFeature = GridFeature::CONVERTER_TYPE;  // Default case
+    }
+
     // Converter-specific features
-    encode(obs, ObjectTypeNames[_type_id], 1);
-    encode(obs, "color", this->color);
-    encode(obs, "converting", this->converting || this->cooling_down);
+    encode(obs, objectTypeFeature, 1);
+    encode(obs, GridFeature::COLOR, this->color);
+    encode(obs, GridFeature::CONVERTING, this->converting || this->cooling_down);
+
+    // Map inventory items to their corresponding general inventory features
+    const GridFeature invFeatures[] = {GridFeature::INV_ORE_RED,
+                                       GridFeature::INV_ORE_BLUE,
+                                       GridFeature::INV_ORE_GREEN,
+                                       GridFeature::INV_BATTERY,
+                                       GridFeature::INV_HEART,
+                                       GridFeature::INV_ARMOR,
+                                       GridFeature::INV_LASER,
+                                       GridFeature::INV_BLUEPRINT};
 
     // Inventory features
     for (uint32_t i = 0; i < InventoryItem::InventoryCount; i++) {
-      encode(obs, "inv:" + InventoryItemNames[i], this->inventory[i]);
+      encode(obs, invFeatures[i], this->inventory[i]);
     }
   }
 };

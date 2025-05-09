@@ -112,15 +112,25 @@ public:
     HasInventory::obs(obs);
 
     // Agent-specific features
-    encode(obs, "agent", 1);
-    encode(obs, "agent:group", group);
-    encode(obs, "agent:frozen", frozen);
-    encode(obs, "agent:orientation", orientation);
-    encode(obs, "agent:color", color);
+    encode(obs, GridFeature::AGENT, 1);
+    encode(obs, GridFeature::AGENT_GROUP, group);
+    encode(obs, GridFeature::AGENT_FROZEN, frozen);
+    encode(obs, GridFeature::AGENT_ORIENTATION, orientation);
+    encode(obs, GridFeature::AGENT_COLOR, color);
 
     // Inventory features
+    // Map inventory items to their corresponding agent inventory features
+    const GridFeature agentInvFeatures[] = {GridFeature::AGENT_INV_ORE_RED,
+                                            GridFeature::AGENT_INV_ORE_BLUE,
+                                            GridFeature::AGENT_INV_ORE_GREEN,
+                                            GridFeature::AGENT_INV_BATTERY,
+                                            GridFeature::AGENT_INV_HEART,
+                                            GridFeature::AGENT_INV_ARMOR,
+                                            GridFeature::AGENT_INV_LASER,
+                                            GridFeature::AGENT_INV_BLUEPRINT};
+
     for (int32_t i = 0; i < InventoryItem::InventoryCount; i++) {
-      encode(obs, "agent:inv:" + InventoryItemNames[i], inventory[i]);
+      encode(obs, agentInvFeatures[i], inventory[i]);
     }
   }
 };

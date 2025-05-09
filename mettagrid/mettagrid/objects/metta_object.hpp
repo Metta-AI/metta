@@ -18,7 +18,7 @@ public:
   }
 
   virtual void obs(ObsType* obs) const override {
-    encode(obs, "hp", this->hp);
+    encode(obs, GridFeature::HP, this->hp);
   }
 
   virtual bool has_inventory() {  // TODO: make const

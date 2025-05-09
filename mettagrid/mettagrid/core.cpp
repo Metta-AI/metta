@@ -758,28 +758,6 @@ std::string CppMettaGrid::get_episode_stats_json() const {
   return stats_json.dump();
 }
 
-std::string CppMettaGrid::render_ascii() const {
-  // Create an empty grid filled with spaces
-  std::vector<std::vector<char>> grid(_grid->height, std::vector<char>(_grid->width, ' '));
-
-  // Iterate through objects and update grid
-  for (size_t obj_id = 1; obj_id < _grid->objects.size(); obj_id++) {
-    GridObject* obj = _grid->object(obj_id);
-    grid[obj->location.r][obj->location.c] = ObjectTypeAscii[obj->_type_id][0];
-  }
-
-  // Convert the 2D grid to a string representation
-  std::string result;
-  for (const auto& row : grid) {
-    for (char c : row) {
-      result += c;
-    }
-    result += '\n';  // Add newline after each row
-  }
-
-  return result;
-}
-
 std::string CppMettaGrid::get_grid_objects_json() const {
   // Use a std::map to automatically sort keys
   std::map<int, nlohmann::json> sorted_objects;

@@ -170,7 +170,6 @@ public:
     return _event_manager.get();
   }
   std::string get_episode_stats_json() const;
-  std::string render_ascii() const;
 
   std::vector<std::string> action_names() const;
 

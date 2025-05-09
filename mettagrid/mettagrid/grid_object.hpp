@@ -52,43 +52,24 @@ public:
 
   // Get the observation size (total number of features)
   static size_t get_observation_size() {
-    return _feature_map.size();
+    return static_cast<size_t>(GridFeature::COUNT);
   }
 
-  // Get all registered feature names
-  static std::vector<std::string> get_feature_names() {
-    std::vector<std::string> names(_feature_map.size());
-    for (const auto& pair : _feature_map) {
-      names[pair.second] = pair.first;
-    }
-    return names;
+  // Get all feature names
+  static const std::vector<std::string>& get_feature_names() {
+    return GridFeatureNames;
   }
 
 protected:
-  // Register a feature name if it's not already registered
-  static size_t register_feature(const std::string& feature_name) {
-    auto it = _feature_map.find(feature_name);
-    if (it == _feature_map.end()) {
-      // Feature not found, register it
-      size_t index = _next_feature_index++;
-      _feature_map[feature_name] = index;
-      return index;
-    }
-    return it->second;
-  }
-
   template <typename T>
-  void encode(ObsType* obs, const std::string& feature_name, T value) const {
-    // Register the feature if it doesn't exist
-    size_t index = register_feature(feature_name);
-
-    // Set the value in the observation array
-    obs[index] = static_cast<ObsType>(value);
+  void encode(ObsType* obs, GridFeature feature, T value) const {
+    // Set the value in the observation array at the specified feature index
+    obs[static_cast<size_t>(feature)] = static_cast<ObsType>(value);
   }
 
   // Special handling for boolean values
-  void encode(ObsType* obs, const std::string& feature_name, bool value) const {
-    encode(obs, feature_name, value ? 1 : 0);
+  void encode(ObsType* obs, GridFeature feature, bool value) const {
+    encode(obs, feature, value ? 1 : 0);
   }
 };
 
