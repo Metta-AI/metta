@@ -58,13 +58,20 @@ def make_vecenv(
         "replay_writer": replay_writer,
     }
 
+    # Create lists of environment creators, args, and kwargs for each environment
+    env_creators = [make_env_func] * num_envs
+    env_args_list = [[]] * num_envs  # Empty args for each environment
+    env_kwargs_list = [env_kwargs] * num_envs  # Same kwargs for each environment
+
     vecenv = vectorizer_cls(
-        env_fn=make_env_func,
-        env_kwargs=env_kwargs,
+        env_creator_or_creators=env_creators,
+        env_args=env_args_list,
+        env_kwargs=env_kwargs_list,
+        backend=MettaGridEnv,
         num_envs=num_envs,
         num_workers=num_workers,
         batch_size=batch_size or num_envs,
-        backend=MettaGridEnv,
         **kwargs,
     )
+
     return vecenv
