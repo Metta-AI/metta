@@ -163,7 +163,6 @@ class MettaAgent(nn.Module):
 
         if state.lstm_h is not None:
             td["state"] = torch.cat([state.lstm_h, state.lstm_c], dim=0).to(x.device)
-
         self.components["_value_"](td)
         value = td["_value_"]
         # state = td["state"]
