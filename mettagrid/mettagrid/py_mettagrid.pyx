@@ -37,8 +37,6 @@ cdef class MettaGrid:
         cnp.ndarray _terminals_np
         cnp.ndarray _truncations_np
         cnp.ndarray _rewards_np
-        cnp.ndarray _episode_rewards_np
-        cnp.ndarray _group_rewards_np
         
         # observation dimensions
         uint16_t _obs_width
@@ -123,16 +121,12 @@ cdef class MettaGrid:
             del self._cpp_mettagrid
             self._cpp_mettagrid = NULL
 
-
-
     def set_buffers(
         self, 
         cnp.ndarray observations,
         cnp.ndarray terminals, 
         cnp.ndarray truncations, 
-        cnp.ndarray rewards,
-        cnp.ndarray episode_rewards = None,
-        cnp.ndarray group_rewards = None):
+        cnp.ndarray rewards):
         """
         Set external buffers for observations, terminals, truncations, and rewards.
         
@@ -190,10 +184,6 @@ cdef class MettaGrid:
             self._truncations_np = np.ascontiguousarray(self._truncations_np)
         if not self._rewards_np.flags['C_CONTIGUOUS']:
             self._rewards_np = np.ascontiguousarray(self._rewards_np)
-        if not self._episode_rewards_np.flags['C_CONTIGUOUS']:
-            self._episode_rewards_np = np.ascontiguousarray(self._episode_rewards_np)
-        if not self._group_rewards_np.flags['C_CONTIGUOUS']:
-            self._group_rewards_np = np.ascontiguousarray(self._group_rewards_np)
 
         # Store the external buffers
         self._observations_np = observations
@@ -201,26 +191,12 @@ cdef class MettaGrid:
         self._truncations_np = truncations
         self._rewards_np = rewards
         
-        # Create or use episode rewards buffer
-        if episode_rewards is None:
-            episode_rewards = np.zeros(self._num_agents, dtype=np.float32)
-        self._episode_rewards_np = episode_rewards
-        
-        # Create or use group rewards buffer
-        if group_rewards is None:
-            group_rewards = np.zeros(self._num_agents, dtype=np.float32)
-        self._group_rewards_np = group_rewards
-        
-        # Ensure arrays are contiguous in memory (existing code)...
-        
         # Connect these arrays to the C++ engine - match the method name
         self._cpp_mettagrid.set_buffers(
             <ObsType*>observations.data,
             <int8_t*>terminals.data,
             <int8_t*>truncations.data,
             <float*>rewards.data,
-            <float*>episode_rewards.data,
-            <float*>group_rewards.data
         )
 
 

@@ -122,9 +122,7 @@ cdef extern from "core.hpp":
         void set_buffers(ObsType* external_observations,
                        int8_t* external_terminals,
                        int8_t* external_truncations,
-                       float* external_rewards,
-                       float* external_episode_rewards,
-                       float* external_group_rewards)
+                       float* external_rewards)
         
         # Replace vector getters with pointer getters
         ObsType* get_observations() const

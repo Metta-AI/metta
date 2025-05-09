@@ -10,13 +10,40 @@ class MettaGridTestDataTest : public ::testing::Test {
 protected:
   std::unique_ptr<CppMettaGrid> grid;
 
+  // External buffers - need to be managed by the test
+  ObsType* observations;
+  int8_t* terminals;
+  int8_t* truncations;
+  float* rewards;
+
   void SetUp() override {
     // Initialize the grid from test data before each test
     grid = test_utils::create_grid_from_mettagrid_args("tests");
+
+    // Allocate external buffers based on grid dimensions
+    size_t obs_size = grid->get_observations_size();
+    size_t term_size = grid->get_terminals_size();
+    size_t trunc_size = grid->get_truncations_size();
+    size_t reward_size = grid->get_rewards_size();
+
+    // Create the external buffers with zero initialization
+    observations = new ObsType[obs_size]();
+    terminals = new int8_t[term_size]();
+    truncations = new int8_t[trunc_size]();
+    rewards = new float[reward_size]();
+
+    // Set the external buffers in the grid
+    grid->set_buffers(observations, terminals, truncations, rewards);
   }
 
   void TearDown() override {
-    // Clean up automatically handled by unique_ptr
+    // Clean up external buffers
+    delete[] observations;
+    delete[] terminals;
+    delete[] truncations;
+    delete[] rewards;
+
+    // Grid cleanup automatically handled by unique_ptr
   }
 };
 
@@ -67,9 +94,18 @@ TEST_F(MettaGridTestDataTest, ObservationGeneration) {
   grid->step(actions);
 
   // Check if observations are generated
-  const auto* observations = grid->get_observations();
   EXPECT_TRUE(observations != nullptr);
   EXPECT_GT(grid->get_observations_size(), 0);  // Check size is greater than 0
+
+  // Check that the observations buffer has some non-zero data
+  bool has_nonzero = false;
+  for (size_t i = 0; i < grid->get_observations_size(); i++) {
+    if (observations[i] != 0) {
+      has_nonzero = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(has_nonzero) << "Observations buffer should contain some non-zero values after step";
 
   // Clean up
   test_utils::delete_action_array(actions, grid->num_agents());
@@ -81,7 +117,6 @@ TEST_F(MettaGridTestDataTest, RewardStructure) {
   grid->reset();
 
   // Check if the reward vectors are initialized
-  const auto* rewards = grid->get_rewards();
   EXPECT_TRUE(rewards != nullptr);
   EXPECT_EQ(grid->num_agents(), grid->get_rewards_size());  // Check size matches agent count
 
@@ -107,7 +142,6 @@ TEST_F(MettaGridTestDataTest, ObjectLoading) {
     FAIL() << "Failed to parse grid objects JSON: " << e.what();
     return;
   }
-  // std::cout << "JSON type: " << objects << std::endl;
 
   // Make sure objects is an object, not an array
   ASSERT_TRUE(objects.is_object()) << "Grid objects JSON is not an object";
@@ -117,28 +151,17 @@ TEST_F(MettaGridTestDataTest, ObjectLoading) {
   bool found_mine = false;
   bool found_altar = false;
 
-  for (const auto& obj : objects) {
-    // Check if "type" field exists and is a string
-    if (obj.contains("type") && obj["type"].is_string()) {
-      std::string type = obj["type"];
-      if (type == "wall")
+  // Iterate over key-value pairs in the JSON object
+  for (const auto& [key, obj] : objects.items()) {
+    // Check if "type_name" field exists
+    if (obj.contains("type_name")) {
+      std::string type_name = obj["type_name"];
+      if (type_name == "Wall")
         found_wall = true;
-      else if (type.find("mine") != std::string::npos)
+      else if (type_name.find("Mine") != std::string::npos || type_name.find("mine") != std::string::npos)
         found_mine = true;
-      else if (type == "altar")
+      else if (type_name == "Altar" || type_name == "AltarT")
         found_altar = true;
-    }
-    // Alternative approach: look for type_id or any other field that might indicate object type
-    else if (obj.contains("type_id")) {
-      // This is just an example - adjust based on your actual JSON structure
-      int type_id = obj["type_id"];
-      // Map type_id to object types based on your game's object mapping
-      if (type_id == 1)
-        found_wall = true;  // Assuming type_id 1 is wall
-      else if (type_id >= 10 && type_id < 20)
-        found_mine = true;  // Assuming mines have type_ids in this range
-      else if (type_id == 5)
-        found_altar = true;  // Assuming type_id 5 is altar
     }
   }
 

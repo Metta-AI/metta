@@ -51,20 +51,20 @@ private:
   int8_t* _terminals;
   int8_t* _truncations;
   float* _rewards;
-  float* _episode_rewards;
-  float* _group_rewards;
 
   // Buffer sizes
   size_t _observations_size;
   size_t _terminals_size;
   size_t _truncations_size;
   size_t _rewards_size;
-  size_t _episode_rewards_size;
-  size_t _group_rewards_size;
+
+  // Internal buffers
+  std::vector<float> _episode_rewards;
+  std::vector<float> _group_rewards;
 
   // Support for reward decay
   bool _enable_reward_decay;
-  float _reward_multiplier;
+  float _reward_decay_multiplier;
   float _reward_decay_factor;
 
   std::vector<int8_t> _action_success;
@@ -85,9 +85,7 @@ public:
   void set_buffers(ObsType* external_observations,
                    int8_t* external_terminals,
                    int8_t* external_truncations,
-                   float* external_rewards,
-                   float* external_episode_rewards,
-                   float* external_group_rewards);
+                   float* external_rewards);
 
   // Buffer access methods
   ObsType* get_observations() const {
@@ -103,10 +101,16 @@ public:
     return _rewards;
   }
   float* get_episode_rewards() const {
-    return _episode_rewards;
+    if (_episode_rewards.empty()) {
+      return nullptr;
+    }
+    return const_cast<float*>(_episode_rewards.data());
   }
   float* get_group_rewards() const {
-    return _group_rewards;
+    if (_group_rewards.empty()) {
+      return nullptr;
+    }
+    return const_cast<float*>(_group_rewards.data());
   }
 
   // Buffer size methods
@@ -123,10 +127,10 @@ public:
     return _rewards_size;
   }
   size_t get_episode_rewards_size() const {
-    return _episode_rewards_size;
+    return _episode_rewards.size();
   }
   size_t get_group_rewards_size() const {
-    return _group_rewards_size;
+    return _group_rewards.size();
   }
 
   // Initialization methods
@@ -169,10 +173,12 @@ public:
                           uint32_t c,
                           const ObsType* values);
 
-  // Reward management
+  // Reward decay management
   void enable_reward_decay(int32_t decay_time_steps = -1);
   void disable_reward_decay();
   void compute_group_rewards(float* rewards);
+
+  // group rewards
   void set_group_reward_pct(uint32_t group_id, float pct);
   void set_group_size(uint32_t group_id, uint32_t size);
 
@@ -211,8 +217,8 @@ public:
 
   std::string get_grid_objects_json() const;
 
-  float get_reward_multiplier() const {
-    return _reward_multiplier;
+  float get_reward_decay_multiplier() const {
+    return _reward_decay_multiplier;
   }
 
 private:

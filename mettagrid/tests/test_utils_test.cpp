@@ -93,9 +93,6 @@ TEST_F(TestUtilsTest, ManualBufferAllocation) {
   size_t terminals_size = grid->get_terminals_size();
   size_t truncations_size = grid->get_truncations_size();
   size_t rewards_size = grid->get_rewards_size();
-  size_t episode_rewards_size = grid->get_episode_rewards_size();
-  size_t group_rewards_size = grid->get_group_rewards_size();
-
   std::cout << "Buffer sizes calculated." << std::endl;
 
   // Check that sizes make sense
@@ -103,21 +100,17 @@ TEST_F(TestUtilsTest, ManualBufferAllocation) {
   EXPECT_EQ(terminals_size, 2u) << "Terminals size should match num_agents";
   EXPECT_EQ(truncations_size, 2u) << "Truncations size should match num_agents";
   EXPECT_EQ(rewards_size, 2u) << "Rewards size should match num_agents";
-  EXPECT_EQ(episode_rewards_size, 2u) << "Episode rewards size should match num_agents";
 
   std::cout << "Allocating memory..." << std::endl;
   ObsType* observations = new ObsType[obs_size]();
   int8_t* terminals = new int8_t[terminals_size]();
   int8_t* truncations = new int8_t[truncations_size]();
   float* rewards = new float[rewards_size]();
-  float* episode_rewards = new float[episode_rewards_size]();
-  float* group_rewards = new float[group_rewards_size > 0 ? group_rewards_size : 1]();
-
   std::cout << "Memory allocated." << std::endl;
 
   // Set the buffers
   std::cout << "Setting buffers..." << std::endl;
-  grid->set_buffers(observations, terminals, truncations, rewards, episode_rewards, group_rewards);
+  grid->set_buffers(observations, terminals, truncations, rewards);
   std::cout << "Buffers set." << std::endl;
 
   // Try to reset the grid
@@ -140,8 +133,6 @@ TEST_F(TestUtilsTest, ManualBufferAllocation) {
   delete[] terminals;
   delete[] truncations;
   delete[] rewards;
-  delete[] episode_rewards;
-  delete[] group_rewards;
 
   std::cout << "Manual buffer allocation test passed." << std::endl;
 }
@@ -157,42 +148,29 @@ TEST_F(TestUtilsTest, BufferHelpers) {
                                  ObsType** observations,
                                  int8_t** terminals,
                                  int8_t** truncations,
-                                 float** rewards,
-                                 float** episode_rewards,
-                                 float** group_rewards) {
+                                 float** rewards) {
       // Get buffer sizes
       size_t obs_size = grid->get_observations_size();
       size_t terminals_size = grid->get_terminals_size();
       size_t truncations_size = grid->get_truncations_size();
       size_t rewards_size = grid->get_rewards_size();
-      size_t episode_rewards_size = grid->get_episode_rewards_size();
-      size_t group_rewards_size = grid->get_group_rewards_size();
 
       // Allocate buffers
       *observations = new ObsType[obs_size]();
       *terminals = new int8_t[terminals_size]();
       *truncations = new int8_t[truncations_size]();
       *rewards = new float[rewards_size]();
-      *episode_rewards = new float[episode_rewards_size]();
-      *group_rewards = new float[group_rewards_size > 0 ? group_rewards_size : 1]();
 
       // Connect buffers to grid
-      grid->set_buffers(*observations, *terminals, *truncations, *rewards, *episode_rewards, *group_rewards);
+      grid->set_buffers(*observations, *terminals, *truncations, *rewards);
     }
 
     // Function to free buffers
-    static void free_buffers(ObsType* observations,
-                             int8_t* terminals,
-                             int8_t* truncations,
-                             float* rewards,
-                             float* episode_rewards,
-                             float* group_rewards) {
+    static void free_buffers(ObsType* observations, int8_t* terminals, int8_t* truncations, float* rewards) {
       delete[] observations;
       delete[] terminals;
       delete[] truncations;
       delete[] rewards;
-      delete[] episode_rewards;
-      delete[] group_rewards;
     }
   };
 
@@ -204,13 +182,10 @@ TEST_F(TestUtilsTest, BufferHelpers) {
   int8_t* terminals = nullptr;
   int8_t* truncations = nullptr;
   float* rewards = nullptr;
-  float* episode_rewards = nullptr;
-  float* group_rewards = nullptr;
 
   // Allocate and connect buffers
   std::cout << "Allocating buffers with helper..." << std::endl;
-  BufferHelpers::allocate_buffers(
-      grid.get(), &observations, &terminals, &truncations, &rewards, &episode_rewards, &group_rewards);
+  BufferHelpers::allocate_buffers(grid.get(), &observations, &terminals, &truncations, &rewards);
   std::cout << "Buffers allocated with helper." << std::endl;
 
   // Try grid operations
@@ -228,7 +203,7 @@ TEST_F(TestUtilsTest, BufferHelpers) {
   test_utils::delete_action_array(actions, 2);
 
   std::cout << "Freeing buffers with helper..." << std::endl;
-  BufferHelpers::free_buffers(observations, terminals, truncations, rewards, episode_rewards, group_rewards);
+  BufferHelpers::free_buffers(observations, terminals, truncations, rewards);
   std::cout << "Buffers freed with helper." << std::endl;
 
   std::cout << "Buffer helper test passed." << std::endl;

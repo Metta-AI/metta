@@ -2,6 +2,9 @@
 
 #include <gtest/gtest.h>
 
+#define TEST_FEATURE GridFeature::HP
+#define TEST_FEATURE_NAME "hp"
+
 // Test fixture for GridLocation class
 class GridLocationTest : public ::testing::Test {
 protected:
@@ -112,7 +115,7 @@ TEST_F(GridObjectTest, ObsMethod) {
   // Find the index of our test_feature
   int test_feature_index = -1;
   for (size_t i = 0; i < feature_names.size(); i++) {
-    if (feature_names[i] == "test_feature") {
+    if (feature_names[i] == TEST_FEATURE_NAME) {
       test_feature_index = i;
       break;
     }

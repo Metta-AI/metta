@@ -66,7 +66,7 @@ protected:
     }
 
     // Return the multiplier directly
-    return mettagrid->get_reward_multiplier();
+    return mettagrid->get_reward_decay_multiplier();
   }
 };
 
@@ -85,7 +85,7 @@ TEST_F(RewardDecayTest, MinimumDecayLimit) {
   }
 
   // Check if the multiplier has reached the minimum limit
-  float multiplier = mettagrid->get_reward_multiplier();
+  float multiplier = mettagrid->get_reward_decay_multiplier();
   EXPECT_NEAR(0.1f, multiplier, 0.001f) << "Expected multiplier to reach minimum 0.1, got " << multiplier;
 }
 
@@ -114,14 +114,14 @@ TEST_F(RewardDecayTest, EnableThenDisable) {
   }
 
   // Get multiplier after decay
-  float decayed_multiplier = mettagrid->get_reward_multiplier();
+  float decayed_multiplier = mettagrid->get_reward_decay_multiplier();
   EXPECT_LT(decayed_multiplier, 1.0f) << "Expected multiplier to decrease from 1.0, got " << decayed_multiplier;
 
   // Disable decay - this should reset the multiplier to 1.0
   mettagrid->disable_reward_decay();
 
   // Multiplier should be reset to 1.0 immediately
-  float reset_multiplier = mettagrid->get_reward_multiplier();
+  float reset_multiplier = mettagrid->get_reward_decay_multiplier();
   EXPECT_NEAR(1.0f, reset_multiplier, 0.001f)
       << "Expected multiplier to reset to 1.0 after disabling decay, got " << reset_multiplier;
 
@@ -143,7 +143,7 @@ TEST_F(RewardDecayTest, ChangeDecayTimeConstant) {
   }
 
   // Get multiplier after slow decay
-  float slow_multiplier = mettagrid->get_reward_multiplier();
+  float slow_multiplier = mettagrid->get_reward_decay_multiplier();
 
   // Reset and enable with fast decay
   mettagrid->reset();
@@ -155,7 +155,7 @@ TEST_F(RewardDecayTest, ChangeDecayTimeConstant) {
   }
 
   // Get multiplier after fast decay
-  float fast_multiplier = mettagrid->get_reward_multiplier();
+  float fast_multiplier = mettagrid->get_reward_decay_multiplier();
 
   // The fast decay should produce a smaller multiplier
   EXPECT_LT(fast_multiplier, slow_multiplier)
@@ -189,7 +189,7 @@ TEST_F(RewardDecayTest, DecayPrecision) {
   }
 
   // Get final multiplier
-  float actual_multiplier = mettagrid->get_reward_multiplier();
+  float actual_multiplier = mettagrid->get_reward_decay_multiplier();
 
   // Check precision of decay calculation
   EXPECT_NEAR(expected_multiplier, actual_multiplier, 0.001f)

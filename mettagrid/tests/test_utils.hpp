@@ -224,16 +224,12 @@ struct GridBuffers {
   int8_t* terminals = nullptr;
   int8_t* truncations = nullptr;
   float* rewards = nullptr;
-  float* episode_rewards = nullptr;
-  float* group_rewards = nullptr;
 
   // Size information for reference
   size_t obs_size = 0;
   size_t terminals_size = 0;
   size_t truncations_size = 0;
   size_t rewards_size = 0;
-  size_t episode_rewards_size = 0;
-  size_t group_rewards_size = 0;
 };
 
 // Helper function to allocate buffers for a grid
@@ -249,24 +245,15 @@ inline GridBuffers* allocate_grid_buffers(CppMettaGrid* grid) {
   buffers->terminals_size = grid->get_terminals_size();
   buffers->truncations_size = grid->get_truncations_size();
   buffers->rewards_size = grid->get_rewards_size();
-  buffers->episode_rewards_size = grid->get_episode_rewards_size();
-  buffers->group_rewards_size = grid->get_group_rewards_size();
 
   // Allocate memory for each buffer with zero initialization
   buffers->observations = new ObsType[buffers->obs_size]();
   buffers->terminals = new int8_t[buffers->terminals_size]();
   buffers->truncations = new int8_t[buffers->truncations_size]();
   buffers->rewards = new float[buffers->rewards_size]();
-  buffers->episode_rewards = new float[buffers->episode_rewards_size]();
-  buffers->group_rewards = new float[buffers->group_rewards_size]();
 
   // Set the buffers in the grid
-  grid->set_buffers(buffers->observations,
-                    buffers->terminals,
-                    buffers->truncations,
-                    buffers->rewards,
-                    buffers->episode_rewards,
-                    buffers->group_rewards);
+  grid->set_buffers(buffers->observations, buffers->terminals, buffers->truncations, buffers->rewards);
 
   return buffers;
 }
@@ -282,8 +269,6 @@ inline void free_grid_buffers(GridBuffers* buffers) {
   delete[] buffers->terminals;
   delete[] buffers->truncations;
   delete[] buffers->rewards;
-  delete[] buffers->episode_rewards;
-  delete[] buffers->group_rewards;
 
   // Delete the buffers struct itself
   delete buffers;

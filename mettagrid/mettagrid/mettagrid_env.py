@@ -54,10 +54,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             "masks": np.ones((num_agents,), dtype=bool, order="C"),
         }
 
-        # add buffers that extend PufferEnv
-        self.episode_rewards = np.zeros((num_agents,), dtype=float, order="C")
-        self.group_rewards = np.zeros((num_agents,), dtype=float, order="C")
-
         buf_obj = SimpleNamespace(**buf)
         self._single_observation_space = self._c_env.observation_space
         self._single_action_space = self._c_env.action_space
@@ -123,9 +119,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._env_cfg = self._get_new_env_cfg()
         self._reset_env()
 
-        self._c_env.set_buffers(
-            self.observations, self.terminals, self.truncations, self.rewards, self.episode_rewards, self.group_rewards
-        )
+        self._c_env.set_buffers(self.observations, self.terminals, self.truncations, self.rewards)
 
         obs, infos = self._c_env.reset()
         self.should_reset = False

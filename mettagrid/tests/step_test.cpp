@@ -28,30 +28,26 @@ TEST(StepTest, BasicStep) {
     size_t term_size = grid->get_terminals_size();
     size_t trunc_size = grid->get_truncations_size();
     size_t reward_size = grid->get_rewards_size();
-    size_t ep_reward_size = grid->get_episode_rewards_size();
-    size_t group_size = grid->get_group_rewards_size();
 
     std::cout << "Buffer sizes: " << std::endl;
     std::cout << "  Observations: " << obs_size << std::endl;
     std::cout << "  Terminals: " << term_size << std::endl;
     std::cout << "  Truncations: " << trunc_size << std::endl;
     std::cout << "  Rewards: " << reward_size << std::endl;
-    std::cout << "  Episode rewards: " << ep_reward_size << std::endl;
-    std::cout << "  Group rewards: " << group_size << std::endl;
+    std::cout << "  Episode rewards: Internal (managed by grid)" << std::endl;
+    std::cout << "  Group rewards: Internal (managed by grid)" << std::endl;
 
-    // Create the buffers with zero initialization
+    // Create the external buffers with zero initialization
     ObsType* observations = new ObsType[obs_size]();
     int8_t* terminals = new int8_t[term_size]();
     int8_t* truncations = new int8_t[trunc_size]();
     float* rewards = new float[reward_size]();
-    float* episode_rewards = new float[ep_reward_size]();
-    float* group_rewards = new float[group_size]();
 
     std::cout << "Buffers allocated." << std::endl;
 
     // Set the buffers
     std::cout << "Setting buffers..." << std::endl;
-    grid->set_buffers(observations, terminals, truncations, rewards, episode_rewards, group_rewards);
+    grid->set_buffers(observations, terminals, truncations, rewards);
     std::cout << "Buffers set." << std::endl;
 
     // Reset the grid
@@ -76,8 +72,8 @@ TEST(StepTest, BasicStep) {
     }
 
     if (noop_idx == -1) {
-      std::cout << "No Noop action found, using action 0" << std::endl;
-      noop_idx = 0;
+      std::cout << "No Noop action found, using action 2" << std::endl;  // Updated to use index 2 (Noop)
+      noop_idx = 2;  // Use Noop action which is at index 2 according to the output
     } else {
       std::cout << "Noop action found at index " << noop_idx << std::endl;
     }
@@ -88,7 +84,7 @@ TEST(StepTest, BasicStep) {
     int32_t** actions = new int32_t*[num_agents];
     for (int i = 0; i < num_agents; i++) {
       actions[i] = new int32_t[2];
-      actions[i][0] = noop_idx;  // Use Noop action or action 0
+      actions[i][0] = noop_idx;  // Use Noop action or action 2
       actions[i][1] = 0;         // No argument
       std::cout << "  Agent " << i << " action: [" << actions[i][0] << ", " << actions[i][1] << "]" << std::endl;
     }
@@ -115,6 +111,25 @@ TEST(StepTest, BasicStep) {
       std::cout << "  Reward " << i << ": " << rewards[i] << std::endl;
     }
 
+    // Access internal episode rewards for validation
+    float* episode_rewards = grid->get_episode_rewards();
+    if (episode_rewards != nullptr) {
+      std::cout << "Episode rewards after step:" << std::endl;
+      for (size_t i = 0; i < grid->num_agents(); i++) {
+        std::cout << "  Episode Reward " << i << ": " << episode_rewards[i] << std::endl;
+      }
+    }
+
+    // Access internal group rewards for validation
+    float* group_rewards = grid->get_group_rewards();
+    if (group_rewards != nullptr) {
+      std::cout << "Group rewards after step:" << std::endl;
+      // We don't know the exact size of group_rewards, so we'll just print the first few
+      for (size_t i = 0; i < 3 && i < agents.size(); i++) {
+        std::cout << "  Group Reward " << i << ": " << group_rewards[i] << std::endl;
+      }
+    }
+
     // Clean up
     std::cout << "Cleaning up..." << std::endl;
     for (int i = 0; i < num_agents; i++) {
@@ -126,8 +141,7 @@ TEST(StepTest, BasicStep) {
     delete[] terminals;
     delete[] truncations;
     delete[] rewards;
-    delete[] episode_rewards;
-    delete[] group_rewards;
+    // No need to delete episode_rewards or group_rewards as they are managed internally
 
     std::cout << "Test completed successfully!" << std::endl;
 

@@ -57,25 +57,29 @@ CppMettaGrid::CppMettaGrid(uint32_t map_width,
 
   // Set up reward decay
   _enable_reward_decay = false;
-  _reward_multiplier = 1.0f;
+  _reward_decay_multiplier = 1.0f;
   _reward_decay_factor = 3.0f / (_max_timestep > 0 ? _max_timestep : 100);
 
   // Get grid features from GridObject instead of the encoder
   _grid_features = GridObject::get_feature_names();
 
   // Initialize buffer pointers to NULL - they must be set before use
-  _observations = NULL;
-  _terminals = NULL;
-  _truncations = NULL;
-  _rewards = NULL;
-  _episode_rewards = NULL;
+  _observations = nullptr;
+  _terminals = nullptr;
+  _truncations = nullptr;
+  _rewards = nullptr;
+
+  // Initialize group rewards with default size of 0
+  // We'll resize when we know the number of groups
+  _group_rewards.clear();
 
   // Calculate required buffer sizes
   _observations_size = num_agents * _obs_width * _obs_height * GridObject::get_observation_size();
   _terminals_size = num_agents;
   _truncations_size = num_agents;
   _rewards_size = num_agents;
-  _episode_rewards_size = num_agents;
+
+  _episode_rewards.resize(_num_agents, 0.0f);
 }
 
 // Destructor is simpler with smart pointers
@@ -88,12 +92,9 @@ CppMettaGrid::~CppMettaGrid() {
 void CppMettaGrid::set_buffers(ObsType* external_observations,
                                int8_t* external_terminals,
                                int8_t* external_truncations,
-                               float* external_rewards,
-                               float* external_episode_rewards,
-                               float* external_group_rewards) {
+                               float* external_rewards) {
   // Check for NULL pointers
-  if (external_observations == NULL || external_terminals == NULL || external_truncations == NULL ||
-      external_rewards == NULL || external_episode_rewards == NULL || external_group_rewards == NULL) {
+  if (external_observations == nullptr) {
     throw std::invalid_argument("External buffers cannot be NULL");
   }
 
@@ -102,8 +103,6 @@ void CppMettaGrid::set_buffers(ObsType* external_observations,
   _terminals = external_terminals;
   _truncations = external_truncations;
   _rewards = external_rewards;
-  _episode_rewards = external_episode_rewards;
-  _group_rewards = external_group_rewards;
 }
 
 void CppMettaGrid::init_action_handlers(const std::vector<ActionHandler*>& action_handlers) {
@@ -147,18 +146,21 @@ void CppMettaGrid::reset() {
   // Reset timestep
   _current_timestep = 0;
 
-  // Reset buffers
+  // Reset external buffers
   std::fill(_rewards, _rewards + _rewards_size, 0);
-  std::fill(_episode_rewards, _episode_rewards + _episode_rewards_size, 0);
   std::fill(_terminals, _terminals + _terminals_size, 0);
   std::fill(_truncations, _truncations + _truncations_size, 0);
   std::fill(_observations, _observations + _observations_size, 0);
+
+  // reset internal buffers
+  std::fill(_group_rewards.begin(), _group_rewards.end(), 0.0f);
+  std::fill(_episode_rewards.begin(), _episode_rewards.end(), 0.0f);
 
   // Reset action success flags
   std::fill(_action_success.begin(), _action_success.end(), false);
 
   // Reset reward decay
-  _reward_multiplier = 1.0f;
+  _reward_decay_multiplier = 1.0f;
 }
 
 // Get observation values at coordinates (r,c)
@@ -299,14 +301,14 @@ void CppMettaGrid::step(int32_t** actions) {
 
   // Apply reward decay if enabled
   if (_enable_reward_decay) {
-    _reward_multiplier = std::max(0.1f, _reward_multiplier * (1.0f - _reward_decay_factor));
+    _reward_decay_multiplier = std::max(0.1f, _reward_decay_multiplier * (1.0f - _reward_decay_factor));
     for (size_t i = 0; i < _rewards_size; i++) {
-      _rewards[i] *= _reward_multiplier;
+      _rewards[i] *= _reward_decay_multiplier;
     }
   }
 
   // Update episode rewards
-  for (size_t i = 0; i < _episode_rewards_size; i++) {
+  for (size_t i = 0; i < _episode_rewards.size(); i++) {
     _episode_rewards[i] += _rewards[i];
   }
 
@@ -321,7 +323,7 @@ void CppMettaGrid::step(int32_t** actions) {
 // Enable reward decay
 void CppMettaGrid::enable_reward_decay(int32_t decay_time_steps) {
   _enable_reward_decay = true;
-  _reward_multiplier = 1.0f;  // Reset multiplier to initial value
+  _reward_decay_multiplier = 1.0f;  // Reset multiplier to initial value
 
   // Update decay factor if custom time constant provided
   if (decay_time_steps > 0) {
@@ -334,7 +336,7 @@ void CppMettaGrid::enable_reward_decay(int32_t decay_time_steps) {
 // Disable reward decay
 void CppMettaGrid::disable_reward_decay() {
   _enable_reward_decay = false;
-  _reward_multiplier = 1.0f;  // Reset multiplier to initial value
+  _reward_decay_multiplier = 1.0f;  // Reset multiplier to initial value
 }
 
 // Observe from a specific object's perspective
@@ -364,8 +366,14 @@ uint32_t CppMettaGrid::map_height() const {
 }
 
 void CppMettaGrid::compute_group_rewards(float* rewards) {
-  // Initialize group rewards to 0
-  std::fill(_group_rewards, _group_rewards + _group_rewards_size, 0);
+  // Calculate the required size for the accumulator
+  size_t max_group_id = 0;
+  for (const auto& agent : _agents) {
+    max_group_id = std::max(max_group_id, static_cast<size_t>(agent->group));
+  }
+
+  // Create a local vector for accumulation (with size max_group_id + 1)
+  std::vector<float> group_rewards_accumulator(max_group_id + 1, 0.0f);
 
   bool share_rewards = false;
 
@@ -375,21 +383,64 @@ void CppMettaGrid::compute_group_rewards(float* rewards) {
       share_rewards = true;
       Agent* agent = _agents[agent_idx];
       uint32_t group_id = agent->group;
-      float group_reward = rewards[agent_idx] * _group_reward_pct[group_id];
+
+      // Skip if group_id is out of bounds
+      if (group_id >= group_rewards_accumulator.size()) {
+        continue;
+      }
+
+      // Get group reward percentage (defaults to 0 if not set)
+      float group_pct = 0.0f;
+      auto pct_it = _group_reward_pct.find(group_id);
+      if (pct_it != _group_reward_pct.end()) {
+        group_pct = pct_it->second;
+      }
+
+      float group_reward = rewards[agent_idx] * group_pct;
       rewards[agent_idx] -= group_reward;
-      _group_rewards[group_id] += group_reward / _group_sizes[group_id];
+
+      // Get group size (defaults to 1 if not set)
+      uint32_t group_size = 1;
+      auto size_it = _group_sizes.find(group_id);
+      if (size_it != _group_sizes.end() && size_it->second > 0) {
+        group_size = size_it->second;
+      }
+
+      group_rewards_accumulator[group_id] += group_reward / group_size;
     }
   }
 
   // Second pass: distribute group rewards
   if (share_rewards) {
+    // Make sure _group_rewards is properly sized
+    if (_group_rewards.size() < group_rewards_accumulator.size()) {
+      std::cerr << "Warning: _group_rewards buffer may be too small" << std::endl;
+    }
+
+    // Zero out the group rewards buffer
+    size_t copy_size = std::min(_group_rewards.size(), group_rewards_accumulator.size());
+    std::fill(_group_rewards.begin(), _group_rewards.end(), 0.0f);
+
+    // Copy accumulated rewards to the output buffer up to the smaller size
+    for (size_t i = 0; i < copy_size; i++) {
+      _group_rewards[i] = group_rewards_accumulator[i];
+    }
+
     for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
       Agent* agent = _agents[agent_idx];
       uint32_t group_id = agent->group;
-      float group_reward = _group_rewards[group_id];
+
+      // Skip if group_id is out of bounds
+      if (group_id >= group_rewards_accumulator.size()) {
+        continue;
+      }
+
+      float group_reward = group_rewards_accumulator[group_id];
       rewards[agent_idx] += group_reward;
     }
   }
+
+  // Vector will be automatically destroyed when function exits
 }
 
 void CppMettaGrid::set_group_reward_pct(uint32_t group_id, float pct) {
@@ -413,8 +464,9 @@ void CppMettaGrid::initialize_from_json(const std::string& map_json, const std::
     group_sizes[group_info["id"]] = 0;
   }
 
-  // Update group rewards size
-  _group_rewards_size = cfg["groups"].size();
+  // Get the number of groups and resize vectors
+  size_t num_groups = cfg["groups"].size();
+  _group_rewards.resize(num_groups, 0.0f);
 
   // Process map and create objects
   for (size_t r = 0; r < map_data.size(); r++) {
