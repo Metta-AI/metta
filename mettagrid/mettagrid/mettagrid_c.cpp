@@ -20,6 +20,7 @@
 #include "actions/noop.hpp"
 #include "actions/swap.hpp"
 #include "actions/change_color.hpp"
+#include "objects/production_handler.hpp"
 
 // #include <gymnasium/gymnasium.hpp>
 // xcxc conda install -c conda-forge eigen
@@ -59,7 +60,16 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
     // Initialize observation encoder
     _obs_encoder = std::make_unique<ObservationEncoder>();
     _grid_features = _obs_encoder->feature_names();
-    
+
+        // Initialize grid
+    auto map_info = map.request();
+        std::vector<Layer> layer_for_type_id;
+    for (const auto& layer : ObjectLayers) {
+        layer_for_type_id.push_back(layer.second);
+    }
+    _grid = std::make_unique<Grid>(map_info.shape[1], map_info.shape[0], layer_for_type_id);
+
+
     // Initialize buffers
     std::vector<ssize_t> shape = {
         static_cast<ssize_t>(num_agents),
@@ -74,6 +84,8 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
     
     set_buffers(observations, terminals, truncations, rewards);
     
+    _action_success.resize(num_agents);
+
     // Initialize action handlers
     std::vector<std::unique_ptr<ActionHandler>> actions;
 
@@ -104,8 +116,7 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
     if (cfg["actions"]["change_color"]["enabled"].cast<bool>()) {
         actions.push_back(std::make_unique<ChangeColorAction>(cfg["actions"]["change_color"].cast<ActionConfig>()));
     }
-    
-    init_action_handlers(actions);
+
     
     // Initialize group rewards
     auto groups = cfg["groups"].cast<py::dict>();
@@ -120,8 +131,7 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
             group["group_reward_pct"].cast<float>() : 0.0f;
     }
 
-    // Initialize grid
-    auto map_info = map.request();
+
     // Ensure the array is 2D
     if (map_info.ndim != 2) {
         throw std::runtime_error("Expected a 2D array");
@@ -140,11 +150,10 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
     //     throw std::runtime_error("Invalid String Size: expected 50 characters, got " + std::to_string(max_chars));
     // }
     
-    std::vector<Layer> layer_for_type_id;
-    for (const auto& layer : ObjectLayers) {
-        layer_for_type_id.push_back(layer.second);
-    }
-    _grid = std::make_unique<Grid>(map_info.shape[1], map_info.shape[0], layer_for_type_id);
+init_action_handlers(actions);
+    _event_manager->init(_grid.get(), _stats.get());
+    _event_manager->event_handlers.push_back(new ProductionHandler(_event_manager.get()));
+    _event_manager->event_handlers.push_back(new CoolDownHandler(_event_manager.get()));
     
     // Initialize objects from map
     auto map_data = static_cast<wchar_t*>(map_info.ptr);
@@ -537,6 +546,7 @@ void MettaGrid::add_agent(Agent* agent) {
     // here, but it's not super clean.
     // xcxc on grid and here -- make be shared_ptr?
     _agents.push_back(agent);
+    cout << "added agent" << endl;
 }
 
 void MettaGrid::_compute_observation(
@@ -674,8 +684,24 @@ void MettaGrid::_step(py::array_t<int> actions) {
             if (arg > _max_action_args[action]) {
                 continue;
             }
-            
+
+            cout << "handling action" << endl;
+            cout << "action: " << action << endl;
+            // action name
+            cout << "action name: " << _action_handlers[action]->action_name() << endl;
+            cout << "arg: " << arg << endl;
+            cout << "current timestep: " << _current_timestep << endl;
+            // is the agent null?
+            if (!agent) {
+                cout << "agent is null" << endl;
+            } else {
+                cout << "agent is not null" << endl;
+            }
+            cout << "agent id: " << agent->id << endl;
+            cout << "handler: " << handler << endl;
             _action_success[idx] = handler->handle_action(idx, agent->id, arg, _current_timestep);
+            cout << "finished handling action" << endl;
+            cout << "action success: " << _action_success[idx] << endl;
         }
     }
     
