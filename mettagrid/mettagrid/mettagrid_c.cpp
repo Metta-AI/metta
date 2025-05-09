@@ -38,16 +38,11 @@
 
 namespace py = pybind11;
 
-// TODO: see where we can simplify numpy array manipulations.
-
 MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
     // env_cfg is a dict-form of the OmegaCong config.
     // `map` is a numpy array of shape (height, width) and a 'U' dtype.
     // It's not clear that there's any value in using a numpy array here,
     // and this causes us to need to do some awkward conversions.
-
-    // xcxc playing on simple, the outer walls don't render. Maybe a problem
-    // with how we translate stuff from numpy to C++?
     auto cfg = env_cfg["game"].cast<py::dict>();
     _cfg = cfg;
     
@@ -154,20 +149,24 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
             std::wstring wide_string(map_data + idx * max_chars, max_chars);
             std::wstring_convert<std::codecvt_utf8<wchar_t>> w_string_converter;
             std::string cell = w_string_converter.to_bytes(wide_string);
-            // xcxc playing on simple, the outer walls don't render. Maybe a problem
-            // with how we translate stuff from numpy to C++?
-            // Are the string matches happening?
-            if (cell == "wall") {
+            // Because of the way we're doing string conversions, the string objects are prone
+            // to have trailing terminators; so their lengths are "wrong".
+            // For now we solve this by using starts_with instead of ==, but we should
+            // fix how we're building maps in general.
+            // Note that "start_with" is correct for mines, generators, and agents, since
+            // they could be "mine.red" or "agent.blue" etc.
+            if (cell.starts_with("wall")) {
                 Wall* wall = new Wall(r, c, cfg["objects"]["wall"].cast<ObjectConfig>());
                 _grid->add_object(wall);
                 _stats->incr("objects.wall");
             }
-            else if (cell == "block") {
+            else if (cell.starts_with("block")) {
                 Wall* block = new Wall(r, c, cfg["objects"]["block"].cast<ObjectConfig>());
                 _grid->add_object(block);
                 _stats->incr("objects.block");
             }
             else if (cell.starts_with("mine")) {
+                cout << "Adding mine at " << r << ", " << c << endl;
                 std::string m = cell;
                 if (m.find('.') == std::string::npos) {
                     m = "mine.red";
@@ -181,22 +180,22 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
                 }
                 converter = new Converter(r, c, cfg["objects"][py::str(m)].cast<ObjectConfig>(), ObjectType::GeneratorT);
             }
-            else if (cell == "altar") {
+            else if (cell.starts_with("altar")) {
                 converter = new Converter(r, c, cfg["objects"]["altar"].cast<ObjectConfig>(), ObjectType::AltarT);
             }
-            else if (cell == "armory") {
+            else if (cell.starts_with("armory")) {
                 converter = new Converter(r, c, cfg["objects"]["armory"].cast<ObjectConfig>(), ObjectType::ArmoryT);
             }
-            else if (cell == "lasery") {
+            else if (cell.starts_with("lasery")) {
                 converter = new Converter(r, c, cfg["objects"]["lasery"].cast<ObjectConfig>(), ObjectType::LaseryT);
             }
-            else if (cell == "lab") {
+            else if (cell.starts_with("lab")) {
                 converter = new Converter(r, c, cfg["objects"]["lab"].cast<ObjectConfig>(), ObjectType::LabT);
             }
-            else if (cell == "factory") {
+            else if (cell.starts_with("factory")) {
                 converter = new Converter(r, c, cfg["objects"]["factory"].cast<ObjectConfig>(), ObjectType::FactoryT);
             }
-            else if (cell == "temple") {
+            else if (cell.starts_with("temple")) {
                 converter = new Converter(r, c, cfg["objects"]["temple"].cast<ObjectConfig>(), ObjectType::TempleT);
             }
             else if (cell.starts_with("agent.")) {
