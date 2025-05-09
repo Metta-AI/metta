@@ -209,7 +209,7 @@ class PufferTrainer:
         # it doesn't make sense to evaluate more often than checkpointing since we need a saved policy to evaluate
         if (
             self.trainer_cfg.evaluate_interval != 0
-            and self.trainer_cfg.evaluate_interval < self.trainer_cfg.checkpoint_interval
+            and self.trainer_cfg.evaluate_interval <= self.trainer_cfg.checkpoint_interval
         ):
             raise ValueError("evaluate_interval must be at least as large as checkpoint_interval")
 

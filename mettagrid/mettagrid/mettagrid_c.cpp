@@ -277,9 +277,6 @@ void MettaGrid::init_action_handlers() {
 
 void MettaGrid::add_agent(Agent* agent) {
     agent->init(&_rewards.mutable_unchecked<1>()(_agents.size()));
-    // These agents are also in the Grid. We'll GC them since we have a unique_ptr
-    // here, but it's not super clean.
-    // xcxc on grid and here -- make be shared_ptr?
     _agents.push_back(agent);
 }
 
