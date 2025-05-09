@@ -30,7 +30,7 @@ logger = logging.getLogger("policy_store")
 
 
 class PolicyRecord:
-    def __init__(self, policy_store, name: str, uri: str, metadata: dict):
+    def __init__(self, policy_store: "PolicyStore", name: str, uri: str, metadata: dict):
         self._policy_store = policy_store
         self.name = name
         self.uri = uri
@@ -53,6 +53,111 @@ class PolicyRecord:
 
     def local_path(self):
         return self._local_path
+
+    def __repr__(self):
+        """Generate a detailed representation of the PolicyRecord with weight shapes."""
+        # Basic policy record info
+        lines = [f"PolicyRecord(name={self.name}, uri={self.uri})"]
+
+        # Add key metadata if available
+        important_keys = ["epoch", "agent_step", "generation", "score"]
+        metadata_items = []
+        for k in important_keys:
+            if k in self.metadata:
+                metadata_items.append(f"{k}={self.metadata[k]}")
+
+        if metadata_items:
+            lines.append(f"Metadata: {', '.join(metadata_items)}")
+
+        # Load policy if not already loaded
+        policy = None
+        if self._policy is None:
+            try:
+                policy = self.policy()
+            except Exception as e:
+                lines.append(f"Error loading policy: {str(e)}")
+                return "\n".join(lines)
+        else:
+            policy = self._policy
+
+        # Add total parameter count
+        total_params = sum(p.numel() for p in policy.parameters())
+        trainable_params = sum(p.numel() for p in policy.parameters() if p.requires_grad)
+        lines.append(f"Total parameters: {total_params:,} (trainable: {trainable_params:,})")
+
+        # Add module structure with detailed weight shapes
+        lines.append("\nModule Structure with Weight Shapes:")
+
+        for name, module in policy.named_modules():
+            # Skip top-level module
+            if name == "":
+                continue
+
+            # Create indentation based on module hierarchy
+            indent = "  " * name.count(".")
+
+            # Get module type
+            module_type = module.__class__.__name__
+
+            # Start building the module info line
+            module_info = f"{indent}{name}: {module_type}"
+
+            # Get parameters for this module (non-recursive)
+            params = list(module.named_parameters(recurse=False))
+
+            # Add detailed parameter information
+            if params:
+                # For common layer types, add specialized shape information
+                if isinstance(module, torch.nn.Conv2d):
+                    weight = next((p for name, p in params if name == "weight"), None)
+                    if weight is not None:
+                        out_channels, in_channels, kernel_h, kernel_w = weight.shape
+                        module_info += " ["
+                        module_info += f"out_channels={out_channels}, "
+                        module_info += f"in_channels={in_channels}, "
+                        module_info += f"kernel=({kernel_h}, {kernel_w})"
+                        module_info += "]"
+
+                elif isinstance(module, torch.nn.Linear):
+                    weight = next((p for name, p in params if name == "weight"), None)
+                    if weight is not None:
+                        out_features, in_features = weight.shape
+                        module_info += f" [in_features={in_features}, out_features={out_features}]"
+
+                elif isinstance(module, torch.nn.LSTM):
+                    module_info += " ["
+                    module_info += f"input_size={module.input_size}, "
+                    module_info += f"hidden_size={module.hidden_size}, "
+                    module_info += f"num_layers={module.num_layers}"
+                    module_info += "]"
+
+                elif isinstance(module, torch.nn.Embedding):
+                    weight = next((p for name, p in params if name == "weight"), None)
+                    if weight is not None:
+                        num_embeddings, embedding_dim = weight.shape
+                        module_info += f" [num_embeddings={num_embeddings}, embedding_dim={embedding_dim}]"
+
+                # Add all parameter shapes
+                param_shapes = []
+                for param_name, param in params:
+                    param_shapes.append(f"{param_name}={list(param.shape)}")
+
+                if param_shapes and not any(
+                    x in module_info for x in ["out_channels", "in_features", "hidden_size", "num_embeddings"]
+                ):
+                    module_info += f" ({', '.join(param_shapes)})"
+
+            # Add formatted module info to output
+            lines.append(module_info)
+
+        # Add section for buffer shapes (non-parameter tensors like running_mean in BatchNorm)
+        buffers = list(policy.named_buffers())
+        if buffers:
+            lines.append("\nBuffer Shapes:")
+            for name, buffer in buffers:
+                lines.append(f"  {name}: {list(buffer.shape)}")
+
+        return "\n".join(lines)
 
 
 class PolicyStore:
@@ -379,7 +484,6 @@ class PolicyStore:
             if metadata_only:
                 pr._policy = None
                 pr._local_path = None
-            logger.info(f"Loaded policy from {path} with metadata {pr.metadata}")
             return pr
 
     def _load_wandb_artifact(self, qualified_name: str):
