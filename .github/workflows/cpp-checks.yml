@@ -75,11 +75,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Check for C++ and Cython file changes
+      - name: Check for C++ file changes
         id: check_cpp_files
         uses: ./.github/actions/file-changes
         with:
-          patterns: "*.cpp,*.cxx,*.cc,*.h,*.hpp,*.pyx,*.pxd"
+          patterns: "*.cpp,*.cxx,*.cc,*.h,*.hpp"
           directory_paths: "mettagrid/"
           specific_files: "requirements.txt,setup.py"
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -170,6 +170,7 @@ jobs:
       - name: Install C++ dependencies
         run: |
           sudo apt-get install -y g++ cmake
+          pip install pybind11
 
       - name: Restore from build cache
         id: build-cache-cpp
