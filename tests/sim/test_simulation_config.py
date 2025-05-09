@@ -19,7 +19,7 @@ from metta.sim.simulation_config import SimulationSuiteConfig
 # constants
 # ---------------------------------------------------------------------------
 ROOT_ENV, CHILD_A, CHILD_B = "env/root", "env/a", "env/b"
-DEVICE, RUN_DIR = "cpu", "./runs/test"
+DEVICE = "cpu"
 
 
 @pytest.fixture
@@ -47,7 +47,6 @@ def test_propagate_defaults_and_overrides(build_simulation_suite_config):
         "num_envs": 4,
         "num_episodes": 4,
         "device": DEVICE,
-        "run_dir": RUN_DIR,
         "simulations": {
             "a": {"env": CHILD_A},  # inherits device, num_envs is default (50)
             "b": {"env": CHILD_B, "num_envs": 8},  # overrides num_envs
@@ -80,7 +79,6 @@ def test_allow_extra_child_keys(build_simulation_suite_config, has_extra, should
         "num_envs": 4,
         "num_episodes": 4,
         "device": DEVICE,
-        "run_dir": RUN_DIR,
         "simulations": {"sim": child_node},
     }
     if should_pass:
@@ -100,7 +98,6 @@ def test_missing_device_always_errors(build_simulation_suite_config):
         "name": "test",
         "num_envs": 4,
         "num_episodes": 4,
-        "run_dir": RUN_DIR,
         "simulations": {"sim": {}},  # required 'device' omitted
     }
     with pytest.raises(ValidationError):
@@ -110,7 +107,6 @@ def test_missing_device_always_errors(build_simulation_suite_config):
 def test_missing_suite_env_is_allowed(build_simulation_suite_config):
     cfg = {
         "name": "test",
-        "run_dir": RUN_DIR,
         "device": DEVICE,
         "num_envs": 4,
         "num_episodes": 4,
