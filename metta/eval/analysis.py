@@ -82,13 +82,13 @@ def get_metrics_data(
 
     data: Dict[str, Dict[str, float]] = {}
     for m in metrics:
-        mean = stats_db.get_average_metric_by_filter(m, policy_record, filter_condition)
+        mean = stats_db.get_average_group_metric_by_filter(m, policy_record, 1, filter_condition)
         if mean is None:
             continue
         std = stats_db.get_std_metric_by_filter(m, policy_record, filter_condition) or 0.0
 
-        k_recorded = stats_db.count_metric_agents(policy_key, policy_version, m, filter_condition)
-        n_potential = stats_db.potential_samples_for_metric(policy_key, policy_version, filter_condition)
+        k_recorded = stats_db.count_metric_group_agents(policy_key, policy_version, 1, m, filter_condition)
+        n_potential = stats_db.potential_group_samples_for_metric(policy_key, policy_version, 1, filter_condition)
 
         data[m] = {
             "mean": mean,

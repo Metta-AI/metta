@@ -225,13 +225,11 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                 for k, v in agent_stats.items():
                     agent_metrics[agent_idx][k] = float(v)
 
-            group_metrics = {}
             self._stats_writer.record_episode(
                 self._episode_id,
                 attributes,
                 agent_to_group,
                 agent_metrics,
-                group_metrics,
                 self._max_steps,
                 replay_url,
                 self._reset_at,

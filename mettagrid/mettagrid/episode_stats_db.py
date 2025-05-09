@@ -53,6 +53,23 @@ EPISODE_DB_TABLES = {
     """,
 }
 
+EPISODE_DB_VIEWS = {
+    "group_metrics": """
+    CREATE VIEW IF NOT EXISTS group_metrics AS
+        SELECT
+            am.episode_id,
+            ag.group_id,
+            am.metric,
+            SUM(am.value) AS value
+        FROM agent_metrics am
+        JOIN agent_groups ag
+            ON ag.episode_id = am.episode_id
+            AND ag.agent_id   = am.agent_id
+        GROUP BY am.episode_id, ag.group_id, am.metric
+    ;
+    """,
+}
+
 
 class EpisodeStatsDB:
     """
@@ -69,18 +86,26 @@ class EpisodeStatsDB:
         self.initialize_schema()
 
     def initialize_schema(self) -> None:
-        for table_name, stmt in self.tables().items():
+        def _execute_stmt(table_name: str, stmt: str) -> None:
             try:
                 self.con.execute(stmt)
             except Exception as e:
                 logger = logging.getLogger(__name__)
                 logger.error(f"Error executing SQL for table {table_name}: {e}")
                 raise
+
+        for table_name, stmt in self.tables().items():
+            _execute_stmt(table_name, stmt)
+        for table_name, stmt in self.views().items():
+            _execute_stmt(table_name, stmt)
         self.con.commit()
 
     def tables(self) -> Dict[str, str]:
         """Return all tables in the database."""
         return EPISODE_DB_TABLES
+
+    def views(self) -> Dict[str, str]:
+        return EPISODE_DB_VIEWS
 
     def record_episode(
         self,
@@ -120,7 +145,7 @@ class EpisodeStatsDB:
         if len(group_rows) > 0:
             self.con.executemany(
                 """
-                INSERT OR REPLACE INTO
+                INSERT OR REPLACE INTO agent_groups
                 (episode_id, group_id, agent_id)
                 VALUES (?, ?, ?)
                 """,
