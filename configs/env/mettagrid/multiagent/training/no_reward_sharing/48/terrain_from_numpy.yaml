@@ -5,7 +5,7 @@ defaults:
 sampling: 1
 
 game:
-  num_agents: 49
+  num_agents: 48
   map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom
     num_rooms: 4
