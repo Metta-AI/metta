@@ -33,48 +33,17 @@ class Policy(nn.Module):
             nn.ReLU(),
         )
 
-        max_vec = (
-            torch.tensor(
-                [
-                    1,
-                    10,
-                    30,
-                    1,
-                    1,
-                    255,
-                    100,
-                    100,
-                    100,
-                    100,
-                    100,
-                    100,
-                    100,
-                    100,
-                    1,
-                    1,
-                    1,
-                    10,
-                    1,
-                    100,
-                    100,
-                    100,
-                    100,
-                    100,
-                    100,
-                    100,
-                    100,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                ]
-            )
-            .float()
-            .view(1, 34, 1, 1)
-        )
+        # TODO - fix magic numbers!
+        # fmt: off
+        max_vec = torch.tensor([
+            1, 10, 30, 1, 1, 255,
+            100, 100, 100, 100, 100, 100, 100, 100,
+            1, 1, 1, 10, 1,
+            100, 100, 100, 100, 100, 100, 100, 100,
+            1, 1, 1, 1, 1, 1, 1
+        ], dtype=torch.float).reshape(1, 34, 1, 1)
+        # fmt: on
+
         self.register_buffer("max_vec", max_vec)
 
         action_nvec = env.single_action_space.nvec
@@ -109,10 +78,19 @@ def load_policy(path: str, device: str = "cpu"):
     num_actions, hidden_size = weights["policy.actor.0.weight"].shape
     num_action_args, _ = weights["policy.actor.1.weight"].shape
     cnn_channels, obs_channels, _, _ = weights["policy.network.0.weight"].shape
+
+    # TODO -- fix magic number 11
+
+    print("Weight shapes:")
+    for key, tensor in weights.items():
+        print(f"{key}: {tensor.shape}")
+
+    # Create environment namespace
     env = SimpleNamespace(
         single_action_space=SimpleNamespace(nvec=[num_actions, num_action_args]),
         single_observation_space=SimpleNamespace(shape=[obs_channels, 11, 11]),
     )
+
     policy = Policy(env, cnn_channels=cnn_channels, hidden_size=hidden_size)
     policy = Recurrent(env, policy)
 
@@ -124,7 +102,7 @@ def load_policy(path: str, device: str = "cpu"):
 
 
 class PufferAgentWrapper(nn.Module):
-    def __init__(self, policy: Policy):
+    def __init__(self, policy: nn.Module):
         super().__init__()
         self.policy = policy
 
