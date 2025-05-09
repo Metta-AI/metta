@@ -1,4 +1,4 @@
-# Makefile for code formatting, linting, and testing
+# Makefile for code formatting, linting, and testing 
 .PHONY: help format check-tools install-tools test benchmark clean check-test-tools install-test-tools check-bench-tools install-bench-tools build build-clean all
 
 # Default target when just running 'make'
