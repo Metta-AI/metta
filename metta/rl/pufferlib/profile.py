@@ -76,7 +76,7 @@ class Profile:
         self.uptime = uptime
 
         self.remaining = (total_timesteps - global_step) / self.SPS
-        self.eval_time = timers["_rollout"].elapsed
+        self.eval_time = timers["_evaluate"].elapsed
         self.eval_forward_time = self.eval_forward.elapsed
         self.env_time = self.env.elapsed
         self.eval_misc_time = self.eval_misc.elapsed

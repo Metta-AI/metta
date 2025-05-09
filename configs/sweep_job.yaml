@@ -3,6 +3,7 @@ defaults:
   - wandb: metta_research
   - agent: simple
   - sim: navigation
+  - analyzer: eval_analyzer
   - trainer: puffer
   - _self_
 
@@ -12,7 +13,8 @@ sweep_params: "sweep/full"
 sweep_params_override: {}
 sweep: ???
 
-metric: reward
+# metric: heart.get
+metric: episode_reward
 num_random_samples: 10
 
 trainer:
@@ -21,6 +23,7 @@ trainer:
 sim:
   num_envs: 5
   num_episodes: 5
+  eval_db_uri: null
 
 sweep_job:
   evals: ${sim}
