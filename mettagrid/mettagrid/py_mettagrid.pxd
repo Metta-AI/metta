@@ -117,13 +117,30 @@ cdef extern from "core.hpp":
                           uint32_t c,
                           const ObsType* values)
         
-        # Getters - now returning const references to vectors
-        const vector[ObsType]& get_observations() const
-        const vector[int8_t]& get_terminals() const
-        const vector[int8_t]& get_truncations() const
-        const vector[float]& get_rewards() const
-        const vector[float]& get_episode_rewards() const
-        const vector[double]& get_group_rewards() const
+        
+        # Set external buffers method
+        void set_buffers(ObsType* external_observations,
+                       int8_t* external_terminals,
+                       int8_t* external_truncations,
+                       float* external_rewards,
+                       float* external_episode_rewards,
+                       float* external_group_rewards)
+        
+        # Replace vector getters with pointer getters
+        ObsType* get_observations() const
+        int8_t* get_terminals() const
+        int8_t* get_truncations() const
+        float* get_rewards() const
+        float* get_episode_rewards() const
+        float* get_group_rewards() const
+        
+        # Size getters
+        size_t get_observations_size() const
+        size_t get_terminals_size() const
+        size_t get_truncations_size() const
+        size_t get_rewards_size() const
+        size_t get_episode_rewards_size() const
+        size_t get_group_rewards_size() const
         
         # Status and environment information
         uint32_t current_timestep() const

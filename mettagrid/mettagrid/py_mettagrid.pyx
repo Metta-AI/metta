@@ -89,9 +89,6 @@ cdef class MettaGrid:
         self._grid_features_list = self._get_grid_features()
         self._grid_features_size = len(self._grid_features_list)
         
-        # Set up NumPy array views for Python access
-        self._create_numpy_views(num_agents, self._grid_features_size,  self._obs_width, self._obs_height)
-        
         # Pre-allocate action arrays for step and reset
         self._c_actions = <int32_t**>malloc(num_agents * sizeof(int32_t*))
         if self._c_actions == NULL:
@@ -126,130 +123,16 @@ cdef class MettaGrid:
             del self._cpp_mettagrid
             self._cpp_mettagrid = NULL
 
-    def _create_numpy_views(self, uint32_t num_agents, uint32_t grid_features_size, uint16_t obs_width, uint16_t obs_height):
-        """Create NumPy array views that reference the C++ internal buffers."""
-        # Declare all variables at the beginning of the function
-        cdef:
-            # For observations
-            vector[ObsType] cpp_observations = self._cpp_mettagrid.get_observations()
-            ObsType* obs_ptr = cpp_observations.data()
-            size_t obs_size = cpp_observations.size()
-            
-            # For terminals
-            vector[int8_t] cpp_terminals = self._cpp_mettagrid.get_terminals()
-            int8_t* term_ptr = cpp_terminals.data()
-            size_t term_size = cpp_terminals.size()
-            
-            # For truncations
-            vector[int8_t] cpp_truncations = self._cpp_mettagrid.get_truncations()
-            int8_t* trunc_ptr = cpp_truncations.data()
-            size_t trunc_size = cpp_truncations.size()
-            
-            # For rewards
-            vector[float] cpp_rewards = self._cpp_mettagrid.get_rewards()
-            float* reward_ptr = cpp_rewards.data()
-            size_t reward_size = cpp_rewards.size()
-            
-            # For episode rewards
-            vector[float] cpp_episode_rewards = self._cpp_mettagrid.get_episode_rewards()
-            float* ep_reward_ptr = cpp_episode_rewards.data()
-            size_t ep_reward_size = cpp_episode_rewards.size()
-            
-            # For group rewards
-            vector[double] cpp_group_rewards = self._cpp_mettagrid.get_group_rewards()
-            double* group_reward_ptr = cpp_group_rewards.data()
-            size_t group_reward_size = cpp_group_rewards.size()
-            
-            # Additional variables for manual copying
-            size_t expected_size
-            size_t copy_size
-            uint32_t i
-            uint8_t* target_ptr
-            int8_t* term_target_ptr
-            int8_t* trunc_target_ptr
-            float* reward_target_ptr
-            float* ep_reward_target_ptr
-            double* group_reward_target_ptr
-            
-            # NumPy arrays
-            cnp.ndarray obs_array
-            cnp.ndarray terminals_array
-            cnp.ndarray truncations_array
-            cnp.ndarray rewards_array
-            cnp.ndarray episode_rewards_array
-            cnp.ndarray group_rewards_array
-        
-        # Create observations array
-        obs_array = np.zeros((num_agents, obs_height, obs_width, grid_features_size), dtype=np.uint8)
-        
-        # Manually copy data if available
-        if obs_size > 0:
-            # We know exactly what size the array should be
-            expected_size = num_agents * obs_height * obs_width * grid_features_size
-            
-            # Safety check to avoid buffer overruns
-            copy_size = min(obs_size, expected_size)
-            
-            # Get raw pointers for direct memory access
-            target_ptr = <uint8_t*>obs_array.data
-            
-            # Copy data manually
-            for i in range(copy_size):
-                target_ptr[i] = obs_ptr[i]
-        
-        # Create and copy terminals array
-        terminals_array = np.zeros(num_agents, dtype=np.int8)
-        if term_size > 0:
-            copy_size = min(term_size, num_agents)
-            term_target_ptr = <int8_t*>terminals_array.data
-            for i in range(copy_size):
-                term_target_ptr[i] = term_ptr[i]
-        
-        # Create and copy truncations array  
-        truncations_array = np.zeros(num_agents, dtype=np.int8)
-        if trunc_size > 0:
-            copy_size = min(trunc_size, num_agents)
-            trunc_target_ptr = <int8_t*>truncations_array.data
-            for i in range(copy_size):
-                trunc_target_ptr[i] = trunc_ptr[i]
-        
-        # Create and copy rewards array
-        rewards_array = np.zeros(num_agents, dtype=np.float32)
-        if reward_size > 0:
-            copy_size = min(reward_size, num_agents)
-            reward_target_ptr = <float*>rewards_array.data
-            for i in range(copy_size):
-                reward_target_ptr[i] = reward_ptr[i]
-        
-        # Create and copy episode rewards array
-        episode_rewards_array = np.zeros(num_agents, dtype=np.float32)
-        if ep_reward_size > 0:
-            copy_size = min(ep_reward_size, num_agents)
-            ep_reward_target_ptr = <float*>episode_rewards_array.data
-            for i in range(copy_size):
-                ep_reward_target_ptr[i] = ep_reward_ptr[i]
-        
-        # Create and copy group rewards array
-        group_rewards_array = np.zeros(num_agents, dtype=np.float64)
-        if group_reward_size > 0:
-            copy_size = min(group_reward_size, num_agents)
-            group_reward_target_ptr = <double*>group_rewards_array.data
-            for i in range(copy_size):
-                group_reward_target_ptr[i] = group_reward_ptr[i]
-        
-        # Assign arrays to instance variables
-        self._observations_np = obs_array
-        self._terminals_np = terminals_array
-        self._truncations_np = truncations_array
-        self._rewards_np = rewards_array
-        self._episode_rewards_np = episode_rewards_array
-        self._group_rewards_np = group_rewards_array
 
-    def set_buffers(self, 
-                    cnp.ndarray observations,
-                    cnp.ndarray terminals, 
-                    cnp.ndarray truncations, 
-                    cnp.ndarray rewards):
+
+    def set_buffers(
+        self, 
+        cnp.ndarray observations,
+        cnp.ndarray terminals, 
+        cnp.ndarray truncations, 
+        cnp.ndarray rewards,
+        cnp.ndarray episode_rewards = None,
+        cnp.ndarray group_rewards = None):
         """
         Set external buffers for observations, terminals, truncations, and rewards.
         
@@ -275,7 +158,7 @@ cdef class MettaGrid:
             tuple reward_shape
         
         # Predict expected buffer shapes
-        expected_obs_shape = (num_agents, obs_height, obs_width, grid_features_size)
+        expected_obs_shape = (num_agents, obs_width, obs_height, grid_features_size)
         
         # Convert NumPy shapes to Python tuples for comparison and error messages
         obs_shape_tuple = tuple(observations.shape[i] for i in range(observations.ndim))
@@ -297,11 +180,48 @@ cdef class MettaGrid:
         if rewards.ndim < 1 or rewards.shape[0] < num_agents:
             raise ValueError(f"Rewards buffer has shape {reward_shape}, expected first dimension ≥ {num_agents}")
         
+
+       # Ensure arrays are contiguous in memory
+        if not self._observations_np.flags['C_CONTIGUOUS']:
+            self._observations_np = np.ascontiguousarray(self._observations_np)
+        if not self._terminals_np.flags['C_CONTIGUOUS']:
+            self._terminals_np = np.ascontiguousarray(self._terminals_np)
+        if not self._truncations_np.flags['C_CONTIGUOUS']:
+            self._truncations_np = np.ascontiguousarray(self._truncations_np)
+        if not self._rewards_np.flags['C_CONTIGUOUS']:
+            self._rewards_np = np.ascontiguousarray(self._rewards_np)
+        if not self._episode_rewards_np.flags['C_CONTIGUOUS']:
+            self._episode_rewards_np = np.ascontiguousarray(self._episode_rewards_np)
+        if not self._group_rewards_np.flags['C_CONTIGUOUS']:
+            self._group_rewards_np = np.ascontiguousarray(self._group_rewards_np)
+
         # Store the external buffers
         self._observations_np = observations
         self._terminals_np = terminals
         self._truncations_np = truncations
         self._rewards_np = rewards
+        
+        # Create or use episode rewards buffer
+        if episode_rewards is None:
+            episode_rewards = np.zeros(self._num_agents, dtype=np.float32)
+        self._episode_rewards_np = episode_rewards
+        
+        # Create or use group rewards buffer
+        if group_rewards is None:
+            group_rewards = np.zeros(self._num_agents, dtype=np.float32)
+        self._group_rewards_np = group_rewards
+        
+        # Ensure arrays are contiguous in memory (existing code)...
+        
+        # Connect these arrays to the C++ engine - match the method name
+        self._cpp_mettagrid.set_buffers(
+            <ObsType*>observations.data,
+            <int8_t*>terminals.data,
+            <int8_t*>truncations.data,
+            <float*>rewards.data,
+            <float*>episode_rewards.data,
+            <float*>group_rewards.data
+        )
 
 
     # Helper method to get grid features as Python list - caching the result

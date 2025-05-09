@@ -218,6 +218,102 @@ inline std::unique_ptr<CppMettaGrid> create_grid_from_mettagrid_args(const std::
   return create_grid_from_test_files(map_path, config_path);
 }
 
+// Structure to hold all buffer pointers for easier management
+struct GridBuffers {
+  ObsType* observations = nullptr;
+  int8_t* terminals = nullptr;
+  int8_t* truncations = nullptr;
+  float* rewards = nullptr;
+  float* episode_rewards = nullptr;
+  float* group_rewards = nullptr;
+
+  // Size information for reference
+  size_t obs_size = 0;
+  size_t terminals_size = 0;
+  size_t truncations_size = 0;
+  size_t rewards_size = 0;
+  size_t episode_rewards_size = 0;
+  size_t group_rewards_size = 0;
+};
+
+// Helper function to allocate buffers for a grid
+inline GridBuffers* allocate_grid_buffers(CppMettaGrid* grid) {
+  if (!grid) {
+    throw std::invalid_argument("Cannot allocate buffers for null grid");
+  }
+
+  GridBuffers* buffers = new GridBuffers();
+
+  // Get exact buffer sizes from the grid
+  buffers->obs_size = grid->get_observations_size();
+  buffers->terminals_size = grid->get_terminals_size();
+  buffers->truncations_size = grid->get_truncations_size();
+  buffers->rewards_size = grid->get_rewards_size();
+  buffers->episode_rewards_size = grid->get_episode_rewards_size();
+  buffers->group_rewards_size = grid->get_group_rewards_size();
+
+  // Allocate memory for each buffer with zero initialization
+  buffers->observations = new ObsType[buffers->obs_size]();
+  buffers->terminals = new int8_t[buffers->terminals_size]();
+  buffers->truncations = new int8_t[buffers->truncations_size]();
+  buffers->rewards = new float[buffers->rewards_size]();
+  buffers->episode_rewards = new float[buffers->episode_rewards_size]();
+  buffers->group_rewards = new float[buffers->group_rewards_size]();
+
+  // Set the buffers in the grid
+  grid->set_buffers(buffers->observations,
+                    buffers->terminals,
+                    buffers->truncations,
+                    buffers->rewards,
+                    buffers->episode_rewards,
+                    buffers->group_rewards);
+
+  return buffers;
+}
+
+// Helper function to free allocated buffers
+inline void free_grid_buffers(GridBuffers* buffers) {
+  if (!buffers) {
+    return;  // Nothing to free
+  }
+
+  // Free all buffer memory
+  delete[] buffers->observations;
+  delete[] buffers->terminals;
+  delete[] buffers->truncations;
+  delete[] buffers->rewards;
+  delete[] buffers->episode_rewards;
+  delete[] buffers->group_rewards;
+
+  // Delete the buffers struct itself
+  delete buffers;
+}
+
+// Helper function to create a grid with buffers already set up
+inline std::unique_ptr<CppMettaGrid> create_test_grid_with_buffers(uint32_t map_width = 10,
+                                                                   uint32_t map_height = 10,
+                                                                   uint32_t num_agents = 2,
+                                                                   uint32_t max_timestep = 100,
+                                                                   uint16_t obs_width = 5,
+                                                                   uint16_t obs_height = 5,
+                                                                   GridBuffers** out_buffers = nullptr) {
+  // Create the grid
+  auto grid = create_test_grid(map_width, map_height, num_agents, max_timestep, obs_width, obs_height);
+
+  // Allocate and set up buffers
+  GridBuffers* buffers = allocate_grid_buffers(grid.get());
+
+  // Return the buffers to the caller if requested
+  if (out_buffers) {
+    *out_buffers = buffers;
+  } else {
+    // If caller doesn't want the buffers struct, we need to free them
+    free_grid_buffers(buffers);
+  }
+
+  return grid;
+}
+
 }  // namespace test_utils
 
 #endif  // TEST_UTILS_HPP

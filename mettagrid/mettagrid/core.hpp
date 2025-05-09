@@ -35,7 +35,6 @@ private:
   // Group rewards
   std::map<uint32_t, float> _group_reward_pct;
   std::map<uint32_t, uint32_t> _group_sizes;
-  std::vector<double> _group_rewards;
 
   // Timestep tracking
   uint32_t _current_timestep;
@@ -46,11 +45,22 @@ private:
   uint16_t _obs_height;
 
   std::vector<std::string> _grid_features;
-  std::vector<ObsType> _observations;
-  std::vector<int8_t> _terminals;
-  std::vector<int8_t> _truncations;
-  std::vector<float> _rewards;
-  std::vector<float> _episode_rewards;
+
+  // Pointers to external buffers - these are required and must be set
+  ObsType* _observations;
+  int8_t* _terminals;
+  int8_t* _truncations;
+  float* _rewards;
+  float* _episode_rewards;
+  float* _group_rewards;
+
+  // Buffer sizes
+  size_t _observations_size;
+  size_t _terminals_size;
+  size_t _truncations_size;
+  size_t _rewards_size;
+  size_t _episode_rewards_size;
+  size_t _group_rewards_size;
 
   // Support for reward decay
   bool _enable_reward_decay;
@@ -58,8 +68,6 @@ private:
   float _reward_decay_factor;
 
   std::vector<int8_t> _action_success;
-
-  void register_features();
 
 public:
   // Constructor - note the changes to take ownership of the grid
@@ -72,6 +80,54 @@ public:
 
   // Destructor - simplified with smart pointers
   ~CppMettaGrid();
+
+  // Method to set external buffers - must be called before using the object
+  void set_buffers(ObsType* external_observations,
+                   int8_t* external_terminals,
+                   int8_t* external_truncations,
+                   float* external_rewards,
+                   float* external_episode_rewards,
+                   float* external_group_rewards);
+
+  // Buffer access methods
+  ObsType* get_observations() const {
+    return _observations;
+  }
+  int8_t* get_terminals() const {
+    return _terminals;
+  }
+  int8_t* get_truncations() const {
+    return _truncations;
+  }
+  float* get_rewards() const {
+    return _rewards;
+  }
+  float* get_episode_rewards() const {
+    return _episode_rewards;
+  }
+  float* get_group_rewards() const {
+    return _group_rewards;
+  }
+
+  // Buffer size methods
+  size_t get_observations_size() const {
+    return _observations_size;
+  }
+  size_t get_terminals_size() const {
+    return _terminals_size;
+  }
+  size_t get_truncations_size() const {
+    return _truncations_size;
+  }
+  size_t get_rewards_size() const {
+    return _rewards_size;
+  }
+  size_t get_episode_rewards_size() const {
+    return _episode_rewards_size;
+  }
+  size_t get_group_rewards_size() const {
+    return _group_rewards_size;
+  }
 
   // Initialization methods
   void init_action_handlers(const std::vector<ActionHandler*>& action_handlers);
@@ -119,26 +175,6 @@ public:
   void compute_group_rewards(float* rewards);
   void set_group_reward_pct(uint32_t group_id, float pct);
   void set_group_size(uint32_t group_id, uint32_t size);
-
-  // Getters for buffer access - now return references to internal vectors
-  const std::vector<ObsType>& get_observations() const {
-    return _observations;
-  }
-  const std::vector<int8_t>& get_terminals() const {
-    return _terminals;
-  }
-  const std::vector<int8_t>& get_truncations() const {
-    return _truncations;
-  }
-  const std::vector<float>& get_rewards() const {
-    return _rewards;
-  }
-  const std::vector<float>& get_episode_rewards() const {
-    return _episode_rewards;
-  }
-  const std::vector<double>& get_group_rewards() const {
-    return _group_rewards;
-  }
 
   // Status and environment information getters
   uint32_t current_timestep() const {
@@ -188,9 +224,6 @@ private:
                    int32_t col,
                    const nlohmann::json& agent_config,
                    const nlohmann::json& group_config);
-
-  // Initialize internal buffers based on number of agents and observation dimensions
-  void initialize_buffers(uint32_t num_agents);
 };
 
 #endif  // CORE_HPP

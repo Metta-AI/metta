@@ -63,29 +63,49 @@ CppMettaGrid::CppMettaGrid(uint32_t map_width,
   // Get grid features from GridObject instead of the encoder
   _grid_features = GridObject::get_feature_names();
 
-  // Initialize internal buffers
-  initialize_buffers(num_agents);
+  // Initialize buffer pointers to NULL - they must be set before use
+  _observations = NULL;
+  _terminals = NULL;
+  _truncations = NULL;
+  _rewards = NULL;
+  _episode_rewards = NULL;
+
+  // Calculate required buffer sizes
+  _observations_size = num_agents * _obs_width * _obs_height * GridObject::get_observation_size();
+  _terminals_size = num_agents;
+  _truncations_size = num_agents;
+  _rewards_size = num_agents;
+  _episode_rewards_size = num_agents;
 }
 
 // Destructor is simpler with smart pointers
 CppMettaGrid::~CppMettaGrid() {
   // Smart pointers will clean up automatically
   // Agents are owned by the grid, not by us directly
+  // Most of our memory is externally managed (buffer pointers)
 }
 
-void CppMettaGrid::initialize_buffers(uint32_t num_agents) {
-  // Calculate buffer sizes using the GridObject's observation size
-  uint32_t obs_size = num_agents * _obs_width * _obs_height * GridObject::get_observation_size();
+void CppMettaGrid::set_buffers(ObsType* external_observations,
+                               int8_t* external_terminals,
+                               int8_t* external_truncations,
+                               float* external_rewards,
+                               float* external_episode_rewards,
+                               float* external_group_rewards) {
+  // Check for NULL pointers
+  if (external_observations == NULL || external_terminals == NULL || external_truncations == NULL ||
+      external_rewards == NULL || external_episode_rewards == NULL || external_group_rewards == NULL) {
+    throw std::invalid_argument("External buffers cannot be NULL");
+  }
 
-  // Resize all buffers
-  _observations.resize(obs_size, 0);
-  _terminals.resize(num_agents, 0);
-  _truncations.resize(num_agents, 0);
-  _rewards.resize(num_agents, 0);
-  _episode_rewards.resize(num_agents, 0);
-  _group_rewards.resize(num_agents, 0);  // Default size, will be adjusted later
+  // Set pointers to external buffers
+  _observations = external_observations;
+  _terminals = external_terminals;
+  _truncations = external_truncations;
+  _rewards = external_rewards;
+  _episode_rewards = external_episode_rewards;
+  _group_rewards = external_group_rewards;
 }
-// Initialize action handlers - modified to take ownership through cloning
+
 void CppMettaGrid::init_action_handlers(const std::vector<ActionHandler*>& action_handlers) {
   _num_action_handlers = action_handlers.size();
   _max_action_args.resize(_num_action_handlers);
@@ -120,23 +140,25 @@ void CppMettaGrid::add_agent(Agent* agent) {
 
 // Reset the environment
 void CppMettaGrid::reset() {
+  if (_observations == NULL) {
+    throw std::runtime_error("External buffers not set. Call set_buffers before reset.");
+  }
+
   // Reset timestep
   _current_timestep = 0;
 
   // Reset buffers
-  std::fill(_rewards.begin(), _rewards.end(), 0);
-  std::fill(_episode_rewards.begin(), _episode_rewards.end(), 0);
-  std::fill(_terminals.begin(), _terminals.end(), 0);
-  std::fill(_truncations.begin(), _truncations.end(), 0);
-  std::fill(_observations.begin(), _observations.end(), 0);
+  std::fill(_rewards, _rewards + _rewards_size, 0);
+  std::fill(_episode_rewards, _episode_rewards + _episode_rewards_size, 0);
+  std::fill(_terminals, _terminals + _terminals_size, 0);
+  std::fill(_truncations, _truncations + _truncations_size, 0);
+  std::fill(_observations, _observations + _observations_size, 0);
 
   // Reset action success flags
   std::fill(_action_success.begin(), _action_success.end(), false);
 
   // Reset reward decay
   _reward_multiplier = 1.0f;
-
-  // Note: This doesn't reset the grid or agents, which would require re-initialization
 }
 
 // Get observation values at coordinates (r,c)
@@ -228,20 +250,15 @@ void CppMettaGrid::compute_observations(int32_t** actions) {
   for (size_t idx = 0; idx < _agents.size(); idx++) {
     Agent* agent = _agents[idx];
 
-    if (_observations.data() == nullptr) {
-      std::cerr << "ERROR: _observations pointer is null!" << std::endl;
-      return;
-    }
-
-    ObsType* obs_ptr = _observations.data() + idx * _obs_width * _obs_height * _grid_features.size();
-    compute_observation(agent->location.r, agent->location.c, _obs_width, _obs_height, obs_ptr);
+    ObsType* obs = _observations + idx * _obs_width * _obs_height * _grid_features.size();
+    compute_observation(agent->location.r, agent->location.c, _obs_width, _obs_height, obs);
   }
 }
 
 // Take a step in the environment
 void CppMettaGrid::step(int32_t** actions) {
   // Reset rewards
-  std::fill(_rewards.begin(), _rewards.end(), 0);
+  std::fill(_rewards, _rewards + _rewards_size, 0);
 
   // Reset success flags
   std::fill(_action_success.begin(), _action_success.end(), false);
@@ -283,19 +300,19 @@ void CppMettaGrid::step(int32_t** actions) {
   // Apply reward decay if enabled
   if (_enable_reward_decay) {
     _reward_multiplier = std::max(0.1f, _reward_multiplier * (1.0f - _reward_decay_factor));
-    for (size_t i = 0; i < _rewards.size(); i++) {
+    for (size_t i = 0; i < _rewards_size; i++) {
       _rewards[i] *= _reward_multiplier;
     }
   }
 
   // Update episode rewards
-  for (size_t i = 0; i < _episode_rewards.size(); i++) {
+  for (size_t i = 0; i < _episode_rewards_size; i++) {
     _episode_rewards[i] += _rewards[i];
   }
 
   // Check for termination
   if (_max_timestep > 0 && _current_timestep >= _max_timestep) {
-    for (size_t i = 0; i < _truncations.size(); i++) {
+    for (size_t i = 0; i < _truncations_size; i++) {
       _truncations[i] = 1;
     }
   }
@@ -346,10 +363,9 @@ uint32_t CppMettaGrid::map_height() const {
   return _grid->height;
 }
 
-// Add group reward computation
 void CppMettaGrid::compute_group_rewards(float* rewards) {
   // Initialize group rewards to 0
-  std::fill(_group_rewards.begin(), _group_rewards.end(), 0);
+  std::fill(_group_rewards, _group_rewards + _group_rewards_size, 0);
 
   bool share_rewards = false;
 
@@ -398,7 +414,7 @@ void CppMettaGrid::initialize_from_json(const std::string& map_json, const std::
   }
 
   // Update group rewards size
-  _group_rewards.resize(cfg["groups"].size(), 0);
+  _group_rewards_size = cfg["groups"].size();
 
   // Process map and create objects
   for (size_t r = 0; r < map_data.size(); r++) {
@@ -480,9 +496,8 @@ void CppMettaGrid::initialize_from_json(const std::string& map_json, const std::
   // Set up action handlers from the config
   setup_action_handlers(cfg);
 
-  // Resize storage
   size_t obs_size = _num_agents * _obs_width * _obs_height * GridObject::get_observation_size();
-  _observations.resize(obs_size, 0);
+  _observations_size = obs_size;
 }
 
 void CppMettaGrid::parse_grid_object(const std::string& object_type,

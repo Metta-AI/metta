@@ -46,8 +46,7 @@ public:
 
   // Implement the pure virtual method
   void obs(ObsType* obs) const override {
-    // Simple implementation for testing
-    encode(obs, "test_feature", 1);
+    encode(obs, GridFeature::HP, 1);  // Using HP as an example
   }
 };
 

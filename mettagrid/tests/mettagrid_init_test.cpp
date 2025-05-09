@@ -67,8 +67,9 @@ TEST_F(MettaGridTestDataTest, ObservationGeneration) {
   grid->step(actions);
 
   // Check if observations are generated
-  const auto& observations = grid->get_observations();
-  EXPECT_FALSE(observations.empty());
+  const auto* observations = grid->get_observations();
+  EXPECT_TRUE(observations != nullptr);
+  EXPECT_GT(grid->get_observations_size(), 0);  // Check size is greater than 0
 
   // Clean up
   test_utils::delete_action_array(actions, grid->num_agents());
@@ -80,12 +81,14 @@ TEST_F(MettaGridTestDataTest, RewardStructure) {
   grid->reset();
 
   // Check if the reward vectors are initialized
-  const auto& rewards = grid->get_rewards();
-  EXPECT_EQ(grid->num_agents(), rewards.size());
+  const auto* rewards = grid->get_rewards();
+  EXPECT_TRUE(rewards != nullptr);
+  EXPECT_EQ(grid->num_agents(), grid->get_rewards_size());  // Check size matches agent count
 
   // Check if group rewards are initialized
-  const auto& group_rewards = grid->get_group_rewards();
-  EXPECT_FALSE(group_rewards.empty());
+  const auto* group_rewards = grid->get_group_rewards();
+  EXPECT_TRUE(group_rewards != nullptr);
+  EXPECT_GT(grid->get_group_rewards_size(), 0);  // Check size is greater than 0
 }
 
 // Test object loading
