@@ -80,8 +80,8 @@ class PufferTrainer:
         self._weights_helper = WeightsMetricsHelper(cfg)
         self._make_vecenv()
 
-        self.metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
-        assert isinstance(self.metta_grid_env, MettaGridEnv)
+        metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
+        assert isinstance(metta_grid_env, MettaGridEnv)
 
         logger.info("Loading checkpoint")
         os.makedirs(cfg.trainer.checkpoint_dir, exist_ok=True)
@@ -103,7 +103,7 @@ class PufferTrainer:
                 policy_record = policy_store.policy(policy_path)
             elif self._master:
                 logger.info(f"Failed to load policy from default checkpoint: {policy_path}. Creating a new policy!")
-                policy_record = policy_store.create(self.metta_grid_env)
+                policy_record = policy_store.create(metta_grid_env)
 
         assert policy_record is not None, "No policy found"
 
@@ -116,8 +116,10 @@ class PufferTrainer:
         self.policy_record = policy_record
         self.uncompiled_policy = self.policy
 
-        actions_names = self.metta_grid_env.action_names()
-        actions_max_params = self.metta_grid_env._c_env.max_action_args()
+        # Note that these fields are specific to MettaGridEnv, which is why we can't keep
+        # self.vecenv.driver_env as just the parent class pufferlib.PufferEnv
+        actions_names = metta_grid_env.action_names()
+        actions_max_params = metta_grid_env._c_env.max_action_args()
 
         self.policy.activate_actions(actions_names, actions_max_params, self.device)
 
@@ -150,7 +152,7 @@ class PufferTrainer:
         # validate that policy matches environment
         self.metta_agent: MettaAgent = self.policy  # type: ignore
         assert isinstance(self.metta_agent, MettaAgent)
-        _env_shape = self.metta_grid_env.single_observation_space.shape
+        _env_shape = metta_grid_env.single_observation_space.shape
         environment_shape = tuple(_env_shape) if isinstance(_env_shape, list) else _env_shape
 
         found_match = False
