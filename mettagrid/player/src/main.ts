@@ -403,7 +403,7 @@ html.mainFilter.style.display = "none"; // Hide the main filter for now.
 html.scrubber.addEventListener('input', onScrubberChange);
 
 html.rewindToStartButton.addEventListener('click', () => {
-  setIsPlaying(false);``
+  setIsPlaying(false);
   updateStep(0)
 });
 html.stepBackButton.addEventListener('click', () => {
