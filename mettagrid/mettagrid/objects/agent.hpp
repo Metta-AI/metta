@@ -11,7 +11,7 @@
 #include "objects/metta_object.hpp"
 #include "stats_tracker.hpp"
 
-class Agent : public HasInventory {
+class Agent : public MettaObject {
 public:
   uint8_t group;
   uint8_t frozen;
@@ -65,7 +65,9 @@ public:
     this->reward = reward;
   }
 
-  void update_inventory(InventoryItem item, int16_t amount) override {
+  // TODO: agents clearly seem to manage an inventory but they do not inherit from HasInventory... ???
+
+  void update_inventory(InventoryItem item, int16_t amount) {
     int32_t current_amount = this->inventory[static_cast<int32_t>(item)];
     int32_t new_amount = current_amount + amount;
     if (new_amount > this->max_items) {
@@ -109,7 +111,7 @@ public:
   }
 
   virtual void obs(ObsType* obs) const override {
-    HasInventory::obs(obs);
+    MettaObject::obs(obs);
 
     // Agent-specific features
     encode(obs, GridFeature::AGENT, 1);

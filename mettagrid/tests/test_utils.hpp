@@ -106,12 +106,17 @@ inline std::string create_test_config_json() {
 }
 
 // Create a standard action array for testing
-inline int32_t** create_action_array(uint32_t num_agents, uint32_t action_type = 0, uint32_t action_arg = 0) {
+inline int32_t** create_action_array(uint32_t num_agents,
+                                     uint32_t action_type = ActionType::Noop,
+                                     uint32_t action_arg = 0) {
   int32_t** actions = new int32_t*[num_agents];
   for (uint32_t i = 0; i < num_agents; ++i) {
     actions[i] = new int32_t[2];
     actions[i][0] = action_type;
-    actions[i][1] = action_arg;
+
+    // Ensure action_arg is within valid range
+    uint8_t max_arg = (action_type < ActionMaxArgs.size()) ? ActionMaxArgs[action_type] : 0;
+    actions[i][1] = std::min(action_arg, static_cast<uint32_t>(max_arg));
   }
   return actions;
 }

@@ -1,12 +1,12 @@
 #ifndef NOOP_HPP
 #define NOOP_HPP
 
-#include <cstdint>  // Added for fixed-width integer types
+#include <cstdint>
 #include <string>
 
-#include "action_handler.hpp"
+#include "actions/action_handler.hpp"
 #include "objects/agent.hpp"
-
+namespace Actions {
 class Noop : public ActionHandler {
 public:
   Noop(const ActionConfig& cfg) : ActionHandler(cfg, "noop") {}
@@ -20,9 +20,12 @@ public:
   }
 
 protected:
-  bool _handle_action(uint32_t actor_id, Agent* actor, ActionArg arg) override {
+  bool _handle_action(uint32_t actor_id, Agent* actor, ActionsType arg) override {
+    // Null checks for actor and grid are already handled in the base class
+
+    // Noop always succeeds
     return true;
   }
 };
-
+}  // namespace Actions
 #endif  // NOOP_HPP

@@ -77,6 +77,37 @@ const std::map<TypeId, GridLayer> ObjectLayers = {{ObjectType::AgentT, GridLayer
                                                   {ObjectType::FactoryT, GridLayer::Object_Layer},
                                                   {ObjectType::TempleT, GridLayer::Object_Layer}};
 
+// Action types enum - must match the order in which action handlers are registered
+enum ActionType {
+  PutRecipeItems = 0,
+  GetOutput = 1,
+  Noop = 2,
+  Move = 3,
+  Rotate = 4,
+  Attack = 5,
+  AttackNearest = 6,
+  Swap = 7,
+  ChangeColor = 8,
+  ActionCount = 9
+};
+
+// Action names - must match the enum indices exactly
+const std::vector<std::string> ActionTypeNames =
+    {"put_recipe_items", "get_output", "noop", "move", "rotate", "attack", "attack_nearest", "swap", "change_color"};
+
+// Maximum argument values for each action type
+const std::vector<uint8_t> ActionMaxArgs = {
+    0,  // PutRecipeItems
+    0,  // GetOutput
+    0,  // Noop
+    3,  // Move (Up, Down, Left, Right)
+    3,  // Rotate (Up, Down, Left, Right)
+    3,  // Attack (direction)
+    0,  // AttackNearest
+    3,  // Swap (direction)
+    2   // ChangeColor (color values)
+};
+
 enum GridFeature {
   // Basic object features
   HP = 0,

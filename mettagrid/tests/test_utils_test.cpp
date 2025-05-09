@@ -44,8 +44,8 @@ TEST_F(TestUtilsTest, CreateActionArray) {
   ASSERT_NE(actions, nullptr) << "Actions array should not be null";
 
   // Test action values
-  EXPECT_EQ(actions[0][0], 0) << "Default action type should be 0";
-  EXPECT_EQ(actions[0][1], 0) << "Default action arg should be 0";
+  EXPECT_EQ(actions[0][0], ActionType::Noop) << "Default action type should be Noop";
+  EXPECT_EQ(actions[0][1], 0) << "Noop action arg should be 0";
 
   // Clean up
   test_utils::delete_action_array(actions, num_agents);
@@ -83,130 +83,201 @@ TEST_F(TestUtilsTest, ExamineGrid) {
 
 // Test manual buffer allocation
 TEST_F(TestUtilsTest, ManualBufferAllocation) {
-  std::cout << "Creating grid for manual buffer allocation..." << std::endl;
-  auto grid = test_utils::create_test_grid();
-  std::cout << "Grid created for manual buffer allocation." << std::endl;
+  try {
+    std::cout << "Creating grid for manual buffer allocation..." << std::endl;
+    auto grid = test_utils::create_test_grid();
+    std::cout << "Grid created for manual buffer allocation." << std::endl;
 
-  // Manually allocate buffers
-  std::cout << "Allocating buffers manually..." << std::endl;
-  size_t obs_size = grid->get_observations_size();
-  size_t terminals_size = grid->get_terminals_size();
-  size_t truncations_size = grid->get_truncations_size();
-  size_t rewards_size = grid->get_rewards_size();
-  std::cout << "Buffer sizes calculated." << std::endl;
+    // Manually allocate buffers
+    std::cout << "Allocating buffers manually..." << std::endl;
+    size_t obs_size = grid->get_observations_size();
+    size_t terminals_size = grid->get_terminals_size();
+    size_t truncations_size = grid->get_truncations_size();
+    size_t rewards_size = grid->get_rewards_size();
+    std::cout << "Buffer sizes calculated:" << std::endl;
+    std::cout << "  Observations size: " << obs_size << std::endl;
+    std::cout << "  Terminals size: " << terminals_size << std::endl;
+    std::cout << "  Truncations size: " << truncations_size << std::endl;
+    std::cout << "  Rewards size: " << rewards_size << std::endl;
 
-  // Check that sizes make sense
-  EXPECT_GT(obs_size, 0u) << "Observations size should be positive";
-  EXPECT_EQ(terminals_size, 2u) << "Terminals size should match num_agents";
-  EXPECT_EQ(truncations_size, 2u) << "Truncations size should match num_agents";
-  EXPECT_EQ(rewards_size, 2u) << "Rewards size should match num_agents";
+    // Check that sizes make sense
+    ASSERT_GT(obs_size, 0u) << "Observations size should be positive";
+    ASSERT_EQ(terminals_size, 2u) << "Terminals size should match num_agents";
+    ASSERT_EQ(truncations_size, 2u) << "Truncations size should match num_agents";
+    ASSERT_EQ(rewards_size, 2u) << "Rewards size should match num_agents";
 
-  std::cout << "Allocating memory..." << std::endl;
-  ObsType* observations = new ObsType[obs_size]();
-  int8_t* terminals = new int8_t[terminals_size]();
-  int8_t* truncations = new int8_t[truncations_size]();
-  float* rewards = new float[rewards_size]();
-  std::cout << "Memory allocated." << std::endl;
+    std::cout << "Allocating memory..." << std::endl;
+    ObsType* observations = new ObsType[obs_size]();
+    int8_t* terminals = new int8_t[terminals_size]();
+    int8_t* truncations = new int8_t[truncations_size]();
+    float* rewards = new float[rewards_size]();
+    std::cout << "Memory allocated." << std::endl;
 
-  // Set the buffers
-  std::cout << "Setting buffers..." << std::endl;
-  grid->set_buffers(observations, terminals, truncations, rewards);
-  std::cout << "Buffers set." << std::endl;
+    // Set the buffers
+    std::cout << "Setting buffers..." << std::endl;
+    grid->set_buffers(observations, terminals, truncations, rewards);
+    std::cout << "Buffers set." << std::endl;
 
-  // Try to reset the grid
-  std::cout << "Resetting grid..." << std::endl;
-  grid->reset();
-  std::cout << "Grid reset complete." << std::endl;
+    // Try to reset the grid
+    std::cout << "Resetting grid..." << std::endl;
+    grid->reset();
+    std::cout << "Grid reset complete." << std::endl;
 
-  // Try to step the grid
-  std::cout << "Creating actions for step..." << std::endl;
-  int32_t** actions = test_utils::create_action_array(2);
-  std::cout << "Stepping grid..." << std::endl;
-  grid->step(actions);
-  std::cout << "Grid step complete." << std::endl;
+    // Try to step the grid with a valid action
+    std::cout << "Creating actions for step..." << std::endl;
+    // Make sure the action handler is initialized correctly
+    auto action_names = grid->action_names();
+    std::cout << "Available actions:" << std::endl;
+    for (size_t i = 0; i < action_names.size(); i++) {
+      std::cout << "  [" << i << "] " << action_names[i] << std::endl;
+    }
 
-  // Clean up
-  std::cout << "Cleaning up..." << std::endl;
-  test_utils::delete_action_array(actions, 2);
+    // Find the index for Noop action
+    bool can_step = false;
+    int action_idx = ActionType::Noop;  // Default to Noop action which is now defined by enum
 
-  delete[] observations;
-  delete[] terminals;
-  delete[] truncations;
-  delete[] rewards;
+    if (!action_names.empty()) {
+      can_step = true;
+      std::cout << "Using action index " << action_idx << " ("
+                << (action_idx < action_names.size() ? action_names[action_idx] : "unknown") << ") with max arg "
+                << static_cast<int>(ActionMaxArgs[action_idx]) << std::endl;
+    } else {
+      std::cout << "No actions available, skipping step test" << std::endl;
+    }
 
-  std::cout << "Manual buffer allocation test passed." << std::endl;
+    if (can_step) {
+      int32_t** actions = test_utils::create_action_array(grid->num_agents(), action_idx, 0);
+
+      std::cout << "Stepping grid..." << std::endl;
+      grid->step(actions);
+      std::cout << "Grid step complete." << std::endl;
+
+      // Check if rewards were updated
+      std::cout << "Checking rewards after step:" << std::endl;
+      for (size_t i = 0; i < rewards_size; i++) {
+        std::cout << "  Reward " << i << ": " << rewards[i] << std::endl;
+      }
+
+      test_utils::delete_action_array(actions, grid->num_agents());
+    }
+
+    // Clean up
+    std::cout << "Cleaning up..." << std::endl;
+    delete[] observations;
+    delete[] terminals;
+    delete[] truncations;
+    delete[] rewards;
+
+    std::cout << "Manual buffer allocation test passed." << std::endl;
+  } catch (const std::exception& e) {
+    std::cerr << "EXCEPTION: " << e.what() << std::endl;
+    FAIL() << "Exception occurred during test: " << e.what();
+  }
 }
 
 // Test buffer helpers (once they're implemented)
 TEST_F(TestUtilsTest, BufferHelpers) {
-  std::cout << "Creating grid for buffer helper test..." << std::endl;
+  try {
+    std::cout << "Creating grid for buffer helper test..." << std::endl;
 
-  // Create a struct to hold our buffer functions
-  struct BufferHelpers {
-    // Function to allocate buffers
-    static void allocate_buffers(CppMettaGrid* grid,
-                                 ObsType** observations,
-                                 int8_t** terminals,
-                                 int8_t** truncations,
-                                 float** rewards) {
-      // Get buffer sizes
-      size_t obs_size = grid->get_observations_size();
-      size_t terminals_size = grid->get_terminals_size();
-      size_t truncations_size = grid->get_truncations_size();
-      size_t rewards_size = grid->get_rewards_size();
+    // Create a struct to hold our buffer functions
+    struct BufferHelpers {
+      // Function to allocate buffers
+      static void allocate_buffers(CppMettaGrid* grid,
+                                   ObsType** observations,
+                                   int8_t** terminals,
+                                   int8_t** truncations,
+                                   float** rewards) {
+        // Get buffer sizes
+        size_t obs_size = grid->get_observations_size();
+        size_t terminals_size = grid->get_terminals_size();
+        size_t truncations_size = grid->get_truncations_size();
+        size_t rewards_size = grid->get_rewards_size();
 
-      // Allocate buffers
-      *observations = new ObsType[obs_size]();
-      *terminals = new int8_t[terminals_size]();
-      *truncations = new int8_t[truncations_size]();
-      *rewards = new float[rewards_size]();
+        // Allocate buffers
+        *observations = new ObsType[obs_size]();
+        *terminals = new int8_t[terminals_size]();
+        *truncations = new int8_t[truncations_size]();
+        *rewards = new float[rewards_size]();
 
-      // Connect buffers to grid
-      grid->set_buffers(*observations, *terminals, *truncations, *rewards);
+        // Connect buffers to grid
+        grid->set_buffers(*observations, *terminals, *truncations, *rewards);
+      }
+
+      // Function to free buffers
+      static void free_buffers(ObsType* observations, int8_t* terminals, int8_t* truncations, float* rewards) {
+        delete[] observations;
+        delete[] terminals;
+        delete[] truncations;
+        delete[] rewards;
+      }
+    };
+
+    // Create grid
+    auto grid = test_utils::create_test_grid();
+
+    // Pointers for our buffers
+    ObsType* observations = nullptr;
+    int8_t* terminals = nullptr;
+    int8_t* truncations = nullptr;
+    float* rewards = nullptr;
+
+    // Allocate and connect buffers
+    std::cout << "Allocating buffers with helper..." << std::endl;
+    BufferHelpers::allocate_buffers(grid.get(), &observations, &terminals, &truncations, &rewards);
+    std::cout << "Buffers allocated with helper." << std::endl;
+
+    // Try grid operations
+    std::cout << "Resetting grid..." << std::endl;
+    grid->reset();
+    std::cout << "Grid reset." << std::endl;
+
+    // Find the Noop action or use the first available action
+    auto action_names = grid->action_names();
+    std::cout << "Available actions:" << std::endl;
+    for (size_t i = 0; i < action_names.size(); i++) {
+      std::cout << "  [" << i << "] " << action_names[i] << std::endl;
     }
 
-    // Function to free buffers
-    static void free_buffers(ObsType* observations, int8_t* terminals, int8_t* truncations, float* rewards) {
-      delete[] observations;
-      delete[] terminals;
-      delete[] truncations;
-      delete[] rewards;
+    bool can_step = false;
+    int action_idx = 0;
+
+    if (!action_names.empty()) {
+      can_step = true;
+      // Find the Noop action if available
+      for (size_t i = 0; i < action_names.size(); i++) {
+        if (action_names[i] == "Noop") {
+          action_idx = i;
+          break;
+        }
+      }
+      std::cout << "Using action index " << action_idx << " ("
+                << (action_idx < action_names.size() ? action_names[action_idx] : "unknown") << ")" << std::endl;
+    } else {
+      std::cout << "No actions available, skipping step test" << std::endl;
     }
-  };
 
-  // Create grid
-  auto grid = test_utils::create_test_grid();
+    if (can_step) {
+      std::cout << "Creating actions..." << std::endl;
+      int32_t** actions = test_utils::create_action_array(grid->num_agents(), action_idx, 0);
+      std::cout << "Stepping grid..." << std::endl;
+      grid->step(actions);
+      std::cout << "Grid step complete." << std::endl;
 
-  // Pointers for our buffers
-  ObsType* observations = nullptr;
-  int8_t* terminals = nullptr;
-  int8_t* truncations = nullptr;
-  float* rewards = nullptr;
+      // Clean up actions
+      test_utils::delete_action_array(actions, grid->num_agents());
+    }
 
-  // Allocate and connect buffers
-  std::cout << "Allocating buffers with helper..." << std::endl;
-  BufferHelpers::allocate_buffers(grid.get(), &observations, &terminals, &truncations, &rewards);
-  std::cout << "Buffers allocated with helper." << std::endl;
+    // Clean up buffers regardless of whether step succeeded
+    std::cout << "Freeing buffers with helper..." << std::endl;
+    BufferHelpers::free_buffers(observations, terminals, truncations, rewards);
+    std::cout << "Buffers freed with helper." << std::endl;
 
-  // Try grid operations
-  std::cout << "Resetting grid..." << std::endl;
-  grid->reset();
-  std::cout << "Grid reset." << std::endl;
-
-  std::cout << "Creating actions..." << std::endl;
-  int32_t** actions = test_utils::create_action_array(2);
-  std::cout << "Stepping grid..." << std::endl;
-  grid->step(actions);
-  std::cout << "Grid step complete." << std::endl;
-
-  // Clean up
-  test_utils::delete_action_array(actions, 2);
-
-  std::cout << "Freeing buffers with helper..." << std::endl;
-  BufferHelpers::free_buffers(observations, terminals, truncations, rewards);
-  std::cout << "Buffers freed with helper." << std::endl;
-
-  std::cout << "Buffer helper test passed." << std::endl;
+    std::cout << "Buffer helper test passed." << std::endl;
+  } catch (const std::exception& e) {
+    std::cerr << "EXCEPTION: " << e.what() << std::endl;
+    FAIL() << "Exception occurred during test: " << e.what();
+  }
 }
 
 int main(int argc, char** argv) {

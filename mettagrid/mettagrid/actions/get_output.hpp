@@ -1,15 +1,15 @@
 #ifndef GET_OUTPUT_HPP
 #define GET_OUTPUT_HPP
 
-#include <cstdint>  // Added for fixed-width integer types
+#include <cstdint>
 #include <string>
 
-#include "action_handler.hpp"
+#include "actions/action_handler.hpp"
 #include "grid.hpp"
 #include "grid_object.hpp"
 #include "objects/agent.hpp"
 #include "objects/converter.hpp"
-
+namespace Actions {
 class GetOutput : public ActionHandler {
 public:
   GetOutput(const ActionConfig& cfg) : ActionHandler(cfg, "get_output") {}
@@ -23,21 +23,48 @@ public:
   }
 
 protected:
-  bool _handle_action(uint32_t actor_id, Agent* actor, ActionArg arg) override {
+  bool _handle_action(uint32_t actor_id, Agent* actor, ActionsType arg) override {
+    // Validate orientation
+    validate_orientation(actor);
+
+    // Get target location
     GridLocation target_loc = _grid->relative_location(actor->location, static_cast<Orientation>(actor->orientation));
-    target_loc.layer = GridLayer::Object_Layer;
-    MettaObject* target = static_cast<MettaObject*>(_grid->object_at(target_loc));
-    if (target == nullptr || !target->has_inventory()) {
+
+    // Check if target location is within grid bounds
+    if (!is_valid_location(target_loc)) {
       return false;
     }
 
-    // ##Converter_and_HasInventory_are_the_same_thing
+    target_loc.layer = GridLayer::Object_Layer;
+
+    GridObject* obj = safe_object_at(target_loc);
+    if (obj == nullptr) {
+      return false;
+    }
+
+    // Use dynamic_cast for type safety
+    MettaObject* target = dynamic_cast<MettaObject*>(obj);
+    if (target == nullptr) {
+      throw std::runtime_error("Object at target location is not a MettaObject");
+    }
+
+    if (!target->has_inventory()) {
+      return false;
+    }
+
+    // TODO: figure this out -- agents have inventory?!
+    //
+    // ### Converter and HasInventory are the same thing ###
     // It's more correct to cast this as a HasInventory, but right now Converters are
     // the only implementors of HasInventory, and we also need to call maybe_start_converting
     // on them. We should later refactor this to we call .update_inventory on the target, and
     // have this automatically call maybe_start_converting. That's hard because we need to
     // let it maybe schedule events.
-    Converter* converter = static_cast<Converter*>(target);
+    Converter* converter = dynamic_cast<Converter*>(target);
+    if (converter == nullptr) {
+      throw std::runtime_error("Object with has_inventory() is not a Converter");
+    }
+
     if (!converter->inventory_is_accessible()) {
       return false;
     }
@@ -51,8 +78,14 @@ protected:
         // collect resources from a converter that's in the middle of processing a queue.
         continue;
       }
+
       // Only take resources if the converter has some.
       if (converter->inventory[i] > 0) {
+        // Validate the inventory item index
+        if (i >= InventoryItemNames.size()) {
+          throw std::runtime_error("Invalid inventory item index: " + std::to_string(i));
+        }
+
         // The actor will destroy anything it can't hold. That's not intentional, so feel free
         // to fix it.
         actor->stats.add(InventoryItemNames[i], "get", converter->inventory[i]);
@@ -65,5 +98,6 @@ protected:
     return items_taken;
   }
 };
+}  // namespace Actions
 
 #endif  // GET_OUTPUT_HPP

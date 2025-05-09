@@ -3,7 +3,7 @@
 // Include necessary headers
 #include <nlohmann/json.hpp>
 
-#include "action_handler.hpp"
+#include "actions/action_handler.hpp"
 #include "actions/attack.hpp"
 #include "actions/attack_nearest.hpp"
 #include "actions/change_color.hpp"
@@ -139,7 +139,7 @@ void CppMettaGrid::add_agent(Agent* agent) {
 
 // Reset the environment
 void CppMettaGrid::reset() {
-  if (_observations == NULL) {
+  if (_observations == nullptr) {
     throw std::runtime_error("External buffers not set. Call set_buffers before reset.");
   }
 
@@ -259,6 +259,20 @@ void CppMettaGrid::compute_observations(int32_t** actions) {
 
 // Take a step in the environment
 void CppMettaGrid::step(int32_t** actions) {
+  if (actions == nullptr) {
+    throw std::runtime_error("Null actions array passed to step()");
+  }
+
+  // Check if buffers are set
+  if (_observations == nullptr || _rewards == nullptr || _terminals == nullptr || _truncations == nullptr) {
+    throw std::runtime_error("External buffers not set. Call set_buffers before step()");
+  }
+
+  // Check if action handlers are initialized
+  if (_action_handlers.empty()) {
+    throw std::runtime_error("Action handlers not initialized. Call init_action_handlers before step()");
+  }
+
   // Reset rewards
   std::fill(_rewards, _rewards + _rewards_size, 0);
 
@@ -272,26 +286,19 @@ void CppMettaGrid::step(int32_t** actions) {
   // Process actions by priority
   for (uint8_t p = 0; p <= _max_action_priority; p++) {
     for (size_t idx = 0; idx < _agents.size(); idx++) {
-      int32_t action = actions[idx][0];
+      ActionsType action = actions[idx][0];
 
       // Crash hard on invalid actions
       assert(action >= 0 && "Action cannot be negative");
       assert(action < static_cast<int32_t>(_num_action_handlers) && "Action exceeds available handlers");
 
-      ActionArg arg(actions[idx][1]);
+      ActionsType arg(actions[idx][1]);
       Agent* agent = _agents[idx];
-      ActionHandler* handler = _action_handlers[static_cast<uint32_t>(action)].get();
+      ActionHandler* handler = _action_handlers[static_cast<size_t>(action)].get();
 
       // Crash on invalid priority or args
       assert(handler->priority == _max_action_priority - p || "Action handled in wrong priority phase");
-      assert(arg <= _max_action_args[static_cast<uint32_t>(action)] && "Action argument exceeds maximum allowed");
-
-      if (handler->priority != _max_action_priority - p) {
-        continue;
-      }
-      if (arg > _max_action_args[static_cast<uint32_t>(action)]) {
-        continue;
-      }
+      assert(arg <= _max_action_args[static_cast<size_t>(action)] && "Action argument exceeds maximum allowed");
 
       _action_success[idx] = handler->handle_action(idx, agent->id, arg, _current_timestep);
     }
@@ -659,109 +666,53 @@ void CppMettaGrid::parse_agent(const std::string& group_name,
   add_agent(agent);
 }
 
+// Modified register_action function
+template <typename HandlerType>
+void register_action(std::vector<ActionHandler*>& handlers,
+                     const nlohmann::json& cfg,
+                     const std::string& config_name,
+                     ActionType action_type) {
+  static_assert(std::is_base_of<ActionHandler, HandlerType>::value, "HandlerType must be derived from ActionHandler");
+
+  if (cfg.contains("actions") && cfg["actions"].contains(config_name) && cfg["actions"][config_name]["enabled"]) {
+    // Extract config
+    ActionConfig action_config;
+    for (auto& [key, value] : cfg["actions"][config_name].items()) {
+      if (value.is_number_integer()) {
+        action_config[key] = static_cast<int>(value);
+      }
+    }
+    // Create handler
+    handlers[action_type] = new HandlerType(action_config);
+  }
+}
+
 void CppMettaGrid::setup_action_handlers(const nlohmann::json& cfg) {
   std::vector<ActionHandler*> temp_handlers;
+  temp_handlers.resize(ActionType::ActionCount, nullptr);
 
-  // Check each action type and add handlers if enabled
-  if (cfg.contains("actions")) {
-    auto& actions_cfg = cfg["actions"];
+  // Register each action handler - use the HANDLER CLASSES, not enum values
+  register_action<Actions::PutRecipeItems>(temp_handlers, cfg, "put_items", ActionType::PutRecipeItems);
+  register_action<Actions::GetOutput>(temp_handlers, cfg, "get_items", ActionType::GetOutput);
+  register_action<Actions::Noop>(temp_handlers, cfg, "noop", ActionType::Noop);
+  register_action<Actions::Move>(temp_handlers, cfg, "move", ActionType::Move);
+  register_action<Actions::Rotate>(temp_handlers, cfg, "rotate", ActionType::Rotate);
+  register_action<Actions::Attack>(temp_handlers, cfg, "attack", ActionType::Attack);
+  register_action<Actions::AttackNearest>(temp_handlers, cfg, "attack", ActionType::AttackNearest);
+  register_action<Actions::Swap>(temp_handlers, cfg, "swap", ActionType::Swap);
+  register_action<Actions::ChangeColor>(temp_handlers, cfg, "change_color", ActionType::ChangeColor);
 
-    // PutRecipeItems
-    if (actions_cfg.contains("put_items") && actions_cfg["put_items"]["enabled"]) {
-      ActionConfig action_config;
-      for (auto& [key, value] : actions_cfg["put_items"].items()) {
-        if (value.is_number_integer()) {
-          action_config[key] = value;
-        }
-      }
-      temp_handlers.push_back(new PutRecipeItems(action_config));
-    }
-
-    // GetOutput
-    if (actions_cfg.contains("get_items") && actions_cfg["get_items"]["enabled"]) {
-      ActionConfig action_config;
-      for (auto& [key, value] : actions_cfg["get_items"].items()) {
-        if (value.is_number_integer()) {
-          action_config[key] = value;
-        }
-      }
-      temp_handlers.push_back(new GetOutput(action_config));
-    }
-
-    // Noop
-    if (actions_cfg.contains("noop") && actions_cfg["noop"]["enabled"]) {
-      ActionConfig action_config;
-      for (auto& [key, value] : actions_cfg["noop"].items()) {
-        if (value.is_number_integer()) {
-          action_config[key] = value;
-        }
-      }
-      temp_handlers.push_back(new Noop(action_config));
-    }
-
-    // Move
-    if (actions_cfg.contains("move") && actions_cfg["move"]["enabled"]) {
-      ActionConfig action_config;
-      for (auto& [key, value] : actions_cfg["move"].items()) {
-        if (value.is_number_integer()) {
-          action_config[key] = value;
-        }
-      }
-      temp_handlers.push_back(new Move(action_config));
-    }
-
-    // Rotate
-    if (actions_cfg.contains("rotate") && actions_cfg["rotate"]["enabled"]) {
-      ActionConfig action_config;
-      for (auto& [key, value] : actions_cfg["rotate"].items()) {
-        if (value.is_number_integer()) {
-          action_config[key] = value;
-        }
-      }
-      temp_handlers.push_back(new Rotate(action_config));
-    }
-
-    // Attack
-    if (actions_cfg.contains("attack") && actions_cfg["attack"]["enabled"]) {
-      ActionConfig action_config;
-      for (auto& [key, value] : actions_cfg["attack"].items()) {
-        if (value.is_number_integer()) {
-          action_config[key] = value;
-        }
-      }
-      temp_handlers.push_back(new Attack(action_config));
-      // For AttackNearest, reuse the same config
-      temp_handlers.push_back(new AttackNearest(action_config));
-    }
-
-    // Swap
-    if (actions_cfg.contains("swap") && actions_cfg["swap"]["enabled"]) {
-      ActionConfig action_config;
-      for (auto& [key, value] : actions_cfg["swap"].items()) {
-        if (value.is_number_integer()) {
-          action_config[key] = value;
-        }
-      }
-      temp_handlers.push_back(new Swap(action_config));
-    }
-
-    // ChangeColor
-    if (actions_cfg.contains("change_color") && actions_cfg["change_color"]["enabled"]) {
-      ActionConfig action_config;
-      for (auto& [key, value] : actions_cfg["change_color"].items()) {
-        if (value.is_number_integer()) {
-          action_config[key] = value;
-        }
-      }
-      temp_handlers.push_back(new ChangeColorAction(action_config));
+  // Rest of the code remains the same
+  std::vector<ActionHandler*> final_handlers;
+  for (auto handler : temp_handlers) {
+    if (handler != nullptr) {
+      final_handlers.push_back(handler);
     }
   }
 
-  // Initialize the action handlers and take ownership
-  init_action_handlers(temp_handlers);
+  init_action_handlers(final_handlers);
 
-  // Clean up temporary handlers that have been cloned and are no longer needed
-  for (auto handler : temp_handlers) {
+  for (auto handler : final_handlers) {
     delete handler;
   }
 }

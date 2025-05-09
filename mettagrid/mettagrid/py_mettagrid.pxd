@@ -12,7 +12,7 @@ from libcpp cimport bool
 cdef extern from "types.hpp":
     ctypedef uint32_t GridObjectId
     ctypedef uint8_t ObsType
-    ctypedef uint32_t ActionType
+    ctypedef uint8_t ActionsType;
 
     cdef struct Event:
         uint32_t timestamp
@@ -41,10 +41,8 @@ cdef extern from "grid_object.hpp":
     
     cdef cppclass GridObject
 
-cdef extern from "action_handler.hpp":
-    cdef cppclass ActionArg:
-        int32_t value
-        ActionArg(int32_t v)
+cdef extern from "actions/action_handler.hpp":
+    cdef cppclass ActionHandler 
 
 cdef extern from "grid.hpp":
     cdef cppclass Grid
@@ -52,9 +50,6 @@ cdef extern from "grid.hpp":
 cdef extern from "stats_tracker.hpp":
     cdef cppclass StatsTracker
     
-cdef extern from "action_handler.hpp":
-    cdef cppclass ActionHandler
-
 cdef extern from "constants.hpp":
     cdef vector[string] ObjectTypeNames
     cdef vector[string] InventoryItemNames
