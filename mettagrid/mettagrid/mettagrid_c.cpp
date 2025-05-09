@@ -201,20 +201,14 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
             }
             else if (cell.starts_with("agent.")) {
                 std::string group_name = cell.substr(6);
-                auto group = groups[py::str(group_name)].cast<py::dict>();
+                // The group should always exist, and it's okay to crash (for now!) if it doesn't.
+                // Consider making a nicer error message.
+                auto group_cfg_py = groups[py::str(group_name)]["props"].cast<py::dict>();
                 auto agent_cfg_py = cfg["agent"].cast<py::dict>();
-                // xcxc previously we merged with group config, and now we're not.
-                // auto agent_cfg = OmegaConf.to_container(OmegaConf.merge(
-                //         cfg.agent, cfg.groups[group_name].props))
-                // This especially impacts rewards in practice.
+                // We want to merge the group and agent configs. Rewards are a special case, since they're
+                // a dict vs being a float, so we process them first and separately.
+                // Rewards default to 0 for inventory unless overridden.
                 std::map<std::string, float> rewards;
-                if (agent_cfg_py.contains("rewards")) {
-                    // Note that this removes the rewards from the agent_cfg_py dict.
-                    py::dict rewards_py = agent_cfg_py.attr("pop")("rewards");
-                    for (const auto& [key, value] : rewards_py) {
-                        rewards.insert(std::make_pair(key.cast<std::string>(), value.cast<float>()));
-                    }
-                }
                 for (const auto& inv_item : InventoryItemNames) {
                     auto it = rewards.find(inv_item);
                     if (it == rewards.end()) {
@@ -225,7 +219,28 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
                         rewards.insert(std::make_pair(inv_item + "_max", 1000));
                     }
                 }
+                if (agent_cfg_py.contains("rewards")) {
+                    // Note that this removes the rewards from the agent_cfg_py dict. This is important
+                    // because we're going to cast this to a map<std::string, float> below.
+                    py::dict rewards_py = agent_cfg_py.attr("pop")("rewards");
+                    for (const auto& [key, value] : rewards_py) {
+                        rewards.insert(std::make_pair(key.cast<std::string>(), value.cast<float>()));
+                    }
+                }
+                if (group_cfg_py.contains("rewards")) {
+                    py::dict rewards_py = group_cfg_py.attr("pop")("rewards");
+                    for (const auto& [key, value] : rewards_py) {
+                        rewards.insert(std::make_pair(key.cast<std::string>(), value.cast<float>()));
+                    }
+                }
                 auto agent_cfg = agent_cfg_py.cast<ObjectConfig>();
+                auto group_cfg = group_cfg_py.cast<ObjectConfig>();
+                // Merge group config into agent config
+                for (const auto& [key, value] : group_cfg) {
+                    if (agent_cfg.find(key) == agent_cfg.end()) {
+                        agent_cfg.insert({key, value});
+                    }
+                }
                 unsigned int group_id = group["id"].cast<unsigned int>();
                 Agent* agent = new Agent(r, c, group_name, group_id, agent_cfg, rewards);
                 _grid->add_object(agent);
