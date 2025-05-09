@@ -10,7 +10,7 @@ export class PanelInfo {
   public name: string = "";
   public isPanning: boolean = false;
   public panPos: Vec2f = new Vec2f(0, 0);
-  public zoomLevel: number = 1;
+  public zoomLevel: number = Common.DEFAULT_ZOOM_LEVEL;
   public div: HTMLDivElement | null;
 
   constructor(name: string) {
@@ -33,12 +33,12 @@ export class PanelInfo {
   }
 
   // Make the panel focus on a specific position in the panel.
-  focusPos(x: number, y: number) {
+  focusPos(x: number, y: number, zoomLevel: number) {
     this.panPos = new Vec2f(
       -x,
       -y
     );
-    this.zoomLevel = 1 / 2;
+    this.zoomLevel = zoomLevel;
   }
 
   // Update the pan and zoom level based on the mouse position and scroll delta.

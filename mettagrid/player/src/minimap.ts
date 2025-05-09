@@ -3,7 +3,7 @@ import * as Common from './common.js';
 import { ui, state, html, ctx, setFollowSelection } from './common.js';
 import { getAttr } from './replay.js';
 import { PanelInfo } from './panels.js';
-import { parseHtmlColor } from './context3d.js';
+import { parseHtmlColor } from './htmlutils.js';
 
 export function drawMiniMap(panel: PanelInfo) {
   if (state.replay === null || ctx === null || ctx.ready === false) {
