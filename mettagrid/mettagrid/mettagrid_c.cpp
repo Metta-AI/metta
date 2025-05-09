@@ -243,17 +243,7 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
     }
 }
 
-// xcxc see if we can use default destructor
-// MettaGrid::~MettaGrid() = default;
-MettaGrid::~MettaGrid() {
-    _grid = nullptr;
-    _event_manager = nullptr;
-    _stats = nullptr;
-    _obs_encoder = nullptr;
-    _action_handlers.clear();
-    _agents.clear();
-}
-
+MettaGrid::~MettaGrid() = default;
 
 void MettaGrid::init_action_handlers() {
     _num_action_handlers = _action_handlers.size();
