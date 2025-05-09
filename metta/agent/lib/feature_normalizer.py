@@ -9,6 +9,22 @@ from metta.agent.util.running_mean_std import RunningMeanStdInPlace
 
 # this is not currently working
 class FeatureListNormalizer(LayerBase):
+    """
+    Normalizes a list of features using running mean and standard deviation statistics.
+
+    This layer applies feature-wise normalization to input observations, tracking the running
+    mean and standard deviation of each feature independently. It creates a separate normalizer
+    for each feature in the grid_features list provided by the metta_agent. Normalization is
+    performed in-place using the RunningMeanStdInPlace class.
+
+    The normalized features are stacked together and stored in the TensorDict under the layer's name.
+
+    Note: This class is currently marked as not working.
+
+    Note that the __init__ of any layer class and the MettaAgent are only called when the agent
+    is instantiated and never again. I.e., not when it is reloaded from a saved policy.
+    """
+
     def __init__(self, metta_agent, **cfg):
         super().__init__()
         cfg = omegaconf.OmegaConf.create(cfg)
