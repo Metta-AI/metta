@@ -155,6 +155,12 @@ resource "aws_iam_role_policy_attachment" "skypilot_v1_attach" {
   policy_arn = each.value
 }
 
+resource "aws_iam_role_policy_attachment" "skypilot_api_server_ssm" {
+  role       = aws_iam_role.skypilot_api_server.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+
 # For some reason, skypilot didn't initialize skypilot-v1 role correctly.
 # Old account had this inline policy, but the new account only had EC2 and S3 attached.
 # So I'm reproducing the inline policy here; I think this is necessary for managed jobs.
