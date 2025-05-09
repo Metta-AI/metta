@@ -10,7 +10,8 @@ help:
 	@echo "  format            - Format C++/C files"
 	@echo "  check-tools       - Check if required formatting tools are installed"
 	@echo "  install-tools     - Install required formatting tools (macOS only)"
-	@echo "  test              - Run all unit tests"
+	@echo "  test              - Run all unit tests"	
+	@echo "  test p=name - Run tests matching the specified pattern p"
 	@echo "  check-test-tools  - Check if required testing tools are installed"
 	@echo "  install-test-tools - Install required testing tools"
 	@echo "  benchmark         - Run all benchmarks"
@@ -197,18 +198,34 @@ $(BUILD_TEST_DIR)/%: $(BUILD_TEST_DIR)/%.o $(SRC_OBJECTS)
 	@mkdir -p $(dir $@)
 	$(CXX) $^ -o $@ $(GTEST_LIBS)
 
-# Run all tests
-test: check-test-tools $(SRC_OBJECTS) $(TEST_EXECUTABLES)
-	@echo "Running all tests..."
-	@for test in $(TEST_EXECUTABLES); do \
-		echo "Running $$test"; \
-		$$test --gtest_color=yes; \
-	done
 
-# Test a specific test file
-test-%: check-test-tools $(BUILD_TEST_DIR)/%
-	@echo "Running test $*..."
-	$(BUILD_TEST_DIR)/$* --gtest_color=yes
+# Run all tests or tests matching a pattern
+test: check-test-tools $(SRC_OBJECTS) $(TEST_EXECUTABLES)
+	@if [ -n "$(p)" ]; then \
+		echo "Running tests matching pattern '$(p)'..."; \
+		found=0; \
+		for test in $(TEST_EXECUTABLES); do \
+			base_name=$$(basename $$test); \
+			if echo "$$base_name" | grep -q "$(p)"; then \
+				echo "Running $$test"; \
+				$$test --gtest_color=yes; \
+				found=1; \
+			fi; \
+		done; \
+		if [ $$found -eq 0 ]; then \
+			echo "No tests found matching pattern '$(p)'"; \
+			echo "Available tests:"; \
+			for test in $(TEST_EXECUTABLES); do \
+				echo "  $$(basename $$test)"; \
+			done; \
+		fi; \
+	else \
+		echo "Running all tests..."; \
+		for test in $(TEST_EXECUTABLES); do \
+			echo "Running $$test"; \
+			$$test --gtest_color=yes; \
+		done; \
+	fi
 
 #-----------------------
 # Benchmarking
