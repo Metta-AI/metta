@@ -46,13 +46,13 @@ if [ -z "$CI" ] && [ -z "$IS_DOCKER" ]; then
   pip freeze | grep -v "^-e" > requirements_to_remove.txt
   pip uninstall -y -r requirements_to_remove.txt || echo "Some packages could not be uninstalled, continuing..."
   rm requirements_to_remove.txt
+fi
 
-  # Install eigen, which is needed for compiling mettagrid
-  # Here we do this with conda since we need the c++ headers for pybind11
+# Install eigen, which is needed for compiling mettagrid. We can't
+# just use pip since we need the c++ headers.
+if [ -n "$CONDA_PREFIX" ]; then
   conda install -c conda-forge eigen
 else
-  # Install eigen, which is needed for compiling mettagrid
-  # Here we do this with pip since we need the c++ headers for pybind11
   apt install libeigen3-dev
 fi
 
