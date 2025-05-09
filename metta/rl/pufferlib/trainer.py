@@ -338,7 +338,7 @@ class PufferTrainer:
                 # This was originally self.config.env_batch_size == 1, but you have scaling
                 # configured differently in metta. You want the whole forward pass batch to come
                 # from one core to reduce indexing overhead.
-                # contiguous_env_ids = self.vecenv.agents_per_batch == self.metta_grid_env.agents_per_env[0]
+                # contiguous_env_ids = self.vecenv.agents_per_batch == metta_grid_env.agents_per_env[0]
                 contiguous_env_ids = self.trainer_cfg.async_factor == self.trainer_cfg.num_workers
                 contiguous_env_ids = False
                 if contiguous_env_ids:
@@ -575,6 +575,9 @@ class PufferTrainer:
         if not self._master:
             return
 
+        metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
+        assert isinstance(metta_grid_env, MettaGridEnv)
+
         name = self.policy_store.make_model_name(self.epoch)
 
         generation = 0
@@ -589,7 +592,7 @@ class PufferTrainer:
                 "agent_step": self.agent_step,
                 "epoch": self.epoch,
                 "run": self.cfg.run,
-                "action_names": self.metta_grid_env.action_names(),
+                "action_names": metta_grid_env.action_names(),
                 "generation": generation,
                 "initial_uri": self._initial_pr.uri,
                 "train_time": time.time() - self.train_start,
