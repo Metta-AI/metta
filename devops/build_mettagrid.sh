@@ -25,6 +25,11 @@ else
     echo "========== Rebuilding mettagrid =========="
 fi
 
+echo "Python executable: $(which python)"
+echo "Python version: $(python --version)"
+echo "Current directory: $(pwd)"
+echo "Python path: $(python -c 'import sys; print(sys.path)')"
+
 # Go to the project root directory 
 cd "$SCRIPT_DIR/.."
 
