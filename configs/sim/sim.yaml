@@ -1,5 +1,5 @@
 device: ${device}
 vectorization: ${vectorization}
 env: env/mettagrid/simple
-num_envs: 10
-num_episodes: 10
+num_envs: 5
+num_episodes: 4
