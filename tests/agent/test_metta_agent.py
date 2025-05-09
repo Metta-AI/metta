@@ -184,3 +184,87 @@ def test_clip_weights_with_non_callable(create_metta_agent):
 
     # Check the error message
     assert "not callable" in str(excinfo.value)
+
+
+def test_l2_reg_loss_sums_component_losses(create_metta_agent):
+    agent, comp1, comp2 = create_metta_agent
+
+    # Add l2_reg_loss method to test components with predictable return values
+    comp1.l2_reg_loss = lambda: torch.tensor(0.5)
+    comp2.l2_reg_loss = lambda: torch.tensor(1.5)
+
+    # Call the method being tested
+    result = agent.l2_reg_loss()
+
+    # Verify the result is the sum of component losses
+    assert result.item() == 2.0  # 0.5 + 1.5 = 2.0
+
+
+def test_l2_reg_loss_with_different_tensor_shapes(create_metta_agent):
+    agent, comp1, comp2 = create_metta_agent
+
+    # Return tensors with different shapes but same total
+    comp1.l2_reg_loss = lambda: torch.tensor(0.25) * torch.ones(2)  # [0.25, 0.25]
+    comp2.l2_reg_loss = lambda: torch.tensor(0.5)  # scalar 0.5
+
+    # Call the method being tested
+    result = agent.l2_reg_loss()
+
+    # Verify the result is the sum of all tensor values
+    assert result.item() == 1.0  # 0.25 + 0.25 + 0.5 = 1.0
+
+
+def test_l2_reg_loss_raises_attribute_error(create_metta_agent):
+    agent, comp1, comp2 = create_metta_agent
+
+    # Add a component without the l2_reg_loss method
+    class IncompleteComponent(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.ready = True
+            self._sources = None
+
+        def setup(self, source_components):
+            pass
+
+        def forward(self, x):
+            return x
+
+    # Add the incomplete component
+    agent.components["bad_comp"] = IncompleteComponent()
+
+    # Verify that an AttributeError is raised
+    with pytest.raises(AttributeError) as excinfo:
+        agent.l2_reg_loss()
+
+    # Check the error message
+    assert "bad_comp" in str(excinfo.value)
+    assert "l2_reg_loss" in str(excinfo.value)
+
+
+def test_l2_reg_loss_with_non_callable(create_metta_agent):
+    agent, comp1, comp2 = create_metta_agent
+
+    # Make l2_reg_loss non-callable on one component
+    comp1.l2_reg_loss = "Not a function"
+
+    # Verify a TypeError is raised
+    with pytest.raises(TypeError) as excinfo:
+        agent.l2_reg_loss()
+
+    # Check the error message
+    assert "not callable" in str(excinfo.value)
+
+
+def test_l2_reg_loss_empty_components(create_metta_agent):
+    agent, _, _ = create_metta_agent
+
+    # Empty the components dictionary
+    agent.components = torch.nn.ModuleDict({})
+
+    # Verify an assertion error is raised when no components exist
+    with pytest.raises(AssertionError) as excinfo:
+        agent.l2_reg_loss()
+
+    # Check the error message
+    assert "No components available" in str(excinfo.value)
