@@ -2,8 +2,6 @@
 
 defaults:
   - override /sim: simple
-#   - override /eval: simple_solo
-#   - override /analyzer: eval_analyzer
   - _self_
 
 trainer:
@@ -33,18 +31,11 @@ npc_policy_uri: ${policy_uri}
 # npc_policy_uri: wandb://run/b.daveey.t.16.dr0
 # policy_uri: ${trained_policy_uri}
 # npc_policy_uri: ${trained_policy_uri}
-# eval_db_uri: wandb://artifacts/daveey_eval_testing
 
 eval_db_uri: ${run_dir}/eval_stats
 
 analyzer:
   policy_uri: ${..policy_uri}
-  view_type: latest
-  analysis:
-    metrics:
-      - metric: episode_reward
-      - metric: "heart.get"
-
 
 sim:
   env: /env/mettagrid/puffer
