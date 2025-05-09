@@ -33,7 +33,8 @@
 #include <pybind11/complex.h>
 #include <pybind11/operators.h>
 #include <iostream>
-// xcxc for utf32 -> utf8 conversion
+// Used for utf32 -> utf8 conversion, which is needed for reading the map.
+// Hopefully this is temporary.
 #include <codecvt>
 #include <locale>
 
@@ -41,8 +42,11 @@ namespace py = pybind11;
 
 // TODO: see where we can simplify numpy array manipulations.
 
-// Constructor implementation
 MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
+    // env_cfg is a dict-form of the OmegaCong config.
+    // `map` is a numpy array of shape (height, width, dtype='<U50').
+    // It's not clear that there's any value in using a numpy array here,
+    // and this causes us to need to do some awkward conversions.
     auto cfg = env_cfg["game"].cast<py::dict>();
     _cfg = cfg;
     
@@ -52,23 +56,24 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
     _obs_height = cfg["obs_height"].cast<unsigned short>();
     
     _current_timestep = 0;
-    
-    // Initialize event manager and stats tracker
-    _event_manager = std::make_unique<EventManager>();
-    _stats = std::make_unique<StatsTracker>();
-    
-    // Initialize observation encoder
-    _obs_encoder = std::make_unique<ObservationEncoder>();
-    _grid_features = _obs_encoder->feature_names();
 
-        // Initialize grid
-    auto map_info = map.request();
-        std::vector<Layer> layer_for_type_id;
+    std::vector<Layer> layer_for_type_id;
     for (const auto& layer : ObjectLayers) {
         layer_for_type_id.push_back(layer.second);
     }
-    _grid = std::make_unique<Grid>(map_info.shape[1], map_info.shape[0], layer_for_type_id);
 
+    auto map_info = map.request();
+
+    _grid = std::make_unique<Grid>(map_info.shape[1], map_info.shape[0], layer_for_type_id);
+    _grid_features = _obs_encoder->feature_names();
+
+    _event_manager = std::make_unique<EventManager>();
+    _stats = std::make_unique<StatsTracker>();
+    _obs_encoder = std::make_unique<ObservationEncoder>();
+
+    _event_manager->init(_grid.get(), _stats.get());
+    _event_manager->event_handlers.push_back(new ProductionHandler(_event_manager.get()));
+    _event_manager->event_handlers.push_back(new CoolDownHandler(_event_manager.get()));
 
     // Initialize buffers
     std::vector<ssize_t> shape = {
@@ -89,8 +94,8 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
     // Initialize action handlers
     std::vector<std::unique_ptr<ActionHandler>> actions;
 
-    // TODO: These conversions to ActionConfig are copying.
-    
+    // TODO: These conversions to ActionConfig are copying. I don't want to pass python objects down further,
+    // but maybe it would be better to just do the conversion once?
     if (cfg["actions"]["put_items"]["enabled"].cast<bool>()) {
         actions.push_back(std::make_unique<PutRecipeItems>(cfg["actions"]["put_items"].cast<ActionConfig>()));
     }
@@ -116,9 +121,8 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
     if (cfg["actions"]["change_color"]["enabled"].cast<bool>()) {
         actions.push_back(std::make_unique<ChangeColorAction>(cfg["actions"]["change_color"].cast<ActionConfig>()));
     }
-
+    init_action_handlers(actions);
     
-    // Initialize group rewards
     auto groups = cfg["groups"].cast<py::dict>();
     _group_rewards_np = py::array_t<double>(groups.size());
     _group_rewards = _group_rewards_np;
@@ -131,6 +135,7 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
             group["group_reward_pct"].cast<float>() : 0.0f;
     }
 
+    // Initialize grid
 
     // Ensure the array is 2D
     if (map_info.ndim != 2) {
@@ -144,13 +149,12 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
         throw std::runtime_error("Invalid Unicode size: not divisible by 4");
     }
     ssize_t max_chars = element_size / 4;
-    // if (max_chars != 50) {
-    //     // This check is less necessary, since we can be flexible here
-    //     // It's mostly to ensure that we _really_ know what we're dealing with.
-    //     throw std::runtime_error("Invalid String Size: expected 50 characters, got " + std::to_string(max_chars));
-    // }
-    
-init_action_handlers(actions);
+    if (max_chars != 50) {
+        // This check is less necessary, since we can be flexible here
+        // It's mostly to ensure that we _really_ know what we're dealing with.
+        throw std::runtime_error("Invalid String Size: expected 50 characters, got " + std::to_string(max_chars));
+    }
+
     _event_manager->init(_grid.get(), _stats.get());
     _event_manager->event_handlers.push_back(new ProductionHandler(_event_manager.get()));
     _event_manager->event_handlers.push_back(new CoolDownHandler(_event_manager.get()));
