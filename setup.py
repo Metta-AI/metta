@@ -6,7 +6,8 @@ from setuptools import Extension, find_packages, setup
 
 ext_modules = [
     Extension(
-        name="metta.rl.fast_gae",
+        # Change the name to include the full path to the module
+        name="metta.rl.fast_gae.fast_gae",  # This will create a fast_gae.so inside metta/rl/fast_gae
         sources=["metta/rl/fast_gae/fast_gae.pyx"],
         define_macros=[("NPY_NO_DEPRECATED_API", "NPY_1_7_API_VERSION")],
         include_dirs=[numpy.get_include()],
@@ -39,7 +40,7 @@ setup(
             "overflowcheck": debug,
             "overflowcheck.fold": debug,
             "linetrace": debug,
-            "c_string_encoding": "utf-8",
+            "c_string_encoding": "utf8",
             "c_string_type": "str",
         },
         annotate=debug or annotate,

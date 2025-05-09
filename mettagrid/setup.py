@@ -80,7 +80,7 @@ setup(
             "overflowcheck.fold": debug,
             "profile": debug,
             "linetrace": debug,
-            "c_string_encoding": "utf-8",
+            "c_string_encoding": "utf8",
             "c_string_type": "str",
         },
     ),

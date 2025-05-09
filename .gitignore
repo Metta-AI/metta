@@ -1,4 +1,4 @@
-*.egg-info
+*.egg-info 
 *.pyc
 *.so
 __pycache__
@@ -33,3 +33,5 @@ build/
 build_debug/
 .venv
 *benchmark_results.json
+requirements_to_remove.txt
+test_data

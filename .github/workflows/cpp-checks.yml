@@ -21,7 +21,7 @@ on:
         type: boolean
         default: true
       run_benchmark:
-        description: "Run benchmarks"
+        description: "Run benchmarks (requires tests)"
         type: boolean
         default: true
 
@@ -377,13 +377,12 @@ jobs:
                 --start-point-clone-thresholds \
                 --start-point-reset \
                 --threshold-measure latency \
-                --threshold-test t_test \
+                --threshold-test percentage \
                 --threshold-max-sample-size 64 \
-                --threshold-upper-boundary 0.99 \
+                --threshold-upper-boundary 0.25 \
                 --testbed ubuntu-latest \
                 --adapter cpp_google \
                 --github-actions "$GITHUB_TOKEN" \
-                --err \
                 --file "$file" > /dev/null
             done
           else

@@ -1,4 +1,4 @@
-# Makefile for code formatting, linting, and testing
+# Makefile for code formatting, linting, and testing 
 .PHONY: help format check-tools install-tools test benchmark clean check-test-tools install-test-tools check-bench-tools install-bench-tools build build-clean all
 
 # Default target when just running 'make'
@@ -20,9 +20,11 @@ help:
 
 # Directories
 SRC_DIR = mettagrid
+THIRD_PARTY_DIR = third_party
 TEST_DIR = tests
 BENCH_DIR = benchmarks
 BUILD_DIR = build
+BUILD_SRC_DIR = $(BUILD_DIR)/mettagrid
 BUILD_TEST_DIR = $(BUILD_DIR)/tests
 BUILD_BENCH_DIR = $(BUILD_DIR)/benchmarks
 
@@ -30,11 +32,11 @@ DEVOPS_SCRIPTS_DIR = ../devops
 
 # Compiler settings
 CXX = g++
-CXXFLAGS = -std=c++14 -Wall -g -I$(SRC_DIR)
+CXXFLAGS = -std=c++23 -Wall -g -I$(SRC_DIR) -I$(THIRD_PARTY_DIR) -I$(TEST_DIR)
 
 # Google Test settings - with detection for different install locations
-GTEST_INCLUDE = $(shell pkg-config --cflags gtest 2>/dev/null || echo "-I/opt/homebrew/Cellar/googletest/1.16.0/include")
-GTEST_LIBS = $(shell pkg-config --libs gtest_main 2>/dev/null || echo "-L/opt/homebrew/Cellar/googletest/1.16.0/lib -lgtest -lgtest_main -pthread")
+GTEST_INCLUDE = $(shell pkg-config --cflags gtest 2>/dev/null || echo "-I/opt/homebrew/Cellar/googletest/1.17.0/include")
+GTEST_LIBS = $(shell pkg-config --libs gtest_main 2>/dev/null || echo "-L/opt/homebrew/Cellar/googletest/1.17.0/lib -lgtest -lgtest_main -pthread")
 
 # Add gtest includes to CXXFLAGS
 CXXFLAGS += $(GTEST_INCLUDE)
@@ -45,6 +47,10 @@ BENCHMARK_LIBS = $(shell pkg-config --libs benchmark 2>/dev/null || echo "-lbenc
 
 # Add benchmark includes to CXXFLAGS when needed
 BENCH_CXXFLAGS = $(CXXFLAGS) $(BENCHMARK_INCLUDE)
+
+# Source files for mettagrid core library
+SRC_SOURCES := $(wildcard $(SRC_DIR)/*.cpp $(SRC_DIR)/**/*.cpp)
+SRC_OBJECTS := $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_SRC_DIR)/%.o,$(SRC_SOURCES))
 
 #-----------------------
 # Build
@@ -107,6 +113,24 @@ format: check-tools
 	@echo "Note: Cython files (.pyx, .pxd) were intentionally skipped to preserve their syntax."
 
 #-----------------------
+# Core Library Build
+#-----------------------
+
+# Create build directory for source files
+$(BUILD_SRC_DIR):
+	@mkdir -p $(BUILD_SRC_DIR)
+
+# Compile individual source files
+$(BUILD_SRC_DIR)/%.o: $(SRC_DIR)/%.cpp | $(BUILD_SRC_DIR)
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+# Build a static library from all source files
+$(BUILD_DIR)/libmettagrid.a: $(SRC_OBJECTS)
+	@mkdir -p $(dir $@)
+	ar rcs $@ $^
+
+#-----------------------
 # Testing
 #-----------------------
 
@@ -120,7 +144,7 @@ check-test-tools:
 	@(ldconfig -p 2>/dev/null | grep -q libgtest.so) || \
 		(test -f /usr/local/lib/libgtest.a) || \
 		(test -f /usr/local/lib/libgtest.dylib) || \
-		(test -f /opt/homebrew/Cellar/googletest/1.16.0/lib/libgtest.dylib) || \
+		(test -f /opt/homebrew/Cellar/googletest/1.17.0/lib/libgtest.dylib) || \
 		(pkg-config --exists gtest 2>/dev/null) || \
 		{ echo "Google Test library not found. Run 'make install-test-tools' to install."; exit 1; }
 	@echo "All required testing tools are installed."
@@ -147,18 +171,7 @@ $(BUILD_TEST_DIR):
 	@mkdir -p $(BUILD_TEST_DIR)
 
 # Find all test source files
-
 TEST_SOURCES := $(wildcard $(TEST_DIR)/*.cpp $(TEST_DIR)/**/*.cpp)
-
-# Create build objects with preserved directory structure
-define make-test-object
-$(BUILD_TEST_DIR)/$(patsubst $(TEST_DIR)/%.cpp,%.o,$1): $1
-	@mkdir -p $$(dir $$@)
-	$$(CXX) $$(CXXFLAGS) -c $$< -o $$@
-endef
-
-$(foreach src,$(TEST_SOURCES),$(eval $(call make-test-object,$(src))))
-
 TEST_OBJECTS := $(patsubst $(TEST_DIR)/%.cpp,$(BUILD_TEST_DIR)/%.o,$(TEST_SOURCES))
 TEST_EXECUTABLES := $(patsubst $(BUILD_TEST_DIR)/%.o,$(BUILD_TEST_DIR)/%,$(TEST_OBJECTS))
 
@@ -167,17 +180,23 @@ $(BUILD_TEST_DIR)/%.o: $(TEST_DIR)/%.cpp | $(BUILD_TEST_DIR)
 	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-# Link test executables
-$(BUILD_TEST_DIR)/%: $(BUILD_TEST_DIR)/%.o
-	$(CXX) $< -o $@ $(GTEST_LIBS)
+# Link test executables with the mettagrid library
+$(BUILD_TEST_DIR)/%: $(BUILD_TEST_DIR)/%.o $(SRC_OBJECTS)
+	@mkdir -p $(dir $@)
+	$(CXX) $^ -o $@ $(GTEST_LIBS)
 
 # Run all tests
-test: check-test-tools $(TEST_EXECUTABLES)
+test: check-test-tools $(SRC_OBJECTS) $(TEST_EXECUTABLES)
 	@echo "Running all tests..."
 	@for test in $(TEST_EXECUTABLES); do \
 		echo "Running $$test"; \
 		$$test --gtest_color=yes; \
 	done
+
+# Test a specific test file
+test-%: check-test-tools $(BUILD_TEST_DIR)/%
+	@echo "Running test $*..."
+	$(BUILD_TEST_DIR)/$* --gtest_color=yes
 
 #-----------------------
 # Benchmarking
@@ -225,21 +244,20 @@ $(BUILD_BENCH_DIR)/%.o: $(BENCH_DIR)/%.cpp | $(BUILD_BENCH_DIR)
 	@mkdir -p $(dir $@)
 	$(CXX) $(BENCH_CXXFLAGS) -c $< -o $@
 
-# Link benchmark executables
-$(BUILD_BENCH_DIR)/%: $(BUILD_BENCH_DIR)/%.o
-	$(CXX) $< -o $@ $(BENCHMARK_LIBS)
+# Link benchmark executables with the mettagrid library
+$(BUILD_BENCH_DIR)/%: $(BUILD_BENCH_DIR)/%.o $(SRC_OBJECTS)
+	$(CXX) $^ -o $@ $(BENCHMARK_LIBS)
 
 # Run all benchmarks
-benchmark: check-bench-tools $(BENCH_EXECUTABLES)
+benchmark: check-bench-tools $(SRC_OBJECTS) $(BENCH_EXECUTABLES)
 	@echo "Running all benchmarks..."
 	@for bench in $(BENCH_EXECUTABLES); do \
 		echo "Running $$bench"; \
 		$$bench; \
 	done
 
-
 # Add this new target for JSON benchmark output
-bench-json: check-bench-tools $(BENCH_EXECUTABLES)
+bench-json: check-bench-tools $(SRC_OBJECTS) $(BENCH_EXECUTABLES)
 	@echo "Running all benchmarks with JSON output..."
 	@mkdir -p benchmark_output
 	@for bench in $(BENCH_EXECUTABLES); do \
@@ -257,6 +275,8 @@ bench-json: check-bench-tools $(BENCH_EXECUTABLES)
 clean:
 	@echo "Cleaning build files..."
 	@rm -rf $(BUILD_DIR)
+	@find mettagrid -name "*.so" -type f -delete
+	@echo "Removed .so files from mettagrid directory"
 
 # Run format and test
 all: format test
