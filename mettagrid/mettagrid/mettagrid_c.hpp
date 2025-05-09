@@ -29,10 +29,10 @@ public:
     py::tuple reset();
     py::tuple step(py::array_t<int> actions);
     void set_buffers(
-        py::array_t<unsigned char> observations,
-        py::array_t<char> terminals,
-        py::array_t<char> truncations,
-        py::array_t<float> rewards
+        std::reference_wrapper<py::array_t<unsigned char>> observations,
+        std::reference_wrapper<py::array_t<bool>> terminals,
+        std::reference_wrapper<py::array_t<bool>> truncations,
+        std::reference_wrapper<py::array_t<float>> rewards
     );
     py::dict grid_objects();
     py::list action_names();
@@ -57,7 +57,6 @@ private:
     std::map<unsigned int, unsigned int> _group_sizes;
     // TODO: it's not clear why we need two of these, or why they need to be numpy arrays.
     // See if we can change that.
-    py::array_t<double> _group_rewards_np;
     py::array_t<double> _group_rewards;
     std::unique_ptr<Grid> _grid;
     std::unique_ptr<EventManager> _event_manager;
@@ -80,16 +79,10 @@ private:
     // change to shared_ptr?
     std::vector<Agent*> _agents;
 
-    // TODO: We probably don't need to have two references for each of these.
-    py::array_t<unsigned char> _observations_np;
     py::array_t<unsigned char> _observations;
-    py::array_t<char> _terminals_np;
-    py::array_t<char> _terminals;
-    py::array_t<char> _truncations_np;
-    py::array_t<char> _truncations;
-    py::array_t<float> _rewards_np;
+    py::array_t<bool> _terminals;
+    py::array_t<bool> _truncations;
     py::array_t<float> _rewards;
-    py::array_t<float> _episode_rewards_np;
     py::array_t<float> _episode_rewards;
 
     std::vector<std::string> _grid_features;

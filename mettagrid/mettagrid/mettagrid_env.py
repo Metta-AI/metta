@@ -56,7 +56,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         return env_cfg
 
     def _reset_env(self):
-        print("resetting env")
         if self._env_map is None:
             self._map_builder = simple_instantiate(
                 self._env_cfg.game.map_builder,
@@ -84,7 +83,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         env = self._grid_env
 
         self._env = env
-        print("done resetting env")
         # self._env = RewardTracker(self._env)
         # self._env = FeatureMasker(self._env, self._cfg.hidden_features)
 

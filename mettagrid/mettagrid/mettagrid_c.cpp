@@ -84,8 +84,8 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
         static_cast<ssize_t>(_obs_width)
     };
     auto observations = py::array_t<unsigned char>(shape);
-    auto terminals = py::array_t<char>(static_cast<ssize_t>(num_agents));
-    auto truncations = py::array_t<char>(static_cast<ssize_t>(num_agents));
+    auto terminals = py::array_t<bool>(static_cast<ssize_t>(num_agents));
+    auto truncations = py::array_t<bool>(static_cast<ssize_t>(num_agents));
     auto rewards = py::array_t<float>(static_cast<ssize_t>(num_agents));
     
     set_buffers(observations, terminals, truncations, rewards);
@@ -122,8 +122,7 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
     init_action_handlers();
 
     auto groups = cfg["groups"].cast<py::dict>();
-    _group_rewards_np = py::array_t<double>(groups.size());
-    _group_rewards = _group_rewards_np;
+    _group_rewards = py::array_t<double>(groups.size());
     
     for (const auto& [key, value] : groups) {
         auto group = value.cast<py::dict>();
@@ -287,7 +286,7 @@ void MettaGrid::_compute_observation(
     unsigned short obs_height,
     size_t agent_idx
 ) {
-    auto observation_view = _observations_np.mutable_unchecked<4>();
+    auto observation_view = _observations.mutable_unchecked<4>();
     
     // Calculate observation boundaries
     int obs_width_radius = obs_width >> 1;
@@ -343,26 +342,16 @@ void MettaGrid::_step(py::array_t<int> actions) {
     
     // Reset rewards and observations
     auto rewards_view = _rewards.mutable_unchecked<1>();
-    auto observations_view = _observations.mutable_unchecked<4>();
 
-    for (py::ssize_t i = 0; i < rewards_view.shape(0); i++) {
-        rewards_view(i) = 0;
-    }
+    std::fill(static_cast<float*>(_rewards.request().ptr),
+              static_cast<float*>(_rewards.request().ptr) + _rewards.size(),
+              0);
     
-    for (py::ssize_t i = 0; i < observations_view.shape(0); i++) {
-        for (py::ssize_t j = 0; j < observations_view.shape(1); j++) {
-            for (py::ssize_t k = 0; k < observations_view.shape(2); k++) {
-                for (py::ssize_t l = 0; l < observations_view.shape(3); l++) {
-                    observations_view(i, j, k, l) = 0;
-                }
-            }
-        }
-    }
+    auto obs_ptr = static_cast<unsigned char*>(_observations.request().ptr);
+    auto obs_size = _observations.size();
+    std::fill(obs_ptr, obs_ptr + obs_size, 0);
 
-    // Clear action success flags
-    for (size_t i = 0; i < _action_success.size(); i++) {
-        _action_success[i] = false;
-    }
+    std::fill(_action_success.begin(), _action_success.end(), false);
 
     // Increment timestep and process events
     _current_timestep++;
@@ -404,10 +393,9 @@ void MettaGrid::_step(py::array_t<int> actions) {
 
     // Check for truncation
     if (_max_timestep > 0 && _current_timestep >= _max_timestep) {
-        auto truncations_view = _truncations.mutable_unchecked<1>();
-        for (py::ssize_t i = 0; i < truncations_view.shape(0); i++) {
-            truncations_view(i) = 1;
-        }
+        std::fill(static_cast<bool*>(_truncations.request().ptr),
+                  static_cast<bool*>(_truncations.request().ptr) + _truncations.size(),
+                  1);
     }
 }
 
@@ -449,26 +437,20 @@ py::tuple MettaGrid::reset() {
     auto zero_actions = py::array_t<int>(shape);
     _compute_observations(zero_actions);
 
-    return py::make_tuple(_observations_np, py::dict());
+    return py::make_tuple(_observations, py::dict());
 }
 
 void MettaGrid::set_buffers(
-    py::array_t<unsigned char> observations,
-    py::array_t<char> terminals,
-    py::array_t<char> truncations,
-    py::array_t<float> rewards
+    std::reference_wrapper<py::array_t<unsigned char>> observations,
+    std::reference_wrapper<py::array_t<bool>> terminals,
+    std::reference_wrapper<py::array_t<bool>> truncations,
+    std::reference_wrapper<py::array_t<float>> rewards
 ) {
-    _observations_np = observations;
     _observations = observations;
-    _terminals_np = terminals;
     _terminals = terminals;
-    _truncations_np = truncations;
     _truncations = truncations;
-    _rewards_np = rewards;
     _rewards = rewards;
-    _episode_rewards_np = py::array_t<float>(rewards.shape(0));
-    _episode_rewards = _episode_rewards_np;
-
+    _episode_rewards = py::array_t<float>(_rewards.shape(0));
     for (size_t i = 0; i < _agents.size(); i++) {
         _agents[i]->init(&_rewards.mutable_unchecked<1>()(i));
     }
@@ -514,7 +496,7 @@ py::tuple MettaGrid::step(py::array_t<int> actions) {
         }
     }
     
-    return py::make_tuple(_observations_np, _rewards_np, _terminals_np, _truncations_np, py::dict());
+    return py::make_tuple(_observations, _rewards, _terminals, _truncations, py::dict());
 }
 
 py::dict MettaGrid::grid_objects() {
@@ -589,8 +571,10 @@ unsigned int MettaGrid::num_agents() {
 }
 
 py::array_t<float> MettaGrid::get_episode_rewards() {
-    return _episode_rewards_np;
+    return _episode_rewards;
 }
+
+
 
 py::dict MettaGrid::get_episode_stats() {
     py::dict stats;
