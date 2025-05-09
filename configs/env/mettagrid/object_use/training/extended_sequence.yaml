@@ -5,71 +5,93 @@ defaults:
 
 game:
   num_agents: 24
+  max_steps: 700
 
 
-objects:
-  altar:
-    hp: 30
-    input_battery: 3
-    output_heart: 1
-    max_output: 5
-    conversion_ticks: 1
-    cooldown: ${sampling:1, 20, 10}
-    initial_items: 0
+  agent:
+    max_inventory: ${sampling:0, 100, 50}
+    freeze_duration: ${sampling:0, 200, 10}
+    hp: 10
+    mortal: False
+    rewards:
+      # action_failure_penalty: 0.00001
+      action_failure_penalty: 0
+      ore.red: 0.1
+      ore.blue: 0.1
+      ore.green: 0.1
+      battery.red: 0.3
+      battery.blue: 0.3
+      battery.green: 0.3
+      battery_max: 10
+      heart: 1
+      heart_max: 1000
 
-  mine.red:
-    hp: 30
-    output_ore.red: 1
-    color: 0
-    max_output: 5
-    conversion_ticks: 1
-    cooldown: ${sampling:0, 100, 50}
-    initial_items: 1
 
-  mine.blue:
-    hp: 30
-    color: 1
-    output_ore.blue: 1
-    max_output: 5
-    conversion_ticks: 1
-    cooldown: ${sampling:0, 100, 50}
-    initial_items: 1
+  objects:
+    altar:
+      hp: 30
+      input_battery.green: 1
+      output_heart: 1
+      max_output: 10
+      conversion_ticks: 1
+      cooldown: 255
+      initial_items: 0
 
-  mine.green:
-    hp: 30
-    output_ore.green: 1
-    color: 2
-    max_output: 5
-    conversion_ticks: 1
-    cooldown: ${sampling:0, 100, 50}
-    initial_items: 1
+    mine.red:
+      hp: 30
+      output_ore.red: 1
+      color: 0
+      max_output: 5
+      conversion_ticks: 1
+      cooldown: 255
+      initial_items: 1
 
-  generator.red:
-    hp: 30
-    input_ore.red: 1
-    output_battery: 1
-    color: 0
-    max_output: 5
-    conversion_ticks: 1
-    cooldown: ${sampling:0, 50, 25}
-    initial_items: 0
+    mine.blue:
+      hp: 30
+      color: 1
+      input_battery.red: 1
+      output_ore.blue: 1
+      max_output: 5
+      conversion_ticks: 1
+      cooldown: 255
+      initial_items: 1
 
-  generator.blue:
-    hp: 30
-    input_ore.blue: 1
-    output_battery: 1
-    color: 1
-    max_output: 5
-    conversion_ticks: 1
-    cooldown: ${sampling:0, 50, 25}
-    initial_items: 0
+    mine.green:
+      hp: 30
+      input_battery.blue: 1
+      output_ore.green: 1
+      color: 2
+      max_output: 5
+      conversion_ticks: 1
+      cooldown: 255
+      initial_items: 1
 
-  generator.green:
-    hp: 30
-    input_ore.green: 1
-    output_battery: 1
-    color: 2
-    max_output: 5
-    conversion_ticks: 1
-    cooldown: ${sampling:0, 50, 25}
-    initial_items: 0
+    generator.red:
+      hp: 30
+      input_ore.red: 1
+      output_battery.red: 1
+      color: 0
+      max_output: 5
+      conversion_ticks: 1
+      cooldown: 255
+      initial_items: 0
+
+    generator.blue:
+      hp: 30
+      input_ore.blue: 1
+      output_battery.blue: 1
+      color: 1
+      max_output: 5
+      conversion_ticks: 1
+      cooldown: 255
+      initial_items: 0
+
+    generator.green:
+      hp: 30
+      input_ore.green: 1
+      output_battery.green: 1
+      color: 2
+      max_output: 5
+      conversion_ticks: 1
+      cooldown: 255
+      initial_items: 0
