@@ -39,7 +39,7 @@ enum ObjectType {
   Count = 11
 };
 
-std::vector<std::string> ObjectTypeNames =
+const std::vector<std::string> ObjectTypeNames =
     {"agent", "wall", "mine", "generator", "altar", "armory", "lasery", "lab", "factory", "temple", "converter"};
 
 enum InventoryItem {
@@ -54,11 +54,10 @@ enum InventoryItem {
   InventoryCount = 8
 };
 
-// These should be const, but we run into type inference issues with cython
-std::vector<std::string> InventoryItemNames =
+const std::vector<std::string> InventoryItemNames =
     {"ore.red", "ore.blue", "ore.green", "battery", "heart", "armor", "laser", "blueprint"};
 
-std::map<TypeId, GridLayer> ObjectLayers = {{ObjectType::AgentT, GridLayer::Agent_Layer},
+const std::map<TypeId, GridLayer> ObjectLayers = {{ObjectType::AgentT, GridLayer::Agent_Layer},
                                             {ObjectType::WallT, GridLayer::Object_Layer},
                                             {ObjectType::MineT, GridLayer::Object_Layer},
                                             {ObjectType::GeneratorT, GridLayer::Object_Layer},
