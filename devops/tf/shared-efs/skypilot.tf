@@ -64,7 +64,7 @@ resource "aws_iam_role_policy" "skypilot_api_server" {
           "ec2:DeleteTags",
           "ec2:StartInstances",
           "ec2:CreateTags",
-          "ec2:StopInstances"
+          "ec2:StopInstances",
         ],
         "Resource" : "arn:aws:ec2:*:${local.account_id}:instance/*"
       },
@@ -79,7 +79,8 @@ resource "aws_iam_role_policy" "skypilot_api_server" {
         "Effect" : "Allow",
         "Action" : [
           "ec2:CreateSecurityGroup",
-          "ec2:AuthorizeSecurityGroupIngress"
+          "ec2:AuthorizeSecurityGroupIngress",
+          "ec2:DeleteSecurityGroup"
         ],
         "Resource" : "arn:aws:ec2:*:${local.account_id}:*"
       },
@@ -240,7 +241,7 @@ resource "aws_ecs_task_definition" "skypilot_api_server" {
 
         # except for tmp which skypilot uses for its own mounts
         mkdir -p /tmp/sky-tmp
-        rm -rf /root/.sky/tmp
+        rm -f /root/.sky/tmp
         ln -s /tmp/sky-tmp /root/.sky/tmp
 
         # start the api server
