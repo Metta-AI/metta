@@ -83,7 +83,7 @@ resource "aws_eks_cluster" "main" {
   # We're deploying ML jobs to EC2 with skypilot, no k8s.
   name     = "main-eks"
   role_arn = aws_iam_role.eks_cluster.arn
-  version  = "1.27"
+  version  = "1.32"
 
   vpc_config {
     subnet_ids             = aws_subnet.public[*].id
