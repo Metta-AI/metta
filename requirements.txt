@@ -2,8 +2,6 @@ boto3==1.38.13
 colorama==0.4.6
 cython==3.0.12
 duckdb==1.2.0
-# we need the c++ headers for pybind11
-eigen==0.1.1
 einops==0.8.1
 fastapi==0.115.5
 gymnasium==1.1.1

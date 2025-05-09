@@ -22,8 +22,6 @@
 #include "actions/change_color.hpp"
 #include "objects/production_handler.hpp"
 
-// #include <gymnasium/gymnasium.hpp>
-// xcxc conda install -c conda-forge eigen
 #include <pybind11/gil.h>
 #include <pybind11/stl.h>
 #include <pybind11/numpy.h>
