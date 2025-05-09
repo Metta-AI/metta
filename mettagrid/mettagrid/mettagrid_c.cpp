@@ -241,7 +241,7 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
                         agent_cfg.insert({key, value});
                     }
                 }
-                unsigned int group_id = group_cfg["id"].cast<unsigned int>();
+                unsigned int group_id = group_cfg["id"];
                 Agent* agent = new Agent(r, c, group_name, group_id, agent_cfg, rewards);
                 _grid->add_object(agent);
                 agent->agent_id = _agents.size();
