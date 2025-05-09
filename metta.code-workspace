@@ -15,6 +15,9 @@
 		{
 			"name": "carbs",
 			"path": "deps/carbs"
+		},
+		{
+			"path": "personal"
 		}
 	],
 	"settings": {

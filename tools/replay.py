@@ -39,14 +39,19 @@ def main(cfg):
         policy_store = PolicyStore(cfg, wandb_run)
         replay_job = ReplayJob(cfg.replay_job)
         policy_record = policy_store.policy(replay_job.policy_uri)
+        sim_config = SingleEnvSimulationConfig(cfg.replay_job.sim)
 
-        replay_dir = f"{replay_job.replay_dir}/{cfg.run}"
-        if cfg.trainer.get("replay_dry_run", False):
-            replay_dir = None
+        replay_name = sim_config.env.split("/")[-1]
+        replay_path = f"{replay_job.replay_dir}/{cfg.run}/{replay_name}/replay.json.z"
 
         sim_suite = SimulationSuite(replay_job.sim, policy_record, policy_store, replay_dir=replay_dir)
         result = sim_suite.simulate()
+        sim = Simulation(sim_config, policy_record, policy_store, wandb_run=wandb_run, replay_path=replay_path)
+        sim.simulate()
+
         # Only on macos open a browser to the replay
+        if platform.system() == "Darwin":
+            webbrowser.open(f"https://metta-ai.github.io/metta/?replayUrl={s3_url(replay_path)}")
         if platform.system() == "Darwin" and replay_dir is not None:
             replay_url = result.stats_db.get_replay_urls(
                 policy_key=policy_record.key(), policy_version=policy_record.version()

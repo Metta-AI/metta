@@ -18,7 +18,7 @@ class SimulationConfig(Config):
     npc_policy_uri: Optional[str] = None
     env_overrides: Optional[dict] = None
     policy_agents_pct: float = 1.0
-    max_time_s: int = 60
+    max_time_s: int = 120
     vectorization: str = "serial"
     eval_db_uri: Optional[str] = None
     run_dir: str
@@ -30,16 +30,8 @@ class SingleEnvSimulationConfig(SimulationConfig):
     env: str
     env_overrides: Optional[dict] = None
 
-    @property
-    def simulations(self) -> Dict[str, SimulationConfig]:
-        return {self.name: self}
 
-    @property
-    def name(self) -> str:
-        return self.env
-
-
-class SimulationSuiteConfig:
+class SimulationSuiteConfig(SimulationConfig):
     """A suite of named simulations, with suite-level defaults injected."""
 
     name: str
