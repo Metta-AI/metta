@@ -152,8 +152,6 @@ class EpisodeStatsDB:
                 group_rows,
             )
 
-        print(self.con.query("SELECT * FROM agent_groups").df())
-
         self._add_metrics(episode_id, agent_metrics, "agent")
 
         self.con.commit()
