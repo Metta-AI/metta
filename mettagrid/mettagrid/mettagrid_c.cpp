@@ -44,7 +44,7 @@ namespace py = pybind11;
 
 MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
     // env_cfg is a dict-form of the OmegaCong config.
-    // `map` is a numpy array of shape (height, width, dtype='<U50').
+    // `map` is a numpy array of shape (height, width) and a 'U' dtype.
     // It's not clear that there's any value in using a numpy array here,
     // and this causes us to need to do some awkward conversions.
     auto cfg = env_cfg["game"].cast<py::dict>();
@@ -65,11 +65,11 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
     auto map_info = map.request();
 
     _grid = std::make_unique<Grid>(map_info.shape[1], map_info.shape[0], layer_for_type_id);
+    _obs_encoder = std::make_unique<ObservationEncoder>();
     _grid_features = _obs_encoder->feature_names();
 
     _event_manager = std::make_unique<EventManager>();
     _stats = std::make_unique<StatsTracker>();
-    _obs_encoder = std::make_unique<ObservationEncoder>();
 
     _event_manager->init(_grid.get(), _stats.get());
     _event_manager->event_handlers.push_back(new ProductionHandler(_event_manager.get()));
@@ -122,7 +122,7 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
         actions.push_back(std::make_unique<ChangeColorAction>(cfg["actions"]["change_color"].cast<ActionConfig>()));
     }
     init_action_handlers(actions);
-    
+
     auto groups = cfg["groups"].cast<py::dict>();
     _group_rewards_np = py::array_t<double>(groups.size());
     _group_rewards = _group_rewards_np;
@@ -135,29 +135,18 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
             group["group_reward_pct"].cast<float>() : 0.0f;
     }
 
-    // Initialize grid
 
     // Ensure the array is 2D
     if (map_info.ndim != 2) {
         throw std::runtime_error("Expected a 2D array");
     }
 
-    // Check the dtype size (should match <U50)
+    // Check the dtype. utf-32 is 4 bytes.
     ssize_t element_size = map_info.itemsize;
     if (element_size % 4 != 0) {
-        // We expect utf-32
         throw std::runtime_error("Invalid Unicode size: not divisible by 4");
     }
     ssize_t max_chars = element_size / 4;
-    if (max_chars != 50) {
-        // This check is less necessary, since we can be flexible here
-        // It's mostly to ensure that we _really_ know what we're dealing with.
-        throw std::runtime_error("Invalid String Size: expected 50 characters, got " + std::to_string(max_chars));
-    }
-
-    _event_manager->init(_grid.get(), _stats.get());
-    _event_manager->event_handlers.push_back(new ProductionHandler(_event_manager.get()));
-    _event_manager->event_handlers.push_back(new CoolDownHandler(_event_manager.get()));
     
     // Initialize objects from map
     auto map_data = static_cast<wchar_t*>(map_info.ptr);
@@ -184,8 +173,6 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
                     m = "mine.red";
                 }
                 converter = new Converter(r, c, cfg["objects"][py::str(m)].cast<ObjectConfig>(), ObjectType::MineT);
-                _grid->add_object(converter);
-                _stats->incr("objects." + cell);
             }
             else if (cell.starts_with("generator")) {
                 std::string m = cell;
@@ -193,61 +180,54 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
                     m = "generator.red";
                 }
                 converter = new Converter(r, c, cfg["objects"][py::str(m)].cast<ObjectConfig>(), ObjectType::GeneratorT);
-                _grid->add_object(converter);
-                _stats->incr("objects." + cell);
             }
             else if (cell == "altar") {
                 converter = new Converter(r, c, cfg["objects"]["altar"].cast<ObjectConfig>(), ObjectType::AltarT);
-                _grid->add_object(converter);
-                _stats->incr("objects.altar");
             }
             else if (cell == "armory") {
                 converter = new Converter(r, c, cfg["objects"]["armory"].cast<ObjectConfig>(), ObjectType::ArmoryT);
-                _grid->add_object(converter);
-                _stats->incr("objects.armory");
             }
             else if (cell == "lasery") {
                 converter = new Converter(r, c, cfg["objects"]["lasery"].cast<ObjectConfig>(), ObjectType::LaseryT);
-                _grid->add_object(converter);
-                _stats->incr("objects.lasery");
             }
             else if (cell == "lab") {
                 converter = new Converter(r, c, cfg["objects"]["lab"].cast<ObjectConfig>(), ObjectType::LabT);
-                _grid->add_object(converter);
-                _stats->incr("objects.lab");
             }
             else if (cell == "factory") {
                 converter = new Converter(r, c, cfg["objects"]["factory"].cast<ObjectConfig>(), ObjectType::FactoryT);
-                _grid->add_object(converter);
-                _stats->incr("objects.factory");
             }
             else if (cell == "temple") {
                 converter = new Converter(r, c, cfg["objects"]["temple"].cast<ObjectConfig>(), ObjectType::TempleT);
-                _grid->add_object(converter);
-                _stats->incr("objects.temple");
             }
             else if (cell.starts_with("agent.")) {
                 std::string group_name = cell.substr(6);
                 auto group = groups[py::str(group_name)].cast<py::dict>();
                 auto agent_cfg_py = cfg["agent"].cast<py::dict>();
-                if (agent_cfg_py.contains("rewards")) {
-                    agent_cfg_py.attr("pop")("rewards");
-                }
-                auto agent_cfg = agent_cfg_py.cast<ObjectConfig>();
-                // cout << "agent_cfg: " << agent_cfg << endl;
-                // xcxc something like this?
-                // auto merged_cfg = py::dict(agent_cfg) + group["props"].cast<py::dict>();
+                // xcxc previously we merged with group config, and now we're not.
                 // auto agent_cfg = OmegaConf.to_container(OmegaConf.merge(
                 //         cfg.agent, cfg.groups[group_name].props))
-                // xcxc
-                // auto rewards = agent_cfg.get("rewards", {});
-                // del agent_cfg["rewards"];
-                // for (const auto& inv_item : InventoryItemNames) {
-                //     rewards[inv_item] = rewards.get(inv_item, 0);
-                //     rewards[inv_item + "_max"] = rewards.get(inv_item + "_max", 1000);
-                // }
+                // This especially impacts rewards in practice.
+                std::map<std::string, float> rewards;
+                if (agent_cfg_py.contains("rewards")) {
+                    // Note that this removes the rewards from the agent_cfg_py dict.
+                    py::dict rewards_py = agent_cfg_py.attr("pop")("rewards");
+                    for (const auto& [key, value] : rewards_py) {
+                        rewards.insert(std::make_pair(key.cast<std::string>(), value.cast<float>()));
+                    }
+                }
+                for (const auto& inv_item : InventoryItemNames) {
+                    auto it = rewards.find(inv_item);
+                    if (it == rewards.end()) {
+                        rewards.insert(std::make_pair(inv_item, 0));
+                    }
+                    it = rewards.find(inv_item + "_max");
+                    if (it == rewards.end()) {
+                        rewards.insert(std::make_pair(inv_item + "_max", 1000));
+                    }
+                }
+                auto agent_cfg = agent_cfg_py.cast<ObjectConfig>();
                 unsigned int group_id = group["id"].cast<unsigned int>();
-                Agent* agent = new Agent(r, c, group_name, group_id, agent_cfg, std::map<std::string, float>());
+                Agent* agent = new Agent(r, c, group_name, group_id, agent_cfg, rewards);
                 _grid->add_object(agent);
                 agent->agent_id = _agents.size();
                 add_agent(agent);
