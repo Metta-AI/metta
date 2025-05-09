@@ -285,36 +285,31 @@ void MettaGrid::_compute_observation(
     unsigned int observer_col,
     unsigned short obs_width,
     unsigned short obs_height,
-    py::array_t<unsigned char> observation
+    size_t agent_idx
 ) {
-    auto observation_view = observation.mutable_unchecked<3>();
+    auto observation_view = _observations_np.mutable_unchecked<4>();
     
     // Calculate observation boundaries
     int obs_width_radius = obs_width >> 1;
     int obs_height_radius = obs_height >> 1;
     int r_start = observer_row - obs_height_radius;
     int c_start = observer_col - obs_width_radius;
-    int r_end = observer_row + obs_height_radius;
-    int c_end = observer_col + obs_width_radius;
+    int r_end = observer_row + obs_height_radius + 1;
+    int c_end = observer_col + obs_width_radius + 1;
     
     r_start = r_start < 0 ? 0 : r_start;
     c_start = c_start < 0 ? 0 : c_start;
-    r_end = r_end > _grid->height - 1 ? _grid->height - 1 : r_end;
-    c_end = c_end > _grid->width - 1 ? _grid->width - 1 : c_end;
-
-    // Clear observation
-    // xcxc
-    // for (int r = 0; r < obs_height; r++) {
-    //     for (int c = 0; c < obs_width; c++) {
-    //         for (size_t f = 0; f < _grid_features.size(); f++) {
-    //             observation_view(r, c, f) = 0;
-    //         }
-    //     }
-    // }
+    if (r_end > _grid->height) {
+        r_end = _grid->height;
+    }
+    if (c_end > _grid->width) {
+        c_end = _grid->width;
+    }
     
-    // Fill in visible objects
-    for (int r = r_start; r <= r_end; r++) {
-        for (int c = c_start; c <= c_end; c++) {
+    // Fill in visible objects. Observations should have been cleared in _step, so
+    // we don't need to do that here.
+    for (int r = r_start; r < r_end; r++) {
+        for (int c = c_start; c < c_end; c++) {
             for (unsigned int layer = 0; layer < _grid->num_layers; layer++) {
                 GridLocation object_loc(r, c, layer);
                 auto obj = _grid->object_at(object_loc);
@@ -323,20 +318,8 @@ void MettaGrid::_compute_observation(
                 int obs_r = object_loc.r + obs_height_radius - observer_row;
                 int obs_c = object_loc.c + obs_width_radius - observer_col;
 
-                // auto shape = observation_view.shape();
-                // auto strides = observation_view.strides();
-
-                // Maybe not needed?
-                // py::array_t<unsigned char> agent_obs(
-                //     std::array<ssize_t, 1>{shape[2]},
-                //     std::array<ssize_t, 1>{strides[2]},
-                //     observation_view.mutable_data(obs_r, obs_c, 0)
-                // );
-
-                auto obs_data = observation_view.mutable_data(obs_r, obs_c, 0);
-                                
-                // Encode object features
-                _obs_encoder->encode(obj, obs_data);
+                auto agent_obs = observation_view.mutable_data(agent_idx, obs_r, obs_c, 0);
+                _obs_encoder->encode(obj, agent_obs);
             }
         }
     }
@@ -350,9 +333,7 @@ void MettaGrid::_compute_observations(py::array_t<int> actions) {
             agent->location.c,
             _obs_width,
             _obs_height,
-            // TODO: this slicing may be inefficient, since it passes
-            // things back to Python (at least somewhat)
-            _observations_np[py::make_tuple(idx, py::ellipsis())].cast<py::array_t<unsigned char>>()
+            idx
         );
     }
 }
