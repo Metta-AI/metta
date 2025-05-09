@@ -1,5 +1,7 @@
 device: ${device}
 vectorization: ${vectorization}
+eval_db_uri: ${eval_db_uri}
 env: env/mettagrid/simple
+run_dir: ${run_dir}
 num_envs: 1
 num_episodes: 1
