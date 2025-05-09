@@ -26,7 +26,7 @@ from mettagrid.observation_encoder cimport (
 )
 from mettagrid.grid_object cimport GridObject
 from mettagrid.objects.production_handler cimport ProductionHandler, CoolDownHandler
-from mettagrid.objects.constants cimport ObjectLayers, ObjectTypeNames, ObjectTypeAscii, InventoryItemNames, ObjectType
+from mettagrid.objects.constants cimport ObjectLayers, ObjectTypeNames, InventoryItemNames, ObjectType
 
 # Action imports
 from mettagrid.action_handler cimport ActionHandler
@@ -403,9 +403,6 @@ cdef class MettaGrid:
         for i in range(self._agents.size()):
             self._agents[i].init(&self._rewards[i])
     
-    cpdef grid(self):
-        return []
-    
     cpdef grid_objects(self):
         cdef GridObject *obj
         cdef ObsType[:] obj_data = np.zeros(len(self.grid_features()), dtype=np.uint8)
@@ -466,14 +463,6 @@ cdef class MettaGrid:
             "agent": [ (<Agent*>agent).stats.stats() for agent in self._agents ]
         }
 
-    cpdef cnp.ndarray render_ascii(self):
-        cdef GridObject *obj
-        grid = np.full((self._grid.height, self._grid.width), " ", dtype=np.str_)
-        for obj_id in range(1, self._grid.objects.size()):
-            obj = self._grid.object(obj_id)
-            grid[obj.location.r, obj.location.c] = ObjectTypeAscii[obj._type_id]
-        return grid
-
     @property
     def action_space(self):
         return gym.spaces.MultiDiscrete((len(self.action_names()), self._max_action_arg + 1), dtype=np.int64)
@@ -498,8 +487,3 @@ cdef class MettaGrid:
 
     def inventory_item_names(self):
         return InventoryItemNames
-    
-    def render(self):
-        grid = self.render_ascii()
-        for r in grid:
-                print("".join(r))

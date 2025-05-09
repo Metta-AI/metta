@@ -1,11 +1,11 @@
 import { Vec2f } from './vector_math.js';
 import { Grid } from './grid.js';
 import * as Common from './common.js';
-import { ui, state, ctx } from './common.js';
+import { ui, state, ctx, setFollowSelection } from './common.js';
 import { getAttr } from './replay.js';
 import { PanelInfo } from './panels.js';
-import {onFrame } from './main.js';
-
+import { onFrame } from './main.js';
+import { parseHtmlColor } from './htmlutils.js';
 // Flag to prevent multiple calls to requestAnimationFrame
 let frameRequested = false;
 
@@ -48,58 +48,19 @@ export function focusFullMap(panel: PanelInfo) {
   }
   const width = state.replay.map_size[0] * Common.TILE_SIZE;
   const height = state.replay.map_size[1] * Common.TILE_SIZE;
-  panel.focusPos(width / 2, height / 2);
-  panel.zoomLevel = Math.min(panel.width / width, panel.height / height);
+  panel.focusPos(width / 2, height / 2, Math.min(panel.width / width, panel.height / height));
 }
 
-// Draw the tiles that make up the floor.
+// Draw the the floor.
 function drawFloor() {
-
-  // Compute the visibility map, each agent contributes to the visibility map.
-  const visibilityMap = new Grid(state.replay.map_size[0], state.replay.map_size[1]);
-
-  // Update the visibility map for a grid object.
-  function updateVisibilityMap(gridObject: any) {
-    const x = getAttr(gridObject, "c");
-    const y = getAttr(gridObject, "r");
-    var visionSize = Math.floor(getAttr(
-      gridObject,
-      "agent:vision_size",
-      state.step,
-      Common.DEFAULT_VISION_SIZE
-    ) / 2);
-    for (let dx = -visionSize; dx <= visionSize; dx++) {
-      for (let dy = -visionSize; dy <= visionSize; dy++) {
-        visibilityMap.set(
-          x + dx,
-          y + dy,
-          true
-        );
-      }
-    }
-  }
-
-  if (state.selectedGridObject !== null && state.selectedGridObject.agent_id !== undefined) {
-    // When there is a selected grid object only update its visibility.
-    updateVisibilityMap(state.selectedGridObject);
-  } else {
-    // When there is no selected grid object update the visibility map for all agents.
-    for (const gridObject of state.replay.grid_objects) {
-      const type = gridObject.type;
-      const typeName = state.replay.object_types[type];
-      if (typeName == "agent") {
-        updateVisibilityMap(gridObject);
-      }
-    }
-  }
-
-  // Draw the floor, darker where there is no visibility.
-  for (let x = 0; x < state.replay.map_size[0]; x++) {
-    for (let y = 0; y < state.replay.map_size[1]; y++) {
-      const color = visibilityMap.get(x, y) ? [1, 1, 1, 1] : [0.75, 0.75, 0.75, 1];
-      ctx.drawSprite('objects/floor.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE, color);
-    }
-  }
+  const floorColor = parseHtmlColor("#CFA970");
+  ctx.drawSolidRect(
+    -Common.TILE_SIZE / 2,
+    -Common.TILE_SIZE / 2,
+    state.replay.map_size[0] * Common.TILE_SIZE,
+    state.replay.map_size[1] * Common.TILE_SIZE,
+    floorColor
+  );
 }
 
 // Draw the walls, based on the adjacency map, and fill any holes.
@@ -222,7 +183,7 @@ function drawObjects() {
 
       // Draw the color layer.
       var colorIdx = getAttr(gridObject, "color");
-      if (colorIdx !== undefined) {
+      if (colorIdx >= 0 && colorIdx < Common.COLORS.length) {
         ctx.drawSprite(
           state.replay.object_images[type][2],
           x * Common.TILE_SIZE,
@@ -243,8 +204,8 @@ function drawObjects() {
   }
 }
 
+// Draw actions above the objects.
 function drawActions() {
-  // Draw actions above the objects.
   for (const gridObject of state.replay.grid_objects) {
     const x = getAttr(gridObject, "c")
     const y = getAttr(gridObject, "r")
@@ -340,8 +301,8 @@ function drawActions() {
   }
 }
 
+// Draw the object's inventory.
 function drawInventory() {
-  // Draw the object's inventory.
   for (const gridObject of state.replay.grid_objects) {
     const x = getAttr(gridObject, "c")
     const y = getAttr(gridObject, "r")
@@ -372,8 +333,8 @@ function drawInventory() {
   }
 }
 
+// Draw the rewards on the bottom of the object.
 function drawRewards() {
-  // Draw the reward on the bottom of the object.
   for (const gridObject of state.replay.grid_objects) {
     const x = getAttr(gridObject, "c")
     const y = getAttr(gridObject, "r")
@@ -396,6 +357,7 @@ function drawRewards() {
   }
 }
 
+// Draw the selection of the selected object.
 function drawSelection() {
   if (state.selectedGridObject === null) {
     return;
@@ -406,6 +368,7 @@ function drawSelection() {
   ctx.drawSprite("selection.png", x * Common.TILE_SIZE, y * Common.TILE_SIZE);
 }
 
+// Draw the trajectory of the selected object, footprints or future arrow.
 function drawTrajectory() {
   if (state.selectedGridObject === null) {
     return;
@@ -484,39 +447,128 @@ function drawTrajectory() {
   }
 }
 
+// Draw the visibility map either agent view ranges or fog of war.
+function drawVisibility() {
+
+  if (state.showViewRanges || state.showFogOfWar) {
+    // Compute the visibility map, each agent contributes to the visibility map.
+    const visibilityMap = new Grid(state.replay.map_size[0], state.replay.map_size[1]);
+
+    // Update the visibility map for a grid object.
+    function updateVisibilityMap(gridObject: any) {
+      const x = getAttr(gridObject, "c");
+      const y = getAttr(gridObject, "r");
+      var visionSize = Math.floor(getAttr(
+        gridObject,
+        "agent:vision_size",
+        state.step,
+        Common.DEFAULT_VISION_SIZE
+      ) / 2);
+      for (let dx = -visionSize; dx <= visionSize; dx++) {
+        for (let dy = -visionSize; dy <= visionSize; dy++) {
+          visibilityMap.set(
+            x + dx,
+            y + dy,
+            true
+          );
+        }
+      }
+    }
+
+    if (state.selectedGridObject !== null && state.selectedGridObject.agent_id !== undefined) {
+      // When there is a selected grid object only update its visibility.
+      updateVisibilityMap(state.selectedGridObject);
+    } else {
+      // When there is no selected grid object update the visibility map for all agents.
+      for (const gridObject of state.replay.grid_objects) {
+        const type = gridObject.type;
+        const typeName = state.replay.object_types[type];
+        if (typeName == "agent") {
+          updateVisibilityMap(gridObject);
+        }
+      }
+    }
+
+    var color = [0, 0, 0, 0.25];
+    if (state.showFogOfWar) {
+      color = [0, 0, 0, 1];
+    }
+    for (let x = 0; x < state.replay.map_size[0]; x++) {
+      for (let y = 0; y < state.replay.map_size[1]; y++) {
+        if (!visibilityMap.get(x, y)) {
+          ctx.drawSolidRect(
+            x * Common.TILE_SIZE - Common.TILE_SIZE / 2,
+            y * Common.TILE_SIZE - Common.TILE_SIZE / 2,
+            Common.TILE_SIZE,
+            Common.TILE_SIZE,
+            color
+          );
+        }
+      }
+    }
+  }
+}
+
+// Draw the grid.
+function drawGrid() {
+  if (state.showGrid) {
+    for (let x = 0; x < state.replay.map_size[0]; x++) {
+      for (let y = 0; y < state.replay.map_size[1]; y++) {
+        ctx.drawSprite('objects/grid.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE);
+      }
+    }
+  }
+}
+
 export function drawMap(panel: PanelInfo) {
   if (state.replay === null || ctx === null || ctx.ready === false) {
     return;
   }
 
-  const localMousePos = panel.transformPoint(ui.mousePos);
-
-  if (ui.mouseClick && !ui.miniMapPanel.inside(ui.mousePos)) {
-
-    // Reset the follow flags.
-    state.followSelection = false;
-    state.followTraceSelection = false;
-
-    if (localMousePos != null) {
-      const gridMousePos = new Vec2f(
-        Math.round(localMousePos.x() / Common.TILE_SIZE),
-        Math.round(localMousePos.y() / Common.TILE_SIZE)
-      );
-      const gridObject = state.replay.grid_objects.find((obj: any) => {
-        const x: number = getAttr(obj, "c");
-        const y: number = getAttr(obj, "r");
-        return x === gridMousePos.x() && y === gridMousePos.y();
-      });
-      if (gridObject !== undefined) {
-        state.selectedGridObject = gridObject;
-        console.log("selectedGridObject on map:", state.selectedGridObject);
-
-        if (ui.mouseDoubleClick) {
-          // Toggle followSelection on double-click
-          state.followSelection = true;
-          state.followTraceSelection = true;
-          panel.zoomLevel = 1 / 2;
-          ui.tracePanel.zoomLevel = 1;
+  // Handle mouse events for the map panel.
+  if (
+    ui.mapPanel.inside(ui.mousePos) &&
+    !ui.miniMapPanel.inside(ui.mousePos) &&
+    !ui.tracePanel.inside(ui.mousePos) &&
+    !ui.infoPanel.inside(ui.mousePos)
+  ) {
+    if (ui.mouseDoubleClick) {
+      // Toggle followSelection on double-click
+      console.log("Map double click - following selection");
+      setFollowSelection(true);
+      panel.zoomLevel = Common.DEFAULT_ZOOM_LEVEL;
+      ui.tracePanel.zoomLevel = Common.DEFAULT_TRACE_ZOOM_LEVEL;
+    } else if (ui.mouseClick) {
+      // Map click - likely a drag/pan
+      console.log("Map click - clearing follow selection");
+      setFollowSelection(false);
+    } else if (ui.mouseUp &&
+      ui.mouseDownPos.sub(ui.mousePos).length() < 10
+    ) {
+      // Check if we are clicking on an object.
+      console.log("Map up without dragging - selecting object");
+      const localMousePos = panel.transformPoint(ui.mousePos);
+      if (localMousePos != null) {
+        const gridMousePos = new Vec2f(
+          Math.round(localMousePos.x() / Common.TILE_SIZE),
+          Math.round(localMousePos.y() / Common.TILE_SIZE)
+        );
+        const gridObject = state.replay.grid_objects.find((obj: any) => {
+          const x: number = getAttr(obj, "c");
+          const y: number = getAttr(obj, "r");
+          return x === gridMousePos.x() && y === gridMousePos.y();
+        });
+        if (gridObject !== undefined) {
+          state.selectedGridObject = gridObject;
+          console.log("Selected object on the map:", state.selectedGridObject);
+          if (state.selectedGridObject.agent_id !== undefined) {
+            // If selecting an agent, focus the trace panel on the agent.
+            ui.tracePanel.focusPos(
+              state.step * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
+              getAttr(state.selectedGridObject, "agent_id") * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT / 2,
+              Common.DEFAULT_TRACE_ZOOM_LEVEL
+            );
+          }
         }
       }
     }
@@ -544,6 +596,8 @@ export function drawMap(panel: PanelInfo) {
   drawActions();
   drawInventory();
   drawRewards();
+  drawVisibility();
+  drawGrid();
 
   ctx.restore();
 }
@@ -559,7 +613,7 @@ export function updateReadout() {
       var value = getAttr(state.selectedGridObject, key);
       if (key == "type") {
         value = state.replay.object_types[value] + " (" + value + ")";
-      } else if (key == "color") {
+      } else if (key == "color" && value >= 0 && value < Common.COLORS.length) {
         value = Common.COLORS[value][0] + " (" + value + ")";
       }
       readout += key + ": " + value + "\n";
