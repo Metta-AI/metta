@@ -259,7 +259,6 @@ class MettaAgent(nn.Module):
             if not callable(method):
                 raise TypeError(f"Component '{name}' has {method_name} attribute but it's not callable")
 
-            # Now call the method, letting any exceptions propagate up
             method(*args, **kwargs)
 
         assert len(self.components) != 0, "No components available to apply method"
