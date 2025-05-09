@@ -87,35 +87,14 @@ cdef class MettaGrid:
         self._grid_features_list = self._get_grid_features()
         self._grid_features_size = len(self._grid_features_list)
         
-        # Pre-allocate action arrays for step and reset
-        self._c_actions = <int32_t**>malloc(num_agents * sizeof(int32_t*))
-        if self._c_actions == NULL:
-            raise MemoryError("Failed to allocate action buffer")
-            
-        cdef uint32_t i
-        for i in range(num_agents):
-            self._c_actions[i] = <int32_t*>malloc(2 * sizeof(int32_t))
-            if self._c_actions[i] == NULL:
-                # Clean up already allocated memory
-                for j in range(i):
-                    free(self._c_actions[j])
-                free(self._c_actions)
-                raise MemoryError("Failed to allocate action buffer element")
-        
+
         # Pre-allocate NumPy arrays for common operations
-        self._action_array_buffer = np.zeros((num_agents, 2), dtype=np.int32)
+        self._action_array_buffer = np.zeros((num_agents, 2), dtype=np.uint8)
         self._obs_buffer = np.zeros((self._obs_width, self._obs_height, self._grid_features_size), dtype=np.uint8)
 
 
     def __dealloc__(self):
-        # Clean up pre-allocated action arrays
-        if self._c_actions != NULL:
-            for i in range(self._num_agents):
-                if self._c_actions[i] != NULL:
-                    free(self._c_actions[i])
-            free(self._c_actions)
-            self._c_actions = NULL
-        
+
         # Clean up the C++ object
         if self._cpp_mettagrid != NULL:
             del self._cpp_mettagrid
@@ -151,6 +130,12 @@ cdef class MettaGrid:
             tuple trunc_shape
             tuple reward_shape
         
+        # check buffers
+        observations = np.ascontiguousarray(observations, dtype=np.uint8)
+        terminals = np.ascontiguousarray(terminals, dtype=np.int8)
+        truncations = np.ascontiguousarray(truncations, dtype=np.int8)
+        rewards = np.ascontiguousarray(rewards, dtype=np.float32)
+        
         # Predict expected buffer shapes
         expected_obs_shape = (num_agents, obs_width, obs_height, grid_features_size)
         
@@ -173,16 +158,6 @@ cdef class MettaGrid:
         
         if rewards.ndim < 1 or rewards.shape[0] < num_agents:
             raise ValueError(f"Rewards buffer has shape {reward_shape}, expected first dimension ≥ {num_agents}")
-
-        # Ensure arrays are contiguous in memory
-        if not observations.flags['C_CONTIGUOUS']:
-            observations = np.ascontiguousarray(observations)
-        if not terminals.flags['C_CONTIGUOUS']:
-            terminals = np.ascontiguousarray(terminals)
-        if not truncations.flags['C_CONTIGUOUS']:
-            truncations = np.ascontiguousarray(truncations)
-        if not rewards.flags['C_CONTIGUOUS']:
-            rewards = np.ascontiguousarray(rewards)
 
         # Store the external buffers
         self._observations_np = observations
@@ -214,64 +189,30 @@ cdef class MettaGrid:
                 result.append(feature)
         return result
 
-    def reset(self):
-        """Reset the environment and return initial observation."""
-        # Call the C++ reset method
+
+    cpdef tuple[cnp.ndarray, dict] reset(self):
         self._cpp_mettagrid.reset()
-        
-        # Initialize all actions to zero
-        cdef uint32_t i
-        for i in range(self._num_agents):
-            self._c_actions[i][0] = 0
-            self._c_actions[i][1] = 0
-        
-        # Compute observations using pre-allocated arrays
-        self._cpp_mettagrid.compute_observations(self._c_actions)
-        
         return (self._observations_np, {})
-    
-    
-    def step(self, actions):
+
+
+    cpdef tuple[cnp.ndarray, cnp.ndarray, cnp.ndarray, cnp.ndarray, dict] step(self, cnp.ndarray actions):
         """Take a step in the environment with the given actions."""
         cdef:
-            cnp.ndarray[int32_t, ndim=2] actions_array
-            uint32_t i, rows, cols
-        
-        # Fast path for already compatible numpy arrays
-        if isinstance(actions, np.ndarray) and actions.shape == (self._num_agents, 2) and actions.dtype == np.int32:
-            actions_array = actions
-        else:
-            # Ensure actions is a properly shaped numpy array using our buffer
-            self._action_array_buffer.fill(0)  # Reset buffer
+            tuple shape_tuple
             
-            if isinstance(actions, np.ndarray):
-                if actions.ndim == 1:
-                    # Reshape to 2D if it's a 1D array
-                    actions_array = actions.reshape(-1, 1)
-                else:
-                    actions_array = actions
-            else:
-                actions_array = np.asarray(actions, dtype=np.int32)
-            
-            # Copy available values to our pre-allocated buffer
-            rows = min(actions_array.shape[0], self._num_agents)
-            cols = min(actions_array.shape[1], 2)
-            self._action_array_buffer[:rows, :cols] = actions_array[:rows, :cols]
-            actions_array = self._action_array_buffer
-        
-        # Copy NumPy array values to our C action array
-        for i in range(self._num_agents):
-            self._c_actions[i][0] = actions_array[i, 0]
-            self._c_actions[i][1] = actions_array[i, 1]
-        
-        # Take a step in the C++ implementation
-        self._cpp_mettagrid.step(self._c_actions)
-        
-        # Process group rewards
-        self._cpp_mettagrid.compute_group_rewards(<float*>self._rewards_np.data)
-        
-        return (self._observations_np, self._rewards_np, self._terminals_np, self._truncations_np, {})
+        if actions.ndim != 2 or actions.shape[0] != self._num_agents or actions.shape[1] != 2:
+            # Convert shape to a Python tuple
+            shape_tuple = tuple([actions.shape[i] for i in range(actions.ndim)])
+            raise ValueError("Actions must have shape ({0}, 2), got {1}".format(
+                self._num_agents, shape_tuple))
     
+        actions_flat = np.ascontiguousarray(actions, dtype=np.uint8).reshape(-1)
+
+        self._cpp_mettagrid.step(actions_flat)
+
+        self._cpp_mettagrid.compute_group_rewards(<float*>self._rewards_np.data)
+        return (self._observations_np, self._rewards_np, self._terminals_np, self._truncations_np, {})
+
     def action_success(self):
         """Get the action success information."""
         cdef:

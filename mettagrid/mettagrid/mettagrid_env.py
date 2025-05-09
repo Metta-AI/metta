@@ -69,7 +69,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             "terminals": np.zeros((num_agents,), dtype=bool, order="C"),
             "truncations": np.zeros((num_agents,), dtype=bool, order="C"),
             "rewards": np.zeros((num_agents,), dtype=float, order="C"),
-            "actions": np.zeros((num_agents, 2), dtype=np.int32, order="C"),
+            "actions": np.zeros((num_agents, 2), dtype=np.uint8, order="C"),
             "masks": np.ones((num_agents,), dtype=bool, order="C"),
         }
 
@@ -171,9 +171,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         Returns:
             Tuple of (observations, rewards, terminals, truncations, infos)
         """
-
-        # Ensure actions are int32 as required by the C++ binding
-        self.actions[:] = actions.astype(np.int32, copy=False)
 
         if self._replay_writer:
             self._replay_writer.log_pre_step(self._episode_id, self.actions)

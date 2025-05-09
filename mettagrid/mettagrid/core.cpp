@@ -247,19 +247,17 @@ void CppMettaGrid::compute_observation(uint16_t observer_r,
   }
 }
 
-// Compute observations for all agents
-void CppMettaGrid::compute_observations(int32_t** actions) {
+void CppMettaGrid::compute_observations(ActionsType* flat_actions) {
   for (size_t idx = 0; idx < _agents.size(); idx++) {
     Agent* agent = _agents[idx];
-
     ObsType* obs = _observations + idx * _obs_width * _obs_height * _grid_features.size();
     compute_observation(agent->location.r, agent->location.c, _obs_width, _obs_height, obs);
   }
 }
 
 // Take a step in the environment
-void CppMettaGrid::step(int32_t** actions) {
-  if (actions == nullptr) {
+void CppMettaGrid::step(ActionsType* flat_actions) {
+  if (flat_actions == nullptr) {
     throw std::runtime_error("Null actions array passed to step()");
   }
 
@@ -286,13 +284,13 @@ void CppMettaGrid::step(int32_t** actions) {
   // Process actions by priority
   for (uint8_t p = 0; p <= _max_action_priority; p++) {
     for (size_t idx = 0; idx < _agents.size(); idx++) {
-      ActionsType action = actions[idx][0];
+      ActionsType action = flat_actions[idx * 2];   // First element is action type
+      ActionsType arg = flat_actions[idx * 2 + 1];  // Second element is action argument
 
       // Crash hard on invalid actions
       assert(action >= 0 && "Action cannot be negative");
       assert(action < static_cast<int32_t>(_num_action_handlers) && "Action exceeds available handlers");
 
-      ActionsType arg(actions[idx][1]);
       Agent* agent = _agents[idx];
       ActionHandler* handler = _action_handlers[static_cast<size_t>(action)].get();
 
@@ -304,7 +302,7 @@ void CppMettaGrid::step(int32_t** actions) {
     }
   }
 
-  compute_observations(actions);
+  compute_observations(flat_actions);
 
   // Apply reward decay if enabled
   if (_enable_reward_decay) {

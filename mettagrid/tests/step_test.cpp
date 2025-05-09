@@ -6,6 +6,7 @@
 #include "core.hpp"
 #include "grid.hpp"
 #include "test_utils.hpp"
+#include "types.hpp"
 
 // Single test function that performs a minimal grid step
 TEST(StepTest, BasicStep) {
@@ -65,7 +66,7 @@ TEST(StepTest, BasicStep) {
     // Check if we have a Noop action
     int noop_idx = -1;
     for (size_t i = 0; i < action_names.size(); i++) {
-      if (action_names[i] == "Noop") {
+      if (action_names[i] == "noop") {
         noop_idx = i;
         break;
       }
@@ -80,13 +81,14 @@ TEST(StepTest, BasicStep) {
 
     // Create actions array with minimal configuration
     std::cout << "Creating actions array..." << std::endl;
-    int num_agents = 2;  // Assuming 2 agents from test_utils::create_test_grid
-    int32_t** actions = new int32_t*[num_agents];
+    int num_agents = 2;                                      // Assuming 2 agents from test_utils::create_test_grid
+    ActionsType* actions = new ActionsType[num_agents * 2];  // Allocate flat array with 2 values per agent
+
     for (int i = 0; i < num_agents; i++) {
-      actions[i] = new int32_t[2];
-      actions[i][0] = noop_idx;  // Use Noop action or action 2
-      actions[i][1] = 0;         // No argument
-      std::cout << "  Agent " << i << " action: [" << actions[i][0] << ", " << actions[i][1] << "]" << std::endl;
+      int idx = i * 2;          // Calculate index in flat array
+      actions[idx] = noop_idx;  // Use Noop action or action 2
+      actions[idx + 1] = 0;     // No argument
+      std::cout << " Agent " << i << " action: [" << actions[idx] << ", " << actions[idx + 1] << "]" << std::endl;
     }
     std::cout << "Actions array created." << std::endl;
 
@@ -132,9 +134,6 @@ TEST(StepTest, BasicStep) {
 
     // Clean up
     std::cout << "Cleaning up..." << std::endl;
-    for (int i = 0; i < num_agents; i++) {
-      delete[] actions[i];
-    }
     delete[] actions;
 
     delete[] observations;

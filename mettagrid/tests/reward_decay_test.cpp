@@ -9,6 +9,7 @@
 #include "objects/agent.hpp"
 #include "stats_tracker.hpp"
 #include "test_utils.hpp"
+#include "types.hpp"
 
 class RewardDecayTest : public ::testing::Test {
 protected:
@@ -22,7 +23,7 @@ protected:
 
   // Grid and action pointers
   std::unique_ptr<CppMettaGrid> mettagrid;
-  int32_t** actions = nullptr;
+  ActionsType* actions = nullptr;
 
   // Grid buffers management
   test_utils::GridBuffers* buffers = nullptr;
@@ -44,7 +45,7 @@ protected:
   void TearDown() override {
     // Clean up actions array
     if (actions) {
-      test_utils::delete_action_array(actions, kNumAgents);
+      test_utils::delete_action_array(actions);
       actions = nullptr;
     }
 

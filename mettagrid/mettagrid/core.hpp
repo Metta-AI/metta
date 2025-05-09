@@ -139,16 +139,18 @@ public:
   void initialize_from_json(const std::string& map_json, const std::string& config_json);
 
   // Core game loop methods
-  void step(int32_t** actions);
+  void step(ActionsType* flat_actions);
   void reset();
 
   // Observation methods
+  void compute_observations(ActionsType* flat_actions);
+
   void compute_observation(uint16_t observer_r,
                            uint16_t observer_c,
                            uint16_t obs_width,
                            uint16_t obs_height,
                            ObsType* observation);
-  void compute_observations(int32_t** actions);
+
   void observe(GridObjectId observer_id, uint16_t obs_width, uint16_t obs_height, ObsType* observation);
   void observe_at(uint16_t row,
                   uint16_t col,

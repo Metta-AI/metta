@@ -7,6 +7,7 @@
 
 #include "core.hpp"
 #include "grid.hpp"
+#include "types.hpp"
 
 // Test class for examining test_utils functions
 class TestUtilsTest : public ::testing::Test {
@@ -34,21 +35,25 @@ TEST_F(TestUtilsTest, CreateGrid) {
   std::cout << "Grid test passed." << std::endl;
 }
 
-// Test creating action array
 TEST_F(TestUtilsTest, CreateActionArray) {
   std::cout << "Creating action array..." << std::endl;
   uint32_t num_agents = 2;
-  int32_t** actions = test_utils::create_action_array(num_agents);
+  ActionsType* actions = test_utils::create_action_array(num_agents);
   std::cout << "Action array created." << std::endl;
 
   ASSERT_NE(actions, nullptr) << "Actions array should not be null";
 
-  // Test action values
-  EXPECT_EQ(actions[0][0], ActionType::Noop) << "Default action type should be Noop";
-  EXPECT_EQ(actions[0][1], 0) << "Noop action arg should be 0";
+  // Test action values - updated for flat array access
+  // First agent's action (idx 0)
+  EXPECT_EQ(actions[0], ActionType::Noop) << "Default action type should be Noop";
+  EXPECT_EQ(actions[1], 0) << "Noop action arg should be 0";
 
-  // Clean up
-  test_utils::delete_action_array(actions, num_agents);
+  // Second agent's action (idx 2)
+  EXPECT_EQ(actions[2], ActionType::Noop) << "Default action type should be Noop";
+  EXPECT_EQ(actions[3], 0) << "Noop action arg should be 0";
+
+  // Clean up - updated for flat array
+  test_utils::delete_action_array(actions);
   std::cout << "Action array test passed." << std::endl;
 }
 
@@ -146,19 +151,22 @@ TEST_F(TestUtilsTest, ManualBufferAllocation) {
     }
 
     if (can_step) {
-      int32_t** actions = test_utils::create_action_array(grid->num_agents(), action_idx, 0);
+      // Create a flat action array instead of an array of pointers
+      ActionsType* flat_actions = test_utils::create_action_array(grid->num_agents(), action_idx, 0);
 
       std::cout << "Stepping grid..." << std::endl;
-      grid->step(actions);
+      // Call step with the flat array
+      grid->step(flat_actions);
       std::cout << "Grid step complete." << std::endl;
 
       // Check if rewards were updated
       std::cout << "Checking rewards after step:" << std::endl;
       for (size_t i = 0; i < rewards_size; i++) {
-        std::cout << "  Reward " << i << ": " << rewards[i] << std::endl;
+        std::cout << " Reward " << i << ": " << rewards[i] << std::endl;
       }
 
-      test_utils::delete_action_array(actions, grid->num_agents());
+      // Clean up the flat array - no need for num_agents parameter
+      test_utils::delete_action_array(flat_actions);
     }
 
     // Clean up
@@ -259,13 +267,16 @@ TEST_F(TestUtilsTest, BufferHelpers) {
 
     if (can_step) {
       std::cout << "Creating actions..." << std::endl;
-      int32_t** actions = test_utils::create_action_array(grid->num_agents(), action_idx, 0);
+      // Create a flat action array
+      ActionsType* flat_actions = test_utils::create_action_array(grid->num_agents(), action_idx, 0);
+
       std::cout << "Stepping grid..." << std::endl;
-      grid->step(actions);
+      // Pass the flat array to step
+      grid->step(flat_actions);
       std::cout << "Grid step complete." << std::endl;
 
-      // Clean up actions
-      test_utils::delete_action_array(actions, grid->num_agents());
+      // Clean up with the simpler delete function
+      test_utils::delete_action_array(flat_actions);
     }
 
     // Clean up buffers regardless of whether step succeeded

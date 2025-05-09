@@ -92,6 +92,13 @@ python -c "from mettagrid.mettagrid_env import MettaGridEnv; print('✅ Found me
   exit 1
 }
 
+# Check for mettagrid.core.MettaGrid
+echo "Checking import for mettagrid.mettagrid_env.MettaGridEnv..."
+python -c "from mettagrid.core import MettaGrid; print('✅ Found mettagrid.core.MettaGrid')" || {
+  echo "❌ Failed to import mettagrid.core.MettaGrid"
+  exit 1
+}
+
 if [ -z "$CI" ] && [ -z "$IS_DOCKER" ]; then
   # ========== VS CODE INTEGRATION ==========
   echo "Setting up VSCode integration..."

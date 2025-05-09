@@ -10,6 +10,7 @@
 
 #include "core.hpp"
 #include "objects/agent.hpp"
+#include "types.hpp"
 
 namespace test_utils {
 
@@ -105,28 +106,32 @@ inline std::string create_test_config_json() {
   return config_json;
 }
 
-// Create a standard action array for testing
-inline int32_t** create_action_array(uint32_t num_agents,
-                                     uint32_t action_type = ActionType::Noop,
-                                     uint32_t action_arg = 0) {
-  int32_t** actions = new int32_t*[num_agents];
+// Create a standard flat action array for testing
+inline ActionsType* create_action_array(uint32_t num_agents,
+                                        uint32_t action_type = ActionType::Noop,
+                                        uint32_t action_arg = 0) {
+  // Allocate a flat array with 2 values per agent
+  ActionsType* flat_actions = new ActionsType[num_agents * 2];
+
   for (uint32_t i = 0; i < num_agents; ++i) {
-    actions[i] = new int32_t[2];
-    actions[i][0] = action_type;
+    // Calculate index in flat array: agent_idx * 2
+    uint32_t idx = i * 2;
+
+    // Set action type
+    flat_actions[idx] = action_type;
 
     // Ensure action_arg is within valid range
     uint8_t max_arg = (action_type < ActionMaxArgs.size()) ? ActionMaxArgs[action_type] : 0;
-    actions[i][1] = std::min(action_arg, static_cast<uint32_t>(max_arg));
+    flat_actions[idx + 1] = std::min(action_arg, static_cast<uint32_t>(max_arg));
   }
-  return actions;
+
+  return flat_actions;
 }
 
-// Clean up action array
-inline void delete_action_array(int32_t** actions, uint32_t num_agents) {
-  for (uint32_t i = 0; i < num_agents; ++i) {
-    delete[] actions[i];
-  }
-  delete[] actions;
+// Clean up flat action array
+inline void delete_action_array(ActionsType* flat_actions) {
+  // Simply delete the flat array
+  delete[] flat_actions;
 }
 
 // Create a standard MettaGrid for testing with default dimensions

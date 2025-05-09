@@ -4,6 +4,7 @@
 
 #include "core.hpp"
 #include "test_utils.hpp"
+#include "types.hpp"
 
 // Test fixture for MettaGrid initialization from test files
 class MettaGridTestDataTest : public ::testing::Test {
@@ -88,7 +89,7 @@ TEST_F(MettaGridTestDataTest, ObservationGeneration) {
   grid->reset();
 
   // Create dummy actions - just zeroes
-  int32_t** actions = test_utils::create_action_array(grid->num_agents());
+  ActionsType* actions = test_utils::create_action_array(grid->num_agents());
 
   // Step once to generate observations
   grid->step(actions);
@@ -108,7 +109,7 @@ TEST_F(MettaGridTestDataTest, ObservationGeneration) {
   EXPECT_TRUE(has_nonzero) << "Observations buffer should contain some non-zero values after step";
 
   // Clean up
-  test_utils::delete_action_array(actions, grid->num_agents());
+  test_utils::delete_action_array(actions);
 }
 
 // Test reward structure

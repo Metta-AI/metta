@@ -75,15 +75,18 @@ cdef extern from "core.hpp":
         void add_agent(Agent* agent)
         void initialize_from_json(const string& map_json, const string& config_json)
         void reset()
-        void step(int32_t** actions)
+        void step(ActionsType* flat_actions);
+        
         
         # Observation methods
+        void compute_observations(ActionsType* flat_actions);
+                
         void compute_observation(uint16_t observer_r, 
                                uint16_t observer_c,
                                uint16_t obs_width, 
                                uint16_t obs_height,
                                ObsType* observation)
-        void compute_observations(int32_t** actions)
+
         void observe(GridObjectId observer_id, 
                     uint16_t obs_width,
                     uint16_t obs_height, 
