@@ -7,6 +7,8 @@ if [ "$SKIP_BUILD" = "1" ]; then
     exit 0
 fi
 
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+
 # Exit immediately if a command exits with a non-zero status
 set -e
 
@@ -92,15 +94,11 @@ install_repo() {
 }
 
 
-SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
-
-# ========== Main Project ==========
 cd "$SCRIPT_DIR/.."
 
-# ========== METTAGRID ==========
 # Call the dedicated build_mettagrid.sh script instead of building directly
 echo "Building mettagrid using devops/build_mettagrid.sh"
-devops/build_mettagrid.sh
+bash "$SCRIPT_DIR/build_mettagrid.sh"
 
 # Create and enter deps directory for all external dependencies
 echo "Creating deps directory..."

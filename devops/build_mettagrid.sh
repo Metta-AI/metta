@@ -5,6 +5,8 @@
 # Exit immediately if a command exits with a non-zero status
 set -e
 
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+
 # Parse command line arguments
 CLEAN=0
 for arg in "$@"; do
@@ -22,9 +24,6 @@ if [ "$CLEAN" -eq 1 ]; then
 else
     echo "========== Rebuilding mettagrid =========="
 fi
-
-# Get the directory where this script is located
-SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 
 # Go to the project root directory 
 cd "$SCRIPT_DIR/.."
