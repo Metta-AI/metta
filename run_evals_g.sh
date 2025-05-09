@@ -44,11 +44,11 @@ for i in "${!POLICIES[@]}"; do
 
 
     python3 -m tools.sim \
-        sim=multiagent \
-        run=multiagent$IDX \
+        sim=navigation \
+        run=navigation$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         +eval_db_uri=$DB \
 
-python3 -m tools.dashboard +eval_db_uri=$DB run=multiagentrugeorge2 ++dashboard.output_path=s3://softmax-public/policydash/navigation_sharing.html \
+python3 -m tools.dashboard +eval_db_uri=wandb://stats/navigation_sharing_db run=run_nav_sharing ++dashboard.output_path=s3://softmax-public/policydash/nav_sharing.html \
 
 done
