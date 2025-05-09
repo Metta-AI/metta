@@ -195,7 +195,7 @@ class CustomEncoder(json.JSONEncoder):
                 try:
                     json.dumps(obj)
                     return obj
-                except:
+                except TypeError:
                     return str(obj)
         except Exception as e:
             return f"<{type(obj).__name__}: {str(e)}>"

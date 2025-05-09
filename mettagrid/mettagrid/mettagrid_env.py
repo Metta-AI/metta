@@ -7,10 +7,10 @@ import numpy as np
 import pufferlib
 from omegaconf import DictConfig, OmegaConf
 
-from metta.util.debug import save_mettagrid_args
 from mettagrid.config.utils import simple_instantiate
 from mettagrid.core import MettaGrid
 from mettagrid.resolvers import register_resolvers
+from mettagrid.util.debug import save_mettagrid_args
 
 
 class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
