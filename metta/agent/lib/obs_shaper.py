@@ -5,6 +5,7 @@ from metta.agent.lib.metta_layer import LayerBase
 
 class ObsShaper(LayerBase):
     def __init__(self, obs_shape, num_objects, **cfg):
+        # Note that __init__ is NOT called when we reload a policy from a checkpoint file
         super().__init__(**cfg)
         self._obs_shape = list(obs_shape)  # make sure no Omegaconf types are used in forward passes
         self._out_tensor_shape = [self._obs_shape[2], self._obs_shape[0], self._obs_shape[1]]
@@ -16,14 +17,29 @@ class ObsShaper(LayerBase):
         x_shape, space_shape = x.shape, self._obs_shape
         x_n, space_n = len(x_shape), len(space_shape)
         if tuple(x_shape[-space_n:]) != tuple(space_shape):
-            raise ValueError("Invalid input tensor shape", x.shape)
+            expected_shape = f"[B(, T), {', '.join(str(dim) for dim in space_shape)}]"
+            actual_shape = f"{list(x_shape)}"
+            raise ValueError(
+                f"Shape mismatch error:\n"
+                f"x.shape: {x.shape}\n"
+                f"self._obs_shape: {self._obs_shape}\n"
+                f"Expected tensor with shape {expected_shape}\n"
+                f"Got tensor with shape {actual_shape}\n"
+                f"The last {space_n} dimensions should match {tuple(space_shape)}"
+            )
 
+        # Validate overall tensor dimensionality with improved error message
         if x_n == space_n + 1:
             B, TT = x_shape[0], 1
         elif x_n == space_n + 2:
             B, TT = x_shape[:2]
         else:
-            raise ValueError("Invalid input tensor shape", x.shape)
+            raise ValueError(
+                f"Invalid input tensor dimensionality:\n"
+                f"Expected tensor with {space_n + 1} or {space_n + 2} dimensions\n"
+                f"Got tensor with {x_n} dimensions: {list(x_shape)}\n"
+                f"Expected format: [batch_size(, time_steps), {', '.join(str(dim) for dim in space_shape)}]"
+            )
 
         x = x.reshape(B * TT, *space_shape)
         x = x.float()
