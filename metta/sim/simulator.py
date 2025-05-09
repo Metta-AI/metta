@@ -5,7 +5,7 @@ import torch
 
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord
-from metta.sim.simulation_config import SimulationConfig
+from metta.sim.simulation_config import SingleEnvSimulationConfig
 from metta.sim.vecenv import make_vecenv
 from metta.util.config import config_from_path
 from mettagrid.renderer.raylib.raylib_renderer import MettaGridRaylibRenderer
@@ -17,7 +17,7 @@ logger = logging.getLogger("metta.sim.simulator")
 class Simulator:
     """Simulate a policy for playing or tracing the environment"""
 
-    def __init__(self, config: SimulationConfig, policy_record: PolicyRecord, num_steps: int = 500):
+    def __init__(self, config: SingleEnvSimulationConfig, policy_record: PolicyRecord, num_steps: int = 500):
         """Initialize the simulator"""
         self.config = config
         self.device = config.device
@@ -63,7 +63,7 @@ class Simulator:
 
 
 # TODO: Merge with Simulation
-def play(config: SimulationConfig, policy_record: PolicyRecord):
+def play(config: SingleEnvSimulationConfig, policy_record: PolicyRecord):
     device = config.device
     env_cfg = config_from_path(config.env, config.env_overrides)
     vecenv = make_vecenv(env_cfg, config.vectorization, num_envs=1, render_mode="human")
