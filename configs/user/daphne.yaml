@@ -31,7 +31,7 @@ policy_uri: wandb://run/b.daphne.multiagent_nc1
 # eval_db_uri: wandb://artifacts/test
 # npc_policy_uri: ${trained_policy_uri}
 
-eval_db_uri: wandb://artifacts/multiagent_teams_db
+eval_db_uri: wandb://stats/teams_test
 
 analyzer:
   policy_uri: ${..policy_uri}

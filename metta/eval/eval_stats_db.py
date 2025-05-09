@@ -63,6 +63,35 @@ EVAL_DB_VIEWS: Dict[str, str] = {
         JOIN episodes   e ON e.id = am.episode_id
         JOIN simulations s ON s.id = e.simulation_id
     """,
+    # "group_metrics": """
+    # CREATE VIEW IF NOT EXISTS group_metrics AS
+    #   SELECT
+    #       am.episode_id,
+    #       ag.group_id,
+    #       am.metric,
+    #       SUM(am.value) AS value
+    #   FROM agent_metrics am
+    #   JOIN agent_groups ag
+    #       ON ag.episode_id = am.episode_id
+    #       AND ag.agent_id   = am.agent_id
+    #   GROUP BY am.episode_id, ag.group_id, am.metric
+    # ;
+    # """,
+    "simulation_group_metrics": """
+    CREATE VIEW IF NOT EXISTS simulation_group_metrics AS
+      SELECT
+          s.policy_key,
+          s.policy_version,
+          s.suite  AS sim_suite,
+          s.name   AS sim_name,
+          s.env    AS sim_env,
+          gm.group_id,
+          gm.metric,
+          gm.value
+        FROM group_metrics gm
+        JOIN episodes   e ON e.id = gm.episode_id
+        JOIN simulations s ON s.id = e.simulation_id
+    """,
 }
 
 

@@ -410,11 +410,6 @@ cdef class MettaGrid:
 
         for i in range(self._agents.size()):
             self._agents[i].init(&self._rewards[i])
-<<<<<<< HEAD
-
-=======
-    
->>>>>>> 79b1ec2c6339cd79b843d7c5422c00fe8538d841
     cpdef grid_objects(self):
         cdef GridObject *obj
         cdef ObsType[:] obj_data = np.zeros(len(self.grid_features()), dtype=np.uint8)
