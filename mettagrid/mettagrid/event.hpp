@@ -4,7 +4,6 @@
 #include <cassert>
 #include <queue>
 #include <vector>
-#include <iostream>
 using namespace std;
 
 #include "grid.hpp"
@@ -80,30 +79,16 @@ public:
   }
 
   void process_events(unsigned int current_timestep) {
-    cout << "processing events" << endl;
     this->_current_timestep = current_timestep;
     Event event;
     while (!this->_event_queue.empty()) {
-      cout << "processing events: " << this->_event_queue.size() << endl;
       event = this->_event_queue.top();
-      cout << "processing events: " << event.timestamp << " " << this->_current_timestep << endl;
       if (event.timestamp > this->_current_timestep) {
-        cout << "processing events: breaking" << endl;
         break;
       }
-      cout << "processing events: popping" << endl;
       this->_event_queue.pop();
-      cout << "processing events: handling" << endl;
-      cout << "event id: " << event.event_id << endl;
-      cout << "event handlers size: " << this->event_handlers.size() << endl;
-      auto handler = this->event_handlers[event.event_id];
-      cout << "processing events: handling: " << handler << endl;
-      cout << "object id: " << event.object_id << endl;
-      cout << "arg: " << event.arg << endl;
-      handler->handle_event(event.object_id, event.arg);
-      cout << "processing events: done" << endl;
+      this->event_handlers[event.event_id]->handle_event(event.object_id, event.arg);
     }
-    cout << "done processing events" << endl;
   }
 };
 

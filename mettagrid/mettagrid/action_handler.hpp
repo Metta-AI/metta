@@ -39,8 +39,6 @@ public:
     }
   }
 
-  virtual ~ActionHandler() {}
-
   void init(Grid* grid) {
     this->_grid = grid;
   }
@@ -49,41 +47,26 @@ public:
                      GridObjectId actor_object_id,
                      ActionArg arg,
                      unsigned int current_timestep) {
-    cout << "handle_action" << endl;
-    cout << "actor_id: " << actor_id << endl;
-    cout << "actor_object_id: " << actor_object_id << endl;
-    cout << "arg: " << arg << endl;
-    cout << "current_timestep: " << current_timestep << endl;
-    cout << "grid: " << _grid << endl;
     Agent* actor = static_cast<Agent*>(_grid->object(actor_object_id));
-    cout << "actor: " << actor << endl;
 
     if (actor->frozen > 0) {
-      cout << "actor is frozen" << endl;
       actor->stats.incr("status.frozen.ticks");
       actor->stats.incr("status.frozen.ticks", actor->group_name);
       actor->frozen -= 1;
       return false;
     }
 
-    cout << "handle_action: calling _handle_action" << endl;
     bool result = _handle_action(actor_id, actor, arg);
-    cout << "handle_action: _handle_action returned " << result << endl;
 
     if (result) {
-      cout << "handle_action: success" << endl;
       actor->stats.incr(_stats.success);
     } else {
-      cout << "handle_action: failure" << endl;
       actor->stats.incr(_stats.failure);
       actor->stats.incr("action.failure_penalty");
-      cout << "handle_action: actor->reward: " << actor->reward << endl;
       *actor->reward -= actor->action_failure_penalty;
-      cout << "handle_action: actor->reward: " << actor->reward << endl;
       actor->stats.set_once(_stats.first_use, current_timestep);
     }
 
-    cout << "handle_action: returning " << result << endl;
     return result;
   }
 

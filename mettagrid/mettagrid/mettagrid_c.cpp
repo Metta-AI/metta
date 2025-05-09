@@ -164,7 +164,6 @@ init_action_handlers(actions);
             std::wstring wide_string(map_data + idx * max_chars, max_chars);
             std::wstring_convert<std::codecvt_utf8<wchar_t>> w_string_converter;
             std::string cell = w_string_converter.to_bytes(wide_string);
-            cout << "cell: " << cell << endl;
             if (cell == "wall") {
                 Wall* wall = new Wall(r, c, cfg["objects"]["wall"].cast<ObjectConfig>());
                 _grid->add_object(wall);
@@ -226,15 +225,11 @@ init_action_handlers(actions);
             else if (cell.starts_with("agent.")) {
                 std::string group_name = cell.substr(6);
                 auto group = groups[py::str(group_name)].cast<py::dict>();
-                cout << "group: " << group << endl;
                 auto agent_cfg_py = cfg["agent"].cast<py::dict>();
-                cout << "agent_cfg_py: " << agent_cfg_py << endl;
                 if (agent_cfg_py.contains("rewards")) {
                     agent_cfg_py.attr("pop")("rewards");
                 }
-                cout << "agent_cfg_py: " << agent_cfg_py << endl;
                 auto agent_cfg = agent_cfg_py.cast<ObjectConfig>();
-                cout << "got agent_cfg" << endl;
                 // cout << "agent_cfg: " << agent_cfg << endl;
                 // xcxc something like this?
                 // auto merged_cfg = py::dict(agent_cfg) + group["props"].cast<py::dict>();
@@ -255,7 +250,6 @@ init_action_handlers(actions);
                 _group_sizes[group_id] += 1;
             }
             if (converter != nullptr) {
-                cout << "converter: " << converter << endl;
                 _stats->incr("objects." + cell);
                 _grid->add_object(converter);
                 converter->set_event_manager(_event_manager.get());
@@ -266,22 +260,15 @@ init_action_handlers(actions);
 }
 
 // xcxc be more explicit about what we need
+// xcxc see if we can use default destructor
 // MettaGrid::~MettaGrid() = default;
 MettaGrid::~MettaGrid() {
-    cout << "destroying MettaGrid" << endl;
-    cout << "grid" << endl;
     _grid = nullptr;
-    cout << "event_manager" << endl;
     _event_manager = nullptr;
-    cout << "stats" << endl;
     _stats = nullptr;
-    cout << "obs_encoder" << endl;
     _obs_encoder = nullptr;
-    cout << "action_handlers" << endl;
     _action_handlers.clear();
-    cout << "agents" << endl;
     _agents.clear();
-    cout << "done" << endl;
 }
 
 // Example implementation of some key methods
@@ -546,7 +533,6 @@ void MettaGrid::add_agent(Agent* agent) {
     // here, but it's not super clean.
     // xcxc on grid and here -- make be shared_ptr?
     _agents.push_back(agent);
-    cout << "added agent" << endl;
 }
 
 void MettaGrid::_compute_observation(
@@ -632,14 +618,11 @@ void MettaGrid::_step(py::array_t<int> actions) {
     // Reset rewards and observations
     auto rewards_view = _rewards.mutable_unchecked<1>();
     auto observations_view = _observations.mutable_unchecked<4>();
-    
-    cout << "resetting rewards and observations" << endl;
 
     for (py::ssize_t i = 0; i < rewards_view.shape(0); i++) {
         rewards_view(i) = 0;
     }
     
-    cout << "resetting observations" << endl;
     for (py::ssize_t i = 0; i < observations_view.shape(0); i++) {
         for (py::ssize_t j = 0; j < observations_view.shape(1); j++) {
             for (py::ssize_t k = 0; k < observations_view.shape(2); k++) {
@@ -650,23 +633,18 @@ void MettaGrid::_step(py::array_t<int> actions) {
         }
     }
 
-    cout << "resetting action success flags" << endl;
     // Clear action success flags
     for (size_t i = 0; i < _action_success.size(); i++) {
         _action_success[i] = false;
     }
 
-    cout << "incrementing timestep" << endl;
     // Increment timestep and process events
     _current_timestep++;
     _event_manager->process_events(_current_timestep);
     
-    cout << "processing actions by priority" << endl;
     // Process actions by priority
     for (unsigned char p = 0; p <= _max_action_priority; p++) {
-        cout << "processing actions by priority: " << (int)p << endl;
         for (size_t idx = 0; idx < _agents.size(); idx++) {
-            cout << "processing actions by priority: " << (int)p << " for agent " << idx << endl;
             int action = actions_view(idx, 0);
             if (action < 0 || action >= _num_action_handlers) {
                 printf("Invalid action: %d\n", action);
@@ -685,27 +663,10 @@ void MettaGrid::_step(py::array_t<int> actions) {
                 continue;
             }
 
-            cout << "handling action" << endl;
-            cout << "action: " << action << endl;
-            // action name
-            cout << "action name: " << _action_handlers[action]->action_name() << endl;
-            cout << "arg: " << arg << endl;
-            cout << "current timestep: " << _current_timestep << endl;
-            // is the agent null?
-            if (!agent) {
-                cout << "agent is null" << endl;
-            } else {
-                cout << "agent is not null" << endl;
-            }
-            cout << "agent id: " << agent->id << endl;
-            cout << "handler: " << handler << endl;
             _action_success[idx] = handler->handle_action(idx, agent->id, arg, _current_timestep);
-            cout << "finished handling action" << endl;
-            cout << "action success: " << _action_success[idx] << endl;
         }
     }
     
-    cout << "computing observations" << endl;
     // Compute observations for next step
     _compute_observations(actions);
     
@@ -715,7 +676,6 @@ void MettaGrid::_step(py::array_t<int> actions) {
         episode_rewards_view(i) += rewards_view(i);
     }
 
-    cout << "checking for truncation" << endl;
     // Check for truncation
     if (_max_timestep > 0 && _current_timestep >= _max_timestep) {
         auto truncations_view = _truncations.mutable_unchecked<1>();
@@ -723,8 +683,6 @@ void MettaGrid::_step(py::array_t<int> actions) {
             truncations_view(i) = 1;
         }
     }
-
-    cout << "done" << endl;
 }
 
 // Pybind11 module definition
