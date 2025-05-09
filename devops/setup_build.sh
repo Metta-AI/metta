@@ -7,18 +7,20 @@ set -e
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
-# ========== CLEAN BUILD ARTIFACTS ==========
-echo -e "\n\nCleaning build artifacts...\n\n"
-# Clean root directory artifacts
-find "$PROJECT_DIR" -type f -name '*.so' -delete
-find "$PROJECT_DIR" -type d -name 'build' -exec rm -rf {} +
-echo "✅ Cleaned root directory build artifacts"
+if [ -z "$CI" ]; then
+  # ========== CLEAN BUILD ARTIFACTS ==========
+  echo -e "\n\nCleaning build artifacts...\n\n"
+  # Clean root directory artifacts
+  find "$PROJECT_DIR" -type f -name '*.so' -delete
+  find "$PROJECT_DIR" -type d -name 'build' -exec rm -rf {} +
+  echo "✅ Cleaned root directory build artifacts"
 
-# Clean mettagrid artifacts if directory exists
-if [ -d "$PROJECT_DIR/mettagrid" ]; then
-  echo "Cleaning mettagrid build artifacts..."
-  find "$PROJECT_DIR/mettagrid" -name "*.so" -type f -delete
-  echo "✅ Removed .so files from mettagrid directory"
+  # Clean mettagrid artifacts if directory exists
+  if [ -d "$PROJECT_DIR/mettagrid" ]; then
+    echo "Cleaning mettagrid build artifacts..."
+    find "$PROJECT_DIR/mettagrid" -name "*.so" -type f -delete
+    echo "✅ Removed .so files from mettagrid directory"
+  fi
 fi
 
 if [ -f /.dockerenv ]; then

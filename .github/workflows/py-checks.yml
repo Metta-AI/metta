@@ -201,7 +201,7 @@ jobs:
         run: |
           python -m venv venv
           source venv/bin/activate
-          pip install -r requirements.txt
+          pip install -r requirements.txt -c requirements.txt
 
       - name: Install and compile deps (cache miss fallback)
         if: steps.setup-cache-py.outputs.cache-hit != 'true'
