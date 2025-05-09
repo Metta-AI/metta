@@ -480,31 +480,9 @@ void CppMettaGrid::initialize_from_json(const std::string& map_json, const std::
   // Set up action handlers from the config
   setup_action_handlers(cfg);
 
-  // Register all features by calling obs() on all objects
-  register_features();
-
   // Resize storage
-  size_t obs_size = _num_agents * _obs_width * _obs_height * _grid_features.size();
+  size_t obs_size = _num_agents * _obs_width * _obs_height * GridObject::get_observation_size();
   _observations.resize(obs_size, 0);
-}
-
-void CppMettaGrid::register_features() {
-  // Create a dummy observation buffer large enough for all possible features
-  std::vector<ObsType> dummy_obs(MAX_FEATURE_OFFSETS, 0);
-
-  // Call obs() on each object to register its features
-  for (size_t obj_id = 1; obj_id < _grid->objects.size(); obj_id++) {
-    GridObject* obj = _grid->object(obj_id);
-    if (obj == nullptr) continue;
-
-    // This will call encode() which calls register_feature() for each feature
-    obj->obs(dummy_obs.data());
-  }
-
-  // Now update _grid_features with the registered features
-  _grid_features = GridObject::get_feature_names();
-
-  // std::cout << "Registered " << _grid_features.size() << " features." << std::endl;
 }
 
 void CppMettaGrid::parse_grid_object(const std::string& object_type,

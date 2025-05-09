@@ -65,7 +65,7 @@ public:
     this->reward = reward;
   }
 
-  void update_inventory(InventoryItem item, int16_t amount) {
+  void update_inventory(InventoryItem item, int16_t amount) override {
     int32_t current_amount = this->inventory[static_cast<int32_t>(item)];
     int32_t new_amount = current_amount + amount;
     if (new_amount > this->max_items) {

@@ -21,10 +21,12 @@ public:
 
   virtual void obs(ObsType* obs) const override {
     MettaObject::obs(obs);
-
     // wall-specific features
-    encode(obs, "wall", 1);
-    encode(obs, "swappable", this->_swappable);
+    encode(obs, GridFeature::WALL, 1);
+    encode(obs, GridFeature::SWAPPABLE, this->_swappable);
+
+    // Also set the object type feature
+    encode(obs, GridFeature::WALL_TYPE, 1);
   }
 
   virtual bool swappable() const override {
