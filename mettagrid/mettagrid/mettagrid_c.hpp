@@ -106,7 +106,7 @@ private:
         unsigned int observer_c,
         unsigned short obs_width,
         unsigned short obs_height,
-        py::array_t<unsigned char> observation
+        size_t agent_idx
     );
     void _compute_observations(py::array_t<int> actions);
     void _step(py::array_t<int> actions);
