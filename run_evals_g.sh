@@ -45,8 +45,8 @@ for i in "${!POLICIES[@]}"; do
         sim=navigation \
         run=navigation_sharing$IDX \
         policy_uri=wandb://run/$POLICY_URI \
-        +eval_db_uri=wandb://artifacts/navigation_db_sharing \
+        +eval_db_uri=wandb://stats/navigation_db_sharing \
 
-python3 -m tools.analyze +eval_db_uri=wandb://artifacts/navigation_db_sharing run=multiagentrugeorge ++analyzer.output_path=s3://softmax-public/policydash/navigation_sharing.html \
+python3 -m tools.dashboard +eval_db_uri=wandb://stats/navigation_db_sharing run=multiagentrugeorge ++analyzer.output_path=s3://softmax-public/policydash/navigation_sharing.html \
 
 done

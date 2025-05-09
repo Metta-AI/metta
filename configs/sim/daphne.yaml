@@ -4,10 +4,7 @@ defaults:
 
 name: daphne
 simulations:
-<<<<<<< HEAD
   choose_an_altar_team:
     env: env/mettagrid/multiagent/evals/be_polite
-=======
   multiagent:
     env: env/mettagrid/multiagent/training/reward_sharing/48_range/varied_terrain_all_sparse
->>>>>>> f728dfc79ab85c66c3a0c43424bf3956a4505d8f

@@ -82,7 +82,6 @@ simulations:
   multiagent/spine_maze_extended:
     env: env/mettagrid/multiagent/evals/spine_maze_extended
     policy_agents_pct: 1.0
-<<<<<<< HEAD
   multiagent/stealing:
     env: env/mettagrid/multiagent/evals/stealing
     policy_agents_pct: 1.0
@@ -95,10 +94,7 @@ simulations:
   multiagent/wallblocker:
     env: env/mettagrid/multiagent/evals/wallblocker
     policy_agents_pct: 1.0
-  simple_npc:
-=======
   npc/simple:
->>>>>>> 79b1ec2c6339cd79b843d7c5422c00fe8538d841
     env: env/mettagrid/simple
     policy_agents_pct: 0.5
     npc_policy_uri: wandb://run/b.alex.robust.npc.s.s.004

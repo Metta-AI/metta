@@ -30,10 +30,7 @@ policy_uri: wandb://run/daphne.navigation:v36
 # navigation_poisson_train_sampling5 breaks in infinite_cooldown, works great in poisson with short distance
 # navigation_poisson_train_sampling5
 # npc_policy_uri: ${trained_policy_uri}
-<<<<<<< HEAD
-eval_db_uri: wandb://artifacts/rewardsharing_db
-=======
->>>>>>> 79b1ec2c6339cd79b843d7c5422c00fe8538d841
+eval_db_uri: wandb://stats/rewardsharing_db
 
 dashboard:
   output_path: evalresults/memory_db.html
@@ -43,16 +40,9 @@ dashboard:
 #   num_episodes: 2
 #   max_time_s: 600
 
-<<<<<<< HEAD
-#   # policy_uri: ${..policy_uri}
-#   # npc_policy_uri: ${..npc_policy_uri}
-#   # eval_db_uri: ${..eval_db_uri} #file://daphne/sweep_stats
-#   env: /env/mettagrid/navigation/training/empty_world
-=======
   # policy_uri: ${..policy_uri}
   # npc_policy_uri: ${..npc_policy_uri}
   env: /env/mettagrid/navigation/training/empty_world
->>>>>>> 79b1ec2c6339cd79b843d7c5422c00fe8538d841
 
 
 run_id: 104
