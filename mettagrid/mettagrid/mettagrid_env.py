@@ -11,6 +11,7 @@ import gymnasium as gym
 import numpy as np
 import pufferlib
 from omegaconf import DictConfig, OmegaConf
+from pufferlib.utils import unroll_nested_dict
 
 from mettagrid.config.utils import simple_instantiate
 from mettagrid.core import MettaGrid
@@ -50,7 +51,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._reset_env()
         self._stats_writer = stats_writer
         self._replay_writer = replay_writer
-        self._episode_id = None
+        self._episode_id: str = ""
         self._reset_at = datetime.datetime.now()
         self._current_seed = 0
 
@@ -231,12 +232,12 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         replay_url = None
         if self._replay_writer:
-            assert self._episode_id is not None
+            assert self._episode_id != ""
             replay_url = self._replay_writer.write_replay(self._episode_id)
         infos["replay_url"] = replay_url
 
         if self._stats_writer:
-            assert self._episode_id is not None
+            assert self._episode_id != ""
 
             attributes = {
                 "seed": self._current_seed,
@@ -244,8 +245,8 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                 "map_h": self.map_height,
             }
 
-            for k, v in pufferlib.utils.unroll_nested_dict(OmegaConf.to_container(self._env_cfg, resolve=False)):
-                attributes[f"config.{k.replace('/', '.')}"] = str(v)
+            for k, v in unroll_nested_dict(OmegaConf.to_container(self._env_cfg, resolve=False)):
+                attributes[f"config.{str(k).replace('/', '.')}"] = str(v)
 
             agent_metrics = {}
             for agent_idx, agent_stats in enumerate(stats["agent"]):
@@ -267,7 +268,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                 replay_url,
                 self._reset_at,
             )
-        self._episode_id = None
+        self._episode_id = ""
 
     def close(self):
         pass
