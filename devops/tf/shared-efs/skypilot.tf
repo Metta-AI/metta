@@ -240,6 +240,7 @@ resource "aws_ecs_task_definition" "skypilot_api_server" {
 
         # except for tmp which skypilot uses for its own mounts
         mkdir -p /tmp/sky-tmp
+        rm -rf /root/.sky/tmp
         ln -s /tmp/sky-tmp /root/.sky/tmp
 
         # start the api server
