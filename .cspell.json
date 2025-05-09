@@ -1,4 +1,4 @@
-{
+{ 
   "version": "0.2",
   "language": "en",
   "words": [
@@ -19,6 +19,7 @@
     "chrono",
     "cimport",
     "cinit",
+    "cleanrl",
     "clocale",
     "cmath",
     "coef",
@@ -82,6 +83,7 @@
     "nthreads",
     "numpy",
     "nvec",
+    "omegaconf",
     "pettingzoo",
     "policydash",
     "pufferlib",
@@ -99,6 +101,7 @@
     "setuptools",
     "softmaxed",
     "sstream",
+    "startswith",
     "staticmethod",
     "stdexcept",
     "stdlib",
