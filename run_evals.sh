@@ -2,7 +2,7 @@
 
 # Define the list of policy URIs
 POLICIES=(
-    "b.daphne.object_use_training_colors"
+    "daphne.object_use_training_colors"
     "b.daphne.object_use_training_colors2"
     "b.daphne.object_use_training_colors_pretrained2"
     "b.daphne.object_use_training_no_colors3"
