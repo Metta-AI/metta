@@ -170,30 +170,15 @@ class MettaAgent(nn.Module):
         return self._total_params
 
     def forward(self, x, state: PolicyState, action=None):
-        """
-        Forward pass of the MettaAgent.
+        td = TensorDict(
+            {
+                "x": x,
+                "state": None,
+            }
+        )
 
-        Args:
-            x: Input observation tensor
-            state: Policy state containing LSTM hidden and cell states
-            action: Optional action tensor
-
-        Returns:
-            Tuple of (action, logprob_act, entropy, value, log_sftmx_logits)
-        """
-        # Initialize dictionary for TensorDict
-        td = {"x": x, "state": None}
-
-        # Safely handle LSTM state
-        if state.lstm_h is not None and state.lstm_c is not None:
-            # Ensure states are on the same device as input
-            lstm_h = state.lstm_h.to(x.device)
-            lstm_c = state.lstm_c.to(x.device)
-
-            # Concatenate LSTM states along dimension 0
-            td["state"] = torch.cat([lstm_h, lstm_c], dim=0)
-
-        # Forward pass through value network
+        if state.lstm_h is not None:
+            td["state"] = torch.cat([state.lstm_h, state.lstm_c], dim=0).to(x.device)
         self.components["_value_"](td)
         value = td["_value_"]
 

@@ -4,11 +4,14 @@ seed: null
 
 defaults:
   # - override /env/mettagrid@env: simple
-  # - override /agent: non_robust_puffer
+  - override /agent: robust_obs
   - _self_
 
 policy_uri: puffer:///tmp/puffer_metta.pt
 npc_policy_uri: null
+
+trainer:
+  eval_interval: 0
 
 env_overrides:
   game:
@@ -35,7 +38,7 @@ wandb:
   track: true
   checkpoint_interval: 1
 
-run_id: 505
+run_id: 536
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 sweep_name: "${oc.env:USER}.local.sweep.${run_id}"
