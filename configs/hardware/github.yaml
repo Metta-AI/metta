@@ -25,5 +25,6 @@ trainer:
     game:
       # This impacts the replay size.
       max_steps: 2
-  # Don't actually try to upload the replay.
-  replay_dry_run: true
+
+sim:
+  replay_dir: ${run_dir}/replay_dir

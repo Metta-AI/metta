@@ -11,17 +11,11 @@ class SimulationConfig(Config):
     """Configuration for a single simulation run."""
 
     # Core simulation config
-    device: str
-    num_envs: int
     num_episodes: int
+    max_time_s: int = 120
 
     npc_policy_uri: Optional[str] = None
-    env_overrides: Optional[dict] = None
     policy_agents_pct: float = 1.0
-    max_time_s: int = 120
-    vectorization: str = "serial"
-    eval_db_uri: Optional[str] = None
-    run_dir: str
 
 
 class SingleEnvSimulationConfig(SimulationConfig):
@@ -35,7 +29,7 @@ class SimulationSuiteConfig(SimulationConfig):
     """A suite of named simulations, with suite-level defaults injected."""
 
     name: str
-    simulations: Dict[str, SimulationConfig]
+    simulations: Dict[str, SingleEnvSimulationConfig]
 
     @model_validator(mode="before")
     @classmethod

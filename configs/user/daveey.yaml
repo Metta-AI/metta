@@ -1,7 +1,7 @@
 # @package __global__
 
 defaults:
-  - override /sim: simple
+  - /sim/all@sim_job.simulation_suite
   - _self_
 
 trainer:
@@ -15,21 +15,11 @@ trainer:
       num_agents: 36
       max_steps: 1000
 
-# policy: wandb://run/b.daveey.train.maze.sm.dr.warm.0
-# baselines: wandb://run/b.daveey.train.maze.sm.11x11.0
-
-# policy_uri: wandb://run/b.daveey.t.1.bl
-# policy_uri: wandb://run/b.daveey.t.16.dr0
-
-# policy_uri: wandb://run/b.daveey.dr9.muon.latest
-# policy_uri: wandb://run/b.daveey.t.1.lra.dr.muon
 # policy_uri: puffer:///tmp/puffer_metta.pt
 policy_uri: wandb://run/daveey.dist.2x4
 # policy_uri: puffer://./train_dir/puffer/puffer_metta.pt
 
 npc_policy_uri: ${policy_uri}
-# npc_policy_uri: wandb://run/b.daveey.t.16.dr0
-# policy_uri: ${trained_policy_uri}
 # npc_policy_uri: ${trained_policy_uri}
 
 eval_db_uri: ${run_dir}/eval_stats
@@ -43,12 +33,16 @@ analyzer:
       - metric: "heart.get"
 
 replay_job:
+  policy_uri: ${policy_uri}
   sim:
     env: /env/mettagrid/terrain_from_numpy
     env_overrides:
       game:
         max_steps: 10
 
+sim_job:
+  policy_uris:
+    - ${policy_uri}
   # policy_agents_pct: 1
 
   # env: /env/mettagrid/reward_dr

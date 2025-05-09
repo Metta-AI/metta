@@ -191,11 +191,8 @@ class PufferTrainer:
 
         self.replay_sim_config = SingleEnvSimulationConfig(
             env=self.trainer_cfg.env,
-            num_envs=1,
             num_episodes=1,
             env_overrides=self.trainer_cfg.env_overrides,
-            device=self.device,
-            vectorization=self.cfg.vectorization,
         )
 
         logger.info(f"PufferTrainer initialization complete on device: {self.device}")
@@ -278,6 +275,8 @@ class PufferTrainer:
             config=self.sim_suite_config,
             policy_pr=self.last_pr,
             policy_store=self.policy_store,
+            device=self.device,
+            vectorization=self.cfg.vectorization,
             stats_dir=Path(self.cfg.run_dir) / "stats",
         )
         result = sim.simulate()
@@ -616,22 +615,19 @@ class PufferTrainer:
     def _generate_and_upload_replay(self):
         if self._master:
             logger.info("Generating and saving a replay to wandb and S3.")
-            dry_run = self.trainer_cfg.get("replay_dry_run", False)
             replay_dir = f"s3://softmax-public/replays/{self.cfg.run}"
-            if dry_run:
-                logger.info(f"Dry run: Would write replay to {replay_dir}")
-                replay_dir = None
-            name = f"replay_{self.epoch}"
             replay_simulator = Simulation(
-                name=name,
+                name=f"replay_{self.epoch}",
                 config=self.replay_sim_config,
                 policy_pr=self.last_pr,
                 policy_store=self.policy_store,
+                device=self.device,
+                vectorization=self.cfg.vectorization,
                 replay_dir=replay_dir,
             )
             results = replay_simulator.simulate()
 
-            if self.wandb_run is not None and not dry_run:
+            if self.wandb_run is not None:
                 replay_url = results.stats_db.get_replay_urls(
                     policy_key=self.last_pr.key(), policy_version=self.last_pr.version()
                 )[0]

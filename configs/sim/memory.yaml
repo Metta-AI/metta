@@ -1,5 +1,5 @@
 defaults:
-  - sim
+  - sim_suite
   - _self_
 
 name: memory
@@ -7,10 +7,7 @@ name: memory
 simulations:
   memory/easy:
     env: env/mettagrid/memory/evals/easy
-    policy_agents_pct: 1.0
   memory/medium:
     env: env/mettagrid/memory/evals/medium
-    policy_agents_pct: 1.0
   memory/hard:
     env: env/mettagrid/memory/evals/hard
-    policy_agents_pct: 1.0
