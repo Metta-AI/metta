@@ -182,7 +182,7 @@ jobs:
         if: steps.build-cache-cpp.outputs.cache-hit != 'true'
         run: |
           cd mettagrid
-          make build
+          make build-for-ci
 
   lint:
     name: "Lint"
