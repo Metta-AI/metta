@@ -5,7 +5,7 @@ import { ui, state, ctx, setFollowSelection } from './common.js';
 import { getAttr } from './replay.js';
 import { PanelInfo } from './panels.js';
 import { onFrame } from './main.js';
-import { parseHtmlColor } from './context3d.js';
+import { parseHtmlColor } from './htmlutils.js';
 // Flag to prevent multiple calls to requestAnimationFrame
 let frameRequested = false;
 
@@ -48,16 +48,15 @@ export function focusFullMap(panel: PanelInfo) {
   }
   const width = state.replay.map_size[0] * Common.TILE_SIZE;
   const height = state.replay.map_size[1] * Common.TILE_SIZE;
-  panel.focusPos(width / 2, height / 2);
-  panel.zoomLevel = Math.min(panel.width / width, panel.height / height);
+  panel.focusPos(width / 2, height / 2, Math.min(panel.width / width, panel.height / height));
 }
 
 // Draw the the floor.
 function drawFloor() {
   const floorColor = parseHtmlColor("#CFA970");
   ctx.drawSolidRect(
-    0,
-    0,
+    -Common.TILE_SIZE / 2,
+    -Common.TILE_SIZE / 2,
     state.replay.map_size[0] * Common.TILE_SIZE,
     state.replay.map_size[1] * Common.TILE_SIZE,
     floorColor
@@ -526,34 +525,50 @@ export function drawMap(panel: PanelInfo) {
     return;
   }
 
-  if (ui.mouseClick &&
+  // Handle mouse events for the map panel.
+  if (
     ui.mapPanel.inside(ui.mousePos) &&
     !ui.miniMapPanel.inside(ui.mousePos) &&
-    !ui.tracePanel.inside(ui.mousePos)
+    !ui.tracePanel.inside(ui.mousePos) &&
+    !ui.infoPanel.inside(ui.mousePos)
   ) {
-    const localMousePos = panel.transformPoint(ui.mousePos);
-    // Reset the follow flags.
-    setFollowSelection(false, false);
-
-    if (localMousePos != null) {
-      const gridMousePos = new Vec2f(
-        Math.round(localMousePos.x() / Common.TILE_SIZE),
-        Math.round(localMousePos.y() / Common.TILE_SIZE)
-      );
-      const gridObject = state.replay.grid_objects.find((obj: any) => {
-        const x: number = getAttr(obj, "c");
-        const y: number = getAttr(obj, "r");
-        return x === gridMousePos.x() && y === gridMousePos.y();
-      });
-      if (gridObject !== undefined) {
-        state.selectedGridObject = gridObject;
-        console.log("selectedGridObject on map:", state.selectedGridObject);
-
-        if (ui.mouseDoubleClick) {
-          // Toggle followSelection on double-click
-          setFollowSelection(true, true);
-          panel.zoomLevel = 1 / 2;
-          ui.tracePanel.zoomLevel = 1;
+    if (ui.mouseDoubleClick) {
+      // Toggle followSelection on double-click
+      console.log("Map double click - following selection");
+      setFollowSelection(true);
+      panel.zoomLevel = Common.DEFAULT_ZOOM_LEVEL;
+      ui.tracePanel.zoomLevel = Common.DEFAULT_TRACE_ZOOM_LEVEL;
+    } else if (ui.mouseClick) {
+      // Map click - likely a drag/pan
+      console.log("Map click - clearing follow selection");
+      setFollowSelection(false);
+    } else if (ui.mouseUp &&
+      ui.mouseDownPos.sub(ui.mousePos).length() < 10
+    ) {
+      // Check if we are clicking on an object.
+      console.log("Map up without dragging - selecting object");
+      const localMousePos = panel.transformPoint(ui.mousePos);
+      if (localMousePos != null) {
+        const gridMousePos = new Vec2f(
+          Math.round(localMousePos.x() / Common.TILE_SIZE),
+          Math.round(localMousePos.y() / Common.TILE_SIZE)
+        );
+        const gridObject = state.replay.grid_objects.find((obj: any) => {
+          const x: number = getAttr(obj, "c");
+          const y: number = getAttr(obj, "r");
+          return x === gridMousePos.x() && y === gridMousePos.y();
+        });
+        if (gridObject !== undefined) {
+          state.selectedGridObject = gridObject;
+          console.log("Selected object on the map:", state.selectedGridObject);
+          if (state.selectedGridObject.agent_id !== undefined) {
+            // If selecting an agent, focus the trace panel on the agent.
+            ui.tracePanel.focusPos(
+              state.step * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
+              getAttr(state.selectedGridObject, "agent_id") * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT / 2,
+              Common.DEFAULT_TRACE_ZOOM_LEVEL
+            );
+          }
         }
       }
     }
