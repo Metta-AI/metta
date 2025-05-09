@@ -802,9 +802,9 @@ std::string CppMettaGrid::get_grid_objects_json() const {
       }
 
       if (!is_valid) {
-        std::cerr << "Warning: Invalid value " << static_cast<int>(feature_value) << " for feature '" << feature_name
-                  << "'"
-                  << " on object ID " << obj_id << " of type " << obj_json["type_name"].get<std::string>() << std::endl;
+        std::cerr << "Warning: Invalid value " << static_cast<int>(feature_value) << " for (" << feature_name
+                  << ") on object [" << obj_id << "] of type =" << obj_json["type_name"].get<std::string>()
+                  << std::endl;
         continue;
       }
 
