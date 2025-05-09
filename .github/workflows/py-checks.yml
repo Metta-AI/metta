@@ -1,4 +1,4 @@
-name: "Python" 
+name: "Python"
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'merge_group' && github.event.merge_group.head_ref || github.ref }}
   cancel-in-progress: true
@@ -337,7 +337,7 @@ jobs:
       - name: Check deps
         run: |
           source venv/bin/activate
-          
+
           for dep in \
             "pufferlib" \
             "carbs" \

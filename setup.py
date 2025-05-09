@@ -40,7 +40,7 @@ setup(
             "overflowcheck": debug,
             "overflowcheck.fold": debug,
             "linetrace": debug,
-            "c_string_encoding": "utf8",
+            "c_string_encoding": "utf-8",
             "c_string_type": "str",
         },
         annotate=debug or annotate,
