@@ -18,8 +18,8 @@ for i in "${!POLICIES[@]}"; do
         sim=object_use \
         run=objectuse$IDX \
         policy_uri=wandb://run/$POLICY_URI \
-        +eval_db_uri=wandb://artifacts/object_use_db_2 \
+        +eval_db_uri=wandb://stats/object_use \
 
-python3 -m tools.analyze +eval_db_uri=wandb://artifacts/object_use_db_2 run=objectuseanalyze ++analyzer.output_path=s3://softmax-public/policydash/objectuse_2.html \
+python3 -m tools.dashboard +eval_db_uri=wandb://stats/object_use run=objectuseanalyzed ++dashboard.output_path=s3://softmax-public/policydash/objectuse.html \
 
 done
