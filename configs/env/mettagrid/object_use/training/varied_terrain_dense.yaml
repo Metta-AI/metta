@@ -20,9 +20,9 @@ game:
       style: sparse-altars-dense-objects # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
       objects:
         altar: ${sampling:1,10,1}
-        generator.red: ${sampling:1,10,1}
-        mine.red: ${sampling:1,10,1}
-        generator.blue: ${sampling:1,10,1}
-        mine.blue: ${sampling:1,10,1}
-        generator.green: ${sampling:1,10,1}
-        mine.green: ${sampling:1,10,1}
+        generator.red: ${sampling:1,5,1}
+        mine.red: ${sampling:1,5,1}
+        generator.blue: ${sampling:1,5,1}
+        mine.blue: ${sampling:1,5,1}
+        generator.green: ${sampling:1,5,1}
+        mine.green: ${sampling:1,5,1}

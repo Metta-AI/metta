@@ -16,25 +16,10 @@ game:
       border_width: ${sampling:1,6,3}
       agents: 1
       objects:
-        altar: 1
-        generator.red: 3
-        mine.red: 3
-        # generator.blue: 1
-        # mine.blue: 1
-        # generator.green: 1
-        # mine.green: 1
-  objects:
-    altar:
-      cooldown: 1
-    generator.red:
-      cooldown: 1
-    mine.red:
-      cooldown: 1
-    generator.blue:
-      cooldown: 1
-    mine.blue:
-      cooldown: 1
-    generator.green:
-      cooldown: 1
-    mine.green:
-      cooldown: 1
+        altar: ${sampling:1,10,1}
+        generator.red: ${sampling:1,5,1}
+        mine.red: ${sampling:1,5,1}
+        generator.blue: ${sampling:1,5,1}
+        mine.blue: ${sampling:1,5,1}
+        generator.green: ${sampling:1,5,1}
+        mine.green: ${sampling:1,5,1}
