@@ -1,12 +1,13 @@
 #ifndef WALL_HPP
 #define WALL_HPP
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
-#include "../grid_object.hpp"
 #include "constants.hpp"
-#include "metta_object.hpp"
+#include "grid_object.hpp"
+#include "objects/metta_object.hpp"
 
 class Wall : public MettaObject {
 public:
@@ -14,22 +15,18 @@ public:
 
   Wall(GridCoord r, GridCoord c, ObjectConfig cfg) {
     GridObject::init(ObjectType::WallT, GridLocation(r, c, GridLayer::Object_Layer));
-    MettaObject::init_mo(cfg);
+    MettaObject::set_hp(cfg);
     this->_swappable = cfg["swappable"];
   }
 
-  virtual void obs(ObsType* obs, const std::vector<unsigned int>& offsets) const override {
-    obs[offsets[0]] = 1;
-    obs[offsets[1]] = this->hp;
-    obs[offsets[2]] = this->_swappable;
-  }
+  virtual void obs(ObsType* obs) const override {
+    MettaObject::obs(obs);
+    // wall-specific features
+    encode(obs, GridFeature::WALL, 1);
+    encode(obs, GridFeature::SWAPPABLE, this->_swappable);
 
-  static std::vector<std::string> feature_names() {
-    std::vector<std::string> names;
-    names.push_back("wall");
-    names.push_back("hp");
-    names.push_back("swappable");
-    return names;
+    // Also set the object type feature
+    encode(obs, GridFeature::WALL_TYPE, 1);
   }
 
   virtual bool swappable() const override {

@@ -24,8 +24,6 @@ def upload_map_preview(cfg: DictConfig | ListConfig, wandb_run: wandb_run.Run, l
     """
     logger.info("Building map preview...")
 
-    logger.info(f"cfg: {cfg}")
-
     env_path = cfg.trainer.env
     env_cfg = config_from_path(env_path)
 

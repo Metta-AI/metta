@@ -4,21 +4,31 @@ from __future__ import annotations
 import copy
 import datetime
 import uuid
+from types import SimpleNamespace
 from typing import Any, Dict, Optional
 
 import gymnasium as gym
 import numpy as np
 import pufferlib
 from omegaconf import DictConfig, OmegaConf
+from pufferlib.utils import unroll_nested_dict
 
 from mettagrid.config.utils import simple_instantiate
-from mettagrid.mettagrid_c import MettaGrid  # pylint: disable=E0611
+from mettagrid.core import MettaGrid
 from mettagrid.replay_writer import ReplayWriter
 from mettagrid.resolvers import register_resolvers
 from mettagrid.stats_writer import StatsWriter
+from mettagrid.util.debug import save_mettagrid_args
 
 
 class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
+    # Type hints for attributes defined in the C++ extension to help Pylance
+    observations: np.ndarray
+    terminals: np.ndarray
+    truncations: np.ndarray
+    rewards: np.ndarray
+    actions: np.ndarray
+
     def __init__(
         self,
         env_cfg: DictConfig,
@@ -29,23 +39,75 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         replay_writer: Optional[ReplayWriter] = None,
         **kwargs,
     ):
+        self._debug = False
         self._render_mode = render_mode
         self._cfg_template = env_cfg
         self._env_cfg = self._get_new_env_cfg()
         self._env_map = env_map
         self._renderer = None
         self._map_builder = None
+
+        # Set up the environment first to establish dimensions
+        self._reset_env()
         self._stats_writer = stats_writer
         self._replay_writer = replay_writer
-        self._episode_id = None
+        self._episode_id: str = ""
         self._reset_at = datetime.datetime.now()
         self._current_seed = 0
+
+        # TODO -- typedef actions type
+        num_agents = self._num_agents
+        obs_width = self._c_env.obs_width
+        obs_height = self._c_env.obs_height
+        grid_features_size = self._c_env.grid_features_size
+
+        # force buffers to the correct size
+        buf = {
+            "observations": np.zeros(
+                (num_agents, obs_width, obs_height, grid_features_size), dtype=np.uint8, order="C"
+            ),
+            "terminals": np.zeros((num_agents,), dtype=bool, order="C"),
+            "truncations": np.zeros((num_agents,), dtype=bool, order="C"),
+            "rewards": np.zeros((num_agents,), dtype=float, order="C"),
+            "actions": np.zeros((num_agents, 2), dtype=np.uint8, order="C"),
+            "masks": np.ones((num_agents,), dtype=bool, order="C"),
+        }
+
+        buf_obj = SimpleNamespace(**buf)
+        self._single_observation_space = self._c_env.observation_space
+        self._single_action_space = self._c_env.action_space
+
+        # Call super().__init__ with the correctly sized buffer
+        super().__init__(buf_obj)
 
         self.labels = self._env_cfg.get("labels", None)
         self.should_reset = False
 
-        self._reset_env()
-        super().__init__(buf)
+        # check on the buffer shapes
+
+        # Define expected shapes
+        num_agents = self._num_agents
+        expected_obs_shape = (num_agents, obs_width, obs_height, grid_features_size)
+
+        # Validate observation shape
+        obs_shape_tuple = self.observations.shape
+        if self.observations.ndim != 4 or obs_shape_tuple != expected_obs_shape:
+            raise ValueError(f"Observations buffer has shape {obs_shape_tuple}, expected {expected_obs_shape}")
+
+        # Validate terminal buffer shape
+        term_shape = self.terminals.shape
+        if self.terminals.ndim < 1 or term_shape[0] < num_agents:
+            raise ValueError(f"Terminals buffer has shape {term_shape}, expected first dimension ≥ {num_agents}")
+
+        # Validate truncation buffer shape
+        trunc_shape = self.truncations.shape
+        if self.truncations.ndim < 1 or trunc_shape[0] < num_agents:
+            raise ValueError(f"Truncations buffer has shape {trunc_shape}, expected first dimension ≥ {num_agents}")
+
+        # Validate rewards buffer shape
+        reward_shape = self.rewards.shape
+        if self.rewards.ndim < 1 or reward_shape[0] < num_agents:
+            raise ValueError(f"Rewards buffer has shape {reward_shape}, expected first dimension ≥ {num_agents}")
 
     def _make_episode_id(self):
         return str(uuid.uuid4())
@@ -70,17 +132,18 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             f"Number of agents {self._env_cfg.game.num_agents} does not match number of agents in map {map_agents}"
         )
 
+        if self._debug:
+            save_mettagrid_args(self._env_cfg, env_map)
+
         self._c_env = MettaGrid(self._env_cfg, env_map)
-        self._grid_env = self._c_env
         self._num_agents = self._c_env.num_agents()
 
-        env = self._grid_env
-
-        self._env = env
-        # self._env = RewardTracker(self._env)
-        # self._env = FeatureMasker(self._env, self._cfg.hidden_features)
-
     def reset(self, seed=None, options=None):
+        """
+        This method overrides the reset method from PufferEnv.
+
+        Reset the environment to an initial state and returns an initial observation.
+        """
         self._env_cfg = self._get_new_env_cfg()
         self._reset_env()
 
@@ -96,8 +159,17 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self.should_reset = False
         return obs, infos
 
-    def step(self, actions):
-        self.actions[:] = np.array(actions).astype(np.uint32)
+    def step(self, actions: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, dict]:
+        """
+        Take a step in the environment with the given actions.
+
+        Args:
+            actions: A numpy array of shape (num_agents, 2) with dtype np.int32
+
+        Returns:
+            Tuple of (observations, rewards, terminals, truncations, infos)
+        """
+        np.copyto(self.actions, actions.astype(np.uint8, casting="unsafe"))
 
         if self._replay_writer:
             self._replay_writer.log_pre_step(self._episode_id, self.actions)
@@ -163,12 +235,12 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         replay_url = None
         if self._replay_writer:
-            assert self._episode_id is not None
+            assert self._episode_id != ""
             replay_url = self._replay_writer.write_replay(self._episode_id)
         infos["replay_url"] = replay_url
 
         if self._stats_writer:
-            assert self._episode_id is not None
+            assert self._episode_id != ""
 
             attributes = {
                 "seed": self._current_seed,
@@ -176,8 +248,8 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                 "map_h": self.map_height,
             }
 
-            for k, v in pufferlib.utils.unroll_nested_dict(OmegaConf.to_container(self._env_cfg, resolve=False)):
-                attributes[f"config.{k.replace('/', '.')}"] = str(v)
+            for k, v in unroll_nested_dict(OmegaConf.to_container(self._env_cfg, resolve=False)):
+                attributes[f"config.{str(k).replace('/', '.')}"] = str(v)
 
             agent_metrics = {}
             for agent_idx, agent_stats in enumerate(stats["agent"]):
@@ -199,7 +271,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                 replay_url,
                 self._reset_at,
             )
-        self._episode_id = None
+        self._episode_id = ""
 
     def close(self):
         pass
@@ -210,14 +282,11 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     @property
     def single_observation_space(self):
-        return self._env.observation_space
+        return self._single_observation_space
 
     @property
     def single_action_space(self):
-        return self._env.action_space
-
-    def action_names(self):
-        return self._env.action_names()
+        return self._single_action_space
 
     @property
     def player_count(self):
@@ -239,7 +308,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     @property
     def grid_features(self):
-        return self._env.grid_features()
+        return self._c_env.grid_features()
 
     @property
     def global_features(self):
@@ -267,7 +336,12 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     @property
     def action_success(self):
-        return np.asarray(self._c_env.action_success())
+        # Get the char array and convert to numpy array
+        # Note: We keep it as char/int8 type for consistency
+        return np.asarray(self._c_env.action_success(), dtype=np.int8)
+
+    def action_names(self):
+        return self._c_env.action_names()
 
     def object_type_names(self):
         return self._c_env.object_type_names()

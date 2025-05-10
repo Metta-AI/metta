@@ -1,4 +1,4 @@
-.PHONY: help all reinstall install build test clean 
+.PHONY: help all install build test clean 
 
 # Default target when just running 'make'
 help:
