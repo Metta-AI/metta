@@ -420,7 +420,6 @@ void MettaGrid::set_buffers(std::reference_wrapper<py::array_t<unsigned char>> o
 
 py::tuple MettaGrid::step(py::array_t<int> actions) {
   _step(actions);
-  _compute_observations(actions);
 
   auto rewards_view = _rewards.mutable_unchecked<1>();
   auto episode_rewards_view = _episode_rewards.mutable_unchecked<1>();
