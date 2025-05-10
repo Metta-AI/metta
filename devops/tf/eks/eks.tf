@@ -1,8 +1,4 @@
 locals {
-  name            = "main"
-  cluster_version = "1.32"
-  region          = "us-east-1"
-
   vpc_cidr = "10.0.0.0/16"
   azs      = slice(data.aws_availability_zones.available.names, 0, 3)
 
@@ -13,10 +9,6 @@ locals {
   admins = [
     "arn:aws:iam::751442549699:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_AdministratorAccess_ac2ae6482eae17c4"
   ]
-}
-
-provider "aws" {
-  region = local.region
 }
 
 data "aws_availability_zones" "available" {
@@ -36,9 +28,8 @@ module "eks" {
   source  = "terraform-aws-modules/eks/aws"
   version = "~> 20.31"
 
-
-  cluster_name                   = local.name
-  cluster_version                = local.cluster_version
+  cluster_name                   = var.cluster_name
+  cluster_version                = var.cluster_version
   cluster_endpoint_public_access = true
 
   enable_cluster_creator_admin_permissions = true
@@ -64,7 +55,7 @@ module "vpc" {
   source  = "terraform-aws-modules/vpc/aws"
   version = "~> 5.0"
 
-  name = local.name
+  name = var.cluster_name
   cidr = local.vpc_cidr
 
   azs             = local.azs
