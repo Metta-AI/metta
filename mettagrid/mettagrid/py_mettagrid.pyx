@@ -20,10 +20,14 @@ import gymnasium as gym
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
 # Import from the cython definition file
-from mettagrid.py_mettagrid cimport CppMettaGrid, GridObjectId, ObsType, ObjectTypeNames, InventoryItemNames
+from mettagrid.py_mettagrid cimport CppMettaGrid, GridObjectId, ObsType, ObjectTypeNames, InventoryItemNames, ActionsType
 
-# Constants
-obs_np_type = np.uint8
+# Types - fixed the inconsistent dtype
+observations_np_type = np.uint8
+terminals_np_type = np.int8
+truncations_np_type = np.int8
+rewards_np_type = np.float32  # Removed 'dtype='
+actions_np_type = np.uint8
 
 # Wrapper class for the C++ implementation
 cdef class MettaGrid:
@@ -47,29 +51,44 @@ cdef class MettaGrid:
         uint32_t _grid_features_size
         
         # Pre-allocated buffers for frequent operations
-        int32_t** _c_actions
-        cnp.ndarray _action_array_buffer
+        cnp.ndarray _flattened_actions_buffer
         cnp.ndarray _obs_buffer
         uint32_t _num_agents
 
 
-    def __init__(self, env_cfg: DictConfig | ListConfig, np_map: cnp.ndarray):
+    def __init__(self, env_cfg: DictConfig | ListConfig, cnp.ndarray np_map):
+        cdef:
+            object cfg
+            uint32_t num_agents
+            uint32_t max_timestep
+            uint16_t obs_width
+            uint16_t obs_height
+            uint16_t map_width
+            uint16_t map_height
+            string cfg_json_bytes
+            string map_json_bytes
+            str cfg_json
+            str map_json
+            
         # Initialize configuration
         cfg = OmegaConf.create(env_cfg.game)
         self._cfg = cfg
         
         # Extract parameters
         num_agents = cfg.num_agents
-        self._num_agents = num_agents
         max_timestep = cfg.max_steps
-        self._obs_width = cfg.obs_width
-        self._obs_height = cfg.obs_height
+        obs_width = cfg.obs_width
+        obs_height = cfg.obs_height
         map_width = np_map.shape[1]
         map_height = np_map.shape[0]
         
+        self._num_agents = num_agents
+        self._obs_width = obs_width
+        self._obs_height = obs_height
+        
         # Create the C++ MettaGrid instance with ownership of the grid
         self._cpp_mettagrid = new CppMettaGrid(
-            map_width, map_height, num_agents, max_timestep, self._obs_width, self._obs_height
+            map_width, map_height, num_agents, max_timestep, obs_width, obs_height
         )
         
         if self._cpp_mettagrid == NULL:
@@ -87,25 +106,24 @@ cdef class MettaGrid:
         self._grid_features_list = self._get_grid_features()
         self._grid_features_size = len(self._grid_features_list)
         
-
         # Pre-allocate NumPy arrays for common operations
-        self._action_array_buffer = np.zeros((num_agents, 2), dtype=np.uint8)
-        self._obs_buffer = np.zeros((self._obs_width, self._obs_height, self._grid_features_size), dtype=np.uint8)
+        self._flattened_actions_buffer = np.zeros((num_agents, 2), dtype=actions_np_type).flatten()
+        self._obs_buffer = np.zeros((self._obs_width, self._obs_height, self._grid_features_size), dtype=observations_np_type)
 
 
     def __dealloc__(self):
-
         # Clean up the C++ object
         if self._cpp_mettagrid != NULL:
             del self._cpp_mettagrid
             self._cpp_mettagrid = NULL
+
 
     def set_buffers(
         self, 
         cnp.ndarray observations,
         cnp.ndarray terminals, 
         cnp.ndarray truncations, 
-        cnp.ndarray rewards):
+        cnp.ndarray rewards) -> None:
         """
         Set external buffers for observations, terminals, truncations, and rewards.
         
@@ -118,23 +136,39 @@ cdef class MettaGrid:
             rewards: NumPy array for rewards
         """
         cdef:
-            uint32_t num_agents = self._num_agents
-            uint16_t obs_height = self._cfg.obs_height
-            uint16_t obs_width = self._cfg.obs_width
-            uint32_t grid_features_size = self._grid_features_size
+            uint32_t num_agents
+            uint16_t obs_height
+            uint16_t obs_width
+            uint32_t grid_features_size
             uint32_t dim_i
-            bint shape_match = True
+            bint shape_match
             tuple expected_obs_shape
             tuple obs_shape_tuple
             tuple term_shape
             tuple trunc_shape
             tuple reward_shape
+            cnp.ndarray[uint8_t, ndim=4] typed_observations
+            cnp.ndarray[int8_t, ndim=1] typed_terminals
+            cnp.ndarray[int8_t, ndim=1] typed_truncations
+            cnp.ndarray[float, ndim=1] typed_rewards
+        
+        num_agents = self._num_agents
+        obs_height = self._cfg.obs_height
+        obs_width = self._cfg.obs_width
+        grid_features_size = self._grid_features_size
+        shape_match = True
         
         # check buffers
-        observations = np.ascontiguousarray(observations, dtype=np.uint8)
-        terminals = np.ascontiguousarray(terminals, dtype=np.int8)
-        truncations = np.ascontiguousarray(truncations, dtype=np.int8)
-        rewards = np.ascontiguousarray(rewards, dtype=np.float32)
+        observations = np.ascontiguousarray(observations, dtype=observations_np_type)
+        terminals = np.ascontiguousarray(terminals, dtype=terminals_np_type)
+        truncations = np.ascontiguousarray(truncations, dtype=truncations_np_type)
+        rewards = np.ascontiguousarray(rewards, dtype=rewards_np_type)
+        
+        # Create typed views of the data for internal use
+        typed_observations = observations
+        typed_terminals = terminals
+        typed_truncations = truncations
+        typed_rewards = rewards
         
         # Predict expected buffer shapes
         expected_obs_shape = (num_agents, obs_width, obs_height, grid_features_size)
@@ -176,9 +210,12 @@ cdef class MettaGrid:
 
     # Helper method to get grid features as Python list - caching the result
     cdef list _get_grid_features(self):
-        cdef vector[string] grid_features = self._cpp_mettagrid.grid_features()
-        cdef list result = []
-        cdef uint32_t i
+        cdef:
+            vector[string] grid_features = self._cpp_mettagrid.grid_features()
+            list result = []
+            uint32_t i
+            string feature
+        
         for i in range(grid_features.size()):
             # Check if the object is bytes before decoding
             feature = grid_features[i]
@@ -196,31 +233,59 @@ cdef class MettaGrid:
 
 
     cpdef tuple[cnp.ndarray, cnp.ndarray, cnp.ndarray, cnp.ndarray, dict] step(self, cnp.ndarray actions):
-        """Take a step in the environment with the given actions."""
-        cdef:
-            tuple shape_tuple
+        """
+        Take a step in the environment with the given actions.
+        
+        Args:
+            actions: NumPy array of actions
             
-        if actions.ndim != 2 or actions.shape[0] != self._num_agents or actions.shape[1] != 2:
-            # Convert shape to a Python tuple
-            shape_tuple = tuple([actions.shape[i] for i in range(actions.ndim)])
-            raise ValueError("Actions must have shape ({0}, 2), got {1}".format(
-                self._num_agents, shape_tuple))
+        Returns:
+            Tuple containing observations, rewards, terminals, truncations, and info dict
+        """
+    
+        # Copy into pre-allocated buffer of correct shape and type
+        cdef:
+            uint32_t i, j, flat_idx
+    
+        for i in range(self._num_agents):
+            for j in range(2):
+                flat_idx = i * 2 + j
+                self._flattened_actions_buffer[flat_idx] = <uint8_t>actions[i, j]
+    
+        if self._cpp_mettagrid == NULL:
+            raise RuntimeError("C++ MettaGrid instance is NULL")
 
-        actions_flat = np.ascontiguousarray(actions, dtype=np.uint8).reshape(-1)
-        self._cpp_mettagrid.step(actions_flat.tobytes())
+        if not self._flattened_actions_buffer.dtype == actions_np_type:
+            raise TypeError(f"Expected actions buffer to be uint8, got {self._flattened_actions_buffer.dtype}")
 
+
+        self._cpp_mettagrid.step(<ActionsType*>self._flattened_actions_buffer.data)
+        
+        # Compute rewards
         self._cpp_mettagrid.compute_group_rewards(<float*>self._rewards_np.data)
+        
+        # Return observations and other state information
         return (self._observations_np, self._rewards_np, self._terminals_np, self._truncations_np, {})
 
-    def action_success(self):
-        """Get the action success information."""
+
+    cpdef cnp.ndarray[int8_t, ndim=1] action_success(self):
+        """
+        Get the action success information.
+        
+        Returns:
+            NumPy array indicating success/failure of actions
+        """
         cdef:
-            vector[int8_t] success = self._cpp_mettagrid.action_success()
-            int8_t* data_ptr = success.data()
-            size_t size = success.size()
+            vector[int8_t] success
+            int8_t* data_ptr
+            size_t size
             uint32_t i
             int8_t* target_ptr
             cnp.ndarray success_array
+            
+        success = self._cpp_mettagrid.action_success()
+        data_ptr = success.data()
+        size = success.size()
         
         # Create a new numpy array and manually copy the data
         success_array = np.zeros(size, dtype=np.int8)
@@ -234,15 +299,25 @@ cdef class MettaGrid:
         # Return the array
         return success_array
 
-    def max_action_args(self):
-        """Get the maximum action arguments."""
+
+    cpdef cnp.ndarray[uint8_t, ndim=1] max_action_args(self):
+        """
+        Get the maximum action arguments.
+        
+        Returns:
+            NumPy array of maximum action arguments
+        """
         cdef:
-            vector[uint8_t] max_args = self._cpp_mettagrid.max_action_args() 
-            uint8_t* data_ptr = max_args.data()
-            size_t size = max_args.size()
+            vector[uint8_t] max_args
+            uint8_t* data_ptr
+            size_t size
             uint32_t i
             uint8_t* target_ptr
             cnp.ndarray max_args_array
+            
+        max_args = self._cpp_mettagrid.max_action_args()
+        data_ptr = max_args.data()
+        size = max_args.size()
         
         # Create a new numpy array and manually copy the data
         max_args_array = np.zeros(size, dtype=np.uint8)
@@ -256,36 +331,31 @@ cdef class MettaGrid:
         # Return the array
         return max_args_array
 
-    def current_timestep(self):
-        """Get the current timestep."""
+
+    cpdef uint32_t current_timestep(self):
         return self._cpp_mettagrid.current_timestep()
     
     
-    def map_width(self):
-        """Get the width of the map."""
+    cpdef uint16_t map_width(self):
         return self._cpp_mettagrid.map_width()
     
     
-    def map_height(self):
-        """Get the height of the map."""
+    cpdef uint16_t map_height(self):
         return self._cpp_mettagrid.map_height()
     
     
-    def grid_features(self):
-        """Get the list of grid features."""
-        # Return cached list instead of recomputing
+    cpdef list grid_features(self):
         return self._grid_features_list
     
     
-    def num_agents(self):
-        """Get the number of agents."""
+    cpdef uint32_t num_agents(self):
         return self._num_agents
 
 
-    def _observe_internal(self,
+    cdef cnp.ndarray _observe_internal(self,
                          uint16_t obs_width,
                          uint16_t obs_height,
-                         observation,
+                         object observation,
                          bint is_observer_id=False,
                          GridObjectId observer_id=0,
                          uint16_t row=0,
@@ -301,8 +371,10 @@ cdef class MettaGrid:
             observer_id: ID of the observer object (used if is_observer_id is True)
             row: Row coordinate (used if is_observer_id is False)
             col: Column coordinate (used if is_observer_id is False)
+            
+        Returns:
+            NumPy array containing the observation
         """
-        # Setup the observation array
         cdef:
             cnp.ndarray obs_array
         
@@ -316,7 +388,19 @@ cdef class MettaGrid:
             obs_array = observation
         else:
             # Create a new array if incompatible type
-            obs_array = np.zeros(( obs_width, obs_height, self._grid_features_size), dtype=np.uint8)
+            obs_array = np.zeros((obs_width, obs_height, self._grid_features_size), dtype=np.uint8)
+        
+        if observation is None:
+            # Use pre-allocated buffer when None is provided
+            obs_array = self._obs_buffer # index as width, height
+            # Ensure buffer is clear
+            obs_array.fill(0)
+        elif isinstance(observation, np.ndarray):
+            # Use provided array
+            obs_array = observation
+        else:
+            # Create a new array if incompatible type
+            obs_array = np.zeros((obs_width, obs_height, self._grid_features_size), dtype=np.uint8)
         
         # Call the appropriate C++ implementation method
         if is_observer_id:
@@ -339,13 +423,14 @@ cdef class MettaGrid:
         # Return the observation only if we used our buffer or created a new one
         if observation is None or not isinstance(observation, np.ndarray):
             return obs_array
+        return None
 
 
-    def observe(self,
+    cpdef cnp.ndarray observe(self,
                GridObjectId observer_id,
                uint16_t obs_width,
                uint16_t obs_height,
-               observation=None):
+               object observation=None):
         """
         Get observation from a specific observer's perspective.
         
@@ -354,22 +439,28 @@ cdef class MettaGrid:
             obs_width: Width of the observation window
             obs_height: Height of the observation window
             observation: Buffer to store the observation (numpy array)
+            
+        Returns:
+            NumPy array containing the observation
         """
+        # Pass all required parameters explicitly
         return self._observe_internal(
-            obs_width, 
-            obs_height, 
-            observation, 
-            is_observer_id=True, 
-            observer_id=observer_id
+            obs_width=obs_width,
+            obs_height=obs_height,
+            observation=observation,
+            is_observer_id=True,
+            observer_id=observer_id,
+            row=0,  # Not used when is_observer_id is True, but must be provided
+            col=0   # Not used when is_observer_id is True, but must be provided
         )
 
 
-    def observe_at(self,
+    cpdef cnp.ndarray observe_at(self,
                   uint16_t row,
                   uint16_t col,
                   uint16_t obs_width,
                   uint16_t obs_height,
-                  observation=None):
+                  object observation=None):
         """
         Get observation at a specific location in the grid.
         
@@ -379,34 +470,48 @@ cdef class MettaGrid:
             obs_width: Width of the observation window
             obs_height: Height of the observation window
             observation: Buffer to store the observation (numpy array)
+            
+        Returns:
+            NumPy array containing the observation
         """
+
+        # Pass all required parameters explicitly
         return self._observe_internal(
-            obs_width, 
-            obs_height, 
-            observation, 
-            is_observer_id=False, 
-            row=row, 
+            obs_width=obs_width,
+            obs_height=obs_height,
+            observation=observation,
+            is_observer_id=False,
+            observer_id=0,  # Not used when is_observer_id is False, but must be provided
+            row=row,
             col=col
         )
     
     
-    def enable_reward_decay(self, int32_t decay_time_steps=-1):
-        """Enable reward decay mechanism."""
+    cpdef void enable_reward_decay(self, int32_t decay_time_steps=-1):
         self._cpp_mettagrid.enable_reward_decay(decay_time_steps)
     
     
-    def disable_reward_decay(self):
-        """Disable reward decay mechanism."""
+    cpdef void disable_reward_decay(self):  
         self._cpp_mettagrid.disable_reward_decay()
     
     
-    def get_episode_rewards(self):
-        """Get the episode rewards."""
-        return self._episode_rewards_np
+    cpdef cnp.ndarray get_episode_rewards(self):
+        """
+        Get the episode rewards.
+        
+        Returns:
+            NumPy array of episode rewards
+        """
+        cdef:
+            float* episode_rewards_ptr
+            uint32_t episode_rewards_size
+
+        episode_rewards_ptr = self._cpp_mettagrid.get_episode_rewards()
+        episode_rewards_size = self._cpp_mettagrid.get_episode_rewards_size()
+        return np.asarray(<float[:episode_rewards_size]>episode_rewards_ptr)
     
     
-    def get_episode_stats(self):
-        """Get statistics from the game and agents."""
+    cpdef dict get_episode_stats(self):
         stats_json = self._cpp_mettagrid.get_episode_stats_json()
         return json.loads(stats_json)
 
@@ -414,15 +519,27 @@ cdef class MettaGrid:
     # Gym compatibility properties
     @property
     def action_space(self):
-        """Get the action space for gymnasium compatibility."""
+        """
+        Get the action space for gymnasium compatibility.
+        
+        Returns:
+            Gymnasium action space
+        """
         cdef:
-            vector[uint8_t] max_args = self._cpp_mettagrid.max_action_args() 
-            uint8_t* data_ptr = max_args.data()
-            size_t size = max_args.size()
+            vector[uint8_t] max_args
+            uint8_t* data_ptr
+            size_t size
             uint32_t i
             uint8_t* target_ptr
             cnp.ndarray max_args_array
             uint8_t max_arg
+
+        max_args = self._cpp_mettagrid.max_action_args()
+        data_ptr = max_args.data()
+        size = max_args.size()
+        
+        # Create a new numpy array and manually copy the data
+        max_args_array = np.zeros(size, dtype=np.uint8)
         
         # Create a new numpy array and manually copy the data
         max_args_array = np.zeros(size, dtype=np.uint8)
@@ -444,19 +561,35 @@ cdef class MettaGrid:
     
     @property
     def observation_space(self):
-        """Get the observation space for gymnasium compatibility."""
+        """
+        Get the observation space for gymnasium compatibility.
+        
+        Returns:
+            Gymnasium observation space
+        """
         return gym.spaces.Box(
             0,
             255,
             shape=(self.obs_height, self.obs_width, self._grid_features_size),
-            dtype=obs_np_type
+            dtype=observations_np_type
         )  # note that gym wants height, width which is opposite of our convention
 
-    def object_type_names(self):
-        """Get a list of all object type names."""
-        cdef vector[string] cpp_names = ObjectTypeNames
-        cdef list result = []
-        cdef uint32_t i
+
+    cpdef list object_type_names(self):
+        """
+        Get a list of all object type names.
+        
+        Returns:
+            List of object type names
+        """
+        cdef:
+            vector[string] cpp_names
+            list result
+            uint32_t i
+            string name
+            
+        cpp_names = ObjectTypeNames
+        result = []
         
         # Convert C++ vector of strings to Python list
         for i in range(cpp_names.size()):
@@ -468,11 +601,22 @@ cdef class MettaGrid:
         
         return result
 
-    def inventory_item_names(self):
-        """Get a list of all inventory item names."""
-        cdef vector[string] cpp_names = InventoryItemNames
-        cdef list result = []
-        cdef uint32_t i
+
+    cpdef list inventory_item_names(self):
+        """
+        Get a list of all inventory item names.
+        
+        Returns:
+            List of inventory item names
+        """
+        cdef:
+            vector[string] cpp_names
+            list result
+            uint32_t i
+            string name
+            
+        cpp_names = InventoryItemNames
+        result = []
         
         # Convert C++ vector of strings to Python list
         for i in range(cpp_names.size()):
@@ -484,11 +628,23 @@ cdef class MettaGrid:
         
         return result
 
-    def action_names(self):
-        """Get a list of all action handler names."""
-        cdef vector[string] cpp_names = self._cpp_mettagrid.action_names()
-        cdef list result = []
-        cdef uint32_t i
+
+    cpdef list action_names(self):
+        """
+        Get a list of all action handler names.
+        
+        Returns:
+            List of action handler names
+        """
+        cdef:
+            vector[string] cpp_names
+            list result
+            uint32_t i
+            string name
+            
+        result = []
+           
+        cpp_names = self._cpp_mettagrid.action_names()
         
         # Convert C++ vector of strings to Python list
         for i in range(cpp_names.size()):
@@ -500,13 +656,19 @@ cdef class MettaGrid:
         
         return result
 
-    def grid_objects(self):
+
+    cpdef dict grid_objects(self):
         """
         Get information about all grid objects.
         
         Returns:
             A dictionary mapping object IDs to their properties.
         """
+        cdef:
+            string json_str
+            dict objects_dict
+        
+
         # Get JSON string from C++ and parse it
         json_str = self._cpp_mettagrid.get_grid_objects_json()
         objects_dict = json.loads(json_str)
@@ -514,24 +676,22 @@ cdef class MettaGrid:
         # Convert string keys to integers
         return {int(k): v for k, v in objects_dict.items()}
 
+
     @property
-    def grid_features_list(self):
-        """Get the list of grid features."""
+    def grid_features_list(self) -> list:
         return self._grid_features_list
 
+
     @property
-    def grid_features_size(self):
-        """Get the number of grid features."""
+    def grid_features_size(self) -> uint32_t:
         return self._grid_features_size
 
+
     @property
-    def obs_width(self):
-        """Get the width of the observation window."""
+    def obs_width(self) -> uint16_t:
         return self._obs_width
 
-    @property
-    def obs_height(self):
-        """Get the height of the observation window."""
-        return self._obs_height
 
-            
+    @property
+    def obs_height(self) -> uint16_t:
+        return self._obs_height

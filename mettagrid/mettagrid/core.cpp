@@ -257,6 +257,9 @@ void CppMettaGrid::compute_observations(ActionsType* flat_actions) {
 
 // Take a step in the environment
 void CppMettaGrid::step(ActionsType* flat_actions) {
+  std::cout << "enter step" << std::endl;
+  std::cout.flush();
+
   if (flat_actions == nullptr) {
     throw std::runtime_error("Null actions array passed to step()");
   }
@@ -280,6 +283,9 @@ void CppMettaGrid::step(ActionsType* flat_actions) {
   _current_timestep++;
 
   _event_manager->process_events(_current_timestep);
+
+  std::cout << "about to for loop" << std::endl;
+  std::cout.flush();
 
   // Process actions by priority
   for (uint8_t p = 0; p <= _max_action_priority; p++) {
