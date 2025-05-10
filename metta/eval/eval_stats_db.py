@@ -366,11 +366,11 @@ class EvalStatsDB(SimulationStatsDB):
     def simulation_scores(self, policy_record: PolicyRecord, metric: str) -> Dict[tuple, float]:
         """Return { (suite,name,env) : normalised mean(metric) }."""
         pk, pv = policy_record.key_and_version()
-        sim_rows = self.query(f"""
+        sim_rows = self.query("""
             SELECT DISTINCT sim_suite, sim_name, sim_env
               FROM policy_simulation_agent_samples
-             WHERE policy_key     = '{pk}'
-               AND policy_version =  {pv}
+             WHERE policy_key     = 'b.daphne.object_use_training_no_colors3'
+               AND policy_version =  28
         """)
         scores: Dict[tuple, float] = {}
         for _, row in sim_rows.iterrows():
@@ -386,6 +386,8 @@ class EvalStatsDB(SimulationStatsDB):
         policy_record: PolicyRecord | None = None,
     ) -> pd.DataFrame:
         """
+        TODO: ADD NORMALIZATION FOR POTENTIAL SAMPLES
+
         Return a DataFrame with columns
             policy_uri | eval_name | value
 
@@ -399,32 +401,12 @@ class EvalStatsDB(SimulationStatsDB):
         else:
             # All policies
             policy_clause = "1=1"
-
         sql = f"""
-        WITH potential AS (
-            SELECT policy_key, policy_version, sim_env, COUNT(*) AS potential_cnt
-              FROM policy_simulation_agent_samples
-             WHERE {policy_clause}
-             GROUP BY policy_key, policy_version, sim_env
-        ),
-        recorded AS (
-            SELECT policy_key,
-                   policy_version,
-                   sim_env,
-                   SUM(value) AS recorded_sum
-              FROM policy_simulation_agent_metrics
-             WHERE metric = '{metric}'
-               AND {policy_clause}
-             GROUP BY policy_key, policy_version, sim_env
-        )
-        SELECT
-            potential.policy_key || ':v' || potential.policy_version AS policy_uri,
-            potential.sim_env                              AS eval_name,
-            COALESCE(recorded.recorded_sum, 0) * 1.0
-                   / potential.potential_cnt               AS value
-        FROM potential
-        LEFT JOIN recorded
-          USING (policy_key, policy_version, sim_env)
-        ORDER BY policy_uri, eval_name
+        SELECT policy_key || ':v' || policy_version AS policy_uri, sim_env AS eval_name, AVG(value) AS value FROM policy_simulation_agent_metrics
+        WHERE metric = '{metric}'
+        AND {policy_clause}
+        GROUP BY sim_env, policy_key, policy_version
         """
-        return self.query(sql)
+        df = self.query(sql)
+        print(df)
+        return df
