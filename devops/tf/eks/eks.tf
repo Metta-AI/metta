@@ -43,6 +43,7 @@ module "eks" {
 
   enable_cluster_creator_admin_permissions = true
 
+  # EKS auto mode - AWS will scale the node group based on the workload
   cluster_compute_config = {
     enabled    = true
     node_pools = ["general-purpose"]
@@ -51,16 +52,6 @@ module "eks" {
   vpc_id     = module.vpc.vpc_id
   subnet_ids = module.vpc.private_subnets
 
-
-  eks_managed_node_groups = {
-    main = {
-      instance_types = ["c5.2xlarge"]
-
-      min_size     = 1
-      max_size     = 1
-      desired_size = 1
-    }
-  }
 
   tags = local.tags
 }
