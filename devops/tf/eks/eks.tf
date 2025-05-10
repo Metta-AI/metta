@@ -9,6 +9,13 @@ locals {
   tags = {
     Terraform = "true"
   }
+
+  sso_arn = "arn:aws:sts::751442549699:assumed-role/AWSReservedSSO_AdministratorAccess_ac2ae6482eae17c4"
+
+  admins = [
+    "${local.sso_arn}/slava@stem.ai",
+    "${local.sso_arn}/daveey@stem.ai",
+  ]
 }
 
 provider "aws" {
@@ -78,4 +85,21 @@ module "vpc" {
   }
 
   tags = local.tags
+}
+
+resource "aws_eks_access_entry" "admin" {
+  for_each      = toset(local.admins)
+  cluster_name  = module.eks.cluster_name
+  principal_arn = each.value
+}
+
+resource "aws_eks_access_policy_association" "admin" {
+  for_each      = toset(local.admins)
+  cluster_name  = module.eks.cluster_name
+  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+  principal_arn = each.value
+
+  access_scope {
+    type = "cluster"
+  }
 }
