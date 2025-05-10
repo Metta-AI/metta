@@ -125,7 +125,7 @@ def _create_block_mask(seq_len: int) -> BlockMask:
 
 
 _compile = os.name == "posix"
-_flex_attention = os.name == "posix"
+_flex_attention = False #os.name == "posix"
 
 
 class TransformerCore(LayerBase):
@@ -199,7 +199,7 @@ class TransformerCore(LayerBase):
         td[self._name] = hidden
         return td
 
-    @torch.compile(mode="max-autotune", dynamic=True, fullgraph=True, disable=not _compile)
+    @torch.compile(fullgraph=True, disable=not _compile)
     def _inner_forward(
         self, hidden: torch.Tensor, time_steps: torch.Tensor, block_mask: BlockMask | None
     ) -> torch.Tensor:

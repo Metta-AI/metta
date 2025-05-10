@@ -137,6 +137,14 @@ class AttentionBlock(nn.Module):
         self.register_buffer("key_cache", key_cache, persistent=False)
         self.register_buffer("value_cache", value_cache, persistent=False)
         self.has_kv_cache = True
+    
+    def __getstate__(self):
+        d = dict(self.__dict__)
+        d['_buffers'] = dict(d['_buffers'])
+        d['_buffers'].pop('key_cache', None)
+        d['_buffers'].pop('value_cache', None)
+        d['has_kv_cache'] = False
+        return d
 
     def update_kv_cache(self, time_steps: Tensor, key: Tensor, value: Tensor):
         batch_idx = torch.arange(self.key_cache.shape[0], device=time_steps.device, dtype=torch.int64)
