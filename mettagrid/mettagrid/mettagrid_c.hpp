@@ -87,9 +87,6 @@ private:
 
     std::vector<std::string> _grid_features;
 
-    bool _track_last_action;
-    unsigned char _last_action_obs_idx;
-    unsigned char _last_action_arg_obs_idx;
     std::vector<bool> _action_success;
 
     void init_action_handlers();

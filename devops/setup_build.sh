@@ -48,14 +48,6 @@ if [ -z "$CI" ] && [ -z "$IS_DOCKER" ]; then
   rm requirements_to_remove.txt
 fi
 
-# Install eigen, which is needed for compiling mettagrid. We can't
-# just use pip since we need the c++ headers.
-if [ -n "$CONDA_PREFIX" ]; then
-  conda install -c conda-forge eigen
-else
-  apt install libeigen3-dev
-fi
-
 # ========== CHECKOUT AND BUILD DEPENDENCIES ==========
 echo -e "\n\nCalling devops/checkout_and_build script...\n\n"
 bash "$SCRIPT_DIR/checkout_and_build.sh"
