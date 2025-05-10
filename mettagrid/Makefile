@@ -37,10 +37,6 @@ PYBIND11_INCLUDE = $(shell python -m pybind11 --includes)
 NUMPY_INCLUDE = $(shell python -c "import numpy; print(numpy.get_include())")
 PYTHON_INCLUDE = $(shell python -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())")
 EIGEN_INCLUDE = /usr/include/eigen3
-@echo $(PYBIND11_INCLUDE)
-@echo $(NUMPY_INCLUDE)
-@echo $(PYTHON_INCLUDE)
-@echo $(EIGEN_INCLUDE)
 CXXFLAGS = -std=c++23 -Wall -g -I$(SRC_DIR) -I$(THIRD_PARTY_DIR) -I$(TEST_DIR) -I$(EIGEN_INCLUDE) $(PYBIND11_INCLUDE) $(NUMPY_INCLUDE) $(PYTHON_INCLUDE)
 
 # Google Test settings - with detection for different install locations
@@ -66,12 +62,20 @@ SRC_OBJECTS := $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_SRC_DIR)/%.o,$(SRC_SOURCES))
 #-----------------------
 
 # Build all test and benchmark executables without running them (for CI environments)
-build-for-ci: $(SRC_OBJECTS) $(TEST_EXECUTABLES) $(BENCH_EXECUTABLES)
+
+
+
+build-for-ci: 
+	$(info Building source objects...)
+	$(MAKE) $(SRC_OBJECTS) --no-silent
+	$(info Building test executables...)
+	$(MAKE) $(TEST_EXECUTABLES) --no-silent
+	$(info Building benchmark executables...)
+	$(MAKE) $(BENCH_EXECUTABLES) --no-silent
 	@echo "Built all source files, test executables, and benchmark executables"
 	@echo "Source objects: $(words $(SRC_OBJECTS))"
 	@echo "Test executables: $(words $(TEST_EXECUTABLES))"
 	@echo "Benchmark executables: $(words $(BENCH_EXECUTABLES))"
-
 #-----------------------
 # Build
 #-----------------------
