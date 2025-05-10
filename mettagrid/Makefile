@@ -33,7 +33,10 @@ DEVOPS_SCRIPTS_DIR = ../devops
 
 # Compiler settings
 CXX = g++
-CXXFLAGS = -std=c++23 -Wall -g -I$(SRC_DIR) -I$(THIRD_PARTY_DIR) -I$(TEST_DIR)
+PYBIND11_INCLUDE = $(shell python -m pybind11 --includes)
+NUMPY_INCLUDE = $(shell python -c "import numpy; print(numpy.get_include())")
+PYTHON_INCLUDE = $(shell python -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())")
+CXXFLAGS = -std=c++23 -Wall -g -I$(SRC_DIR) -I$(THIRD_PARTY_DIR) -I$(TEST_DIR) -I$(EIGEN_INCLUDE) -I$(PYBIND11_INCLUDE) -I$(NUMPY_INCLUDE) -I$(PYTHON_INCLUDE)
 
 # Google Test settings - with detection for different install locations
 GTEST_INCLUDE = $(shell pkg-config --cflags gtest 2>/dev/null || echo "-I/opt/homebrew/Cellar/googletest/1.17.0/include")
@@ -58,6 +61,9 @@ SRC_OBJECTS := $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_SRC_DIR)/%.o,$(SRC_SOURCES))
 #-----------------------
 
 # Build all test and benchmark executables without running them (for CI environments)
+
+
+
 build-for-ci: $(SRC_OBJECTS) $(TEST_EXECUTABLES) $(BENCH_EXECUTABLES)
 	@echo "Built all source files, test executables, and benchmark executables"
 	@echo "Source objects: $(words $(SRC_OBJECTS))"
