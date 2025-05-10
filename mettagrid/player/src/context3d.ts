@@ -7,6 +7,11 @@ interface AtlasData {
   [key: string]: [number, number, number, number]; // [x, y, width, height]
 }
 
+// Clamp a value between a minimum and maximum.
+export function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(value, max));
+}
+
 /**
  * Mesh class responsible for managing vertex data
  */
@@ -95,7 +100,7 @@ class Mesh {
 
   // Resize the maximum number of quads the mesh can hold.
   resizeMaxQuads(newMaxQuads: number): void {
-    console.info("Resizing max ", this.name," quads from", this.maxQuads, "to", newMaxQuads);
+    console.info("Resizing max ", this.name, " quads from", this.maxQuads, "to", newMaxQuads);
 
     if (newMaxQuads <= this.maxQuads) {
       console.warn("New max quads must be larger than current max quads");
@@ -315,7 +320,7 @@ class Context3d {
     this.ensureMeshSelected();
 
     this.currentMesh!.scissorEnabled = true;
-    this.currentMesh!.scissorRect = [x, y, Math.max(width, 0), Math.max(height, 0)];
+    this.currentMesh!.scissorRect = [x, y, width, height];
   }
 
   // Disable scissoring for the current mesh
@@ -728,7 +733,7 @@ class Context3d {
     } else {
       // Draw the rectangle with the image's texture coordinates.
       // For centered drawing, we need to account for the reduced size.
-        this.drawRect(
+      this.drawRect(
         x - sw / 2 - m, // Center horizontally with margin adjustment.
         y - sh / 2 - m, // Center vertically with margin adjustment.
         sw + 2 * m,         // Reduce width by twice the margin.
@@ -738,6 +743,7 @@ class Context3d {
     }
   }
 
+  // Draws a solid filled rectangle.
   drawSolidRect(
     x: number,
     y: number,
@@ -771,6 +777,26 @@ class Context3d {
       uvy,
       color
     )
+  }
+
+  // Draws a stroked rectangle with set stroke width.
+  drawStrokeRect(
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    strokeWidth: number,
+    color: number[]
+  ) {
+    // Draw 4 rectangles as borders for the stroke rectangle.
+    // Top border.
+    this.drawSolidRect(x, y, width, strokeWidth, color);
+    // Bottom border.
+    this.drawSolidRect(x, y + height - strokeWidth, width, strokeWidth, color);
+    // Left border.
+    this.drawSolidRect(x, y + strokeWidth, strokeWidth, height - 2 * strokeWidth, color);
+    // Right border.
+    this.drawSolidRect(x + width - strokeWidth, y + strokeWidth, strokeWidth, height - 2 * strokeWidth, color);
   }
 
   // Flushes all non-empty meshes to the screen
@@ -838,7 +864,14 @@ class Context3d {
         // Apply scissor if enabled for this mesh
         if (mesh.scissorEnabled) {
           const [x, y, width, height] = mesh.scissorRect;
-          passEncoder.setScissorRect(x, y, width, height);
+          const w = Math.floor(this.canvas.width);
+          const h = Math.floor(this.canvas.height);
+          passEncoder.setScissorRect(
+            clamp(Math.floor(x), 0, w),
+            clamp(Math.floor(y), 0, h),
+            clamp(Math.floor(width), 0, w - x),
+            clamp(Math.floor(height), 0, h - y)
+          );
         } else {
           // Reset scissor to full canvas if previously set
           passEncoder.setScissorRect(0, 0, this.canvas.width, this.canvas.height);

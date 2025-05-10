@@ -1,15 +1,21 @@
 import logging
 import os
 import warnings
+from typing import Any, Dict, Optional
 
 import torch
 
-logger = logging.getLogger("trainer")
+logger = logging.getLogger("TrainerCheckpoint")
 
 
 class TrainerCheckpoint:
     def __init__(
-        self, agent_step: int = 0, epoch: int = 0, optimizer_state_dict: dict = None, policy_path: str = None, **kwargs
+        self,
+        agent_step: int = 0,
+        epoch: int = 0,
+        optimizer_state_dict: Optional[Dict[str, Any]] = None,
+        policy_path: Optional[str] = None,
+        **kwargs,
     ):
         self.agent_step = agent_step
         self.epoch = epoch
@@ -17,7 +23,7 @@ class TrainerCheckpoint:
         self.policy_path = policy_path
         self.extra_args = kwargs
 
-    def save(self, run_dir: str):
+    def save(self, run_dir: str) -> None:
         state = {
             "optimizer_state_dict": self.optimizer_state_dict,
             "agent_step": self.agent_step,
@@ -34,7 +40,6 @@ class TrainerCheckpoint:
     def load(run_dir: str) -> "TrainerCheckpoint":
         trainer_path = os.path.join(run_dir, "trainer_state.pt")
         logger.info(f"Loading trainer state from {trainer_path}")
-
         if not os.path.exists(trainer_path):
             logger.info("No trainer state found. Assuming new run")
             return TrainerCheckpoint(0, 0, None, None)

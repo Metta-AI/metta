@@ -26,7 +26,7 @@ from mettagrid.observation_encoder cimport (
 )
 from mettagrid.grid_object cimport GridObject
 from mettagrid.objects.production_handler cimport ProductionHandler, CoolDownHandler
-from mettagrid.objects.constants cimport ObjectLayers, ObjectTypeNames, ObjectTypeAscii, InventoryItemNames, ObjectType
+from mettagrid.objects.constants cimport ObjectLayers, ObjectTypeNames, InventoryItemNames, ObjectType
 
 # Action imports
 from mettagrid.action_handler cimport ActionHandler
@@ -403,9 +403,6 @@ cdef class MettaGrid:
         for i in range(self._agents.size()):
             self._agents[i].init(&self._rewards[i])
     
-    cpdef grid(self):
-        return []
-    
     cpdef grid_objects(self):
         cdef GridObject *obj
         cdef ObsType[:] obj_data = np.zeros(len(self.grid_features()), dtype=np.uint8)
@@ -457,28 +454,6 @@ cdef class MettaGrid:
     cpdef unsigned int num_agents(self):
         return self._agents.size()
 
-    cpdef observe(
-        self,
-        GridObjectId observer_id,
-        unsigned short obs_width,
-        unsigned short obs_height,
-        ObsType[:,:,:] observation):
-
-        cdef GridObject* observer = self._grid.object(observer_id)
-        self._compute_observation(
-            observer.location.r, observer.location.c, obs_width, obs_height, observation)
-
-    cpdef observe_at(
-        self,
-        unsigned short row,
-        unsigned short col,
-        unsigned short obs_width,
-        unsigned short obs_height,
-        ObsType[:,:,:] observation):
-
-        self._compute_observation(
-            row, col, obs_width, obs_height, observation)
-
     cpdef get_episode_rewards(self):
         return self._episode_rewards_np
 
@@ -487,14 +462,6 @@ cdef class MettaGrid:
             "game": self._stats.stats(),
             "agent": [ (<Agent*>agent).stats.stats() for agent in self._agents ]
         }
-
-    cpdef cnp.ndarray render_ascii(self):
-        cdef GridObject *obj
-        grid = np.full((self._grid.height, self._grid.width), " ", dtype=np.str_)
-        for obj_id in range(1, self._grid.objects.size()):
-            obj = self._grid.object(obj_id)
-            grid[obj.location.r, obj.location.c] = ObjectTypeAscii[obj._type_id]
-        return grid
 
     @property
     def action_space(self):
@@ -520,8 +487,3 @@ cdef class MettaGrid:
 
     def inventory_item_names(self):
         return InventoryItemNames
-    
-    def render(self):
-        grid = self.render_ascii()
-        for r in grid:
-                print("".join(r))

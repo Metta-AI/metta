@@ -1,6 +1,7 @@
 import * as Common from './common.js';
 import { ui, state, html, ctx } from './common.js';
-import { focusFullMap, requestFrame } from './drawing.js';
+import { focusFullMap, requestFrame } from './worldmap.js';
+import { onResize } from './main.js';
 
 // Gets an attribute from a grid object respecting the current step.
 export function getAttr(obj: any, attr: string, atStep = -1, defaultValue = 0): any {
@@ -46,8 +47,18 @@ async function decompressStream(stream: ReadableStream<Uint8Array>): Promise<str
 
 // Load the replay from a URL.
 export async function fetchReplay(replayUrl: string) {
+
+  // If its an S3 url, we can convert it to a http url.
+  const s3Prefix = "s3://softmax-public/";
+  let httpUrl = replayUrl;
+  if (replayUrl.startsWith(s3Prefix)) {
+    const httpPrefix = "https://softmax-public.s3.us-east-1.amazonaws.com/";
+    httpUrl = httpPrefix + replayUrl.slice(s3Prefix.length);
+    console.log("Converted S3 url to http url: ", httpUrl);
+  }
+
   try {
-    const response = await fetch(replayUrl);
+    const response = await fetch(httpUrl);
     if (!response.ok) {
       throw new Error("Network response was not ok");
     }
@@ -59,11 +70,11 @@ export async function fetchReplay(replayUrl: string) {
     console.log("Content-Type: ", contentType);
     if (contentType === "application/json") {
       let replayData = await response.text();
-      loadReplayText(replayData);
+      loadReplayText(replayUrl, replayData);
     } else if (contentType === "application/x-compress" || contentType === "application/octet-stream") {
       // Compressed JSON.
       const decompressedData = await decompressStream(response.body);
-      loadReplayText(decompressedData);
+      loadReplayText(replayUrl, decompressedData);
     } else {
       throw new Error("Unsupported content type: " + contentType);
     }
@@ -78,13 +89,13 @@ export async function readFile(file: File) {
     const contentType = file.type;
     console.log("Content-Type: ", contentType);
     if (contentType === "application/json") {
-      loadReplayText(await file.text());
+      loadReplayText(file.name, await file.text());
     } else if (contentType === "application/x-compress" || contentType === "application/octet-stream") {
       // Compressed JSON.
       console.log("Decompressing file");
       const decompressedData = await decompressStream(file.stream());
       console.log("Decompressed file");
-      loadReplayText(decompressedData);
+      loadReplayText(file.name, decompressedData);
     }
   } catch (error) {
     Common.showModal("error", "Error reading file", "Message: " + error);
@@ -119,7 +130,7 @@ function removeSuffix(str: string, suffix: string) {
 }
 
 // Load the replay text.
-async function loadReplayText(replayData: any) {
+async function loadReplayText(url: string, replayData: any) {
   state.replay = JSON.parse(replayData);
 
   // Go through each grid object and expand its key sequence.
@@ -162,37 +173,22 @@ async function loadReplayText(replayData: any) {
   }
 
   // Create object image mapping for faster access.
-  // Example: 3 -> ["objects/altar.png", "objects/altar.empty.png"]
-  // Example: 1 -> ["objects/wall.png", "objects/wall.png"]
-  // Also do this for the undefined and the colors.
+  // Example: 3 -> ["objects/altar.png", "objects/altar.item.png", "objects/altar.color.png"]
+  // Example: 1 -> ["objects/unknown.png", "objects/unknown.item.png", "objects/unknown.color.png"]
   state.replay.object_images = []
   for (let i = 0; i < state.replay.object_types.length; i++) {
-    var imageSet: [string, string][] = [];
     const typeName = state.replay.object_types[i];
     var image = "objects/" + typeName + ".png";
+    var imageItem = "objects/" + typeName + ".item.png";
+    var imageColor = "objects/" + typeName + ".color.png";
     if (!ctx.hasImage(image)) {
       console.warn("Object not supported: ", typeName);
+      // Use the unknown image.
       image = "objects/unknown.png";
+      imageItem = "objects/unknown.item.png";
+      imageColor = "objects/unknown.color.png";
     }
-    var imageEmpty = "objects/" + typeName + ".empty.png";
-    if (!ctx.hasImage(imageEmpty)) {
-      imageEmpty = image;
-    }
-    imageSet.push([image, imageEmpty]);
-
-    // Now add the color variants.
-    for (const [colorName, colorValue] of Common.COLORS) {
-      var colorImage = "objects/" + typeName + "." + colorName + ".png";
-      if (!ctx.hasImage(colorImage)) {
-        colorImage = image;
-      }
-      var emptyColorImage = "objects/" + typeName + ".empty." + colorName + ".png";
-      if (!ctx.hasImage(emptyColorImage)) {
-        emptyColorImage = colorImage;
-      }
-      imageSet.push([colorImage, emptyColorImage]);
-    }
-    state.replay.object_images.push(imageSet);
+    state.replay.object_images.push([image, imageItem, imageColor]);
   }
 
   // Create resource inventory mapping for faster access.
@@ -209,7 +205,7 @@ async function loadReplayText(replayData: any) {
       var color = [1, 1, 1, 1]; // Default to white.
       for (const [colorName, colorValue] of Common.COLORS) {
         if (type.endsWith(colorName)) {
-          if(ctx.hasImage("resources/" + type + ".png")) {
+          if (ctx.hasImage("resources/" + type + ".png")) {
             // Use the resource.color.png with white color.
             break;
           } else {
@@ -244,7 +240,14 @@ async function loadReplayText(replayData: any) {
   // Set the scrubber max value to the max steps.
   html.scrubber.max = (state.replay.max_steps - 1).toString();
 
+  if (state.replay.file_name) {
+    html.fileName.textContent = state.replay.file_name;
+  } else {
+    html.fileName.textContent = url.split("/").pop() || "unknown";
+  }
+
   Common.closeModal();
   focusFullMap(ui.mapPanel);
+  onResize();
   requestFrame();
 }

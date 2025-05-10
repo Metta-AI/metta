@@ -21,7 +21,7 @@ on:
         type: boolean
         default: true
       run_benchmark:
-        description: "Run benchmarks"
+        description: "Run benchmarks (requires tests)"
         type: boolean
         default: true
 
@@ -182,10 +182,10 @@ jobs:
         if: steps.build-cache-cpp.outputs.cache-hit != 'true'
         run: |
           cd mettagrid
-          make build
+          make build-for-ci
 
   lint:
-    name: "Lint"
+    name: "C++ Lint"
     needs: [graphite-ci-optimizer, setup-checks, build-cpp]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') && 
@@ -207,7 +207,7 @@ jobs:
             -exec clang-format --dry-run --Werror {} +
 
   test:
-    name: "Test"
+    name: "C++ Tests"
     needs: [graphite-ci-optimizer, setup-checks, build-cpp]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') && 
@@ -241,7 +241,7 @@ jobs:
           make test
 
   benchmark:
-    name: "Benchmark"
+    name: "C++ Benchmarks"
     needs: [graphite-ci-optimizer, setup-checks, build-cpp, test]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') && 
@@ -377,13 +377,12 @@ jobs:
                 --start-point-clone-thresholds \
                 --start-point-reset \
                 --threshold-measure latency \
-                --threshold-test t_test \
+                --threshold-test percentage \
                 --threshold-max-sample-size 64 \
-                --threshold-upper-boundary 0.99 \
+                --threshold-upper-boundary 0.25 \
                 --testbed ubuntu-latest \
                 --adapter cpp_google \
                 --github-actions "$GITHUB_TOKEN" \
-                --err \
                 --file "$file" > /dev/null
             done
           else
