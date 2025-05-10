@@ -231,8 +231,8 @@ inline std::unique_ptr<CppMettaGrid> create_grid_from_mettagrid_args(const std::
 // Structure to hold all buffer pointers for easier management
 struct GridBuffers {
   ObsType* observations = nullptr;
-  int8_t* terminals = nullptr;
-  int8_t* truncations = nullptr;
+  numpy_bool_t* terminals = nullptr;
+  numpy_bool_t* truncations = nullptr;
   float* rewards = nullptr;
 
   // Size information for reference
@@ -258,8 +258,8 @@ inline GridBuffers* allocate_grid_buffers(CppMettaGrid* grid) {
 
   // Allocate memory for each buffer with zero initialization
   buffers->observations = new ObsType[buffers->obs_size]();
-  buffers->terminals = new int8_t[buffers->terminals_size]();
-  buffers->truncations = new int8_t[buffers->truncations_size]();
+  buffers->terminals = new numpy_bool_t[buffers->terminals_size]();
+  buffers->truncations = new numpy_bool_t[buffers->truncations_size]();
   buffers->rewards = new float[buffers->rewards_size]();
 
   // Set the buffers in the grid

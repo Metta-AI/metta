@@ -13,8 +13,8 @@ protected:
 
   // External buffers - need to be managed by the test
   ObsType* observations;
-  int8_t* terminals;
-  int8_t* truncations;
+  numpy_bool_t* terminals;
+  numpy_bool_t* truncations;
   float* rewards;
 
   void SetUp() override {
@@ -29,8 +29,8 @@ protected:
 
     // Create the external buffers with zero initialization
     observations = new ObsType[obs_size]();
-    terminals = new int8_t[term_size]();
-    truncations = new int8_t[trunc_size]();
+    terminals = new numpy_bool_t[term_size]();
+    truncations = new numpy_bool_t[trunc_size]();
     rewards = new float[reward_size]();
 
     // Set the external buffers in the grid

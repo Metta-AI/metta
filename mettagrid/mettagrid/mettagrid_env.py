@@ -20,6 +20,15 @@ from mettagrid.resolvers import register_resolvers
 from mettagrid.stats_writer import StatsWriter
 from mettagrid.util.debug import save_mettagrid_args
 
+# match these to cpp types.hpp
+numpy_bool_t = np.uint8
+observations_np_type = np.uint8
+terminals_np_type = numpy_bool_t
+truncations_np_type = numpy_bool_t
+rewards_np_type = np.float32
+actions_np_type = np.uint8
+masks_np_type = np.uint8
+
 
 class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     # Type hints for attributes defined in the C++ extension to help Pylance
@@ -64,13 +73,13 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         # force buffers to the correct size
         buf = {
             "observations": np.zeros(
-                (num_agents, obs_width, obs_height, grid_features_size), dtype=np.uint8, order="C"
+                (num_agents, obs_width, obs_height, grid_features_size), dtype=observations_np_type, order="C"
             ),
-            "terminals": np.zeros((num_agents,), dtype=bool, order="C"),
-            "truncations": np.zeros((num_agents,), dtype=bool, order="C"),
-            "rewards": np.zeros((num_agents,), dtype=float, order="C"),
-            "actions": np.zeros((num_agents, 2), dtype=np.uint8, order="C"),
-            "masks": np.ones((num_agents,), dtype=bool, order="C"),
+            "terminals": np.zeros((num_agents,), dtype=terminals_np_type, order="C"),
+            "truncations": np.zeros((num_agents,), dtype=truncations_np_type, order="C"),
+            "rewards": np.zeros((num_agents,), dtype=rewards_np_type, order="C"),
+            "actions": np.zeros((num_agents, 2), dtype=actions_np_type, order="C"),
+            "masks": np.ones((num_agents,), dtype=masks_np_type, order="C"),
         }
 
         buf_obj = SimpleNamespace(**buf)
@@ -169,7 +178,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         Returns:
             Tuple of (observations, rewards, terminals, truncations, infos)
         """
-        np.copyto(self.actions, actions.astype(np.uint8, casting="unsafe"))
+        np.copyto(self.actions, actions.astype(actions_np_type, casting="unsafe"))
 
         if self._replay_writer:
             self._replay_writer.log_pre_step(self._episode_id, self.actions)

@@ -40,8 +40,8 @@ TEST(StepTest, BasicStep) {
 
     // Create the external buffers with zero initialization
     ObsType* observations = new ObsType[obs_size]();
-    int8_t* terminals = new int8_t[term_size]();
-    int8_t* truncations = new int8_t[trunc_size]();
+    numpy_bool_t* terminals = new numpy_bool_t[term_size]();
+    numpy_bool_t* truncations = new numpy_bool_t[trunc_size]();
     float* rewards = new float[reward_size]();
 
     std::cout << "Buffers allocated." << std::endl;

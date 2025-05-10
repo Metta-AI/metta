@@ -48,8 +48,8 @@ private:
 
   // Pointers to external buffers - these are required and must be set
   ObsType* _observations;
-  int8_t* _terminals;
-  int8_t* _truncations;
+  numpy_bool_t* _terminals;
+  numpy_bool_t* _truncations;
   float* _rewards;
 
   // Buffer sizes
@@ -67,7 +67,7 @@ private:
   float _reward_decay_multiplier;
   float _reward_decay_factor;
 
-  std::vector<int8_t> _action_success;
+  std::vector<numpy_bool_t> _action_success;
 
 public:
   // Constructor - note the changes to take ownership of the grid
@@ -83,18 +83,18 @@ public:
 
   // Method to set external buffers - must be called before using the object
   void set_buffers(ObsType* external_observations,
-                   int8_t* external_terminals,
-                   int8_t* external_truncations,
+                   numpy_bool_t* external_terminals,
+                   numpy_bool_t* external_truncations,
                    float* external_rewards);
 
   // Buffer access methods
   ObsType* get_observations() const {
     return _observations;
   }
-  int8_t* get_terminals() const {
+  numpy_bool_t* get_terminals() const {
     return _terminals;
   }
-  int8_t* get_truncations() const {
+  numpy_bool_t* get_truncations() const {
     return _truncations;
   }
   float* get_rewards() const {
@@ -196,7 +196,7 @@ public:
   uint32_t num_agents() const {
     return _agents.size();
   }
-  std::vector<int8_t> action_success() const {
+  std::vector<numpy_bool_t> action_success() const {
     return _action_success;
   }
   std::vector<uint8_t> max_action_args() const {

@@ -90,8 +90,8 @@ CppMettaGrid::~CppMettaGrid() {
 }
 
 void CppMettaGrid::set_buffers(ObsType* external_observations,
-                               int8_t* external_terminals,
-                               int8_t* external_truncations,
+                               numpy_bool_t* external_terminals,
+                               numpy_bool_t* external_truncations,
                                float* external_rewards) {
   // Check for NULL pointers
   if (external_observations == nullptr) {
@@ -287,19 +287,24 @@ void CppMettaGrid::step(ActionsType* flat_actions) {
       ActionsType action = flat_actions[idx * 2];   // First element is action type
       ActionsType arg = flat_actions[idx * 2 + 1];  // Second element is action argument
 
-      // Crash hard on invalid actions
       assert(action >= 0 && "Action cannot be negative");
       assert(action < static_cast<int32_t>(_num_action_handlers) && "Action exceeds available handlers");
 
       Agent* agent = _agents[idx];
       ActionHandler* handler = _action_handlers[static_cast<size_t>(action)].get();
 
-      // Crash on invalid priority or args
+      assert(handler != nullptr && "Action handler is null");
       assert(handler->priority == _max_action_priority - p || "Action handled in wrong priority phase");
       assert(arg <= _max_action_args[static_cast<size_t>(action)] && "Action argument exceeds maximum allowed");
+      assert(_current_timestep > 0 && "Current timestep must be positive");
+      assert(agent != nullptr && "Agent is null");
+      assert(agent->id > 0 && "Agent ID must be positive");
+      assert(agent->id < _grid->objects.size() && "Agent ID exceeds grid object count");
+
+      numpy_bool_t result = handler->handle_action(idx, agent->id, arg, _current_timestep);
 
       // TODO: this line is causing a segfault
-      // _action_success[idx] = handler->handle_action(idx, agent->id, arg, _current_timestep);
+      _action_success[idx] = result;
     }
   }
 

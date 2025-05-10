@@ -1,15 +1,11 @@
 # distutils: language = c++
 # cython: language_level=3
-# cython: boundscheck=False
-# cython: wraparound=False
-# cython: initializedcheck=False
 
 from libc.stdio cimport printf
 from libc.stdlib cimport malloc, free
 from libcpp.vector cimport vector
 from libcpp.string cimport string
 from libcpp.map cimport map
-from libcpp cimport bool
 from libc.stdint cimport uint8_t, uint16_t, uint32_t, int8_t, int32_t
 
 # Python imports
@@ -20,14 +16,14 @@ import gymnasium as gym
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
 # Import from the cython definition file
-from mettagrid.py_mettagrid cimport CppMettaGrid, GridObjectId, ObsType, ObjectTypeNames, InventoryItemNames, ActionsType
+from mettagrid.py_mettagrid cimport CppMettaGrid, GridObjectId, ObsType, ObjectTypeNames, InventoryItemNames, ActionsType, numpy_bool_t
 
-# Types - fixed the inconsistent dtype
-observations_np_type = np.uint8
-terminals_np_type = np.int8
-truncations_np_type = np.int8
-rewards_np_type = np.float32  # Removed 'dtype='
-actions_np_type = np.uint8
+# import c types from pxd & match to types imported from python
+
+from mettagrid.mettagrid_env import observations_np_type, terminals_np_type, truncations_np_type, rewards_np_type, actions_np_type, success_np_type
+
+
+
 
 # Wrapper class for the C++ implementation
 cdef class MettaGrid:
@@ -147,9 +143,9 @@ cdef class MettaGrid:
             tuple term_shape
             tuple trunc_shape
             tuple reward_shape
-            cnp.ndarray[uint8_t, ndim=4] typed_observations
-            cnp.ndarray[int8_t, ndim=1] typed_terminals
-            cnp.ndarray[int8_t, ndim=1] typed_truncations
+            cnp.ndarray[ObsType, ndim=4] typed_observations
+            cnp.ndarray[numpy_bool_t, ndim=1] typed_terminals
+            cnp.ndarray[numpy_bool_t, ndim=1] typed_truncations
             cnp.ndarray[float, ndim=1] typed_rewards
         
         num_agents = self._num_agents
@@ -202,8 +198,8 @@ cdef class MettaGrid:
         # Connect these arrays to the C++ engine
         self._cpp_mettagrid.set_buffers(
             <ObsType*>observations.data,
-            <int8_t*>terminals.data,
-            <int8_t*>truncations.data,
+            <numpy_bool_t*>terminals.data,
+            <numpy_bool_t*>truncations.data,
             <float*>rewards.data,
         )
 
@@ -253,34 +249,29 @@ cdef class MettaGrid:
         return (self._observations_np, self._rewards_np, self._terminals_np, self._truncations_np, {})
 
 
-    cpdef cnp.ndarray[int8_t, ndim=1] action_success(self):
+    cpdef cnp.ndarray[uint8_t, ndim=1] action_success(self):
         """
         Get the action success information.
-        
+
         Returns:
             NumPy array indicating success/failure of actions
         """
         cdef:
-            vector[int8_t] success
-            int8_t* data_ptr
+            vector[numpy_bool_t] success
             size_t size
             uint32_t i
-            int8_t* target_ptr
             cnp.ndarray success_array
             
         success = self._cpp_mettagrid.action_success()
-        data_ptr = success.data()
         size = success.size()
-        
-        # Create a new numpy array and manually copy the data
-        success_array = np.zeros(size, dtype=np.int8)
-        
-        # Manual copy
-        if size > 0:
-            target_ptr = <int8_t*>success_array.data
-            for i in range(size):
-                target_ptr[i] = data_ptr[i]
-        
+
+        # Create a new numpy array
+        success_array = np.zeros(size, dtype=success_np_type)
+
+        # Manual copy - accessing vector<bool> elements individually
+        for i in range(size):
+            success_array[i] = success[i]
+
         # Return the array
         return success_array
 

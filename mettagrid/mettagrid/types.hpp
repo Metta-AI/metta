@@ -34,6 +34,9 @@ typedef uint8_t ActionsType;
 // Configuration for action handlers - maps setting names to integer values
 typedef std::map<std::string, ActionsType> ActionConfig;
 
+// match to numpy bool
+typedef uint8_t numpy_bool_t;
+
 // Forward declarations for all relevant classes
 class Grid;
 class StatsTracker;

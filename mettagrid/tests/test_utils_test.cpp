@@ -113,8 +113,8 @@ TEST_F(TestUtilsTest, ManualBufferAllocation) {
 
     std::cout << "Allocating memory..." << std::endl;
     ObsType* observations = new ObsType[obs_size]();
-    int8_t* terminals = new int8_t[terminals_size]();
-    int8_t* truncations = new int8_t[truncations_size]();
+    numpy_bool_t* terminals = new numpy_bool_t[terminals_size]();
+    numpy_bool_t* truncations = new numpy_bool_t[truncations_size]();
     float* rewards = new float[rewards_size]();
     std::cout << "Memory allocated." << std::endl;
 
@@ -193,8 +193,8 @@ TEST_F(TestUtilsTest, BufferHelpers) {
       // Function to allocate buffers
       static void allocate_buffers(CppMettaGrid* grid,
                                    ObsType** observations,
-                                   int8_t** terminals,
-                                   int8_t** truncations,
+                                   numpy_bool_t** terminals,
+                                   numpy_bool_t** truncations,
                                    float** rewards) {
         // Get buffer sizes
         size_t obs_size = grid->get_observations_size();
@@ -204,8 +204,8 @@ TEST_F(TestUtilsTest, BufferHelpers) {
 
         // Allocate buffers
         *observations = new ObsType[obs_size]();
-        *terminals = new int8_t[terminals_size]();
-        *truncations = new int8_t[truncations_size]();
+        *terminals = new numpy_bool_t[terminals_size]();
+        *truncations = new numpy_bool_t[truncations_size]();
         *rewards = new float[rewards_size]();
 
         // Connect buffers to grid
@@ -213,7 +213,10 @@ TEST_F(TestUtilsTest, BufferHelpers) {
       }
 
       // Function to free buffers
-      static void free_buffers(ObsType* observations, int8_t* terminals, int8_t* truncations, float* rewards) {
+      static void free_buffers(ObsType* observations,
+                               numpy_bool_t* terminals,
+                               numpy_bool_t* truncations,
+                               float* rewards) {
         delete[] observations;
         delete[] terminals;
         delete[] truncations;
@@ -226,8 +229,8 @@ TEST_F(TestUtilsTest, BufferHelpers) {
 
     // Pointers for our buffers
     ObsType* observations = nullptr;
-    int8_t* terminals = nullptr;
-    int8_t* truncations = nullptr;
+    numpy_bool_t* terminals = nullptr;
+    numpy_bool_t* truncations = nullptr;
     float* rewards = nullptr;
 
     // Allocate and connect buffers

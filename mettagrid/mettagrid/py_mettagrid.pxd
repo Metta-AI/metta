@@ -5,7 +5,7 @@ from libcpp.vector cimport vector
 from libcpp.string cimport string
 from libcpp.map cimport map
 from libc.stdint cimport uint8_t, uint16_t, uint32_t, int8_t, int32_t
-from libcpp cimport bool
+
 
 
 # Forward declarations - updated to match our new structure
@@ -13,6 +13,7 @@ cdef extern from "types.hpp":
     ctypedef uint32_t GridObjectId
     ctypedef uint8_t ObsType
     ctypedef uint8_t ActionsType;
+    ctypedef uint8_t numpy_bool_t;
 
     cdef struct Event:
         uint32_t timestamp
@@ -119,14 +120,14 @@ cdef extern from "core.hpp":
         
         # Set external buffers method
         void set_buffers(ObsType* external_observations,
-                       int8_t* external_terminals,
-                       int8_t* external_truncations,
+                       numpy_bool_t* external_terminals,
+                       numpy_bool_t* external_truncations,
                        float* external_rewards)
         
         # Replace vector getters with pointer getters
         ObsType* get_observations() const
-        int8_t* get_terminals() const
-        int8_t* get_truncations() const
+        numpy_bool_t* get_terminals() const
+        numpy_bool_t* get_truncations() const
         float* get_rewards() const
         float* get_episode_rewards() const
         float* get_group_rewards() const
@@ -145,7 +146,7 @@ cdef extern from "core.hpp":
         uint32_t map_height() const
         vector[string] grid_features() const
         uint32_t num_agents() const
-        vector[int8_t] action_success() const
+        vector[numpy_bool_t] action_success() const
         vector[uint8_t] max_action_args() const
         const vector[Agent*]& get_agents() const
         
