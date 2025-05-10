@@ -16,6 +16,10 @@ def oc_uniform(min_val: Numeric, max_val: Numeric) -> float:
     return float(np.random.uniform(min_val, max_val))
 
 
+def oc_triangular(min_val: Numeric, mode: Numeric, max_val: Numeric) -> float:
+    return float(np.random.triangular(min_val, mode, max_val))
+
+
 def oc_choose(*args: Any) -> Any:
     return random.choice(args)
 
@@ -228,6 +232,7 @@ def register_resolvers() -> None:
     """
     OmegaConf.register_new_resolver("if", oc_if, replace=True)
     OmegaConf.register_new_resolver("uniform", oc_uniform, replace=True)
+    OmegaConf.register_new_resolver("triangular", oc_triangular, replace=True)
     OmegaConf.register_new_resolver("choose", oc_choose, replace=True)
     OmegaConf.register_new_resolver("div", oc_divide, replace=True)
     OmegaConf.register_new_resolver("subtract", oc_subtract, replace=True)
