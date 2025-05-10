@@ -113,7 +113,10 @@ class TerrainFromNumpy(Room):
         level[agents] = "empty"
 
         if isinstance(self._agents, int):
-            agents = ["agent.agent"] * self._agents
+            if self.team is None:
+                agents = ["agent.agent"] * self._agents
+            else:
+                agents = ["agent." + self.team] * self._agents
             num_agents = self._agents
         elif isinstance(self._agents, DictConfig):
             agents = ["agent." + agent for agent, na in self._agents.items() for _ in range(na)]

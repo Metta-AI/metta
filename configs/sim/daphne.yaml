@@ -1,0 +1,8 @@
+defaults:
+  - sim
+  - _self_
+
+name: daphne
+simulations:
+  multiagent:
+    env: env/mettagrid/multiagent/training/reward_sharing/48_range/varied_terrain_all_sparse

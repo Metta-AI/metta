@@ -9,7 +9,7 @@ import datetime
 import logging
 import os
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict
 
 import duckdb
 import pandas as pd
@@ -34,7 +34,7 @@ EPISODE_DB_TABLES = {
         PRIMARY KEY (episode_id, attribute)
     );
     """,
-    "groups": """
+    "agent_groups": """
     CREATE TABLE IF NOT EXISTS agent_groups (
         episode_id TEXT,
         group_id INTEGER,
@@ -42,23 +42,31 @@ EPISODE_DB_TABLES = {
         PRIMARY KEY (episode_id, group_id, agent_id)
     );
     """,
-    "group_metrics": """
-    CREATE TABLE IF NOT EXISTS group_metrics (
-        episode_id TEXT,
-        group_id INTEGER,
-        metric TEXT,
-        value REAL,
-        PRIMARY KEY (episode_id, group_id, metric)
-    );
-    """,
     "agent_metrics": """
     CREATE TABLE IF NOT EXISTS agent_metrics (
         episode_id TEXT,
         agent_id INTEGER,
-        metric TEXT,    
+        metric TEXT,
         value REAL,
         PRIMARY KEY (episode_id, agent_id, metric)
     );
+    """,
+}
+
+EPISODE_DB_VIEWS = {
+    "group_metrics": """
+    CREATE VIEW IF NOT EXISTS group_metrics AS
+        SELECT
+            am.episode_id,
+            ag.group_id,
+            am.metric,
+            SUM(am.value) AS value
+        FROM agent_metrics am
+        JOIN agent_groups ag
+            ON ag.episode_id = am.episode_id
+            AND ag.agent_id   = am.agent_id
+        GROUP BY am.episode_id, ag.group_id, am.metric
+    ;
     """,
 }
 
@@ -78,26 +86,33 @@ class EpisodeStatsDB:
         self.initialize_schema()
 
     def initialize_schema(self) -> None:
-        for table_name, stmt in self.tables().items():
+        def _execute_stmt(table_name: str, stmt: str) -> None:
             try:
                 self.con.execute(stmt)
             except Exception as e:
                 logger = logging.getLogger(__name__)
                 logger.error(f"Error executing SQL for table {table_name}: {e}")
                 raise
+
+        for table_name, stmt in self.tables().items():
+            _execute_stmt(table_name, stmt)
+        for table_name, stmt in self.views().items():
+            _execute_stmt(table_name, stmt)
         self.con.commit()
 
     def tables(self) -> Dict[str, str]:
         """Return all tables in the database."""
         return EPISODE_DB_TABLES
 
+    def views(self) -> Dict[str, str]:
+        return EPISODE_DB_VIEWS
+
     def record_episode(
         self,
         episode_id: str,
         attributes: Dict[str, str],
-        groups: List[List[int]],
+        agent_to_group: Dict[int, int],
         agent_metrics: Dict[int, Dict[str, float]],
-        group_metrics: Dict[int, Dict[str, float]],
         step_count: int,
         replay_url: str | None,
         created_at: datetime.datetime,
@@ -105,7 +120,7 @@ class EpisodeStatsDB:
         self.con.begin()
         self.con.execute(
             """
-            INSERT INTO episodes 
+            INSERT INTO episodes
             (id, step_count, replay_url, created_at)
             VALUES (?, ?, ?, ?)
             """,
@@ -124,14 +139,13 @@ class EpisodeStatsDB:
             )
 
         group_rows = []
-        for group_id, agent_ids in enumerate(groups):
-            for agent_id in agent_ids:
-                group_rows.append((episode_id, group_id, agent_id))
+        for agent_id, group_id in agent_to_group.items():
+            group_rows.append((episode_id, group_id, agent_id))
 
         if len(group_rows) > 0:
             self.con.executemany(
                 """
-                INSERT INTO agent_groups
+                INSERT OR REPLACE INTO agent_groups
                 (episode_id, group_id, agent_id)
                 VALUES (?, ?, ?)
                 """,
@@ -139,7 +153,6 @@ class EpisodeStatsDB:
             )
 
         self._add_metrics(episode_id, agent_metrics, "agent")
-        self._add_metrics(episode_id, group_metrics, "group")
 
         self.con.commit()
         self.con.execute("CHECKPOINT")
