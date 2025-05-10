@@ -10,7 +10,14 @@ authors = [{ name = "David Bloomin", email = "daveey@gmail.com" }]
 license = { text = "MIT" }
 readme = "README.md"
 urls = { Homepage = "https://daveey.github.io", Repository = "https://github.com/Metta-AI/mettagrid" }
-keywords = ["gridworld", "minigrid", "rl", "reinforcement-learning", "environment", "gym"]
+keywords = [
+    "gridworld",
+    "minigrid",
+    "rl",
+    "reinforcement-learning",
+    "environment",
+    "gym",
+]
 requires-python = ">=3.10,<4.0"
 dependencies = ["numpy>=2.2.5", "cython>=3.0.11"]
 
@@ -28,4 +35,3 @@ testpaths = ["tests", "benchmarks"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
 python_classes = ["Test*"]
-addopts = "--cov=mettagrid --cov-report=term"
