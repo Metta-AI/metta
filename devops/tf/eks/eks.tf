@@ -10,12 +10,8 @@ locals {
     Terraform = "true"
   }
 
-  sso_arn = "arn:aws:sts::751442549699:assumed-role/AWSReservedSSO_AdministratorAccess_ac2ae6482eae17c4"
-
   admins = [
     "arn:aws:iam::751442549699:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_AdministratorAccess_ac2ae6482eae17c4"
-    # "${local.sso_arn}/slava@stem.ai",
-    # "${local.sso_arn}/daveey@stem.ai",
   ]
 }
 
