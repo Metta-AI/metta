@@ -165,3 +165,31 @@ output "cluster_endpoint" {
 output "cluster_ca_data" {
   value = aws_eks_cluster.main.certificate_authority[0].data
 }
+
+# Allow admin access
+
+data "aws_caller_identity" "current" {}
+
+data "aws_iam_policy_document" "eks_assume_admin" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["eks.amazonaws.com"]
+    }
+  }
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "AWS"
+      identifiers = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/AWSReservedSSO_AdministratorAccess_*"]
+    }
+  }
+}
+
+resource "aws_iam_role" "eks_cluster_admin" {
+  name               = "eks-cluster-admin-role"
+  assume_role_policy = data.aws_iam_policy_document.eks_assume.json
+}
