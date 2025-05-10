@@ -22,6 +22,8 @@ class SimulationSuite:
         config: SimulationSuiteConfig,
         policy_pr: PolicyRecord,
         policy_store: PolicyStore,
+        device: str,
+        vectorization: str,
         stats_dir: str = "/tmp/stats",
         replay_dir: str | None = None,
     ):
@@ -30,6 +32,8 @@ class SimulationSuite:
         self._policy_store = policy_store
         self._replay_dir = replay_dir
         self._stats_dir = stats_dir
+        self._device = device
+        self._vectorization = vectorization
         self.name = config.name
 
     # ------------------------------------------------------------------ #
@@ -46,6 +50,8 @@ class SimulationSuite:
                 sim_config,
                 self._policy_pr,
                 self._policy_store,
+                device=self._device,
+                vectorization=self._vectorization,
                 suite=self,
                 stats_dir=self._stats_dir,
                 replay_dir=self._replay_dir,

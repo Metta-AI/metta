@@ -49,17 +49,6 @@
             ],
         },
         {
-            "name": "Play Metta",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "tools.play",
-            "args": [
-                "+user=${env:USER}",
-                "+hardware=macbook",
-                "cmd=play",
-            ],
-        },
-        {
             "name": "Evaluate",
             "type": "debugpy",
             "request": "launch",

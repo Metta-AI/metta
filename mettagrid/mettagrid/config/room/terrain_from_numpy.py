@@ -9,7 +9,10 @@ from botocore.exceptions import NoCredentialsError
 from filelock import FileLock
 from omegaconf import DictConfig
 
+from metta.util.logging import setup_mettagrid_logger
 from mettagrid.config.room.room import Room
+
+logger = setup_mettagrid_logger("terrain_from_numpy")
 
 
 def safe_load(path, retries=5, delay=1.0):
@@ -101,11 +104,9 @@ class TerrainFromNumpy(Room):
 
     def _build(self):
         # TODO: add some way of sampling
-        if self.uri is not None:
-            level = safe_load(f"{self.dir}/{self.uri}")
-        else:
-            uri = np.random.choice(self.files)
-            level = safe_load(f"{self.dir}/{uri}")
+        uri = self.uri or np.random.choice(self.files)
+        level = safe_load(f"{self.dir}/{uri}")
+        logger.info(f"Loaded level from {self.dir}/{uri}")
         self.set_size_labels(level.shape[1], level.shape[0])
 
         # remove agents to then repopulate
