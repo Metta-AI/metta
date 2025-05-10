@@ -15,7 +15,7 @@ game:
         width: ${sampling:50,100,60}
         height: ${sampling:50,100,60}
         border_width: ${sampling:1,6,3}
-        agents: ${div:${..num_agents},4}
+        agents: 6
         style: sparse-altars-dense-objects # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
         teams: [team_1]
         objects:
@@ -24,7 +24,7 @@ game:
         width: ${sampling:50,100,60}
         height: ${sampling:50,100,60}
         border_width: ${sampling:1,6,3}
-        agents: ${div:${..num_agents},4}
+        agents: 6
         style: sparse-altars-dense-objects # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
         teams: [team_2]
         objects:
@@ -33,7 +33,7 @@ game:
         width: ${sampling:50,100,60}
         height: ${sampling:50,100,60}
         border_width: ${sampling:1,6,3}
-        agents: ${div:${..num_agents},4}
+        agents: 6
         style: sparse-altars-dense-objects # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
         teams: [team_3]
         objects:
@@ -42,7 +42,7 @@ game:
         width: ${sampling:50,100,60}
         height: ${sampling:50,100,60}
         border_width: ${sampling:1,6,3}
-        agents: ${div:${..num_agents},4}
+        agents: 6
         style: sparse-altars-dense-objects # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
         teams: [team_4]
         objects:
