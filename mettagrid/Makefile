@@ -37,10 +37,10 @@ PYBIND11_INCLUDE = $(shell python -m pybind11 --includes)
 NUMPY_INCLUDE = $(shell python -c "import numpy; print(numpy.get_include())")
 PYTHON_INCLUDE = $(shell python -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())")
 EIGEN_INCLUDE = /usr/include/eigen3
-echo $(PYBIND11_INCLUDE)
-echo $(NUMPY_INCLUDE)
-echo $(PYTHON_INCLUDE)
-echo $(EIGEN_INCLUDE)
+@echo $(PYBIND11_INCLUDE)
+@echo $(NUMPY_INCLUDE)
+@echo $(PYTHON_INCLUDE)
+@echo $(EIGEN_INCLUDE)
 CXXFLAGS = -std=c++23 -Wall -g -I$(SRC_DIR) -I$(THIRD_PARTY_DIR) -I$(TEST_DIR) -I$(EIGEN_INCLUDE) $(PYBIND11_INCLUDE) $(NUMPY_INCLUDE) $(PYTHON_INCLUDE)
 
 # Google Test settings - with detection for different install locations
