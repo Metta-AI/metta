@@ -78,7 +78,7 @@ data "aws_iam_policy_document" "eks_assume" {
       test     = "StringLike"
       variable = "aws:PrincipalArn"
       values = [
-        "arn:aws:sts::${data.aws_caller_identity.current.account_id}:assumed-role/AWSReservedSSO_AdministratorAccess_*/*"
+        "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_AdministratorAccess_*"
       ]
     }
   }
