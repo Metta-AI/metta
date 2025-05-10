@@ -12,11 +12,10 @@ georged_sharing24_06_pretrained - unexpected keyword teams in terain_from_numpy
 
 
 POLICIES=(
-    "daphne_object_use_training_colors"
+    "b.daphne.object_use_training_no_colors_pretrained3"
+    "b.daphne.object_use_training_no_colors3"
     "b.daphne.object_use_training_colors2"
     "b.daphne.object_use_training_colors_pretrained2"
-    "b.daphne.object_use_training_no_colors3"
-    "b.daphne.object_use_training_no_colors_pretrained3"
 
     "georged_sharing_48"
     "georged_24_no_sharing"
