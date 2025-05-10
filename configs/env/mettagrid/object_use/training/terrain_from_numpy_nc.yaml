@@ -19,7 +19,3 @@ game:
         altar: ${sampling:1,10,1}
         generator.red: ${sampling:1,10,1}
         mine.red: ${sampling:1,10,1}
-          # generator.blue: 1
-          # mine.blue: 1
-          # generator.green: 1
-          # mine.green: 1
