@@ -53,4 +53,5 @@ aws configure set profile.softmax-admin.sso_role_name AdministratorAccess
 aws configure set profile.softmax-admin.region us-east-1
 
 echo "AWS profiles have been configured successfully."
-echo "Login to AWS using: aws sso login --profile softmax-sso"
+echo "Login to AWS using: aws sso login --profile softmax"
+grep -q '^export AWS_PROFILE=' ~/.zshrc || echo -e '\nexport AWS_PROFILE=softmax' >> ~/.zshrc
