@@ -1,5 +1,5 @@
 defaults:
-  - /env/mettagrid/multiagent/training/48/varied_terrain_all_balanced@
+  - /env/mettagrid/multiagent/training/48/varied_terrain_balanced@
   - _self_
 
 sampling: 1
