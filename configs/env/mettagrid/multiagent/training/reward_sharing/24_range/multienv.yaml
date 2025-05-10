@@ -11,4 +11,3 @@ envs:
   - /env/mettagrid/multiagent/training/reward_sharing/24_range/varied_terrain_balanced
   - /env/mettagrid/multiagent/training/reward_sharing/24_range/varied_terrain_maze
   - /env/mettagrid/multiagent/training/reward_sharing/24_range/varied_terrain_dense
-  - /env/mettagrid/multiagent/training/reward_sharing/24_range/cylinder_world

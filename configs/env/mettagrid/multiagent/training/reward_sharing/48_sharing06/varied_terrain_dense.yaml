@@ -1,54 +1,12 @@
 defaults:
   - /env/mettagrid/mettagrid@
+  - /env/mettagrid/multiagent/training/game/map_builder/48@: varied_terrain_dense
   - _self_
 
 sampling: 1
 
 game:
   num_agents: 48
-  agent:
-    max_inventory: 5
-  map_builder:
-    _target_: mettagrid.config.room.multi_room.RoomList
-    border_width: 6
-
-    rooms:
-      - _target_: mettagrid.config.room.navigation.varied_terrain.VariedTerrain
-        width: ${sampling:50,100,60}
-        height: ${sampling:50,100,60}
-        border_width: ${sampling:1,6,3}
-        agents: 12
-        style: sparse-altars-dense-objects # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
-        teams: [team_1]
-        objects:
-          altar: ${sampling:25,75,30}
-      - _target_: mettagrid.config.room.navigation.varied_terrain.VariedTerrain
-        width: ${sampling:50,100,60}
-        height: ${sampling:50,100,60}
-        border_width: ${sampling:1,6,3}
-        agents: 12
-        style: sparse-altars-dense-objects # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
-        teams: [team_2]
-        objects:
-          altar: ${sampling:25,75,30}
-      - _target_: mettagrid.config.room.navigation.varied_terrain.VariedTerrain
-        width: ${sampling:50,100,60}
-        height: ${sampling:50,100,60}
-        border_width: ${sampling:1,6,3}
-        agents: 12
-        style: sparse-altars-dense-objects # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
-        teams: [team_3]
-        objects:
-          altar: ${sampling:25,75,30}
-      - _target_: mettagrid.config.room.navigation.varied_terrain.VariedTerrain
-        width: ${sampling:50,100,60}
-        height: ${sampling:50,100,60}
-        border_width: ${sampling:1,6,3}
-        agents: 12
-        style: sparse-altars-dense-objects # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
-        teams: [team_4]
-        objects:
-          altar: ${sampling:25,75,30}
 
   reward_sharing:
     groups:

@@ -1,46 +1,10 @@
 defaults:
-  - /env/mettagrid/mettagrid@
+  - /env/mettagrid/multiagent/training/24/terrain_from_numpy@
+  - _self_
 
 sampling: 1
 game:
   num_agents: 24    #how many agents are in the map x2
-
-  agent:
-    max_inventory: 5
-
-  map_builder:
-    _target_: mettagrid.config.room.multi_room.RoomList
-    border_width: 6
-
-    rooms:
-      - _target_: mettagrid.config.room.terrain_from_numpy.TerrainFromNumpy
-        border_width: 1
-        dir: "terrain_maps_nohearts"
-        agents: 6
-        team: team_1
-        objects:
-          altar: ${sampling:10,75,30}
-      - _target_: mettagrid.config.room.terrain_from_numpy.TerrainFromNumpy
-        border_width: 1
-        dir: "terrain_maps_nohearts"
-        agents: 6
-        team: team_2
-        objects:
-          altar: ${sampling:10,75,30}
-      - _target_: mettagrid.config.room.terrain_from_numpy.TerrainFromNumpy
-        border_width: 1
-        dir: "terrain_maps_nohearts"
-        agents: 6
-        team: team_3
-        objects:
-          altar: ${sampling:10,75,30}
-      - _target_: mettagrid.config.room.terrain_from_numpy.TerrainFromNumpy
-        border_width: 1
-        dir: "terrain_maps_nohearts"
-        agents: 6
-        team: team_4
-        objects:
-          altar: ${sampling:10,75,30}
 
   reward_sharing:
     groups:
