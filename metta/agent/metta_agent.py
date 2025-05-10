@@ -37,17 +37,6 @@ def make_policy(env: MettaGridEnv, cfg: ListConfig | DictConfig):
     )
 
 
-class DistributedMettaAgent(DistributedDataParallel):
-    def __init__(self, agent, device):
-        super().__init__(agent, device_ids=[device], output_device=device)
-
-    def __getattr__(self, name):
-        try:
-            return super().__getattr__(name)
-        except AttributeError:
-            return getattr(self.module, name)
-
-
 class MettaAgent(nn.Module):
     def __init__(
         self,
@@ -311,3 +300,14 @@ class MettaAgent(nn.Module):
 
         metrics_list = [metrics for metrics in results.values() if metrics is not None]
         return metrics_list
+
+
+class DistributedMettaAgent(DistributedDataParallel, MettaAgent):
+    def __init__(self, agent, device):
+        super().__init__(agent, device_ids=[device], output_device=device)
+
+    def __getattr__(self, name):
+        try:
+            return super().__getattr__(name)
+        except AttributeError:
+            return getattr(self.module, name)
