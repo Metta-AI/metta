@@ -15,8 +15,8 @@ echo "Sweep: $sweep == running command: $cmd"
 $cmd
 # exit if the command failed
 if [ $? -ne 0 ]; then
-    echo "Sweep: $sweep == init failed: $cmd"
-    exit 1
+  echo "Sweep: $sweep == init failed: $cmd"
+  exit 1
 fi
 
 echo "Sweep: $sweep == training..."
@@ -25,8 +25,8 @@ echo "Sweep: $sweep == running command: $cmd"
 $cmd
 # exit if the command failed
 if [ $? -ne 0 ]; then
-    echo "Sweep: $sweep == training failed: $cmd"
-    exit 1
+  echo "Sweep: $sweep == training failed: $cmd"
+  exit 1
 fi
 
 echo "Sweep: $sweep == evaluating..."
@@ -35,8 +35,8 @@ echo "Sweep: $sweep == running command: $cmd"
 $cmd
 # exit if the command failed
 if [ $? -ne 0 ]; then
-    echo "Sweep: $sweep == evaluation failed: $cmd"
-    exit 1
+  echo "Sweep: $sweep == evaluation failed: $cmd"
+  exit 1
 fi
 
 exit $?

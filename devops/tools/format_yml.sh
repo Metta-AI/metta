@@ -45,7 +45,7 @@ fi
 format_files() {
   local file_ext="$1"
   echo "Formatting *.$file_ext files..."
-  
+
   if [ -n "$EXCLUDE_PATTERN" ]; then
     # Use grep -v to exclude files matching the pattern
     find . -name "*.$file_ext" -type f | grep -v "$EXCLUDE_PATTERN" | xargs npx prettier --write

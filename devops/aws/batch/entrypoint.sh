@@ -17,7 +17,7 @@ set -e
 # - AWS_BATCH_JOB_NUM_NODES: Total number of nodes in the job
 
 # Link training directory
-ln -s /mnt/efs/train_dir train_dir 2>/dev/null || true
+ln -s /mnt/efs/train_dir train_dir 2> /dev/null || true
 # Create dist directory
 mkdir -p train_dir/dist/$RUN_ID
 
@@ -72,4 +72,4 @@ echo "Additional args: $TASK_ARGS"
 # Run the training command
 ./devops/$CMD.sh run=$RUN_ID +hardware=$HARDWARE trainer.num_workers=$NUM_WORKERS $TASK_ARGS
 
-echo "=== Batch job complete ===" 
+echo "=== Batch job complete ==="

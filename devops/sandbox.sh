@@ -8,6 +8,6 @@ source ./devops/env.sh
 echo "Running sandbox"
 
 while true; do
-    echo "Running sandbox"
-    sleep 100
+  echo "Running sandbox"
+  sleep 100
 done

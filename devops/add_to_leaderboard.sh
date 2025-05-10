@@ -19,15 +19,15 @@ ADDITIONAL_ARGS=""
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
   case $1 in
-    -r|--run)
+    -r | --run)
       RUN_NAME="$2"
       shift 2
       ;;
-    -w|--wandb)
+    -w | --wandb)
       WANDB_PATH="$2"
       shift 2
       ;;
-    -h|--help)
+    -h | --help)
       usage
       ;;
     *)
