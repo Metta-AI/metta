@@ -20,7 +20,7 @@ public:
   }
 
 protected:
-  bool _handle_action(uint32_t actor_id, Agent* actor, ActionsType arg) override {
+  bool _handle_action(uint32_t actor_id, Agent* actor, c_actions_type arg) override {
     // Validate arg (though this check is redundant since we already check in step)
     if (arg > 3) {
       return false;  // Invalid arg is a normal gameplay situation

@@ -14,7 +14,7 @@ public:
     init(type_id, r, c, layer);
   }
 
-  void obs(ObsType* obs, const std::vector<unsigned int>& offsets) const override {
+  void obs(c_observations_type* obs, const std::vector<unsigned int>& offsets) const override {
     // Simple implementation for benchmarking
     for (size_t i = 0; i < offsets.size(); ++i) {
       obs[offsets[i]] = i % 255;
@@ -80,7 +80,7 @@ static void BM_GridObjectObs(benchmark::State& state) {
     offsets[i] = i;
   }
 
-  std::vector<ObsType> observations(numOffsets, 0);
+  std::vector<c_observations_type> observations(numOffsets, 0);
 
   for (auto _ : state) {
     obj.obs(observations.data(), offsets);

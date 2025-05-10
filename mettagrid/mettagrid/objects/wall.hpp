@@ -19,7 +19,7 @@ public:
     this->_swappable = cfg["swappable"];
   }
 
-  virtual void obs(ObsType* obs) const override {
+  virtual void obs(c_observations_type* obs) const override {
     MettaObject::obs(obs);
     // wall-specific features
     encode(obs, GridFeature::WALL, 1);

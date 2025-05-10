@@ -11,17 +11,6 @@
 #include "constants.hpp"
 #include "types.hpp"
 
-class GridLocation {
-public:
-  GridCoord r;
-  GridCoord c;
-  Layer layer;
-
-  inline GridLocation(GridCoord r, GridCoord c, Layer layer) : r(r), c(c), layer(layer) {}
-  inline GridLocation(GridCoord r, GridCoord c) : r(r), c(c), layer(0) {}
-  inline GridLocation() : r(0), c(0), layer(0) {}
-};
-
 class GridObject {
 private:
   inline static std::unordered_map<std::string, int> _feature_map{};
@@ -48,7 +37,7 @@ public:
   }
 
   // Pure virtual method to be implemented by derived classes
-  virtual void obs(ObsType* obs) const = 0;
+  virtual void obs(c_observations_type* obs) const = 0;
 
   // Get the observation size (total number of features)
   static size_t get_observation_size() {
@@ -62,13 +51,13 @@ public:
 
 protected:
   template <typename T>
-  void encode(ObsType* obs, GridFeature feature, T value) const {
+  void encode(c_observations_type* obs, GridFeature feature, T value) const {
     // Set the value in the observation array at the specified feature index
-    obs[static_cast<size_t>(feature)] = static_cast<ObsType>(value);
+    obs[static_cast<size_t>(feature)] = static_cast<c_observations_type>(value);
   }
 
   // Special handling for boolean values
-  void encode(ObsType* obs, GridFeature feature, bool value) const {
+  void encode(c_observations_type* obs, GridFeature feature, bool value) const {
     encode(obs, feature, value ? 1 : 0);
   }
 };

@@ -110,7 +110,7 @@ public:
     return this->frozen;
   }
 
-  virtual void obs(ObsType* obs) const override {
+  virtual void obs(c_observations_type* obs) const override {
     MettaObject::obs(obs);
 
     // Agent-specific features

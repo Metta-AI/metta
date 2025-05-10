@@ -89,7 +89,7 @@ CppMettaGrid::~CppMettaGrid() {
   // Most of our memory is externally managed (buffer pointers)
 }
 
-void CppMettaGrid::set_buffers(ObsType* external_observations,
+void CppMettaGrid::set_buffers(c_observations_type* external_observations,
                                numpy_bool_t* external_terminals,
                                numpy_bool_t* external_truncations,
                                float* external_rewards) {
@@ -164,58 +164,58 @@ void CppMettaGrid::reset() {
 }
 
 // Get observation values at coordinates (r,c)
-void CppMettaGrid::observation_at(ObsType* flat_buffer,
+void CppMettaGrid::observation_at(c_observations_type* flat_buffer,
                                   uint32_t obs_width,
                                   uint32_t obs_height,
                                   uint32_t feature_size,
                                   uint32_t r,
                                   uint32_t c,
-                                  ObsType* output) {
+                                  c_observations_type* output) {
   // Check bounds
   if (r >= obs_height || c >= obs_width) {
     return;
   }
 
   // Calculate offset in the flat buffer
-  ObsType* src = flat_buffer + (r * obs_width + c) * feature_size;
+  c_observations_type* src = flat_buffer + (r * obs_width + c) * feature_size;
 
   // Copy to output
-  memcpy(output, src, feature_size * sizeof(ObsType));
+  memcpy(output, src, feature_size * sizeof(c_observations_type));
 }
 
 // Set observation values at coordinates (r,c)
-void CppMettaGrid::set_observation_at(ObsType* flat_buffer,
+void CppMettaGrid::set_observation_at(c_observations_type* flat_buffer,
                                       uint32_t obs_width,
                                       uint32_t obs_height,
                                       uint32_t feature_size,
                                       uint32_t r,
                                       uint32_t c,
-                                      const ObsType* values) {
+                                      const c_observations_type* values) {
   // Check bounds
   if (r >= obs_height || c >= obs_width) {
     return;
   }
 
   // Calculate offset in the flat buffer
-  ObsType* dest = flat_buffer + (r * obs_width + c) * feature_size;
+  c_observations_type* dest = flat_buffer + (r * obs_width + c) * feature_size;
 
   // Copy from values
-  memcpy(dest, values, feature_size * sizeof(ObsType));
+  memcpy(dest, values, feature_size * sizeof(c_observations_type));
 }
 
 void CppMettaGrid::compute_observation(uint16_t observer_r,
                                        uint16_t observer_c,
                                        uint16_t obs_width,
                                        uint16_t obs_height,
-                                       ObsType* observation) {
+                                       c_observations_type* observation) {
   uint16_t obs_width_r = obs_width >> 1;
   uint16_t obs_height_r = obs_height >> 1;
 
   // Get observation size from GridObject's static method
-  std::vector<ObsType> temp_obs(GridObject::get_observation_size(), 0);
+  std::vector<c_observations_type> temp_obs(GridObject::get_observation_size(), 0);
 
   // Clear the observation buffer
-  memset(observation, 0, obs_width * obs_height * GridObject::get_observation_size() * sizeof(ObsType));
+  memset(observation, 0, obs_width * obs_height * GridObject::get_observation_size() * sizeof(c_observations_type));
 
   uint32_t r_start = std::max<uint32_t>(observer_r, obs_height_r) - obs_height_r;
   uint32_t c_start = std::max<uint32_t>(observer_c, obs_width_r) - obs_width_r;
@@ -247,16 +247,16 @@ void CppMettaGrid::compute_observation(uint16_t observer_r,
   }
 }
 
-void CppMettaGrid::compute_observations(ActionsType* flat_actions) {
+void CppMettaGrid::compute_observations(c_actions_type* flat_actions) {
   for (size_t idx = 0; idx < _agents.size(); idx++) {
     Agent* agent = _agents[idx];
-    ObsType* obs = _observations + idx * _obs_width * _obs_height * _grid_features.size();
+    c_observations_type* obs = _observations + idx * _obs_width * _obs_height * _grid_features.size();
     compute_observation(agent->location.r, agent->location.c, _obs_width, _obs_height, obs);
   }
 }
 
 // Take a step in the environment
-void CppMettaGrid::step(ActionsType* flat_actions) {
+void CppMettaGrid::step(c_actions_type* flat_actions) {
   if (flat_actions == nullptr) {
     throw std::runtime_error("Null actions array passed to step()");
   }
@@ -284,8 +284,8 @@ void CppMettaGrid::step(ActionsType* flat_actions) {
   // Process actions by priority
   for (uint8_t p = 0; p <= _max_action_priority; p++) {
     for (size_t idx = 0; idx < _agents.size(); idx++) {
-      ActionsType action = flat_actions[idx * 2];   // First element is action type
-      ActionsType arg = flat_actions[idx * 2 + 1];  // Second element is action argument
+      c_actions_type action = flat_actions[idx * 2];   // First element is action type
+      c_actions_type arg = flat_actions[idx * 2 + 1];  // Second element is action argument
 
       assert(action >= 0 && "Action cannot be negative");
       assert(action < static_cast<int32_t>(_num_action_handlers) && "Action exceeds available handlers");
@@ -351,7 +351,10 @@ void CppMettaGrid::disable_reward_decay() {
 }
 
 // Observe from a specific object's perspective
-void CppMettaGrid::observe(GridObjectId observer_id, uint16_t obs_width, uint16_t obs_height, ObsType* observation) {
+void CppMettaGrid::observe(GridObjectId observer_id,
+                           uint16_t obs_width,
+                           uint16_t obs_height,
+                           c_observations_type* observation) {
   GridObject* observer = _grid->object(observer_id);
   compute_observation(observer->location.r, observer->location.c, obs_width, obs_height, observation);
 }
@@ -361,7 +364,7 @@ void CppMettaGrid::observe_at(uint16_t row,
                               uint16_t col,
                               uint16_t obs_width,
                               uint16_t obs_height,
-                              ObsType* observation,
+                              c_observations_type* observation,
                               uint8_t dummy) {
   compute_observation(row, col, obs_width, obs_height, observation);
 }
@@ -785,14 +788,14 @@ std::string CppMettaGrid::get_grid_objects_json() const {
     obj_json["layer"] = obj->location.layer;
 
     // Updated: Get object features using the object's own obs method
-    std::vector<ObsType> obj_data(GridObject::get_observation_size(), 0);
+    std::vector<c_observations_type> obj_data(GridObject::get_observation_size(), 0);
     obj->obs(obj_data.data());
 
     // Add features to JSON, using GridObject::get_feature_names() for mapping
     const auto& feature_names = GridObject::get_feature_names();
     for (size_t i = 0; i < feature_names.size(); i++) {
       const std::string& feature_name = feature_names[i];
-      ObsType feature_value = obj_data[i];
+      c_observations_type feature_value = obj_data[i];
 
       // Skip zero values
       if (feature_value == 0) {

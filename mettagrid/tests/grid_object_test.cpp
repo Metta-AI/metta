@@ -48,7 +48,7 @@ public:
   using GridObject::encode;
 
   // Implement the pure virtual method
-  void obs(ObsType* obs) const override {
+  void obs(c_observations_type* obs) const override {
     encode(obs, GridFeature::HP, 1);  // Using HP as an example
   }
 };
@@ -100,7 +100,7 @@ TEST_F(GridObjectTest, ObsMethod) {
   size_t initial_size = GridObject::get_observation_size();
 
   // Create an observation array large enough
-  std::vector<ObsType> observations(initial_size + 1, 0);
+  std::vector<c_observations_type> observations(initial_size + 1, 0);
 
   // Call the observation method
   obj.obs(observations.data());

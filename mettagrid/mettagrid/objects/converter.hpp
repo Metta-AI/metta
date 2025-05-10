@@ -129,7 +129,7 @@ public:
     this->maybe_start_converting();
   }
 
-  virtual void obs(ObsType* obs) const override {
+  virtual void obs(c_observations_type* obs) const override {
     HasInventory::obs(obs);
 
     // Map object type to corresponding feature

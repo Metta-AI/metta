@@ -12,7 +12,7 @@ protected:
   std::unique_ptr<CppMettaGrid> grid;
 
   // External buffers - need to be managed by the test
-  ObsType* observations;
+  c_observations_type* observations;
   numpy_bool_t* terminals;
   numpy_bool_t* truncations;
   float* rewards;
@@ -28,7 +28,7 @@ protected:
     size_t reward_size = grid->get_rewards_size();
 
     // Create the external buffers with zero initialization
-    observations = new ObsType[obs_size]();
+    observations = new c_observations_type[obs_size]();
     terminals = new numpy_bool_t[term_size]();
     truncations = new numpy_bool_t[trunc_size]();
     rewards = new float[reward_size]();
@@ -89,7 +89,7 @@ TEST_F(MettaGridTestDataTest, ObservationGeneration) {
   grid->reset();
 
   // Create dummy actions - just zeroes
-  ActionsType* actions = test_utils::create_action_array(grid->num_agents());
+  c_actions_type* actions = test_utils::create_action_array(grid->num_agents());
 
   // Step once to generate observations
   grid->step(actions);

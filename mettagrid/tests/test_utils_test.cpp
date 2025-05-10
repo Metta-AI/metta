@@ -38,7 +38,7 @@ TEST_F(TestUtilsTest, CreateGrid) {
 TEST_F(TestUtilsTest, CreateActionArray) {
   std::cout << "Creating action array..." << std::endl;
   uint32_t num_agents = 2;
-  ActionsType* actions = test_utils::create_action_array(num_agents);
+  c_actions_type* actions = test_utils::create_action_array(num_agents);
   std::cout << "Action array created." << std::endl;
 
   ASSERT_NE(actions, nullptr) << "Actions array should not be null";
@@ -112,7 +112,7 @@ TEST_F(TestUtilsTest, ManualBufferAllocation) {
     ASSERT_EQ(rewards_size, 2u) << "Rewards size should match num_agents";
 
     std::cout << "Allocating memory..." << std::endl;
-    ObsType* observations = new ObsType[obs_size]();
+    c_observations_type* observations = new c_observations_type[obs_size]();
     numpy_bool_t* terminals = new numpy_bool_t[terminals_size]();
     numpy_bool_t* truncations = new numpy_bool_t[truncations_size]();
     float* rewards = new float[rewards_size]();
@@ -152,7 +152,7 @@ TEST_F(TestUtilsTest, ManualBufferAllocation) {
 
     if (can_step) {
       // Create a flat action array instead of an array of pointers
-      ActionsType* flat_actions = test_utils::create_action_array(grid->num_agents(), action_idx, 0);
+      c_actions_type* flat_actions = test_utils::create_action_array(grid->num_agents(), action_idx, 0);
 
       std::cout << "Stepping grid..." << std::endl;
       // Call step with the flat array
@@ -192,7 +192,7 @@ TEST_F(TestUtilsTest, BufferHelpers) {
     struct BufferHelpers {
       // Function to allocate buffers
       static void allocate_buffers(CppMettaGrid* grid,
-                                   ObsType** observations,
+                                   c_observations_type** observations,
                                    numpy_bool_t** terminals,
                                    numpy_bool_t** truncations,
                                    float** rewards) {
@@ -203,7 +203,7 @@ TEST_F(TestUtilsTest, BufferHelpers) {
         size_t rewards_size = grid->get_rewards_size();
 
         // Allocate buffers
-        *observations = new ObsType[obs_size]();
+        *observations = new c_observations_type[obs_size]();
         *terminals = new numpy_bool_t[terminals_size]();
         *truncations = new numpy_bool_t[truncations_size]();
         *rewards = new float[rewards_size]();
@@ -213,7 +213,7 @@ TEST_F(TestUtilsTest, BufferHelpers) {
       }
 
       // Function to free buffers
-      static void free_buffers(ObsType* observations,
+      static void free_buffers(c_observations_type* observations,
                                numpy_bool_t* terminals,
                                numpy_bool_t* truncations,
                                float* rewards) {
@@ -228,7 +228,7 @@ TEST_F(TestUtilsTest, BufferHelpers) {
     auto grid = test_utils::create_test_grid();
 
     // Pointers for our buffers
-    ObsType* observations = nullptr;
+    c_observations_type* observations = nullptr;
     numpy_bool_t* terminals = nullptr;
     numpy_bool_t* truncations = nullptr;
     float* rewards = nullptr;
@@ -271,7 +271,7 @@ TEST_F(TestUtilsTest, BufferHelpers) {
     if (can_step) {
       std::cout << "Creating actions..." << std::endl;
       // Create a flat action array
-      ActionsType* flat_actions = test_utils::create_action_array(grid->num_agents(), action_idx, 0);
+      c_actions_type* flat_actions = test_utils::create_action_array(grid->num_agents(), action_idx, 0);
 
       std::cout << "Stepping grid..." << std::endl;
       // Pass the flat array to step

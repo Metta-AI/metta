@@ -47,10 +47,10 @@ private:
   std::vector<std::string> _grid_features;
 
   // Pointers to external buffers - these are required and must be set
-  ObsType* _observations;
-  numpy_bool_t* _terminals;
-  numpy_bool_t* _truncations;
-  float* _rewards;
+  c_observations_type* _observations;
+  c_terminals_type* _terminals;
+  c_truncations_type* _truncations;
+  c_rewards_type* _rewards;
 
   // Buffer sizes
   size_t _observations_size;
@@ -67,7 +67,7 @@ private:
   float _reward_decay_multiplier;
   float _reward_decay_factor;
 
-  std::vector<numpy_bool_t> _action_success;
+  std::vector<c_success_type> _action_success;
 
 public:
   // Constructor - note the changes to take ownership of the grid
@@ -82,31 +82,31 @@ public:
   ~CppMettaGrid();
 
   // Method to set external buffers - must be called before using the object
-  void set_buffers(ObsType* external_observations,
-                   numpy_bool_t* external_terminals,
-                   numpy_bool_t* external_truncations,
-                   float* external_rewards);
+  void set_buffers(c_observations_type* external_observations,
+                   c_terminals_type* external_terminals,
+                   c_truncations_type* external_truncations,
+                   c_rewards_type* external_rewards);
 
   // Buffer access methods
-  ObsType* get_observations() const {
+  c_observations_type* get_observations() const {
     return _observations;
   }
-  numpy_bool_t* get_terminals() const {
+  c_terminals_type* get_terminals() const {
     return _terminals;
   }
-  numpy_bool_t* get_truncations() const {
+  c_truncations_type* get_truncations() const {
     return _truncations;
   }
-  float* get_rewards() const {
+  c_rewards_type* get_rewards() const {
     return _rewards;
   }
-  float* get_episode_rewards() const {
+  c_rewards_type* get_episode_rewards() const {
     if (_episode_rewards.empty()) {
       return nullptr;
     }
     return const_cast<float*>(_episode_rewards.data());
   }
-  float* get_group_rewards() const {
+  c_rewards_type* get_group_rewards() const {
     if (_group_rewards.empty()) {
       return nullptr;
     }
@@ -139,46 +139,46 @@ public:
   void initialize_from_json(const std::string& map_json, const std::string& config_json);
 
   // Core game loop methods
-  void step(ActionsType* flat_actions);
+  void step(c_actions_type* flat_actions);
   void reset();
 
   // Observation methods
-  void compute_observations(ActionsType* flat_actions);
+  void compute_observations(c_actions_type* flat_actions);
 
   void compute_observation(uint16_t observer_r,
                            uint16_t observer_c,
                            uint16_t obs_width,
                            uint16_t obs_height,
-                           ObsType* observation);
+                           c_observations_type* observation);
 
-  void observe(GridObjectId observer_id, uint16_t obs_width, uint16_t obs_height, ObsType* observation);
+  void observe(GridObjectId observer_id, uint16_t obs_width, uint16_t obs_height, c_observations_type* observation);
   void observe_at(uint16_t row,
                   uint16_t col,
                   uint16_t obs_width,
                   uint16_t obs_height,
-                  ObsType* observation,
+                  c_observations_type* observation,
                   uint8_t dummy);
 
   // Observation utilities
-  void observation_at(ObsType* flat_buffer,
+  void observation_at(c_observations_type* flat_buffer,
                       uint32_t obs_width,
                       uint32_t obs_height,
                       uint32_t feature_size,
                       uint32_t r,
                       uint32_t c,
-                      ObsType* output);
-  void set_observation_at(ObsType* flat_buffer,
+                      c_observations_type* output);
+  void set_observation_at(c_observations_type* flat_buffer,
                           uint32_t obs_width,
                           uint32_t obs_height,
                           uint32_t feature_size,
                           uint32_t r,
                           uint32_t c,
-                          const ObsType* values);
+                          const c_observations_type* values);
 
   // Reward decay management
   void enable_reward_decay(int32_t decay_time_steps = -1);
   void disable_reward_decay();
-  void compute_group_rewards(float* rewards);
+  void compute_group_rewards(c_rewards_type* rewards);
 
   // group rewards
   void set_group_reward_pct(uint32_t group_id, float pct);
@@ -196,7 +196,7 @@ public:
   uint32_t num_agents() const {
     return _agents.size();
   }
-  std::vector<numpy_bool_t> action_success() const {
+  std::vector<c_success_type> action_success() const {
     return _action_success;
   }
   std::vector<uint8_t> max_action_args() const {

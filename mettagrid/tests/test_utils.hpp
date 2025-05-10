@@ -107,11 +107,11 @@ inline std::string create_test_config_json() {
 }
 
 // Create a standard flat action array for testing
-inline ActionsType* create_action_array(uint32_t num_agents,
-                                        uint32_t action_type = ActionType::Noop,
-                                        uint32_t action_arg = 0) {
+inline c_actions_type* create_action_array(uint32_t num_agents,
+                                           uint32_t action_type = ActionType::Noop,
+                                           uint32_t action_arg = 0) {
   // Allocate a flat array with 2 values per agent
-  ActionsType* flat_actions = new ActionsType[num_agents * 2];
+  c_actions_type* flat_actions = new c_actions_type[num_agents * 2];
 
   for (uint32_t i = 0; i < num_agents; ++i) {
     // Calculate index in flat array: agent_idx * 2
@@ -129,7 +129,7 @@ inline ActionsType* create_action_array(uint32_t num_agents,
 }
 
 // Clean up flat action array
-inline void delete_action_array(ActionsType* flat_actions) {
+inline void delete_action_array(c_actions_type* flat_actions) {
   // Simply delete the flat array
   delete[] flat_actions;
 }
@@ -230,7 +230,7 @@ inline std::unique_ptr<CppMettaGrid> create_grid_from_mettagrid_args(const std::
 
 // Structure to hold all buffer pointers for easier management
 struct GridBuffers {
-  ObsType* observations = nullptr;
+  c_observations_type* observations = nullptr;
   numpy_bool_t* terminals = nullptr;
   numpy_bool_t* truncations = nullptr;
   float* rewards = nullptr;
@@ -257,7 +257,7 @@ inline GridBuffers* allocate_grid_buffers(CppMettaGrid* grid) {
   buffers->rewards_size = grid->get_rewards_size();
 
   // Allocate memory for each buffer with zero initialization
-  buffers->observations = new ObsType[buffers->obs_size]();
+  buffers->observations = new c_observations_type[buffers->obs_size]();
   buffers->terminals = new numpy_bool_t[buffers->terminals_size]();
   buffers->truncations = new numpy_bool_t[buffers->truncations_size]();
   buffers->rewards = new float[buffers->rewards_size]();

@@ -1,6 +1,4 @@
-# distutils: language = c++
-# cython: language_level=3
-
+# Python and Cython imports
 from libc.stdio cimport printf
 from libc.stdlib cimport malloc, free
 from libcpp.vector cimport vector
@@ -8,22 +6,33 @@ from libcpp.string cimport string
 from libcpp.map cimport map
 from libc.stdint cimport uint8_t, uint16_t, uint32_t, int8_t, int32_t
 
-# Python imports
 import json
 import numpy as np
 cimport numpy as cnp
 import gymnasium as gym
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
-# Import from the cython definition file
-from mettagrid.py_mettagrid cimport CppMettaGrid, GridObjectId, ObsType, ObjectTypeNames, InventoryItemNames, ActionsType, numpy_bool_t
-
-# import c types from pxd & match to types imported from python
-
-from mettagrid.mettagrid_env import observations_np_type, terminals_np_type, truncations_np_type, rewards_np_type, actions_np_type, success_np_type
-
-
-
+# Import types from the pxd file
+from mettagrid.py_mettagrid cimport (
+    CppMettaGrid, 
+    GridObjectId, 
+    c_observations_type,
+    c_terminals_type,
+    c_truncations_type,
+    c_rewards_type,
+    c_actions_type,
+    c_masks_type,
+    c_success_type,
+    np_observations_type,
+    np_terminals_type,
+    np_truncations_type,
+    np_rewards_type,
+    np_actions_type,
+    np_masks_type,
+    np_success_type,
+    ObjectTypeNames,
+    InventoryItemNames
+)
 
 # Wrapper class for the C++ implementation
 cdef class MettaGrid:
@@ -103,8 +112,8 @@ cdef class MettaGrid:
         self._grid_features_size = len(self._grid_features_list)
         
         # Pre-allocate NumPy arrays for common operations
-        self._flattened_actions_buffer = np.zeros((num_agents, 2), dtype=actions_np_type).flatten()
-        self._obs_buffer = np.zeros((self._obs_width, self._obs_height, self._grid_features_size), dtype=observations_np_type)
+        self._flattened_actions_buffer = np.zeros((num_agents, 2), dtype=np_actions_type).flatten()
+        self._obs_buffer = np.zeros((self._obs_width, self._obs_height, self._grid_features_size), dtype=np_observations_type)
 
 
     def __dealloc__(self):
@@ -143,10 +152,10 @@ cdef class MettaGrid:
             tuple term_shape
             tuple trunc_shape
             tuple reward_shape
-            cnp.ndarray[ObsType, ndim=4] typed_observations
-            cnp.ndarray[numpy_bool_t, ndim=1] typed_terminals
-            cnp.ndarray[numpy_bool_t, ndim=1] typed_truncations
-            cnp.ndarray[float, ndim=1] typed_rewards
+            cnp.ndarray[c_observations_type, ndim=4] typed_observations
+            cnp.ndarray[c_terminals_type, ndim=1] typed_terminals
+            cnp.ndarray[c_truncations_type, ndim=1] typed_truncations
+            cnp.ndarray[c_rewards_type, ndim=1] typed_rewards
         
         num_agents = self._num_agents
         obs_height = self._cfg.obs_height
@@ -155,10 +164,10 @@ cdef class MettaGrid:
         shape_match = True
         
         # check buffers
-        observations = np.ascontiguousarray(observations, dtype=observations_np_type)
-        terminals = np.ascontiguousarray(terminals, dtype=terminals_np_type)
-        truncations = np.ascontiguousarray(truncations, dtype=truncations_np_type)
-        rewards = np.ascontiguousarray(rewards, dtype=rewards_np_type)
+        observations = np.ascontiguousarray(observations, dtype=np_observations_type)
+        terminals = np.ascontiguousarray(terminals, dtype=np_terminals_type)
+        truncations = np.ascontiguousarray(truncations, dtype=np_truncations_type)
+        rewards = np.ascontiguousarray(rewards, dtype=np_rewards_type)
         
         # Create typed views of the data for internal use
         typed_observations = observations
@@ -197,10 +206,10 @@ cdef class MettaGrid:
         
         # Connect these arrays to the C++ engine
         self._cpp_mettagrid.set_buffers(
-            <ObsType*>observations.data,
-            <numpy_bool_t*>terminals.data,
-            <numpy_bool_t*>truncations.data,
-            <float*>rewards.data,
+            <c_observations_type*>observations.data,
+            <c_terminals_type*>terminals.data,
+            <c_truncations_type*>truncations.data,
+            <c_rewards_type*>rewards.data,
         )
 
 
@@ -239,17 +248,17 @@ cdef class MettaGrid:
             Tuple containing observations, rewards, terminals, truncations, and info dict
         """
         cdef:
-            cnp.ndarray[ActionsType, ndim=1] flat_actions
+            cnp.ndarray[c_actions_type, ndim=1] flat_actions
 
-        flat_actions = np.ascontiguousarray(actions.flatten(), dtype=actions_np_type)
+        flat_actions = np.ascontiguousarray(actions.flatten(), dtype=np_actions_type)
 
-        self._cpp_mettagrid.step(<ActionsType*>flat_actions.data)
+        self._cpp_mettagrid.step(<c_actions_type*>flat_actions.data)
         self._cpp_mettagrid.compute_group_rewards(<float*>self._rewards_np.data)
 
         return (self._observations_np, self._rewards_np, self._terminals_np, self._truncations_np, {})
 
 
-    cpdef cnp.ndarray[uint8_t, ndim=1] action_success(self):
+    cpdef cnp.ndarray[c_success_type, ndim=1] action_success(self):
         """
         Get the action success information.
 
@@ -257,7 +266,7 @@ cdef class MettaGrid:
             NumPy array indicating success/failure of actions
         """
         cdef:
-            vector[numpy_bool_t] success
+            vector[c_success_type] success
             size_t size
             uint32_t i
             cnp.ndarray success_array
@@ -266,7 +275,7 @@ cdef class MettaGrid:
         size = success.size()
 
         # Create a new numpy array
-        success_array = np.zeros(size, dtype=success_np_type)
+        success_array = np.zeros(size, dtype=np_success_type)
 
         # Manual copy - accessing vector<bool> elements individually
         for i in range(size):
@@ -384,7 +393,7 @@ cdef class MettaGrid:
                 observer_id, 
                 obs_width, 
                 obs_height,
-                <ObsType*>obs_array.data
+                <c_observations_type*>obs_array.data
             )
         else:
             self._cpp_mettagrid.observe_at(
@@ -392,7 +401,7 @@ cdef class MettaGrid:
                 col, 
                 obs_width, 
                 obs_height,
-                <ObsType*>obs_array.data, 
+                <c_observations_type*>obs_array.data, 
                 0  # last param is an ignored dummy uint8_t to help cython binding
             )
         
@@ -547,7 +556,7 @@ cdef class MettaGrid:
             0,
             255,
             shape=(self.obs_height, self.obs_width, self._grid_features_size),
-            dtype=observations_np_type
+            dtype=np_observations_type
         )  # note that gym wants height, width which is opposite of our convention
 
 
@@ -671,3 +680,18 @@ cdef class MettaGrid:
     @property
     def obs_height(self) -> uint16_t:
         return self._obs_height
+
+    @classmethod
+    def get_numpy_type_name(cls, str type_id):
+        """
+        Python wrapper for the C++ get_numpy_type_name function.
+        Returns the NumPy dtype name for a given type identifier.
+        """
+        # Convert Python string to bytes object - don't use temporary reference
+        py_bytes = type_id.encode('utf8')  # Changed from type_id_str to type_id
+        
+        # Pass the bytes to the C function
+        result = cls.get_numpy_type_name(<const char*>py_bytes)
+        
+        # Convert result back to Python string
+        return result.decode('utf8')

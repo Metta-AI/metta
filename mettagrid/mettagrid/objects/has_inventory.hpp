@@ -35,7 +35,7 @@ public:
     this->inventory[item] = static_cast<uint8_t>(std::clamp(new_value, 0, static_cast<int32_t>(UINT8_MAX)));
   }
 
-  virtual void obs(ObsType* obs) const override {
+  virtual void obs(c_observations_type* obs) const override {
     MettaObject::obs(obs);
 
     // HasInventory-specific features

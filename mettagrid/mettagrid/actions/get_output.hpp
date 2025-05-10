@@ -23,7 +23,7 @@ public:
   }
 
 protected:
-  bool _handle_action(uint32_t actor_id, Agent* actor, ActionsType arg) override {
+  bool _handle_action(uint32_t actor_id, Agent* actor, c_actions_type arg) override {
     // Validate orientation
     validate_orientation(actor);
 

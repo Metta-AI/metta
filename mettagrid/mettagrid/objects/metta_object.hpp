@@ -17,7 +17,7 @@ public:
     this->hp = cfg["hp"];
   }
 
-  virtual void obs(ObsType* obs) const override {
+  virtual void obs(c_observations_type* obs) const override {
     encode(obs, GridFeature::HP, this->hp);
   }
 

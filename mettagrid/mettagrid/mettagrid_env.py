@@ -20,14 +20,14 @@ from mettagrid.resolvers import register_resolvers
 from mettagrid.stats_writer import StatsWriter
 from mettagrid.util.debug import save_mettagrid_args
 
-# match these to cpp types.hpp
-numpy_bool_t = np.uint8
-observations_np_type = np.uint8
-terminals_np_type = numpy_bool_t
-truncations_np_type = numpy_bool_t
-rewards_np_type = np.float32
-actions_np_type = np.uint8
-masks_np_type = np.uint8
+# Rebuild the NumPy types using the exposed function
+np_observations_type = np.dtype(MettaGrid.get_numpy_type_name("observations"))
+np_terminals_type = np.dtype(MettaGrid.get_numpy_type_name("terminals"))
+np_truncations_type = np.dtype(MettaGrid.get_numpy_type_name("truncations"))
+np_rewards_type = np.dtype(MettaGrid.get_numpy_type_name("rewards"))
+np_actions_type = np.dtype(MettaGrid.get_numpy_type_name("actions"))
+np_masks_type = np.dtype(MettaGrid.get_numpy_type_name("masks"))
+np_success_type = np.dtype(MettaGrid.get_numpy_type_name("success"))
 
 
 class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
@@ -73,13 +73,13 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         # force buffers to the correct size
         buf = {
             "observations": np.zeros(
-                (num_agents, obs_width, obs_height, grid_features_size), dtype=observations_np_type, order="C"
+                (num_agents, obs_width, obs_height, grid_features_size), dtype=np_observations_type, order="C"
             ),
-            "terminals": np.zeros((num_agents,), dtype=terminals_np_type, order="C"),
-            "truncations": np.zeros((num_agents,), dtype=truncations_np_type, order="C"),
-            "rewards": np.zeros((num_agents,), dtype=rewards_np_type, order="C"),
-            "actions": np.zeros((num_agents, 2), dtype=actions_np_type, order="C"),
-            "masks": np.ones((num_agents,), dtype=masks_np_type, order="C"),
+            "terminals": np.zeros((num_agents,), dtype=np_terminals_type, order="C"),
+            "truncations": np.zeros((num_agents,), dtype=np_truncations_type, order="C"),
+            "rewards": np.zeros((num_agents,), dtype=np_rewards_type, order="C"),
+            "actions": np.zeros((num_agents, 2), dtype=np_actions_type, order="C"),
+            "masks": np.ones((num_agents,), dtype=np_masks_type, order="C"),
         }
 
         buf_obj = SimpleNamespace(**buf)
@@ -178,7 +178,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         Returns:
             Tuple of (observations, rewards, terminals, truncations, infos)
         """
-        np.copyto(self.actions, actions.astype(actions_np_type, casting="unsafe"))
+        np.copyto(self.actions, actions.astype(np_actions_type, casting="unsafe"))
 
         if self._replay_writer:
             self._replay_writer.log_pre_step(self._episode_id, self.actions)

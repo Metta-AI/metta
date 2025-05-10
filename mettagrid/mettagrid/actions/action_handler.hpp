@@ -48,7 +48,7 @@ public:
     this->_grid = grid;
   }
 
-  bool handle_action(uint32_t actor_id, GridObjectId actor_object_id, ActionsType arg, uint32_t current_timestep) {
+  bool handle_action(uint32_t actor_id, GridObjectId actor_object_id, c_actions_type arg, uint32_t current_timestep) {
     // Validate grid initialization
     if (_grid == nullptr) {
       throw std::runtime_error("Grid not initialized in " + _action_name + " handler");
@@ -117,7 +117,7 @@ public:
 
 protected:
   // Pure virtual method to be implemented by derived classes
-  virtual bool _handle_action(uint32_t actor_id, Agent* actor, ActionsType arg) = 0;
+  virtual bool _handle_action(uint32_t actor_id, Agent* actor, c_actions_type arg) = 0;
 
   // Utility methods for derived classes
   void validate_orientation(Agent* actor) const {

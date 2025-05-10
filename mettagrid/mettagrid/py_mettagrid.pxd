@@ -1,20 +1,44 @@
-# distutils: language = c++
-# cython: language_level=3
-
 from libcpp.vector cimport vector
 from libcpp.string cimport string
 from libcpp.map cimport map
 from libc.stdint cimport uint8_t, uint16_t, uint32_t, int8_t, int32_t
+from libc.string cimport strcmp
 
+import numpy as np
 
-
-# Forward declarations - updated to match our new structure
+# Forward declarations - import directly from types.hpp
 cdef extern from "types.hpp":
+    # Core type definitions
     ctypedef uint32_t GridObjectId
-    ctypedef uint8_t ObsType
-    ctypedef uint8_t ActionsType;
-    ctypedef uint8_t numpy_bool_t;
-
+    ctypedef uint8_t c_actions_type
+    ctypedef uint8_t numpy_bool_t
+    ctypedef uint8_t c_observations_type
+    ctypedef numpy_bool_t c_terminals_type
+    ctypedef numpy_bool_t c_truncations_type
+    ctypedef float c_rewards_type
+    ctypedef numpy_bool_t c_masks_type
+    ctypedef numpy_bool_t c_success_type
+    
+    # Numpy type name constants
+    const char* NUMPY_OBSERVATIONS_TYPE
+    const char* NUMPY_TERMINALS_TYPE
+    const char* NUMPY_TRUNCATIONS_TYPE
+    const char* NUMPY_REWARDS_TYPE
+    const char* NUMPY_ACTIONS_TYPE
+    const char* NUMPY_MASKS_TYPE
+    const char* NUMPY_SUCCESS_TYPE
+    
+    # Type mapping function
+    const char* get_numpy_type_name(const char* type_id)
+    
+    # Struct definitions
+    cdef struct GridLocation:
+        uint32_t r
+        uint32_t c
+        uint32_t layer
+        
+        GridLocation(uint32_t row, uint32_t col, uint32_t l)
+    
     cdef struct Event:
         uint32_t timestamp
         uint16_t event_id
@@ -22,6 +46,15 @@ cdef extern from "types.hpp":
         int32_t arg
         
         bint operator_lt "operator<"(const Event& other)
+
+# Import numpy types directly from C
+np_observations_type = np.dtype(get_numpy_type_name("observations").decode('utf8'))
+np_terminals_type = np.dtype(get_numpy_type_name("terminals").decode('utf8'))
+np_truncations_type = np.dtype(get_numpy_type_name("truncations").decode('utf8'))
+np_rewards_type = np.dtype(get_numpy_type_name("rewards").decode('utf8'))
+np_actions_type = np.dtype(get_numpy_type_name("actions").decode('utf8'))
+np_masks_type = np.dtype(get_numpy_type_name("masks").decode('utf8'))
+np_success_type = np.dtype(get_numpy_type_name("success").decode('utf8'))
 
 cdef extern from "event_manager.hpp":
     cdef cppclass EventHandler:
@@ -77,60 +110,60 @@ cdef extern from "core.hpp":
         void initialize_from_json(const string& map_json, const string& config_json)
         void reset()
 
-        void step(ActionsType* flat_actions);
+        void step(c_actions_type* flat_actions);
         
         
         # Observation methods
-        void compute_observations(ActionsType* flat_actions);
+        void compute_observations(c_actions_type* flat_actions);
                 
         void compute_observation(uint16_t observer_r, 
                                uint16_t observer_c,
                                uint16_t obs_width, 
                                uint16_t obs_height,
-                               ObsType* observation)
+                               c_observations_type* observation)
 
         void observe(GridObjectId observer_id, 
                     uint16_t obs_width,
                     uint16_t obs_height, 
-                    ObsType* observation)
+                    c_observations_type* observation)
         void observe_at(uint16_t row, 
                        uint16_t col,
                        uint16_t obs_width, 
                        uint16_t obs_height,
-                       ObsType* observation,
+                       c_observations_type* observation,
                        uint8_t dummy)
 
         # Observation utilities
-        void observation_at(ObsType* flat_buffer,
+        void observation_at(c_observations_type* flat_buffer,
                       uint32_t obs_width,
                       uint32_t obs_height,
                       uint32_t feature_size,
                       uint32_t r,
                       uint32_t c,
-                      ObsType* output)
+                      c_observations_type* output)
                       
-        void set_observation_at(ObsType* flat_buffer,
+        void set_observation_at(c_observations_type* flat_buffer,
                           uint32_t obs_width,
                           uint32_t obs_height,
                           uint32_t feature_size,
                           uint32_t r,
                           uint32_t c,
-                          const ObsType* values)
+                          const c_observations_type* values)
         
         
         # Set external buffers method
-        void set_buffers(ObsType* external_observations,
+        void set_buffers(c_observations_type* external_observations,
                        numpy_bool_t* external_terminals,
                        numpy_bool_t* external_truncations,
                        float* external_rewards)
         
         # Replace vector getters with pointer getters
-        ObsType* get_observations() const
-        numpy_bool_t* get_terminals() const
-        numpy_bool_t* get_truncations() const
-        float* get_rewards() const
-        float* get_episode_rewards() const
-        float* get_group_rewards() const
+        c_observations_type* get_observations() const
+        c_terminals_type* get_terminals() const
+        c_truncations_type* get_truncations() const
+        c_rewards_type* get_rewards() const
+        c_rewards_type* get_episode_rewards() const
+        c_rewards_type* get_group_rewards() const
         
         # Size getters
         size_t get_observations_size() const
@@ -146,14 +179,14 @@ cdef extern from "core.hpp":
         uint32_t map_height() const
         vector[string] grid_features() const
         uint32_t num_agents() const
-        vector[numpy_bool_t] action_success() const
+        vector[c_success_type] action_success() const
         vector[uint8_t] max_action_args() const
         const vector[Agent*]& get_agents() const
         
         # Reward management
         void enable_reward_decay(int32_t decay_time_steps)
         void disable_reward_decay()
-        void compute_group_rewards(float* rewards)
+        void compute_group_rewards(c_rewards_type* rewards)
         void set_group_reward_pct(uint32_t group_id, float pct)
         void set_group_size(uint32_t group_id, uint32_t size)
         

@@ -23,7 +23,7 @@ protected:
 
   // Grid and action pointers
   std::unique_ptr<CppMettaGrid> mettagrid;
-  ActionsType* actions = nullptr;
+  c_actions_type* actions = nullptr;
 
   // Grid buffers management
   test_utils::GridBuffers* buffers = nullptr;

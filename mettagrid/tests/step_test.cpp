@@ -39,7 +39,7 @@ TEST(StepTest, BasicStep) {
     std::cout << "  Group rewards: Internal (managed by grid)" << std::endl;
 
     // Create the external buffers with zero initialization
-    ObsType* observations = new ObsType[obs_size]();
+    c_observations_type* observations = new c_observations_type[obs_size]();
     numpy_bool_t* terminals = new numpy_bool_t[term_size]();
     numpy_bool_t* truncations = new numpy_bool_t[trunc_size]();
     float* rewards = new float[reward_size]();
@@ -81,8 +81,8 @@ TEST(StepTest, BasicStep) {
 
     // Create actions array with minimal configuration
     std::cout << "Creating actions array..." << std::endl;
-    int num_agents = 2;                                      // Assuming 2 agents from test_utils::create_test_grid
-    ActionsType* actions = new ActionsType[num_agents * 2];  // Allocate flat array with 2 values per agent
+    int num_agents = 2;  // Assuming 2 agents from test_utils::create_test_grid
+    c_actions_type* actions = new c_actions_type[num_agents * 2];  // Allocate flat array with 2 values per agent
 
     for (int i = 0; i < num_agents; i++) {
       int idx = i * 2;          // Calculate index in flat array
