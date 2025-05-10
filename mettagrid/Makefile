@@ -36,7 +36,7 @@ CXX = g++
 PYBIND11_INCLUDE = $(shell python -m pybind11 --includes)
 NUMPY_INCLUDE = $(shell python -c "import numpy; print(numpy.get_include())")
 PYTHON_INCLUDE = $(shell python -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())")
-CXXFLAGS = -std=c++23 -Wall -g -I$(SRC_DIR) -I$(THIRD_PARTY_DIR) -I$(TEST_DIR) -I$(EIGEN_INCLUDE) $(PYBIND11_INCLUDE) $(NUMPY_INCLUDE) $(PYTHON_INCLUDE)
+CXXFLAGS = -std=c++23 -Wall -g -I$(SRC_DIR) -I$(THIRD_PARTY_DIR) -I$(TEST_DIR) -I$(EIGEN_INCLUDE) -I$(PYBIND11_INCLUDE) -I$(NUMPY_INCLUDE) -I$(PYTHON_INCLUDE)
 
 # Google Test settings - with detection for different install locations
 GTEST_INCLUDE = $(shell pkg-config --cflags gtest 2>/dev/null || echo "-I/opt/homebrew/Cellar/googletest/1.17.0/include")
