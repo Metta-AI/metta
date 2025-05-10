@@ -31,7 +31,8 @@ from mettagrid.py_mettagrid cimport (
     np_masks_type,
     np_success_type,
     ObjectTypeNames,
-    InventoryItemNames
+    InventoryItemNames,
+    get_numpy_type_name as cpp_get_numpy_type_name
 )
 
 # Wrapper class for the C++ implementation
@@ -683,15 +684,5 @@ cdef class MettaGrid:
 
     @classmethod
     def get_numpy_type_name(cls, str type_id):
-        """
-        Python wrapper for the C++ get_numpy_type_name function.
-        Returns the NumPy dtype name for a given type identifier.
-        """
-        # Convert Python string to bytes object - don't use temporary reference
-        py_bytes = type_id.encode('utf8')  # Changed from type_id_str to type_id
-        
-        # Pass the bytes to the C function
-        result = cls.get_numpy_type_name(<const char*>py_bytes)
-        
-        # Convert result back to Python string
-        return result.decode('utf8')
+        py_bytes = type_id.encode('utf8')
+        return cpp_get_numpy_type_name(<const char*>py_bytes)

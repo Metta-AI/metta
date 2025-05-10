@@ -21,7 +21,9 @@ from mettagrid.stats_writer import StatsWriter
 from mettagrid.util.debug import save_mettagrid_args
 
 # Rebuild the NumPy types using the exposed function
+print(1)
 np_observations_type = np.dtype(MettaGrid.get_numpy_type_name("observations"))
+print(2)
 np_terminals_type = np.dtype(MettaGrid.get_numpy_type_name("terminals"))
 np_truncations_type = np.dtype(MettaGrid.get_numpy_type_name("truncations"))
 np_rewards_type = np.dtype(MettaGrid.get_numpy_type_name("rewards"))
