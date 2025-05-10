@@ -64,17 +64,12 @@ SRC_OBJECTS := $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_SRC_DIR)/%.o,$(SRC_SOURCES))
 
 
 
-build-for-ci: 
-	$(info Building source objects...)
-	$(MAKE) $(SRC_OBJECTS) --no-silent
-	$(info Building test executables...)
-	$(MAKE) $(TEST_EXECUTABLES) --no-silent
-	$(info Building benchmark executables...)
-	$(MAKE) $(BENCH_EXECUTABLES) --no-silent
+build-for-ci: $(SRC_OBJECTS) $(TEST_EXECUTABLES) $(BENCH_EXECUTABLES)
 	@echo "Built all source files, test executables, and benchmark executables"
 	@echo "Source objects: $(words $(SRC_OBJECTS))"
 	@echo "Test executables: $(words $(TEST_EXECUTABLES))"
 	@echo "Benchmark executables: $(words $(BENCH_EXECUTABLES))"
+
 #-----------------------
 # Build
 #-----------------------
