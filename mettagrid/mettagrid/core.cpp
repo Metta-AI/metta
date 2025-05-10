@@ -257,9 +257,6 @@ void CppMettaGrid::compute_observations(ActionsType* flat_actions) {
 
 // Take a step in the environment
 void CppMettaGrid::step(ActionsType* flat_actions) {
-  std::cout << "enter step" << std::endl;
-  std::cout.flush();
-
   if (flat_actions == nullptr) {
     throw std::runtime_error("Null actions array passed to step()");
   }
@@ -284,9 +281,6 @@ void CppMettaGrid::step(ActionsType* flat_actions) {
 
   _event_manager->process_events(_current_timestep);
 
-  std::cout << "about to for loop" << std::endl;
-  std::cout.flush();
-
   // Process actions by priority
   for (uint8_t p = 0; p <= _max_action_priority; p++) {
     for (size_t idx = 0; idx < _agents.size(); idx++) {
@@ -304,7 +298,8 @@ void CppMettaGrid::step(ActionsType* flat_actions) {
       assert(handler->priority == _max_action_priority - p || "Action handled in wrong priority phase");
       assert(arg <= _max_action_args[static_cast<size_t>(action)] && "Action argument exceeds maximum allowed");
 
-      _action_success[idx] = handler->handle_action(idx, agent->id, arg, _current_timestep);
+      // TODO: this line is causing a segfault
+      // _action_success[idx] = handler->handle_action(idx, agent->id, arg, _current_timestep);
     }
   }
 

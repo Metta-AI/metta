@@ -75,6 +75,7 @@ cdef extern from "core.hpp":
         void add_agent(Agent* agent)
         void initialize_from_json(const string& map_json, const string& config_json)
         void reset()
+
         void step(ActionsType* flat_actions);
         
         

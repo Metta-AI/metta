@@ -237,34 +237,19 @@ cdef class MettaGrid:
         Take a step in the environment with the given actions.
         
         Args:
-            actions: NumPy array of actions
-            
+            actions: NumPy array of actions, shape (num_agents, 2)
+                
         Returns:
             Tuple containing observations, rewards, terminals, truncations, and info dict
         """
-    
-        # Copy into pre-allocated buffer of correct shape and type
         cdef:
-            uint32_t i, j, flat_idx
-    
-        for i in range(self._num_agents):
-            for j in range(2):
-                flat_idx = i * 2 + j
-                self._flattened_actions_buffer[flat_idx] = <uint8_t>actions[i, j]
-    
-        if self._cpp_mettagrid == NULL:
-            raise RuntimeError("C++ MettaGrid instance is NULL")
+            cnp.ndarray[ActionsType, ndim=1] flat_actions
 
-        if not self._flattened_actions_buffer.dtype == actions_np_type:
-            raise TypeError(f"Expected actions buffer to be uint8, got {self._flattened_actions_buffer.dtype}")
+        flat_actions = np.ascontiguousarray(actions.flatten(), dtype=actions_np_type)
 
-
-        self._cpp_mettagrid.step(<ActionsType*>self._flattened_actions_buffer.data)
-        
-        # Compute rewards
+        self._cpp_mettagrid.step(<ActionsType*>flat_actions.data)
         self._cpp_mettagrid.compute_group_rewards(<float*>self._rewards_np.data)
-        
-        # Return observations and other state information
+
         return (self._observations_np, self._rewards_np, self._terminals_np, self._truncations_np, {})
 
 
