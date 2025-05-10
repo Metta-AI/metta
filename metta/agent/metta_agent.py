@@ -304,7 +304,7 @@ class MettaAgent(nn.Module):
 
 class DistributedMettaAgent(DistributedDataParallel, MettaAgent):
     def __init__(self, agent, device):
-        super().__init__(agent, device_ids=[device], output_device=device)
+        DistributedDataParallel.__init__(self, agent, device_ids=[device], output_device=device)
 
     def __getattr__(self, name):
         try:
