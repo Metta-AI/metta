@@ -58,14 +58,14 @@ const std::vector<std::string> InventoryItemNames =
     {"ore.red", "ore.blue", "ore.green", "battery", "heart", "armor", "laser", "blueprint"};
 
 const std::map<TypeId, GridLayer> ObjectLayers = {{ObjectType::AgentT, GridLayer::Agent_Layer},
-                                            {ObjectType::WallT, GridLayer::Object_Layer},
-                                            {ObjectType::MineT, GridLayer::Object_Layer},
-                                            {ObjectType::GeneratorT, GridLayer::Object_Layer},
-                                            {ObjectType::AltarT, GridLayer::Object_Layer},
-                                            {ObjectType::ArmoryT, GridLayer::Object_Layer},
-                                            {ObjectType::LaseryT, GridLayer::Object_Layer},
-                                            {ObjectType::LabT, GridLayer::Object_Layer},
-                                            {ObjectType::FactoryT, GridLayer::Object_Layer},
-                                            {ObjectType::TempleT, GridLayer::Object_Layer}};
+                                                  {ObjectType::WallT, GridLayer::Object_Layer},
+                                                  {ObjectType::MineT, GridLayer::Object_Layer},
+                                                  {ObjectType::GeneratorT, GridLayer::Object_Layer},
+                                                  {ObjectType::AltarT, GridLayer::Object_Layer},
+                                                  {ObjectType::ArmoryT, GridLayer::Object_Layer},
+                                                  {ObjectType::LaseryT, GridLayer::Object_Layer},
+                                                  {ObjectType::LabT, GridLayer::Object_Layer},
+                                                  {ObjectType::FactoryT, GridLayer::Object_Layer},
+                                                  {ObjectType::TempleT, GridLayer::Object_Layer}};
 
 #endif
