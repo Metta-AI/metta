@@ -56,20 +56,19 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._renderer = None
         self._map_builder = None
 
-        # Set up the environment first to establish dimensions
-        self._reset_env()
         self._stats_writer = stats_writer
         self._replay_writer = replay_writer
         self._episode_id: str = ""
         self._reset_at = datetime.datetime.now()
         self._current_seed = 0
 
-        # TODO -- typedef actions type
+        self._reset_env()
         num_agents = self._num_agents
         obs_width = self._c_env.obs_width
         obs_height = self._c_env.obs_height
         grid_features_size = self._c_env.grid_features_size
-
+        self._single_observation_space = self._c_env.observation_space
+        self._single_action_space = self._c_env.action_space
         # force buffers to the correct size
         buf = {
             "observations": np.zeros(
@@ -81,12 +80,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             "actions": np.zeros((num_agents, 2), dtype=np_actions_type, order="C"),
             "masks": np.ones((num_agents,), dtype=np_masks_type, order="C"),
         }
-
         buf_obj = SimpleNamespace(**buf)
-        self._single_observation_space = self._c_env.observation_space
-        self._single_action_space = self._c_env.action_space
-
-        # Call super().__init__ with the correctly sized buffer
         super().__init__(buf_obj)
 
         self.labels = self._env_cfg.get("labels", None)
@@ -154,8 +148,8 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         Reset the environment to an initial state and returns an initial observation.
         """
         self._env_cfg = self._get_new_env_cfg()
-        self._reset_env()
 
+        self._reset_env()
         self._c_env.set_buffers(self.observations, self.terminals, self.truncations, self.rewards)
 
         self._episode_id = self._make_episode_id()

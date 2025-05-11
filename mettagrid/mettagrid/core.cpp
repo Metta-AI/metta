@@ -99,19 +99,23 @@ CppMettaGrid::~CppMettaGrid() {
 }
 
 void CppMettaGrid::set_buffers(c_observations_type* external_observations,
-                               numpy_bool_t* external_terminals,
-                               numpy_bool_t* external_truncations,
-                               float* external_rewards) {
+                               c_terminals_type* external_terminals,
+                               c_truncations_type* external_truncations,
+                               c_rewards_type* external_rewards) {
   // Check for NULL pointers
   if (external_observations == nullptr) {
     throw std::invalid_argument("External buffers cannot be NULL");
   }
-
   // Set pointers to external buffers
   _observations = external_observations;
   _terminals = external_terminals;
   _truncations = external_truncations;
   _rewards = external_rewards;
+
+  // Connect agents to reward buffers if agents exist
+  if (!_agents.empty()) {
+    connect_agents_to_rewards();
+  }
 }
 
 void CppMettaGrid::init_action_handlers(const std::vector<ActionHandler*>& action_handlers) {
@@ -139,17 +143,10 @@ void CppMettaGrid::init_action_handlers(const std::vector<ActionHandler*>& actio
   }
 }
 
-// Add an agent to the game
-void CppMettaGrid::add_agent(Agent* agent) {
-  // Initialize the agent with its reward buffer
-  agent->init(&_rewards[_agents.size()]);
-  _agents.push_back(agent);
-}
-
 // Reset the environment
 void CppMettaGrid::reset() {
   if (_observations == nullptr) {
-    throw std::runtime_error("External buffers not set. Call set_buffers before reset.");
+    throw std::runtime_error("External buffers not set. Call set_buffers before reset()");
   }
 
   // Reset timestep
@@ -659,6 +656,11 @@ void CppMettaGrid::parse_agent(const std::string& group_name,
                                int32_t col,
                                const nlohmann::json& agent_config,
                                const nlohmann::json& group_config) {
+  // Check for required fields in group_config
+  if (!group_config.contains("id")) {
+    throw std::runtime_error("Group config missing required 'id' field");
+  }
+
   // Merge agent and group configs
   nlohmann::json merged_config = agent_config;
   if (group_config.contains("props")) {
@@ -682,35 +684,96 @@ void CppMettaGrid::parse_agent(const std::string& group_name,
   }
 
   // Build rewards map
-  std::map<std::string, float> cpp_rewards;
+  std::map<std::string, float> rewards_map;
+  // Check if InventoryItemNames is initialized
+  if (InventoryItemNames.empty()) {
+    throw std::runtime_error("InventoryItemNames is not initialized");
+  }
+
   for (const auto& item : InventoryItemNames) {
     // Default value is 0
-    cpp_rewards[item] = 0;
+    rewards_map[item] = 0;
     if (rewards.contains(item)) {
       // Convert to float explicitly
-      cpp_rewards[item] = static_cast<float>(rewards[item].get<double>());
+      rewards_map[item] = static_cast<float>(rewards[item].get<double>());
     }
 
     // Set max values
     std::string max_key = item + "_max";
     // Default max is 1000
-    cpp_rewards[max_key] = 1000.0f;
+    rewards_map[max_key] = 1000.0f;
     if (rewards.contains(max_key)) {
-      cpp_rewards[max_key] = static_cast<float>(rewards[max_key].get<double>());
+      rewards_map[max_key] = static_cast<float>(rewards[max_key].get<double>());
     }
   }
 
   // Create agent
   uint32_t group_id = group_config["id"];
-  Agent* agent = new Agent(row, col, group_name, group_id, obj_config, cpp_rewards);
+
+  // Check if _grid is valid
+  if (_grid == nullptr) {
+    throw std::runtime_error("Grid is not initialized");
+  }
+
+  // Create the agent
+  Agent* agent = new Agent(row, col, group_name, group_id, obj_config, rewards_map);
+  if (agent == nullptr) {
+    throw std::runtime_error("Agent creation failed, returned nullptr");
+  }
+
   agent->agent_id = _agents.size();
 
-  // Add to grid and agent list
-  _grid->add_object(agent);
-  add_agent(agent);
+  // Add to grid
+  try {
+    _grid->add_object(agent);
+  } catch (const std::exception& e) {
+    delete agent;  // Clean up to avoid memory leak
+    throw;
+  }
+
+  // Add to agents list without initializing the reward pointer yet
+  try {
+    _agents.push_back(agent);
+    // Note: We DON'T call agent->init() here - that will happen in connect_agents_to_rewards()
+  } catch (const std::exception& e) {
+    // Note: We don't delete agent here because it's already in the grid
+    throw;
+  }
+
+  // Final validation after agent is added
+  if (agent == nullptr) {
+    throw std::runtime_error("Agent became null after add_agent");
+  }
+
+  uint32_t actor_object_id = agent->id;
+
+  if (&(agent->stats) == nullptr) {
+    throw std::runtime_error("Agent with ID " + std::to_string(actor_object_id) + " has invalid stats object");
+  }
 }
 
-// Modified register_action function
+void CppMettaGrid::connect_agents_to_rewards() {
+  if (_rewards == nullptr) {
+    throw std::runtime_error("Reward buffer not set. Call set_buffers first.");
+  }
+
+  for (size_t agent_index = 0; agent_index < _agents.size(); agent_index++) {
+    Agent* agent = _agents[agent_index];
+    if (agent == nullptr) {
+      throw std::runtime_error("Null agent at index " + std::to_string(agent_index));
+    }
+
+    // Now initialize the agent with the reward pointer
+    agent->init(&_rewards[agent_index]);
+
+    // Verify reward pointer is set
+    if (agent->reward == nullptr) {
+      throw std::runtime_error("Agent with ID " + std::to_string(agent->id) +
+                               " has null reward pointer after initialization");
+    }
+  }
+}
+
 template <typename HandlerType>
 void register_action(std::vector<ActionHandler*>& handlers,
                      const nlohmann::json& cfg,

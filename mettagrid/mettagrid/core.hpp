@@ -135,7 +135,6 @@ public:
 
   // Initialization methods
   void init_action_handlers(const std::vector<ActionHandler*>& action_handlers);
-  void add_agent(Agent* agent);
   void initialize_from_json(const std::string& map_json, const std::string& config_json);
 
   // Core game loop methods
@@ -232,6 +231,7 @@ private:
                    int32_t col,
                    const nlohmann::json& agent_config,
                    const nlohmann::json& group_config);
+  void connect_agents_to_rewards();
 };
 
 #endif  // CORE_HPP

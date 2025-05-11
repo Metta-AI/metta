@@ -56,40 +56,10 @@ np_actions_type = np.dtype(get_numpy_type_name("actions").decode('utf8'))
 np_masks_type = np.dtype(get_numpy_type_name("masks").decode('utf8'))
 np_success_type = np.dtype(get_numpy_type_name("success").decode('utf8'))
 
-cdef extern from "event_manager.hpp":
-    cdef cppclass EventHandler:
-        EventHandler(EventManager* em)
-        void handle_event(GridObjectId object_id, int32_t arg) except +
-    
-    cdef cppclass EventManager:
-        void schedule_event(uint16_t event_id, uint32_t delay, GridObjectId object_id, int32_t arg) except +
-        void process_events(uint32_t current_timestep) except +
-
-cdef extern from "grid_object.hpp":
-    cdef struct GridLocation:
-        uint32_t r
-        uint32_t c
-        uint32_t layer
-        
-        GridLocation(uint32_t row, uint32_t col, uint32_t l)
-    
-    cdef cppclass GridObject
-
-cdef extern from "actions/action_handler.hpp":
-    cdef cppclass ActionHandler 
-
-cdef extern from "grid.hpp":
-    cdef cppclass Grid
-    
-cdef extern from "stats_tracker.hpp":
-    cdef cppclass StatsTracker
-    
 cdef extern from "constants.hpp":
     cdef vector[string] ObjectTypeNames
     cdef vector[string] InventoryItemNames
 
-cdef extern from "objects/agent.hpp":
-    cdef cppclass Agent
 
 # Updated MettaGrid class definition with precise types
 cdef extern from "core.hpp":
@@ -105,23 +75,11 @@ cdef extern from "core.hpp":
         )
         
         # Core methods
-        void init_action_handlers(const vector[ActionHandler*]& action_handlers) except +
-        void add_agent(Agent* agent) except +
         void initialize_from_json(const string& map_json, const string& config_json) except +
         void reset() except +
-
         void step(c_actions_type* flat_actions) except +
         
-        
         # Observation methods
-        void compute_observations(c_actions_type* flat_actions) except +
-                
-        void compute_observation(uint16_t observer_r, 
-                               uint16_t observer_c,
-                               uint16_t obs_width, 
-                               uint16_t obs_height,
-                               c_observations_type* observation) except +
-
         void observe(GridObjectId observer_id, 
                     uint16_t obs_width,
                     uint16_t obs_height, 
@@ -134,22 +92,6 @@ cdef extern from "core.hpp":
                        c_observations_type* observation,
                        uint8_t dummy) except +
 
-        # Observation utilities
-        void observation_at(c_observations_type* flat_buffer,
-                      uint32_t obs_width,
-                      uint32_t obs_height,
-                      uint32_t feature_size,
-                      uint32_t r,
-                      uint32_t c,
-                      c_observations_type* output) except +
-                      
-        void set_observation_at(c_observations_type* flat_buffer,
-                          uint32_t obs_width,
-                          uint32_t obs_height,
-                          uint32_t feature_size,
-                          uint32_t r,
-                          uint32_t c,
-                          const c_observations_type* values) except +
         
         # Set external buffers method
         void set_buffers(c_observations_type* external_observations,
@@ -158,18 +100,10 @@ cdef extern from "core.hpp":
                        float* external_rewards) except +
         
         # Replace vector getters with pointer getters
-        c_observations_type* get_observations() const
-        c_terminals_type* get_terminals() const
-        c_truncations_type* get_truncations() const
-        c_rewards_type* get_rewards() const
         c_rewards_type* get_episode_rewards() const
         c_rewards_type* get_group_rewards() const
         
         # Size getters
-        size_t get_observations_size() const
-        size_t get_terminals_size() const
-        size_t get_truncations_size() const
-        size_t get_rewards_size() const
         size_t get_episode_rewards_size() const
         size_t get_group_rewards_size() const
         
@@ -181,7 +115,6 @@ cdef extern from "core.hpp":
         uint32_t num_agents() const
         vector[c_success_type] action_success() const
         vector[uint8_t] max_action_args() const
-        const vector[Agent*]& get_agents() const
         
         # Reward management
         void enable_reward_decay(int32_t decay_time_steps) except +
@@ -190,9 +123,6 @@ cdef extern from "core.hpp":
         void set_group_reward_pct(uint32_t group_id, float pct) except +
         void set_group_size(uint32_t group_id, uint32_t size) except +
         
-        # Stats and management
-        StatsTracker* stats() const
-        EventManager* get_event_manager() except +
         string get_episode_stats_json() const
 
         vector[string] action_names() const

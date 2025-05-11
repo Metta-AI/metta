@@ -34,9 +34,8 @@ public:
         std::string group_name,
         uint8_t group_id,
         ObjectConfig cfg,
-        // Configuration -- rewards that the agent will get for certain
-        // actions or inventory changes.
-        std::map<std::string, float> rewards) {
+        std::map<std::string, float> rewards_map  // a map of rewards for actions or inventory changes
+  ) {
     GridObject::init(ObjectType::AgentT, GridLocation(r, c, GridLayer::Agent_Layer));
     MettaObject::set_hp(cfg);
 
@@ -49,13 +48,13 @@ public:
     this->max_items = cfg["max_inventory"];
     this->resource_rewards.resize(InventoryItem::InventoryCount);
     for (int32_t i = 0; i < InventoryItem::InventoryCount; i++) {
-      this->resource_rewards[i] = rewards[InventoryItemNames[i]];
+      this->resource_rewards[i] = rewards_map[InventoryItemNames[i]];
     }
     this->resource_reward_max.resize(InventoryItem::InventoryCount);
     for (int32_t i = 0; i < InventoryItem::InventoryCount; i++) {
-      this->resource_reward_max[i] = rewards[InventoryItemNames[i] + "_max"];
+      this->resource_reward_max[i] = rewards_map[InventoryItemNames[i] + "_max"];
     }
-    this->action_failure_penalty = rewards["action_failure_penalty"];
+    this->action_failure_penalty = rewards_map["action_failure_penalty"];
     this->color = 0;
     this->current_resource_reward = 0;
     this->reward = nullptr;

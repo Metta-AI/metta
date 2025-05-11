@@ -282,7 +282,7 @@ cdef class MettaGrid:
         # Create a new numpy array
         success_array = np.zeros(size, dtype=np_success_type)
 
-        # Manual copy - accessing vector<bool> elements individually
+        # Manual copy
         for i in range(size):
             success_array[i] = success[i]
 
@@ -484,7 +484,7 @@ cdef class MettaGrid:
     cpdef void disable_reward_decay(self):  
         self._cpp_mettagrid.disable_reward_decay()
     
-    
+        
     cpdef cnp.ndarray get_episode_rewards(self):
         """
         Get the episode rewards.
@@ -493,12 +493,22 @@ cdef class MettaGrid:
             NumPy array of episode rewards
         """
         cdef:
-            float* episode_rewards_ptr
+            c_rewards_type* episode_rewards_ptr
             uint32_t episode_rewards_size
+            cnp.ndarray[c_rewards_type, ndim=1] result
 
         episode_rewards_ptr = self._cpp_mettagrid.get_episode_rewards()
         episode_rewards_size = self._cpp_mettagrid.get_episode_rewards_size()
-        return np.asarray(<float[:episode_rewards_size]>episode_rewards_ptr)
+        
+        if episode_rewards_size == 0:
+            return np.array([], dtype=np_rewards_type)
+        
+        # Create a new array and copy the data to avoid memory issues
+        result = np.zeros(episode_rewards_size, dtype=np_rewards_type)
+        for i in range(episode_rewards_size):
+            result[i] = episode_rewards_ptr[i]
+            
+        return result
     
     
     cpdef dict get_episode_stats(self):

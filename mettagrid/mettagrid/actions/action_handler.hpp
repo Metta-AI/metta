@@ -50,9 +50,6 @@ public:
   }
 
   bool handle_action(uint32_t actor_id, GridObjectId actor_object_id, c_actions_type arg, uint32_t current_timestep) {
-    std::ofstream debug_log("mettagrid_debug.log", std::ios::app);
-    debug_log << "=== in handle action ===" << std::endl;
-
     // Validate grid initialization
     if (_grid == nullptr) {
       throw std::runtime_error("Grid not initialized in " + _action_name + " handler");
@@ -90,8 +87,6 @@ public:
     // Call the derived implementation
     bool result = _handle_action(actor_id, actor, arg);
 
-    debug_log << "1" << std::endl;
-
     // Update stats based on result
     if (result) {
       actor->stats.incr(_stats.success);
@@ -104,7 +99,7 @@ public:
         *actor->reward -= actor->action_failure_penalty;
       }
     }
-    debug_log << "3" << std::endl;
+
     // Set first_use stat
     actor->stats.set_once(_stats.first_use, current_timestep);
 
