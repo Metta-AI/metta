@@ -307,9 +307,9 @@ void CppMettaGrid::step(c_actions_type* flat_actions) {
 
       ActionHandler* handler = _action_handlers[static_cast<size_t>(action)].get();
 
-      // Validate handler
-      if (handler == nullptr) {
-        throw std::runtime_error("Action handler is null for action: " + std::to_string(action));
+      // Validate action arguments
+      if (arg > _max_action_args[static_cast<size_t>(action)]) {
+        throw std::runtime_error("Action argument exceeds maximum allowed");
       }
 
       // Check if handler matches current priority
@@ -321,11 +321,6 @@ void CppMettaGrid::step(c_actions_type* flat_actions) {
       Agent* agent = _agents[idx];
       if (agent == nullptr) {
         throw std::runtime_error("Agent is null for index: " + std::to_string(idx));
-      }
-
-      // Validate action arguments
-      if (arg > _max_action_args[static_cast<size_t>(action)]) {
-        throw std::runtime_error("Action argument exceeds maximum allowed");
       }
 
       // Validate agent properties

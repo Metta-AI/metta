@@ -1,3 +1,5 @@
+import random
+
 import numpy as np
 import pytest
 
@@ -5,6 +7,7 @@ from mettagrid.config.utils import get_cfg
 from mettagrid.core import MettaGrid
 from mettagrid.mettagrid_env import MettaGridEnv
 from mettagrid.resolvers import register_resolvers
+from mettagrid.tests.utils import generate_valid_random_actions
 
 # Rebuild the NumPy types using the exposed function
 np_observations_type = np.dtype(MettaGrid.get_numpy_type_name("observations"))
@@ -15,14 +18,21 @@ np_actions_type = np.dtype(MettaGrid.get_numpy_type_name("actions"))
 np_masks_type = np.dtype(MettaGrid.get_numpy_type_name("masks"))
 np_success_type = np.dtype(MettaGrid.get_numpy_type_name("success"))
 
+# Define a constant seed for deterministic behavior
+TEST_SEED = 42
+
 
 @pytest.fixture
 def environment():
-    """Create and initialize the environment."""
+    """Create and initialize the environment with a fixed seed."""
+    # Set seeds for all random number generators
+    np.random.seed(TEST_SEED)
+    random.seed(TEST_SEED)
+
     register_resolvers()
     cfg = get_cfg("benchmark")
-    env = MettaGridEnv(cfg, render_mode="human", _recursive_=False)
-    env.reset()
+    env = MettaGridEnv(cfg, render_mode="human", _recursive_=False, seed=TEST_SEED)
+    env.reset(seed=TEST_SEED)
     yield env
     # Cleanup after test
     del env
@@ -32,8 +42,12 @@ def test_basic(environment):
     """
     Comprehensive test of MettaGrid environment functionality.
     This test combines the functionality of multiple tests into one
-    while fixing the dtype issue for actions.
+    and ensures all actions are valid with deterministic behavior.
     """
+    # Set seed again at the start of the test for consistent action generation
+    np.random.seed(TEST_SEED)
+    random.seed(TEST_SEED)
+
     # ---- Test environment initialization ----
     assert environment._renderer is None
     assert environment._c_env is not None
@@ -75,7 +89,7 @@ def test_basic(environment):
     assert environment.grid_objects == environment._c_env.grid_objects()
 
     # ---- Test environment reset ----
-    obs, info = environment.reset()
+    obs, info = environment.reset(seed=TEST_SEED)
 
     # Check observation structure
     [agents_in_obs, grid_width, grid_height, num_channels] = obs.shape
@@ -90,8 +104,14 @@ def test_basic(environment):
     assert environment._c_env.current_timestep() == 0
 
     # Take a step with NoOp actions for all agents
-    # Create properly formatted actions with correct dtype
-    actions = np.array([[0, 0]] * num_agents, dtype=np_actions_type)
+    # Use our utility to generate valid actions for all agents
+    actions = generate_valid_random_actions(
+        environment,
+        num_agents,
+        force_action_type=0,  # First action type (likely NoOp or similar)
+        force_action_arg=0,  # Argument 0 is valid for all action types
+        seed=TEST_SEED,
+    )
 
     obs, rewards, terminated, truncated, infos = environment.step(actions)
 
@@ -115,22 +135,23 @@ def test_basic(environment):
     environment.process_episode_stats(infos)
 
     # ---- Additional testing with random actions ----
-    # Reset for additional testing
-    obs, _info = environment.reset()
+    # Reset for additional testing with seed
+    obs, _info = environment.reset(seed=TEST_SEED)
 
     # Test multiple steps with random actions
-    for _i in range(5):
-        # Generate random actions but ensure correct dtype
-        random_actions = np.random.randint(
-            low=0, high=[num_actions, max_arg], size=(num_agents, 2), dtype=np_actions_type
-        )
+    for i in range(500):
+        # Generate valid random actions using our utility with a deterministic but different seed for each step
+        iter_seed = TEST_SEED + i + 1
+        random_actions = generate_valid_random_actions(environment, num_agents, seed=iter_seed)
 
         obs, rewards, terminated, truncated, infos = environment.step(random_actions)
 
         # Process episode stats if needed
         if np.any(terminated) or np.any(truncated):
             environment.process_episode_stats(infos)
-            obs, info = environment.reset()
+            # Reset with a seed derived from the iteration to maintain determinism
+            reset_seed = TEST_SEED + 1000 + i
+            obs, info = environment.reset(seed=reset_seed)
 
     # Final verification that environment is still functioning
     assert environment._c_env is not None
