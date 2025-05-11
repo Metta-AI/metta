@@ -24,7 +24,7 @@ env:
 eval:
   policy_uri: ${..policy_uri}
   npc_policy_uri: ${..npc_policy_uri}
-  eval_db_uri: ${..eval_db_uri}
+  # eval_db_uri: ${..eval_db_uri}
   # env: /env/mettagrid/prog_3.yaml
   # num_envs: 10
   # num_episodes: 10
@@ -38,7 +38,7 @@ wandb:
   track: true
   checkpoint_interval: 1
 
-run_id: 536
+run_id: 537
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 sweep_name: "${oc.env:USER}.local.sweep.${run_id}"
