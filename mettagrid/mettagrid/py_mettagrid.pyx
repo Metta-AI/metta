@@ -23,6 +23,8 @@ from mettagrid.py_mettagrid cimport (
     c_actions_type,
     c_masks_type,
     c_success_type,
+    ObjectTypeNames,
+    InventoryItemNames,
     np_observations_type,
     np_terminals_type,
     np_truncations_type,
@@ -30,10 +32,17 @@ from mettagrid.py_mettagrid cimport (
     np_actions_type,
     np_masks_type,
     np_success_type,
-    ObjectTypeNames,
-    InventoryItemNames,
     get_numpy_type_name as cpp_get_numpy_type_name
 )
+
+# expose for python
+np_observations_type = np.dtype(cpp_get_numpy_type_name(<const char*>b"observations"))
+np_terminals_type = np.dtype(cpp_get_numpy_type_name(<const char*>b"terminals"))
+np_truncations_type = np.dtype(cpp_get_numpy_type_name(<const char*>b"truncations"))
+np_rewards_type = np.dtype(cpp_get_numpy_type_name(<const char*>b"rewards"))
+np_actions_type = np.dtype(cpp_get_numpy_type_name(<const char*>b"actions"))
+np_masks_type = np.dtype(cpp_get_numpy_type_name(<const char*>b"masks"))
+np_success_type = np.dtype(cpp_get_numpy_type_name(<const char*>b"success"))
 
 # Wrapper class for the C++ implementation
 cdef class MettaGrid:
@@ -115,7 +124,6 @@ cdef class MettaGrid:
         # Pre-allocate NumPy arrays for common operations
         self._flattened_actions_buffer = np.zeros((num_agents, 2), dtype=np_actions_type).flatten()
         self._obs_buffer = np.zeros((self._obs_width, self._obs_height, self._grid_features_size), dtype=np_observations_type)
-
 
     def __dealloc__(self):
         # Clean up the C++ object
@@ -248,18 +256,14 @@ cdef class MettaGrid:
         Returns:
             Tuple containing observations, rewards, terminals, truncations, and info dict
         """
-        cdef:
-            cnp.ndarray[c_actions_type, ndim=1] flat_actions
-
-        flat_actions = np.ascontiguousarray(actions.flatten(), dtype=np_actions_type)
-
-        self._cpp_mettagrid.step(<c_actions_type*>flat_actions.data)
-        self._cpp_mettagrid.compute_group_rewards(<float*>self._rewards_np.data)
+        cdef cnp.ndarray[c_actions_type, ndim=1, mode="c"] flattened = np.asarray(actions.flatten(), dtype=np_actions_type)
+        self._cpp_mettagrid.step(<c_actions_type*>flattened.data)       
+        self._cpp_mettagrid.compute_group_rewards(<c_rewards_type*>self._rewards_np.data)
 
         return (self._observations_np, self._rewards_np, self._terminals_np, self._truncations_np, {})
 
 
-    cpdef cnp.ndarray[c_success_type, ndim=1] action_success(self):
+    cpdef cnp.ndarray action_success(self):
         """
         Get the action success information.
 
@@ -286,7 +290,7 @@ cdef class MettaGrid:
         return success_array
 
 
-    cpdef cnp.ndarray[uint8_t, ndim=1] max_action_args(self):
+    cpdef cnp.ndarray max_action_args(self):
         """
         Get the maximum action arguments.
         

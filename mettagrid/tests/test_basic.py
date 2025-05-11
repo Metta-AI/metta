@@ -2,8 +2,18 @@ import numpy as np
 import pytest
 
 from mettagrid.config.utils import get_cfg
+from mettagrid.core import MettaGrid
 from mettagrid.mettagrid_env import MettaGridEnv
 from mettagrid.resolvers import register_resolvers
+
+# Rebuild the NumPy types using the exposed function
+np_observations_type = np.dtype(MettaGrid.get_numpy_type_name("observations"))
+np_terminals_type = np.dtype(MettaGrid.get_numpy_type_name("terminals"))
+np_truncations_type = np.dtype(MettaGrid.get_numpy_type_name("truncations"))
+np_rewards_type = np.dtype(MettaGrid.get_numpy_type_name("rewards"))
+np_actions_type = np.dtype(MettaGrid.get_numpy_type_name("actions"))
+np_masks_type = np.dtype(MettaGrid.get_numpy_type_name("masks"))
+np_success_type = np.dtype(MettaGrid.get_numpy_type_name("success"))
 
 
 @pytest.fixture
@@ -81,7 +91,7 @@ def test_basic(environment):
 
     # Take a step with NoOp actions for all agents
     # Create properly formatted actions with correct dtype
-    actions = np.array([[0, 0]] * num_agents, dtype=np.uint8)
+    actions = np.array([[0, 0]] * num_agents, dtype=np_actions_type)
 
     obs, rewards, terminated, truncated, infos = environment.step(actions)
 
@@ -111,7 +121,9 @@ def test_basic(environment):
     # Test multiple steps with random actions
     for _i in range(5):
         # Generate random actions but ensure correct dtype
-        random_actions = np.random.randint(low=0, high=[num_actions, max_arg], size=(num_agents, 2), dtype=np.int32)
+        random_actions = np.random.randint(
+            low=0, high=[num_actions, max_arg], size=(num_agents, 2), dtype=np_actions_type
+        )
 
         obs, rewards, terminated, truncated, infos = environment.step(random_actions)
 

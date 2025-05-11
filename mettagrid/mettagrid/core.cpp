@@ -1,7 +1,9 @@
 #include "core.hpp"
 
 // Include necessary headers
+#include <fstream>  // for debug logs
 #include <nlohmann/json.hpp>
+#include <set>
 
 #include "actions/action_handler.hpp"
 #include "actions/attack.hpp"
@@ -23,6 +25,13 @@
 #include "objects/wall.hpp"
 #include "stats_tracker.hpp"
 #include "types.hpp"
+
+// Example for debug log using fstream:
+//
+//    std::ofstream debug_log("mettagrid_debug.log", std::ios::app);
+//    debug_log << "=== Step called at timestep " << _current_timestep << " ===" << std::endl;
+//    debug_log.flush();
+//    debug_log.close();
 
 // Constructor needs to be updated to use the new feature_names from GridObject
 CppMettaGrid::CppMettaGrid(uint32_t map_width,
@@ -278,32 +287,60 @@ void CppMettaGrid::step(c_actions_type* flat_actions) {
   std::fill(_action_success.begin(), _action_success.end(), false);
 
   _current_timestep++;
-
   _event_manager->process_events(_current_timestep);
 
-  // Process actions by priority
-  for (uint8_t p = 0; p <= _max_action_priority; p++) {
+  // Create a sorted list of priority levels that exist in our handlers
+  std::set<uint8_t> priority_levels;
+  for (const auto& handler : _action_handlers) {
+    priority_levels.insert(handler->priority);
+  }
+
+  // Process actions by priority levels from lowest to highest
+  for (auto it = priority_levels.begin(); it != priority_levels.end(); ++it) {
+    uint8_t current_priority = *it;
+
     for (size_t idx = 0; idx < _agents.size(); idx++) {
       c_actions_type action = flat_actions[idx * 2];   // First element is action type
       c_actions_type arg = flat_actions[idx * 2 + 1];  // Second element is action argument
 
-      assert(action >= 0 && "Action cannot be negative");
-      assert(action < static_cast<int32_t>(_num_action_handlers) && "Action exceeds available handlers");
+      // Validate action index
+      if (action < 0 || action >= static_cast<int32_t>(_action_handlers.size())) {
+        throw std::runtime_error("Invalid action index: " + std::to_string(action));
+      }
 
-      Agent* agent = _agents[idx];
       ActionHandler* handler = _action_handlers[static_cast<size_t>(action)].get();
 
-      assert(handler != nullptr && "Action handler is null");
-      assert(handler->priority == _max_action_priority - p || "Action handled in wrong priority phase");
-      assert(arg <= _max_action_args[static_cast<size_t>(action)] && "Action argument exceeds maximum allowed");
-      assert(_current_timestep > 0 && "Current timestep must be positive");
-      assert(agent != nullptr && "Agent is null");
-      assert(agent->id > 0 && "Agent ID must be positive");
-      assert(agent->id < _grid->objects.size() && "Agent ID exceeds grid object count");
+      // Validate handler
+      if (handler == nullptr) {
+        throw std::runtime_error("Action handler is null for action: " + std::to_string(action));
+      }
+
+      // Check if handler matches current priority
+      if (handler->priority != current_priority) {
+        continue;  // Skip to next agent
+      }
+
+      // Get and validate agent
+      Agent* agent = _agents[idx];
+      if (agent == nullptr) {
+        throw std::runtime_error("Agent is null for index: " + std::to_string(idx));
+      }
+
+      // Validate action arguments
+      if (arg > _max_action_args[static_cast<size_t>(action)]) {
+        throw std::runtime_error("Action argument exceeds maximum allowed");
+      }
+
+      // Validate agent properties
+      if (agent->id <= 0) {
+        throw std::runtime_error("Agent ID must be positive: " + std::to_string(agent->id));
+      }
+
+      if (agent->id >= _grid->objects.size()) {
+        throw std::runtime_error("Agent ID exceeds grid object count");
+      }
 
       numpy_bool_t result = handler->handle_action(idx, agent->id, arg, _current_timestep);
-
-      // TODO: this line is causing a segfault
       _action_success[idx] = result;
     }
   }

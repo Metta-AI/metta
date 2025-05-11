@@ -21,9 +21,7 @@ from mettagrid.stats_writer import StatsWriter
 from mettagrid.util.debug import save_mettagrid_args
 
 # Rebuild the NumPy types using the exposed function
-print(1)
 np_observations_type = np.dtype(MettaGrid.get_numpy_type_name("observations"))
-print(2)
 np_terminals_type = np.dtype(MettaGrid.get_numpy_type_name("terminals"))
 np_truncations_type = np.dtype(MettaGrid.get_numpy_type_name("truncations"))
 np_rewards_type = np.dtype(MettaGrid.get_numpy_type_name("rewards"))
@@ -180,7 +178,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         Returns:
             Tuple of (observations, rewards, terminals, truncations, infos)
         """
-        np.copyto(self.actions, actions.astype(np_actions_type, casting="unsafe"))
+        np.copyto(self.actions, actions.astype(np_actions_type))
 
         if self._replay_writer:
             self._replay_writer.log_pre_step(self._episode_id, self.actions)

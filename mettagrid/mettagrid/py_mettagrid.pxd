@@ -47,7 +47,7 @@ cdef extern from "types.hpp":
         
         bint operator_lt "operator<"(const Event& other)
 
-# Import numpy types directly from C
+# Import numpy types for C
 np_observations_type = np.dtype(get_numpy_type_name("observations").decode('utf8'))
 np_terminals_type = np.dtype(get_numpy_type_name("terminals").decode('utf8'))
 np_truncations_type = np.dtype(get_numpy_type_name("truncations").decode('utf8'))
@@ -59,11 +59,11 @@ np_success_type = np.dtype(get_numpy_type_name("success").decode('utf8'))
 cdef extern from "event_manager.hpp":
     cdef cppclass EventHandler:
         EventHandler(EventManager* em)
-        void handle_event(GridObjectId object_id, int32_t arg)
+        void handle_event(GridObjectId object_id, int32_t arg) except +
     
     cdef cppclass EventManager:
-        void schedule_event(uint16_t event_id, uint32_t delay, GridObjectId object_id, int32_t arg)
-        void process_events(uint32_t current_timestep)
+        void schedule_event(uint16_t event_id, uint32_t delay, GridObjectId object_id, int32_t arg) except +
+        void process_events(uint32_t current_timestep) except +
 
 cdef extern from "grid_object.hpp":
     cdef struct GridLocation:
@@ -105,33 +105,34 @@ cdef extern from "core.hpp":
         )
         
         # Core methods
-        void init_action_handlers(const vector[ActionHandler*]& action_handlers)
-        void add_agent(Agent* agent)
-        void initialize_from_json(const string& map_json, const string& config_json)
-        void reset()
+        void init_action_handlers(const vector[ActionHandler*]& action_handlers) except +
+        void add_agent(Agent* agent) except +
+        void initialize_from_json(const string& map_json, const string& config_json) except +
+        void reset() except +
 
-        void step(c_actions_type* flat_actions);
+        void step(c_actions_type* flat_actions) except +
         
         
         # Observation methods
-        void compute_observations(c_actions_type* flat_actions);
+        void compute_observations(c_actions_type* flat_actions) except +
                 
         void compute_observation(uint16_t observer_r, 
                                uint16_t observer_c,
                                uint16_t obs_width, 
                                uint16_t obs_height,
-                               c_observations_type* observation)
+                               c_observations_type* observation) except +
 
         void observe(GridObjectId observer_id, 
                     uint16_t obs_width,
                     uint16_t obs_height, 
-                    c_observations_type* observation)
+                    c_observations_type* observation) except +
+
         void observe_at(uint16_t row, 
                        uint16_t col,
                        uint16_t obs_width, 
                        uint16_t obs_height,
                        c_observations_type* observation,
-                       uint8_t dummy)
+                       uint8_t dummy) except +
 
         # Observation utilities
         void observation_at(c_observations_type* flat_buffer,
@@ -140,7 +141,7 @@ cdef extern from "core.hpp":
                       uint32_t feature_size,
                       uint32_t r,
                       uint32_t c,
-                      c_observations_type* output)
+                      c_observations_type* output) except +
                       
         void set_observation_at(c_observations_type* flat_buffer,
                           uint32_t obs_width,
@@ -148,14 +149,13 @@ cdef extern from "core.hpp":
                           uint32_t feature_size,
                           uint32_t r,
                           uint32_t c,
-                          const c_observations_type* values)
-        
+                          const c_observations_type* values) except +
         
         # Set external buffers method
         void set_buffers(c_observations_type* external_observations,
                        numpy_bool_t* external_terminals,
                        numpy_bool_t* external_truncations,
-                       float* external_rewards)
+                       float* external_rewards) except +
         
         # Replace vector getters with pointer getters
         c_observations_type* get_observations() const
@@ -184,15 +184,15 @@ cdef extern from "core.hpp":
         const vector[Agent*]& get_agents() const
         
         # Reward management
-        void enable_reward_decay(int32_t decay_time_steps)
-        void disable_reward_decay()
-        void compute_group_rewards(c_rewards_type* rewards)
-        void set_group_reward_pct(uint32_t group_id, float pct)
-        void set_group_size(uint32_t group_id, uint32_t size)
+        void enable_reward_decay(int32_t decay_time_steps) except +
+        void disable_reward_decay() except +
+        void compute_group_rewards(c_rewards_type* rewards) except +
+        void set_group_reward_pct(uint32_t group_id, float pct) except +
+        void set_group_size(uint32_t group_id, uint32_t size) except +
         
         # Stats and management
         StatsTracker* stats() const
-        EventManager* get_event_manager()
+        EventManager* get_event_manager() except +
         string get_episode_stats_json() const
 
         vector[string] action_names() const

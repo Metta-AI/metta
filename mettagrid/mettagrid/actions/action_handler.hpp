@@ -1,9 +1,10 @@
 #ifndef ACTION_HANDLER_HPP
 #define ACTION_HANDLER_HPP
 
-#include <cstdint>  // Added for fixed-width integer types
+#include <cstdint>
+#include <fstream>
 #include <map>
-#include <stdexcept>  // Added for exceptions
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -49,6 +50,9 @@ public:
   }
 
   bool handle_action(uint32_t actor_id, GridObjectId actor_object_id, c_actions_type arg, uint32_t current_timestep) {
+    std::ofstream debug_log("mettagrid_debug.log", std::ios::app);
+    debug_log << "=== in handle action ===" << std::endl;
+
     // Validate grid initialization
     if (_grid == nullptr) {
       throw std::runtime_error("Grid not initialized in " + _action_name + " handler");
@@ -66,6 +70,14 @@ public:
       throw std::runtime_error("Object with ID " + std::to_string(actor_object_id) + " is not an Agent in " +
                                _action_name + " handler");
     }
+    if (&(actor->stats) == nullptr) {  // Check if stats object is accessible
+      throw std::runtime_error("Agent with ID " + std::to_string(actor_object_id) + " has invalid stats object");
+    }
+
+    // Check that the agent has a valid reward pointer
+    if (actor->reward == nullptr) {
+      throw std::runtime_error("Agent with ID " + std::to_string(actor_object_id) + " has null reward pointer");
+    }
 
     // Check if agent is frozen
     if (actor->frozen > 0) {
@@ -75,33 +87,28 @@ public:
       return false;
     }
 
-    try {
-      // Call the derived implementation
-      bool result = _handle_action(actor_id, actor, arg);
+    // Call the derived implementation
+    bool result = _handle_action(actor_id, actor, arg);
 
-      // Update stats based on result
-      if (result) {
-        actor->stats.incr(_stats.success);
-      } else {
-        actor->stats.incr(_stats.failure);
-        actor->stats.incr("action.failure_penalty");
-        *actor->reward -= actor->action_failure_penalty;
-      }
+    debug_log << "1" << std::endl;
 
-      actor->stats.set_once(_stats.first_use, current_timestep);
-      return result;
-    } catch (const std::exception& e) {
-      // Log the error
-      std::cerr << "Error in " << _action_name << " handler: " << e.what() << std::endl;
-
-      // Update failure stats
+    // Update stats based on result
+    if (result) {
+      actor->stats.incr(_stats.success);
+    } else {
       actor->stats.incr(_stats.failure);
       actor->stats.incr("action.failure_penalty");
-      *actor->reward -= actor->action_failure_penalty;
 
-      // Re-throw to allow step() to handle it
-      throw;
+      // Apply reward penalty - only check for nullptr
+      if (actor->reward != nullptr) {
+        *actor->reward -= actor->action_failure_penalty;
+      }
     }
+    debug_log << "3" << std::endl;
+    // Set first_use stat
+    actor->stats.set_once(_stats.first_use, current_timestep);
+
+    return result;
   }
 
   virtual uint8_t max_arg() const {
