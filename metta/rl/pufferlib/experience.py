@@ -66,11 +66,10 @@ class Experience:
         self.truncateds_np = np.asarray(self.truncateds)
         self.values_np = np.asarray(self.values)
 
-        assert lstm is not None
-        assert lstm_total_agents > 0
+        assert lstm is not None, "Recurrent state proxy (lstm) must be provided for recurrent policy"
+        assert lstm_total_agents > 0, "lstm_total_agents must be > 0 for recurrent policy"
         shape = (lstm.num_layers, lstm_total_agents, lstm.hidden_size)
-        self.lstm_h = torch.zeros(shape).to(device, non_blocking=True)
-        self.lstm_c = torch.zeros(shape).to(device, non_blocking=True)
+        self.memory_tokens = torch.zeros(shape).to(device, non_blocking=True)
 
         num_minibatches = batch_size / minibatch_size
         self.num_minibatches = int(num_minibatches)

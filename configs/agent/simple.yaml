@@ -14,8 +14,7 @@ components:
 
   _obs_:
     _target_: metta.agent.lib.obs_shaper.ObsShaper
-    sources: 
-      null
+    sources: null
 
   obs_normalizer:
     _target_: metta.agent.lib.observation_normalizer.ObservationNormalizer
@@ -57,55 +56,63 @@ components:
     sources:
       - name: fc1
     nn_params:
-      out_features: 128
+      out_features: 128 # This should match d_model of TransformerMemoryCore
+    output_size: 128 # Explicitly set for clarity
 
   _core_:
-    _target_: metta.agent.lib.lstm.LSTM
+    _target_: metta.agent.lib.transformer_memory_core.TransformerMemoryCore # Changed from LSTM
     sources:
       - name: encoded_obs
-    output_size: 128
-    nn_params:
-      num_layers: 2
+    output_size: 128 # Must match d_model
+    # Transformer-specific hyperparameters:
+    d_model: 128
+    nhead: 4 # Example value
+    num_encoder_layers: 3 # Example value
+    dim_feedforward: 512 # Example value (often 2x or 4x d_model)
+    dropout: 0.1 # Example value
+    num_mem_tokens: 4 # Example value
 
-  core_relu:
-    _target_: metta.agent.lib.nn_layer_library.ReLU
-    sources:
-      - name: _core_
+  # core_relu: (Removed, TransformerMemoryCore output is used directly)
+  #   _target_: metta.agent.lib.nn_layer_library.ReLU
+  #   sources:
+  #     - name: _core_
 
-  critic_1:
-    _target_: metta.agent.lib.nn_layer_library.Linear
-    sources:
-      - name: core_relu
-    nn_params:
-      out_features: 1024
-    nonlinearity: nn.Tanh
-    effective_rank: true
+  # critic_1: (Removed, TransformerMemoryCore output is used directly)
+  #   _target_: metta.agent.lib.nn_layer_library.Linear
+  #   sources:
+  #     - name: core_relu
+  #   nn_params:
+  #     out_features: 1024
+  #   nonlinearity: nn.Tanh
+  #   effective_rank: true
 
   _value_:
     _target_: metta.agent.lib.nn_layer_library.Linear
     sources:
-      - name: critic_1
+      - name: core_value_output # Changed from critic_1
     nn_params:
       out_features: 1
     nonlinearity: null
+    output_size: 1 # Explicitly set
 
-  actor_1:
-    _target_: metta.agent.lib.nn_layer_library.Linear
-    sources:
-      - name: core_relu
-    nn_params:
-      out_features: 512
+  # actor_1: (Removed, TransformerMemoryCore output is used directly)
+  #   _target_: metta.agent.lib.nn_layer_library.Linear
+  #   sources:
+  #     - name: core_relu
+  #   nn_params:
+  #     out_features: 512
 
   _action_embeds_:
     _target_: metta.agent.lib.action.ActionEmbedding
-    sources:
-      null
+    sources: null
+    # output_size: 16 # Should match embedding_dim
     nn_params:
-      num_embeddings: 100
+      # num_embeddings: 100 # This is often set by agent based on action space
       embedding_dim: 16
 
   _action_:
     _target_: metta.agent.lib.actor.MettaActorSingleHead
     sources:
-      - name: actor_1
+      - name: core_action_output # Changed from actor_1
       - name: _action_embeds_
+    # output_size: # Number of discrete actions, set by agent

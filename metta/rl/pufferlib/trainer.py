@@ -134,6 +134,33 @@ class PufferTrainer:
             self._original_policy = self.policy
             self.policy = DistributedMettaAgent(self.policy, self.device)
 
+        # <<< ADD REFINED CHECK HERE >>>
+        policy_to_inspect = self.policy
+        actual_agent_class_for_debug = MettaAgent  # Import MettaAgent if not already available at top
+        distributed_agent_class_for_debug = DistributedMettaAgent  # Import too if needed
+
+        if isinstance(self.policy, distributed_agent_class_for_debug):
+            print("<<<< DEBUG: PufferTrainer self.policy is DistributedMettaAgent, inspecting .module >>>>")
+            policy_to_inspect = self.policy.module
+        else:
+            print(f"<<<< DEBUG: PufferTrainer self.policy is type: {type(self.policy)} >>>>")
+
+        print(
+            f"<<<< DEBUG: Is policy_to_inspect MettaAgent? {isinstance(policy_to_inspect, actual_agent_class_for_debug)} >>>>"
+        )
+        if hasattr(policy_to_inspect, "_transformer_debug_flag"):
+            print(f"<<<< DEBUG: Found _transformer_debug_flag: {policy_to_inspect._transformer_debug_flag} >>>>")
+        else:
+            print("<<<< DEBUG: _transformer_debug_flag NOT FOUND on policy_to_inspect >>>>")
+
+        if hasattr(policy_to_inspect, "recurrent_state_proxy"):
+            print("<<<< DEBUG: Found recurrent_state_proxy on policy_to_inspect >>>>")
+        else:
+            print(
+                "<<<< DEBUG: recurrent_state_proxy NOT FOUND on policy_to_inspect (before _make_experience_buffer) >>>>"
+            )
+        # <<< END REFINED CHECK >>>
+
         self._make_experience_buffer()
 
         self.agent_step = checkpoint.agent_step
@@ -326,7 +353,9 @@ class PufferTrainer:
         with profile.eval_misc:
             policy = self.policy
             infos = defaultdict(list)
-            lstm_h, lstm_c = experience.lstm_h, experience.lstm_c
+            # lstm_h, lstm_c = experience.lstm_h, experience.lstm_c # Old
+            # Get memory_tokens buffer. Shape: (num_mem_tokens, total_agents, d_model)
+            memory_tokens_buffer = experience.memory_tokens
 
         while not experience.full:
             with profile.env:
@@ -361,10 +390,18 @@ class PufferTrainer:
                 d = torch.as_tensor(d)
 
             with profile.eval_forward, torch.no_grad():
-                state = PolicyState(lstm_h=lstm_h[:, gpu_env_id], lstm_c=lstm_c[:, gpu_env_id])
+                # Get current memory tokens for the agents in the current batch (gpu_env_id)
+                # Shape should be (num_mem_tokens, current_batch_size, d_model)
+                current_memory_state = memory_tokens_buffer[:, gpu_env_id, :]
+                state = PolicyState(memory_tokens=current_memory_state)
+
                 actions, logprob, _, value, _ = policy(o_device, state)
-                lstm_h[:, gpu_env_id] = state.lstm_h
-                lstm_c[:, gpu_env_id] = state.lstm_c
+
+                # Update the experience buffer with the new state from the policy
+                # state.memory_tokens should have been updated by MettaAgent.forward,
+                # and detached by TransformerMemoryCore.
+                # Expected shape for state.memory_tokens: (num_mem_tokens, current_batch_size, d_model)
+                memory_tokens_buffer[:, gpu_env_id, :] = state.memory_tokens
 
                 if self.device == "cuda":
                     torch.cuda.synchronize()
@@ -717,7 +754,7 @@ class PufferTrainer:
             atn_dtype,
             self.trainer_cfg.cpu_offload,
             self.device,
-            self.policy.lstm,
+            self.policy.recurrent_state_proxy,
             total_agents,
         )
 

@@ -1,5 +1,5 @@
 import logging
-from typing import List, Union
+from typing import List, Optional, Union
 
 import gymnasium as gym
 import hydra
@@ -16,6 +16,13 @@ from metta.util.omegaconf import convert_to_dict
 from mettagrid.mettagrid_env import MettaGridEnv
 
 logger = logging.getLogger("metta_agent")
+
+
+# Helper class for PufferLib Experience buffer compatibility
+class _RecurrentStateProxy:
+    def __init__(self, hidden_size: int, num_layers: int = 1):
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
 
 
 def make_policy(env: MettaGridEnv, cfg: ListConfig | DictConfig):
@@ -60,11 +67,27 @@ class MettaAgent(nn.Module):
         super().__init__()
         cfg = OmegaConf.create(cfg)
 
+        print("<<<< DEBUG: MettaAgent __init__ v_TRANSFORMER_DEBUG_001 >>>>")
+        self._transformer_debug_flag = "v_TRANSFORMER_DEBUG_001"
+
         logger.info(f"obs_space: {obs_space} ")
 
-        self.hidden_size = cfg.components._core_.output_size
-        self.core_num_layers = cfg.components._core_.nn_params.num_layers
+        core_cfg = cfg.components._core_
+        self.hidden_size = core_cfg.output_size  # This is d_model for Transformer
+        # num_mem_tokens is needed for _RecurrentStateProxy
+        # It should be part of the _core_ component's config (e.g., core_cfg.num_mem_tokens)
+        # Ensure your YAML for TransformerMemoryCore specifies num_mem_tokens.
+        num_mem_tokens = core_cfg.get("num_mem_tokens", 1)  # Default to 1 if not in config, though it should be
+        if not hasattr(core_cfg, "num_mem_tokens"):
+            logger.warning(
+                "num_mem_tokens not found in core_cfg, defaulting to 1 for _RecurrentStateProxy. Please specify in YAML."
+            )
+
         self.clip_range = cfg.clip_range
+
+        # Add this attribute for PufferLib Experience buffer compatibility
+        # num_layers for the proxy will be num_mem_tokens for the Transformer state
+        self.recurrent_state_proxy = _RecurrentStateProxy(hidden_size=self.hidden_size, num_layers=num_mem_tokens)
 
         assert hasattr(cfg.observations, "obs_key") and cfg.observations.obs_key is not None, (
             "Configuration is missing required field 'observations.obs_key'"
@@ -84,7 +107,7 @@ class MettaAgent(nn.Module):
             "obs_input_shape": obs_input_shape,
             "num_objects": num_objects,
             "hidden_size": self.hidden_size,
-            "core_num_layers": self.core_num_layers,
+            # "core_num_layers": self.core_num_layers,
         }
 
         logging.info(f"agent_attributes: {agent_attributes}")
@@ -161,9 +184,11 @@ class MettaAgent(nn.Module):
         self.action_index_tensor = torch.tensor(action_index, device=self.device)
         logger.info(f"Agent actions activated with: {self.active_actions}")
 
-    @property
-    def lstm(self):
-        return self.components["_core_"]._net
+    def get_initial_policy_state(self, batch_size: Optional[int] = None) -> PolicyState:
+        """Returns an initial PolicyState for the agent for a given batch_size."""
+        # For TransformerMemoryCore, initial memory_tokens are best handled internally if None.
+        # memory_tokens=None is the key, hidden field removed from PolicyState.
+        return PolicyState(memory_tokens=None)
 
     @property
     def total_params(self):
@@ -184,27 +209,35 @@ class MettaAgent(nn.Module):
         # Initialize dictionary for TensorDict
         td = {"x": x, "state": None}
 
-        # Safely handle LSTM state
-        if state.lstm_h is not None and state.lstm_c is not None:
-            # Ensure states are on the same device as input
-            lstm_h = state.lstm_h.to(x.device)
-            lstm_c = state.lstm_c.to(x.device)
+        # Safely handle recurrent state (now memory_tokens)
+        if state.memory_tokens is not None:
+            # Ensure memory_tokens are on the same device as input
+            # The TransformerMemoryCore will also handle moving its state to device,
+            # but good practice here too.
+            td["state"] = state.memory_tokens.to(x.device)
+        # else: td["state"] remains None, TransformerMemoryCore will initialize its state.
 
-            # Concatenate LSTM states along dimension 0
-            td["state"] = torch.cat([lstm_h, lstm_c], dim=0)
+        # If 'hidden' in PolicyState is still used for general purposes (e.g. initial state for something other than core)
+        # that logic would remain here or be adapted. For now, assuming td["state"] is primarily for core recurrent state.
 
-        # Forward pass through value network
+        # Forward pass through value network. Relies on _core_ populating td["core_value_output"].
         self.components["_value_"](td)
         value = td["_value_"]
 
-        # Forward pass through action network
+        # Forward pass through action network. Relies on _core_ populating td["core_action_output"].
         self.components["_action_"](td)
         logits = td["_action_"]
 
-        # Update LSTM states
-        split_size = self.core_num_layers
-        state.lstm_h = td["state"][:split_size]
-        state.lstm_c = td["state"][split_size:]
+        # Update recurrent state from td, which was updated by TransformerMemoryCore
+        if "state" in td and td["state"] is not None:
+            state.memory_tokens = td["state"]  # td["state"] is already detached by TransformerMemoryCore
+        else:
+            state.memory_tokens = None
+
+        # If other parts of PolicyState (e.g., 'hidden') were updated by components, handle here.
+        # For example, if a component updated td["policy_hidden_state_output"]:
+        # if "policy_hidden_state_output" in td:
+        #     state.hidden = td["policy_hidden_state_output"]
 
         # Sample actions
         action_logit_index = self._convert_action_to_logit_index(action) if action is not None else None
