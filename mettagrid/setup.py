@@ -54,7 +54,8 @@ ext_modules = [
     )
 ]
 
-os.makedirs("build", exist_ok=True)
+BUILD_DIR = "build"
+os.makedirs(BUILD_DIR, exist_ok=True)
 num_threads: Optional[int] = multiprocessing.cpu_count() if sys.platform == "linux" else None
 
 # Configure compiler directives based on DEBUG setting
@@ -105,12 +106,14 @@ setup(
     include_dirs=[numpy.get_include()],
     package_data={"mettagrid": ["*.so"]},
     zip_safe=False,
-    cmdclass={"build_ext": CustomBuildExt},  # Use our custom build_ext class
+    cmdclass={"build_ext": CustomBuildExt},
     ext_modules=cythonize(
         ext_modules,
-        build_dir="build",
+        build_dir=BUILD_DIR,
         nthreads=num_threads,  # type: ignore[reportArgumentType] -- Pylance is wrong.
         annotate=False,  # Generate annotated HTML files to see Python → C translation
         compiler_directives=compiler_directives,
     ),
+    description="",
+    url="https://github.com/Metta-AI/metta",
 )

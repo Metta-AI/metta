@@ -1,5 +1,6 @@
 import multiprocessing
 import os
+import sys
 from typing import Optional
 
 import numpy
@@ -31,7 +32,9 @@ ext_modules = [
             ("DEBUG", "1" if DEBUG else "0"),  # Add DEBUG macro to C++ code
         ],
         include_dirs=[numpy.get_include()],
-        extra_compile_args=["-Wno-unreachable-code"],  # Fixed typo in extra_compile_args
+        extra_compile_args=["-Wno-unreachable-code"],
+        # Specify C++ language
+        language="c++",
     )
 ]
 
@@ -85,7 +88,11 @@ else:
 
 setup(
     name="metta",
+    version="0.1",  # match pyproject.toml
     packages=find_packages(),
+    include_dirs=[numpy.get_include()],
+    package_data={"metta": ["*.so"]},
+    zip_safe=False,
     cmdclass={"build_ext": CustomBuildExt},  # Use our custom build_ext class
     ext_modules=cythonize(
         ext_modules,
