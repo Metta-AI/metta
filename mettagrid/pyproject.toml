@@ -35,4 +35,3 @@ testpaths = ["tests", "benchmarks"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
 python_classes = ["Test*"]
-addopts = "--cov=mettagrid --cov-report=term"
