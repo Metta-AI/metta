@@ -191,28 +191,33 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
           }
         }
         if (agent_cfg_py.contains("rewards")) {
-          // Note that this removes the rewards from the agent_cfg_py dict. This is important
-          // because we're going to cast this to a map<std::string, float> below.
-          py::dict rewards_py = agent_cfg_py.attr("pop")("rewards");
+          py::dict rewards_py = agent_cfg_py["rewards"];
           for (const auto& [key, value] : rewards_py) {
-            rewards.insert(std::make_pair(key.cast<std::string>(), value.cast<float>()));
+            rewards[key.cast<std::string>()] = value.cast<float>();
           }
         }
         if (group_cfg_py.contains("rewards")) {
-          py::dict rewards_py = group_cfg_py.attr("pop")("rewards");
+          py::dict rewards_py = group_cfg_py["rewards"];
           for (const auto& [key, value] : rewards_py) {
-            rewards.insert(std::make_pair(key.cast<std::string>(), value.cast<float>()));
+            rewards[key.cast<std::string>()] = value.cast<float>();
           }
         }
-        auto agent_cfg = agent_cfg_py.cast<ObjectConfig>();
-        auto group_cfg = group_cfg_py.cast<ObjectConfig>();
-        // Merge group config into agent config
-        for (const auto& [key, value] : group_cfg) {
-          if (agent_cfg.find(key) == agent_cfg.end()) {
-            agent_cfg.insert({key, value});
+
+        ObjectConfig agent_cfg;
+        for (const auto& [key, value] : agent_cfg_py) {
+          if (key.cast<std::string>() == "rewards") {
+            continue;
           }
+          agent_cfg[key.cast<std::string>()] = value.cast<int>();
         }
-        unsigned int group_id = group_cfg["id"];
+        for (const auto& [key, value] : group_cfg_py) {
+          if (key.cast<std::string>() == "rewards") {
+            continue;
+          }
+          agent_cfg[key.cast<std::string>()] = value.cast<int>();
+        }
+
+        unsigned int group_id = groups[py::str(group_name)]["id"].cast<unsigned int>();
         Agent* agent = new Agent(r, c, group_name, group_id, agent_cfg, rewards);
         _grid->add_object(agent);
         agent->agent_id = _agents.size();
