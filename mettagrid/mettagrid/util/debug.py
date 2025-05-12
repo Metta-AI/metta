@@ -324,7 +324,8 @@ def save_step_results(
     truncations: np.ndarray,
     infos: Dict[str, Any],
     base_filename: str = "step_results",
-    output_dir: Optional[str] = "./step_data",
+    output_dir: Optional[str] = "./test_data",
+    step_count: Optional[int] = None,
 ) -> Dict[str, str]:
     """
     Save the results from the step function for testing.
@@ -339,6 +340,7 @@ def save_step_results(
         infos: Additional information dictionary from step function
         base_filename: Base name for the output files
         output_dir: Directory to save files
+        step_count: Optional step counter for auto-incrementing filenames
 
     Returns:
         dict: Paths to the saved files
@@ -360,4 +362,9 @@ def save_step_results(
         "infos": infos,
     }
 
-    return save_args_for_c(args, base_filename, output_dir)
+    # Add numeric suffix to filename if step_count is provided
+    filename = base_filename
+    if step_count is not None:
+        filename = f"{base_filename}_{step_count:03d}"
+
+    return save_args_for_c(args, filename, output_dir)

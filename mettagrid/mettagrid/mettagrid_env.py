@@ -32,7 +32,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     ):
         self._save_mettagrid_args = False
         self._save_step_results = False
-        self._files_saved = 0
+        self._step_files_saved = 0
 
         self._render_mode = render_mode
         self._cfg_template = env_cfg
@@ -77,7 +77,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         if self._save_mettagrid_args:
             save_mettagrid_args(self._env_cfg, env_map)
-            self._files_saved += 1
 
         self._c_env = MettaGrid(self._env_cfg, env_map)
         self._grid_env = self._c_env
@@ -124,11 +123,18 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             self.process_episode_stats(infos)
             self.should_reset = True
 
-        if self._save_step_results and self._files_saved < 10:
+        if self._save_step_results and self._step_files_saved < 10:
             save_step_results(
-                self._env_cfg, env_map, self.observations, self.rewards, self.terminals, self.truncations, infos
+                self._env_cfg,
+                env_map,
+                self.observations,
+                self.rewards,
+                self.terminals,
+                self.truncations,
+                infos,
+                step_count=self._step_files_saved,
             )
-            self._files_saved += 1
+            self._step_files_saved += 1
 
         return self.observations, self.rewards, self.terminals, self.truncations, infos
 
