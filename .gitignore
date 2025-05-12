@@ -35,3 +35,4 @@ build_debug/
 *benchmark_results.json
 requirements_to_remove.txt
 test_data
+mettagrid_debug.log
