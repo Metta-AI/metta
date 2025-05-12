@@ -16,7 +16,7 @@ game:
       border_width: ${sampling:1,6,3}
       agents: 1
       objects:
-        altar: ${sampling:10,75,30}
+        altar: ${sampling:30,75,50}
   objects:
     altar:
       cooldown: 1000
