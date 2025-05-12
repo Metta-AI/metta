@@ -276,7 +276,7 @@ $(BUILD_BENCH_DIR)/%.o: $(BENCH_DIR)/%.cpp | $(BUILD_BENCH_DIR)
 
 # Link benchmark executables with the mettagrid library
 $(BUILD_BENCH_DIR)/%: $(BUILD_BENCH_DIR)/%.o $(SRC_OBJECTS)
-	$(CXX) $^ -o $@ $(BENCHMARK_LIBS)
+	$(CXX) $^ -o $@ $(BENCHMARK_LIBS) $(PYTHON_LIBS) $(PYBIND11_LIBS) $(RPATH_FLAGS)
 
 # Run all benchmarks
 benchmark: check-bench-tools $(SRC_OBJECTS) $(BENCH_EXECUTABLES)
