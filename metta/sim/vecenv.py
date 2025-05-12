@@ -28,7 +28,7 @@ def make_env_func(
 
     # Ensure the environment is properly initialized
     if hasattr(env, "_c_env") and env._c_env is None:
-        logger.warning("MettaGridEnv._c_env is None after hydra instantiation")
+        raise ValueError("MettaGridEnv._c_env is None after hydra instantiation")
 
     return env
 
@@ -56,7 +56,7 @@ def make_vecenv(
 
     # Check if num_envs is valid
     if num_envs < 1:
-        logger.error(f"num_envs is {num_envs}, which is less than 1!")
+        raise ValueError(f"num_envs must be at least 1, got {num_envs}")
 
     env_kwargs = {
         "cfg": env_cfg,
@@ -66,9 +66,10 @@ def make_vecenv(
     }
 
     # Create lists of environment creators, args, and kwargs for each environment
-    env_creators = [make_env_func] * num_envs
-    env_args_list = [[]] * num_envs  # Empty args for each environment
-    env_kwargs_list = [env_kwargs] * num_envs  # Same kwargs for each environment
+    # Using list comprehension to create independent copies of arguments and keyword arguments
+    env_creators = [make_env_func for _ in range(num_envs)]
+    env_args_list = [[] for _ in range(num_envs)]  # Independent empty args lists for each environment
+    env_kwargs_list = [{**env_kwargs} for _ in range(num_envs)]  # Independent kwargs dicts for each environment
 
     vecenv = vectorizer_cls(
         env_creators,  # First positional argument
