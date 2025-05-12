@@ -3,6 +3,9 @@ import pytest
 
 from metta.map.node import Node
 
+# Set a global seed for reproducibility
+SEED = 42
+
 
 class MockScene:
     def render(self, node):
@@ -11,6 +14,9 @@ class MockScene:
 
 @pytest.fixture
 def node():
+    # Set NumPy seed for reproducibility
+    np.random.seed(SEED)
+
     # Create a 5x5 grid with some test data
     grid = np.array(
         [
@@ -43,6 +49,7 @@ def test_areas_are_correctly_created(node):
 
 
 def test_select_areas_with_where_tags(node):
+    assert np.random.get_state()[1][0] == SEED  # Verify seed is still effective
     # Test selecting areas with specific tags
     query = {"where": {"tags": ["tag1", "tag2"]}}
     selected_areas = node.select_areas(query)
@@ -112,14 +119,25 @@ def test_select_areas_with_offset(node):
 # === BENCHMARK TESTS ===
 
 
+# Benchmark setup function to ensure consistent state
+def benchmark_setup():
+    """Ensure consistent state before each benchmark run."""
+    np.random.seed(SEED)
+
+
 def test_benchmark_area_creation(benchmark, node):
     """Benchmark the creation of a new area."""
 
     def create_area():
         return node.make_area(2, 2, 2, 2, tags=["benchmark_tag"])
 
-    # Run the benchmark
-    area = benchmark(create_area)
+    # Run the benchmark with setup
+    area = benchmark.pedantic(
+        create_area,
+        setup=benchmark_setup,
+        iterations=10,
+        rounds=10,
+    )
 
     # Verify it worked correctly
     assert area.id is not None
@@ -133,8 +151,13 @@ def test_benchmark_select_by_tag(benchmark, node):
         query = {"where": {"tags": ["tag2"]}}
         return node.select_areas(query)
 
-    # Run the benchmark
-    results = benchmark(select_by_tag)
+    # Run the benchmark with setup
+    results = benchmark.pedantic(
+        select_by_tag,
+        setup=benchmark_setup,
+        iterations=10,
+        rounds=10,
+    )
 
     # Verify it worked correctly
     assert len(results) == 2
@@ -148,8 +171,13 @@ def test_benchmark_select_with_limit_and_order(benchmark, node):
         query = {"limit": 2, "order_by": "first"}
         return node.select_areas(query)
 
-    # Run the benchmark
-    results = benchmark(select_with_limit_order)
+    # Run the benchmark with setup
+    results = benchmark.pedantic(
+        select_with_limit_order,
+        setup=benchmark_setup,
+        iterations=10,
+        rounds=10,
+    )
 
     # Verify it worked correctly
     assert len(results) == 2
