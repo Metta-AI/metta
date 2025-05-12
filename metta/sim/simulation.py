@@ -150,17 +150,21 @@ class Simulation:
         start = time.time()
         t0 = time.time()
 
-        cum_step_time = 0
+        cum_nn_time = 0
+        cum_sim_time = 0
+
+        policy = self._policy_pr.policy()
+        print("policy", policy)
 
         # while (self._episode_counters < self._min_episodes).any() and (time.time() - t0) < self._max_time_s:
         for x in range(1000):
             # ---------------- forward passes ------------------------- #
+            start_nn = time.time()
             with torch.no_grad():
                 obs_t = torch.as_tensor(obs, device=self._device)
 
                 # Candidate-policy agents
                 my_obs = obs_t[self._policy_idxs]
-                policy = self._policy_pr.policy()
                 policy_actions, _, _, _, _ = policy(my_obs, policy_state)
                 # print("policy_actions", policy_actions)
 
@@ -170,34 +174,6 @@ class Simulation:
                 #     npc_policy = self._npc_pr.policy()
                 #     npc_actions, _, _, _, _ = npc_policy(npc_obs, npc_state)
 
-            # policy_actions = torch.tensor(
-            #     [
-            #         [5, 7],
-            #         [5, 4],
-            #         [2, 0],
-            #         [3, 0],
-            #         [1, 0],
-            #         [5, 4],
-            #         [4, 0],
-            #         [8, 1],
-            #         [3, 0],
-            #         [1, 0],
-            #         [8, 1],
-            #         [3, 0],
-            #         [5, 9],
-            #         [8, 1],
-            #         [5, 6],
-            #         [1, 0],
-            #         [4, 0],
-            #         [5, 7],
-            #         [1, 0],
-            #         [5, 0],
-            #         [0, 0],
-            #         [5, 1],
-            #         [6, 0],
-            #         [8, 3],
-            #     ]
-            # )
             # ---------------- action stitching ----------------------- #
             actions = policy_actions
             # if self._npc_agents_per_env:
@@ -212,11 +188,15 @@ class Simulation:
             actions = actions.view(self._num_envs * self._agents_per_env, -1)
             actions_np = actions.cpu().numpy()
 
+            end_nn = time.time()
+            cum_nn_time += end_nn - start_nn
+
             # ---------------- env.step ------------------------------- #
             start_step = time.time()
             obs, _, dones, trunc, _ = env.step(actions_np)
             end_step = time.time()
-            cum_step_time += end_step - start_step
+            # print("sim time: ", end_step - start_step)
+            cum_sim_time += end_step - start_step
 
             # ---------------- episode FSM ---------------------------- #
             # done_now = np.logical_or(
@@ -231,9 +211,10 @@ class Simulation:
             #         env_done_flags[e] = False
 
         end = time.time()
-        print("actions/step time", end - start)
-        print("cumulative step time", cum_step_time)
-        print("SPS", 1 / (cum_step_time / 1000 / self._agents_per_env))
+        print("total", end - start)
+        print("  cumulative nn time", cum_nn_time)
+        print("  cumulative sim time", cum_sim_time)
+        print("    SPS", 1 / (cum_sim_time / 1000 / self._agents_per_env))
 
         # ---------------- teardown & DB merge ------------------------ #
         env.close()
