@@ -141,7 +141,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._c_env = MettaGrid(self._env_cfg, env_map)
         self._num_agents = self._c_env.num_agents()
 
-    def reset(self, seed=None, options=None):
+    def reset(self, seed=None, options=None) -> tuple[np.ndarray, dict]:
         """
         This method overrides the reset method from PufferEnv.
 
