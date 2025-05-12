@@ -12,8 +12,8 @@ game:
 
     rooms:
       - _target_: mettagrid.config.room.navigation.varied_terrain.VariedTerrain
-        width: ${sampling:75,120,60}
-        height: ${sampling:75,120,60}
+        width: ${sampling:50,120,100}
+        height: ${sampling:50,120,100}
         border_width: ${sampling:1,6,3}
         agents: 12
         style: all-sparse # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
@@ -21,8 +21,8 @@ game:
         objects:
           altar: ${sampling:10,20,15}
       - _target_: mettagrid.config.room.navigation.varied_terrain.VariedTerrain
-        width: ${sampling:75,120,60}
-        height: ${sampling:75,120,60}
+        width: ${sampling:50,120,100}
+        height: ${sampling:50,120,100}
         border_width: ${sampling:1,6,3}
         agents: 12
         style: all-sparse # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
@@ -30,8 +30,8 @@ game:
         objects:
           altar: ${sampling:10,20,15}
       - _target_: mettagrid.config.room.navigation.varied_terrain.VariedTerrain
-        width: ${sampling:75,120,60}
-        height: ${sampling:75,120,60}
+        width: ${sampling:50,120,100}
+        height: ${sampling:50,120,100}
         border_width: ${sampling:1,6,3}
         agents: 12
         style: all-sparse # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
@@ -39,8 +39,8 @@ game:
         objects:
           altar: ${sampling:10,20,15}
       - _target_: mettagrid.config.room.navigation.varied_terrain.VariedTerrain
-        width: ${sampling:75,120,60}
-        height: ${sampling:75,120,60}
+        width: ${sampling:50,120,100}
+        height: ${sampling:50,120,100}
         border_width: ${sampling:1,6,3}
         agents: 12
         style: all-sparse # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
