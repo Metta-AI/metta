@@ -537,8 +537,12 @@ py::list MettaGrid::inventory_item_names() {
   return py::cast(InventoryItemNames);
 }
 
-Agent* MettaGrid::create_agent(int r, int c, const std::string& group_name, unsigned int group_id, 
-                             const py::dict& group_cfg_py, const py::dict& agent_cfg_py) {
+Agent* MettaGrid::create_agent(int r,
+                               int c,
+                               const std::string& group_name,
+                               unsigned int group_id,
+                               const py::dict& group_cfg_py,
+                               const py::dict& agent_cfg_py) {
   // Rewards default to 0 for inventory unless overridden.
   // But we should be rewarding these all the time, e.g., for hearts.
   std::map<std::string, float> rewards;
