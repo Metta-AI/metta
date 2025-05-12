@@ -3,7 +3,7 @@
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
 
-#include "action_handler.hpp"
+#include "actions/action_handler.hpp"
 #include "actions/attack.hpp"
 #include "actions/attack_nearest.hpp"
 #include "actions/change_color.hpp"
@@ -13,19 +13,19 @@
 #include "actions/put_recipe_items.hpp"
 #include "actions/rotate.hpp"
 #include "actions/swap.hpp"
-#include "event.hpp"
+#include "constants.hpp"
+#include "event_handlers.hpp"
 #include "grid.hpp"
 #include "objects/agent.hpp"
-#include "objects/constants.hpp"
 #include "objects/converter.hpp"
-#include "objects/production_handler.hpp"
 #include "objects/wall.hpp"
-#include "observation_encoder.hpp"
 #include "stats_tracker.hpp"
+
 // Used for utf32 -> utf8 conversion, which is needed for reading the map.
 // Hopefully this is temporary.
 #include <codecvt>
 #include <locale>
+#include <memory>
 
 namespace py = pybind11;
 
@@ -52,8 +52,8 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
   auto map_info = map.request();
 
   _grid = std::make_unique<Grid>(map_info.shape[1], map_info.shape[0], layer_for_type_id);
-  _obs_encoder = std::make_unique<ObservationEncoder>();
-  _grid_features = _obs_encoder->feature_names();
+
+  _grid_features = GridObject::get_feature_names();
 
   _event_manager = std::make_unique<EventManager>();
   _stats = std::make_unique<StatsTracker>();
@@ -101,8 +101,7 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
     _action_handlers.push_back(std::make_unique<Swap>(cfg["actions"]["swap"].cast<ActionConfig>()));
   }
   if (cfg["actions"]["change_color"]["enabled"].cast<bool>()) {
-    _action_handlers.push_back(
-        std::make_unique<ChangeColorAction>(cfg["actions"]["change_color"].cast<ActionConfig>()));
+    _action_handlers.push_back(std::make_unique<ChangeColor>(cfg["actions"]["change_color"].cast<ActionConfig>()));
   }
   init_action_handlers();
 
@@ -254,7 +253,9 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
         int obs_c = object_loc.c + obs_width_radius - observer_col;
 
         auto agent_obs = observation_view.mutable_data(agent_idx, obs_r, obs_c, 0);
-        _obs_encoder->encode(obj, agent_obs);
+
+        // Updated: Use the object's own obs method instead of the encoder
+        obj->obs(agent_obs);
       }
     }
   }
@@ -295,7 +296,7 @@ void MettaGrid::_step(py::array_t<int> actions) {
         continue;
       }
 
-      ActionArg arg = actions_view(idx, 1);
+      int arg = actions_view(idx, 1);
       auto& agent = _agents[idx];
       auto& handler = _action_handlers[action];
 
@@ -432,14 +433,15 @@ py::dict MettaGrid::grid_objects() {
     obj_dict["layer"] = obj->location.layer;
 
     // Get feature offsets for this object type
-    auto type_features = _obs_encoder->type_feature_names()[obj->_type_id];
+    auto type_features = GridObject::get_feature_names()[obj->_type_id];
+
     std::vector<unsigned int> offsets(type_features.size());
     for (size_t i = 0; i < offsets.size(); i++) {
       offsets[i] = i;
     }
 
     // Encode object features
-    _obs_encoder->encode(obj, obj_data_view.mutable_data(0), offsets);
+    obj->encode(obj_data_view.mutable_data(0), offsets);
 
     // Add features to object dict
     for (size_t i = 0; i < type_features.size(); i++) {

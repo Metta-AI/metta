@@ -1,5 +1,8 @@
 # Makefile for code formatting, linting, and testing 
-.PHONY: help format check-tools install-tools test benchmark clean check-test-tools install-test-tools check-bench-tools install-bench-tools build build-clean all build-for-ci
+.PHONY: help format check-tools install-tools test benchmark clean check-test-tools install-test-tools check-bench-tools install-bench-tools build build-clean all build-for-ci check-pybind11 install-pybind11
+
+# Enable/disable Pybind11 (set to 1 to enable, 0 to disable)
+USE_PYBIND ?= 0
 
 # Default target when just running 'make'
 help:
@@ -11,14 +14,19 @@ help:
 	@echo "  check-tools       - Check if required formatting tools are installed"
 	@echo "  install-tools     - Install required formatting tools (macOS only)"
 	@echo "  test              - Run all unit tests"	
-	@echo "  test p=name - Run tests matching the specified pattern p"
+	@echo "  test p=name       - Run tests matching the specified pattern p"
 	@echo "  check-test-tools  - Check if required testing tools are installed"
 	@echo "  install-test-tools - Install required testing tools"
 	@echo "  benchmark         - Run all benchmarks"
 	@echo "  check-bench-tools - Check if required benchmark tools are installed"
 	@echo "  install-bench-tools - Install required benchmark tools"
+	@echo "  check-pybind11     - Check if pybind11 is installed (only if USE_PYBIND=1)"
+	@echo "  install-pybind11   - Install pybind11 (only if USE_PYBIND=1)"
 	@echo "  clean             - Clean build and test files"
 	@echo "  all               - Run format and test"
+	@echo ""
+	@echo "Configuration:"
+	@echo "  USE_PYBIND=$(USE_PYBIND) - Set to 1 to enable Pybind11 (make USE_PYBIND=1 <target>)"
 
 # Directories
 SRC_DIR = mettagrid
@@ -34,18 +42,25 @@ DEVOPS_SCRIPTS_DIR = ../devops
 
 # Compiler settings
 CXX = g++
-PYBIND11_INCLUDE = $(shell python -m pybind11 --includes)
-PYBIND11_LIBS = $(shell python -m pybind11 --includes)
-NUMPY_INCLUDE = $(shell python -c "import numpy; print(numpy.get_include())")
-PYTHON_INCLUDE = $(shell python -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())")
-PYTHON_VERSION = $(shell python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
-PYTHON_LIB_DIR = $(shell python3 -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR'))")
-PYTHON_LIBS = -L$(PYTHON_LIB_DIR) -lpython$(PYTHON_VERSION)
-CXXFLAGS = -std=c++23 -Wall -g -I$(SRC_DIR) -I$(THIRD_PARTY_DIR) -I$(TEST_DIR) -I$(EIGEN_INCLUDE) -I$(PYBIND11_INCLUDE) -I$(NUMPY_INCLUDE) -I$(PYTHON_INCLUDE)
+CXXFLAGS = -std=c++23 -Wall -g -I$(SRC_DIR) -I$(THIRD_PARTY_DIR) -I$(TEST_DIR)
 
-# Add RPATH settings for macOS
-ifeq ($(shell uname), Darwin)
-    RPATH_FLAGS = -Wl,-rpath,$(PYTHON_LIB_DIR)
+# Conditionally add Pybind11 configurations
+ifeq ($(USE_PYBIND),1)
+    PYBIND11_INCLUDE = $(shell python -m pybind11 --includes 2>/dev/null || echo "")
+    PYBIND11_LIBS = $(shell python -m pybind11 --includes 2>/dev/null || echo "")
+    NUMPY_INCLUDE = $(shell python -c "import numpy; print(numpy.get_include())" 2>/dev/null || echo "")
+    PYTHON_INCLUDE = $(shell python -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())" 2>/dev/null || echo "")
+    PYTHON_VERSION = $(shell python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>/dev/null || echo "")
+    PYTHON_LIB_DIR = $(shell python3 -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR'))" 2>/dev/null || echo "")
+    PYTHON_LIBS = -L$(PYTHON_LIB_DIR) -lpython$(PYTHON_VERSION)
+    CXXFLAGS += -I$(EIGEN_INCLUDE) -I$(PYBIND11_INCLUDE) -I$(NUMPY_INCLUDE) -I$(PYTHON_INCLUDE) -DUSE_PYBIND
+    
+    # Add RPATH settings for macOS
+    ifeq ($(shell uname), Darwin)
+        RPATH_FLAGS = -Wl,-rpath,$(PYTHON_LIB_DIR)
+    else
+        RPATH_FLAGS =
+    endif
 else
     RPATH_FLAGS =
 endif
@@ -65,7 +80,24 @@ BENCHMARK_LIBS = $(shell pkg-config --libs benchmark 2>/dev/null || echo "-lbenc
 BENCH_CXXFLAGS = $(CXXFLAGS) $(BENCHMARK_INCLUDE)
 
 # Source files for mettagrid core library
-SRC_SOURCES := $(wildcard $(SRC_DIR)/*.cpp $(SRC_DIR)/**/*.cpp)
+ifeq ($(USE_PYBIND),1)
+    # Include all source files when using Pybind11
+    SRC_SOURCES := $(wildcard $(SRC_DIR)/*.cpp $(SRC_DIR)/**/*.cpp)
+else
+    # Exclude Pybind11-specific files when not using Pybind11
+    SRC_SOURCES := $(filter-out $(SRC_DIR)/mettagrid/mettagrid_c.cpp $(SRC_DIR)/mettagrid/mettagrid_c.hpp, $(wildcard $(SRC_DIR)/*.cpp $(SRC_DIR)/**/*.cpp))
+endif
+
+# Create the list of object files from source files
+SRC_OBJECTS := $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_SRC_DIR)/%.o,$(SRC_SOURCES))
+
+# Report build mode at the beginning of each target execution
+define report_pybind_mode
+	@echo "----------------------------------------"
+	@echo "Build Mode: Pybind11 support is $(if $(filter 1,$(USE_PYBIND)),ENABLED,DISABLED)"
+	@echo "----------------------------------------"
+endef
+
 SRC_OBJECTS := $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_SRC_DIR)/%.o,$(SRC_SOURCES))
 
 #-----------------------
@@ -73,24 +105,31 @@ SRC_OBJECTS := $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_SRC_DIR)/%.o,$(SRC_SOURCES))
 #-----------------------
 
 # Build all test and benchmark executables without running them (for CI environments)
-
-
-
-build-for-ci: $(SRC_OBJECTS) $(TEST_EXECUTABLES) $(BENCH_EXECUTABLES)
+ifeq ($(USE_PYBIND),1)
+build-for-ci: check-pybind11 clean-build-dir $(SRC_OBJECTS) $(TEST_EXECUTABLES) $(BENCH_EXECUTABLES)
+else
+build-for-ci: clean-build-dir $(SRC_OBJECTS) $(TEST_EXECUTABLES) $(BENCH_EXECUTABLES)
+endif
 	@echo "Built all source files, test executables, and benchmark executables"
 	@echo "Source objects: $(words $(SRC_OBJECTS))"
 	@echo "Test executables: $(words $(TEST_EXECUTABLES))"
 	@echo "Benchmark executables: $(words $(BENCH_EXECUTABLES))"
+	@echo "Pybind11 support: $(if $(filter 1,$(USE_PYBIND)),enabled,disabled)"
 
 #-----------------------
 # Build
 #-----------------------
 
 # Build target that calls the build_mettagrid.sh script
-build:
+ifeq ($(USE_PYBIND),1)
+build: check-pybind11 clean-build-dir
+else
+build: clean-build-dir
+endif
+	$(call report_pybind_mode)
 	@echo "Building mettagrid..."
 	@if [ -f $(DEVOPS_SCRIPTS_DIR)/build_mettagrid.sh ]; then \
-		$(DEVOPS_SCRIPTS_DIR)/build_mettagrid.sh; \
+		$(DEVOPS_SCRIPTS_DIR)/build_mettagrid.sh $(if $(filter 0,$(USE_PYBIND)),--no-pybind,); \
 	else \
 		echo "Error: build_mettagrid.sh script not found"; \
 		echo "Expected path: $(DEVOPS_SCRIPTS_DIR)/build_mettagrid.sh"; \
@@ -98,10 +137,10 @@ build:
 	fi
 
 # Build with clean option
-build-clean:
+build-clean: clean-build-dir
 	@echo "Building mettagrid with clean option..."
 	@if [ -f $(DEVOPS_SCRIPTS_DIR)/build_mettagrid.sh ]; then \
-		$(DEVOPS_SCRIPTS_DIR)/build_mettagrid.sh --clean; \
+		$(DEVOPS_SCRIPTS_DIR)/build_mettagrid.sh --clean $(if $(filter 0,$(USE_PYBIND)),--no-pybind,); \
 	else \
 		echo "Error: build_mettagrid.sh script not found"; \
 		echo "Expected path: $(DEVOPS_SCRIPTS_DIR)/build_mettagrid.sh"; \
@@ -146,6 +185,14 @@ format: check-tools
 # Core Library Build
 #-----------------------
 
+# Clean the build directory first to ensure no stale objects remain
+clean-build-dir:
+	@echo "Cleaning build directory..."
+	@rm -rf $(BUILD_DIR)
+	@mkdir -p $(BUILD_SRC_DIR)
+	@mkdir -p $(BUILD_TEST_DIR)
+	@mkdir -p $(BUILD_BENCH_DIR)
+
 # Create build directory for source files
 $(BUILD_SRC_DIR):
 	@mkdir -p $(BUILD_SRC_DIR)
@@ -153,7 +200,15 @@ $(BUILD_SRC_DIR):
 # Compile individual source files
 $(BUILD_SRC_DIR)/%.o: $(SRC_DIR)/%.cpp | $(BUILD_SRC_DIR)
 	@mkdir -p $(dir $@)
+ifeq ($(USE_PYBIND),1)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
+else
+	@if echo "$<" | grep -q "mettagrid_c.cpp\|mettagrid_c.hpp"; then \
+		echo "Skipping Pybind11 file $< (USE_PYBIND=0)"; \
+	else \
+		$(CXX) $(CXXFLAGS) -c $< -o $@; \
+	fi
+endif
 
 # Build a static library from all source files
 $(BUILD_DIR)/libmettagrid.a: $(SRC_OBJECTS)
@@ -202,23 +257,47 @@ $(BUILD_TEST_DIR):
 	@mkdir -p $(BUILD_TEST_DIR)
 
 # Find all test source files
-TEST_SOURCES := $(wildcard $(TEST_DIR)/*.cpp $(TEST_DIR)/**/*.cpp)
+ifeq ($(USE_PYBIND),1)
+    # Include all test files when Pybind11 is enabled
+    TEST_SOURCES := $(wildcard $(TEST_DIR)/*.cpp $(TEST_DIR)/**/*.cpp)
+else
+    # Exclude Pybind11-specific test files when Pybind11 is disabled
+    TEST_SOURCES := $(filter-out $(TEST_DIR)/pybind_mettagrid_test.cpp, $(wildcard $(TEST_DIR)/*.cpp $(TEST_DIR)/**/*.cpp))
+endif
 TEST_OBJECTS := $(patsubst $(TEST_DIR)/%.cpp,$(BUILD_TEST_DIR)/%.o,$(TEST_SOURCES))
 TEST_EXECUTABLES := $(patsubst $(BUILD_TEST_DIR)/%.o,$(BUILD_TEST_DIR)/%,$(TEST_OBJECTS))
 
 # Compile individual test files
 $(BUILD_TEST_DIR)/%.o: $(TEST_DIR)/%.cpp | $(BUILD_TEST_DIR)
 	@mkdir -p $(dir $@)
+ifeq ($(USE_PYBIND),0)
+	@if echo "$<" | grep -q "pybind_mettagrid_test.cpp"; then \
+		echo "Skipping Pybind11 test file $< (USE_PYBIND=0)"; \
+	else \
+		$(CXX) $(CXXFLAGS) -c $< -o $@; \
+	fi
+else
 	$(CXX) $(CXXFLAGS) -c $< -o $@
+endif
 
 # Link test executables with the mettagrid library
 $(BUILD_TEST_DIR)/%: $(BUILD_TEST_DIR)/%.o $(SRC_OBJECTS)
 	@mkdir -p $(dir $@)
-	$(CXX) $^ -o $@ $(GTEST_LIBS) $(PYTHON_LIBS) $(PYBIND11_LIBS) $(RPATH_FLAGS)
-
+	@echo "Linking test executable $@..."
+ifeq ($(USE_PYBIND),1)
+	$(CXX) $< $(SRC_OBJECTS) -o $@ $(GTEST_LIBS) $(PYTHON_LIBS) $(PYBIND11_LIBS) $(RPATH_FLAGS)
+else
+	# When pybind is disabled, don't try to link non-existent mettagrid_c.o
+	$(CXX) $< $(filter-out %mettagrid_c.o,$(SRC_OBJECTS)) -o $@ $(GTEST_LIBS)
+endif
 
 # Run all tests or tests matching a pattern
-test: check-test-tools $(SRC_OBJECTS) $(TEST_EXECUTABLES)
+ifeq ($(USE_PYBIND),1)
+test: check-test-tools check-pybind11 clean-build-dir $(SRC_OBJECTS) $(TEST_EXECUTABLES)
+else
+test: check-test-tools clean-build-dir $(SRC_OBJECTS) $(TEST_EXECUTABLES)
+endif
+	$(call report_pybind_mode)
 	@if [ -n "$(p)" ]; then \
 		echo "Running tests matching pattern '$(p)'..."; \
 		found=0; \
@@ -293,10 +372,22 @@ $(BUILD_BENCH_DIR)/%.o: $(BENCH_DIR)/%.cpp | $(BUILD_BENCH_DIR)
 
 # Link benchmark executables with the mettagrid library
 $(BUILD_BENCH_DIR)/%: $(BUILD_BENCH_DIR)/%.o $(SRC_OBJECTS)
-	$(CXX) $^ -o $@ $(BENCHMARK_LIBS) $(PYTHON_LIBS) $(PYBIND11_LIBS) $(RPATH_FLAGS)
+	@mkdir -p $(dir $@)
+	@echo "Linking benchmark executable $@..."
+ifeq ($(USE_PYBIND),1)
+	$(CXX) $< $(SRC_OBJECTS) -o $@ $(BENCHMARK_LIBS) $(PYTHON_LIBS) $(PYBIND11_LIBS) $(RPATH_FLAGS)
+else
+	# When pybind is disabled, don't try to link non-existent mettagrid_c.o
+	$(CXX) $< $(filter-out %mettagrid_c.o,$(SRC_OBJECTS)) -o $@ $(BENCHMARK_LIBS)
+endif
 
 # Run all benchmarks
-benchmark: check-bench-tools $(SRC_OBJECTS) $(BENCH_EXECUTABLES)
+ifeq ($(USE_PYBIND),1)
+benchmark: check-bench-tools check-pybind11 clean-build-dir $(SRC_OBJECTS) $(BENCH_EXECUTABLES)
+else
+benchmark: check-bench-tools clean-build-dir $(SRC_OBJECTS) $(BENCH_EXECUTABLES)
+endif
+	$(call report_pybind_mode)
 	@echo "Running all benchmarks..."
 	@for bench in $(BENCH_EXECUTABLES); do \
 		echo "Running $$bench"; \
@@ -304,7 +395,8 @@ benchmark: check-bench-tools $(SRC_OBJECTS) $(BENCH_EXECUTABLES)
 	done
 
 # Add this new target for JSON benchmark output
-bench-json: check-bench-tools $(SRC_OBJECTS) $(BENCH_EXECUTABLES)
+bench-json: check-bench-tools clean-build-dir $(SRC_OBJECTS) $(BENCH_EXECUTABLES)
+	$(call report_pybind_mode)
 	@echo "Running all benchmarks with JSON output..."
 	@mkdir -p benchmark_output
 	@for bench in $(BENCH_EXECUTABLES); do \
@@ -313,6 +405,53 @@ bench-json: check-bench-tools $(SRC_OBJECTS) $(BENCH_EXECUTABLES)
 		echo "Error running $$bench with JSON format"; \
 	done
 	@echo "JSON outputs created in benchmark_output directory"
+
+#-----------------------
+# Pybind11
+#-----------------------
+
+ifeq ($(USE_PYBIND),1)
+check-pybind11:
+	@echo "Checking for pybind11..."
+	@python3 -c "import pybind11" >/dev/null 2>&1 || \
+		{ echo "pybind11 Python package not found. Run 'make install-pybind11' to install."; exit 1; }
+	@if [ "$(shell uname)" = "Darwin" ]; then \
+		if brew list pybind11 &>/dev/null; then \
+			echo "pybind11 is installed via Homebrew."; \
+		else \
+			echo "pybind11 is not installed via Homebrew. Run 'make install-pybind11' to install."; \
+			exit 1; \
+		fi; \
+	elif [ -f /etc/debian_version ]; then \
+		dpkg -l python3-pybind11 >/dev/null 2>&1 || \
+			{ echo "pybind11 is not installed. Run 'make install-pybind11' to install."; exit 1; }; \
+	fi
+	@echo "pybind11 is properly installed."
+
+# Install pybind11
+install-pybind11:
+	@echo "Installing pybind11..."
+	@if [ "$(shell uname)" = "Darwin" ]; then \
+		echo "Detected macOS. Installing pybind11 via Homebrew..."; \
+		brew install pybind11 || echo "Failed to install pybind11 via Homebrew. Trying pip..."; \
+		pip3 install pybind11 || echo "Failed to install pybind11. Please install manually."; \
+	elif [ -f /etc/debian_version ]; then \
+		echo "Detected Debian/Ubuntu. Installing pybind11 via apt..."; \
+		sudo apt-get update && sudo apt-get install -y python3-pybind11 || \
+			{ echo "Failed to install pybind11 via apt. Trying pip..."; \
+			  pip3 install pybind11 || echo "Failed to install pybind11. Please install manually."; }; \
+	else \
+		echo "Installing pybind11 via pip..."; \
+		pip3 install pybind11 || echo "Failed to install pybind11. Please install manually."; \
+	fi
+else
+# Dummy targets when pybind is disabled
+check-pybind11:
+	@echo "Pybind11 support is disabled (USE_PYBIND=0)."
+
+install-pybind11:
+	@echo "Pybind11 support is disabled (USE_PYBIND=0). Skipping installation."
+endif
 
 #-----------------------
 # Other targets
@@ -327,4 +466,4 @@ clean:
 
 # Run format and test
 all: format test
-	@echo "All tasks completed."
+	@echo "All tasks completed (Pybind11 support: $(if $(filter 1,$(USE_PYBIND)),enabled,disabled))."
