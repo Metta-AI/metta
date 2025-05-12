@@ -86,7 +86,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         self._group_counts = group_counts
 
-        # self._c_env = MettaGrid(self._env_cfg, env_map)
         # I haven't figured out how to get C++ code to deal with fixed-length strings; so we convert
         # to non-fixed length strings. This is obvious very silly, but OTOH we shouldn't be using a numpy array
         # of strings here in the first place.
@@ -146,7 +145,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         # episode rewards is a list of length num_agents
         episode_rewards = self._c_env.get_episode_rewards()
 
-        agent_to_group = self._c_env.agent_to_group
+        agent_to_group = self._c_env.agent_to_group()
 
         group_rewards = {}
         for agent_id, group_id in agent_to_group.items():

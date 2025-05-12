@@ -48,6 +48,7 @@ public:
   py::list max_action_args();
   py::list object_type_names();
   py::list inventory_item_names();
+  py::object agent_to_group();
   static Agent* create_agent(int r,
                              int c,
                              const std::string& group_name,
@@ -93,6 +94,8 @@ private:
   std::vector<std::string> _grid_features;
 
   std::vector<bool> _action_success;
+
+  std::map<unsigned int, unsigned int> _agent_to_group;
 
   void init_action_handlers();
   void add_agent(Agent* agent);
