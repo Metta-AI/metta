@@ -125,22 +125,35 @@ class Simulation:
         """
         Run the simulation; returns the merged `StatsDB`.
         """
-        logger.info(
-            "Sim '%s': %d env × %d agents (%.0f%% candidate)",
-            self._name,
-            self._num_envs,
-            self._agents_per_env,
-            100 * self._policy_agents_per_env / self._agents_per_env,
-        )
-        logger.info("Stats dir: %s", self._stats_dir)
+        # logger.info(
+        #     "Sim '%s': %d env × %d agents (%.0f%% candidate)",
+        #     self._name,
+        #     self._num_envs,
+        #     self._agents_per_env,
+        #     100 * self._policy_agents_per_env / self._agents_per_env,
+        # )
+        # logger.info("Stats dir: %s", self._stats_dir)
         # ---------------- reset ------------------------------- #
-        obs, _ = self._vecenv.reset()
+
+        start = time.time()
+
+        assert len(self._vecenv.envs) == 1
+        env = self._vecenv.envs[0]
+
+        obs, _ = env.reset()
         policy_state = PolicyState()
         npc_state = PolicyState()
         env_done_flags = [False] * self._num_envs
+        end = time.time()
+        print("startup time", end - start)
 
+        start = time.time()
         t0 = time.time()
-        while (self._episode_counters < self._min_episodes).any() and (time.time() - t0) < self._max_time_s:
+
+        cum_step_time = 0
+
+        # while (self._episode_counters < self._min_episodes).any() and (time.time() - t0) < self._max_time_s:
+        for x in range(1000):
             # ---------------- forward passes ------------------------- #
             with torch.no_grad():
                 obs_t = torch.as_tensor(obs, device=self._device)
@@ -149,53 +162,90 @@ class Simulation:
                 my_obs = obs_t[self._policy_idxs]
                 policy = self._policy_pr.policy()
                 policy_actions, _, _, _, _ = policy(my_obs, policy_state)
+                # print("policy_actions", policy_actions)
 
                 # NPC agents (if any)
-                if self._npc_pr is not None and len(self._npc_idxs):
-                    npc_obs = obs_t[self._npc_idxs]
-                    npc_policy = self._npc_pr.policy()
-                    npc_actions, _, _, _, _ = npc_policy(npc_obs, npc_state)
+                # if self._npc_pr is not None and len(self._npc_idxs):
+                #     npc_obs = obs_t[self._npc_idxs]
+                #     npc_policy = self._npc_pr.policy()
+                #     npc_actions, _, _, _, _ = npc_policy(npc_obs, npc_state)
 
+            # policy_actions = torch.tensor(
+            #     [
+            #         [5, 7],
+            #         [5, 4],
+            #         [2, 0],
+            #         [3, 0],
+            #         [1, 0],
+            #         [5, 4],
+            #         [4, 0],
+            #         [8, 1],
+            #         [3, 0],
+            #         [1, 0],
+            #         [8, 1],
+            #         [3, 0],
+            #         [5, 9],
+            #         [8, 1],
+            #         [5, 6],
+            #         [1, 0],
+            #         [4, 0],
+            #         [5, 7],
+            #         [1, 0],
+            #         [5, 0],
+            #         [0, 0],
+            #         [5, 1],
+            #         [6, 0],
+            #         [8, 3],
+            #     ]
+            # )
             # ---------------- action stitching ----------------------- #
             actions = policy_actions
-            if self._npc_agents_per_env:
-                actions = torch.cat(
-                    [
-                        policy_actions.view(self._num_envs, self._policy_agents_per_env, -1),
-                        npc_actions.view(self._num_envs, self._npc_agents_per_env, -1),
-                    ],
-                    dim=1,
-                )
+            # if self._npc_agents_per_env:
+            #     actions = torch.cat(
+            #         [
+            #             policy_actions.view(self._num_envs, self._policy_agents_per_env, -1),
+            #             npc_actions.view(self._num_envs, self._npc_agents_per_env, -1),
+            #         ],
+            #         dim=1,
+            #     )
 
             actions = actions.view(self._num_envs * self._agents_per_env, -1)
             actions_np = actions.cpu().numpy()
 
             # ---------------- env.step ------------------------------- #
-            obs, _, dones, trunc, _ = self._vecenv.step(actions_np)
+            start_step = time.time()
+            obs, _, dones, trunc, _ = env.step(actions_np)
+            end_step = time.time()
+            cum_step_time += end_step - start_step
 
             # ---------------- episode FSM ---------------------------- #
-            done_now = np.logical_or(
-                dones.reshape(self._num_envs, self._agents_per_env).all(1),
-                trunc.reshape(self._num_envs, self._agents_per_env).all(1),
-            )
-            for e in range(self._num_envs):
-                if done_now[e] and not env_done_flags[e]:
-                    env_done_flags[e] = True
-                    self._episode_counters[e] += 1
-                elif not done_now[e] and env_done_flags[e]:
-                    env_done_flags[e] = False
+            # done_now = np.logical_or(
+            #     dones.reshape(self._num_envs, self._agents_per_env).all(1),
+            #     trunc.reshape(self._num_envs, self._agents_per_env).all(1),
+            # )
+            # for e in range(self._num_envs):
+            #     if done_now[e] and not env_done_flags[e]:
+            #         env_done_flags[e] = True
+            #         self._episode_counters[e] += 1
+            #     elif not done_now[e] and env_done_flags[e]:
+            #         env_done_flags[e] = False
+
+        end = time.time()
+        print("actions/step time", end - start)
+        print("cumulative step time", cum_step_time)
+        print("SPS", 1 / (cum_step_time / 1000 / self._agents_per_env))
 
         # ---------------- teardown & DB merge ------------------------ #
-        self._vecenv.close()
-        db = self._from_shards_and_context()
+        env.close()
+        # db = self._from_shards_and_context()
 
-        logger.info(
-            "Sim '%s' finished: %d episodes in %.1fs",
-            self._name,
-            int(self._episode_counters.sum()),
-            time.time() - t0,
-        )
-        return SimulationResults(db)
+        # logger.info(
+        #     "Sim '%s' finished: %d episodes in %.1fs",
+        #     self._name,
+        #     int(self._episode_counters.sum()),
+        #     time.time() - t0,
+        # )
+        # return SimulationResults(db)
 
     # ------------------------- stats helpers -------------------------- #
     def _from_shards_and_context(self) -> SimulationStatsDB:
