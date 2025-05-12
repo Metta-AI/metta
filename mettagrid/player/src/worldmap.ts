@@ -447,6 +447,97 @@ function drawTrajectory() {
   }
 }
 
+// Draw the thought bubbles of the selected agent.
+function drawThoughtBubbles() {
+  // The idea behind thought bubbles is to show what the agent is thinking.
+  // We don't have this directly from the policy yet,
+  // so the next best thing is to show future "key action".
+  // It should be a good proxy for what the agent is thinking about.
+  if (state.selectedGridObject != null && state.selectedGridObject.agent_id != null) {
+    // We need to find a key action in the future.
+    // A key action is a successful action that is not a noop, rotate or move.
+    // Must not be more then 20 steps in the future.
+    var keyAction = null;
+    for(var actionStep = state.step; actionStep < state.replay.max_steps && actionStep < state.step + 20; actionStep++) {
+      const action = getAttr(state.selectedGridObject, "action", actionStep);
+      if (action == null || action[0] == null || action[1] == null) {
+        continue;
+      }
+      const actionName = state.replay.action_names[action[0]];
+      const actionSuccess = getAttr(state.selectedGridObject, "action_success", actionStep);
+      if (actionName == "noop" || actionName == "rotate" || actionName == "move") {
+        continue;
+      }
+      if (actionSuccess) {
+        keyAction = action;
+        break;
+      }
+    }
+
+    if (keyAction != null) {
+      // We have a key action, draw the thought bubble.
+      // Draw the key action icon with gained or lost resources.
+      const x = getAttr(state.selectedGridObject, "c");
+      const y = getAttr(state.selectedGridObject, "r");
+      ctx.drawSprite(
+        "actions/thoughts.png",
+        x * Common.TILE_SIZE + Common.TILE_SIZE / 2,
+        y * Common.TILE_SIZE - Common.TILE_SIZE / 2
+      );
+      // Draw the action icon.
+      var iconName = "actions/icons/" + state.replay.action_names[keyAction[0]] + ".png";
+      if (ctx.hasImage(iconName)) {
+        ctx.drawSprite(
+          iconName,
+          x * Common.TILE_SIZE + Common.TILE_SIZE / 2,
+          y * Common.TILE_SIZE - Common.TILE_SIZE / 2,
+          [1, 1, 1, 1],
+          1/4,
+          0
+        );
+      } else {
+        ctx.drawSprite(
+          "actions/icons/unknown.png",
+          x * Common.TILE_SIZE + Common.TILE_SIZE / 2,
+          y * Common.TILE_SIZE - Common.TILE_SIZE / 2,
+          [1, 1, 1, 1],
+          1/4,
+          0
+        );
+      }
+
+      // Draw resources lost on the left and gained on the right.
+      for (const [key, [image, color]] of state.replay.resource_inventory) {
+        const prevResources = getAttr(state.selectedGridObject, key, actionStep);
+        const nextResources = getAttr(state.selectedGridObject, key, actionStep + 1);
+        const gained = nextResources - prevResources;
+        var resourceX = x * Common.TILE_SIZE + Common.TILE_SIZE / 2;
+        var resourceY = y * Common.TILE_SIZE - Common.TILE_SIZE / 2;
+        if (gained > 0) {
+          resourceX += 32;
+        } else {
+          resourceX -= 32;
+        }
+        for (let i = 0; i < Math.abs(gained); i++) {
+          ctx.drawSprite(
+            image,
+            resourceX,
+            resourceY,
+            color,
+            1/8,
+            0
+          );
+          if (gained > 0) {
+            resourceX += 8;
+          } else {
+            resourceX -= 8;
+          }
+        }
+      }
+    }
+  }
+}
+
 // Draw the visibility map either agent view ranges or fog of war.
 function drawVisibility() {
 
@@ -598,6 +689,7 @@ export function drawMap(panel: PanelInfo) {
   drawRewards();
   drawVisibility();
   drawGrid();
+  drawThoughtBubbles();
 
   ctx.restore();
 }
