@@ -23,7 +23,7 @@ def sample_logits_data():
     # Multiple batches, single token
     batch_logits = torch.randn(batch_size, vocab_size)
 
-    # Create an almost deterministic distribution for testing
+    # Create a deterministic distribution for testing
     deterministic_logits = torch.tensor([[-1000.0, 1000.0, -1000.0, -1000.0, -1000.0]])
 
     return {"single": single_logits, "batch": batch_logits, "deterministic": deterministic_logits}
@@ -158,10 +158,21 @@ class TestSampleLogits:
         )
 
 
-# Helper for consistent benchmarking setup
-def benchmark_setup():
-    """Set seed before each benchmark to ensure consistency."""
-    torch.manual_seed(SEED)
+# Define a wrapper function for benchmarking that runs the target multiple times
+def run_multiple_iterations(target_func, data, iterations=10, action=None):
+    """Run the target function multiple times to reduce variance."""
+    torch.manual_seed(SEED)  # Reset seed for consistency
+
+    if action is not None:
+        # With action parameter
+        for _ in range(iterations - 1):
+            target_func(data, action)
+        return target_func(data, action)  # Return the result of the last iteration
+    else:
+        # Without action parameter
+        for _ in range(iterations - 1):
+            target_func(data)
+        return target_func(data)  # Return the result of the last iteration
 
 
 @pytest.mark.parametrize(
@@ -173,20 +184,16 @@ def benchmark_setup():
     ],
 )
 def test_benchmark_sizes(benchmark, benchmark_data, case_name, data_key):
-    """Benchmark sample_logits with different batch sizes using pedantic mode."""
-    # Set seed before benchmarking
-    benchmark_setup()
-
+    """Benchmark sample_logits with different batch sizes."""
+    torch.manual_seed(SEED)  # Set seed directly here
     data = benchmark_data[data_key]
 
-    # Using pedantic mode with standardized parameters
-    result = benchmark.pedantic(
-        sample_logits,
-        args=(data,),
-        iterations=10,  # Number of iterations per round
-        rounds=10,  # Number of rounds
-        setup=benchmark_setup,  # Set seed before each round
-    )
+    # Define a function that runs sample_logits multiple times
+    def target_function():
+        return run_multiple_iterations(sample_logits, data, iterations=10)
+
+    # Use the benchmark fixture directly
+    result = benchmark(target_function)
 
     # Validation of result
     assert result[0].shape[0] == data.shape[0], f"Expected {data.shape[0]} actions, got {result[0].shape[0]}"
@@ -201,21 +208,17 @@ def test_benchmark_sizes(benchmark, benchmark_data, case_name, data_key):
     ],
 )
 def test_benchmark_with_actions(benchmark, benchmark_data, case_name, data_key, action_key):
-    """Benchmark sample_logits with provided actions using pedantic mode."""
-    # Set seed before benchmarking
-    benchmark_setup()
-
+    """Benchmark sample_logits with provided actions."""
+    torch.manual_seed(SEED)  # Set seed directly here
     data = benchmark_data[data_key]
     actions = benchmark_data[action_key]
 
-    # Using pedantic mode with standardized parameters
-    result = benchmark.pedantic(
-        sample_logits,
-        args=(data, actions),
-        iterations=10,  # Number of iterations per round
-        rounds=10,  # Number of rounds
-        setup=benchmark_setup,  # Set seed before each round
-    )
+    # Define a function that runs sample_logits multiple times with actions
+    def target_function():
+        return run_multiple_iterations(sample_logits, data, iterations=10, action=actions)
+
+    # Use the benchmark fixture directly
+    result = benchmark(target_function)
 
     # Validation of result
     assert torch.equal(result[0], actions), f"Expected actions {actions}, got {result[0]}"
