@@ -1,59 +1,59 @@
 import multiprocessing
 import os
-import sys
-from typing import Optional
 
 import numpy
-from Cython.Build import cythonize
 from setuptools import Extension, find_packages, setup
+from setuptools.command.build_ext import build_ext
 
 multiprocessing.freeze_support()
 
 
-def build_ext(srcs, module_name=None):
-    if module_name is None:
-        module_name = srcs[0].replace("/", ".").replace(".pyx", "").replace(".cpp", "")
-    return Extension(
-        module_name,
-        sources=srcs,
-        language="c++",
-        define_macros=[("NPY_NO_DEPRECATED_API", "NPY_1_7_API_VERSION")],
-        extra_compile_args=["-std=c++11"],
-    )
+class Pybind11Extension(Extension):
+    def __init__(self, name, sources, **kwargs):
+        super().__init__(name, sources, **kwargs)
+        self.include_dirs = kwargs.get("include_dirs", [])
+        self.language = kwargs.get("language", "c++")
+        self.extra_compile_args = kwargs.get("extra_compile_args", [])
+        self.extra_link_args = kwargs.get("extra_link_args", [])
+
+
+class Pybind11BuildExt(build_ext):
+    def build_extensions(self):
+        # Detect compiler
+        compiler = self.compiler.compiler_type
+        if compiler == "msvc":
+            extra_compile_args = ["/std:c++20"]
+            extra_link_args = []
+        else:
+            extra_compile_args = ["-std=c++20", "-fvisibility=hidden"]
+            extra_link_args = ["-std=c++20"]
+
+        # Add pybind11 include directory
+        import pybind11
+
+        pybind11_include = pybind11.get_include()
+
+        for ext in self.extensions:
+            ext.include_dirs.extend([numpy.get_include(), pybind11_include, "mettagrid"])
+            ext.extra_compile_args.extend(extra_compile_args)
+            ext.extra_link_args.extend(extra_link_args)
+
+        build_ext.build_extensions(self)
 
 
 ext_modules = [
-    build_ext(["mettagrid/action_handler.pyx"]),
-    build_ext(["mettagrid/event.pyx"]),
-    build_ext(["mettagrid/grid.cpp"]),
-    build_ext(["mettagrid/grid_object.pyx"]),
-    build_ext(["mettagrid/stats_tracker.cpp"]),
-    build_ext(["mettagrid/observation_encoder.pyx"]),
-    build_ext(["mettagrid/actions/attack.pyx"]),
-    build_ext(["mettagrid/actions/attack_nearest.pyx"]),
-    build_ext(["mettagrid/actions/change_color.pyx"]),
-    build_ext(["mettagrid/actions/move.pyx"]),
-    build_ext(["mettagrid/actions/noop.pyx"]),
-    build_ext(["mettagrid/actions/rotate.pyx"]),
-    build_ext(["mettagrid/actions/swap.pyx"]),
-    build_ext(["mettagrid/actions/put_recipe_items.pyx"]),
-    build_ext(["mettagrid/actions/get_output.pyx"]),
-    build_ext(["mettagrid/objects/agent.pyx"]),
-    build_ext(["mettagrid/objects/constants.pyx"]),
-    build_ext(["mettagrid/objects/has_inventory.pyx"]),
-    build_ext(["mettagrid/objects/converter.pyx"]),
-    build_ext(["mettagrid/objects/metta_object.pyx"]),
-    build_ext(["mettagrid/objects/production_handler.pyx"]),
-    build_ext(["mettagrid/objects/wall.pyx"]),
-    build_ext(["mettagrid/mettagrid.pyx"], module_name="mettagrid.mettagrid_c"),
+    Pybind11Extension(
+        "mettagrid.mettagrid_c",
+        sources=["mettagrid/mettagrid_c.cpp"],
+        include_dirs=[numpy.get_include()],
+        extra_compile_args=["-std=c++17"],
+        define_macros=[("NPY_NO_DEPRECATED_API", "NPY_1_7_API_VERSION")],
+    )
 ]
 
 debug = os.getenv("DEBUG", "0") == "1"
-annotate = os.getenv("ANNOTATE", "0") == "1"
 build_dir = "build_debug" if debug else "build"
 os.makedirs(build_dir, exist_ok=True)
-
-num_threads: Optional[int] = multiprocessing.cpu_count() if sys.platform == "linux" else None
 
 setup(
     name="mettagrid",
@@ -62,26 +62,7 @@ setup(
     include_dirs=[numpy.get_include()],
     package_data={"mettagrid": ["*.so"]},
     zip_safe=False,
-    ext_modules=cythonize(
-        ext_modules,
-        build_dir=build_dir,
-        nthreads=num_threads,  # type: ignore[reportArgumentType] -- Pylance is wrong. We want "None" when not on linux.
-        annotate=debug or annotate,
-        compiler_directives={
-            "language_level": "3",
-            "embedsignature": debug,
-            "annotation_typing": debug,
-            "cdivision": debug,
-            "boundscheck": debug,
-            "wraparound": debug,
-            "initializedcheck": debug,
-            "nonecheck": debug,
-            "overflowcheck": debug,
-            "overflowcheck.fold": debug,
-            "profile": debug,
-            "linetrace": debug,
-            "c_string_encoding": "utf8",
-            "c_string_type": "str",
-        },
-    ),
+    ext_modules=ext_modules,
+    cmdclass={"build_ext": Pybind11BuildExt},
+    install_requires=["numpy", "pybind11>=2.6.0", "gymnasium"],
 )
