@@ -3,11 +3,17 @@ import torch
 
 from metta.agent.util.distribution_utils import sample_logits
 
+# Global seed for reproducibility
+SEED = 42
+
 
 # Test fixtures
 @pytest.fixture
 def sample_logits_data():
     """Create sample logits of various shapes for testing."""
+    # Set seed for reproducibility
+    torch.manual_seed(SEED)
+
     batch_size = 3
     vocab_size = 5
 
@@ -26,6 +32,9 @@ def sample_logits_data():
 @pytest.fixture
 def benchmark_data():
     """Create benchmark data of various shapes."""
+    # Set seed for reproducibility
+    torch.manual_seed(SEED)
+
     # Small batch
     small_batch_size = 36
     small_vocab_size = 10
@@ -40,6 +49,9 @@ def benchmark_data():
     large_batch_size = 3600
     large_vocab_size = 1000
     large_batch = torch.randn(large_batch_size, large_vocab_size)
+
+    # Set seed again before generating actions to ensure they're consistent
+    torch.manual_seed(SEED)
 
     # Actions
     small_actions = torch.randint(0, small_vocab_size, (small_batch_size,))
@@ -59,6 +71,11 @@ def benchmark_data():
 # Test class with individual test methods
 class TestSampleLogits:
     """Test suite for the sample_logits function."""
+
+    def setup_method(self):
+        """Setup method called before each test method."""
+        # Set seed for each test method
+        torch.manual_seed(SEED)
 
     def test_sampling_shape(self, sample_logits_data):
         """Test output shapes of sample_logits."""
@@ -141,6 +158,12 @@ class TestSampleLogits:
         )
 
 
+# Helper for consistent benchmarking setup
+def benchmark_setup():
+    """Set seed before each benchmark to ensure consistency."""
+    torch.manual_seed(SEED)
+
+
 @pytest.mark.parametrize(
     "case_name, data_key",
     [
@@ -151,6 +174,9 @@ class TestSampleLogits:
 )
 def test_benchmark_sizes(benchmark, benchmark_data, case_name, data_key):
     """Benchmark sample_logits with different batch sizes using pedantic mode."""
+    # Set seed before benchmarking
+    benchmark_setup()
+
     data = benchmark_data[data_key]
 
     # Using pedantic mode with standardized parameters
@@ -159,6 +185,7 @@ def test_benchmark_sizes(benchmark, benchmark_data, case_name, data_key):
         args=(data,),
         iterations=10,  # Number of iterations per round
         rounds=10,  # Number of rounds
+        setup=benchmark_setup,  # Set seed before each round
     )
 
     # Validation of result
@@ -175,6 +202,9 @@ def test_benchmark_sizes(benchmark, benchmark_data, case_name, data_key):
 )
 def test_benchmark_with_actions(benchmark, benchmark_data, case_name, data_key, action_key):
     """Benchmark sample_logits with provided actions using pedantic mode."""
+    # Set seed before benchmarking
+    benchmark_setup()
+
     data = benchmark_data[data_key]
     actions = benchmark_data[action_key]
 
@@ -184,6 +214,7 @@ def test_benchmark_with_actions(benchmark, benchmark_data, case_name, data_key, 
         args=(data, actions),
         iterations=10,  # Number of iterations per round
         rounds=10,  # Number of rounds
+        setup=benchmark_setup,  # Set seed before each round
     )
 
     # Validation of result
