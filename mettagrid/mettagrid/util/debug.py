@@ -18,12 +18,10 @@ def save_args_for_c(
 ) -> Dict[str, str]:
     """
     Save Python arguments in formats suitable for C testing.
-
     Args:
         args: Dictionary of arguments to save. Each key-value pair will be saved.
         base_filename: Base name for the output files (without extension).
         output_dir: Directory to save files. If None, uses current directory.
-
     Returns:
         dict: Paths to the saved files
     """
@@ -50,18 +48,32 @@ def save_args_for_c(
 
         # Handle different types of arguments
         if isinstance(arg_value, np.ndarray):
-            # For numpy arrays like maps
-            file_path = output_path / f"{base_filename}_{arg_name}.txt"
+            # For numpy arrays
+            file_path = output_path / f"{base_filename}_{arg_name}.npz"
 
-            # Determine best format based on content
-            if np.issubdtype(arg_value.dtype, np.number):
-                # For numeric arrays
-                np.savetxt(file_path, arg_value, fmt="%.6g", delimiter=",")
-            else:
-                # For string/mixed arrays (like your map)
-                np.savetxt(file_path, arg_value, fmt="%s", delimiter=",")
-
+            # Save arrays of any dimension using numpy's compressed format
+            np.savez_compressed(file_path, array=arg_value)
             saved_files[arg_name] = str(file_path)
+
+            # Also save shape and dtype information in a separate text file for easier parsing in C
+            info_path = output_path / f"{base_filename}_{arg_name}_info.txt"
+            with open(info_path, "w") as f:
+                f.write(f"shape: {arg_value.shape}\n")
+                f.write(f"dtype: {arg_value.dtype}\n")
+                f.write(f"ndim: {arg_value.ndim}\n")
+            saved_files[f"{arg_name}_info"] = str(info_path)
+
+            # For 1D and 2D arrays, also save in text format for human readability
+            if arg_value.ndim <= 2:
+                txt_path = output_path / f"{base_filename}_{arg_name}.txt"
+                try:
+                    if np.issubdtype(arg_value.dtype, np.number):
+                        np.savetxt(txt_path, arg_value, fmt="%.6g", delimiter=",")
+                    else:
+                        np.savetxt(txt_path, arg_value, fmt="%s", delimiter=",")
+                    saved_files[f"{arg_name}_txt"] = str(txt_path)
+                except Exception as e:
+                    print(f"Warning: Could not save {arg_name} as text: {str(e)}")
         elif isinstance(arg_value, (dict, list)) or hasattr(arg_value, "__dict__"):
             # For complex objects like configs
             try:
@@ -316,8 +328,6 @@ def _format_value(value: Any) -> Any:
 
 
 def save_step_results(
-    env_cfg: DictConfig,
-    env_map: np.ndarray,
     observations: np.ndarray,
     rewards: np.ndarray,
     terminals: np.ndarray,
@@ -331,8 +341,6 @@ def save_step_results(
     Save the results from the step function for testing.
 
     Args:
-        env_cfg: Environment configuration
-        env_map: Environment map data
         observations: Observation array from step function
         rewards: Rewards array from step function
         terminals: Terminal states array from step function
@@ -345,16 +353,9 @@ def save_step_results(
     Returns:
         dict: Paths to the saved files
     """
-    # Convert DictConfig to plain Python dict
-    env_cfg_dict = OmegaConf.to_container(env_cfg, resolve=True)
-
-    # Filter out unnecessary metadata
-    env_cfg_dict = filter_test_data(env_cfg_dict)
 
     # Create args with all the step results
     args = {
-        "env_cfg": env_cfg_dict,
-        "env_map": env_map,
         "observations": observations,
         "rewards": rewards,
         "terminals": terminals,
