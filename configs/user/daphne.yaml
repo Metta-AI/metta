@@ -31,7 +31,7 @@ policy_uri: wandb://run/b.daphne.navigation0
 # eval_db_uri: wandb://artifacts/test
 # npc_policy_uri: ${trained_policy_uri}
 
-eval_db_uri: wandb://stats/teams_test
+# eval_db_uri: wandb://stats/teams_test
 
 analyzer:
   policy_uri: ${..policy_uri}
@@ -52,7 +52,7 @@ wandb:
   track: true
   checkpoint_interval: 1
 
-run_id: 102
+run_id: 105
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 
