@@ -26,7 +26,7 @@ python-dotenv==1.1.0
 PyYAML==6.0.2
 raylib==5.5.0.2
 rich==13.9.4
-ruff==0.11.8
+ruff==0.11.9
 scipy==1.15.3
 shimmy==2.0.0
 sympy==1.13.3
