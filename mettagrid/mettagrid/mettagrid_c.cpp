@@ -171,6 +171,7 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
       } else if (cell == "temple") {
         converter = new Converter(r, c, cfg["objects"]["temple"].cast<ObjectConfig>(), ObjectType::TempleT);
       } else if (cell.starts_with("agent.")) {
+        // TODO: owe a test about agent configurations merging / etc.
         std::string group_name = cell.substr(6);
         // The group should always exist, and it's okay to crash (for now!) if it doesn't.
         // Consider making a nicer error message.
@@ -423,17 +424,12 @@ void MettaGrid::set_buffers(std::reference_wrapper<py::array_t<unsigned char>> o
   }
 }
 
+// TODO: owe a test about rewards updating correctly
 py::tuple MettaGrid::step(py::array_t<int> actions) {
   _step(actions);
 
   auto rewards_view = _rewards.mutable_unchecked<1>();
   auto episode_rewards_view = _episode_rewards.mutable_unchecked<1>();
-
-  // Update episode rewards
-  for (py::ssize_t i = 0; i < rewards_view.shape(0); i++) {
-    episode_rewards_view(i) += rewards_view(i);
-  }
-
   // Clear group rewards
   auto group_rewards_view = _group_rewards.mutable_unchecked<1>();
   for (py::ssize_t i = 0; i < group_rewards_view.shape(0); i++) {
