@@ -42,6 +42,7 @@
     "cython",
     "datastruct",
     "deque",
+    "devel",
     "distutils",
     "dones",
     "dtype",
