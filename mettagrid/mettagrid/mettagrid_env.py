@@ -138,13 +138,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         if self._debug:
             save_mettagrid_args(self._env_cfg, env_map)
 
-        # I haven't figured out how to get C++ code to deal with fixed-length strings; so we convert
-        # to non-fixed length strings. This is obvious very silly, but OTOH we shouldn't be using a numpy array
-        # of strings here in the first place.
-        env_map_list = env_map.tolist()
-        env_map = np.array(env_map_list)
-
-        self._c_env = MettaGrid(OmegaConf.to_container(self._env_cfg), env_map)
+        self._c_env = MettaGrid(self._env_cfg, env_map)
         self._grid_env = self._c_env
         self._num_agents = self._c_env.num_agents()
 
