@@ -28,9 +28,7 @@ def make_env_func(
 
     # Ensure the environment is properly initialized
     if hasattr(env, "_c_env") and env._c_env is None:
-        logger.warning("MettaGridEnv._c_env is None")
-        # You might need to add code here to properly initialize _c_env
-        # This depends on how MettaGridEnv is designed
+        logger.warning("MettaGridEnv._c_env is None after hydra instantiation")
 
     return env
 
