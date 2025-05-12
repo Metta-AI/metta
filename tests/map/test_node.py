@@ -119,10 +119,26 @@ def test_select_areas_with_offset(node):
 # === BENCHMARK TESTS ===
 
 
-# Benchmark setup function to ensure consistent state
-def benchmark_setup():
-    """Ensure consistent state before each benchmark run."""
+# Helper function for multiple iterations
+def run_multiple_iterations(func, iterations=10):
+    """
+    Run a function multiple times and return the last result.
+    This helps reduce variance in benchmarks.
+
+    Args:
+        func: Function to run (no arguments)
+        iterations: Number of times to run the function
+
+    Returns:
+        The result of the last function call
+    """
+    # Reset seed for consistency
     np.random.seed(SEED)
+
+    result = None
+    for _ in range(iterations):
+        result = func()
+    return result
 
 
 def test_benchmark_area_creation(benchmark, node):
@@ -131,13 +147,12 @@ def test_benchmark_area_creation(benchmark, node):
     def create_area():
         return node.make_area(2, 2, 2, 2, tags=["benchmark_tag"])
 
-    # Run the benchmark with setup
-    area = benchmark.pedantic(
-        create_area,
-        setup=benchmark_setup,
-        iterations=10,
-        rounds=10,
-    )
+    # Function that runs multiple iterations
+    def run_area_creation():
+        return run_multiple_iterations(create_area, iterations=10)
+
+    # Use the benchmark fixture directly
+    area = benchmark(run_area_creation)
 
     # Verify it worked correctly
     assert area.id is not None
@@ -151,13 +166,12 @@ def test_benchmark_select_by_tag(benchmark, node):
         query = {"where": {"tags": ["tag2"]}}
         return node.select_areas(query)
 
-    # Run the benchmark with setup
-    results = benchmark.pedantic(
-        select_by_tag,
-        setup=benchmark_setup,
-        iterations=10,
-        rounds=10,
-    )
+    # Function that runs multiple iterations
+    def run_select_by_tag():
+        return run_multiple_iterations(select_by_tag, iterations=10)
+
+    # Use the benchmark fixture directly
+    results = benchmark(run_select_by_tag)
 
     # Verify it worked correctly
     assert len(results) == 2
@@ -171,13 +185,12 @@ def test_benchmark_select_with_limit_and_order(benchmark, node):
         query = {"limit": 2, "order_by": "first"}
         return node.select_areas(query)
 
-    # Run the benchmark with setup
-    results = benchmark.pedantic(
-        select_with_limit_order,
-        setup=benchmark_setup,
-        iterations=10,
-        rounds=10,
-    )
+    # Function that runs multiple iterations
+    def run_select_with_limit_order():
+        return run_multiple_iterations(select_with_limit_order, iterations=10)
+
+    # Use the benchmark fixture directly
+    results = benchmark(run_select_with_limit_order)
 
     # Verify it worked correctly
     assert len(results) == 2
