@@ -36,7 +36,7 @@ def save_array_slice(
 
     # Create a string representation of the indices for display
     idx_str = []
-    for i, index in enumerate(idx):
+    for _i, index in enumerate(idx):
         if index == slice(None):
             idx_str.append(":")
         else:
