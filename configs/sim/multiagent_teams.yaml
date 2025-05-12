@@ -4,8 +4,6 @@ defaults:
 
 name: multiagent_teams
 
-num_envs: 1
-num_episodes: 1
 run_dir: ${run_dir}
 
 simulations:

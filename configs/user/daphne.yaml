@@ -27,7 +27,7 @@ trainer:
 # policy_uri: wandb://run/b.daphne.terrain_multienv_lessactions:v40
 # policy_uri: wandb://run/terrain_multienv_3_single_agent:v63
 # policy_uri: wandb://run/terrain_multiagent_24_norewardsharing2
-policy_uri: wandb://run/b.daphne.multiagent_nc1
+policy_uri: wandb://run/b.daphne.navigation0
 # eval_db_uri: wandb://artifacts/test
 # npc_policy_uri: ${trained_policy_uri}
 
