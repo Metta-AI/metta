@@ -1,7 +1,7 @@
 defaults:
   - common
   - wandb: metta_research
-  - sim: multiagent
+  - sim: daphne
   - _self_
 
 cmd: sim
