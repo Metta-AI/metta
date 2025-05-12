@@ -31,6 +31,6 @@ all: clean install test
 
 # Build the project using setup.py
 build:
-	@echo "Building mettagrid..."
+	@echo "Building metta..."
 	python setup.py build_ext --inplace
 	@echo "Build complete."
