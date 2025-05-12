@@ -248,8 +248,6 @@ jobs:
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') && 
       (needs.setup-checks.outputs.run_test == 'true')
     runs-on: ubuntu-latest
-    with:
-      runner-size: large
     timeout-minutes: 10
     steps:
       - name: Checkout code
