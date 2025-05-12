@@ -1,4 +1,5 @@
 import logging
+import time
 from typing import List, Union
 
 import gymnasium as gym
@@ -181,10 +182,13 @@ class MettaAgent(nn.Module):
         Returns:
             Tuple of (action, logprob_act, entropy, value, log_sftmx_logits)
         """
+        start = time.time()
+
         # Initialize dictionary for TensorDict
         td = {"x": x, "state": None}
 
         # Safely handle LSTM state
+        start_lstm_state = time.time()
         if state.lstm_h is not None and state.lstm_c is not None:
             # Ensure states are on the same device as input
             lstm_h = state.lstm_h.to(x.device)
@@ -192,27 +196,45 @@ class MettaAgent(nn.Module):
 
             # Concatenate LSTM states along dimension 0
             td["state"] = torch.cat([lstm_h, lstm_c], dim=0)
+        end_lstm_state = time.time()
+        print("     lstm state time: ", end_lstm_state - start_lstm_state)
 
         # Forward pass through value network
+        start_value = time.time()
+        print('self.components["_value_"]', type(self.components["_value_"]))
         self.components["_value_"](td)
         value = td["_value_"]
+        end_value = time.time()
+        print("     value time: ", end_value - start_value)
 
         # Forward pass through action network
+        start_action = time.time()
         self.components["_action_"](td)
         logits = td["_action_"]
+        end_action = time.time()
+        print("     action time: ", end_action - start_action)
 
         # Update LSTM states
+        start_lstm = time.time()
         split_size = self.core_num_layers
         state.lstm_h = td["state"][:split_size]
         state.lstm_c = td["state"][split_size:]
+        end_lstm = time.time()
+        print("     lstm time: ", end_lstm - start_lstm)
 
         # Sample actions
+        start_sample = time.time()
         action_logit_index = self._convert_action_to_logit_index(action) if action is not None else None
         action_logit_index, logprob_act, entropy, log_sftmx_logits = sample_logits(logits, action_logit_index)
+        end_sample = time.time()
+        print("     sample time: ", end_sample - start_sample)
 
         # Convert logit index to action if no action was provided
         if action is None:
             action = self._convert_logit_index_to_action(action_logit_index, td)
+
+        end = time.time()
+        print("   forward time: ", end - start)
 
         return action, logprob_act, entropy, value, log_sftmx_logits
 

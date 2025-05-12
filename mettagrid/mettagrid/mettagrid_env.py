@@ -105,21 +105,22 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     def step(self, actions):
         self.actions[:] = np.array(actions).astype(np.uint32)
 
-        if self._replay_writer:
-            self._replay_writer.log_pre_step(self._episode_id, self.actions)
+        # if self._replay_writer:
+        #     self._replay_writer.log_pre_step(self._episode_id, self.actions)
 
         self._c_env.step(self.actions)
 
-        if self._env_cfg.normalize_rewards:
-            self.rewards -= self.rewards.mean()
+        # if self._env_cfg.normalize_rewards:
+        #     self.rewards -= self.rewards.mean()
 
-        if self._replay_writer:
-            self._replay_writer.log_post_step(self._episode_id, self.rewards)
+        # if self._replay_writer:
+        #     self._replay_writer.log_post_step(self._episode_id, self.rewards)
 
         infos = {}
-        if self.terminals.all() or self.truncations.all():
-            self.process_episode_stats(infos)
-            self.should_reset = True
+        # if self.terminals.all() or self.truncations.all():
+        #     self.process_episode_stats(infos)
+        #     self.should_reset = True
+        #     print("should_reset")
 
         return self.observations, self.rewards, self.terminals, self.truncations, infos
 
