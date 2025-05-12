@@ -12,39 +12,39 @@ georged_sharing24_06_pretrained - unexpected keyword teams in terain_from_numpy
 
 
 POLICIES=(
-    "b.daphne.navigation0"
-    "b.daphne.navigation1"
-    "b.daphne.navigation4"
-    "b.daphne.navigation3"
-    "b.daphne.navigation4"
+    # "b.daphne.navigation0"
+    # "b.daphne.navigation1"
+    # "b.daphne.navigation4"
+    # "b.daphne.navigation3"
+    # "b.daphne.navigation4"
 
     "daphne.2object_use_colors_pretrained"
     "daphne.2object_use_colors"
     "daphne.2object_use_no_colors_pretrained"
     "daphne.2object_use_no_colors"
+    "dd_object_use_easy"
 
-    "gd_sharing24_03_pretrained"
-    "gd_sharing48_03_preteained"
-    "gd_sharing24_06"
-    "gd_sharing_24_range_pretrained"
-    "gd_sharing24_06_pretrained"
-    "gd_sharing48_06_pretrained"
-    "gd_24_nosharing_pretrained"
-    "gd_48_nosharing_pretrained"
-    "gd_sharing_48_range_pretrained"
-    "gd_24_no_sharing"
-    "gd_sharing24_03"
-    "gd_sharing_24"
-    "gd_48_no_sharing"
-    "gd_sharing48_03"
-    "gd_sharing48_06"
-    "gd_sharing_48"
+    "gd2_sharing24_06"
+    "gd2_24_no_sharing"
+    "gd2_sharing24_03"
+    "gd2_sharing_24"
+    "gd2_48_no_sharing"
+    "gd2_sharing48_03"
+    "gd2_sharing48_06"
+    "gd2_sharing_48"
 
-    "george_extended_sequence_pretrained"
-    "george_extended_sequence"
+    "b.daphne.navigation_training"
+    "b.daphne.simple_training"
 
+    # "gd_sharing_24_range_pretrained"
+    # "gd_sharing24_06_pretrained"
+    # "gd_sharing48_06_pretrained"
+    # "gd_24_nosharing_pretrained"
+    # "gd_48_nosharing_pretrained"
+    # "gd_sharing_48_range_pretrained"
 
-
+    # "gd_sharing24_03_pretrained"
+    # "gd_sharing48_03_preteained"
     ""
 
 
@@ -91,6 +91,6 @@ python3 -m tools.dashboard +eval_db_uri=wandb://stats/object_use_db run=objectus
 
 python3 -m tools.dashboard +eval_db_uri=wandb://stats/memory_db run=memorydpahne ++dashboard.output_path=s3://softmax-public/policydash/memory.html \
 
-python3 -m tools.dashboard +eval_db_uri=wandb://stats/navigation_db run=navigationdaphne ++dashboard.output_path=s3://softmax-public/policydash/navigation.html \
+python3 -m tools.dashboard +eval_db_uri=wandb://stats/navigation_db run=navigationdaphne ++dashboard.output_path=s3://softmax-public/policydash/navigation2.html \
 
 done
