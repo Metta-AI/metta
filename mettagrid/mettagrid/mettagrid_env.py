@@ -16,6 +16,7 @@ from mettagrid.mettagrid_c import MettaGrid  # pylint: disable=E0611
 from mettagrid.replay_writer import ReplayWriter
 from mettagrid.resolvers import register_resolvers
 from mettagrid.stats_writer import StatsWriter
+from mettagrid.util.debug import save_mettagrid_args, save_step_results
 
 
 class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
@@ -29,6 +30,10 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         replay_writer: Optional[ReplayWriter] = None,
         **kwargs,
     ):
+        self._save_mettagrid_args = False
+        self._save_step_results = False
+        self._files_saved = 0
+
         self._render_mode = render_mode
         self._cfg_template = env_cfg
         self._env_cfg = self._get_new_env_cfg()
@@ -69,6 +74,10 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         assert self._env_cfg.game.num_agents == map_agents, (
             f"Number of agents {self._env_cfg.game.num_agents} does not match number of agents in map {map_agents}"
         )
+
+        if self._save_mettagrid_args:
+            save_mettagrid_args(self._env_cfg, env_map)
+            self._files_saved += 1
 
         self._c_env = MettaGrid(self._env_cfg, env_map)
         self._grid_env = self._c_env
@@ -114,6 +123,12 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         if self.terminals.all() or self.truncations.all():
             self.process_episode_stats(infos)
             self.should_reset = True
+
+        if self._save_step_results and self._files_saved < 10:
+            save_step_results(
+                self._env_cfg, env_map, self.observations, self.rewards, self.terminals, self.truncations, infos
+            )
+            self._files_saved += 1
 
         return self.observations, self.rewards, self.terminals, self.truncations, infos
 
