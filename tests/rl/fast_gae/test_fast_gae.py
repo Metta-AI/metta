@@ -317,7 +317,8 @@ class TestGAEBenchmarks:
         )
 
         print(
-            f"\nNumPy implementation time: {benchmark.stats.stats.mean:.6f} seconds (trajectory size: {len(data['dones'])})"
+            f"\nNumPy implementation time: {benchmark.stats.stats.mean:.6f} seconds"
+            f" (trajectory size: {len(data['dones'])})"
         )
         return benchmark.stats.stats.mean
 

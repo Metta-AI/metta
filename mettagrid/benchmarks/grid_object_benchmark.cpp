@@ -14,7 +14,16 @@ public:
     init(type_id, r, c, layer);
   }
 
-  void obs(c_observations_type* obs, const std::vector<unsigned int>& offsets) const override {
+  // Implement the required pure virtual method from GridObject
+  void obs(c_observations_type* obs) const override {
+    // Simple implementation for benchmarking
+    for (size_t i = 0; i < get_observation_size(); ++i) {
+      obs[i] = i % 255;
+    }
+  }
+
+  // Add a separate method for the benchmark that uses offsets
+  void obs(c_observations_type* obs, const std::vector<unsigned int>& offsets) const {
     // Simple implementation for benchmarking
     for (size_t i = 0; i < offsets.size(); ++i) {
       obs[offsets[i]] = i % 255;
