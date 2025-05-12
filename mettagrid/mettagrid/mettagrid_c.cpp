@@ -380,7 +380,6 @@ void MettaGrid::set_buffers(std::reference_wrapper<py::array_t<unsigned char>> o
   }
 }
 
-// TODO: owe a test about rewards updating correctly
 py::tuple MettaGrid::step(py::array_t<int> actions) {
   _step(actions);
 
