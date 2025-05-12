@@ -659,7 +659,7 @@ cdef class MettaGrid:
 
     cpdef dict grid_objects(self):
         """
-        Get information about all grid objects.
+        Get information about all grid objects that are present in our environment.
         
         Returns:
             A dictionary mapping object IDs to their properties.
@@ -675,16 +675,6 @@ cdef class MettaGrid:
         
         # Convert string keys to integers
         return {int(k): v for k, v in objects_dict.items()}
-
-
-    @property
-    def grid_features_list(self) -> list:
-        return self._grid_features_list
-
-
-    @property
-    def grid_features_size(self) -> uint32_t:
-        return self._grid_features_size
 
 
     @property

@@ -66,7 +66,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         num_agents = self._num_agents
         obs_width = self._c_env.obs_width
         obs_height = self._c_env.obs_height
-        grid_features_size = self._c_env.grid_features_size
+        grid_features_size = len(self._c_env.grid_features())
         self._single_observation_space = self._c_env.observation_space
         self._single_action_space = self._c_env.action_space
         # force buffers to the correct size
@@ -331,6 +331,16 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     @property
     def grid_objects(self):
+        """
+        Get information about all grid objects that are present in our map.
+
+        It is important to keep in mind the difference between grid_objects, which are things
+        like "walls" or "agents", and grid_features which is the encoded representation of all possible
+        observations of grid_objects that is provided to the policy.
+
+        Returns:
+            A dictionary mapping object IDs to their properties.
+        """
         return self._c_env.grid_objects()
 
     @property
@@ -341,7 +351,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     def action_success(self):
         # Get the char array and convert to numpy array
         # Note: We keep it as char/int8 type for consistency
-        return np.asarray(self._c_env.action_success(), dtype=np.int8)
+        return np.asarray(self._c_env.action_success(), dtype=np_success_type)
 
     def action_names(self):
         return self._c_env.action_names()
