@@ -73,7 +73,6 @@ class Policy(nn.Module):
         return logits, value
 
 
-# don't move to class Policy
 def load_policy(path: str, device: str = "cpu"):
     weights = torch.load(path, map_location=device, weights_only=True)
     num_actions, hidden_size = weights["policy.actor.0.weight"].shape
