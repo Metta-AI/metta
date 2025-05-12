@@ -13,6 +13,89 @@ _seen_objects: Set[int] = set()
 _max_recursion_depth = 10  # Limit recursion depth
 
 
+def save_array_slice(
+    array: np.ndarray, indices: tuple, file_path: Path, max_preview_elements: int = 60, append: bool = False
+) -> None:
+    """
+    Save a slice of an array to a file, with a preview of values.
+
+    Args:
+        array: The NumPy array to slice
+        indices: Tuple of indices to select the slice (use None for ':' in that dimension)
+                 e.g., (0, None, 5) would represent array[0, :, 5]
+        file_path: Path to the file to save the slice information
+        max_preview_elements: Maximum number of elements to include in the preview
+        append: Whether to append to the file (True) or overwrite it (False)
+    """
+    # Convert None indices to slice(None) for proper indexing
+    idx = tuple(slice(None) if i is None else i for i in indices)
+
+    # Check that the indices are valid for the array
+    if len(idx) > array.ndim:
+        raise ValueError(f"Too many indices ({len(idx)}) for array with {array.ndim} dimensions")
+
+    # Create a string representation of the indices for display
+    idx_str = []
+    for i, index in enumerate(idx):
+        if index == slice(None):
+            idx_str.append(":")
+        else:
+            idx_str.append(str(index))
+
+    # If we have fewer indices than dimensions, add ":" for the remaining dims
+    idx_str.extend([":" for _ in range(array.ndim - len(idx))])
+
+    # Get the slice
+    try:
+        array_slice = array[idx]
+
+        # Open the file in append or write mode
+        mode = "a" if append else "w"
+        with open(file_path, mode) as f:
+            # If we're appending, add a section header
+            if append:
+                f.write("\n# Slice preview\n")
+
+            # Write the slice information
+            f.write(f"slice_indices: [{', '.join(idx_str)}]\n")
+            f.write(f"slice_shape: {array_slice.shape}\n")
+
+            # Check if the slice is a scalar (0-dim array)
+            if array_slice.ndim == 0:
+                f.write(f"slice_value: {array_slice.item()}\n")
+                return
+
+            # Format the slice preview based on its size
+            f.write("slice_preview: [")
+
+            # Handle empty array
+            if array_slice.size == 0:
+                f.write("]\n")
+                return
+
+            # Flatten the array for preview if it's multi-dimensional
+            flat_slice = array_slice.flatten() if array_slice.ndim > 1 else array_slice
+
+            # Preview logic
+            if flat_slice.size <= max_preview_elements:
+                # If small enough, show the entire slice
+                slice_str = ", ".join(str(val) for val in flat_slice)
+                f.write(f"{slice_str}]\n")
+            else:
+                # Show first and last parts with ellipsis in the middle
+                half_elements = max_preview_elements // 2
+                first_slice = ", ".join(str(val) for val in flat_slice[:half_elements])
+                last_slice = ", ".join(str(val) for val in flat_slice[-half_elements:])
+                f.write(f"{first_slice}, ... , {last_slice}]\n")
+
+    except Exception as e:
+        # Handle errors gracefully
+        with open(file_path, mode) as f:
+            if append:
+                f.write("\n# Slice preview\n")
+            f.write(f"Error getting slice at {idx_str}: {str(e)}\n")
+
+
 def save_args_for_c(
     args: Dict[str, Any], base_filename: str = "c_test_args", output_dir: Optional[str] = None
 ) -> Dict[str, str]:
@@ -25,6 +108,8 @@ def save_args_for_c(
     Returns:
         dict: Paths to the saved files
     """
+    import datetime
+
     if output_dir is None:
         output_dir = "."
 
@@ -38,6 +123,9 @@ def save_args_for_c(
     with open(pickle_path, "wb") as f:
         pickle.dump(args, f)
     saved_files["pickle"] = str(pickle_path)
+
+    # Get current date and time
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     # 2. Save individual arguments in C-friendly formats
     for arg_name, arg_value in args.items():
@@ -55,12 +143,56 @@ def save_args_for_c(
             np.savez_compressed(file_path, array=arg_value)
             saved_files[arg_name] = str(file_path)
 
-            # Also save shape and dtype information in a separate text file for easier parsing in C
+            # Save shape, dtype and preview information in a separate text file for easier parsing in C
             info_path = output_path / f"{base_filename}_{arg_name}_info.txt"
             with open(info_path, "w") as f:
+                f.write(f"# Generated: {timestamp}\n")
                 f.write(f"shape: {arg_value.shape}\n")
                 f.write(f"dtype: {arg_value.dtype}\n")
                 f.write(f"ndim: {arg_value.ndim}\n")
+                f.write(f"size: {arg_value.size}\n")
+
+                # Add min/max for numeric arrays
+                if arg_value.size > 0 and np.issubdtype(arg_value.dtype, np.number):
+                    f.write(f"min: {np.min(arg_value)}\n")
+                    f.write(f"max: {np.max(arg_value)}\n")
+                else:
+                    f.write("min: N/A\n")
+                    f.write("max: N/A\n")
+
+                # Create a preview of the flattened array values
+                f.write("preview: [")
+                if arg_value.size == 0:
+                    f.write("]\n")
+                else:
+                    # Flatten the array for preview
+                    flat = arg_value.flatten()
+                    if flat.size <= 60:
+                        # If the array is small, show all values
+                        values_str = ", ".join(str(val) for val in flat)
+                        f.write(f"{values_str}]\n")
+                    else:
+                        # Show first 30 and last 30 values with ellipsis in the middle
+                        first_values = ", ".join(str(val) for val in flat[:30])
+                        last_values = ", ".join(str(val) for val in flat[-30:])
+                        f.write(f"{first_values}, ... , {last_values}]\n")
+
+            # Add slices for multi-dimensional arrays
+            if arg_value.ndim > 1:
+                # For multi-dimensional arrays, save slices
+                # First, save the slice of the last dimension at index 0 for all other dimensions
+                zeros_idx = tuple(0 for _ in range(arg_value.ndim - 1))
+                save_array_slice(arg_value, zeros_idx, info_path, append=True)
+
+                # If it's a 3D+ array, add another slice from the middle of the array if possible
+                if arg_value.ndim >= 3:
+                    try:
+                        # Try to get indices from the middle of each dimension (except the last)
+                        mid_idx = tuple(min(5, max(0, s // 2)) for s in arg_value.shape[:-1])
+                        save_array_slice(arg_value, mid_idx, info_path, append=True)
+                    except Exception as e:
+                        print(f"Warning: Could not save middle slice for {arg_name}: {str(e)}")
+
             saved_files[f"{arg_name}_info"] = str(info_path)
 
             # For 1D and 2D arrays, also save in text format for human readability
@@ -92,6 +224,7 @@ def save_args_for_c(
 
                 simplified = _simplify_for_c(arg_value)
                 with open(file_path, "w") as f:
+                    f.write(f"# Generated: {timestamp}\n")
                     for key, value in simplified.items():
                         f.write(f"{key}={value}\n")
                 saved_files[f"{arg_name}_simplified"] = str(file_path)
@@ -99,6 +232,7 @@ def save_args_for_c(
             # For simple types
             file_path = output_path / f"{base_filename}_{arg_name}.txt"
             with open(file_path, "w") as f:
+                f.write(f"# Generated: {timestamp}\n")
                 f.write(str(arg_value))
             saved_files[arg_name] = str(file_path)
 
