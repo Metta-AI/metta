@@ -42,7 +42,6 @@ def test_mettagrid_env_no_memory_leaks():
     # Force garbage collection before starting
     gc.collect()
 
-    # Get initial memory usage
     initial_memory = get_memory_usage()
     print(f"Initial memory usage: {initial_memory:.2f} MB")
 
@@ -52,7 +51,6 @@ def test_mettagrid_env_no_memory_leaks():
     register_resolvers()
     cfg = get_cfg("benchmark")
 
-    # More extensive pre-warming phase
     print("Pre-warming phase:")
     for _i in range(20):
         env = MettaGridEnv(env_cfg=cfg, render_mode=None)
@@ -62,7 +60,6 @@ def test_mettagrid_env_no_memory_leaks():
         del env
         gc.collect()
 
-    # Measure memory after pre-warming
     post_warmup_memory = get_memory_usage()
     print(f"Memory after pre-warming: {post_warmup_memory:.2f} MB")
     print(f"Initial warmup cost: {post_warmup_memory - initial_memory:.2f} MB")
@@ -78,7 +75,7 @@ def test_mettagrid_env_no_memory_leaks():
         env = MettaGridEnv(env_cfg=cfg, render_mode=None)
 
         # Do multiple resets
-        for j in range(3):
+        for _j in range(3):
             _obs, _infos = env.reset()
 
         if hasattr(env, "close"):
@@ -120,7 +117,6 @@ def test_mettagrid_env_no_memory_leaks():
                 f"Persistent memory leak detected: {slope:.6f} MB growth per iteration in second half"
             )
 
-            # Also check max fluctuation
             fluctuation_threshold = 2.0  # MB
             assert max_diff < fluctuation_threshold, f"Excessive memory fluctuation in second half: {max_diff:.2f} MB"
 
@@ -128,7 +124,6 @@ def test_mettagrid_env_no_memory_leaks():
     final_growth = memory_readings[-1] - baseline_memory
     print(f"Total memory growth after warmup: {final_growth:.2f} MB")
 
-    # Set realistic threshold based on your observations
-    # Since you were seeing ~4MB growth and plateauing, this is reasonable
+    # Set realistic threshold based on observed ~4MB growth and plateauing
     final_threshold = 8.0  # MB
     assert final_growth < final_threshold, f"Excessive total memory growth: {final_growth:.2f} MB"
