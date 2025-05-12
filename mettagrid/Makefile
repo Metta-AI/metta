@@ -37,8 +37,9 @@ PYBIND11_INCLUDE = $(shell python -m pybind11 --includes)
 PYBIND11_LIBS = $(shell python -m pybind11 --includes)
 NUMPY_INCLUDE = $(shell python -c "import numpy; print(numpy.get_include())")
 PYTHON_INCLUDE = $(shell python -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())")
-PYTHON_LIB_DIR = $(shell python -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR'))")
-PYTHON_LIBS = -L$(PYTHON_LIB_DIR) -lpython3.11
+PYTHON_VERSION = $(shell python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
+PYTHON_LIB_DIR = $(shell python3 -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR'))")
+PYTHON_LIBS = -L$(PYTHON_LIB_DIR) -lpython$(PYTHON_VERSION)
 CXXFLAGS = -std=c++23 -Wall -g -I$(SRC_DIR) -I$(THIRD_PARTY_DIR) -I$(TEST_DIR) -I$(EIGEN_INCLUDE) -I$(PYBIND11_INCLUDE) -I$(NUMPY_INCLUDE) -I$(PYTHON_INCLUDE)
 
 # Add RPATH settings for macOS

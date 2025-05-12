@@ -225,12 +225,12 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
   auto observation_view = _observations.mutable_unchecked<4>();
 
   // Calculate observation boundaries
-  int obs_width_radius = obs_width >> 1;
-  int obs_height_radius = obs_height >> 1;
-  int r_start = observer_row - obs_height_radius;
-  int c_start = observer_col - obs_width_radius;
-  int r_end = observer_row + obs_height_radius + 1;
-  int c_end = observer_col + obs_width_radius + 1;
+  unsigned int obs_width_radius = obs_width >> 1;
+  unsigned int obs_height_radius = obs_height >> 1;
+  unsigned int r_start = observer_row - obs_height_radius;
+  unsigned int c_start = observer_col - obs_width_radius;
+  unsigned int r_end = observer_row + obs_height_radius + 1;
+  unsigned int c_end = observer_col + obs_width_radius + 1;
 
   r_start = r_start < 0 ? 0 : r_start;
   c_start = c_start < 0 ? 0 : c_start;
