@@ -156,6 +156,7 @@ check-test-tools:
 	@(ldconfig -p 2>/dev/null | grep -q libgtest.so) || \
 		(test -f /usr/local/lib/libgtest.a) || \
 		(test -f /usr/local/lib/libgtest.dylib) || \
+		(test -f /opt/homebrew/Cellar/googletest/1.17.0/lib/libgtest.a) || \
 		(test -f /opt/homebrew/Cellar/googletest/1.17.0/lib/libgtest.dylib) || \
 		(pkg-config --exists gtest 2>/dev/null) || \
 		{ echo "Google Test library not found. Run 'make install-test-tools' to install."; exit 1; }
