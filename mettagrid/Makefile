@@ -34,9 +34,19 @@ DEVOPS_SCRIPTS_DIR = ../devops
 # Compiler settings
 CXX = g++
 PYBIND11_INCLUDE = $(shell python -m pybind11 --includes)
+PYBIND11_LIBS = $(shell python -m pybind11 --includes)
 NUMPY_INCLUDE = $(shell python -c "import numpy; print(numpy.get_include())")
 PYTHON_INCLUDE = $(shell python -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())")
+PYTHON_LIB_DIR = $(shell python -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR'))")
+PYTHON_LIBS = -L$(PYTHON_LIB_DIR) -lpython3.11
 CXXFLAGS = -std=c++23 -Wall -g -I$(SRC_DIR) -I$(THIRD_PARTY_DIR) -I$(TEST_DIR) -I$(EIGEN_INCLUDE) -I$(PYBIND11_INCLUDE) -I$(NUMPY_INCLUDE) -I$(PYTHON_INCLUDE)
+
+# Add RPATH settings for macOS
+ifeq ($(shell uname), Darwin)
+    RPATH_FLAGS = -Wl,-rpath,$(PYTHON_LIB_DIR)
+else
+    RPATH_FLAGS =
+endif
 
 # Google Test settings - with detection for different install locations
 GTEST_INCLUDE = $(shell pkg-config --cflags gtest 2>/dev/null || echo "-I/opt/homebrew/Cellar/googletest/1.17.0/include")
@@ -202,7 +212,7 @@ $(BUILD_TEST_DIR)/%.o: $(TEST_DIR)/%.cpp | $(BUILD_TEST_DIR)
 # Link test executables with the mettagrid library
 $(BUILD_TEST_DIR)/%: $(BUILD_TEST_DIR)/%.o $(SRC_OBJECTS)
 	@mkdir -p $(dir $@)
-	$(CXX) $^ -o $@ $(GTEST_LIBS)
+	$(CXX) $^ -o $@ $(GTEST_LIBS) $(PYTHON_LIBS) $(PYBIND11_LIBS) $(RPATH_FLAGS)
 
 # Run all tests
 test: check-test-tools $(SRC_OBJECTS) $(TEST_EXECUTABLES)

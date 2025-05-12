@@ -171,55 +171,11 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
       } else if (cell == "temple") {
         converter = new Converter(r, c, cfg["objects"]["temple"].cast<ObjectConfig>(), ObjectType::TempleT);
       } else if (cell.starts_with("agent.")) {
-        // TODO: owe a test about agent configurations merging / etc.
         std::string group_name = cell.substr(6);
-        // The group should always exist, and it's okay to crash (for now!) if it doesn't.
-        // Consider making a nicer error message.
         auto group_cfg_py = groups[py::str(group_name)]["props"].cast<py::dict>();
         auto agent_cfg_py = cfg["agent"].cast<py::dict>();
-        // We want to merge the group and agent configs. Rewards are a special case, since they're
-        // a dict vs being a float, so we process them first and separately.
-        // Rewards default to 0 for inventory unless overridden.
-        std::map<std::string, float> rewards;
-        for (const auto& inv_item : InventoryItemNames) {
-          auto it = rewards.find(inv_item);
-          if (it == rewards.end()) {
-            rewards.insert(std::make_pair(inv_item, 0));
-          }
-          it = rewards.find(inv_item + "_max");
-          if (it == rewards.end()) {
-            rewards.insert(std::make_pair(inv_item + "_max", 1000));
-          }
-        }
-        if (agent_cfg_py.contains("rewards")) {
-          py::dict rewards_py = agent_cfg_py["rewards"];
-          for (const auto& [key, value] : rewards_py) {
-            rewards[key.cast<std::string>()] = value.cast<float>();
-          }
-        }
-        if (group_cfg_py.contains("rewards")) {
-          py::dict rewards_py = group_cfg_py["rewards"];
-          for (const auto& [key, value] : rewards_py) {
-            rewards[key.cast<std::string>()] = value.cast<float>();
-          }
-        }
-
-        ObjectConfig agent_cfg;
-        for (const auto& [key, value] : agent_cfg_py) {
-          if (key.cast<std::string>() == "rewards") {
-            continue;
-          }
-          agent_cfg[key.cast<std::string>()] = value.cast<int>();
-        }
-        for (const auto& [key, value] : group_cfg_py) {
-          if (key.cast<std::string>() == "rewards") {
-            continue;
-          }
-          agent_cfg[key.cast<std::string>()] = value.cast<int>();
-        }
-
         unsigned int group_id = groups[py::str(group_name)]["id"].cast<unsigned int>();
-        Agent* agent = new Agent(r, c, group_name, group_id, agent_cfg, rewards);
+        Agent* agent = MettaGrid::create_agent(r, c, group_name, group_id, group_cfg_py, agent_cfg_py);
         _grid->add_object(agent);
         agent->agent_id = _agents.size();
         add_agent(agent);
@@ -429,7 +385,6 @@ py::tuple MettaGrid::step(py::array_t<int> actions) {
   _step(actions);
 
   auto rewards_view = _rewards.mutable_unchecked<1>();
-  auto episode_rewards_view = _episode_rewards.mutable_unchecked<1>();
   // Clear group rewards
   auto group_rewards_view = _group_rewards.mutable_unchecked<1>();
   for (py::ssize_t i = 0; i < group_rewards_view.shape(0); i++) {
@@ -581,6 +536,54 @@ py::list MettaGrid::object_type_names() {
 
 py::list MettaGrid::inventory_item_names() {
   return py::cast(InventoryItemNames);
+}
+
+Agent* MettaGrid::create_agent(int r, int c, const std::string& group_name, unsigned int group_id, 
+                             const py::dict& group_cfg_py, const py::dict& agent_cfg_py) {
+  // Rewards default to 0 for inventory unless overridden.
+  // But we should be rewarding these all the time, e.g., for hearts.
+  std::map<std::string, float> rewards;
+  for (const auto& inv_item : InventoryItemNames) {
+    // TODO: We shouldn't need to populate this with 0, since that's
+    // the default anyways. Confirm that we don't care about the keys
+    // and simplify.
+    auto it = rewards.find(inv_item);
+    if (it == rewards.end()) {
+      rewards.insert(std::make_pair(inv_item, 0));
+    }
+    it = rewards.find(inv_item + "_max");
+    if (it == rewards.end()) {
+      rewards.insert(std::make_pair(inv_item + "_max", 1000));
+    }
+  }
+  if (agent_cfg_py.contains("rewards")) {
+    py::dict rewards_py = agent_cfg_py["rewards"];
+    for (const auto& [key, value] : rewards_py) {
+      rewards[key.cast<std::string>()] = value.cast<float>();
+    }
+  }
+  if (group_cfg_py.contains("rewards")) {
+    py::dict rewards_py = group_cfg_py["rewards"];
+    for (const auto& [key, value] : rewards_py) {
+      rewards[key.cast<std::string>()] = value.cast<float>();
+    }
+  }
+
+  ObjectConfig agent_cfg;
+  for (const auto& [key, value] : agent_cfg_py) {
+    if (key.cast<std::string>() == "rewards") {
+      continue;
+    }
+    agent_cfg[key.cast<std::string>()] = value.cast<int>();
+  }
+  for (const auto& [key, value] : group_cfg_py) {
+    if (key.cast<std::string>() == "rewards") {
+      continue;
+    }
+    agent_cfg[key.cast<std::string>()] = value.cast<int>();
+  }
+
+  return new Agent(r, c, group_name, group_id, agent_cfg, rewards);
 }
 
 // Pybind11 module definition

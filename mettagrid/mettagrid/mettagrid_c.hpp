@@ -48,6 +48,8 @@ public:
   py::list max_action_args();
   py::list object_type_names();
   py::list inventory_item_names();
+  static Agent* create_agent(int r, int c, const std::string& group_name, unsigned int group_id,
+                           const py::dict& group_cfg_py, const py::dict& agent_cfg_py);
 
 private:
   // Member variables
