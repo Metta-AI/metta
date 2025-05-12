@@ -632,19 +632,14 @@ class PufferTrainer:
             results = replay_simulator.simulate()
 
             if self.wandb_run is not None and not dry_run:
-                try:
-                    replay_url = results.stats_db.get_replay_urls(
-                        policy_key=self.last_pr.key(), policy_version=self.last_pr.version()
-                    )[0]
-                    player_url = "https://metta-ai.github.io/metta/?replayUrl=" + replay_url
-                    link_summary = {
-                        "replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {self.epoch})</a>')
-                    }
-                    self.wandb_run.log(link_summary)
-                except Exception:
-                    logger.warning(
-                        "Failed to log replay to wandb. This is probably because wandb is not properly configured."
-                    )
+                replay_url = results.stats_db.get_replay_urls(
+                    policy_key=self.last_pr.key(), policy_version=self.last_pr.version()
+                )[0]
+                player_url = "https://metta-ai.github.io/metta/?replayUrl=" + replay_url
+                link_summary = {
+                    "replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {self.epoch})</a>')
+                }
+                self.wandb_run.log(link_summary)
 
     def _process_stats(self):
         for k in list(self.stats.keys()):
