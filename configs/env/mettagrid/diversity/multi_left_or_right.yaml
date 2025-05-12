@@ -9,7 +9,7 @@ game:
   # Enough time to pick one direction, but not to dilly-dally.
   max_steps: 25
   diversity_bonus:
-    enabled: true
+    enabled: false
     similarity_coef: 0.5  # Coefficient for within-group similarity
     diversity_coef: 0.5   # Coefficient for between-group diversity
 
