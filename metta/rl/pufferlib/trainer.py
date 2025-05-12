@@ -149,8 +149,8 @@ class PufferTrainer:
         )
 
         # validate that policy matches environment
-        self.metta_agent: MettaAgent = self.policy  # type: ignore
-        # assert isinstance(self.metta_agent, MettaAgent)
+        self.metta_agent: MettaAgent | DistributedMettaAgent = self.policy  # type: ignore
+        assert isinstance(self.metta_agent, (MettaAgent, DistributedMettaAgent)), self.metta_agent
         _env_shape = metta_grid_env.single_observation_space.shape
         environment_shape = tuple(_env_shape) if isinstance(_env_shape, list) else _env_shape
 
@@ -632,14 +632,19 @@ class PufferTrainer:
             results = replay_simulator.simulate()
 
             if self.wandb_run is not None and not dry_run:
-                replay_url = results.stats_db.get_replay_urls(
-                    policy_key=self.last_pr.key(), policy_version=self.last_pr.version()
-                )[0]
-                player_url = "https://metta-ai.github.io/metta/?replayUrl=" + replay_url
-                link_summary = {
-                    "replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {self.epoch})</a>')
-                }
-                self.wandb_run.log(link_summary)
+                try:
+                    replay_url = results.stats_db.get_replay_urls(
+                        policy_key=self.last_pr.key(), policy_version=self.last_pr.version()
+                    )[0]
+                    player_url = "https://metta-ai.github.io/metta/?replayUrl=" + replay_url
+                    link_summary = {
+                        "replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {self.epoch})</a>')
+                    }
+                    self.wandb_run.log(link_summary)
+                except Exception:
+                    logger.warning(
+                        "Failed to log replay to wandb. This is probably because wandb is not properly configured."
+                    )
 
     def _process_stats(self):
         for k in list(self.stats.keys()):
