@@ -145,7 +145,7 @@ def validate_batch_job(args, task_args, job_name, job_queue, job_definition, req
         return False
 
     # Get the git reference
-    git_ref = args.git_commit if args.git_commit else args.git_branch
+    git_ref = args.git_branch
 
     # Display job details
     print(f"\n{divider}")
