@@ -16,7 +16,6 @@ class ObsShaper(LayerBase):
     """
 
     def __init__(self, obs_shape, num_objects, **cfg):
-        # Note that __init__ is NOT called when we reload a policy from a checkpoint file
         super().__init__(**cfg)
         self._obs_shape = list(obs_shape)  # make sure no Omegaconf types are used in forward passes
         self._out_tensor_shape = [self._obs_shape[2], self._obs_shape[0], self._obs_shape[1]]
@@ -24,6 +23,7 @@ class ObsShaper(LayerBase):
 
     def _forward(self, td: TensorDict):
         x = td["x"]
+
         x_shape, space_shape = x.shape, self._obs_shape
         x_n, space_n = len(x_shape), len(space_shape)
         if tuple(x_shape[-space_n:]) != tuple(space_shape):
@@ -53,8 +53,10 @@ class ObsShaper(LayerBase):
 
         x = x.reshape(B * TT, *space_shape)
         x = x.float()
+
         # conv expects [batch, channel, w, h]. Below is hardcoded for [batch, w, h, channel]
         x = self._permute(x)
+
         td["_TT_"] = TT
         td["_batch_size_"] = B
         td["_BxTT_"] = B * TT

@@ -49,8 +49,6 @@ OBS_NORMALIZATIONS = {
     "converting": 1,
     "color": 10,
     "swappable": 1,
-    "has_inventory": 1,
-    "converter": 1,
 }
 
 
