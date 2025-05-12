@@ -85,7 +85,8 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                     group_counts[group] += 1
 
         self._group_counts = group_counts
-        self._c_env = MettaGrid(self._env_cfg, env_map)
+
+        # self._c_env = MettaGrid(self._env_cfg, env_map)
         # I haven't figured out how to get C++ code to deal with fixed-length strings; so we convert
         # to non-fixed length strings. This is obvious very silly, but OTOH we shouldn't be using a numpy array
         # of strings here in the first place.
