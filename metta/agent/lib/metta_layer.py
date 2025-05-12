@@ -35,7 +35,11 @@ class LayerBase(nn.Module):
     Carefully passing input and output shapes is necessary to setup the agent.
     self._in_tensor_shape and self._out_tensor_shape are always of type list.
     Note that these lists not include the batch dimension so their shape is
-    one dimension smaller than the actual shape of the tensor."""
+    one dimension smaller than the actual shape of the tensor.
+
+    Note that the __init__ of any layer class and the MettaAgent are only called when the agent
+    is instantiated and never again. I.e., not when it is reloaded from a saved policy.
+    """
 
     def __init__(self, name, sources=None, nn_params=None, **cfg):
         super().__init__()
@@ -112,8 +116,28 @@ class LayerBase(nn.Module):
 
 
 class ParamLayer(LayerBase):
-    """This provides a few useful methods for components/nets that have parameters (weights).
-    Superclasses should have input_size and output_size already set."""
+    """
+    Extension of LayerBase that provides parameter management and regularization functionality.
+
+    This class adds weight initialization, clipping, and regularization methods to the base layer
+    functionality. It supports multiple initialization schemes (Orthogonal, Xavier, Normal, and custom),
+    weight clipping to prevent exploding gradients, and L2 regularization options.
+
+    Key features:
+    - Weight initialization with various schemes (Orthogonal, Xavier, Normal, or custom)
+    - Automatic nonlinearity addition (e.g., ReLU) after the weight layer
+    - Weight clipping to prevent exploding gradients
+    - L2 regularization (weight decay)
+    - L2-init regularization (delta regularization) to prevent catastrophic forgetting
+    - Weight metrics computation for analysis and debugging
+
+    The implementation handles computation of appropriate clipping values and initialization
+    scales based on network architecture, and provides methods to compute regularization
+    losses during training.
+
+    Note that the __init__ of any layer class and the MettaAgent are only called when the agent
+    is instantiated and never again. I.e., not when it is reloaded from a saved policy.
+    """
 
     def __init__(
         self,
@@ -163,6 +187,13 @@ class ParamLayer(LayerBase):
                 raise ValueError(f"Unsupported nonlinearity: {self.nonlinearity}") from e
 
     def _initialize_weights(self):
+        """
+        Initialize weights based on the specified initialization method.
+
+        Supports Orthogonal, Xavier, Normal, and custom max_0_01 initializations.
+        Each method scales weights appropriately based on fan-in and fan-out dimensions.
+        Also initializes biases to zero if present.
+        """
         fan_in = self._in_tensor_shapes[0][0]
         fan_out = self._out_tensor_shape[0]
 
@@ -192,37 +223,76 @@ class ParamLayer(LayerBase):
         self.largest_weight = largest_weight
 
     def clip_weights(self):
+        """
+        Clips weights to prevent exploding gradients.
+
+        If clip_value is positive, clamps all weights to the range [-clip_value, clip_value].
+        """
         if self.clip_value > 0:
             with torch.no_grad():
                 self.weight_net.weight.data = self.weight_net.weight.data.clamp(-self.clip_value, self.clip_value)
 
     def l2_reg_loss(self) -> torch.Tensor:
-        """Also known as Weight Decay Loss or L2 Ridge Regularization"""
+        """
+        Computes L2 regularization loss (weight decay).
+
+        Returns:
+            torch.Tensor: The L2 regularization loss scaled by l2_norm_scale,
+                          or zero if regularization is disabled.
+        """
         l2_reg_loss = torch.tensor(0.0, device=self.weight_net.weight.data.device)
         if self.l2_norm_scale != 0 and self.l2_norm_scale is not None:
             l2_reg_loss = (torch.sum(self.weight_net.weight.data**2)) * self.l2_norm_scale
         return l2_reg_loss
 
     def l2_init_loss(self) -> torch.Tensor:
-        """Also known as Delta Regularization Loss"""
+        """
+        Computes L2-init regularization loss (delta regularization).
+
+        Penalizes deviation from initial weights to help prevent catastrophic forgetting.
+
+        Returns:
+            torch.Tensor: The L2-init regularization loss scaled by l2_init_scale,
+                          or zero if regularization is disabled.
+        """
         l2_init_loss = torch.tensor(0.0, device=self.weight_net.weight.data.device)
         if self.l2_init_scale != 0 and self.l2_init_scale is not None:
             l2_init_loss = torch.sum((self.weight_net.weight.data - self.initial_weights) ** 2) * self.l2_init_scale
         return l2_init_loss
 
     def update_l2_init_weight_copy(self, alpha: float = 0.9):
-        """Potentially useful to prevent catastrophic forgetting. Update the
-        initial weights copy with a weighted average of the previous and
-        current weights."""
+        """
+        Updates the initial weights reference for L2-init regularization.
+
+        Potentially useful to prevent catastrophic forgetting by gradually adapting
+        the reference weights used in L2-init regularization.
+
+        Args:
+            alpha (float): Weight for exponential moving average (0.9 means 90% old weights,
+                          10% new weights)
+        """
         if self.initial_weights is not None:
             self.initial_weights = (self.initial_weights * alpha + self.weight_net.weight.data * (1 - alpha)).clone()
 
     def compute_weight_metrics(self, delta: float = 0.01) -> dict:
-        """Compute metrics related to the weight matrix dynamics including:
-        - Singular value statistics
-        - Effective rank
-        - Weight norms
-        - Power law fit metrics
+        """
+        Computes metrics related to the weight matrix dynamics.
+
+        Analyzes weight matrices to provide insights into network behavior and training dynamics.
+
+        Args:
+            delta (float): Small constant used in effective rank calculation
+
+        Returns:
+            dict: Dictionary of metrics including:
+                - Singular value statistics
+                - Effective rank
+                - Weight norms
+                - Power law fit metrics
+                - Layer name
+
+            Returns None if the layer doesn't have a 2D weight matrix or
+            if weight analysis is disabled.
         """
         if (
             self.weight_net.weight.data.dim() != 2

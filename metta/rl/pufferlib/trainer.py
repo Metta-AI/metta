@@ -13,12 +13,12 @@ import wandb
 from heavyball import ForeachMuon
 from omegaconf import DictConfig, ListConfig
 
-from metta.agent.metta_agent import DistributedMettaAgent
+from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyStore
 from metta.agent.util.weights_analysis import WeightsMetricsHelper
 from metta.eval.eval_stats_db import EvalStatsDB
-from metta.rl import fast_gae
+from metta.rl.fast_gae import compute_gae
 from metta.rl.pufferlib.experience import Experience
 from metta.rl.pufferlib.kickstarter import Kickstarter
 from metta.rl.pufferlib.profile import Profile
@@ -29,6 +29,7 @@ from metta.sim.simulation_config import SimulationConfig, SimulationSuiteConfig
 from metta.sim.simulation_suite import SimulationSuite
 from metta.sim.vecenv import make_vecenv
 from metta.util.config import config_from_path
+from mettagrid.mettagrid_env import MettaGridEnv
 
 torch.set_float32_matmul_precision("high")
 
@@ -78,37 +79,35 @@ class PufferTrainer:
         self._weights_helper = WeightsMetricsHelper(cfg)
         self._make_vecenv()
 
+        metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
+        assert isinstance(metta_grid_env, MettaGridEnv)
+
         logger.info("Loading checkpoint")
         os.makedirs(cfg.trainer.checkpoint_dir, exist_ok=True)
         checkpoint = TrainerCheckpoint.load(cfg.run_dir)
 
-        logger.info("Setting up policy")
         if checkpoint.policy_path:
             logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
             policy_record = policy_store.policy(checkpoint.policy_path)
-            if hasattr(checkpoint, "average_reward"):
-                self.average_reward = checkpoint.average_reward
+            if "average_reward" in checkpoint.extra_args:
+                self.average_reward = checkpoint.extra_args["average_reward"]
         elif cfg.trainer.initial_policy.uri is not None:
-            logger.info(f"Loading initial policy: {cfg.trainer.initial_policy.uri}")
+            logger.info(f"Loading initial policy URI: {cfg.trainer.initial_policy.uri}")
             policy_record = policy_store.policy(cfg.trainer.initial_policy)
         else:
             policy_path = os.path.join(cfg.trainer.checkpoint_dir, policy_store.make_model_name(0))
-            for _i in range(20):
-                if os.path.exists(policy_path):
-                    logger.info(f"Loading policy from checkpoint: {policy_path}")
-                    policy_record = policy_store.policy(policy_path)
-                    break
-                elif self._master:
-                    logger.info("Creating new policy")
-                    policy_record = policy_store.create(self.vecenv.driver_env)
-                    break
 
-                logger.info("No policy found. Waiting for 10 seconds before retrying.")
-                time.sleep(10)
-            assert policy_record is not None, "No policy found"
+            if os.path.exists(policy_path):
+                logger.info(f"Loading policy from checkpoint: {policy_path}")
+                policy_record = policy_store.policy(policy_path)
+            elif self._master:
+                logger.info(f"Failed to load policy from default checkpoint: {policy_path}. Creating a new policy!")
+                policy_record = policy_store.create(metta_grid_env)
+
+        assert policy_record is not None, "No policy found"
 
         if self._master:
-            print(policy_record.policy())
+            logger.info(f"PufferTrainer loaded: {policy_record.policy()}")
 
         self._initial_pr = policy_record
         self.last_pr = policy_record
@@ -116,8 +115,11 @@ class PufferTrainer:
         self.policy_record = policy_record
         self.uncompiled_policy = self.policy
 
-        actions_names = self.vecenv.driver_env.action_names()
-        actions_max_params = self.vecenv.driver_env._c_env.max_action_args()
+        # Note that these fields are specific to MettaGridEnv, which is why we can't keep
+        # self.vecenv.driver_env as just the parent class pufferlib.PufferEnv
+        actions_names = metta_grid_env.action_names()
+        actions_max_params = metta_grid_env._c_env.max_action_args()
+
         self.policy.activate_actions(actions_names, actions_max_params, self.device)
 
         if self.trainer_cfg.compile:
@@ -145,6 +147,33 @@ class PufferTrainer:
             betas=(self.trainer_cfg.optimizer.beta1, self.trainer_cfg.optimizer.beta2),
             eps=self.trainer_cfg.optimizer.eps,
         )
+
+        # validate that policy matches environment
+        self.metta_agent: MettaAgent | DistributedMettaAgent = self.policy  # type: ignore
+        assert isinstance(self.metta_agent, (MettaAgent, DistributedMettaAgent)), self.metta_agent
+        _env_shape = metta_grid_env.single_observation_space.shape
+        environment_shape = tuple(_env_shape) if isinstance(_env_shape, list) else _env_shape
+
+        found_match = False
+        for component_name, component in self.metta_agent.components.items():
+            if hasattr(component, "_obs_shape"):
+                found_match = True
+                component_shape = (
+                    tuple(component._obs_shape) if isinstance(component._obs_shape, list) else component._obs_shape
+                )
+                if component_shape != environment_shape:
+                    raise ValueError(
+                        f"Observation space mismatch error:\n"
+                        f"component_name: {component_name}\n"
+                        f"component_shape: {component_shape}\n"
+                        f"environment_shape: {environment_shape}\n"
+                    )
+
+        if not found_match:
+            raise ValueError(
+                "No component with observation shape found in policy. "
+                f"Environment observation shape: {environment_shape}"
+            )
 
         self.lr_scheduler = None
         if self.trainer_cfg.lr_scheduler.enabled:
@@ -252,8 +281,7 @@ class PufferTrainer:
             stats_dir=Path(self.cfg.run_dir) / "stats",
         )
         result = sim.simulate()
-        result.stats_db.close()
-        stats_db = EvalStatsDB(result.stats_db.path)
+        stats_db = EvalStatsDB.from_sim_stats_db(result.stats_db)
 
         logger.info("Simulation complete")
 
@@ -309,7 +337,7 @@ class PufferTrainer:
                 # This was originally self.config.env_batch_size == 1, but you have scaling
                 # configured differently in metta. You want the whole forward pass batch to come
                 # from one core to reduce indexing overhead.
-                # contiguous_env_ids = self.vecenv.agents_per_batch == self.vecenv.driver_env.agents_per_env[0]
+                # contiguous_env_ids = self.vecenv.agents_per_batch == metta_grid_env.agents_per_env[0]
                 contiguous_env_ids = self.trainer_cfg.async_factor == self.trainer_cfg.num_workers
                 contiguous_env_ids = False
                 if contiguous_env_ids:
@@ -392,7 +420,7 @@ class PufferTrainer:
                 # Set gamma to 1.0 for average reward case
                 effective_gamma = 1.0
                 # Compute advantages using adjusted rewards
-                advantages_np = fast_gae.compute_gae(
+                advantages_np = compute_gae(
                     dones_np, values_np, rewards_np_adjusted, effective_gamma, self.trainer_cfg.gae_lambda
                 )
                 # For average reward case, returns are computed differently:
@@ -401,7 +429,7 @@ class PufferTrainer:
             else:
                 effective_gamma = self.trainer_cfg.gamma
                 # Standard GAE computation for discounted case
-                advantages_np = fast_gae.compute_gae(
+                advantages_np = compute_gae(
                     dones_np, values_np, rewards_np, effective_gamma, self.trainer_cfg.gae_lambda
                 )
                 experience.returns_np = advantages_np + values_np
@@ -499,6 +527,9 @@ class PufferTrainer:
                         torch.cuda.synchronize()
 
                 with profile.train_misc:
+                    if self.losses is None:
+                        raise ValueError("self.losses is None")
+
                     self.losses.policy_loss += pg_loss.item() / total_minibatches
                     self.losses.value_loss += v_loss.item() / total_minibatches
                     self.losses.entropy += entropy_loss.item() / total_minibatches
@@ -543,6 +574,9 @@ class PufferTrainer:
         if not self._master:
             return
 
+        metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
+        assert isinstance(metta_grid_env, MettaGridEnv)
+
         name = self.policy_store.make_model_name(self.epoch)
 
         generation = 0
@@ -557,7 +591,7 @@ class PufferTrainer:
                 "agent_step": self.agent_step,
                 "epoch": self.epoch,
                 "run": self.cfg.run,
-                "action_names": self.vecenv.driver_env.action_names(),
+                "action_names": metta_grid_env.action_names(),
                 "generation": generation,
                 "initial_uri": self._initial_pr.uri,
                 "train_time": time.time() - self.train_start,
@@ -708,12 +742,20 @@ class PufferTrainer:
         self.target_batch_size = self.trainer_cfg.forward_pass_minibatch_target_size // self._env_cfg.game.num_agents
         if self.target_batch_size < 2:  # pufferlib bug requires batch size >= 2
             self.target_batch_size = 2
+
         self.batch_size = (self.target_batch_size // self.trainer_cfg.num_workers) * self.trainer_cfg.num_workers
+        num_envs = self.batch_size * self.trainer_cfg.async_factor
+
+        if num_envs < 1:
+            logger.error(
+                f"num_envs = batch_size ({self.batch_size}) * async_factor ({self.trainer_cfg.async_factor}) "
+                f"is {num_envs}, which is less than 1! (Increase trainer.forward_pass_minibatch_target_size)"
+            )
 
         self.vecenv = make_vecenv(
             self._env_cfg,
             self.cfg.vectorization,
-            num_envs=self.batch_size * self.trainer_cfg.async_factor,
+            num_envs=num_envs,
             batch_size=self.batch_size,
             num_workers=self.trainer_cfg.num_workers,
             zero_copy=self.trainer_cfg.zero_copy,
@@ -721,6 +763,7 @@ class PufferTrainer:
 
         if self.cfg.seed is None:
             self.cfg.seed = np.random.randint(0, 1000000)
+
         self.vecenv.async_reset(self.cfg.seed)
 
 

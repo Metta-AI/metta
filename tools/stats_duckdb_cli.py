@@ -3,14 +3,17 @@
 A script to download a stats file from wandb or S3 and launch duckdb against it.
 
 Usage:
-    python stats_duckdb.py wandb://stats/evals_jack_testing
-    python stats_duckdb.py s3://my-bucket/path/to/stats.db
+    python -m tools.stats_duckdb_cli ++eval_db_uri=wandb://stats/my_stats_db
 """
 
-import argparse
-import logging
 import subprocess
 
+import hydra
+from omegaconf import DictConfig
+
+from metta.eval.eval_stats_db import EvalStatsDB
+from metta.util.logging import setup_mettagrid_logger
+from metta.util.runtime_configuration import setup_mettagrid_environment
 from mettagrid.util.file import local_copy
 
 
@@ -38,26 +41,37 @@ def launch_duckdb_cli(file_path):
     return subprocess.call(["duckdb", str(file_path)], shell=False)
 
 
-def main():
-    # Set up logging
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+@hydra.main(version_base=None, config_path="../configs", config_name="analyze_job")
+def main(cfg: DictConfig) -> int:
+    """
+    Main function to download a stats file and launch duckdb against it.
+    """
+    setup_mettagrid_environment(cfg)
+    logger = setup_mettagrid_logger("stats_duckdb_cli")
+    # Check if eval_db_uri is configured
+    if not hasattr(cfg, "eval_db_uri") or not cfg.eval_db_uri:
+        logger.error("Error: eval_db_uri is not configured")
+        print("Please set eval_db_uri in your configuration or use the command line override.")
+        print("Example: python -m tools.stats_duckdb_cli +eval_db_uri=wandb://stats/navigation_db")
+        return 1
 
-    parser = argparse.ArgumentParser(description="Download a stats file and launch duckdb against it")
-    parser.add_argument("uri", help="URI in format wandb://project/artifact_name[:version] or s3://bucket/path/to/file")
-    args = parser.parse_args()
+    uri = cfg.eval_db_uri
 
     # Validate URI format
-    if not (args.uri.startswith("wandb://") or args.uri.startswith("s3://")):
-        print("Error: URI must start with wandb:// or s3://")
+    if not (uri.startswith("wandb://") or uri.startswith("s3://")):
+        logger.error(f"Error: URI must start with wandb:// or s3://, got {uri}")
         return 1
 
     try:
         # Use the local_copy context manager to get a local path
-        with local_copy(args.uri) as local_path:
-            print(f"Downloaded to temporary location: {local_path}")
+        with local_copy(uri) as local_path:
+            stats_db = EvalStatsDB(local_path)
+            stats_db.con.commit()
+            stats_db.close()
+            logger.info(f"Downloaded to temporary location: {local_path}")
             launch_duckdb_cli(local_path)
     except Exception as e:
-        print(f"Error: {e}")
+        logger.error(f"Error: {e}")
         return 1
 
     return 0
