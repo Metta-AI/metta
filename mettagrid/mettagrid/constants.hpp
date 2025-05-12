@@ -108,61 +108,44 @@ const std::vector<uint8_t> ActionMaxArgs = {
     2   // ChangeColor (color values)
 };
 
+// This must match GridFeatureNames below!
 enum GridFeature {
-  // Basic object features
-  HP = 0,
-  HAS_INVENTORY = 1,
-
-  // Wall features
-  WALL = 2,
-  SWAPPABLE = 3,
-
-  // Agent features
-  AGENT = 4,
-  AGENT_GROUP = 5,
-  AGENT_FROZEN = 6,
-  AGENT_ORIENTATION = 7,
-  AGENT_COLOR = 8,
-
-  // Agent inventory features
-  AGENT_INV_ORE_RED = 9,
-  AGENT_INV_ORE_BLUE = 10,
-  AGENT_INV_ORE_GREEN = 11,
-  AGENT_INV_BATTERY = 12,
-  AGENT_INV_HEART = 13,
-  AGENT_INV_ARMOR = 14,
-  AGENT_INV_LASER = 15,
-  AGENT_INV_BLUEPRINT = 16,
-
-  // General inventory features
-  INV_ORE_RED = 17,
-  INV_ORE_BLUE = 18,
-  INV_ORE_GREEN = 19,
-  INV_BATTERY = 20,
-  INV_HEART = 21,
-  INV_ARMOR = 22,
-  INV_LASER = 23,
-  INV_BLUEPRINT = 24,
-
-  // Converter features
-  COLOR = 25,
-  CONVERTING = 26,
-
-  // Object type features (one entry for each object type)
-  AGENT_TYPE = 27,
-  WALL_TYPE = 28,
-  MINE_TYPE = 29,
-  GENERATOR_TYPE = 30,
-  ALTAR_TYPE = 31,
-  ARMORY_TYPE = 32,
-  LASERY_TYPE = 33,
-  LAB_TYPE = 34,
-  FACTORY_TYPE = 35,
-  TEMPLE_TYPE = 36,
-  CONVERTER_TYPE = 37,
-
+  AGENT = 0,                 // Matches "agent" at index 0
+  AGENT_GROUP = 1,           // Matches "agent:group" at index 1
+  HP = 2,                    // Matches "hp" at index 2
+  AGENT_FROZEN = 3,          // Matches "agent:frozen" at index 3
+  AGENT_ORIENTATION = 4,     // Matches "agent:orientation" at index 4
+  AGENT_COLOR = 5,           // Matches "agent:color" at index 5
+  AGENT_INV_ORE_RED = 6,     // Matches "agent:inv:ore.red" at index 6
+  AGENT_INV_ORE_BLUE = 7,    // Matches "agent:inv:ore.blue" at index 7
+  AGENT_INV_ORE_GREEN = 8,   // Matches "agent:inv:ore.green" at index 8
+  AGENT_INV_BATTERY = 9,     // Matches "agent:inv:battery" at index 9
+  AGENT_INV_HEART = 10,      // Matches "agent:inv:heart" at index 10
+  AGENT_INV_ARMOR = 11,      // Matches "agent:inv:armor" at index 11
+  AGENT_INV_LASER = 12,      // Matches "agent:inv:laser" at index 12
+  AGENT_INV_BLUEPRINT = 13,  // Matches "agent:inv:blueprint" at index 13
+  WALL = 14,                 // Matches "wall" at index 14
+  SWAPPABLE = 15,            // Matches "swappable" at index 15
+  MINE = 16,                 // Matches "mine" at index 16
+  COLOR = 17,                // Matches "color" at index 17
+  CONVERTING = 18,           // Matches "converting" at index 18
+  INV_ORE_RED = 19,          // Matches "inv:ore.red" at index 19
+  INV_ORE_BLUE = 20,         // Matches "inv:ore.blue" at index 20
+  INV_ORE_GREEN = 21,        // Matches "inv:ore.green" at index 21
+  INV_BATTERY = 22,          // Matches "inv:battery" at index 22
+  INV_HEART = 23,            // Matches "inv:heart" at index 23
+  INV_ARMOR = 24,            // Matches "inv:armor" at index 24
+  INV_LASER = 25,            // Matches "inv:laser" at index 25
+  INV_BLUEPRINT = 26,        // Matches "inv:blueprint" at index 26
+  GENERATOR = 27,            // Matches "generator" at index 27
+  ALTAR = 28,                // Matches "altar" at index 28
+  ARMORY = 29,               // Matches "armory" at index 29
+  LASERY = 30,               // Matches "lasery" at index 30
+  LAB = 31,                  // Matches "lab" at index 31
+  FACTORY = 32,              // Matches "factory" at index 32
+  TEMPLE = 33,               // Matches "temple" at index 33
   // Grid feature count - always keep this last
-  COUNT = 38
+  COUNT  // Should equal the number of enum values
 };
 
 // Feature names for debugging and display - must match enum indices exactly

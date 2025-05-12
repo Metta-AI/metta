@@ -38,9 +38,6 @@ public:
   virtual void obs(c_observations_type* obs) const override {
     MettaObject::obs(obs);
 
-    // HasInventory-specific features
-    encode(obs, GridFeature::HAS_INVENTORY, 1);
-
     // We don't encode inventory here because different derived classes
     // may want to encode inventory with different prefixes
   }

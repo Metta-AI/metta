@@ -24,9 +24,6 @@ public:
     // wall-specific features
     encode(obs, GridFeature::WALL, 1);
     encode(obs, GridFeature::SWAPPABLE, this->_swappable);
-
-    // Also set the object type feature
-    encode(obs, GridFeature::WALL_TYPE, 1);
   }
 
   virtual bool swappable() const override {

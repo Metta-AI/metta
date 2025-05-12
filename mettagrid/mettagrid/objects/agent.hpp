@@ -110,7 +110,7 @@ public:
   }
 
   virtual void obs(c_observations_type* obs) const override {
-    MettaObject::obs(obs);
+    MettaObject::obs(obs);  // set hp
 
     // Agent-specific features
     encode(obs, GridFeature::AGENT, 1);
@@ -119,19 +119,18 @@ public:
     encode(obs, GridFeature::AGENT_ORIENTATION, orientation);
     encode(obs, GridFeature::AGENT_COLOR, color);
 
-    // Inventory features
-    // Map inventory items to their corresponding agent inventory features
-    const GridFeature agentInvFeatures[] = {GridFeature::AGENT_INV_ORE_RED,
-                                            GridFeature::AGENT_INV_ORE_BLUE,
-                                            GridFeature::AGENT_INV_ORE_GREEN,
-                                            GridFeature::AGENT_INV_BATTERY,
-                                            GridFeature::AGENT_INV_HEART,
-                                            GridFeature::AGENT_INV_ARMOR,
-                                            GridFeature::AGENT_INV_LASER,
-                                            GridFeature::AGENT_INV_BLUEPRINT};
+    // Map inventory items to their corresponding observation features
+    const GridFeature agentInventoryFeatures[] = {GridFeature::AGENT_INV_ORE_RED,
+                                                  GridFeature::AGENT_INV_ORE_BLUE,
+                                                  GridFeature::AGENT_INV_ORE_GREEN,
+                                                  GridFeature::AGENT_INV_BATTERY,
+                                                  GridFeature::AGENT_INV_HEART,
+                                                  GridFeature::AGENT_INV_ARMOR,
+                                                  GridFeature::AGENT_INV_LASER,
+                                                  GridFeature::AGENT_INV_BLUEPRINT};
 
     for (int32_t i = 0; i < InventoryItem::InventoryCount; i++) {
-      encode(obs, agentInvFeatures[i], inventory[i]);
+      encode(obs, agentInventoryFeatures[i], inventory[i]);
     }
   }
 };

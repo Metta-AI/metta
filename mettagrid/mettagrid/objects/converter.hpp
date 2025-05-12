@@ -136,40 +136,37 @@ public:
     GridFeature objectTypeFeature;
     switch (_type_id) {
       case ObjectType::AgentT:
-        objectTypeFeature = GridFeature::AGENT_TYPE;
+        objectTypeFeature = GridFeature::AGENT;
         break;
       case ObjectType::WallT:
-        objectTypeFeature = GridFeature::WALL_TYPE;
+        objectTypeFeature = GridFeature::WALL;
         break;
       case ObjectType::MineT:
-        objectTypeFeature = GridFeature::MINE_TYPE;
+        objectTypeFeature = GridFeature::MINE;
         break;
       case ObjectType::GeneratorT:
-        objectTypeFeature = GridFeature::GENERATOR_TYPE;
+        objectTypeFeature = GridFeature::GENERATOR;
         break;
       case ObjectType::AltarT:
-        objectTypeFeature = GridFeature::ALTAR_TYPE;
+        objectTypeFeature = GridFeature::ALTAR;
         break;
       case ObjectType::ArmoryT:
-        objectTypeFeature = GridFeature::ARMORY_TYPE;
+        objectTypeFeature = GridFeature::ARMORY;
         break;
       case ObjectType::LaseryT:
-        objectTypeFeature = GridFeature::LASERY_TYPE;
+        objectTypeFeature = GridFeature::LASERY;
         break;
       case ObjectType::LabT:
-        objectTypeFeature = GridFeature::LAB_TYPE;
+        objectTypeFeature = GridFeature::LAB;
         break;
       case ObjectType::FactoryT:
-        objectTypeFeature = GridFeature::FACTORY_TYPE;
+        objectTypeFeature = GridFeature::FACTORY;
         break;
       case ObjectType::TempleT:
-        objectTypeFeature = GridFeature::TEMPLE_TYPE;
-        break;
-      case ObjectType::GenericConverterT:
-        objectTypeFeature = GridFeature::CONVERTER_TYPE;
+        objectTypeFeature = GridFeature::TEMPLE;
         break;
       default:
-        objectTypeFeature = GridFeature::CONVERTER_TYPE;  // Default case
+        throw std::runtime_error("unknown converter _type_id");  // Default case
     }
 
     // Converter-specific features
@@ -177,19 +174,19 @@ public:
     encode(obs, GridFeature::COLOR, this->color);
     encode(obs, GridFeature::CONVERTING, this->converting || this->cooling_down);
 
-    // Map inventory items to their corresponding general inventory features
-    const GridFeature invFeatures[] = {GridFeature::INV_ORE_RED,
-                                       GridFeature::INV_ORE_BLUE,
-                                       GridFeature::INV_ORE_GREEN,
-                                       GridFeature::INV_BATTERY,
-                                       GridFeature::INV_HEART,
-                                       GridFeature::INV_ARMOR,
-                                       GridFeature::INV_LASER,
-                                       GridFeature::INV_BLUEPRINT};
+    // Map inventory items to their corresponding observation features
+    const GridFeature converterInventoryFeatures[] = {GridFeature::INV_ORE_RED,
+                                                      GridFeature::INV_ORE_BLUE,
+                                                      GridFeature::INV_ORE_GREEN,
+                                                      GridFeature::INV_BATTERY,
+                                                      GridFeature::INV_HEART,
+                                                      GridFeature::INV_ARMOR,
+                                                      GridFeature::INV_LASER,
+                                                      GridFeature::INV_BLUEPRINT};
 
     // Inventory features
     for (uint32_t i = 0; i < InventoryItem::InventoryCount; i++) {
-      encode(obs, invFeatures[i], this->inventory[i]);
+      encode(obs, converterInventoryFeatures[i], this->inventory[i]);
     }
   }
 };
