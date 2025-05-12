@@ -1,7 +1,7 @@
 defaults:
   - common
   - wandb: metta_research
-  - sim: navigation
+  - sim: simple
   - _self_
 
 cmd: sim
@@ -10,7 +10,11 @@ data_dir: ./train_dir
 run_dir: ${data_dir}/${run}
 torch_deterministic: true
 
+eval_db_uri: ???
+
 sim_job:
   simulation_suite: ${sim}
   policy_uris:
     - ${policy_uri}
+  stats_dir: ${run_dir}/stats
+  stats_db_uri: ${eval_db_uri}

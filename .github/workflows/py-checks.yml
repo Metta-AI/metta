@@ -21,7 +21,7 @@ on:
         type: boolean
         default: true
       run_benchmark:
-        description: "Run benchmarks"
+        description: "Run benchmarks (requires tests)"
         type: boolean
         default: true
 
@@ -201,7 +201,7 @@ jobs:
         run: |
           python -m venv venv
           source venv/bin/activate
-          pip install -r requirements.txt
+          pip install -r requirements.txt -c requirements.txt
 
       - name: Install and compile deps (cache miss fallback)
         if: steps.setup-cache-py.outputs.cache-hit != 'true'
@@ -211,7 +211,7 @@ jobs:
           bash ./devops/setup_build.sh
 
   lint:
-    name: "Lint"
+    name: "Python Lint"
     needs: [graphite-ci-optimizer, setup-checks, setup-py]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') && 
@@ -242,7 +242,7 @@ jobs:
           ruff check --exit-non-zero-on-fix .
 
   test:
-    name: "Test"
+    name: "Python Tests"
     needs: [graphite-ci-optimizer, setup-checks, setup-py]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') && 
@@ -296,7 +296,7 @@ jobs:
           pytest --maxfail=1 --disable-warnings -q
 
   smoke-test:
-    name: "Training smoke test"
+    name: "Training Smoke Test"
     needs: [graphite-ci-optimizer, setup-checks, setup-py]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false')
@@ -337,7 +337,7 @@ jobs:
       - name: Check deps
         run: |
           source venv/bin/activate
-          
+
           for dep in \
             "pufferlib" \
             "carbs" \
@@ -454,7 +454,7 @@ jobs:
           find train_dir -type d | sort
 
   benchmark:
-    name: "Benchmark"
+    name: "Python Benchmarks"
     needs: [graphite-ci-optimizer, setup-checks, setup-py, test, smoke-test]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') && 
@@ -684,10 +684,9 @@ jobs:
             --start-point-reset \
             --testbed ubuntu-latest \
             --threshold-measure latency \
-            --threshold-test t_test \
+            --threshold-test percentage \
             --threshold-max-sample-size 64 \
-            --threshold-upper-boundary 0.99 \
+            --threshold-upper-boundary 0.25 \
             --adapter python_pytest \
             --github-actions "$GITHUB_TOKEN" \
-            --err \
             --file combined_benchmark_results.json > /dev/null

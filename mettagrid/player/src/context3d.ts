@@ -7,14 +7,9 @@ interface AtlasData {
   [key: string]: [number, number, number, number]; // [x, y, width, height]
 }
 
-// Parse a hex color string into a float array.
-export function parseHtmlColor(color: string): [number, number, number, number] {
-  return [
-    parseInt(color.slice(1, 3), 16) / 255,
-    parseInt(color.slice(3, 5), 16) / 255,
-    parseInt(color.slice(5, 7), 16) / 255,
-    1.0
-  ];
+// Clamp a value between a minimum and maximum.
+export function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(value, max));
 }
 
 /**
@@ -325,7 +320,7 @@ class Context3d {
     this.ensureMeshSelected();
 
     this.currentMesh!.scissorEnabled = true;
-    this.currentMesh!.scissorRect = [x, y, Math.max(width, 0), Math.max(height, 0)];
+    this.currentMesh!.scissorRect = [x, y, width, height];
   }
 
   // Disable scissoring for the current mesh
@@ -869,7 +864,14 @@ class Context3d {
         // Apply scissor if enabled for this mesh
         if (mesh.scissorEnabled) {
           const [x, y, width, height] = mesh.scissorRect;
-          passEncoder.setScissorRect(x, y, width, height);
+          const w = Math.floor(this.canvas.width);
+          const h = Math.floor(this.canvas.height);
+          passEncoder.setScissorRect(
+            clamp(Math.floor(x), 0, w),
+            clamp(Math.floor(y), 0, h),
+            clamp(Math.floor(width), 0, w - x),
+            clamp(Math.floor(height), 0, h - y)
+          );
         } else {
           // Reset scissor to full canvas if previously set
           passEncoder.setScissorRect(0, 0, this.canvas.width, this.canvas.height);

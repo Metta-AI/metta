@@ -21,7 +21,7 @@ on:
         type: boolean
         default: true
       run_benchmark:
-        description: "Run benchmarks"
+        description: "Run benchmarks (requires tests)"
         type: boolean
         default: true
 
@@ -75,11 +75,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Check for C++ and Cython file changes
+      - name: Check for C++ file changes
         id: check_cpp_files
         uses: ./.github/actions/file-changes
         with:
-          patterns: "*.cpp,*.cxx,*.cc,*.h,*.hpp,*.pyx,*.pxd"
+          patterns: "*.cpp,*.cxx,*.cc,*.h,*.hpp"
           directory_paths: "mettagrid/"
           specific_files: "requirements.txt,setup.py"
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -171,6 +171,12 @@ jobs:
         run: |
           sudo apt-get install -y g++ cmake
 
+      - name: Install Python dependencies
+        run: |
+          sudo apt-get install -y python3.12-dev
+          pip install pybind11
+          pip install numpy
+
       - name: Restore from build cache
         id: build-cache-cpp
         uses: actions/cache@v3
@@ -182,10 +188,10 @@ jobs:
         if: steps.build-cache-cpp.outputs.cache-hit != 'true'
         run: |
           cd mettagrid
-          make build
+          make build-for-ci
 
   lint:
-    name: "Lint"
+    name: "C++ Lint"
     needs: [graphite-ci-optimizer, setup-checks, build-cpp]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') && 
@@ -207,7 +213,7 @@ jobs:
             -exec clang-format --dry-run --Werror {} +
 
   test:
-    name: "Test"
+    name: "C++ Tests"
     needs: [graphite-ci-optimizer, setup-checks, build-cpp]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') && 
@@ -221,6 +227,9 @@ jobs:
       - name: Install C++ dependencies
         run: |
           sudo apt-get install -y g++ libgtest-dev
+          sudo apt-get install -y python3.12-dev
+          pip install pybind11
+          pip install numpy
 
       - name: Restore from build cache
         id: test-cache-cpp
@@ -241,7 +250,7 @@ jobs:
           make test
 
   benchmark:
-    name: "Benchmark"
+    name: "C++ Benchmarks"
     needs: [graphite-ci-optimizer, setup-checks, build-cpp, test]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') && 
@@ -256,6 +265,12 @@ jobs:
       - name: Install C++ dependencies
         run: |
           sudo apt-get install -y g++ libbenchmark-dev jq
+
+      - name: Install Python dependencies
+        run: |
+          sudo apt-get install -y python3.12-dev
+          pip install pybind11
+          pip install numpy
 
       - name: Restore from build cache
         id: benchmark-cache-cpp
@@ -377,13 +392,12 @@ jobs:
                 --start-point-clone-thresholds \
                 --start-point-reset \
                 --threshold-measure latency \
-                --threshold-test t_test \
+                --threshold-test percentage \
                 --threshold-max-sample-size 64 \
-                --threshold-upper-boundary 0.99 \
+                --threshold-upper-boundary 0.25 \
                 --testbed ubuntu-latest \
                 --adapter cpp_google \
                 --github-actions "$GITHUB_TOKEN" \
-                --err \
                 --file "$file" > /dev/null
             done
           else

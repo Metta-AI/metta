@@ -6,15 +6,16 @@ import webbrowser
 import hydra
 
 from metta.agent.policy_store import PolicyStore
-from metta.sim.simulation import SimulationSuite
 from metta.sim.simulation_config import SimulationSuiteConfig
+from metta.sim.simulation_suite import SimulationSuite
 from metta.util.config import Config, setup_metta_environment
-from metta.util.file import s3_url
 from metta.util.logging import setup_mettagrid_logger
 from metta.util.runtime_configuration import setup_mettagrid_environment
 from metta.util.wandb.wandb_context import WandbContext
+from mettagrid.util.file import http_url
 
 
+# TODO: This job can be replaced with sim now that Simulations create replays
 class ReplayJob(Config):
     sim: SimulationSuiteConfig
     policy_uri: str
@@ -43,15 +44,14 @@ def main(cfg):
         if cfg.trainer.get("replay_dry_run", False):
             replay_dir = None
 
-        sim_suite = SimulationSuite(
-            replay_job.sim, policy_record, policy_store, wandb_run=wandb_run, replay_dir=replay_dir
-        )
-        sim_suite.simulate()
+        sim_suite = SimulationSuite(replay_job.sim, policy_record, policy_store, replay_dir=replay_dir)
+        result = sim_suite.simulate()
         # Only on macos open a browser to the replay
-        first_sim_name = list(replay_job.sim.simulations.keys())[0]
-        first_sim_path = f"{replay_dir}/{first_sim_name}/replay.json.z"
-        if platform.system() == "Darwin":
-            webbrowser.open(f"https://metta-ai.github.io/metta/?replayUrl={s3_url(first_sim_path)}")
+        if platform.system() == "Darwin" and replay_dir is not None:
+            replay_url = result.stats_db.get_replay_urls(
+                policy_key=policy_record.key(), policy_version=policy_record.version()
+            )[0]
+            webbrowser.open(f"https://metta-ai.github.io/metta/?replayUrl={http_url(replay_url)}")
 
 
 if __name__ == "__main__":
