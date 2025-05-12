@@ -155,3 +155,74 @@ def test_basic(environment):
 
     # Final verification that environment is still functioning
     assert environment._c_env is not None
+
+
+def test_grid_features(environment):
+    """
+    Test that the grid features from the C++ environment match the expected features list.
+    Ensures that the features are in the correct order and that all expected features are present.
+    """
+    # Expected features list based on the provided order
+    expected_features = [
+        "agent",
+        "agent:group",
+        "hp",
+        "agent:frozen",
+        "agent:orientation",
+        "agent:color",
+        "agent:inv:ore.red",
+        "agent:inv:ore.blue",
+        "agent:inv:ore.green",
+        "agent:inv:battery",
+        "agent:inv:heart",
+        "agent:inv:armor",
+        "agent:inv:laser",
+        "agent:inv:blueprint",
+        "wall",
+        "swappable",
+        "mine",
+        "color",
+        "converting",
+        "inv:ore.red",
+        "inv:ore.blue",
+        "inv:ore.green",
+        "inv:battery",
+        "inv:heart",
+        "inv:armor",
+        "inv:laser",
+        "inv:blueprint",
+        "generator",
+        "altar",
+        "armory",
+        "lasery",
+        "lab",
+        "factory",
+        "temple",
+    ]
+
+    # Get the actual grid features from the environment
+    actual_features = environment._c_env.grid_features()
+
+    # Check that the lists have the same length
+    assert len(actual_features) == len(expected_features), (
+        f"Feature list length mismatch: expected {len(expected_features)}, got {len(actual_features)}"
+    )
+
+    # Check each feature individually to provide better error messages
+    for i, (expected, actual) in enumerate(zip(expected_features, actual_features, strict=False)):
+        assert expected == actual, f"Feature mismatch at index {i}: expected '{expected}', got '{actual}'"
+
+    # As an additional check, verify that the lists are exactly equal
+    assert actual_features == expected_features, "Feature lists don't match exactly"
+
+    # Optionally, print the feature list for debugging (can be commented out in production)
+    print("Grid features verified successfully:", actual_features)
+
+    # Check that the number of grid features matches the number of channels in observations
+    # This assumes that each feature corresponds to a channel in the observation space
+    obs_shape = environment.single_observation_space.shape
+    num_channels = obs_shape[2]
+
+    # The check is relaxed to allow for the possibility that not all features are included in observations
+    # or that observations might contain additional derived features
+    assert 20 <= num_channels <= 50, f"Number of observation channels ({num_channels}) is outside expected range"

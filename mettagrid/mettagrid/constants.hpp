@@ -167,57 +167,40 @@ enum GridFeature {
 
 // Feature names for debugging and display - must match enum indices exactly
 const std::vector<std::string> GridFeatureNames = {
-    // Basic object features
-    "hp",             // 0
-    "has_inventory",  // 1
-
-    // Wall features
-    "wall",       // 2
-    "swappable",  // 3
-
-    // Agent features
-    "agent",              // 4
-    "agent:group",        // 5
-    "agent:frozen",       // 6
-    "agent:orientation",  // 7
-    "agent:color",        // 8
-
-    // Agent inventory features
-    "agent:inv:ore.red",    // 9
-    "agent:inv:ore.blue",   // 10
-    "agent:inv:ore.green",  // 11
-    "agent:inv:battery",    // 12
-    "agent:inv:heart",      // 13
-    "agent:inv:armor",      // 14
-    "agent:inv:laser",      // 15
-    "agent:inv:blueprint",  // 16
-
-    // General inventory features
-    "inv:ore.red",    // 17
-    "inv:ore.blue",   // 18
-    "inv:ore.green",  // 19
-    "inv:battery",    // 20
-    "inv:heart",      // 21
-    "inv:armor",      // 22
-    "inv:laser",      // 23
-    "inv:blueprint",  // 24
-
-    // Converter features
-    "color",       // 25
-    "converting",  // 26
-
-    // Object type features
-    "agent",      // 27
-    "wall",       // 28
-    "mine",       // 29
-    "generator",  // 30
-    "altar",      // 31
-    "armory",     // 32
-    "lasery",     // 33
-    "lab",        // 34
-    "factory",    // 35
-    "temple",     // 36
-    "converter",  // 37
+    "agent",                // 0
+    "agent:group",          // 1
+    "hp",                   // 2
+    "agent:frozen",         // 3
+    "agent:orientation",    // 4
+    "agent:color",          // 5
+    "agent:inv:ore.red",    // 6
+    "agent:inv:ore.blue",   // 7
+    "agent:inv:ore.green",  // 8
+    "agent:inv:battery",    // 9
+    "agent:inv:heart",      // 10
+    "agent:inv:armor",      // 11
+    "agent:inv:laser",      // 12
+    "agent:inv:blueprint",  // 13
+    "wall",                 // 14
+    "swappable",            // 15
+    "mine",                 // 16
+    "color",                // 17
+    "converting",           // 18
+    "inv:ore.red",          // 19
+    "inv:ore.blue",         // 20
+    "inv:ore.green",        // 21
+    "inv:battery",          // 22
+    "inv:heart",            // 23
+    "inv:armor",            // 24
+    "inv:laser",            // 25
+    "inv:blueprint",        // 26
+    "generator",            // 27
+    "altar",                // 28
+    "armory",               // 29
+    "lasery",               // 30
+    "lab",                  // 31
+    "factory",              // 32
+    "temple",               // 33
 };
 
 #endif
