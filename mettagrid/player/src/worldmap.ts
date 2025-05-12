@@ -447,11 +447,12 @@ function drawTrajectory() {
   }
 }
 
-// Draw the thought bubbles of the selected object.
+// Draw the thought bubbles of the selected agent.
 function drawThoughtBubbles() {
   // The idea behind thought bubbles is to show what the agent is thinking.
-  // We don't have this yet, so the next best thing is to show future key actions.
-  // It's likely that its what the agent is thinking about.
+  // We don't have this directly from the policy yet,
+  // so the next best thing is to show future "key action".
+  // It should be a good proxy for what the agent is thinking about.
   if (state.selectedGridObject != null && state.selectedGridObject.agent_id != null) {
     // We need to find a key action in the future.
     // A key action is a successful action that is not a noop, rotate or move.
