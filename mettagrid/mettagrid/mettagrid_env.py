@@ -31,7 +31,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         **kwargs,
     ):
         self._save_mettagrid_args = False
-        self._save_step_results = True
+        self._save_step_results = False
         self._step_files_saved = 0
 
         self._render_mode = render_mode
