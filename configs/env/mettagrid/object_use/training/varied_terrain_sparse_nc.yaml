@@ -26,6 +26,6 @@ game:
         # mine.blue: 1
         # generator.green: 1
         # mine.green: 1
-    objects:
-       altar:
-         initial_items: ${choose:0,1}
+  objects:
+      altar:
+        initial_items: ${choose:0,1}

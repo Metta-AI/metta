@@ -27,6 +27,6 @@ game:
         generator.green: ${sampling:1,5,1}
         mine.green: ${sampling:1,5,1}
 
-    objects:
-       altar:
-         initial_items: ${choose:0,1}
+  objects:
+      altar:
+        initial_items: ${choose:0,1}

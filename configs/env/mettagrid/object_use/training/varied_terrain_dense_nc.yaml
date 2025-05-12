@@ -22,6 +22,6 @@ game:
         altar: ${sampling:1,5,1}
         generator.red: ${sampling:1,10,1}
         mine.red: ${sampling:1,10,1}
-    objects:
-       altar:
-         initial_items: ${choose:0,1}
+  objects:
+      altar:
+        initial_items: ${choose:0,1}
