@@ -325,11 +325,9 @@ class CustomEncoder(json.JSONEncoder):
             elif isinstance(obj, np.ndarray):
                 return obj.tolist()
 
-            # For numpy data types
-            elif np.issubdtype(type(obj), np.integer):
-                return int(obj)
-            elif np.issubdtype(type(obj), np.floating):
-                return float(obj)
+            # For numpy scalar types
+            elif isinstance(obj, np.number):
+                return obj.item()  # Converts any numpy number to its Python equivalent
 
             # For sets
             elif isinstance(obj, set):
