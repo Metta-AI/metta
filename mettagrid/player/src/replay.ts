@@ -130,8 +130,12 @@ function removeSuffix(str: string, suffix: string) {
 }
 
 // Load the replay text.
-async function loadReplayText(url: string, replayData: any) {
-  state.replay = JSON.parse(replayData);
+async function loadReplayText(url: string, replayData: string) {
+  loadReplayJson(url, JSON.parse(replayData));
+}
+
+async function loadReplayJson(url: string, replayData: any) {
+  state.replay = replayData;
 
   // Go through each grid object and expand its key sequence.
   for (const gridObject of state.replay.grid_objects) {
@@ -145,9 +149,10 @@ async function loadReplayText(url: string, replayData: any) {
   // Find all agents for faster access.
   state.replay.agents = [];
   for (let i = 0; i < state.replay.num_agents; i++) {
+    state.replay.agents.push({});
     for (const gridObject of state.replay.grid_objects) {
       if (gridObject["agent_id"] == i) {
-        state.replay.agents.push(gridObject);
+        state.replay.agents[i] = gridObject;
       }
     }
   }
@@ -225,15 +230,15 @@ async function loadReplayText(url: string, replayData: any) {
     }
   }
 
-  // Map size is not to be trusted. Recompute map size just in case.
-  state.replay.map_size[0] = 0;
-  state.replay.map_size[1] = 0;
-  for (const gridObject of state.replay.grid_objects) {
-    let x = getAttr(gridObject, "c") + 1;
-    let y = getAttr(gridObject, "r") + 1;
-    state.replay.map_size[0] = Math.max(state.replay.map_size[0], x);
-    state.replay.map_size[1] = Math.max(state.replay.map_size[1], y);
-  }
+  // // Map size is not to be trusted. Recompute map size just in case.
+  // state.replay.map_size[0] = 0;
+  // state.replay.map_size[1] = 0;
+  // for (const gridObject of state.replay.grid_objects) {
+  //   let x = getAttr(gridObject, "c") + 1;
+  //   let y = getAttr(gridObject, "r") + 1;
+  //   state.replay.map_size[0] = Math.max(state.replay.map_size[0], x);
+  //   state.replay.map_size[1] = Math.max(state.replay.map_size[1], y);
+  // }
 
   console.info("replay: ", state.replay);
 
@@ -250,4 +255,89 @@ async function loadReplayText(url: string, replayData: any) {
   focusFullMap(ui.mapPanel);
   onResize();
   requestFrame();
+}
+
+export function loadReplayStep(replayStep: any) {
+  // This gets us a simple replay step that we can overwrite.
+
+  // Update the grid objects.
+  const step = replayStep.step;
+
+  state.replay.max_steps = Math.max(state.replay.max_steps, step);
+  state.step = step; // Rewind to the current step.
+
+  for (const gridObject of replayStep.grid_objects) {
+    for (const key in gridObject) {
+      const value = gridObject[key];
+      // Ensure the grid object exists.
+      while (state.replay.grid_objects.length <= gridObject.id) {
+        state.replay.grid_objects.push({});
+      }
+      // Ensure the key exists.
+      if (state.replay.grid_objects[gridObject.id][key] === undefined) {
+        state.replay.grid_objects[gridObject.id][key] = [];
+        while (state.replay.grid_objects[gridObject.id][key].length <= step) {
+          state.replay.grid_objects[gridObject.id][key].push(null);
+        }
+      }
+      state.replay.grid_objects[gridObject.id][key][step] = value;
+
+
+      if (key == "agent_id") {
+        // Update the agent.
+        while (state.replay.agents.length <= value) {
+          state.replay.agents.push({});
+        }
+        state.replay.agents[value] = state.replay.grid_objects[gridObject.id];
+      }
+    }
+  }
+
+
+
+
+
+  requestFrame();
+}
+
+export function initWebSocket(wsUrl: string) {
+  state.ws = new WebSocket(wsUrl);
+  state.ws.onmessage = (event) => {
+
+    const data = JSON.parse(event.data);
+    console.log("Received message: ", data.type);
+    if (data.type === "replay") {
+      loadReplayJson(wsUrl, data.replay);
+    } else if (data.type === "replay_step") {
+      loadReplayStep(data.replay_step);
+    } else if (data.type === "message") {
+      console.info("Received message: ", data.message);
+    }
+  };
+  state.ws.onopen = () => {
+    console.log("WebSocket opened");
+  };
+  state.ws.onclose = () => {
+    console.log("WebSocket closed");
+  };
+  state.ws.onerror = (event) => {
+    console.log("WebSocket error: ", event);
+  };
+}
+
+export function sendAction(action: number[]) {
+  if (state.ws === null) {
+    console.error("WebSocket is not connected");
+    return;
+  }
+  const agentId = getAttr(state.selectedGridObject, "agent_id");
+  if (agentId != null) {
+    state.ws.send(JSON.stringify({
+      type: "action",
+      agent_id: agentId,
+      action: action
+    }));
+  } else {
+    console.error("No selected grid object");
+  }
 }

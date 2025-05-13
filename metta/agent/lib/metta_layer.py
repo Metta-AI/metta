@@ -4,6 +4,7 @@ from tensordict import TensorDict
 from torch import nn
 
 from metta.agent.util.weights_analysis import analyze_weights
+from metta.util.tracing import trace
 
 
 class LayerBase(nn.Module):
@@ -41,6 +42,7 @@ class LayerBase(nn.Module):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
+    @trace
     def __init__(self, name, sources=None, nn_params=None, **cfg):
         super().__init__()
         self._name = name
@@ -54,9 +56,11 @@ class LayerBase(nn.Module):
             self._nn_params = nn_params if nn_params is not None else {}
 
     @property
+    @trace
     def ready(self):
         return self._ready
 
+    @trace
     def setup(self, source_components=None):
         """_in_tensor_shapes is a list of lists. Each sublist contains the shapes of the input tensors for each source
         component._out_tensor_shape is a list of the shape of the output tensor."""
@@ -73,12 +77,15 @@ class LayerBase(nn.Module):
         self._initialize()
         self._ready = True
 
+    @trace
     def _initialize(self):
         self._net = self._make_net()
 
+    @trace
     def _make_net(self):
         pass
 
+    @trace
     def forward(self, td: TensorDict):
         if self._name in td:
             return td
@@ -92,6 +99,7 @@ class LayerBase(nn.Module):
 
         return td
 
+    @trace
     def _forward(self, td: TensorDict):
         """Components that have more than one input sources must have their own _forward() method."""
         # get the input tensor from the source component by calling its forward method (which recursively calls
@@ -99,18 +107,23 @@ class LayerBase(nn.Module):
         td[self._name] = self._net(td[self._sources[0]["name"]])
         return td
 
+    @trace
     def clip_weights(self):
         pass
 
+    @trace
     def l2_reg_loss(self):
         pass
 
+    @trace
     def l2_init_loss(self):
         pass
 
+    @trace
     def update_l2_init_weight_copy(self):
         pass
 
+    @trace
     def compute_weight_metrics(self, delta: float = 0.01) -> dict:
         pass
 
@@ -139,6 +152,7 @@ class ParamLayer(LayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
+    @trace
     def __init__(
         self,
         clip_scale=1,
@@ -159,6 +173,7 @@ class ParamLayer(LayerBase):
         self.global_clip_range = clip_range
         super().__init__(**cfg)
 
+    @trace
     def _initialize(self):
         self.__dict__["weight_net"] = self._make_net()
 
@@ -186,6 +201,7 @@ class ParamLayer(LayerBase):
             except (AttributeError, KeyError, ValueError) as e:
                 raise ValueError(f"Unsupported nonlinearity: {self.nonlinearity}") from e
 
+    @trace
     def _initialize_weights(self):
         """
         Initialize weights based on the specified initialization method.
@@ -222,6 +238,7 @@ class ParamLayer(LayerBase):
 
         self.largest_weight = largest_weight
 
+    @trace
     def clip_weights(self):
         """
         Clips weights to prevent exploding gradients.
@@ -232,6 +249,7 @@ class ParamLayer(LayerBase):
             with torch.no_grad():
                 self.weight_net.weight.data = self.weight_net.weight.data.clamp(-self.clip_value, self.clip_value)
 
+    @trace
     def l2_reg_loss(self) -> torch.Tensor:
         """
         Computes L2 regularization loss (weight decay).
@@ -245,6 +263,7 @@ class ParamLayer(LayerBase):
             l2_reg_loss = (torch.sum(self.weight_net.weight.data**2)) * self.l2_norm_scale
         return l2_reg_loss
 
+    @trace
     def l2_init_loss(self) -> torch.Tensor:
         """
         Computes L2-init regularization loss (delta regularization).
@@ -260,6 +279,7 @@ class ParamLayer(LayerBase):
             l2_init_loss = torch.sum((self.weight_net.weight.data - self.initial_weights) ** 2) * self.l2_init_scale
         return l2_init_loss
 
+    @trace
     def update_l2_init_weight_copy(self, alpha: float = 0.9):
         """
         Updates the initial weights reference for L2-init regularization.
@@ -274,6 +294,7 @@ class ParamLayer(LayerBase):
         if self.initial_weights is not None:
             self.initial_weights = (self.initial_weights * alpha + self.weight_net.weight.data * (1 - alpha)).clone()
 
+    @trace
     def compute_weight_metrics(self, delta: float = 0.01) -> dict:
         """
         Computes metrics related to the weight matrix dynamics.
