@@ -80,7 +80,7 @@ jobs:
         uses: ./.github/actions/file-changes
         with:
           patterns: "**/*.py"
-          specific_files: "requirements.txt,setup.py"
+          specific_files: "requirements.txt,requirements_pinned.txt,setup.py"
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set cache paths
@@ -114,6 +114,9 @@ jobs:
           fi
           if [ -f "requirements.txt" ]; then
             sha256sum requirements.txt >> /tmp/file_hashes.txt
+          fi
+          if [ -f "requirements_pinned.txt" ]; then
+            sha256sum requirements_pinned.txt >> /tmp/file_hashes.txt
           fi
           if [ -f "pyproject.toml" ]; then
             sha256sum pyproject.toml >> /tmp/file_hashes.txt
@@ -199,7 +202,7 @@ jobs:
         run: |
           python -m venv venv
           source venv/bin/activate
-          pip install -r requirements.txt -c requirements.txt
+          pip install -r requirements.txt
 
       - name: Install and compile deps (cache miss fallback)
         if: steps.setup-cache-py.outputs.cache-hit != 'true'

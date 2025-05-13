@@ -48,13 +48,12 @@ if [ -z "$CI" ] && [ -z "$IS_DOCKER" ]; then
   rm requirements_to_remove.txt
 fi
 
-# ========== CHECKOUT AND BUILD DEPENDENCIES ==========
-echo -e "\n\nCalling devops/checkout_and_build script...\n\n"
-bash "$SCRIPT_DIR/checkout_and_build.sh"
-
 # ========== INSTALL PACKAGES BEFORE BUILD ==========
 echo -e "\n\nInstalling main project requirements...\n\n"
-pip install -c constraints.txt -r requirements.txt
+pip install -r requirements.txt
+
+echo -e "\n\nCalling devops/build_mettagrid script...\n\n"
+bash "$SCRIPT_DIR/build_mettagrid.sh"
 
 # ========== BUILD FAST_GAE ==========
 echo -e "\n\nBuilding from setup.py (metta cython components)\n\n"

@@ -13,7 +13,7 @@ metta = "metta"
 mettagrid = "mettagrid"
 
 [tool.setuptools.dynamic]
-dependencies = { file = ["requirements.txt"] }
+dependencies = { file = ["requirements.txt", "requirements_pinned.txt"] }
 
 [tool.coverage.run]
 source = ["mettagrid", "metta"]
