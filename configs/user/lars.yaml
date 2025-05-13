@@ -4,29 +4,12 @@
 # defaults:
 #   - _self_
 
-# # policy_uri: wandb://run/b.daveey.t.8.rdr9.3
-
 wandb:
   enabled: true
   track: true
-  checkpoint_interval: 1
-
-# trainer:
-#   replay_interval: 100
-
-# run_id: left_right_test
-# run: ${oc.env:USER}.local.${run_id}
-# trained_policy_uri: ${run_dir}/checkpoints
-# # sweep_name: "${oc.env:USER}.local.sweep.${run_id}"
 
 trainer:
   env: /env/mettagrid/diversity/multi_left_or_right
-  replay_interval: 50
 
-run: left-right-multiroom-7
+run: left-right-multiroom-bonus-on
 policy_uri: wandb://run/left-right-multiroom-7
-
-# trainer:
-#   sim:
-#     env: /env/mettagrid/navigation/training/terrain_from_numpy
-
