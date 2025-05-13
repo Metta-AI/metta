@@ -17,6 +17,7 @@ resource "helm_release" "skypilot" {
 
   # relative to stack root
   chart      = "./skypilot/skypilot-chart"
+  dependency_update = true
 
   devel      = true
   namespace  = "skypilot"
