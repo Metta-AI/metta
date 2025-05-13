@@ -10,8 +10,8 @@ game:
   max_steps: 25
   diversity_bonus:
     enabled: true
-    similarity_coef: 2  # Coefficient for within-group similarity
-    diversity_coef: 2   # Coefficient for between-group diversity
+    similarity_coef: 10  # Coefficient for within-group similarity
+    diversity_coef: 10   # Coefficient for between-group diversity
 
   map_builder:
     _target_: metta.map.mapgen.MapGen
