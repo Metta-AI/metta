@@ -18,23 +18,19 @@ trace_events = []
 
 def trace(fn):
     """Adds tracing to a function.
-
     Usage:
     @trace
     def my_function(a, b):
         return a + b
-
     my_function(1, 2)
     """
 
     def trace_wrapper(*args, **kwargs):
         name = fn.__name__
         # Is the function bound to a class?
-
         if args and hasattr(args[0], "__class__"):
             cls = args[0].__class__
             name = f"{cls.__name__}.{name}"
-
         pid = os.getpid()
         tid = threading.get_ident()
         # make stack_trace in format of function>function>function
@@ -55,9 +51,7 @@ def trace(fn):
                 },
             }
         )
-
         result = fn(*args, **kwargs)
-
         trace_events.append(
             {
                 "name": name,
@@ -68,13 +62,14 @@ def trace(fn):
                 "ts": int((time.time() - start_time) * 1000000),
             }
         )
-
         return result
 
     return trace_wrapper
 
 
 class Tracer:
+    """Helper class for with tracer("my_section"):"""
+
     def __init__(self, name: str):
         self.name = name
         self.start = 0
@@ -100,12 +95,10 @@ class Tracer:
 
 def tracer(name: str):
     """Tracing a block with statement
-
     Usage:
     with tracer("my_section"):
         # Your code here
     """
-
     return Tracer(name)
 
 
