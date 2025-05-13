@@ -134,28 +134,9 @@ async function loadReplayText(url: string, replayData: string) {
   loadReplayJson(url, JSON.parse(replayData));
 }
 
-async function loadReplayJson(url: string, replayData: any) {
-  state.replay = replayData;
+function fixReplay() {
 
-  // Go through each grid object and expand its key sequence.
-  for (const gridObject of state.replay.grid_objects) {
-    for (const key in gridObject) {
-      if (gridObject[key] instanceof Array) {
-        gridObject[key] = expandSequence(gridObject[key], state.replay.max_steps);
-      }
-    }
-  }
 
-  // Find all agents for faster access.
-  state.replay.agents = [];
-  for (let i = 0; i < state.replay.num_agents; i++) {
-    state.replay.agents.push({});
-    for (const gridObject of state.replay.grid_objects) {
-      if (gridObject["agent_id"] == i) {
-        state.replay.agents[i] = gridObject;
-      }
-    }
-  }
 
   // Create action image mappings for faster access.
   state.replay.action_images = [];
@@ -239,7 +220,32 @@ async function loadReplayJson(url: string, replayData: any) {
   //   state.replay.map_size[0] = Math.max(state.replay.map_size[0], x);
   //   state.replay.map_size[1] = Math.max(state.replay.map_size[1], y);
   // }
+}
 
+async function loadReplayJson(url: string, replayData: any) {
+  state.replay = replayData;
+
+  // Go through each grid object and expand its key sequence.
+  for (const gridObject of state.replay.grid_objects) {
+    for (const key in gridObject) {
+      if (gridObject[key] instanceof Array) {
+        gridObject[key] = expandSequence(gridObject[key], state.replay.max_steps);
+      }
+    }
+  }
+
+  // Find all agents for faster access.
+  state.replay.agents = [];
+  for (let i = 0; i < state.replay.num_agents; i++) {
+    state.replay.agents.push({});
+    for (const gridObject of state.replay.grid_objects) {
+      if (gridObject["agent_id"] == i) {
+        state.replay.agents[i] = gridObject;
+      }
+    }
+  }
+
+  fixReplay();
   console.info("replay: ", state.replay);
 
   // Set the scrubber max value to the max steps.
@@ -293,9 +299,7 @@ export function loadReplayStep(replayStep: any) {
     }
   }
 
-
-
-
+  fixReplay()
 
   requestFrame();
 }
