@@ -5,7 +5,7 @@ resource "kubernetes_storage_class" "gp3_default" {
       "storageclass.kubernetes.io/is-default-class" = "true"
     }
   }
-  storage_provisioner = "kubernetes.io/aws-ebs"
+  storage_provisioner = "ebs.csi.aws.com"
   volume_binding_mode = "WaitForFirstConsumer"
   parameters = {
     type      = "gp3"
