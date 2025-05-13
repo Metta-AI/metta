@@ -2,12 +2,12 @@
 
 # Define the list of policy URIs
 POLICIES=(
-    "b.daphne.navigation0"
-    "b.daphne.navigation4"
-    "b.daphne.navigation1"
-    "b.daphne.navigation3"
-    "navigation_training"
-    "daphne_navigation_train"
+    "b.daphne.navigation0:v12"
+    "b.daphne.navigation4:v12"
+    "b.daphne.navigation1:v12"
+    "b.daphne.navigation3:v12"
+    "navigation_training:v12"
+    "daphne_navigation_train:v35"
 )
 
 for i in "${!POLICIES[@]}"; do
