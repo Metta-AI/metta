@@ -11,5 +11,5 @@ wandb:
 trainer:
   env: /env/mettagrid/diversity/multi_left_or_right
 
-run: left-right-multiroom-bonus-on
+run: 13-05-left-right-eval-bonus-on
 policy_uri: wandb://run/left-right-multiroom-7
