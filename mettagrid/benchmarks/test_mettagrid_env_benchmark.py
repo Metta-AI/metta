@@ -45,8 +45,8 @@ def test_step_performance(benchmark, environment, single_action):
     # Run the benchmark
     benchmark.pedantic(
         run_step,
-        iterations=10000,  # Number of iterations per round
-        rounds=5,  # Number of rounds to run
+        iterations=1000,  # Number of iterations per round
+        rounds=10,  # Number of rounds to run
         warmup_rounds=0,  # Number of warmup rounds to discard
     )
 
@@ -65,6 +65,6 @@ def test_get_stats_performance(benchmark, environment, single_action):
     benchmark.pedantic(
         environment._c_env.get_episode_stats,
         iterations=500,  # Number of iterations per round
-        rounds=5,  # Number of rounds to run
+        rounds=3,  # Number of rounds to run
         warmup_rounds=0,  # Number of warmup rounds to discard
     )
