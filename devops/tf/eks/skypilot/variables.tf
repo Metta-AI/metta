@@ -1,5 +1,5 @@
 variable "zone_domain" {
-    default = "softmax-research.com"
+    default = "softmax-research.net"
 }
 
 variable "subdomain" {
