@@ -37,12 +37,12 @@ cd "$SCRIPT_DIR/.."
 cd mettagrid
 
 if [ -z "$CI" ]; then
-    echo "Upgrading pip..."
-    python -m pip install --upgrade pip
+  echo "Upgrading pip..."
+  python -m pip install --upgrade pip
 
-    echo "Installing mettagrid requirements..."
-    pip install -r requirements.txt
-    fi
+  echo "Installing mettagrid requirements..."
+  pip install -r requirements.txt
+fi
 
 echo "Building mettagrid in $(pwd)"
 
