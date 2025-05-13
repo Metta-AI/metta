@@ -20,7 +20,6 @@ for i in "${!POLICIES[@]}"; do
         sim=navigation \
         run=navigation$IDX \
         policy_uri=wandb://run/$POLICY_URI \
-        +eval_db_uri=wandb://artifacts/navigation_db \
-        ++device=cpu \
+        +eval_db_uri=wandb://artifacts/navigation_db_before_refactor \
 
 done
