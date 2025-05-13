@@ -675,11 +675,25 @@ jobs:
           BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+
+          # Show recent commits on main for context
+          echo "Recent commits on main branch:"
+          git log --oneline -n 5 origin/main
+          
+          # Get the bencher version info for main branch
+          echo "Bencher info for main branch:"
+          bencher branch view mettagrid-sv3f5i2k main --token "${{ secrets.BENCHER_API_TOKEN }}" | jq -r '.head.uuid, .head.hash, .head.created_at'
+          
+
+          # Fetch the most recent benchmark data point from main branch
+          MAIN_BENCHMARK_HASH=$(bencher branch view mettagrid-sv3f5i2k main --token "$BENCHER_API_TOKEN" | jq -r '.head.hash')
+          echo "Using main branch benchmark with hash: $MAIN_BENCHMARK_HASH as comparison baseline"
+
           bencher run \
             --project mettagrid-sv3f5i2k \
             --token "$BENCHER_API_TOKEN" \
             --branch "$GITHUB_HEAD_REF" \
-            --start-point "main" \
+            --start-point "$MAIN_BENCHMARK_HASH" \
             --start-point-clone-thresholds \
             --start-point-reset \
             --testbed ubuntu-latest \
