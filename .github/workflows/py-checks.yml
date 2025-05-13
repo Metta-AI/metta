@@ -620,11 +620,11 @@ jobs:
             --token "$BENCHER_API_TOKEN" \
             --branch main \
             --testbed ubuntu-latest \
-            --threshold-measure latency \
-            --threshold-test t_test \
-            --threshold-max-sample-size 64 \
-            --threshold-upper-boundary 0.99 \
             --thresholds-reset \
+            --threshold-measure latency \
+            --threshold-test percentage \
+            --threshold-max-sample-size 4 \
+            --threshold-upper-boundary 0.20 \
             --adapter python_pytest \
             --github-actions "$GITHUB_TOKEN" \
             --file combined_benchmark_results.json > /dev/null
@@ -675,6 +675,7 @@ jobs:
           BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+
           bencher run \
             --project mettagrid-sv3f5i2k \
             --token "$BENCHER_API_TOKEN" \
@@ -683,10 +684,6 @@ jobs:
             --start-point-clone-thresholds \
             --start-point-reset \
             --testbed ubuntu-latest \
-            --threshold-measure latency \
-            --threshold-test percentage \
-            --threshold-max-sample-size 64 \
-            --threshold-upper-boundary 0.25 \
             --adapter python_pytest \
             --github-actions "$GITHUB_TOKEN" \
             --file combined_benchmark_results.json > /dev/null
