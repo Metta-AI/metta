@@ -1,4 +1,4 @@
-#!/bin/bash 
+#!/bin/bash
 # Setup script for Metta development environment
 # This script installs all required dependencies and configures the environment
 # Exit immediately if a command exits with a non-zero status
@@ -92,10 +92,10 @@ python -c "from mettagrid.mettagrid_env import MettaGridEnv; print('✅ Found me
   exit 1
 }
 
-# Check for mettagrid.core.MettaGrid
-echo "Checking import for mettagrid.mettagrid_env.MettaGridEnv..."
-python -c "from mettagrid.core import MettaGrid; print('✅ Found mettagrid.core.MettaGrid')" || {
-  echo "❌ Failed to import mettagrid.core.MettaGrid"
+# Check for mettagrid.mettagrid_c.MettaGrid
+echo "Checking import for mettagrid.mettagrid_c.MettaGrid..."
+python -c "from mettagrid.mettagrid_c import MettaGrid; print('✅ Found mettagrid.mettagrid_c.MettaGrid')" || {
+  echo "❌ Failed to import mettagrid.mettagrid_c.MettaGrid"
   exit 1
 }
 
