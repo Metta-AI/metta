@@ -80,9 +80,9 @@ resource "aws_iam_policy" "minimal" {
         "Action" : [
           "iam:GetInstanceProfile",
           # for skypilot-v1 role maintained by skypilot
-          # disabled - we terraform the role
-          # "iam:CreateInstanceProfile",
-          # "iam:AddRoleToInstanceProfile"
+          # we terraform the role but skypilot-api-server still needs these permissions
+          "iam:CreateInstanceProfile",
+          "iam:AddRoleToInstanceProfile"
         ],
         "Resource" : "arn:aws:iam::${local.account_id}:instance-profile/skypilot-v1"
       },
