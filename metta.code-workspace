@@ -233,7 +233,6 @@
 			"pufferlib",
 			"pytest",
 			"PYTHONPATH",
-			"raylib",
 			"relu",
 			"skypilot",
 			"softmax",
