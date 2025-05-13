@@ -90,7 +90,7 @@ python -c "from mettagrid.mettagrid_env import MettaGridEnv; print('✅ Found me
   exit 1
 }
 
-# Check for mettagrid.core.MettaGrid
+# Check for mettagrid.mettagrid_c.MettaGrid
 echo "Checking import for mettagrid.mettagrid_c.MettaGrid..."
 python -c "from mettagrid.mettagrid_c import MettaGrid; print('✅ Found mettagrid.mettagrid_c.MettaGrid')" || {
   echo "❌ Failed to import mettagrid.mettagrid_c.MettaGrid"
