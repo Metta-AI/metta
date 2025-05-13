@@ -35,9 +35,9 @@ jobs:
   graphite-ci-optimizer:
     name: "Graphite CI Optimizer"
     if: |
-      github.event.pull_request.draft == false || 
-      github.event_name == 'push' || 
-      github.event_name == 'workflow_dispatch' || 
+      github.event.pull_request.draft == false ||
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
       github.event_name == 'merge_group'
     runs-on: ubuntu-latest
     outputs:
@@ -58,10 +58,10 @@ jobs:
     name: "Set up for Python checks"
     needs: graphite-ci-optimizer
     if: |
-      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') && 
-      (github.event.pull_request.draft == false || 
-       github.event_name == 'push' || 
-       github.event_name == 'workflow_dispatch' || 
+      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
+      (github.event.pull_request.draft == false ||
+       github.event_name == 'push' ||
+       github.event_name == 'workflow_dispatch' ||
        github.event_name == 'merge_group')
     runs-on: ubuntu-latest
     outputs:
@@ -80,7 +80,7 @@ jobs:
         uses: ./.github/actions/file-changes
         with:
           patterns: "**/*.py"
-          specific_files: "requirements.txt,setup.py"
+          specific_files: "requirements.txt,requirements_pinned.txt,setup.py"
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set cache paths
@@ -89,7 +89,6 @@ jobs:
           PATHS="venv
           mettagrid/**/*.so
           metta/**/*.so
-          deps/**/*.py
           ~/.cache/pip
           "
           echo "paths<<EOF" >> $GITHUB_OUTPUT
@@ -101,7 +100,6 @@ jobs:
         run: |
           # Create a hash that combines all relevant files
           find mettagrid -type f \( -name "*.py" \) -exec sha256sum {} \; > /tmp/mettagrid_file_hashes.txt || true
-          find deps -type f \( -name "*.py" \) -exec sha256sum {} \; > /tmp/deps_file_hashes.txt || true
 
           # Add more project directories if they exist
           find tests -type f \( -name "*.py" \) -exec sha256sum {} \; > /tmp/tests_file_hashes.txt || true
@@ -117,6 +115,9 @@ jobs:
           if [ -f "requirements.txt" ]; then
             sha256sum requirements.txt >> /tmp/file_hashes.txt
           fi
+          if [ -f "requirements_pinned.txt" ]; then
+            sha256sum requirements_pinned.txt >> /tmp/file_hashes.txt
+          fi
           if [ -f "pyproject.toml" ]; then
             sha256sum pyproject.toml >> /tmp/file_hashes.txt
           fi
@@ -128,7 +129,7 @@ jobs:
           echo "${{ steps.set-cache-paths.outputs.paths }}" | sha256sum >> /tmp/file_hashes.txt
 
           # Combine all hash files
-          cat /tmp/mettagrid_file_hashes.txt /tmp/deps_file_hashes.txt /tmp/tests_file_hashes.txt /tmp/examples_file_hashes.txt /tmp/config_file_hashes.txt /tmp/file_hashes.txt > /tmp/all_hashes.txt || true
+          cat /tmp/mettagrid_file_hashes.txt /tmp/tests_file_hashes.txt /tmp/examples_file_hashes.txt /tmp/config_file_hashes.txt /tmp/file_hashes.txt > /tmp/all_hashes.txt || true
 
           # Create the final hash
           if [ -s "/tmp/all_hashes.txt" ]; then
@@ -201,7 +202,7 @@ jobs:
         run: |
           python -m venv venv
           source venv/bin/activate
-          pip install -r requirements.txt -c requirements.txt
+          pip install -r requirements.txt
 
       - name: Install and compile deps (cache miss fallback)
         if: steps.setup-cache-py.outputs.cache-hit != 'true'
@@ -214,7 +215,7 @@ jobs:
     name: "Python Lint"
     needs: [graphite-ci-optimizer, setup-checks, setup-py]
     if: |
-      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') && 
+      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_lint == 'true')
     runs-on: ubuntu-latest
     steps:
@@ -245,7 +246,7 @@ jobs:
     name: "Python Tests"
     needs: [graphite-ci-optimizer, setup-checks, setup-py]
     if: |
-      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') && 
+      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_test == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -457,8 +458,8 @@ jobs:
     name: "Python Benchmarks"
     needs: [graphite-ci-optimizer, setup-checks, setup-py, test, smoke-test]
     if: |
-      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') && 
-      (needs.setup-checks.outputs.run_benchmark == 'true') && 
+      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
+      (needs.setup-checks.outputs.run_benchmark == 'true') &&
       (needs.test.result == 'success' || github.event_name != 'pull_request' )
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -566,17 +567,17 @@ jobs:
               if not results:
                   print(f"Skipping empty or invalid file: {file_path}")
                   continue
-              
+
               valid_files_found = True
-              
+
               # Add benchmarks to the combined list
               if "benchmarks" in results and isinstance(results["benchmarks"], list):
                   combined_results["benchmarks"].extend(results["benchmarks"])
-              
+
               # Use the first valid file's machine_info and commit_info if not already set
               if "machine_info" in results and not combined_results["machine_info"]:
                   combined_results["machine_info"] = results["machine_info"]
-              
+
               if "commit_info" in results and not combined_results["commit_info"]:
                   combined_results["commit_info"] = results["commit_info"]
 
@@ -651,7 +652,7 @@ jobs:
           # Continue with checking if branch exists and has data
           if [ $? -eq 0 ]; then
             echo "Branch exists, checking if it has benchmark data..."
-            
+
             # Check if branch output contains a head key
             if jq -e '.head' /tmp/branch_output.json > /dev/null; then
               echo "main_benchmark_exists=true" >> $GITHUB_OUTPUT
@@ -668,8 +669,8 @@ jobs:
       # First PR Performance run - Check for improvements (will NOT fail on alerts)
       - name: Check for Performance Improvements
         if: |
-          (github.event_name == 'pull_request') && 
-          (!github.event.pull_request.head.repo.fork) && 
+          (github.event_name == 'pull_request') &&
+          (!github.event.pull_request.head.repo.fork) &&
           (steps.check-main-benchmark.outputs.main_benchmark_exists == 'true')
         env:
           BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
