@@ -19,7 +19,7 @@ from metta.util.wandb.wandb_context import WandbContext
 class SimJob(Config):
     simulation_suite: SimulationSuiteConfig
     policy_uris: List[str]
-    selector_type: str = "top"
+    selector_type: str = "latest"
     dry_run: bool = False
     replay_dir: str = "s3://softmax-public/replays/evals"
 
