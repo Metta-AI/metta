@@ -2,7 +2,6 @@ from typing import Any
 
 import gymnasium as gym
 import numpy as np
-import torch
 from gymnasium.spaces import Discrete
 
 
@@ -62,43 +61,3 @@ class MultiToDiscreteWrapper(gym.ActionWrapper):
     def step(self, action):
         mapped_action = self.action_map[action]
         return self.env.step(mapped_action)
-
-
-class RaylibRendererWrapper(gym.Wrapper):
-    def __init__(self, env, cfg):
-        super(RaylibRendererWrapper, self).__init__(env)
-
-        import mettagrid.renderer.raylib.raylib_renderer as rl
-
-        self.renderer = rl.MettaGridRaylibRenderer(self.env._c_env, cfg.game)
-        self.total_rewards = np.zeros(self.env.num_agents)
-
-    def step(self, actions):
-        with torch.no_grad():
-            obs_tensor = torch.as_tensor(self._obs).cpu()
-
-        self.renderer.env = self.env._c_env
-        self.renderer.update(
-            actions,
-            obs_tensor,
-            self.rewards,
-            self.total_rewards,
-            self.env._c_env.current_timestep(),
-        )
-        self.renderer.render_and_wait()
-        actions = self.renderer.get_actions()
-
-        self._obs, self.rewards, terminated, truncated, info = self.env.step(actions)
-        self.total_rewards += self.rewards
-
-        return self._obs, self.rewards, terminated, truncated, info
-
-    def render(self):
-        return self.renderer.render_and_wait()
-
-    def reset(self, *, seed: int | None = None, options: dict[str, Any] | None = None):
-        self._obs, infos = self.env.reset(seed=seed, options=options)
-        self.total_rewards = np.zeros(self.env.num_agents)
-        self.rewards = np.zeros(self.env.num_agents)
-
-        return self._obs, infos
