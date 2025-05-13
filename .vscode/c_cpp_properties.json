@@ -6,10 +6,9 @@
                 "${workspaceFolder}/**",
                 "/opt/homebrew/Cellar/googletest/1.17.0/include",
                 "/opt/homebrew/opt/googletest/include",
-                "/opt/homebrew/Caskroom/miniconda/base/include/python3.12",
-                "/opt/homebrew/Caskroom/miniconda/base/include",
-                "/opt/homebrew/include",
-                "/usr/local/include"
+                "${env:CONDA_PREFIX}/envs/metta/include/python3.11",
+                "${env:CONDA_PREFIX}/envs/metta/include",
+                "${env:CONDA_PREFIX}/envs/metta/lib/python3.11/site-packages/pybind11/include"
             ],
             "defines": [
                 "GTEST_HAS_PTHREAD=1"
@@ -18,8 +17,8 @@
                 "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks"
             ],
             "compilerPath": "/usr/bin/clang++",
-            "cStandard": "c17",
-            "cppStandard": "c++17",
+            "cStandard": "c23",
+            "cppStandard": "c++23",
             "intelliSenseMode": "macos-clang-x64"
         }
     ],

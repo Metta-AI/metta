@@ -300,8 +300,8 @@ class TestGAEBenchmarks:
         result = benchmark(
             compute_gae, data["dones"], data["values"], data["rewards"], data["gamma"], data["gae_lambda"]
         )
-
-        return result
+        assert result is not None
+        self.cython_result = result
 
     def test_numpy_implementation_benchmark(self, benchmark, large_trajectory):
         """Benchmark the NumPy implementation."""
@@ -320,7 +320,8 @@ class TestGAEBenchmarks:
             f"\nNumPy implementation time: {benchmark.stats.stats.mean:.6f} seconds"
             f" (trajectory size: {len(data['dones'])})"
         )
-        return benchmark.stats.stats.mean
+        self.numpy_mean_time = benchmark.stats.stats.mean
+        assert self.numpy_mean_time > 0
 
     def test_implementation_comparison(self, large_trajectory):
         """Compare NumPy and Cython implementation performance without using benchmark fixture."""
@@ -359,7 +360,7 @@ class TestGAEBenchmarks:
         print(f"Cython implementation: {cython_time:.6f} seconds")
         print(f"Speedup factor: {speedup:.2f}x")
 
-        return speedup
+        assert speedup > 1.0, f"Cython implementation should be faster (got speedup: {speedup:.2f}x)"
 
     # Do the same for realistic RL batch
     def test_realistic_batch_implementation_comparison(self, realistic_rl_batch):
@@ -399,7 +400,7 @@ class TestGAEBenchmarks:
         print(f"Cython implementation: {cython_time:.6f} seconds")
         print(f"Speedup factor: {speedup:.2f}x")
 
-        return speedup
+        assert speedup > 1.0, f"Cython implementation should be faster (got speedup: {speedup:.2f}x)"
 
 
 if __name__ == "__main__":

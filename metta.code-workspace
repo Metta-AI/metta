@@ -1,4 +1,4 @@
-{ 
+{
 	"folders": [
 		{
 			"name": "metta",
@@ -15,6 +15,9 @@
 		{
 			"name": "carbs",
 			"path": "deps/carbs"
+		},
+		{
+			"path": "personal"
 		}
 	],
 	"settings": {
@@ -213,6 +216,7 @@
 			"coef",
 			"cooldown",
 			"cpus",
+			"daveey",
 			"dones",
 			"heavyball",
 			"kickstarter",
@@ -229,9 +233,7 @@
 			"pufferlib",
 			"pytest",
 			"PYTHONPATH",
-			"raylib",
 			"relu",
-			"softmax",
 			"skypilot",
 			"softmax",
 			"tensorclass",

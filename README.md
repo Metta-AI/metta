@@ -1,5 +1,11 @@
 # Metta AI
 
+<p align="center">
+  <a href="https://deepwiki.com/Metta-AI/metta">
+    <img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki">
+  </a>
+</p>
+
 A reinforcement learning codebase focusing on the emergence of cooperation and alignment in multi-agent AI systems.
 
 - **Discord**: <https://discord.gg/mQzrgwqmwy>

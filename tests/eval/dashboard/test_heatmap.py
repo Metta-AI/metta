@@ -159,18 +159,18 @@ def test_get_heatmap_matrix(sample_stats_db):
     for col in ["eval1", "eval2", "eval3"]:
         assert col in matrix.columns
 
-    # Check replay URL map
-    assert hasattr(matrix, "replay_url_map")
-    assert isinstance(matrix.replay_url_map, dict)
+    # Check replay URL map in matrix.attrs
+    assert "replay_url_map" in matrix.attrs
+    assert isinstance(matrix.attrs["replay_url_map"], dict)
 
     # Verify that the replay URL map has entries for each policy+eval combination
     for policy_uri in matrix.index:
         for eval_name in ["eval1", "eval2", "eval3"]:
             # Use the format from the implementation: "{policy_uri}|{eval_name}"
             key = f"{policy_uri}|{eval_name}"
-            assert key in matrix.replay_url_map
-            print(matrix.replay_url_map[key])
-            assert matrix.replay_url_map[key].startswith(
+            assert key in matrix.attrs["replay_url_map"]
+            print(f"Replay URL for {key}: {matrix.attrs['replay_url_map'][key]}")
+            assert matrix.attrs["replay_url_map"][key].startswith(
                 "https://metta-ai.github.io/metta/?replayUrl=https://example.com/replay/"
             )
 

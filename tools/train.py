@@ -1,6 +1,7 @@
 import os
 import sys
 from logging import Logger
+from typing import Optional
 
 import hydra
 import torch.distributed as dist
@@ -10,7 +11,7 @@ from torch.distributed.elastic.multiprocessing.errors import record
 from metta.agent.policy_store import PolicyStore
 from metta.sim.map_preview import upload_map_preview
 from metta.sim.simulation_config import SimulationSuiteConfig
-from metta.util.config import Config, setup_metta_environment
+from metta.util.config import Config, config_from_path, setup_metta_environment
 from metta.util.logging import setup_mettagrid_logger
 from metta.util.runtime_configuration import setup_mettagrid_environment
 from metta.util.wandb.wandb_context import WandbContext
@@ -19,9 +20,7 @@ from metta.util.wandb.wandb_context import WandbContext
 # TODO: populate this more
 class TrainJob(Config):
     evals: SimulationSuiteConfig
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    map_preview_uri: Optional[str] = None
 
 
 def train(cfg, wandb_run, logger: Logger):
@@ -44,9 +43,12 @@ def train(cfg, wandb_run, logger: Logger):
 
     policy_store = PolicyStore(cfg, wandb_run)
 
-    upload_map_preview(cfg, wandb_run, logger)
+    env_cfg = config_from_path(cfg.trainer.env, cfg.trainer.env_overrides)
+    upload_map_preview(env_cfg, train_job.map_preview_uri, wandb_run)
 
-    trainer = hydra.utils.instantiate(cfg.trainer, cfg, wandb_run, policy_store, train_job.evals)
+    trainer = hydra.utils.instantiate(
+        cfg.trainer, cfg, wandb_run, policy_store=policy_store, sim_suite_config=train_job.evals
+    )
     trainer.train()
     trainer.close()
 

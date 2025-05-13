@@ -324,11 +324,11 @@ jobs:
                 --project mettagrid-sv3f5i2k \
                 --token "$BENCHER_API_TOKEN" \
                 --branch main \
-                --threshold-measure latency \
-                --threshold-test t_test \
-                --threshold-max-sample-size 64 \
-                --threshold-upper-boundary 0.99 \
                 --thresholds-reset \
+                --threshold-measure latency \
+                --threshold-test percentage \
+                --threshold-max-sample-size 1 \
+                --threshold-upper-boundary 0.20 \
                 --testbed ubuntu-latest \
                 --adapter cpp_google \
                 --github-actions "$GITHUB_TOKEN" \
@@ -370,8 +370,8 @@ jobs:
             echo "Warning: Main branch does not exist or cannot be accessed. Will skip PR performance comparison."
           fi
 
-      # PR Performance Changes section - Only runs if main branch has benchmarks
-      - name: Upload to Bencher (PR Performance Changes)
+      # First PR Performance run - Check for improvements (will NOT fail on alerts)
+      - name: Check for Performance Improvements
         if: |
           github.event_name == 'pull_request' && 
           !github.event.pull_request.head.repo.fork && 
@@ -389,16 +389,50 @@ jobs:
                 --token "$BENCHER_API_TOKEN" \
                 --branch "$GITHUB_HEAD_REF" \
                 --start-point "main" \
-                --start-point-clone-thresholds \
-                --start-point-reset \
+                --testbed ubuntu-latest \
+                --thresholds-reset \
                 --threshold-measure latency \
                 --threshold-test percentage \
-                --threshold-max-sample-size 64 \
-                --threshold-upper-boundary 0.25 \
-                --testbed ubuntu-latest \
+                --threshold-max-sample-size 1 \
+                --threshold-lower-boundary 0.10 \
                 --adapter cpp_google \
                 --github-actions "$GITHUB_TOKEN" \
                 --file "$file" > /dev/null
+            done
+          else
+            echo "NO TEST RESULTS FOUND"
+          fi
+
+      # Second PR Performance run - Check for regressions (WILL fail on alerts)
+      - name: Check for Performance Regressions
+        if: |
+          github.event_name == 'pull_request' && 
+          !github.event.pull_request.head.repo.fork && 
+          steps.check-main-benchmark.outputs.main_benchmark_exists == 'true'
+        env:
+          BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd mettagrid/benchmark_output
+          ls -al
+          if ls *.json 1> /dev/null 2>&1; then
+            for file in *.json; do
+              bencher run \
+                --project mettagrid-sv3f5i2k \
+                --token "$BENCHER_API_TOKEN" \
+                --branch "$GITHUB_HEAD_REF" \
+                --start-point "main" \
+                --start-point-reset \
+                --testbed ubuntu-latest \
+                --thresholds-reset \
+                --threshold-measure latency \
+                --threshold-test percentage \
+                --threshold-max-sample-size 1 \
+                --threshold-upper-boundary 0.20 \
+                --err \
+                --adapter cpp_google \
+                --github-actions "$GITHUB_TOKEN" \
+                --file "$file" 
             done
           else
             echo "NO TEST RESULTS FOUND"
