@@ -13,7 +13,7 @@ defaults:
   - _self_
 
 trainer:
-  env: /env/mettagrid/navigation/training/multienv_with_cylinder
+  env: /env/mettagrid/navigation/training/multienv
   evaluate_interval: 10
 
 # policy: wandb://run/b.daveey.train.maze.sm.dr.warm.0

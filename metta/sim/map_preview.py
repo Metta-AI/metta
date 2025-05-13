@@ -31,6 +31,8 @@ def upload_map_preview(cfg: DictConfig | ListConfig, wandb_run: wandb_run.Run, l
 
     # MettaGridEnv requires a DictConfig
     env_dict = OmegaConf.to_container(env_cfg)
+    if env_cfg._target_ != "metta.env.mettagrid_env.MettaGridEnv":
+        return
     env = MettaGridEnv(DictConfig(env_dict), render_mode=None)
 
     preview = {
