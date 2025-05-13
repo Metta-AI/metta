@@ -9,4 +9,11 @@ uv pip install skypilot==0.9.2 --prerelease=allow
 uv pip install "skypilot[aws]"
 uv pip install "skypilot[vast]"
 
-sky api login -e 'http://skypilot-api-server.softmax:46580'
+SERVER=$(AWS_PROFILE=softmax aws ssm get-parameter --name /skypilot/api_url --query Parameter.Value --output text)
+
+if [ -z "$SERVER" ]; then
+  echo "Failed to get Skypilot API server URL from SSM"
+  exit 1
+fi
+
+sky api login -e "$SERVER"
