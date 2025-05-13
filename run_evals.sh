@@ -18,22 +18,23 @@ POLICIES=(
     # "b.daphne.navigation3"
     # "b.daphne.navigation4"
 
-    "daphne.2object_use_colors_pretrained"
-    "daphne.2object_use_colors"
-    "daphne.2object_use_no_colors_pretrained"
-    "daphne.2object_use_no_colors"
-    "dd_object_use_easy"
+    # "daphne.2object_use_colors_pretrained"
+    # "daphne.2object_use_colors"
+    # "daphne.2object_use_no_colors_pretrained"
+    # "daphne.2object_use_no_colors"
+    # "dd_object_use_easy"
 
-    "gd2_sharing24_06"
-    "gd2_24_no_sharing"
-    "gd2_sharing24_03"
-    "gd2_sharing_24"
-    "gd2_48_no_sharing"
-    "gd2_sharing48_03"
-    "gd2_sharing48_06"
-    "gd2_sharing_48"
+    # "gd2_sharing24_06"
+    # "gd2_24_no_sharing"
+    # "gd2_sharing24_03"
+    # "gd2_sharing_24"
+    # "gd2_48_no_sharing"
+    # "gd2_sharing48_03"
+    # "gd2_sharing48_06"
+    # "gd2_sharing_48"
 
     "b.daphne.navigation_training"
+    "daphne_navigation_train"
     "b.daphne.simple_training"
 
     # "gd_sharing_24_range_pretrained"
@@ -58,25 +59,25 @@ for i in "${!POLICIES[@]}"; do
     IDX="${IDX}_${RANDOM_NUM}"
 
 
-    python3 -m tools.sim \
-        sim=multiagent \
-        run=multiagent$IDX \
-        policy_uri=wandb://run/$POLICY_URI \
-        +eval_db_uri=wandb://stats/multiagent_db \
+    # python3 -m tools.sim \
+    #     sim=multiagent \
+    #     run=multiagent$IDX \
+    #     policy_uri=wandb://run/$POLICY_URI \
+    #     +eval_db_uri=wandb://stats/multiagent_db \
 
 
-    python3 -m tools.sim \
-        sim=object_use \
-        run=object_use$IDX \
-        policy_uri=wandb://run/$POLICY_URI \
-        +eval_db_uri=wandb://stats/object_use_db \
+    # python3 -m tools.sim \
+    #     sim=object_use \
+    #     run=object_use$IDX \
+    #     policy_uri=wandb://run/$POLICY_URI \
+    #     +eval_db_uri=wandb://stats/object_use_db \
 
 
-    python3 -m tools.sim \
-        sim=memory \
-        run=memory$IDX \
-        policy_uri=wandb://run/$POLICY_URI \
-        +eval_db_uri=wandb://stats/memory_db \
+    # python3 -m tools.sim \
+    #     sim=memory \
+    #     run=memory$IDX \
+    #     policy_uri=wandb://run/$POLICY_URI \
+    #     +eval_db_uri=wandb://stats/memory_db \
 
     python3 -m tools.sim \
         sim=navigation \
