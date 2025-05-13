@@ -10,9 +10,8 @@ setup: |
   cd /workspace/metta
   git fetch
   git checkout $METTA_GIT_REF
-  pip install -r requirements.txt
+  make install
 
-  ./devops/build_mettagrid.sh
   mkdir -p $WANDB_DIR
 
 run: |
@@ -28,7 +27,6 @@ run: |
   ./devops/$METTA_CMD.sh \
     +hardware=$METTA_HARDWARE \
     run=$METTA_RUN_ID \
-    trainer.num_workers=$METTA_NUM_WORKERS \
     $METTA_CMD_ARGS
 
 file_mounts:
@@ -49,10 +47,9 @@ envs:
   METTA_HARDWARE: aws
   METTA_CMD: train
   METTA_CMD_ARGS: ""
-  METTA_NUM_WORKERS: 4
   METTA_GIT_REF: main
   WANDB_DIR: ./wandb
 
   SKYPILOT_DOCKER_USERNAME: AWS
-  SKYPILOT_DOCKER_PASSWORD: SKYPILOT_DOCKER_PASSWORD
+  SKYPILOT_DOCKER_PASSWORD: "SKYPILOT_DOCKER_PASSWORD"
   SKYPILOT_DOCKER_SERVER: 767406518141.dkr.ecr.us-east-1.amazonaws.com

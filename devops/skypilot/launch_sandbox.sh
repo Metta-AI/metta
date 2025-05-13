@@ -22,7 +22,6 @@ export METTA_GIT_REF=$(git rev-parse HEAD)
 gpus=1
 nodes=1
 cpus=8
-gpu_type=L4
 
 for arg in "$@"; do
   case $arg in
@@ -36,11 +35,6 @@ for arg in "$@"; do
       gpus="${arg#*=}"
       echo "gpus: $gpus"
       CMD_ARGS=$(echo "$CMD_ARGS" | sed -E "s/--gpus=[^ ]* ?//g")
-      ;;
-    --gpu-type=*)
-      gpu_type="${arg#*=}"
-      echo "gpu_type: $gpu_type"
-      CMD_ARGS=$(echo "$CMD_ARGS" | sed -E "s/--gpu-type=[^ ]* ?//g")
       ;;
     --nodes=*)
       nodes="${arg#*=}"
@@ -59,12 +53,12 @@ source .venv/skypilot/bin/activate
 
 export SKYPILOT_DOCKER_PASSWORD=$(aws ecr get-login-password --region us-east-1)
 
-AWS_PROFILE=softmax-db-admin sky jobs launch \
-  --gpus $gpu_type:$gpus \
+AWS_PROFILE=softmax-db-admin sky launch \
+  --gpus L4:$gpus \
   --num-nodes $nodes \
   --cpus $cpus\+ \
-  --name $RUN_ID \
-  ./devops/skypilot/config/sk_train.yaml \
+  --cluster $RUN_ID \
+  ./devops/skypilot/config/train.yaml \
   --env SKYPILOT_DOCKER_PASSWORD \
   --env METTA_RUN_ID=$RUN_ID \
   --env METTA_CMD=$CMD \
