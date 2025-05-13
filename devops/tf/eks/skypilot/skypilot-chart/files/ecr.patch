@@ -12,7 +12,7 @@
 +            logger.info('Detected ECR server, fetching login password from AWS...')
 +            password = subprocess.check_output(
 +                ['aws', 'ecr', 'get-login-password', '--region',
-+                 match.group(2)], encoding='utf-8)
++                 match.group(2)], encoding='utf-8')
 +            logger.info('Successfully fetched login password from AWS')
 +
 +            return cls(
