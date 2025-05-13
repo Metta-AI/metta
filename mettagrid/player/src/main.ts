@@ -1,7 +1,7 @@
 import { Vec2f, Mat3f } from './vector_math.js';
 import * as Common from './common.js';
 import { ui, state, html, ctx, setFollowSelection } from './common.js';
-import { fetchReplay, readFile } from './replay.js';
+import { fetchReplay, getAttr, initWebSocket, readFile, sendAction } from './replay.js';
 import { focusFullMap, updateReadout, drawMap, requestFrame } from './worldmap.js';
 import { drawTrace } from './traces.js';
 import { drawMiniMap } from './minimap.js';
@@ -214,6 +214,103 @@ function onKeyDown(event: KeyboardEvent) {
   if (event.key == " ") {
     setIsPlaying(!state.isPlaying);
   }
+
+  // Action mapping:
+  // 0: "put_recipe_items"
+  // 1: "get_output"
+  // 2: "noop"
+  // 3: "move"
+  // 4: "rotate"
+  // 5: "attack"
+  // 6: "attack_nearest"
+  // 7: "swap"
+  // 8: "change_color"
+
+  if (state.isOneToOneAction) {
+    // Each key is one action.
+    if (event.key == "w") {
+      console.log("Rotate up");
+      sendAction([4, 0])
+    }
+    if (event.key == "a") {
+      console.log("Rotate left");
+      sendAction([4, 2])
+    }
+    if (event.key == "s") {
+      console.log("Rotate down");
+      sendAction([4, 1])
+    }
+    if (event.key == "d") {
+      console.log("Rotate right");
+      sendAction([4, 3])
+    }
+    if (event.key == "f") {
+      console.log("Move forward");
+      sendAction([3, 0])
+    }
+    if (event.key == "r") {
+      console.log("Move backward");
+      sendAction([3, 1])
+    }
+  } else {
+    // Smarter navigation, where pressing key rotations the agent in the
+    // direction of the key, but if the agent is already facing in that
+    // direction, it moves forward.
+    if (state.selectedGridObject != null) {
+      const agent = state.selectedGridObject;
+      const orientation = getAttr(agent, "agent:orientation");
+      if (event.key == "w") {
+        if (orientation != 0) {
+          // Rotate up.
+          sendAction([4, 0])
+        } else {
+          // Move forward (up).
+          sendAction([3, 0])
+        }
+      }
+      if (event.key == "a") {
+        if (orientation != 2) {
+          // Rotate left.
+          sendAction([4, 2])
+        } else {
+          // Move forward (left).
+          sendAction([3, 0])
+        }
+      }
+      if (event.key == "s") {
+        if (orientation != 1) {
+          // Rotate down.
+          sendAction([4, 1])
+        } else {
+          // Move forward (down).
+          sendAction([3, 0])
+        }
+      }
+      if (event.key == "d") {
+        if (orientation != 3) {
+          // Rotate right.
+          sendAction([4, 3])
+        } else {
+          // Move forward (right).
+          sendAction([3, 0])
+        }
+      }
+
+      if (event.key == "q") {
+        // Put recipe items.
+        sendAction([0, 0])
+      }
+      if (event.key == "e") {
+        // Get output.
+        sendAction([1, 0])
+      }
+      if (event.key == "x") {
+        // Noop.
+        sendAction([2, 0])
+      }
+    }
+  }
+
   requestFrame();
 }
 
@@ -293,10 +390,14 @@ async function parseUrlParams() {
 
   // Load the replay.
   const replayUrl = urlParams.get('replayUrl');
+  const wsUrl = urlParams.get('wsUrl');
   if (replayUrl) {
     console.log("Loading replay from URL: ", replayUrl);
     await fetchReplay(replayUrl);
     focusFullMap(ui.mapPanel);
+  } else if (wsUrl) {
+    console.log("Connecting to a websocket: ", wsUrl);
+    initWebSocket(wsUrl);
   } else {
     Common.showModal(
       "info",
@@ -305,30 +406,32 @@ async function parseUrlParams() {
     );
   }
 
-  // Set the current step.
-  if (urlParams.get('step') !== null) {
-    const initialStep = parseInt(urlParams.get('step') || "0");
-    console.info("Step via query parameter:", initialStep);
-    updateStep(initialStep, false);
-  }
+  if (state.replay !== null) {
+    // Set the current step.
+    if (urlParams.get('step') !== null) {
+      const initialStep = parseInt(urlParams.get('step') || "0");
+      console.info("Step via query parameter:", initialStep);
+      updateStep(initialStep, false);
+    }
 
-  // Set the playing state.
-  if (urlParams.get('play') !== null) {
-    setIsPlaying(urlParams.get('play') === "true");
-    console.info("Playing state via query parameter:", state.isPlaying);
-  }
+    // Set the playing state.
+    if (urlParams.get('play') !== null) {
+      setIsPlaying(urlParams.get('play') === "true");
+      console.info("Playing state via query parameter:", state.isPlaying);
+    }
 
-  // Set selected object.
-  if (urlParams.get('selectedObjectId') !== null) {
-    const selectedObjectId = parseInt(urlParams.get('selectedObjectId') || "-1") - 1;
-    if (selectedObjectId >= 0 && selectedObjectId < state.replay.grid_objects.length) {
-      state.selectedGridObject = state.replay.grid_objects[selectedObjectId];
-      setFollowSelection(true);
-      ui.mapPanel.zoomLevel = Common.DEFAULT_ZOOM_LEVEL;
-      ui.tracePanel.zoomLevel = Common.DEFAULT_TRACE_ZOOM_LEVEL;
-      console.info("Selected object via query parameter:", state.selectedGridObject);
-    } else {
-      console.warn("Invalid selectedObjectId:", selectedObjectId);
+    // Set selected object.
+    if (urlParams.get('selectedObjectId') !== null) {
+      const selectedObjectId = parseInt(urlParams.get('selectedObjectId') || "-1") - 1;
+      if (selectedObjectId >= 0 && selectedObjectId < state.replay.grid_objects.length) {
+        state.selectedGridObject = state.replay.grid_objects[selectedObjectId];
+        setFollowSelection(true);
+        ui.mapPanel.zoomLevel = Common.DEFAULT_ZOOM_LEVEL;
+        ui.tracePanel.zoomLevel = Common.DEFAULT_TRACE_ZOOM_LEVEL;
+        console.info("Selected object via query parameter:", state.selectedGridObject);
+      } else {
+        console.warn("Invalid selectedObjectId:", selectedObjectId);
+      }
     }
   }
 
@@ -341,6 +444,7 @@ async function parseUrlParams() {
   if (urlParams.get('mapZoom') !== null) {
     ui.mapPanel.zoomLevel = parseFloat(urlParams.get('mapZoom') || "1");
   }
+
 
   requestFrame();
 }

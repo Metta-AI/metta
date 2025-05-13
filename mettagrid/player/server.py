@@ -1,7 +1,7 @@
-import asyncio
 import logging
 
 import hydra
+import numpy as np
 from fastapi import FastAPI, HTTPException, WebSocket
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -56,17 +56,72 @@ async def websocket_endpoint(
         await websocket.send_json(kwargs)
 
     logger.info("Received websocket connection!")
-    await send_message(message="Connecting!")
+    await send_message(type="message", message="Connecting!")
 
-    replay = replays.generate_replay(app.cfg)
-    await send_message(replay=replay)
+    sim = replays.create_simulation(app.cfg)
+    sim.start_simulation()
+    env = sim._vecenv.envs[0]
+    # replay = replays.generate_replay(sim)
+
+    replay = None
+    for episode_id, episode_replay in sim._replay_writer.episodes.items():
+        # print("episode_id", episode_id)
+        # print("episode_replay", episode_replay)
+        # print("len(episode_replay.get_replay_data())", len(episode_replay.get_replay_data()))
+        replay = episode_replay.get_replay_data()
+    assert replay != None
+
+    await send_message(type="replay", replay=replay)
+
+    current_step = 0
+
+    action_message = None
+
+    total_rewards = np.zeros(env.num_agents)
 
     while True:
         # Receive action from client
-        await send_message(message="Step!")
 
-        # Wait 1 second
-        await asyncio.sleep(1)
+        if current_step < 1000:
+            await send_message(type="message", message="Step!")
+
+            actions = sim.generate_actions()
+            if action_message != None:
+                agent_id = action_message["agent_id"]
+                actions[agent_id][0] = action_message["action"][0]
+                actions[agent_id][1] = action_message["action"][1]
+            sim.step_simulation(actions)
+
+            grid_objects = []
+            for i, grid_object in enumerate(env.grid_objects.values()):
+                if len(grid_objects) <= i:
+                    grid_objects.append({})
+                for key, value in grid_object.items():
+                    grid_objects[i][key] = value
+                if "agent_id" in grid_object:
+                    agent_id = grid_object["agent_id"]
+                    # TODO: add action
+                    # self.grid_objects[i], "action", self.step, actions[agent_id]
+                    grid_objects[i]["action_success"] = bool(env.action_success[agent_id])
+                    grid_objects[i]["action"] = actions[agent_id].tolist()
+                    grid_objects[i]["reward"] = env.rewards[agent_id].item()
+                    total_rewards[agent_id] += env.rewards[agent_id]
+                    grid_objects[i]["total_reward"] = total_rewards[agent_id].item()
+
+            print("replay_step step=", current_step)
+            await send_message(type="replay_step", replay_step={"step": current_step, "grid_objects": grid_objects})
+
+            current_step += 1
+
+        if current_step > 1:
+            message = await websocket.receive_json()
+            print("message", message)
+            if message["type"] == "action":
+                action_message = message
+            # Wait 1 second
+            # await asyncio.sleep(0.1)
+
+    sim.end_simulation()
 
 
 if __name__ == "__main__":

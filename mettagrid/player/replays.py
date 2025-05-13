@@ -10,6 +10,7 @@ from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.util.config import Config, setup_metta_environment
 from metta.util.logging import setup_mettagrid_logger
 from metta.util.runtime_configuration import setup_mettagrid_environment
+from metta.util.tracing import save_trace, trace
 from metta.util.wandb.wandb_context import WandbContext
 
 
@@ -25,6 +26,7 @@ class ReplayJob(Config):
         super().__init__(*args, **kwargs)
 
 
+@trace
 def create_simulation(cfg):
     setup_metta_environment(cfg)
     setup_mettagrid_environment(cfg)
@@ -52,6 +54,7 @@ def create_simulation(cfg):
     return sim
 
 
+@trace
 def generate_replay(sim):
     # print("sim._vecenv.envs", sim._vecenv.envs)
     assert len(sim._vecenv.envs) == 1
@@ -85,5 +88,7 @@ if __name__ == "__main__":
         end = time.time()
         print("len(replay)", len(replay))
         print("Generate replay time", end - start)
+
+        save_trace("perf_trace.json")
 
     main()

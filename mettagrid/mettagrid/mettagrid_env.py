@@ -11,6 +11,7 @@ import numpy as np
 import pufferlib
 from omegaconf import DictConfig, OmegaConf
 
+from metta.util.tracing import trace
 from mettagrid.config.utils import simple_instantiate
 from mettagrid.mettagrid_c import MettaGrid  # pylint: disable=E0611
 from mettagrid.replay_writer import ReplayWriter
@@ -19,6 +20,7 @@ from mettagrid.stats_writer import StatsWriter
 
 
 class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
+    @trace
     def __init__(
         self,
         env_cfg: DictConfig,
@@ -55,6 +57,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         OmegaConf.resolve(env_cfg)
         return env_cfg
 
+    @trace
     def _reset_env(self):
         if self._env_map is None:
             self._map_builder = simple_instantiate(
@@ -86,6 +89,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         # self._env = RewardTracker(self._env)
         # self._env = FeatureMasker(self._env, self._cfg.hidden_features)
 
+    @trace
     def reset(self, seed=None, options=None):
         self._env_cfg = self._get_new_env_cfg()
         self._reset_env()
@@ -102,28 +106,30 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self.should_reset = False
         return obs, infos
 
+    @trace
     def step(self, actions):
         self.actions[:] = np.array(actions).astype(np.uint32)
 
-        # if self._replay_writer:
-        #     self._replay_writer.log_pre_step(self._episode_id, self.actions)
+        if self._replay_writer:
+            self._replay_writer.log_pre_step(self._episode_id, self.actions)
 
         self._c_env.step(self.actions)
 
-        # if self._env_cfg.normalize_rewards:
-        #     self.rewards -= self.rewards.mean()
+        if self._env_cfg.normalize_rewards:
+            self.rewards -= self.rewards.mean()
 
-        # if self._replay_writer:
-        #     self._replay_writer.log_post_step(self._episode_id, self.rewards)
+        if self._replay_writer:
+            self._replay_writer.log_post_step(self._episode_id, self.rewards)
 
         infos = {}
-        # if self.terminals.all() or self.truncations.all():
-        #     self.process_episode_stats(infos)
-        #     self.should_reset = True
-        #     print("should_reset")
+        if self.terminals.all() or self.truncations.all():
+            self.process_episode_stats(infos)
+            self.should_reset = True
+            print("should_reset")
 
         return self.observations, self.rewards, self.terminals, self.truncations, infos
 
+    @trace
     def process_episode_stats(self, infos: Dict[str, Any]):
         episode_rewards = self._c_env.get_episode_rewards()
         episode_rewards_sum = episode_rewards.sum()
