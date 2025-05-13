@@ -7,9 +7,9 @@
 
 #include "constants.hpp"
 #include "grid_object.hpp"
-#include "objects/has_inventory.hpp"
 #include "objects/metta_object.hpp"
 #include "stats_tracker.hpp"
+#include "types.hpp"
 
 class Agent : public MettaObject {
 public:
@@ -19,22 +19,22 @@ public:
   uint8_t orientation;
   std::vector<uint8_t> inventory;
   uint8_t max_items;
-  std::vector<float> resource_rewards;
-  std::vector<float> resource_reward_max;
+  std::vector<c_rewards_type> resource_rewards;
+  std::vector<c_rewards_type> resource_reward_max;
   float action_failure_penalty;
   std::string group_name;
   uint8_t color;
   uint8_t agent_id;
   StatsTracker stats;
   float current_resource_reward;
-  float* reward;
+  c_rewards_type* reward;
 
   Agent(GridCoord r,
         GridCoord c,
         std::string group_name,
         uint8_t group_id,
         ObjectConfig cfg,
-        std::map<std::string, float> rewards_map  // a map of rewards for actions or inventory changes
+        std::map<std::string, c_rewards_type> rewards_map  // a map of rewards for actions or inventory changes
   ) {
     GridObject::init(ObjectType::AgentT, GridLocation(r, c, GridLayer::Agent_Layer));
     MettaObject::set_hp(cfg);
@@ -64,9 +64,7 @@ public:
     this->reward = reward;
   }
 
-  // TODO: agents clearly seem to manage an inventory but they do not inherit from HasInventory... ???
-
-  void update_inventory(InventoryItem item, int16_t amount) {
+  void update_agent_inventory(InventoryItem item, int16_t amount) {
     int32_t current_amount = this->inventory[static_cast<int32_t>(item)];
     int32_t new_amount = current_amount + amount;
     if (new_amount > this->max_items) {

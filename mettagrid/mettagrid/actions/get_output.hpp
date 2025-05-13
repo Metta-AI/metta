@@ -48,21 +48,13 @@ protected:
       throw std::runtime_error("Object at target location is not a MettaObject");
     }
 
-    if (!target->has_inventory()) {
+    if (!target->is_converter()) {
       return false;
     }
 
-    // TODO: figure this out -- agents have inventory?!
-    //
-    // ### Converter and HasInventory are the same thing ###
-    // It's more correct to cast this as a HasInventory, but right now Converters are
-    // the only implementors of HasInventory, and we also need to call maybe_start_converting
-    // on them. We should later refactor this to we call .update_inventory on the target, and
-    // have this automatically call maybe_start_converting. That's hard because we need to
-    // let it maybe schedule events.
     Converter* converter = dynamic_cast<Converter*>(target);
     if (converter == nullptr) {
-      throw std::runtime_error("Object with has_inventory() is not a Converter");
+      throw std::runtime_error("Object with is_converter() is not a Converter");
     }
 
     if (!converter->inventory_is_accessible()) {
@@ -89,8 +81,8 @@ protected:
         // The actor will destroy anything it can't hold. That's not intentional, so feel free
         // to fix it.
         actor->stats.add(InventoryItemNames[i], "get", converter->inventory[i]);
-        actor->update_inventory(static_cast<InventoryItem>(i), converter->inventory[i]);
-        converter->update_inventory(static_cast<InventoryItem>(i), -converter->inventory[i]);
+        actor->update_agent_inventory(static_cast<InventoryItem>(i), converter->inventory[i]);
+        converter->update_converter_inventory(static_cast<InventoryItem>(i), -converter->inventory[i]);
         items_taken = true;
       }
     }

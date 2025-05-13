@@ -21,7 +21,7 @@ public:
     encode(obs, GridFeature::HP, this->hp);
   }
 
-  virtual bool has_inventory() {  // TODO: make const
+  virtual bool is_converter() const {
     return false;
   }
 

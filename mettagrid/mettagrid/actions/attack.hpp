@@ -36,7 +36,7 @@ protected:
     }
 
     // Consume a laser
-    actor->update_inventory(InventoryItem::laser, -1);
+    actor->update_agent_inventory(InventoryItem::laser, -1);
 
     // Calculate target location
     int16_t distance = 1 + (arg - 1) / 3;
@@ -85,7 +85,7 @@ protected:
       was_frozen = agent_target->frozen > 0;
 
       if (agent_target->inventory[InventoryItem::armor] > 0) {
-        agent_target->update_inventory(InventoryItem::armor, -1);
+        agent_target->update_agent_inventory(InventoryItem::armor, -1);
         actor->stats.incr("attack.blocked", agent_target->group_name);
         actor->stats.incr("attack.blocked", agent_target->group_name, actor->group_name);
       } else {
@@ -110,8 +110,8 @@ protected:
             }
 
             actor->stats.add(InventoryItemNames[item], "stolen", actor->group_name, agent_target->inventory[item]);
-            actor->update_inventory(static_cast<InventoryItem>(item), agent_target->inventory[item]);
-            agent_target->update_inventory(static_cast<InventoryItem>(item), -agent_target->inventory[item]);
+            actor->update_agent_inventory(static_cast<InventoryItem>(item), agent_target->inventory[item]);
+            agent_target->update_agent_inventory(static_cast<InventoryItem>(item), -agent_target->inventory[item]);
           }
         }
 

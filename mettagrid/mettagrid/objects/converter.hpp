@@ -10,49 +10,13 @@
 #include "event_manager.hpp"
 #include "grid_object.hpp"
 #include "objects/agent.hpp"
-#include "objects/has_inventory.hpp"
 #include "objects/metta_object.hpp"
 #include "types.hpp"
 
 // Converter class definition
-class Converter : public HasInventory {
-private:
-  // This should be called any time the converter could start converting
-  void maybe_start_converting() {
-    // We can't start converting if there's no event manager, since we won'tbe able to schedule the finishing event.
-    assert(this->event_manager != nullptr);
-    // We also need to have an id to schedule the finishing event. If our id id zero, we probably haven't been added to
-    // the grid yet.
-    assert(this->id != 0);
-    if (this->converting || this->cooling_down) {
-      return;
-    }
-    // Check if the converter is already at max output.
-    uint16_t total_output = 0;
-    for (uint32_t i = 0; i < InventoryItem::InventoryCount; i++) {
-      if (this->recipe_output[i] > 0) {
-        total_output += this->inventory[i];
-      }
-    }
-    if (total_output >= this->max_output) {
-      return;
-    }
-    // Check if the converter has enough input.
-    for (uint32_t i = 0; i < InventoryItem::InventoryCount; i++) {
-      if (this->inventory[i] < this->recipe_input[i]) {
-        return;
-      }
-    }
-    // produce.
-    for (uint32_t i = 0; i < InventoryItem::InventoryCount; i++) {
-      this->inventory[i] -= this->recipe_input[i];
-    }
-    // All the previous returns were "we don't start converting". This one is us starting to convert.
-    this->converting = true;
-    this->event_manager->schedule_event(Events::FinishConverting, this->conversion_ticks, this->id, 0);
-  }
-
+class Converter : public MettaObject {
 public:
+  std::vector<uint8_t> inventory;
   std::vector<uint8_t> recipe_input;
   std::vector<uint8_t> recipe_output;
   uint16_t max_output;
@@ -66,7 +30,7 @@ public:
   Converter(GridCoord r, GridCoord c, ObjectConfig cfg, TypeId type_id) {
     GridObject::init(type_id, GridLocation(r, c, GridLayer::Object_Layer));
     MettaObject::set_hp(cfg);
-    HasInventory::init_has_inventory(cfg);
+    this->inventory.resize(InventoryItem::InventoryCount);
     this->recipe_input.resize(InventoryItem::InventoryCount);
     this->recipe_output.resize(InventoryItem::InventoryCount);
     for (uint32_t i = 0; i < InventoryItem::InventoryCount; i++) {
@@ -84,7 +48,7 @@ public:
     uint8_t initial_items = cfg["initial_items"];
     for (uint32_t i = 0; i < InventoryItem::InventoryCount; i++) {
       if (this->recipe_output[i] > 0) {
-        HasInventory::update_inventory(static_cast<InventoryItem>(i), initial_items);
+        this->_update_inventory(static_cast<InventoryItem>(i), initial_items);
       }
     }
   }
@@ -102,7 +66,7 @@ public:
     // Add output to inventory
     for (uint32_t i = 0; i < InventoryItem::InventoryCount; i++) {
       if (this->recipe_output[i] > 0) {
-        HasInventory::update_inventory(static_cast<InventoryItem>(i), this->recipe_output[i]);
+        this->_update_inventory(static_cast<InventoryItem>(i), this->recipe_output[i]);
       }
     }
 
@@ -124,13 +88,17 @@ public:
     this->maybe_start_converting();
   }
 
-  void update_inventory(InventoryItem item, int16_t amount) override {
-    HasInventory::update_inventory(item, amount);
+  virtual bool is_converter() const override {
+    return true;
+  }
+
+  void update_converter_inventory(InventoryItem item, int16_t amount) {
+    this->_update_inventory(item, amount);
     this->maybe_start_converting();
   }
 
   virtual void obs(c_observations_type* obs) const override {
-    HasInventory::obs(obs);
+    MettaObject::obs(obs);
 
     // Map object type to corresponding feature
     GridFeature objectTypeFeature;
@@ -188,6 +156,55 @@ public:
     for (uint32_t i = 0; i < InventoryItem::InventoryCount; i++) {
       encode(obs, converterInventoryFeatures[i], this->inventory[i]);
     }
+  }
+
+  // Whether the inventory is accessible to an agent.
+  virtual bool inventory_is_accessible() const {
+    return true;
+  }
+
+private:
+  virtual void _update_inventory(InventoryItem item, int16_t amount) {
+    int32_t current = this->inventory[item];
+    int32_t new_value = current + amount;
+
+    // Clamp the result between 0 and UINT8_MAX
+    this->inventory[item] = static_cast<uint8_t>(std::clamp(new_value, 0, static_cast<int32_t>(UINT8_MAX)));
+  }
+
+  // This should be called any time the converter could start converting
+  void maybe_start_converting() {
+    // We can't start converting if there's no event manager, since we won'tbe able to schedule the finishing event.
+    assert(this->event_manager != nullptr);
+    // We also need to have an id to schedule the finishing event. If our id id zero, we probably haven't been added to
+    // the grid yet.
+    assert(this->id != 0);
+    if (this->converting || this->cooling_down) {
+      return;
+    }
+    // Check if the converter is already at max output.
+    uint16_t total_output = 0;
+    for (uint32_t i = 0; i < InventoryItem::InventoryCount; i++) {
+      if (this->recipe_output[i] > 0) {
+        total_output += this->inventory[i];
+      }
+    }
+    if (total_output >= this->max_output) {
+      return;
+    }
+    // Check if the converter has enough input.
+    for (uint32_t i = 0; i < InventoryItem::InventoryCount; i++) {
+      if (this->inventory[i] < this->recipe_input[i]) {
+        return;
+      }
+    }
+    // produce.
+    for (uint32_t i = 0; i < InventoryItem::InventoryCount; i++) {
+      this->inventory[i] -= this->recipe_input[i];
+    }
+    // All the previous returns were "we don't start converting". This one is us starting to convert.
+    this->converting = true;
+    this->event_manager->schedule_event(Events::FinishConverting, this->conversion_ticks, this->id, 0);
   }
 };
 

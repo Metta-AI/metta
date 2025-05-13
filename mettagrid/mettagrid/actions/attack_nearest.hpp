@@ -29,7 +29,7 @@ protected:
       return false;
     }
 
-    actor->update_inventory(InventoryItem::laser, -1);
+    actor->update_agent_inventory(InventoryItem::laser, -1);
 
     // Use the validate_orientation utility method
     validate_orientation(actor);

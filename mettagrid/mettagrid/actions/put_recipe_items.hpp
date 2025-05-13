@@ -53,14 +53,13 @@ protected:
       throw std::runtime_error("Object at target location is not a MettaObject");
     }
 
-    if (!target->has_inventory()) {
+    if (!target->is_converter()) {
       return false;
     }
 
-    // #Converter_and_HasInventory_are_the_same_thing
     Converter* converter = dynamic_cast<Converter*>(target);
     if (converter == nullptr) {
-      throw std::runtime_error("Object with has_inventory() is not a Converter");
+      throw std::runtime_error("Object with is_converter() is not a Converter");
     }
 
     // Check if we have enough items for the recipe
@@ -87,8 +86,8 @@ protected:
         throw std::runtime_error("Invalid inventory item name index: " + std::to_string(i));
       }
 
-      actor->update_inventory(static_cast<InventoryItem>(i), -converter->recipe_input[i]);
-      converter->update_inventory(static_cast<InventoryItem>(i), converter->recipe_input[i]);
+      actor->update_agent_inventory(static_cast<InventoryItem>(i), -converter->recipe_input[i]);
+      converter->update_converter_inventory(static_cast<InventoryItem>(i), converter->recipe_input[i]);
       actor->stats.add(InventoryItemNames[i], "put", converter->recipe_input[i]);
     }
 
