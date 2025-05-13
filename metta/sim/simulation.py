@@ -26,7 +26,6 @@ from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
 from metta.sim.vecenv import make_vecenv
 from metta.util.config import config_from_path
-from metta.util.tracing import trace
 from mettagrid.replay_writer import ReplayWriter
 from mettagrid.stats_writer import StatsWriter
 
@@ -44,7 +43,6 @@ class Simulation:
     # ------------------------------------------------------------------ #
     #   construction                                                     #
     # ------------------------------------------------------------------ #
-    @trace
     def __init__(
         self,
         name: str,
@@ -117,7 +115,6 @@ class Simulation:
     # ------------------------------------------------------------------ #
     #   public API                                                       #
     # ------------------------------------------------------------------ #
-    @trace
     def start_simulation(self):
         """
         Start the simulation.
@@ -138,7 +135,6 @@ class Simulation:
 
         self._t0 = time.time()
 
-    @trace
     def generate_actions(self):
         """
         Generate actions for the simulation.
@@ -174,7 +170,6 @@ class Simulation:
 
         return actions_np
 
-    @trace
     def step_simulation(self, actions_np: np.ndarray):
         # ---------------- env.step ------------------------------- #
         obs, _, dones, trunc, _ = self._vecenv.step(actions_np)
@@ -191,7 +186,6 @@ class Simulation:
             elif not done_now[e] and self._env_done_flags[e]:
                 self._env_done_flags[e] = False
 
-    @trace
     def end_simulation(self) -> SimulationResults:
         # ---------------- teardown & DB merge ------------------------ #
         self._vecenv.close()
@@ -205,7 +199,6 @@ class Simulation:
         )
         return SimulationResults(db)
 
-    @trace
     def simulate(self) -> SimulationResults:
         """
         Run the simulation; returns the merged `StatsDB`.

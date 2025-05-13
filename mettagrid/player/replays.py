@@ -89,6 +89,6 @@ if __name__ == "__main__":
         print("len(replay)", len(replay))
         print("Generate replay time", end - start)
 
-        save_trace("perf_trace.json")
+        save_trace("outputs/perf_trace.json")
 
     main()
