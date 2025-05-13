@@ -1,3 +1,7 @@
+locals {
+  lb_hostname = data.kubernetes_service.skypilot_ingress_nginx.status[0].load_balancer[0].ingress[0].hostname
+}
+
 # get load balancer from skypilot chart
 data "kubernetes_service" "skypilot_ingress_nginx" {
   metadata {
@@ -13,5 +17,18 @@ resource "aws_ssm_parameter" "skypilot_api_url" {
   
   # Note: [0] for each element are necessary, even though in yaml status looks like an object, not a list.
   # See https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/data-sources/service#example-usage
-  value = "https://skypilot:${random_password.skypilot_password.result}@${data.kubernetes_service.skypilot_ingress_nginx.status[0].load_balancer[0].ingress[0].hostname}"
+  value = "https://skypilot:${random_password.skypilot_password.result}@${local.lb_hostname}"
+}
+
+resource "aws_route53_zone" "main" {
+  name         = var.zone_domain
+}
+
+resource "aws_route53_record" "skypilot_api" {
+  zone_id = aws_route53_zone.main.zone_id
+  name    = var.subdomain
+  type    = "CNAME"
+  ttl     = 60
+
+  records = [local.lb_hostname]
 }

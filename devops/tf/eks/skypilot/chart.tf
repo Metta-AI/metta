@@ -42,4 +42,9 @@ resource "helm_release" "skypilot" {
     name = "ingress.certManager.clusterIssuer"
     value = "letsencrypt"
   }
+
+  set {
+    name = "ingress.host"
+    value = "${var.subdomain}.${var.zone_domain}"
+  }
 }
