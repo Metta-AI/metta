@@ -1,8 +1,8 @@
 resources:
-  cloud: aws
-  region: us-east-1
-  use_spot: true
-  accelerators: { L4: 1 }
+  cloud: lambda
+  # region: us-east-1
+  # use_spot: true
+  # accelerators: { L4: 1 }
   cpus: 8+
   image_id: docker:metta:latest
 
@@ -23,7 +23,7 @@ run: |
   export MASTER_PORT=8008
   export NODE_INDEX=$SKYPILOT_NODE_RANK
 
-  ./devops/$METTA_CMD.sh \
+  ./devops/sandbox.sh \
     +hardware=$METTA_HARDWARE \
     run=$METTA_RUN_ID \
     $METTA_CMD_ARGS
@@ -32,24 +32,22 @@ file_mounts:
   # Wandb Credentials
   ~/.netrc: ~/.netrc
 
-  /mnt/s3/softmax-public:
-    source: s3://softmax-public
-    mode: MOUNT_CACHED
+  # /mnt/s3/softmax-public:
+  #   source: s3://softmax-public
+  #   mode: MOUNT
 
-  /workspace/metta/train_dir:
-    name: softmax-train-dir
-    store: s3
-    mode: MOUNT_CACHED
+  # /workspace/metta/train_dir:
+  #   name: train-dir
+  #   store: s3
+  #   mode: MOUNT
 
 envs:
   METTA_RUN_ID:
   METTA_HARDWARE: aws
-  METTA_CMD: train
   METTA_CMD_ARGS: ""
   METTA_GIT_REF: main
   WANDB_DIR: ./wandb
 
-  # username and password are acquired automatically by our skypilot-api-server patch, see skypilot-chart/files/ecr.patch
-  SKYPILOT_DOCKER_USERNAME: x
-  SKYPILOT_DOCKER_PASSWORD: x
-  SKYPILOT_DOCKER_SERVER: 751442549699.dkr.ecr.us-east-1.amazonaws.com
+  # SKYPILOT_DOCKER_USERNAME: AWS
+  # SKYPILOT_DOCKER_PASSWORD: "SKYPILOT_DOCKER_PASSWORD"
+  # SKYPILOT_DOCKER_SERVER: 767406518141.dkr.ecr.us-east-1.amazonaws.com
