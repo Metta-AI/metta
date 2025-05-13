@@ -66,10 +66,9 @@ echo -e "\n\nSanity check: verifying all local deps are importable\n\n"
 python -c "import sys; print('Python path:', sys.path);"
 
 for dep in \
-"pufferlib" \
-"carbs" \
-"wandb_carbs"
-do
+  "pufferlib" \
+  "carbs" \
+  "wandb_carbs"; do
   echo "Checking import for $dep..."
   python -c "import $dep; print('✅ Found {} at {}'.format('$dep', $dep.__file__))" || {
     echo "❌ Failed to import $dep"

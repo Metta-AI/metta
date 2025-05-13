@@ -8,25 +8,24 @@
 
 # Check if the SSO session already exists
 if ! grep -q "\[sso-session softmax-sso\]" ~/.aws/config; then
-    echo "Adding SSO session configuration..."
+  echo "Adding SSO session configuration..."
 
-    # Create a temporary file with the new config
-    cat >> ~/.aws/config << EOF
+  # Create a temporary file with the new config
+  cat >> ~/.aws/config << EOF
 
 [sso-session softmax-sso]
 sso_start_url = https://softmaxx.awsapps.com/start/
 sso_region = us-east-1
 sso_registration_scopes = sso:account:access
 EOF
-    echo "SSO session added successfully."
+  echo "SSO session added successfully."
 else
-    echo "SSO session already exists. in ~/.aws/config"
+  echo "SSO session already exists. in ~/.aws/config"
 fi
 
 # Set up root profile
 aws configure set profile.softmax-root.region us-east-1
 aws configure set profile.softmax-root.output json
-
 
 # Set up softmax-db profile
 aws configure set profile.softmax-db.sso_session softmax-sso
