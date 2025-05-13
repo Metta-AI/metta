@@ -13,7 +13,6 @@ from metta.agent.policy_state import PolicyState
 from metta.agent.util.distribution_utils import sample_logits
 from metta.agent.util.safe_get import safe_get_from_obs_space
 from metta.util.omegaconf import convert_to_dict
-from metta.util.tracing import trace, tracer
 from mettagrid.mettagrid_env import MettaGridEnv
 
 logger = logging.getLogger("metta_agent")
@@ -170,7 +169,6 @@ class MettaAgent(nn.Module):
     def total_params(self):
         return self._total_params
 
-    @trace
     def forward(self, x, state: PolicyState, action=None):
         """
         Forward pass of the MettaAgent.
@@ -186,45 +184,38 @@ class MettaAgent(nn.Module):
         # Initialize dictionary for TensorDict
         td = {"x": x, "state": None}
 
-        with tracer("Safely handle LSTM state"):
-            # Safely handle LSTM state
-            if state.lstm_h is not None and state.lstm_c is not None:
-                # Ensure states are on the same device as input
-                lstm_h = state.lstm_h.to(x.device)
-                lstm_c = state.lstm_c.to(x.device)
+        # Safely handle LSTM state
+        if state.lstm_h is not None and state.lstm_c is not None:
+            # Ensure states are on the same device as input
+            lstm_h = state.lstm_h.to(x.device)
+            lstm_c = state.lstm_c.to(x.device)
 
-                # Concatenate LSTM states along dimension 0
-                td["state"] = torch.cat([lstm_h, lstm_c], dim=0)
+            # Concatenate LSTM states along dimension 0
+            td["state"] = torch.cat([lstm_h, lstm_c], dim=0)
 
-        with tracer("Forward pass through value network"):
-            # Forward pass through value network
-            self.components["_value_"](td)
-            value = td["_value_"]
+        # Forward pass through value network
+        self.components["_value_"](td)
+        value = td["_value_"]
 
-        with tracer("Forward pass through action network"):
-            # Forward pass through action network
-            self.components["_action_"](td)
-            logits = td["_action_"]
+        # Forward pass through action network
+        self.components["_action_"](td)
+        logits = td["_action_"]
 
-        with tracer("Update LSTM states"):
-            # Update LSTM states
-            split_size = self.core_num_layers
-            state.lstm_h = td["state"][:split_size]
-            state.lstm_c = td["state"][split_size:]
+        # Update LSTM states
+        split_size = self.core_num_layers
+        state.lstm_h = td["state"][:split_size]
+        state.lstm_c = td["state"][split_size:]
 
-        with tracer("Sample actions"):
-            # Sample actions
-            action_logit_index = self._convert_action_to_logit_index(action) if action is not None else None
-            action_logit_index, logprob_act, entropy, log_sftmx_logits = sample_logits(logits, action_logit_index)
+        # Sample actions
+        action_logit_index = self._convert_action_to_logit_index(action) if action is not None else None
+        action_logit_index, logprob_act, entropy, log_sftmx_logits = sample_logits(logits, action_logit_index)
 
-        with tracer("Convert logit index to action"):
-            # Convert logit index to action if no action was provided
-            if action is None:
-                action = self._convert_logit_index_to_action(action_logit_index, td)
+        # Convert logit index to action if no action was provided
+        if action is None:
+            action = self._convert_logit_index_to_action(action_logit_index, td)
 
         return action, logprob_act, entropy, value, log_sftmx_logits
 
-    @trace
     def _convert_action_to_logit_index(self, action):
         """Convert action pairs (action_type, action_param) to single discrete action logit indices using vectorized
         operations"""
@@ -242,13 +233,11 @@ class MettaAgent(nn.Module):
 
         return action_logit_index.reshape(-1, 1)
 
-    @trace
     def _convert_logit_index_to_action(self, action_logit_index, td):
         """Convert logit indices back to action pairs using tensor indexing"""
         # direct tensor indexing on precomputed action_index_tensor
         return self.action_index_tensor[action_logit_index.reshape(-1)]
 
-    @trace
     def _apply_to_components(self, method_name, *args, **kwargs) -> List[torch.Tensor]:
         """
         Apply a method to all components, collecting and returning the results.
@@ -280,7 +269,6 @@ class MettaAgent(nn.Module):
 
         return results
 
-    @trace
     def l2_reg_loss(self) -> torch.Tensor:
         """L2 regularization loss is on by default although setting l2_norm_coeff to 0 effectively turns it off. Adjust
         it by setting l2_norm_scale in your component config to a multiple of the global loss value or 0 to turn it off.
@@ -288,7 +276,6 @@ class MettaAgent(nn.Module):
         component_loss_tensors = self._apply_to_components("l2_reg_loss")
         return torch.sum(torch.stack(component_loss_tensors))
 
-    @trace
     def l2_init_loss(self) -> torch.Tensor:
         """L2 initialization loss is on by default although setting l2_init_coeff to 0 effectively turns it off. Adjust
         it by setting l2_init_scale in your component config to a multiple of the global loss value or 0 to turn it off.
@@ -296,12 +283,10 @@ class MettaAgent(nn.Module):
         component_loss_tensors = self._apply_to_components("l2_init_loss")
         return torch.sum(torch.stack(component_loss_tensors))
 
-    @trace
     def update_l2_init_weight_copy(self):
         """Update interval set by l2_init_weight_update_interval. 0 means no updating."""
         self._apply_to_components("update_l2_init_weight_copy")
 
-    @trace
     def clip_weights(self):
         """Weight clipping is on by default although setting clip_range or clip_scale to 0, or a large positive value
         effectively turns it off. Adjust it by setting clip_scale in your component config to a multiple of the global
@@ -309,7 +294,6 @@ class MettaAgent(nn.Module):
         if self.clip_range > 0:
             self._apply_to_components("clip_weights")
 
-    @trace
     def compute_weight_metrics(self, delta: float = 0.01) -> List[dict]:
         """Compute weight metrics for all components that have weights enabled for analysis.
         Returns a list of metric dictionaries, one per component. Set analyze_weights to True in the config to turn it
