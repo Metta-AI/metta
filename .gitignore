@@ -28,7 +28,7 @@ wandb/
 /deps/*
 terrain_maps_nohearts*
 .idea
-.converage.*
+.coverage.*
 build/
 build_debug/
 .venv

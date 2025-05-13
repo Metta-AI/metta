@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls:*)",
+      "Bash(find:*)",
+      "Bash(mkdir:*)",
+      "Bash(touch:*)",
+      "Bash(grep:*)",
+      "Bash(chmod:*)",
+      "Bash(./build_with_bazel.sh:*)",
+      "Bash(cat:*)",
+      "Bash(pytest:*)"
+    ],
+    "deny": []
+  }
+}
