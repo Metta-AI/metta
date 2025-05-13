@@ -1,7 +1,6 @@
-resource "kubernetes_namespace" "skypilot" {
-  metadata {
-    name = "skypilot"
-  }
+# switched to `create_namespace = true`
+removed {
+  from = kubernetes_namespace.skypilot
 }
 
 resource "random_password" "skypilot_password" {
@@ -9,17 +8,17 @@ resource "random_password" "skypilot_password" {
   special = false
 }
 
-# Deployment for this chart is patched manually in production with `--host 0.0.0.0`
-# See also: https://skypilot-org.slack.com/archives/C03J2KQQZSS/p1747063075515989?thread_ts=1746545299.574249&cid=C03J2KQQZSS
-# (I triggered the same bug and used the same fix.)
-#
-# If you're modifying it and terraform wants to update or recreate, you might need to apply the patch with `kubectl edit` again.
 resource "helm_release" "skypilot" {
   name       = "skypilot"
-  repository = "https://helm.skypilot.co"
-  chart      = "skypilot-nightly"
+
+  # Using our local fork, see ./README.md for details
+  # repository = "https://helm.skypilot.co"
+  # chart      = "skypilot-nightly"
+  chart      = "./skypilot-chart"
+
   devel      = true
-  namespace  = kubernetes_namespace.skypilot.metadata[0].name
+  namespace  = "skypilot"
+  create_namespace = true
 
   set_sensitive {
     name  = "ingress.authCredentials"
