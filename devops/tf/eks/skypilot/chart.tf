@@ -32,4 +32,14 @@ resource "helm_release" "skypilot" {
     name  = "ingress-nginx.controller.service.annotations.service\\.beta\\.kubernetes\\.io/aws-load-balancer-scheme"
     value = "internet-facing"
   }
+
+  set {
+    name = "ingress.certManager.enabled"
+    value = "true"
+  }
+
+  set {
+    name = "ingress.certManager.clusterIssuer"
+    value = "letsencrypt"
+  }
 }
