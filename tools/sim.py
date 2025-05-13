@@ -32,9 +32,9 @@ class SimJob(Config):
     simulation_suite: SimulationSuiteConfig
     policy_uris: List[str]
     selector_type: str = "top"
-    replay_dir: str = "s3://softmax-public/replays/evals"
     stats_db_uri: str
     stats_dir: str  # The (local) directory where stats should be stored
+    replay_dir: str  # where to store replays
 
 
 # --------------------------------------------------------------------------- #
@@ -61,16 +61,16 @@ def simulate_policy(
 
     # For each checkpoint of the policy, simulate
     for pr in policy_prs:
-        logger.info("Evaluating policy %s", pr.uri)
-
-        stats_dir = f"{sim_job.stats_dir}/{pr.name}"
+        logger.info(f"Evaluating policy {pr.uri}")
         replay_dir = f"{sim_job.replay_dir}/{pr.name}"
         sim = SimulationSuite(
             config=sim_job.simulation_suite,
             policy_pr=pr,
             policy_store=policy_store,
             replay_dir=replay_dir,
-            stats_dir=stats_dir,
+            stats_dir=sim_job.stats_dir,
+            device=cfg.device,
+            vectorization=cfg.vectorization,
         )
         results = sim.simulate()
         # ------------------------------------------------------------------ #

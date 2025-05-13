@@ -1,4 +1,4 @@
-boto3==1.38.13 
+boto3==1.38.13
 colorama==0.4.6
 cython==3.0.12
 duckdb==1.2.0
@@ -25,7 +25,6 @@ pytest-cov==6.1.1
 pytest==8.3.3
 python-dotenv==1.1.0
 PyYAML==6.0.2
-raylib==5.5.0.2
 rich==13.9.4
 ruff==0.11.9
 scipy==1.15.3

@@ -30,7 +30,6 @@ def environment():
         "pettingzoo",
         "pytest",
         "yaml",
-        "raylib",
         "rich",
         "scipy",
         "tabulate",
