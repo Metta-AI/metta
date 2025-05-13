@@ -13,17 +13,18 @@ def sample_logits(logits: Tensor, action: Optional[Tensor] = None) -> Tuple[Tens
     Uses explicit reshaping operations to maintain strict control over tensor dimensions.
 
     Args:
-        logits: Unnormalized logits of shape [batch_size, num_actions]
-        action: Optional pre-specified actions of shape [batch_size] or [batch_size, 1]
+        logits: Unnormalized logits of shape [B*T, A]
+        action: Optional pre-specified actions of shape [B*T] or [B, T, 1]
                 If provided, log probabilities and entropy for these actions are computed.
 
     Returns:
         Tuple of (actions, log_probability, entropy, normalized_logits)
-        Shapes: [batch_size], [batch_size], [batch_size], [batch_size, num_actions] respectively.
+        Shapes: [B*T], [B*T], [B*T], [B*T, A] respectively.
     """
     batch_size, num_actions = logits.shape
 
-    # Normalize logits using logsumexp for numerical stability (equivalent to log_softmax)
+    # Normalize logits for numerical stability
+    # Shape: [B*T, A]
     log_probs = logits - logits.logsumexp(dim=-1, keepdim=True)
 
     # Determine actions: either sample from distribution or use provided actions
@@ -32,26 +33,18 @@ def sample_logits(logits: Tensor, action: Optional[Tensor] = None) -> Tuple[Tens
         probs = torch.exp(log_probs)
         output_action = torch.multinomial(probs, 1)
     else:
-        # Always reshape to [batch_size, 1] to ensure consistent dimensionality
-        if action.dim() == 1:
-            # If [batch_size] -> [batch_size, 1]
-            output_action = action.reshape(batch_size, 1)
-        else:
-            # Handle case where action might be [batch_size, k] or other shape
-            output_action = action.reshape(batch_size, -1)
-            # Take only first dimension if multi-dimensional
-            output_action = output_action[:, :1]
+        # If action is multi-dimensional (e.g., [B, T, 1])
+        # Flatten it to [B*T, 1] or at least ensure the first dimension is B*T
+        output_action = action.reshape(-1)  # First flatten completely
 
-        # Safety check: ensure actions are within valid range
-        if torch.jit.is_scripting():
-            # Explicit bounds checking for TorchScript
-            max_action = output_action.max().item()
-            min_action = output_action.min().item()
-            if max_action >= num_actions or min_action < 0:
-                output_action = torch.clamp(output_action, 0, num_actions - 1)
-        else:
-            # Can use more efficient operations when not in TorchScript
-            output_action = torch.clamp(output_action, 0, num_actions - 1)
+        # Ensure we have exactly batch_size elements (B*T)
+        if output_action.shape[0] != batch_size:
+            raise ValueError(
+                f"Action shape mismatch: Expected {batch_size} elements after flattening, got {output_action.shape[0]}"
+            )
+
+        # Finally, reshape to [B*T, 1]
+        output_action = output_action.reshape(batch_size, 1)
 
     # Ensure indices are proper long type
     indices = output_action.long()
@@ -59,7 +52,9 @@ def sample_logits(logits: Tensor, action: Optional[Tensor] = None) -> Tuple[Tens
     # Compute log probabilities of selected actions
     # Using gather is more efficient than indexing for batched operations
     joint_logprob_2d = log_probs.gather(dim=-1, index=indices)
-    # Explicitly reshape to [batch_size] instead of using squeeze
+
+    # Calculate log probability for the action selected
+    # Shape: [B*T]
     joint_logprob = joint_logprob_2d.reshape(batch_size)
 
     # Compute entropy: -sum(p * log(p))
@@ -68,10 +63,13 @@ def sample_logits(logits: Tensor, action: Optional[Tensor] = None) -> Tuple[Tens
     min_log_prob = -20.0
     safe_log_probs = torch.clamp(log_probs, min=min_log_prob)
     probs = torch.exp(safe_log_probs)
+
+    # Calculate entropy of the distribution
+    # Shape: [B*T]
     joint_entropy = -torch.sum(probs * safe_log_probs, dim=-1)
 
     # Explicitly reshape output_action to [batch_size] from [batch_size, 1]
     final_action = output_action.reshape(batch_size)
 
-    # Return all outputs with proper shapes
+    # Return shapes: [B*T], [B*T], [B*T], [B*T, A]
     return final_action, joint_logprob, joint_entropy, log_probs
