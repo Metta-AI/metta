@@ -63,9 +63,10 @@ def sample_logits(logits: Tensor, action: Optional[Tensor] = None) -> Tuple[Tens
     joint_logprob = joint_logprob_2d.reshape(batch_size)
 
     # Compute entropy: -sum(p * log(p))
-    # Ensure we don't have problematic values that could lead to NaN
-    min_real = torch.finfo(log_probs.dtype).min
-    safe_log_probs = torch.clamp(log_probs, min=min_real)
+    # Using a fixed minimum value for numerical stability for torch script
+    # -20 is a reasonable minimum for log probabilities (exp(-20) ≈ 2.06e-9)
+    min_log_prob = -20.0
+    safe_log_probs = torch.clamp(log_probs, min=min_log_prob)
     probs = torch.exp(safe_log_probs)
     joint_entropy = -torch.sum(probs * safe_log_probs, dim=-1)
 
