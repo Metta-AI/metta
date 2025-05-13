@@ -620,11 +620,11 @@ jobs:
             --token "$BENCHER_API_TOKEN" \
             --branch main \
             --testbed ubuntu-latest \
-            --threshold-measure latency \
-            --threshold-test t_test \
-            --threshold-max-sample-size 64 \
-            --threshold-upper-boundary 0.99 \
             --thresholds-reset \
+            --threshold-measure latency \
+            --threshold-test percentage \
+            --threshold-max-sample-size 4 \
+            --threshold-upper-boundary 0.20 \
             --adapter python_pytest \
             --github-actions "$GITHUB_TOKEN" \
             --file combined_benchmark_results.json > /dev/null
@@ -676,26 +676,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
 
-          # Ensure we have the main branch and its history
-          git fetch --prune --unshallow origin main || git fetch origin main
-
-          # Show recent commits on main for context
-          echo "Recent commits on main branch:"
-          git log --format="%H %s" -n 5 origin/main
-          
-          # Get the bencher version info for main branch
-          echo "Bencher info for main branch:"
-          bencher branch view mettagrid-sv3f5i2k main --token "${{ secrets.BENCHER_API_TOKEN }}"
-
-
-          # Check if there are any benchmark reports for main
-          echo "Benchmark reports for main branch:"
-          bencher report list mettagrid-sv3f5i2k --token "${{ secrets.BENCHER_API_TOKEN }}" --branch main | jq '.'
-
-          # Collect the full hash for the head of main
-          MAIN_HEAD_HASH=$(git rev-parse origin/main)
-          echo "Full hash for head of main branch: $MAIN_HEAD_HASH"
-
           bencher run \
             --project mettagrid-sv3f5i2k \
             --token "$BENCHER_API_TOKEN" \
@@ -706,8 +686,8 @@ jobs:
             --thresholds-reset \
             --threshold-measure latency \
             --threshold-test percentage \
-            --threshold-max-sample-size 64 \
-            --threshold-upper-boundary 0.25 \
+            --threshold-max-sample-size 4 \
+            --threshold-upper-boundary 0.20 \
             --adapter python_pytest \
             --github-actions "$GITHUB_TOKEN" \
             --file combined_benchmark_results.json > /dev/null
