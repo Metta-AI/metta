@@ -66,10 +66,9 @@ echo -e "\n\nSanity check: verifying all local deps are importable\n\n"
 python -c "import sys; print('Python path:', sys.path);"
 
 for dep in \
-"pufferlib" \
-"carbs" \
-"wandb_carbs"
-do
+  "pufferlib" \
+  "carbs" \
+  "wandb_carbs"; do
   echo "Checking import for $dep..."
   python -c "import $dep; print('✅ Found {} at {}'.format('$dep', $dep.__file__))" || {
     echo "❌ Failed to import $dep"
@@ -91,7 +90,7 @@ python -c "from mettagrid.mettagrid_env import MettaGridEnv; print('✅ Found me
   exit 1
 }
 
-# Check for mettagrid.core.MettaGrid
+# Check for mettagrid.mettagrid_c.MettaGrid
 echo "Checking import for mettagrid.mettagrid_c.MettaGrid..."
 python -c "from mettagrid.mettagrid_c import MettaGrid; print('✅ Found mettagrid.mettagrid_c.MettaGrid')" || {
   echo "❌ Failed to import mettagrid.mettagrid_c.MettaGrid"
