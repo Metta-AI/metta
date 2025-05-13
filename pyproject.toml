@@ -6,11 +6,10 @@ readme = "README.md"
 requires-python = "==3.11.7"
 
 [tool.setuptools]
-packages = ["metta", "pufferlib", "mettagrid"]
+packages = ["metta", "mettagrid"]
 
 [tool.setuptools.package-dir]
 metta = "metta"
-pufferlib = "deps/pufferlib"
 mettagrid = "mettagrid"
 
 [tool.setuptools.dynamic]
