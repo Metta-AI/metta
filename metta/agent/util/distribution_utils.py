@@ -6,6 +6,19 @@ from torch import Tensor
 
 
 @torch.jit.script
+def get_min_value(dtype: torch.dtype) -> float:
+    """Get minimum value for a dtype in a TorchScript-compatible way."""
+    if dtype == torch.float32:
+        return -3.4028235e38
+    elif dtype == torch.float16:
+        return -65504.0
+    elif dtype == torch.float64:
+        return -1.7976931348623157e308
+    else:
+        return -1e30  # Reasonable fallback
+
+
+@torch.jit.script
 def sample_logits(logits: Tensor, action: Optional[Tensor] = None) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
     """
     Sample actions from logits and compute log probabilities and entropy.
@@ -53,7 +66,7 @@ def sample_logits(logits: Tensor, action: Optional[Tensor] = None) -> Tuple[Tens
 
     # Calculate entropy of the distribution (inlined from entropy)
     # Shape: [B*T]
-    min_real = torch.finfo(log_softmax_logits.dtype).min
+    min_real = get_min_value(log_softmax_logits.dtype)
     log_softmax_logits_clamped = torch.clamp(log_softmax_logits, min=min_real)
     logits_entropy = -torch.sum(probs * log_softmax_logits_clamped, dim=-1)
 
