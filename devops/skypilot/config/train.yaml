@@ -12,7 +12,7 @@ setup: |
   git checkout $METTA_GIT_REF
   pip install -r requirements.txt
 
-  ./devops/checkout_and_build.sh
+  ./devops/build_mettagrid.sh
   mkdir -p $WANDB_DIR
 
 run: |
