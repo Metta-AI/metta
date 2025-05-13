@@ -17,7 +17,7 @@ resource "aws_ssm_parameter" "skypilot_api_url" {
   
   # Note: [0] for each element are necessary, even though in yaml status looks like an object, not a list.
   # See https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/data-sources/service#example-usage
-  value = "https://skypilot:${random_password.skypilot_password.result}@${local.lb_hostname}"
+  value = "https://skypilot:${random_password.skypilot_password.result}@${var.subdomain}.${var.zone_domain}"
 }
 
 resource "aws_route53_zone" "main" {
