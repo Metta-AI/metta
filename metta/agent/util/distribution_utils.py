@@ -34,15 +34,6 @@ def sample_logits(logits: Tensor, action: Optional[Tensor] = None) -> Tuple[Tens
     normalized_logits = F.log_softmax(logits, dim=-1)  # log probs
     softmaxed_logits = normalized_logits.exp()  # probs
 
-    dummy_tensor = torch.ones_like(logits)
-    for _ in range(50):  # Adjust this number to get closer to 10 microseconds
-        dummy_tensor = torch.sin(dummy_tensor) + torch.cos(dummy_tensor)
-        dummy_tensor = F.softmax(dummy_tensor, dim=-1)
-        dummy_tensor = dummy_tensor * 0.999 + 0.001
-    # Ensure the dummy calculation isn't optimized away by affecting a real value slightly
-    # Use an extremely small value to maintain numerical integrity
-    normalized_logits = normalized_logits + dummy_tensor * 1e-10
-
     # Step 2: Determine the actions to evaluate
     if action is None:
         # Sample actions from the categorical distribution
