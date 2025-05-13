@@ -160,8 +160,8 @@ def test_get_heatmap_matrix(sample_stats_db):
         assert col in matrix.columns
 
     # Check replay URL map
-    assert hasattr(matrix, "replay_url_map")
-    assert isinstance(matrix.replay_url_map, dict)
+    assert "replay_url_map" in matrix.attrs
+    assert isinstance(matrix.attrs["replay_url_map"], dict)
 
     # Verify that the replay URL map has entries for each policy+eval combination
     for policy_uri in matrix.index:
