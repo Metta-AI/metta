@@ -175,8 +175,9 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
         auto group_cfg_py = groups[py::str(group_name)]["props"].cast<py::dict>();
         auto agent_cfg_py = cfg["agent"].cast<py::dict>();
         unsigned int group_id = groups[py::str(group_name)]["id"].cast<unsigned int>();
+        unsigned int agent_id = _agents.size();
         Agent* agent = MettaGrid::create_agent(r, c, group_name, group_id, group_cfg_py, agent_cfg_py);
-        _agent_to_group[agent->id] = group_id;
+        _agent_to_group[agent_id] = group_id;
         _grid->add_object(agent);
         agent->agent_id = _agents.size();
         add_agent(agent);
