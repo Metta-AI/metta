@@ -496,7 +496,7 @@ def get_heatmap_matrix(
             matrix = matrix.tail(num_output_policies)
 
         # Attach the replay URL map as an attribute on the DataFrame
-        matrix.replay_url_map = replay_url_map
+        matrix["replay_url_map"] = replay_url_map
 
     logger.info(f"Final matrix shape: {matrix.shape}")
     return matrix
