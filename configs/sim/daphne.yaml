@@ -5,4 +5,4 @@ defaults:
 name: daphne
 simulations:
   multiagent:
-    env: env/mettagrid/multiagent/training/reward_sharing/48_range/varied_terrain_dense
+    env: env/mettagrid/object_use/training/extended_sequence

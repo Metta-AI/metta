@@ -30,7 +30,7 @@ policy_uri: wandb://run/daphne.navigation:v36
 # navigation_poisson_train_sampling5 breaks in infinite_cooldown, works great in poisson with short distance
 # navigation_poisson_train_sampling5
 # npc_policy_uri: ${trained_policy_uri}
-eval_db_uri: wandb://stats/rewardsharing_db
+# eval_db_uri: wandb://stats/rewardsharing_db
 
 dashboard:
   output_path: evalresults/memory_db.html
@@ -45,7 +45,7 @@ dashboard:
   env: /env/mettagrid/navigation/training/empty_world
 
 
-run_id: 104
+run_id: 105
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 
