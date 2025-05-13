@@ -120,7 +120,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         if self.terminals.all() or self.truncations.all():
             self.process_episode_stats(infos)
             self.should_reset = True
-            print("should_reset")
 
         return self.observations, self.rewards, self.terminals, self.truncations, infos
 
