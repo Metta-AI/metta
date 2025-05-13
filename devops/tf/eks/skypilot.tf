@@ -7,6 +7,7 @@ resource "kubernetes_namespace" "skypilot" {
 
 resource "random_password" "skypilot_password" {
   length = 40
+  special = false
 }
 
 # Deployment for this chart is patched manually in production with `--host 0.0.0.0`
