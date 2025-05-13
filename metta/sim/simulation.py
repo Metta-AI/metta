@@ -219,7 +219,8 @@ class Simulation:
         self.start_simulation()
 
         while (self._episode_counters < self._min_episodes).any() and (time.time() - self._t0) < self._max_time_s:
-            self.single_step()
+            action = self.generate_actions()
+            self.step_simulation(action)
 
         return self.end_simulation()
 

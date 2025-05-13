@@ -1,7 +1,10 @@
 ## This file defines functions to generate traces, in the chrome tracing format.
 
-# Just add @trace decorator to any function to trace it.
+# Just add `@trace` decorator to any function to trace it.
+# Or just add `with tracer("my_section"):` to trace a block.
 # At the end of your program call `save_trace()` to save the trace to a file.
+# Take this file to the chrome://tracing page to view the trace.
+# Easy, no drama, you control everything!
 
 import json
 import os
@@ -125,5 +128,5 @@ if __name__ == "__main__":
     with tracer("my_section"):
         my_function(1, 2)
 
-    print("Written to trace.json")
+    print("Written to trace.json, load it in chrome://tracing")
     save_trace("trace.json")
