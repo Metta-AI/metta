@@ -309,11 +309,11 @@ jobs:
                 --project mettagrid-sv3f5i2k \
                 --token "$BENCHER_API_TOKEN" \
                 --branch main \
-                --threshold-measure latency \
-                --threshold-test t_test \
-                --threshold-max-sample-size 64 \
-                --threshold-upper-boundary 0.99 \
                 --thresholds-reset \
+                --threshold-measure latency \
+                --threshold-test percentage \
+                --threshold-max-sample-size 4 \
+                --threshold-upper-boundary 0.20 \
                 --testbed ubuntu-latest \
                 --adapter cpp_google \
                 --github-actions "$GITHUB_TOKEN" \
@@ -376,10 +376,6 @@ jobs:
                 --start-point "main" \
                 --start-point-clone-thresholds \
                 --start-point-reset \
-                --threshold-measure latency \
-                --threshold-test percentage \
-                --threshold-max-sample-size 64 \
-                --threshold-upper-boundary 0.25 \
                 --testbed ubuntu-latest \
                 --adapter cpp_google \
                 --github-actions "$GITHUB_TOKEN" \
