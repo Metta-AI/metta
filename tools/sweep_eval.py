@@ -64,7 +64,13 @@ def main(cfg: DictConfig | ListConfig) -> int:
             WandbCarbs._record_failure(wandb_run)
             return 1
 
-        eval = SimulationSuite(simulation_suite_cfg, policy_pr, policy_store)
+        eval = SimulationSuite(
+            simulation_suite_cfg,
+            policy_pr,
+            policy_store,
+            device=cfg.device,
+            vectorization=cfg.vectorization,
+        )
         # Start evaluation process
         sweep_stats = {}
         start_time = time.time()

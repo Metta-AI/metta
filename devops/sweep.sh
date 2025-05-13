@@ -8,7 +8,7 @@ if [ -z "$sweep" ]; then
 fi
 
 source ./devops/env.sh
-./devops/checkout_and_build.sh
+./devops/build_mettagrid.sh
 
 mkdir -p ./train_dir/sweep/$sweep
 # keep running sweep until it fails N consecutive times

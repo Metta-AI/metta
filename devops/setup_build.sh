@@ -1,4 +1,4 @@
-#!/bin/bash 
+#!/bin/bash
 # Setup script for Metta development environment
 # This script installs all required dependencies and configures the environment
 # Exit immediately if a command exits with a non-zero status
@@ -41,20 +41,19 @@ cd "$SCRIPT_DIR/.."
 if [ -z "$CI" ] && [ -z "$IS_DOCKER" ]; then
   echo "Upgrading pip..."
   python -m pip install --upgrade pip
-  
+
   echo -e "\n\nUninstalling all old python packages...\n\n"
   pip freeze | grep -v "^-e" > requirements_to_remove.txt
   pip uninstall -y -r requirements_to_remove.txt || echo "Some packages could not be uninstalled, continuing..."
   rm requirements_to_remove.txt
 fi
 
-# ========== CHECKOUT AND BUILD DEPENDENCIES ==========
-echo -e "\n\nCalling devops/checkout_and_build script...\n\n"
-bash "$SCRIPT_DIR/checkout_and_build.sh"
-
 # ========== INSTALL PACKAGES BEFORE BUILD ==========
 echo -e "\n\nInstalling main project requirements...\n\n"
-pip install -c requirements.txt -r requirements.txt
+pip install -r requirements.txt
+
+echo -e "\n\nCalling devops/build_mettagrid script...\n\n"
+bash "$SCRIPT_DIR/build_mettagrid.sh"
 
 # ========== BUILD FAST_GAE ==========
 echo -e "\n\nBuilding from setup.py (metta cython components)\n\n"
@@ -88,6 +87,13 @@ python -c "from metta.rl.fast_gae import compute_gae; print('✅ Found metta.rl.
 echo "Checking import for mettagrid.mettagrid_env.MettaGridEnv..."
 python -c "from mettagrid.mettagrid_env import MettaGridEnv; print('✅ Found mettagrid.mettagrid_env.MettaGridEnv')" || {
   echo "❌ Failed to import mettagrid.mettagrid_env.MettaGridEnv"
+  exit 1
+}
+
+# Check for mettagrid.core.MettaGrid
+echo "Checking import for mettagrid.mettagrid_c.MettaGrid..."
+python -c "from mettagrid.mettagrid_c import MettaGrid; print('✅ Found mettagrid.mettagrid_c.MettaGrid')" || {
+  echo "❌ Failed to import mettagrid.mettagrid_c.MettaGrid"
   exit 1
 }
 

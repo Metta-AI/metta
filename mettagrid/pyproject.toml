@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=64", "wheel", "cython>=3.0.0", "numpy>=2.2.5"]
+requires = ["setuptools>=64", "wheel", "numpy>=2.2.5", "pybind11>=2.10.4"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -10,9 +10,16 @@ authors = [{ name = "David Bloomin", email = "daveey@gmail.com" }]
 license = { text = "MIT" }
 readme = "README.md"
 urls = { Homepage = "https://daveey.github.io", Repository = "https://github.com/Metta-AI/mettagrid" }
-keywords = ["gridworld", "minigrid", "rl", "reinforcement-learning", "environment", "gym"]
+keywords = [
+    "gridworld",
+    "minigrid",
+    "rl",
+    "reinforcement-learning",
+    "environment",
+    "gym",
+]
 requires-python = ">=3.10,<4.0"
-dependencies = ["numpy>=2.2.5", "cython>=3.0.11"]
+dependencies = ["numpy>=2.2.5", "pybind11>=2.10.4"]
 
 [tool.setuptools.packages.find]
 where = ["."]
@@ -28,4 +35,3 @@ testpaths = ["tests", "benchmarks"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
 python_classes = ["Test*"]
-addopts = "--cov=mettagrid --cov-report=term"

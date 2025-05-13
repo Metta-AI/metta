@@ -42,21 +42,18 @@ def build_simulation_suite_config():
 # ---------------------------------------------------------------------------
 def test_propagate_defaults_and_overrides(build_simulation_suite_config):
     cfg = {
-        "env": ROOT_ENV,
         "name": "test",
-        "num_envs": 4,
         "num_episodes": 4,
-        "device": DEVICE,
         "simulations": {
             "a": {"env": CHILD_A},  # inherits device, num_envs is default (50)
-            "b": {"env": CHILD_B, "num_envs": 8},  # overrides num_envs
+            "b": {"env": CHILD_B, "num_episodes": 8},  # overrides num_envs
         },
     }
     suite = build_simulation_suite_config(cfg)
     a, b = suite.simulations["a"], suite.simulations["b"]
     # device and num_envs both propagated, even though num_envs has a default
-    assert (a.device, a.num_envs) == (DEVICE, 4)
-    assert (b.device, b.num_envs) == (DEVICE, 8)
+    assert a.num_episodes == 4
+    assert b.num_episodes == 8
 
 
 # ---------------------------------------------------------------------------
@@ -74,16 +71,13 @@ def test_allow_extra_child_keys(build_simulation_suite_config, has_extra, should
     if has_extra:
         child_node["foo"] = "bar"  # <- unknown key
     cfg = {
-        "env": ROOT_ENV,
         "name": "test",
-        "num_envs": 4,
         "num_episodes": 4,
-        "device": DEVICE,
         "simulations": {"sim": child_node},
     }
     if should_pass:
         suite = build_simulation_suite_config(cfg)
-        assert suite.simulations["sim"].device == DEVICE
+        assert suite.simulations["sim"].env == CHILD_A
     else:
         with pytest.raises(ValueError):
             build_simulation_suite_config(cfg)
@@ -94,11 +88,8 @@ def test_allow_extra_child_keys(build_simulation_suite_config, has_extra, should
 # ---------------------------------------------------------------------------
 def test_missing_device_always_errors(build_simulation_suite_config):
     cfg = {
-        "env": ROOT_ENV,
-        "name": "test",
-        "num_envs": 4,
         "num_episodes": 4,
-        "simulations": {"sim": {}},  # required 'device' omitted
+        "simulations": {"sim": {}},
     }
     with pytest.raises(ValidationError):
         build_simulation_suite_config(cfg)
@@ -107,8 +98,6 @@ def test_missing_device_always_errors(build_simulation_suite_config):
 def test_missing_suite_env_is_allowed(build_simulation_suite_config):
     cfg = {
         "name": "test",
-        "device": DEVICE,
-        "num_envs": 4,
         "num_episodes": 4,
         "simulations": {
             "sim": {

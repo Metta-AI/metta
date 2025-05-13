@@ -1,20 +1,11 @@
-{ 
+{
 	"folders": [
 		{
 			"name": "metta",
 			"path": "."
 		},
 		{
-			"name": "pufferlib",
-			"path": "deps/pufferlib"
-		},
-		{
-			"name": "wandb_carbs",
-			"path": "deps/wandb_carbs"
-		},
-		{
-			"name": "carbs",
-			"path": "deps/carbs"
+			"path": "personal"
 		}
 	],
 	"settings": {
@@ -116,7 +107,9 @@
 			"list": "cpp",
 			"span": "cpp",
 			"format": "cpp",
-			"valarray": "cpp"
+			"valarray": "cpp",
+			"codecvt": "cpp",
+			"functional": "cpp"
 		},
 
 		// IntelliSense may not automatically resolve packages from your Conda environment.
@@ -133,22 +126,14 @@
 		"python.analysis.extraPaths": [
 			"/var/tmp/metta/conda-site-packages",
 			"mettagrid",
-			"deps/pufferlib",
-			"deps/carbs",
-			"deps/wandb"
 		],
 		"python.autoComplete.extraPaths": [
 			"/var/tmp/metta/conda-site-packages",
 			"mettagrid",
-			"deps/pufferlib",
-			"deps/carbs",
-			"deps/wandb"
 		],
 		"python.analysis.exclude": [
-			"**/deps/**"
 		],
 		"python.analysis.ignore": [
-			"**/deps/**"
 		],
 		"files.watcherExclude": {},
 		"files.exclude": {
@@ -211,6 +196,7 @@
 			"coef",
 			"cooldown",
 			"cpus",
+			"daveey",
 			"dones",
 			"heavyball",
 			"kickstarter",
@@ -227,9 +213,7 @@
 			"pufferlib",
 			"pytest",
 			"PYTHONPATH",
-			"raylib",
 			"relu",
-			"softmax",
 			"skypilot",
 			"softmax",
 			"tensorclass",

@@ -30,7 +30,6 @@ def environment():
         "pettingzoo",
         "pytest",
         "yaml",
-        "raylib",
         "rich",
         "scipy",
         "tabulate",
@@ -46,30 +45,6 @@ def test_dependency_import(dependency):
         __import__(dependency)
     except ImportError as e:
         pytest.fail(f"Failed to import {dependency}: {str(e)}")
-
-
-@pytest.mark.parametrize(
-    "module_name",
-    [
-        "mettagrid.objects",
-        "mettagrid.observation_encoder",
-        "mettagrid.actions.attack",
-        "mettagrid.actions.move",
-        "mettagrid.actions.noop",
-        "mettagrid.actions.rotate",
-        "mettagrid.actions.swap",
-        "mettagrid.action_handler",
-        "mettagrid.event",
-        "mettagrid.mettagrid_c",
-        "mettagrid.grid_object",
-    ],
-)
-def test_mettagrid_module_import(module_name):
-    """Test that individual mettagrid modules can be imported."""
-    try:
-        __import__(module_name)
-    except ImportError as e:
-        pytest.fail(f"Failed to import {module_name}: {str(e)}")
 
 
 class TestEnvironmentFunctionality:

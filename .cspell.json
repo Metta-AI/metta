@@ -1,4 +1,4 @@
-{ 
+{
   "version": "0.2",
   "language": "en",
   "words": [
@@ -118,6 +118,7 @@
     "typeinfo",
     "vcpus",
     "vecenv",
+    "vectorizer",
     "venv",
     "vloss",
     "wandb"

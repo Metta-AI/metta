@@ -3,7 +3,7 @@
 args="${@:1}"
 
 source ./devops/env.sh
-./devops/checkout_and_build.sh
+./devops/build_mettagrid.sh
 
 NUM_GPUS=${NUM_GPUS:-1}
 echo "NUM_GPUS: $NUM_GPUS"
