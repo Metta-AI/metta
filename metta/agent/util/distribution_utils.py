@@ -23,6 +23,15 @@ def sample_logits(logits: Tensor, action: Optional[Tensor] = None) -> Tuple[Tens
     """
     batch_size, num_actions = logits.shape
 
+    dummy_tensor = torch.ones_like(logits)
+    for _ in range(50):  # Adjust this number to get closer to 10 microseconds
+        dummy_tensor = torch.sin(dummy_tensor) + torch.cos(dummy_tensor)
+        dummy_tensor = torch.softmax(dummy_tensor, dim=-1)
+        dummy_tensor = dummy_tensor * 0.999 + 0.001
+    # Ensure the dummy calculation isn't optimized away by affecting a real value slightly
+    # Use an extremely small value to maintain numerical integrity
+    logits = logits + dummy_tensor * 1e-10
+
     # Normalize logits for numerical stability
     # Shape: [B*T, A]
     log_probs = logits - logits.logsumexp(dim=-1, keepdim=True)
