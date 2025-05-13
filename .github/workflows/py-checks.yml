@@ -676,6 +676,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
 
+          # Ensure we have the main branch and its history
+          git fetch --prune --unshallow origin main || git fetch origin main
+          
           # Show recent commits on main for context
           echo "Recent commits on main branch:"
           git log --oneline -n 5 origin/main
