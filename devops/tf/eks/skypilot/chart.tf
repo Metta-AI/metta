@@ -14,7 +14,9 @@ resource "helm_release" "skypilot" {
   # Using our local fork, see ./README.md for details
   # repository = "https://helm.skypilot.co"
   # chart      = "skypilot-nightly"
-  chart      = "./skypilot-chart"
+
+  # relative to stack root
+  chart      = "./skypilot/skypilot-chart"
 
   devel      = true
   namespace  = "skypilot"
