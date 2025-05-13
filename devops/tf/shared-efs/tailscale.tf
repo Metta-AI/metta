@@ -48,7 +48,6 @@ resource "tailscale_acl" "acl" {
               domains = [
                 # add one entry per region where you have mount-targets
                 "*.efs.${var.aws_zone}.amazonaws.com",
-                "skypilot-api-server.softmax"
               ]
             }
           ]

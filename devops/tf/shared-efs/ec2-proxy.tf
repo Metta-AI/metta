@@ -21,14 +21,6 @@ resource "aws_security_group" "proxy" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # allow access to skypilot API server
-  egress {
-    from_port   = 46580
-    to_port     = 46580
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
   # direct WireGuard paths
   # (optional? o3 marked this as optional)
   ingress {
