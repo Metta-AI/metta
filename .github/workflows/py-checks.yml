@@ -678,28 +678,32 @@ jobs:
 
           # Ensure we have the main branch and its history
           git fetch --prune --unshallow origin main || git fetch origin main
-          
+
           # Show recent commits on main for context
           echo "Recent commits on main branch:"
-          git log --oneline -n 5 origin/main
+          git log --format="%H %s" -n 5 origin/main
           
           # Get the bencher version info for main branch
           echo "Bencher info for main branch:"
-          bencher branch view mettagrid-sv3f5i2k main --token "${{ secrets.BENCHER_API_TOKEN }}" | jq -r '.head.uuid, .head.hash, .head.created_at'
-          
+          bencher branch view mettagrid-sv3f5i2k main --token "${{ secrets.BENCHER_API_TOKEN }}"
 
-          # Fetch the most recent benchmark data point from main branch
-          MAIN_BENCHMARK_HASH=$(bencher branch view mettagrid-sv3f5i2k main --token "$BENCHER_API_TOKEN" | jq -r '.head.hash')
-          echo "Using main branch benchmark with hash: $MAIN_BENCHMARK_HASH as comparison baseline"
+
+          # Check if there are any benchmark reports for main
+          echo "Benchmark reports for main branch:"
+          bencher report list mettagrid-sv3f5i2k --token "${{ secrets.BENCHER_API_TOKEN }}" --branch main | jq '.'
+
+          # Collect the full hash for the head of main
+          MAIN_HEAD_HASH=$(git rev-parse origin/main)
+          echo "Full hash for head of main branch: $MAIN_HEAD_HASH"
 
           bencher run \
             --project mettagrid-sv3f5i2k \
             --token "$BENCHER_API_TOKEN" \
             --branch "$GITHUB_HEAD_REF" \
-            --start-point "$MAIN_BENCHMARK_HASH" \
-            --start-point-clone-thresholds \
+            --start-point "main" \
             --start-point-reset \
             --testbed ubuntu-latest \
+            --thresholds-reset \
             --threshold-measure latency \
             --threshold-test percentage \
             --threshold-max-sample-size 64 \
