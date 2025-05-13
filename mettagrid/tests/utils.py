@@ -3,7 +3,7 @@ from typing import Optional
 
 import numpy as np
 
-from mettagrid.core import MettaGrid
+from mettagrid.mettagrid_c import MettaGrid
 
 # Rebuild the NumPy types using the exposed function
 np_actions_type = np.dtype(MettaGrid.get_numpy_type_name("actions"))

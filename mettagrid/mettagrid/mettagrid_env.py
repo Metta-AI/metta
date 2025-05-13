@@ -14,7 +14,7 @@ from omegaconf import DictConfig, OmegaConf
 from pufferlib.utils import unroll_nested_dict
 
 from mettagrid.config.utils import simple_instantiate
-from mettagrid.core import MettaGrid
+from mettagrid.mettagrid_c import MettaGrid
 from mettagrid.replay_writer import ReplayWriter
 from mettagrid.resolvers import register_resolvers
 from mettagrid.stats_writer import StatsWriter

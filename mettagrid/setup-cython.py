@@ -50,7 +50,7 @@ all_headers = mettagrid_headers + action_headers + object_headers
 
 ext_modules = [
     create_extension(
-        ["mettagrid/py_mettagrid.pyx", "mettagrid/core.cpp"], module_name="mettagrid.core", depends=all_headers
+        ["mettagrid/py_mettagrid.pyx", "mettagrid/core.cpp"], module_name="mettagrid.mettagrid_c", depends=all_headers
     )
 ]
 
