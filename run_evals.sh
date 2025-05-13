@@ -33,7 +33,7 @@ POLICIES=(
     # "gd2_sharing48_06"
     # "gd2_sharing_48"
 
-    "b.daphne.navigation_training"
+    "navigation_training"
     "daphne_navigation_train"
     "b.daphne.simple_training"
 
