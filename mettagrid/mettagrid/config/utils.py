@@ -31,11 +31,11 @@ def calculate_diversity_bonus(
     Args:
         episode_rewards: Array of rewards for each agent
         agent_groups: Array of group IDs for each agent
-        similarity_coef: Coefficient for within-group similarity (default: 0.5)
-        diversity_coef: Coefficient for between-group diversity (default: 0.5)
+        similarity_coef: Coefficient for within-group similarity
+        diversity_coef: Coefficient for between-group diversity
 
     Returns:
-        Array of scaling factors to apply to each agent's reward
+        Array of bonus values to add to each agent's reward
     """
     # Get number of agents and their group IDs
     num_agents = len(agent_groups)
@@ -46,8 +46,8 @@ def calculate_diversity_bonus(
     group_means = {g: np.mean(episode_rewards[group_ids == g]) for g in unique_groups}
     group_stds = {g: np.std(episode_rewards[group_ids == g]) + 1e-6 for g in unique_groups}
 
-    # Initialize bonus array (1.0 means no bonus)
-    diversity_bonuses = np.ones_like(episode_rewards)
+    # Initialize bonus array (0 means no bonus)
+    diversity_bonuses = np.zeros_like(episode_rewards)
 
     # Calculate bonus for each agent
     for agent_idx in range(num_agents):
@@ -74,8 +74,8 @@ def calculate_diversity_bonus(
         # Average the diversity scores across other groups
         diversity_score = np.mean(diversity_scores) if diversity_scores else 0
 
-        # Calculate final bonus
-        diversity_bonuses[agent_idx] = 1 + similarity_coef * similarity_score + diversity_coef * diversity_score
+        # Calculate final bonus (now additive instead of multiplicative)
+        diversity_bonuses[agent_idx] = similarity_coef * similarity_score + diversity_coef * diversity_score
 
     return diversity_bonuses
 
