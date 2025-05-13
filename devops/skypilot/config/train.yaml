@@ -2,7 +2,7 @@ resources:
   cloud: aws
   region: us-east-1
   use_spot: true
-  accelerators: {L4: 1}
+  accelerators: { L4: 1 }
   cpus: 8+
   image_id: docker:metta:latest
 
@@ -12,7 +12,7 @@ setup: |
   git checkout $METTA_GIT_REF
   pip install -r requirements.txt
 
-  ./devops/checkout_and_build.sh
+  ./devops/build_mettagrid.sh
   mkdir -p $WANDB_DIR
 
 run: |

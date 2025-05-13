@@ -21,7 +21,7 @@ on:
         type: boolean
         default: true
       run_benchmark:
-        description: "Run benchmarks"
+        description: "Run benchmarks (requires tests)"
         type: boolean
         default: true
 
@@ -35,9 +35,9 @@ jobs:
   graphite-ci-optimizer:
     name: "Graphite CI Optimizer"
     if: |
-      github.event.pull_request.draft == false || 
-      github.event_name == 'push' || 
-      github.event_name == 'workflow_dispatch' || 
+      github.event.pull_request.draft == false ||
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
       github.event_name == 'merge_group'
     runs-on: ubuntu-latest
     outputs:
@@ -58,10 +58,10 @@ jobs:
     name: "Set up for Python checks"
     needs: graphite-ci-optimizer
     if: |
-      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') && 
-      (github.event.pull_request.draft == false || 
-       github.event_name == 'push' || 
-       github.event_name == 'workflow_dispatch' || 
+      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
+      (github.event.pull_request.draft == false ||
+       github.event_name == 'push' ||
+       github.event_name == 'workflow_dispatch' ||
        github.event_name == 'merge_group')
     runs-on: ubuntu-latest
     outputs:
@@ -80,18 +80,17 @@ jobs:
         uses: ./.github/actions/file-changes
         with:
           patterns: "**/*.py"
-          specific_files: "requirements.txt,setup.py"
+          specific_files: "requirements.txt,requirements_pinned.txt,setup.py"
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set cache paths
         id: set-cache-paths
         run: |
-          PATHS="mettagrid/build
+          PATHS="venv
           mettagrid/**/*.so
           metta/**/*.so
-          /build
           ~/.cache/pip
-          venv"
+          "
           echo "paths<<EOF" >> $GITHUB_OUTPUT
           echo "$PATHS" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
@@ -100,7 +99,14 @@ jobs:
         id: set-cache-key
         run: |
           # Create a hash that combines all relevant files
-          find mettagrid -type f \( -name "*.py" \) -exec sha256sum {} \; > /tmp/file_hashes.txt || true
+          find mettagrid -type f \( -name "*.py" \) -exec sha256sum {} \; > /tmp/mettagrid_file_hashes.txt || true
+
+          # Add more project directories if they exist
+          find tests -type f \( -name "*.py" \) -exec sha256sum {} \; > /tmp/tests_file_hashes.txt || true
+          find examples -type f \( -name "*.py" \) -exec sha256sum {} \; > /tmp/examples_file_hashes.txt || true
+
+          # Hash configuration files
+          find . -maxdepth 1 -type f \( -name "*.yaml" -o -name "*.yml" -o -name "*.json" -o -name "*.toml" \) -exec sha256sum {} \; > /tmp/config_file_hashes.txt || true
 
           # Add setup.py and requirements.txt if they exist
           if [ -f "setup.py" ]; then
@@ -109,18 +115,33 @@ jobs:
           if [ -f "requirements.txt" ]; then
             sha256sum requirements.txt >> /tmp/file_hashes.txt
           fi
+          if [ -f "requirements_pinned.txt" ]; then
+            sha256sum requirements_pinned.txt >> /tmp/file_hashes.txt
+          fi
+          if [ -f "pyproject.toml" ]; then
+            sha256sum pyproject.toml >> /tmp/file_hashes.txt
+          fi
+          if [ -f "setup.cfg" ]; then
+            sha256sum setup.cfg >> /tmp/file_hashes.txt
+          fi
 
           # Add the cache paths to the hash calculation
           echo "${{ steps.set-cache-paths.outputs.paths }}" | sha256sum >> /tmp/file_hashes.txt
 
+          # Combine all hash files
+          cat /tmp/mettagrid_file_hashes.txt /tmp/tests_file_hashes.txt /tmp/examples_file_hashes.txt /tmp/config_file_hashes.txt /tmp/file_hashes.txt > /tmp/all_hashes.txt || true
+
           # Create the final hash
-          if [ -s "/tmp/file_hashes.txt" ]; then
-            HASH=$(sort /tmp/file_hashes.txt | sha256sum | cut -d' ' -f1)
+          if [ -s "/tmp/all_hashes.txt" ]; then
+            HASH=$(sort /tmp/all_hashes.txt | sha256sum | cut -d' ' -f1)
           else
             HASH="empty"
           fi
 
-          CACHE_KEY="py-build-${HASH}"
+          # Add Python version to the cache key
+          PYTHON_VERSION=$(python --version 2>&1 | cut -d' ' -f2)
+          CACHE_KEY="py-build-${PYTHON_VERSION}-${HASH}"
+
           echo "cache_key=${CACHE_KEY}" >> $GITHUB_OUTPUT
           echo "Created content-based hash key ${CACHE_KEY}"
 
@@ -191,10 +212,10 @@ jobs:
           bash ./devops/setup_build.sh
 
   lint:
-    name: "Lint"
+    name: "Python Lint"
     needs: [graphite-ci-optimizer, setup-checks, setup-py]
     if: |
-      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') && 
+      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_lint == 'true')
     runs-on: ubuntu-latest
     steps:
@@ -222,10 +243,10 @@ jobs:
           ruff check --exit-non-zero-on-fix .
 
   test:
-    name: "Test"
+    name: "Python Tests"
     needs: [graphite-ci-optimizer, setup-checks, setup-py]
     if: |
-      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') && 
+      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_test == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -276,7 +297,7 @@ jobs:
           pytest --maxfail=1 --disable-warnings -q
 
   smoke-test:
-    name: "Training smoke test"
+    name: "Training Smoke Test"
     needs: [graphite-ci-optimizer, setup-checks, setup-py]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false')
@@ -313,6 +334,22 @@ jobs:
         run: |
           source venv/bin/activate
           bash ./devops/setup_build.sh
+
+      - name: Check deps
+        run: |
+          source venv/bin/activate
+
+          for dep in \
+            "pufferlib" \
+            "carbs" \
+            "wandb_carbs"
+          do
+            echo "Checking import for $dep..."
+            python -c "import $dep; print('✅ Found {} at {}'.format('$dep', __import__('$dep').__file__))" || {
+              echo "❌ Failed to import $dep"
+              exit 1
+            }
+          done
 
       - name: Check benchmark script
         run: |
@@ -418,11 +455,11 @@ jobs:
           find train_dir -type d | sort
 
   benchmark:
-    name: "Benchmark"
+    name: "Python Benchmarks"
     needs: [graphite-ci-optimizer, setup-checks, setup-py, test, smoke-test]
     if: |
-      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') && 
-      (needs.setup-checks.outputs.run_benchmark == 'true') && 
+      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
+      (needs.setup-checks.outputs.run_benchmark == 'true') &&
       (needs.test.result == 'success' || github.event_name != 'pull_request' )
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -530,17 +567,17 @@ jobs:
               if not results:
                   print(f"Skipping empty or invalid file: {file_path}")
                   continue
-              
+
               valid_files_found = True
-              
+
               # Add benchmarks to the combined list
               if "benchmarks" in results and isinstance(results["benchmarks"], list):
                   combined_results["benchmarks"].extend(results["benchmarks"])
-              
+
               # Use the first valid file's machine_info and commit_info if not already set
               if "machine_info" in results and not combined_results["machine_info"]:
                   combined_results["machine_info"] = results["machine_info"]
-              
+
               if "commit_info" in results and not combined_results["commit_info"]:
                   combined_results["commit_info"] = results["commit_info"]
 
@@ -573,6 +610,7 @@ jobs:
           echo "Bencher token SHA256: $(echo -n "$BENCHER_API_TOKEN" | sha256sum)"
 
       # Main Branch Upload section
+      # note that "threshold-max-sample-size" has a minimum value of 2 - the new data and the reference
       - name: Upload to Bencher (Main Branch Baseline)
         if: github.ref == 'refs/heads/main'
         env:
@@ -583,12 +621,12 @@ jobs:
             --project mettagrid-sv3f5i2k \
             --token "$BENCHER_API_TOKEN" \
             --branch main \
-            --testbed ubuntu-latest \
             --threshold-measure latency \
-            --threshold-test t_test \
-            --threshold-max-sample-size 64 \
-            --threshold-upper-boundary 0.99 \
+            --threshold-test percentage \
+            --threshold-max-sample-size 2 \
+            --threshold-upper-boundary 0.20 \
             --thresholds-reset \
+            --testbed ubuntu-latest \
             --adapter python_pytest \
             --github-actions "$GITHUB_TOKEN" \
             --file combined_benchmark_results.json > /dev/null
@@ -615,7 +653,7 @@ jobs:
           # Continue with checking if branch exists and has data
           if [ $? -eq 0 ]; then
             echo "Branch exists, checking if it has benchmark data..."
-            
+
             # Check if branch output contains a head key
             if jq -e '.head' /tmp/branch_output.json > /dev/null; then
               echo "main_benchmark_exists=true" >> $GITHUB_OUTPUT
@@ -629,8 +667,34 @@ jobs:
             echo "Warning: Main branch does not exist or cannot be accessed. Will skip PR performance comparison."
           fi
 
-      # PR Performance Changes section - Only runs if main branch has benchmarks
-      - name: Upload to Bencher (PR Performance Changes)
+      # First PR Performance run - Check for improvements (will NOT fail on alerts)
+      - name: Check for Performance Improvements
+        if: |
+          (github.event_name == 'pull_request') &&
+          (!github.event.pull_request.head.repo.fork) &&
+          (steps.check-main-benchmark.outputs.main_benchmark_exists == 'true')
+        env:
+          BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          bencher run \
+            --project mettagrid-sv3f5i2k \
+            --token "$BENCHER_API_TOKEN" \
+            --branch "$GITHUB_HEAD_REF" \
+            --start-point "main" \
+            --start-point-reset \
+            --thresholds-reset \
+            --threshold-measure latency \
+            --threshold-test percentage \
+            --threshold-max-sample-size 2 \
+            --threshold-lower-boundary 0.10 \
+            --testbed ubuntu-latest \
+            --adapter python_pytest \
+            --github-actions "$GITHUB_TOKEN" \
+            --file combined_benchmark_results.json > /dev/null
+
+      # Second PR Performance run - Check for regressions (WILL fail on alerts)
+      - name: Check for Performance Regressions
         if: |
           (github.event_name == 'pull_request') && 
           (!github.event.pull_request.head.repo.fork) && 
@@ -644,14 +708,10 @@ jobs:
             --token "$BENCHER_API_TOKEN" \
             --branch "$GITHUB_HEAD_REF" \
             --start-point "main" \
-            --start-point-clone-thresholds \
             --start-point-reset \
+            --start-point-clone-thresholds \
+            --err \
             --testbed ubuntu-latest \
-            --threshold-measure latency \
-            --threshold-test t_test \
-            --threshold-max-sample-size 64 \
-            --threshold-upper-boundary 0.99 \
             --adapter python_pytest \
             --github-actions "$GITHUB_TOKEN" \
-            --err \
-            --file combined_benchmark_results.json > /dev/null
+            --file combined_benchmark_results.json

@@ -5,16 +5,7 @@
 			"path": "."
 		},
 		{
-			"name": "pufferlib",
-			"path": "deps/pufferlib"
-		},
-		{
-			"name": "wandb_carbs",
-			"path": "deps/wandb_carbs"
-		},
-		{
-			"name": "carbs",
-			"path": "deps/carbs"
+			"path": "personal"
 		}
 	],
 	"settings": {
@@ -107,7 +98,18 @@
 			"__verbose_abort": "cpp",
 			"execution": "cpp",
 			"*.pxd": "cython",
-			"print": "cpp"
+			"print": "cpp",
+			"any": "cpp",
+			"charconv": "cpp",
+			"condition_variable": "cpp",
+			"csignal": "cpp",
+			"forward_list": "cpp",
+			"list": "cpp",
+			"span": "cpp",
+			"format": "cpp",
+			"valarray": "cpp",
+			"codecvt": "cpp",
+			"functional": "cpp"
 		},
 
 		// IntelliSense may not automatically resolve packages from your Conda environment.
@@ -118,32 +120,25 @@
 		// run:
 		//     conda activate metta
 		//     ln -s "$CONDA_PREFIX/lib/python3.11/site-packages" /var/tmp/metta/conda-site-packages
-		//     ln -s "$(pwd)/deps" /var/tmp/metta/deps
 		//
 		// Then ensure "/var/tmp/metta/conda-site-packages" is included in the extraPaths lists below.
 
 		"python.analysis.extraPaths": [
 			"/var/tmp/metta/conda-site-packages",
-			"/var/tmp/metta/deps",
-			"mettagrid"
+			"mettagrid",
 		],
 		"python.autoComplete.extraPaths": [
 			"/var/tmp/metta/conda-site-packages",
-			"/var/tmp/metta/deps",
-			"mettagrid"
+			"mettagrid",
 		],
 		"python.analysis.exclude": [
-			"**/deps/pufferlib/**"
 		],
 		"python.analysis.ignore": [
-			"**/deps/pufferlib/**"
 		],
 		"files.watcherExclude": {},
 		"files.exclude": {
 			"train_dir": true,
-			"wandb": true,
-			"mettagrid/build": true,
-			"mettagrid/build_debug": true,
+			"wandb": true
 		},
 		"files.excludeGitIgnored": true,
 		"terminal.integrated.profiles.osx": {
@@ -201,6 +196,7 @@
 			"coef",
 			"cooldown",
 			"cpus",
+			"daveey",
 			"dones",
 			"heavyball",
 			"kickstarter",
@@ -217,9 +213,7 @@
 			"pufferlib",
 			"pytest",
 			"PYTHONPATH",
-			"raylib",
 			"relu",
-			"softmax",
 			"skypilot",
 			"softmax",
 			"tensorclass",

@@ -21,7 +21,7 @@ on:
         type: boolean
         default: true
       run_benchmark:
-        description: "Run benchmarks"
+        description: "Run benchmarks (requires tests)"
         type: boolean
         default: true
 
@@ -35,9 +35,9 @@ jobs:
   graphite-ci-optimizer:
     name: "Graphite CI Optimizer"
     if: |
-      github.event.pull_request.draft == false || 
-      github.event_name == 'push' || 
-      github.event_name == 'workflow_dispatch' || 
+      github.event.pull_request.draft == false ||
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
       github.event_name == 'merge_group'
     runs-on: ubuntu-latest
     outputs:
@@ -58,10 +58,10 @@ jobs:
     name: "Set up for C++ checks"
     needs: graphite-ci-optimizer
     if: |
-      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') && 
-      (github.event.pull_request.draft == false || 
-      github.event_name == 'push' || 
-      github.event_name == 'workflow_dispatch' || 
+      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
+      (github.event.pull_request.draft == false ||
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
       github.event_name == 'merge_group')
     runs-on: ubuntu-latest
     outputs:
@@ -75,13 +75,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Check for C++ and Cython file changes
+      - name: Check for C++ file changes
         id: check_cpp_files
         uses: ./.github/actions/file-changes
         with:
-          patterns: "*.cpp,*.cxx,*.cc,*.h,*.hpp,*.pyx,*.pxd"
+          patterns: "*.cpp,*.cxx,*.cc,*.h,*.hpp"
           directory_paths: "mettagrid/"
-          specific_files: "requirements.txt,setup.py"
+          specific_files: "requirements.txt,requirements_pinned.txt,setup.py"
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set cache paths
@@ -106,6 +106,9 @@ jobs:
           fi
           if [ -f "requirements.txt" ]; then
             sha256sum requirements.txt >> /tmp/file_hashes.txt
+          fi
+          if [ -f "requirements_pinned.txt" ]; then
+            sha256sum requirements_pinned.txt >> /tmp/file_hashes.txt
           fi
 
           # Add the cache paths to the hash calculation
@@ -158,9 +161,9 @@ jobs:
     name: "Build C++ artifacts"
     needs: [graphite-ci-optimizer, setup-checks]
     if: |
-      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') && 
-      (needs.setup-checks.outputs.run_lint == 'true' || 
-       needs.setup-checks.outputs.run_test == 'true' || 
+      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
+      (needs.setup-checks.outputs.run_lint == 'true' ||
+       needs.setup-checks.outputs.run_test == 'true' ||
        needs.setup-checks.outputs.run_benchmark == 'true')
     runs-on: ubuntu-latest
     steps:
@@ -170,6 +173,12 @@ jobs:
       - name: Install C++ dependencies
         run: |
           sudo apt-get install -y g++ cmake
+
+      - name: Install Python dependencies
+        run: |
+          sudo apt-get install -y python3.12-dev
+          pip install pybind11
+          pip install numpy
 
       - name: Restore from build cache
         id: build-cache-cpp
@@ -182,13 +191,13 @@ jobs:
         if: steps.build-cache-cpp.outputs.cache-hit != 'true'
         run: |
           cd mettagrid
-          make build
+          make build-for-ci
 
   lint:
-    name: "Lint"
+    name: "C++ Lint"
     needs: [graphite-ci-optimizer, setup-checks, build-cpp]
     if: |
-      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') && 
+      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_lint == 'true')
     runs-on: ubuntu-latest
     steps:
@@ -207,10 +216,10 @@ jobs:
             -exec clang-format --dry-run --Werror {} +
 
   test:
-    name: "Test"
+    name: "C++ Tests"
     needs: [graphite-ci-optimizer, setup-checks, build-cpp]
     if: |
-      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') && 
+      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_test == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -221,6 +230,9 @@ jobs:
       - name: Install C++ dependencies
         run: |
           sudo apt-get install -y g++ libgtest-dev
+          sudo apt-get install -y python3.12-dev
+          pip install pybind11
+          pip install numpy
 
       - name: Restore from build cache
         id: test-cache-cpp
@@ -241,11 +253,11 @@ jobs:
           make test
 
   benchmark:
-    name: "Benchmark"
+    name: "C++ Benchmarks"
     needs: [graphite-ci-optimizer, setup-checks, build-cpp, test]
     if: |
-      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') && 
-      (needs.setup-checks.outputs.run_benchmark == 'true') && 
+      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
+      (needs.setup-checks.outputs.run_benchmark == 'true') &&
       (needs.test.result == 'success' || github.event_name != 'pull_request' )
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -256,6 +268,12 @@ jobs:
       - name: Install C++ dependencies
         run: |
           sudo apt-get install -y g++ libbenchmark-dev jq
+
+      - name: Install Python dependencies
+        run: |
+          sudo apt-get install -y python3.12-dev
+          pip install pybind11
+          pip install numpy
 
       - name: Restore from build cache
         id: benchmark-cache-cpp
@@ -295,6 +313,7 @@ jobs:
           echo "Bencher token SHA256: $(echo -n "$BENCHER_API_TOKEN" | sha256sum)"
 
       # Main Branch Upload section
+      # note that "threshold-max-sample-size" has a minimum value of 2 - the new data and the reference
       - name: Upload to Bencher (Main Branch Baseline)
         if: github.ref == 'refs/heads/main'
         env:
@@ -310,9 +329,9 @@ jobs:
                 --token "$BENCHER_API_TOKEN" \
                 --branch main \
                 --threshold-measure latency \
-                --threshold-test t_test \
-                --threshold-max-sample-size 64 \
-                --threshold-upper-boundary 0.99 \
+                --threshold-test percentage \
+                --threshold-max-sample-size 2 \
+                --threshold-upper-boundary 0.20 \
                 --thresholds-reset \
                 --testbed ubuntu-latest \
                 --adapter cpp_google \
@@ -341,7 +360,7 @@ jobs:
           # Continue with checking if branch exists and has data
           if [ $? -eq 0 ]; then
             echo "Branch exists, checking if it has benchmark data..."
-            
+
             # Check if branch output contains a head key
             if jq -e '.head' /tmp/branch_output.json > /dev/null; then
               echo "main_benchmark_exists=true" >> $GITHUB_OUTPUT
@@ -355,8 +374,42 @@ jobs:
             echo "Warning: Main branch does not exist or cannot be accessed. Will skip PR performance comparison."
           fi
 
-      # PR Performance Changes section - Only runs if main branch has benchmarks
-      - name: Upload to Bencher (PR Performance Changes)
+      # First PR Performance run - Check for improvements (will NOT fail on alerts)
+      - name: Check for Performance Improvements
+        if: |
+          github.event_name == 'pull_request' &&
+          !github.event.pull_request.head.repo.fork &&
+          steps.check-main-benchmark.outputs.main_benchmark_exists == 'true'
+        env:
+          BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd mettagrid/benchmark_output
+          ls -al
+          if ls *.json 1> /dev/null 2>&1; then
+            for file in *.json; do
+              bencher run \
+                --project mettagrid-sv3f5i2k \
+                --token "$BENCHER_API_TOKEN" \
+                --branch "$GITHUB_HEAD_REF" \
+                --start-point "main" \
+                --start-point-reset \
+                --threshold-measure latency \
+                --threshold-test percentage \
+                --threshold-max-sample-size 2 \
+                --threshold-lower-boundary 0.10 \
+                --thresholds-reset \
+                --testbed ubuntu-latest \
+                --adapter cpp_google \
+                --github-actions "$GITHUB_TOKEN" \
+                --file "$file" > /dev/null
+            done
+          else
+            echo "NO TEST RESULTS FOUND"
+          fi
+
+      # Second PR Performance run - Check for regressions (WILL fail on alerts)
+      - name: Check for Performance Regressions
         if: |
           github.event_name == 'pull_request' && 
           !github.event.pull_request.head.repo.fork && 
@@ -374,17 +427,13 @@ jobs:
                 --token "$BENCHER_API_TOKEN" \
                 --branch "$GITHUB_HEAD_REF" \
                 --start-point "main" \
-                --start-point-clone-thresholds \
                 --start-point-reset \
-                --threshold-measure latency \
-                --threshold-test t_test \
-                --threshold-max-sample-size 64 \
-                --threshold-upper-boundary 0.99 \
+                --start-point-clone-thresholds \
                 --testbed ubuntu-latest \
+                --err \
                 --adapter cpp_google \
                 --github-actions "$GITHUB_TOKEN" \
-                --err \
-                --file "$file" > /dev/null
+                --file "$file" 
             done
           else
             echo "NO TEST RESULTS FOUND"

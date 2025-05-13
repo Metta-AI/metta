@@ -15,6 +15,25 @@
             ],
         },
         {
+            "name": "Github Smoke Test (Train)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "tools.train",
+            "args": [
+                "+hardware=github",
+                "wandb=off",
+            ],
+        },
+        {
+            "name": "Github Smoke Test (Replay)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "tools.replay",
+            "args": [
+                "+hardware=github",
+                "wandb=off",
+            ],
+        }, {
             "name": "Sweep: Init",
             "type": "debugpy",
             "request": "launch",
@@ -46,17 +65,6 @@
                 "+user=${env:USER}",
                 "data_dir=./train_dir/sweep/${sweep_name}/runs",
                 "dist_cfg_path=./train_dir/${env:USER}/dist_cfg.yaml",
-            ],
-        },
-        {
-            "name": "Play Metta",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "tools.play",
-            "args": [
-                "+user=${env:USER}",
-                "+hardware=macbook",
-                "cmd=play",
             ],
         },
         {

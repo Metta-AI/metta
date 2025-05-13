@@ -28,7 +28,11 @@ wandb/
 /deps/*
 terrain_maps_nohearts*
 .idea
-.converage.*
+.coverage.*
 build/
 build_debug/
 .venv
+**/*benchmark_results.json
+**/requirements_to_remove.txt
+test_data
+**/mettagrid_debug.log

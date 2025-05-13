@@ -3,16 +3,11 @@ defaults:
   - agent: simple
   - trainer: puffer
   - sim: all
-  - analyzer: eval_analyzer
   - wandb: metta_research
   - _self_
 
 seed: 1
 
-eval_db_uri: null
-
 train_job:
-  # Use the sim config as a base
-  # This seems hacky to Jack, but I couldn't get github to override
-  # this well without using the global sim group.
+  map_preview_uri: s3://softmax-public/training_runs/${run}/map_preview.json.z
   evals: ${sim}
