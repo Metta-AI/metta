@@ -681,13 +681,9 @@ jobs:
             --token "$BENCHER_API_TOKEN" \
             --branch "$GITHUB_HEAD_REF" \
             --start-point "main" \
+            --start-point-clone-thresholds \
             --start-point-reset \
             --testbed ubuntu-latest \
-            --thresholds-reset \
-            --threshold-measure latency \
-            --threshold-test percentage \
-            --threshold-max-sample-size 4 \
-            --threshold-upper-boundary 0.20 \
             --adapter python_pytest \
             --github-actions "$GITHUB_TOKEN" \
             --file combined_benchmark_results.json > /dev/null
