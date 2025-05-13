@@ -20,7 +20,6 @@ resource "helm_release" "cert_manager" {
 # See also: https://github.com/hashicorp/terraform-provider-kubernetes/issues/1367#issuecomment-2277333258
 resource "helm_release" "clusterissuer" {
   name       = "clusterissuer"
-  repository = "./clusterissuer"
-  chart      = "./clusterissuer"
+  chart      = "./cert-manager-configs"
   namespace  = "cert-manager"
 }
