@@ -6,12 +6,12 @@ from pathlib import Path
 
 import numpy as np
 import pufferlib
-import pufferlib.utils
 import torch
 import torch.distributed as dist
 import wandb
 from heavyball import ForeachMuon
 from omegaconf import DictConfig, ListConfig
+from pufferlib.utils import unroll_nested_dict
 
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
@@ -376,7 +376,7 @@ class PufferTrainer:
                 self.experience.store(o, value, actions, logprob, r, d, cpu_env_id, mask)
 
                 for i in info:
-                    for k, v in pufferlib.utils.unroll_nested_dict(i):
+                    for k, v in unroll_nested_dict(i):
                         infos[k].append(v)
 
             with profile.env:
