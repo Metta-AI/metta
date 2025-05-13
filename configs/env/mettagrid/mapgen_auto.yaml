@@ -4,9 +4,9 @@ defaults:
   - _self_
 
 game:
-  num_agents: 10
+  num_agents: 24
 
   map_builder:
     root:
       config:
-        num_agents: 10
+        num_agents: 24

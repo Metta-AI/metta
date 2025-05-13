@@ -35,9 +35,9 @@ jobs:
   graphite-ci-optimizer:
     name: "Graphite CI Optimizer"
     if: |
-      github.event.pull_request.draft == false || 
-      github.event_name == 'push' || 
-      github.event_name == 'workflow_dispatch' || 
+      github.event.pull_request.draft == false ||
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
       github.event_name == 'merge_group'
     runs-on: ubuntu-latest
     outputs:
@@ -58,10 +58,10 @@ jobs:
     name: "Set up for C++ checks"
     needs: graphite-ci-optimizer
     if: |
-      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') && 
-      (github.event.pull_request.draft == false || 
-      github.event_name == 'push' || 
-      github.event_name == 'workflow_dispatch' || 
+      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
+      (github.event.pull_request.draft == false ||
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
       github.event_name == 'merge_group')
     runs-on: ubuntu-latest
     outputs:
@@ -81,7 +81,7 @@ jobs:
         with:
           patterns: "*.cpp,*.cxx,*.cc,*.h,*.hpp"
           directory_paths: "mettagrid/"
-          specific_files: "requirements.txt,setup.py"
+          specific_files: "requirements.txt,requirements_pinned.txt,setup.py"
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set cache paths
@@ -106,6 +106,9 @@ jobs:
           fi
           if [ -f "requirements.txt" ]; then
             sha256sum requirements.txt >> /tmp/file_hashes.txt
+          fi
+          if [ -f "requirements_pinned.txt" ]; then
+            sha256sum requirements_pinned.txt >> /tmp/file_hashes.txt
           fi
 
           # Add the cache paths to the hash calculation
@@ -158,9 +161,9 @@ jobs:
     name: "Build C++ artifacts"
     needs: [graphite-ci-optimizer, setup-checks]
     if: |
-      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') && 
-      (needs.setup-checks.outputs.run_lint == 'true' || 
-       needs.setup-checks.outputs.run_test == 'true' || 
+      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
+      (needs.setup-checks.outputs.run_lint == 'true' ||
+       needs.setup-checks.outputs.run_test == 'true' ||
        needs.setup-checks.outputs.run_benchmark == 'true')
     runs-on: ubuntu-latest
     steps:
@@ -194,7 +197,7 @@ jobs:
     name: "C++ Lint"
     needs: [graphite-ci-optimizer, setup-checks, build-cpp]
     if: |
-      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') && 
+      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_lint == 'true')
     runs-on: ubuntu-latest
     steps:
@@ -216,7 +219,7 @@ jobs:
     name: "C++ Tests"
     needs: [graphite-ci-optimizer, setup-checks, build-cpp]
     if: |
-      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') && 
+      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_test == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -253,8 +256,8 @@ jobs:
     name: "C++ Benchmarks"
     needs: [graphite-ci-optimizer, setup-checks, build-cpp, test]
     if: |
-      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') && 
-      (needs.setup-checks.outputs.run_benchmark == 'true') && 
+      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
+      (needs.setup-checks.outputs.run_benchmark == 'true') &&
       (needs.test.result == 'success' || github.event_name != 'pull_request' )
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -310,6 +313,7 @@ jobs:
           echo "Bencher token SHA256: $(echo -n "$BENCHER_API_TOKEN" | sha256sum)"
 
       # Main Branch Upload section
+      # note that "threshold-max-sample-size" has a minimum value of 2 - the new data and the reference
       - name: Upload to Bencher (Main Branch Baseline)
         if: github.ref == 'refs/heads/main'
         env:
@@ -324,11 +328,11 @@ jobs:
                 --project mettagrid-sv3f5i2k \
                 --token "$BENCHER_API_TOKEN" \
                 --branch main \
-                --thresholds-reset \
                 --threshold-measure latency \
                 --threshold-test percentage \
-                --threshold-max-sample-size 1 \
+                --threshold-max-sample-size 2 \
                 --threshold-upper-boundary 0.20 \
+                --thresholds-reset \
                 --testbed ubuntu-latest \
                 --adapter cpp_google \
                 --github-actions "$GITHUB_TOKEN" \
@@ -356,7 +360,7 @@ jobs:
           # Continue with checking if branch exists and has data
           if [ $? -eq 0 ]; then
             echo "Branch exists, checking if it has benchmark data..."
-            
+
             # Check if branch output contains a head key
             if jq -e '.head' /tmp/branch_output.json > /dev/null; then
               echo "main_benchmark_exists=true" >> $GITHUB_OUTPUT
@@ -373,8 +377,8 @@ jobs:
       # First PR Performance run - Check for improvements (will NOT fail on alerts)
       - name: Check for Performance Improvements
         if: |
-          github.event_name == 'pull_request' && 
-          !github.event.pull_request.head.repo.fork && 
+          github.event_name == 'pull_request' &&
+          !github.event.pull_request.head.repo.fork &&
           steps.check-main-benchmark.outputs.main_benchmark_exists == 'true'
         env:
           BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
@@ -389,12 +393,13 @@ jobs:
                 --token "$BENCHER_API_TOKEN" \
                 --branch "$GITHUB_HEAD_REF" \
                 --start-point "main" \
-                --testbed ubuntu-latest \
-                --thresholds-reset \
+                --start-point-reset \
                 --threshold-measure latency \
                 --threshold-test percentage \
-                --threshold-max-sample-size 1 \
+                --threshold-max-sample-size 2 \
                 --threshold-lower-boundary 0.10 \
+                --thresholds-reset \
+                --testbed ubuntu-latest \
                 --adapter cpp_google \
                 --github-actions "$GITHUB_TOKEN" \
                 --file "$file" > /dev/null
@@ -423,12 +428,8 @@ jobs:
                 --branch "$GITHUB_HEAD_REF" \
                 --start-point "main" \
                 --start-point-reset \
+                --start-point-clone-thresholds \
                 --testbed ubuntu-latest \
-                --thresholds-reset \
-                --threshold-measure latency \
-                --threshold-test percentage \
-                --threshold-max-sample-size 1 \
-                --threshold-upper-boundary 0.20 \
                 --err \
                 --adapter cpp_google \
                 --github-actions "$GITHUB_TOKEN" \
