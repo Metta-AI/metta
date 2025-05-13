@@ -59,14 +59,12 @@ spec:
         - |
           set -e
 
-          {{- /* apply patch if the file exists in chart */}}
-          {{- if .Files.Exists "files/ecr.patch" }}
+          # Softmax patch
           echo "Injecting ecr.patch from chart…"
           cat << 'PATCH' > /tmp/ecr.patch
-{{ .Files.Get "files/ecr.patch" | indent 12 }}
+{{ .Files.Get "files/ecr.patch" | indent 10 }}
 PATCH
           patch /opt/conda/lib/python3.10/site-packages/sky/provision/docker_utils.py /tmp/ecr.patch
-          {{- end }}
 
           {{- if .Values.apiService.preDeployHook }}
           {{ .Values.apiService.preDeployHook | nindent 10 }}
