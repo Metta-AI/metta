@@ -1,6 +1,5 @@
 import math
 from pathlib import Path
-from typing import Any, List
 
 import hydra
 import numpy as np
@@ -15,7 +14,10 @@ def simple_instantiate(cfg: DictConfig, recursive: bool = False):
 
 
 def calculate_diversity_bonus(
-    episode_rewards: np.ndarray, agents: List[Any], similarity_coef: float, diversity_coef: float
+    episode_rewards: np.ndarray,
+    agent_groups: np.ndarray,  # Changed from List[Any] to np.ndarray
+    similarity_coef: float,
+    diversity_coef: float,
 ) -> np.ndarray:
     """Calculate diversity bonus for each agent based on their rewards and group.
 
@@ -28,7 +30,7 @@ def calculate_diversity_bonus(
 
     Args:
         episode_rewards: Array of rewards for each agent
-        agents: List of agent objects containing group information
+        agent_groups: Array of group IDs for each agent
         similarity_coef: Coefficient for within-group similarity (default: 0.5)
         diversity_coef: Coefficient for between-group diversity (default: 0.5)
 
@@ -36,8 +38,8 @@ def calculate_diversity_bonus(
         Array of scaling factors to apply to each agent's reward
     """
     # Get number of agents and their group IDs
-    num_agents = len(agents)
-    group_ids = np.array([agent.group for agent in agents])
+    num_agents = len(agent_groups)
+    group_ids = agent_groups  # No need to extract group IDs anymore
     unique_groups = np.unique(group_ids)
 
     # Calculate mean and standard deviation for each group

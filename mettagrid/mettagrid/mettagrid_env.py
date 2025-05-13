@@ -121,7 +121,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             if self._env_cfg.game.diversity_bonus.enabled:
                 self.rewards *= calculate_diversity_bonus(
                     self._c_env.get_episode_rewards(),
-                    self._c_env._agents,
+                    self._c_env.get_agent_groups(),
                     self._env_cfg.game.diversity_bonus.similarity_coef,
                     self._env_cfg.game.diversity_bonus.diversity_coef,
                 )
