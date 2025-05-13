@@ -4,7 +4,7 @@ defaults:
 
 game:
   num_agents: 1 #how many agents are in the map x2
-  max_steps: 400
+  max_steps: 250
   agent:
     rewards:
       heart: 0.333
