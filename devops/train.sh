@@ -5,6 +5,11 @@ args="${@:1}"
 source ./devops/env.sh
 ./devops/build_mettagrid.sh
 
+if [ -z "$NUM_CPUS" ]; then
+    NUM_CPUS=$(lscpu | grep "CPU(s)" | awk '{print $NF}' | head -n1)
+    NUM_CPUS=$((NUM_CPUS / 2))
+fi
+echo "NUM_CPUS: $NUM_CPUS"
 NUM_GPUS=${NUM_GPUS:-1}
 echo "NUM_GPUS: $NUM_GPUS"
 NUM_NODES=${NUM_NODES:-1}
@@ -20,12 +25,13 @@ echo "Running train with args: $args"
 PYTHONPATH=$PYTHONPATH:.
 
 torchrun \
-  --nnodes=$NUM_NODES \
-  --nproc-per-node=$NUM_GPUS \
-  --master-addr=$MASTER_ADDR \
-  --master-port=$MASTER_PORT \
-  --node-rank=$NODE_INDEX \
-  tools/train.py \
-  wandb.enabled=true \
-  wandb.track=true \
-  $args
+    --nnodes=$NUM_NODES \
+    --nproc-per-node=$NUM_GPUS \
+    --master-addr=$MASTER_ADDR \
+    --master-port=$MASTER_PORT \
+    --node-rank=$NODE_INDEX \
+    tools/train.py \
+    trainer.num_workers=$NUM_CPUS \
+    wandb.enabled=true \
+    wandb.track=true \
+    $args
