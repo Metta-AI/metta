@@ -51,19 +51,11 @@ done
 
 source .venv/skypilot/bin/activate
 
-export SKYPILOT_DOCKER_PASSWORD=$(AWS_PROFILE=softmax-db aws ecr get-login-password --region us-east-1)
-
-if [ -z "$SKYPILOT_DOCKER_PASSWORD" ]; then
-  echo "Failed to get SKYPILOT_DOCKER_PASSWORD"
-  exit 1
-fi
-
 sky jobs launch \
   --num-nodes $nodes \
   --cpus $cpus\+ \
   --name $RUN_ID \
   ./devops/skypilot/config/sk_train.yaml \
-  --env SKYPILOT_DOCKER_PASSWORD \
   --env METTA_RUN_ID=$RUN_ID \
   --env METTA_CMD=$CMD \
   --env METTA_CMD_ARGS="$CMD_ARGS" \
