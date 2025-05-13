@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import copy
 import datetime
+import time
 import uuid
 from typing import Any, Dict, Optional
 
@@ -40,9 +41,12 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._episode_id = None
         self._reset_at = datetime.datetime.now()
         self._current_seed = 0
+        self._id = str(uuid.uuid4())
 
         self.labels = self._env_cfg.get("labels", None)
         self.should_reset = False
+        self._reset_time = 0
+        self._step_time = 0
 
         self._reset_env()
         super().__init__(buf)
@@ -87,6 +91,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         # self._env = FeatureMasker(self._env, self._cfg.hidden_features)
 
     def reset(self, seed=None, options=None):
+        t = time.time()
         self._env_cfg = self._get_new_env_cfg()
         self._reset_env()
 
@@ -100,9 +105,13 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         obs, infos = self._c_env.reset()
         self.should_reset = False
+        self._reset_time += time.time() - t
+        print(f"{self._id}: Reset time: {self._reset_time}")
+        print(f"{self._id}: Step time: {self._step_time}")
         return obs, infos
 
     def step(self, actions):
+        t = time.time()
         self.actions[:] = np.array(actions).astype(np.uint32)
 
         if self._replay_writer:
@@ -120,7 +129,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         if self.terminals.all() or self.truncations.all():
             self.process_episode_stats(infos)
             self.should_reset = True
-
+        self._step_time += time.time() - t
         return self.observations, self.rewards, self.terminals, self.truncations, infos
 
     def process_episode_stats(self, infos: Dict[str, Any]):
@@ -284,3 +293,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
 # Ensure resolvers are registered when this module is imported
 register_resolvers()
+
+
+MettaGridEnv.foo = 1
