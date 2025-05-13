@@ -58,10 +58,7 @@ def sample_logits(logits: Tensor, action: Optional[Tensor] = None) -> Tuple[Tens
         action_flat = torch.multinomial(probs, num_samples=1, replacement=True).select(1, 0)  # Shape: [B*T]
     else:
         action_flat = action.reshape(-1)  # Shape: [B*T]
-        max_action = torch.max(action_flat)
-        min_action = torch.min(action_flat)
-        if bool(max_action >= A) or bool(min_action < 0):
-            action_flat = torch.clamp(action_flat, 0, A - 1)
+        assert torch.all((action_flat >= 0) & (action_flat < A)), "action out of bounds"
 
     # Gather log-probs of selected actions (using gather for TorchScript compatibility)
     log_prob_flat = log_probs.gather(1, action_flat.view(-1, 1)).view(-1)  # Shape: [B*T]
