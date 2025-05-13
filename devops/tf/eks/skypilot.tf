@@ -16,7 +16,7 @@ resource "helm_release" "skypilot" {
   name       = "skypilot"
   repository = "https://helm.skypilot.co"
   chart      = "skypilot-nightly"
-  devel = true
+  devel      = true
   namespace  = kubernetes_namespace.skypilot.metadata[0].name
 
   set_sensitive {
@@ -28,4 +28,18 @@ resource "helm_release" "skypilot" {
     name  = "ingress-nginx.controller.service.annotations.service\\.beta\\.kubernetes\\.io/aws-load-balancer-scheme"
     value = "internet-facing"
   }
+}
+
+# get load balancer from skypilot chart
+data "kubernetes_service" "skypilot_ingress_nginx" {
+  metadata {
+    name = "skypilot-ingress-nginx-controller"
+    namespace = "skypilot"
+  }
+}
+
+resource "aws_ssm_parameter" "skypilot_api_url" {
+  name  = "/skypilot/api_url"
+  type  = "String"
+  value = "https://skypilot:${random_password.skypilot_password.result}@${data.kubernetes_service.skypilot_ingress_nginx.status.load_balancer.ingress[0].hostname}"
 }
