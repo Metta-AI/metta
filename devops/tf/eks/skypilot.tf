@@ -25,7 +25,7 @@ resource "helm_release" "skypilot" {
   }
 
   set {
-    name  = "ingress-nginx.controller.service.annotations"
-    value = "service.beta.kubernetes.io/aws-load-balancer-scheme: \"internet-facing\""
+    name  = "ingress-nginx.controller.service.annotations.service\\.beta\\.kubernetes\\.io/aws-load-balancer-scheme"
+    value = "internet-facing"
   }
 }
