@@ -63,7 +63,7 @@ spec:
           echo "Injecting ecr.patch from chart…"
           cat << 'PATCH' > /tmp/ecr.patch
 {{ .Files.Get "files/ecr.patch" | indent 10 }}
-PATCH
+          PATCH
           patch /opt/conda/lib/python3.10/site-packages/sky/provision/docker_utils.py /tmp/ecr.patch
 
           {{- if .Values.apiService.preDeployHook }}
