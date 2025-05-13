@@ -31,7 +31,7 @@ from metta.util.runtime_configuration import setup_mettagrid_environment
 class SimJob(Config):
     simulation_suite: SimulationSuiteConfig
     policy_uris: List[str]
-    selector_type: str = "top"
+    selector_type: str = "latest"
     replay_dir: str = "s3://softmax-public/replays/evals"
     stats_db_uri: str
     stats_dir: str  # The (local) directory where stats should be stored
