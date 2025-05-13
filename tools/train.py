@@ -44,7 +44,8 @@ def train(cfg, wandb_run, logger: Logger):
     policy_store = PolicyStore(cfg, wandb_run)
 
     env_cfg = config_from_path(cfg.trainer.env, cfg.trainer.env_overrides)
-    upload_map_preview(env_cfg, train_job.map_preview_uri, wandb_run)
+
+    # upload_map_preview(env_cfg, train_job.map_preview_uri, wandb_run)
 
     trainer = hydra.utils.instantiate(
         cfg.trainer, cfg, wandb_run, policy_store=policy_store, sim_suite_config=train_job.evals
@@ -69,7 +70,8 @@ def main(cfg: ListConfig | DictConfig) -> int:
     )
 
     if "LOCAL_RANK" in os.environ and cfg.device.startswith("cuda"):
-        logger.info(f"Initializing distributed training with {os.environ['LOCAL_RANK']} {cfg.device}")
+        logger.info(
+            f"Initializing distributed training with {os.environ['LOCAL_RANK']} {cfg.device}")
         local_rank = int(os.environ["LOCAL_RANK"])
         cfg.device = f"{cfg.device}:{local_rank}"
         dist.init_process_group(backend="nccl")

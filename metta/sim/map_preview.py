@@ -61,7 +61,8 @@ def upload_map_preview(
 
     # Upload to S3 using our new utility function
     try:
-        write_file(path=s3_path, local_file=preview_path, content_type="application/x-compress")
+        write_file(path=s3_path, local_file=preview_path,
+                   content_type="application/x-compress")
     except Exception as e:
         logger.error(f"Failed to upload preview map to S3: {str(e)}")
 
@@ -69,7 +70,8 @@ def upload_map_preview(
         # If upload was successful, log the link to WandB
         if wandb_run:
             player_url = f"https://metta-ai.github.io/metta/?replayUrl={s3_path}"
-            link_summary = {"replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Map Preview</a>')}
+            link_summary = {
+                "replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Map Preview</a>')}
             wandb_run.log(link_summary)
             logger.info(f"Preview map available at: {player_url}")
     except Exception as e:
