@@ -48,3 +48,15 @@ resource "helm_release" "skypilot" {
     value = "${var.subdomain}.${var.zone_domain}"
   }
 }
+
+resource "kubernetes_secret" "skypilot_api_server_credentials" {
+  metadata {
+    name = "aws-credentials"
+    namespace = "skypilot"
+  }
+
+  data = {
+    aws_access_key_id = aws_iam_access_key.skypilot_api_server.id
+    aws_secret_access_key = aws_iam_access_key.skypilot_api_server.secret
+  }
+}
