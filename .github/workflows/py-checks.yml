@@ -610,6 +610,7 @@ jobs:
           echo "Bencher token SHA256: $(echo -n "$BENCHER_API_TOKEN" | sha256sum)"
 
       # Main Branch Upload section
+      # note that "threshold-max-sample-size" has a minimum value of 2 - the new data and the reference
       - name: Upload to Bencher (Main Branch Baseline)
         if: github.ref == 'refs/heads/main'
         env:
@@ -620,12 +621,12 @@ jobs:
             --project mettagrid-sv3f5i2k \
             --token "$BENCHER_API_TOKEN" \
             --branch main \
-            --testbed ubuntu-latest \
-            --thresholds-reset \
             --threshold-measure latency \
             --threshold-test percentage \
-            --threshold-max-sample-size 1 \
+            --threshold-max-sample-size 2 \
             --threshold-upper-boundary 0.20 \
+            --thresholds-reset \
+            --testbed ubuntu-latest \
             --adapter python_pytest \
             --github-actions "$GITHUB_TOKEN" \
             --file combined_benchmark_results.json > /dev/null
@@ -681,12 +682,13 @@ jobs:
             --token "$BENCHER_API_TOKEN" \
             --branch "$GITHUB_HEAD_REF" \
             --start-point "main" \
-            --testbed ubuntu-latest \
+            --start-point-reset \
             --thresholds-reset \
             --threshold-measure latency \
             --threshold-test percentage \
-            --threshold-max-sample-size 1 \
+            --threshold-max-sample-size 2 \
             --threshold-lower-boundary 0.10 \
+            --testbed ubuntu-latest \
             --adapter python_pytest \
             --github-actions "$GITHUB_TOKEN" \
             --file combined_benchmark_results.json > /dev/null
@@ -706,13 +708,10 @@ jobs:
             --token "$BENCHER_API_TOKEN" \
             --branch "$GITHUB_HEAD_REF" \
             --start-point "main" \
-            --testbed ubuntu-latest \
-            --thresholds-reset \
-            --threshold-measure latency \
-            --threshold-test percentage \
-            --threshold-max-sample-size 1 \
-            --threshold-upper-boundary 0.20 \
+            --start-point-reset \
+            --start-point-clone-thresholds \
             --err \
+            --testbed ubuntu-latest \
             --adapter python_pytest \
             --github-actions "$GITHUB_TOKEN" \
             --file combined_benchmark_results.json
