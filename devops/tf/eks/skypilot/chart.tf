@@ -47,11 +47,16 @@ resource "helm_release" "skypilot" {
     name = "ingress.host"
     value = "${var.subdomain}.${var.zone_domain}"
   }
+
+  set {
+    name = "awsCredentials.enabled"
+    value = "true"
+  }
 }
 
 resource "kubernetes_secret" "skypilot_api_server_credentials" {
   metadata {
-    name = "aws-credentials"
+    name = "aws-credentials" # default name in skypilot chart
     namespace = "skypilot"
   }
 
