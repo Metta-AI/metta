@@ -20,6 +20,11 @@ game:
   # default for the old map builder; new metta.map.mapgen requires false
   recursive_map_builder: true
 
+  diversity_bonus:
+    enabled: false
+    similarity_coef: 0.5  # Coefficient for within-group similarity
+    diversity_coef: 0.5   # Coefficient for between-group diversity
+
   agent:
     max_inventory: ${sampling:0, 100, 50}
     freeze_duration: ${sampling:0, 200, 10}
