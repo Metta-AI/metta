@@ -305,7 +305,7 @@ class TestAdvancedResolvers:
         assert oc_scale(5.0, 5.0, 5.0, 0.0, 10.0, "linear") == 5.0
         assert oc_scale(5.0, 5.0, 5.0, 0.0, 10.0, "log") == 5.0
 
-        # Equal input bounds
+        # Equal output bounds
         assert oc_scale(5.0, 0.0, 5.0, 7.0, 7.0, "linear") == 7.0
         assert oc_scale(5.0, 0.0, 5.0, 7.0, 7.0, "log") == 7.0
 
