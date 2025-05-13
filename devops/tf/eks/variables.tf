@@ -6,7 +6,6 @@ variable "cluster_name" {
   default = "main"
 }
 
-
 variable "cluster_version" {
   default = "1.32"
 }
