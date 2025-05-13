@@ -14,7 +14,7 @@ defaults:
 
 trainer:
   # env: env/mettagrid/object_use/training/multienv
-  env: env/mettagrid/simple
+  env: env/mettagrid/navigation/training/multienv
   evaluate_interval: 0
 
 # policy: wandb://run/b.daveey.train.maze.sm.dr.warm.0

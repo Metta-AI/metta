@@ -28,9 +28,9 @@ game:
     rewards:
       # action_failure_penalty: 0.00001
       action_failure_penalty: 0
-      ore.red: 0.00
-      ore.blue: 0
-      ore.green: 0.00
+      ore.red: 0.001
+      ore.blue: 0.001
+      ore.green: 0.001
       battery: 0.01
       battery_max: 5
       heart: 1
