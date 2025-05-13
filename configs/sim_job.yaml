@@ -1,7 +1,7 @@
 defaults:
   - common
   - wandb: metta_research
-  - sim: daphne
+  - sim: all
   - _self_
 
 cmd: sim
