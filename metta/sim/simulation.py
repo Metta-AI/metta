@@ -11,6 +11,7 @@ Vectorised simulation runner.
 from __future__ import annotations
 
 import logging
+import os
 import time
 import uuid
 from dataclasses import dataclass
@@ -22,7 +23,7 @@ import torch
 
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore
-from metta.sim.simulation_config import SimulationConfig
+from metta.sim.simulation_config import SingleEnvSimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
 from metta.sim.vecenv import make_vecenv
 from metta.util.config import config_from_path
@@ -46,9 +47,11 @@ class Simulation:
     def __init__(
         self,
         name: str,
-        config: SimulationConfig,
+        config: SingleEnvSimulationConfig,
         policy_pr: PolicyRecord,
         policy_store: PolicyStore,
+        device: str,
+        vectorization: str,
         suite=None,
         stats_dir: str = "/tmp/stats",
         replay_dir: str | None = None,
@@ -69,17 +72,20 @@ class Simulation:
         self._stats_dir = sim_stats_dir
         self._stats_writer = StatsWriter(sim_stats_dir)
         self._replay_writer = ReplayWriter(replay_dir)
-        self._device = config.device
-        logger.debug(f"Creating vecenv with {config.num_envs} environments")
+        self._device = device
+
+        # ----------------
+        num_envs = min(config.num_episodes, os.cpu_count())
+        logger.debug(f"Creating vecenv with {num_envs} environments")
         self._vecenv = make_vecenv(
             self._env_cfg,
-            config.vectorization,
-            num_envs=config.num_envs,
+            vectorization,
+            num_envs=num_envs,
             stats_writer=self._stats_writer,
             replay_writer=self._replay_writer,
         )
 
-        self._num_envs = config.num_envs
+        self._num_envs = num_envs
         self._min_episodes = config.num_episodes
         self._max_time_s = config.max_time_s
         self._agents_per_env = self._env_cfg.game.num_agents

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-set -e 
+set -e
 
 # check that the user is root
 if [ "$EUID" -ne 0 ]; then
-    echo "This script must be run as root"
-    exit 1
+  echo "This script must be run as root"
+  exit 1
 fi
 
 # Adapted from `brew info amazon-efs-utils`:

@@ -6,12 +6,12 @@ from pathlib import Path
 
 import numpy as np
 import pufferlib
-import pufferlib.utils
 import torch
 import torch.distributed as dist
 import wandb
 from heavyball import ForeachMuon
 from omegaconf import DictConfig, ListConfig
+from pufferlib.utils import unroll_nested_dict
 
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
@@ -25,7 +25,7 @@ from metta.rl.pufferlib.profile import Profile
 from metta.rl.pufferlib.torch_profiler import TorchProfiler
 from metta.rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
 from metta.sim.simulation import Simulation
-from metta.sim.simulation_config import SimulationConfig, SimulationSuiteConfig
+from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
 from metta.sim.vecenv import make_vecenv
 from metta.util.config import config_from_path
@@ -189,13 +189,10 @@ class PufferTrainer:
             for k in ["0verview", "env", "losses", "performance", "train"]:
                 wandb_run.define_metric(f"{k}/*", step_metric="train/agent_step")
 
-        self.replay_sim_config = SimulationConfig(
+        self.replay_sim_config = SingleEnvSimulationConfig(
             env=self.trainer_cfg.env,
-            num_envs=1,
             num_episodes=1,
             env_overrides=self.trainer_cfg.env_overrides,
-            device=self.device,
-            vectorization=self.cfg.vectorization,
         )
 
         logger.info(f"PufferTrainer initialization complete on device: {self.device}")
@@ -278,6 +275,8 @@ class PufferTrainer:
             config=self.sim_suite_config,
             policy_pr=self.last_pr,
             policy_store=self.policy_store,
+            device=self.device,
+            vectorization=self.cfg.vectorization,
             stats_dir=Path(self.cfg.run_dir) / "stats",
         )
         result = sim.simulate()
@@ -377,7 +376,7 @@ class PufferTrainer:
                 self.experience.store(o, value, actions, logprob, r, d, cpu_env_id, mask)
 
                 for i in info:
-                    for k, v in pufferlib.utils.unroll_nested_dict(i):
+                    for k, v in unroll_nested_dict(i):
                         infos[k].append(v)
 
             with profile.env:
@@ -616,22 +615,18 @@ class PufferTrainer:
     def _generate_and_upload_replay(self):
         if self._master:
             logger.info("Generating and saving a replay to wandb and S3.")
-            dry_run = self.trainer_cfg.get("replay_dry_run", False)
-            replay_dir = f"s3://softmax-public/replays/{self.cfg.run}"
-            if dry_run:
-                logger.info(f"Dry run: Would write replay to {replay_dir}")
-                replay_dir = None
-            name = f"replay_{self.epoch}"
             replay_simulator = Simulation(
-                name=name,
+                name=f"replay_{self.epoch}",
                 config=self.replay_sim_config,
                 policy_pr=self.last_pr,
                 policy_store=self.policy_store,
-                replay_dir=replay_dir,
+                device=self.device,
+                vectorization=self.cfg.vectorization,
+                replay_dir=self.cfg.trainer.replay_dir,
             )
             results = replay_simulator.simulate()
 
-            if self.wandb_run is not None and not dry_run:
+            if self.wandb_run is not None:
                 replay_url = results.stats_db.get_replay_urls(
                     policy_key=self.last_pr.key(), policy_version=self.last_pr.version()
                 )[0]

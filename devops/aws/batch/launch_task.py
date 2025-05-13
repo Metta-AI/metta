@@ -92,6 +92,7 @@ def validate_batch_job(args, task_args, job_name, job_queue, job_definition, req
         "./devops/aws/batch/entrypoint.sh",
         f"./devops/{args.cmd}.sh",
         "requirements.txt",
+        "requirements_pinned.txt",
     ]
 
     if args.cmd == "train":

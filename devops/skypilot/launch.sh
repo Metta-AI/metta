@@ -58,7 +58,7 @@ AWS_PROFILE=softmax-db-admin sky jobs launch \
   --num-nodes $nodes \
   --cpus $cpus\+ \
   --name $RUN_ID \
-  ./devops/skypilot/config/train.yaml \
+  ./devops/skypilot/config/sk_train.yaml \
   --env SKYPILOT_DOCKER_PASSWORD \
   --env METTA_RUN_ID=$RUN_ID \
   --env METTA_CMD=$CMD \
