@@ -47,6 +47,16 @@ resource "helm_release" "skypilot" {
     name = "awsCredentials.enabled"
     value = "true"
   }
+
+  set {
+    name = "lambdaAiCredentials.enabled"
+    value = "true"
+  }
+
+  set {
+    name = "lambdaAiCredentials.lambdaAiSecretName"
+    value = kubernetes_secret.lambda_ai_secret.metadata[0].name
+  }
 }
 
 resource "kubernetes_secret" "skypilot_api_server_credentials" {

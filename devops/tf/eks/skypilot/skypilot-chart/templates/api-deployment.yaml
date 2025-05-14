@@ -134,6 +134,14 @@ spec:
           mountPath: /root/.runpod
           readOnly: true
         {{- end }}
+
+        # Softmax patch
+        {{- if .Values.lambdaAiCredentials.enabled }}
+        - name: lambda-ai-config
+          mountPath: /root/.lambda_cloud
+          readOnly: true
+        {{- end }}
+
       initContainers:
       {{- if .Values.awsCredentials.enabled }}
       - name: create-aws-credentials
@@ -222,6 +230,39 @@ spec:
         - name: runpod-config
           mountPath: /root/.runpod
       {{- end }}
+
+      # Softmax patch
+      {{- if .Values.lambdaAiCredentials.enabled }}
+      - name: create-lambda-ai-credentials
+        {{- with .Values.securityContext }}
+        securityContext:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        image: {{ .Values.apiService.image }}
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          echo "Setting up Lambda AI credentials..."
+          if [ -n "$LAMBDA_AI_API_KEY" ]; then
+            echo "Lambda AI credentials found in environment variable."
+            mkdir -p /root/.lambda_cloud
+            echo "[default]" > /root/.lambda_cloud/config.toml
+            echo "api_key = \"$LAMBDA_AI_API_KEY\"" >> /root/.lambda_cloud/config.toml
+          else
+            echo "Lambda AI credentials not found in environment variables. Skipping credentials setup."
+            sleep 600
+          fi
+        env:
+        - name: LAMBDA_AI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.lambdaAiCredentials.lambdaAiSecretName }}
+              key: api_key
+        volumeMounts:
+        - name: lambda-ai-config
+          mountPath: /root/.lambda_cloud
+      {{- end }}
+
       volumes:
       {{- if .Values.storage.enabled }}
       - name: state-volume
@@ -246,6 +287,13 @@ spec:
       - name: runpod-config
         emptyDir: {}
       {{- end }}
+
+      # Softmax patch
+      {{- if .Values.lambdaAiCredentials.enabled }}
+      - name: lambda-ai-config
+        emptyDir: {}
+      {{- end }}
+
       {{- if .Values.kubernetesCredentials.useKubeconfig }}
       - name: kube-config
         secret:

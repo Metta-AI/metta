@@ -222,6 +222,11 @@ runpodCredentials:
   # Name of the secret containing the RunPod credentials. Only used if enabled is true.
   runpodSecretName: runpod-credentials
 
+# Softmax patch
+lambdaAiCredentials:
+  enabled: false
+  lambdaAiSecretName: lambda-ai-credentials
+
 # Set securityContext for the api pod
 podSecurityContext: {}
 
