@@ -137,24 +137,40 @@ class MettaAgent(nn.Module):
                 source_components[source["name"]] = self.components[source["name"]]
         component.setup(source_components)
 
-    def _calculate_cum_action_max_params(self, action_max_params, device=None):
+    def _calculate_cum_action_max_params(self, action_max_params: np.ndarray, device):
         """
         Calculate cumulative sum for action indices. Used for converting actions to logit indices.
 
         Args:
-            action_max_params: List of maximum parameter values for each action type
-            device: Device to place the tensor on (defaults to self.device)
+            action_max_params: NumPy array of maximum parameter values for each action type
+            device: Device to place the tensor on
 
         Returns:
             Tensor of cumulative sums representing offsets for action types
         """
-        return torch.cumsum(torch.tensor([0] + action_max_params[:-1], device=device), dim=0)
+        # Handle empty case
+        if len(action_max_params) == 0:
+            return torch.tensor([0], device=device)
 
-    def activate_actions(self, action_names, action_max_params, device):
+        prefix_array = np.zeros(len(action_max_params), dtype=np.int64)
+
+        # Fill in values - skip the last element of action_max_params
+        if len(action_max_params) > 1:
+            prefix_array[1:] = action_max_params[:-1]
+
+        cum_sum = np.cumsum(prefix_array)
+        return torch.tensor(cum_sum, device=device)
+
+    def activate_actions(self, action_names, action_max_params: np.ndarray, device):
         """Run this at the beginning of training."""
-        self.active_actions = list(zip(action_names, action_max_params, strict=False))
+        # Store and convert action parameters
+        self.device = device
+        self.action_names = action_names
 
-        # Precompute cumulative sums for faster conversion
+        if not isinstance(action_max_params, np.ndarray):
+            raise RuntimeError("action_max_params is not a numpy array")
+
+        self.active_actions = list(zip(action_names, action_max_params.tolist(), strict=False))
         self.cum_action_max_params = self._calculate_cum_action_max_params(action_max_params, device)
 
         full_action_names = []
@@ -239,19 +255,19 @@ class MettaAgent(nn.Module):
         return action, logprob_act, entropy, value, log_sftmx_logits
 
     def _convert_action_to_logit_index(self, action):
-        """Convert action pairs (action_type, action_param) to single discrete action logit indices using vectorized
-        operations"""
+        """
+        Convert (action_type, action_param) pairs to discrete action indices
+        using precomputed offsets.
+        Assumes `cum_action_max_params` maps action types to start indices.
+        """
         action = action.reshape(-1, 2)
 
-        # Extract action components
-        action_type_numbers = action[:, 0].long()
-        action_params = action[:, 1].long()
+        action_type = action[:, 0].long()
+        action_param = action[:, 1].long()
 
-        # Use precomputed cumulative sum with vectorized indexing
-        cumulative_sum = self.cum_action_max_params[action_type_numbers]
-
-        # Vectorized addition
-        action_logit_index = action_type_numbers + cumulative_sum + action_params
+        # Only use offset + parameter — NOT + action_type
+        offset = self.cum_action_max_params[action_type]
+        action_logit_index = offset + action_param
 
         return action_logit_index.reshape(-1, 1)
 
