@@ -590,7 +590,7 @@ class PufferTrainer:
                 "agent_step": self.agent_step,
                 "epoch": self.epoch,
                 "run": self.cfg.run,
-                "action_names": metta_grid_env.action_names(),
+                "action_names": metta_grid_env.action_names,
                 "generation": generation,
                 "initial_uri": self._initial_pr.uri,
                 "train_time": time.time() - self.train_start,
