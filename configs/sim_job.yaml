@@ -10,5 +10,9 @@ run: ???
 sim_job:
   policy_uris: ???
   stats_dir: ${run_dir}/stats
+<<<<<<< HEAD
+  stats_db_uri: ${eval_db_uri}
+=======
   stats_db_uri: ${run_dir}/stats.db
   replay_dir: ${run_dir}/replay_dir
+>>>>>>> 3dc22dd4fb1b95dce64b3e23eee4b2e406dcff01

@@ -175,7 +175,9 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
         auto group_cfg_py = groups[py::str(group_name)]["props"].cast<py::dict>();
         auto agent_cfg_py = cfg["agent"].cast<py::dict>();
         unsigned int group_id = groups[py::str(group_name)]["id"].cast<unsigned int>();
+        unsigned int agent_id = _agents.size();
         Agent* agent = MettaGrid::create_agent(r, c, group_name, group_id, group_cfg_py, agent_cfg_py);
+        _agent_to_group[agent_id] = group_id;
         _grid->add_object(agent);
         agent->agent_id = _agents.size();
         add_agent(agent);
@@ -510,6 +512,10 @@ py::object MettaGrid::action_space() {
                                       py::arg("dtype") = py::module_::import("numpy").attr("int64"));
 }
 
+py::object MettaGrid::agent_to_group() {
+  return py::cast(_agent_to_group);
+}
+
 py::object MettaGrid::observation_space() {
   auto gym = py::module_::import("gymnasium");
   auto spaces = gym.attr("spaces");
@@ -611,5 +617,6 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def("action_success", &MettaGrid::action_success)
       .def("max_action_args", &MettaGrid::max_action_args)
       .def("object_type_names", &MettaGrid::object_type_names)
-      .def("inventory_item_names", &MettaGrid::inventory_item_names);
+      .def("inventory_item_names", &MettaGrid::inventory_item_names)
+      .def("agent_to_group", &MettaGrid::agent_to_group);
 }

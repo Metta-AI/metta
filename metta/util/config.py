@@ -161,7 +161,7 @@ def check_wandb_credentials() -> bool:
         return False
 
 
-def setup_metta_environment(cfg: ListConfig | DictConfig, require_aws: bool = True, require_wandb: bool = True):
+def setup_metta_environment(cfg: ListConfig | DictConfig, require_aws: bool = False, require_wandb: bool = True):
     if require_aws:
         # Check that AWS is good to go.
         if not check_aws_credentials():

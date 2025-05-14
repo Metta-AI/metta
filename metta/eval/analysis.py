@@ -83,6 +83,9 @@ def get_metrics_data(
     data: Dict[str, Dict[str, float]] = {}
     for m in metrics:
         mean = stats_db.get_average_metric_by_filter(m, policy_record, filter_condition)
+        # TODO : add in group means?
+        # group_mean = stats_db.get_average_group_metric_by_filter(m, policy_record, group_id, filter_condition)
+
         if mean is None:
             continue
         std = stats_db.get_std_metric_by_filter(m, policy_record, filter_condition) or 0.0

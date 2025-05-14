@@ -18,6 +18,12 @@ SYMBOLS = {
     "E": "agent.team_2",
     "R": "agent.team_3",
     "T": "agent.team_4",
+    "p": "mine.red",
+    "0": "mine.blue",
+    "j": "mine.green",
+    "P": "generator.red",
+    "B": "generator.blue",
+    "J": "generator.green",
 }
 
 
