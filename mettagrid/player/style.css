@@ -274,7 +274,7 @@ body {
 
 /* Logo styling */
 #header #logo {
-  height: 54px;
+  height: 64px;
   margin: 0 15px;
   /* Prevent logo from shrinking */
   flex-shrink: 0;
