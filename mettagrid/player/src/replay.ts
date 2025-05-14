@@ -135,9 +135,6 @@ async function loadReplayText(url: string, replayData: string) {
 }
 
 function fixReplay() {
-
-
-
   // Create action image mappings for faster access.
   state.replay.action_images = [];
   for (const actionName of state.replay.action_names) {
@@ -211,15 +208,19 @@ function fixReplay() {
     }
   }
 
-  // // Map size is not to be trusted. Recompute map size just in case.
-  // state.replay.map_size[0] = 0;
-  // state.replay.map_size[1] = 0;
-  // for (const gridObject of state.replay.grid_objects) {
-  //   let x = getAttr(gridObject, "c") + 1;
-  //   let y = getAttr(gridObject, "r") + 1;
-  //   state.replay.map_size[0] = Math.max(state.replay.map_size[0], x);
-  //   state.replay.map_size[1] = Math.max(state.replay.map_size[1], y);
-  // }
+
+  // Map size is not to be trusted. Recompute map size just in case.
+  state.replay.map_size[0] = 1;
+  state.replay.map_size[1] = 1;
+  for (const gridObject of state.replay.grid_objects) {
+    let x = getAttr(gridObject, "c") + 1;
+    let y = getAttr(gridObject, "r") + 1;
+    state.replay.map_size[0] = Math.max(state.replay.map_size[0], x);
+    state.replay.map_size[1] = Math.max(state.replay.map_size[1], y);
+  }
+
+  console.info("replay: ", state.replay);
+
 }
 
 async function loadReplayJson(url: string, replayData: any) {
@@ -246,7 +247,7 @@ async function loadReplayJson(url: string, replayData: any) {
   }
 
   fixReplay();
-  console.info("replay: ", state.replay);
+
 
   // Set the scrubber max value to the max steps.
   html.scrubber.max = (state.replay.max_steps - 1).toString();

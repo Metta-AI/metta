@@ -227,88 +227,69 @@ function onKeyDown(event: KeyboardEvent) {
   // 7: "swap"
   // 8: "change_color"
 
-  if (state.isOneToOneAction) {
-    // Each key is one action.
+  // Smart navigation, where pressing key rotations the agent in the
+  // direction of the key, but if the agent is already facing in that
+  // direction, it moves forward.
+  if (state.selectedGridObject != null) {
+    const agent = state.selectedGridObject;
+    const orientation = getAttr(agent, "agent:orientation");
     if (event.key == "w") {
-      console.log("Rotate up");
-      sendAction([4, 0])
+      if (orientation != 0) {
+        // Rotate up.
+        sendAction([4, 0])
+      } else {
+        // Move forward (up).
+        sendAction([3, 0])
+      }
     }
     if (event.key == "a") {
-      console.log("Rotate left");
-      sendAction([4, 2])
+      if (orientation != 2) {
+        // Rotate left.
+        sendAction([4, 2])
+      } else {
+        // Move forward (left).
+        sendAction([3, 0])
+      }
     }
     if (event.key == "s") {
-      console.log("Rotate down");
-      sendAction([4, 1])
+      if (orientation != 1) {
+        // Rotate down.
+        sendAction([4, 1])
+      } else {
+        // Move forward (down).
+        sendAction([3, 0])
+      }
     }
     if (event.key == "d") {
-      console.log("Rotate right");
-      sendAction([4, 3])
+      if (orientation != 3) {
+        // Rotate right.
+        sendAction([4, 3])
+      } else {
+        // Move forward (right).
+        sendAction([3, 0])
+      }
     }
+
     if (event.key == "f") {
-      console.log("Move forward");
+      // Just move forward.
       sendAction([3, 0])
     }
     if (event.key == "r") {
-      console.log("Move backward");
+      // Just move backwards/reverse.
       sendAction([3, 1])
     }
-  } else {
-    // Smarter navigation, where pressing key rotations the agent in the
-    // direction of the key, but if the agent is already facing in that
-    // direction, it moves forward.
-    if (state.selectedGridObject != null) {
-      const agent = state.selectedGridObject;
-      const orientation = getAttr(agent, "agent:orientation");
-      if (event.key == "w") {
-        if (orientation != 0) {
-          // Rotate up.
-          sendAction([4, 0])
-        } else {
-          // Move forward (up).
-          sendAction([3, 0])
-        }
-      }
-      if (event.key == "a") {
-        if (orientation != 2) {
-          // Rotate left.
-          sendAction([4, 2])
-        } else {
-          // Move forward (left).
-          sendAction([3, 0])
-        }
-      }
-      if (event.key == "s") {
-        if (orientation != 1) {
-          // Rotate down.
-          sendAction([4, 1])
-        } else {
-          // Move forward (down).
-          sendAction([3, 0])
-        }
-      }
-      if (event.key == "d") {
-        if (orientation != 3) {
-          // Rotate right.
-          sendAction([4, 3])
-        } else {
-          // Move forward (right).
-          sendAction([3, 0])
-        }
-      }
 
-      if (event.key == "q") {
-        // Put recipe items.
-        sendAction([0, 0])
-      }
-      if (event.key == "e") {
-        // Get output.
-        sendAction([1, 0])
-      }
-      if (event.key == "x") {
-        // Noop.
-        sendAction([2, 0])
-      }
+    if (event.key == "q") {
+      // Put recipe items.
+      sendAction([0, 0])
+    }
+    if (event.key == "e") {
+      // Get output.
+      sendAction([1, 0])
+    }
+    if (event.key == "x") {
+      // Noop.
+      sendAction([2, 0])
     }
   }
 
