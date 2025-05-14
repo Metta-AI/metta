@@ -79,6 +79,10 @@ export const state = {
   showGrid: true,
   showViewRanges: true,
   showFogOfWar: false,
+
+  // Playing over WebSocket
+  ws: null as WebSocket | null,
+  isOneToOneAction: false,
 };
 
 export const html = {
