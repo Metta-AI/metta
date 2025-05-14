@@ -1,7 +1,7 @@
 defaults:
   - common
   - wandb: metta_research
-  - /sim/sim_suite@replay_job.simulation_suite
+  - sim: simple
   - _self_
 
 cmd: sim
@@ -9,6 +9,7 @@ run: ???
 
 sim_job:
   policy_uris: ???
+  simulation_suite: ${sim}
   stats_dir: ${run_dir}/stats
   stats_db_uri: ${run_dir}/stats.db
   replay_dir: ${run_dir}/replay_dir

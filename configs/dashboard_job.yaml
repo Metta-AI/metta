@@ -1,5 +1,6 @@
 defaults:
   - common
+  - sim: navigation
   - _self_
 
 eval_db_uri: ???
