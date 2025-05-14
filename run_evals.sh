@@ -12,7 +12,7 @@ for i in "${!POLICIES[@]}"; do
     RANDOM_NUM=$((RANDOM % 1000))
     IDX="${IDX}_${RANDOM_NUM}"
     python3 -m tools.sim \
-        sim=navigation \
+        +sim=navigation \
         run=navigation$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         +eval_db_uri=wandb://artifacts/sasmith_navigation_db \
