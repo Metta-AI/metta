@@ -2,10 +2,12 @@ import json
 import logging
 
 import hydra
-import numpy as np
 from fastapi import FastAPI, HTTPException, Query, WebSocket
 from fastapi.responses import HTMLResponse
 from hydra import compose, initialize
+
+from mettagrid.mettagrid_env import MettaGridEnv
+from mettagrid.tests.utils import generate_valid_random_actions
 
 app = FastAPI()
 
@@ -63,8 +65,10 @@ async def websocket_endpoint(
 
     try:
         step_count = 0
-        env = hydra.utils.instantiate(cfg.env, render_mode="websocket")
-        obs, infos = env.reset()
+        metta_grid_env: MettaGridEnv = hydra.utils.instantiate(cfg.env, render_mode="websocket")  # type: ignore
+        assert isinstance(metta_grid_env, MettaGridEnv)
+
+        obs, infos = metta_grid_env.reset()
         logger.info("Environment initialized and reset")
         await send_message("Environment initialized and reset")
         await websocket.send_json(
@@ -72,19 +76,22 @@ async def websocket_endpoint(
                 "message": "Initial state",
                 # "observation": obs,
                 "info": infos,
-                "objects": env._c_env.grid_objects(),
+                "objects": metta_grid_env.grid_objects,
             }
         )
 
         while True:
-            # Receive action from client
             data = await websocket.receive_text()
-            actions = json.loads(data)
-            actions = np.random.randint(0, env.action_space.nvec, (env.num_agents, 2), dtype=np.uint32)
-            logger.info(f"Received actions: {actions}")
+            try:
+                actions = json.loads(data)
+                # Validate client actions here if needed
+            except (json.JSONDecodeError, ValueError):
+                # Fall back to random actions only if there's an issue with client data
+                logger.warning("Invalid actions received, falling back to random actions")
+                actions = generate_valid_random_actions(metta_grid_env, metta_grid_env.num_agents)
 
             # Step the environment
-            obs, rewards, terminated, truncated, infos = env.step(actions)
+            obs, rewards, terminated, truncated, infos = metta_grid_env.step(actions)
 
             # Send results back to client
             await websocket.send_json(
@@ -94,7 +101,7 @@ async def websocket_endpoint(
                     # "terminated": terminated,
                     # "truncated": truncated,
                     "infos": infos,
-                    "objects": env._c_env.grid_objects(),
+                    "objects": metta_grid_env.grid_objects,
                 }
             )
 

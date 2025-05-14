@@ -20,7 +20,9 @@ from typing import Dict
 
 import numpy as np
 import torch
+from omegaconf import OmegaConf
 
+from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore
 from metta.sim.simulation_config import SingleEnvSimulationConfig
@@ -65,7 +67,13 @@ class Simulation:
         # ---------------- env config ----------------------------------- #
         logger.info(f"config.env {config.env}")
         logger.info(f"config.env_overrides {config.env_overrides}")
-        self._env_cfg = config_from_path(config.env, config.env_overrides)
+
+        if config.env_overrides is not None:
+            env_overrides = OmegaConf.create(config.env_overrides)
+        else:
+            env_overrides = None
+
+        self._env_cfg = config_from_path(config.env, env_overrides)
         self._env_name = config.env
 
         replay_dir = f"{replay_dir}/{self._id}" if replay_dir else None
@@ -106,14 +114,14 @@ class Simulation:
         action_names = metta_grid_env.action_names
         max_args = metta_grid_env.max_action_args
 
-        policy = self._policy_pr.policy()
-        logger.info(f"Type of policy object: {type(policy)}")
-        logger.info(f"Is policy callable: {callable(policy)}")
-        logger.info(f"Does policy have activate_actions: {hasattr(policy, 'activate_actions')}")
+        metta_agent: MettaAgent | DistributedMettaAgent = self._policy_pr.policy_as_metta_agent()
+        assert isinstance(metta_agent, (MettaAgent, DistributedMettaAgent)), metta_agent
+        metta_agent.activate_actions(action_names, max_args, self._device)
 
-        policy.activate_actions(action_names, max_args, self._device)
         if self._npc_pr is not None:
-            policy.activate_actions(action_names, max_args, self._device)
+            npc_agent: MettaAgent | DistributedMettaAgent = self._npc_pr.policy_as_metta_agent()
+            assert isinstance(npc_agent, (MettaAgent, DistributedMettaAgent)), npc_agent
+            npc_agent.activate_actions(action_names, max_args, self._device)
 
         # ---------------- agent-index bookkeeping ---------------------- #
         idx_matrix = torch.arange(metta_grid_env.num_agents, device=self._device).reshape(

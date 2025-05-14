@@ -76,7 +76,7 @@ components:
       out_channels: 64
       kernel_size: 5
       stride: 3
-    # when defining nn.Modules, put your keyword argements under nn_params.
+    # when defining nn.Modules, put your keyword arguments under nn_params.
     # Do not specify the input_size
 
   cnn1_channels_12-22:

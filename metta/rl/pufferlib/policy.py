@@ -106,7 +106,7 @@ class PufferAgentWrapper(nn.Module):
         """Uses variable names from LSTMWrapper. Translating for Metta:
         critic -> value
         logprob -> logprob_act
-        hidden -> logits then, after sample_logits(), log_sftmx_logits
+        hidden -> logits then, after sample_logits(), logprobs
         """
         hidden, critic = self.policy(obs, state)  # using variable names from LSTMWrapper
         action, logprob, logits_entropy = sample_logits(hidden, action)

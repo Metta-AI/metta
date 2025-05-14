@@ -9,6 +9,7 @@ from omegaconf import DictConfig, ListConfig, OmegaConf
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 
+from metta.agent.lib.action import ActionEmbedding
 from metta.agent.policy_state import PolicyState
 from metta.agent.util.distribution_utils import sample_logits
 from metta.agent.util.safe_get import safe_get_from_obs_space
@@ -46,6 +47,19 @@ class DistributedMettaAgent(DistributedDataParallel):
             return super().__getattr__(name)
         except AttributeError:
             return getattr(self.module, name)
+
+    def activate_actions(self, action_names, action_max_params, device):
+        """Forward activate_actions to the wrapped module."""
+        return self.module.activate_actions(action_names, action_max_params, device)
+
+    @property
+    def components(self):
+        """Access the components dictionary from the wrapped module."""
+        return self.module.components
+
+    def update_l2_init_weight_copy(self):
+        """Forward update_l2_init_weight_copy to the wrapped module."""
+        return self.module.update_l2_init_weight_copy()
 
 
 class MettaAgent(nn.Module):
@@ -185,7 +199,12 @@ class MettaAgent(nn.Module):
             for i in range(max_param + 1):
                 full_action_names.append(f"{action_name}_{i}")
 
-        self.components["_action_embeds_"].activate_actions(full_action_names, device)
+        component = self.components["_action_embeds_"]  # Type annotation removed
+
+        if not isinstance(component, ActionEmbedding):
+            raise TypeError(f"Component '_action_embeds_' is of type {type(component)}, expected ActionEmbedding")
+
+        component.activate_actions(full_action_names, device)
 
         # Create action_index tensor
         action_index = []
@@ -214,7 +233,7 @@ class MettaAgent(nn.Module):
             action: Optional action tensor
 
         Returns:
-            Tuple of (action, logprob_act, entropy, value, log_sftmx_logits)
+            Tuple of (action, logprob_act, entropy, value, logprobs)
         """
         # Initialize dictionary for TensorDict
         td = {"x": x, "state": None}
@@ -243,13 +262,13 @@ class MettaAgent(nn.Module):
 
         # Sample actions
         action_logit_index = self._convert_action_to_logit_index(action) if action is not None else None
-        action_logit_index, logprob_act, entropy, log_sftmx_logits = sample_logits(logits, action_logit_index)
+        action_logit_index, logprob_act, entropy, logprobs = sample_logits(logits, action_logit_index)
 
         # Convert logit index to action if no action was provided
         if action is None:
             action = self._convert_logit_index_to_action(action_logit_index, td)
 
-        return action, logprob_act, entropy, value, log_sftmx_logits
+        return action, logprob_act, entropy, value, logprobs
 
     def _convert_action_to_logit_index(self, action):
         """

@@ -1,9 +1,12 @@
+from typing import Union
+
 import omegaconf
 import torch
 from tensordict import TensorDict
 from torch import nn
 
 from metta.agent.lib.metta_layer import LayerBase
+from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.util.running_mean_std import RunningMeanStdInPlace
 
 
@@ -25,8 +28,11 @@ class FeatureListNormalizer(LayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
+    metta_agent: Union[MettaAgent, DistributedMettaAgent]
+
+    # TODO -- maybe the intention here to pass in a MettaGridEnv?
     def __init__(self, metta_agent, **cfg):
-        super().__init__()
+        super().__init__(**cfg)
         cfg = omegaconf.OmegaConf.create(cfg)
         object.__setattr__(self, "metta_agent", metta_agent)
         self.cfg = cfg
@@ -34,6 +40,7 @@ class FeatureListNormalizer(LayerBase):
         self.name = self.cfg.name
         self.input_source = self.cfg.input_source
         self.output_size = None
+
         self._feature_names = self.metta_agent.grid_features
         self.input_shape = self.metta_agent.obs_input_shape
         self._norms_dict = nn.ModuleDict(

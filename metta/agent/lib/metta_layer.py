@@ -1,3 +1,5 @@
+from typing import Any, Dict, List, Optional
+
 import numpy as np
 import torch
 from tensordict import TensorDict
@@ -41,13 +43,28 @@ class LayerBase(nn.Module):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def __init__(self, name, sources=None, nn_params=None, **cfg):
+    def __init__(
+        self,
+        name: str,
+        sources: Optional[List[Dict[str, Any]]] = None,
+        nn_params: Optional[Dict[str, Any]] = None,
+        **cfg,
+    ):
         super().__init__()
         self._name = name
-        self._sources = sources
-        if self._sources is not None:
-            # convert from omegaconf's list class
-            self._sources = list(self._sources)
+
+        # Handle sources
+        if sources is None:
+            raise ValueError(f"Component '{name}' requires 'sources' to be provided during initialization")
+
+        # Convert from omegaconf's list class if needed
+        self._sources: List[Dict[str, Any]] = list(sources)
+
+        # Validate the sources
+        for i, source in enumerate(self._sources):
+            if not isinstance(source, dict) or "name" not in source:
+                raise ValueError(f"Invalid source at index {i}: each source must be a dict with at least a 'name' key")
+
         self._net = None
         self._ready = False
         if not hasattr(self, "_nn_params"):
@@ -57,16 +74,12 @@ class LayerBase(nn.Module):
     def ready(self):
         return self._ready
 
-    def setup(self, source_components=None):
-        """_in_tensor_shapes is a list of lists. Each sublist contains the shapes of the input tensors for each source
-        component._out_tensor_shape is a list of the shape of the output tensor."""
+    def setup(self, source_components: Optional[Dict[str, Any]] = None) -> None:
         if self._ready:
             return
-
         self.__dict__["_source_components"] = source_components
-        self._in_tensor_shapes = None
+        self._in_tensor_shapes = []
         if self._source_components is not None:
-            self._in_tensor_shapes = []
             for _, source in self._source_components.items():
                 self._in_tensor_shapes.append(source._out_tensor_shape.copy())
 

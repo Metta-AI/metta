@@ -15,19 +15,21 @@ import os
 import random
 import sys
 import warnings
-from typing import List, Optional, Union
+from typing import List, Optional, TypeVar, Union
 
 import torch
 import wandb
 from omegaconf import DictConfig, ListConfig
 from torch import nn
 
-from metta.agent.metta_agent import make_policy
+from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, make_policy
 from metta.rl.pufferlib.policy import load_policy
 from metta.util.config import Config
 from metta.util.wandb.wandb_context import WandbRun
 
 logger = logging.getLogger("policy_store")
+
+T = TypeVar("T", bound=nn.Module)
 
 
 class PolicySelectorConfig(Config):
@@ -37,7 +39,7 @@ class PolicySelectorConfig(Config):
 
 class PolicyRecord:
     def __init__(self, policy_store: "PolicyStore", name: str, uri: str, metadata: dict):
-        self._policy_store = policy_store
+        self._policy_store: Optional[PolicyStore] = policy_store
         self.name = name
         self.uri = uri
         self.metadata = metadata
@@ -48,11 +50,35 @@ class PolicyRecord:
             self._local_path = self.uri[len("file://") :]
 
     def policy(self) -> nn.Module:
+        """
+        Returns the policy module, loading it if not already loaded.
+
+        Returns:
+            nn.Module: The loaded policy module
+
+        Raises:
+            ValueError: If policy store is not initialized
+            RuntimeError: If policy loading fails
+        """
         if self._policy is None:
-            pr = self._policy_store.load_from_uri(self.uri)
-            self._policy = pr.policy()
-            self._local_path = pr.local_path()
+            if self._policy_store is None:
+                raise ValueError("Policy store has not been initialized")
+
+            try:
+                pr = self._policy_store.load_from_uri(self.uri)
+                self._policy = pr.policy()
+                self._local_path = pr.local_path()
+            except Exception as e:
+                raise RuntimeError(f"Failed to load policy from URI {self.uri}: {str(e)}") from e
+
         return self._policy
+
+    def policy_as_metta_agent(self) -> Union[MettaAgent, DistributedMettaAgent]:
+        """Get the policy as a MettaAgent or DistributedMettaAgent."""
+        policy = self.policy()
+        if not isinstance(policy, (MettaAgent, DistributedMettaAgent)):
+            raise TypeError(f"Expected MettaAgent or DistributedMettaAgent, got {type(policy).__name__}")
+        return policy
 
     def num_params(self):
         return sum(p.numel() for p in self.policy().parameters() if p.requires_grad)
