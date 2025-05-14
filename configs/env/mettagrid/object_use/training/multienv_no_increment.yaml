@@ -1,0 +1,16 @@
+_target_: metta.env.mettagrid_env_set.MettaGridEnvSet
+
+num_agents: 20
+sampling: 1
+
+game:
+  num_agents: ${..num_agents}
+
+envs:
+  - /env/mettagrid/object_use/training/extended_sequence0
+  - /env/mettagrid/object_use/training/extended_sequence1
+  - /env/mettagrid/object_use/training/extended_sequence2
+  - /env/mettagrid/object_use/training/extended_sequence3
+  - /env/mettagrid/object_use/training/extended_sequence4
+  - /env/mettagrid/object_use/training/extended_sequence5
+  - /env/mettagrid/object_use/training/extended_sequence6

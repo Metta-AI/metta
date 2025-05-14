@@ -1,0 +1,18 @@
+defaults:
+  - /env/mettagrid/multiagent/training/24/terrain_from_numpy@
+  - _self_
+
+sampling: 1
+game:
+  num_agents: 24    #how many agents are in the map x2
+
+  reward_sharing:
+    groups:
+      team_1:
+        team_1: 0.6
+      team_2:
+        team_2: 0.6
+      team_3:
+        team_3: 0.6
+      team_4:
+        team_4: 0.6

@@ -1,0 +1,13 @@
+_target_: metta.env.mettagrid_env_set.MettaGridEnvSet
+
+num_agents: 24
+
+game:
+  num_agents: ${..num_agents}
+
+envs:
+  - /env/mettagrid/multiagent/training/reward_sharing/24_range/terrain_from_numpy
+  - /env/mettagrid/multiagent/training/reward_sharing/24_range/varied_terrain_all_sparse
+  - /env/mettagrid/multiagent/training/reward_sharing/24_range/varied_terrain_balanced
+  - /env/mettagrid/multiagent/training/reward_sharing/24_range/varied_terrain_maze
+  - /env/mettagrid/multiagent/training/reward_sharing/24_range/varied_terrain_dense

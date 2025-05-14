@@ -1,0 +1,19 @@
+defaults:
+  - /env/mettagrid/multiagent/training/24/varied_terrain_dense@
+  - _self_
+
+sampling: 1
+
+game:
+  num_agents: 24
+
+  reward_sharing:
+    groups:
+      team_1:
+        team_1: 0.2
+      team_2:
+        team_2: 0.4
+      team_3:
+        team_3: 0.6
+      team_4:
+        team_4: 0.8

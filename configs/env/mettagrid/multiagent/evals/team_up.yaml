@@ -1,0 +1,25 @@
+defaults:
+  - /env/mettagrid/mettagrid@
+  - _self_
+
+game:
+  num_agents: 2 #how many agents are in the map x2
+  max_steps: 50
+
+  agent:
+    rewards:
+      heart: 2
+
+  map_builder:
+    _target_: mettagrid.config.room.multi_room.MultiRoom
+    num_rooms: 1
+    room:
+      _target_: mettagrid.config.room.ascii.Ascii
+      border_width: 1
+      uri: "configs/env/mettagrid/maps/multiagent/team_up.map"
+
+  objects:
+    altar:
+      cooldown: 255
+      max_output: 1
+      initial_items: 0
