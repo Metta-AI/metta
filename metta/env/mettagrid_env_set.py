@@ -1,5 +1,3 @@
-from typing import List
-
 import numpy as np
 from omegaconf import DictConfig
 from omegaconf.omegaconf import OmegaConf
@@ -23,7 +21,6 @@ class MettaGridEnvSet(MettaGridEnv):
         beta: float = 0.4,  # Initial importance sampling weight (increases to 1 over time)
         beta_annealing_steps: int = 100000,  # Number of episodes to anneal beta to 1.0
         epsilon: float = 0.01,  # Small constant to avoid zero priority
-        increment_reward_thresholds: List[float] | None = None,
         **kwargs,
     ):
         self._env_cfgs = env_cfg.envs
@@ -43,12 +40,6 @@ class MettaGridEnvSet(MettaGridEnv):
         self._env_priorities = np.ones(self._num_envs, dtype=np.float32)  # Initial priorities are uniform
         self._env_performance = np.zeros(self._num_envs, dtype=np.float32)  # Track performance for each env
         self._env_visits = np.zeros(self._num_envs, dtype=np.int32)  # Count how many times each env is visited
-        if increment_reward_thresholds is not None:
-            self._increment_reward_thresholds = increment_reward_thresholds
-            self._probabilities = np.zeros(self._num_envs)
-            self._probabilities[0] = 1.0
-        else:
-            self._probabilities = None
 
         # Get initial environment config
         self._env_cfg = self._get_new_env_cfg()
@@ -65,6 +56,8 @@ class MettaGridEnvSet(MettaGridEnv):
             performance: Performance metric (e.g., negative reward or TD error)
         """
         # Update performance tracking
+        self._env_performance[env_idx] = performance
+
         # Update priority with absolute error (raised to power of alpha)
         self._env_priorities[env_idx] = (abs(performance) + self._epsilon) ** self._alpha
 
@@ -72,13 +65,6 @@ class MettaGridEnvSet(MettaGridEnv):
         """
         Calculate probabilities for environment selection based on priorities.
         """
-        if self._probabilities is not None:
-            if self._last_episode_reward >= self._increment_reward_thresholds[self._current_env_idx]:
-                self._current_env_idx += 1
-                self._probabilities = np.zeros(self._num_envs)
-                self._probabilities[self._current_env_idx] = 1.0
-                return self._probabilities
-
         # Normalize priorities to get probabilities
         total_priority = np.sum(self._env_priorities)
         return self._env_priorities / total_priority if total_priority > 0 else np.ones(self._num_envs) / self._num_envs
