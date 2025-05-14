@@ -32,16 +32,16 @@ class LSTM(LayerBase):
         self.hidden_size = hidden_size
         # self._out_tensor_shape = [hidden_size] # delete this
         self.num_layers = self._nn_params["num_layers"]
-
-    def _make_net(self):
         self._out_tensor_shape = [self.hidden_size]
+
+    def _make_net(self) -> nn.Module:
         net = nn.LSTM(self._in_tensor_shapes[0][0], self.hidden_size, **self._nn_params)
 
         for name, param in net.named_parameters():
             if "bias" in name:
                 nn.init.constant_(param, 1)  # Joseph originally had this as 0
             elif "weight" in name:
-                nn.init.orthogonal_(param, 1.0)  # torch's default is uniform
+                nn.init.orthogonal_(param, gain=1)  # torch's default is uniform (gain is an int)
 
         return net
 

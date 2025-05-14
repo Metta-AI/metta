@@ -15,7 +15,7 @@ import os
 import random
 import sys
 import warnings
-from typing import List, Optional, TypeVar, Union
+from typing import Any, Dict, List, Optional, TypeVar, Union
 
 import torch
 import wandb
@@ -383,19 +383,72 @@ class PolicyStore:
         self._cached_prs[path] = pr
         return pr
 
-    def add_to_wandb_run(self, run_id: str, pr: PolicyRecord, additional_files=None):
+    def add_to_wandb_run(
+        self, run_id: str, pr: Optional[PolicyRecord], additional_files: Optional[List[str]] = None
+    ) -> Optional[str]:
+        """
+        Add policy record to a W&B run.
+
+        Args:
+            run_id: The W&B run ID
+            pr: The PolicyRecord to add
+            additional_files: Optional list of additional file paths to include
+
+        Returns:
+            The qualified name of the created artifact or None if no record was provided
+        """
+        if pr is None:
+            # Early exit - this is reasonable if calling code might legitimately pass None
+            # and we want to handle that gracefully without an error
+            return None
+
         local_path = pr.local_path()
         if local_path is None:
             raise ValueError("PolicyRecord has no local path")
+
         return self.add_to_wandb_artifact(run_id, "model", pr.metadata, local_path, additional_files)
 
-    def add_to_wandb_sweep(self, sweep_name: str, pr: PolicyRecord, additional_files=None):
+    def add_to_wandb_sweep(
+        self, sweep_name: str, pr: PolicyRecord, additional_files: Optional[List[str]] = None
+    ) -> str:
+        """
+        Add policy record to a W&B sweep.
+
+        Args:
+            sweep_name: The W&B sweep name
+            pr: The PolicyRecord to add (required, not optional)
+            additional_files: Optional list of additional file paths to include
+
+        Returns:
+            The qualified name of the created artifact
+        """
         local_path = pr.local_path()
         if local_path is None:
             raise ValueError("PolicyRecord has no local path")
+
         return self.add_to_wandb_artifact(sweep_name, "sweep_model", pr.metadata, local_path, additional_files)
 
-    def add_to_wandb_artifact(self, name: str, type: str, metadata: dict, local_path: str, additional_files=None):
+    def add_to_wandb_artifact(
+        self,
+        name: str,
+        type: str,
+        metadata: Dict[str, Any],
+        local_path: str,
+        additional_files: Optional[List[str]] = None,
+    ) -> str:
+        """
+        Add an artifact to W&B.
+
+        Args:
+            name: The artifact name
+            type: The artifact type
+            metadata: The metadata dictionary
+            local_path: Path to the main model file
+            additional_files: Optional list of additional file paths to include
+
+        Returns:
+            The qualified name of the created artifact
+        """
         if self._wandb_run is None:
             raise ValueError("PolicyStore was not initialized with a wandb run")
 
@@ -409,6 +462,8 @@ class PolicyStore:
         artifact.wait()
         logger.info(f"Added artifact {artifact.qualified_name}")
         self._wandb_run.log_artifact(artifact)
+
+        return artifact.qualified_name
 
     def _prs_from_path(self, path: str) -> List[PolicyRecord]:
         paths = []

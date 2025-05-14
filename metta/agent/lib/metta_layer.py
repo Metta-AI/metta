@@ -43,6 +43,14 @@ class LayerBase(nn.Module):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
+    _name: str
+    _sources: List[Dict[str, Any]]
+    _net: nn.Module
+    _ready: bool
+    _nn_params: Dict[str, Any]
+    _in_tensor_shapes: List[List[int]]
+    _out_tensor_shape: List[int]
+
     def __init__(
         self,
         name: str,
@@ -53,19 +61,15 @@ class LayerBase(nn.Module):
         super().__init__()
         self._name = name
 
-        # Handle sources
-        if sources is None:
-            raise ValueError(f"Component '{name}' requires 'sources' to be provided during initialization")
-
         # Convert from omegaconf's list class if needed
-        self._sources: List[Dict[str, Any]] = list(sources)
+        self._sources: List[Dict[str, Any]] = list(sources or [])
 
         # Validate the sources
         for i, source in enumerate(self._sources):
             if not isinstance(source, dict) or "name" not in source:
                 raise ValueError(f"Invalid source at index {i}: each source must be a dict with at least a 'name' key")
 
-        self._net = None
+        self._net: nn.Module = nn.Identity()
         self._ready = False
         if not hasattr(self, "_nn_params"):
             self._nn_params = nn_params if nn_params is not None else {}
@@ -78,12 +82,13 @@ class LayerBase(nn.Module):
         if self._ready:
             return
 
+        # Note - when a property is set on a torch nn.Module, it will automatically be
+        # added to gradient tracking. This gets around the problem.
         self.__dict__["_source_components"] = source_components
 
         self._in_tensor_shapes = []
-        typed_source_components = cast(Optional[Dict[str, Any]], self._source_components)
 
-        self._in_tensor_shapes = []
+        typed_source_components = cast(Optional[Dict[str, Any]], self._source_components)
         if typed_source_components is not None:
             for _, source in typed_source_components.items():
                 self._in_tensor_shapes.append(source._out_tensor_shape.copy())
@@ -94,16 +99,17 @@ class LayerBase(nn.Module):
     def _initialize(self):
         self._net = self._make_net()
 
-    def _make_net(self):
-        pass
+    def _make_net(self) -> nn.Module:
+        return nn.Identity()
 
     def forward(self, td: TensorDict):
         if self._name in td:
             return td
 
         # recursively call the forward method of the source components
-        if self._source_components is not None:
-            for _, source in self._source_components.items():
+        typed_source_components = cast(Optional[Dict[str, Any]], self._source_components)
+        if typed_source_components is not None:
+            for _, source in typed_source_components.items():
                 source.forward(td)
 
         self._forward(td)
@@ -129,8 +135,13 @@ class LayerBase(nn.Module):
     def update_l2_init_weight_copy(self):
         pass
 
-    def compute_weight_metrics(self, delta: float = 0.01) -> dict:
-        pass
+    def compute_weight_metrics(self, delta: float = 0.01) -> List[dict]:
+        return []
+
+
+class LinearWeightModule(nn.Module):
+    weight: torch.nn.parameter.Parameter
+    bias: Optional[torch.nn.parameter.Parameter]
 
 
 class ParamLayer(LayerBase):
@@ -157,15 +168,17 @@ class ParamLayer(LayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
+    initial_weights: Optional[torch.Tensor]
+
     def __init__(
         self,
-        clip_scale=1,
-        analyze_weights=None,
-        l2_norm_scale=None,
-        l2_init_scale=None,
-        nonlinearity="nn.ReLU",
-        initialization="Orthogonal",
-        clip_range=None,
+        clip_scale: float = 1,
+        analyze_weights: Optional[bool] = None,
+        l2_norm_scale: Optional[float] = None,
+        l2_init_scale: Optional[float] = None,
+        nonlinearity: Optional[str] = "nn.ReLU",
+        initialization: str = "Orthogonal",
+        clip_range: Optional[float] = None,
         **cfg,
     ):
         self.clip_scale = clip_scale
@@ -175,23 +188,30 @@ class ParamLayer(LayerBase):
         self.nonlinearity = nonlinearity
         self.initialization = initialization
         self.global_clip_range = clip_range
+        self.largest_weight: float = 0.0  # Initialize with default value
         super().__init__(**cfg)
 
     def _initialize(self):
-        self.__dict__["weight_net"] = self._make_net()
+        # Note - when a property is set on a torch nn.Module, it will automatically be
+        # added to gradient tracking. This gets around the problem.
+        self.__dict__["_weight_net"] = self._make_net()
+        typed_weight_net = cast(LinearWeightModule, self._weight_net)
 
         self._initialize_weights()
 
+        # Configure weight clipping
         if self.clip_scale > 0:
-            self.clip_value = self.global_clip_range * self.largest_weight * self.clip_scale
+            # Handle the case where global_clip_range could be None
+            clip_range = 1.0 if self.global_clip_range is None else self.global_clip_range
+            self.clip_value = clip_range * self.largest_weight * self.clip_scale
         else:
             self.clip_value = 0  # disables clipping (not clip to 0)
 
         self.initial_weights = None
         if self.l2_init_scale != 0:
-            self.initial_weights = self.weight_net.weight.data.clone()
+            self.initial_weights = typed_weight_net.weight.data.clone()
 
-        self._net = self.weight_net
+        # Setup the complete network with nonlinearity if needed
         if self.nonlinearity is not None:
             # expecting a string of the form 'nn.ReLU'
             try:
@@ -199,10 +219,12 @@ class ParamLayer(LayerBase):
                 if class_name not in dir(nn):
                     raise ValueError(f"Unsupported nonlinearity: {self.nonlinearity}")
                 nonlinearity_class = getattr(nn, class_name)
-                self._net = nn.Sequential(self.weight_net, nonlinearity_class())
-                self.__dict__["weight_net"] = self._net[0]
+                self._net = nn.Sequential(typed_weight_net, nonlinearity_class())
             except (AttributeError, KeyError, ValueError) as e:
                 raise ValueError(f"Unsupported nonlinearity: {self.nonlinearity}") from e
+        else:
+            # If no nonlinearity, just use the weight network directly
+            self._net = typed_weight_net
 
     def _initialize_weights(self):
         """
@@ -212,6 +234,9 @@ class ParamLayer(LayerBase):
         Each method scales weights appropriately based on fan-in and fan-out dimensions.
         Also initializes biases to zero if present.
         """
+
+        typed_weight_net = cast(LinearWeightModule, self._weight_net)
+
         fan_in = self._in_tensor_shapes[0][0]
         fan_out = self._out_tensor_shape[0]
 
@@ -220,23 +245,23 @@ class ParamLayer(LayerBase):
                 gain = np.sqrt(2)
             else:
                 gain = 1
-            nn.init.orthogonal_(self.weight_net.weight, gain=gain)
-            largest_weight = self.weight_net.weight.max().item()
+            nn.init.orthogonal_(typed_weight_net.weight, gain=gain)
+            largest_weight = typed_weight_net.weight.max().item()
         elif self.initialization.lower() == "xavier":
             largest_weight = np.sqrt(6 / (fan_in + fan_out))
-            nn.init.xavier_uniform_(self.weight_net.weight)
+            nn.init.xavier_uniform_(typed_weight_net.weight)
         elif self.initialization.lower() == "normal":
             largest_weight = np.sqrt(2 / fan_in)
-            nn.init.normal_(self.weight_net.weight, mean=0, std=largest_weight)
+            nn.init.normal_(typed_weight_net.weight, mean=0, std=largest_weight)
         elif self.initialization.lower() == "max_0_01":
             # set to uniform with largest weight = 0.01
             largest_weight = 0.01
-            nn.init.uniform_(self.weight_net.weight, a=-largest_weight, b=largest_weight)
+            nn.init.uniform_(typed_weight_net.weight, a=-largest_weight, b=largest_weight)
         else:
             raise ValueError(f"Invalid initialization method: {self.initialization}")
 
-        if hasattr(self.weight_net, "bias") and isinstance(self.weight_net.bias, torch.nn.parameter.Parameter):
-            self.weight_net.bias.data.fill_(0)
+        if hasattr(self._weight_net, "bias") and isinstance(typed_weight_net.bias, torch.nn.parameter.Parameter):
+            typed_weight_net.bias.data.fill_(0)
 
         self.largest_weight = largest_weight
 
@@ -246,80 +271,40 @@ class ParamLayer(LayerBase):
 
         If clip_value is positive, clamps all weights to the range [-clip_value, clip_value].
         """
+        typed_weight_net = cast(LinearWeightModule, self._weight_net)
         if self.clip_value > 0:
             with torch.no_grad():
-                self.weight_net.weight.data = self.weight_net.weight.data.clamp(-self.clip_value, self.clip_value)
+                typed_weight_net.weight.data = typed_weight_net.weight.data.clamp(-self.clip_value, self.clip_value)
 
     def l2_reg_loss(self) -> torch.Tensor:
-        """
-        Computes L2 regularization loss (weight decay).
-
-        Returns:
-            torch.Tensor: The L2 regularization loss scaled by l2_norm_scale,
-                          or zero if regularization is disabled.
-        """
-        l2_reg_loss = torch.tensor(0.0, device=self.weight_net.weight.data.device)
+        typed_weight_net = cast(LinearWeightModule, self._weight_net)
+        l2_reg_loss = torch.tensor(0.0, device=typed_weight_net.weight.data.device)
         if self.l2_norm_scale != 0 and self.l2_norm_scale is not None:
-            l2_reg_loss = (torch.sum(self.weight_net.weight.data**2)) * self.l2_norm_scale
+            l2_reg_loss = (torch.sum(typed_weight_net.weight.data**2)) * self.l2_norm_scale
         return l2_reg_loss
 
     def l2_init_loss(self) -> torch.Tensor:
-        """
-        Computes L2-init regularization loss (delta regularization).
-
-        Penalizes deviation from initial weights to help prevent catastrophic forgetting.
-
-        Returns:
-            torch.Tensor: The L2-init regularization loss scaled by l2_init_scale,
-                          or zero if regularization is disabled.
-        """
-        l2_init_loss = torch.tensor(0.0, device=self.weight_net.weight.data.device)
-        if self.l2_init_scale != 0 and self.l2_init_scale is not None:
-            l2_init_loss = torch.sum((self.weight_net.weight.data - self.initial_weights) ** 2) * self.l2_init_scale
+        typed_weight_net = cast(LinearWeightModule, self._weight_net)
+        l2_init_loss = torch.tensor(0.0, device=typed_weight_net.weight.data.device)
+        if self.l2_init_scale != 0 and self.l2_init_scale is not None and self.initial_weights is not None:
+            l2_init_loss = torch.sum((typed_weight_net.weight.data - self.initial_weights) ** 2) * self.l2_init_scale
         return l2_init_loss
 
     def update_l2_init_weight_copy(self, alpha: float = 0.9):
-        """
-        Updates the initial weights reference for L2-init regularization.
-
-        Potentially useful to prevent catastrophic forgetting by gradually adapting
-        the reference weights used in L2-init regularization.
-
-        Args:
-            alpha (float): Weight for exponential moving average (0.9 means 90% old weights,
-                          10% new weights)
-        """
+        typed_weight_net = cast(LinearWeightModule, self._weight_net)
         if self.initial_weights is not None:
-            self.initial_weights = (self.initial_weights * alpha + self.weight_net.weight.data * (1 - alpha)).clone()
+            self.initial_weights = (self.initial_weights * alpha + typed_weight_net.weight.data * (1 - alpha)).clone()
 
-    def compute_weight_metrics(self, delta: float = 0.01) -> dict:
-        """
-        Computes metrics related to the weight matrix dynamics.
-
-        Analyzes weight matrices to provide insights into network behavior and training dynamics.
-
-        Args:
-            delta (float): Small constant used in effective rank calculation
-
-        Returns:
-            dict: Dictionary of metrics including:
-                - Singular value statistics
-                - Effective rank
-                - Weight norms
-                - Power law fit metrics
-                - Layer name
-
-            Returns None if the layer doesn't have a 2D weight matrix or
-            if weight analysis is disabled.
-        """
+    def compute_weight_metrics(self, delta: float = 0.01) -> List[dict]:
+        typed_weight_net = cast(LinearWeightModule, self._weight_net)
         if (
-            self.weight_net.weight.data.dim() != 2
+            typed_weight_net.weight.data.dim() != 2
             or not hasattr(self, "analyze_weights_bool")
             or self.analyze_weights_bool is None
             or self.analyze_weights_bool is False
         ):
-            return None
+            return []
 
-        metrics = analyze_weights(self.weight_net.weight.data, delta)
+        metrics = analyze_weights(typed_weight_net.weight.data, delta)
         metrics["name"] = self._name
-        return metrics
+        return [metrics]
