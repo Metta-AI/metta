@@ -274,6 +274,11 @@ class MettaAgent(nn.Module):
 
         # Sample actions
         action_logit_index = self._convert_action_to_logit_index(action) if action is not None else None
+
+        if action_logit_index is not None:
+            assert (action_logit_index[:, 0] < logits[0].shape[1]).all()
+            assert (action_logit_index[:, 1] < logits[1].shape[1]).all()
+
         action_logit_index, logprob_act, entropy, logprobs = sample_logits(logits, action_logit_index)
 
         # Convert logit index to action if no action was provided
