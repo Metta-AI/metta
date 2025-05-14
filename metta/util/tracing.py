@@ -7,6 +7,29 @@
 # Take this file to the chrome://tracing page to view the trace.
 # Easy, no drama, you control everything!
 
+# Example usage:
+#
+# @trace
+# def my_function(a, b):
+#     return a + b
+#
+# class MyClass:
+#     @trace
+#     def __init__(self, a, b):
+#         self.a = a
+#         self.b = b
+#
+#     @trace
+#     def my_method(self, a, b):
+#         return a + b
+#
+#    my_class = MyClass(1, 2)
+#    my_class.my_method(3, 4)
+#
+# with tracer("my_section"):
+#     my_function(1, 2)
+#
+# save_trace("trace.json")
 
 import json
 import os
@@ -119,6 +142,19 @@ if __name__ == "__main__":
     @trace
     def my_function(a, b):
         return a + b
+
+    class MyClass:
+        @trace
+        def __init__(self, a, b):
+            self.a = a
+            self.b = b
+
+        @trace
+        def my_method(self, a, b):
+            return a + b
+
+    my_class = MyClass(1, 2)
+    my_class.my_method(3, 4)
 
     with tracer("my_section"):
         my_function(1, 2)
