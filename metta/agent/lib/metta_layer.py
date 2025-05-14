@@ -1,7 +1,8 @@
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, Dict, List, Optional, Union, cast
 
 import numpy as np
 import torch
+from omegaconf import DictConfig, OmegaConf
 from tensordict import TensorDict
 from torch import nn
 
@@ -54,15 +55,30 @@ class LayerBase(nn.Module):
     def __init__(
         self,
         name: str,
-        sources: Optional[List[Dict[str, Any]]] = None,
+        sources: Optional[List[Union[Dict[str, Any], DictConfig]]] = None,
         nn_params: Optional[Dict[str, Any]] = None,
         **cfg,
     ):
         super().__init__()
         self._name = name
+        assert self._name, f"Invalid name {name}"
 
         # Convert from omegaconf's list class if needed
-        self._sources: List[Dict[str, Any]] = list(sources or [])
+        if sources is None:
+            self._sources = []
+        else:
+            # Convert each source to a standard Python dict
+            self._sources = []
+            for source in sources:
+                # Direct check if it's a DictConfig
+                if isinstance(source, DictConfig):
+                    # Use to_container() for DictConfig objects
+                    container = OmegaConf.to_container(source)
+                    python_dict = cast(Dict[str, Any], container)
+                else:
+                    # For regular dicts or dict-like objects
+                    python_dict = dict(source)
+                self._sources.append(python_dict)
 
         # Validate the sources
         for i, source in enumerate(self._sources):

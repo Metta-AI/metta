@@ -3,6 +3,8 @@ import numpy as np
 import pytest
 import torch
 
+from metta.agent.lib.action import ActionEmbedding
+
 # Import the actual class
 from metta.agent.metta_agent import MettaAgent
 
@@ -31,24 +33,26 @@ def create_metta_agent():
         "components": {
             "_obs_": {
                 "_target_": "metta.agent.lib.obs_shaper.ObsShaper",
+                "name": "_obs_",
                 "sources": None,
             },
-            "obs_normalizer": {
+            "_obs_normalizer_": {
                 "_target_": "metta.agent.lib.observation_normalizer.ObservationNormalizer",
                 "sources": [{"name": "_obs_"}],
+                "grid_features": grid_features,
             },
-            "obs_flattener": {
+            "_obs_flattener_": {
                 "_target_": "metta.agent.lib.nn_layer_library.Flatten",
-                "sources": [{"name": "obs_normalizer"}],
+                "sources": [{"name": "_obs_normalizer_"}],
             },
-            "encoded_obs": {
+            "_encoded_obs_": {
                 "_target_": "metta.agent.lib.nn_layer_library.Linear",
-                "sources": [{"name": "obs_flattener"}],
+                "sources": [{"name": "_obs_flattener_"}],
                 "nn_params": {"out_features": 64},
             },
             "_core_": {
                 "_target_": "metta.agent.lib.lstm.LSTM",
-                "sources": [{"name": "encoded_obs"}],
+                "sources": [{"name": "_encoded_obs_"}],
                 "output_size": 64,
                 "nn_params": {"num_layers": 1},
             },
@@ -57,18 +61,18 @@ def create_metta_agent():
                 "sources": None,
                 "nn_params": {"num_embeddings": 50, "embedding_dim": 8},
             },
-            "actor_layer": {
+            "_actor_layer_": {
                 "_target_": "metta.agent.lib.nn_layer_library.Linear",
                 "sources": [{"name": "_core_"}],
                 "nn_params": {"out_features": 128},
             },
             "_action_": {
                 "_target_": "metta.agent.lib.actor.MettaActorBig",
-                "sources": [{"name": "actor_layer"}, {"name": "_action_embeds_"}],
+                "sources": [{"name": "_actor_layer_"}, {"name": "_action_embeds_"}],
                 "bilinear_output_dim": 32,
                 "mlp_hidden_dim": 128,
             },
-            "critic_layer": {
+            "_critic_layer_": {
                 "_target_": "metta.agent.lib.nn_layer_library.Linear",
                 "sources": [{"name": "_core_"}],
                 "nn_params": {"out_features": 64},
@@ -76,7 +80,7 @@ def create_metta_agent():
             },
             "_value_": {
                 "_target_": "metta.agent.lib.nn_layer_library.Linear",
-                "sources": [{"name": "critic_layer"}],
+                "sources": [{"name": "_critic_layer_"}],
                 "nn_params": {"out_features": 1},
                 "nonlinearity": None,
             },
@@ -85,7 +89,11 @@ def create_metta_agent():
 
     # Create the agent with minimal config needed for the tests
     agent = MettaAgent(
-        obs_space=obs_space, action_space=action_space, grid_features=grid_features, device="cpu", **config_dict
+        obs_space=obs_space,
+        action_space=action_space,
+        grid_features=grid_features,
+        device="cpu",
+        **config_dict,
     )
 
     # Create test components that have clip_weights method for testing
@@ -109,14 +117,15 @@ def create_metta_agent():
             return x
 
     # Create a mock ActionEmbedding component that has the activate_actions method
-    class MockActionEmbeds(torch.nn.Module):
+    class MockActionEmbeds(ActionEmbedding):
         def __init__(self):
-            super().__init__()
+            super().__init__(name="_action_embeds_", sources=None, nn_params={"num_embeddings": 50, "embedding_dim": 8})
             self.embedding = torch.nn.Embedding(50, 8)  # Matches config
-            self.ready = True
-            self._sources = None
+            self.setup(None)
+            self._sources = []
             self.clipped = False
-            self.action_names = None
+            self.action_names = {}
+            self.action_to_idx = {}
             self.device = None
 
         def setup(self, source_components):
