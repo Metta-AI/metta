@@ -29,6 +29,15 @@ resource "aws_security_group" "proxy" {
     protocol    = "udp"
     cidr_blocks = ["0.0.0.0/0"]
   }
+
+  # Allow ssh
+  # There are no keys but you can connect through AWS Console
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 }
 
 # Create EC2 instance to run as a proxy
