@@ -32,10 +32,10 @@ for i in "${!POLICIES[@]}"; do
     RANDOM_NUM=$((RANDOM % 1000))
     IDX="${IDX}_${RANDOM_NUM}"
     python3 -m tools.sim \
-        sim_job.simulation_suite=navigation \
+        sim=navigation \
         run=navigation$IDX \
         policy_uri=wandb://run/$POLICY_URI \
-        +eval_db_uri=wandb://artifacts/navigation_db_main \
+        +eval_db_uri=wandb://stats/navigation_db_main \
 
     # python3 -m tools.sim \
     #     sim=multiagent \
@@ -45,23 +45,23 @@ for i in "${!POLICIES[@]}"; do
     #     ++device=cpu
 
     python3 -m tools.sim \
-        sim_job.simulation_suite=memory \
+        sim=memory \
         run=memory$IDX \
         policy_uri=wandb://run/$POLICY_URI \
-        +eval_db_uri=wandb://artifacts/memory_db_main \
+        +eval_db_uri=wandb://stats/memory_db_main \
 
     python3 -m tools.sim \
-        sim_job.simulation_suite=objectuse \
+        sim=objectuse \
         run=objectuse$IDX \
         policy_uri=wandb://run/$POLICY_URI \
-        +eval_db_uri=wandb://artifacts/objectuse_db_main \
+        +eval_db_uri=wandb://stats/objectuse_db_main \
 
 done
 
-python3 -m tools.analyze +eval_db_uri=wandb://artifacts/navigation_db_main run=navigation_db_main ++analyzer.output_path=s3://softmax-public/policydash/navigation_main.html \
+python3 -m tools.dashboard +eval_db_uri=wandb://stats/navigation_db_main run=navigation_db_main ++dashboard.output_path=s3://softmax-public/policydash/navigation_main.html \
 
 # python3 -m tools.analyze +eval_db_uri=wandb://artifacts/multiagent_db_main run=multiagent_db_main ++analyzer.output_path=s3://softmax-public/policydash/multiagent_main.html
 
-python3 -m tools.analyze +eval_db_uri=wandb://artifacts/memory_db_main run=memory_db_main ++analyzer.output_path=s3://softmax-public/policydash/memory_main.html \
+python3 -m tools.dashboard +eval_db_uri=wandb://stats/memory_db_main run=memory_db_main ++dashboard.output_path=s3://softmax-public/policydash/memory_main.html \
 
-python3 -m tools.analyze +eval_db_uri=wandb://artifacts/objectuse_db_main run=objectuse_db_main ++analyzer.output_path=s3://softmax-public/policydash/objectuse_main.html \
+python3 -m tools.dashboard +eval_db_uri=wandb://stats/objectuse_db_main run=objectuse_db_main ++dashboard.output_path=s3://softmax-public/policydash/objectuse_main.html \
