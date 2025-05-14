@@ -1,4 +1,5 @@
-## This file defines functions to generate traces, in the chrome tracing format.
+## This file defines functions to generate performance traces,
+## using the chrome tracing format.
 
 # Just add `@trace` decorator to any function to trace it.
 # Or just add `with tracer("my_section"):` to trace a block.

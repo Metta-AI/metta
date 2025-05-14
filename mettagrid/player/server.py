@@ -60,16 +60,8 @@ async def websocket_endpoint(
 
     sim = replays.create_simulation(app.cfg)
     sim.start_simulation()
-    env = sim._vecenv.envs[0]
-    # replay = replays.generate_replay(sim)
-
-    replay = None
-    for episode_id, episode_replay in sim._replay_writer.episodes.items():
-        # print("episode_id", episode_id)
-        # print("episode_replay", episode_replay)
-        # print("len(episode_replay.get_replay_data())", len(episode_replay.get_replay_data()))
-        replay = episode_replay.get_replay_data()
-    assert replay != None
+    env = sim.get_env()
+    replay = sim.get_replay()
 
     await send_message(type="replay", replay=replay)
 
@@ -100,8 +92,6 @@ async def websocket_endpoint(
                     grid_objects[i][key] = value
                 if "agent_id" in grid_object:
                     agent_id = grid_object["agent_id"]
-                    # TODO: add action
-                    # self.grid_objects[i], "action", self.step, actions[agent_id]
                     grid_objects[i]["action_success"] = bool(env.action_success[agent_id])
                     grid_objects[i]["action"] = actions[agent_id].tolist()
                     grid_objects[i]["reward"] = env.rewards[agent_id].item()
@@ -118,8 +108,8 @@ async def websocket_endpoint(
             print("message", message)
             if message["type"] == "action":
                 action_message = message
-            # Wait 1 second
-            # await asyncio.sleep(0.1)
+            # yield control to other coroutines
+            await asyncio.sleep(0)
 
     sim.end_simulation()
 

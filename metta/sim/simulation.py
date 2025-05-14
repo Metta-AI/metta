@@ -230,6 +230,19 @@ class Simulation:
         )
         return db
 
+    def get_replay(self):
+        """Makes sure this sim has a single replay, and return it."""
+        if len(self._replay_writer.episodes) != 1:
+            raise ValueError("Attempting to get single replay, but simulation has multiple episodes")
+        for _, episode_replay in self._replay_writer.episodes.items():
+            return episode_replay.get_replay_data()
+
+    def get_env(self):
+        """Make sure this sim has a single env, and return it."""
+        if len(self._vecenv.envs) != 1:
+            raise ValueError("Attempting to get single env, but simulation has multiple envs")
+        return self._vecenv.envs[0]
+
 
 @dataclass
 class SimulationResults:
