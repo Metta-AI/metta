@@ -216,17 +216,6 @@ function onKeyDown(event: KeyboardEvent) {
     setIsPlaying(!state.isPlaying);
   }
 
-  // Action mapping:
-  // 0: "put_recipe_items"
-  // 1: "get_output"
-  // 2: "noop"
-  // 3: "move"
-  // 4: "rotate"
-  // 5: "attack"
-  // 6: "attack_nearest"
-  // 7: "swap"
-  // 8: "change_color"
-
   // Smart navigation, where pressing key rotations the agent in the
   // direction of the key, but if the agent is already facing in that
   // direction, it moves forward.
@@ -269,7 +258,6 @@ function onKeyDown(event: KeyboardEvent) {
         sendAction("move", 0)
       }
     }
-
     if (event.key == "f") {
       // Just move forward.
       sendAction("move", 0)
@@ -278,7 +266,6 @@ function onKeyDown(event: KeyboardEvent) {
       // Just move backwards/reverse.
       sendAction("move", 1)
     }
-
     if (event.key == "q") {
       // Put recipe items.
       sendAction("put_recipe_items", 0)
@@ -291,23 +278,18 @@ function onKeyDown(event: KeyboardEvent) {
       // Noop.
       sendAction("noop", 0)
     }
-
     if (event.key >= "1" && event.key <= "9") {
       // Keys 1-9 is the attack matrix.
-      const action = parseInt(event.key);
-      sendAction("attack", action)
+      sendAction("attack", parseInt(event.key))
     }
-
     if (event.key == "z") {
       // Attack nearest.
       sendAction("attack_nearest", 0)
     }
-
     if (event.key == "c") {
       // Change color.
       sendAction("change_color", 0)
     }
-
     if (event.key == "g") {
       // Swap.
       sendAction("swap", 0)
