@@ -37,17 +37,6 @@ for i in "${!POLICIES[@]}"; do
         sim=navigation \
         run=navigation$IDX \
         policy_uri=wandb://run/$POLICY_URI \
-        +eval_db_uri=wandb://artifacts/navigation_db 
-        
-    python3 -m tools.sim \
-        sim=multiagent \
-        run=multiagent$IDX \
-        policy_uri=wandb://run/$POLICY_URI \
-        +eval_db_uri=wandb://artifacts/multiagent_db
-
-    python3 -m tools.sim \
-        sim=memory \
-        run=memory$IDX \
-        policy_uri=wandb://run/$POLICY_URI \
-        +eval_db_uri=wandb://artifacts/memory_db
+        +eval_db_uri=wandb://artifacts/sasmith_navigation_db \
+        +hardware=macbook
 done
