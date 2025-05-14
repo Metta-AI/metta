@@ -79,7 +79,7 @@ async def websocket_endpoint(
             await send_message(type="message", message="Step!")
 
             actions = sim.generate_actions()
-            if action_message != None:
+            if action_message is not None:
                 agent_id = action_message["agent_id"]
                 actions[agent_id][0] = action_message["action"][0]
                 actions[agent_id][1] = action_message["action"][1]
