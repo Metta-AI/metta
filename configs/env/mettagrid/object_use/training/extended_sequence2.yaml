@@ -1,10 +1,7 @@
 defaults:
   - /env/mettagrid/mettagrid@
   - _self_
-
-  num_agents: 20
-  max_steps: 1000
-
+  
 game:
   map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom
@@ -29,6 +26,9 @@ game:
         altar: 12
         block: 1
         wall: 1
+
+  num_agents: 20
+  max_steps: 1000
 
   agent:
     max_inventory: ${sampling:0, 100, 50}
