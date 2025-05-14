@@ -1,8 +1,0 @@
-defaults:
-  - sim
-  - _self_
-
-name: daphne
-simulations:
-  multiagent:
-    env: env/mettagrid/object_use/training/extended_sequence
