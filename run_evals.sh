@@ -37,31 +37,29 @@ for i in "${!POLICIES[@]}"; do
         policy_uri=wandb://run/$POLICY_URI \
         +eval_db_uri=wandb://artifacts/navigation_db_main \
 
-    python3 -m tools.sim \
-        sim=multiagent \
-        run=multiagent$IDX \
-        policy_uri=wandb://run/$POLICY_URI \
-        +eval_db_uri=wandb://artifacts/multiagent_db_main \
-        ++device=cpu
+    # python3 -m tools.sim \
+    #     sim=multiagent \
+    #     run=multiagent$IDX \
+    #     policy_uri=wandb://run/$POLICY_URI \
+    #     +eval_db_uri=wandb://artifacts/multiagent_db_main \
+    #     ++device=cpu
 
     python3 -m tools.sim \
         sim=memory \
         run=memory$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         +eval_db_uri=wandb://artifacts/memory_db_main \
-        ++device=cpu
 
     python3 -m tools.sim \
         sim=objectuse \
         run=objectuse$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         +eval_db_uri=wandb://artifacts/objectuse_db_main \
-        ++device=cpu
 done
 
 python3 -m tools.analyze +eval_db_uri=wandb://artifacts/navigation_db_main run=navigation_db_main ++analyzer.output_path=s3://softmax-public/policydash/navigation_main.html
 
-python3 -m tools.analyze +eval_db_uri=wandb://artifacts/multiagent_db_main run=multiagent_db_main ++analyzer.output_path=s3://softmax-public/policydash/multiagent_main.html
+# python3 -m tools.analyze +eval_db_uri=wandb://artifacts/multiagent_db_main run=multiagent_db_main ++analyzer.output_path=s3://softmax-public/policydash/multiagent_main.html
 
 python3 -m tools.analyze +eval_db_uri=wandb://artifacts/memory_db_main run=memory_db_main ++analyzer.output_path=s3://softmax-public/policydash/memory_main.html
 
