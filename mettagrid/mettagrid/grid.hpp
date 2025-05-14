@@ -308,11 +308,10 @@ public:
         break;
     }
 
-    // TODO: consider map boundary conditions here
-    // this code effectively copies the edge of the world out into the remainder of the observations
-    // we could instead throw an error, live on a torus, or insert empty or wall over the edge of the map
+    // TODO: consider map boundary condition design
+    // this code manages the edge of the world condition in the observations
+    // we might throw an error, live on a torus, or insert empty or wall outside the edges of the map
 
-    // Ensure coordinates are within grid bounds
     targetR = std::max(0, targetR);
     targetC = std::max(0, targetC);
 

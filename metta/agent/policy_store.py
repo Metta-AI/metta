@@ -359,7 +359,7 @@ class PolicyStore:
             path,
             policy,
             {
-                "action_names": env.action_names(),
+                "action_names": env.action_names,
                 "agent_step": 0,
                 "epoch": 0,
                 "generation": 0,
