@@ -337,17 +337,22 @@ export function initWebSocket(wsUrl: string) {
   };
 }
 
-export function sendAction(action: number[]) {
+export function sendAction(actionName: string, actionParam: number) {
   if (state.ws === null) {
     console.error("WebSocket is not connected");
     return;
   }
   const agentId = getAttr(state.selectedGridObject, "agent_id");
   if (agentId != null) {
+    const actionId = state.replay.action_names.indexOf(actionName);
+    if (actionId == -1) {
+      console.error("Action not found: ", actionName);
+      return;
+    }
     state.ws.send(JSON.stringify({
       type: "action",
       agent_id: agentId,
-      action: action
+      action: [actionId, actionParam]
     }));
   } else {
     console.error("No selected grid object");

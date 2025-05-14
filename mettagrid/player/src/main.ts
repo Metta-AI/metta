@@ -230,87 +230,87 @@ function onKeyDown(event: KeyboardEvent) {
   // Smart navigation, where pressing key rotations the agent in the
   // direction of the key, but if the agent is already facing in that
   // direction, it moves forward.
-  if (state.selectedGridObject != null) {
+  if (state.ws != null && state.selectedGridObject != null) {
     const agent = state.selectedGridObject;
     const orientation = getAttr(agent, "agent:orientation");
     if (event.key == "w") {
       if (orientation != 0) {
         // Rotate up.
-        sendAction([4, 0])
+        sendAction("rotate", 0)
       } else {
         // Move forward (up).
-        sendAction([3, 0])
+        sendAction("move", 0)
       }
     }
     if (event.key == "a") {
       if (orientation != 2) {
         // Rotate left.
-        sendAction([4, 2])
+        sendAction("rotate", 2)
       } else {
         // Move forward (left).
-        sendAction([3, 0])
+        sendAction("move", 0)
       }
     }
     if (event.key == "s") {
       if (orientation != 1) {
         // Rotate down.
-        sendAction([4, 1])
+        sendAction("rotate", 1)
       } else {
         // Move forward (down).
-        sendAction([3, 0])
+        sendAction("move", 0)
       }
     }
     if (event.key == "d") {
       if (orientation != 3) {
         // Rotate right.
-        sendAction([4, 3])
+        sendAction("rotate", 3)
       } else {
         // Move forward (right).
-        sendAction([3, 0])
+        sendAction("move", 0)
       }
     }
 
     if (event.key == "f") {
       // Just move forward.
-      sendAction([3, 0])
+      sendAction("move", 0)
     }
     if (event.key == "r") {
       // Just move backwards/reverse.
-      sendAction([3, 1])
+      sendAction("move", 1)
     }
 
     if (event.key == "q") {
       // Put recipe items.
-      sendAction([0, 0])
+      sendAction("put_recipe_items", 0)
     }
     if (event.key == "e") {
       // Get output.
-      sendAction([1, 0])
+      sendAction("get_output", 0)
     }
     if (event.key == "x") {
       // Noop.
-      sendAction([2, 0])
+      sendAction("noop", 0)
     }
 
     if (event.key >= "1" && event.key <= "9") {
       // Keys 1-9 is the attack matrix.
       const action = parseInt(event.key);
-      sendAction([5, action])
+      sendAction("attack", action)
     }
 
     if (event.key == "z") {
       // Attack nearest.
-      sendAction([6, 0])
+      sendAction("attack_nearest", 0)
     }
 
     if (event.key == "c") {
       // Change color.
-      sendAction([8, 0])
+      sendAction("change_color", 0)
     }
 
     if (event.key == "g") {
       // Swap.
-      sendAction([7, 0])
+      sendAction("swap", 0)
     }
   }
 
