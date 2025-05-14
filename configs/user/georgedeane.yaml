@@ -5,10 +5,10 @@ defaults:
   - _self_
 
 trainer:
-  env: /env/mettagrid/walkaround
+  env: /env/mettagrid/object_use/training/multienv_incremental
   evaluate_interval: 2
 
-eval_db_uri: wandb://artifacts/memory_db
+# eval_db_uri: wandb://artifacts/memory_db
 
 # policy: wandb://run/b.daveey.train.maze.sm.dr.warm.0
 # baselines: wandb://run/b.daveey.train.maze.sm.11x11.0
@@ -34,14 +34,14 @@ policy_uri: wandb://run/b.georgedeane.terrain_extra_hard
 dashboard:
   output_path: evalresults/memory_db.html
 
-sim:
-  num_envs: 2
-  num_episodes: 2
-  max_time_s: 600
+# sim:
+#   num_envs: 2
+#   num_episodes: 2
+#   max_time_s: 600
 
-  # policy_uri: ${..policy_uri}
-  # npc_policy_uri: ${..npc_policy_uri}
-  env: /env/mettagrid/navigation/training/empty_world
+#   # policy_uri: ${..policy_uri}
+#   # npc_policy_uri: ${..npc_policy_uri}
+#   env: /env/mettagrid/navigation/training/empty_world
 
 
 run_id: 103
