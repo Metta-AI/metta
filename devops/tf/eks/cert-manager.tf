@@ -22,4 +22,5 @@ resource "helm_release" "clusterissuer" {
   name       = "clusterissuer"
   chart      = "./cert-manager-configs"
   namespace  = "cert-manager"
+  depends_on = [helm_release.cert_manager]
 }
