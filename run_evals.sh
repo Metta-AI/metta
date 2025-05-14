@@ -32,7 +32,7 @@ for i in "${!POLICIES[@]}"; do
     RANDOM_NUM=$((RANDOM % 1000))
     IDX="${IDX}_${RANDOM_NUM}"
     python3 -m tools.sim \
-        sim=navigation \
+        sim_job.simulation_suite=navigation \
         run=navigation$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         +eval_db_uri=wandb://artifacts/navigation_db_main \
@@ -45,13 +45,13 @@ for i in "${!POLICIES[@]}"; do
     #     ++device=cpu
 
     python3 -m tools.sim \
-        sim=memory \
+        sim_job.simulation_suite=memory \
         run=memory$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         +eval_db_uri=wandb://artifacts/memory_db_main \
 
     python3 -m tools.sim \
-        sim=objectuse \
+        sim_job.simulation_suite=objectuse \
         run=objectuse$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         +eval_db_uri=wandb://artifacts/objectuse_db_main \
