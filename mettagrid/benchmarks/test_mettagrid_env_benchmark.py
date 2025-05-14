@@ -5,6 +5,7 @@ from omegaconf import OmegaConf
 from mettagrid.config.utils import get_cfg
 from mettagrid.mettagrid_env import MettaGridEnv
 from mettagrid.resolvers import register_resolvers
+from mettagrid.tests.utils import generate_valid_random_actions
 
 
 @pytest.fixture
@@ -28,7 +29,12 @@ def environment(cfg):
 @pytest.fixture
 def single_action(environment):
     """Generate an array of actions with shape (num_agents, 2) to use for benchmarking."""
-    return environment.action_space.sample()[0]
+
+    # Get the number of agents from the environment
+    num_agents = environment.num_agents
+
+    # Use the utility function to generate valid random actions
+    return generate_valid_random_actions(environment, num_agents)
 
 
 def test_step_performance(benchmark, environment, single_action):

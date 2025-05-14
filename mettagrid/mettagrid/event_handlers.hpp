@@ -1,39 +1,44 @@
 #ifndef EVENT_HANDLERS_HPP
 #define EVENT_HANDLERS_HPP
 
+#include <functional>
+
 #include "event_manager.hpp"
 #include "objects/converter.hpp"
 #include "types.hpp"
 
-// Handles the FinishConverting event
-class ProductionHandler : public EventHandler {
-public:
-  ProductionHandler(EventManager* event_manager) : EventHandler(event_manager) {}
+namespace EventHandlers {
 
-  void handle_event(GridObjectId obj_id, EventArg arg) override {
-    Converter* converter = static_cast<Converter*>(this->event_manager->grid->object(obj_id));
+inline std::function<void(GridObjectId, EventArg)> create_production_handler(EventManager* event_manager) {
+  return [event_manager](GridObjectId obj_id, EventArg arg) {
+    Converter* converter = static_cast<Converter*>(event_manager->grid->object(obj_id));
     if (!converter) {
       return;
     }
 
     converter->finish_converting();
-    this->event_manager->stats->incr(ObjectTypeNames[converter->_type_id], "produced");
-  }
-};
+    event_manager->stats->incr(ObjectTypeNames[converter->_type_id], "produced");
+  };
+}
 
-// Handles the CoolDown event
-class CoolDownHandler : public EventHandler {
-public:
-  CoolDownHandler(EventManager* event_manager) : EventHandler(event_manager) {}
-
-  void handle_event(GridObjectId obj_id, EventArg arg) override {
-    Converter* converter = static_cast<Converter*>(this->event_manager->grid->object(obj_id));
+// Creates a handler for the CoolDown event
+inline std::function<void(GridObjectId, EventArg)> create_cooldown_handler(EventManager* event_manager) {
+  return [event_manager](GridObjectId obj_id, EventArg arg) {
+    Converter* converter = static_cast<Converter*>(event_manager->grid->object(obj_id));
     if (!converter) {
       return;
     }
 
     converter->finish_cooldown();
-  }
-};
+  };
+}
+
+// Function to register all event handlers
+inline void register_all(EventManager* event_manager) {
+  event_manager->register_handler(Events::FinishConverting, create_production_handler(event_manager));
+  event_manager->register_handler(Events::CoolDown, create_cooldown_handler(event_manager));
+}
+
+}  // namespace EventHandlers
 
 #endif  // EVENT_HANDLERS_HPP

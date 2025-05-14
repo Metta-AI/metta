@@ -58,8 +58,7 @@ CppMettaGrid::CppMettaGrid(uint32_t map_width,
   _event_manager->init(_grid.get(), _stats.get());
 
   // Add event handlers
-  _event_manager->event_handlers.push_back(new ProductionHandler(_event_manager.get()));
-  _event_manager->event_handlers.push_back(new CoolDownHandler(_event_manager.get()));
+  EventHandlers::register_all(_event_manager.get());
 
   // Set up action success tracking
   _action_success.resize(num_agents);
