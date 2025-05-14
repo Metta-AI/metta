@@ -98,6 +98,12 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                 "episode_length": self._c_env.current_timestep(),
             }
         )
+        # Print episode stats
+        print("\nEpisode Stats:")
+        print(
+            f"  Rewards: sum={episode_rewards_sum:.2f}, mean={episode_rewards_mean:.2f}, min={episode_rewards.min():.2f}, max={episode_rewards.max():.2f}"
+        )
+        print(f"  Episode Length: {self._c_env.current_timestep()}")
 
         if self._map_builder is not None and self._map_builder.labels is not None:
             for label in self._map_builder.labels:
