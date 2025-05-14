@@ -150,16 +150,20 @@ class MettaAgent(nn.Module):
         """
         # Handle empty case
         if len(action_max_params) == 0:
-            return torch.tensor([0], device=device)
+            return torch.tensor([0], dtype=torch.long, device=device)
 
-        prefix_array = np.zeros(len(action_max_params), dtype=np.int64)
+        # Calculate offsets
+        offsets = np.zeros(len(action_max_params), dtype=np.int64)
 
-        # Fill in values - skip the last element of action_max_params
-        if len(action_max_params) > 1:
-            prefix_array[1:] = action_max_params[:-1]
+        # First action type starts at index 0
+        # Each subsequent action type starts at the previous offset plus the number of parameters for the previous type
+        current_offset = 0
+        for i in range(len(action_max_params)):
+            offsets[i] = current_offset
+            if i < len(action_max_params) - 1:  # Skip updating after the last element
+                current_offset += action_max_params[i] + 1  # +1 because params are 0-indexed
 
-        cum_sum = np.cumsum(prefix_array)
-        return torch.tensor(cum_sum, device=device)
+        return torch.tensor(offsets, dtype=torch.long, device=device)
 
     def activate_actions(self, action_names, action_max_params: np.ndarray, device):
         """Run this at the beginning of training."""
