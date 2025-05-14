@@ -41,7 +41,7 @@ file_mounts:
     mode: MOUNT
 
   /workspace/metta/train_dir:
-    name: train-dir
+    name: softmax-train-dir
     store: s3
     mode: MOUNT
 
@@ -53,6 +53,7 @@ envs:
   METTA_GIT_REF: main
   WANDB_DIR: ./wandb
 
-  SKYPILOT_DOCKER_USERNAME: AWS
-  SKYPILOT_DOCKER_PASSWORD: "SKYPILOT_DOCKER_PASSWORD"
-  SKYPILOT_DOCKER_SERVER: 767406518141.dkr.ecr.us-east-1.amazonaws.com
+  # username and password are acquired automatically by our skypilot-api-server patch, see skypilot-chart/files/ecr.patch
+  SKYPILOT_DOCKER_USERNAME: -
+  SKYPILOT_DOCKER_PASSWORD: -
+  SKYPILOT_DOCKER_SERVER: 751442549699.dkr.ecr.us-east-1.amazonaws.com

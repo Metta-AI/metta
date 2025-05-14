@@ -1,0 +1,26 @@
+--- sky/provision/docker_utils.py.orig	2025-05-13 17:47:35
++++ sky/provision/docker_utils.py 17:47:33
+@@ -49,6 +49,23 @@
+
+     @classmethod
+     def from_env_vars(cls, d: Dict[str, str]) -> 'DockerLoginConfig':
++        server = d[constants.DOCKER_SERVER_ENV_VAR]
++        import re
++        import subprocess
++        match = re.match(r"(\d+).dkr.ecr.([a-z0-9-]+).amazonaws.com", server)
++        if match:
++            logger.info('Detected ECR server, fetching login password from AWS...')
++            password = subprocess.check_output(
++                ['aws', 'ecr', 'get-login-password', '--region',
++                 match.group(2)], encoding='utf-8')
++            logger.info('Successfully fetched login password from AWS')
++
++            return cls(
++                username="AWS",
++                password=password,
++                server=server,
++            )
++
+         return cls(
+             username=d[constants.DOCKER_USERNAME_ENV_VAR],
+             password=d[constants.DOCKER_PASSWORD_ENV_VAR],
