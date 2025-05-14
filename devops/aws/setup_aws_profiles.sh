@@ -10,6 +10,8 @@
 if ! grep -q "\[sso-session softmax-sso\]" ~/.aws/config; then
   echo "Adding SSO session configuration..."
 
+  mkdir -p ~/.aws
+
   # Create a temporary file with the new config
   cat >> ~/.aws/config << EOF
 
