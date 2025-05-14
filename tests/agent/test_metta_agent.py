@@ -331,7 +331,7 @@ def test_convert_action_to_logit_index(create_metta_agent):
 
     # Setup testing environment with controlled action space
     action_names = ["action0", "action1", "action2"]
-    action_max_params = np.array([1, 2, 0])  # action0: [0,1], action1: [0,1,2], action2: [0]
+    action_max_params = [1, 2, 0]  # action0: [0,1], action1: [0,1,2], action2: [0]
     agent.activate_actions(action_names, action_max_params, "cpu")
 
     # Test single actions
@@ -371,7 +371,7 @@ def test_convert_logit_index_to_action(create_metta_agent):
 
     # Setup testing environment
     action_names = ["action0", "action1", "action2"]
-    action_max_params = np.array([1, 2, 0])  # action0: [0,1], action1: [0,1,2], action2: [0]
+    action_max_params = [1, 2, 0]  # action0: [0,1], action1: [0,1,2], action2: [0]
     agent.activate_actions(action_names, action_max_params, "cpu")
 
     # Test single conversions
@@ -402,7 +402,7 @@ def test_bidirectional_action_conversion(create_metta_agent):
 
     # Setup testing environment
     action_names = ["action0", "action1", "action2"]
-    action_max_params = np.array([1, 2, 0])  # action0: [0,1], action1: [0,1,2], action2: [0]
+    action_max_params = [1, 2, 0]  # action0: [0,1], action1: [0,1,2], action2: [0]
     agent.activate_actions(action_names, action_max_params, "cpu")
 
     # Create a test set of all possible actions
@@ -432,7 +432,7 @@ def test_action_conversion_edge_cases(create_metta_agent):
 
     # Setup with empty action space
     action_names = []
-    action_max_params = np.array([])
+    action_max_params = []
     agent.activate_actions(action_names, action_max_params, "cpu")
 
     # Test with empty tensor - should not raise errors
@@ -442,7 +442,7 @@ def test_action_conversion_edge_cases(create_metta_agent):
 
     # Setup with single action type that has many parameters
     action_names = ["action0"]
-    action_max_params = np.array([9])  # action0: [0,1,2,3,4,5,6,7,8,9]
+    action_max_params = [9]  # action0: [0,1,2,3,4,5,6,7,8,9]
     agent.activate_actions(action_names, action_max_params, "cpu")
 
     # Test high parameter values
@@ -460,24 +460,42 @@ def test_calculate_cum_action_max_params(create_metta_agent):
     agent, _, _ = create_metta_agent
 
     # Test case from our existing tests
-    action_max_params = np.array([1, 2, 0])
+    action_max_params = [1, 2, 0]
     result = agent._calculate_cum_action_max_params(action_max_params, device="cpu")
     expected = torch.tensor([0, 2, 5], device="cpu")  # Updated expected values
     assert torch.all(result == expected)
 
     # Additional test cases
-    action_max_params = np.array([3, 2, 1, 5])
+    action_max_params = [3, 2, 1, 5]
     result = agent._calculate_cum_action_max_params(action_max_params, device="cpu")
     expected = torch.tensor([0, 4, 7, 9], device="cpu")  # Updated expected values
     assert torch.all(result == expected)
 
     # Edge cases
-    action_max_params = np.array([0])
+    action_max_params = [0]
     result = agent._calculate_cum_action_max_params(action_max_params, device="cpu")
     expected = torch.tensor([0], device="cpu")
     assert torch.all(result == expected)
 
-    action_max_params = np.array([])
+    action_max_params = []
     result = agent._calculate_cum_action_max_params(action_max_params, device="cpu")
     expected = torch.tensor([0], device="cpu")
     assert torch.all(result == expected)
+
+
+def test_numpy_array_conversion(create_metta_agent):
+    agent, _, _ = create_metta_agent
+
+    # Test that numpy arrays are converted to lists
+    action_names = ["action0", "action1", "action2"]
+    # Use numpy array
+    action_max_params = [1, 2, 0]
+    agent.activate_actions(action_names, action_max_params, "cpu")
+
+    # Verify the agent correctly converted to list internally
+    assert isinstance(agent.action_max_params, list)
+    assert agent.action_max_params == [1, 2, 0]
+
+    # Verify the offsets were calculated correctly
+    expected_offsets = torch.tensor([0, 2, 5], dtype=torch.long, device="cpu")
+    assert torch.all(agent.cum_action_max_params == expected_offsets)

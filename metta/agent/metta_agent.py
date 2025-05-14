@@ -137,46 +137,54 @@ class MettaAgent(nn.Module):
                 source_components[source["name"]] = self.components[source["name"]]
         component.setup(source_components)
 
-    def _calculate_cum_action_max_params(self, action_max_params: np.ndarray, device):
+    def _calculate_cum_action_max_params(self, action_max_params, device):
         """
         Calculate cumulative sum for action indices. Used for converting actions to logit indices.
 
         Args:
-            action_max_params: NumPy array of maximum parameter values for each action type
+            action_max_params: List of maximum parameter values for each action type
             device: Device to place the tensor on
 
         Returns:
             Tensor of cumulative sums representing offsets for action types
         """
+        # Convert to list if numpy array or tensor
+        if hasattr(action_max_params, "tolist"):
+            action_max_params = action_max_params.tolist()
+
         # Handle empty case
-        if len(action_max_params) == 0:
+        if not action_max_params:
             return torch.tensor([0], dtype=torch.long, device=device)
 
         # Calculate offsets
-        offsets = np.zeros(len(action_max_params), dtype=np.int64)
-
-        # First action type starts at index 0
-        # Each subsequent action type starts at the previous offset plus the number of parameters for the previous type
+        offsets = [0]  # First action type starts at index 0
         current_offset = 0
-        for i in range(len(action_max_params)):
-            offsets[i] = current_offset
-            if i < len(action_max_params) - 1:  # Skip updating after the last element
-                current_offset += action_max_params[i] + 1  # +1 because params are 0-indexed
+
+        # Add up the parameter counts for each action type
+        for i in range(len(action_max_params) - 1):
+            current_offset += action_max_params[i] + 1  # +1 because params are 0-indexed
+            offsets.append(current_offset)
 
         return torch.tensor(offsets, dtype=torch.long, device=device)
 
-    def activate_actions(self, action_names, action_max_params: np.ndarray, device):
+    def activate_actions(self, action_names, action_max_params, device):
         """Run this at the beginning of training."""
-        # Store and convert action parameters
+        # Store parameters
         self.device = device
         self.action_names = action_names
 
-        if not isinstance(action_max_params, np.ndarray):
-            raise RuntimeError("action_max_params is not a numpy array")
+        # Convert action_max_params to a list if it's not already
+        if hasattr(action_max_params, "tolist"):
+            self.action_max_params = action_max_params.tolist()
+        else:
+            self.action_max_params = action_max_params
 
-        self.active_actions = list(zip(action_names, action_max_params.tolist(), strict=False))
-        self.cum_action_max_params = self._calculate_cum_action_max_params(action_max_params, device)
+        self.active_actions = list(zip(action_names, self.action_max_params, strict=False))
 
+        # Precompute cumulative sums for faster conversion
+        self.cum_action_max_params = self._calculate_cum_action_max_params(self.action_max_params, device)
+
+        # Generate full action names including parameters
         full_action_names = []
         for action_name, max_param in self.active_actions:
             for i in range(max_param + 1):
@@ -186,7 +194,7 @@ class MettaAgent(nn.Module):
 
         # Create action_index tensor
         action_index = []
-        for action_type_idx, max_param in enumerate(action_max_params):
+        for action_type_idx, max_param in enumerate(self.action_max_params):
             for j in range(max_param + 1):
                 action_index.append([action_type_idx, j])
 
