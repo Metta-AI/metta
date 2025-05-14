@@ -410,12 +410,19 @@ class PufferTrainer:
             for k, v in infos.items():
                 if isinstance(v, np.ndarray):
                     v = v.tolist()
-                try:
-                    iter(v)
-                except TypeError:
-                    self.stats[k].append(v)
+
+                if isinstance(v, list):
+                    if k not in self.stats:
+                        self.stats[k] = []
+                    self.stats[k].extend(v)
                 else:
-                    self.stats[k] += v
+                    if k not in self.stats:
+                        self.stats[k] = v
+                    else:
+                        try:
+                            self.stats[k] += v
+                        except TypeError:
+                            self.stats[k] = [self.stats[k], v]  # fallback: bundle as list
 
         # TODO: Better way to enable multiple collects
         experience.ptr = 0
