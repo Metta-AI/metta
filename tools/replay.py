@@ -4,6 +4,7 @@ import platform
 import webbrowser
 
 import hydra
+from omegaconf import OmegaConf
 
 from metta.agent.policy_store import PolicyStore
 from metta.sim.simulation import Simulation
@@ -29,8 +30,8 @@ def main(cfg):
     setup_metta_environment(cfg)
     setup_mettagrid_environment(cfg)
 
-    logger = setup_mettagrid_logger("replay")
-    logger.info(f"Replaying {cfg.run}")
+    logger = setup_mettagrid_logger("metta.tools.replay")
+    logger.info(f"Replay job config:\n{OmegaConf.to_yaml(cfg, resolve=True)}")
 
     with WandbContext(cfg) as wandb_run:
         policy_store = PolicyStore(cfg, wandb_run)
