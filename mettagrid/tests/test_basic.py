@@ -54,7 +54,7 @@ def test_basic(environment):
     assert environment.done is False
 
     # ---- Test environment properties ----
-    assert environment._max_steps > 0
+    assert environment.max_steps > 0
 
     # Check observation space
     obs_shape = environment.single_observation_space.shape
@@ -70,20 +70,20 @@ def test_basic(environment):
 
     # Check env properties
     assert environment.render_mode == "human"
-    assert environment._c_env.map_width() > 0
-    assert environment._c_env.map_height() > 0
-    num_agents = environment._c_env.num_agents()
+    assert environment.map_width > 0
+    assert environment.map_height > 0
+    num_agents = environment.num_agents
     assert num_agents > 0
-    assert environment.action_success.shape == (num_agents,)
+    assert len(environment.action_success) == num_agents
 
     # Test object type names
-    assert environment.object_type_names() == environment._c_env.object_type_names()
+    assert environment.object_type_names == environment._c_env.object_type_names()
 
     # Test inventory item names
-    assert environment.inventory_item_names() == environment._c_env.inventory_item_names()
+    assert environment.inventory_item_names == environment._c_env.inventory_item_names()
 
     # Test action names
-    assert environment.action_names() == environment._c_env.action_names()
+    assert environment.action_names == environment._c_env.action_names()
 
     # Test grid objects
     assert environment.grid_objects == environment._c_env.grid_objects()

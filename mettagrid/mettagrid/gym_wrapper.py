@@ -4,15 +4,25 @@ import gymnasium as gym
 import numpy as np
 from gymnasium.spaces import Discrete
 
+from mettagrid.mettagrid_env import MettaGridEnv
+
 
 class SingleAgentWrapper(gym.Wrapper):
+    """
+    Wraps a multi-agent MettaGridEnv to be used as a single-agent environment.
+    Takes only the first agent's observations, rewards, and other returns.
+    """
+
     def __init__(self, env):
         super(SingleAgentWrapper, self).__init__(env)
 
-    def step(self, action):
+    def step(self, action) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, dict]:
+        metta_grid_env: MettaGridEnv = self.env  # type: ignore
+        assert isinstance(metta_grid_env, MettaGridEnv)
+
         action = np.asarray(action, dtype=np.uint32)
         action = action[None, ...]
-        observations, rewards, terminals, truncations, infos = self.env.step(action)
+        observations, rewards, terminals, truncations, infos = metta_grid_env.step(action)
 
         observations = observations.squeeze(0)
         rewards = rewards.squeeze(0)
@@ -21,24 +31,35 @@ class SingleAgentWrapper(gym.Wrapper):
 
         return observations, rewards, terminals, truncations, infos
 
-    def reset(self, *, seed: int | None = None, options: dict[str, Any] | None = None):
-        obs, infos = self.env.reset(seed=seed, options=options)
+    def reset(self, *, seed: int | None = None, options: dict[str, Any] | None = None) -> tuple[np.ndarray, dict]:
+        metta_grid_env: MettaGridEnv = self.env  # type: ignore
+        assert isinstance(metta_grid_env, MettaGridEnv)
+
+        obs, infos = metta_grid_env.reset(seed=seed, options=options)
         obs = obs.squeeze(0)
         return obs, infos
 
     @property
     def action_space(self):
-        return self.env.single_action_space
+        metta_grid_env: MettaGridEnv = self.env  # type: ignore
+        assert isinstance(metta_grid_env, MettaGridEnv)
+        return metta_grid_env.single_action_space
 
     @property
     def observation_space(self):
-        return self.env.single_observation_space
+        metta_grid_env: MettaGridEnv = self.env  # type: ignore
+        assert isinstance(metta_grid_env, MettaGridEnv)
+        return metta_grid_env.single_observation_space
 
 
 class MultiToDiscreteWrapper(gym.ActionWrapper):
     def __init__(self, env):
         super(MultiToDiscreteWrapper, self).__init__(env)
-        max_action_args = env.unwrapped.max_action_args
+
+        metta_grid_env = self.env.unwrapped
+        assert isinstance(metta_grid_env, MettaGridEnv), "MultiToDiscreteWrapper requires a MettaGridEnv"
+
+        max_action_args = metta_grid_env.max_action_args
         arg_counts = [a + 1 for a in max_action_args]
 
         self.n_actions = np.sum(arg_counts)
@@ -59,5 +80,8 @@ class MultiToDiscreteWrapper(gym.ActionWrapper):
         return Discrete(self.n_actions)
 
     def step(self, action):
+        metta_grid_env: MettaGridEnv = self.env  # type: ignore
+        assert isinstance(metta_grid_env, MettaGridEnv)
+
         mapped_action = self.action_map[action]
-        return self.env.step(mapped_action)
+        return metta_grid_env.step(mapped_action)

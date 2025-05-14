@@ -80,7 +80,7 @@ async def websocket_endpoint(
             # Receive action from client
             data = await websocket.receive_text()
             actions = json.loads(data)
-            actions = np.random.randint(0, env.action_space.nvec, (env.player_count, 2), dtype=np.uint32)
+            actions = np.random.randint(0, env.action_space.nvec, (env.num_agents, 2), dtype=np.uint32)
             logger.info(f"Received actions: {actions}")
 
             # Step the environment

@@ -51,7 +51,7 @@ class EpisodeReplay:
             "object_types": env.object_type_names(),
             "map_size": [env.map_width, env.map_height],
             "num_agents": env.num_agents,
-            "max_steps": env._max_steps,
+            "max_steps": env.max_steps,
             "grid_objects": self.grid_objects,
         }
 

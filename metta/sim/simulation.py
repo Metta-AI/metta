@@ -27,6 +27,7 @@ from metta.sim.simulation_config import SingleEnvSimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
 from metta.sim.vecenv import make_vecenv
 from metta.util.config import config_from_path
+from mettagrid.mettagrid_env import MettaGridEnv
 from mettagrid.replay_writer import ReplayWriter
 from mettagrid.stats_writer import StatsWriter
 
@@ -96,9 +97,12 @@ class Simulation:
         self._npc_pr = policy_store.policy(config.npc_policy_uri) if config.npc_policy_uri else None
         self._policy_agents_pct = config.policy_agents_pct if self._npc_pr is not None else 1.0
 
+        metta_grid_env: MettaGridEnv = self._vecenv.driver_env  # type: ignore
+        assert isinstance(metta_grid_env, MettaGridEnv)
+
         # Let every policy know the active action-set of this env.
-        action_names = self._vecenv.driver_env.action_names()
-        max_args = self._vecenv.driver_env._c_env.max_action_args()
+        action_names = metta_grid_env.action_names
+        max_args = metta_grid_env.max_action_args
         self._policy_pr.policy().activate_actions(action_names, max_args, self._device)
         if self._npc_pr is not None:
             self._npc_pr.policy().activate_actions(action_names, max_args, self._device)

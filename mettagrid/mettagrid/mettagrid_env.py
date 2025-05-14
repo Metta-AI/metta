@@ -12,6 +12,7 @@ import numpy as np
 import pufferlib
 from omegaconf import DictConfig, OmegaConf
 from pufferlib.utils import unroll_nested_dict
+from typing_extensions import override
 
 from mettagrid.config.utils import simple_instantiate
 from mettagrid.mettagrid_c import MettaGrid
@@ -28,6 +29,11 @@ np_rewards_type = np.dtype(MettaGrid.get_numpy_type_name("rewards"))
 np_actions_type = np.dtype(MettaGrid.get_numpy_type_name("actions"))
 np_masks_type = np.dtype(MettaGrid.get_numpy_type_name("masks"))
 np_success_type = np.dtype(MettaGrid.get_numpy_type_name("success"))
+
+
+def required(func):
+    """Marker for properties/methods required by parent class."""
+    return func
 
 
 class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
@@ -142,6 +148,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._grid_env = self._c_env
         self._num_agents = self._c_env.num_agents()
 
+    @override
     def reset(self, seed=None, options=None) -> tuple[np.ndarray, dict]:
         """
         This method overrides the reset method from PufferEnv.
@@ -163,6 +170,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self.should_reset = False
         return obs, infos
 
+    @override
     def step(self, actions: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, dict]:
         """
         Take a step in the environment with the given actions.
@@ -271,47 +279,42 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                 groups,
                 agent_metrics,
                 group_metrics,
-                self._max_steps,
+                self.max_steps,
                 replay_url,
                 self._reset_at,
             )
         self._episode_id = ""
 
+    @override
     def close(self):
         pass
 
     @property
-    def _max_steps(self):
-        return self._env_cfg.game.max_steps
-
-    @property
+    @required
     def single_observation_space(self):
         return self._single_observation_space
 
     @property
+    @required
     def single_action_space(self):
         return self._single_action_space
 
     @property
-    def player_count(self):
+    @required
+    def num_agents(self) -> int:
         return self._num_agents
 
     @property
-    def num_agents(self):
-        return self._num_agents
-
-    def render(self):
-        if self._renderer is None:
-            return None
-
-        return self._renderer.render(self._c_env.current_timestep(), self._c_env.grid_objects())
-
-    @property
+    @override
     def done(self):
         return self.should_reset
 
     @property
-    def grid_features(self):
+    def max_steps(self) -> int:
+        return int(self._env_cfg.game.max_steps)
+
+    @property
+    def grid_features(self) -> list[str]:
         return self._c_env.grid_features()
 
     @property
@@ -323,11 +326,11 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         return self._render_mode
 
     @property
-    def map_width(self):
+    def map_width(self) -> int:
         return self._c_env.map_width()
 
     @property
-    def map_height(self):
+    def map_height(self) -> int:
         return self._c_env.map_height()
 
     @property
@@ -345,22 +348,31 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         return self._c_env.grid_objects()
 
     @property
-    def max_action_args(self):
-        return self._c_env.max_action_args()
+    def max_action_args(self) -> list[int]:
+        """
+        Get the maximum argument variant for each action type.
+
+        Returns:
+            List of integers representing max parameters for each action type
+        """
+        action_args_array = self._c_env.max_action_args()
+        return [int(x) for x in action_args_array]
 
     @property
-    def action_success(self):
-        # Get the char array and convert to numpy array
-        # Note: We keep it as char/int8 type for consistency
-        return np.asarray(self._c_env.action_success(), dtype=np_success_type)
+    def action_success(self) -> list[bool]:
+        action_success_array = self._c_env.action_success()
+        return [bool(x) for x in action_success_array]
 
-    def action_names(self):
+    @property
+    def action_names(self) -> list[str]:
         return self._c_env.action_names()
 
-    def object_type_names(self):
+    @property
+    def object_type_names(self) -> list[str]:
         return self._c_env.object_type_names()
 
-    def inventory_item_names(self):
+    @property
+    def inventory_item_names(self) -> list[str]:
         return self._c_env.inventory_item_names()
 
 
