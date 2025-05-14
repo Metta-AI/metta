@@ -279,6 +279,7 @@ export function loadReplayStep(replayStep: any) {
   state.step = step; // Rewind to the current step.
 
   for (const gridObject of replayStep.grid_objects) {
+    // Grid objects are 1-indexed.
     const index = gridObject.id - 1;
     for (const key in gridObject) {
       const value = gridObject[key];
