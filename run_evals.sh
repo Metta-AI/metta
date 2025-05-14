@@ -51,7 +51,7 @@ for i in "${!POLICIES[@]}"; do
         +eval_db_uri=wandb://stats/memory_db_main \
 
     python3 -m tools.sim \
-        sim=objectuse \
+        sim=object_use \
         run=objectuse$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         +eval_db_uri=wandb://stats/objectuse_db_main \
