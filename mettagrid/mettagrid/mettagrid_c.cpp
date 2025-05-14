@@ -369,6 +369,18 @@ void MettaGrid::set_buffers(std::reference_wrapper<py::array_t<unsigned char>> o
                             std::reference_wrapper<py::array_t<bool>> terminals,
                             std::reference_wrapper<py::array_t<bool>> truncations,
                             std::reference_wrapper<py::array_t<float>> rewards) {
+  if (!observations.flags() & py::array::c_style) {
+    throw std::runtime_error("Observations array must be C-contiguous");
+  }
+  if (!terminals.flags() & py::array::c_style) {
+    throw std::runtime_error("Terminals array must be C-contiguous");
+  }
+  if (!truncations.flags() & py::array::c_style) {
+    throw std::runtime_error("Truncations array must be C-contiguous");
+  }
+  if (!rewards.flags() & py::array::c_style) {
+    throw std::runtime_error("Rewards array must be C-contiguous");
+  }
   _observations = observations;
   _terminals = terminals;
   _truncations = truncations;
