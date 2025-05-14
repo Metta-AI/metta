@@ -112,7 +112,8 @@ def test_mettagrid_env_no_memory_leaks():
         bin_avg = np.mean(bin_data)
         bin_averages.append(bin_avg)
         print(
-            f"Bin {i + 1} (iterations {skip_first + start_idx}-{skip_first + end_idx - 1}): Average memory {bin_avg:.2f} MB"
+            f"Bin {i + 1} (iterations {skip_first + start_idx}-{skip_first + end_idx - 1}): "
+            f"Average memory {bin_avg:.2f} MB"
         )
 
     # Analyze memory growth trend using bin averages
