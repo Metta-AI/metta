@@ -14,8 +14,8 @@ game:
 
     room:
       _target_: mettagrid.config.room.navigation.cylinder_world.CylinderWorld
-      width: 60
-      height: 60
+      width: ${sampling:75,120,60}
+      height: ${sampling:75,120,60}
       border_width: 1
       agents: 1
 

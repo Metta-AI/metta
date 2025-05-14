@@ -1,0 +1,14 @@
+_target_: metta.env.mettagrid_env_set.MettaGridEnvSet
+
+num_agents: 4
+sampling: 1
+
+game:
+  num_agents: ${..num_agents}
+
+envs:
+  - /env/mettagrid/object_use/training/terrain_from_numpy_nc
+  - /env/mettagrid/object_use/training/varied_terrain_sparse_nc
+  - /env/mettagrid/object_use/training/varied_terrain_balanced_nc
+  - /env/mettagrid/object_use/training/varied_terrain_maze_nc
+  - /env/mettagrid/object_use/training/varied_terrain_dense_nc
