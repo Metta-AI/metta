@@ -5,4 +5,7 @@ num_agents: ???
 game:
   num_agents: ${..num_agents}
 
-envs: ???
+envs:
+  - /env/mettagrid/simple
+  - /env/mettagrid/teams
+  - /env/mettagrid/bases

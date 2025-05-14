@@ -1,5 +1,5 @@
 defaults:
-  - sim
+  - sim_suite
   - _self_
 
 name: multiagent
@@ -34,25 +34,9 @@ simulations:
     policy_agents_pct: 1.0
   multiagent/radial_cross:
     env: env/mettagrid/multiagent/evals/radial_cross
-    policy_agents_pct: 1.0
   multiagent/radial_cross_large:
     env: env/mettagrid/multiagent/evals/radial_cross_large
-    policy_agents_pct: 1.0
-  multiagent/radial_diffusions:
+  multiagent/radial_diffusion:
     env: env/mettagrid/multiagent/evals/radial_diffusion
-    policy_agents_pct: 1.0
   multiagent/spine_maze_extended:
     env: env/mettagrid/multiagent/evals/spine_maze_extended
-    policy_agents_pct: 1.0
-  multiagent/stealing:
-    env: env/mettagrid/multiagent/evals/stealing
-    policy_agents_pct: 1.0
-  multiagent/team_up:
-    env: env/mettagrid/multiagent/evals/team_up
-    policy_agents_pct: 1.0
-  multiagent/wallblocker_team:
-    env: env/mettagrid/multiagent/evals/wallblocker_team
-    policy_agents_pct: 1.0
-  multiagent/wallblocker:
-    env: env/mettagrid/multiagent/evals/wallblocker
-    policy_agents_pct: 1.0

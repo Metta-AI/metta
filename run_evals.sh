@@ -52,46 +52,26 @@ POLICIES=(
 )
 
 for i in "${!POLICIES[@]}"; do
-    POLICY_URI=${POLICIES[$i]}
+  POLICY_URI=${POLICIES[$i]}
 
-    echo "Running full sequence eval for policy $POLICY_URI"
-    RANDOM_NUM=$((RANDOM % 1000))
-    IDX="${IDX}_${RANDOM_NUM}"
+  echo "Running full sequence eval for policy $POLICY_URI"
+  RANDOM_NUM=$((RANDOM % 1000))
+  IDX="${IDX}_${RANDOM_NUM}"
+  python3 -m tools.sim \
+    sim=navigation \
+    run=navigation$IDX \
+    policy_uri=wandb://run/$POLICY_URI \
+    +eval_db_uri=wandb://artifacts/navigation_db
 
+  python3 -m tools.sim \
+    sim=multiagent \
+    run=multiagent$IDX \
+    policy_uri=wandb://run/$POLICY_URI \
+    +eval_db_uri=wandb://artifacts/multiagent_db
 
-    # python3 -m tools.sim \
-    #     sim=multiagent \
-    #     run=multiagent$IDX \
-    #     policy_uri=wandb://run/$POLICY_URI \
-    #     +eval_db_uri=wandb://stats/multiagent_db \
-
-
-    # python3 -m tools.sim \
-    #     sim=object_use \
-    #     run=object_use$IDX \
-    #     policy_uri=wandb://run/$POLICY_URI \
-    #     +eval_db_uri=wandb://stats/object_use_db \
-
-
-    # python3 -m tools.sim \
-    #     sim=memory \
-    #     run=memory$IDX \
-    #     policy_uri=wandb://run/$POLICY_URI \
-    #     +eval_db_uri=wandb://stats/memory_db \
-
-    python3 -m tools.sim \
-        sim=navigation \
-        run=navigation$IDX \
-        policy_uri=wandb://run/$POLICY_URI \
-        +eval_db_uri=wandb://stats/navigation_db \
-
-
-python3 -m tools.dashboard +eval_db_uri=wandb://stats/multiagent_db run=multiagentdaphne ++dashboard.output_path=s3://softmax-public/policydash/multiagent.html \
-
-python3 -m tools.dashboard +eval_db_uri=wandb://stats/object_use_db run=objectusedaphne ++dashboard.output_path=s3://softmax-public/policydash/object_use.html \
-
-python3 -m tools.dashboard +eval_db_uri=wandb://stats/memory_db run=memorydpahne ++dashboard.output_path=s3://softmax-public/policydash/memory.html \
-
-python3 -m tools.dashboard +eval_db_uri=wandb://stats/navigation_db run=navigationdaphne ++dashboard.output_path=s3://softmax-public/policydash/navigation2.html \
-
+  python3 -m tools.sim \
+    sim=memory \
+    run=memory$IDX \
+    policy_uri=wandb://run/$POLICY_URI \
+    +eval_db_uri=wandb://artifacts/memory_db
 done

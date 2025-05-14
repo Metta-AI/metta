@@ -14,7 +14,11 @@ game:
     room:
       _target_: mettagrid.config.room.ascii.Ascii
       border_width: 1
+<<<<<<< HEAD
       uri: "configs/env/mettagrid/maps/memor_training/easy.map"
+=======
+      uri: "configs/env/mettagrid/maps/memory_training/easy.map"
+>>>>>>> 3dc22dd4fb1b95dce64b3e23eee4b2e406dcff01
 
   objects:
     altar:

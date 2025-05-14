@@ -21,7 +21,8 @@ export function onResize() {
   ui.mapPanel.x = 0;
   ui.mapPanel.y = Common.HEADER_HEIGHT;
   ui.mapPanel.width = screenWidth;
-  ui.mapPanel.height = screenHeight * ui.traceSplit - Common.HEADER_HEIGHT;
+  let maxMapHeight = screenHeight - Common.HEADER_HEIGHT - Common.SCRUBBER_HEIGHT;
+  ui.mapPanel.height = Math.min(screenHeight * ui.traceSplit - Common.HEADER_HEIGHT, maxMapHeight);
 
   // Minimap goes in the bottom left corner of the mapPanel.
   if (state.replay != null) {

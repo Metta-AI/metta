@@ -88,7 +88,7 @@ benchmark() {
   return $exit_code
 }
 
-# Export the function so it's available in subshells
+# Export the function so it's available in sub-shells
 export -f benchmark
 
 # Example usage:

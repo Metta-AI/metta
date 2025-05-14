@@ -25,7 +25,7 @@ install:
 # Run tests with coverage
 test:
 	@echo "Running tests with coverage..."
-	PYTHONPATH=deps pytest --cov=mettagrid --cov-report=term-missing
+	pytest --cov=mettagrid --cov-report=term-missing
 
 all: clean install test
 
