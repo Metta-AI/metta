@@ -227,24 +227,23 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
   // Calculate observation boundaries
   unsigned int obs_width_radius = obs_width >> 1;
   unsigned int obs_height_radius = obs_height >> 1;
-  unsigned int r_start = observer_row - obs_height_radius;
-  unsigned int c_start = observer_col - obs_width_radius;
-  unsigned int r_end = observer_row + obs_height_radius + 1;
-  unsigned int c_end = observer_col + obs_width_radius + 1;
 
-  r_start = r_start < 0 ? 0 : r_start;
-  c_start = c_start < 0 ? 0 : c_start;
+  unsigned int r_start = observer_row >= obs_height_radius ? observer_row - obs_height_radius : 0;
+  unsigned int c_start = observer_col >= obs_width_radius ? observer_col - obs_width_radius : 0;
+
+  unsigned int r_end = observer_row + obs_height_radius + 1;
   if (r_end > _grid->height) {
     r_end = _grid->height;
   }
+  unsigned int c_end = observer_col + obs_width_radius + 1;
   if (c_end > _grid->width) {
     c_end = _grid->width;
   }
 
   // Fill in visible objects. Observations should have been cleared in _step, so
   // we don't need to do that here.
-  for (int r = r_start; r < r_end; r++) {
-    for (int c = c_start; c < c_end; c++) {
+  for (unsigned int r = r_start; r < r_end; r++) {
+    for (unsigned int c = c_start; c < c_end; c++) {
       for (unsigned int layer = 0; layer < _grid->num_layers; layer++) {
         GridLocation object_loc(r, c, layer);
         auto obj = _grid->object_at(object_loc);
