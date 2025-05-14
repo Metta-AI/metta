@@ -334,7 +334,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         return self._c_env.map_height()
 
     @property
-    def grid_objects(self):
+    def grid_objects(self) -> dict[int, str]:
         """
         Get information about all grid objects that are present in our map.
 
