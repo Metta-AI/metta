@@ -228,9 +228,9 @@ function drawActions() {
         } else if (orientation == 3) {
           rotation = 0; // East
         }
-        if (action_name == "attack" && action[1] >= 0 && action[1] <= 8) {
+        if (action_name == "attack" && action[1] >= 1 && action[1] <= 9) {
           ctx.drawSprite(
-            "actions/attack" + (action[1] + 1) + ".png",
+            "actions/attack" + action[1] + ".png",
             x * Common.TILE_SIZE,
             y * Common.TILE_SIZE,
             [1, 1, 1, 1],

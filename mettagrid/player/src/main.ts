@@ -291,6 +291,27 @@ function onKeyDown(event: KeyboardEvent) {
       // Noop.
       sendAction([2, 0])
     }
+
+    if (event.key >= "1" && event.key <= "9") {
+      // Keys 1-9 is the attack matrix.
+      const action = parseInt(event.key);
+      sendAction([5, action])
+    }
+
+    if (event.key == "z") {
+      // Attack nearest.
+      sendAction([6, 0])
+    }
+
+    if (event.key == "c") {
+      // Change color.
+      sendAction([8, 0])
+    }
+
+    if (event.key == "g") {
+      // Swap.
+      sendAction([7, 0])
+    }
   }
 
   requestFrame();
