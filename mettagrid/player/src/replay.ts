@@ -208,7 +208,6 @@ function fixReplay() {
     }
   }
 
-
   // Map size is not to be trusted. Recompute map size just in case.
   let oldMapSize = [state.replay.map_size[0], state.replay.map_size[1]];
   state.replay.map_size[0] = 1;
@@ -280,20 +279,21 @@ export function loadReplayStep(replayStep: any) {
   state.step = step; // Rewind to the current step.
 
   for (const gridObject of replayStep.grid_objects) {
+    const index = gridObject.id - 1;
     for (const key in gridObject) {
       const value = gridObject[key];
       // Ensure the grid object exists.
-      while (state.replay.grid_objects.length <= gridObject.id) {
+      while (state.replay.grid_objects.length <= index) {
         state.replay.grid_objects.push({});
       }
       // Ensure the key exists.
-      if (state.replay.grid_objects[gridObject.id][key] === undefined) {
-        state.replay.grid_objects[gridObject.id][key] = [];
-        while (state.replay.grid_objects[gridObject.id][key].length <= step) {
-          state.replay.grid_objects[gridObject.id][key].push(null);
+      if (state.replay.grid_objects[index][key] === undefined) {
+        state.replay.grid_objects[index][key] = [];
+        while (state.replay.grid_objects[index][key].length <= step) {
+          state.replay.grid_objects[index][key].push(null);
         }
       }
-      state.replay.grid_objects[gridObject.id][key][step] = value;
+      state.replay.grid_objects[index][key][step] = value;
 
 
       if (key == "agent_id") {
@@ -301,7 +301,7 @@ export function loadReplayStep(replayStep: any) {
         while (state.replay.agents.length <= value) {
           state.replay.agents.push({});
         }
-        state.replay.agents[value] = state.replay.grid_objects[gridObject.id];
+        state.replay.agents[value] = state.replay.grid_objects[index];
       }
     }
   }
