@@ -210,6 +210,7 @@ function fixReplay() {
 
 
   // Map size is not to be trusted. Recompute map size just in case.
+  let oldMapSize = [state.replay.map_size[0], state.replay.map_size[1]];
   state.replay.map_size[0] = 1;
   state.replay.map_size[1] = 1;
   for (const gridObject of state.replay.grid_objects) {
@@ -217,6 +218,11 @@ function fixReplay() {
     let y = getAttr(gridObject, "r") + 1;
     state.replay.map_size[0] = Math.max(state.replay.map_size[0], x);
     state.replay.map_size[1] = Math.max(state.replay.map_size[1], y);
+  }
+  if (oldMapSize[0] != state.replay.map_size[0] || oldMapSize[1] != state.replay.map_size[1]) {
+    // Map size changed, update the map.
+    console.info("Map size changed");
+    focusFullMap(ui.mapPanel);
   }
 
   console.info("replay: ", state.replay);
