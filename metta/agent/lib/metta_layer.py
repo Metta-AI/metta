@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 import numpy as np
 import torch
@@ -77,10 +77,15 @@ class LayerBase(nn.Module):
     def setup(self, source_components: Optional[Dict[str, Any]] = None) -> None:
         if self._ready:
             return
+
         self.__dict__["_source_components"] = source_components
+
         self._in_tensor_shapes = []
-        if self._source_components is not None:
-            for _, source in self._source_components.items():
+        typed_source_components = cast(Optional[Dict[str, Any]], self._source_components)
+
+        self._in_tensor_shapes = []
+        if typed_source_components is not None:
+            for _, source in typed_source_components.items():
                 self._in_tensor_shapes.append(source._out_tensor_shape.copy())
 
         self._initialize()

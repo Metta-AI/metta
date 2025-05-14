@@ -4,6 +4,7 @@ import threading
 import time
 from collections import defaultdict
 from pathlib import Path
+from typing import TypeVar, Union, cast
 
 import numpy as np
 import pufferlib
@@ -39,6 +40,14 @@ torch.set_float32_matmul_precision("high")
 rank = int(os.environ.get("RANK", 0))
 local_rank = int(os.environ.get("LOCAL_RANK", 0))
 logger = logging.getLogger(f"trainer-{rank}-{local_rank}")
+
+
+T = TypeVar("T", bound=Union["MettaAgent", "DistributedMettaAgent"])
+
+
+def compile_preserving_type(model: T, mode: str) -> T:
+    compiled_model = torch.compile(model, mode=mode)
+    return cast(T, compiled_model)
 
 
 class PufferTrainer:
@@ -129,7 +138,7 @@ class PufferTrainer:
 
         if self.trainer_cfg.compile:
             logger.info("Compiling policy")
-            self.policy = torch.compile(self.policy, mode=self.trainer_cfg.compile_mode)
+            self.policy = compile_preserving_type(self.policy, mode=self.trainer_cfg.compile_mode)
 
         self.kickstarter = Kickstarter(self.cfg, self.policy_store, actions_names, actions_max_params)
 

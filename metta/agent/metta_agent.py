@@ -61,6 +61,18 @@ class DistributedMettaAgent(DistributedDataParallel):
         """Forward update_l2_init_weight_copy to the wrapped module."""
         return self.module.update_l2_init_weight_copy()
 
+    def l2_reg_loss(self):
+        """Forward l2_reg_loss to the wrapped module."""
+        return self.module.l2_reg_loss()
+
+    def l2_init_loss(self):
+        """Forward l2_init_loss to the wrapped module."""
+        return self.module.l2_init_loss()
+
+    def clip_weights(self):
+        """Forward clip_weights to the wrapped module."""
+        return self.module.clip_weights()
+
 
 class MettaAgent(nn.Module):
     def __init__(
