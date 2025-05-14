@@ -148,15 +148,10 @@ class MettaAgent(nn.Module):
         Returns:
             Tensor of cumulative sums representing offsets for action types
         """
-        if device is None:
-            device = self.device
-
         return torch.cumsum(torch.tensor([0] + action_max_params[:-1], device=device), dim=0)
 
     def activate_actions(self, action_names, action_max_params, device):
         """Run this at the beginning of training."""
-        self.device = device
-        self.actions_max_params = action_max_params
         self.active_actions = list(zip(action_names, action_max_params, strict=False))
 
         # Precompute cumulative sums for faster conversion
@@ -167,7 +162,7 @@ class MettaAgent(nn.Module):
             for i in range(max_param + 1):
                 full_action_names.append(f"{action_name}_{i}")
 
-        self.components["_action_embeds_"].activate_actions(full_action_names, self.device)
+        self.components["_action_embeds_"].activate_actions(full_action_names, device)
 
         # Create action_index tensor
         action_index = []
@@ -175,7 +170,7 @@ class MettaAgent(nn.Module):
             for j in range(max_param + 1):
                 action_index.append([action_type_idx, j])
 
-        self.action_index_tensor = torch.tensor(action_index, device=self.device)
+        self.action_index_tensor = torch.tensor(action_index, device=device)
         logger.info(f"Agent actions activated with: {self.active_actions}")
 
     @property
