@@ -33,7 +33,6 @@ analyzer:
       - metric: "heart.get"
 
 replay_job:
-  policy_uri: ${policy_uri}
   sim:
     env: /env/mettagrid/terrain_from_numpy
     env_overrides:
@@ -41,8 +40,6 @@ replay_job:
         max_steps: 10
 
 sim_job:
-  policy_uris:
-    - ${policy_uri}
   # policy_agents_pct: 1
 
   # env: /env/mettagrid/reward_dr
