@@ -138,51 +138,50 @@ class Embedding(LayerBase):
 
         return net
 
-    class Conv2d(ParamLayer):
-        _input_height: int
-        _input_width: int
-        _output_height: float  # Changed to float to handle intermediate calculations
-        _output_width: float  # Changed to float to handle intermediate calculations
 
-        def __init__(self, **cfg):
-            super().__init__(**cfg)
+class Conv2d(ParamLayer):
+    _input_height: int
+    _input_width: int
+    _output_height: float  # Changed to float to handle intermediate calculations
+    _output_width: float  # Changed to float to handle intermediate calculations
 
-        def _make_net(self):
-            self._set_conv_dims()
-            return nn.Conv2d(self._in_tensor_shapes[0][0], **self._nn_params)
+    def __init__(self, **cfg):
+        super().__init__(**cfg)
 
-        def _set_conv_dims(self):
-            """Calculate flattened width and height. This allows us to change obs width and height."""
-            assert len(self._in_tensor_shapes[0]) == 3, (
-                "Conv2d input tensor shape must be 3d (ignoring batch dimension)"
-            )
-            self._input_height = self._in_tensor_shapes[0][1]
-            self._input_width = self._in_tensor_shapes[0][2]
+    def _make_net(self):
+        self._set_conv_dims()
+        return nn.Conv2d(self._in_tensor_shapes[0][0], **self._nn_params)
 
-            # Handle dictionary access instead of attribute access
-            padding = self._nn_params.get("padding", 0)
-            kernel_size = self._nn_params["kernel_size"]
-            stride = self._nn_params["stride"]
-            out_channels = self._nn_params["out_channels"]
+    def _set_conv_dims(self):
+        """Calculate flattened width and height. This allows us to change obs width and height."""
+        assert len(self._in_tensor_shapes[0]) == 3, "Conv2d input tensor shape must be 3d (ignoring batch dimension)"
+        self._input_height = self._in_tensor_shapes[0][1]
+        self._input_width = self._in_tensor_shapes[0][2]
 
-            # Set padding if it wasn't provided
-            if padding is None:
-                padding = 0
-                self._nn_params["padding"] = padding
+        # Handle dictionary access instead of attribute access
+        padding = self._nn_params.get("padding", 0)
+        kernel_size = self._nn_params["kernel_size"]
+        stride = self._nn_params["stride"]
+        out_channels = self._nn_params["out_channels"]
 
-            # Calculate output dimensions
-            self._output_height = ((self._input_height + 2 * padding - kernel_size) / stride) + 1
-            self._output_width = ((self._input_width + 2 * padding - kernel_size) / stride) + 1
+        # Set padding if it wasn't provided
+        if padding is None:
+            padding = 0
+            self._nn_params["padding"] = padding
 
-            # Check if dimensions are integers
-            if not self._output_height.is_integer() or not self._output_width.is_integer():
-                raise ValueError(f"CNN {self._name} output dimensions must be integers. Adjust padding or kernel size.")
+        # Calculate output dimensions
+        self._output_height = ((self._input_height + 2 * padding - kernel_size) / stride) + 1
+        self._output_width = ((self._input_width + 2 * padding - kernel_size) / stride) + 1
 
-            # Convert to integers
-            self._output_height = int(self._output_height)
-            self._output_width = int(self._output_width)
+        # Check if dimensions are integers
+        if not self._output_height.is_integer() or not self._output_width.is_integer():
+            raise ValueError(f"CNN {self._name} output dimensions must be integers. Adjust padding or kernel size.")
 
-            self._out_tensor_shape = [out_channels, self._output_height, self._output_width]
+        # Convert to integers
+        self._output_height = int(self._output_height)
+        self._output_width = int(self._output_width)
+
+        self._out_tensor_shape = [out_channels, self._output_height, self._output_width]
 
 
 class MaxPool1d(LayerBase):
