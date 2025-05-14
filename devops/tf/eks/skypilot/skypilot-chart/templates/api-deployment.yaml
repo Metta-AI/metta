@@ -246,8 +246,7 @@ spec:
           if [ -n "$LAMBDA_AI_API_KEY" ]; then
             echo "Lambda AI credentials found in environment variable."
             mkdir -p /root/.lambda_cloud
-            echo "[default]" > /root/.lambda_cloud/config.toml
-            echo "api_key = \"$LAMBDA_AI_API_KEY\"" >> /root/.lambda_cloud/config.toml
+            echo "api_key = $LAMBDA_AI_API_KEY" > /root/.lambda_cloud/lambda_keys
           else
             echo "Lambda AI credentials not found in environment variables. Skipping credentials setup."
             sleep 600
