@@ -109,6 +109,13 @@ def oc_scale(
     Numeric
         The scaled value in the output range
     """
+
+    assert in_min < in_max
+    assert out_min <= out_max
+
+    if out_min == out_max:
+        return out_min
+
     # Clamp value to input range
     value = oc_clamp(value, in_min, in_max)
 

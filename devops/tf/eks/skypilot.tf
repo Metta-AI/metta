@@ -1,0 +1,3 @@
+module "skypilot" {
+  source = "./skypilot"
+}

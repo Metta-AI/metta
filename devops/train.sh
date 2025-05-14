@@ -3,8 +3,13 @@
 args="${@:1}"
 
 source ./devops/env.sh
-./devops/checkout_and_build.sh
+./devops/build_mettagrid.sh
 
+if [ -z "$NUM_CPUS" ]; then
+    NUM_CPUS=$(lscpu | grep "CPU(s)" | awk '{print $NF}' | head -n1)
+    NUM_CPUS=$((NUM_CPUS / 2))
+fi
+echo "NUM_CPUS: $NUM_CPUS"
 NUM_GPUS=${NUM_GPUS:-1}
 echo "NUM_GPUS: $NUM_GPUS"
 NUM_NODES=${NUM_NODES:-1}
@@ -26,6 +31,7 @@ torchrun \
     --master-port=$MASTER_PORT \
     --node-rank=$NODE_INDEX \
     tools/train.py \
+    trainer.num_workers=$NUM_CPUS \
     wandb.enabled=true \
     wandb.track=true \
     $args

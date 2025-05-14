@@ -52,7 +52,7 @@ POLICIES=(
 )
 
 for i in "${!POLICIES[@]}"; do
-    POLICY_URI=${POLICIES[$i]}
+  POLICY_URI=${POLICIES[$i]}
 
     echo "Running full sequence eval for policy $POLICY_URI"
     RANDOM_NUM=$((RANDOM % 1000))

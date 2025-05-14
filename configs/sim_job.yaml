@@ -1,20 +1,14 @@
 defaults:
   - common
   - wandb: metta_research
-  - sim: navigation
+  - /sim/sim_suite@replay_job.simulation_suite
   - _self_
 
 cmd: sim
 run: ???
-data_dir: ./train_dir
-run_dir: ${data_dir}/${run}
-torch_deterministic: true
-
-eval_db_uri: ???
 
 sim_job:
-  simulation_suite: ${sim}
-  policy_uris:
-    - ${policy_uri}
+  policy_uris: ???
   stats_dir: ${run_dir}/stats
-  stats_db_uri: ${eval_db_uri}
+  stats_db_uri: ${run_dir}/stats.db
+  replay_dir: ${run_dir}/replay_dir
