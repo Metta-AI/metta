@@ -55,12 +55,13 @@ for i in "${!POLICIES[@]}"; do
         run=objectuse$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         +eval_db_uri=wandb://artifacts/objectuse_db_main \
+
 done
 
-python3 -m tools.analyze +eval_db_uri=wandb://artifacts/navigation_db_main run=navigation_db_main ++analyzer.output_path=s3://softmax-public/policydash/navigation_main.html
+python3 -m tools.analyze +eval_db_uri=wandb://artifacts/navigation_db_main run=navigation_db_main ++analyzer.output_path=s3://softmax-public/policydash/navigation_main.html \
 
 # python3 -m tools.analyze +eval_db_uri=wandb://artifacts/multiagent_db_main run=multiagent_db_main ++analyzer.output_path=s3://softmax-public/policydash/multiagent_main.html
 
-python3 -m tools.analyze +eval_db_uri=wandb://artifacts/memory_db_main run=memory_db_main ++analyzer.output_path=s3://softmax-public/policydash/memory_main.html
+python3 -m tools.analyze +eval_db_uri=wandb://artifacts/memory_db_main run=memory_db_main ++analyzer.output_path=s3://softmax-public/policydash/memory_main.html \
 
-python3 -m tools.analyze +eval_db_uri=wandb://artifacts/objectuse_db_main run=objectuse_db_main ++analyzer.output_path=s3://softmax-public/policydash/objectuse_main.html
+python3 -m tools.analyze +eval_db_uri=wandb://artifacts/objectuse_db_main run=objectuse_db_main ++analyzer.output_path=s3://softmax-public/policydash/objectuse_main.html \
