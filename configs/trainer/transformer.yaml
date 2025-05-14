@@ -1,25 +1,61 @@
+_target_: metta.rl.pufferlib.trainer.PufferTrainer
+
 defaults:
-  - puffer
+  - trainer
   - _self_
 
 profiler_interval_epochs: 0
+total_timesteps: 50_000_000_000
 
-forward_pass_minibatch_target_size: 144 # (agents (36 * 4))
-batch_size: 147456 # 144 * 1024
+forward_pass_minibatch_target_size: 432 # (agents (36 * 4))
+batch_size: 442368 # 144 * 1024
 minibatch_size: 18432 # 36 * 1024
 bptt_horizon: 1024 #256
-update_epochs: 3
+update_epochs: 4
 
-clip_coef: 0.1
-ent_coef: 0.0002
-gae_lambda: 0.9
-gamma: 0.97
+clip_coef: 0.05
+vf_clip_coef: 0.05
+
+ent_coef: 0.00002
+gae_lambda: 0.8709159722118665
+gamma: 0.9778341518401994
 vf_coef: 2.0
-average_reward: true
+max_grad_norm: 0.5
+average_reward: false
 
 optimizer:
   type: adam
-  beta1: 0.967
+  beta1: 0.9678260586674491
   beta2: 0.9999
   eps: 1e-12
-  learning_rate: 0.0003
+  learning_rate: 0.00012189571664289048
+
+lr_scheduler:
+  enabled: false
+
+l2_reg_loss_coef: 0
+l2_init_loss_coef: 0
+
+norm_adv: false
+clip_vloss: true
+target_kl: null
+
+zero_copy: true
+require_contiguous_env_ids: false
+verbose: true
+
+stats:
+  overview:
+    episode/reward.mean: episode_reward
+  step: train/agent_step
+
+kickstart:
+  teacher_uri: null
+  action_loss_coef: 1
+  value_loss_coef: 1
+  kickstart_steps: 50_000_000
+  additional_teachers:
+
+cpu_offload: false
+compile: false
+compile_mode: reduce-overhead

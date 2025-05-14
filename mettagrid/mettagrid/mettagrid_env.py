@@ -71,20 +71,17 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         return obs, infos
 
     def step(self, actions):
-        if self.should_reset:
-            obs, infos = self.reset()
-        else:
-            self.actions[:] = np.array(actions).astype(np.uint32)
-            self._c_env.step(self.actions)
+        self.actions[:] = np.array(actions).astype(np.uint32)
+        self._c_env.step(self.actions)
 
-            if self._env_cfg.normalize_rewards:
-                self.rewards -= self.rewards.mean()
+        if self._env_cfg.normalize_rewards:
+            self.rewards -= self.rewards.mean()
 
-            obs = self.observations
-            infos = {}
-            if self.terminals.all() or self.truncations.all():
-                self.process_episode_stats(infos)
-                self.should_reset = True
+        obs = self.observations
+        infos = {}
+        if self.terminals.all() or self.truncations.all():
+            self.process_episode_stats(infos)
+            self.should_reset = True
 
         return obs, self.rewards, self.terminals, self.truncations, infos
 

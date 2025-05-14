@@ -115,16 +115,18 @@ class AttentionBlock(nn.Module):
         self.in_proj = nn.Linear(
             self.d_model,
             self.num_heads * self.head_dim * 3,
-            bias=True,
+            bias=False,
             dtype=self.dtype,
         )
 
         self.out_proj = nn.Linear(
             self.num_heads * self.head_dim,
             self.d_model,
-            bias=True,
+            bias=False,
             dtype=self.dtype,
         )
+        torch.nn.init.orthogonal_(self.in_proj.weight)
+        torch.nn.init.orthogonal_(self.out_proj.weight)
 
     def ensure_kv_cache(self, batch_size: int, context_size: int, device: torch.device, dtype: torch.dtype):
         if self.has_kv_cache and self.key_cache.shape[0] == batch_size:

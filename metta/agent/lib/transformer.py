@@ -12,18 +12,21 @@ from metta.agent.lib.metta_layer import LayerBase
 
 
 class FFBlock(nn.Module):
-    def __init__(self, in_features: int, hidden_features: int, *, activation: nn.Module | None = None):
+    def __init__(self, in_features: int, hidden_features: int, *, nonlinearity: nn.Module | None = None):
         super().__init__()
         self.d_model = in_features
         self.hidden_features = hidden_features
 
-        self.activation = activation if activation is not None else nn.ReLU()
-        self.up_proj = nn.Linear(in_features, hidden_features, bias=True)
-        self.down_proj = nn.Linear(hidden_features, in_features, bias=True)
+        self.nonlinearity = nonlinearity if nonlinearity is not None else nn.ReLU()
+        self.up_proj = nn.Linear(in_features, hidden_features, bias=False)
+        self.down_proj = nn.Linear(hidden_features, in_features, bias=False)
+
+        torch.nn.init.orthogonal_(self.up_proj.weight)
+        torch.nn.init.orthogonal_(self.down_proj.weight)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.up_proj(x)
-        x = self.activation(x)
+        x = self.nonlinearity(x)
         x = self.down_proj(x)
         return x
 
@@ -34,38 +37,48 @@ class GLUBlock(nn.Module):
         in_features: int,
         hidden_features: int,
         *,
-        activation: nn.Module | None = None,
+        nonlinearity: nn.Module | None = None,
     ):
         super().__init__()
         self.d_model = in_features
         self.hidden_features = hidden_features
-        self.activation = activation if activation is not None else nn.ReLU()
+        self.nonlinearity = nonlinearity if nonlinearity is not None else nn.ReLU()
 
-        self.up_proj = nn.Linear(in_features, hidden_features * 2, bias=True)
-        self.down_proj = nn.Linear(hidden_features, in_features, bias=True)
+        self.up_proj = nn.Linear(in_features, hidden_features * 2, bias=False)
+        self.down_proj = nn.Linear(hidden_features, in_features, bias=False)
+
+        torch.nn.init.orthogonal_(self.up_proj.weight)
+        torch.nn.init.orthogonal_(self.down_proj.weight)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.up_proj(x)
 
         x, gate = torch.chunk(x, 2, -1)
-        x = self.activation(x) * gate
+        x = self.nonlinearity(x) * gate
         x = self.down_proj(x)
         return x
 
 
 class GatingMechanism(torch.nn.Module):
-    def __init__(self, hidden_features, bg=0.1):
+    def __init__(self, hidden_features, bg=0.0):
         super(GatingMechanism, self).__init__()
-        self.Wr = torch.nn.Linear(hidden_features, hidden_features)
-        self.Ur = torch.nn.Linear(hidden_features, hidden_features)
-        self.Wz = torch.nn.Linear(hidden_features, hidden_features)
-        self.Uz = torch.nn.Linear(hidden_features, hidden_features)
-        self.Wg = torch.nn.Linear(hidden_features, hidden_features)
-        self.Ug = torch.nn.Linear(hidden_features, hidden_features)
-        self.bg = bg
+        self.Wr = torch.nn.Linear(hidden_features, hidden_features, bias=False)
+        self.Ur = torch.nn.Linear(hidden_features, hidden_features, bias=False)
+        self.Wz = torch.nn.Linear(hidden_features, hidden_features, bias=False)
+        self.Uz = torch.nn.Linear(hidden_features, hidden_features, bias=False)
+        self.Wg = torch.nn.Linear(hidden_features, hidden_features, bias=False)
+        self.Ug = torch.nn.Linear(hidden_features, hidden_features, bias=False)
+        self.bg = nn.Parameter(torch.full([hidden_features], bg))
 
         self.sigmoid = torch.nn.Sigmoid()
         self.tanh = torch.nn.Tanh()
+
+        torch.nn.init.orthogonal_(self.Wr.weight)
+        torch.nn.init.orthogonal_(self.Ur.weight)
+        torch.nn.init.orthogonal_(self.Wz.weight)
+        torch.nn.init.orthogonal_(self.Uz.weight)
+        torch.nn.init.orthogonal_(self.Wg.weight)
+        torch.nn.init.orthogonal_(self.Ug.weight)
 
     def forward(self, x, y):
         r = self.sigmoid(self.Wr(y) + self.Ur(x))
@@ -82,23 +95,24 @@ class TransformerLayer(nn.Module):
         hidden_features: int,
         ffn_size: int,
         *,
-        activation: nn.Module | None = None,
+        nonlinearity: nn.Module | None = None,
         glu: bool = True,
         gtrxl_gate: bool = True,
+        gtrxl_bias: float = 0.0,
     ):
         super().__init__()
         self.gtrxl_gate = gtrxl_gate
 
-        self.attention_norm = nn.LayerNorm(hidden_features)
+        self.attention_norm = nn.RMSNorm(hidden_features)
         self.attention = AttentionBlock(num_heads, hidden_features)
 
-        self.ffn_norm = nn.LayerNorm(hidden_features)
+        self.ffn_norm = nn.RMSNorm(hidden_features)
         ff_block = GLUBlock if glu else FFBlock
-        self.ffn = ff_block(hidden_features, ffn_size, activation=activation)
+        self.ffn = ff_block(hidden_features, ffn_size, nonlinearity=nonlinearity)
 
         if gtrxl_gate:
-            self.attention_gate = GatingMechanism(hidden_features)
-            self.ffn_gate = GatingMechanism(hidden_features)
+            self.attention_gate = GatingMechanism(hidden_features, gtrxl_bias)
+            self.ffn_gate = GatingMechanism(hidden_features, gtrxl_bias)
 
     def forward(self, x: Tensor, time_steps: Tensor, block_mask: BlockMask | None = None) -> Tensor:
         attention_input = self.attention_norm(x)
@@ -125,13 +139,19 @@ def _create_block_mask(seq_len: int) -> BlockMask:
 
 
 _compile = os.name == "posix"
-_flex_attention = False #os.name == "posix"
+_flex_attention = False # os.name == "posix"
 
+
+def parse_nonlinearity(nonlinearity: str) -> nn.Module:
+    _, class_name = nonlinearity.split(".")
+    nonlinearity_class = getattr(nn, class_name)
+    return nonlinearity_class()
 
 class TransformerCore(LayerBase):
-    def __init__(self, obs_shape, hidden_size: int, **cfg):
+    def __init__(self, obs_shape, hidden_size: int, nonlinearity="nn.ReLU", **cfg):
         super().__init__(**cfg)
         self.obs_shape = obs_shape
+        self.nonlinearity = nonlinearity
         self.hidden_size = hidden_size
 
         self.num_layers = self._nn_params["num_layers"]
@@ -139,9 +159,10 @@ class TransformerCore(LayerBase):
         self.ffn_size = self._nn_params["ffn_size"]
         self.context_size = self._nn_params["context_size"]
 
-        self.activation = nn.ReLU()
-        self.glu = False
+        self.nonlinearity_fn = parse_nonlinearity(nonlinearity)
+        self.glu = self._nn_params.get("glu", False)
         self.gtrxl_gate = self._nn_params.get("gtrxl_gate", False)
+        self.gtrxl_bias = self._nn_params.get("gtrxl_bias", 0.0)
 
     def _initialize(self):
         self._out_tensor_shape = [self.hidden_size]
@@ -153,13 +174,14 @@ class TransformerCore(LayerBase):
                     self.num_heads,
                     self.hidden_size,
                     self.ffn_size,
-                    activation=self.activation,
+                    nonlinearity=self.nonlinearity_fn,
                     glu=self.glu,
                     gtrxl_gate=self.gtrxl_gate,
+                    gtrxl_bias=self.gtrxl_bias,
                 )
             )
         self.layers = nn.ModuleList(layers)
-        self.layer_norm = nn.LayerNorm(self.hidden_size)
+        self.layer_norm = nn.RMSNorm(self.hidden_size)
 
     def ensure_kv_cache(self, batch_size: int, device: torch.device, dtype: torch.dtype = torch.float32):
         for layer in self.layers:
@@ -189,10 +211,11 @@ class TransformerCore(LayerBase):
             block_mask = _create_block_mask(self.context_size) if _flex_attention else None
             if time_steps is None:
                 time_steps = torch.arange(self.context_size, dtype=torch.long, device=hidden.device)[None, :]
-            self._inner_forward(hidden.clone(), time_steps, block_mask)
+            
+            hidden = self._inner_forward(hidden, time_steps, block_mask)
         else:
             self.ensure_kv_cache(B, hidden.device, hidden.dtype)
-            self._inner_forward(hidden.clone(), time_steps, None)
+            hidden = self._inner_forward(hidden, time_steps, None)
 
         hidden = hidden.reshape(B * TT, self.hidden_size)
 

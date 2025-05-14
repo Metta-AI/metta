@@ -4,6 +4,7 @@ from libcpp.string cimport string
 from libcpp.map cimport map
 import numpy as np
 cimport numpy as cnp
+from libcpp.string cimport string
 import gymnasium as gym
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
@@ -88,7 +89,7 @@ cdef class MettaGrid:
         unsigned char _last_action_arg_obs_idx
         vector[bint] _action_success
 
-    def __init__(self, env_cfg: DictConfig | ListConfig, map: np.ndarray):
+    def __init__(self, env_cfg, map: np.ndarray):
         cfg = OmegaConf.create(env_cfg.game)
         self._cfg = cfg
         num_agents = cfg.num_agents
@@ -346,8 +347,6 @@ cdef class MettaGrid:
         if self._current_timestep > 0:
             raise NotImplemented("Cannot reset after stepping")
         
-        print("Reset")
-
         self._terminals[:] = 0
         self._truncations[:] = 0
         self._episode_rewards[:] = 0

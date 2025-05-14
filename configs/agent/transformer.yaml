@@ -50,26 +50,29 @@ components:
     sources:
       - name: obs_flattener
     nn_params:
-      out_features: 128
+      out_features: 256
 
   encoded_obs:
     _target_: metta.agent.lib.nn_layer_library.Linear
     sources:
       - name: fc1
     nn_params:
-      out_features: 128
+      out_features: 256
 
   _core_:
     _target_: metta.agent.lib.transformer.TransformerCore
     sources:
       - name: encoded_obs
-    output_size: 128
+    output_size: 256
+    nonlinearity: nn.SiLU
     nn_params:
       num_layers: 3
       num_heads: 8
-      ffn_size: 128
+      ffn_size: 512
       context_size: 1024 #256
       gtrxl_gate: true
+      gtrxl_bias: 2.0
+      glu: false
 
   core_relu:
     _target_: metta.agent.lib.nn_layer_library.ReLU
