@@ -1,6 +1,5 @@
 defaults:
   - /env/mettagrid/mettagrid@
-  - _self_
 
 game:
   num_agents: 8  #how many agents are in the map x2
@@ -15,7 +14,7 @@ game:
     room:
       _target_: mettagrid.config.room.ascii.Ascii
       border_width: 1
-      uri: "configs/env/mettagrid/maps/memory/memory_easy_eval.map"
+      uri: "configs/env/mettagrid/maps/memory/easy.map"
 
   objects:
     altar:
