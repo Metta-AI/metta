@@ -13,11 +13,9 @@ import torch.distributed as dist
 import wandb
 from heavyball import ForeachMuon
 from omegaconf import DictConfig, ListConfig
-from pufferlib import PufferEnv
 from pufferlib.utils import profile, unroll_nested_dict
 from torch import nn
 
-from metta.agent.lib.lstm import LSTM
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyStore
@@ -346,8 +344,6 @@ class PufferTrainer:
 
     @profile
     def _rollout(self):
-        logging.info(f"entering _rollout: device is {self.device}")
-
         experience, profile = self.experience, self.profile
 
         with profile.eval_misc:
@@ -376,15 +372,16 @@ class PufferTrainer:
                 r = torch.as_tensor(r)
                 d = torch.as_tensor(d)
 
-            logging.info(f"lstm_h shape: {lstm_h.shape}, lstm_c shape: {lstm_c.shape}")
-            logging.info(f"training_env_id shape: {training_env_id.shape}, type: {type(training_env_id)}")
-
             with profile.eval_forward, torch.no_grad():
                 state = PolicyState(lstm_h=lstm_h[:, training_env_id], lstm_c=lstm_c[:, training_env_id])
                 actions, logprob, _, value, _ = policy(o_device, state)
 
-                lstm_h[:, training_env_id] = state.lstm_h or torch.zeros_like(lstm_h[:, training_env_id])
-                lstm_c[:, training_env_id] = state.lstm_c or torch.zeros_like(lstm_c[:, training_env_id])
+                lstm_h[:, training_env_id] = (
+                    state.lstm_h if state.lstm_h is not None else torch.zeros_like(lstm_h[:, training_env_id])
+                )
+                lstm_c[:, training_env_id] = (
+                    state.lstm_c if state.lstm_c is not None else torch.zeros_like(lstm_c[:, training_env_id])
+                )
 
                 if self.device == "cuda":
                     torch.cuda.synchronize()
@@ -750,7 +747,6 @@ class PufferTrainer:
 
         # Use num_envs for the total number of environments/states to track
         # From logs: vecenv.num_envs: 512
-        assert isinstance(self.vecenv, PufferEnv), "vecenv must be a PufferEnv instance"
 
         lstm_total_agents = getattr(self.vecenv, "num_envs", 0)
         assert lstm_total_agents > 0, "self.vecenv.num_envs not found!"
@@ -763,7 +759,7 @@ class PufferTrainer:
 
         assert hasattr(self.policy, "lstm"), "Policy must have lstm attribute"
         lstm = getattr(self.policy, "lstm", {})
-        assert isinstance(lstm, LSTM), f"Policy lstm must be a valid LSTM instance, got: {type(lstm)}"
+        assert isinstance(lstm, nn.modules.rnn.LSTM), f"Policy lstm must be a valid LSTM instance, got: {type(lstm)}"
 
         # Create the Experience buffer with appropriate parameters
         self.experience = Experience(
