@@ -1,4 +1,4 @@
-# Generate a graphical trace of multiple runs.
+# Deals with full and partial replays.
 
 import json
 import time
@@ -14,8 +14,9 @@ from metta.util.runtime_configuration import setup_mettagrid_environment
 from metta.util.wandb.wandb_context import WandbContext
 
 
-# TODO: This job can be replaced with sim now that Simulations create replays
 class ReplayJob(Config):
+    """Config for a replay job."""
+
     sim: SingleEnvSimulationConfig
     policy_uri: str
     selector_type: str

@@ -60,6 +60,7 @@ async def websocket_endpoint(
     logger.info("Received websocket connection!")
     await send_message(type="message", message="Connecting!")
 
+    # Create a simulation that we are going to play.
     sim = replays.create_simulation(app.cfg)
     sim.start_simulation()
     env = sim.get_env()
@@ -68,13 +69,11 @@ async def websocket_endpoint(
     await send_message(type="replay", replay=replay)
 
     current_step = 0
-
     action_message = None
-
     total_rewards = np.zeros(env.num_agents)
 
     while True:
-        # Receive action from client
+        # While the client we are sending messages to it.
 
         if current_step < 1000:
             await send_message(type="message", message="Step!")

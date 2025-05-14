@@ -7,6 +7,7 @@
 # Take this file to the chrome://tracing page to view the trace.
 # Easy, no drama, you control everything!
 
+
 import json
 import os
 import threading

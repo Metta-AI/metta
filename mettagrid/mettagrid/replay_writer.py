@@ -1,4 +1,3 @@
-# Generate a graphical trace of multiple runs.
 from __future__ import annotations
 
 import json
