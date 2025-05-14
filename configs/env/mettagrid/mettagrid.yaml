@@ -21,16 +21,16 @@ game:
   recursive_map_builder: true
 
   agent:
-    max_inventory: ${sampling:50, 100, 75}
+    max_inventory: ${sampling:0, 100, 50}
     freeze_duration: ${sampling:0, 200, 10}
     hp: 10
     mortal: False
     rewards:
       # action_failure_penalty: 0.00001
       action_failure_penalty: 0
-      ore.red: 0.001
-      ore.blue: 0.001
-      ore.green: 0.001
+      ore.red: 0.005
+      ore.blue: 0.005
+      ore.green: 0.005
       battery: 0.01
       battery_max: 5
       heart: 1
