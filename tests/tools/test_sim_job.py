@@ -1,12 +1,3 @@
-"""
-Unit‑tests for SimulationSuiteConfig ⇄ SimulationConfig behavior.
-Covered
--------
-* suite‑level defaults propagate into children
-* child‑level overrides win
-* missing required keys always raise (allow_missing removed)
-"""
-
 from typing import List
 
 import hydra
