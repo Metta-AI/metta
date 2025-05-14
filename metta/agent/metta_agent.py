@@ -266,7 +266,7 @@ class MettaAgent(nn.Module):
         offset = self.cum_action_max_params[action_type]
         action_logit_index = offset + action_param
 
-        return action_logit_index.reshape(-1, 1)
+        return action_logit_index.view(-1)  # shape: [B] or [B*T]
 
     def _convert_logit_index_to_action(self, action_logit_index, td):
         """Convert logit indices back to action pairs using tensor indexing"""
