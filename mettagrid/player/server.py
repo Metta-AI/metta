@@ -3,6 +3,7 @@ import logging
 
 import hydra
 import numpy as np
+import uvicorn
 from fastapi import FastAPI, HTTPException, WebSocket
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -115,13 +116,12 @@ async def websocket_endpoint(
     sim.end_simulation()
 
 
+@hydra.main(version_base=None, config_path="../../configs", config_name="replay_job")
+def main(cfg):
+    app.cfg = cfg
+
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+
+
 if __name__ == "__main__":
-    import uvicorn
-
-    @hydra.main(version_base=None, config_path="../../configs", config_name="replay_job")
-    def main(cfg):
-        app.cfg = cfg
-
-        uvicorn.run(app, host="0.0.0.0", port=8000)
-
     main()
