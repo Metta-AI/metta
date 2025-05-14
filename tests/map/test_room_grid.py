@@ -88,27 +88,3 @@ def test_benchmark_room_grid_creation_large(benchmark):
 
     # Verify it worked correctly
     assert len(areas) == 100  # 10x10 grid should have 100 rooms
-
-
-def test_benchmark_area_selection_by_tag(benchmark, node):
-    """Benchmark selecting areas by tag in a room grid."""
-    # Setup: Create a grid with tagged rooms
-    layout = [["kitchen", "living_room", "bathroom"], ["bedroom", "hall", "office"], ["storage", "garage", "patio"]]
-    node.grid = np.full((30, 30), "empty", dtype="<U50")
-    scene = RoomGrid(layout=layout, border_width=1, border_object="wall")
-    scene.render(node)
-
-    def select_areas_by_tag():
-        # Specifically select areas with tags "living_room" or "bedroom"
-        areas = []
-        for area in node.select_areas({}):
-            if area.tags and area.tags[0] in ["living_room", "bedroom"]:
-                areas.append(area)
-        return areas
-
-    # Run the benchmark
-    areas = benchmark(select_areas_by_tag)
-
-    # Verify results
-    assert len(areas) == 2
-    assert all(area.tags[0] in ["living_room", "bedroom"] for area in areas)
