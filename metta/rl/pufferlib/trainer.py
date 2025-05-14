@@ -751,12 +751,10 @@ class PufferTrainer:
         atn_shape = metta_grid_env.single_action_space.shape
         atn_dtype = metta_grid_env.single_action_space.dtype
 
-        # Use num_envs for the total number of environments/states to track
-        # From logs: vecenv.num_envs: 512
-
-        lstm_total_agents = getattr(self.vecenv, "num_envs", 0)
-        assert lstm_total_agents > 0, "self.vecenv.num_envs not found!"
-        logging.info(f"Creating experience buffer with lstm_total_agents={lstm_total_agents} (from vecenv.num_envs)")
+        # Use num_agents for the total number of environments/states to track
+        lstm_total_agents = getattr(self.vecenv, "num_agents", 0)
+        assert lstm_total_agents > 0, "self.vecenv.num_agents not found!"
+        logging.info(f"Creating experience buffer with lstm_total_agents={lstm_total_agents} (from vecenv.num_agents)")
 
         # Handle policy fields with assertions
         assert hasattr(self.policy, "hidden_size"), "Policy must have hidden_size attribute"
