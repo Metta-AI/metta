@@ -30,8 +30,8 @@ def main(cfg):
     setup_metta_environment(cfg)
     setup_mettagrid_environment(cfg)
 
-    logger = setup_mettagrid_logger("metta.tools.sim")
-    logger.info(f"Sim job config:\n{OmegaConf.to_yaml(cfg, resolve=True)}")
+    logger = setup_mettagrid_logger("metta.tools.replay")
+    logger.info(f"Replay job config:\n{OmegaConf.to_yaml(cfg, resolve=True)}")
 
     with WandbContext(cfg) as wandb_run:
         policy_store = PolicyStore(cfg, wandb_run)
