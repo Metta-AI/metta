@@ -137,6 +137,22 @@ class MettaAgent(nn.Module):
                 source_components[source["name"]] = self.components[source["name"]]
         component.setup(source_components)
 
+    def _calculate_cum_action_max_params(self, action_max_params, device=None):
+        """
+        Calculate cumulative sum for action indices. Used for converting actions to logit indices.
+
+        Args:
+            action_max_params: List of maximum parameter values for each action type
+            device: Device to place the tensor on (defaults to self.device)
+
+        Returns:
+            Tensor of cumulative sums representing offsets for action types
+        """
+        if device is None:
+            device = self.device
+
+        return torch.cumsum(torch.tensor([0] + action_max_params[:-1], device=device), dim=0)
+
     def activate_actions(self, action_names, action_max_params, device):
         """Run this at the beginning of training."""
         self.device = device
@@ -144,12 +160,13 @@ class MettaAgent(nn.Module):
         self.active_actions = list(zip(action_names, action_max_params, strict=False))
 
         # Precompute cumulative sums for faster conversion
-        self.cum_action_max_params = torch.cumsum(torch.tensor([0] + action_max_params, device=self.device), dim=0)
+        self.cum_action_max_params = self._calculate_cum_action_max_params(action_max_params, device)
 
         full_action_names = []
         for action_name, max_param in self.active_actions:
             for i in range(max_param + 1):
                 full_action_names.append(f"{action_name}_{i}")
+
         self.components["_action_embeds_"].activate_actions(full_action_names, self.device)
 
         # Create action_index tensor
@@ -208,6 +225,16 @@ class MettaAgent(nn.Module):
 
         # Sample actions
         action_logit_index = self._convert_action_to_logit_index(action) if action is not None else None
+
+        # validate that all action indices are within [0, A)
+        if action_logit_index is not None:
+            A = logits.shape[-1]
+            if not torch.all((action_logit_index >= 0) & (action_logit_index < A)):
+                raise ValueError(
+                    f"Action index out of bounds. Expected range [0, {A - 1}], "
+                    f"got min={action_logit_index.min().item()}, max={action_logit_index.max().item()}"
+                )
+
         action_logit_index, logprob_act, entropy, log_sftmx_logits = sample_logits(logits, action_logit_index)
 
         # Convert logit index to action if no action was provided
@@ -217,19 +244,19 @@ class MettaAgent(nn.Module):
         return action, logprob_act, entropy, value, log_sftmx_logits
 
     def _convert_action_to_logit_index(self, action):
-        """
-        Convert (action_type, action_param) pairs to discrete action indices
-        using precomputed offsets.
-        Assumes `cum_action_max_params` maps action types to start indices.
-        """
+        """Convert action pairs (action_type, action_param) to single discrete action logit indices using vectorized
+        operations"""
         action = action.reshape(-1, 2)
 
-        action_type = action[:, 0].long()
-        action_param = action[:, 1].long()
+        # Extract action components
+        action_type_numbers = action[:, 0].long()
+        action_params = action[:, 1].long()
 
-        # Only use offset + parameter — NOT + action_type
-        offset = self.cum_action_max_params[action_type]
-        action_logit_index = offset + action_param
+        # Use precomputed cumulative sum with vectorized indexing
+        cumulative_sum = self.cum_action_max_params[action_type_numbers]
+
+        # Vectorized addition
+        action_logit_index = action_type_numbers + cumulative_sum + action_params
 
         return action_logit_index.reshape(-1, 1)
 
