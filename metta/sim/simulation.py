@@ -1,6 +1,6 @@
 # metta/sim/simulation.py
 """
-Vectorised simulation runner.
+Vectorized simulation runner.
 
 • Launches a MettaGrid vec-env batch
 • Each worker writes its own *.duckdb* shard
@@ -16,7 +16,7 @@ import time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Dict
 
 import numpy as np
 import torch
@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 # --------------------------------------------------------------------------- #
 class Simulation:
     """
-    A vectorised batch of MettaGrid environments sharing the same parameters.
+    A vectorized batch of MettaGrid environments sharing the same parameters.
     """
 
     # ------------------------------------------------------------------ #
@@ -63,6 +63,8 @@ class Simulation:
         self._id = uuid.uuid4().hex[:12]
 
         # ---------------- env config ----------------------------------- #
+        logger.info(f"config.env {config.env}")
+        logger.info(f"config.env_overrides {config.env_overrides}")
         self._env_cfg = config_from_path(config.env, config.env_overrides)
         self._env_name = config.env
 
@@ -76,8 +78,8 @@ class Simulation:
         self._device = device
 
         # ----------------
-        num_envs = min(config.num_episodes, os.cpu_count())
-        logger.debug(f"Creating vecenv with {num_envs} environments")
+        num_envs = min(config.num_episodes, os.cpu_count() or 1)
+        logger.info(f"Creating vecenv with {num_envs} environments")
         self._vecenv = make_vecenv(
             self._env_cfg,
             vectorization,
@@ -103,12 +105,18 @@ class Simulation:
         # Let every policy know the active action-set of this env.
         action_names = metta_grid_env.action_names
         max_args = metta_grid_env.max_action_args
-        self._policy_pr.policy().activate_actions(action_names, max_args, self._device)
+
+        policy = self._policy_pr.policy()
+        logger.info(f"Type of policy object: {type(policy)}")
+        logger.info(f"Is policy callable: {callable(policy)}")
+        logger.info(f"Does policy have activate_actions: {hasattr(policy, 'activate_actions')}")
+
+        policy.activate_actions(action_names, max_args, self._device)
         if self._npc_pr is not None:
-            self._npc_pr.policy().activate_actions(action_names, max_args, self._device)
+            policy.activate_actions(action_names, max_args, self._device)
 
         # ---------------- agent-index bookkeeping ---------------------- #
-        idx_matrix = torch.arange(self._vecenv.num_agents, device=self._device).reshape(
+        idx_matrix = torch.arange(metta_grid_env.num_agents, device=self._device).reshape(
             self._num_envs, self._agents_per_env
         )
         self._policy_agents_per_env = max(1, int(self._agents_per_env * self._policy_agents_pct))
@@ -204,9 +212,17 @@ class Simulation:
     # ------------------------- stats helpers -------------------------- #
     def _from_shards_and_context(self) -> SimulationStatsDB:
         """Merge all *.duckdb* shards for this simulation → one `StatsDB`."""
-        agent_map: Dict[int, Tuple[str, int]] = {idx.item(): self._policy_pr for idx in self._policy_idxs}
+        # Make sure we're creating a dictionary of the right type
+        agent_map: Dict[int, PolicyRecord] = {}
+
+        # Add policy agents to the map
+        for idx in self._policy_idxs:
+            agent_map[int(idx.item())] = self._policy_pr
+
+        # Add NPC agents to the map if they exist
         if self._npc_pr is not None:
-            agent_map.update({idx.item(): self._npc_pr for idx in self._npc_idxs})
+            for idx in self._npc_idxs:
+                agent_map[int(idx.item())] = self._npc_pr
 
         suite_name = "" if self._suite is None else self._suite.name
         db = SimulationStatsDB.from_shards_and_context(
