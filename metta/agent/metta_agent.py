@@ -208,6 +208,16 @@ class MettaAgent(nn.Module):
 
         # Sample actions
         action_logit_index = self._convert_action_to_logit_index(action) if action is not None else None
+
+        # validate that all action indices are within [0, A)
+        if action_logit_index is not None:
+            A = logits.shape[-1]
+            if not torch.all((action_logit_index >= 0) & (action_logit_index < A)):
+                raise ValueError(
+                    f"Action index out of bounds. Expected range [0, {A - 1}], "
+                    f"got min={action_logit_index.min().item()}, max={action_logit_index.max().item()}"
+                )
+
         action_logit_index, logprob_act, entropy, log_sftmx_logits = sample_logits(logits, action_logit_index)
 
         # Convert logit index to action if no action was provided
@@ -217,19 +227,19 @@ class MettaAgent(nn.Module):
         return action, logprob_act, entropy, value, log_sftmx_logits
 
     def _convert_action_to_logit_index(self, action):
-        """Convert action pairs (action_type, action_param) to single discrete action logit indices using vectorized
-        operations"""
+        """
+        Convert (action_type, action_param) pairs to discrete action indices
+        using precomputed offsets.
+        Assumes `cum_action_max_params` maps action types to start indices.
+        """
         action = action.reshape(-1, 2)
 
-        # Extract action components
-        action_type_numbers = action[:, 0].long()
-        action_params = action[:, 1].long()
+        action_type = action[:, 0].long()
+        action_param = action[:, 1].long()
 
-        # Use precomputed cumulative sum with vectorized indexing
-        cumulative_sum = self.cum_action_max_params[action_type_numbers]
-
-        # Vectorized addition
-        action_logit_index = action_type_numbers + cumulative_sum + action_params
+        # Only use offset + parameter — NOT + action_type
+        offset = self.cum_action_max_params[action_type]
+        action_logit_index = offset + action_param
 
         return action_logit_index.reshape(-1, 1)
 
