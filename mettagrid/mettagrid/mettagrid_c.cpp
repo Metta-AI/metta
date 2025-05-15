@@ -184,10 +184,10 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
                                 static_cast<ssize_t>(_obs_height),
                                 static_cast<ssize_t>(_obs_width),
                                 static_cast<ssize_t>(_grid_features.size())};
-  auto observations = py::array_t<unsigned char>(shape);
-  auto terminals = py::array_t<bool>(static_cast<ssize_t>(num_agents));
-  auto truncations = py::array_t<bool>(static_cast<ssize_t>(num_agents));
-  auto rewards = py::array_t<float>(static_cast<ssize_t>(num_agents));
+  auto observations = py::array_t<unsigned char, py::array::c_style>(shape);
+  auto terminals = py::array_t<bool, py::array::c_style>(static_cast<ssize_t>(num_agents));
+  auto truncations = py::array_t<bool, py::array::c_style>(static_cast<ssize_t>(num_agents));
+  auto rewards = py::array_t<float, py::array::c_style>(static_cast<ssize_t>(num_agents));
 
   set_buffers(observations, terminals, truncations, rewards);
 }
@@ -368,13 +368,12 @@ py::tuple MettaGrid::reset() {
 
 void MettaGrid::validate_buffers() {
   // We should validate once buffers and agents are set.
+  // data types and contiguity are handled by pybind11. We still need to check
+  // shape.
   unsigned int num_agents = _agents.size();
   {
     auto observation_info = _observations.request();
     auto shape = observation_info.shape;
-    auto strides = observation_info.strides;
-    // An example risk for the stride is that the data is laid out like a
-    // fortran array, and is thus not contiguous.
     if (observation_info.ndim != 4 || shape[0] != num_agents || shape[1] != _obs_height || shape[2] != _obs_width ||
         shape[3] != _grid_features.size()) {
       std::stringstream ss;
@@ -383,52 +382,34 @@ void MettaGrid::validate_buffers() {
          << _grid_features.size() << "]";
       throw std::runtime_error(ss.str());
     }
-    if (strides[0] != _obs_height * _obs_width * _grid_features.size() * sizeof(ObsType) ||
-        strides[1] != _obs_width * _grid_features.size() * sizeof(ObsType) ||
-        strides[2] != _grid_features.size() * sizeof(ObsType) || strides[3] != sizeof(ObsType)) {
-      // This suggests that the data size is wrong, or the data is otherwise not contiguous.
-      throw std::runtime_error("observations has the wrong stride");
-    }
   }
   {
     auto terminals_info = _terminals.request();
     auto shape = terminals_info.shape;
-    auto strides = terminals_info.strides;
     if (terminals_info.ndim != 1 || shape[0] != num_agents) {
       throw std::runtime_error("terminals has the wrong shape");
-    }
-    if (strides[0] != sizeof(bool)) {
-      throw std::runtime_error("terminals has the wrong stride");
     }
   }
   {
     auto truncations_info = _truncations.request();
     auto shape = truncations_info.shape;
-    auto strides = truncations_info.strides;
     if (truncations_info.ndim != 1 || shape[0] != num_agents) {
       throw std::runtime_error("truncations has the wrong shape");
-    }
-    if (strides[0] != sizeof(bool)) {
-      throw std::runtime_error("truncations has the wrong stride");
     }
   }
   {
     auto rewards_info = _rewards.request();
     auto shape = rewards_info.shape;
-    auto strides = rewards_info.strides;
     if (rewards_info.ndim != 1 || shape[0] != num_agents) {
       throw std::runtime_error("rewards has the wrong shape");
-    }
-    if (strides[0] != sizeof(float)) {
-      throw std::runtime_error("rewards has the wrong stride");
     }
   }
 }
 
-void MettaGrid::set_buffers(py::array_t<unsigned char>& observations,
-                            py::array_t<bool>& terminals,
-                            py::array_t<bool>& truncations,
-                            py::array_t<float>& rewards) {
+void MettaGrid::set_buffers(py::array_t<unsigned char, py::array::c_style>& observations,
+                            py::array_t<bool, py::array::c_style>& terminals,
+                            py::array_t<bool, py::array::c_style>& truncations,
+                            py::array_t<float, py::array::c_style>& rewards) {
   _observations = observations;
   _terminals = terminals;
   _truncations = truncations;
