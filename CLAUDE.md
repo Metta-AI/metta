@@ -14,11 +14,10 @@ The codebase consists of:
 ## Development Environment Setup
 
 ```bash
-# Create and activate conda environment
-conda create -n metta python=3.11.7
-conda activate metta
+# Install uv if not already installed
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Run setup script
+# Run setup script (creates virtual environment automatically)
 ./devops/setup_build.sh
 
 # Rebuild only mettagrid component

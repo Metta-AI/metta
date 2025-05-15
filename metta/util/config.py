@@ -175,7 +175,7 @@ def setup_metta_environment(cfg: ListConfig | DictConfig, require_aws: bool = Tr
         # Check that W&B is good to go.
         if not check_wandb_credentials():
             print("W&B is not configured, please install:")
-            print("pip install wandb")
+            print("uv pip install wandb")
             print("and run:")
             print("wandb login")
             print("Alternatively, set WANDB_API_KEY or copy ~/.netrc from another machine that has it configured.")

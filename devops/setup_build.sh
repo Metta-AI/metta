@@ -10,6 +10,19 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 if [ -z "$CI" ]; then
   # ========== CLEAN BUILD ARTIFACTS ==========
   echo -e "\n\nCleaning build artifacts...\n\n"
+
+  # Remove virtual environments
+  if [ -d "$PROJECT_DIR/.venv" ]; then
+    echo "Removing .venv virtual environment..."
+    rm -rf "$PROJECT_DIR/.venv"
+    echo "✅ Removed .venv virtual environment"
+  fi
+  if [ -d "$PROJECT_DIR/venv" ]; then
+    echo "Removing venv virtual environment..."
+    rm -rf "$PROJECT_DIR/venv"
+    echo "✅ Removed venv virtual environment"
+  fi
+
   # Clean root directory artifacts
   find "$PROJECT_DIR" -type f -name '*.so' -delete
   find "$PROJECT_DIR" -type d -name 'build' -exec rm -rf {} +
@@ -29,36 +42,111 @@ else
   export IS_DOCKER=false
 fi
 
-# Check if we're in the correct conda environment
-if [ "$CONDA_DEFAULT_ENV" != "metta" ] && [ -z "$CI" ] && [ -z "$IS_DOCKER" ]; then
-  echo "WARNING: You must be in the 'metta' conda environment to run this script."
-  echo "Please activate the correct environment with: \"conda activate metta\""
+# Verify uv is available
+if ! command -v uv &> /dev/null; then
+  # Try to find uv directly in common installation locations
+  UV_BIN=""
+  for possible_path in "$HOME/.cargo/bin/uv" "$HOME/.local/bin/uv"; do
+    if [ -f "$possible_path" ]; then
+      echo "Found uv at $possible_path but it's not in PATH"
+      UV_BIN="$possible_path"
+      break
+    fi
+  done
+
+  if [ -n "$UV_BIN" ]; then
+    echo "Will use uv at $UV_BIN directly"
+    # Define a function to use the full path to uv
+    uv() {
+      "$UV_BIN" "$@"
+    }
+    export -f uv
+  else
+    echo "ERROR: uv command not found in PATH after installation attempts"
+    echo "Current PATH: $PATH"
+    echo "Please install uv manually: curl -LsSf https://astral.sh/uv/install.sh | sh"
+    echo "Then add uv to your PATH and try again"
+    exit 1
+  fi
 fi
 
 # ========== Main Project ==========
 cd "$SCRIPT_DIR/.."
 
-if [ -z "$CI" ] && [ -z "$IS_DOCKER" ]; then
-  echo "Upgrading pip..."
-  python -m pip install --upgrade pip
+# Deactivate any active virtual environment first
+if [ -n "$VIRTUAL_ENV" ]; then
+  echo "Deactivating current virtual environment: $VIRTUAL_ENV"
+  # This is a bit of a hack since 'deactivate' is a function in the activated environment
+  # Using 'command' to temporarily disable the function behavior
+  if [[ "$(type -t deactivate)" == "function" ]]; then
+    deactivate
+    echo "✅ Virtual environment deactivated"
+  fi
+fi
 
-  echo -e "\n\nUninstalling all old python packages...\n\n"
-  pip freeze | grep -v "^-e" > requirements_to_remove.txt
-  pip uninstall -y -r requirements_to_remove.txt || echo "Some packages could not be uninstalled, continuing..."
-  rm requirements_to_remove.txt
+if [ -z "$CI" ] && [ -z "$IS_DOCKER" ]; then
+  # We'll set up the virtual environment later
+  echo -e "\n\nPreparing to set up environment...\n\n"
 fi
 
 # ========== INSTALL PACKAGES BEFORE BUILD ==========
 echo -e "\n\nInstalling main project requirements...\n\n"
-pip install -r requirements.txt
 
-echo -e "\n\nCalling devops/build_mettagrid script...\n\n"
-bash "$SCRIPT_DIR/build_mettagrid.sh"
+# Always create a fresh virtual environment
+echo "Creating a virtual environment with uv..."
+
+# Check and remove existing venv directories if needed
+if [ -d ".venv" ]; then
+  echo "Removing existing .venv directory..."
+  rm -rf .venv
+fi
+if [ -d "venv" ]; then
+  echo "Removing existing venv directory..."
+  rm -rf venv
+fi
+
+echo "Creating new virtual environment..."
+uv venv .venv --python 3.11.7 || {
+  echo "Error: Failed to create virtual environment with uv command."
+  exit 1
+}
+
+# Activate the virtual environment
+if [[ -d ".venv" ]]; then
+  # Activate the venv
+  source .venv/bin/activate
+  echo "✅ Virtual environment '.venv' created and activated"
+
+  echo "Installing project requirements..."
+  uv pip install -r requirements.txt || {
+    if [ -n "$UV_BIN" ]; then
+      echo "Retrying with direct path to uv: $UV_BIN"
+      "$UV_BIN" pip install -r requirements.txt || {
+        echo "❌ Failed to install packages. Please check the error message above."
+        exit 1
+      }
+    else
+      echo "❌ Failed to install packages. Please check the error message above."
+      exit 1
+    fi
+  }
+else
+  echo "❌ Failed to create virtual environment with uv"
+  exit 1
+fi
+
+echo -e "\n\nBuilding mettagrid...\n\n"
+uv run --active --directory mettagrid python setup.py build_ext --inplace
+uv pip install -e mettagrid
 
 # ========== BUILD FAST_GAE ==========
 echo -e "\n\nBuilding from setup.py (metta cython components)\n\n"
 echo "Current working directory: $(pwd)"
-python setup.py build_ext --inplace
+uv run python setup.py build_ext --inplace
+
+# ========== INSTALL SKYPILOT ==========
+echo -e "\n\nInstalling Skypilot...\n\n"
+uv tool install skypilot  --from 'skypilot[aws,vast,lambda]'
 
 # ========== SANITY CHECK ==========
 echo -e "\n\nSanity check: verifying all local deps are importable\n\n"
