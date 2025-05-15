@@ -170,15 +170,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Setup Python and uv
+        id: setup-python-uv
+        uses: ./.github/actions/setup-python-uv
+
       - name: Install C++ dependencies
         run: |
           sudo apt-get install -y g++ cmake
-
-      - name: Install Python dependencies
-        run: |
-          sudo apt-get install -y python3.12-dev
-          pip install pybind11
-          pip install numpy
 
       - name: Restore from build cache
         id: build-cache-cpp
@@ -190,6 +188,7 @@ jobs:
       - name: Build C++ artifacts (cache miss fallback)
         if: steps.build-cache-cpp.outputs.cache-hit != 'true'
         run: |
+          source .venv/bin/activate
           cd mettagrid
           make build-for-ci
 
@@ -226,6 +225,10 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Setup Python and uv
+        id: setup-python-uv
+        uses: ./.github/actions/setup-python-uv
 
       - name: Install C++ dependencies
         run: |
@@ -264,15 +267,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Setup Python and uv
+        id: setup-python-uv
+        uses: ./.github/actions/setup-python-uv
+
       - name: Install C++ dependencies
         run: |
           sudo apt-get install -y g++ libbenchmark-dev jq
-
-      - name: Install Python dependencies
-        run: |
-          sudo apt-get install -y python3.12-dev
-          pip install pybind11
-          pip install numpy
 
       - name: Restore from build cache
         id: benchmark-cache-cpp
@@ -284,11 +285,13 @@ jobs:
       - name: Build C++ artifacts (cache miss fallback)
         if: steps.benchmark-cache-cpp.outputs.cache-hit != 'true'
         run: |
+          source .venv/bin/activate
           cd mettagrid
           make build
 
       - name: Build and run benchmarks with JSON output
         run: |
+          source .venv/bin/activate
           cd mettagrid
           mkdir -p benchmark_output
           echo "Running benchmarks with JSON output..."
