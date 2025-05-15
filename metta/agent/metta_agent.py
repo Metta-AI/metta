@@ -1,5 +1,5 @@
 import logging
-from typing import List, Optional, Union
+from typing import Any, List, Optional, Tuple, Union, cast
 
 import gymnasium as gym
 import hydra
@@ -10,6 +10,7 @@ from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 
 from metta.agent.lib.action import ActionEmbedding
+from metta.agent.lib.metta_layer import LayerBase
 from metta.agent.policy_state import PolicyState
 from metta.agent.util.distribution_utils import sample_logits
 from metta.agent.util.safe_get import safe_get_from_obs_space
@@ -39,37 +40,39 @@ def make_policy(env: MettaGridEnv, cfg: ListConfig | DictConfig):
 
 
 class DistributedMettaAgent(DistributedDataParallel):
-    def __init__(self, agent, device):
+    """Wrapper for MettaAgent to support distributed training with PyTorch DDP."""
+
+    def __init__(self, agent: "MettaAgent", device: Union[torch.device, int]) -> None:
         super().__init__(agent, device_ids=[device], output_device=device)
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         try:
             return super().__getattr__(name)
         except AttributeError:
             return getattr(self.module, name)
 
-    def activate_actions(self, action_names, action_max_params, device):
+    def activate_actions(self, action_names: List[str], action_max_params: List[int], device: torch.device) -> None:
         """Forward activate_actions to the wrapped module."""
         return self.module.activate_actions(action_names, action_max_params, device)
 
     @property
-    def components(self):
+    def components(self) -> nn.ModuleDict:
         """Access the components dictionary from the wrapped module."""
         return self.module.components
 
-    def update_l2_init_weight_copy(self):
+    def update_l2_init_weight_copy(self) -> None:
         """Forward update_l2_init_weight_copy to the wrapped module."""
         return self.module.update_l2_init_weight_copy()
 
-    def l2_reg_loss(self):
+    def l2_reg_loss(self) -> torch.Tensor:
         """Forward l2_reg_loss to the wrapped module."""
         return self.module.l2_reg_loss()
 
-    def l2_init_loss(self):
+    def l2_init_loss(self) -> torch.Tensor:
         """Forward l2_init_loss to the wrapped module."""
         return self.module.l2_init_loss()
 
-    def clip_weights(self):
+    def clip_weights(self) -> None:
         """Forward clip_weights to the wrapped module."""
         return self.module.clip_weights()
 
@@ -129,10 +132,11 @@ class MettaAgent(nn.Module):
             component = hydra.utils.instantiate(component_cfgs[component_key], **agent_attributes)
             self.components[component_name] = component
 
-        component = self.components["_value_"]
-        self._setup_components(component)
-        component = self.components["_action_"]
-        self._setup_components(component)
+        value_component: LayerBase = cast(LayerBase, self.components["_value_"])
+        self._setup_components(value_component)
+
+        action_component: LayerBase = cast(LayerBase, self.components["_action_"])
+        self._setup_components(action_component)
 
         for name, component in self.components.items():
             if not getattr(component, "ready", False):
@@ -145,7 +149,7 @@ class MettaAgent(nn.Module):
         self._total_params = sum(p.numel() for p in self.parameters())
         logger.info(f"Total number of parameters in MettaAgent: {self._total_params:,}. Setup complete.")
 
-    def _setup_components(self, component):
+    def _setup_components(self, component: LayerBase):
         """_sources is a list of dicts albeit many layers simply have one element.
         It must always have a "name" and that name should be the same as the relevant key in self.components.
         source_components is a dict of components that are sources for the current component. The keys
@@ -153,7 +157,8 @@ class MettaAgent(nn.Module):
         # recursively setup all source components
         if component._sources is not None:
             for source in component._sources:
-                self._setup_components(self.components[source["name"]])
+                source_component: LayerBase = cast(LayerBase, self.components[source["name"]])
+                self._setup_components(source_component)
 
         # setup the current component and pass in the source components
         source_components = None
@@ -206,17 +211,27 @@ class MettaAgent(nn.Module):
     def total_params(self):
         return self._total_params
 
-    def forward(self, x: torch.Tensor, state: PolicyState, action: Optional[torch.Tensor] = None):
+    def forward(
+        self,
+        x: torch.Tensor,  # Shape: [B, T, *obs_shape] or [B*T, *obs_shape]
+        state: PolicyState,
+        action: Optional[torch.Tensor] = None,  # Shape: [B, T, 2] or [B*T, 2] if provided
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Forward pass of the MettaAgent.
 
         Args:
-            x: input observation tensor
+            x: input observation tensor of shape [B, T, *obs_shape] or [B*T, *obs_shape]
             state: Policy state containing LSTM hidden and cell states
-            action: Optional action tensor, shape [B, T] or [B*T]
+            action: Optional action tensor, shape [B, T, 2] or [B*T, 2]
 
         Returns:
-            Tuple of (action, logprob_act, entropy, value, logprobs)
+            Tuple of (action, logprob_act, entropy, value, logprobs) where:
+            - action: Tensor of shape [B*T, 2]
+            - logprob_act: Tensor of shape [B*T]
+            - entropy: Tensor of shape [B*T]
+            - value: Tensor of shape [B*T]
+            - logprobs: Tensor of shape [B*T, num_actions]
         """
         # Initialize dictionary for TensorDict
         td = {"x": x, "state": None}
@@ -224,61 +239,99 @@ class MettaAgent(nn.Module):
         # Safely handle LSTM state
         if state.lstm_h is not None and state.lstm_c is not None:
             # Ensure states are on the same device as input
-            lstm_h = state.lstm_h.to(x.device)
-            lstm_c = state.lstm_c.to(x.device)
+            lstm_h = state.lstm_h.to(x.device)  # shape: [num_layers, batch_size, hidden_size]
+            lstm_c = state.lstm_c.to(x.device)  # shape: [num_layers, batch_size, hidden_size]
 
-            # Concatenate LSTM states along dimension 0
-            td["state"] = torch.cat([lstm_h, lstm_c], dim=0)
+            # Concatenate LSTM states along dimension 0 (layer dimension)
+            # Result shape: [2*num_layers, batch_size, hidden_size]
+            # First num_layers rows are lstm_h, next num_layers rows are lstm_c
+            td["state"] = torch.cat([lstm_h, lstm_c], dim=0)  # shape: [2*num_layers, batch_size, hidden_size]
 
         # Forward pass through value network
         self.components["_value_"](td)
-        value = td["_value_"]
+        value = td["_value_"]  # Shape: [B*T]
 
         # Forward pass through action network
         self.components["_action_"](td)
-        logits = td["_action_"]
+        logits = td["_action_"]  # Shape: [B*T, num_actions]
 
         # Update LSTM states
+        # td["state"] shape: [2*num_layers, batch_size, hidden_size]
         split_size = self.core_num_layers
-        state.lstm_h = td["state"][:split_size]
-        state.lstm_c = td["state"][split_size:]
+        # Split the concatenated state back into h and c
+        state.lstm_h = td["state"][:split_size]  # Shape: [num_layers, batch_size, hidden_size]
+        state.lstm_c = td["state"][split_size:]  # Shape: [num_layers, batch_size, hidden_size]
 
         # Sample actions
-        action_logit_index = self._convert_action_to_logit_index(action) if action is not None else None
-        action_logit_index, logprob_act, entropy, logprobs = sample_logits(logits, action_logit_index)
+        action_logit_index: Optional[torch.Tensor] = (
+            self._convert_action_to_logit_index(action) if action is not None else None
+        )
+
+        # The sample_logits function is annotated with:
+        # @torch.jit.script
+        # def sample_logits(logits: Tensor, action: Optional[Tensor] = None) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
+        #
+        # Returns a tuple of (action_indices, log_probs, entropy, all_log_probs)
+        action_indices: torch.Tensor  # Shape: [B*T]
+        log_probs: torch.Tensor  # Shape: [B*T]
+        entropy_val: torch.Tensor  # Shape: [B*T]
+        all_log_probs: torch.Tensor  # Shape: [B*T, num_actions]
+
+        # If action provided, action_logit_index shape: [B*T]
+        action_indices, log_probs, entropy_val, all_log_probs = sample_logits(logits, action_logit_index)
+
+        # action_logit_index: Shape [B*T]
+        # logprob_act: Shape [B*T]
+        # entropy: Shape [B*T]
+        # logprobs: Shape [B*T, num_actions]
 
         # Convert logit index to action if no action was provided, (otherwise return provided action)
         if action is None:
-            action = self._convert_logit_index_to_action(action_logit_index)
+            action = self._convert_logit_index_to_action(action_indices)  # Shape: [B*T, 2]
 
-        return action, logprob_act, entropy, value, logprobs
+        return action, log_probs, entropy_val, value, all_log_probs
 
     def _convert_action_to_logit_index(self, action: torch.Tensor):
         """
         Convert (action_type, action_param) pairs to discrete action indices
         using precomputed offsets.
-        Assumes `cum_action_max_params` maps action types to start indices.
+
+        Assumes `cum_action_max_params` has been pre-calculated.
+
+        Args:
+            action: Tensor of shape [B, T, 2] or [B*T, 2]
+
+        Returns:
+            action_logit_index: Tensor of shape [B*T]
         """
         action = action.reshape(-1, 2)
 
         # Extract action components
-        action_type_numbers = action[:, 0].long()
-        action_params = action[:, 1].long()
+        action_type_numbers = action[:, 0].long()  # Shape: [B*T]
+        action_params = action[:, 1].long()  # Shape: [B*T]
 
         # Use precomputed cumulative sum with vectorized indexing
-        cumulative_sum = self.cum_action_max_params[action_type_numbers]
+        cumulative_sum = self.cum_action_max_params[action_type_numbers]  # Shape: [num_action_types + 1]
 
         # Vectorized addition
-        action_logit_index = action_type_numbers + cumulative_sum + action_params
+        action_logit_index = action_type_numbers + cumulative_sum + action_params  # Shape: [B*T]
 
-        return action_logit_index.view(-1)  # shape: [B] or [B*T]
+        return action_logit_index.view(-1)  # shape: [B*T]
 
-    def _convert_logit_index_to_action(self, action_logit_index: torch.Tensor):
-        """Convert logit indices back to action pairs using tensor indexing"""
+    def _convert_logit_index_to_action(self, action_logit_index: torch.Tensor) -> torch.Tensor:
+        """
+        Convert logit indices back to action pairs using tensor indexing
+
+        Args:
+            action_logit_index: Tensor of shape [B*T]
+
+        Returns:
+            action: Tensor of shape [B*T, 2]
+        """
         # direct tensor indexing on precomputed action_index_tensor
-        return self.action_index_tensor[action_logit_index.reshape(-1)]
+        return self.action_index_tensor[action_logit_index.reshape(-1)]  # Shape: [B*T, 2]
 
-    def _apply_to_components(self, method_name, *args, **kwargs) -> List[torch.Tensor]:
+    def _apply_to_components(self, method_name: str, *args, **kwargs) -> List[torch.Tensor]:
         """
         Apply a method to all components, collecting and returning the results.
 
