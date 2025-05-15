@@ -205,7 +205,7 @@ class MaxPool1d(LayerBase):
     @override
     def _make_net(self) -> nn.Module:
         self._out_tensor_shape = self._in_tensor_shapes[0].copy()
-        return nn.MaxPool1d(self._in_tensor_shapes[0][0], **self._nn_params)
+        return nn.MaxPool1d(self._nn_params["kernel_size"], **self._nn_params)
 
 
 class MaxPool2d(LayerBase):
@@ -221,8 +221,20 @@ class MaxPool2d(LayerBase):
 
     @override
     def _make_net(self) -> nn.Module:
-        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
-        return nn.MaxPool2d(self._in_tensor_shapes[0][0], **self._nn_params)
+        channels = self._in_tensor_shapes[0][0]
+        kernel_size = self._nn_params["kernel_size"]
+        stride = self._nn_params.get("stride", kernel_size)
+        padding = self._nn_params.get("padding", 0)
+
+        # Calculate output dimensions
+        h_in = self._in_tensor_shapes[0][1]
+        w_in = self._in_tensor_shapes[0][2]
+
+        h_out = int(((h_in + 2 * padding - kernel_size) / stride) + 1)
+        w_out = int(((w_in + 2 * padding - kernel_size) / stride) + 1)
+
+        self._out_tensor_shape = [channels, h_out, w_out]
+        return nn.MaxPool2d(kernel_size, **self._nn_params)
 
 
 class AdaptiveAvgPool1d(LayerBase):
@@ -238,8 +250,14 @@ class AdaptiveAvgPool1d(LayerBase):
 
     @override
     def _make_net(self) -> nn.Module:
-        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
-        return nn.AdaptiveAvgPool1d(self._in_tensor_shapes[0][0], **self._nn_params)
+        if "output_size" not in self._nn_params:
+            raise ValueError("output_size must be specified for AdaptiveAvgPool1d")
+
+        output_size = self._nn_params["output_size"]
+        channels = self._in_tensor_shapes[0][0]
+
+        self._out_tensor_shape = [channels, output_size] if isinstance(output_size, int) else [channels, *output_size]
+        return nn.AdaptiveAvgPool1d(output_size)
 
 
 class AdaptiveAvgPool2d(LayerBase):
@@ -255,8 +273,18 @@ class AdaptiveAvgPool2d(LayerBase):
 
     @override
     def _make_net(self) -> nn.Module:
-        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
-        return nn.AdaptiveAvgPool2d(self._in_tensor_shapes[0][0], **self._nn_params)
+        if "output_size" not in self._nn_params:
+            raise ValueError("output_size must be specified for AdaptiveAvgPool2d")
+
+        output_size = self._nn_params["output_size"]
+        channels = self._in_tensor_shapes[0][0]
+
+        if isinstance(output_size, int):
+            self._out_tensor_shape = [channels, output_size, output_size]
+        else:
+            self._out_tensor_shape = [channels, output_size[0], output_size[1]]
+
+        return nn.AdaptiveAvgPool2d(output_size)
 
 
 class AdaptiveMaxPool1d(LayerBase):
@@ -272,8 +300,14 @@ class AdaptiveMaxPool1d(LayerBase):
 
     @override
     def _make_net(self) -> nn.Module:
-        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
-        return nn.AdaptiveMaxPool1d(self._in_tensor_shapes[0][0], **self._nn_params)
+        if "output_size" not in self._nn_params:
+            raise ValueError("output_size must be specified for AdaptiveMaxPool1d")
+
+        output_size = self._nn_params["output_size"]
+        channels = self._in_tensor_shapes[0][0]
+
+        self._out_tensor_shape = [channels, output_size] if isinstance(output_size, int) else [channels, *output_size]
+        return nn.AdaptiveMaxPool1d(output_size)
 
 
 class AdaptiveMaxPool2d(LayerBase):
@@ -289,8 +323,18 @@ class AdaptiveMaxPool2d(LayerBase):
 
     @override
     def _make_net(self) -> nn.Module:
-        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
-        return nn.AdaptiveMaxPool2d(self._in_tensor_shapes[0][0], **self._nn_params)
+        if "output_size" not in self._nn_params:
+            raise ValueError("output_size must be specified for AdaptiveMaxPool2d")
+
+        output_size = self._nn_params["output_size"]
+        channels = self._in_tensor_shapes[0][0]
+
+        if isinstance(output_size, int):
+            self._out_tensor_shape = [channels, output_size, output_size]
+        else:
+            self._out_tensor_shape = [channels, output_size[0], output_size[1]]
+
+        return nn.AdaptiveMaxPool2d(output_size)
 
 
 class AvgPool1d(LayerBase):
@@ -306,8 +350,17 @@ class AvgPool1d(LayerBase):
 
     @override
     def _make_net(self) -> nn.Module:
-        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
-        return nn.AvgPool1d(self._in_tensor_shapes[0][0], **self._nn_params)
+        channels = self._in_tensor_shapes[0][0]
+        length = self._in_tensor_shapes[0][1]
+        kernel_size = self._nn_params["kernel_size"]
+        stride = self._nn_params.get("stride", kernel_size)
+        padding = self._nn_params.get("padding", 0)
+
+        # Calculate output dimension
+        out_length = int(((length + 2 * padding - kernel_size) / stride) + 1)
+
+        self._out_tensor_shape = [channels, out_length]
+        return nn.AvgPool1d(kernel_size, **self._nn_params)
 
 
 class AvgPool2d(LayerBase):
@@ -323,8 +376,19 @@ class AvgPool2d(LayerBase):
 
     @override
     def _make_net(self) -> nn.Module:
-        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
-        return nn.AvgPool2d(self._in_tensor_shapes[0][0], **self._nn_params)
+        channels = self._in_tensor_shapes[0][0]
+        h_in = self._in_tensor_shapes[0][1]
+        w_in = self._in_tensor_shapes[0][2]
+        kernel_size = self._nn_params["kernel_size"]
+        stride = self._nn_params.get("stride", kernel_size)
+        padding = self._nn_params.get("padding", 0)
+
+        # Calculate output dimensions
+        h_out = int(((h_in + 2 * padding - kernel_size) / stride) + 1)
+        w_out = int(((w_in + 2 * padding - kernel_size) / stride) + 1)
+
+        self._out_tensor_shape = [channels, h_out, w_out]
+        return nn.AvgPool2d(kernel_size, **self._nn_params)
 
 
 class Dropout(LayerBase):
