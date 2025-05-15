@@ -5,6 +5,7 @@ import torch
 
 # Import the actual class
 from metta.agent.metta_agent import MettaAgent
+from metta.agent.util.distribution_utils import sample_logits
 
 
 @pytest.fixture
@@ -456,20 +457,142 @@ def test_action_conversion_edge_cases(create_metta_agent):
     assert torch.all(result == torch.tensor([0, 9]))
 
 
-def test_numpy_array_conversion(create_metta_agent):
+def test_action_use(create_metta_agent):
     agent, _, _ = create_metta_agent
 
-    # Test that numpy arrays are converted to lists
+    # Set up action space
     action_names = ["action0", "action1", "action2"]
-    # Use numpy array
     action_max_params = [1, 2, 0]
     agent.activate_actions(action_names, action_max_params, "cpu")
 
-    # Verify the agent correctly converted to list internally
+    # Verify the agent correctly stored the list internally
     assert isinstance(agent.action_max_params, list)
     assert agent.action_max_params == [1, 2, 0]
 
     # Verify the offsets were calculated correctly
     expected_offsets = torch.tensor([0, 1, 3, 3], dtype=torch.long, device="cpu")
-
     assert torch.all(agent.cum_action_max_params == expected_offsets)
+
+    # Verify action_index_tensor was created correctly
+    expected_action_index = torch.tensor(
+        [
+            [0, 0],
+            [0, 1],  # action0 with params 0, 1
+            [1, 0],
+            [1, 1],
+            [1, 2],  # action1 with params 0, 1, 2
+            [2, 0],  # action2 with param 0
+        ],
+        device="cpu",
+    )
+    assert torch.all(agent.action_index_tensor == expected_action_index)
+
+    # Test _convert_action_to_logit_index
+    actions = torch.tensor(
+        [
+            [0, 0],  # should map to index 0
+            [0, 1],  # should map to index 1
+            [1, 0],  # should map to index 2
+            [1, 2],  # should map to index 4
+            [2, 0],  # should map to index 5
+        ],
+        device="cpu",
+    )
+
+    expected_indices = torch.tensor([0, 1, 2, 4, 5], device="cpu")
+    action_logit_indices = agent._convert_action_to_logit_index(actions)
+    assert torch.all(action_logit_indices == expected_indices)
+
+    # Test _convert_logit_index_to_action (reverse mapping)
+    dummy_td = {}
+    reconstructed_actions = agent._convert_logit_index_to_action(expected_indices, dummy_td)
+    assert torch.all(reconstructed_actions == actions)
+
+    # Now let's test sample_logits with our converted actions
+    batch_size = 5
+    num_total_actions = sum([param + 1 for param in action_max_params])
+
+    # Create logits where the highest value corresponds to our test actions
+    # This makes sampling deterministic for testing
+    logits = torch.full((batch_size, num_total_actions), -10.0, device="cpu")
+
+    # Make the logits corresponding to our actions very high to ensure deterministic sampling
+    for i in range(batch_size):
+        logits[i, expected_indices[i]] = 10.0
+
+    # Test sample_logits with provided actions (action_logit_index)
+    sampled_indices, logprobs, entropy, log_softmax = sample_logits(logits, expected_indices)
+
+    # Verify indices match what we provided
+    assert torch.all(sampled_indices == expected_indices)
+
+    # Verify logprobs and entropy have the expected shapes
+    assert logprobs.shape == expected_indices.shape
+    assert entropy.shape == (batch_size,)
+    assert log_softmax.shape == logits.shape
+
+    # Test sample_logits without provided actions (sampling mode)
+    sampled_indices2, logprobs2, entropy2, log_softmax2 = sample_logits(logits)
+
+    # With our strongly biased logits, sampling should return the same indices
+    assert torch.all(sampled_indices2 == expected_indices)
+
+    # Convert sampled indices back to actions
+    sampled_actions = agent._convert_logit_index_to_action(sampled_indices2, dummy_td)
+    assert torch.all(sampled_actions == actions)
+
+    # Test with a different batch
+    batch_size2 = 3
+    test_actions2 = torch.tensor(
+        [
+            [1, 1],  # should map to index 3
+            [2, 0],  # should map to index 5
+            [0, 0],  # should map to index 0
+        ],
+        device="cpu",
+    )
+
+    expected_indices2 = torch.tensor([3, 5, 0], device="cpu")
+    batch_logit_indices = agent._convert_action_to_logit_index(test_actions2)
+    assert torch.all(batch_logit_indices == expected_indices2)
+
+    # Create logits for this batch
+    logits2 = torch.full((batch_size2, num_total_actions), -10.0, device="cpu")
+    for i in range(batch_size2):
+        logits2[i, expected_indices2[i]] = 10.0
+
+    # Test sampling without providing indices
+    sampled_indices3, logprobs3, entropy3, log_softmax3 = sample_logits(logits2)
+
+    # Again, with biased logits, we should get deterministic results
+    assert torch.all(sampled_indices3 == expected_indices2)
+
+    # Convert back to actions and verify
+    sampled_actions2 = agent._convert_logit_index_to_action(sampled_indices3, dummy_td)
+    assert torch.all(sampled_actions2 == test_actions2)
+
+    # Finally, test the whole flow as it would happen in forward:
+    # 1. Convert actions to logit indices
+    # 2. Pass to sample_logits
+    # 3. Convert sampled indices back to actions
+
+    test_actions3 = torch.tensor([[0, 0], [1, 1]], device="cpu")
+
+    logit_indices = agent._convert_action_to_logit_index(test_actions3)
+
+    # Create logits for deterministic sampling
+    logits3 = torch.full((2, num_total_actions), -10.0, device="cpu")
+    for i in range(2):
+        logits3[i, logit_indices[i]] = 10.0
+
+    # Sample with provided indices (like in forward when action is provided)
+    sampled_indices4, logprobs4, entropy4, log_softmax4 = sample_logits(logits3, logit_indices)
+
+    # Verify indices match
+    assert torch.all(sampled_indices4 == logit_indices)
+
+    # Convert back to actions
+    reconstructed_actions4 = agent._convert_logit_index_to_action(sampled_indices4, dummy_td)
+
+    # Verify round-trip conversion
+    assert torch.all(reconstructed_actions4 == test_actions3)

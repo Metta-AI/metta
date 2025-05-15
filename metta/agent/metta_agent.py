@@ -1,5 +1,5 @@
 import logging
-from typing import List, Union
+from typing import List, Optional, Union
 
 import gymnasium as gym
 import hydra
@@ -174,7 +174,7 @@ class MettaAgent(nn.Module):
     def total_params(self):
         return self._total_params
 
-    def forward(self, x, state: PolicyState, action=None):
+    def forward(self, x, state: PolicyState, action: Optional[torch.Tensor] = None):
         """
         Forward pass of the MettaAgent.
 
