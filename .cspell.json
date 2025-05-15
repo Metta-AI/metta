@@ -21,6 +21,7 @@
     "cimport",
     "cinit",
     "cleanrl",
+    "Clippable",
     "clocale",
     "clusterissuer",
     "cmath",

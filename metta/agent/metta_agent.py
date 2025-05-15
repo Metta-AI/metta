@@ -341,8 +341,14 @@ class MettaAgent(nn.Module):
 
         Returns:
             The LSTM network used as the agent's core recurrent component
+
+        Raises:
+            TypeError: If _core_._net is not an nn.Module
         """
-        return self.components["_core_"]._net
+        core_net = self.components["_core_"]._net
+        if not isinstance(core_net, nn.Module):
+            raise TypeError(f"Expected core_net to be nn.Module, got {type(core_net)}")
+        return core_net
 
     @property
     def total_params(self) -> int:
@@ -388,7 +394,7 @@ class MettaAgent(nn.Module):
             The LSTM state in the provided PolicyState object is updated in-place.
         """
         # Initialize TensorDict for data flow
-        td = TensorDict({"x": x, "state": None}, batch_size=x.shape[0])
+        td = TensorDict({"x": x, "state": torch.tensor([], device=x.device)}, batch_size=x.shape[0])
 
         # Safely handle LSTM state
         if state.lstm_h is not None and state.lstm_c is not None:
@@ -623,7 +629,9 @@ class MettaAgent(nn.Module):
             method = getattr(component, method_name)
             assert callable(method), f"Component '{name}' has {method_name} attribute but it's not callable"
 
-            results[name] = method(delta)
+            metric_result = method(delta)
+            if isinstance(metric_result, dict):
+                results[name] = cast(Dict[str, float], metric_result)
 
         metrics_list = [metrics for metrics in results.values() if metrics is not None]
         return metrics_list

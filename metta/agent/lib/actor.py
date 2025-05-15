@@ -4,8 +4,76 @@ import torch
 import torch.nn as nn
 from einops import rearrange, repeat
 from tensordict import TensorDict
+from typing_extensions import override
 
 from metta.agent.lib.metta_layer import LayerBase
+
+
+class BilinearNetwork(nn.Module):
+    """
+    A custom bilinear network implementation with improved performance.
+
+    This neural network module implements a bilinear transformation between hidden states
+    and action embeddings, followed by optional MLP processing. It uses efficient tensor
+    operations with einsum, which provides significantly better performance (approximately 10x)
+    compared to using nn.Bilinear directly.
+
+    The network computes bilinear interactions between hidden states and action embeddings,
+    applies specified activation functions, and processes through an optional MLP to produce
+    final outputs.
+    """
+
+    def __init__(self, W, bias, relu=None, tanh=None, mlp=None):
+        """
+        Initialize the BilinearNetwork with the necessary parameters and submodules.
+
+        Args:
+            W: Parameter tensor of shape [output_dim, hidden_dim, embed_dim] for the bilinear transformation
+            bias: Parameter tensor of shape [output_dim] for bilinear output bias
+            relu: Optional ReLU activation module (default: None)
+            tanh: Optional Tanh activation module (default: None)
+            mlp: Optional MLP module for further processing bilinear outputs (default: None)
+        """
+        super().__init__()
+
+        # Initialize bilinear parameters
+        self.W = W
+        self.bias = bias
+
+        # Activation functions
+        self.relu = relu
+        self.tanh = tanh
+
+        # Final MLP layers
+        self.mlp = mlp
+
+    def forward(self, hidden_states, action_embeds):
+        """
+        Forward pass for the bilinear network.
+
+        Computes a bilinear transformation between hidden states and action embeddings,
+        followed by optional activation and MLP processing.
+
+        Args:
+            hidden_states: Tensor of shape [batch_size, hidden_dim] containing agent state
+            action_embeds: Tensor of shape [batch_size, embed_dim] containing action embeddings
+
+        Returns:
+            Tensor containing processed bilinear outputs, either raw scores or processed through MLP
+        """
+        # Custom bilinear transformation using einsum for better performance
+        # Equivalent to: x1 @ W @ x2.T + bias
+        bilinear_output = torch.einsum("bi,oij,bj->bo", hidden_states, self.W, action_embeds) + self.bias
+
+        # Apply activation if available
+        if self.relu is not None:
+            bilinear_output = self.relu(bilinear_output)
+
+        # Apply MLP if available
+        if self.mlp is not None:
+            return self.mlp(bilinear_output)
+
+        return bilinear_output
 
 
 class MettaActorBig(LayerBase):
@@ -31,11 +99,30 @@ class MettaActorBig(LayerBase):
     """
 
     def __init__(self, mlp_hidden_dim=512, bilinear_output_dim=32, **cfg):
+        """
+        Initialize the MettaActorBig layer.
+
+        Args:
+            mlp_hidden_dim: Dimension of the hidden layer in the MLP (default: 512)
+            bilinear_output_dim: Output dimension of the bilinear transformation (default: 32)
+            **cfg: Additional configuration parameters for the base layer
+        """
         super().__init__(**cfg)
         self.mlp_hidden_dim = mlp_hidden_dim  # this is hardcoded for a two layer MLP
         self.bilinear_output_dim = bilinear_output_dim
 
-    def _make_net(self):
+    @override
+    def _make_net(self) -> nn.Module:
+        """
+        Create and initialize the bilinear network module.
+
+        This method constructs a custom BilinearNetwork that combines a manually implemented
+        bilinear layer (for performance) with an MLP. The resulting network processes two
+        inputs: hidden states and action embeddings.
+
+        Returns:
+            A PyTorch module implementing the bilinear network architecture
+        """
         self.hidden = self._in_tensor_shapes[0][0]  # input_1 dim
         self.embed_dim = self._in_tensor_shapes[1][1]  # input_2 dim (_action_embeds_)
 
@@ -53,14 +140,34 @@ class MettaActorBig(LayerBase):
             nn.Linear(self.mlp_hidden_dim, 1),
         )
 
+        # Return the BilinearNetwork with initialized parameters
+        return BilinearNetwork(W=self.W, bias=self.bias, relu=self._relu, tanh=self._tanh, mlp=self._MLP)
+
     def _init_weights(self):
-        """Kaiming (He) initialization"""
+        """
+        Initialize weights using Kaiming (He) initialization.
+
+        This method initializes the bilinear weights (W) and bias with uniform
+        distribution scaled based on the input dimension.
+        """
         bound = 1 / math.sqrt(self.hidden) if self.hidden > 0 else 0
         nn.init.uniform_(self.W, -bound, bound)
         if self.bias is not None:
             nn.init.uniform_(self.bias, -bound, bound)
 
     def _forward(self, td: TensorDict):
+        """
+        Forward pass for the MettaActorBig layer.
+
+        Processes hidden states and action embeddings through the bilinear network
+        to produce action logits.
+
+        Args:
+            td: TensorDict containing input tensors with keys matching source names
+
+        Returns:
+            Updated TensorDict with action logits added under this layer's name
+        """
         hidden = td[self._sources[0]["name"]]  # Shape: [B*TT, hidden]
         action_embeds = td[self._sources[1]["name"]]  # Shape: [B*TT, num_actions, embed_dim]
 
@@ -114,9 +221,25 @@ class MettaActorSingleHead(LayerBase):
     """
 
     def __init__(self, **cfg):
+        """
+        Initialize the MettaActorSingleHead layer.
+
+        Args:
+            **cfg: Configuration parameters for the base layer
+        """
         super().__init__(**cfg)
 
-    def _make_net(self):
+    @override
+    def _make_net(self) -> nn.Module:
+        """
+        Create and initialize the simplified bilinear network module.
+
+        This method constructs a BilinearNetwork with a single output dimension and
+        no MLP, optimized for simpler action selection tasks.
+
+        Returns:
+            A PyTorch module implementing the simplified bilinear network
+        """
         self.hidden = self._in_tensor_shapes[0][0]  # input_1 dim
         self.embed_dim = self._in_tensor_shapes[1][1]  # input_2 dim (_action_embeds_)
 
@@ -126,14 +249,34 @@ class MettaActorSingleHead(LayerBase):
         self._tanh = nn.Tanh()
         self._init_weights()
 
+        # Return the simplified BilinearNetwork with initialized parameters
+        return BilinearNetwork(W=self.W, bias=self.bias, tanh=self._tanh)
+
     def _init_weights(self):
-        """Kaiming (He) initialization"""
+        """
+        Initialize weights using Kaiming (He) initialization.
+
+        This method initializes the bilinear weights (W) and bias with uniform
+        distribution scaled based on the input dimension.
+        """
         bound = 1 / math.sqrt(self.hidden) if self.hidden > 0 else 0
         nn.init.uniform_(self.W, -bound, bound)
         if self.bias is not None:
             nn.init.uniform_(self.bias, -bound, bound)
 
     def _forward(self, td: TensorDict):
+        """
+        Forward pass for the MettaActorSingleHead layer.
+
+        Processes hidden states and action embeddings through the simplified
+        bilinear network to produce action logits.
+
+        Args:
+            td: TensorDict containing input tensors with keys matching source names
+
+        Returns:
+            Updated TensorDict with action logits added under this layer's name
+        """
         hidden = td[self._sources[0]["name"]]  # Shape: [B*TT, hidden]
         action_embeds = td[self._sources[1]["name"]]  # Shape: [B*TT, num_actions, embed_dim]
 

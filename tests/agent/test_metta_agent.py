@@ -209,12 +209,12 @@ def test_clip_weights_raises_attribute_error(create_metta_agent):
     agent.components["bad_comp"] = IncompleteComponent()
 
     # Verify that an AttributeError is raised
-    with pytest.raises(AttributeError) as excinfo:
+    with pytest.raises(AttributeError) as exception:
         agent.clip_weights()
 
     # Check the error message
-    assert "bad_comp" in str(excinfo.value)
-    assert "clip_weights" in str(excinfo.value)
+    assert "bad_comp" in str(exception.value)
+    assert "clip_weights" in str(exception.value)
 
 
 def test_clip_weights_with_non_callable(create_metta_agent):
@@ -224,11 +224,11 @@ def test_clip_weights_with_non_callable(create_metta_agent):
     comp1.clip_weights = "Not a function"
 
     # Verify a TypeError is raised
-    with pytest.raises(TypeError) as excinfo:
+    with pytest.raises(TypeError) as exception:
         agent.clip_weights()
 
     # Check the error message
-    assert "not callable" in str(excinfo.value)
+    assert "not callable" in str(exception.value)
 
 
 def test_l2_reg_loss_sums_component_losses(create_metta_agent):
@@ -269,12 +269,12 @@ def test_l2_reg_loss_raises_attribute_error(create_metta_agent):
     agent.components["_core_"] = IncompleteComponent()
 
     # Verify that an AttributeError is raised
-    with pytest.raises(AttributeError) as excinfo:
+    with pytest.raises(AttributeError) as exception:
         agent.l2_reg_loss()
 
     # Check the error message mentions the missing method
     # Don't rely on a specific component name in the error message
-    error_msg = str(excinfo.value)
+    error_msg = str(exception.value)
     assert "does not have method 'l2_reg_loss'" in error_msg
 
 
@@ -286,11 +286,11 @@ def test_l2_reg_loss_raises_error_for_different_shapes(create_metta_agent):
     comp2.l2_reg_loss = lambda: torch.tensor(0.5)  # scalar tensor
 
     # Verify that a RuntimeError is raised due to different tensor shapes
-    with pytest.raises(RuntimeError) as excinfo:
+    with pytest.raises(RuntimeError) as exception:
         agent.l2_reg_loss()
 
     # Check that the error message mentions the tensor shape mismatch
-    assert "expects each tensor to be equal size" in str(excinfo.value)
+    assert "expects each tensor to be equal size" in str(exception.value)
 
 
 def test_l2_init_loss_raises_error_for_different_shapes(create_metta_agent):
@@ -301,11 +301,11 @@ def test_l2_init_loss_raises_error_for_different_shapes(create_metta_agent):
     comp2.l2_init_loss = lambda: torch.tensor(0.5)  # scalar tensor
 
     # Verify that a RuntimeError is raised due to different tensor shapes
-    with pytest.raises(RuntimeError) as excinfo:
+    with pytest.raises(RuntimeError) as exception:
         agent.l2_init_loss()
 
     # Check that the error message mentions the tensor shape mismatch
-    assert "expects each tensor to be equal size" in str(excinfo.value)
+    assert "expects each tensor to be equal size" in str(exception.value)
 
 
 def test_l2_reg_loss_with_non_callable(create_metta_agent):
@@ -315,11 +315,11 @@ def test_l2_reg_loss_with_non_callable(create_metta_agent):
     comp1.l2_reg_loss = "Not a function"
 
     # Verify a TypeError is raised
-    with pytest.raises(TypeError) as excinfo:
+    with pytest.raises(TypeError) as exception:
         agent.l2_reg_loss()
 
     # Check the error message
-    assert "not callable" in str(excinfo.value)
+    assert "not callable" in str(exception.value)
 
 
 def test_l2_reg_loss_empty_components(create_metta_agent):
@@ -329,11 +329,11 @@ def test_l2_reg_loss_empty_components(create_metta_agent):
     agent.components = torch.nn.ModuleDict({})
 
     # Verify an assertion error is raised when no components exist
-    with pytest.raises(AssertionError) as excinfo:
+    with pytest.raises(AssertionError) as exception:
         agent.l2_reg_loss()
 
     # Check the error message
-    assert "No components available" in str(excinfo.value)
+    assert "No components available" in str(exception.value)
 
 
 def test_convert_action_to_logit_index(create_metta_agent):

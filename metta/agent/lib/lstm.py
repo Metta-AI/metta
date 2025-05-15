@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from tensordict import TensorDict
+from typing_extensions import override
 
 from metta.agent.lib.metta_layer import LayerBase
 
@@ -34,6 +35,7 @@ class LSTM(LayerBase):
         self.num_layers = self._nn_params["num_layers"]
         self._out_tensor_shape = [self.hidden_size]
 
+    @override
     def _make_net(self) -> nn.Module:
         net = nn.LSTM(self._in_tensor_shapes[0][0], self.hidden_size, **self._nn_params)
 
