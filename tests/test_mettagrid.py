@@ -73,11 +73,11 @@ def test_truncation_at_max_steps():
 
 def test_observation():
     env = create_minimal_mettagrid_env()
+    wall_feature_idx = env.grid_features().index("wall")
     obs, info = env.reset()
-    print(obs)
     # Agent 0 starts at (1,1) and should see walls above and to the left
     # for now we treat the walls as "something non-empty"
-    assert obs[0, 0, 1, :].any(), "Expected wall above agent 0"
-    assert obs[0, 1, 0, :].any(), "Expected wall to left of agent 0"
+    assert obs[0, 0, 1, wall_feature_idx] == 1, "Expected wall above agent 0"
+    assert obs[0, 1, 0, wall_feature_idx] == 1, "Expected wall to left of agent 0"
     assert not obs[0, 2, 1, :].any(), "Expected empty space below agent 0"
     assert not obs[0, 1, 2, :].any(), "Expected empty space to right of agent 0"
