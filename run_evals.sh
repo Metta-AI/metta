@@ -46,6 +46,7 @@ for i in "${!POLICIES[@]}"; do
         run=navigation$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         sim_job.stats_db_uri=wandb://stats/navigation_db \
+        sim_job.replay_dir=s3://softmax-public/replays/evals \
 
     # python3 -m tools.sim \
     #     sim=multiagent \
@@ -59,12 +60,13 @@ for i in "${!POLICIES[@]}"; do
         run=memory$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         sim_job.stats_db_uri=wandb://stats/memory_db \
-
+        sim_job.replay_dir=s3://softmax-public/replays/evals \
     python3 -m tools.sim \
         sim=object_use \
         run=objectuse$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         sim_job.stats_db_uri=wandb://stats/objectuse_db \
+        sim_job.replay_dir=s3://softmax-public/replays/evals \
 
 done
 
