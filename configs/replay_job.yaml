@@ -1,15 +1,17 @@
 defaults:
   - common
   - wandb: metta_research
-  - /sim/sim_single@replay_job.sim
+  - sim: simple
   - _self_
 
-cmd: play
+run: ???
+policy_uri: ???
 
 replay_job:
-  sim:
-    env: env/mettagrid/simple
-  policy_uri: ???
+  sim: ${sim}
+  policy_uri: ${policy_uri}
   selector_type: top
   stats_dir: ${run_dir}/stats
   replay_dir: s3://softmax-public/replays/local
+
+cmd: play

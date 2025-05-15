@@ -15,25 +15,6 @@
             ],
         },
         {
-            "name": "Github Smoke Test (Train)",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "tools.train",
-            "args": [
-                "+hardware=github",
-                "wandb=off",
-            ],
-        },
-        {
-            "name": "Github Smoke Test (Replay)",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "tools.replay",
-            "args": [
-                "+hardware=github",
-                "wandb=off",
-            ],
-        }, {
             "name": "Sweep: Init",
             "type": "debugpy",
             "request": "launch",
@@ -100,14 +81,14 @@
             ],
         },
         {
-            // This is left over from merging mettagrid into metta. It doesn't
-            // look like it should have been working before the merge, but it
-            // seems probably straightforward to fix.
-            "name": "MettaGrid: PerfTest",
+            "name": "Play Metta",
             "type": "debugpy",
             "request": "launch",
-            "module": "test_perf",
-            "preLaunchTask": "build_cython_extensions"
-        }
+            "module": "tools.play",
+            "args": [
+                "+user=${env:USER}",
+                "+hardware=macbook",
+            ],
+        },
     ],
 }

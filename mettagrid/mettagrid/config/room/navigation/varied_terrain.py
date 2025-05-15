@@ -19,6 +19,7 @@ The build order is:
 from typing import List, Optional, Tuple
 
 import numpy as np
+from omegaconf import DictConfig
 
 from mettagrid.config.room.room import Room
 
@@ -28,7 +29,6 @@ class VariedTerrain(Room):
     # These counts are intentionally moderate.
     STYLE_PARAMETERS = {
         "all-sparse": {
-            "hearts_count": 15,
             "large_obstacles": {"size_range": [10, 25], "count": [0, 2]},
             "small_obstacles": {"size_range": [3, 6], "count": [0, 2]},
             "crosses": {"count": [0, 2]},
@@ -38,7 +38,6 @@ class VariedTerrain(Room):
             "clumpiness": [0, 2],
         },
         "balanced": {
-            "hearts_count": 75,
             "large_obstacles": {"size_range": [10, 25], "count": [3, 7]},
             "small_obstacles": {"size_range": [3, 6], "count": [3, 7]},
             "crosses": {"count": [3, 7]},
@@ -48,7 +47,6 @@ class VariedTerrain(Room):
             "clumpiness": [1, 3],
         },
         "sparse-altars-dense-objects": {
-            "hearts_count": 25,
             "large_obstacles": {"size_range": [10, 25], "count": [8, 15]},
             "small_obstacles": {"size_range": [3, 6], "count": [8, 15]},
             "crosses": {"count": [7, 15]},
@@ -59,7 +57,6 @@ class VariedTerrain(Room):
         },
         # New style: maze-like with predominant labyrinth features.
         "maze": {
-            "hearts_count": 25,  # Altars placed after obstacles; keeps the grid sparse for maze corridors.
             "large_obstacles": {"size_range": [10, 25], "count": [0, 2]},  # Disable large obstacles.
             "small_obstacles": {"size_range": [3, 6], "count": [0, 2]},  # Disable small obstacles.
             "crosses": {"count": [0, 2]},  # No cross obstacles.
@@ -74,25 +71,22 @@ class VariedTerrain(Room):
         self,
         width: int,
         height: int,
+        objects: DictConfig,
         agents: int | dict = 1,
         seed: Optional[int] = None,
         border_width: int = 0,
         border_object: str = "wall",
         occupancy_threshold: float = 0.66,  # maximum fraction of grid cells to occupy
         style: str = "balanced",
-        team: str | None = None,
+        teams: list | None = None,
     ):
         super().__init__(border_width=border_width, border_object=border_object, labels=[style])
-
-        width = np.random.randint(40, 100)
-        height = np.random.randint(40, 100)
-
         self.set_size_labels(width, height)
         self._rng = np.random.default_rng(seed)
         self._width = width
         self._height = height
         self._agents = agents
-        self._team = team
+        self._teams = teams
         self._occupancy_threshold = occupancy_threshold
 
         if style not in self.STYLE_PARAMETERS:
@@ -110,7 +104,6 @@ class VariedTerrain(Room):
             "labyrinths": 72,  # rough estimate for labyrinth wall area
             "scattered_walls": 1,
             "blocks": 64,  # approximate average block area (e.g., 8x8)
-            "hearts_count": 1,
         }
 
         # Allowed fraction of the room that obstacles of each type may occupy.
@@ -136,15 +129,18 @@ class VariedTerrain(Room):
             "count": clamp_count(base_params["scattered_walls"]["count"], avg_sizes["scattered_walls"])
         }
         self._blocks = {"count": clamp_count(base_params["blocks"]["count"], avg_sizes["blocks"])}
-        self._hearts_count = base_params["hearts_count"]
+        self._objects = objects
 
     def _build(self) -> np.ndarray:
         # Prepare agent symbols.
-        if self._team is None:
+        if self._teams is None:
             if isinstance(self._agents, int):
                 agents = ["agent.agent"] * self._agents
         else:
-            agents = ["agent." + self._team] * self._agents
+            agents = []
+            agents_per_team = self._agents // len(self._teams)
+            for team in self._teams:
+                agents += ["agent." + team] * agents_per_team
 
         # Create an empty grid.
         grid = np.full((self._height, self._width), "empty", dtype=object)
@@ -156,15 +152,7 @@ class VariedTerrain(Room):
         grid = self._place_all_obstacles(grid)
         grid = self._place_scattered_walls(grid)
         grid = self._place_blocks(grid)
-        # Place altars.
-        num_altars = np.where(grid == "altar", 1, 0).sum()
-        for _ in range(self._hearts_count - num_altars):
-            pos = self._choose_random_empty()
-            if pos is None:
-                break
-            r, c = pos
-            grid[r, c] = "altar"
-            self._occupancy[r, c] = True
+
         # Place agents.
         for agent in agents:
             pos = self._choose_random_empty()
@@ -173,6 +161,18 @@ class VariedTerrain(Room):
             r, c = pos
             grid[r, c] = agent
             self._occupancy[r, c] = True
+
+        # Place objects.
+        for obj_name, obj_count in self._objects.items():
+            num_objs_to_place = obj_count - np.where(grid == obj_name, 1, 0).sum()
+            if num_objs_to_place > 0:
+                for _ in range(num_objs_to_place):
+                    pos = self._choose_random_empty()
+                    if pos is None:
+                        break
+                    r, c = pos
+                    grid[r, c] = obj_name
+                    self._occupancy[r, c] = True
 
         return grid
 
