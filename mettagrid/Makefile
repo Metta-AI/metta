@@ -33,14 +33,39 @@ DEVOPS_SCRIPTS_DIR = ../devops
 
 # Compiler settings
 CXX = g++
-PYBIND11_INCLUDE = $(shell python -m pybind11 --includes)
-PYBIND11_LIBS = $(shell python -m pybind11 --includes)
-NUMPY_INCLUDE = $(shell python -c "import numpy; print(numpy.get_include())")
-PYTHON_INCLUDE = $(shell python -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())")
-PYTHON_VERSION = $(shell python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
-PYTHON_LIB_DIR = $(shell python3 -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR'))")
+
+# Get the project root directory (where the Makefile is located)
+PROJECT_ROOT := $(shell pwd)
+
+# Define virtual environment path relative to the project root
+VENV_RELATIVE_PATH := ../.venv
+VENV_ROOT := $(shell realpath $(PROJECT_ROOT)/$(VENV_RELATIVE_PATH))
+VENV_PYTHON := $(VENV_ROOT)/bin/python
+
+# Get Python paths directly from the interpreter
+PYTHON_VERSION := $(shell $(VENV_PYTHON) -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
+PYTHON_STDLIB := $(shell $(VENV_PYTHON) -c "import sysconfig; print(sysconfig.get_path('stdlib'))")
+PYTHON_DYNLOAD := $(PYTHON_STDLIB)/lib-dynload
+PYTHON_SITE_PACKAGES := $(shell $(VENV_PYTHON) -c "import site; print(site.getsitepackages()[0])")
+PYTHON_LIB_DIR := $(shell $(VENV_PYTHON) -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR'))")
+PYBIND11_INCLUDE = $(shell $(VENV_PYTHON) -c "import pybind11; print(pybind11.get_include())")
+UV_ROOT := $(shell dirname $(PYTHON_STDLIB))
+
+# Print the paths for debugging
+$(info VENV_ROOT: $(VENV_ROOT))
+$(info UV_ROOT: $(UV_ROOT))
+$(info PYTHON_STDLIB: $(PYTHON_STDLIB))
+$(info PYTHON_SITE_PACKAGES: $(PYTHON_SITE_PACKAGES))
+$(info PYTHON_LIB_DIR: $(PYTHON_LIB_DIR))
+
+# Update the Python library definitions
+PYTHON_INCLUDE = $(shell $(VENV_PYTHON) -c "from sysconfig import get_path; print(get_path('include'))")
 PYTHON_LIBS = -L$(PYTHON_LIB_DIR) -lpython$(PYTHON_VERSION)
-CXXFLAGS = -std=c++23 -Wall -g -I$(SRC_DIR) -I$(THIRD_PARTY_DIR) -I$(TEST_DIR) -I$(EIGEN_INCLUDE) -I$(PYBIND11_INCLUDE) -I$(NUMPY_INCLUDE) -I$(PYTHON_INCLUDE)
+
+# Define CXXFLAGS with all the necessary includes
+CXXFLAGS = -std=c++23 -Wall -g -I$(SRC_DIR) -I$(THIRD_PARTY_DIR) -I$(TEST_DIR) -I$(PYTHON_INCLUDE) -I$(PYBIND11_INCLUDE) $(NUMPY_INCLUDE)
+# Add Python path definitions to CXXFLAGS
+CXXFLAGS += -DPYTHON_HOME=\"$(UV_ROOT)\" -DPYTHON_STDLIB=\"$(PYTHON_STDLIB)\"
 
 # Add RPATH settings for macOS
 ifeq ($(shell uname), Darwin)
@@ -217,10 +242,12 @@ $(BUILD_TEST_DIR)/%: $(BUILD_TEST_DIR)/%.o $(SRC_OBJECTS)
 
 # Run all tests
 test: check-test-tools $(SRC_OBJECTS) $(TEST_EXECUTABLES)
-	@echo "Running all tests..."
+	@echo "Running all tests with Python environment..."
 	@for test in $(TEST_EXECUTABLES); do \
 		echo "Running $$test"; \
-		$$test --gtest_color=yes; \
+		PYTHONHOME="$(UV_ROOT)" \
+		PYTHONPATH="$(PYTHON_STDLIB):$(PYTHON_DYNLOAD):$(PYTHON_SITE_PACKAGES)" \
+		$$test --gtest_color=yes || exit 1; \
 	done
 
 # Test a specific test file

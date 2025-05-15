@@ -25,6 +25,8 @@ def test_mettagrid_env_init(cfg):
 
 def test_mettagrid_env_reset(cfg):
     """Test that the MettaGridEnv can be reset multiple times without memory leaks."""
+
+    print(cfg)
     env = MettaGridEnv(env_cfg=cfg, render_mode=None)
     # Reset the environment multiple times
     for _ in range(10):

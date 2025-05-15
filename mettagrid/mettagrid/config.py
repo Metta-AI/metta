@@ -2,9 +2,10 @@ import copy
 import logging
 from typing import Any, Dict, Optional, Tuple, cast
 
-import hydra
 import numpy as np
 from omegaconf import DictConfig, OmegaConf
+
+from mettagrid.util.hydra import simple_instantiate
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +20,6 @@ class MettaGridConfig:
         self,
         env_cfg: DictConfig,
         env_map: Optional[np.ndarray] = None,
-        map_builder_override: Optional[Dict[str, Any]] = None,
     ):
         """
         Initialize a MettaGridConfig.
@@ -31,7 +31,6 @@ class MettaGridConfig:
         """
         self._env_cfg = OmegaConf.create(copy.deepcopy(env_cfg))
         self._env_map = env_map
-        self._map_builder_override = map_builder_override
         self._map_builder = None
 
         # Resolve the configuration
@@ -55,17 +54,11 @@ class MettaGridConfig:
         if self._env_map is not None:
             return self._env_map
 
-        # Create the map builder configuration with any overrides
-        map_builder_cfg = self._env_cfg.game.map_builder
-        if self._map_builder_override:
-            for key, value in self._map_builder_override.items():
-                OmegaConf.update(map_builder_cfg, key, value)
-
         # Instantiate the map builder and build the map
-        self._map_builder = hydra.utils.instantiate(
-            map_builder_cfg, recursive=self._env_cfg.game.get("recursive_map_builder", True)
+        self._map_builder = simple_instantiate(
+            self._env_cfg.game.map_builder,
+            recursive=self._env_cfg.game.get("recursive_map_builder", True),
         )
-
         env_map = self._map_builder.build()
 
         # Validate the map
