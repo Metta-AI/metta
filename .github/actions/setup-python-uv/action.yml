@@ -1,5 +1,5 @@
 name: "Setup Python and uv"
-description: "Set up Python and uv with caching and virtual environment"
+description: "Set up Python and uv with caching"
 
 runs:
   using: "composite"
@@ -16,17 +16,8 @@ runs:
       with:
         python-version-file: ".python-version"
 
-    - name: Create and activate virtual environment
+    - name: Install pip requirements
       shell: bash
       run: |
-        python -m venv .venv
-        echo "Created virtual environment at .venv"
-        # Add .venv/bin to PATH for subsequent steps
-        echo "${{ github.workspace }}/.venv/bin" >> $GITHUB_PATH
+        uv pip install --system -r requirements.txt
 
-    - name: Install pip requirements into virtual environment
-      shell: bash
-      run: |
-        # Use uv to install dependencies into the virtual environment
-        uv pip install -r requirements.txt --python "$(pwd)/.venv/bin/python"
-        echo "Installed requirements into .venv"
