@@ -287,7 +287,7 @@ class PufferTrainer:
         self._eval_categories = set()
         for sim_name in self.sim_suite_config.simulations.keys():
             self._eval_categories.add(sim_name.split("/")[0])
-        self._eval_suite_avgs = {}
+        self._eval_suite_mean_values = {}
 
         # Compute scores for each evaluation category
         for category in self._eval_categories:
@@ -295,9 +295,9 @@ class PufferTrainer:
             logger.info(f"{category} score: {score}")
             # Only add the score if we got a non-None result
             if score is not None:
-                self._eval_suite_avgs[f"{category}_score"] = score
+                self._eval_suite_mean_values[f"{category}_score"] = score
             else:
-                self._eval_suite_avgs[f"{category}_score"] = 0.0
+                self._eval_suite_mean_values[f"{category}_score"] = 0.0
 
         # Get overall score (average of all rewards)
         overall_score = stats_db.get_average_metric_by_filter("reward", self.last_pr)
@@ -602,7 +602,7 @@ class PufferTrainer:
                 "initial_uri": self._initial_pr.uri,
                 "train_time": time.time() - self.train_start,
                 "score": self._current_eval_score,
-                "eval_scores": self._eval_suite_avgs,
+                "eval_scores": self._eval_suite_mean_values,
             },
         )
         # this is hacky, but otherwise the initial_pr points
