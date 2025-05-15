@@ -11,8 +11,8 @@ __pycache__
 /mettagrid/build
 /mettagrid/build_debug/
 /mettagrid/dist
-/mettagrid/player/dist
-/mettagrid/player/node_modules
+/mettascope/dist
+/mettascope/node_modules
 /mettagrid/multirun
 cython_debug
 outputs
