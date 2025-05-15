@@ -29,6 +29,11 @@ POLICIES=(
     "b.daphne.object_use_colored_converters_ent0.05"
     "b.daphne.object_use_onlyred_ent0.05"
 
+    "b.daphne.object_use_colored_converters2"
+    "b.daphne.object_use_onlyred2"
+    "b.daphne.object_use_colored_converters_ent0.052"
+    "b.daphne.object_use_onlyred_ent0.052"
+
     "b.georgedeane.george_sequence_no_increment"
     "b.georgedeane.george_sequence_incremental"
     "george_sequence_incremental"
