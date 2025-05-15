@@ -100,11 +100,15 @@ This readme provides only a brief overview of research explorations. Visit the [
 
 # Installation
 
-Create a Conda environment (or use venv)
+Install uv (a fast Python package installer and resolver):
 
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
-conda create -n metta python=3.11.7
-conda activate metta
+
+Then run the setup script which will create a virtual environment and install dependencies:
+
+```bash
 ./devops/setup_build.sh
 ```
 

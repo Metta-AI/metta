@@ -1,7 +1,7 @@
 """Multi-room configuration for MettaGrid environments."""
 
-from mettagrid.config.room.room import Room
-from mettagrid.config.room.room_list import RoomList
+from mettagrid.room.room import Room
+from mettagrid.room.room_list import RoomList
 
 
 class MultiRoom(RoomList):

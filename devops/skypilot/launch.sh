@@ -49,7 +49,6 @@ for arg in "$@"; do
   esac
 done
 
-source .venv/skypilot/bin/activate
 
 sky jobs launch \
   --gpus L4:$gpus \
