@@ -97,9 +97,6 @@ SRC_OBJECTS := $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_SRC_DIR)/%.o,$(SRC_SOURCES))
 #-----------------------
 
 # Build all test and benchmark executables without running them (for CI environments)
-
-
-
 build-for-ci: $(SRC_OBJECTS) $(TEST_EXECUTABLES) $(BENCH_EXECUTABLES)
 	@echo "Built all source files, test executables, and benchmark executables"
 	@echo "Source objects: $(words $(SRC_OBJECTS))"
