@@ -68,10 +68,6 @@ cd "$SCRIPT_DIR/.."
 # Install mettagrid requirements
 uv pip install -r requirements.txt
 
-# Navigate to mettagrid directory
-cd mettagrid
-
-
 echo "Building mettagrid in $(pwd)"
 
 # Clean build artifacts only if --clean flag is specified
@@ -86,10 +82,6 @@ fi
 
 # Rebuild mettagrid
 echo "Rebuilding mettagrid..."
-python setup.py build_ext --inplace
-
-# Reinstall in development mode
-echo "Reinstalling mettagrid in development mode..."
-uv pip install -e .
+uv run --active --directory mettagrid python setup.py build_ext --inplace
 
 echo "========== mettagrid rebuild complete =========="

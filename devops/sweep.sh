@@ -8,7 +8,7 @@ if [ -z "$sweep" ]; then
 fi
 
 source ./devops/env.sh
-./devops/build_mettagrid.sh
+uv run --active --directory mettagrid python setup.py build_ext --inplace
 
 mkdir -p ./train_dir/sweep/$sweep
 # keep running sweep until it fails N consecutive times

@@ -42,19 +42,32 @@ else
   export IS_DOCKER=false
 fi
 
-# ========== Check for uv ==========
-if ! command -v uv &> /dev/null && [ -z "$CI" ] && [ -z "$IS_DOCKER" ]; then
-  echo "uv is not installed. Installing uv..."
-  curl -LsSf https://astral.sh/uv/install.sh | sh
-fi
-
 # Verify uv is available
 if ! command -v uv &> /dev/null; then
-  echo "ERROR: uv command still not found in PATH after installation attempts"
-  echo "Current PATH: $PATH"
-  echo "Please install uv manually: curl -LsSf https://astral.sh/uv/install.sh | sh"
-  echo "Then add uv to your PATH and try again"
-  exit 1
+  # Try to find uv directly in common installation locations
+  UV_BIN=""
+  for possible_path in "$HOME/.cargo/bin/uv" "$HOME/.local/bin/uv"; do
+    if [ -f "$possible_path" ]; then
+      echo "Found uv at $possible_path but it's not in PATH"
+      UV_BIN="$possible_path"
+      break
+    fi
+  done
+
+  if [ -n "$UV_BIN" ]; then
+    echo "Will use uv at $UV_BIN directly"
+    # Define a function to use the full path to uv
+    uv() {
+      "$UV_BIN" "$@"
+    }
+    export -f uv
+  else
+    echo "ERROR: uv command not found in PATH after installation attempts"
+    echo "Current PATH: $PATH"
+    echo "Please install uv manually: curl -LsSf https://astral.sh/uv/install.sh | sh"
+    echo "Then add uv to your PATH and try again"
+    exit 1
+  fi
 fi
 
 # ========== Main Project ==========
@@ -93,7 +106,10 @@ if [ -d "venv" ]; then
 fi
 
 echo "Creating new virtual environment..."
-uv venv .venv --python 3.11.7
+uv venv .venv --python 3.11.7 || {
+  echo "Error: Failed to create virtual environment with uv command."
+  exit 1
+}
 
 # Activate the virtual environment
 if [[ -d ".venv" ]]; then
@@ -103,21 +119,30 @@ if [[ -d ".venv" ]]; then
 
   echo "Installing project requirements..."
   uv pip install -r requirements.txt || {
-    echo "❌ Failed to install packages. Please check the error message above."
-    exit 1
+    if [ -n "$UV_BIN" ]; then
+      echo "Retrying with direct path to uv: $UV_BIN"
+      "$UV_BIN" pip install -r requirements.txt || {
+        echo "❌ Failed to install packages. Please check the error message above."
+        exit 1
+      }
+    else
+      echo "❌ Failed to install packages. Please check the error message above."
+      exit 1
+    fi
   }
 else
   echo "❌ Failed to create virtual environment with uv"
   exit 1
 fi
 
-echo -e "\n\nCalling devops/build_mettagrid script with clean option...\n\n"
-bash "$SCRIPT_DIR/build_mettagrid.sh" --clean
+echo -e "\n\nBuilding mettagrid...\n\n"
+uv run --active --directory mettagrid python setup.py build_ext --inplace
+uv pip install -e mettagrid
 
 # ========== BUILD FAST_GAE ==========
 echo -e "\n\nBuilding from setup.py (metta cython components)\n\n"
 echo "Current working directory: $(pwd)"
-python setup.py build_ext --inplace
+uv run python setup.py build_ext --inplace
 
 # ========== INSTALL SKYPILOT ==========
 echo -e "\n\nInstalling Skypilot...\n\n"

@@ -14,7 +14,7 @@ setup: |
   python setup.py build_ext --inplace
   uv pip install -e .
 
-  ./devops/build_mettagrid.sh
+  uv run --active --directory mettagrid python setup.py build_ext --inplace
   mkdir -p $WANDB_DIR
 
 run: |
@@ -54,6 +54,6 @@ envs:
   WANDB_DIR: ./wandb
 
   # username and password are acquired automatically by our skypilot-api-server patch, see skypilot-chart/files/ecr.patch
-  SKYPILOT_DOCKER_USERNAME: -
-  SKYPILOT_DOCKER_PASSWORD: -
+  SKYPILOT_DOCKER_USERNAME: +
+  SKYPILOT_DOCKER_PASSWORD: +
   SKYPILOT_DOCKER_SERVER: 751442549699.dkr.ecr.us-east-1.amazonaws.com
