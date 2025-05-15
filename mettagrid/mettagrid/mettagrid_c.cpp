@@ -62,18 +62,6 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
   _event_manager->event_handlers.push_back(new ProductionHandler(_event_manager.get()));
   _event_manager->event_handlers.push_back(new CoolDownHandler(_event_manager.get()));
 
-  // Initialize buffers
-  std::vector<ssize_t> shape = {static_cast<ssize_t>(num_agents),
-                                static_cast<ssize_t>(_obs_height),
-                                static_cast<ssize_t>(_obs_width),
-                                static_cast<ssize_t>(_grid_features.size())};
-  auto observations = py::array_t<unsigned char>(shape);
-  auto terminals = py::array_t<bool>(static_cast<ssize_t>(num_agents));
-  auto truncations = py::array_t<bool>(static_cast<ssize_t>(num_agents));
-  auto rewards = py::array_t<float>(static_cast<ssize_t>(num_agents));
-
-  set_buffers(observations, terminals, truncations, rewards);
-
   _action_success.resize(num_agents);
 
   // TODO: These conversions to ActionConfig are copying. I don't want to pass python objects down further,
@@ -189,6 +177,19 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
       }
     }
   }
+
+  // Initialize buffers. It should be fine to do this at the end of initialization,
+  // since the buffers are likely to be re-set by the user anyways.
+  std::vector<ssize_t> shape = {static_cast<ssize_t>(num_agents),
+                                static_cast<ssize_t>(_obs_height),
+                                static_cast<ssize_t>(_obs_width),
+                                static_cast<ssize_t>(_grid_features.size())};
+  auto observations = py::array_t<unsigned char>(shape);
+  auto terminals = py::array_t<bool>(static_cast<ssize_t>(num_agents));
+  auto truncations = py::array_t<bool>(static_cast<ssize_t>(num_agents));
+  auto rewards = py::array_t<float>(static_cast<ssize_t>(num_agents));
+
+  set_buffers(observations, terminals, truncations, rewards);
 }
 
 MettaGrid::~MettaGrid() = default;
@@ -365,16 +366,9 @@ py::tuple MettaGrid::reset() {
   return py::make_tuple(_observations, py::dict());
 }
 
-void MettaGrid::set_buffers(std::reference_wrapper<py::array_t<ObsType>> observations,
-                            std::reference_wrapper<py::array_t<bool>> terminals,
-                            std::reference_wrapper<py::array_t<bool>> truncations,
-                            std::reference_wrapper<py::array_t<float>> rewards) {
-  _observations = observations;
-  _terminals = terminals;
-  _truncations = truncations;
-  _rewards = rewards;
-  // Take this implicitly, since _agents may not have been set yet.
-  unsigned int num_agents = observations.get().shape(0);
+void MettaGrid::validate_buffers() {
+  // We should validate once buffers and agents are set.
+  unsigned int num_agents = _agents.size();
   {
     auto observation_info = _observations.request();
     auto shape = observation_info.shape;
@@ -427,10 +421,23 @@ void MettaGrid::set_buffers(std::reference_wrapper<py::array_t<ObsType>> observa
       throw std::runtime_error("rewards has the wrong stride");
     }
   }
-  _episode_rewards = py::array_t<float>(num_agents);
+}
+
+
+void MettaGrid::set_buffers(std::reference_wrapper<py::array_t<ObsType>> observations,
+                            std::reference_wrapper<py::array_t<bool>> terminals,
+                            std::reference_wrapper<py::array_t<bool>> truncations,
+                            std::reference_wrapper<py::array_t<float>> rewards) {
+  _observations = observations;
+  _terminals = terminals;
+  _truncations = truncations;
+  _rewards = rewards;
+  _episode_rewards = py::array_t<float>(_rewards.shape(0));
   for (size_t i = 0; i < _agents.size(); i++) {
     _agents[i]->init(&_rewards.mutable_unchecked<1>()(i));
   }
+
+  validate_buffers();
 }
 
 py::tuple MettaGrid::step(py::array_t<int> actions) {

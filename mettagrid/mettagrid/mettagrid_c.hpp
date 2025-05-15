@@ -33,6 +33,7 @@ public:
                    std::reference_wrapper<py::array_t<bool>> terminals,
                    std::reference_wrapper<py::array_t<bool>> truncations,
                    std::reference_wrapper<py::array_t<float>> rewards);
+  void validate_buffers();
   py::dict grid_objects();
   py::list action_names();
   unsigned int current_timestep();
