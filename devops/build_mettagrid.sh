@@ -30,6 +30,30 @@ echo "Python version: $(python --version)"
 echo "Current directory: $(pwd)"
 echo "Python path: $(python -c 'import sys; print(sys.path)')"
 
+# Check if we're in a virtual environment
+if [ -z "${VIRTUAL_ENV}" ]; then
+  echo "Warning: Not running in a virtual environment. Checking for .venv directory..."
+  
+  # Check the project root directory for .venv
+  if [ -d "../.venv" ]; then
+    echo "Found .venv directory, activating it..."
+    if [ -f "../.venv/bin/activate" ]; then
+      source "../.venv/bin/activate"
+      echo "Activated virtual environment: $VIRTUAL_ENV"
+    elif [ -f "../.venv/Scripts/activate" ]; then
+      source "../.venv/Scripts/activate"
+      echo "Activated virtual environment: $VIRTUAL_ENV"
+    else
+      echo "Warning: Found .venv directory but couldn't locate activation script."
+      exit 1
+    fi
+  else
+    echo "Warning: No virtual environment found. This may cause build issues."
+  fi
+else
+  echo "Using virtual environment: $VIRTUAL_ENV"
+fi
+
 # Go to the project root directory
 cd "$SCRIPT_DIR/.."
 
@@ -41,11 +65,29 @@ if [ -z "$CI" ]; then
   if ! command -v uv &> /dev/null; then
     echo "uv is not installed. Installing uv..."
     curl -LsSf https://astral.sh/uv/install.sh | sh
-    # Make sure uv is in the PATH
+  fi
+  
+  # Make sure uv is in the PATH - always do this to ensure it's available
+  if [ -d "$HOME/.cargo/bin" ]; then
     export PATH="$HOME/.cargo/bin:$PATH"
+  fi
+  
+  # Verify uv is available
+  if ! command -v uv &> /dev/null; then
+    echo "ERROR: uv command still not found in PATH after installation attempts"
+    echo "Current PATH: $PATH"
+    echo "Please install uv manually: curl -LsSf https://astral.sh/uv/install.sh | sh"
+    echo "Then add uv to your PATH and try again"
+    exit 1
   fi
 
   echo "Installing mettagrid requirements..."
+  # Explicitly install numpy and pybind11 first to avoid import errors
+  # Skip uninstall since we have a fresh environment
+  uv pip install numpy==1.26.4
+  uv pip install pybind11>=2.6.0 gymnasium
+  
+  # Then install the rest of the requirements
   uv pip install -r requirements.txt
 fi
 

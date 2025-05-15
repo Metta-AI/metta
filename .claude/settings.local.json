@@ -10,7 +10,8 @@
       "Bash(./build_with_bazel.sh:*)",
       "Bash(cat:*)",
       "Bash(pytest:*)",
-      "Bash(./devops/test_uv_setup.sh:*)"
+      "Bash(./devops/test_uv_setup.sh:*)",
+      "Bash(rm:*)"
     ],
     "deny": []
   }
