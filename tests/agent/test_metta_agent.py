@@ -456,33 +456,6 @@ def test_action_conversion_edge_cases(create_metta_agent):
     assert torch.all(result == torch.tensor([0, 9]))
 
 
-def test_calculate_cum_action_max_params(create_metta_agent):
-    agent, _, _ = create_metta_agent
-
-    # Test case from our existing tests
-    action_max_params = [1, 2, 0]
-    result = agent._calculate_cum_action_max_params(action_max_params, device="cpu")
-    expected = torch.tensor([0, 2, 5], device="cpu")  # Updated expected values
-    assert torch.all(result == expected)
-
-    # Additional test cases
-    action_max_params = [3, 2, 1, 5]
-    result = agent._calculate_cum_action_max_params(action_max_params, device="cpu")
-    expected = torch.tensor([0, 4, 7, 9], device="cpu")  # Updated expected values
-    assert torch.all(result == expected)
-
-    # Edge cases
-    action_max_params = [0]
-    result = agent._calculate_cum_action_max_params(action_max_params, device="cpu")
-    expected = torch.tensor([0], device="cpu")
-    assert torch.all(result == expected)
-
-    action_max_params = []
-    result = agent._calculate_cum_action_max_params(action_max_params, device="cpu")
-    expected = torch.tensor([0], device="cpu")
-    assert torch.all(result == expected)
-
-
 def test_numpy_array_conversion(create_metta_agent):
     agent, _, _ = create_metta_agent
 

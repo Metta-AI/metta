@@ -137,39 +137,11 @@ class MettaAgent(nn.Module):
                 source_components[source["name"]] = self.components[source["name"]]
         component.setup(source_components)
 
-    def _calculate_cum_action_max_params(self, action_max_params: list[int], device):
-        """
-        Calculate cumulative sum for action indices. Used for converting actions to logit indices.
-
-        Args:
-            action_max_params: List of maximum parameter values for each action type
-            device: Device to place the tensor on
-
-        Returns:
-            Tensor of cumulative sums representing offsets for action types
-        """
-
-        # Handle empty case
-        if not action_max_params:
-            return torch.tensor([0], dtype=torch.long, device=device)
-
-        # Calculate offsets
-        offsets = [0]  # First action type starts at index 0
-        current_offset = 0
-
-        # Add up the parameter counts for each action type
-        for i in range(len(action_max_params) - 1):
-            current_offset += action_max_params[i] + 1  # +1 because params are 0-indexed
-            offsets.append(current_offset)
-
-        return torch.tensor(offsets, dtype=torch.long, device=device)
-
     def activate_actions(self, action_names: list[str], action_max_params: list[int], device):
         """Run this at the beginning of training."""
 
         assert isinstance(action_max_params, list), "action_max_params must be a list"
 
-        # Store parameters
         self.device = device
         self.action_names = action_names
         self.action_max_params = action_max_params
@@ -177,19 +149,17 @@ class MettaAgent(nn.Module):
         self.active_actions = list(zip(action_names, action_max_params, strict=False))
 
         # Precompute cumulative sums for faster conversion
-        self.cum_action_max_params = self._calculate_cum_action_max_params(self.action_max_params, device)
+        self.cum_action_max_params = torch.cumsum(torch.tensor([0] + action_max_params, device=self.device), dim=0)
 
-        # Generate full action names including parameters
         full_action_names = []
         for action_name, max_param in self.active_actions:
             for i in range(max_param + 1):
                 full_action_names.append(f"{action_name}_{i}")
-
-        self.components["_action_embeds_"].activate_actions(full_action_names, device)
+        self.components["_action_embeds_"].activate_actions(full_action_names, self.device)
 
         # Create action_index tensor
         action_index = []
-        for action_type_idx, max_param in enumerate(self.action_max_params):
+        for action_type_idx, max_param in enumerate(action_max_params):
             for j in range(max_param + 1):
                 action_index.append([action_type_idx, j])
 
