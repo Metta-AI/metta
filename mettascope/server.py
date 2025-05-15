@@ -9,7 +9,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from omegaconf import DictConfig
 
-import mettagrid.player.replays as replays
+import mettascope.replays as replays
 
 
 class App(FastAPI):
