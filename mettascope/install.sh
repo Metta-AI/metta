@@ -7,8 +7,8 @@ set -e
 
 # Install dependencies
 cd mettascope
-npm install -g typescript
-npm install
+npm install --force -g typescript
+npm install --force
 tsc
 
 # Generate atlas
