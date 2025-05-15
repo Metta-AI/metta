@@ -1,8 +1,14 @@
 resources:
-  cloud: aws
-  region: us-east-1
-  use_spot: true
-  accelerators: { L4: 1 }
+  ordered:
+    - cloud: aws
+      region: us-east-1
+      use_spot: true
+      accelerators: "L4:1"
+    - cloud: aws
+      use_spot: true
+      accelerators: "L4:1"
+    - cloud: lambda
+      accelerators: "A10:1"
   cpus: 8+
   image_id: docker:metta:latest
 
