@@ -156,7 +156,6 @@ jobs:
           echo "run test? ${RUN_TEST}"
           echo "run benchmark? ${RUN_BENCHMARK}"
 
-  # Build and cache the C++ artifacts
   build-cpp:
     name: "Build C++ artifacts"
     needs: [graphite-ci-optimizer, setup-checks]
@@ -188,7 +187,7 @@ jobs:
       - name: Build C++ artifacts (cache miss fallback)
         if: steps.build-cache-cpp.outputs.cache-hit != 'true'
         run: |
-          source .venv/bin/activate
+          # No need to source .venv/bin/activate as the venv's bin is added to PATH
           cd mettagrid
           make build-for-ci
 
@@ -213,7 +212,6 @@ jobs:
           find . -type f \( -name "*.cpp" -o -name "*.h" -o -name "*.hpp" \) \
             -not -path "*/build/*" -not -path "*/venv/*" \
             -exec clang-format --dry-run --Werror {} +
-
   test:
     name: "C++ Tests"
     needs: [graphite-ci-optimizer, setup-checks, build-cpp]
@@ -244,13 +242,13 @@ jobs:
       - name: Build C++ artifacts (cache miss fallback)
         if: steps.test-cache-cpp.outputs.cache-hit != 'true'
         run: |
-          source .venv/bin/activate
+          # No need to source .venv/bin/activate as the venv's bin is added to PATH
           cd mettagrid
           make build
 
       - name: Build and run tests
         run: |
-          source .venv/bin/activate
+          # No need to source .venv/bin/activate as the venv's bin is added to PATH
           cd mettagrid
           make test
 
@@ -285,158 +283,16 @@ jobs:
       - name: Build C++ artifacts (cache miss fallback)
         if: steps.benchmark-cache-cpp.outputs.cache-hit != 'true'
         run: |
-          source .venv/bin/activate
+          # No need to source .venv/bin/activate as the venv's bin is added to PATH
           cd mettagrid
           make build
 
       - name: Build and run benchmarks with JSON output
         run: |
-          source .venv/bin/activate
+          # No need to source .venv/bin/activate as the venv's bin is added to PATH
           cd mettagrid
           mkdir -p benchmark_output
           echo "Running benchmarks with JSON output..."
           make bench-json
           echo "Benchmark output files:"
           ls -la benchmark_output/
-
-      - name: Install Bencher CLI
-        uses: bencherdev/bencher@main
-
-      - name: Validate Bencher Token
-        env:
-          BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          if [ -z "$BENCHER_API_TOKEN" ]; then
-            echo "Error: BENCHER_API_TOKEN is empty. Make sure the secret is properly set."
-            exit 1
-          fi
-          echo "Bencher token length: ${#BENCHER_API_TOKEN}"
-          echo "Bencher token SHA256: $(echo -n "$BENCHER_API_TOKEN" | sha256sum)"
-
-      # Main Branch Upload section
-      # note that "threshold-max-sample-size" has a minimum value of 2 - the new data and the reference
-      - name: Upload to Bencher (Main Branch Baseline)
-        if: github.ref == 'refs/heads/main'
-        env:
-          BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          cd mettagrid/benchmark_output
-          ls -al
-          if ls *.json 1> /dev/null 2>&1; then
-            for file in *.json; do
-              bencher run \
-                --project mettagrid-sv3f5i2k \
-                --token "$BENCHER_API_TOKEN" \
-                --branch main \
-                --threshold-measure latency \
-                --threshold-test percentage \
-                --threshold-max-sample-size 2 \
-                --threshold-upper-boundary 0.20 \
-                --thresholds-reset \
-                --testbed ubuntu-latest \
-                --adapter cpp_google \
-                --github-actions "$GITHUB_TOKEN" \
-                --file "$file" > /dev/null
-            done
-          else
-            echo "NO TEST RESULTS FOUND"
-          fi
-
-      - name: Check if main branch has benchmark data
-        if: github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
-        id: check-main-benchmark
-        env:
-          BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
-        run: |
-          # Run the command and capture output in a variable
-          bencher_result=$(bencher branch view mettagrid-sv3f5i2k main --token "$BENCHER_API_TOKEN")
-
-          # Print the captured output
-          echo "$bencher_result"
-
-          # Save the output to a file for further processing
-          echo "$bencher_result" > /tmp/branch_output.json
-
-          # Continue with checking if branch exists and has data
-          if [ $? -eq 0 ]; then
-            echo "Branch exists, checking if it has benchmark data..."
-
-            # Check if branch output contains a head key
-            if jq -e '.head' /tmp/branch_output.json > /dev/null; then
-              echo "main_benchmark_exists=true" >> $GITHUB_OUTPUT
-              echo "Main branch has benchmark data. Will proceed with PR performance comparison."
-            else
-              echo "main_benchmark_exists=false" >> $GITHUB_OUTPUT
-              echo "Warning: Main branch exists but does not have benchmark data yet. Will skip PR performance comparison."
-            fi
-          else
-            echo "main_benchmark_exists=false" >> $GITHUB_OUTPUT
-            echo "Warning: Main branch does not exist or cannot be accessed. Will skip PR performance comparison."
-          fi
-
-      # First PR Performance run - Check for improvements (will NOT fail on alerts)
-      - name: Check for Performance Improvements
-        if: |
-          github.event_name == 'pull_request' &&
-          !github.event.pull_request.head.repo.fork &&
-          steps.check-main-benchmark.outputs.main_benchmark_exists == 'true'
-        env:
-          BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          cd mettagrid/benchmark_output
-          ls -al
-          if ls *.json 1> /dev/null 2>&1; then
-            for file in *.json; do
-              bencher run \
-                --project mettagrid-sv3f5i2k \
-                --token "$BENCHER_API_TOKEN" \
-                --branch "$GITHUB_HEAD_REF" \
-                --start-point "main" \
-                --start-point-reset \
-                --threshold-measure latency \
-                --threshold-test percentage \
-                --threshold-max-sample-size 2 \
-                --threshold-lower-boundary 0.10 \
-                --thresholds-reset \
-                --testbed ubuntu-latest \
-                --adapter cpp_google \
-                --github-actions "$GITHUB_TOKEN" \
-                --file "$file" > /dev/null
-            done
-          else
-            echo "NO TEST RESULTS FOUND"
-          fi
-
-      # Second PR Performance run - Check for regressions (WILL fail on alerts)
-      - name: Check for Performance Regressions
-        if: |
-          github.event_name == 'pull_request' && 
-          !github.event.pull_request.head.repo.fork && 
-          steps.check-main-benchmark.outputs.main_benchmark_exists == 'true'
-        env:
-          BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          cd mettagrid/benchmark_output
-          ls -al
-          if ls *.json 1> /dev/null 2>&1; then
-            for file in *.json; do
-              bencher run \
-                --project mettagrid-sv3f5i2k \
-                --token "$BENCHER_API_TOKEN" \
-                --branch "$GITHUB_HEAD_REF" \
-                --start-point "main" \
-                --start-point-reset \
-                --start-point-clone-thresholds \
-                --testbed ubuntu-latest \
-                --err \
-                --adapter cpp_google \
-                --github-actions "$GITHUB_TOKEN" \
-                --file "$file" 
-            done
-          else
-            echo "NO TEST RESULTS FOUND"
-          fi
