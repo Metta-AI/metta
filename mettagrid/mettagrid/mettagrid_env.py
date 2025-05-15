@@ -14,7 +14,6 @@ from omegaconf import DictConfig, OmegaConf
 from mettagrid.config.utils import simple_instantiate
 from mettagrid.mettagrid_c import MettaGrid  # pylint: disable=E0611
 from mettagrid.replay_writer import ReplayWriter
-from mettagrid.resolvers import register_resolvers
 from mettagrid.stats_writer import StatsWriter
 from mettagrid.util.debug import save_mettagrid_args, save_step_results
 
@@ -299,7 +298,3 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     def inventory_item_names(self):
         return self._c_env.inventory_item_names()
-
-
-# Ensure resolvers are registered when this module is imported
-register_resolvers()
