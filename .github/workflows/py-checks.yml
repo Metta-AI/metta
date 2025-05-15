@@ -181,7 +181,7 @@ jobs:
           # Replace uv run --no-project with direct python calls since we're using venv
           python setup.py build_ext --inplace
           cd mettagrid && python setup.py build_ext --inplace
-          pip install -e
+          pip install -e .
 
       - name: Run Pytest on core tests
         run: |
@@ -215,7 +215,7 @@ jobs:
           # Replace uv run --no-project with direct python calls
           python setup.py build_ext --inplace
           cd mettagrid && python setup.py build_ext --inplace
-          pip install -e
+          pip install -e .
 
       - name: Check deps
         run: |
@@ -348,7 +348,7 @@ jobs:
           # Replace uv run --no-project with direct python calls
           python setup.py build_ext --inplace
           cd mettagrid && python setup.py build_ext --inplace
-          pip install -e
+          pip install -e .
 
       - name: Download benchmark results from smoke-test train-benchmark-results job
         uses: actions/download-artifact@v4
