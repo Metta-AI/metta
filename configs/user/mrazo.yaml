@@ -1,0 +1,11 @@
+# @package __global__
+
+defaults:
+  - _self_
+  - sim: navigation_generator
+
+trainer:
+  env: env/mettagrid/object_use/generator/training/generator_varied_terrain.yaml
+  initial_policy:
+    uri: wandb://run/MRM_test_mettabox
+  evaluate_interval: 300
