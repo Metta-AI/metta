@@ -197,7 +197,7 @@ def submit_batch_job(args, task_args):
     random_id = "".join(random.choices(string.ascii_lowercase + string.digits, k=5))
     job_name = args.job_name if args.job_name else args.run.replace(".", "_") + "_" + random_id
     job_queue = args.job_queue
-    job_definition = "metta-batch-train-jd"
+    job_definition = "metta-batch-train-jd:8"
 
     request = {
         "jobName": job_name,
