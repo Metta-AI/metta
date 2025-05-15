@@ -30,6 +30,12 @@ permissions:
   checks: write
   pull-requests: write
 
+# We should switch to using uv projects rather than requirements.txt
+# but for now, this installs in the global venv
+env:
+  UV_SYSTEM_PYTHON: 1
+  HYDRA_FULL_ERROR: 1
+
 jobs:
   # check if CI should run based on Graphite's stack position
   graphite-ci-optimizer:
@@ -69,8 +75,6 @@ jobs:
       run_lint: ${{ steps.determine_tasks.outputs.run_lint }}
       run_test: ${{ steps.determine_tasks.outputs.run_test }}
       run_benchmark: ${{ steps.determine_tasks.outputs.run_benchmark }}
-      cache_key: ${{ steps.set-cache-key.outputs.cache_key }}
-      cache_paths: ${{ steps.set-cache-paths.outputs.paths }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -82,68 +86,6 @@ jobs:
           patterns: "**/*.py"
           specific_files: "requirements.txt,requirements_pinned.txt,setup.py"
           github-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set cache paths
-        id: set-cache-paths
-        run: |
-          PATHS="venv
-          mettagrid/**/*.so
-          metta/**/*.so
-          ~/.cache/pip
-          "
-          echo "paths<<EOF" >> $GITHUB_OUTPUT
-          echo "$PATHS" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: Generate cache key
-        id: set-cache-key
-        run: |
-          # Create a hash that combines all relevant files
-          find mettagrid -type f \( -name "*.py" \) -exec sha256sum {} \; > /tmp/mettagrid_file_hashes.txt || true
-
-          # Add more project directories if they exist
-          find tests -type f \( -name "*.py" \) -exec sha256sum {} \; > /tmp/tests_file_hashes.txt || true
-          find examples -type f \( -name "*.py" \) -exec sha256sum {} \; > /tmp/examples_file_hashes.txt || true
-
-          # Hash configuration files
-          find . -maxdepth 1 -type f \( -name "*.yaml" -o -name "*.yml" -o -name "*.json" -o -name "*.toml" \) -exec sha256sum {} \; > /tmp/config_file_hashes.txt || true
-
-          # Add setup.py and requirements.txt if they exist
-          if [ -f "setup.py" ]; then
-            sha256sum setup.py >> /tmp/file_hashes.txt
-          fi
-          if [ -f "requirements.txt" ]; then
-            sha256sum requirements.txt >> /tmp/file_hashes.txt
-          fi
-          if [ -f "requirements_pinned.txt" ]; then
-            sha256sum requirements_pinned.txt >> /tmp/file_hashes.txt
-          fi
-          if [ -f "pyproject.toml" ]; then
-            sha256sum pyproject.toml >> /tmp/file_hashes.txt
-          fi
-          if [ -f "setup.cfg" ]; then
-            sha256sum setup.cfg >> /tmp/file_hashes.txt
-          fi
-
-          # Add the cache paths to the hash calculation
-          echo "${{ steps.set-cache-paths.outputs.paths }}" | sha256sum >> /tmp/file_hashes.txt
-
-          # Combine all hash files
-          cat /tmp/mettagrid_file_hashes.txt /tmp/tests_file_hashes.txt /tmp/examples_file_hashes.txt /tmp/config_file_hashes.txt /tmp/file_hashes.txt > /tmp/all_hashes.txt || true
-
-          # Create the final hash
-          if [ -s "/tmp/all_hashes.txt" ]; then
-            HASH=$(sort /tmp/all_hashes.txt | sha256sum | cut -d' ' -f1)
-          else
-            HASH="empty"
-          fi
-
-          # Add Python version to the cache key
-          PYTHON_VERSION=$(python --version 2>&1 | cut -d' ' -f2)
-          CACHE_KEY="py-build-${PYTHON_VERSION}-${HASH}"
-
-          echo "cache_key=${CACHE_KEY}" >> $GITHUB_OUTPUT
-          echo "Created content-based hash key ${CACHE_KEY}"
 
       - name: Determine which tasks to run
         id: determine_tasks
@@ -185,31 +127,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11.7"
+      - name: Setup Python and uv
+        id: setup-python-uv
+        uses: ./.github/actions/setup-python-uv
 
-      - name: Restore from build cache
-        id: setup-cache-py
-        uses: actions/cache@v3
-        with:
-          path: ${{ needs.setup-checks.outputs.cache_paths }}
-          key: ${{ needs.setup-checks.outputs.cache_key }}
-
-      - name: Install pip requirements (cache miss fallback)
-        if: steps.setup-cache-py.outputs.cache-hit != 'true'
-        shell: bash
-        run: |
-          python -m venv venv
-          source venv/bin/activate
-          pip install -r requirements.txt
-
-      - name: Install and compile deps (cache miss fallback)
-        if: steps.setup-cache-py.outputs.cache-hit != 'true'
-        shell: bash
-        run: |
-          source venv/bin/activate
-          bash ./devops/setup_build.sh
 
   lint:
     name: "Python Lint"
@@ -222,24 +143,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11.7"
+      - name: Setup Python and uv
+        id: setup-python-uv
+        uses: ./.github/actions/setup-python-uv
 
       - name: Install Ruff
         run: |
-          python -m venv venv
-          source venv/bin/activate
-          pip install ruff==0.11.5
+          uv tool install ruff==0.11.5
 
       - name: Run Ruff linter
         run: |
-          source venv/bin/activate
           ruff format --check .
 
       - name: Run Ruff formatting
         run: |
-          source venv/bin/activate
           ruff check --exit-non-zero-on-fix .
 
   test:
@@ -254,47 +171,24 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11.7"
+      - name: Setup Python and uv
+        id: setup-python-uv
+        uses: ./.github/actions/setup-python-uv
 
-      - name: Restore from build cache
-        id: test-cache-py
-        uses: actions/cache@v3
-        with:
-          path: ${{ needs.setup-checks.outputs.cache_paths }}
-          key: ${{ needs.setup-checks.outputs.cache_key }}
-
-      - name: Install pip requirements (cache miss fallback)
-        if: steps.test-cache-py.outputs.cache-hit != 'true'
-        shell: bash
+      - name: Build
         run: |
-          python -m venv venv
-          source venv/bin/activate
-          pip install -r requirements.txt
+          uv run --no-project python setup.py build_ext --inplace
+          uv run --no-project --directory mettagrid python setup.py build_ext --inplace
+          uv pip install --system -e mettagrid
 
-      - name: Install and compile deps (cache miss fallback)
-        if: steps.test-cache-py.outputs.cache-hit != 'true'
-        shell: bash
-        run: |
-          source venv/bin/activate
-          bash ./devops/setup_build.sh
 
       - name: Run Pytest on core tests
-        env:
-          PYTHONPATH: ${{ github.workspace }}
         run: |
-          source venv/bin/activate
-          pytest --maxfail=1 --disable-warnings -q
+          uv run --no-project pytest --maxfail=1 --disable-warnings -q
 
       - name: Run Pytest on mettagrid tests
-        env:
-          HYDRA_FULL_ERROR: 1
-          PYTHONPATH: ${{ github.workspace }}/mettagrid
         run: |
-          source venv/bin/activate
-          cd mettagrid
-          pytest --maxfail=1 --disable-warnings -q
+          uv run --no-project pytest --maxfail=1 --disable-warnings -q
 
   smoke-test:
     name: "Training Smoke Test"
@@ -308,44 +202,25 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+      - name: Setup Python and uv
+        id: setup-python-uv
+        uses: ./.github/actions/setup-python-uv
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11.7"
-
-      - name: Restore from build cache
-        id: benchmark-cache-py
-        uses: actions/cache@v3
-        with:
-          path: ${{ needs.setup-checks.outputs.cache_paths }}
-          key: ${{ needs.setup-checks.outputs.cache_key }}
-
-      - name: Install pip requirements (cache miss fallback)
-        if: steps.benchmark-cache-py.outputs.cache-hit != 'true'
-        shell: bash
+      - name: Build
         run: |
-          python -m venv venv
-          source venv/bin/activate
-          pip install -r requirements.txt
-
-      - name: Install and compile deps (cache miss fallback)
-        if: steps.benchmark-cache-py.outputs.cache-hit != 'true'
-        shell: bash
-        run: |
-          source venv/bin/activate
-          bash ./devops/setup_build.sh
+          uv run --no-project python setup.py build_ext --inplace
+          uv run --no-project --directory mettagrid python setup.py build_ext --inplace
+          uv pip install --system -e mettagrid
 
       - name: Check deps
         run: |
-          source venv/bin/activate
-
           for dep in \
             "pufferlib" \
             "carbs" \
             "wandb_carbs"
           do
             echo "Checking import for $dep..."
-            python -c "import $dep; print('✅ Found {} at {}'.format('$dep', __import__('$dep').__file__))" || {
+            uv run --no-project python -c "import $dep; print('✅ Found {} at {}'.format('$dep', __import__('$dep').__file__))" || {
               echo "❌ Failed to import $dep"
               exit 1
             }
@@ -362,16 +237,13 @@ jobs:
       - name: Training smoke test
         id: train
         env:
-          HYDRA_FULL_ERROR: 1
-          PYTHONPATH: ${{ github.workspace }}
           WANDB_API_KEY: set_but_not_used
           AWS_ACCESS_KEY_ID: set_but_not_used
           AWS_SECRET_ACCESS_KEY: set_but_not_used
         run: |
-          source venv/bin/activate
           mkdir -p train_dir
           source .github/scripts/benchmark.sh
-          benchmark "train" "python -m tools.train +hardware=github wandb=off"
+          benchmark "train" "uv run --no-project python -m tools.train +hardware=github wandb=off"
           ls -la $CHECKPOINT_PATH || echo "Warning: Checkpoint directory not created"
 
       - name: Save training benchmark
@@ -411,7 +283,6 @@ jobs:
       - name: Verify training artifacts
         if: success()
         run: |
-          source venv/bin/activate
           ls -la train_dir/
           ls -la $CHECKPOINT_PATH || echo "Checkpoint directory not found!"
 
@@ -419,15 +290,12 @@ jobs:
         id: replay
         if: success()
         env:
-          HYDRA_FULL_ERROR: 1
-          PYTHONPATH: ${{ github.workspace }}
           WANDB_API_KEY: set_but_not_used
           AWS_ACCESS_KEY_ID: set_but_not_used
           AWS_SECRET_ACCESS_KEY: set_but_not_used
         run: |
-          source venv/bin/activate
           source .github/scripts/benchmark.sh
-          benchmark "replay" "python -m tools.replay +hardware=github wandb=off"
+          benchmark "replay" "uv run --no-project python -m tools.replay +hardware=github wandb=off"
 
       - name: Save replay benchmark
         uses: ./.github/actions/save-benchmarks
@@ -449,7 +317,6 @@ jobs:
       - name: Debug on failure
         if: failure()
         run: |
-          source venv/bin/activate
           echo "Listing the contents of the workspace:"
           find train_dir -type f -name "*.py" | sort
           find train_dir -type d | sort
@@ -466,32 +333,15 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+      - name: Setup Python and uv
+        id: setup-python-uv
+        uses: ./.github/actions/setup-python-uv
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11.7"
-
-      - name: Restore from build cache
-        id: benchmark-cache-py
-        uses: actions/cache@v3
-        with:
-          path: ${{ needs.setup-checks.outputs.cache_paths }}
-          key: ${{ needs.setup-checks.outputs.cache_key }}
-
-      - name: Install pip requirements (cache miss fallback)
-        if: steps.benchmark-cache-py.outputs.cache-hit != 'true'
-        shell: bash
+      - name: Build
         run: |
-          python -m venv venv
-          source venv/bin/activate
-          pip install -r requirements.txt
-
-      - name: Install and compile deps (cache miss fallback)
-        if: steps.benchmark-cache-py.outputs.cache-hit != 'true'
-        shell: bash
-        run: |
-          source venv/bin/activate
-          bash ./devops/setup_build.sh
+          uv run --no-project python setup.py build_ext --inplace
+          uv run --no-project --directory mettagrid python setup.py build_ext --inplace
+          uv pip install --system -e mettagrid
 
       - name: Download benchmark results from smoke-test train-benchmark-results job
         uses: actions/download-artifact@v4
@@ -506,27 +356,18 @@ jobs:
           path: ./
 
       - name: Run Main Python benchmarks
-        env:
-          HYDRA_FULL_ERROR: 1
-          PYTHONPATH: ${{ github.workspace }}
         run: |
-          source venv/bin/activate
-          pytest  --benchmark-only --benchmark-json=main_benchmark_results.json
+          uv run --no-project pytest  --benchmark-only --benchmark-json=main_benchmark_results.json
 
       - name: Run Mettagrid Python benchmarks
-        env:
-          HYDRA_FULL_ERROR: 1
-          PYTHONPATH: ${{ github.workspace }}
         run: |
-          source venv/bin/activate
           cd mettagrid
-          pytest  --benchmark-only --benchmark-json=mettagrid_benchmark_results.json
+          uv run --no-project pytest  --benchmark-only --benchmark-json=mettagrid_benchmark_results.json
           mv mettagrid_benchmark_results.json ../
 
       - name: Combine benchmark results
         run: |
-          source venv/bin/activate
-          python - <<EOF
+          uv run --no-project python - <<EOF
 
           # Python Script to combine benchmark data
           import json
@@ -696,8 +537,8 @@ jobs:
       # Second PR Performance run - Check for regressions (WILL fail on alerts)
       - name: Check for Performance Regressions
         if: |
-          (github.event_name == 'pull_request') && 
-          (!github.event.pull_request.head.repo.fork) && 
+          (github.event_name == 'pull_request') &&
+          (!github.event.pull_request.head.repo.fork) &&
           (steps.check-main-benchmark.outputs.main_benchmark_exists == 'true')
         env:
           BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}

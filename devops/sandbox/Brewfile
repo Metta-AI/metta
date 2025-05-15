@@ -16,4 +16,3 @@ brew "uv"
 # Applications
 cask "cursor"
 cask "discord"
-cask "miniconda"
