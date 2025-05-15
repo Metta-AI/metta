@@ -13,6 +13,7 @@ from omegaconf import DictConfig, OmegaConf
 
 from metta.map.utils.show import ShowMode, show_map
 from metta.map.utils.storable_map import StorableMap
+from metta.util.resolvers import register_resolvers
 
 # Aggressively exit on ctrl+c
 signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
@@ -22,6 +23,9 @@ logging.basicConfig(level=logging.INFO)
 
 
 def make_map(cfg_path: str, overrides: DictConfig | None = None):
+    # since we are not using hydra here we can't rely on the callback that normally sets up our custom resolvers
+    register_resolvers()
+
     cfg: DictConfig = cast(DictConfig, OmegaConf.merge(OmegaConf.load(cfg_path), overrides))
     if not OmegaConf.is_dict(cfg):
         raise ValueError(f"Invalid config type: {type(cfg)}")
