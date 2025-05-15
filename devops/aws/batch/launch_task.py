@@ -258,7 +258,7 @@ def main():
     parser.add_argument("--gpu-cpus", type=int)
     parser.add_argument("--node-ram-gb", type=int)
     parser.add_argument("--copies", type=int, default=1)
-    parser.add_argument("--profile", default="stem")
+    parser.add_argument("--profile", default="softmax")
     parser.add_argument("--job-queue", default="metta-jq")
     parser.add_argument("--skip-push-check", action="store_true")
     parser.add_argument("--no-color", action="store_true")
