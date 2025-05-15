@@ -37,29 +37,26 @@ CXX = g++
 # Get the project root directory (where the Makefile is located)
 PROJECT_ROOT := $(shell pwd)
 
-# Define virtual environment path relative to the project root
-VENV_RELATIVE_PATH := ../.venv
-VENV_ROOT := $(shell realpath $(PROJECT_ROOT)/$(VENV_RELATIVE_PATH))
-VENV_PYTHON := $(VENV_ROOT)/bin/python
-
-# Get Python paths directly from the interpreter
-PYTHON_VERSION := $(shell $(VENV_PYTHON) -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
-PYTHON_STDLIB := $(shell $(VENV_PYTHON) -c "import sysconfig; print(sysconfig.get_path('stdlib'))")
+# Get Python paths directly using UV instead of virtual environment
+PYTHON_VERSION := $(shell python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>/dev/null || echo "3.11")
+PYTHON_INCLUDE := $(shell uv run --active python -c "import sysconfig; print(sysconfig.get_path('include'))" 2>/dev/null)
+PYTHON_STDLIB := $(shell uv run --active python -c "import sysconfig; print(sysconfig.get_path('stdlib'))" 2>/dev/null)
 PYTHON_DYNLOAD := $(PYTHON_STDLIB)/lib-dynload
-PYTHON_SITE_PACKAGES := $(shell $(VENV_PYTHON) -c "import site; print(site.getsitepackages()[0])")
-PYTHON_LIB_DIR := $(shell $(VENV_PYTHON) -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR'))")
-PYBIND11_INCLUDE = $(shell $(VENV_PYTHON) -c "import pybind11; print(pybind11.get_include())")
+PYTHON_SITE_PACKAGES := $(shell uv run --active python -c "import site; print(site.getsitepackages()[0])" 2>/dev/null)
+PYTHON_LIB_DIR := $(shell uv run --active python -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR'))" 2>/dev/null)
+PYBIND11_INCLUDES := $(shell uv run --active python -m pybind11 --includes 2>/dev/null)
+PYBIND11_INCLUDE := $(shell echo "$(PYBIND11_INCLUDES)" | grep -o '\-I[^ ]*pybind11[^ ]*' | head -1 | sed 's/-I//')
 UV_ROOT := $(shell dirname $(PYTHON_STDLIB))
 
 # Print the paths for debugging
-$(info VENV_ROOT: $(VENV_ROOT))
 $(info UV_ROOT: $(UV_ROOT))
 $(info PYTHON_STDLIB: $(PYTHON_STDLIB))
+$(info PYTHON_INCLUDE: $(PYTHON_INCLUDE))
 $(info PYTHON_SITE_PACKAGES: $(PYTHON_SITE_PACKAGES))
 $(info PYTHON_LIB_DIR: $(PYTHON_LIB_DIR))
+$(info PYBIND11_INCLUDE: $(PYBIND11_INCLUDE))
 
 # Update the Python library definitions
-PYTHON_INCLUDE = $(shell $(VENV_PYTHON) -c "from sysconfig import get_path; print(get_path('include'))")
 PYTHON_LIBS = -L$(PYTHON_LIB_DIR) -lpython$(PYTHON_VERSION)
 
 # Define CXXFLAGS with all the necessary includes
@@ -237,20 +234,26 @@ $(BUILD_TEST_DIR)/%: $(BUILD_TEST_DIR)/%.o $(SRC_OBJECTS)
 	@mkdir -p $(dir $@)
 	$(CXX) $^ -o $@ $(GTEST_LIBS) $(PYTHON_LIBS) $(PYBIND11_LIBS) $(RPATH_FLAGS)
 
-# Run all tests
+# Run all tests - modified to use quotes around the executable path
 test: check-test-tools $(SRC_OBJECTS) $(TEST_EXECUTABLES)
 	@echo "Running all tests with Python environment..."
-	@for test in $(TEST_EXECUTABLES); do \
-		echo "Running $$test"; \
+	@for f in $(TEST_EXECUTABLES); do \
+		echo "Running $$f"; \
 		PYTHONHOME="$(UV_ROOT)" \
 		PYTHONPATH="$(PYTHON_STDLIB):$(PYTHON_DYNLOAD):$(PYTHON_SITE_PACKAGES)" \
-		$$test --gtest_color=yes || exit 1; \
+		LD_LIBRARY_PATH="$(PYTHON_LIB_DIR):$$LD_LIBRARY_PATH" \
+		DYLD_LIBRARY_PATH="$(PYTHON_LIB_DIR):$$DYLD_LIBRARY_PATH" \
+		"$$f" --gtest_color=yes || exit 1; \
 	done
 
-# Test a specific test file
+# Test a specific test file - modified to use quotes
 test-%: check-test-tools $(BUILD_TEST_DIR)/%
 	@echo "Running test $*..."
-	$(BUILD_TEST_DIR)/$* --gtest_color=yes
+	PYTHONHOME="$(UV_ROOT)" \
+	PYTHONPATH="$(PYTHON_STDLIB):$(PYTHON_DYNLOAD):$(PYTHON_SITE_PACKAGES)" \
+	LD_LIBRARY_PATH="$(PYTHON_LIB_DIR):$$LD_LIBRARY_PATH" \
+	DYLD_LIBRARY_PATH="$(PYTHON_LIB_DIR):$$DYLD_LIBRARY_PATH" \
+	"$(BUILD_TEST_DIR)/$*" --gtest_color=yes
 
 #-----------------------
 # Benchmarking
@@ -302,22 +305,30 @@ $(BUILD_BENCH_DIR)/%.o: $(BENCH_DIR)/%.cpp | $(BUILD_BENCH_DIR)
 $(BUILD_BENCH_DIR)/%: $(BUILD_BENCH_DIR)/%.o $(SRC_OBJECTS)
 	$(CXX) $^ -o $@ $(BENCHMARK_LIBS) $(PYTHON_LIBS) $(PYBIND11_LIBS) $(RPATH_FLAGS)
 
-# Run all benchmarks
+# Run all benchmarks - modified to use quotes
 benchmark: check-bench-tools $(SRC_OBJECTS) $(BENCH_EXECUTABLES)
 	@echo "Running all benchmarks..."
-	@for bench in $(BENCH_EXECUTABLES); do \
-		echo "Running $$bench"; \
-		$$bench; \
+	@for f in $(BENCH_EXECUTABLES); do \
+		echo "Running $$f"; \
+		PYTHONHOME="$(UV_ROOT)" \
+		PYTHONPATH="$(PYTHON_STDLIB):$(PYTHON_DYNLOAD):$(PYTHON_SITE_PACKAGES)" \
+		LD_LIBRARY_PATH="$(PYTHON_LIB_DIR):$$LD_LIBRARY_PATH" \
+		DYLD_LIBRARY_PATH="$(PYTHON_LIB_DIR):$$DYLD_LIBRARY_PATH" \
+		"$$f" || exit 1; \
 	done
 
-# Add this new target for JSON benchmark output
+# Add this new target for JSON benchmark output - modified to use quotes and better shell syntax
 bench-json: check-bench-tools $(SRC_OBJECTS) $(BENCH_EXECUTABLES)
 	@echo "Running all benchmarks with JSON output..."
 	@mkdir -p benchmark_output
-	@for bench in $(BENCH_EXECUTABLES); do \
-		echo "Running $$bench with JSON output..."; \
-		$$bench --benchmark_format=json > benchmark_output/$$(basename $$bench).json || \
-		echo "Error running $$bench with JSON format"; \
+	@for f in $(BENCH_EXECUTABLES); do \
+		echo "Running $$f with JSON output..."; \
+		PYTHONHOME="$(UV_ROOT)" \
+		PYTHONPATH="$(PYTHON_STDLIB):$(PYTHON_DYNLOAD):$(PYTHON_SITE_PACKAGES)" \
+		LD_LIBRARY_PATH="$(PYTHON_LIB_DIR):$$LD_LIBRARY_PATH" \
+		DYLD_LIBRARY_PATH="$(PYTHON_LIB_DIR):$$DYLD_LIBRARY_PATH" \
+		"$$f" --benchmark_format=json > benchmark_output/$$(basename "$$f").json || \
+		echo "Error running $$f with JSON format"; \
 	done
 	@echo "JSON outputs created in benchmark_output directory"
 
