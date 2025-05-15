@@ -10,8 +10,6 @@ setup: |
   cd /workspace/metta
   git fetch
   git checkout $METTA_GIT_REF
-  curl -LsSf https://astral.sh/uv/install.sh | sh
-  export PATH="$HOME/.cargo/bin:$PATH"
   uv pip install -r requirements.txt
   python setup.py build_ext --inplace
   uv pip install -e .

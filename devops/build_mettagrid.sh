@@ -33,7 +33,7 @@ echo "Python path: $(python -c 'import sys; print(sys.path)')"
 # Check if we're in a virtual environment
 if [ -z "${VIRTUAL_ENV}" ]; then
   echo "Warning: Not running in a virtual environment. Checking for .venv directory..."
-  
+
   # Check the project root directory for .venv
   if [ -d "../.venv" ]; then
     echo "Found .venv directory, activating it..."
@@ -57,38 +57,21 @@ fi
 # Go to the project root directory
 cd "$SCRIPT_DIR/.."
 
+# Install mettagrid requirements
+uv pip install -r requirements.txt
+
 # Navigate to mettagrid directory
 cd mettagrid
 
 if [ -z "$CI" ]; then
-  # ========== Check for uv ==========
-  if ! command -v uv &> /dev/null; then
-    echo "uv is not installed. Installing uv..."
-    curl -LsSf https://astral.sh/uv/install.sh | sh
-  fi
-  
-  # Make sure uv is in the PATH - always do this to ensure it's available
-  if [ -d "$HOME/.cargo/bin" ]; then
-    export PATH="$HOME/.cargo/bin:$PATH"
-  fi
-  
   # Verify uv is available
   if ! command -v uv &> /dev/null; then
-    echo "ERROR: uv command still not found in PATH after installation attempts"
+    echo "ERROR: uv command not found in PATH after installation attempts"
     echo "Current PATH: $PATH"
     echo "Please install uv manually: curl -LsSf https://astral.sh/uv/install.sh | sh"
     echo "Then add uv to your PATH and try again"
     exit 1
   fi
-
-  echo "Installing mettagrid requirements..."
-  # Explicitly install numpy and pybind11 first to avoid import errors
-  # Skip uninstall since we have a fresh environment
-  uv pip install numpy==1.26.4
-  uv pip install pybind11>=2.6.0 gymnasium
-  
-  # Then install the rest of the requirements
-  uv pip install -r requirements.txt
 fi
 
 echo "Building mettagrid in $(pwd)"
@@ -109,10 +92,6 @@ python setup.py build_ext --inplace
 
 # Reinstall in development mode
 echo "Reinstalling mettagrid in development mode..."
-if command -v uv &> /dev/null; then
-  uv pip install -e .
-else
-  pip install -e .
-fi
+uv pip install -e .
 
 echo "========== mettagrid rebuild complete =========="
