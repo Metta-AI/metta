@@ -365,7 +365,7 @@ py::tuple MettaGrid::reset() {
   return py::make_tuple(_observations, py::dict());
 }
 
-void MettaGrid::set_buffers(std::reference_wrapper<py::array_t<unsigned char>> observations,
+void MettaGrid::set_buffers(std::reference_wrapper<py::array_t<ObsType>> observations,
                             std::reference_wrapper<py::array_t<bool>> terminals,
                             std::reference_wrapper<py::array_t<bool>> truncations,
                             std::reference_wrapper<py::array_t<float>> rewards) {
@@ -385,7 +385,7 @@ void MettaGrid::set_buffers(std::reference_wrapper<py::array_t<unsigned char>> o
          << num_agents << ", " << _obs_height << ", " << _obs_width << ", " << _grid_features.size() << "]";
       throw std::runtime_error(ss.str());
     }
-    if (strides[0] != _obs_height * _obs_width * _grid_features.size() * sizeof(unsigned char)) {
+    if (strides[0] != _obs_height * _obs_width * _grid_features.size() * sizeof(ObsType) || strides[1] != _obs_width * _grid_features.size() * sizeof(ObsType) || strides[2] != _grid_features.size() * sizeof(ObsType) || strides[3] != sizeof(ObsType)) {
       // This suggests that the data size is wrong, or the data is otherwise not contiguous.
       throw std::runtime_error("observations has the wrong stride");
     }
