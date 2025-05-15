@@ -373,6 +373,8 @@ void MettaGrid::validate_buffers() {
     auto observation_info = _observations.request();
     auto shape = observation_info.shape;
     auto strides = observation_info.strides;
+    // An example risk for the stride is that the data is laid out like a
+    // fortran array, and is thus not contiguous.
     if (observation_info.ndim != 4 || shape[0] != num_agents || shape[1] != _obs_height || shape[2] != _obs_width ||
         shape[3] != _grid_features.size()) {
       std::stringstream ss;
@@ -424,10 +426,10 @@ void MettaGrid::validate_buffers() {
 }
 
 
-void MettaGrid::set_buffers(std::reference_wrapper<py::array_t<ObsType>> observations,
-                            std::reference_wrapper<py::array_t<bool>> terminals,
-                            std::reference_wrapper<py::array_t<bool>> truncations,
-                            std::reference_wrapper<py::array_t<float>> rewards) {
+void MettaGrid::set_buffers(py::array_t<unsigned char>& observations,
+                            py::array_t<bool>& terminals,
+                            py::array_t<bool>& truncations,
+                            py::array_t<float>& rewards) {
   _observations = observations;
   _terminals = terminals;
   _truncations = truncations;
@@ -657,7 +659,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def(py::init<py::dict, py::array>())
       .def("reset", &MettaGrid::reset)
       .def("step", &MettaGrid::step)
-      .def("set_buffers", &MettaGrid::set_buffers)
+      .def("set_buffers", &MettaGrid::set_buffers, py::arg("observations").noconvert(), py::arg("terminals").noconvert(), py::arg("truncations").noconvert(), py::arg("rewards").noconvert())
       .def("grid_objects", &MettaGrid::grid_objects)
       .def("action_names", &MettaGrid::action_names)
       .def("current_timestep", &MettaGrid::current_timestep)
