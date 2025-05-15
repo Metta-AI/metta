@@ -10,7 +10,7 @@ exclude = [
   ".mypy_cache",    # MyPy type checking cache
   ".ruff_cache",    # Ruff linter cache
   ".venv",          # Virtual environment
-  "venv",
+  "venv",           # Project virtual environment
   "__pypackages__", # PEP 582 packages
   "dist",           # Distribution builds
   "node_modules",   # Node.js packages
