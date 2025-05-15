@@ -1,11 +1,12 @@
 import logging
-from typing import Any, List, Optional, Tuple, Union, cast
+from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
 import gymnasium as gym
 import hydra
 import numpy as np
 import torch
 from omegaconf import DictConfig, ListConfig, OmegaConf
+from tensordict import TensorDict
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 
@@ -20,7 +21,17 @@ from mettagrid.mettagrid_env import MettaGridEnv
 logger = logging.getLogger("metta_agent")
 
 
-def make_policy(env: MettaGridEnv, cfg: ListConfig | DictConfig):
+def make_policy(env: MettaGridEnv, cfg: Union[ListConfig, DictConfig]) -> "MettaAgent":
+    """
+    Create a policy instance based on environment and configuration.
+
+    Args:
+        env: The MettaGrid environment
+        cfg: Configuration parameters
+
+    Returns:
+        An initialized MettaAgent policy
+    """
     obs_space = gym.spaces.Dict(
         {
             "grid_obs": env.single_observation_space,
@@ -43,6 +54,13 @@ class DistributedMettaAgent(DistributedDataParallel):
     """Wrapper for MettaAgent to support distributed training with PyTorch DDP."""
 
     def __init__(self, agent: "MettaAgent", device: Union[torch.device, int]) -> None:
+        """
+        Initialize a distributed wrapper for MettaAgent.
+
+        Args:
+            agent: The MettaAgent to be wrapped
+            device: The device to use for distributed processing
+        """
         super().__init__(agent, device_ids=[device], output_device=device)
 
     def __getattr__(self, name: str) -> Any:
@@ -52,7 +70,14 @@ class DistributedMettaAgent(DistributedDataParallel):
             return getattr(self.module, name)
 
     def activate_actions(self, action_names: List[str], action_max_params: List[int], device: torch.device) -> None:
-        """Forward activate_actions to the wrapped module."""
+        """
+        Forward activate_actions to the wrapped module.
+
+        Args:
+            action_names: List of action names to activate
+            action_max_params: List of maximum parameter values for each action
+            device: Device for tensor operations
+        """
         return self.module.activate_actions(action_names, action_max_params, device)
 
     @property
@@ -65,11 +90,21 @@ class DistributedMettaAgent(DistributedDataParallel):
         return self.module.update_l2_init_weight_copy()
 
     def l2_reg_loss(self) -> torch.Tensor:
-        """Forward l2_reg_loss to the wrapped module."""
+        """
+        Forward l2_reg_loss to the wrapped module.
+
+        Returns:
+            Scalar tensor containing the L2 regularization loss
+        """
         return self.module.l2_reg_loss()
 
     def l2_init_loss(self) -> torch.Tensor:
-        """Forward l2_init_loss to the wrapped module."""
+        """
+        Forward l2_init_loss to the wrapped module.
+
+        Returns:
+            Scalar tensor containing the L2 initialization loss
+        """
         return self.module.l2_init_loss()
 
     def clip_weights(self) -> None:
@@ -86,25 +121,41 @@ class MettaAgent(nn.Module):
         device: str,
         **cfg,
     ):
+        """
+        Initialize the MettaAgent.
+
+        Args:
+            obs_space: Observation space definition
+            action_space: Action space definition
+            grid_features: List of grid feature names
+            device: Device to run the agent on
+            **cfg: Additional configuration parameters
+        """
         super().__init__()
         cfg = OmegaConf.create(cfg)
 
         logger.info(f"obs_space: {obs_space} ")
 
-        self.hidden_size = cfg.components._core_.output_size
-        self.core_num_layers = cfg.components._core_.nn_params.num_layers
-        self.clip_range = cfg.clip_range
+        self.hidden_size: int = cfg.components._core_.output_size
+        self.core_num_layers: int = cfg.components._core_.nn_params.num_layers
+        self.clip_range: float = cfg.clip_range
+        self.device: Optional[torch.device] = None
+        self.action_max_params: Optional[List[int]] = None
+        self.action_names: Optional[List[str]] = None
+        self.active_actions: Optional[List[Tuple[str, int]]] = None
+        self.cum_action_max_params: Optional[torch.Tensor] = None  # Shape: [num_action_types + 1]
+        self.action_index_tensor: Optional[torch.Tensor] = None  # Shape: [total_num_actions, 2]
 
         assert hasattr(cfg.observations, "obs_key") and cfg.observations.obs_key is not None, (
             "Configuration is missing required field 'observations.obs_key'"
         )
-        obs_key = cfg.observations.obs_key  # typically "grid_obs"
+        obs_key: str = cfg.observations.obs_key  # typically "grid_obs"
 
-        obs_shape = safe_get_from_obs_space(obs_space, obs_key, "shape")
-        obs_input_shape = obs_shape[1:]  # typ. obs_width, obs_height, number of observations
-        num_objects = obs_shape[2]  # typ. number of observations
+        obs_shape: Tuple[int, ...] = safe_get_from_obs_space(obs_space, obs_key, "shape")
+        obs_input_shape: Tuple[int, ...] = obs_shape[1:]  # typ. obs_width, obs_height, number of observations
+        num_objects: int = obs_shape[2]  # typ. number of observations
 
-        agent_attributes = {
+        agent_attributes: Dict[str, Any] = {
             "obs_shape": obs_shape,
             "clip_range": self.clip_range,
             "action_space": action_space,
@@ -126,7 +177,7 @@ class MettaAgent(nn.Module):
 
         for component_key in component_cfgs:
             # Convert key to string to ensure compatibility
-            component_name = str(component_key)
+            component_name: str = str(component_key)
             component_cfgs[component_key]["name"] = component_name
             logger.info(f"calling hydra instantiate from MettaAgent __init__ for {component_name}")
             component = hydra.utils.instantiate(component_cfgs[component_key], **agent_attributes)
@@ -146,14 +197,26 @@ class MettaAgent(nn.Module):
 
         self.components = self.components.to(device)
 
-        self._total_params = sum(p.numel() for p in self.parameters())
+        self._total_params: int = sum(p.numel() for p in self.parameters())
         logger.info(f"Total number of parameters in MettaAgent: {self._total_params:,}. Setup complete.")
 
-    def _setup_components(self, component: LayerBase):
-        """_sources is a list of dicts albeit many layers simply have one element.
-        It must always have a "name" and that name should be the same as the relevant key in self.components.
-        source_components is a dict of components that are sources for the current component. The keys
-        are the names of the source components."""
+    def _setup_components(self, component: LayerBase) -> None:
+        """
+        Setup components recursively and establish connections.
+
+        Notes:
+
+        1. Each component may have a `_sources` attribute defining its input layers (List[Dict])
+        2. Each dictionary in `_sources` must contain a "name" key matching an entry
+            in self.components (the ModuleDict of all available layers)
+        3. We build a `source_components` dictionary where:
+            - Keys are the source component names (from the "name" field)
+            - Values are the actual component objects (layers) from self.components
+        4. This `source_components` dictionary is passed to the component setup method.
+
+        Args:
+            component: The component to set up
+        """
         # recursively setup all source components
         if component._sources is not None:
             for source in component._sources:
@@ -168,9 +231,15 @@ class MettaAgent(nn.Module):
                 source_components[source["name"]] = self.components[source["name"]]
         component.setup(source_components)
 
-    def activate_actions(self, action_names: list[str], action_max_params: list[int], device):
-        """Run this at the beginning of training."""
+    def activate_actions(self, action_names: List[str], action_max_params: List[int], device: torch.device) -> None:
+        """
+        Activate agent actions for training.
 
+        Args:
+            action_names: List of action names to activate
+            action_max_params: List of maximum parameter values for each action
+            device: Device for tensor operations
+        """
         assert isinstance(action_max_params, list), "action_max_params must be a list"
 
         self.device = device
@@ -180,6 +249,7 @@ class MettaAgent(nn.Module):
         self.active_actions = list(zip(action_names, action_max_params, strict=False))
 
         # Precompute cumulative sums for faster conversion
+        # Shape: [num_action_types + 1]
         self.cum_action_max_params = torch.cumsum(torch.tensor([0] + action_max_params, device=self.device), dim=0)
 
         full_action_names = []
@@ -187,7 +257,7 @@ class MettaAgent(nn.Module):
             for i in range(max_param + 1):
                 full_action_names.append(f"{action_name}_{i}")
 
-        component = self.components["_action_embeds_"]  # Type annotation removed
+        component = self.components["_action_embeds_"]
 
         if not isinstance(component, ActionEmbedding):
             raise TypeError(f"Component '_action_embeds_' is of type {type(component)}, expected ActionEmbedding")
@@ -200,15 +270,18 @@ class MettaAgent(nn.Module):
             for j in range(max_param + 1):
                 action_index.append([action_type_idx, j])
 
+        # Shape: [total_num_actions, 2]
         self.action_index_tensor = torch.tensor(action_index, device=self.device)
         logger.info(f"Agent actions activated with: {self.active_actions}")
 
     @property
-    def lstm(self):
+    def lstm(self) -> nn.Module:
+        """Get the LSTM core module."""
         return self.components["_core_"]._net
 
     @property
-    def total_params(self):
+    def total_params(self) -> int:
+        """Get the total number of parameters in the model."""
         return self._total_params
 
     def forward(
@@ -221,20 +294,22 @@ class MettaAgent(nn.Module):
         Forward pass of the MettaAgent.
 
         Args:
-            x: input observation tensor of shape [B, T, *obs_shape] or [B*T, *obs_shape]
+            x: Input observation tensor of shape [B, T, *obs_shape] or [B*T, *obs_shape]
+               where B=batch_size, T=sequence_length
             state: Policy state containing LSTM hidden and cell states
             action: Optional action tensor, shape [B, T, 2] or [B*T, 2]
+                    Each action is represented as [action_type, action_param]
 
         Returns:
-            Tuple of (action, logprob_act, entropy, value, logprobs) where:
-            - action: Tensor of shape [B*T, 2]
-            - logprob_act: Tensor of shape [B*T]
-            - entropy: Tensor of shape [B*T]
-            - value: Tensor of shape [B*T]
-            - logprobs: Tensor of shape [B*T, num_actions]
+            Tuple containing:
+            - action: Tensor of shape [B*T, 2], where each row is [action_type, action_param]
+            - logprob_act: Log probability of chosen action, shape [B*T]
+            - entropy: Entropy of action distribution, shape [B*T]
+            - value: Value function output, shape [B*T]
+            - logprobs: All action log probabilities, shape [B*T, num_actions]
         """
-        # Initialize dictionary for TensorDict
-        td = {"x": x, "state": None}
+        # Initialize TensorDict for data flow
+        td = TensorDict({"x": x, "state": None}, batch_size=x.shape[0])
 
         # Safely handle LSTM state
         if state.lstm_h is not None and state.lstm_c is not None:
@@ -245,7 +320,7 @@ class MettaAgent(nn.Module):
             # Concatenate LSTM states along dimension 0 (layer dimension)
             # Result shape: [2*num_layers, batch_size, hidden_size]
             # First num_layers rows are lstm_h, next num_layers rows are lstm_c
-            td["state"] = torch.cat([lstm_h, lstm_c], dim=0)  # shape: [2*num_layers, batch_size, hidden_size]
+            td["state"] = torch.cat([lstm_h, lstm_c], dim=0)
 
         # Forward pass through value network
         self.components["_value_"](td)
@@ -267,11 +342,8 @@ class MettaAgent(nn.Module):
             self._convert_action_to_logit_index(action) if action is not None else None
         )
 
-        # The sample_logits function is annotated with:
-        # @torch.jit.script
-        # def sample_logits(logits: Tensor, action: Optional[Tensor] = None) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
-        #
-        # Returns a tuple of (action_indices, log_probs, entropy, all_log_probs)
+        # sample_logits returns:
+        # (action_indices, log_probs, entropy, all_log_probs)
         action_indices: torch.Tensor  # Shape: [B*T]
         log_probs: torch.Tensor  # Shape: [B*T]
         entropy_val: torch.Tensor  # Shape: [B*T]
@@ -280,30 +352,28 @@ class MettaAgent(nn.Module):
         # If action provided, action_logit_index shape: [B*T]
         action_indices, log_probs, entropy_val, all_log_probs = sample_logits(logits, action_logit_index)
 
-        # action_logit_index: Shape [B*T]
-        # logprob_act: Shape [B*T]
-        # entropy: Shape [B*T]
-        # logprobs: Shape [B*T, num_actions]
-
-        # Convert logit index to action if no action was provided, (otherwise return provided action)
+        # Convert logit index to action if no action was provided
         if action is None:
             action = self._convert_logit_index_to_action(action_indices)  # Shape: [B*T, 2]
 
         return action, log_probs, entropy_val, value, all_log_probs
 
-    def _convert_action_to_logit_index(self, action: torch.Tensor):
+    def _convert_action_to_logit_index(self, action: torch.Tensor) -> torch.Tensor:
         """
         Convert (action_type, action_param) pairs to discrete action indices
         using precomputed offsets.
 
-        Assumes `cum_action_max_params` has been pre-calculated.
-
         Args:
             action: Tensor of shape [B, T, 2] or [B*T, 2]
+                   Each action is represented as [action_type, action_param]
 
         Returns:
             action_logit_index: Tensor of shape [B*T]
+                               Flattened action indices for logit indexing
         """
+        if self.cum_action_max_params is None:
+            raise ValueError("Agent actions have not been activated. Call activate_actions first.")
+
         action = action.reshape(-1, 2)
 
         # Extract action components
@@ -311,7 +381,7 @@ class MettaAgent(nn.Module):
         action_params = action[:, 1].long()  # Shape: [B*T]
 
         # Use precomputed cumulative sum with vectorized indexing
-        cumulative_sum = self.cum_action_max_params[action_type_numbers]  # Shape: [num_action_types + 1]
+        cumulative_sum = self.cum_action_max_params[action_type_numbers]  # Shape: [B*T]
 
         # Vectorized addition
         action_logit_index = action_type_numbers + cumulative_sum + action_params  # Shape: [B*T]
@@ -320,14 +390,19 @@ class MettaAgent(nn.Module):
 
     def _convert_logit_index_to_action(self, action_logit_index: torch.Tensor) -> torch.Tensor:
         """
-        Convert logit indices back to action pairs using tensor indexing
+        Convert logit indices back to action pairs using tensor indexing.
 
         Args:
             action_logit_index: Tensor of shape [B*T]
+                               Flattened action indices
 
         Returns:
             action: Tensor of shape [B*T, 2]
+                   Each row is [action_type, action_param]
         """
+        if self.action_index_tensor is None:
+            raise ValueError("Agent actions have not been activated. Call activate_actions first.")
+
         # direct tensor indexing on precomputed action_index_tensor
         return self.action_index_tensor[action_logit_index.reshape(-1)]  # Shape: [B*T, 2]
 
@@ -363,35 +438,70 @@ class MettaAgent(nn.Module):
         return results
 
     def l2_reg_loss(self) -> torch.Tensor:
-        """L2 regularization loss is on by default although setting l2_norm_coeff to 0 effectively turns it off. Adjust
+        """
+        Calculate L2 regularization loss across all components.
+
+        Note:
+        L2 regularization loss is on by default although setting l2_norm_coeff to 0 effectively turns it off. Adjust
         it by setting l2_norm_scale in your component config to a multiple of the global loss value or 0 to turn it off.
+
+        Returns:
+            Scalar tensor containing the summed L2 regularization loss
         """
         component_loss_tensors = self._apply_to_components("l2_reg_loss")
         return torch.sum(torch.stack(component_loss_tensors))
 
     def l2_init_loss(self) -> torch.Tensor:
-        """L2 initialization loss is on by default although setting l2_init_coeff to 0 effectively turns it off. Adjust
+        """
+        Calculate L2 initialization loss across all components.
+
+        Note:
+        L2 initialization loss is on by default although setting l2_init_coeff to 0 effectively turns it off. Adjust
         it by setting l2_init_scale in your component config to a multiple of the global loss value or 0 to turn it off.
+
+        Returns:
+            Scalar tensor containing the summed L2 initialization loss
         """
         component_loss_tensors = self._apply_to_components("l2_init_loss")
         return torch.sum(torch.stack(component_loss_tensors))
 
-    def update_l2_init_weight_copy(self):
-        """Update interval set by l2_init_weight_update_interval. 0 means no updating."""
+    def update_l2_init_weight_copy(self) -> None:
+        """
+        Update the weight copies used for L2 initialization regularization
+
+        Note:
+        The update interval is set by l2_init_weight_update_interval. 0 means no updating.
+        """
         self._apply_to_components("update_l2_init_weight_copy")
 
-    def clip_weights(self):
-        """Weight clipping is on by default although setting clip_range or clip_scale to 0, or a large positive value
+    def clip_weights(self) -> None:
+        """
+        Clip weights to stay within the specified range if clip_range > 0.
+
+        Note:
+        Weight clipping is on by default although setting clip_range or clip_scale to 0, or a large positive value
         effectively turns it off. Adjust it by setting clip_scale in your component config to a multiple of the global
-        loss value or 0 to turn it off."""
+        loss value or 0 to turn it off.
+        """
         if self.clip_range > 0:
             self._apply_to_components("clip_weights")
 
-    def compute_weight_metrics(self, delta: float = 0.01) -> List[dict]:
-        """Compute weight metrics for all components that have weights enabled for analysis.
+    def compute_weight_metrics(self, delta: float = 0.01) -> List[Dict[str, float]]:
+        """
+        Compute weight metrics for all components that have weights enabled for analysis.
+
+        Note:
+        Compute weight metrics for all components that have weights enabled for analysis.
         Returns a list of metric dictionaries, one per component. Set analyze_weights to True in the config to turn it
-        on for a given component."""
-        results = {}
+        on for a given component.
+
+        Args:
+            delta: Threshold for weight change metrics
+
+        Returns:
+            List of metric dictionaries, one per component
+        """
+        results: Dict[str, Dict[str, float]] = {}
         for name, component in self.components.items():
             method_name = "compute_weight_metrics"
             if not hasattr(component, method_name):
