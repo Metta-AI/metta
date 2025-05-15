@@ -47,4 +47,3 @@ def test_step_performance(benchmark, environment, single_action):
         rounds=10,  # Number of rounds to run
         warmup_rounds=0,  # Number of warmup rounds to discard
     )
-
