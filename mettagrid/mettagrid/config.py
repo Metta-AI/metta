@@ -27,7 +27,6 @@ class MettaGridConfig:
         Args:
             env_cfg: OmegaConf configuration for the environment
             env_map: Optional pre-generated map. If None, a map will be generated using the map_builder from env_cfg
-            map_builder_override: Optional parameters to override the map_builder configuration
         """
         self._env_cfg = OmegaConf.create(copy.deepcopy(env_cfg))
         self._env_map = env_map
