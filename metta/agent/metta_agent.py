@@ -1,5 +1,5 @@
 import logging
-from typing import List, Union
+from typing import List, Optional, Union
 
 import gymnasium as gym
 import hydra
@@ -163,49 +163,20 @@ class MettaAgent(nn.Module):
                 source_components[source["name"]] = self.components[source["name"]]
         component.setup(source_components)
 
-    def _calculate_cum_action_max_params(self, action_max_params: list[int], device):
-        """
-        Calculate cumulative sum for action indices. Used for converting actions to logit indices.
-
-        Args:
-            action_max_params: List of maximum parameter values for each action type
-            device: Device to place the tensor on
-
-        Returns:
-            Tensor of cumulative sums representing offsets for action types
-        """
-
-        # Handle empty case
-        if not action_max_params:
-            return torch.tensor([0], dtype=torch.long, device=device)
-
-        # Calculate offsets
-        offsets = [0]  # First action type starts at index 0
-        current_offset = 0
-
-        # Add up the parameter counts for each action type
-        for i in range(len(action_max_params) - 1):
-            current_offset += action_max_params[i] + 1  # +1 because params are 0-indexed
-            offsets.append(current_offset)
-
-        return torch.tensor(offsets, dtype=torch.long, device=device)
-
     def activate_actions(self, action_names: list[str], action_max_params: list[int], device):
         """Run this at the beginning of training."""
 
         assert isinstance(action_max_params, list), "action_max_params must be a list"
 
-        # Store parameters
         self.device = device
-        self.action_names = action_names
         self.action_max_params = action_max_params
+        self.action_names = action_names
 
         self.active_actions = list(zip(action_names, action_max_params, strict=False))
 
         # Precompute cumulative sums for faster conversion
-        self.cum_action_max_params = self._calculate_cum_action_max_params(self.action_max_params, device)
+        self.cum_action_max_params = torch.cumsum(torch.tensor([0] + action_max_params, device=self.device), dim=0)
 
-        # Generate full action names including parameters
         full_action_names = []
         for action_name, max_param in self.active_actions:
             for i in range(max_param + 1):
@@ -220,11 +191,11 @@ class MettaAgent(nn.Module):
 
         # Create action_index tensor
         action_index = []
-        for action_type_idx, max_param in enumerate(self.action_max_params):
+        for action_type_idx, max_param in enumerate(action_max_params):
             for j in range(max_param + 1):
                 action_index.append([action_type_idx, j])
 
-        self.action_index_tensor = torch.tensor(action_index, device=device)
+        self.action_index_tensor = torch.tensor(action_index, device=self.device)
         logger.info(f"Agent actions activated with: {self.active_actions}")
 
     @property
@@ -235,14 +206,14 @@ class MettaAgent(nn.Module):
     def total_params(self):
         return self._total_params
 
-    def forward(self, x, state: PolicyState, action=None):
+    def forward(self, x: torch.Tensor, state: PolicyState, action: Optional[torch.Tensor] = None):
         """
         Forward pass of the MettaAgent.
 
         Args:
-            x: Input observation tensor
+            x: input observation tensor
             state: Policy state containing LSTM hidden and cell states
-            action: Optional action tensor
+            action: Optional action tensor, shape [B, T] or [B*T]
 
         Returns:
             Tuple of (action, logprob_act, entropy, value, logprobs)
@@ -276,13 +247,13 @@ class MettaAgent(nn.Module):
         action_logit_index = self._convert_action_to_logit_index(action) if action is not None else None
         action_logit_index, logprob_act, entropy, logprobs = sample_logits(logits, action_logit_index)
 
-        # Convert logit index to action if no action was provided
+        # Convert logit index to action if no action was provided, (otherwise return provided action)
         if action is None:
-            action = self._convert_logit_index_to_action(action_logit_index, td)
+            action = self._convert_logit_index_to_action(action_logit_index)
 
         return action, logprob_act, entropy, value, logprobs
 
-    def _convert_action_to_logit_index(self, action):
+    def _convert_action_to_logit_index(self, action: torch.Tensor):
         """
         Convert (action_type, action_param) pairs to discrete action indices
         using precomputed offsets.
@@ -290,16 +261,19 @@ class MettaAgent(nn.Module):
         """
         action = action.reshape(-1, 2)
 
-        action_type = action[:, 0].long()
-        action_param = action[:, 1].long()
+        # Extract action components
+        action_type_numbers = action[:, 0].long()
+        action_params = action[:, 1].long()
 
-        # Only use offset + parameter — NOT + action_type
-        offset = self.cum_action_max_params[action_type]
-        action_logit_index = offset + action_param
+        # Use precomputed cumulative sum with vectorized indexing
+        cumulative_sum = self.cum_action_max_params[action_type_numbers]
+
+        # Vectorized addition
+        action_logit_index = action_type_numbers + cumulative_sum + action_params
 
         return action_logit_index.view(-1)  # shape: [B] or [B*T]
 
-    def _convert_logit_index_to_action(self, action_logit_index, td):
+    def _convert_logit_index_to_action(self, action_logit_index: torch.Tensor):
         """Convert logit indices back to action pairs using tensor indexing"""
         # direct tensor indexing on precomputed action_index_tensor
         return self.action_index_tensor[action_logit_index.reshape(-1)]
