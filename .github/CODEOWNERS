@@ -1,0 +1,26 @@
+# This file is used to describe who owns what in this repository.
+# For documentation on this file, see https://help.github.com/articles/about-codeowners/
+# Mentioned users will get code review requests.
+
+# Default reviewer
+* @sasmith
+
+# CI, formatting, linting
+/.github @rjwalters
+/ruff.toml @rjwalters
+
+/.github/CODEOWNERS @daveey
+
+# MettaScope
+/mettascope @treeform @daveey
+
+# DevOps
+/devops/tf @daveey @berekuk
+/devops @daveey
+
+# Specific packages
+/mettagrid/mettagrid @sasmith
+
+/metta/agent @Al-does @daveey
+/metta/map @sasmith @berekuk
+/metta/rl @Al-does @daveey

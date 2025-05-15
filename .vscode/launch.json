@@ -49,17 +49,6 @@
             ],
         },
         {
-            "name": "Play Metta",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "tools.play",
-            "args": [
-                "+user=${env:USER}",
-                "+hardware=macbook",
-                "cmd=play",
-            ],
-        },
-        {
             "name": "Evaluate",
             "type": "debugpy",
             "request": "launch",
@@ -92,14 +81,14 @@
             ],
         },
         {
-            // This is left over from merging mettagrid into metta. It doesn't
-            // look like it should have been working before the merge, but it
-            // seems probably straightforward to fix.
-            "name": "MettaGrid: PerfTest",
+            "name": "Play Metta",
             "type": "debugpy",
             "request": "launch",
-            "module": "test_perf",
-            "preLaunchTask": "build_cython_extensions"
-        }
+            "module": "tools.play",
+            "args": [
+                "+user=${env:USER}",
+                "+hardware=macbook",
+            ],
+        },
     ],
 }

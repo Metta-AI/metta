@@ -6,27 +6,21 @@ target-version = "py311"
 # Exclude directories from linting
 # These are common directories that typically don't need linting
 exclude = [
-    ".git",           # Git version control
-    ".mypy_cache",    # MyPy type checking cache
-    ".ruff_cache",    # Ruff linter cache
-    ".venv",          # Virtual environment
-    "venv",
-    "__pypackages__", # PEP 582 packages
-    "dist",           # Distribution builds
-    "node_modules",   # Node.js packages
+  ".git",           # Git version control
+  ".mypy_cache",    # MyPy type checking cache
+  ".ruff_cache",    # Ruff linter cache
+  ".venv",          # Virtual environment
+  "venv",
+  "__pypackages__", # PEP 582 packages
+  "dist",           # Distribution builds
+  "node_modules",   # Node.js packages
 ]
 
 [lint.isort]
 # Define import sections and their order
 known-third-party = ["wandb", "torch", "omegaconf"]
 known-first-party = ["metta", "mettagrid"]
-section-order = [
-    "future",
-    "standard-library",
-    "third-party",
-    "first-party",
-    "local-folder",
-]
+section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
 
 [lint]
 # Rules to enable for linting
@@ -35,7 +29,7 @@ section-order = [
 # B: flake8-bugbear
 # I: isort
 # See full rule list: https://docs.astral.sh/ruff/rules/
-select = ["E", "F", "B", "I"]
+select = ["E", "F", "B", "I", "TID"]
 
 # Rules to explicitly ignore
 # E203: Whitespace before ':' (conflicts with Black)
@@ -43,13 +37,13 @@ select = ["E", "F", "B", "I"]
 #
 # D rules are not applied by default, but some user reported seeing problems so disabling explicitly
 ignore = [
-    "D100", # Missing module docstring
-    "D101", # Missing class docstring
-    "D102", # Missing method docstring
-    "D103", # Missing function docstring
-    "D106", # Missing __init__ docstring
-    "D107", # Missing __init__ docstring in non-public class
-    "E203", # Whitespace before colon
+  "D100", # Missing module docstring
+  "D101", # Missing class docstring
+  "D102", # Missing method docstring
+  "D103", # Missing function docstring
+  "D106", # Missing __init__ docstring
+  "D107", # Missing __init__ docstring in non-public class
+  "E203", # Whitespace before colon
 ]
 
 # Allow auto-fixing for selected rule categories
@@ -58,3 +52,6 @@ fixable = ["E", "F", "B", "I"]
 unfixable = []
 
 # For more configuration options, see: https://docs.astral.sh/ruff/configuration/
+
+[lint.flake8-tidy-imports.banned-api]
+"mettagrid.mettagrid".msg = "Import mettagrid instead of mettagrid.mettagrid"

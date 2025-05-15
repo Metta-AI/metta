@@ -1,0 +1,8 @@
+defaults:
+  - common
+  - _self_
+
+eval_db_uri: ???
+
+dashboard:
+  eval_db_uri: ${eval_db_uri}

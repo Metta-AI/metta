@@ -1,8 +1,9 @@
 defaults:
   - /env/mettagrid/mettagrid@
+  - _self_
 
 game:
-  num_agents: 20  #how many agents are in the map x2
+  num_agents: 1  #how many agents are in the map x2
   max_steps: 1000
   agent:
     rewards:
@@ -10,7 +11,7 @@ game:
   map_builder:
 
     _target_: mettagrid.config.room.multi_room.MultiRoom
-    num_rooms: 20
+    num_rooms: 1
     room:
       _target_: mettagrid.config.room.ascii.Ascii
       border_width: 1

@@ -7,4 +7,3 @@ tasks:
 env_overrides:
   game:
     num_agents: 4
-

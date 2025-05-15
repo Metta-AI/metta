@@ -3,8 +3,8 @@ defaults:
   - _self_
 
 game:
-  num_agents: 20
-  max_steps: 250
+  num_agents: 1
+  max_steps: 120
 
   agent:
     rewards:
@@ -12,7 +12,7 @@ game:
 
   map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom
-    num_rooms: 20
+    num_rooms: 1
     border_width: 1
 
     room:

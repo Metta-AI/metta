@@ -4,15 +4,14 @@ defaults:
   - sim: simple
   - _self_
 
-cmd: play
 run: ???
-data_dir: ./train_dir
-run_dir: ${data_dir}/${run}
-torch_deterministic: true
-eval_db_uri: null
+policy_uri: ???
 
 replay_job:
   sim: ${sim}
   policy_uri: ${policy_uri}
   selector_type: top
-  metric: score
+  stats_dir: ${run_dir}/stats
+  replay_dir: s3://softmax-public/replays/local
+
+cmd: play

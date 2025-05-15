@@ -1,0 +1,11 @@
+_target_: metta.env.mettagrid_env_set.MettaGridEnvSet
+
+num_agents: 24
+
+game:
+  num_agents: ${..num_agents}
+
+envs:
+  - /env/mettagrid/simple
+  - /env/mettagrid/teams
+  - /env/mettagrid/bases

@@ -1,44 +1,19 @@
-import os
-import signal  # Aggressively exit on ctrl+c
-import sys
+# Starts a websocket server that allows you to play as a metta agent.
+import webbrowser
 
 import hydra
+import uvicorn
 
-import metta.sim.simulator
-from metta.agent.policy_store import PolicyStore
-from metta.sim.simulation_config import SimulationConfig
-from metta.util.config import Config
-from metta.util.logging import setup_mettagrid_logger
-from metta.util.runtime_configuration import setup_mettagrid_environment
-from metta.util.wandb.wandb_context import WandbContext
-
-signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
+import mettascope.server as server
 
 
-class PlayJob(Config):
-    sim: SimulationConfig
-    policy_uri: str
+@hydra.main(version_base=None, config_path="../configs", config_name="replay_job")
+def main(cfg):
+    server.app.cfg = cfg
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-
-@hydra.main(version_base=None, config_path="../configs", config_name="play_job")
-def main(cfg) -> int:
-    setup_mettagrid_environment(cfg)
-
-    logger = setup_mettagrid_logger("play")
-    logger.info(f"Playing {cfg.run}")
-
-    with WandbContext(cfg) as wandb_run:
-        policy_store = PolicyStore(cfg, wandb_run)
-
-        play_job = PlayJob(cfg.play_job)
-        policy_record = policy_store.policy(play_job.policy_uri)
-        metta.sim.simulator.play(play_job.sim, policy_record)
-
-    return 0
+    uvicorn.run(server.app, host="0.0.0.0", port=8000)
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    webbrowser.open("http://localhost:8000/?wsUrl=%2Fws")
+    main()

@@ -1,6 +1,8 @@
 defaults:
-  - sim
+  - sim_suite
   - _self_
+
+name: object_use
 
 simulations:
   object_use/altar_use_free:

@@ -1,3 +1,8 @@
+hydra:
+  callbacks:
+    resolver_callback:
+      _target_: metta.util.resolvers.ResolverRegistrar
+
 run: ???
 dist_cfg_path: null
 data_dir: ./train_dir
