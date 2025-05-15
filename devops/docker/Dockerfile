@@ -1,8 +1,7 @@
 FROM mettaai/metta-base:latest
 
 # Install uv
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
-ENV PATH="/root/.local/bin:$PATH"
+COPY --from=ghcr.io/astral-sh/uv:0.7.2 /uv /uvx /bin/
 
 # Use ARG to create a build-time variable
 ARG CACHE_DATE
@@ -16,6 +15,7 @@ RUN git clone --recursive https://github.com/Metta-AI/metta.git metta
 WORKDIR /workspace/metta
 
 RUN ./devops/setup_build.sh
+ENV PATH="/workspace/metta/.venv/bin:$PATH"
 
 WORKDIR /workspace/metta/
 ENTRYPOINT ["/bin/bash", "-c"]
