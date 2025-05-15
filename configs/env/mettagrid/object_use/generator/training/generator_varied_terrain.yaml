@@ -30,7 +30,7 @@ game:
       output_heart: 1
       max_output: 5
       conversion_ticks: 1
-      initial_items: ${sampling:0,1,0}
+      initial_items: 0
     generator:
       initial_items: 5
       cooldown: 50
