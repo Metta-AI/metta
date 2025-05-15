@@ -425,7 +425,6 @@ void MettaGrid::validate_buffers() {
   }
 }
 
-
 void MettaGrid::set_buffers(py::array_t<unsigned char>& observations,
                             py::array_t<bool>& terminals,
                             py::array_t<bool>& truncations,
@@ -659,7 +658,12 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def(py::init<py::dict, py::array>())
       .def("reset", &MettaGrid::reset)
       .def("step", &MettaGrid::step)
-      .def("set_buffers", &MettaGrid::set_buffers, py::arg("observations").noconvert(), py::arg("terminals").noconvert(), py::arg("truncations").noconvert(), py::arg("rewards").noconvert())
+      .def("set_buffers",
+           &MettaGrid::set_buffers,
+           py::arg("observations").noconvert(),
+           py::arg("terminals").noconvert(),
+           py::arg("truncations").noconvert(),
+           py::arg("rewards").noconvert())
       .def("grid_objects", &MettaGrid::grid_objects)
       .def("action_names", &MettaGrid::action_names)
       .def("current_timestep", &MettaGrid::current_timestep)
