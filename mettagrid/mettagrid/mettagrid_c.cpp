@@ -178,8 +178,8 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
     }
   }
 
-  // Initialize buffers. It should be fine to do this at the end of initialization,
-  // since the buffers are likely to be re-set by the user anyways.
+  // Initialize buffers. The buffers are likely to be re-set by the user anyways,
+  // so nothing above should depend on them before this point.
   std::vector<ssize_t> shape = {static_cast<ssize_t>(num_agents),
                                 static_cast<ssize_t>(_obs_height),
                                 static_cast<ssize_t>(_obs_width),
