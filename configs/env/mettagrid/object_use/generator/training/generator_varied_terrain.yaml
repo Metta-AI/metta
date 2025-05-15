@@ -14,8 +14,8 @@ game:
 
     room:
       _target_: mettagrid.config.room.navigation.varied_terrain.VariedTerrain
-      width: ${sampling:50,100,60}
-      height: ${sampling:50,100,60}
+      width: ${sampling:20,40,30}
+      height: ${sampling:20,40,30}
       border_width: ${sampling:1,6,3}
       agents: 1
       style: ${choose:"sparse-altars-dense-objects","all-sparse","balanced"}
@@ -30,7 +30,7 @@ game:
       output_heart: 1
       max_output: 5
       conversion_ticks: 1
-      initial_items: 0
+      initial_items: ${sampling:0,1,0}
     generator:
       initial_items: 5
       cooldown: 50
