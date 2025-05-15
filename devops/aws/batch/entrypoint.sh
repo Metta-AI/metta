@@ -43,7 +43,9 @@ else
 fi
 
 pip uninstall -y termcolor
-pip install termcolor==2.4.0
+curl -LsSf https://astral.sh/uv/install.sh | sh
+export PATH="$HOME/.cargo/bin:$PATH"
+uv pip install termcolor==2.4.0
 
 # Setup build (installs requirements)
 ./devops/setup_build.sh

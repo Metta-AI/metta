@@ -10,9 +10,11 @@ setup: |
   cd /workspace/metta
   git fetch
   git checkout $METTA_GIT_REF
-  pip install -r requirements.txt
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  export PATH="$HOME/.cargo/bin:$PATH"
+  uv pip install -r requirements.txt
   python setup.py build_ext --inplace
-  pip install -e .
+  uv pip install -e .
 
   ./devops/build_mettagrid.sh
   mkdir -p $WANDB_DIR

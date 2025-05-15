@@ -37,11 +37,16 @@ cd "$SCRIPT_DIR/.."
 cd mettagrid
 
 if [ -z "$CI" ]; then
-  echo "Upgrading pip..."
-  python -m pip install --upgrade pip
+  # ========== Check for uv ==========
+  if ! command -v uv &> /dev/null; then
+    echo "uv is not installed. Installing uv..."
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    # Make sure uv is in the PATH
+    export PATH="$HOME/.cargo/bin:$PATH"
+  fi
 
   echo "Installing mettagrid requirements..."
-  pip install -r requirements.txt
+  uv pip install -r requirements.txt
 fi
 
 echo "Building mettagrid in $(pwd)"
@@ -62,6 +67,10 @@ python setup.py build_ext --inplace
 
 # Reinstall in development mode
 echo "Reinstalling mettagrid in development mode..."
-pip install -e .
+if command -v uv &> /dev/null; then
+  uv pip install -e .
+else
+  pip install -e .
+fi
 
 echo "========== mettagrid rebuild complete =========="

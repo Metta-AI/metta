@@ -9,7 +9,8 @@
       "Bash(chmod:*)",
       "Bash(./build_with_bazel.sh:*)",
       "Bash(cat:*)",
-      "Bash(pytest:*)"
+      "Bash(pytest:*)",
+      "Bash(./devops/test_uv_setup.sh:*)"
     ],
     "deny": []
   }

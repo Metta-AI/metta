@@ -184,7 +184,7 @@ def setup_command(args):
         cmd_setup.append(f"git fetch origin {args.branch}")
         cmd_setup.append(f"git checkout {args.branch}")
         cmd_setup.append("git pull")
-    cmd_setup.extend(["pip install -r requirements.txt", "bash devops/setup_build.sh"])
+    cmd_setup.extend(["curl -LsSf https://astral.sh/uv/install.sh | sh && export PATH=\"$HOME/.cargo/bin:$PATH\" && uv pip install -r requirements.txt", "bash devops/setup_build.sh"])
     cmd = f"ssh -t -o StrictHostKeyChecking=no -p {ssh_port} root@{ssh_host} '{' && '.join(cmd_setup)}'"
     subprocess.run(cmd, shell=True, check=True)
     # Copy the .netrc file

@@ -29,28 +29,42 @@ else
   export IS_DOCKER=false
 fi
 
-# Check if we're in the correct conda environment
-if [ "$CONDA_DEFAULT_ENV" != "metta" ] && [ -z "$CI" ] && [ -z "$IS_DOCKER" ]; then
-  echo "WARNING: You must be in the 'metta' conda environment to run this script."
-  echo "Please activate the correct environment with: \"conda activate metta\""
+# ========== Check for uv ==========
+if ! command -v uv &> /dev/null && [ -z "$CI" ] && [ -z "$IS_DOCKER" ]; then
+  echo "uv is not installed. Installing uv..."
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  # Make sure uv is in the PATH
+  export PATH="$HOME/.cargo/bin:$PATH"
 fi
 
 # ========== Main Project ==========
 cd "$SCRIPT_DIR/.."
 
 if [ -z "$CI" ] && [ -z "$IS_DOCKER" ]; then
-  echo "Upgrading pip..."
-  python -m pip install --upgrade pip
+  echo -e "\n\nCreating virtual environment with uv...\n\n"
+  uv venv --python 3.11.7
+  
+  # Detect if we're in the virtual environment - uv will try to activate it, but in scripts we need to do it manually
+  if [[ -d ".venv" ]]; then
+    # Activate the venv
+    if [[ -f ".venv/bin/activate" ]]; then
+      source .venv/bin/activate
+    elif [[ -f ".venv/Scripts/activate" ]]; then
+      source .venv/Scripts/activate
+    fi
+    echo "✅ Virtual environment created and activated"
+  else
+    echo "❌ Failed to create virtual environment with uv"
+    exit 1
+  fi
 
-  echo -e "\n\nUninstalling all old python packages...\n\n"
-  pip freeze | grep -v "^-e" > requirements_to_remove.txt
-  pip uninstall -y -r requirements_to_remove.txt || echo "Some packages could not be uninstalled, continuing..."
-  rm requirements_to_remove.txt
+  echo -e "\n\nCleaning any existing packages...\n\n"
+  uv pip uninstall --all
 fi
 
 # ========== INSTALL PACKAGES BEFORE BUILD ==========
 echo -e "\n\nInstalling main project requirements...\n\n"
-pip install -r requirements.txt
+uv pip install -r requirements.txt
 
 echo -e "\n\nCalling devops/build_mettagrid script...\n\n"
 bash "$SCRIPT_DIR/build_mettagrid.sh"
