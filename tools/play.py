@@ -4,7 +4,7 @@ import webbrowser
 import hydra
 import uvicorn
 
-import mettagrid.player.server as server
+import mettascope.server as server
 
 
 @hydra.main(version_base=None, config_path="../configs", config_name="replay_job")

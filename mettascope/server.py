@@ -9,7 +9,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from omegaconf import DictConfig
 
-import mettagrid.player.replays as replays
+import mettascope.replays as replays
 
 
 class App(FastAPI):
@@ -99,14 +99,12 @@ async def websocket_endpoint(
                     total_rewards[agent_id] += env.rewards[agent_id]
                     grid_objects[i]["total_reward"] = total_rewards[agent_id].item()
 
-            print("replay_step step=", current_step)
             await send_message(type="replay_step", replay_step={"step": current_step, "grid_objects": grid_objects})
 
             current_step += 1
 
         if current_step > 1:
             message = await websocket.receive_json()
-            print("message", message)
             if message["type"] == "action":
                 action_message = message
             # yield control to other coroutines
@@ -115,7 +113,7 @@ async def websocket_endpoint(
     sim.end_simulation()
 
 
-@hydra.main(version_base=None, config_path="../../configs", config_name="replay_job")
+@hydra.main(version_base=None, config_path="../configs", config_name="replay_job")
 def main(cfg):
     app.cfg = cfg
 
