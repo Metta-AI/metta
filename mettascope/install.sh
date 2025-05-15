@@ -10,6 +10,7 @@ brew install npm
 
 # Install dependencies
 cd mettascope
+npm install -g typescript
 npm install
 tsc
 
