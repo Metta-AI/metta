@@ -64,7 +64,33 @@ fi
 
 # ========== INSTALL PACKAGES BEFORE BUILD ==========
 echo -e "\n\nInstalling main project requirements...\n\n"
-uv pip install -r requirements.txt
+# Make sure we have a virtual environment before installing packages
+if ! uv pip install -r requirements.txt; then
+  echo "Failed to install packages. Virtual environment may not exist or be activated."
+  echo "Creating a virtual environment with uv..."
+  uv venv --python 3.11.7
+  
+  # Activate the virtual environment
+  if [[ -d ".venv" ]]; then
+    # Activate the venv
+    if [[ -f ".venv/bin/activate" ]]; then
+      source .venv/bin/activate
+    elif [[ -f ".venv/Scripts/activate" ]]; then
+      source .venv/Scripts/activate
+    fi
+    echo "✅ Virtual environment created and activated"
+    
+    # Try installing again
+    echo "Trying to install packages again..."
+    uv pip install -r requirements.txt || {
+      echo "❌ Failed to install packages. Please check the error message above."
+      exit 1
+    }
+  else
+    echo "❌ Failed to create virtual environment with uv"
+    exit 1
+  fi
+fi
 
 echo -e "\n\nCalling devops/build_mettagrid script...\n\n"
 bash "$SCRIPT_DIR/build_mettagrid.sh"
