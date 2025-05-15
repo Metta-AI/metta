@@ -30,8 +30,10 @@ permissions:
   checks: write
   pull-requests: write
 
-# Remove the UV_SYSTEM_PYTHON env var since we're now using a venv
+# We should switch to using uv projects rather than requirements.txt
+# but for now, this installs in the global venv
 env:
+  UV_SYSTEM_PYTHON: 1
   HYDRA_FULL_ERROR: 1
 
 jobs:
@@ -146,17 +148,14 @@ jobs:
 
       - name: Install Ruff
         run: |
-          # Install ruff into the virtual environment
-          uv tool install ruff==0.11.5 --python "$(pwd)/.venv/bin/python"
+          uv tool install ruff==0.11.5
 
       - name: Run Ruff linter
         run: |
-          # No need to source .venv/bin/activate as the venv's bin is added to PATH
           ruff format --check .
 
       - name: Run Ruff formatting
         run: |
-          # No need to source .venv/bin/activate as the venv's bin is added to PATH
           ruff check --exit-non-zero-on-fix .
 
   test:
@@ -177,21 +176,18 @@ jobs:
 
       - name: Build
         run: |
-          # No need to source .venv/bin/activate as the venv's bin is added to PATH
-          # Replace uv run --no-project with direct python calls since we're using venv
-          python setup.py build_ext --inplace
-          cd mettagrid && python setup.py build_ext --inplace
-          pip install -e .
+          uv run --no-project python setup.py build_ext --inplace
+          uv run --no-project --directory mettagrid python setup.py build_ext --inplace
+          uv pip install --system -e mettagrid
 
       - name: Run Pytest on core tests
         run: |
-          # No need to source .venv/bin/activate as the venv's bin is added to PATH
-          pytest --maxfail=1 --disable-warnings -q
+          uv run --no-project pytest --maxfail=1 --disable-warnings -q
 
       - name: Run Pytest on mettagrid tests
         run: |
-          # No need to source .venv/bin/activate as the venv's bin is added to PATH
-          pytest --maxfail=1 --disable-warnings -q
+          cd mettagrid
+          uv run --no-project pytest --maxfail=1 --disable-warnings -q
 
   smoke-test:
     name: "Training Smoke Test"
@@ -211,11 +207,9 @@ jobs:
 
       - name: Build
         run: |
-          # No need to source .venv/bin/activate as the venv's bin is added to PATH
-          # Replace uv run --no-project with direct python calls
-          python setup.py build_ext --inplace
-          cd mettagrid && python setup.py build_ext --inplace
-          pip install -e .
+          uv run --no-project python setup.py build_ext --inplace
+          uv run --no-project --directory mettagrid python setup.py build_ext --inplace
+          uv pip install --system -e mettagrid
 
       - name: Check deps
         run: |
@@ -225,7 +219,7 @@ jobs:
             "wandb_carbs"
           do
             echo "Checking import for $dep..."
-            python -c "import $dep; print('✅ Found {} at {}'.format('$dep', __import__('$dep').__file__))" || {
+            uv run --no-project python -c "import $dep; print('✅ Found {} at {}'.format('$dep', __import__('$dep').__file__))" || {
               echo "❌ Failed to import $dep"
               exit 1
             }
@@ -248,7 +242,7 @@ jobs:
         run: |
           mkdir -p train_dir
           source .github/scripts/benchmark.sh
-          benchmark "train" "python -m tools.train +hardware=github wandb=off"
+          benchmark "train" "uv run --no-project python -m tools.train +hardware=github wandb=off"
           ls -la $CHECKPOINT_PATH || echo "Warning: Checkpoint directory not created"
 
       - name: Save training benchmark
@@ -300,7 +294,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: set_but_not_used
         run: |
           source .github/scripts/benchmark.sh
-          benchmark "replay" "python -m tools.replay +hardware=github wandb=off"
+          benchmark "replay" "uv run --no-project python -m tools.replay +hardware=github wandb=off"
 
       - name: Save replay benchmark
         uses: ./.github/actions/save-benchmarks
@@ -344,11 +338,9 @@ jobs:
 
       - name: Build
         run: |
-          # No need to source .venv/bin/activate as the venv's bin is added to PATH
-          # Replace uv run --no-project with direct python calls
-          python setup.py build_ext --inplace
-          cd mettagrid && python setup.py build_ext --inplace
-          pip install -e .
+          uv run --no-project python setup.py build_ext --inplace
+          uv run --no-project --directory mettagrid python setup.py build_ext --inplace
+          uv pip install --system -e mettagrid
 
       - name: Download benchmark results from smoke-test train-benchmark-results job
         uses: actions/download-artifact@v4
@@ -364,21 +356,17 @@ jobs:
 
       - name: Run Main Python benchmarks
         run: |
-          # No need to source .venv/bin/activate as the venv's bin is added to PATH
-          pytest --benchmark-only --benchmark-json=main_benchmark_results.json
+          uv run --no-project pytest --benchmark-only --benchmark-json=main_benchmark_results.json
 
       - name: Run Mettagrid Python benchmarks
         run: |
           cd mettagrid
-          # No need to source .venv/bin/activate as the venv's bin is added to PATH
-          pytest --benchmark-only --benchmark-json=mettagrid_benchmark_results.json
+          uv run --no-project pytest --benchmark-only --benchmark-json=mettagrid_benchmark_results.json
           mv mettagrid_benchmark_results.json ../
 
       - name: Combine benchmark results
         run: |
-          # No need to source .venv/bin/activate as the venv's bin is added to PATH
-          # Replace uv run --no-project with direct python call
-          python - <<EOF
+          uv run --no-project python - <<EOF
 
           # Python Script to combine benchmark data
           import json
