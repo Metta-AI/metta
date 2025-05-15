@@ -131,7 +131,6 @@ jobs:
         id: setup-python-uv
         uses: ./.github/actions/setup-python-uv
 
-
   lint:
     name: "Python Lint"
     needs: [graphite-ci-optimizer, setup-checks, setup-py]
@@ -181,13 +180,13 @@ jobs:
           uv run --no-project --directory mettagrid python setup.py build_ext --inplace
           uv pip install --system -e mettagrid
 
-
       - name: Run Pytest on core tests
         run: |
           uv run --no-project pytest --maxfail=1 --disable-warnings -q
 
       - name: Run Pytest on mettagrid tests
         run: |
+          cd mettagrid
           uv run --no-project pytest --maxfail=1 --disable-warnings -q
 
   smoke-test:
@@ -357,12 +356,12 @@ jobs:
 
       - name: Run Main Python benchmarks
         run: |
-          uv run --no-project pytest  --benchmark-only --benchmark-json=main_benchmark_results.json
+          uv run --no-project pytest --benchmark-only --benchmark-json=main_benchmark_results.json
 
       - name: Run Mettagrid Python benchmarks
         run: |
           cd mettagrid
-          uv run --no-project pytest  --benchmark-only --benchmark-json=mettagrid_benchmark_results.json
+          uv run --no-project pytest --benchmark-only --benchmark-json=mettagrid_benchmark_results.json
           mv mettagrid_benchmark_results.json ../
 
       - name: Combine benchmark results
