@@ -132,8 +132,6 @@ def analyze_weights(weights: torch.Tensor, delta: float = 0.01) -> Dict[str, flo
 
     return metrics
 
-    return metrics
-
 
 class WeightsMetricsHelper:
     """Helper class for computing and storing weight metrics during training."""
