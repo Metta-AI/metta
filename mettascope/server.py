@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 @app.get("/", response_class=HTMLResponse)
 async def get_client():
     try:
-        with open("mettagrid/player/index.html", "r") as file:
+        with open("mettascope/index.html", "r") as file:
             html_content = file.read()
         return HTMLResponse(content=html_content)
     except FileNotFoundError as err:
@@ -36,7 +36,7 @@ async def get_client():
 @app.get("/style.css")
 async def get_style_css():
     try:
-        with open("mettagrid/player/style.css", "r") as file:
+        with open("mettascope/style.css", "r") as file:
             css_content = file.read()
         return HTMLResponse(content=css_content, media_type="text/css")
     except FileNotFoundError as err:
@@ -44,8 +44,8 @@ async def get_style_css():
 
 
 # Mount a directory for static files
-app.mount("/data", StaticFiles(directory="mettagrid/player/data"), name="data")
-app.mount("/dist", StaticFiles(directory="mettagrid/player/dist"), name="dist")
+app.mount("/data", StaticFiles(directory="mettascope/data"), name="data")
+app.mount("/dist", StaticFiles(directory="mettascope/dist"), name="dist")
 
 
 @app.websocket("/ws")
