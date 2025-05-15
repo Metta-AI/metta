@@ -308,7 +308,7 @@ jobs:
           fi
           echo "Bencher token length: ${#BENCHER_API_TOKEN}"
           echo "Bencher token SHA256: $(echo -n "$BENCHER_API_TOKEN" | sha256sum)"
-          
+
       # Main Branch Upload section
       # note that "threshold-max-sample-size" has a minimum value of 2 - the new data and the reference
       - name: Upload to Bencher (Main Branch Baseline)
@@ -346,10 +346,13 @@ jobs:
         run: |
           # Run the command and capture output in a variable
           bencher_result=$(bencher branch view mettagrid-sv3f5i2k main --token "$BENCHER_API_TOKEN")
+
           # Print the captured output
           echo "$bencher_result"
+
           # Save the output to a file for further processing
           echo "$bencher_result" > /tmp/branch_output.json
+
           # Continue with checking if branch exists and has data
           if [ $? -eq 0 ]; then
             echo "Branch exists, checking if it has benchmark data..."

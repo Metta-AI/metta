@@ -20,4 +20,3 @@ runs:
       shell: bash
       run: |
         uv pip install --system -r requirements.txt
-
