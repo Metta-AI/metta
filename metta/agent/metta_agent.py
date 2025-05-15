@@ -374,9 +374,9 @@ class MettaAgent(nn.Module):
 
         Args:
             x: Input observation tensor of shape [B, T, *obs_shape] or [B*T, *obs_shape]
-               where B=batch_size, T=sequence_length
+            where B=batch_size, T=sequence_length
             state: Policy state containing LSTM hidden states (lstm_h) and cell states (lstm_c)
-                   of shape [num_layers, batch_size, hidden_size] for each
+                of shape [num_layers, batch_size, hidden_size] for each
             action: Optional action tensor of shape [B, T, 2] or [B*T, 2] where each action
                     is represented as [action_type, action_param]. If provided, used for
                     computing log probabilities of these specific actions.
@@ -394,18 +394,14 @@ class MettaAgent(nn.Module):
             The LSTM state in the provided PolicyState object is updated in-place.
         """
         # Initialize TensorDict for data flow
-        td = TensorDict({"x": x}, batch_size=x.shape[0])
+        td = TensorDict({}, batch_size=x.shape[0])
+        td["x"] = x
 
         # Safely handle LSTM state
         if state.lstm_h is not None and state.lstm_c is not None:
             # Ensure states are on the same device as input
-            lstm_h = state.lstm_h.to(x.device)  # shape: [num_layers, batch_size, hidden_size]
-            lstm_c = state.lstm_c.to(x.device)  # shape: [num_layers, batch_size, hidden_size]
-
-            # Concatenate LSTM states along dimension 0 (layer dimension)
-            # Result shape: [2*num_layers, batch_size, hidden_size]
-            # First num_layers rows are lstm_h, next num_layers rows are lstm_c
-            td["state"] = torch.cat([lstm_h, lstm_c], dim=0)
+            td["lstm_h"] = state.lstm_h.to(x.device)  # shape: [num_layers, batch_size, hidden_size]
+            td["lstm_c"] = state.lstm_c.to(x.device)  # shape: [num_layers, batch_size, hidden_size]
 
         # Forward pass through value network
         self.components["_value_"](td)
@@ -415,26 +411,16 @@ class MettaAgent(nn.Module):
         self.components["_action_"](td)
         logits = td["_action_"]  # Shape: [B*T, num_actions]
 
-        # Update LSTM states
-        # td["state"] shape: [2*num_layers, batch_size, hidden_size]
-        split_size = self.core_num_layers
-        # Split the concatenated state back into h and c
-        state.lstm_h = td["state"][:split_size]  # Shape: [num_layers, batch_size, hidden_size]
-        state.lstm_c = td["state"][split_size:]  # Shape: [num_layers, batch_size, hidden_size]
+        # Update LSTM states directly without concatenation/splitting
+        state.lstm_h = td["lstm_h"]  # Shape: [num_layers, batch_size, hidden_size]
+        state.lstm_c = td["lstm_c"]  # Shape: [num_layers, batch_size, hidden_size]
 
         # Sample actions
         action_logit_index: Optional[torch.Tensor] = (
             self._convert_action_to_logit_index(action) if action is not None else None
         )
 
-        # sample_logits returns:
-        # (action_indices, log_probs, entropy, all_log_probs)
-        action_indices: torch.Tensor  # Shape: [B*T]
-        log_probs: torch.Tensor  # Shape: [B*T]
-        entropy_val: torch.Tensor  # Shape: [B*T]
-        all_log_probs: torch.Tensor  # Shape: [B*T, num_actions]
-
-        # If action provided, action_logit_index shape: [B*T]
+        # Sample_logits returns (action_indices, log_probs, entropy, all_log_probs)
         action_indices, log_probs, entropy_val, all_log_probs = sample_logits(logits, action_logit_index)
 
         # Convert logit index to action if no action was provided

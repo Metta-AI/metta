@@ -15,9 +15,9 @@ class LSTM(LayerBase):
     manipulations. It handles reshaping inputs/outputs, manages hidden states, and ensures
     consistent tensor dimensions throughout the forward pass.
 
-    The layer processes tensors of shape [B, TT, ...] or [B, ...], where:
+    The layer processes tensors of shape [B, T, ...] or [B, ...], where:
     - B is the batch size
-    - TT is an optional time dimension
+    - T is an optional time dimension
 
     It reshapes inputs appropriately for the LSTM, processes them through the network,
     and reshapes outputs back to the expected format, while also managing the LSTM's
@@ -31,7 +31,6 @@ class LSTM(LayerBase):
         super().__init__(**cfg)
         self._obs_shape = list(obs_shape)  # make sure no Omegaconf types are used in forward passes
         self.hidden_size = hidden_size
-        # self._out_tensor_shape = [hidden_size] # delete this
         self.num_layers = self._nn_params["num_layers"]
         self._out_tensor_shape = [self.hidden_size]
 
@@ -52,41 +51,53 @@ class LSTM(LayerBase):
     def _forward(self, td: TensorDict) -> TensorDict:
         x = td["x"]
         hidden = td[self._sources[0]["name"]]
-        state = td["state"]
 
-        if state is not None:
-            split_size = self.num_layers
-            state = (state[:split_size], state[split_size:])
+        # Get LSTM states separately
+        lstm_h = td.get("lstm_h", None)
+        lstm_c = td.get("lstm_c", None)
 
+        # Prepare state tuple for PyTorch LSTM
+        state = None
+        if lstm_h is not None and lstm_c is not None:
+            state = (lstm_h, lstm_c)
+
+        # Validate input shapes
         x_shape, space_shape = x.shape, self._obs_shape
         x_n, space_n = len(x_shape), len(space_shape)
         if tuple(x_shape[-space_n:]) != tuple(space_shape):
             raise ValueError("Invalid input tensor shape", x.shape)
 
+        # Determine batch and time dimensions
         if x_n == space_n + 1:
-            B, TT = x_shape[0], 1
+            B, T = x_shape[0], 1
         elif x_n == space_n + 2:
-            B, TT = x_shape[:2]
+            B, T = x_shape[:2]
         else:
             raise ValueError("Invalid input tensor shape", x.shape)
 
+        # Validate state shape consistency
         if state is not None:
-            assert state[0].shape[1] == state[1].shape[1] == B
-        assert hidden.shape == (B * TT, self._in_tensor_shapes[0][0])
+            assert state[0].shape[1] == state[1].shape[1] == B, (
+                f"State batch dimension mismatch. Expected {B}, got {state[0].shape[1]}"
+            )
+        assert hidden.shape == (B * T, self._in_tensor_shapes[0][0]), (
+            f"Hidden feature dimension mismatch. Expected {(B * T, self._in_tensor_shapes[0][0])}, got {hidden.shape}"
+        )
 
-        hidden = hidden.reshape(B, TT, self._in_tensor_shapes[0][0])
-        hidden = hidden.transpose(0, 1)
+        # Reshape for LSTM which expects [seq_len, batch, features]
+        hidden = hidden.reshape(B, T, self._in_tensor_shapes[0][0])
+        hidden = hidden.transpose(0, 1)  # [T, B, features]
 
-        hidden, state = self._net(hidden, state)
+        # Forward pass through LSTM
+        hidden, (new_h, new_c) = self._net(hidden, state)
 
-        hidden = hidden.transpose(0, 1)
-        hidden = hidden.reshape(B * TT, self.hidden_size)
+        # Reshape back to original format
+        hidden = hidden.transpose(0, 1)  # [B, T, hidden_size]
+        hidden = hidden.reshape(B * T, self.hidden_size)
 
-        if state is not None:
-            state = tuple(s.detach() for s in state)
-            state = torch.cat(state, dim=0)
-
+        # Store results in TensorDict
         td[self._name] = hidden
-        td["state"] = state
+        td["lstm_h"] = new_h.detach()  # Store hidden state separately
+        td["lstm_c"] = new_c.detach()  # Store cell state separately
 
         return td
