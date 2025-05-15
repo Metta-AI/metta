@@ -68,7 +68,7 @@ function drawWalls() {
   // Construct wall adjacency map.
   var wallMap = new Grid(state.replay.map_size[0], state.replay.map_size[1]);
   for (const gridObject of state.replay.grid_objects) {
-    const type = gridObject.type;
+    const type = getAttr(gridObject, "type");
     const typeName = state.replay.object_types[type];
     if (typeName !== "wall") {
       continue;
@@ -80,7 +80,7 @@ function drawWalls() {
 
   // Draw the walls following the adjacency map.
   for (const gridObject of state.replay.grid_objects) {
-    const type = gridObject.type;
+    const type = getAttr(gridObject, "type");
     const typeName = state.replay.object_types[type];
     if (typeName !== "wall") {
       continue;
@@ -109,7 +109,7 @@ function drawWalls() {
 
   // Draw the wall in-fill following the adjacency map.
   for (const gridObject of state.replay.grid_objects) {
-    const type = gridObject.type;
+    const type = getAttr(gridObject, "type");
     const typeName = state.replay.object_types[type];
     if (typeName !== "wall") {
       continue;
@@ -140,7 +140,7 @@ function drawWalls() {
 // Draw all objects on the map (that are not walls).
 function drawObjects() {
   for (const gridObject of state.replay.grid_objects) {
-    const type: number = gridObject.type;
+    const type: number = getAttr(gridObject, "type");
     const typeName: string = state.replay.object_types[type];
     if (typeName === "wall") {
       // Walls are drawn in a different way.
@@ -163,7 +163,7 @@ function drawObjects() {
         suffix = "e";
       }
 
-      const agent_id = gridObject["agent_id"];
+      const agent_id = getAttr(gridObject, "agent_id");
 
       ctx.drawSprite(
         "agents/agent." + suffix + ".png",
@@ -228,9 +228,9 @@ function drawActions() {
         } else if (orientation == 3) {
           rotation = 0; // East
         }
-        if (action_name == "attack" && action[1] >= 0 && action[1] <= 8) {
+        if (action_name == "attack" && action[1] >= 1 && action[1] <= 9) {
           ctx.drawSprite(
-            "actions/attack" + (action[1] + 1) + ".png",
+            "actions/attack" + action[1] + ".png",
             x * Common.TILE_SIZE,
             y * Common.TILE_SIZE,
             [1, 1, 1, 1],
@@ -572,7 +572,7 @@ function drawVisibility() {
     } else {
       // When there is no selected grid object update the visibility map for all agents.
       for (const gridObject of state.replay.grid_objects) {
-        const type = gridObject.type;
+        const type = getAttr(gridObject, "type");
         const typeName = state.replay.object_types[type];
         if (typeName == "agent") {
           updateVisibilityMap(gridObject);
@@ -718,7 +718,7 @@ export function updateReadout() {
 
     var objectTypeCounts = new Map<string, number>();
     for (const gridObject of state.replay.grid_objects) {
-      const type = gridObject.type;
+      const type = getAttr(gridObject, "type");
       const typeName = state.replay.object_types[type];
       objectTypeCounts.set(typeName, (objectTypeCounts.get(typeName) || 0) + 1);
     }
