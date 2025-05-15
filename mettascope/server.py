@@ -113,7 +113,7 @@ async def websocket_endpoint(
     sim.end_simulation()
 
 
-@hydra.main(version_base=None, config_path="../../configs", config_name="replay_job")
+@hydra.main(version_base=None, config_path="../configs", config_name="replay_job")
 def main(cfg):
     app.cfg = cfg
 
