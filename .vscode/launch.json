@@ -80,5 +80,15 @@
                 "+hardware=macbook",
             ],
         },
+        {
+            "name": "Play Metta",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "tools.play",
+            "args": [
+                "+user=${env:USER}",
+                "+hardware=macbook",
+            ],
+        },
     ],
 }

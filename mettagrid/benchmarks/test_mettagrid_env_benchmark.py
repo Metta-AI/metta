@@ -4,14 +4,12 @@ from omegaconf import OmegaConf
 
 from mettagrid.config.utils import get_cfg
 from mettagrid.mettagrid_env import MettaGridEnv
-from mettagrid.resolvers import register_resolvers
 from mettagrid.tests.utils import generate_valid_random_actions
 
 
 @pytest.fixture
 def cfg():
     """Create configuration for the environment."""
-    register_resolvers()
     return get_cfg("benchmark")
 
 

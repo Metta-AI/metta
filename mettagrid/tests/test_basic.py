@@ -6,7 +6,6 @@ import pytest
 from mettagrid.config.utils import get_cfg
 from mettagrid.mettagrid_c import MettaGrid
 from mettagrid.mettagrid_env import MettaGridEnv
-from mettagrid.resolvers import register_resolvers
 from mettagrid.tests.utils import generate_valid_random_actions
 
 # Rebuild the NumPy types using the exposed function
@@ -29,7 +28,6 @@ def environment():
     np.random.seed(TEST_SEED)
     random.seed(TEST_SEED)
 
-    register_resolvers()
     cfg = get_cfg("benchmark")
     env = MettaGridEnv(cfg, render_mode="human", _recursive_=False, seed=TEST_SEED)
     env.reset(seed=TEST_SEED)

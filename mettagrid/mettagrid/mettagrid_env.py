@@ -17,7 +17,6 @@ from typing_extensions import override
 from mettagrid.config.utils import simple_instantiate
 from mettagrid.mettagrid_c import MettaGrid
 from mettagrid.replay_writer import ReplayWriter
-from mettagrid.resolvers import register_resolvers
 from mettagrid.stats_writer import StatsWriter
 from mettagrid.util.debug import save_mettagrid_args
 
@@ -374,7 +373,3 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     @property
     def inventory_item_names(self) -> list[str]:
         return self._c_env.inventory_item_names()
-
-
-# Ensure resolvers are registered when this module is imported
-register_resolvers()
