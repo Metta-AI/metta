@@ -191,3 +191,6 @@ if [ -z "$CI" ] && [ -z "$IS_DOCKER" ]; then
   source "$SCRIPT_DIR/sandbox/setup_vscode_workspace.sh"
   echo "✅ setup_build.sh completed successfully!"
 fi
+
+# ========== INSTALL METTASCOPE ==========
+bash "mettascope/install.sh"
