@@ -230,9 +230,6 @@ jobs:
       - name: Install C++ dependencies
         run: |
           sudo apt-get install -y g++ libgtest-dev
-          sudo apt-get install -y python3.12-dev
-          pip install pybind11
-          pip install numpy
 
       - name: Restore from build cache
         id: test-cache-cpp
@@ -244,11 +241,13 @@ jobs:
       - name: Build C++ artifacts (cache miss fallback)
         if: steps.test-cache-cpp.outputs.cache-hit != 'true'
         run: |
+          source .venv/bin/activate
           cd mettagrid
           make build
 
       - name: Build and run tests
         run: |
+          source .venv/bin/activate
           cd mettagrid
           make test
 
