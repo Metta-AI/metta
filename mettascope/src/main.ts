@@ -1,11 +1,11 @@
 import { Vec2f, Mat3f } from './vector_math.js';
 import * as Common from './common.js';
 import { ui, state, html, ctx, setFollowSelection } from './common.js';
-import { fetchReplay, readFile } from './replay.js';
+import { fetchReplay, getAttr, initWebSocket, readFile, sendAction } from './replay.js';
 import { focusFullMap, updateReadout, drawMap, requestFrame } from './worldmap.js';
 import { drawTrace } from './traces.js';
 import { drawMiniMap } from './minimap.js';
-
+import { processActions } from './actions.js';
 // Handle resize events.
 export function onResize() {
   // Adjust for high DPI displays.
@@ -215,6 +215,9 @@ function onKeyDown(event: KeyboardEvent) {
   if (event.key == " ") {
     setIsPlaying(!state.isPlaying);
   }
+
+  processActions(event);
+
   requestFrame();
 }
 
@@ -294,10 +297,14 @@ async function parseUrlParams() {
 
   // Load the replay.
   const replayUrl = urlParams.get('replayUrl');
+  const wsUrl = urlParams.get('wsUrl');
   if (replayUrl) {
     console.log("Loading replay from URL: ", replayUrl);
     await fetchReplay(replayUrl);
     focusFullMap(ui.mapPanel);
+  } else if (wsUrl) {
+    console.log("Connecting to a websocket: ", wsUrl);
+    initWebSocket(wsUrl);
   } else {
     Common.showModal(
       "info",
@@ -306,30 +313,32 @@ async function parseUrlParams() {
     );
   }
 
-  // Set the current step.
-  if (urlParams.get('step') !== null) {
-    const initialStep = parseInt(urlParams.get('step') || "0");
-    console.info("Step via query parameter:", initialStep);
-    updateStep(initialStep, false);
-  }
+  if (state.replay !== null) {
+    // Set the current step.
+    if (urlParams.get('step') !== null) {
+      const initialStep = parseInt(urlParams.get('step') || "0");
+      console.info("Step via query parameter:", initialStep);
+      updateStep(initialStep, false);
+    }
 
-  // Set the playing state.
-  if (urlParams.get('play') !== null) {
-    setIsPlaying(urlParams.get('play') === "true");
-    console.info("Playing state via query parameter:", state.isPlaying);
-  }
+    // Set the playing state.
+    if (urlParams.get('play') !== null) {
+      setIsPlaying(urlParams.get('play') === "true");
+      console.info("Playing state via query parameter:", state.isPlaying);
+    }
 
-  // Set selected object.
-  if (urlParams.get('selectedObjectId') !== null) {
-    const selectedObjectId = parseInt(urlParams.get('selectedObjectId') || "-1") - 1;
-    if (selectedObjectId >= 0 && selectedObjectId < state.replay.grid_objects.length) {
-      state.selectedGridObject = state.replay.grid_objects[selectedObjectId];
-      setFollowSelection(true);
-      ui.mapPanel.zoomLevel = Common.DEFAULT_ZOOM_LEVEL;
-      ui.tracePanel.zoomLevel = Common.DEFAULT_TRACE_ZOOM_LEVEL;
-      console.info("Selected object via query parameter:", state.selectedGridObject);
-    } else {
-      console.warn("Invalid selectedObjectId:", selectedObjectId);
+    // Set selected object.
+    if (urlParams.get('selectedObjectId') !== null) {
+      const selectedObjectId = parseInt(urlParams.get('selectedObjectId') || "-1") - 1;
+      if (selectedObjectId >= 0 && selectedObjectId < state.replay.grid_objects.length) {
+        state.selectedGridObject = state.replay.grid_objects[selectedObjectId];
+        setFollowSelection(true);
+        ui.mapPanel.zoomLevel = Common.DEFAULT_ZOOM_LEVEL;
+        ui.tracePanel.zoomLevel = Common.DEFAULT_TRACE_ZOOM_LEVEL;
+        console.info("Selected object via query parameter:", state.selectedGridObject);
+      } else {
+        console.warn("Invalid selectedObjectId:", selectedObjectId);
+      }
     }
   }
 
@@ -342,6 +351,7 @@ async function parseUrlParams() {
   if (urlParams.get('mapZoom') !== null) {
     ui.mapPanel.zoomLevel = parseFloat(urlParams.get('mapZoom') || "1");
   }
+
 
   requestFrame();
 }

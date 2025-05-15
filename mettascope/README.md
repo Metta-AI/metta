@@ -33,7 +33,7 @@ Most tools dealing with replays will provide a full link.
 You need to install Node.js (v23.11.0) and typescript (Version 5.8.3), this might be different for different operating systems.
 
 ```bash
-cd mettagrid/player
+cd mettascope
 npm install
 tsc
 python tools/gen_atlas.py

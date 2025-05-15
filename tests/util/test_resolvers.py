@@ -2,16 +2,20 @@
 Tests for the resolver module
 """
 
+import datetime
+import re
 from typing import Any, Dict, Union, cast
+from unittest.mock import Mock
 
 import numpy as np
 import pytest
 from omegaconf import OmegaConf
 
-from mettagrid.resolvers import (
+from metta.util.resolvers import (
     oc_add,
     oc_choose,
     oc_clamp,
+    oc_date_format,
     oc_divide,
     oc_equals,
     oc_greater_than,
@@ -486,3 +490,124 @@ class TestConfigIntegration:
 
         # Different from center values
         assert float(param1) != 50.0 or float(param2) != 25.0
+
+
+def test_date_format_resolver():
+    """Test the date_format resolver with various formats"""
+    import datetime
+
+    from metta.util.resolvers import oc_date_format
+
+    # Get the current date for verification
+    now = datetime.datetime.now()
+
+    # Test standard Python format codes
+    assert oc_date_format("%Y%m%d") == now.strftime("%Y%m%d")
+    assert oc_date_format("%m%d") == now.strftime("%m%d")
+    assert oc_date_format("%Y-%m-%d") == now.strftime("%Y-%m-%d")
+    assert oc_date_format("%H:%M:%S") == now.strftime("%H:%M:%S")
+
+    # Test simplified format codes
+    assert oc_date_format("YYYYMMDD") == now.strftime("%Y%m%d")
+    assert oc_date_format("MMDD") == now.strftime("%m%d")
+    assert oc_date_format("YYYY-MM-DD") == now.strftime("%Y-%m-%d")
+    assert oc_date_format("HH:mm:ss") == now.strftime("%H:%M:%S")
+
+    # Test mixed format codes
+    assert oc_date_format("YYYY-%m-%d") == now.strftime("%Y-%m-%d")
+    assert oc_date_format("YYYYMMDDHHmmss") == now.strftime("%Y%m%d%H%M%S")
+
+
+class TestDateResolver:
+    """Tests for the date resolver functionality"""
+
+    def test_date_resolver_basic(self):
+        """Test the date resolver with basic formats"""
+
+        now = datetime.datetime.now()
+
+        # Test basic formats
+        assert oc_date_format("YYYYMMDD") == now.strftime("%Y%m%d")
+        assert oc_date_format("MMDD") == now.strftime("%m%d")
+
+    def test_date_resolver_with_separators(self):
+        """Test the date resolver with formats containing separators"""
+
+        now = datetime.datetime.now()
+
+        assert oc_date_format("YYYY-MM-DD") == now.strftime("%Y-%m-%d")
+        assert oc_date_format("MM/DD/YYYY") == now.strftime("%m/%d/%Y")
+        assert oc_date_format("DD.MM.YYYY") == now.strftime("%d.%m.%Y")
+
+    def test_date_resolver_with_time(self):
+        """Test the date resolver with time formats"""
+        import datetime
+
+        from metta.util.resolvers import oc_date_format
+
+        now = datetime.datetime.now()
+
+        assert oc_date_format("YYYY-MM-DD_HH-mm-ss") == now.strftime("%Y-%m-%d_%H-%M-%S")
+        assert oc_date_format("HH:mm:ss") == now.strftime("%H:%M:%S")
+        assert oc_date_format("HHmmss") == now.strftime("%H%M%S")
+
+    def test_date_resolver_python_formats(self):
+        """Test the date resolver with direct Python format codes"""
+        import datetime
+
+        from metta.util.resolvers import oc_date_format
+
+        now = datetime.datetime.now()
+
+        assert oc_date_format("%Y%m%d") == now.strftime("%Y%m%d")
+        assert oc_date_format("%m/%d/%Y") == now.strftime("%m/%d/%Y")
+        assert oc_date_format("%I:%M %p") == now.strftime("%I:%M %p")  # 12-hour with AM/PM
+
+    def test_date_resolver_integration(self, omega_conf_with_resolvers):
+        """Test the date resolver integrated with OmegaConf"""
+
+        # Register resolvers and create a config with the date resolver
+        register_resolvers()
+        config = OmegaConf.create(
+            {
+                "date1": "${now:MMDD}",
+                "date2": "${now:YYYYMMDD}",
+                "date3": "${now:%Y-%m-%d}",
+            }
+        )
+
+        # Resolve the config
+        OmegaConf.resolve(config)
+
+        # Get current date for verification
+        now = datetime.datetime.now()
+
+        # Verify the resolved values
+        assert config.date1 == now.strftime("%m%d")
+        assert config.date2 == now.strftime("%Y%m%d")
+        assert config.date3 == now.strftime("%Y-%m-%d")
+
+        # Additional check: date1 should match the pattern of two digits, then two more digits
+        assert re.match(r"^\d{4}$", config.date1)
+        # date2 should be 8 digits
+        assert re.match(r"^\d{8}$", config.date2)
+        # date3 should match YYYY-MM-DD pattern
+        assert re.match(r"^\d{4}-\d{2}-\d{2}$", config.date3)
+
+
+def test_date_resolver_frozen_time(monkeypatch):
+    """Test the date resolver with a fixed datetime for deterministic testing"""
+
+    # Create a fixed datetime (2025-05-13 12:34:56)
+    fixed_now = datetime.datetime(2025, 5, 13, 12, 34, 56)
+
+    # Mock datetime.now to return our fixed datetime
+    datetime_mock = Mock()
+    datetime_mock.now.return_value = fixed_now
+    monkeypatch.setattr("datetime.datetime", datetime_mock)
+
+    # Test with our frozen time
+    assert oc_date_format("YYYYMMDD") == "20250513"
+    assert oc_date_format("MMDD") == "0513"
+    assert oc_date_format("YYYY-MM-DD") == "2025-05-13"
+    assert oc_date_format("HH:mm:ss") == "12:34:56"
