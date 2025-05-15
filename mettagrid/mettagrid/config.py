@@ -69,11 +69,6 @@ class MettaGridConfig:
         self._env_map = env_map
         return env_map
 
-    @property
-    def map_builder(self):
-        """Get the map builder if it was created."""
-        return self._map_builder
-
     def to_c_args(self) -> Tuple[Dict[str, Any], np.ndarray]:
         """
         returns the inputs needed to initialize MettaGrid:
