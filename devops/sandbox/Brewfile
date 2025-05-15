@@ -12,6 +12,7 @@ cask "session-manager-plugin"
 brew "withgraphite/tap/graphite"
 brew "spacelift-io/spacelift/spacectl"
 brew "uv"
+brew "npm"
 
 # Applications
 cask "cursor"
