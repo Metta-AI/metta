@@ -4,8 +4,8 @@ from typing import Set, Tuple, Union
 import numpy as np
 from omegaconf import DictConfig
 
-from mettagrid.config.room.room import Room
-from mettagrid.config.room.utils import bresenham_line, create_grid
+from mettagrid.room.room import Room
+from mettagrid.room.utils import bresenham_line, create_grid
 
 
 class RadialMaze(Room):

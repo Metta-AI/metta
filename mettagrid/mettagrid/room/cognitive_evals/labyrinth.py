@@ -3,7 +3,7 @@ from typing import List, Optional, Tuple
 import numpy as np
 from omegaconf import DictConfig
 
-from mettagrid.config.room.room import Room
+from mettagrid.room.room import Room
 
 
 class LabyrinthMaze(Room):
