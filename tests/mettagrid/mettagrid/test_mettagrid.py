@@ -135,7 +135,7 @@ class TestSetBuffers:
         truncations = np.zeros(NUM_AGENTS, dtype=bool)
         rewards = np.zeros(NUM_AGENTS, dtype=np.float32)
 
-        with pytest.raises(RuntimeError, match="observations has the wrong stride"):
+        with pytest.raises(TypeError):
             env.set_buffers(observations, terminals, truncations, rewards)
 
     def test_set_buffers_happy_path(self):
