@@ -379,13 +379,17 @@ void MettaGrid::set_buffers(std::reference_wrapper<py::array_t<ObsType>> observa
     auto observation_info = _observations.request();
     auto shape = observation_info.shape;
     auto strides = observation_info.strides;
-    if (observation_info.ndim != 4 || shape[0] != num_agents || shape[1] != _obs_height || shape[2] != _obs_width || shape[3] != _grid_features.size()) {
+    if (observation_info.ndim != 4 || shape[0] != num_agents || shape[1] != _obs_height || shape[2] != _obs_width ||
+        shape[3] != _grid_features.size()) {
       std::stringstream ss;
-      ss << "observations has shape [" << shape[0] << ", " << shape[1] << ", " << shape[2] << ", " << shape[3] << "] but expected ["
-         << num_agents << ", " << _obs_height << ", " << _obs_width << ", " << _grid_features.size() << "]";
+      ss << "observations has shape [" << shape[0] << ", " << shape[1] << ", " << shape[2] << ", " << shape[3]
+         << "] but expected [" << num_agents << ", " << _obs_height << ", " << _obs_width << ", "
+         << _grid_features.size() << "]";
       throw std::runtime_error(ss.str());
     }
-    if (strides[0] != _obs_height * _obs_width * _grid_features.size() * sizeof(ObsType) || strides[1] != _obs_width * _grid_features.size() * sizeof(ObsType) || strides[2] != _grid_features.size() * sizeof(ObsType) || strides[3] != sizeof(ObsType)) {
+    if (strides[0] != _obs_height * _obs_width * _grid_features.size() * sizeof(ObsType) ||
+        strides[1] != _obs_width * _grid_features.size() * sizeof(ObsType) ||
+        strides[2] != _grid_features.size() * sizeof(ObsType) || strides[3] != sizeof(ObsType)) {
       // This suggests that the data size is wrong, or the data is otherwise not contiguous.
       throw std::runtime_error("observations has the wrong stride");
     }
