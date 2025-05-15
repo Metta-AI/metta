@@ -25,10 +25,16 @@ else
   echo "========== Rebuilding mettagrid =========="
 fi
 
-echo "Python executable: $(which python)"
-echo "Python version: $(python --version)"
-echo "Current directory: $(pwd)"
-echo "Python path: $(python -c 'import sys; print(sys.path)')"
+if [ -z "$CI" ]; then
+  # Verify uv is available
+  if ! command -v uv &> /dev/null; then
+    echo "ERROR: uv command not found in PATH after installation attempts"
+    echo "Current PATH: $PATH"
+    echo "Please install uv manually: curl -LsSf https://astral.sh/uv/install.sh | sh"
+    echo "Then add uv to your PATH and try again"
+    exit 1
+  fi
+fi
 
 # Check if we're in a virtual environment
 if [ -z "${VIRTUAL_ENV}" ]; then
@@ -39,9 +45,6 @@ if [ -z "${VIRTUAL_ENV}" ]; then
     echo "Found .venv directory, activating it..."
     if [ -f "../.venv/bin/activate" ]; then
       source "../.venv/bin/activate"
-      echo "Activated virtual environment: $VIRTUAL_ENV"
-    elif [ -f "../.venv/Scripts/activate" ]; then
-      source "../.venv/Scripts/activate"
       echo "Activated virtual environment: $VIRTUAL_ENV"
     else
       echo "Warning: Found .venv directory but couldn't locate activation script."
@@ -54,6 +57,11 @@ else
   echo "Using virtual environment: $VIRTUAL_ENV"
 fi
 
+echo "Python executable: $(which python)"
+echo "Python version: $(python --version)"
+echo "Current directory: $(pwd)"
+echo "Python path: $(python -c 'import sys; print(sys.path)')"
+
 # Go to the project root directory
 cd "$SCRIPT_DIR/.."
 
@@ -63,16 +71,6 @@ uv pip install -r requirements.txt
 # Navigate to mettagrid directory
 cd mettagrid
 
-if [ -z "$CI" ]; then
-  # Verify uv is available
-  if ! command -v uv &> /dev/null; then
-    echo "ERROR: uv command not found in PATH after installation attempts"
-    echo "Current PATH: $PATH"
-    echo "Please install uv manually: curl -LsSf https://astral.sh/uv/install.sh | sh"
-    echo "Then add uv to your PATH and try again"
-    exit 1
-  fi
-fi
 
 echo "Building mettagrid in $(pwd)"
 
