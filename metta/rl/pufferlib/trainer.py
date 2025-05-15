@@ -7,7 +7,6 @@ from pathlib import Path
 import numpy as np
 import pufferlib
 import torch
-import torch.distributed as dist
 import wandb
 from heavyball import ForeachMuon
 from omegaconf import DictConfig, ListConfig
@@ -56,9 +55,9 @@ class PufferTrainer:
         self._master = True
         self._world_size = 1
         self.device = cfg.device
-        if dist.is_initialized():
+        if torch.distributed.is_initialized():
             self._master = int(os.environ["RANK"]) == 0
-            self._world_size = dist.get_world_size()
+            self._world_size = torch.distributed.get_world_size()
             logger.info(
                 f"Rank: {os.environ['RANK']}, Local rank: {os.environ['LOCAL_RANK']}, World size: {self._world_size}"
             )
@@ -128,7 +127,7 @@ class PufferTrainer:
 
         self.kickstarter = Kickstarter(self.cfg, self.policy_store, actions_names, actions_max_params)
 
-        if dist.is_initialized():
+        if torch.distributed.is_initialized():
             logger.info(f"Initializing DistributedDataParallel on device {self.device}")
             # Store the original policy for cleanup purposes
             self._original_policy = self.policy
@@ -719,7 +718,9 @@ class PufferTrainer:
 
         assert hasattr(self.policy, "lstm"), "Policy must have lstm attribute"
         lstm = getattr(self.policy, "lstm", {})
-        assert isinstance(lstm, nn.modules.rnn.LSTM), f"Policy lstm must be a valid LSTM instance, got: {type(lstm)}"
+        assert isinstance(lstm, torch.nn.modules.rnn.LSTM), (
+            f"Policy lstm must be a valid LSTM instance, got: {type(lstm)}"
+        )
 
         # Create the Experience buffer with appropriate parameters
         self.experience = Experience(
