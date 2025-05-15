@@ -25,7 +25,7 @@ trainer:
 
 # policy_uri: wandb://run/b.daphne.terrain_multienv_lessactions:v40
 # policy_uri: wandb://run/terrain_multienv_3_single_agent:v63
-policy_uri: wandb://run/b.daphne.terrain_prioritized_styles_pretrained_r:v1
+policy_uri: wandb://run/b.georgedeane.george_sequence_no_increment
 
 # npc_policy_uri: ${trained_policy_uri}
 
