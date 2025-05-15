@@ -1,8 +1,12 @@
+import datetime
 import random
 from typing import Any, Dict, TypeVar, Union
 
 import numpy as np
-from omegaconf import OmegaConf
+from hydra.experimental.callback import Callback
+from omegaconf import DictConfig, OmegaConf
+
+from metta.util.logging import setup_mettagrid_logger
 
 T = TypeVar("T")  # For generic conditional function
 Numeric = Union[int, float]  # Type alias for numeric types
@@ -102,7 +106,7 @@ def oc_scale(
         - "linear" (default): Linear mapping
         - "log": Logarithmic scaling (faster growth at low values)
         - "exp": Exponential scaling (faster growth at high values)
-        - "sigmoid": Sigmoid scaling (slower growth at extremes, faster in middle)
+        - "sigmoid": Sigmoid scaling (slower at extremes, faster in middle)
 
     Returns:
     --------
@@ -228,30 +232,122 @@ def oc_iir(alpha: Numeric, current_value: Numeric, last_value: Numeric) -> Numer
     return result
 
 
-def register_resolvers() -> None:
+def oc_date_format(format_string: str) -> str:
     """
-    Register all OmegaConf resolvers defined in this module.
-    This function should be called before using any configuration that depends on these resolvers.
+    Generate a formatted date string using the current date and time.
+
+    Parameters:
+    -----------
+    format_string : str
+        A format string following either:
+        - Python datetime strftime format codes (starting with %)
+        - Simplified format codes like "MMDD", "YYYYMMDD", etc.
+
+    Returns:
+    --------
+    str
+        The formatted date string
     """
-    OmegaConf.register_new_resolver("if", oc_if, replace=True)
-    OmegaConf.register_new_resolver("uniform", oc_uniform, replace=True)
-    OmegaConf.register_new_resolver("choose", oc_choose, replace=True)
-    OmegaConf.register_new_resolver("div", oc_divide, replace=True)
-    OmegaConf.register_new_resolver("subtract", oc_subtract, replace=True)
-    OmegaConf.register_new_resolver("sub", oc_subtract, replace=True)
-    OmegaConf.register_new_resolver("multiply", oc_multiply, replace=True)
-    OmegaConf.register_new_resolver("mul", oc_multiply, replace=True)
-    OmegaConf.register_new_resolver("add", oc_add, replace=True)
-    OmegaConf.register_new_resolver("make_odd", oc_to_odd_min3, replace=True)
-    OmegaConf.register_new_resolver("clamp", oc_clamp, replace=True)
-    OmegaConf.register_new_resolver("make_integer", oc_make_integer, replace=True)
-    OmegaConf.register_new_resolver("int", oc_make_integer, replace=True)
-    OmegaConf.register_new_resolver("equals", oc_equals, replace=True)
-    OmegaConf.register_new_resolver("eq", oc_equals, replace=True)
-    OmegaConf.register_new_resolver("sampling", oc_scaled_range, replace=True)
-    OmegaConf.register_new_resolver("gt", oc_greater_than, replace=True)
-    OmegaConf.register_new_resolver("lt", oc_less_than, replace=True)
-    OmegaConf.register_new_resolver("gte", oc_greater_than_or_equal, replace=True)
-    OmegaConf.register_new_resolver("lte", oc_less_than_or_equal, replace=True)
-    OmegaConf.register_new_resolver("scale", oc_scale, replace=True)
-    OmegaConf.register_new_resolver("iir", oc_iir, replace=True)
+    # Format mapping for simplified codes
+    format_map = {"YYYY": "%Y", "YY": "%y", "MM": "%m", "DD": "%d", "HH": "%H", "mm": "%M", "ss": "%S"}
+
+    # Copy the format string to avoid modifying the original
+    python_format = format_string
+
+    # If not starting with %, it might use our simplified format
+    if not format_string.startswith("%"):
+        # Replace simplified codes with Python format codes
+        for simple_code, python_code in format_map.items():
+            python_format = python_format.replace(simple_code, python_code)
+
+    # Get current datetime and format it
+    now = datetime.datetime.now()
+
+    return now.strftime(python_format)
+
+
+class ResolverRegistrar(Callback):
+    """Class for registering custom OmegaConf resolvers."""
+
+    def __init__(self):
+        self.logger = setup_mettagrid_logger("ResolverRegistrar")
+        self.resolver_count = 0
+        """Prepare for registration but don't register yet."""
+
+    def on_run_start(self, config: DictConfig, **kwargs: Any) -> None:
+        """Register resolvers at the start of a run."""
+        self.register_resolvers()
+        self.logger.info(f"Registered {self.resolver_count} custom resolvers at the start of a run")
+
+    def on_multirun_start(self, config: DictConfig, **kwargs: Any) -> None:
+        """Register resolvers at the start of a multirun."""
+        self.register_resolvers()
+        self.logger.info(f"Registered {self.resolver_count} custom resolvers at the start of a multirun")
+
+    def on_job_start(self, config: DictConfig, **kwargs: Any) -> None:
+        """Ensure resolvers are registered for each job."""
+        pass
+
+    def register_resolvers(self):
+        """
+        Register all OmegaConf resolvers for use in Hydra configs.
+
+        This function is called during Hydra initialization via _target_ in
+        configs/common.yaml, ensuring all resolvers are available before
+        config interpolation happens.
+        """
+
+        # Register all your resolvers
+        OmegaConf.register_new_resolver("if", oc_if, replace=True)
+        self.resolver_count += 1
+        OmegaConf.register_new_resolver("uniform", oc_uniform, replace=True)
+        self.resolver_count += 1
+        OmegaConf.register_new_resolver("choose", oc_choose, replace=True)
+        self.resolver_count += 1
+        OmegaConf.register_new_resolver("div", oc_divide, replace=True)
+        self.resolver_count += 1
+        OmegaConf.register_new_resolver("subtract", oc_subtract, replace=True)
+        self.resolver_count += 1
+        OmegaConf.register_new_resolver("sub", oc_subtract, replace=True)
+        self.resolver_count += 1
+        OmegaConf.register_new_resolver("multiply", oc_multiply, replace=True)
+        self.resolver_count += 1
+        OmegaConf.register_new_resolver("mul", oc_multiply, replace=True)
+        self.resolver_count += 1
+        OmegaConf.register_new_resolver("add", oc_add, replace=True)
+        self.resolver_count += 1
+        OmegaConf.register_new_resolver("make_odd", oc_to_odd_min3, replace=True)
+        self.resolver_count += 1
+        OmegaConf.register_new_resolver("clamp", oc_clamp, replace=True)
+        self.resolver_count += 1
+        OmegaConf.register_new_resolver("make_integer", oc_make_integer, replace=True)
+        self.resolver_count += 1
+        OmegaConf.register_new_resolver("int", oc_make_integer, replace=True)
+        self.resolver_count += 1
+        OmegaConf.register_new_resolver("equals", oc_equals, replace=True)
+        self.resolver_count += 1
+        OmegaConf.register_new_resolver("eq", oc_equals, replace=True)
+        self.resolver_count += 1
+        OmegaConf.register_new_resolver("sampling", oc_scaled_range, replace=True)
+        self.resolver_count += 1
+        OmegaConf.register_new_resolver("gt", oc_greater_than, replace=True)
+        self.resolver_count += 1
+        OmegaConf.register_new_resolver("lt", oc_less_than, replace=True)
+        self.resolver_count += 1
+        OmegaConf.register_new_resolver("gte", oc_greater_than_or_equal, replace=True)
+        self.resolver_count += 1
+        OmegaConf.register_new_resolver("lte", oc_less_than_or_equal, replace=True)
+        self.resolver_count += 1
+        OmegaConf.register_new_resolver("scale", oc_scale, replace=True)
+        self.resolver_count += 1
+        OmegaConf.register_new_resolver("iir", oc_iir, replace=True)
+        self.resolver_count += 1
+        OmegaConf.register_new_resolver("now", oc_date_format, replace=True)
+        self.resolver_count += 1
+        return self
+
+
+def register_resolvers():
+    """Legacy function that creates a registrar and registers resolvers."""
+    registrar = ResolverRegistrar()
+    registrar.register_resolvers()

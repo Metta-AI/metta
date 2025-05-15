@@ -9,7 +9,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from omegaconf import DictConfig
 
-import mettagrid.player.replays as replays
+import mettascope.replays as replays
 
 
 class App(FastAPI):
@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 @app.get("/", response_class=HTMLResponse)
 async def get_client():
     try:
-        with open("mettagrid/player/index.html", "r") as file:
+        with open("mettascope/index.html", "r") as file:
             html_content = file.read()
         return HTMLResponse(content=html_content)
     except FileNotFoundError as err:
@@ -36,7 +36,7 @@ async def get_client():
 @app.get("/style.css")
 async def get_style_css():
     try:
-        with open("mettagrid/player/style.css", "r") as file:
+        with open("mettascope/style.css", "r") as file:
             css_content = file.read()
         return HTMLResponse(content=css_content, media_type="text/css")
     except FileNotFoundError as err:
@@ -44,8 +44,8 @@ async def get_style_css():
 
 
 # Mount a directory for static files
-app.mount("/data", StaticFiles(directory="mettagrid/player/data"), name="data")
-app.mount("/dist", StaticFiles(directory="mettagrid/player/dist"), name="dist")
+app.mount("/data", StaticFiles(directory="mettascope/data"), name="data")
+app.mount("/dist", StaticFiles(directory="mettascope/dist"), name="dist")
 
 
 @app.websocket("/ws")
@@ -99,14 +99,12 @@ async def websocket_endpoint(
                     total_rewards[agent_id] += env.rewards[agent_id]
                     grid_objects[i]["total_reward"] = total_rewards[agent_id].item()
 
-            print("replay_step step=", current_step)
             await send_message(type="replay_step", replay_step={"step": current_step, "grid_objects": grid_objects})
 
             current_step += 1
 
         if current_step > 1:
             message = await websocket.receive_json()
-            print("message", message)
             if message["type"] == "action":
                 action_message = message
             # yield control to other coroutines
@@ -115,7 +113,7 @@ async def websocket_endpoint(
     sim.end_simulation()
 
 
-@hydra.main(version_base=None, config_path="../../configs", config_name="replay_job")
+@hydra.main(version_base=None, config_path="../configs", config_name="replay_job")
 def main(cfg):
     app.cfg = cfg
 
