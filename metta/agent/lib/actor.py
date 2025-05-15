@@ -169,15 +169,15 @@ class MettaActorBig(LayerBase):
         Returns:
             Updated dict with action logits added under this layer's name
         """
-        hidden = data[self._sources[0]["name"]]  # Shape: [B*TT, hidden]
-        action_embeds = data[self._sources[1]["name"]]  # Shape: [B*TT, num_actions, embed_dim]
+        hidden = data[self._sources[0]["name"]]  # Shape: [B*T, hidden]
+        action_embeds = data[self._sources[1]["name"]]  # Shape: [B*T, num_actions, embed_dim]
 
         B_TT = hidden.shape[0]
         num_actions = action_embeds.shape[1]
 
-        # input_1: [B*TT, hidden] -> [B*TT * num_actions, hidden]
-        # input_2: [B*TT, num_actions, embed_dim] -> [B*TT * num_actions, embed_dim]
-        hidden_reshaped = repeat(hidden, "b h -> b a h", a=num_actions)  # shape: [B*TT, num_actions, hidden]
+        # input_1: [B*T, hidden] -> [B*T * num_actions, hidden]
+        # input_2: [B*T, num_actions, embed_dim] -> [B*T * num_actions, embed_dim]
+        hidden_reshaped = repeat(hidden, "b h -> b a h", a=num_actions)  # shape: [B*T, num_actions, hidden]
         hidden_reshaped = rearrange(hidden_reshaped, "b a h -> (b a) h")  # shape: [N, H]
         action_embeds_reshaped = rearrange(action_embeds, "b a e -> (b a) e")  # shape: [N, E]
 
@@ -193,7 +193,7 @@ class MettaActorBig(LayerBase):
         mlp_output = self._MLP(activated_scores)  # Shape: [N, 1]
 
         # Reshape MLP output back to sequence and action dimensions
-        action_logits = mlp_output.reshape(B_TT, num_actions)  # Shape: [B*TT, num_actions]
+        action_logits = mlp_output.reshape(B_TT, num_actions)  # Shape: [B*T, num_actions]
 
         data[self._name] = action_logits
         return data
@@ -279,16 +279,16 @@ class MettaActorSingleHead(LayerBase):
         Returns:
             Updated dict with action logits added under this layer's name
         """
-        hidden = data[self._sources[0]["name"]]  # Shape: [B*TT, hidden]
-        action_embeds = data[self._sources[1]["name"]]  # Shape: [B*TT, num_actions, embed_dim]
+        hidden = data[self._sources[0]["name"]]  # Shape: [B*T, hidden]
+        action_embeds = data[self._sources[1]["name"]]  # Shape: [B*T, num_actions, embed_dim]
 
         B_TT = hidden.shape[0]
         num_actions = action_embeds.shape[1]
 
         # Reshape inputs similar to Rev2 for bilinear calculation
-        # input_1: [B*TT, hidden] -> [B*TT * num_actions, hidden]
-        # input_2: [B*TT, num_actions, embed_dim] -> [B*TT * num_actions, embed_dim]
-        hidden_reshaped = repeat(hidden, "b h -> b a h", a=num_actions)  # shape: [B*TT, num_actions, hidden]
+        # input_1: [B*T, hidden] -> [B*T * num_actions, hidden]
+        # input_2: [B*T, num_actions, embed_dim] -> [B*T * num_actions, embed_dim]
+        hidden_reshaped = repeat(hidden, "b h -> b a h", a=num_actions)  # shape: [B*T, num_actions, hidden]
         hidden_reshaped = rearrange(hidden_reshaped, "b a h -> (b a) h")  # shape: [N, H]
         action_embeds_reshaped = rearrange(action_embeds, "b a e -> (b a) e")  # shape: [N, E]
 
@@ -301,7 +301,7 @@ class MettaActorSingleHead(LayerBase):
         # Add bias
         biased_scores = scores + self.bias.reshape(1, -1)  # Shape: [N, K]
 
-        action_logits = biased_scores.reshape(B_TT, num_actions)  # Shape: [B*TT, num_actions]
+        action_logits = biased_scores.reshape(B_TT, num_actions)  # Shape: [B*T, num_actions]
 
         data[self._name] = action_logits
         return data

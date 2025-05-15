@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional, cast
 
 import omegaconf
 import torch
@@ -20,19 +20,24 @@ class MergeLayerBase(LayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def __init__(self, name, **cfg):
-        self._ready = False
+    def __init__(self, name: str, **cfg: Any):
+        self._ready: bool = False
+        self._source_components: Optional[Dict[str, Any]] = None
+        self._in_tensor_shapes: List[Any] = []
+        self.dims: List[int] = []
+        self.processed_lengths: List[int] = []
         super().__init__(name, **cfg)
 
     @property
-    def ready(self):
+    def ready(self) -> bool:
         return self._ready
 
-    def setup(self, _source_components=None):
+    @override
+    def setup(self, source_components: Optional[Dict[str, Any]] = None) -> None:
         if self._ready:
             return
 
-        self._source_components = _source_components
+        self._source_components = source_components
 
         # NOTE: in and out tensor shapes do not include batch sizes
         # however, all other sizes do, including processed_lengths
@@ -40,10 +45,15 @@ class MergeLayerBase(LayerBase):
 
         self.dims = []
         self.processed_lengths = []
+
         for src_cfg in self._sources:
             source_name = src_cfg["name"]
 
-            processed_size = self._source_components[source_name]._out_tensor_shape.copy()
+            if source_name not in self._source_components:
+                raise ValueError(f"sources contains no layer named {source_name}")
+
+            source_component = cast(Any, self._source_components[source_name])
+            processed_size = source_component._out_tensor_shape.copy()
             self._in_tensor_shapes.append(processed_size)
 
             processed_size = processed_size[0]
@@ -71,7 +81,7 @@ class MergeLayerBase(LayerBase):
         self._setup_merge_layer()
         self._ready = True
 
-    def _setup_merge_layer(self):
+    def _setup_merge_layer(self) -> None:
         raise NotImplementedError("Subclasses should implement this method.")
 
     @override
@@ -80,17 +90,22 @@ class MergeLayerBase(LayerBase):
         # TODO: do this without a for loop or dictionary lookup for perf
         for src_cfg in self._sources:
             source_name = src_cfg["name"]
-            self._source_components[source_name].forward(td)
-            src_tensor = td[source_name]
+
+            if not self._source_components or source_name not in self._source_components:
+                raise ValueError(f"_source_components contains no layer named {source_name}")
+
+            source_component = cast(Any, self._source_components[source_name])
+            source_component.forward(data)
+            src_tensor = data[source_name]
 
             if "_slice_params" in src_cfg:
                 params = src_cfg["_slice_params"]
                 src_tensor = torch.narrow(src_tensor, dim=params["dim"], start=params["start"], length=params["length"])
             outputs.append(src_tensor)
 
-        return self._merge(outputs, td)
+        return self._merge(outputs, data)
 
-    def _merge(self, outputs, td):
+    def _merge(self, outputs: List[torch.Tensor], data: Dict[str, Any]) -> Dict[str, Any]:
         raise NotImplementedError("Subclasses should implement this method.")
 
 
@@ -110,7 +125,7 @@ class ConcatMergeLayer(MergeLayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def _setup_merge_layer(self):
+    def _setup_merge_layer(self) -> None:
         if not all(d == self.dims[0] for d in self.dims):
             raise ValueError(f"For 'concat', all sources must have the same 'dim'. Got dims: {self.dims}")
         self._merge_dim = self.dims[0]
@@ -120,10 +135,10 @@ class ConcatMergeLayer(MergeLayerBase):
         self._out_tensor_shape = self._in_tensor_shapes[0].copy()
         self._out_tensor_shape[self._merge_dim - 1] = cat_dim_length  # the -1 is to account for batch size
 
-    def _merge(self, outputs, td):
+    def _merge(self, outputs: List[torch.Tensor], data: Dict[str, Any]) -> Dict[str, Any]:
         merged = torch.cat(outputs, dim=self._merge_dim)
-        td[self._name] = merged
-        return td
+        data[self._name] = merged
+        return data
 
 
 class AddMergeLayer(MergeLayerBase):
@@ -137,18 +152,18 @@ class AddMergeLayer(MergeLayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def _setup_merge_layer(self):
+    def _setup_merge_layer(self) -> None:
         if not all(s == self._in_tensor_shapes[0] for s in self._in_tensor_shapes):
-            raise ValueError(f"For 'add', all source sizes must match. Got sizes: {self.sizes}")
+            raise ValueError(f"For 'add', all source sizes must match. Got sizes: {self._in_tensor_shapes}")
         self._merge_dim = self.dims[0]
         self._out_tensor_shape = self._in_tensor_shapes[0]
 
-    def _merge(self, outputs, td):
+    def _merge(self, outputs: List[torch.Tensor], data: Dict[str, Any]) -> Dict[str, Any]:
         merged = outputs[0]
         for tensor in outputs[1:]:
             merged = merged + tensor
-        td[self._name] = merged
-        return td
+        data[self._name] = merged
+        return data
 
 
 class SubtractMergeLayer(MergeLayerBase):
@@ -165,18 +180,18 @@ class SubtractMergeLayer(MergeLayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def _setup_merge_layer(self):
+    def _setup_merge_layer(self) -> None:
         if not all(s == self._in_tensor_shapes[0] for s in self._in_tensor_shapes):
-            raise ValueError(f"For 'subtract', all source sizes must match. Got sizes: {self.sizes}")
+            raise ValueError(f"For 'subtract', all source sizes must match. Got sizes: {self._in_tensor_shapes}")
         self._merge_dim = self.dims[0]
         self._out_tensor_shape = self._in_tensor_shapes[0]
 
-    def _merge(self, outputs, td):
+    def _merge(self, outputs: List[torch.Tensor], data: Dict[str, Any]) -> Dict[str, Any]:
         if len(outputs) != 2:
             raise ValueError("Subtract merge_op requires exactly two sources.")
         merged = outputs[0] - outputs[1]
-        td[self._name] = merged
-        return td
+        data[self._name] = merged
+        return data
 
 
 class MeanMergeLayer(MergeLayerBase):
@@ -191,19 +206,19 @@ class MeanMergeLayer(MergeLayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def _setup_merge_layer(self):
+    def _setup_merge_layer(self) -> None:
         if not all(s == self._in_tensor_shapes[0] for s in self._in_tensor_shapes):
-            raise ValueError(f"For 'mean', all source sizes must match. Got sizes: {self.sizes}")
+            raise ValueError(f"For 'mean', all source sizes must match. Got sizes: {self._in_tensor_shapes}")
         self._merge_dim = self.dims[0]
         self._out_tensor_shape = self._in_tensor_shapes[0]
 
-    def _merge(self, outputs, td):
+    def _merge(self, outputs: List[torch.Tensor], data: Dict[str, Any]) -> Dict[str, Any]:
         merged = outputs[0]
         for tensor in outputs[1:]:
             merged = merged + tensor
         merged = merged / len(outputs)
-        td[self._name] = merged
-        return td
+        data[self._name] = merged
+        return data
 
 
 class ExpandLayer(LayerBase):
@@ -230,33 +245,50 @@ class ExpandLayer(LayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def __init__(self, name, expand_dim, sources, expand_value=None, source_dim=None, dims_source=None, **cfg):
-        super().__init__(name, sources, **cfg)
-        self._ready = False
+    def __init__(
+        self,
+        name: str,
+        expand_dim: int,
+        sources: Any,
+        expand_value: Optional[int] = None,
+        source_dim: Optional[int] = None,
+        dims_source: Optional[str] = None,
+        **cfg: Any,
+    ):
+        self._ready: bool = False
         self.expand_dim = expand_dim
         self.expand_value = expand_value
         self.source_dim = source_dim
         self.dims_source = dims_source
-        if dims_source is not None:
+        if dims_source is not None and isinstance(sources, dict):
             self._sources = [sources[0], dims_source]
+        super().__init__(name, sources, **cfg)
 
     @property
-    def ready(self):
+    def ready(self) -> bool:
         return self._ready
 
-    def setup(self, _source_components=None):
+    @override
+    def setup(self, source_components: Optional[Dict[str, Any]] = None) -> None:
         if self._ready:
             return
 
-        self._source_components = _source_components
-        self._out_tensor_shape = next(iter(self._source_components.values()))._out_tensor_shape.copy()
+        self._source_components = source_components
 
-        if self.dims_source is not None:
-            self.expand_value = self._source_components[self.dims_source]._out_tensor_shape[
-                self.source_dim - 1
-            ]  # -1 because _out_tensor_shape doesn't account for batch size
+        if not self._source_components:
+            raise ValueError("source_components cannot be None for ExpandLayer setup")
 
-        if self.expand_dim > 0:
+        first_component = next(iter(self._source_components.values()))
+        self._out_tensor_shape = first_component._out_tensor_shape.copy()
+
+        if self.dims_source is not None and self.source_dim is not None and self._source_components:
+            dims_source_component = self._source_components.get(self.dims_source)
+            if dims_source_component:
+                self.expand_value = dims_source_component._out_tensor_shape[
+                    self.source_dim - 1
+                ]  # -1 because _out_tensor_shape doesn't account for batch size
+
+        if self.expand_dim > 0 and self.expand_value is not None:
             self._out_tensor_shape.insert(
                 self.expand_dim - 1, self.expand_value
             )  # -1 because _out_tensor_shape doesn't account for batch size
@@ -267,16 +299,20 @@ class ExpandLayer(LayerBase):
 
     @override
     def _forward(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        tensor = td[self._sources[0]["name"]]
+        source_name = self._sources[0]["name"] if isinstance(self._sources[0], dict) else self._sources[0]
+        tensor = data[source_name]
 
-        if self.dims_source is not None:
-            self.expand_value = td[self.dims_source].size(self.source_dim)
+        if self.dims_source is not None and self.source_dim is not None:
+            self.expand_value = data[self.dims_source].size(self.source_dim)
+
+        if self.expand_value is None:
+            raise ValueError("expand_value must be set before forward pass")
 
         expanded = tensor.unsqueeze(self.expand_dim)
         expand_shape = [-1] * expanded.dim()
         expand_shape[self.expand_dim] = self.expand_value
-        td[self._name] = expanded.expand(*expand_shape).contiguous()
-        return td
+        data[self._name] = expanded.expand(*expand_shape).contiguous()
+        return data
 
 
 class ReshapeLayer(LayerBase):
@@ -298,18 +334,25 @@ class ReshapeLayer(LayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def __init__(self, name, popped_dim, squeezed_dim, **cfg):
-        self._ready = False
+    def __init__(self, name: str, popped_dim: int, squeezed_dim: int, **cfg: Any):
+        self._ready: bool = False
         self.popped_dim = popped_dim
         self.squeezed_dim = squeezed_dim
         super().__init__(name, **cfg)
 
-    def setup(self, _source_components=None):
+    @override
+    def setup(self, source_components: Optional[Dict[str, Any]] = None) -> None:
         if self._ready:
             return
 
-        self._source_components = _source_components
-        self._out_tensor_shape = next(iter(self._source_components.values()))._out_tensor_shape.copy()
+        self._source_components = source_components
+
+        if not self._source_components:
+            raise ValueError("source_components cannot be None for ReshapeLayer setup")
+
+        first_component = next(iter(self._source_components.values()))
+        self._out_tensor_shape = first_component._out_tensor_shape.copy()
+
         if self.squeezed_dim == 0 or self.popped_dim == 0:
             # we are involving the batch size, which we don't have ahead of time
             self._out_tensor_shape.pop(self.popped_dim - 1)
@@ -324,21 +367,22 @@ class ReshapeLayer(LayerBase):
 
     @override
     def _forward(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        tensor = td[self._sources[0]["name"]]
+        source_name = self._sources[0]["name"] if isinstance(self._sources[0], dict) else self._sources[0]
+        tensor = data[source_name]
         shape = list(tensor.shape)
         compressed_size = shape[self.squeezed_dim] * shape[self.popped_dim]
         shape.pop(self.popped_dim)
         shape[self.squeezed_dim] = compressed_size
-        td[self._name] = tensor.view(*shape)
-        return td
+        data[self._name] = tensor.view(*shape)
+        return data
 
 
 class BatchReshapeLayer(LayerBase):
     """
     Reshapes a tensor to introduce a time dimension from the batch dimension.
 
-    This layer takes a flattened batch of shape [B*TT, ...] and reshapes it to
-    [B, TT, ...] by inferring B from the "_BxTT_" value in the component dict.
+    This layer takes a flattened batch of shape [B*T, ...] and reshapes it to
+    [B, T, ...] by inferring B from the "_BxTT" value in the component dict.
     It's typically used to convert between flattened and structured batch-time
     representations.
 
@@ -352,29 +396,36 @@ class BatchReshapeLayer(LayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def __init__(self, name, **cfg):
-        self._ready = False
+    def __init__(self, name: str, **cfg: Any):
+        self._ready: bool = False
         super().__init__(name, **cfg)
 
-    def setup(self, _source_components=None):
+    @override
+    def setup(self, source_components: Optional[Dict[str, Any]] = None) -> None:
         if self._ready:
             return
 
-        self._source_components = _source_components
-        self._out_tensor_shape = next(iter(self._source_components.values()))._out_tensor_shape.copy()
+        self._source_components = source_components
+
+        if not self._source_components:
+            raise ValueError("source_components cannot be None for BatchReshapeLayer setup")
+
+        first_component = next(iter(self._source_components.values()))
+        self._out_tensor_shape = first_component._out_tensor_shape.copy()
         # the out_tensor_shape is NOT ACCURATE because we don't know the batch size ahead of time.
         self._ready = True
 
     @override
     def _forward(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        tensor = td[self._sources[0]["name"]]
-        B_TT = td["_BxTT_"]
+        source_name = self._sources[0]["name"] if isinstance(self._sources[0], dict) else self._sources[0]
+        tensor = data[source_name]
+        B_T = data["_BxT_"]
         shape = list(tensor.shape)
         shape.insert(1, 0)
-        shape[1] = shape[0] // (B_TT)
-        shape[0] = B_TT
-        td[self._name] = tensor.view(*shape).squeeze()
-        return td
+        shape[1] = shape[0] // (B_T)
+        shape[0] = B_T
+        data[self._name] = tensor.view(*shape).squeeze()
+        return data
 
 
 class CenterPixelLayer(LayerBase):
@@ -391,24 +442,32 @@ class CenterPixelLayer(LayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def __init__(self, name, **cfg):
+    def __init__(self, name: str, **cfg: Any):
+        self._ready: bool = False
         super().__init__(name, **cfg)
 
-    def setup(self, _source_components=None):
+    @override
+    def setup(self, source_components: Optional[Dict[str, Any]] = None) -> None:
         if self._ready:
             return
 
-        self._source_components = _source_components
-        self._out_tensor_shape = next(iter(self._source_components.values()))._out_tensor_shape.copy()
+        self._source_components = source_components
+
+        if not self._source_components:
+            raise ValueError("source_components cannot be None for CenterPixelLayer setup")
+
+        first_component = next(iter(self._source_components.values()))
+        self._out_tensor_shape = first_component._out_tensor_shape.copy()
         del self._out_tensor_shape[-2:]
 
         self._ready = True
 
     @override
     def _forward(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        tensor = td[self._sources[0]["name"]]
+        source_name = self._sources[0]["name"] if isinstance(self._sources[0], dict) else self._sources[0]
+        tensor = data[source_name]
         B, C, H, W = tensor.shape
         center_h = H // 2
         center_w = W // 2
-        td[self._name] = tensor[:, :, center_h, center_w]
-        return td
+        data[self._name] = tensor[:, :, center_h, center_w]
+        return data

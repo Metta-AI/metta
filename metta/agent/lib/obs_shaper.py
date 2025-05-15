@@ -8,9 +8,9 @@ from metta.agent.lib.metta_layer import LayerBase
 class ObsShaper(LayerBase):
     """
     This class does the following:
-    1) permutes input observations from [B, H, W, C] or [B, TT, H, W, C] to [..., C, H, W]
+    1) permutes input observations from [B, H, W, C] or [B, T, H, W, C] to [..., C, H, W]
     2) inspects tensor shapes, ensuring that input observations match expectations from the environment
-    3) inserts batch size, TT, and B * TT into the tensor dict for certain other layers in the network to use
+    3) inserts batch size, T, and B * T into the tensor dict for certain other layers in the network to use
        if they need reshaping.
 
     Note that the __init__ of any layer class and the MettaAgent are only called when the agent is instantiated
@@ -43,9 +43,9 @@ class ObsShaper(LayerBase):
 
         # Validate overall tensor dimensionality with improved error message
         if x_n == space_n + 1:
-            B, TT = x_shape[0], 1
+            B, T = x_shape[0], 1
         elif x_n == space_n + 2:
-            B, TT = x_shape[:2]
+            B, T = x_shape[:2]
         else:
             raise ValueError(
                 f"Invalid input tensor dimensionality:\n"
@@ -54,15 +54,15 @@ class ObsShaper(LayerBase):
                 f"Expected format: [batch_size(, time_steps), {', '.join(str(dim) for dim in space_shape)}]"
             )
 
-        x = x.reshape(B * TT, *space_shape)
+        x = x.reshape(B * T, *space_shape)
         x = x.float()
 
         # conv expects [batch, channel, w, h]. Below is hardcoded for [batch, w, h, channel]
         x = self._permute(x)
 
-        data["_TT_"] = TT
+        data["_T_"] = T
         data["_batch_size_"] = B
-        data["_BxTT_"] = B * TT
+        data["_BxT_"] = B * T
         data[self._name] = x
         return data
 

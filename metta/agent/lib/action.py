@@ -64,7 +64,7 @@ class ActionEmbedding(nn_layer_library.Embedding):
 
     @override
     def _forward(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        B_TT = data["_BxTT_"]
+        B_TT = data["_BxT_"]
         data["_num_actions_"] = self.num_actions
 
         # get embeddings then expand to match the batch size

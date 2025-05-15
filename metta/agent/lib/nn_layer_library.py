@@ -101,12 +101,12 @@ class Bilinear(LayerBase):
 
     @override
     def _forward(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        # input_1 = td[self._input_source[0]]
-        # input_2 = td[self._input_source[1]]
-        input_1 = td[self._sources[0]["name"]]
-        input_2 = td[self._sources[1]["name"]]
-        td[self._name] = self._net(input_1, input_2)
-        return td
+        # input_1 = data[self._input_source[0]]
+        # input_2 = data[self._input_source[1]]
+        input_1 = data[self._sources[0]["name"]]
+        input_2 = data[self._sources[1]["name"]]
+        data[self._name] = self._net(input_1, input_2)
+        return data
 
 
 class Embedding(LayerBase):
