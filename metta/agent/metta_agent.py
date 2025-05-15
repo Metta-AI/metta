@@ -394,7 +394,7 @@ class MettaAgent(nn.Module):
             The LSTM state in the provided PolicyState object is updated in-place.
         """
         # Initialize TensorDict for data flow
-        td = TensorDict({"x": x, "state": torch.tensor([], device=x.device)}, batch_size=x.shape[0])
+        td = TensorDict({"x": x}, batch_size=x.shape[0])
 
         # Safely handle LSTM state
         if state.lstm_h is not None and state.lstm_c is not None:
