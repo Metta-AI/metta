@@ -2,8 +2,8 @@ import numpy as np
 import pytest
 from omegaconf import OmegaConf
 
-from mettagrid.config.utils import get_cfg
 from mettagrid.mettagrid_env import MettaGridEnv
+from mettagrid.util.hydra import get_cfg
 
 
 @pytest.fixture
