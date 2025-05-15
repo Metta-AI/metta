@@ -25,12 +25,17 @@ def make_policy(env: MettaGridEnv, cfg: Union[ListConfig, DictConfig]) -> "Metta
     """
     Create a policy instance based on environment and configuration.
 
+    This factory function instantiates a MettaAgent for the given MettaGrid environment
+    using the provided configuration parameters. It creates the necessary observation
+    space wrapper that combines grid observations with global variables.
+
     Args:
-        env: The MettaGrid environment
-        cfg: Configuration parameters
+        env: The MettaGrid environment that the agent will interact with
+        cfg: Configuration parameters containing agent architecture settings
+             and hyperparameters under the 'agent' key
 
     Returns:
-        An initialized MettaAgent policy
+        An initialized MettaAgent policy ready to process observations and generate actions
     """
     obs_space = gym.spaces.Dict(
         {
@@ -51,19 +56,42 @@ def make_policy(env: MettaGridEnv, cfg: Union[ListConfig, DictConfig]) -> "Metta
 
 
 class DistributedMettaAgent(DistributedDataParallel):
-    """Wrapper for MettaAgent to support distributed training with PyTorch DDP."""
+    """
+    Wrapper for MettaAgent to support distributed training with PyTorch DDP.
+
+    Extends DistributedDataParallel to maintain access to the underlying MettaAgent
+    methods and properties that are needed during training but aren't part of the
+    standard PyTorch module interface.
+
+    This enables transparent use of a distributed agent while preserving the
+    full MettaAgent interface for training and evaluation.
+    """
 
     def __init__(self, agent: "MettaAgent", device: Union[torch.device, int]) -> None:
         """
         Initialize a distributed wrapper for MettaAgent.
 
         Args:
-            agent: The MettaAgent to be wrapped
-            device: The device to use for distributed processing
+            agent: The MettaAgent to be wrapped for distributed training
+            device: The device to use for distributed processing (GPU index or torch device)
         """
         super().__init__(agent, device_ids=[device], output_device=device)
 
     def __getattr__(self, name: str) -> Any:
+        """
+        Forward attribute access to the wrapped MettaAgent module.
+
+        Allows transparent access to MettaAgent methods not defined in DistributedDataParallel.
+
+        Args:
+            name: Name of the attribute to access
+
+        Returns:
+            The requested attribute from the wrapped module
+
+        Raises:
+            AttributeError: If the attribute is not found in either class
+        """
         try:
             return super().__getattr__(name)
         except AttributeError:
@@ -82,11 +110,20 @@ class DistributedMettaAgent(DistributedDataParallel):
 
     @property
     def components(self) -> nn.ModuleDict:
-        """Access the components dictionary from the wrapped module."""
+        """
+        Access the components dictionary from the wrapped module.
+
+        Returns:
+            ModuleDict containing all neural network components of the agent
+        """
         return self.module.components
 
     def update_l2_init_weight_copy(self) -> None:
-        """Forward update_l2_init_weight_copy to the wrapped module."""
+        """
+        Forward update_l2_init_weight_copy to the wrapped module.
+
+        Updates the saved copies of weights used for L2 initialization regularization.
+        """
         return self.module.update_l2_init_weight_copy()
 
     def l2_reg_loss(self) -> torch.Tensor:
@@ -108,7 +145,11 @@ class DistributedMettaAgent(DistributedDataParallel):
         return self.module.l2_init_loss()
 
     def clip_weights(self) -> None:
-        """Forward clip_weights to the wrapped module."""
+        """
+        Forward clip_weights to the wrapped module.
+
+        Applies weight clipping to all components if enabled.
+        """
         return self.module.clip_weights()
 
 
@@ -124,12 +165,22 @@ class MettaAgent(nn.Module):
         """
         Initialize the MettaAgent.
 
+        Sets up the agent's neural network components based on the provided configuration,
+        initializes action spaces, and establishes connections between components.
+
         Args:
-            obs_space: Observation space definition
-            action_space: Action space definition
-            grid_features: List of grid feature names
-            device: Device to run the agent on
-            **cfg: Additional configuration parameters
+            obs_space: Observation space definition specifying the format of environment observations
+            action_space: Action space definition specifying possible agent actions
+            grid_features: List of grid feature names available in the observation
+            device: Device to run the agent on (e.g., 'cuda:0', 'cpu')
+            **cfg: Additional configuration parameters including:
+                - components: Neural network component definitions
+                - observations.obs_key: Key for accessing observations in the observation space
+                - clip_range: Weight clipping threshold for regularization
+
+        Raises:
+            RuntimeError: If any component is not properly set up
+            AssertionError: If required configuration fields are missing
         """
         super().__init__()
         cfg = OmegaConf.create(cfg)
@@ -202,20 +253,21 @@ class MettaAgent(nn.Module):
 
     def _setup_components(self, component: LayerBase) -> None:
         """
-        Setup components recursively and establish connections.
+        Recursively setup components and establish connections between them.
 
-        Notes:
-
-        1. Each component may have a `_sources` attribute defining its input layers (List[Dict])
-        2. Each dictionary in `_sources` must contain a "name" key matching an entry
-            in self.components (the ModuleDict of all available layers)
-        3. We build a `source_components` dictionary where:
-            - Keys are the source component names (from the "name" field)
-            - Values are the actual component objects (layers) from self.components
-        4. This `source_components` dictionary is passed to the component setup method.
+        Walks through the component dependency graph to ensure that all
+        components are properly set up before they are used as inputs by
+        other components.
 
         Args:
             component: The component to set up
+
+        Note:
+            Component dependencies are specified through the _sources attribute:
+            1. Each component may have a `_sources` attribute (List[Dict]) defining its input layers
+            2. Each dict in `_sources` contains a "name" key matching a component in self.components
+            3. A dictionary of source components is built and passed to the component's setup method
+            4. The setup process is recursive, ensuring all dependencies are set up first
         """
         # recursively setup all source components
         if component._sources is not None:
@@ -235,10 +287,18 @@ class MettaAgent(nn.Module):
         """
         Activate agent actions for training.
 
+        Configures the action space by setting up action names, their parameter ranges,
+        and precomputing data structures for efficient action conversion.
+
         Args:
-            action_names: List of action names to activate
+            action_names: List of action names to activate (e.g., ["move", "turn"])
             action_max_params: List of maximum parameter values for each action
+                              (e.g., [4, 1] for up to 5 move parameters and 2 turn parameters)
             device: Device for tensor operations
+
+        Raises:
+            TypeError: If component '_action_embeds_' is not an ActionEmbedding
+            AssertionError: If action_max_params is not a list
         """
         assert isinstance(action_max_params, list), "action_max_params must be a list"
 
@@ -276,12 +336,22 @@ class MettaAgent(nn.Module):
 
     @property
     def lstm(self) -> nn.Module:
-        """Get the LSTM core module."""
+        """
+        Get the LSTM core module.
+
+        Returns:
+            The LSTM network used as the agent's core recurrent component
+        """
         return self.components["_core_"]._net
 
     @property
     def total_params(self) -> int:
-        """Get the total number of parameters in the model."""
+        """
+        Get the total number of parameters in the model.
+
+        Returns:
+            Integer count of all trainable parameters in the agent
+        """
         return self._total_params
 
     def forward(
@@ -293,12 +363,17 @@ class MettaAgent(nn.Module):
         """
         Forward pass of the MettaAgent.
 
+        Processes observations through the agent's neural network architecture to produce
+        action distributions, value estimates, and updated internal states.
+
         Args:
             x: Input observation tensor of shape [B, T, *obs_shape] or [B*T, *obs_shape]
                where B=batch_size, T=sequence_length
-            state: Policy state containing LSTM hidden and cell states
-            action: Optional action tensor, shape [B, T, 2] or [B*T, 2]
-                    Each action is represented as [action_type, action_param]
+            state: Policy state containing LSTM hidden states (lstm_h) and cell states (lstm_c)
+                   of shape [num_layers, batch_size, hidden_size] for each
+            action: Optional action tensor of shape [B, T, 2] or [B*T, 2] where each action
+                    is represented as [action_type, action_param]. If provided, used for
+                    computing log probabilities of these specific actions.
 
         Returns:
             Tuple containing:
@@ -307,6 +382,10 @@ class MettaAgent(nn.Module):
             - entropy: Entropy of action distribution, shape [B*T]
             - value: Value function output, shape [B*T]
             - logprobs: All action log probabilities, shape [B*T, num_actions]
+
+        Note:
+            If action is None, actions will be sampled from the predicted distribution.
+            The LSTM state in the provided PolicyState object is updated in-place.
         """
         # Initialize TensorDict for data flow
         td = TensorDict({"x": x, "state": None}, batch_size=x.shape[0])
@@ -360,16 +439,24 @@ class MettaAgent(nn.Module):
 
     def _convert_action_to_logit_index(self, action: torch.Tensor) -> torch.Tensor:
         """
-        Convert (action_type, action_param) pairs to discrete action indices
-        using precomputed offsets.
+        Convert (action_type, action_param) pairs to discrete action indices.
+
+        Maps the two-element action representation to a single flattened index
+        that can be used to index into logits or other flat action representations.
 
         Args:
-            action: Tensor of shape [B, T, 2] or [B*T, 2]
-                   Each action is represented as [action_type, action_param]
+            action: Tensor of shape [B, T, 2] or [B*T, 2] where each action is
+                   represented as [action_type, action_param]
 
         Returns:
-            action_logit_index: Tensor of shape [B*T]
-                               Flattened action indices for logit indexing
+            action_logit_index: Tensor of shape [B*T] containing flattened action
+                               indices for logit indexing
+
+        Raises:
+            ValueError: If agent actions have not been activated first
+
+        Note:
+            Uses precomputed cumulative sums (self.cum_action_max_params) for efficiency.
         """
         if self.cum_action_max_params is None:
             raise ValueError("Agent actions have not been activated. Call activate_actions first.")
@@ -392,13 +479,17 @@ class MettaAgent(nn.Module):
         """
         Convert logit indices back to action pairs using tensor indexing.
 
+        Converts from flattened action indices to the structured representation of
+        [action_type, action_param] pairs used by the environment.
+
         Args:
-            action_logit_index: Tensor of shape [B*T]
-                               Flattened action indices
+            action_logit_index: Tensor of shape [B*T] containing flattened action indices
 
         Returns:
-            action: Tensor of shape [B*T, 2]
-                   Each row is [action_type, action_param]
+            action: Tensor of shape [B*T, 2] where each row is [action_type, action_param]
+
+        Raises:
+            ValueError: If agent actions have not been activated first
         """
         if self.action_index_tensor is None:
             raise ValueError("Agent actions have not been activated. Call activate_actions first.")
@@ -409,6 +500,9 @@ class MettaAgent(nn.Module):
     def _apply_to_components(self, method_name: str, *args, **kwargs) -> List[torch.Tensor]:
         """
         Apply a method to all components, collecting and returning the results.
+
+        Helper function that calls a named method on all components and collects the results,
+        used primarily for regularization and metric computation.
 
         Args:
             method_name: Name of the method to call on each component
@@ -441,12 +535,16 @@ class MettaAgent(nn.Module):
         """
         Calculate L2 regularization loss across all components.
 
-        Note:
-        L2 regularization loss is on by default although setting l2_norm_coeff to 0 effectively turns it off. Adjust
-        it by setting l2_norm_scale in your component config to a multiple of the global loss value or 0 to turn it off.
+        Aggregates the L2 regularization losses from all network components
+        to produce a total regularization term for the loss function.
 
         Returns:
             Scalar tensor containing the summed L2 regularization loss
+
+        Note:
+            L2 regularization loss is controlled by l2_norm_coeff in the configuration.
+            Each component can scale its contribution using l2_norm_scale, or set it to 0
+            to disable regularization for that component.
         """
         component_loss_tensors = self._apply_to_components("l2_reg_loss")
         return torch.sum(torch.stack(component_loss_tensors))
@@ -455,22 +553,31 @@ class MettaAgent(nn.Module):
         """
         Calculate L2 initialization loss across all components.
 
-        Note:
-        L2 initialization loss is on by default although setting l2_init_coeff to 0 effectively turns it off. Adjust
-        it by setting l2_init_scale in your component config to a multiple of the global loss value or 0 to turn it off.
+        Computes regularization loss that penalizes deviation from the initial
+        weights, which can help prevent catastrophic forgetting in continual learning.
 
         Returns:
             Scalar tensor containing the summed L2 initialization loss
+
+        Note:
+            L2 initialization loss is controlled by l2_init_coeff in the configuration.
+            Each component can scale its contribution using l2_init_scale, or set it to 0
+            to disable this regularization for that component.
         """
         component_loss_tensors = self._apply_to_components("l2_init_loss")
         return torch.sum(torch.stack(component_loss_tensors))
 
     def update_l2_init_weight_copy(self) -> None:
         """
-        Update the weight copies used for L2 initialization regularization
+        Update the weight copies used for L2 initialization regularization.
+
+        Stores the current weights as the reference point for future L2 initialization
+        regularization calculations. This can be called periodically to update
+        the target weights.
 
         Note:
-        The update interval is set by l2_init_weight_update_interval. 0 means no updating.
+            The update interval is set by l2_init_weight_update_interval in the configuration.
+            A value of 0 means no updating will occur.
         """
         self._apply_to_components("update_l2_init_weight_copy")
 
@@ -478,10 +585,13 @@ class MettaAgent(nn.Module):
         """
         Clip weights to stay within the specified range if clip_range > 0.
 
+        Enforces weight constraints by clipping all weights to be within
+        [-clip_range, clip_range]. This can improve training stability.
+
         Note:
-        Weight clipping is on by default although setting clip_range or clip_scale to 0, or a large positive value
-        effectively turns it off. Adjust it by setting clip_scale in your component config to a multiple of the global
-        loss value or 0 to turn it off.
+            Weight clipping is controlled by clip_range in the configuration.
+            Each component can scale its clipping threshold using clip_scale,
+            or set it to 0 to disable clipping for that component.
         """
         if self.clip_range > 0:
             self._apply_to_components("clip_weights")
@@ -490,16 +600,19 @@ class MettaAgent(nn.Module):
         """
         Compute weight metrics for all components that have weights enabled for analysis.
 
-        Note:
-        Compute weight metrics for all components that have weights enabled for analysis.
-        Returns a list of metric dictionaries, one per component. Set analyze_weights to True in the config to turn it
-        on for a given component.
+        Collects weight statistics such as magnitude, sparsity, and changes from
+        each component to help monitor training dynamics.
 
         Args:
-            delta: Threshold for weight change metrics
+            delta: Threshold for weight change metrics, used to determine if a
+                  weight has changed significantly
 
         Returns:
-            List of metric dictionaries, one per component
+            List of metric dictionaries, one per component that has weight analysis enabled
+
+        Note:
+            Weight analysis is enabled by setting analyze_weights=True in a component's
+            configuration. Components without this setting will be skipped.
         """
         results: Dict[str, Dict[str, float]] = {}
         for name, component in self.components.items():
