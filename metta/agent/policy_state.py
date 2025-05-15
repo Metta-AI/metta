@@ -1,10 +1,9 @@
 from typing import Optional
 
 import torch
-from tensordict import TensorClass
 
 
-class PolicyState(TensorClass):
+class PolicyState:
     """
     A container for policy state information.
 
@@ -14,17 +13,40 @@ class PolicyState(TensorClass):
         hidden: Hidden state representation for non-LSTM components
     """
 
-    # Store LSTM states in layer-first format [num_layers, batch_size, hidden_size]
-    lstm_h: Optional[torch.Tensor] = None
-    lstm_c: Optional[torch.Tensor] = None
-    hidden: Optional[torch.Tensor] = None
+    def __init__(
+        self,
+        lstm_h: Optional[torch.Tensor] = None,
+        lstm_c: Optional[torch.Tensor] = None,
+        hidden: Optional[torch.Tensor] = None,
+    ):
+        self.lstm_h = lstm_h
+        self.lstm_c = lstm_c
+        self.hidden = hidden
 
-    @classmethod
-    def create(cls, batch_size: int, num_layers: int, hidden_size: int, device=None):
-        """Create a new PolicyState with layer-first LSTM states."""
-        state = cls()
-        if batch_size > 0:
-            # Create tensors in layer-first format [num_layers, batch_size, hidden_size]
-            state.lstm_h = torch.zeros(num_layers, batch_size, hidden_size, device=device)
-            state.lstm_c = torch.zeros(num_layers, batch_size, hidden_size, device=device)
-        return state
+    def __repr__(self):
+        """String representation for debugging."""
+        h_shape = None if self.lstm_h is None else self.lstm_h.shape
+        c_shape = None if self.lstm_c is None else self.lstm_c.shape
+        hidden_shape = None if self.hidden is None else self.hidden.shape
+
+        return f"PolicyState(lstm_h shape={h_shape}, lstm_c shape={c_shape}, hidden shape={hidden_shape})"
+
+    def to(self, device):
+        """Move all tensors to the specified device."""
+        if self.lstm_h is not None:
+            self.lstm_h = self.lstm_h.to(device)
+        if self.lstm_c is not None:
+            self.lstm_c = self.lstm_c.to(device)
+        if self.hidden is not None:
+            self.hidden = self.hidden.to(device)
+        return self
+
+    def detach(self):
+        """Detach all tensors from the computation graph."""
+        if self.lstm_h is not None:
+            self.lstm_h = self.lstm_h.detach()
+        if self.lstm_c is not None:
+            self.lstm_c = self.lstm_c.detach()
+        if self.hidden is not None:
+            self.hidden = self.hidden.detach()
+        return self

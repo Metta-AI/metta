@@ -1,5 +1,7 @@
+from typing import Any, Dict
+
 import torch
-from tensordict import TensorDict
+from typing_extensions import override
 
 from metta.agent.lib.metta_layer import LayerBase
 
@@ -79,6 +81,7 @@ class ObservationNormalizer(LayerBase):
 
         self._out_tensor_shape = self._in_tensor_shapes[0].copy()
 
-    def _forward(self, td: TensorDict) -> TensorDict:
-        td[self._name] = td[self._sources[0]["name"]] / self.obs_norm
-        return td
+    @override
+    def _forward(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        data[self._name] = data[self._sources[0]["name"]] / self.obs_norm
+        return data

@@ -6,7 +6,6 @@ import hydra
 import numpy as np
 import torch
 from omegaconf import DictConfig, ListConfig, OmegaConf
-from tensordict import TensorDict
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 
@@ -397,39 +396,37 @@ class MettaAgent(nn.Module):
             If action is None, actions will be sampled from the predicted distribution.
             The LSTM state in the provided PolicyState object is updated in-place.
         """
-        # Initialize TensorDict for data flow
-        td = TensorDict({}, batch_size=x.shape[0])
-        td["x"] = x
+        # we can't use the tensordict library effectively here because we want to keep some
+        # tensors (x) batch-first and others (lstm) layer-first.
+        # a regular python dictionary is fine - ultimately we will be setting fields in nn.ModuleDict
+        data = {"x": x}
 
-        # Pass LSTM states directly - now in layer-first format
+        # Pass LSTM states in layer-first format
         if state.lstm_h is not None and state.lstm_c is not None:
             # Ensure states are on the same device as input
-            td["lstm_h"] = state.lstm_h.to(x.device)  # [num_layers, batch_size, hidden_size]
-            td["lstm_c"] = state.lstm_c.to(x.device)  # [num_layers, batch_size, hidden_size]
+            data["lstm_h"] = state.lstm_h.to(x.device)  # [num_layers, batch_size, hidden_size]
+            data["lstm_c"] = state.lstm_c.to(x.device)  # [num_layers, batch_size, hidden_size]
 
         # Forward pass through value network
-        self.components["_value_"](td)
-        value = td["_value_"]  # Shape: [B*T]
+        self.components["_value_"](data)
+        value = data["_value_"]  # Shape: [B*T]
 
         # Forward pass through action network
-        self.components["_action_"](td)
-        logits = td["_action_"]  # Shape: [B*T, num_actions]
+        self.components["_action_"](data)
+        logits = data["_action_"]  # Shape: [B*T, num_actions]
 
         # Update LSTM states directly - already in layer-first format
-        state.lstm_h = td["lstm_h"]  # [num_layers, batch_size, hidden_size]
-        state.lstm_c = td["lstm_c"]  # [num_layers, batch_size, hidden_size]
+        state.lstm_h = data["lstm_h"]  # [num_layers, batch_size, hidden_size]
+        state.lstm_c = data["lstm_c"]  # [num_layers, batch_size, hidden_size]
 
-        # Sample actions
-        action_logit_index: Optional[torch.Tensor] = (
-            self._convert_action_to_logit_index(action) if action is not None else None
-        )
-
-        # Sample_logits returns (action_indices, log_probs, entropy, all_log_probs)
-        action_indices, log_probs, entropy_val, all_log_probs = sample_logits(logits, action_logit_index)
-
-        # Convert logit index to action if no action was provided
-        if action is None:
-            action = self._convert_logit_index_to_action(action_indices)  # Shape: [B*T, 2]
+        if action is not None:
+            action_logit_index = self._convert_action_to_logit_index(action)
+            action_indices, log_probs, entropy_val, all_log_probs = sample_logits(logits, action_logit_index)
+            # return provided action
+        else:
+            action_indices, log_probs, entropy_val, all_log_probs = sample_logits(logits, None)
+            action = self._convert_logit_index_to_action(action_indices)
+            # return sampled action
 
         return action, log_probs, entropy_val, value, all_log_probs
 

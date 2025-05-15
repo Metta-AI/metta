@@ -3,7 +3,6 @@ from typing import Any, Dict, List, Optional, Union, cast
 import numpy as np
 import torch
 from omegaconf import DictConfig, OmegaConf
-from tensordict import TensorDict
 from torch import nn
 
 from metta.agent.util.weights_analysis import analyze_weights
@@ -22,14 +21,14 @@ class LayerBase(nn.Module):
     components must also have a property called `ready` that returns True if
     the component has been setup.
 
-    The `_forward` method should only take a tensordict as input and return
-    only the tensordict. The tensor dict is constructed anew each time the
+    The `_forward` method should only take a dict as input and return
+    only the dict. The tensor dict is constructed anew each time the
     metta_agent forward pass is run. The component's `_forward` should read
     from the value at the key name of its input_source. After performing its
     computation via self._net() or otherwise, it should store its output in the
     tensor dict at the key with its own name.
 
-    Before doing this, it should first check if the tensordict already has a
+    Before doing this, it should first check if the dict already has a
     key with its own name, indicating that its computation has already been
     performed (due to some other run up the DAG) and return. After this check,
     it should check if its input source is not None and recursively call the
@@ -118,26 +117,26 @@ class LayerBase(nn.Module):
     def _make_net(self) -> nn.Module:
         return nn.Identity()
 
-    def forward(self, td: TensorDict) -> TensorDict:
-        if self._name in td:
-            return td
+    def forward(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        if self._name in data:
+            return data
 
         # recursively call the forward method of the source components
         typed_source_components = cast(Optional[Dict[str, Any]], self._source_components)
         if typed_source_components is not None:
             for _, source in typed_source_components.items():
-                source.forward(td)
+                source.forward(data)
 
-        self._forward(td)
+        self._forward(data)
 
-        return td
+        return data
 
-    def _forward(self, td: TensorDict) -> TensorDict:
+    def _forward(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Components that have more than one input sources must have their own _forward() method."""
         # get the input tensor from the source component by calling its forward method (which recursively calls
         # _forward() on its source components)
-        td[self._name] = self._net(td[self._sources[0]["name"]])
-        return td
+        data[self._name] = self._net(data[self._sources[0]["name"]])
+        return data
 
     def clip_weights(self):
         pass

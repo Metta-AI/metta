@@ -1,4 +1,6 @@
-from tensordict import TensorDict
+from typing import Any, Dict
+
+from typing_extensions import override
 
 from metta.agent.lib.metta_layer import LayerBase
 
@@ -21,8 +23,9 @@ class ObsShaper(LayerBase):
         self._out_tensor_shape = [self._obs_shape[2], self._obs_shape[0], self._obs_shape[1]]
         self._output_size = num_objects
 
-    def _forward(self, td: TensorDict) -> TensorDict:
-        x = td["x"]
+    @override
+    def _forward(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        x = data["x"]
 
         x_shape, space_shape = x.shape, self._obs_shape
         x_n, space_n = len(x_shape), len(space_shape)
@@ -57,11 +60,11 @@ class ObsShaper(LayerBase):
         # conv expects [batch, channel, w, h]. Below is hardcoded for [batch, w, h, channel]
         x = self._permute(x)
 
-        td["_TT_"] = TT
-        td["_batch_size_"] = B
-        td["_BxTT_"] = B * TT
-        td[self._name] = x
-        return td
+        data["_TT_"] = TT
+        data["_batch_size_"] = B
+        data["_BxTT_"] = B * TT
+        data[self._name] = x
+        return data
 
     def _permute(self, x):
         if x.device.type == "mps":

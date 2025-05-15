@@ -1,6 +1,8 @@
+from typing import Any, Dict
+
 import torch
 from einops import repeat
-from tensordict import TensorDict
+from typing_extensions import override
 
 import metta.agent.lib.nn_layer_library as nn_layer_library
 
@@ -18,7 +20,7 @@ class ActionEmbedding(nn_layer_library.Embedding):
     - Maintains a mapping between action names (strings) and embedding indices
     - Dynamically activates subsets of actions when requested
     - Expands embeddings to match batch dimensions automatically
-    - Stores the number of active actions in the TensorDict for other layers
+    - Stores the number of active actions for other layers
 
     The activate_actions method should be called whenever the available actions in the
     environment change, providing the new set of action names and the target device.
@@ -60,10 +62,11 @@ class ActionEmbedding(nn_layer_library.Embedding):
         )
         self.num_actions = len(self.active_indices)
 
-    def _forward(self, td: TensorDict) -> TensorDict:
-        B_TT = td["_BxTT_"]
-        td["_num_actions_"] = self.num_actions
+    @override
+    def _forward(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        B_TT = data["_BxTT_"]
+        data["_num_actions_"] = self.num_actions
 
         # get embeddings then expand to match the batch size
-        td[self._name] = repeat(self._net(self.active_indices), "a e -> b a e", b=B_TT)
-        return td
+        data[self._name] = repeat(self._net(self.active_indices), "a e -> b a e", b=B_TT)
+        return data

@@ -1,8 +1,7 @@
-from typing import Tuple
+from typing import Any, Dict, Tuple
 
 import torch
 import torch.nn as nn
-from tensordict import TensorDict
 from typing_extensions import override
 
 from metta.agent.lib.metta_layer import LayerBase
@@ -82,16 +81,16 @@ class LSTM(LayerBase):
 
     @torch.compile(disable=True)
     @override
-    def _forward(self, td: TensorDict) -> TensorDict:
-        x = td["x"]
-        hidden = td[self._sources[0]["name"]]
+    def _forward(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        x = data["x"]
+        hidden = data[self._sources[0]["name"]]
 
         # Get sequence lengths if available
-        seq_lengths = td.get("seq_lengths", None)
+        seq_lengths = data.get("seq_lengths", None)
 
         # Get LSTM states
-        lstm_h = td.get("lstm_h", None)
-        lstm_c = td.get("lstm_c", None)
+        lstm_h = data.get("lstm_h", None)
+        lstm_c = data.get("lstm_c", None)
 
         state = None
         if lstm_h is not None and lstm_c is not None:
@@ -183,8 +182,8 @@ class LSTM(LayerBase):
         hidden = hidden.reshape(B * T, self.hidden_size)
 
         # Store results
-        td[self._name] = hidden
-        td["lstm_h"] = new_h.detach()
-        td["lstm_c"] = new_c.detach()
+        data[self._name] = hidden
+        data["lstm_h"] = new_h.detach()
+        data["lstm_c"] = new_c.detach()
 
-        return td
+        return data

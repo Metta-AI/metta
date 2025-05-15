@@ -3,8 +3,7 @@ Neural network layer library for Metta Agent.
 
 This module provides a collection of PyTorch neural network layers wrapped as Metta layers.
 Each class extends either LayerBase or ParamLayer to make standard PyTorch modules compatible
-with the Metta Agent framework, handling tensor shapes, parameter management, and integration
-with the TensorDict system.
+with the Metta Agent framework.
 
 All layers in this library follow a consistent pattern:
 1. They inherit from LayerBase or ParamLayer
@@ -17,10 +16,10 @@ is instantiated and never again. I.e., not when it is reloaded from a saved poli
 """
 
 from math import prod
+from typing import Any, Dict
 
 import torch
 import torch.nn as nn
-from tensordict import TensorDict
 from typing_extensions import override
 
 from metta.agent.lib.metta_layer import LayerBase, ParamLayer
@@ -100,7 +99,8 @@ class Bilinear(LayerBase):
         self._nn_params = dict(self._nn_params)  # need to convert from omegaconf DictConfig
         return nn.Bilinear(**self._nn_params)
 
-    def _forward(self, td: TensorDict) -> TensorDict:
+    @override
+    def _forward(self, data: Dict[str, Any]) -> Dict[str, Any]:
         # input_1 = td[self._input_source[0]]
         # input_2 = td[self._input_source[1]]
         input_1 = td[self._sources[0]["name"]]

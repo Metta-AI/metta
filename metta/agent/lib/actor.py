@@ -1,9 +1,9 @@
 import math
+from typing import Any, Dict
 
 import torch
 import torch.nn as nn
 from einops import rearrange, repeat
-from tensordict import TensorDict
 from typing_extensions import override
 
 from metta.agent.lib.metta_layer import LayerBase
@@ -156,7 +156,7 @@ class MettaActorBig(LayerBase):
             nn.init.uniform_(self.bias, -bound, bound)
 
     @override
-    def _forward(self, td: TensorDict) -> TensorDict:
+    def _forward(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Forward pass for the MettaActorBig layer.
 
@@ -164,13 +164,13 @@ class MettaActorBig(LayerBase):
         to produce action logits.
 
         Args:
-            td: TensorDict containing input tensors with keys matching source names
+            data: dict containing input tensors with keys matching source names
 
         Returns:
-            Updated TensorDict with action logits added under this layer's name
+            Updated dict with action logits added under this layer's name
         """
-        hidden = td[self._sources[0]["name"]]  # Shape: [B*TT, hidden]
-        action_embeds = td[self._sources[1]["name"]]  # Shape: [B*TT, num_actions, embed_dim]
+        hidden = data[self._sources[0]["name"]]  # Shape: [B*TT, hidden]
+        action_embeds = data[self._sources[1]["name"]]  # Shape: [B*TT, num_actions, embed_dim]
 
         B_TT = hidden.shape[0]
         num_actions = action_embeds.shape[1]
@@ -195,8 +195,8 @@ class MettaActorBig(LayerBase):
         # Reshape MLP output back to sequence and action dimensions
         action_logits = mlp_output.reshape(B_TT, num_actions)  # Shape: [B*TT, num_actions]
 
-        td[self._name] = action_logits
-        return td
+        data[self._name] = action_logits
+        return data
 
 
 class MettaActorSingleHead(LayerBase):
@@ -265,7 +265,8 @@ class MettaActorSingleHead(LayerBase):
         if self.bias is not None:
             nn.init.uniform_(self.bias, -bound, bound)
 
-    def _forward(self, td: TensorDict) -> TensorDict:
+    @override
+    def _forward(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Forward pass for the MettaActorSingleHead layer.
 
@@ -273,13 +274,13 @@ class MettaActorSingleHead(LayerBase):
         bilinear network to produce action logits.
 
         Args:
-            td: TensorDict containing input tensors with keys matching source names
+            data: dict containing input tensors with keys matching source names
 
         Returns:
-            Updated TensorDict with action logits added under this layer's name
+            Updated dict with action logits added under this layer's name
         """
-        hidden = td[self._sources[0]["name"]]  # Shape: [B*TT, hidden]
-        action_embeds = td[self._sources[1]["name"]]  # Shape: [B*TT, num_actions, embed_dim]
+        hidden = data[self._sources[0]["name"]]  # Shape: [B*TT, hidden]
+        action_embeds = data[self._sources[1]["name"]]  # Shape: [B*TT, num_actions, embed_dim]
 
         B_TT = hidden.shape[0]
         num_actions = action_embeds.shape[1]
@@ -302,5 +303,5 @@ class MettaActorSingleHead(LayerBase):
 
         action_logits = biased_scores.reshape(B_TT, num_actions)  # Shape: [B*TT, num_actions]
 
-        td[self._name] = action_logits
-        return td
+        data[self._name] = action_logits
+        return data
