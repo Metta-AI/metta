@@ -29,10 +29,10 @@ public:
   // Python API methods
   py::tuple reset();
   py::tuple step(py::array_t<int> actions);
-  void set_buffers(py::array_t<unsigned char>& observations,
-                   py::array_t<bool>& terminals,
-                   py::array_t<bool>& truncations,
-                   py::array_t<float>& rewards);
+  void set_buffers(py::array_t<unsigned char, py::array::c_style>& observations,
+                   py::array_t<bool, py::array::c_style>& terminals,
+                   py::array_t<bool, py::array::c_style>& truncations,
+                   py::array_t<float, py::array::c_style>& rewards);
   void validate_buffers();
   py::dict grid_objects();
   py::list action_names();
