@@ -797,6 +797,41 @@ class PufferTrainer:
             zero_copy=self.trainer_cfg.zero_copy,
         )
 
+        # Log detailed information about the vecenv
+        logging.info("=" * 50)
+        logging.info("DETAILED VECENV INSPECTION")
+        logging.info("=" * 50)
+
+        # Basic properties
+        logging.info(f"vecenv.num_agents: {getattr(self.vecenv, 'num_agents', 'NOT FOUND')}")
+        logging.info(f"vecenv.num_environments: {getattr(self.vecenv, 'num_environments', 'NOT FOUND')}")
+        logging.info(f"vecenv.num_envs: {getattr(self.vecenv, 'num_envs', 'NOT FOUND')}")
+        logging.info(f"vecenv.num_workers: {getattr(self.vecenv, 'num_workers', 'NOT FOUND')}")
+
+        # Batch and agent properties
+        logging.info(f"vecenv.agents_per_batch: {getattr(self.vecenv, 'agents_per_batch', 'NOT FOUND')}")
+        logging.info(f"vecenv.workers_per_batch: {getattr(self.vecenv, 'workers_per_batch', 'NOT FOUND')}")
+        logging.info(f"vecenv.envs_per_worker: {getattr(self.vecenv, 'envs_per_worker', 'NOT FOUND')}")
+
+        # Observation and action spaces
+        logging.info(f"vecenv.obs_batch_shape: {getattr(self.vecenv, 'obs_batch_shape', 'NOT FOUND')}")
+        logging.info(f"vecenv.atn_batch_shape: {getattr(self.vecenv, 'atn_batch_shape', 'NOT FOUND')}")
+
+        # Our configuration
+        logging.info(f"self.target_batch_size: {self.target_batch_size}")
+        logging.info(f"self.batch_size: {self.batch_size}")
+        logging.info(f"num_envs passed to make_vecenv: {self.batch_size * self.trainer_cfg.async_factor}")
+
+        # Log the driver env properties if available
+        if hasattr(self.vecenv, "driver_env"):
+            metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
+            assert isinstance(metta_grid_env, MettaGridEnv)
+
+            logging.info("MettaGridEnv properties:")
+            logging.info(f"  metta_grid_env.num_agents: {metta_grid_env.num_agents}")
+
+        logging.info("=" * 50)
+
         if self.cfg.seed is None:
             self.cfg.seed = np.random.randint(0, 1000000)
 

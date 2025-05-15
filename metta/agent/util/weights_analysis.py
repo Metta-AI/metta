@@ -5,6 +5,8 @@ import torch
 from omegaconf import DictConfig, ListConfig
 from scipy import stats
 
+from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
+
 # Set up logger
 logger = logging.getLogger(__name__)
 
@@ -145,7 +147,7 @@ class WeightsMetricsHelper:
         self.cfg = cfg
         self._weight_metrics: List[Dict[str, Any]] = []
 
-    def on_epoch_end(self, epoch: int, policy: Any) -> None:
+    def on_epoch_end(self, epoch: int, policy: MettaAgent | DistributedMettaAgent) -> None:
         """Compute weight metrics at the end of specified epochs.
 
         Args:
@@ -162,11 +164,6 @@ class WeightsMetricsHelper:
 
         if epoch % self.cfg.agent.analyze_weights_interval == 0:
             try:
-                if not hasattr(policy, "compute_weight_metrics"):
-                    logger.warning("Policy does not have compute_weight_metrics method")
-                    self._weight_metrics = []
-                    return
-
                 metrics = policy.compute_weight_metrics()
 
                 # Make sure metrics is a list
