@@ -5,9 +5,6 @@
 # Fail on errors:
 set -e
 
-# Install npm
-brew install npm
-
 # Install dependencies
 cd mettascope
 npm install -g typescript
