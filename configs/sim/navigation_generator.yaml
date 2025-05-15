@@ -2,7 +2,7 @@ defaults:
   - sim_suite
   - _self_
 
-name: all
+name: navigation_generator
 
 simulations:
   navigation/emptyspace_withinsight:
