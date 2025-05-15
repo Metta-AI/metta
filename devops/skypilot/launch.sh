@@ -51,7 +51,6 @@ done
 
 
 sky jobs launch \
-  --gpus A10G:$gpus \
   --num-nodes $nodes \
   --cpus $cpus\+ \
   --name $RUN_ID \
