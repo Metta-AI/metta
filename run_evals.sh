@@ -51,34 +51,25 @@ for i in "${!POLICIES[@]}"; do
         run=navigation$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         sim_job.stats_db_uri=wandb://stats/navigation_db \
-        sim_job.replay_dir=s3://softmax-public/replays/evals \
-
-    # python3 -m tools.sim \
-    #     sim=multiagent \
-    #     run=multiagent$IDX \
-    #     policy_uri=wandb://run/$POLICY_URI \
-    #     +eval_db_uri=wandb://artifacts/multiagent_db_main \
-    #     ++device=cpu
 
     python3 -m tools.sim \
         sim=memory \
         run=memory$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         sim_job.stats_db_uri=wandb://stats/memory_db \
-        sim_job.replay_dir=s3://softmax-public/replays/evals \
+
     python3 -m tools.sim \
         sim=object_use \
         run=objectuse$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         sim_job.stats_db_uri=wandb://stats/objectuse_db \
-        sim_job.replay_dir=s3://softmax-public/replays/evals \
+=
+    python3 -m tools.dashboard +eval_db_uri=wandb://stats/navigation_db run=navigation_db ++dashboard.output_path=s3://softmax-public/policydash/navigation.html \
+
+    # python3 -m tools.analyze +eval_db_uri=wandb://artifacts/multiagent_db_main run=multiagent_db_main ++analyzer.output_path=s3://softmax-public/policydash/multiagent_main.html
+
+    python3 -m tools.dashboard +eval_db_uri=wandb://stats/memory_db run=memory_db ++dashboard.output_path=s3://softmax-public/policydash/memory.html \
+
+    python3 -m tools.dashboard +eval_db_uri=wandb://stats/objectuse_db run=objectuse_db ++dashboard.output_path=s3://softmax-public/policydash/objectuse.html \
 
 done
-
-python3 -m tools.dashboard +eval_db_uri=wandb://stats/navigation_db run=navigation_db ++dashboard.output_path=s3://softmax-public/policydash/navigation.html \
-
-# python3 -m tools.analyze +eval_db_uri=wandb://artifacts/multiagent_db_main run=multiagent_db_main ++analyzer.output_path=s3://softmax-public/policydash/multiagent_main.html
-
-python3 -m tools.dashboard +eval_db_uri=wandb://stats/memory_db run=memory_db ++dashboard.output_path=s3://softmax-public/policydash/memory.html \
-
-python3 -m tools.dashboard +eval_db_uri=wandb://stats/objectuse_db run=objectuse_db ++dashboard.output_path=s3://softmax-public/policydash/objectuse.html \
