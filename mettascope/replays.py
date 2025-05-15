@@ -58,7 +58,7 @@ def generate_replay(sim) -> dict:
 
 if __name__ == "__main__":
 
-    @hydra.main(version_base=None, config_path="../../configs", config_name="replay_job")
+    @hydra.main(version_base=None, config_path="../configs", config_name="replay_job")
     def main(cfg):
         start = time.time()
         sim = create_simulation(cfg)
