@@ -9,12 +9,10 @@ from typing import TypeVar, Union, cast
 import numpy as np
 import pufferlib
 import torch
-import torch.distributed as dist
 import wandb
 from heavyball import ForeachMuon
 from omegaconf import DictConfig, ListConfig
 from pufferlib.utils import profile, unroll_nested_dict
-from torch import nn
 
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
@@ -69,9 +67,9 @@ class PufferTrainer:
         self._world_size = 1
         self.device = cfg.device
 
-        if dist.is_initialized():
+        if torch.distributed.is_initialized():
             self._master = int(os.environ["RANK"]) == 0
-            self._world_size = dist.get_world_size()
+            self._world_size = torch.distributed.get_world_size()
             logger.info(
                 f"Rank: {os.environ['RANK']}, Local rank: {os.environ['LOCAL_RANK']}, World size: {self._world_size}"
             )
@@ -153,7 +151,7 @@ class PufferTrainer:
 
         self.kickstarter = Kickstarter(self.cfg, self.policy_store, actions_names, actions_max_params)
 
-        if dist.is_initialized():
+        if torch.distributed.is_initialized():
             logger.info(f"Initializing DistributedDataParallel on device {self.device}")
             # Store the original policy for cleanup purposes
             self._original_policy = self.policy
@@ -178,7 +176,7 @@ class PufferTrainer:
         environment_shape = tuple(_env_shape) if isinstance(_env_shape, list) else _env_shape
 
         found_match = False
-        module_dict: nn.ModuleDict = self.policy.components
+        module_dict: torch.nn.ModuleDict = self.policy.components
         for component_name, component in module_dict.items():
             if hasattr(component, "_obs_shape"):
                 found_match = True
@@ -770,7 +768,9 @@ class PufferTrainer:
 
         assert hasattr(self.policy, "lstm"), "Policy must have lstm attribute"
         lstm = getattr(self.policy, "lstm", {})
-        assert isinstance(lstm, nn.modules.rnn.LSTM), f"Policy lstm must be a valid LSTM instance, got: {type(lstm)}"
+        assert isinstance(lstm, torch.nn.modules.rnn.LSTM), (
+            f"Policy lstm must be a valid LSTM instance, got: {type(lstm)}"
+        )
 
         # Create the Experience buffer with appropriate parameters
         self.experience = Experience(
