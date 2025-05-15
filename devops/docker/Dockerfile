@@ -2,6 +2,7 @@ FROM mettaai/metta-base:latest
 
 # Install uv
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="$HOME/.cargo/bin:${PATH}"
 
 # Install dependencies with uv
 RUN uv pip install boto3 chex hydra-core matplotlib pettingzoo rich scipy tabulate
