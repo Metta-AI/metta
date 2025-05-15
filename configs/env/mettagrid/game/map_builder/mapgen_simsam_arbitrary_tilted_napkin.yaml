@@ -1,0 +1,37 @@
+_target_: mettagrid.map.mapgen.MapGen
+
+width: ${int:${uniform:20,101}}
+height: ${int:${uniform:20,101}}
+
+root:
+  _target_: mettagrid.map.scenes.room_grid.RoomGrid
+  rows: 3
+  columns: 3
+
+  children:
+  - scene:
+      _target_: mettagrid.map.scenes.simplex_sampler.SimplexSampler
+      children: []
+      layers:
+      # arbitrary tilted lattice-like terrain
+      - sampling_function : mettagrid.map.scenes.simsam_functions.arbitrary_tilted_napkin 
+        saturation: ${choose:1.9,2.0,2.1,2.2,2.3,2.4,2.5,3.0,4.0}
+        function_parameters:
+          x_zoom: ${uniform:1,3} 
+          y_zoom: ${uniform:1,3} 
+          angle_theta: ${uniform:-0.125,0.125} 
+          line1_wavelength: ${int:${uniform:2,16}} 
+          line2_wavelength: ${int:${uniform:2,16}} 
+          line1_thickness: ${choose:1,2} 
+          line2_thickness: ${choose:1,2}  
+      # random noise
+      - sampling_function : mettagrid.map.scenes.simsam_functions.xy_noise 
+        # currently at 0 saturation to avoid noise breaking the lattice too much
+        saturation: 0 #${uniform:0.0,1.5}
+        function_parameters:
+          x_zoom: ${uniform:0.01,0.5}
+          y_zoom: ${uniform:0.01,0.5}
+
+      cutoff: ${uniform:0.20,0.35} 
+      force_seed: NULL
+
