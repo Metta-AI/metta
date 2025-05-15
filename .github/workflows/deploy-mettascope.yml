@@ -4,7 +4,7 @@ on:
     branches:
       - main
     paths:
-      - "mettagrid/player/**" # Run when any file in player directory changes
+      - "mettascope/**" # Run when any file in player directory changes
       - ".github/workflows/**" # Run when workflow files change
   workflow_dispatch: {} # Allow manual triggers
 
@@ -36,11 +36,11 @@ jobs:
         with:
           node-version: "20"
           cache: "npm"
-          cache-dependency-path: "mettagrid/player/package-lock.json"
+          cache-dependency-path: "mettascope/package-lock.json"
 
       - name: Install and build TypeScript
         run: |
-          cd mettagrid/player
+          cd mettascope
           npm ci
           npx tsc
 
@@ -68,13 +68,13 @@ jobs:
           ls -la
 
           echo "=== Player Directory ==="
-          cd mettagrid/player
+          cd mettascope
           echo "Player directory: $(pwd)"
           ls -la
 
       - name: Generate Atlas
         run: |
-          cd mettagrid/player
+          cd mettascope
           python3 tools/gen_atlas.py
 
       - name: Setup Pages
@@ -83,7 +83,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: "./mettagrid/player"
+          path: "./mettascope"
 
       - name: Deploy to GitHub Pages
         id: deployment
