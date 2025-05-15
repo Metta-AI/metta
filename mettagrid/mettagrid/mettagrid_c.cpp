@@ -64,9 +64,9 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
 
   // Initialize buffers
   std::vector<ssize_t> shape = {static_cast<ssize_t>(num_agents),
-                                static_cast<ssize_t>(_grid_features.size()),
                                 static_cast<ssize_t>(_obs_height),
-                                static_cast<ssize_t>(_obs_width)};
+                                static_cast<ssize_t>(_obs_width),
+                                static_cast<ssize_t>(_grid_features.size())};
   auto observations = py::array_t<unsigned char>(shape);
   auto terminals = py::array_t<bool>(static_cast<ssize_t>(num_agents));
   auto truncations = py::array_t<bool>(static_cast<ssize_t>(num_agents));
@@ -369,23 +369,61 @@ void MettaGrid::set_buffers(std::reference_wrapper<py::array_t<unsigned char>> o
                             std::reference_wrapper<py::array_t<bool>> terminals,
                             std::reference_wrapper<py::array_t<bool>> truncations,
                             std::reference_wrapper<py::array_t<float>> rewards) {
-  if (!observations.flags() & py::array::c_style) {
-    throw std::runtime_error("Observations array must be C-contiguous");
-  }
-  if (!terminals.flags() & py::array::c_style) {
-    throw std::runtime_error("Terminals array must be C-contiguous");
-  }
-  if (!truncations.flags() & py::array::c_style) {
-    throw std::runtime_error("Truncations array must be C-contiguous");
-  }
-  if (!rewards.flags() & py::array::c_style) {
-    throw std::runtime_error("Rewards array must be C-contiguous");
-  }
   _observations = observations;
   _terminals = terminals;
   _truncations = truncations;
   _rewards = rewards;
-  _episode_rewards = py::array_t<float>(_rewards.shape(0));
+  // Take this implicitly, since _agents may not have been set yet.
+  unsigned int num_agents = observations.get().shape(0);
+  {
+    auto observation_info = _observations.request();
+    auto shape = observation_info.shape;
+    auto strides = observation_info.strides;
+    if (observation_info.ndim != 4 || shape[0] != num_agents || shape[1] != _obs_height || shape[2] != _obs_width || shape[3] != _grid_features.size()) {
+      std::stringstream ss;
+      ss << "observations has shape [" << shape[0] << ", " << shape[1] << ", " << shape[2] << ", " << shape[3] << "] but expected ["
+         << num_agents << ", " << _obs_height << ", " << _obs_width << ", " << _grid_features.size() << "]";
+      throw std::runtime_error(ss.str());
+    }
+    if (strides[0] != _obs_height * _obs_width * _grid_features.size() * sizeof(unsigned char)) {
+      // This suggests that the data size is wrong, or the data is otherwise not contiguous.
+      throw std::runtime_error("observations has the wrong stride");
+    }
+  }
+  {
+    auto terminals_info = _terminals.request();
+    auto shape = terminals_info.shape;
+    auto strides = terminals_info.strides;
+    if (terminals_info.ndim != 1 || shape[0] != num_agents) {
+      throw std::runtime_error("terminals has the wrong shape");
+    }
+    if (strides[0] != sizeof(bool)) {
+      throw std::runtime_error("terminals has the wrong stride");
+    }
+  }
+  {
+    auto truncations_info = _truncations.request();
+    auto shape = truncations_info.shape;
+    auto strides = truncations_info.strides;
+    if (truncations_info.ndim != 1 || shape[0] != num_agents) {
+      throw std::runtime_error("truncations has the wrong shape");
+    }
+    if (strides[0] != sizeof(bool)) {
+      throw std::runtime_error("truncations has the wrong stride");
+    }
+  }
+  {
+    auto rewards_info = _rewards.request();
+    auto shape = rewards_info.shape;
+    auto strides = rewards_info.strides;
+    if (rewards_info.ndim != 1 || shape[0] != num_agents) {
+      throw std::runtime_error("rewards has the wrong shape");
+    }
+    if (strides[0] != sizeof(float)) {
+      throw std::runtime_error("rewards has the wrong stride");
+    }
+  }
+  _episode_rewards = py::array_t<float>(num_agents);
   for (size_t i = 0; i < _agents.size(); i++) {
     _agents[i]->init(&_rewards.mutable_unchecked<1>()(i));
   }
