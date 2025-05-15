@@ -33,6 +33,27 @@ simulations:
     env: env/mettagrid/navigation/evals/labyrinth
   navigation/radialmaze:
     env: env/mettagrid/navigation/evals/radialmaze
-    policy_agents_pct: 1.0
+  navigation/cylinder_easy:
+    env: env/mettagrid/navigation/evals/cylinder_easy
+  navigation/honeypot:
+    env: env/mettagrid/navigation/evals/honeypot
+  navigation/knotty:
+    env: env/mettagrid/navigation/evals/knotty
+  navigation/memory_palace:
+    env: env/mettagrid/navigation/evals/memory_palace
+  navigation/radial_large:
+    env: env/mettagrid/navigation/evals/radial_large
+  navigation/radial_mini:
+    env: env/mettagrid/navigation/evals/radial_mini
+  navigation/radial_small:
+    env: env/mettagrid/navigation/evals/radial_small
+  navigation/swirls:
+    env: env/mettagrid/navigation/evals/swirls
+  navigation/thecube:
+    env: env/mettagrid/navigation/evals/thecube
+  navigation/walkaround:
+    env: env/mettagrid/navigation/evals/walkaround
+  navigation/wanderout:
+    env: env/mettagrid/navigation/evals/wanderout
   object_use/generator/generator_use_free:
     env: env/mettagrid/object_use/generator/evals/generator_use_free
