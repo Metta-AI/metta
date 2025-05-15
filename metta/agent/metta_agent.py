@@ -48,7 +48,7 @@ class DistributedMettaAgent(DistributedDataParallel):
             return getattr(self.module, name)
 
     def compute_weight_metrics(self, delta: float = 0.01) -> List[dict]:
-        return self.module.activate_actions(delta)
+        return self.module.compute_weight_metrics(delta)
 
 
 class MettaAgent(nn.Module):
