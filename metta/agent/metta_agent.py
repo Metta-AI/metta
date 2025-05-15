@@ -168,6 +168,11 @@ class MettaAgent(nn.Module):
         Sets up the agent's neural network components based on the provided configuration,
         initializes action spaces, and establishes connections between components.
 
+        Note on tensor formats:
+        - Observation tensors ("x") are in batch-first format [batch_size, ...]
+        - LSTM states (lstm_h, lstm_c) are in layer-first format [num_layers, batch_size, hidden_size]
+        for direct compatibility with PyTorch's LSTM module
+
         Args:
             obs_space: Observation space definition specifying the format of environment observations
             action_space: Action space definition specifying possible agent actions
@@ -376,10 +381,9 @@ class MettaAgent(nn.Module):
             x: Input observation tensor of shape [B, T, *obs_shape] or [B*T, *obs_shape]
             where B=batch_size, T=sequence_length
             state: Policy state containing LSTM hidden states (lstm_h) and cell states (lstm_c)
-                of shape [num_layers, batch_size, hidden_size] for each
+                in layer-first format [num_layers, batch_size, hidden_size]
             action: Optional action tensor of shape [B, T, 2] or [B*T, 2] where each action
-                    is represented as [action_type, action_param]. If provided, used for
-                    computing log probabilities of these specific actions.
+                    is represented as [action_type, action_param].
 
         Returns:
             Tuple containing:
@@ -397,11 +401,11 @@ class MettaAgent(nn.Module):
         td = TensorDict({}, batch_size=x.shape[0])
         td["x"] = x
 
-        # Safely handle LSTM state
+        # Pass LSTM states directly - now in layer-first format
         if state.lstm_h is not None and state.lstm_c is not None:
             # Ensure states are on the same device as input
-            td["lstm_h"] = state.lstm_h.to(x.device)  # shape: [num_layers, batch_size, hidden_size]
-            td["lstm_c"] = state.lstm_c.to(x.device)  # shape: [num_layers, batch_size, hidden_size]
+            td["lstm_h"] = state.lstm_h.to(x.device)  # [num_layers, batch_size, hidden_size]
+            td["lstm_c"] = state.lstm_c.to(x.device)  # [num_layers, batch_size, hidden_size]
 
         # Forward pass through value network
         self.components["_value_"](td)
@@ -411,9 +415,9 @@ class MettaAgent(nn.Module):
         self.components["_action_"](td)
         logits = td["_action_"]  # Shape: [B*T, num_actions]
 
-        # Update LSTM states directly without concatenation/splitting
-        state.lstm_h = td["lstm_h"]  # Shape: [num_layers, batch_size, hidden_size]
-        state.lstm_c = td["lstm_c"]  # Shape: [num_layers, batch_size, hidden_size]
+        # Update LSTM states directly - already in layer-first format
+        state.lstm_h = td["lstm_h"]  # [num_layers, batch_size, hidden_size]
+        state.lstm_c = td["lstm_c"]  # [num_layers, batch_size, hidden_size]
 
         # Sample actions
         action_logit_index: Optional[torch.Tensor] = (
