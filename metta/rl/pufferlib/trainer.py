@@ -695,25 +695,46 @@ class PufferTrainer:
         return self.last_pr.uri
 
     def _make_experience_buffer(self):
-        obs_shape = self.vecenv.single_observation_space.shape
-        obs_dtype = self.vecenv.single_observation_space.dtype
-        atn_shape = self.vecenv.single_action_space.shape
-        atn_dtype = self.vecenv.single_action_space.dtype
-        total_agents = self.vecenv.num_agents
+        """
+        Creates an Experience buffer for storing training data with appropriate dimensions.
+        """
+        metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
+        assert isinstance(metta_grid_env, MettaGridEnv)
 
+        # Extract environment specifications
+        obs_shape = metta_grid_env.single_observation_space.shape
+        obs_dtype = metta_grid_env.single_observation_space.dtype
+        atn_shape = metta_grid_env.single_action_space.shape
+        atn_dtype = metta_grid_env.single_action_space.dtype
+
+        # Use num_agents for the total number of environments/states to track
+        lstm_total_agents = getattr(self.vecenv, "num_agents", 0)
+        assert lstm_total_agents > 0, "self.vecenv.num_agents not found!"
+        logging.info(f"Creating experience buffer with lstm_total_agents={lstm_total_agents} (from vecenv.num_agents)")
+
+        # Handle policy fields with assertions
+        assert hasattr(self.policy, "hidden_size"), "Policy must have hidden_size attribute"
+        hidden_size = int(getattr(self.policy, "hidden_size", -1))
+        assert hidden_size > 0, f"Policy hidden_size cannot be converted to int: {type(hidden_size)}"
+
+        assert hasattr(self.policy, "lstm"), "Policy must have lstm attribute"
+        lstm = getattr(self.policy, "lstm", {})
+        assert isinstance(lstm, nn.modules.rnn.LSTM), f"Policy lstm must be a valid LSTM instance, got: {type(lstm)}"
+
+        # Create the Experience buffer with appropriate parameters
         self.experience = Experience(
-            self.trainer_cfg.batch_size,
-            self.trainer_cfg.bptt_horizon,
-            self.trainer_cfg.minibatch_size,
-            self.policy.hidden_size,
-            obs_shape,
-            obs_dtype,
-            atn_shape,
-            atn_dtype,
-            self.trainer_cfg.cpu_offload,
-            self.device,
-            self.policy.lstm,
-            total_agents,
+            batch_size=self.trainer_cfg.batch_size,  # Total number of environment steps to collect before updating
+            bptt_horizon=self.trainer_cfg.bptt_horizon,  # Sequence length for BPTT (backpropagation through time)
+            minibatch_size=self.trainer_cfg.minibatch_size,  # Size of minibatches for training
+            hidden_size=hidden_size,  # Dimension of the policy's hidden state
+            obs_shape=obs_shape,  # Shape of a single observation
+            obs_dtype=obs_dtype,  # Data type of observations
+            atn_shape=atn_shape,  # Shape of a single action
+            atn_dtype=atn_dtype,  # Data type of actions
+            cpu_offload=self.trainer_cfg.cpu_offload,  # Whether to store data on CPU and transfer to GPU as needed
+            device=self.device,  # Device to store tensors on ("cuda" or "cpu")
+            lstm=lstm,  # LSTM module from the policy (needed for dimensions) # type: ignore - Pylance is wrong
+            lstm_total_agents=lstm_total_agents,  # Total number of LSTM states to maintain
         )
 
     def _make_losses(self):
