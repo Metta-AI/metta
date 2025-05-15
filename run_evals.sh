@@ -23,6 +23,16 @@ POLICIES=(
     "daphne.3object_use_colors"
     "daphne.2object_use_colors_pretrained"
     "b.daphne.USER.navigation_before_refactor"
+
+    "b.daphne.object_use_colored_converters"
+    "b.daphne.object_use_onlyred"
+    "b.daphne.object_use_colored_converters_ent0.05"
+    "b.daphne.object_use_onlyred_ent0.05"
+
+    "b.georgedeane.george_sequence_no_increment"
+    "b.georgedeane.george_sequence_incremental"
+    "george_sequence_incremental"
+    "george2_multienv_noincrement"
  )
 
 for i in "${!POLICIES[@]}"; do
