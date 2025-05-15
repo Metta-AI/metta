@@ -9,7 +9,7 @@ hidden_features:
 
 game:
   map_builder:
-    _target_: mettagrid.config.room.random.Random
+    _target_: mettagrid.room.random.Random
     width: 25
     height: 25
     border_width: 0
