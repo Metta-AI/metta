@@ -49,9 +49,6 @@ for arg in "$@"; do
   esac
 done
 
-source .venv/skypilot/bin/activate
-
-export SKYPILOT_DOCKER_PASSWORD=$(aws ecr get-login-password --region us-east-1)
 
 AWS_PROFILE=softmax-db-admin sky launch \
   --gpus L4:$gpus \
@@ -59,7 +56,6 @@ AWS_PROFILE=softmax-db-admin sky launch \
   --cpus $cpus\+ \
   --cluster $RUN_ID \
   ./devops/skypilot/config/train.yaml \
-  --env SKYPILOT_DOCKER_PASSWORD \
   --env METTA_RUN_ID=$RUN_ID \
   --env METTA_CMD=$CMD \
   --env METTA_CMD_ARGS="$CMD_ARGS" \
