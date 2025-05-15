@@ -1,18 +1,36 @@
 resources:
-  ordered: # Candidate resources in a preference order
-    - accelerators: [A10G, L4]
-    - instance_type: g6.12xlarge
-    - instance_type: g5.12xlarge
-    - cloud: lambda
+  image_id: docker:metta:latest
+  ordered:
+    - cloud: aws
+      accelerators: A10G:4
+      region: us-east-1
+      # use_spot: true
+    # - cloud: aws
+    #   accelerators: A10G:4
+    #   region: us-east-1
+          # - cloud: aws
+    #   accelerators: A10G:4
+    #   region: us-west-1
+    #   use_spot: true
+    # - cloud: aws
+    #   accelerators: A10G:4
+    #   region: us-west-2
+    # - cloud: aws
+    #   accelerators: A10G:4
+    # - cloud: aws
+    #   accelerators: L4:4
+    # - cloud: lambda
+    #   accelerators: A10G:4
 
-
+    # - instance_type: g6.12xlarge
+    # - instance_type: g5.12xlarge
+    # - cloud: lambda
 
   # cloud: aws
   # region: us-east-1
-  use_spot: true
   # accelerators: { L4: 1 }
   cpus: 8+
-  image_id: docker:metta:latest
+
 
 setup: |
   cd /workspace/metta

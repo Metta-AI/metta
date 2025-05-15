@@ -51,6 +51,7 @@ done
 
 
 sky jobs launch \
+  --gpus L4:$gpus \
   --num-nodes $nodes \
   --cpus $cpus\+ \
   --name $RUN_ID \
