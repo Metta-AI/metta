@@ -48,25 +48,3 @@ def test_step_performance(benchmark, environment, single_action):
         warmup_rounds=0,  # Number of warmup rounds to discard
     )
 
-
-def test_get_stats_performance_v2(benchmark, environment, single_action):
-    """Benchmark just the get_episode_stats method performance."""
-
-    np.random.seed(42)
-
-    def target_function():
-        for _ in range(10):
-            environment._c_env.get_episode_stats()
-
-    # First perform some steps to have meaningful stats
-    for _ in range(10):
-        obs, rewards, terminated, truncated, infos = environment.step(single_action)
-        if np.any(terminated) or np.any(truncated):
-            environment.reset()
-
-    benchmark.pedantic(
-        target_function,
-        iterations=100,  # Number of iterations per round
-        rounds=1,  # Number of rounds to run
-        warmup_rounds=0,  # Number of warmup rounds to discard
-    )
