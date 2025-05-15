@@ -42,20 +42,20 @@ EPISODE_DB_TABLES = {
         PRIMARY KEY (episode_id, group_id, agent_id)
     );
     """,
-    "group_metrics": """
-    CREATE TABLE IF NOT EXISTS group_metrics (
-        episode_id TEXT,
-        group_id INTEGER,
-        metric TEXT,
-        value REAL,
-        PRIMARY KEY (episode_id, group_id, metric)
-    );
-    """,
+    # "group_metrics": """
+    # CREATE TABLE IF NOT EXISTS group_metrics (
+    #     episode_id TEXT,
+    #     group_id INTEGER,
+    #     metric TEXT,
+    #     value REAL,
+    #     PRIMARY KEY (episode_id, group_id, metric)
+    # );
+    # """,
     "agent_metrics": """
     CREATE TABLE IF NOT EXISTS agent_metrics (
         episode_id TEXT,
         agent_id INTEGER,
-        metric TEXT,    
+        metric TEXT,
         value REAL,
         PRIMARY KEY (episode_id, agent_id, metric)
     );
@@ -97,7 +97,7 @@ class EpisodeStatsDB:
         attributes: Dict[str, str],
         groups: List[List[int]],
         agent_metrics: Dict[int, Dict[str, float]],
-        group_metrics: Dict[int, Dict[str, float]],
+        # group_metrics: Dict[int, Dict[str, float]],
         step_count: int,
         replay_url: str | None,
         created_at: datetime.datetime,
@@ -105,7 +105,7 @@ class EpisodeStatsDB:
         self.con.begin()
         self.con.execute(
             """
-            INSERT INTO episodes 
+            INSERT INTO episodes
             (id, step_count, replay_url, created_at)
             VALUES (?, ?, ?, ?)
             """,
@@ -123,23 +123,23 @@ class EpisodeStatsDB:
                 attribute_rows,
             )
 
-        group_rows = []
-        for group_id, agent_ids in enumerate(groups):
-            for agent_id in agent_ids:
-                group_rows.append((episode_id, group_id, agent_id))
+        # group_rows = []
+        # for group_id, agent_ids in enumerate(groups):
+        #     for agent_id in agent_ids:
+        #         group_rows.append((episode_id, group_id, agent_id))
 
-        if len(group_rows) > 0:
-            self.con.executemany(
-                """
-                INSERT INTO agent_groups
-                (episode_id, group_id, agent_id)
-                VALUES (?, ?, ?)
-                """,
-                group_rows,
-            )
+        # if len(group_rows) > 0:
+        #     self.con.executemany(
+        #         """
+        #         INSERT INTO agent_groups
+        #         (episode_id, group_id, agent_id)
+        #         VALUES (?, ?, ?)
+        #         """,
+        #         group_rows,
+        #     )
 
         self._add_metrics(episode_id, agent_metrics, "agent")
-        self._add_metrics(episode_id, group_metrics, "group")
+        # self._add_metrics(episode_id, group_metrics, "group")
 
         self.con.commit()
         self.con.execute("CHECKPOINT")

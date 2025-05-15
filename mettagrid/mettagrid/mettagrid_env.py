@@ -199,7 +199,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                 attributes,
                 groups,
                 agent_metrics,
-                group_metrics,
+                # group_metrics,
                 self._max_steps,
                 replay_url,
                 self._reset_at,

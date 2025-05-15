@@ -42,16 +42,14 @@ class StatsWriter:
         attributes: Dict[str, str],
         groups: List[List[int]],
         agent_metrics: Dict[int, Dict[str, float]],
-        group_metrics: Dict[int, Dict[str, float]],
+        # group_metrics: Dict[int, Dict[str, float]],
         step_count: int,
         replay_url: str | None,
         created_at: datetime.datetime,
     ) -> None:
         self._ensure_db()
         assert self.db is not None
-        self.db.record_episode(
-            episode_id, attributes, groups, agent_metrics, group_metrics, step_count, replay_url, created_at
-        )
+        self.db.record_episode(episode_id, attributes, groups, agent_metrics, step_count, replay_url, created_at)
 
     def close(self) -> None:
         if self.db is not None:
