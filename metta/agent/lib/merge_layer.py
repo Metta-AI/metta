@@ -262,7 +262,7 @@ class ExpandLayer(LayerBase):
 
         self._ready = True
 
-    def _forward(self, td: TensorDict):
+    def _forward(self, td: TensorDict) -> TensorDict:
         tensor = td[self._sources[0]["name"]]
 
         if self.dims_source is not None:
@@ -318,7 +318,7 @@ class ReshapeLayer(LayerBase):
 
         self._ready = True
 
-    def _forward(self, td: TensorDict):
+    def _forward(self, td: TensorDict) -> TensorDict:
         tensor = td[self._sources[0]["name"]]
         shape = list(tensor.shape)
         compressed_size = shape[self.squeezed_dim] * shape[self.popped_dim]
@@ -360,7 +360,7 @@ class BatchReshapeLayer(LayerBase):
         # the out_tensor_shape is NOT ACCURATE because we don't know the batch size ahead of time.
         self._ready = True
 
-    def _forward(self, td: TensorDict):
+    def _forward(self, td: TensorDict) -> TensorDict:
         tensor = td[self._sources[0]["name"]]
         B_TT = td["_BxTT_"]
         shape = list(tensor.shape)
@@ -398,7 +398,7 @@ class CenterPixelLayer(LayerBase):
 
         self._ready = True
 
-    def _forward(self, td: TensorDict):
+    def _forward(self, td: TensorDict) -> TensorDict:
         tensor = td[self._sources[0]["name"]]
         B, C, H, W = tensor.shape
         center_h = H // 2

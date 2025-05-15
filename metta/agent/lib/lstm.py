@@ -48,7 +48,8 @@ class LSTM(LayerBase):
         return net
 
     @torch.compile(disable=True)  # Dynamo doesn't support compiling LSTMs
-    def _forward(self, td: TensorDict):
+    @override
+    def _forward(self, td: TensorDict) -> TensorDict:
         x = td["x"]
         hidden = td[self._sources[0]["name"]]
         state = td["state"]

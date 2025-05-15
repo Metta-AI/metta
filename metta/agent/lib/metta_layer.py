@@ -118,7 +118,7 @@ class LayerBase(nn.Module):
     def _make_net(self) -> nn.Module:
         return nn.Identity()
 
-    def forward(self, td: TensorDict):
+    def forward(self, td: TensorDict) -> TensorDict:
         if self._name in td:
             return td
 
@@ -132,7 +132,7 @@ class LayerBase(nn.Module):
 
         return td
 
-    def _forward(self, td: TensorDict):
+    def _forward(self, td: TensorDict) -> TensorDict:
         """Components that have more than one input sources must have their own _forward() method."""
         # get the input tensor from the source component by calling its forward method (which recursively calls
         # _forward() on its source components)

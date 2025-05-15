@@ -60,7 +60,7 @@ class ActionEmbedding(nn_layer_library.Embedding):
         )
         self.num_actions = len(self.active_indices)
 
-    def _forward(self, td: TensorDict):
+    def _forward(self, td: TensorDict) -> TensorDict:
         B_TT = td["_BxTT_"]
         td["_num_actions_"] = self.num_actions
 

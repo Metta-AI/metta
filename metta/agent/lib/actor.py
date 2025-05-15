@@ -155,7 +155,8 @@ class MettaActorBig(LayerBase):
         if self.bias is not None:
             nn.init.uniform_(self.bias, -bound, bound)
 
-    def _forward(self, td: TensorDict):
+    @override
+    def _forward(self, td: TensorDict) -> TensorDict:
         """
         Forward pass for the MettaActorBig layer.
 
@@ -264,7 +265,7 @@ class MettaActorSingleHead(LayerBase):
         if self.bias is not None:
             nn.init.uniform_(self.bias, -bound, bound)
 
-    def _forward(self, td: TensorDict):
+    def _forward(self, td: TensorDict) -> TensorDict:
         """
         Forward pass for the MettaActorSingleHead layer.
 

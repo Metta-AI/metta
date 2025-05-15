@@ -100,7 +100,7 @@ class Bilinear(LayerBase):
         self._nn_params = dict(self._nn_params)  # need to convert from omegaconf DictConfig
         return nn.Bilinear(**self._nn_params)
 
-    def _forward(self, td: TensorDict):
+    def _forward(self, td: TensorDict) -> TensorDict:
         # input_1 = td[self._input_source[0]]
         # input_2 = td[self._input_source[1]]
         input_1 = td[self._sources[0]["name"]]

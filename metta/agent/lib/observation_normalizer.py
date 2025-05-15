@@ -79,6 +79,6 @@ class ObservationNormalizer(LayerBase):
 
         self._out_tensor_shape = self._in_tensor_shapes[0].copy()
 
-    def _forward(self, td: TensorDict):
+    def _forward(self, td: TensorDict) -> TensorDict:
         td[self._name] = td[self._sources[0]["name"]] / self.obs_norm
         return td
