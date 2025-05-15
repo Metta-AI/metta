@@ -7,7 +7,6 @@ import psutil
 
 from mettagrid.config.utils import get_cfg
 from mettagrid.mettagrid_env import MettaGridEnv
-from mettagrid.resolvers import register_resolvers
 
 # Define a constant seed for deterministic behavior
 TEST_SEED = 42
@@ -18,7 +17,6 @@ def test_mettagrid_env_reset():
     np.random.seed(TEST_SEED)
     random.seed(TEST_SEED)
 
-    register_resolvers()
     cfg = get_cfg("benchmark")
 
     env = MettaGridEnv(env_cfg=cfg, render_mode=None)
@@ -49,7 +47,6 @@ def test_mettagrid_env_no_memory_leaks():
     np.random.seed(TEST_SEED)
     random.seed(TEST_SEED)
 
-    register_resolvers()
     cfg = get_cfg("benchmark")
 
     print("Pre-warming phase:")
