@@ -143,8 +143,8 @@ class MettaAgent(nn.Module):
         assert isinstance(action_max_params, list), "action_max_params must be a list"
 
         self.device = device
-        self.action_names = action_names
         self.action_max_params = action_max_params
+        self.action_names = action_names
 
         self.active_actions = list(zip(action_names, action_max_params, strict=False))
 
@@ -163,7 +163,7 @@ class MettaAgent(nn.Module):
             for j in range(max_param + 1):
                 action_index.append([action_type_idx, j])
 
-        self.action_index_tensor = torch.tensor(action_index, device=device)
+        self.action_index_tensor = torch.tensor(action_index, device=self.device)
         logger.info(f"Agent actions activated with: {self.active_actions}")
 
     @property
@@ -229,12 +229,15 @@ class MettaAgent(nn.Module):
         """
         action = action.reshape(-1, 2)
 
-        action_type = action[:, 0].long()
-        action_param = action[:, 1].long()
+        # Extract action components
+        action_type_numbers = action[:, 0].long()
+        action_params = action[:, 1].long()
 
-        # Only use offset + parameter — NOT + action_type
-        offset = self.cum_action_max_params[action_type]
-        action_logit_index = offset + action_param
+        # Use precomputed cumulative sum with vectorized indexing
+        cumulative_sum = self.cum_action_max_params[action_type_numbers]
+
+        # Vectorized addition
+        action_logit_index = action_type_numbers + cumulative_sum + action_params
 
         return action_logit_index.view(-1)  # shape: [B] or [B*T]
 

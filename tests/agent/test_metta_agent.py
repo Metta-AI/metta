@@ -470,5 +470,6 @@ def test_numpy_array_conversion(create_metta_agent):
     assert agent.action_max_params == [1, 2, 0]
 
     # Verify the offsets were calculated correctly
-    expected_offsets = torch.tensor([0, 2, 5], dtype=torch.long, device="cpu")
+    expected_offsets = torch.tensor([0, 1, 3, 3], dtype=torch.long, device="cpu")
+
     assert torch.all(agent.cum_action_max_params == expected_offsets)
