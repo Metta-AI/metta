@@ -74,7 +74,7 @@ class MettaGridConfig:
         returns the inputs needed to initialize MettaGrid:
         dict-form config and map. If env_map wasn't provided at initialization, it will be generated.
 
-        This allows using the config directly as: config_dict, map_array = metta_grid_config()
+        This allows using the config directly as: config_dict, map_array = metta_grid_config.to_c_args()
         """
         env_map = self.generate_map() if self._env_map is None else self._env_map
 
