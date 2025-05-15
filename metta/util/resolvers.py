@@ -271,15 +271,18 @@ class ResolverRegistrar(Callback):
 
     def __init__(self):
         self.logger = setup_mettagrid_logger("ResolverRegistrar")
+        self.resolver_count = 0
         """Prepare for registration but don't register yet."""
 
     def on_run_start(self, config: DictConfig, **kwargs: Any) -> None:
         """Register resolvers at the start of a run."""
         self.register_resolvers()
+        self.logger.info(f"Registered {self.resolver_count} custom resolvers at the start of a run")
 
     def on_multirun_start(self, config: DictConfig, **kwargs: Any) -> None:
         """Register resolvers at the start of a multirun."""
         self.register_resolvers()
+        self.logger.info(f"Registered {self.resolver_count} custom resolvers at the start of a multirun")
 
     def on_job_start(self, config: DictConfig, **kwargs: Any) -> None:
         """Ensure resolvers are registered for each job."""
@@ -293,57 +296,54 @@ class ResolverRegistrar(Callback):
         configs/common.yaml, ensuring all resolvers are available before
         config interpolation happens.
         """
-        resolver_count = 0
 
         # Register all your resolvers
         OmegaConf.register_new_resolver("if", oc_if, replace=True)
-        resolver_count += 1
+        self.resolver_count += 1
         OmegaConf.register_new_resolver("uniform", oc_uniform, replace=True)
-        resolver_count += 1
+        self.resolver_count += 1
         OmegaConf.register_new_resolver("choose", oc_choose, replace=True)
-        resolver_count += 1
+        self.resolver_count += 1
         OmegaConf.register_new_resolver("div", oc_divide, replace=True)
-        resolver_count += 1
+        self.resolver_count += 1
         OmegaConf.register_new_resolver("subtract", oc_subtract, replace=True)
-        resolver_count += 1
+        self.resolver_count += 1
         OmegaConf.register_new_resolver("sub", oc_subtract, replace=True)
-        resolver_count += 1
+        self.resolver_count += 1
         OmegaConf.register_new_resolver("multiply", oc_multiply, replace=True)
-        resolver_count += 1
+        self.resolver_count += 1
         OmegaConf.register_new_resolver("mul", oc_multiply, replace=True)
-        resolver_count += 1
+        self.resolver_count += 1
         OmegaConf.register_new_resolver("add", oc_add, replace=True)
-        resolver_count += 1
+        self.resolver_count += 1
         OmegaConf.register_new_resolver("make_odd", oc_to_odd_min3, replace=True)
-        resolver_count += 1
+        self.resolver_count += 1
         OmegaConf.register_new_resolver("clamp", oc_clamp, replace=True)
-        resolver_count += 1
+        self.resolver_count += 1
         OmegaConf.register_new_resolver("make_integer", oc_make_integer, replace=True)
-        resolver_count += 1
+        self.resolver_count += 1
         OmegaConf.register_new_resolver("int", oc_make_integer, replace=True)
-        resolver_count += 1
+        self.resolver_count += 1
         OmegaConf.register_new_resolver("equals", oc_equals, replace=True)
-        resolver_count += 1
+        self.resolver_count += 1
         OmegaConf.register_new_resolver("eq", oc_equals, replace=True)
-        resolver_count += 1
+        self.resolver_count += 1
         OmegaConf.register_new_resolver("sampling", oc_scaled_range, replace=True)
-        resolver_count += 1
+        self.resolver_count += 1
         OmegaConf.register_new_resolver("gt", oc_greater_than, replace=True)
-        resolver_count += 1
+        self.resolver_count += 1
         OmegaConf.register_new_resolver("lt", oc_less_than, replace=True)
-        resolver_count += 1
+        self.resolver_count += 1
         OmegaConf.register_new_resolver("gte", oc_greater_than_or_equal, replace=True)
-        resolver_count += 1
+        self.resolver_count += 1
         OmegaConf.register_new_resolver("lte", oc_less_than_or_equal, replace=True)
-        resolver_count += 1
+        self.resolver_count += 1
         OmegaConf.register_new_resolver("scale", oc_scale, replace=True)
-        resolver_count += 1
+        self.resolver_count += 1
         OmegaConf.register_new_resolver("iir", oc_iir, replace=True)
-        resolver_count += 1
+        self.resolver_count += 1
         OmegaConf.register_new_resolver("now", oc_date_format, replace=True)
-        resolver_count += 1
-
-        self.logger.info(f"Registered {resolver_count} custom resolvers")
+        self.resolver_count += 1
         return self
 
 
